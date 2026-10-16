@@ -11,7 +11,7 @@ import {
   spawnNamedSession,
   waitFor,
 } from '@atc/test-utils';
-import { startTestDaemon } from '../test-utils/start-test-daemon';
+import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 /**
  * A daemon whose sessions take messages, with a sender session and a

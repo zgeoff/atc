@@ -762,3 +762,7 @@ packages/protocol/src/wire/transport/index.ts	protocol	wire	packages/protocol/sr
 packages/app/src/daemon/spawn-catalog.ts	daemon	sources	packages/daemon/src/sources/spawn-catalog.ts	
 packages/app/src/daemon/spawn-replay.ts	daemon	sessions	packages/daemon/src/sessions/spawn-replay.ts	
 packages/app/src/daemon/spawn-service.ts	daemon	sessions	packages/daemon/src/sessions/spawn-service.ts	
+packages/app/src/daemon/message-service.ts	daemon	sessions	packages/daemon/src/sessions/message-service.ts	
+packages/app/src/daemon/build-message-owner.ts	daemon	sessions	packages/daemon/src/sessions/build-message-owner.ts	
+packages/app/src/daemon/emit-inbox-closed.ts	daemon	sessions	packages/daemon/src/sessions/emit-inbox-closed.ts	
+packages/app/src/daemon/message-refused-error.ts	daemon	sessions	packages/daemon/src/sessions/message-refused-error.ts	

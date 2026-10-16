@@ -21,8 +21,8 @@ import {
   waitFor,
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
-import { startTestDaemon } from '../test-utils/start-test-daemon';
-import type { RestoreSettled } from './restore-fleet';
+import type { RestoreSettled } from '../packages/app/src/daemon/restore-fleet';
+import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 test('it accepts a message for a session that has not reported SessionStart', async () => {
   // The Claude adapter's own hook reading marks a session started.

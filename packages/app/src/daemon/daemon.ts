@@ -9,7 +9,7 @@ import {
   parseRestoreBootTimeoutMs,
 } from '@atc/config';
 import { formatListenRefusal, isAllowedListenHost } from '@atc/config/host';
-import type { AgentID, Clock, MessageID, SessionID } from '@atc/core';
+import type { AgentID, Clock, SessionID } from '@atc/core';
 import { ansi, systemClock, toMessageID, truncateToBytes } from '@atc/core';
 import { LocalPTYProvider } from '@atc/execution-local';
 import { claimDaemonLock, findDaemonRecord, writeDaemonRecord } from '@atc/lifecycle';
@@ -22,20 +22,12 @@ import type {
   SourceProvider,
 } from '@atc/plugin-api';
 import { planTypedLineInput } from '@atc/plugin-api';
-import type { AdapterEvent, DaemonAnswer, SessionDescriptor, SessionState } from '@atc/protocol';
-import { MESSAGE_ANSWER_SCHEMA } from '@atc/protocol';
+import type { AdapterEvent, SessionDescriptor, SessionState } from '@atc/protocol';
 import type { HookEvent } from '@atc/protocol/session';
 import { DaemonError, MAX_CHUNK, PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import { StateStore, buildTargetIdentity } from '@atc/store';
-import type {
-  EventScope,
-  IdempotencyRecord,
-  MessageOwner,
-  MessageRecord,
-  MessageStatus,
-  TrailEntry,
-} from '@atc/store';
+import type { EventScope } from '@atc/store';
 import { ANSWER_BYTE_CAP } from './answer-byte-cap';
 import { applyMenuChoice } from './apply-menu-choice';
 import type { MenuChoiceResult } from './apply-menu-choice';
@@ -45,21 +37,17 @@ import { buildBridgeTapClient } from './build-bridge-tap-client';
 import type { ExecutionTarget } from './build-execution-targets';
 import { buildFleetEvents } from './build-fleet-events';
 import { buildMenuView } from './build-menu-view';
-import { buildMessageSender } from './build-message-sender';
-import { buildMessageTrailEntry } from './build-message-trail-entry';
+import { buildMessageOwner } from './build-message-owner';
 import { buildNoteTrailEntry } from './build-note-trail-entry';
 import { buildNoteView } from './build-note-view';
-import { buildNoticeTrailEntry } from './build-notice-trail-entry';
 import { buildSessionEvent } from './build-session-event';
-import { buildSessionMessageEvent } from './build-session-message-event';
 import { buildSessionNoteEvent } from './build-session-note-event';
 import { buildTargetAccess } from './build-target-access';
 import { createNonBlockingLog } from './create-non-blocking-log';
 import type { NonBlockingLog } from './create-non-blocking-log';
 import { DaemonConnection } from './daemon-connection';
-import type { DaemonContext, MessageRefusal, OutputClient, TapClient } from './daemon-context';
-import { drainInbox } from './drain-inbox';
-import type { InboxSource } from './drain-inbox';
+import type { DaemonContext, OutputClient, TapClient } from './daemon-context';
+import { emitInboxClosed } from './emit-inbox-closed';
 import { EventSignal } from './event-signal';
 import { findPeerSession } from './find-peer-session';
 import { formatLogField } from './format-log-field';
@@ -72,8 +60,7 @@ import { makeHookRunner } from './make-hook-runner';
 import type { HookScope } from './make-hook-runner';
 import { MENU_TIMING } from './menu-terminal';
 import type { MenuTerminal, MenuTiming } from './menu-terminal';
-import type { MessageCaller } from './message-caller';
-import { mintMessageID } from './mint-message-id';
+import { MessageService } from './message-service';
 import { parseNote } from './parse-note';
 import { PermissionRegistry } from './permission-registry';
 import { PublishedRecords } from './published-records';
@@ -548,35 +535,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   const eventSignal = new EventSignal(clock);
 
-  // A trail write that fails never fails the message request or note behind it.
-  // Returns false when the entry was not written: a failed write, or a
-  // note the trail already holds.
-  const recordTrailEntry = async (entry: TrailEntry): Promise<boolean> => {
-    let written: boolean;
-
-    try {
-      written = await store.recordTrailEntry(entry);
-    } catch {
-      return false;
-    }
-
-    if (written) {
-      eventSignal.emit();
-    }
-
-    return written;
-  };
-
-  // Notes a message status change in the trail before broadcasting it, so a
-  // client reading the trail on the broadcast finds the change already there.
-  const recordMessageStatus = async (sessionID: SessionID, record: MessageRecord) => {
-    const s = mgr.sessions.find((x) => x.id === sessionID);
-
-    await recordTrailEntry(buildMessageTrailEntry(sessionID, s?.agentSessionID, record));
-
-    emitEvent(buildSessionMessageEvent(sessionID, record), findHookScope(sessionID));
-  };
-
   // A live session's scope also matches the rows it wrote under an earlier
   // atc id, through the agent session id a restore carries on. Under an
   // access, the scope holds only the atc ids of the sessions whose whole
@@ -619,28 +577,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     );
 
     return mgr.collectDescriptors().filter((d) => reached.has(d.id));
-  };
-
-  // A message belongs to the live session holding its atc id, else to the
-  // one holding its agent session id, else to the atc id it was sent to.
-  const readMessageView = async (messageID: MessageID) => {
-    const record = await store.findMessageByID(messageID);
-
-    if (record === null) {
-      return null;
-    }
-
-    const owner =
-      mgr.sessions.find((x) => x.id === record.atcID) ??
-      mgr.sessions.find(
-        (x) => record.agentSessionID !== undefined && x.agentSessionID === record.agentSessionID,
-      );
-
-    return {
-      session: owner?.id ?? record.atcID,
-      record,
-      answeredWith: await store.collectTurnSiblings(record),
-    };
   };
 
   // One runtime per live session: its screen model, output sequence
@@ -700,57 +636,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   const attachments = new AttachRegistry<OutputClient>();
   const taps = new TapRegistry<TapClient>();
 
-  // Writes queued messages one at a time so the store's insertion order is
-  // the order of their sent times, which the inbox drains by.
-  let lastMessageWrite: Promise<void> = Promise.resolve();
-
-  const inboxSource: InboxSource = {
-    taps,
-    findLinkedOwner: (sessionID) => {
-      const s = mgr.sessions.find((x) => x.id === sessionID);
-
-      return s === undefined ? null : buildMessageOwner(s);
-    },
-    collectPendingMessages: (owner) => store.collectPendingMessages(owner),
-    collectPendingNotices: (senderSession) => store.collectPendingNotices(senderSession),
-  };
-
-  const drainSessionInbox = (sessionID: SessionID) => drainInbox(sessionID, inboxSource);
-
-  // Notes an answer notice change in the sender session's trail.
-  const recordNoticeStatus = async (
-    record: MessageRecord,
-    kind: 'notice-queued' | 'notice-delivered',
-  ) => {
-    if (record.senderSession === undefined) {
-      return;
-    }
-
-    const sender = mgr.sessions.find((x) => x.id === record.senderSession);
-
-    await recordTrailEntry(
-      buildNoticeTrailEntry(record.senderSession, sender?.agentSessionID, record, kind),
-    );
-  };
-
-  // Notes the answer notice that the statement settling a message queued,
-  // and hands it to the sender session's tap when one takes notices. The
-  // store queues each message's notice once, in the settling statement, so
-  // a stop after that statement keeps the notice queued and a repeated
-  // report queues nothing more. A sender with no tap keeps the notice
-  // queued until its next tap attaches.
-  const recordAnswerNotice = async (record: MessageRecord) => {
-    if (record.senderSession === undefined || record.noticeQueuedAt === undefined) {
-      return;
-    }
-
-    try {
-      await recordNoticeStatus(record, 'notice-queued');
-
-      void drainSessionInbox(record.senderSession);
-    } catch {}
-  };
-
   // A note id, which a remote session's reporter gives each note,
   // makes a resent note land once; a resent answer changes nothing, since
   // only an unanswered message takes one.
@@ -771,7 +656,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         const sentAt = clock.now();
         const entry = buildNoteTrailEntry(sender.id, sender.agentSessionID, capped, sentAt, noteID);
 
-        const written = await recordTrailEntry(entry);
+        const written = await messages.recordTrailEntry(entry);
 
         if (written) {
           emitEvent(buildSessionNoteEvent(sender.id, capped, sentAt), findHookScope(sender.id));
@@ -799,8 +684,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         }
 
         for (const record of unanswered) {
-          await recordMessageStatus(e.atcId, record);
-          await recordAnswerNotice(record);
+          await messages.recordMessageStatus(e.atcId, record);
+          await messages.recordAnswerNotice(record);
         }
       } catch {}
 
@@ -823,8 +708,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       }
 
       for (const record of answered) {
-        await recordMessageStatus(e.atcId, record);
-        await recordAnswerNotice(record);
+        await messages.recordMessageStatus(e.atcId, record);
+        await messages.recordAnswerNotice(record);
       }
     } catch {}
   };
@@ -1061,44 +946,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
   };
 
-  // A session whose process ended leaves no turn to report on the messages
-  // it was given, so each one it holds delivered becomes unanswered.
-  const updateEndedMessages = async (sessionID: SessionID, owner: MessageOwner) => {
-    try {
-      const unanswered = await store.updateDeliveredMessagesUnanswered(
-        owner,
-        'session_ended',
-        clock.now(),
-      );
-
-      for (const record of unanswered) {
-        await recordMessageStatus(sessionID, record);
-        await recordAnswerNotice(record);
-      }
-    } catch {}
-  };
-
-  // While another live session resumes the same agent session, the store
-  // cannot tell which process holds a message, so none is marked.
-  const updateEndedSessionMessages = async (s: Session) => {
-    const shared =
-      s.agentSessionID !== undefined &&
-      mgr.sessions.some(
-        (x) =>
-          x.id !== s.id &&
-          x.agentSessionID === s.agentSessionID &&
-          (x.pty !== null || (x.kind === 'headless' && x.state !== 'exited')),
-      );
-
-    if (!shared) {
-      await updateEndedMessages(s.id, buildMessageOwner(s));
-    }
-  };
-
   const onProcessEnded: SessionManager['onProcessEnded'] = (s) => {
     endedProcesses.add(s.id);
     void stopMessageBridge(s.id);
-    void updateEndedSessionMessages(s);
+    void messages.updateEndedSessionMessages(s);
   };
 
   const onEvent: SessionManager['onEvent'] = (kind, s) => {
@@ -1107,7 +958,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     if (kind === 'removed') {
       endedProcesses.delete(s.id);
       void stopMessageBridge(s.id);
-      void updateEndedSessionMessages(s);
+      void messages.updateEndedSessionMessages(s);
     }
 
     if (kind === 'added') {
@@ -1328,10 +1179,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         const delivered = await store.updateMessageDelivered(toMessageID(id), owner, clock.now());
 
         if (delivered !== null) {
-          await recordMessageStatus(sessionID, delivered);
+          await messages.recordMessageStatus(sessionID, delivered);
         }
 
-        void drainSessionInbox(sessionID);
+        void messages.drainSessionInbox(sessionID);
       },
       ackNotice: async (id) => {
         const delivered = await store.updateNoticeDelivered(
@@ -1341,10 +1192,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         );
 
         if (delivered !== null) {
-          await recordNoticeStatus(delivered, 'notice-delivered');
+          await messages.recordNoticeStatus(delivered, 'notice-delivered');
         }
 
-        void drainSessionInbox(sessionID);
+        void messages.drainSessionInbox(sessionID);
       },
       applyNote: async (payload) => {
         if (parseNote(payload) === null) {
@@ -1355,7 +1206,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
         // A message the bridge settled without an ack, as one the App
         // Server refused, frees the tap for the next one.
-        void drainSessionInbox(sessionID);
+        void messages.drainSessionInbox(sessionID);
 
         return true;
       },
@@ -1467,6 +1318,20 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     clock,
   );
 
+  const messages = new MessageService({
+    mgr,
+    store,
+    clock,
+    ledger,
+    taps,
+    findRuntime,
+    eventSignal,
+    emitEvent,
+    findHookScope,
+    isProcessEnded: (sessionID) => endedProcesses.has(sessionID),
+    tapGraceMs: opts.tapGraceMs ?? TAP_GRACE_MS,
+  });
+
   const spawns = new SpawnService({
     mgr,
     store,
@@ -1521,141 +1386,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       expiresAt: entry?.expiresAt ?? now,
       used: true,
     });
-  };
-
-  // Why the session refuses a message right now, or null when it takes one.
-  const findMessageRefusal = (sessionID: SessionID): MessageRefusal | null => {
-    const s = mgr.sessions.find((x) => x.id === sessionID);
-
-    if (s === undefined) {
-      return 'missing';
-    }
-
-    if (!(s.pty !== null || (s.kind === 'headless' && s.state !== 'exited'))) {
-      return 'dead';
-    }
-
-    if (mgr.findAdapter(s.agent)?.takesMessages !== true) {
-      return 'unsupported';
-    }
-
-    const runtime = runtimes.get(sessionID);
-
-    if (
-      runtime !== undefined &&
-      runtime.startedAt !== null &&
-      !runtime.tapAttached &&
-      clock.now() - runtime.startedAt >= (opts.tapGraceMs ?? TAP_GRACE_MS)
-    ) {
-      return 'no_tap';
-    }
-
-    return null;
-  };
-
-  // The session that takes a message's answer notice: the session the caller
-  // runs inside, when it takes messages and, under an access, its whole tree
-  // is in reach. Any other caller gets no notice and reads the answer with
-  // message.get.
-  const findNoticeSender = (
-    callerSession: SessionID | null,
-    access: TargetAccess | null,
-  ): SessionID | null => {
-    if (callerSession === null) {
-      return null;
-    }
-
-    const s = mgr.sessions.find((x) => x.id === callerSession);
-
-    if (s === undefined || mgr.findAdapter(s.agent)?.takesMessages !== true) {
-      return null;
-    }
-
-    if (access !== null && !isTreeInReach(mgr.sessions, s.id, access)) {
-      return null;
-    }
-
-    return s.id;
-  };
-
-  // Writes the message under the id given, notes it in the trail, and hands
-  // it to the session's tap when one is attached. Only the write itself can
-  // reject: every later step swallows its own failure, so a rejection means
-  // no message was written.
-  // The caller's check runs again once the writes ahead of this one land,
-  // before anything is written; a failed check writes nothing.
-  const writeQueuedMessage = async (
-    sessionID: SessionID,
-    caller: MessageCaller,
-    text: string,
-    id: MessageID,
-    requireWriteInReach: () => void,
-    senderSession: SessionID | null,
-  ): Promise<MessageRecord> => {
-    const s = mgr.sessions.find((x) => x.id === sessionID);
-    const previousWrite = lastMessageWrite;
-    const written = Promise.withResolvers<void>();
-
-    lastMessageWrite = written.promise;
-
-    await previousWrite;
-
-    // A session sender's name is the one it holds as its message is written.
-    const sender = buildMessageSender(caller, mgr.sessions);
-
-    const record: MessageRecord = {
-      id,
-      atcID: sessionID,
-      ...(s?.agentSessionID === undefined ? {} : { agentSessionID: s.agentSessionID }),
-      from: sender.name,
-      sender,
-      text,
-      status: 'queued',
-      sentAt: clock.now(),
-      ...(senderSession === null ? {} : { senderSession }),
-    };
-
-    try {
-      // The write boundary: the reach check and the start of the row write
-      // run in one synchronous step, so no wait lets the session's tree
-      // leave the access between the check and the write it allows.
-      requireWriteInReach();
-
-      await store.writeMessage(record);
-
-      await recordMessageStatus(sessionID, record);
-    } finally {
-      written.resolve();
-    }
-
-    await drainSessionInbox(sessionID);
-
-    return record;
-  };
-
-  // A retried send answers with the message's current status, so a caller
-  // that lost the first answer learns where its message stands now.
-  const loadMessageReplay = async (
-    record: IdempotencyRecord,
-  ): Promise<DaemonAnswer<'session.message'>> => {
-    const current = await store.findMessageByID(toMessageID(record.effectRef));
-
-    if (current !== null) {
-      return { message: current.id, status: current.status };
-    }
-
-    const result: unknown = record.result === null ? null : JSON.parse(record.result);
-    const stored = MESSAGE_ANSWER_SCHEMA.safeParse(result);
-
-    if (stored.success) {
-      return stored.data;
-    }
-
-    throw new DaemonError(
-      'internal',
-      `the message under idempotency key '${record.key}' has no stored row`,
-      { effectRef: record.effectRef },
-    );
   };
 
   // Stops the headless runs a kill or forget ended, once the manager has
@@ -2345,213 +2075,17 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         view: buildAnswerView(stored, naming, aliases),
       };
     },
-    writeSessionMessage: async (sessionID, caller, text, keyed, access, callerSession) => {
-      // Under an access, a session whose tree leaves the access before the
-      // message is written refuses it as an unknown session does.
-      const requireInReach = () => {
-        if (access !== null && !isTreeInReach(mgr.sessions, sessionID, access)) {
-          throw new MessageRefusedError('missing');
-        }
-      };
-
-      const senderSession = findNoticeSender(callerSession, access);
-
-      if (keyed === null) {
-        const refusal = findMessageRefusal(sessionID);
-
-        if (refusal !== null) {
-          return refusal;
-        }
-
-        try {
-          const record = await writeQueuedMessage(
-            sessionID,
-            caller,
-            text,
-            mintMessageID(),
-            requireInReach,
-            senderSession,
-          );
-
-          return { message: record.id, status: record.status };
-        } catch (error) {
-          if (error instanceof MessageRefusedError) {
-            return error.refusal;
-          }
-
-          throw error;
-        }
-      }
-
-      const effectRef = mintMessageID();
-
-      try {
-        return await ledger.run({
-          operation: 'session.message',
-          keyed,
-          effectRef,
-
-          // A refusal throws, so the claim drops and a retry runs fresh.
-          start: async () => {
-            requireInReach();
-
-            const refusal = findMessageRefusal(sessionID);
-
-            if (refusal !== null) {
-              throw new MessageRefusedError(refusal);
-            }
-
-            const record = await writeQueuedMessage(
-              sessionID,
-              caller,
-              text,
-              effectRef,
-              requireInReach,
-              senderSession,
-            );
-
-            return { message: record.id, status: record.status };
-          },
-
-          // The message row is the effect, and the start already wrote it.
-          settle: () => Promise.resolve(),
-          replay: (record) => loadMessageReplay(record),
-        });
-      } catch (error) {
-        if (error instanceof MessageRefusedError) {
-          return error.refusal;
-        }
-
-        throw error;
-      }
-    },
-    attachTap: (client, sessionID, access, notices) => {
-      const s = mgr.sessions.find((x) => x.id === sessionID);
-
-      if (s === undefined) {
-        return 'missing';
-      }
-
-      if (mgr.findAdapter(s.agent)?.takesMessages !== true) {
-        return 'unsupported';
-      }
-
-      emitInboxClosed(
-        taps.attach(sessionID, client, access === null, notices),
-        sessionID,
-        'replaced',
-      );
-
-      const runtime = runtimes.get(sessionID);
-
-      if (runtime !== undefined) {
-        runtime.tapAttached = true;
-      }
-
-      void drainSessionInbox(sessionID);
-
-      return 'ok';
-    },
+    writeSessionMessage: (sessionID, caller, text, keyed, access, callerSession) =>
+      messages.writeSessionMessage(sessionID, caller, text, keyed, access, callerSession),
+    attachTap: (client, sessionID, access, notices) =>
+      messages.attachTap(client, sessionID, access, notices),
     detachTap: (client, sessionID) => {
-      if (taps.isTap(sessionID, client)) {
-        taps.removeSession(sessionID);
-      }
+      messages.detachTap(client, sessionID);
     },
-    readMessage: async (messageID, waitMs) => {
-      const deadline = clock.now() + waitMs;
-      let initialStatus: MessageStatus | null = null;
-
-      // Every message status change writes a trail entry and wakes the
-      // signal, so a wake re-reads the message and returns once its status
-      // moved from the status at call time. An answered or unanswered message has
-      // no further status to wait for.
-      for (;;) {
-        const generation = eventSignal.generation;
-
-        const view = await readMessageView(messageID);
-
-        if (view === null) {
-          return null;
-        }
-
-        initialStatus ??= view.record.status;
-
-        const remaining = deadline - clock.now();
-
-        if (
-          view.record.status !== initialStatus ||
-          view.record.status === 'answered' ||
-          view.record.status === 'unanswered' ||
-          remaining <= 0 ||
-          eventSignal.disposed
-        ) {
-          return view;
-        }
-
-        await eventSignal.waitForNext(generation, remaining);
-      }
-    },
-    ackMessage: async (client, sessionID, messageID, access) => {
-      const s = mgr.sessions.find((x) => x.id === sessionID);
-
-      if (s === undefined || !taps.isTap(sessionID, client)) {
-        return 'not_tapping';
-      }
-
-      // Under an access, only a message sent to this atc id is the
-      // session's to ack, as with the inbox drain.
-      const owner = access === null ? buildMessageOwner(s) : { atcID: s.id };
-
-      const delivered = await store.updateMessageDelivered(messageID, owner, clock.now());
-
-      void drainSessionInbox(sessionID);
-
-      if (delivered !== null) {
-        await recordMessageStatus(sessionID, delivered);
-
-        // A tap can outlive its process for a moment, so an ack can land
-        // after the process ended and after its end marked the messages it
-        // held. A process is surely gone when its exit was seen, or when a
-        // local session has no terminal; a remote host that lost the
-        // connection or went to sleep may still run it.
-        const live = s.pty !== null || (s.kind === 'headless' && s.state !== 'exited');
-
-        if (!live && (endedProcesses.has(s.id) || mgr.isLocalTarget(s.target))) {
-          await updateEndedSessionMessages(s);
-
-          const settled = await store.findMessage(messageID, owner);
-
-          return settled ?? delivered;
-        }
-
-        return delivered;
-      }
-
-      const current = await store.findMessage(messageID, owner);
-
-      return current ?? 'unknown';
-    },
-    ackNotice: async (client, sessionID, messageID) => {
-      if (!mgr.sessions.some((x) => x.id === sessionID) || !taps.isTap(sessionID, client)) {
-        return 'not_tapping';
-      }
-
-      const delivered = await store.updateNoticeDelivered(messageID, sessionID, clock.now());
-
-      void drainSessionInbox(sessionID);
-
-      if (delivered !== null) {
-        await recordNoticeStatus(delivered, 'notice-delivered');
-
-        return delivered;
-      }
-
-      const current = await store.findMessageByID(messageID);
-
-      return current?.senderSession === sessionID && current.noticeQueuedAt !== undefined
-        ? current
-        : 'unknown';
-    },
+    readMessage: (messageID, waitMs) => messages.readMessage(messageID, waitMs),
+    ackMessage: (client, sessionID, messageID, access) =>
+      messages.ackMessage(client, sessionID, messageID, access),
+    ackNotice: (client, sessionID, messageID) => messages.ackNotice(client, sessionID, messageID),
   };
 
   // Releases everything the daemon holds except its listeners, on a stop
@@ -2769,7 +2303,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       );
 
       if (mgr.isLocalTarget(entry.target ?? LOCAL_TARGET.id)) {
-        await updateEndedMessages(entry.sessionID, {
+        await messages.updateEndedMessages(entry.sessionID, {
           atcID: entry.sessionID,
           ...(entry.agentSessionID === undefined || shared
             ? {}
@@ -2838,23 +2372,6 @@ function buildBindRefusal(listen: ListenOptions, error: unknown): Error {
   return Object.assign(new Error(`atc daemon: --listen cannot bind ${address} (${reason})`), {
     code: 'listen_refused',
   });
-}
-
-// Tells a tap its subscription is over so the `atc tap` process behind it
-// exits instead of idling on a session it no longer serves.
-function emitInboxClosed(
-  tap: TapClient | null,
-  sessionID: SessionID,
-  reason: 'replaced' | 'removed',
-): void {
-  tap?.sendEvent({ v: PROTOCOL_V, ev: 'InboxClosed', s: sessionID, reason });
-}
-
-function buildMessageOwner(s: Session): MessageOwner {
-  return {
-    atcID: s.id,
-    ...(s.agentSessionID === undefined ? {} : { agentSessionID: s.agentSessionID }),
-  };
 }
 
 function hasResumableTranscript(mgr: SessionManager, id: SessionID): boolean {
@@ -2948,17 +2465,4 @@ interface ConfirmToken {
   readonly session: SessionID;
   readonly expiresAt: number;
   readonly used: boolean;
-}
-
-// Carries a message refusal out of a keyed send's start, so the claim drops
-// and the refusal still answers the request.
-class MessageRefusedError extends Error {
-  readonly refusal: MessageRefusal;
-
-  constructor(refusal: MessageRefusal) {
-    super(`message refused: ${refusal}`);
-
-    this.refusal = refusal;
-    this.name = 'MessageRefusedError';
-  }
 }
