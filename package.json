@@ -68,6 +68,7 @@
     "check:imports": "bun scripts/check-imports.ts",
     "check:disable-baseline": "bun scripts/check-disable-baseline.ts",
     "check:manifests": "bun scripts/check-manifests.ts",
+    "check:raw-escapes": "bun scripts/check-raw-escapes.ts",
     "check:reach": "bun scripts/check-reach.ts",
     "deadcode": "bun scripts/deadcode.ts",
     "demo:record": "bash scripts/record-demo.sh",

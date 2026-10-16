@@ -41,6 +41,8 @@ pre-push:
       run: bun run check:manifests
     - name: check:disable-baseline
       run: bun run check:disable-baseline
+    - name: check:raw-escapes
+      run: bun run check:raw-escapes
     - name: lint:mods
       run: bun run lint:mods
     - name: lint
