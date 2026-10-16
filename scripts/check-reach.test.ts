@@ -13,34 +13,16 @@ function setupTest() {
 test('it passes a gateway that reaches only what its allowance holds', async () => {
   const ctx = setupTest();
 
-  await Bun.write(
-    join(ctx.dir, 'scripts/package-map/package-stagemap.tsv'),
-    'source\tfinal\tpath_wave1\nsrc/gateway.ts\tapp\tpackages/app/src/gateway.ts\nsrc/run-gateway.ts\tapp\tpackages/app/src/run-gateway.ts\nsrc/shared/bun-sqlite-driver.ts\tstore\tpackages/app/src/shared/bun-sqlite-driver.ts\nsrc/protocol/features.ts\t(deleted in ticket 24)\tpackages/app/src/protocol/features.ts\n',
-  );
+  await Bun.write(join(ctx.dir, 'packages/app/src/mcp/run-tool.ts'), 'export const TOOL = 1;\n');
 
   await Bun.write(
-    join(ctx.dir, 'scripts/package-map/package-filemap.tsv'),
-    'source\tpackage\tfolder\nsrc/gateway.ts\tapp\t\nsrc/run-gateway.ts\tapp\tcli\nsrc/shared/bun-sqlite-driver.ts\tstore\tsqlite\nsrc/protocol/features.ts\t(deleted in ticket 24)\t\n',
-  );
-
-  await Bun.write(
-    join(ctx.dir, 'scripts/package-map/interim.json'),
-    JSON.stringify({ 'src/protocol/features.ts': 'protocol' }),
-  );
-
-  await Bun.write(
-    join(ctx.dir, 'packages/app/src/shared/bun-sqlite-driver.ts'),
-    'export const DRIVER = 1;\n',
-  );
-
-  await Bun.write(
-    join(ctx.dir, 'packages/app/src/protocol/features.ts'),
-    'export const FEATURES = [];\n',
+    join(ctx.dir, 'packages/app/src/federation/daemon-pool.ts'),
+    'export const POOL = 1;\n',
   );
 
   await Bun.write(
     join(ctx.dir, 'packages/app/src/run-gateway.ts'),
-    "import { DRIVER } from './shared/bun-sqlite-driver';\nimport { FEATURES } from './protocol/features';\n\nexport const GATEWAY = [DRIVER, FEATURES];\n",
+    "import { TOOL } from './mcp/run-tool';\nimport { POOL } from './federation/daemon-pool';\n\nexport const GATEWAY = [TOOL, POOL];\n",
   );
 
   await Bun.write(
@@ -65,20 +47,44 @@ test('it passes a gateway that reaches only what its allowance holds', async () 
   });
 });
 
-test('it fails on a gateway that reaches the daemon through an allowed module', async () => {
+test('it passes a gateway that reaches a new file in an allowed package with no package map', async () => {
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'scripts/package-map/package-stagemap.tsv'),
-    'source\tfinal\tpath_wave1\nsrc/gateway.ts\tapp\tpackages/app/src/gateway.ts\nsrc/mcp/run-tool.ts\tmcp\tpackages/app/src/mcp/run-tool.ts\nsrc/daemon/sessions.ts\tdaemon\tpackages/app/src/daemon/sessions.ts\n',
+    join(ctx.dir, 'packages/core/package.json'),
+    JSON.stringify({ name: '@atc/core', exports: { '.': './src/index.ts' } }),
   );
+
+  await Bun.write(join(ctx.dir, 'packages/core/src/index.ts'), "export * from './new-helper';\n");
+  await Bun.write(join(ctx.dir, 'packages/core/src/new-helper.ts'), 'export const HELPER = 1;\n');
+
+  mkdirSync(join(ctx.dir, 'node_modules/@atc'), { recursive: true });
+  symlinkSync(join(ctx.dir, 'packages/core'), join(ctx.dir, 'node_modules/@atc/core'));
 
   await Bun.write(
-    join(ctx.dir, 'scripts/package-map/package-filemap.tsv'),
-    'source\tpackage\tfolder\nsrc/gateway.ts\tapp\t\nsrc/mcp/run-tool.ts\tmcp\ttools\nsrc/daemon/sessions.ts\tdaemon\tsessions\n',
+    join(ctx.dir, 'packages/app/src/gateway.ts'),
+    "import { HELPER } from '@atc/core';\n\nconsole.log(HELPER);\n",
   );
 
-  await Bun.write(join(ctx.dir, 'scripts/package-map/interim.json'), '{}');
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-reach.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 0,
+    stdout: 'check-reach: 3 files reached, 3 bundled, 0 findings\n',
+    stderr: '',
+  });
+});
+
+test('it fails on a gateway that reaches the daemon through an allowed module', async () => {
+  const ctx = setupTest();
 
   await Bun.write(
     join(ctx.dir, 'packages/app/src/daemon/sessions.ts'),
@@ -109,24 +115,49 @@ test('it fails on a gateway that reaches the daemon through an allowed module', 
     exitCode: 1,
     stdout: 'check-reach: 3 files reached, 3 bundled, 2 findings\n',
     stderr:
-      'unreachable module: packages/app/src/gateway.ts reaches packages/app/src/daemon/sessions.ts (daemon)\nunreachable module: packages/app/src/gateway.ts bundles packages/app/src/daemon/sessions.ts (daemon)\n',
+      'unreachable module: packages/app/src/gateway.ts reaches packages/app/src/daemon/sessions.ts (app)\nunreachable module: packages/app/src/gateway.ts bundles packages/app/src/daemon/sessions.ts (app)\n',
+  });
+});
+
+test('it fails on a gateway that reaches a module in the daemon package', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'packages/daemon/package.json'),
+    JSON.stringify({ name: '@atc/daemon', exports: { '.': './src/index.ts' } }),
+  );
+
+  await Bun.write(join(ctx.dir, 'packages/daemon/src/index.ts'), 'export const DAEMON = 1;\n');
+
+  mkdirSync(join(ctx.dir, 'node_modules/@atc'), { recursive: true });
+  symlinkSync(join(ctx.dir, 'packages/daemon'), join(ctx.dir, 'node_modules/@atc/daemon'));
+
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/gateway.ts'),
+    "import { DAEMON } from '@atc/daemon';\n\nconsole.log(DAEMON);\n",
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-reach.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-reach: 2 files reached, 2 bundled, 2 findings\n',
+    stderr:
+      'unreachable module: packages/app/src/gateway.ts reaches packages/daemon/src/index.ts (daemon)\nunreachable module: packages/app/src/gateway.ts bundles packages/daemon/src/index.ts (daemon)\n',
   });
 });
 
 test('it fails on a gateway that reaches a daemon module written as .mjs', async () => {
   const ctx = setupTest();
 
-  await Bun.write(
-    join(ctx.dir, 'scripts/package-map/package-stagemap.tsv'),
-    'source\tfinal\tpath_wave1\nsrc/gateway.ts\tapp\tpackages/app/src/gateway.ts\nsrc/daemon/start.mjs\tdaemon\tpackages/app/src/daemon/start.mjs\n',
-  );
-
-  await Bun.write(
-    join(ctx.dir, 'scripts/package-map/package-filemap.tsv'),
-    'source\tpackage\tfolder\nsrc/gateway.ts\tapp\t\nsrc/daemon/start.mjs\tdaemon\t\n',
-  );
-
-  await Bun.write(join(ctx.dir, 'scripts/package-map/interim.json'), '{}');
   await Bun.write(join(ctx.dir, 'packages/app/src/daemon/start.mjs'), 'export const START = 1;\n');
 
   await Bun.write(
@@ -148,24 +179,12 @@ test('it fails on a gateway that reaches a daemon module written as .mjs', async
     exitCode: 1,
     stdout: 'check-reach: 2 files reached, 2 bundled, 2 findings\n',
     stderr:
-      'unreachable module: packages/app/src/gateway.ts reaches packages/app/src/daemon/start.mjs (daemon)\nunreachable module: packages/app/src/gateway.ts bundles packages/app/src/daemon/start.mjs (daemon)\n',
+      'unreachable module: packages/app/src/gateway.ts reaches packages/app/src/daemon/start.mjs (app)\nunreachable module: packages/app/src/gateway.ts bundles packages/app/src/daemon/start.mjs (app)\n',
   });
 });
 
 test('it fails on a type-only reach that the bundle drops', async () => {
   const ctx = setupTest();
-
-  await Bun.write(
-    join(ctx.dir, 'scripts/package-map/package-stagemap.tsv'),
-    'source\tfinal\tpath_wave1\nsrc/gateway.ts\tapp\tpackages/app/src/gateway.ts\nsrc/client/index.ts\ttui\tpackages/app/src/client/index.ts\n',
-  );
-
-  await Bun.write(
-    join(ctx.dir, 'scripts/package-map/package-filemap.tsv'),
-    'source\tpackage\tfolder\nsrc/gateway.ts\tapp\t\nsrc/client/index.ts\ttui\t\n',
-  );
-
-  await Bun.write(join(ctx.dir, 'scripts/package-map/interim.json'), '{}');
 
   await Bun.write(
     join(ctx.dir, 'packages/app/src/client/index.ts'),
@@ -191,33 +210,21 @@ test('it fails on a type-only reach that the bundle drops', async () => {
     exitCode: 1,
     stdout: 'check-reach: 2 files reached, 1 bundled, 1 findings\n',
     stderr:
-      'unreachable module: packages/app/src/gateway.ts reaches packages/app/src/client/index.ts (tui)\n',
+      'unreachable module: packages/app/src/gateway.ts reaches packages/app/src/client/index.ts (app)\n',
   });
 });
 
-test('it fails on a reached module with no row in the package map', async () => {
+test('it fails on a reached module in no listed package directory', async () => {
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'scripts/package-map/package-stagemap.tsv'),
-    'source\tfinal\tpath_wave1\nsrc/gateway.ts\tapp\tpackages/app/src/gateway.ts\n',
-  );
-
-  await Bun.write(
-    join(ctx.dir, 'scripts/package-map/package-filemap.tsv'),
-    'source\tpackage\tfolder\nsrc/gateway.ts\tapp\t\n',
-  );
-
-  await Bun.write(join(ctx.dir, 'scripts/package-map/interim.json'), '{}');
-
-  await Bun.write(
-    join(ctx.dir, 'packages/app/src/shared/new-helper.ts'),
+    join(ctx.dir, 'packages/unlisted/src/new-helper.ts'),
     'export const HELPER = 1;\n',
   );
 
   await Bun.write(
     join(ctx.dir, 'packages/app/src/gateway.ts'),
-    "import { HELPER } from './shared/new-helper';\n\nconsole.log(HELPER);\n",
+    "import { HELPER } from '../../unlisted/src/new-helper';\n\nconsole.log(HELPER);\n",
   );
 
   const checked = await runCommand([
@@ -234,24 +241,12 @@ test('it fails on a reached module with no row in the package map', async () => 
     exitCode: 1,
     stdout: 'check-reach: 2 files reached, 2 bundled, 2 findings\n',
     stderr:
-      'unmapped module: packages/app/src/gateway.ts reaches packages/app/src/shared/new-helper.ts, which has no row in the package map\nunmapped module: packages/app/src/gateway.ts bundles packages/app/src/shared/new-helper.ts, which has no row in the package map\n',
+      'unowned module: packages/app/src/gateway.ts reaches packages/unlisted/src/new-helper.ts, which sits in no package directory that scripts/package-rules.ts lists\nunowned module: packages/app/src/gateway.ts bundles packages/unlisted/src/new-helper.ts, which sits in no package directory that scripts/package-rules.ts lists\n',
   });
 });
 
 test('it follows a workspace package import through a wildcard export', async () => {
   const ctx = setupTest();
-
-  await Bun.write(
-    join(ctx.dir, 'scripts/package-map/package-stagemap.tsv'),
-    'source\tfinal\tpath_wave1\tpath_wave3\nsrc/gateway.ts\tapp\tpackages/app/src/gateway.ts\tpackages/app/src/gateway.ts\nsrc/client/boot-daemon.ts\tlifecycle\tpackages/app/src/client/boot-daemon.ts\tpackages/lifecycle/src/boot/boot-daemon.ts\n',
-  );
-
-  await Bun.write(
-    join(ctx.dir, 'scripts/package-map/package-filemap.tsv'),
-    'source\tpackage\tfolder\nsrc/gateway.ts\tapp\t\nsrc/client/boot-daemon.ts\tlifecycle\t\n',
-  );
-
-  await Bun.write(join(ctx.dir, 'scripts/package-map/interim.json'), '{}');
 
   await Bun.write(
     join(ctx.dir, 'packages/lifecycle/package.json'),
@@ -293,18 +288,6 @@ test('it follows a workspace package import through the package exports', async 
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'scripts/package-map/package-stagemap.tsv'),
-    'source\tfinal\tpath_wave1\tpath_wave4\nsrc/gateway.ts\tapp\tpackages/app/src/gateway.ts\tpackages/app/src/gateway.ts\nsrc/client/boot-daemon.ts\tlifecycle\tpackages/app/src/client/boot-daemon.ts\tpackages/lifecycle/src/boot-daemon.ts\n',
-  );
-
-  await Bun.write(
-    join(ctx.dir, 'scripts/package-map/package-filemap.tsv'),
-    'source\tpackage\tfolder\nsrc/gateway.ts\tapp\t\nsrc/client/boot-daemon.ts\tlifecycle\t\n',
-  );
-
-  await Bun.write(join(ctx.dir, 'scripts/package-map/interim.json'), '{}');
-
-  await Bun.write(
     join(ctx.dir, 'packages/lifecycle/package.json'),
     JSON.stringify({ name: '@atc/lifecycle', exports: { '.': './src/boot-daemon.ts' } }),
   );
@@ -342,18 +325,6 @@ test('it follows a workspace package import through the package exports', async 
 
 test('it follows a workspace package import through a named entry point', async () => {
   const ctx = setupTest();
-
-  await Bun.write(
-    join(ctx.dir, 'scripts/package-map/package-stagemap.tsv'),
-    'source\tfinal\tpath_wave1\nsrc/gateway.ts\tapp\tpackages/app/src/gateway.ts\npackages/store/src/sqlite/index.ts\tstore\tpackages/store/src/sqlite/index.ts\npackages/store/src/sqlite/open-sqlite.ts\tstore\tpackages/store/src/sqlite/open-sqlite.ts\n',
-  );
-
-  await Bun.write(
-    join(ctx.dir, 'scripts/package-map/package-filemap.tsv'),
-    'source\tpackage\tfolder\nsrc/gateway.ts\tapp\t\npackages/store/src/sqlite/index.ts\tstore\tsqlite\npackages/store/src/sqlite/open-sqlite.ts\tstore\tsqlite\n',
-  );
-
-  await Bun.write(join(ctx.dir, 'scripts/package-map/interim.json'), '{}');
 
   await Bun.write(
     join(ctx.dir, 'packages/store/package.json'),
@@ -398,20 +369,48 @@ test('it follows a workspace package import through a named entry point', async 
   });
 });
 
-test('it passes reporters whose static imports load only light entry points', async () => {
+test('it fails on a gateway that reaches the store outside its sqlite folder', async () => {
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'scripts/package-map/package-stagemap.tsv'),
-    'source\tfinal\tpath_wave1\nsrc/gateway.ts\tapp\tpackages/app/src/gateway.ts\n',
+    join(ctx.dir, 'packages/store/package.json'),
+    JSON.stringify({
+      name: '@atc/store',
+      exports: { '.': './src/index.ts', './sqlite': './src/sqlite/index.ts' },
+    }),
   );
+
+  await Bun.write(join(ctx.dir, 'packages/store/src/index.ts'), 'export const STORE = 1;\n');
+
+  mkdirSync(join(ctx.dir, 'node_modules/@atc'), { recursive: true });
+  symlinkSync(join(ctx.dir, 'packages/store'), join(ctx.dir, 'node_modules/@atc/store'));
 
   await Bun.write(
-    join(ctx.dir, 'scripts/package-map/package-filemap.tsv'),
-    'source\tpackage\tfolder\nsrc/gateway.ts\tapp\t\n',
+    join(ctx.dir, 'packages/app/src/gateway.ts'),
+    "import { STORE } from '@atc/store';\n\nconsole.log(STORE);\n",
   );
 
-  await Bun.write(join(ctx.dir, 'scripts/package-map/interim.json'), '{}');
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-reach.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-reach: 2 files reached, 2 bundled, 2 findings\n',
+    stderr:
+      'unreachable module: packages/app/src/gateway.ts reaches packages/store/src/index.ts (store)\nunreachable module: packages/app/src/gateway.ts bundles packages/store/src/index.ts (store)\n',
+  });
+});
+
+test('it passes reporters whose static imports load only light entry points', async () => {
+  const ctx = setupTest();
+
   await Bun.write(join(ctx.dir, 'packages/app/src/gateway.ts'), 'console.log(1);\n');
 
   await Bun.write(
@@ -482,17 +481,6 @@ test('it passes reporters whose static imports load only light entry points', as
 test('it fails on a reporter whose static imports load a root entry point', async () => {
   const ctx = setupTest();
 
-  await Bun.write(
-    join(ctx.dir, 'scripts/package-map/package-stagemap.tsv'),
-    'source\tfinal\tpath_wave1\nsrc/gateway.ts\tapp\tpackages/app/src/gateway.ts\n',
-  );
-
-  await Bun.write(
-    join(ctx.dir, 'scripts/package-map/package-filemap.tsv'),
-    'source\tpackage\tfolder\nsrc/gateway.ts\tapp\t\n',
-  );
-
-  await Bun.write(join(ctx.dir, 'scripts/package-map/interim.json'), '{}');
   await Bun.write(join(ctx.dir, 'packages/app/src/gateway.ts'), 'console.log(1);\n');
 
   await Bun.write(
@@ -561,17 +549,6 @@ test('it fails on a reporter whose static imports load a root entry point', asyn
 test('it fails on a CLI entry whose static imports load the core schema entry', async () => {
   const ctx = setupTest();
 
-  await Bun.write(
-    join(ctx.dir, 'scripts/package-map/package-stagemap.tsv'),
-    'source\tfinal\tpath_wave1\nsrc/gateway.ts\tapp\tpackages/app/src/gateway.ts\n',
-  );
-
-  await Bun.write(
-    join(ctx.dir, 'scripts/package-map/package-filemap.tsv'),
-    'source\tpackage\tfolder\nsrc/gateway.ts\tapp\t\n',
-  );
-
-  await Bun.write(join(ctx.dir, 'scripts/package-map/interim.json'), '{}');
   await Bun.write(join(ctx.dir, 'packages/app/src/gateway.ts'), 'console.log(1);\n');
 
   await Bun.write(
@@ -639,17 +616,6 @@ test('it fails on a CLI entry whose static imports load the core schema entry', 
 test('it fails on a missing reporter entry beside the CLI entry', async () => {
   const ctx = setupTest();
 
-  await Bun.write(
-    join(ctx.dir, 'scripts/package-map/package-stagemap.tsv'),
-    'source\tfinal\tpath_wave1\nsrc/gateway.ts\tapp\tpackages/app/src/gateway.ts\n',
-  );
-
-  await Bun.write(
-    join(ctx.dir, 'scripts/package-map/package-filemap.tsv'),
-    'source\tpackage\tfolder\nsrc/gateway.ts\tapp\t\n',
-  );
-
-  await Bun.write(join(ctx.dir, 'scripts/package-map/interim.json'), '{}');
   await Bun.write(join(ctx.dir, 'packages/app/src/gateway.ts'), 'console.log(1);\n');
   await Bun.write(join(ctx.dir, 'packages/app/src/cli.ts'), 'export const CLI = 1;\n');
   await Bun.write(join(ctx.dir, 'packages/app/src/hook-report.ts'), 'export const REPORT = 1;\n');
