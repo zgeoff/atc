@@ -28,6 +28,7 @@ import { emitInboxClosed } from './emit-inbox-closed';
 import { EventSignal } from './event-signal';
 import { EventTrail } from './event-trail';
 import { findPeerSession } from './find-peer-session';
+import { FleetRestorer } from './fleet-restorer';
 import { HookIntake } from './hook-intake';
 import { startHookServer } from './hooks';
 import { IdempotencyLedger } from './idempotency-ledger';
@@ -41,7 +42,6 @@ import { MessageService } from './message-service';
 import { PermissionPrompts } from './permission-prompts';
 import { PublishedRecords } from './published-records';
 import { readPeerPID } from './read-peer-pid';
-import { restoreFleet } from './restore-fleet';
 import type { RestoreSettled } from './restore-fleet';
 import type { SettleScheduler } from './run-eject-handoff';
 import { RuntimeAuthBinder } from './runtime-auth-binder';
@@ -62,6 +62,7 @@ import { startHeadlessTurn } from './start-headless-turn';
 import { startTCPListener } from './start-tcp-listener';
 import type { TCPListener } from './start-tcp-listener';
 import { TapRegistry } from './tap-registry';
+import { updateEndedFleetMessages } from './update-ended-fleet-messages';
 import { withOwnerOnlySocket } from './with-owner-only-socket';
 
 export interface DaemonOptions {
@@ -743,51 +744,17 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     gitTransports,
   });
 
-  // The restore in flight, from its first call until its staggered terminal
-  // adoption finishes. A restore requested meanwhile joins it, so the fleet
-  // never registers twice at once.
-  let fleetRestore: Promise<number> | null = null;
-
-  const runFleetRestore = (cols: number, rows: number): Promise<number> => {
-    if (fleetRestore !== null) {
-      return fleetRestore;
-    }
-
-    const restored = Promise.withResolvers<number>();
-
-    fleetRestore = restored.promise;
-
-    void (async () => {
-      try {
-        const result = await restoreFleet({
-          mgr,
-          store,
-          findRuntime,
-          cols,
-          rows,
-          capMs: opts.restoreBootTimeoutMs ?? parseRestoreBootTimeoutMs(process.env),
-          ...(opts.restoreRetryDelaysMs === undefined
-            ? {}
-            : { retryDelaysMs: opts.restoreRetryDelaysMs }),
-          isStopped: () => released,
-          clock,
-        });
-
-        restored.resolve(result.restored);
-
-        const outcome = await result.settled;
-
-        opts.onRestoreSettled?.({ restored: result.restored, outcome });
-      } catch (error) {
-        restored.reject(error);
-        opts.onRestoreSettled?.({ restored: 0, outcome: 'failed' });
-      } finally {
-        fleetRestore = null;
-      }
-    })();
-
-    return restored.promise;
-  };
+  const restorer = new FleetRestorer({
+    mgr,
+    store,
+    clock,
+    findRuntime,
+    capMs: opts.restoreBootTimeoutMs ?? parseRestoreBootTimeoutMs(process.env),
+    retryDelaysMs: opts.restoreRetryDelaysMs,
+    isStopped: () => released,
+    onRestoreSettled: opts.onRestoreSettled,
+    onRestoreSkipped: opts.onRestoreSkipped,
+  });
 
   const ctx: DaemonContext = {
     build: opts.build,
@@ -870,7 +837,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     resyncClient: (sessionID, client) => output.sendReplay(sessionID, client),
     ...(opts.queueBytes === undefined ? {} : { queueBytes: opts.queueBytes }),
     getEffectiveDims: (sessionID) => output.getEffectiveDims(sessionID),
-    restoreFleet: runFleetRestore,
+    restoreFleet: (cols, rows) => restorer.runFleetRestore(cols, rows),
     writeStateBackup: (path) => store.writeBackup(path),
     readSessionRecord: (id, access) => reads.readSessionRecord(id, access),
     loadSessionTranscript: (id, from, limit) => reads.loadSessionTranscript(id, from, limit),
@@ -1073,58 +1040,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     listenPort: tcpListener?.port ?? null,
   });
 
-  // The stored fleet restores once per start, at the size a restored
-  // terminal takes until its first attach resizes it. A failure is logged
-  // and never stops the daemon.
-  const tryRunFleetRestore = async (): Promise<void> => {
-    try {
-      await runFleetRestore(80, 24);
-    } catch (error) {
-      mgr.log(
-        `atc could not restore the fleet (${error instanceof Error ? error.message : String(error)})`,
-      );
-    }
-  };
+  await updateEndedFleetMessages({ mgr, store, messages });
 
-  // Every harness on the daemon's own machine ended with the daemon before
-  // this one, so the messages its sessions held delivered get no answer. A
-  // row whose agent session id a live row on a remote target holds marks
-  // only its own messages: that session may still run there.
-  try {
-    const fleet = await store.loadFleet();
-
-    for (const entry of fleet) {
-      const shared = fleet.some(
-        (x) =>
-          x.sessionID !== entry.sessionID &&
-          x.agentSessionID !== undefined &&
-          x.agentSessionID === entry.agentSessionID &&
-          x.exited !== true &&
-          !mgr.isLocalTarget(x.target ?? LOCAL_TARGET.id),
-      );
-
-      if (mgr.isLocalTarget(entry.target ?? LOCAL_TARGET.id)) {
-        await messages.updateEndedMessages(entry.sessionID, {
-          atcID: entry.sessionID,
-          ...(entry.agentSessionID === undefined || shared
-            ? {}
-            : { agentSessionID: entry.agentSessionID }),
-        });
-      }
-    }
-  } catch {}
-
-  if (opts.restoreFleetOnRestart === true) {
-    const stored = await store.loadFleet();
-
-    if (stored.length > 0) {
-      void tryRunFleetRestore();
-    } else {
-      opts.onRestoreSkipped?.('empty');
-    }
-  } else {
-    opts.onRestoreSkipped?.('disabled');
-  }
+  await restorer.startBootRestore(opts.restoreFleetOnRestart === true);
 
   return {
     stop: stopDaemon,

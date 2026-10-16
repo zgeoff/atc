@@ -45,6 +45,16 @@ TESTS=(
   '16d daemon-session-record session-record'
   '16e daemon-detector detection-screen'
   '16f daemon-forget session-forget'
+  '16g daemon-fleet fleet-stored'
+  '16g daemon-fleet-restart fleet-restart'
+)
+
+# ticket, topic test an earlier change folded into its module's own test,
+# whose test map row goes
+FOLDED=(
+  '16g restore-fleet-imp-identity'
+  '16g restore-fleet-imp'
+  '16g restore-fleet-stop'
 )
 
 # ticket, module under packages/app/src/daemon, daemon folder it lands in
@@ -71,10 +81,20 @@ MODULES=(
   '16e screen-detection sessions'
   '16f confirm-tokens sessions'
   '16f session-forgetter sessions'
+  '16g fleet-restorer fleet'
+  '16g update-ended-fleet-messages fleet'
 )
 
 APP=packages/app/src/daemon
 MAPS=scripts/package-map
+
+for row in "${FOLDED[@]}"; do
+  read -r owner topic <<< "$row"
+
+  if [[ "$owner" == "$ticket" ]]; then
+    sed -i "\#^src/daemon/${topic}.test.ts	#d" "$MAPS/package-testmap.tsv"
+  fi
+done
 
 for row in "${TESTS[@]}"; do
   read -r owner topic journey <<< "$row"
