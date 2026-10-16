@@ -17,8 +17,8 @@ import {
   waitFor,
 } from '@atc/test-utils';
 import { $ } from 'bun';
-import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
-import { startTestDaemon } from '../test-utils/start-test-daemon';
+import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
+import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 /**
  * The runtime an imp clone launch runs on: a stub imp port, an imp provider

@@ -20,7 +20,7 @@ import {
   waitFor,
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
-import { startTestDaemon } from '../test-utils/start-test-daemon';
+import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 // A real daemon whose one target `box` runs on the imp provider over a
 // stub imp port, with the daemon id its lease labels carry.

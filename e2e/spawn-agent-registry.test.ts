@@ -3,9 +3,9 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
 import { buildMockHostServices, createStubRecordingClaude, waitFor } from '@atc/test-utils';
-import { buildAgentAdapters } from '../agents/build-agent-adapters';
-import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
-import { startTestDaemon } from '../test-utils/start-test-daemon';
+import { buildAgentAdapters } from '../packages/app/src/agents/build-agent-adapters';
+import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
+import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 test('it spawns two claude entries each with its own args and settings file', async () => {
   const daemon = await startTestDaemon({

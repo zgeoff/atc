@@ -13,8 +13,8 @@ import {
   getAgentEntry,
   waitFor,
 } from '@atc/test-utils';
-import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
-import { startTestDaemon } from '../test-utils/start-test-daemon';
+import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
+import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 /**
  * What a local clone launch needs before its daemon starts: a git fixture

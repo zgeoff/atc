@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import { unlinkSync, writeFileSync } from 'node:fs';
-import { hostname, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { HooksConfig, InvalidGitTransports, TargetConfigError } from '@atc/config';
 import {
@@ -9,9 +8,9 @@ import {
   loadListenerTokens,
   parseRestoreBootTimeoutMs,
 } from '@atc/config';
-import { formatListenRefusal, isAllowedListenHost, resolveHomeDir } from '@atc/config/host';
+import { formatListenRefusal, isAllowedListenHost } from '@atc/config/host';
 import type { AgentID, Clock, MessageID, SessionID } from '@atc/core';
-import { ansi, isRecord, systemClock, toMessageID, truncateToBytes } from '@atc/core';
+import { ansi, systemClock, toMessageID, truncateToBytes } from '@atc/core';
 import { LocalPTYProvider } from '@atc/execution-local';
 import { claimDaemonLock, findDaemonRecord, writeDaemonRecord } from '@atc/lifecycle';
 import type {
@@ -23,15 +22,8 @@ import type {
   SourceProvider,
 } from '@atc/plugin-api';
 import { planTypedLineInput } from '@atc/plugin-api';
-import type {
-  AdapterEvent,
-  DaemonAnswer,
-  SessionDescriptor,
-  SessionState,
-  SessionWorkspace,
-  SpawnWorkspaceSource,
-} from '@atc/protocol';
-import { MESSAGE_ANSWER_SCHEMA, SPAWN_ANSWER_SCHEMA } from '@atc/protocol';
+import type { AdapterEvent, DaemonAnswer, SessionDescriptor, SessionState } from '@atc/protocol';
+import { MESSAGE_ANSWER_SCHEMA } from '@atc/protocol';
 import type { HookEvent } from '@atc/protocol/session';
 import { DaemonError, MAX_CHUNK, PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
@@ -44,20 +36,14 @@ import type {
   MessageStatus,
   TrailEntry,
 } from '@atc/store';
-import { checkRepositoryAccess } from '../workspace/check-repository-access';
-import { readHostGitIdentity } from '../workspace/read-host-git-identity';
 import { ANSWER_BYTE_CAP } from './answer-byte-cap';
 import { applyMenuChoice } from './apply-menu-choice';
 import type { MenuChoiceResult } from './apply-menu-choice';
 import { AttachRegistry } from './attach-registry';
-import { buildAgentList } from './build-agent-list';
 import { buildAnswerView } from './build-answer-view';
 import { buildBridgeTapClient } from './build-bridge-tap-client';
-import { buildConfigRevision } from './build-config-revision';
-import { buildDefaultWorkspaceDir } from './build-default-workspace-dir';
 import type { ExecutionTarget } from './build-execution-targets';
 import { buildFleetEvents } from './build-fleet-events';
-import { buildGrantFromFleetEntry } from './build-grant-from-fleet-entry';
 import { buildMenuView } from './build-menu-view';
 import { buildMessageSender } from './build-message-sender';
 import { buildMessageTrailEntry } from './build-message-trail-entry';
@@ -68,18 +54,10 @@ import { buildSessionEvent } from './build-session-event';
 import { buildSessionMessageEvent } from './build-session-message-event';
 import { buildSessionNoteEvent } from './build-session-note-event';
 import { buildTargetAccess } from './build-target-access';
-import { buildTargetForbiddenError } from './build-target-forbidden-error';
-import { buildTargetList } from './build-target-list';
 import { createNonBlockingLog } from './create-non-blocking-log';
 import type { NonBlockingLog } from './create-non-blocking-log';
 import { DaemonConnection } from './daemon-connection';
-import type {
-  DaemonContext,
-  MessageRefusal,
-  OutputClient,
-  SpawnParams,
-  TapClient,
-} from './daemon-context';
+import type { DaemonContext, MessageRefusal, OutputClient, TapClient } from './daemon-context';
 import { drainInbox } from './drain-inbox';
 import type { InboxSource } from './drain-inbox';
 import { EventSignal } from './event-signal';
@@ -92,19 +70,16 @@ import { isTreeInReach } from './is-tree-in-reach';
 import { loadTranscriptPage } from './load-transcript-page';
 import { makeHookRunner } from './make-hook-runner';
 import type { HookScope } from './make-hook-runner';
-import { materializeWorkspace } from './materialize-workspace';
 import { MENU_TIMING } from './menu-terminal';
 import type { MenuTerminal, MenuTiming } from './menu-terminal';
 import type { MessageCaller } from './message-caller';
 import { mintMessageID } from './mint-message-id';
-import { mintSessionID } from './mint-session-id';
 import { parseNote } from './parse-note';
 import { PermissionRegistry } from './permission-registry';
 import { PublishedRecords } from './published-records';
 import { readKnownMenu } from './read-known-menu';
 import { readPeerPID } from './read-peer-pid';
 import { readWholeMenu } from './read-whole-menu';
-import { requireGitTransports } from './require-git-transports';
 import { restoreFleet } from './restore-fleet';
 import type { RestoreSettled } from './restore-fleet';
 import { runEjectHandoff } from './run-eject-handoff';
@@ -113,8 +88,9 @@ import { RuntimeAuthBinder } from './runtime-auth-binder';
 import { ScreenModel } from './screen-model';
 import type { Session } from './session';
 import { SessionRuntime } from './session-runtime';
-import type { SpawnHostAccess } from './session-spawner';
 import { SessionManager } from './sessions';
+import { SpawnCatalog } from './spawn-catalog';
+import { SpawnService } from './spawn-service';
 import { startEventsServer } from './start-events-server';
 import { startHeadlessTurn } from './start-headless-turn';
 import { startSessionBridge } from './start-session-bridge';
@@ -488,8 +464,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     opts.defaultTarget === undefined
       ? (targets.find((target) => target.id === LOCAL_TARGET.id)?.id ?? null)
       : opts.defaultTarget;
-
-  const configRevision = buildConfigRevision(targets, defaultTarget, targetErrors);
 
   const clients = new Set<DaemonConnection>();
 
@@ -1484,171 +1458,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   // stopped daemon left mid-change stays blocked until it is settled.
   void tryReconcileAuthBindings(authBinder, store, targetsByID, mgr.log);
 
-  // A spawn with a workspace source materializes it once every refusal has
-  // passed and its host is ready, and the session registers only once its
-  // workspace is ready, so no session ever lists over a half-built checkout.
-  // A spawn that fails unwinds its own steps before it throws, so a failed
-  // start leaves nothing running and a keyed retry spawns once. When an
-  // undo fails too, the session may still stand, and the throw says so.
-  const startSpawn = async (
-    p: SpawnParams,
-    id: SessionID,
-    requireInReach: () => void = () => {},
-  ): Promise<DaemonAnswer<'session.spawn'>> => {
-    const source = p.workspace;
-    let warnings: readonly string[] = [];
-
-    const materialize =
-      source === null
-        ? null
-        : async (host: SpawnHostAccess, targetIdentity: string) => {
-            const prepared = await materializeSpawnWorkspace(p, id, source, host, targetIdentity);
-
-            if (prepared.kind !== 'ready') {
-              return null;
-            }
-
-            warnings = prepared.warnings;
-
-            return prepared;
-          };
-
-    const session = await startSpawnedSession(p, id, materialize, requireInReach);
-
-    return warnings.length === 0 ? { session } : { session, warnings };
-  };
-
-  // Materializes a spawn's workspace on the host its spawn readies once the
-  // source resolves, under the target identity the spawn bound, and every
-  // provider call passes the execution gate against that binding.
-  const materializeSpawnWorkspace = async (
-    p: SpawnParams,
-    id: SessionID,
-    source: SpawnWorkspaceSource,
-    host: SpawnHostAccess,
-    targetIdentity: string,
-  ) => {
-    const binding = { target: p.target, targetIdentity };
-    const bound = mgr.requireExecution(binding, 'run');
-
-    return materializeWorkspace(
-      {
-        sessionID: id,
-        target: p.target,
-        dir: p.cwd,
-        source,
-        inPlace: bound.provider.kind === 'local-pty',
-        autoDir: p.autoDir,
-      },
-      {
-        requireProvider: (capability) => mgr.requireExecution(binding, capability).provider,
-        store,
-        log: (line) => {
-          mgr.log(line);
-        },
-        readyHost: host.readyHost,
-        removeClaim: host.removeClaim,
-        stagingRoot: tmpdir(),
-        timer: host.timer,
-        gitTransports,
-        clock,
-
-        // An imp fetches from the repository host over its own network,
-        // so its workspace never crosses the daemon's link.
-        cloneOnTarget: bound.provider.kind === 'imp',
-
-        // An imp image holds no git identity, so its checkout takes the
-        // daemon host's; a local target reads the user's own config.
-        ...(bound.provider.kind === 'imp' ? { gitIdentity: await readHostGitIdentity() } : {}),
-      },
-    );
-  };
-
-  const startSpawnedSession = async (
-    p: SpawnParams,
-    id: SessionID,
-    materialize:
-      | ((
-          host: SpawnHostAccess,
-          targetIdentity: string,
-        ) => Promise<Readonly<{
-          workspace: SessionWorkspace;
-          branch: string | null;
-          withheldEnv: readonly string[];
-        }> | null>)
-      | null,
-    requireInReach: () => void,
-  ): Promise<SessionDescriptor> => {
-    // The answer is built as the spawn's last step, so a failure there
-    // takes the spawn back like any other step's.
-    const answered: { descriptor: SessionDescriptor | null } = { descriptor: null };
-
-    await mgr.spawn(
-      p.cwd,
-      p.name,
-      p.prompt,
-      p.cols,
-      p.rows,
-      p.resume,
-      p.namedBy,
-      p.agent,
-      p.parent,
-      p.overrides,
-      id,
-      p.target,
-      materialize,
-      requireInReach,
-      p.autoDir,
-      p.scope,
-      (s) => {
-        const runtime = runtimes.get(s.id);
-
-        if (runtime !== undefined) {
-          runtime.pendingLastUsed = true;
-        }
-
-        void store.recordSpawnDir(
-          s.cwd,
-          { target: s.target, targetIdentity: s.targetIdentity },
-          clock.now(),
-        );
-
-        answered.descriptor = getDescriptor(mgr, s.id);
-      },
-    );
-
-    if (answered.descriptor === null) {
-      throw new Error(`the spawn of session ${id} returned without its answer`);
-    }
-
-    return answered.descriptor;
-  };
-
-  // A retried spawn answers with the session as it stands now when it is
-  // listed, else with the descriptor the first spawn answered. A key that
-  // start-up reconciliation completed has no stored answer, and its session
-  // lists only once the fleet is restored.
-  const loadSpawnReplay = (record: IdempotencyRecord): DaemonAnswer<'session.spawn'> => {
-    const listed = mgr.collectDescriptors().find((d) => d.id === record.effectRef);
-
-    if (listed !== undefined) {
-      return { session: listed };
-    }
-
-    const result: unknown = record.result === null ? null : JSON.parse(record.result);
-    const stored = SPAWN_ANSWER_SCHEMA.safeParse(result);
-
-    if (stored.success) {
-      return stored.data;
-    }
-
-    throw new DaemonError(
-      'no_such_session',
-      `the spawn under idempotency key '${record.key}' created session '${record.effectRef}', which is not listed; restore the fleet to list it`,
-      { effectRef: record.effectRef },
-    );
-  };
-
   const ledger = new IdempotencyLedger(
     store,
     LOCAL_PRINCIPAL,
@@ -1658,59 +1467,17 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     clock,
   );
 
-  // Throws the refusal a fresh spawn to the target gets when the access
-  // does not reach the target, and the identity, a held spawn key recorded
-  // for its session. A key that records none is refused: nothing it holds
-  // shows where its session ran. A session the daemon still holds is
-  // refused the same way when the access does not reach its whole tree.
-  const requireReplayInReach = (record: IdempotencyRecord, access: TargetAccess): void => {
-    const bound = record.effectTarget;
-
-    if (bound === null) {
-      throw buildTargetForbiddenError(findReplayTarget(record));
-    }
-
-    const session = mgr.sessions.find((x) => x.id === record.effectRef);
-
-    if (
-      !access.canUse(bound) ||
-      (session !== undefined && !isTreeInReach(mgr.sessions, session.id, access))
-    ) {
-      throw buildTargetForbiddenError(bound.target);
-    }
-  };
-
-  // Throws the refusal of a replay out of reach when a held spawn key's
-  // session is no longer live and the access does not reach the whole tree
-  // its fleet rows hold, as the live check refuses a live tree. A session
-  // with no fleet row has no tree left to check.
-  const requireStoredTreeInReach = async (
-    record: IdempotencyRecord,
-    access: TargetAccess,
-  ): Promise<void> => {
-    if (mgr.sessions.some((x) => x.id === record.effectRef)) {
-      return;
-    }
-
-    const fleet = await store.loadFleet();
-
-    const members = fleet.map((entry) => {
-      const grant = buildGrantFromFleetEntry(entry);
-
-      return {
-        id: entry.sessionID,
-        parent: entry.parent ?? null,
-        target: grant.target,
-        targetIdentity: grant.targetIdentity,
-      };
-    });
-
-    const own = members.find((member) => member.id === record.effectRef);
-
-    if (own !== undefined && !isTreeInReach(members, own.id, access)) {
-      throw buildTargetForbiddenError(record.effectTarget?.target ?? findReplayTarget(record));
-    }
-  };
+  const spawns = new SpawnService({
+    mgr,
+    store,
+    clock,
+    ledger,
+    findRuntime,
+    gitTransports,
+    defaultTarget,
+    ...(opts.workspaceRoots === undefined ? {} : { workspaceRoots: opts.workspaceRoots }),
+    ...(opts.homeDir === undefined ? {} : { homeDir: opts.homeDir }),
+  });
 
   // Each confirm token a forget handed out, by token: the session it
   // forgets, when it stops being taken, and whether a forget took it. A
@@ -1903,7 +1670,17 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
   };
 
-  const sources = opts.sources ?? [];
+  const catalog = new SpawnCatalog({
+    mgr,
+    store,
+    build: opts.build,
+    targets,
+    defaultTarget,
+    targetErrors,
+    ...(opts.defaultAgent === undefined ? {} : { defaultAgent: opts.defaultAgent }),
+    sources: opts.sources ?? [],
+    gitTransports,
+  });
 
   // The restore in flight, from its first call until its staggered terminal
   // adoption finishes. A restore requested meanwhile joins it, so the fleet
@@ -1956,35 +1733,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     daemonID: store.daemonID,
     idempotencyRetentionMs: IDEMPOTENCY_TTL_MS,
     collectSessions: () => mgr.collectDescriptors(),
-    collectSpawnDirs: async (access) => {
-      const dirs = await store.collectSpawnDirs();
-
-      const reached = dirs.filter((dir) => access === null || access.canUse(dir.grant));
-
-      return [...new Set(reached.map((dir) => dir.cwd))];
-    },
-    collectAgents: () => ({
-      daemon: {
-        hostname: hostname(),
-        platform: process.platform,
-        arch: process.arch,
-        build: opts.build,
-      },
-      agents: buildAgentList(
-        mgr.collectAdapters(),
-        (bin) => Bun.which(bin) !== null,
-        targets.some((target) => target.provider?.brokerAuth !== undefined),
-      ),
-      targets: buildTargetList(targets, defaultTarget),
-      spawnDefaults: { agent: opts.defaultAgent ?? 'claude', target: defaultTarget },
-      configRevision,
-      targetErrors,
-      sources: sources.map((source) => ({
-        id: source.id,
-        label: source.label,
-        kind: source.kind,
-      })),
-    }),
+    collectSpawnDirs: (access) => catalog.collectSpawnDirs(access),
+    collectAgents: () => catalog.collectAgents(),
     collectFleet: () => store.loadFleet(),
     loadLastUsedAgent: () => store.loadLastUsedAgent(),
     findAdapter: (kind) => mgr.findAdapter(kind),
@@ -1999,97 +1749,19 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     canSeeSession: (id, access) => isTreeInReach(mgr.sessions, id, access),
     isSessionVisible: () => true,
     findPermissionSession: (request) => registry.findSessionID(request),
-    resolveSpawnParent: (id) => {
-      const owner = mgr.sessions.find((x) => x.id === id);
-
-      if (owner === undefined) {
-        return 'missing';
-      }
-
-      return owner.parent ?? owner.id;
-    },
-    resolveSpawnTarget: (requested) => {
-      const target = requested ?? defaultTarget;
-      const refusal = mgr.findExecutionRefusal({ target, targetIdentity: null }, 'spawn');
-
-      if (refusal !== null) {
-        throw refusal;
-      }
-
-      if (target === null) {
-        throw new Error('a spawn without a target passed its checks');
-      }
-
-      return target;
-    },
+    resolveSpawnParent: (id) => spawns.resolveSpawnParent(id),
+    resolveSpawnTarget: (requested) => spawns.resolveSpawnTarget(requested),
     requireWorkspaceTarget: (target) => {
-      mgr.requireExecution({ target, targetIdentity: null }, 'transfer');
-      mgr.requireExecution({ target, targetIdentity: null }, 'run');
+      spawns.requireWorkspaceTarget(target);
     },
-    buildDefaultWorkspaceDir: (target, source) =>
-      buildDefaultWorkspaceDir(source, {
-        root: opts.workspaceRoots?.targetRoots.get(target) ?? opts.workspaceRoots?.root ?? null,
-        remote: mgr.requireExecution({ target, targetIdentity: null }, 'run').provider.remote,
-        home: opts.homeDir ?? resolveHomeDir(),
-      }),
+    buildDefaultWorkspaceDir: (target, source) => spawns.buildDefaultWorkspaceDir(target, source),
     requireAgentTarget: (agent, target) => {
-      mgr.requireAgentTarget(agent, target);
+      spawns.requireAgentTarget(agent, target);
     },
-    findSource: (id) => sources.find((source) => source.id === id) ?? null,
-    collectAlternateGitURLs: (url) => [
-      ...new Set(sources.flatMap((source) => source.findAlternateURLs?.(url) ?? [])),
-    ],
-    checkRepositoryAccess: (request) =>
-      checkRepositoryAccess({ ...request, transports: requireGitTransports(gitTransports) }),
-    spawnSession: (plan, keyed, access) => {
-      // Under an access, a spawn under a parent whose tree leaves the access
-      // before the harness starts is refused as a spawn under an unknown
-      // parent.
-      const startInReach = (p: SpawnParams, id: SessionID) =>
-        startSpawn(p, id, () => {
-          if (
-            access !== null &&
-            p.parent !== null &&
-            !isTreeInReach(mgr.sessions, p.parent, access)
-          ) {
-            throw new DaemonError('no_such_session', `no session '${p.parent}'`);
-          }
-        });
-
-      if (keyed === null) {
-        return startInReach(plan(), mintSessionID());
-      }
-
-      const effectRef = mintSessionID();
-
-      return ledger.run({
-        operation: 'session.spawn',
-        keyed,
-        effectRef,
-        start: () => startInReach(plan(), effectRef),
-        settle: () => mgr.writeFleet(),
-        replay: async (record) => {
-          if (access === null) {
-            return loadSpawnReplay(record);
-          }
-
-          requireReplayInReach(record, access);
-
-          await requireStoredTreeInReach(record, access);
-
-          // The tree may change while the fleet is read, so the live check
-          // runs again in the step that answers.
-          requireReplayInReach(record, access);
-
-          return loadSpawnReplay(record);
-        },
-        findEffectTarget: () => {
-          const s = mgr.sessions.find((x) => x.id === effectRef);
-
-          return s === undefined ? null : { target: s.target, targetIdentity: s.targetIdentity };
-        },
-      });
-    },
+    findSource: (id) => catalog.findSource(id),
+    collectAlternateGitURLs: (url) => catalog.collectAlternateGitURLs(url),
+    checkRepositoryAccess: (request) => catalog.checkRepositoryAccess(request),
+    spawnSession: (plan, keyed, access) => spawns.spawnSession(plan, keyed, access),
     updateSession: (id, changes) => mgr.updateSession(id, changes),
     updateSessionScope: (id, scope) => mgr.updateScope(id, scope),
     isCallerTree: (id, caller) => mgr.isCallerTree(id, caller),
@@ -3289,16 +2961,4 @@ class MessageRefusedError extends Error {
     this.refusal = refusal;
     this.name = 'MessageRefusedError';
   }
-}
-
-// The target a held spawn key's stored answer holds its session on, for a
-// refusal of its replay; the answer holds no other target to name.
-function findReplayTarget(record: IdempotencyRecord): string {
-  const stored: unknown = record.result === null ? null : JSON.parse(record.result);
-  const session = isRecord(stored) ? stored['session'] : null;
-  const locator = isRecord(session) ? session['locator'] : null;
-
-  return isRecord(locator) && typeof locator['targetID'] === 'string'
-    ? locator['targetID']
-    : 'unknown';
 }

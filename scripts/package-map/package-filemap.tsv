@@ -759,3 +759,6 @@ src/write-restart-result.ts	lifecycle		packages/lifecycle/src/write-restart-resu
 packages/protocol/src/wire/transport/daemon-transport.ts	protocol	wire	packages/protocol/src/wire/transport/daemon-transport.ts	
 packages/protocol/src/wire/transport/transport-machine.ts	protocol	wire	packages/protocol/src/wire/transport/transport-machine.ts	
 packages/protocol/src/wire/transport/index.ts	protocol	wire	packages/protocol/src/wire/transport/index.ts	entry point
+packages/app/src/daemon/spawn-catalog.ts	daemon	sources	packages/daemon/src/sources/spawn-catalog.ts	
+packages/app/src/daemon/spawn-replay.ts	daemon	sessions	packages/daemon/src/sessions/spawn-replay.ts	
+packages/app/src/daemon/spawn-service.ts	daemon	sessions	packages/daemon/src/sessions/spawn-service.ts	
