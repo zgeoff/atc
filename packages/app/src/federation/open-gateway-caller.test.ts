@@ -556,6 +556,33 @@ test('it lists the agents tool without an output schema', async () => {
   expect(getRecord({ agentsTool }, 'agentsTool')).not.toContainKey('outputSchema');
 });
 
+test('it dispatches every tool name it lists and answers an unlisted name as unknown', async () => {
+  const ctx = await setupTest();
+  const listed = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/list');
+
+  const names = [listed['tools']].flat().map((tool) => (isRecord(tool) ? tool['name'] : null));
+
+  // Each call goes out without arguments, so most tools refuse it as bad
+  // args; only a name the gateway cannot dispatch reads as unknown.
+  const answered = await Promise.all(
+    [...names, 'atc_unlisted_tool'].map(async (name) => {
+      const called = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
+        name,
+        arguments: {},
+      });
+
+      return { name, text: JSON.stringify(called['content']) };
+    }),
+  );
+
+  const unknown = answered.flatMap((call) =>
+    call.text.includes('unknown tool') ? [call.name] : [],
+  );
+
+  expect(names).toContain('atc_sessions_list');
+  expect(unknown).toStrictEqual(['atc_unlisted_tool']);
+});
+
 test('it answers the health probe with an empty body while every daemon is down', async () => {
   const ctx = await setupTest();
 
