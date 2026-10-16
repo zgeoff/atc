@@ -50,6 +50,9 @@ jobs:
       - name: Import Rule Disables
         run: bun run check:disable-baseline
 
+      - name: Raw Escape Bytes
+        run: bun run check:raw-escapes
+
       - name: Format
         run: bun run format:check
 
