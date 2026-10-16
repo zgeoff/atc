@@ -1,6 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { startDaemon } from '@atc/daemon';
 import { DaemonClient } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import {
@@ -12,7 +13,6 @@ import {
   updateEnv,
   waitFor,
 } from '@atc/test-utils';
-import { startDaemon } from './daemon/daemon';
 import { runTap } from './tap';
 import { buildLocalTarget } from './test-utils/build-local-target';
 

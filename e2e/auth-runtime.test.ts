@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { systemClock, toSessionID } from '@atc/core';
+import { RuntimeAuthBinder } from '@atc/daemon';
 import { ImpProvider } from '@atc/execution-imp';
 import { createStubImpPort, getOnlyImpName } from '@atc/execution-imp/testing';
 import { LocalPTYProvider } from '@atc/execution-local';
@@ -17,7 +18,6 @@ import {
   waitFor,
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
-import { RuntimeAuthBinder } from '../packages/app/src/daemon/runtime-auth-binder';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 interface SetupConfig {

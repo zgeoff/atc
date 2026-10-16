@@ -2,6 +2,7 @@ import { Database } from 'bun:sqlite';
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { toMessageID, toSessionID } from '@atc/core';
+import { buildPayloadHash } from '@atc/daemon';
 import { buildStubSoftKillProvider } from '@atc/execution-local/testing';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { REQUEST_PARAM_SCHEMAS } from '@atc/protocol';
@@ -16,7 +17,6 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
-import { buildPayloadHash } from '../packages/app/src/daemon/build-payload-hash';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 test('it answers a retried keyed spawn with the first session and spawns once', async () => {

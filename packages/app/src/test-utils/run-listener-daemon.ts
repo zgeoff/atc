@@ -1,6 +1,6 @@
 import { join } from 'node:path';
+import { startDaemon } from '@atc/daemon';
 import { buildMockAgentAdapter } from '@atc/test-utils';
-import { startDaemon } from '../daemon/daemon';
 import { buildLocalTarget } from './build-local-target';
 
 /**

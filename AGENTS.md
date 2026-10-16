@@ -28,13 +28,16 @@ and the internal packages each may depend on.
 - `packages/app` holds the app: both entrypoints and every module they wire together. `cli.ts` is
   the CLI entrypoint. `gateway.ts` is the entrypoint of the separate `atc-gateway` binary, which
   never starts a daemon.
-- The app's `src/` groups modules by concern: `daemon/` (the fleet and per-session runtime state),
-  `client/` (the TUI and its connection), `agents/` (adapters from the config's agent map),
-  `workspace/` (a spawn's workspace source), `sources/` (the spawn picker's source order),
-  `plugins/` (the shipped plugin lists), `mcp/` (the MCP tools, the HTTP transport, and the auth
+- The app's `src/` groups modules by concern: `client/` (the TUI and its connection), `agents/`
+  (adapters from the config's agent map), `sources/` (the built-in discovery sources), `plugins/`
+  (the shipped plugin lists and the execution providers built from them), `mcp/` (the MCP tools, the HTTP transport, and the auth
   server), `federation/` (the gateway's daemon registry), `shared/`, and `test-utils/` (helpers that
   start or drive the daemon). A module that exists only to back one subcommand stays beside it at
   the `src/` root.
+- `packages/daemon` holds the fleet and per-session runtime state. It loads no plugin: the app
+  passes in its execution targets and agent adapters. Its `src/` groups modules in folders
+  (`sessions/`, `fleet/`, `auth/`, `transport/`, `sources/`, `workspace/`), and the folder rules in
+  `scripts/package-rules.ts` limit which sibling folders each one imports.
 - `packages/harnesses/`, `packages/execution/`, and `packages/sources/` hold one plugin package
   each; the app wires them together. `packages/plugin-api` holds the contracts a plugin implements,
   among them the `AgentAdapter` interface.

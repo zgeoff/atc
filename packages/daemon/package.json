@@ -1,0 +1,28 @@
+{
+  "name": "@atc/daemon",
+  "private": true,
+  "description": "The atc daemon: the session fleet, its runtime state, and the protocol server clients drive it through",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./src/testing/index.ts"
+  },
+  "dependencies": {
+    "@atc/config": "workspace:*",
+    "@atc/core": "workspace:*",
+    "@atc/lifecycle": "workspace:*",
+    "@atc/plugin-api": "workspace:*",
+    "@atc/protocol": "workspace:*",
+    "@atc/store": "workspace:*",
+    "@xterm/addon-serialize": "catalog:",
+    "@xterm/headless": "catalog:",
+    "lru-cache": "catalog:",
+    "ts-pattern": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@atc/test-utils": "workspace:*",
+    "@faker-js/faker": "catalog:",
+    "tiny-invariant": "catalog:"
+  }
+}

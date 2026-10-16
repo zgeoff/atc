@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isRecord, toAgentSessionID, toSessionID } from '@atc/core';
+import { buildPayloadHash } from '@atc/daemon';
 import { ImpProvider } from '@atc/execution-imp';
 import { createStubImpPort, getOnlyImpName } from '@atc/execution-imp/testing';
 import { LocalPTYProvider } from '@atc/execution-local';
@@ -23,7 +24,6 @@ import {
 } from '@atc/test-utils';
 import { $ } from 'bun';
 import invariant from 'tiny-invariant';
-import { buildPayloadHash } from '../daemon/build-payload-hash';
 import { DaemonPool } from '../federation/daemon-pool';
 import { GatewayStore } from '../federation/gateway-store';
 import { RoutingCaller } from '../federation/routing-caller';

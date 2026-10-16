@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { toAgentSessionID, toSessionID } from '@atc/core';
+import { buildTargetOptionsFromConfig } from '@atc/daemon/testing';
 import { buildStubExecutionProvider } from '@atc/execution-local/testing';
 import { StateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
@@ -10,7 +11,6 @@ import {
   registerTestCleanup,
   waitFor,
 } from '@atc/test-utils';
-import { buildTargetOptionsFromConfig } from '../packages/app/src/test-utils/build-target-options-from-config';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 /**

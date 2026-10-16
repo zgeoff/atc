@@ -94,6 +94,7 @@
   "devDependencies": {
     "@atc/config": "workspace:*",
     "@atc/core": "workspace:*",
+    "@atc/daemon": "workspace:*",
     "@atc/execution-imp": "workspace:*",
     "@atc/execution-local": "workspace:*",
     "@atc/harness-claude": "workspace:*",

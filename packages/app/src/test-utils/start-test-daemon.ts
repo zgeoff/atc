@@ -1,4 +1,6 @@
 import { join } from 'node:path';
+import { startDaemon } from '@atc/daemon';
+import type { DaemonHandle, DaemonOptions } from '@atc/daemon';
 import { DaemonClient } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import {
@@ -8,8 +10,6 @@ import {
   setupTempDir,
 } from '@atc/test-utils';
 import type { Socket } from 'bun';
-import { startDaemon } from '../daemon/daemon';
-import type { DaemonHandle, DaemonOptions } from '../daemon/daemon';
 import { buildLocalTarget } from './build-local-target';
 
 /**

@@ -2,6 +2,7 @@ import { expect, mock, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isRecord, toSessionID } from '@atc/core';
+import type { RestoreSettled } from '@atc/daemon';
 import { ClaudeAdapter } from '@atc/harness-claude';
 import { encodeCursor } from '@atc/protocol';
 import { decodeMessage } from '@atc/protocol/wire';
@@ -21,7 +22,6 @@ import {
   waitFor,
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
-import type { RestoreSettled } from '../packages/app/src/daemon/restore-fleet';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 test('it accepts a message for a session that has not reported SessionStart', async () => {

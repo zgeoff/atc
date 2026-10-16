@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { startDaemon } from '@atc/daemon';
 import { DaemonClient } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import {
@@ -10,7 +11,6 @@ import {
   spawnNamedSession,
   waitFor,
 } from '@atc/test-utils';
-import { startDaemon } from '../packages/app/src/daemon/daemon';
 import { buildLocalTarget } from '../packages/app/src/test-utils/build-local-target';
 
 /**

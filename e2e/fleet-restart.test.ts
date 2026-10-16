@@ -2,6 +2,7 @@ import { expect, mock, test } from 'bun:test';
 import { chmod, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { toAgentSessionID, toSessionID } from '@atc/core';
+import type { RestoreSettled } from '@atc/daemon';
 import { StateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
@@ -12,7 +13,6 @@ import {
   updateEnv,
   waitFor,
 } from '@atc/test-utils';
-import type { RestoreSettled } from '../packages/app/src/daemon/restore-fleet';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 test('it restores the stored sessions by itself after a restart', async () => {
