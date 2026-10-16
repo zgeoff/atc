@@ -18,7 +18,7 @@
 // `Bun.resolveSync(...)`, is not an import here, since its base directory
 // decides where it resolves. The root package holds the repo tooling: e2e/
 // and scripts/ declare devDependencies alone. Each catalog entry pins an
-// exact version, never a `^` or `~` range. Prints every finding and exits
+// exact version, never a range, a tag, or an empty value. Prints every finding and exits
 // 1 when there is one.
 import { readFileSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
@@ -146,6 +146,10 @@ function readManifest(root: string, dir: string): Manifest {
   return MANIFEST_SCHEMA.parse(JSON.parse(text));
 }
 
+// A full semver version with an optional prerelease and build part, such as
+// `1.7.6` or `0.3.0-beta.1`; a range, a tag, or a wildcard matches none.
+const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[\dA-Za-z.-]+)?(?:\+[\dA-Za-z.-]+)?$/;
+
 function checkManifest(pkg: WorkspacePackage): string[] {
   const findings: string[] = [];
   const manifestPath = pkg.dir === '.' ? 'package.json' : `${pkg.dir}/package.json`;
@@ -167,7 +171,7 @@ function checkManifest(pkg: WorkspacePackage): string[] {
 
   if (pkg.dir === '.') {
     for (const [name, version] of Object.entries(pkg.manifest.workspaces?.catalog ?? {})) {
-      if (version.startsWith('^') || version.startsWith('~')) {
+      if (!EXACT_VERSION.test(version)) {
         findings.push(
           `catalog range: ${manifestPath} catalog has ${name} at ${version}, not an exact version`,
         );
