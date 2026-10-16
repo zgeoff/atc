@@ -6,10 +6,12 @@ import {
   fsyncSync,
   openSync,
   readFileSync,
+  realpathSync,
   renameSync,
   rmSync,
   statSync,
 } from 'node:fs';
+import { basename, dirname, join as joinPath } from 'node:path';
 import { LOCAL_TARGET } from '@atc/config';
 import type { AgentID, AgentSessionID, DaemonID, MessageID, SessionID } from '@atc/core';
 import {
@@ -23,7 +25,7 @@ import {
 } from '@atc/core';
 import type { AdapterEvent, PublishedRecord, SessionWorkspace } from '@atc/protocol';
 import type { HookEvent } from '@atc/protocol/session';
-import { MESSAGE_SENDER_SCHEMA } from '@atc/protocol/wire';
+import { DaemonError, MESSAGE_SENDER_SCHEMA } from '@atc/protocol/wire';
 import type { MessageSender } from '@atc/protocol/wire';
 import { Kysely, sql } from 'kysely';
 import type {
@@ -168,8 +170,17 @@ export class StateStore {
   // The close under way or done, which every later close waits on.
   private stopping: Promise<void> | null = null;
 
-  private constructor(sqlite: Database, db: Kysely<StateStoreSchema>, daemonID: DaemonID) {
+  // The database file this store opened, which a backup must never replace.
+  private readonly dbPath: string;
+
+  private constructor(
+    sqlite: Database,
+    db: Kysely<StateStoreSchema>,
+    daemonID: DaemonID,
+    dbPath: string,
+  ) {
     this.sqlite = sqlite;
+    this.dbPath = dbPath;
     this.db = db;
     this.daemonID = daemonID;
   }
@@ -205,7 +216,7 @@ export class StateStore {
       .where('key', '=', 'daemon_id')
       .executeTakeFirstOrThrow();
 
-    const store = new StateStore(sqlite, db, toDaemonID(daemonIDRow.value));
+    const store = new StateStore(sqlite, db, toDaemonID(daemonIDRow.value), dbPath);
 
     if (legacyFleetPath !== undefined) {
       await store.adoptLegacyFleet(legacyFleetPath);
@@ -1448,8 +1459,21 @@ export class StateStore {
   // The copy goes to a staging file beside `path` that only this user can
   // read, is flushed to disk, and then renamed over `path`, so `path` holds
   // either its old content or a whole copy, never part of one. Resolves to
-  // the copy's size in bytes.
+  // the copy's size in bytes. A path that is the open database or one of its
+  // log files is refused with `bad_args` before anything is written, since
+  // replacing a file SQLite holds open loses every later write.
   async writeBackup(path: string): Promise<number> {
+    const live = resolveRealFilePath(this.dbPath);
+
+    if (
+      [live, `${live}-wal`, `${live}-shm`, `${live}-journal`].includes(resolveRealFilePath(path))
+    ) {
+      throw new DaemonError(
+        'bad_args',
+        `${path} is the daemon's own database or one of its log files; back up to another path`,
+      );
+    }
+
     const staging = `${path}.${randomUUID()}.partial`;
 
     try {
@@ -1991,4 +2015,15 @@ function toRuntimeAuthBinding(
     updatedAt: row.updated_at,
     revokedAt: row.revoked_at,
   };
+}
+
+// The path of a file with its directory's symlinks resolved, so two spellings
+// of one location compare equal. A directory that does not exist keeps the
+// path as given.
+function resolveRealFilePath(path: string): string {
+  try {
+    return joinPath(realpathSync(dirname(path)), basename(path));
+  } catch {
+    return path;
+  }
 }

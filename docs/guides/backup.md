@@ -17,7 +17,9 @@ atc backup ~/backups/atc.db
 The daemon writes the copy itself, as one SQLite snapshot, so the copy is consistent even while
 sessions change during it. A relative path resolves against the directory you run the command in.
 The daemon replaces a file already at the path only once the whole copy is on disk, so a backup that
-fails leaves the earlier file in place. Only your user can read the copy.
+fails leaves the earlier file in place. Only your user can read the copy. The daemon refuses a path
+that is its own database or one of the database's log files, since replacing a file SQLite holds
+open loses later writes.
 
 On success the command prints `atc backup: wrote <bytes> bytes to <path>` and exits 0. It exits 1
 with the reason on stderr when no daemon runs, since it never starts one, and when the running

@@ -1,6 +1,13 @@
 import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
-import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { toAgentSessionID, toMessageID, toSessionID } from '@atc/core';
 import {
@@ -5321,6 +5328,42 @@ test('it replaces a file already at the backup path', async () => {
   const fleet = await restored.loadFleet();
 
   expect(fleet).toStrictEqual([entry]);
+});
+
+test.each([[''], ['-wal'], ['-shm']])(
+  'it refuses a backup onto its own database file with suffix %p and leaves the database open',
+  async (suffix) => {
+    const ctx = await setupTest();
+
+    const entry = buildMockFleetEntry();
+
+    await ctx.store.writeFleet([entry]);
+
+    const refused = ctx.store.writeBackup(`${ctx.dbPath}${suffix}`);
+
+    await Promise.allSettled([refused]);
+
+    const fleet = await ctx.store.loadFleet();
+
+    expect(refused).rejects.toMatchObject({
+      code: 'bad_args',
+      message: `${ctx.dbPath}${suffix} is the daemon's own database or one of its log files; back up to another path`,
+    });
+
+    expect(fleet).toStrictEqual([entry]);
+  },
+);
+
+test('it refuses a backup onto its own database through a symlinked directory', async () => {
+  const ctx = await setupTest();
+
+  const linked = join(ctx.dir, 'linked-state');
+
+  symlinkSync(ctx.dir, linked);
+
+  expect(ctx.store.writeBackup(join(linked, 'state.db'))).rejects.toMatchObject({
+    code: 'bad_args',
+  });
 });
 
 test('it removes its staging file when the backup cannot reach its path', async () => {
