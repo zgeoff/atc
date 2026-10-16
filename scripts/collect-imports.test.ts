@@ -37,6 +37,24 @@ test('it counts a statement as type-only only when type is its modifier', () => 
   ).toStrictEqual(['./b', './c', './d']);
 });
 
+test('it counts no load for a statement whose every specifier is type-only', () => {
+  expect(
+    collectImports(
+      [
+        "import { type A } from './a';",
+        "export { type B, type C as D } from './b';",
+        "import { type as as E, type F, } from './c';",
+        "export { type G, h } from './d';",
+        "import I, { type J } from './e';",
+        "import { type as K } from './f';",
+        "import { type } from './g';",
+        "import {} from './h';",
+        '',
+      ].join('\n'),
+    ).staticLoads,
+  ).toStrictEqual(['./d', './e', './f', './g', './h']);
+});
+
 test('it marks a specifier that only a resolve form names', () => {
   expect(
     collectImports(

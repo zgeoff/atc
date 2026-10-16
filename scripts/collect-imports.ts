@@ -11,8 +11,9 @@ export interface ImportList {
   readonly specifiers: readonly string[];
   readonly resolveOnly: readonly string[];
 
-  // a type-only statement loads nothing, and a dynamic import loads its
-  // module only when the code reaches it
+  // a type-only statement, or one whose every specifier is type-only, loads
+  // nothing, and a dynamic import loads its module only when the code
+  // reaches it
   readonly staticLoads: readonly string[];
   readonly computedLoadLines: readonly number[];
   readonly computedResolveLines: readonly number[];
@@ -36,7 +37,8 @@ export function collectImports(source: string): ImportList {
   const computedLoadLines: number[] = [];
   const computedResolveLines: number[] = [];
 
-  // whether the import or export statement the scan is inside is type-only
+  // whether the import or export statement the scan is inside loads nothing
+  // at runtime, being type-only or naming only type-only specifiers
   let isTypeOnly = false;
 
   for (const [i, token] of tokens.entries()) {
@@ -48,7 +50,7 @@ export function collectImports(source: string): ImportList {
       next?.kind !== SyntaxKind.OpenParenToken &&
       next?.kind !== SyntaxKind.DotToken
     ) {
-      isTypeOnly = isTypeOnlyStatement(tokens, i);
+      isTypeOnly = isTypeOnlyStatement(tokens, i) || hasOnlyTypeSpecifiers(tokens, i);
     }
 
     if (
@@ -111,6 +113,48 @@ function isTypeOnlyStatement(tokens: readonly Token[], i: number): boolean {
     after?.kind !== SyntaxKind.CommaToken &&
     after?.kind !== SyntaxKind.EqualsToken
   );
+}
+
+/**
+ * Whether the import or export statement starting at token i lists only
+ * inline type-only specifiers, as `import { type A } from` and
+ * `export { type A, type B as C } from` do; Bun erases such a statement and
+ * never runs its module. A list that mixes in a value name, follows a
+ * default import, or is empty still loads the module.
+ */
+function hasOnlyTypeSpecifiers(tokens: readonly Token[], i: number): boolean {
+  if (tokens[i + 1]?.kind !== SyntaxKind.OpenBraceToken) {
+    return false;
+  }
+
+  const elements: Token[][] = [[]];
+
+  for (let j = i + 2; tokens[j]?.kind !== SyntaxKind.CloseBraceToken; j += 1) {
+    const token = tokens[j];
+
+    if (token === undefined) {
+      return false;
+    }
+
+    if (token.kind === SyntaxKind.CommaToken) {
+      elements.push([]);
+    } else {
+      elements.at(-1)?.push(token);
+    }
+  }
+
+  const specifiers = elements.filter((element) => element.length > 0);
+
+  return specifiers.length > 0 && specifiers.every((specifier) => isTypeOnlySpecifier(specifier));
+}
+
+/**
+ * Whether the specifier's tokens make it type-only. `type A` and
+ * `type A as B` are, two and four tokens long; `type` alone and `type as B`
+ * name a value called type, one and three tokens long.
+ */
+function isTypeOnlySpecifier(element: readonly Token[]): boolean {
+  return element[0]?.kind === SyntaxKind.TypeKeyword && element.length % 2 === 0;
 }
 
 /**
