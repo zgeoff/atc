@@ -5390,7 +5390,7 @@ test('it removes its staging file when the backup cannot reach its path', async 
   mkdirSync(backupPath);
 
   expect(ctx.store.writeBackup(backupPath)).rejects.toThrow();
-  expect(readdirSync(ctx.dir).filter((name) => name.endsWith('.partial'))).toStrictEqual([]);
+  expect(readdirSync(ctx.dir).filter((name) => name.includes('.partial'))).toStrictEqual([]);
 });
 
 test('it writes a consistent backup while another connection commits writes', async () => {

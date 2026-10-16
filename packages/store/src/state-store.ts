@@ -1,9 +1,11 @@
 import type { Database } from 'bun:sqlite';
 import { randomUUID } from 'node:crypto';
 import {
+  chmodSync,
   closeSync,
   existsSync,
   fsyncSync,
+  mkdtempSync,
   openSync,
   readFileSync,
   realpathSync,
@@ -1456,8 +1458,8 @@ export class StateStore {
   // Writes a copy of the whole database to `path` as one consistent
   // snapshot, through SQLite's `VACUUM INTO`, which reads in one transaction
   // and so never sees half of a write another connection commits meanwhile.
-  // The copy goes to a staging file beside `path` that only this user can
-  // read, is flushed to disk, and then renamed over `path`, so `path` holds
+  // The copy goes to a staging directory beside `path` that only this user
+  // can enter, is flushed to disk, and then renamed over `path`, so `path` holds
   // either its old content or a whole copy, never part of one. Resolves to
   // the copy's size in bytes. A path that is the open database or one of its
   // log files is refused with `bad_args` before anything is written, since
@@ -1476,14 +1478,16 @@ export class StateStore {
       );
     }
 
-    const staging = `${path}.${randomUUID()}.partial`;
+    // A fresh directory beside `path` that only this user can enter, so the
+    // copy never exists where another user can read it, and SQLite writes it
+    // to a path that does not exist yet.
+    const stagingDir = mkdtempSync(joinPath(dirname(path), `.${basename(path)}.partial-`));
+    const staging = joinPath(stagingDir, 'backup.db');
 
     try {
-      // An empty file the copy may fill, created first so the copy never
-      // exists with wider permissions.
-      closeSync(openSync(staging, 'wx', 0o600));
-
       await sql`VACUUM INTO ${staging}`.execute(this.db);
+
+      chmodSync(staging, 0o600);
 
       const fd = openSync(staging, 'r');
 
@@ -1494,9 +1498,8 @@ export class StateStore {
       }
 
       renameSync(staging, path);
-    } catch (error) {
-      rmSync(staging, { force: true });
-      throw error;
+    } finally {
+      rmSync(stagingDir, { recursive: true, force: true });
     }
 
     return statSync(path).size;

@@ -112,6 +112,14 @@ test('it backs up a running daemon to a file that a fresh daemon restores with e
     cwd: ctx.work,
   });
 
+  // The rest of the journey reads the file this step writes, so its result
+  // is checked before the journey goes on.
+  expect(backup).toStrictEqual({
+    exitCode: 0,
+    stdout: expect.stringMatching(/^atc backup: wrote \d+ bytes to .*\/atc-backup\.db\n$/),
+    stderr: '',
+  });
+
   writeFileSync(
     ctx.fresh.configPath,
     JSON.stringify({
@@ -133,8 +141,6 @@ test('it backs up a running daemon to a file that a fresh daemon restores with e
   const restored = await freshClient.sendRequest('fleet.restore', { cols: 80, rows: 24 });
   const listed = await freshClient.sendRequest('session.list');
 
-  expect(backup.exitCode).toBe(0);
-  expect(backup.stdout).toMatch(/^atc backup: wrote \d+ bytes to .*\/atc-backup\.db\n$/);
   expect(freshHello['daemonID']).toBe(sourceHello['daemonID']);
   expect(freshFleet).toStrictEqual(sourceFleet);
   expect(restored).toStrictEqual({ restored: 2 });
