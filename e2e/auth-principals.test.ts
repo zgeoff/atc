@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { collectPrincipals, collectTargets } from '@atc/config';
+import { buildStubTargets } from '@atc/daemon/testing';
 import { encodeCursor } from '@atc/protocol';
 import { DaemonClient, DaemonError, PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
@@ -19,7 +20,6 @@ import {
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
-import { buildStubTargets } from '../packages/app/src/daemon/testing/build-stub-targets';
 import { buildPrincipalCaller } from '../packages/app/src/mcp/build-principal-caller';
 import { runTool } from '../packages/app/src/mcp/run-tool';
 import { TransportCaller } from '../packages/app/src/mcp/transport-caller';

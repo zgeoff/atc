@@ -39,6 +39,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -173,6 +176,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -276,6 +282,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -406,6 +415,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -509,6 +521,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -639,6 +654,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -742,6 +760,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -872,6 +893,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -975,6 +999,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -1097,6 +1124,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -1200,6 +1230,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -1330,6 +1363,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -1433,6 +1469,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -1522,6 +1561,850 @@
       }
     },
     {
+      "files": ["packages/daemon/src/auth/**/*.{ts,tsx,js,mjs}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
+                "message": "@atc/daemon may depend only on @atc/core, @atc/protocol, @atc/plugin-api, @atc/config, @atc/store, @atc/lifecycle."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "group": [
+                  "@atc/app",
+                  "@atc/app/*",
+                  "@atc/app/*/**",
+                  "@atc/config/*",
+                  "@atc/config/*/**",
+                  "!@atc/config/claude-statusline",
+                  "!@atc/config/host",
+                  "@atc/core/*",
+                  "@atc/core/*/**",
+                  "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
+                  "@atc/execution-imp/*",
+                  "@atc/execution-imp/*/**",
+                  "!@atc/execution-imp/testing",
+                  "@atc/execution-local/*",
+                  "@atc/execution-local/*/**",
+                  "!@atc/execution-local/testing",
+                  "@atc/harness-claude/*",
+                  "@atc/harness-claude/*/**",
+                  "!@atc/harness-claude/testing",
+                  "@atc/harness-codex/*",
+                  "@atc/harness-codex/*/**",
+                  "@atc/harness-grok/*",
+                  "@atc/harness-grok/*/**",
+                  "@atc/lifecycle/*",
+                  "@atc/lifecycle/*/**",
+                  "!@atc/lifecycle/run-command",
+                  "!@atc/lifecycle/testing",
+                  "@atc/plugin-api/*",
+                  "@atc/plugin-api/*/**",
+                  "@atc/protocol/*",
+                  "@atc/protocol/*/**",
+                  "!@atc/protocol/session",
+                  "!@atc/protocol/wire",
+                  "!@atc/protocol/wire/transport",
+                  "@atc/source-dirs/*",
+                  "@atc/source-dirs/*/**",
+                  "@atc/source-git/*",
+                  "@atc/source-git/*/**",
+                  "@atc/source-github/*",
+                  "@atc/source-github/*/**",
+                  "@atc/store/*",
+                  "@atc/store/*/**",
+                  "!@atc/store/sqlite",
+                  "!@atc/store/testing",
+                  "@atc/test-utils/*",
+                  "@atc/test-utils/*/**"
+                ],
+                "message": "Import a package through an entry point its exports map lists."
+              },
+              {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "Production code never imports the shared test helpers."
+              },
+              {
+                "regex": "(^|/)testing(/|$)",
+                "message": "Production code never imports a testing entry or a testing/ folder."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^bun:sqlite(/|$)",
+                "message": "bun:sqlite belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^kysely(/|$)",
+                "message": "kysely belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^better-auth(/|$)",
+                "message": "better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@better-auth(/|$)",
+                "message": "@better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^\\.\\./sources(/|$)",
+                "message": "The auth folder of @atc/daemon may import only fleet, sessions, transport, workspace, the files at the root of src/."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/daemon/src/fleet/**/*.{ts,tsx,js,mjs}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
+                "message": "@atc/daemon may depend only on @atc/core, @atc/protocol, @atc/plugin-api, @atc/config, @atc/store, @atc/lifecycle."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "group": [
+                  "@atc/app",
+                  "@atc/app/*",
+                  "@atc/app/*/**",
+                  "@atc/config/*",
+                  "@atc/config/*/**",
+                  "!@atc/config/claude-statusline",
+                  "!@atc/config/host",
+                  "@atc/core/*",
+                  "@atc/core/*/**",
+                  "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
+                  "@atc/execution-imp/*",
+                  "@atc/execution-imp/*/**",
+                  "!@atc/execution-imp/testing",
+                  "@atc/execution-local/*",
+                  "@atc/execution-local/*/**",
+                  "!@atc/execution-local/testing",
+                  "@atc/harness-claude/*",
+                  "@atc/harness-claude/*/**",
+                  "!@atc/harness-claude/testing",
+                  "@atc/harness-codex/*",
+                  "@atc/harness-codex/*/**",
+                  "@atc/harness-grok/*",
+                  "@atc/harness-grok/*/**",
+                  "@atc/lifecycle/*",
+                  "@atc/lifecycle/*/**",
+                  "!@atc/lifecycle/run-command",
+                  "!@atc/lifecycle/testing",
+                  "@atc/plugin-api/*",
+                  "@atc/plugin-api/*/**",
+                  "@atc/protocol/*",
+                  "@atc/protocol/*/**",
+                  "!@atc/protocol/session",
+                  "!@atc/protocol/wire",
+                  "!@atc/protocol/wire/transport",
+                  "@atc/source-dirs/*",
+                  "@atc/source-dirs/*/**",
+                  "@atc/source-git/*",
+                  "@atc/source-git/*/**",
+                  "@atc/source-github/*",
+                  "@atc/source-github/*/**",
+                  "@atc/store/*",
+                  "@atc/store/*/**",
+                  "!@atc/store/sqlite",
+                  "!@atc/store/testing",
+                  "@atc/test-utils/*",
+                  "@atc/test-utils/*/**"
+                ],
+                "message": "Import a package through an entry point its exports map lists."
+              },
+              {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "Production code never imports the shared test helpers."
+              },
+              {
+                "regex": "(^|/)testing(/|$)",
+                "message": "Production code never imports a testing entry or a testing/ folder."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^bun:sqlite(/|$)",
+                "message": "bun:sqlite belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^kysely(/|$)",
+                "message": "kysely belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^better-auth(/|$)",
+                "message": "better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@better-auth(/|$)",
+                "message": "@better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^\\.\\./auth(/|$)",
+                "message": "The fleet folder of @atc/daemon may import only sessions."
+              },
+              {
+                "regex": "^\\.\\./sources(/|$)",
+                "message": "The fleet folder of @atc/daemon may import only sessions."
+              },
+              {
+                "regex": "^\\.\\./transport(/|$)",
+                "message": "The fleet folder of @atc/daemon may import only sessions."
+              },
+              {
+                "regex": "^\\.\\./workspace(/|$)",
+                "message": "The fleet folder of @atc/daemon may import only sessions."
+              },
+              {
+                "regex": "^\\.\\./[^/]+$",
+                "message": "The fleet folder of @atc/daemon may import only sessions."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/daemon/src/sessions/**/*.{ts,tsx,js,mjs}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
+                "message": "@atc/daemon may depend only on @atc/core, @atc/protocol, @atc/plugin-api, @atc/config, @atc/store, @atc/lifecycle."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "group": [
+                  "@atc/app",
+                  "@atc/app/*",
+                  "@atc/app/*/**",
+                  "@atc/config/*",
+                  "@atc/config/*/**",
+                  "!@atc/config/claude-statusline",
+                  "!@atc/config/host",
+                  "@atc/core/*",
+                  "@atc/core/*/**",
+                  "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
+                  "@atc/execution-imp/*",
+                  "@atc/execution-imp/*/**",
+                  "!@atc/execution-imp/testing",
+                  "@atc/execution-local/*",
+                  "@atc/execution-local/*/**",
+                  "!@atc/execution-local/testing",
+                  "@atc/harness-claude/*",
+                  "@atc/harness-claude/*/**",
+                  "!@atc/harness-claude/testing",
+                  "@atc/harness-codex/*",
+                  "@atc/harness-codex/*/**",
+                  "@atc/harness-grok/*",
+                  "@atc/harness-grok/*/**",
+                  "@atc/lifecycle/*",
+                  "@atc/lifecycle/*/**",
+                  "!@atc/lifecycle/run-command",
+                  "!@atc/lifecycle/testing",
+                  "@atc/plugin-api/*",
+                  "@atc/plugin-api/*/**",
+                  "@atc/protocol/*",
+                  "@atc/protocol/*/**",
+                  "!@atc/protocol/session",
+                  "!@atc/protocol/wire",
+                  "!@atc/protocol/wire/transport",
+                  "@atc/source-dirs/*",
+                  "@atc/source-dirs/*/**",
+                  "@atc/source-git/*",
+                  "@atc/source-git/*/**",
+                  "@atc/source-github/*",
+                  "@atc/source-github/*/**",
+                  "@atc/store/*",
+                  "@atc/store/*/**",
+                  "!@atc/store/sqlite",
+                  "!@atc/store/testing",
+                  "@atc/test-utils/*",
+                  "@atc/test-utils/*/**"
+                ],
+                "message": "Import a package through an entry point its exports map lists."
+              },
+              {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "Production code never imports the shared test helpers."
+              },
+              {
+                "regex": "(^|/)testing(/|$)",
+                "message": "Production code never imports a testing entry or a testing/ folder."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^bun:sqlite(/|$)",
+                "message": "bun:sqlite belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^kysely(/|$)",
+                "message": "kysely belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^better-auth(/|$)",
+                "message": "better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@better-auth(/|$)",
+                "message": "@better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^\\.\\./sources(/|$)",
+                "message": "The sessions folder of @atc/daemon may import only auth, fleet, transport, workspace, the files at the root of src/."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/daemon/src/sources/**/*.{ts,tsx,js,mjs}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
+                "message": "@atc/daemon may depend only on @atc/core, @atc/protocol, @atc/plugin-api, @atc/config, @atc/store, @atc/lifecycle."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "group": [
+                  "@atc/app",
+                  "@atc/app/*",
+                  "@atc/app/*/**",
+                  "@atc/config/*",
+                  "@atc/config/*/**",
+                  "!@atc/config/claude-statusline",
+                  "!@atc/config/host",
+                  "@atc/core/*",
+                  "@atc/core/*/**",
+                  "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
+                  "@atc/execution-imp/*",
+                  "@atc/execution-imp/*/**",
+                  "!@atc/execution-imp/testing",
+                  "@atc/execution-local/*",
+                  "@atc/execution-local/*/**",
+                  "!@atc/execution-local/testing",
+                  "@atc/harness-claude/*",
+                  "@atc/harness-claude/*/**",
+                  "!@atc/harness-claude/testing",
+                  "@atc/harness-codex/*",
+                  "@atc/harness-codex/*/**",
+                  "@atc/harness-grok/*",
+                  "@atc/harness-grok/*/**",
+                  "@atc/lifecycle/*",
+                  "@atc/lifecycle/*/**",
+                  "!@atc/lifecycle/run-command",
+                  "!@atc/lifecycle/testing",
+                  "@atc/plugin-api/*",
+                  "@atc/plugin-api/*/**",
+                  "@atc/protocol/*",
+                  "@atc/protocol/*/**",
+                  "!@atc/protocol/session",
+                  "!@atc/protocol/wire",
+                  "!@atc/protocol/wire/transport",
+                  "@atc/source-dirs/*",
+                  "@atc/source-dirs/*/**",
+                  "@atc/source-git/*",
+                  "@atc/source-git/*/**",
+                  "@atc/source-github/*",
+                  "@atc/source-github/*/**",
+                  "@atc/store/*",
+                  "@atc/store/*/**",
+                  "!@atc/store/sqlite",
+                  "!@atc/store/testing",
+                  "@atc/test-utils/*",
+                  "@atc/test-utils/*/**"
+                ],
+                "message": "Import a package through an entry point its exports map lists."
+              },
+              {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "Production code never imports the shared test helpers."
+              },
+              {
+                "regex": "(^|/)testing(/|$)",
+                "message": "Production code never imports a testing entry or a testing/ folder."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^bun:sqlite(/|$)",
+                "message": "bun:sqlite belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^kysely(/|$)",
+                "message": "kysely belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^better-auth(/|$)",
+                "message": "better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@better-auth(/|$)",
+                "message": "@better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^\\.\\./transport(/|$)",
+                "message": "The sources folder of @atc/daemon may import only auth, fleet, sessions, workspace, the files at the root of src/."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/daemon/src/transport/**/*.{ts,tsx,js,mjs}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
+                "message": "@atc/daemon may depend only on @atc/core, @atc/protocol, @atc/plugin-api, @atc/config, @atc/store, @atc/lifecycle."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "group": [
+                  "@atc/app",
+                  "@atc/app/*",
+                  "@atc/app/*/**",
+                  "@atc/config/*",
+                  "@atc/config/*/**",
+                  "!@atc/config/claude-statusline",
+                  "!@atc/config/host",
+                  "@atc/core/*",
+                  "@atc/core/*/**",
+                  "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
+                  "@atc/execution-imp/*",
+                  "@atc/execution-imp/*/**",
+                  "!@atc/execution-imp/testing",
+                  "@atc/execution-local/*",
+                  "@atc/execution-local/*/**",
+                  "!@atc/execution-local/testing",
+                  "@atc/harness-claude/*",
+                  "@atc/harness-claude/*/**",
+                  "!@atc/harness-claude/testing",
+                  "@atc/harness-codex/*",
+                  "@atc/harness-codex/*/**",
+                  "@atc/harness-grok/*",
+                  "@atc/harness-grok/*/**",
+                  "@atc/lifecycle/*",
+                  "@atc/lifecycle/*/**",
+                  "!@atc/lifecycle/run-command",
+                  "!@atc/lifecycle/testing",
+                  "@atc/plugin-api/*",
+                  "@atc/plugin-api/*/**",
+                  "@atc/protocol/*",
+                  "@atc/protocol/*/**",
+                  "!@atc/protocol/session",
+                  "!@atc/protocol/wire",
+                  "!@atc/protocol/wire/transport",
+                  "@atc/source-dirs/*",
+                  "@atc/source-dirs/*/**",
+                  "@atc/source-git/*",
+                  "@atc/source-git/*/**",
+                  "@atc/source-github/*",
+                  "@atc/source-github/*/**",
+                  "@atc/store/*",
+                  "@atc/store/*/**",
+                  "!@atc/store/sqlite",
+                  "!@atc/store/testing",
+                  "@atc/test-utils/*",
+                  "@atc/test-utils/*/**"
+                ],
+                "message": "Import a package through an entry point its exports map lists."
+              },
+              {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "Production code never imports the shared test helpers."
+              },
+              {
+                "regex": "(^|/)testing(/|$)",
+                "message": "Production code never imports a testing entry or a testing/ folder."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^bun:sqlite(/|$)",
+                "message": "bun:sqlite belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^kysely(/|$)",
+                "message": "kysely belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^better-auth(/|$)",
+                "message": "better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@better-auth(/|$)",
+                "message": "@better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^\\.\\./sources(/|$)",
+                "message": "The transport folder of @atc/daemon may import only auth, fleet, sessions, the files at the root of src/."
+              },
+              {
+                "regex": "^\\.\\./workspace(/|$)",
+                "message": "The transport folder of @atc/daemon may import only auth, fleet, sessions, the files at the root of src/."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/daemon/src/workspace/**/*.{ts,tsx,js,mjs}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
+                "message": "@atc/daemon may depend only on @atc/core, @atc/protocol, @atc/plugin-api, @atc/config, @atc/store, @atc/lifecycle."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "group": [
+                  "@atc/app",
+                  "@atc/app/*",
+                  "@atc/app/*/**",
+                  "@atc/config/*",
+                  "@atc/config/*/**",
+                  "!@atc/config/claude-statusline",
+                  "!@atc/config/host",
+                  "@atc/core/*",
+                  "@atc/core/*/**",
+                  "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
+                  "@atc/execution-imp/*",
+                  "@atc/execution-imp/*/**",
+                  "!@atc/execution-imp/testing",
+                  "@atc/execution-local/*",
+                  "@atc/execution-local/*/**",
+                  "!@atc/execution-local/testing",
+                  "@atc/harness-claude/*",
+                  "@atc/harness-claude/*/**",
+                  "!@atc/harness-claude/testing",
+                  "@atc/harness-codex/*",
+                  "@atc/harness-codex/*/**",
+                  "@atc/harness-grok/*",
+                  "@atc/harness-grok/*/**",
+                  "@atc/lifecycle/*",
+                  "@atc/lifecycle/*/**",
+                  "!@atc/lifecycle/run-command",
+                  "!@atc/lifecycle/testing",
+                  "@atc/plugin-api/*",
+                  "@atc/plugin-api/*/**",
+                  "@atc/protocol/*",
+                  "@atc/protocol/*/**",
+                  "!@atc/protocol/session",
+                  "!@atc/protocol/wire",
+                  "!@atc/protocol/wire/transport",
+                  "@atc/source-dirs/*",
+                  "@atc/source-dirs/*/**",
+                  "@atc/source-git/*",
+                  "@atc/source-git/*/**",
+                  "@atc/source-github/*",
+                  "@atc/source-github/*/**",
+                  "@atc/store/*",
+                  "@atc/store/*/**",
+                  "!@atc/store/sqlite",
+                  "!@atc/store/testing",
+                  "@atc/test-utils/*",
+                  "@atc/test-utils/*/**"
+                ],
+                "message": "Import a package through an entry point its exports map lists."
+              },
+              {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "Production code never imports the shared test helpers."
+              },
+              {
+                "regex": "(^|/)testing(/|$)",
+                "message": "Production code never imports a testing entry or a testing/ folder."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^bun:sqlite(/|$)",
+                "message": "bun:sqlite belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^kysely(/|$)",
+                "message": "kysely belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^better-auth(/|$)",
+                "message": "better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@better-auth(/|$)",
+                "message": "@better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^\\.\\./auth(/|$)",
+                "message": "The workspace folder of @atc/daemon may import only its own modules."
+              },
+              {
+                "regex": "^\\.\\./fleet(/|$)",
+                "message": "The workspace folder of @atc/daemon may import only its own modules."
+              },
+              {
+                "regex": "^\\.\\./sessions(/|$)",
+                "message": "The workspace folder of @atc/daemon may import only its own modules."
+              },
+              {
+                "regex": "^\\.\\./sources(/|$)",
+                "message": "The workspace folder of @atc/daemon may import only its own modules."
+              },
+              {
+                "regex": "^\\.\\./transport(/|$)",
+                "message": "The workspace folder of @atc/daemon may import only its own modules."
+              },
+              {
+                "regex": "^\\.\\./[^/]+$",
+                "message": "The workspace folder of @atc/daemon may import only its own modules."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "files": [
         "packages/daemon/**/*.test.{ts,tsx,js,mjs}",
         "packages/daemon/**/testing/**/*.{ts,tsx,js,mjs}"
@@ -1563,6 +2446,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -1666,6 +2552,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -1796,6 +2685,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -1899,6 +2791,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -2029,6 +2924,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -2132,6 +3030,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -2262,6 +3163,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -2365,6 +3269,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -2495,6 +3402,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -2598,6 +3508,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -2728,6 +3641,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -2831,6 +3747,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -2961,6 +3880,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -3064,6 +3986,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -3194,6 +4119,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -3297,6 +4225,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -3427,6 +4358,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -3530,6 +4464,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -3664,6 +4601,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -3767,6 +4707,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -3893,6 +4836,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -3996,6 +4942,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -4130,6 +5079,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -4233,6 +5185,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -4367,6 +5322,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -4470,6 +5428,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -4576,6 +5537,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -4675,6 +5639,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -4786,6 +5753,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -4889,6 +5859,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -5012,6 +5985,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -5111,6 +6087,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -5210,6 +6189,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -5309,6 +6291,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -5408,6 +6393,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -5531,6 +6519,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -5654,6 +6645,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -5777,6 +6771,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -5900,6 +6897,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",
@@ -5995,6 +6995,9 @@
                   "@atc/core/*",
                   "@atc/core/*/**",
                   "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
                   "@atc/execution-imp/*",
                   "@atc/execution-imp/*/**",
                   "!@atc/execution-imp/testing",

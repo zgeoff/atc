@@ -4,6 +4,7 @@ import { existsSync, writeFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { join } from 'node:path';
 import { collectTargets } from '@atc/config';
+import { startDaemon } from '@atc/daemon';
 import { LocalPTYProvider } from '@atc/execution-local';
 import { claimDaemonLock } from '@atc/lifecycle';
 import type { EventMsg } from '@atc/protocol/wire';
@@ -17,7 +18,6 @@ import {
   tryCreateListeners,
   waitFor,
 } from '@atc/test-utils';
-import { startDaemon } from '../packages/app/src/daemon/daemon';
 import { buildLocalTarget } from '../packages/app/src/test-utils/build-local-target';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 

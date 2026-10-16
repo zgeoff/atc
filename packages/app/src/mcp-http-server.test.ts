@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { startDaemon } from '@atc/daemon';
 import { bootDaemonClient } from '@atc/lifecycle';
 import { buildMockLifecycleHost } from '@atc/lifecycle/testing';
 import { buildMockAgentAdapter, registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
-import { startDaemon } from './daemon/daemon';
 import { runMCPHTTPServer } from './mcp-http-server';
 import { openMCPAuth } from './mcp/open-mcp-auth';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';

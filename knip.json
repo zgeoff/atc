@@ -7,13 +7,17 @@
         "e2e/**/*.test.ts",
         "scripts/**/*.test.ts",
         "scripts/stage-demo-sessions.ts",
-        "scripts/run-wave-move.ts"
+        "scripts/run-wave-move.ts",
+        "scripts/codemods/*.ts"
       ],
       "project": ["e2e/**/*.ts", "scripts/**/*.ts"]
     },
     "packages/app": {
-      "entry": ["src/gateway.ts", "src/**/*.test.ts", "src/test-utils/run-listener-daemon.ts"],
+      "entry": ["src/gateway.ts", "src/**/*.test.ts"],
       "project": ["src/**/*.ts"]
+    },
+    "packages/daemon": {
+      "entry": ["src/**/*.test.ts", "src/testing/run-listener-daemon.ts"]
     },
     "packages/*": {
       "entry": ["src/**/*.test.ts"]

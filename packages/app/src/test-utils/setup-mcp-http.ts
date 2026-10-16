@@ -1,5 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { startDaemon } from '@atc/daemon';
+import type { DaemonHandle } from '@atc/daemon';
 import { DaemonClient } from '@atc/protocol/wire';
 import {
   buildMockAgentAdapter,
@@ -8,8 +10,6 @@ import {
   runPasskeyEnrollment,
   setupTempDir,
 } from '@atc/test-utils';
-import { startDaemon } from '../daemon/daemon';
-import type { DaemonHandle } from '../daemon/daemon';
 import { createEnrollmentToken } from '../mcp/create-enrollment-token';
 import { openMCPAuth } from '../mcp/open-mcp-auth';
 import { startMCPHTTPServer } from '../mcp/start-mcp-http-server';

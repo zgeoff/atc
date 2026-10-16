@@ -11,7 +11,43 @@ export interface PackageRule {
   // a front end's tests may use the daemon's testing entry, which its
   // production code may not reach
   readonly isFrontEnd: boolean;
+
+  // the folders under the package's src/ whose production files may import
+  // only the sibling folders listed; absent, no folder is held to a rule
+  readonly folders?: readonly FolderRule[];
 }
+
+/**
+ * One folder of a package and the sibling folders its production files may
+ * import, and whether they may import the files at the root of src/.
+ */
+export interface FolderRule {
+  readonly name: string;
+  readonly reaches: readonly string[];
+  readonly reachesRoot: boolean;
+}
+
+// The daemon's folders, each with the folders it imports. Sessions, auth,
+// transport and fleet import one another, so their rules keep each one from
+// reaching the folders it does not use yet; the workspace folder imports no
+// other folder, and no folder imports sources, which only the files at the
+// root of src/ reach.
+const DAEMON_FOLDERS: readonly FolderRule[] = [
+  {
+    name: 'auth',
+    reaches: ['fleet', 'sessions', 'transport', 'workspace'],
+    reachesRoot: true,
+  },
+  { name: 'fleet', reaches: ['sessions'], reachesRoot: false },
+  {
+    name: 'sessions',
+    reaches: ['auth', 'fleet', 'transport', 'workspace'],
+    reachesRoot: true,
+  },
+  { name: 'sources', reaches: ['auth', 'fleet', 'sessions', 'workspace'], reachesRoot: true },
+  { name: 'transport', reaches: ['auth', 'fleet', 'sessions'], reachesRoot: true },
+  { name: 'workspace', reaches: [], reachesRoot: false },
+];
 
 const PLUGIN_DEPS = ['plugin-api', 'core', 'config', 'protocol'];
 const FRONT_END_DEPS = ['core', 'protocol', 'config'];
@@ -33,6 +69,7 @@ const LIBRARIES: readonly PackageRule[] = [
     dir: 'packages/daemon',
     deps: ['core', 'protocol', 'plugin-api', 'config', 'store', 'lifecycle'],
     isFrontEnd: false,
+    folders: DAEMON_FOLDERS,
   },
   {
     name: 'harness-claude',

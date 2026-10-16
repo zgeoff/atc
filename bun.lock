@@ -7,6 +7,7 @@
       "devDependencies": {
         "@atc/config": "workspace:*",
         "@atc/core": "workspace:*",
+        "@atc/daemon": "workspace:*",
         "@atc/execution-imp": "workspace:*",
         "@atc/execution-local": "workspace:*",
         "@atc/harness-claude": "workspace:*",
@@ -45,6 +46,7 @@
       "dependencies": {
         "@atc/config": "workspace:*",
         "@atc/core": "workspace:*",
+        "@atc/daemon": "workspace:*",
         "@atc/execution-imp": "workspace:*",
         "@atc/execution-local": "workspace:*",
         "@atc/harness-claude": "workspace:*",
@@ -60,12 +62,9 @@
         "@better-auth/mcp": "catalog:",
         "@better-auth/oauth-provider": "catalog:",
         "@simplewebauthn/server": "catalog:",
-        "@xterm/addon-serialize": "catalog:",
-        "@xterm/headless": "catalog:",
         "better-auth": "catalog:",
         "citty": "catalog:",
         "kysely": "catalog:",
-        "lru-cache": "catalog:",
         "reflect-metadata": "catalog:",
         "ts-pattern": "catalog:",
         "xstate": "catalog:",
@@ -96,6 +95,27 @@
       },
       "devDependencies": {
         "@atc/test-utils": "workspace:*",
+      },
+    },
+    "packages/daemon": {
+      "name": "@atc/daemon",
+      "dependencies": {
+        "@atc/config": "workspace:*",
+        "@atc/core": "workspace:*",
+        "@atc/lifecycle": "workspace:*",
+        "@atc/plugin-api": "workspace:*",
+        "@atc/protocol": "workspace:*",
+        "@atc/store": "workspace:*",
+        "@xterm/addon-serialize": "catalog:",
+        "@xterm/headless": "catalog:",
+        "lru-cache": "catalog:",
+        "ts-pattern": "catalog:",
+        "zod": "catalog:",
+      },
+      "devDependencies": {
+        "@atc/test-utils": "workspace:*",
+        "@faker-js/faker": "catalog:",
+        "tiny-invariant": "catalog:",
       },
     },
     "packages/execution/imp": {
@@ -366,6 +386,8 @@
     "@atc/config": ["@atc/config@workspace:packages/config"],
 
     "@atc/core": ["@atc/core@workspace:packages/core"],
+
+    "@atc/daemon": ["@atc/daemon@workspace:packages/daemon"],
 
     "@atc/execution-imp": ["@atc/execution-imp@workspace:packages/execution/imp"],
 

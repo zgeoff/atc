@@ -781,14 +781,14 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
     process.exit(1);
   }
 
-  const daemon = await import('./daemon/daemon');
+  const daemon = await import('@atc/daemon');
   const config = await import('@atc/config');
   const harnessPlugins = await import('./plugins/shipped-harness-plugins');
   const adapterBuilder = await import('./agents/build-agent-adapters');
   const headless = await import('@atc/harness-claude');
-  const targets = await import('./daemon/build-execution-targets');
+  const targets = await import('@atc/daemon');
   const providers = await import('./plugins/build-shipped-execution-provider');
-  const sourceOrder = await import('./sources/build-sources');
+  const sourceOrder = await import('@atc/daemon');
   const builtinSources = await import('./sources/collect-builtin-sources');
   const home = await import('@atc/config/host');
   const hostServices = await resolveHostServices();

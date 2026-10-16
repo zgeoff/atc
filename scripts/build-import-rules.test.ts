@@ -242,6 +242,24 @@ test.each([
     'proper-lockfile',
     'proper-lockfile belongs to the files that scripts/package-confinement.ts lists.',
   ],
+  [
+    'a daemon folder its folder rule leaves out',
+    'packages/daemon/src/fleet/a.ts',
+    '../transport/start-tcp-listener',
+    'The fleet folder of @atc/daemon may import only sessions.',
+  ],
+  [
+    'a root file of the daemon from a folder its rule keeps from the root',
+    'packages/daemon/src/workspace/a.ts',
+    '../daemon-context',
+    'The workspace folder of @atc/daemon may import only its own modules.',
+  ],
+  [
+    'a package outside the row in a daemon folder',
+    'packages/daemon/src/sessions/a.ts',
+    '@atc/execution-local',
+    '@atc/daemon may depend only on @atc/core, @atc/protocol, @atc/plugin-api, @atc/config, @atc/store, @atc/lifecycle.',
+  ],
 ])('it refuses %s', async (_label, file, specifier, help) => {
   const ctx = setupTest();
 
@@ -301,6 +319,22 @@ test.each([
   ],
   ['bun:sqlite in an e2e journey', 'e2e/a.test.ts', 'bun:sqlite'],
   ['a confined package in the app that still owns it', 'packages/app/src/a.ts', 'kysely'],
+  [
+    'a daemon folder its folder rule lists',
+    'packages/daemon/src/fleet/a.ts',
+    '../sessions/session',
+  ],
+  ['a module of the same daemon folder', 'packages/daemon/src/workspace/a.ts', './run-host-git'],
+  [
+    'a root file of the daemon from a folder',
+    'packages/daemon/src/sessions/a.ts',
+    '../daemon-context',
+  ],
+  [
+    'a daemon folder its folder rule leaves out, in a test',
+    'packages/daemon/src/fleet/a.test.ts',
+    '../transport/start-tcp-listener',
+  ],
 ])('it allows %s', async (_label, file, specifier) => {
   const ctx = setupTest();
 

@@ -13,6 +13,7 @@ import {
 import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { toAgentSessionID, toSessionID } from '@atc/core';
+import { buildMockExecutionTarget } from '@atc/daemon/testing';
 import { LocalPTYProvider } from '@atc/execution-local';
 import { buildStubDirProvider, buildStubExecutionProvider } from '@atc/execution-local/testing';
 import type { ExecutionProvider } from '@atc/plugin-api';
@@ -31,7 +32,6 @@ import {
 } from '@atc/test-utils';
 import { $ } from 'bun';
 import invariant from 'tiny-invariant';
-import { buildMockExecutionTarget } from '../packages/app/src/test-utils/build-mock-execution-target';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 /**

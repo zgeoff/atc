@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { toAgentSessionID } from '@atc/core';
+import { startDaemon } from '@atc/daemon';
 import { findDaemonRecord } from '@atc/lifecycle';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { StateStore } from '@atc/store';
@@ -16,7 +17,6 @@ import {
   waitFor,
 } from '@atc/test-utils';
 import { buildHostServices } from '../packages/app/src/build-host-services';
-import { startDaemon } from '../packages/app/src/daemon/daemon';
 import { buildLocalTarget } from '../packages/app/src/test-utils/build-local-target';
 
 function setupTest() {

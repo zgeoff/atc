@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { startDaemon } from '@atc/daemon';
 import { bootDaemonClient } from '@atc/lifecycle';
 import { buildMockLifecycleHost } from '@atc/lifecycle/testing';
 import { StateStore } from '@atc/store';
@@ -12,7 +13,6 @@ import {
   setupTempDir,
 } from '@atc/test-utils';
 import { buildHostServices } from '../packages/app/src/build-host-services';
-import { startDaemon } from '../packages/app/src/daemon/daemon';
 
 /**
  * A fresh home for a client process: `dir` serves as both its home and its
