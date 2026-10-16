@@ -838,3 +838,7 @@ packages/app/src/daemon/testing/build-stub-pregranted-broker-host.ts	daemon	test
 packages/app/src/daemon/wait-for-menu-poll.ts	daemon	sessions	packages/daemon/src/sessions/wait-for-menu-poll.ts	
 packages/app/src/daemon/wait-for-menu-quiet.ts	daemon	sessions	packages/daemon/src/sessions/wait-for-menu-quiet.ts	
 packages/app/src/daemon/with-owner-only-socket.ts	daemon	transport	packages/daemon/src/transport/with-owner-only-socket.ts	
+packages/app/src/daemon/testing/build-stub-binder-broker.ts	daemon	testing	packages/daemon/src/testing/build-stub-binder-broker.ts	
+packages/app/src/daemon/testing/build-stub-local-provider.ts	daemon	testing	packages/daemon/src/testing/build-stub-local-provider.ts	
+packages/app/src/daemon/testing/build-stub-restore-imp-provider.ts	daemon	testing	packages/daemon/src/testing/build-stub-restore-imp-provider.ts	
+packages/app/src/daemon/testing/run-local-command.ts	daemon	testing	packages/daemon/src/testing/run-local-command.ts	

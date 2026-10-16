@@ -21,10 +21,14 @@ export interface StubCredentialBroker extends CredentialBroker {
   readonly calls: string[];
   readonly setFeatures: (features: Partial<BrokerFeatures>) => void;
   readonly setIdentity: (identity: BrokerIdentity) => void;
+
+  // Adds a secret, with the sign-in state the broker lists for an `oauth`
+  // secret when one is given.
   readonly createSecret: (
     name: string,
     kind: BrokerSecretKind,
     rules: readonly BrokerSecretRule[],
+    oauth?: BrokerSecret['oauth'],
   ) => void;
   readonly updateSecret: (name: string, rules: readonly BrokerSecretRule[]) => void;
   readonly removeSecret: (name: string) => void;
@@ -35,7 +39,13 @@ interface StubHost {
   readonly grants: Set<string>;
 }
 
-export function buildStubCredentialBroker(hostPrefix = 'atc-'): StubCredentialBroker {
+interface StubFailingCredentialBroker extends StubCredentialBroker {
+  // Fails the next feature reads as an unreachable broker, before they
+  // answer.
+  readonly setFeatureFailures: (count: number) => void;
+}
+
+export function buildStubCredentialBroker(hostPrefix = 'atc-'): StubFailingCredentialBroker {
   const calls: string[] = [];
 
   const hosts = new Map<string, StubHost>();
@@ -55,6 +65,7 @@ export function buildStubCredentialBroker(hostPrefix = 'atc-'): StubCredentialBr
     grantable: [],
   };
 
+  let featureFailures = 0;
   let nextID = 1;
   const getHostName = (hostKey: string): string => `${hostPrefix}${hostKey}`;
 
@@ -99,8 +110,14 @@ export function buildStubCredentialBroker(hostPrefix = 'atc-'): StubCredentialBr
     setIdentity: (next) => {
       identity = next;
     },
-    createSecret: (name, kind, rules) => {
-      secrets.set(name, { name, kind, rules });
+    setFeatureFailures: (count) => {
+      featureFailures = count;
+    },
+    createSecret: (name, kind, rules, oauth) => {
+      const secret: BrokerSecret =
+        oauth === undefined ? { name, kind, rules } : { name, kind, rules, oauth };
+
+      secrets.set(name, secret);
     },
     updateSecret: (name, rules) => {
       secrets.set(name, { ...getSecret(name), rules });
@@ -115,6 +132,14 @@ export function buildStubCredentialBroker(hostPrefix = 'atc-'): StubCredentialBr
     readFeatures: () =>
       answerCall(() => {
         calls.push('readFeatures');
+
+        if (featureFailures > 0) {
+          featureFailures -= 1;
+
+          throw new CredentialBrokerError('unreachable', 'the broker did not answer', {
+            brokerCode: 'UNREACHABLE',
+          });
+        }
 
         return features;
       }),

@@ -92,6 +92,29 @@ test('it keeps an existing-host check refused when impd is unreachable', async (
   expect(impd.calls).toStrictEqual([]);
 });
 
+test("it refuses an existing-host check whose imp lies outside the token's imp patterns", async () => {
+  const ctx = setupTest();
+
+  const provider = new ImpProvider(ctx.port, {}, { version: '1.0.0' });
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await ctx.port.createImp({ name: provider.getImpName('s1') });
+
+  ctx.port.setIdentity(buildMockImpIdentity({ imps: ['other-*'] }));
+
+  const reachable = await provider.checkExistingHost('s1');
+
+  expect(reachable).toBe(false);
+
+  expect(ctx.port.calls).toStrictEqual([
+    `imps.create ${provider.getImpName('s1')}`,
+    'tokens.whoami',
+  ]);
+});
+
 test('it destroys the imp a failed prepare created, since no session holds it', async () => {
   const ctx = setupTest();
 

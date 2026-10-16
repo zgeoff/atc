@@ -275,6 +275,31 @@ test('it confirms the exit of a killed harness once its process is gone', async 
   expect(exited).toBeTrue();
 });
 
+test('it ends a harness it lets go of, since the daemon machine keeps no detached process', async () => {
+  const ctx = setupTest();
+
+  const harness = ctx.provider.spawnHarness({
+    session: 's1',
+    host: 's1',
+    bin: 'sleep',
+    args: ['30'],
+    cwd: ctx.dir,
+    env: { PATH: '/usr/bin:/bin' },
+    cols: 80,
+    rows: 24,
+  });
+
+  registerTestCleanup(() => {
+    harness.killForced?.();
+  });
+
+  harness.detach();
+
+  const exited = await harness.waitForExit(2000);
+
+  expect(exited).toBeTrue();
+});
+
 test('it reports no exit for a killed harness whose process ignores the kill', async () => {
   const ctx = setupTest();
   const output: string[] = [];

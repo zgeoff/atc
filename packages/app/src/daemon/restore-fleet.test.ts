@@ -2,10 +2,6 @@ import { expect, mock, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
 import type { SessionID } from '@atc/core';
 import { toAgentSessionID, toSessionID } from '@atc/core';
-import { ImpProvider } from '@atc/execution-imp';
-import { createStubImpPort } from '@atc/execution-imp/testing';
-import { LocalPTYProvider } from '@atc/execution-local';
-import { buildStubHeldProvider } from '@atc/execution-local/testing';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { StateStore, buildTargetIdentity } from '@atc/store';
 import { buildMockFleetEntry, createMigratedStateDB } from '@atc/store/testing';
@@ -27,14 +23,17 @@ import { SessionRuntime } from './session-runtime';
 import { SessionManager } from './sessions';
 import { startHeadlessTurn } from './start-headless-turn';
 import { buildStubMemoryProvider } from './testing/build-stub-memory-provider';
+import { buildStubRestoreImpProvider } from './testing/build-stub-restore-imp-provider';
+import { runLocalCommand } from './testing/run-local-command';
 
 /**
  * A session manager over a fresh state store, as one daemon life sees it,
  * a recorder of logged lines, and the stand-in providers a test's own
- * targets can run on: an imp provider over a stub imp port, and a local
- * provider that prepares each host only once the test releases it. No
- * session holds a runtime, so a stagger waits on no boot. A manager the test
- * holds after this setup detaches before the store and the providers go.
+ * targets can run on: an imp stand-in whose commands run on this machine,
+ * and an in-memory local provider that prepares each host only once the
+ * test releases it. No session holds a runtime, so a stagger waits on no
+ * boot. A manager the test holds after this setup detaches before the
+ * store goes.
  */
 async function setupTest(config: Readonly<{ targets?: readonly ExecutionTarget[] }> = {}) {
   const tmp = setupTempDir('atc-restore-');
@@ -46,15 +45,21 @@ async function setupTest(config: Readonly<{ targets?: readonly ExecutionTarget[]
 
   registerTestCleanup(() => store.stop());
 
-  const port = createStubImpPort();
+  const impProvider = buildStubRestoreImpProvider({ runCommand: runLocalCommand });
 
-  const impProvider = new ImpProvider(port, { guestDir: join(tmp.dir, 'g') }, { version: '1.0.0' });
+  const heldPrepares = new Map<string, PromiseWithResolvers<void>>();
 
-  registerTestCleanup(() => {
-    impProvider.dispose();
+  const held = buildStubMemoryProvider({
+    kind: 'local-pty',
+    prepareHost: (request) => {
+      const wait = Promise.withResolvers<void>();
+
+      heldPrepares.set(request.host, wait);
+
+      return wait.promise;
+    },
   });
 
-  const held = buildStubHeldProvider();
   const recorder = buildStubLog();
   const statusPath = join(tmp.dir, 'status.json');
 
@@ -66,7 +71,7 @@ async function setupTest(config: Readonly<{ targets?: readonly ExecutionTarget[]
       kind: 'local-pty',
       options: {},
       identity: buildTargetIdentity('local-pty', {}),
-      provider: new LocalPTYProvider(),
+      provider: buildStubMemoryProvider({ kind: 'local-pty' }),
     },
   ];
 
@@ -82,9 +87,11 @@ async function setupTest(config: Readonly<{ targets?: readonly ExecutionTarget[]
     dir: tmp.dir,
     statusPath,
     store,
-    port,
     impProvider,
     held,
+    release: (host: string) => {
+      heldPrepares.get(host)?.resolve();
+    },
     targets,
     mgr,
     logged: recorder.lines,
@@ -984,7 +991,7 @@ test('it lists and logs the refusal of a session whose imp refuses it with no re
     }),
   ]);
 
-  ctx.port.setAcquireFailure(0, 'UNAVAILABLE');
+  ctx.impProvider.refuseNextPrepare('UNAVAILABLE');
 
   const restored = await restoreFleet({
     mgr,
@@ -1035,7 +1042,7 @@ test('it revives a session on a later try once its imp stops refusing it', async
     }),
   ]);
 
-  ctx.port.setAcquireFailure(0, 'UNAVAILABLE');
+  ctx.impProvider.refuseNextPrepare('UNAVAILABLE');
 
   const restored = await restoreFleet({
     mgr,
@@ -1091,7 +1098,7 @@ test('it waits for the last session a round started to boot before a retry start
     }),
   ]);
 
-  ctx.port.setAcquireFailure(0, 'UNAVAILABLE');
+  ctx.impProvider.refuseNextPrepare('UNAVAILABLE');
 
   const restored = await restoreFleet({
     mgr,
@@ -1114,14 +1121,14 @@ test('it waits for the last session a round started to boot before a retry start
     expect(runtime.bootWaiter).toBeFunction();
   });
 
-  const startedBeforeBoot = ctx.port.sessionRequests.length;
+  const startedBeforeBoot = ctx.impProvider.harnesses.length;
 
   runtime.bootWaiter?.();
 
   await restored.settled;
 
   expect(startedBeforeBoot).toBe(1);
-  expect(ctx.port.sessionRequests).toBeArrayOfSize(2);
+  expect(ctx.impProvider.harnesses).toBeArrayOfSize(2);
 
   expect<readonly unknown[]>(mgr.sessions.map((s) => [s.id, s.pty !== null])).toStrictEqual([
     ['s-refused', true],
@@ -1155,7 +1162,7 @@ test('it leaves stopped a refused session a caller stops while its retry readies
     }),
   ]);
 
-  ctx.port.setAcquireFailure(0, 'UNAVAILABLE');
+  ctx.impProvider.refuseNextPrepare('UNAVAILABLE');
 
   const restored = await restoreFleet({
     mgr,
@@ -1172,16 +1179,16 @@ test('it leaves stopped a refused session a caller stops while its retry readies
     expect(clock.collectPending()).toStrictEqual([1000]);
   });
 
-  ctx.port.startLeaseHold();
+  ctx.impProvider.startPrepareHold();
   clock.advance(5000);
 
   await waitFor(() => {
-    expect(ctx.port.countHeldLeases()).toBe(1);
+    expect(ctx.impProvider.countHeldPrepares()).toBe(1);
   });
 
   await mgr.kill(toSessionID('s-busy'), true);
 
-  ctx.port.stopLeaseHold();
+  ctx.impProvider.stopPrepareHold();
 
   await restored.settled;
 
@@ -1189,7 +1196,7 @@ test('it leaves stopped a refused session a caller stops while its retry readies
     { id: 's-busy', state: 'exited', lastMsg: 'killed', pty: null },
   ]);
 
-  expect(ctx.port.sessionRequests).toStrictEqual([]);
+  expect(ctx.impProvider.harnesses).toStrictEqual([]);
 });
 
 test('it leaves stopped a session a caller stops while a try its imp then refuses readies the imp', async () => {
@@ -1218,8 +1225,8 @@ test('it leaves stopped a session a caller stops while a try its imp then refuse
     }),
   ]);
 
-  ctx.port.setAcquireFailure(0, 'UNAVAILABLE');
-  ctx.port.startLeaseHold();
+  ctx.impProvider.refuseNextPrepare('UNAVAILABLE');
+  ctx.impProvider.startPrepareHold();
 
   const restoring = restoreFleet({
     mgr,
@@ -1232,12 +1239,12 @@ test('it leaves stopped a session a caller stops while a try its imp then refuse
   });
 
   await waitFor(() => {
-    expect(ctx.port.countHeldLeases()).toBe(1);
+    expect(ctx.impProvider.countHeldPrepares()).toBe(1);
   });
 
   await mgr.kill(toSessionID('s-busy'), true);
 
-  ctx.port.stopLeaseHold();
+  ctx.impProvider.stopPrepareHold();
 
   const restored = await restoring;
 
@@ -1247,7 +1254,7 @@ test('it leaves stopped a session a caller stops while a try its imp then refuse
     { id: 's-busy', state: 'exited', lastMsg: 'killed', pty: null },
   ]);
 
-  expect(ctx.port.sessionRequests).toStrictEqual([]);
+  expect(ctx.impProvider.harnesses).toStrictEqual([]);
 
   expect<readonly unknown[]>(ctx.logged).toStrictEqual([
     `atc could not revive session s-busy (imp ${ctx.impProvider.getImpName('s-busy')} cannot be used: impd refused the lease (UNAVAILABLE))`,
@@ -1278,7 +1285,7 @@ test('it revives on a later restore a session an earlier restore left without a 
     }),
   ]);
 
-  ctx.port.setAcquireFailure(0, 'UNAVAILABLE');
+  ctx.impProvider.refuseNextPrepare('UNAVAILABLE');
 
   const first = await restoreFleet({
     mgr,
@@ -1350,7 +1357,7 @@ test('it never adopts a terminal for a live headless run a later restore finds l
 
   mgr.yankHeadless(s.id);
 
-  const requests = ctx.port.sessionRequests.length;
+  const requests = ctx.impProvider.harnesses.length;
 
   const restored = await restoreFleet({
     mgr,
@@ -1364,7 +1371,7 @@ test('it never adopts a terminal for a live headless run a later restore finds l
 
   await restored.settled;
 
-  expect(ctx.port.sessionRequests.length - requests).toBe(0);
+  expect(ctx.impProvider.harnesses.length - requests).toBe(0);
   expect(mgr.sessions).toMatchObject([{ id: 's-headless', kind: 'headless', pty: null }]);
 });
 
@@ -1392,7 +1399,8 @@ test('it restores and persists a live legacy cloud session after an image change
     targetIdentity: 'imp:0123456789abcdef',
   });
 
-  await ctx.port.createImp({ name: ctx.impProvider.getImpName(entry.sessionID), image: 'old' });
+  ctx.impProvider.createHost(entry.sessionID);
+
   await ctx.store.writeFleet([entry]);
 
   const restored = await restoreFleet({
@@ -1423,10 +1431,7 @@ test('it restores and persists a live legacy cloud session after an image change
   const fleet = await ctx.store.loadFleet();
 
   expect(fleet).toMatchObject([{ sessionID: entry.sessionID, targetIdentity: identity }]);
-
-  expect(ctx.port.createSpecs).toStrictEqual([
-    { name: ctx.impProvider.getImpName(entry.sessionID), image: 'old' },
-  ]);
+  expect(ctx.impProvider.created).toStrictEqual([]);
 });
 
 test('it keeps a cloud session usable after the image changes under a versioned binding', async () => {
@@ -1453,7 +1458,8 @@ test('it keeps a cloud session usable after the image changes under a versioned 
     targetIdentity: buildTargetIdentity('imp', { url: 'http://impd', image: 'old' }),
   });
 
-  await ctx.port.createImp({ name: ctx.impProvider.getImpName(entry.sessionID), image: 'old' });
+  ctx.impProvider.createHost(entry.sessionID);
+
   await ctx.store.writeFleet([entry]);
 
   const restored = await restoreFleet({
@@ -1525,7 +1531,7 @@ test('it leaves a missing legacy imp refused instead of creating a replacement',
     },
   ]);
 
-  expect(ctx.port.createSpecs).toStrictEqual([]);
+  expect(ctx.impProvider.prepared).toStrictEqual([]);
 });
 
 test('it restores a listed legacy session when its imp becomes reachable on a later restore', async () => {
@@ -1567,7 +1573,7 @@ test('it restores a listed legacy session when its imp becomes reachable on a la
 
   const refused = mgr.sessions[0]?.lastMsg;
 
-  await ctx.port.createImp({ name: ctx.impProvider.getImpName(entry.sessionID), image: 'old' });
+  ctx.impProvider.createHost(entry.sessionID);
 
   const restored = await restoreFleet({
     mgr,
@@ -1627,9 +1633,8 @@ test('it lists the adoption refusal in place of a stale binding refusal once the
 
   await first.settled;
 
-  await ctx.port.createImp({ name: ctx.impProvider.getImpName(entry.sessionID) });
-
-  ctx.port.setAcquireFailure(0, 'LEASED');
+  ctx.impProvider.createHost(entry.sessionID);
+  ctx.impProvider.refuseNextPrepare('LEASED');
 
   const restored = await restoreFleet({
     mgr,
@@ -1667,7 +1672,7 @@ test('it starts no harness once the daemon stopped before the restore began', as
         kind: 'local-pty',
         options: {},
         identity: buildTargetIdentity('local-pty', {}),
-        provider: ctx.held.provider,
+        provider: ctx.held,
       },
     ],
   );
@@ -1696,7 +1701,7 @@ test('it starts no harness once the daemon stopped before the restore began', as
 
   expect(result.restored).toBe(3);
   expect(outcome).toBe('stopped');
-  expect(ctx.held.prepares).toStrictEqual([]);
+  expect(ctx.held.prepared.map((request) => request.host)).toStrictEqual([]);
   expect(ctx.held.harnesses).toStrictEqual([]);
 });
 
@@ -1714,7 +1719,7 @@ test('it starts no harness once the daemon stops while the first one starts', as
         kind: 'local-pty',
         options: {},
         identity: buildTargetIdentity('local-pty', {}),
-        provider: ctx.held.provider,
+        provider: ctx.held,
       },
     ],
   );
@@ -1742,18 +1747,18 @@ test('it starts no harness once the daemon stops while the first one starts', as
   });
 
   await waitFor(() => {
-    expect(ctx.held.prepares).toStrictEqual(['s-a']);
+    expect(ctx.held.prepared.map((request) => request.host)).toStrictEqual(['s-a']);
   });
 
   stopped = true;
 
-  ctx.held.release('s-a');
+  ctx.release('s-a');
 
   const result = await restoring;
   const outcome = await result.settled;
 
   expect(outcome).toBe('stopped');
-  expect(ctx.held.prepares).toStrictEqual(['s-a']);
+  expect(ctx.held.prepared.map((request) => request.host)).toStrictEqual(['s-a']);
   expect(ctx.held.harnesses).toStrictEqual([]);
 });
 
@@ -1771,7 +1776,7 @@ test('it starts no harness for a queued session once the daemon stops during its
         kind: 'local-pty',
         options: {},
         identity: buildTargetIdentity('local-pty', {}),
-        provider: ctx.held.provider,
+        provider: ctx.held,
       },
     ],
   );
@@ -1799,29 +1804,29 @@ test('it starts no harness for a queued session once the daemon stops during its
   });
 
   await waitFor(() => {
-    expect(ctx.held.prepares).toStrictEqual(['s-a']);
+    expect(ctx.held.prepared.map((request) => request.host)).toStrictEqual(['s-a']);
   });
 
-  ctx.held.release('s-a');
+  ctx.release('s-a');
 
   const result = await restoring;
 
   await waitFor(() => {
-    expect(ctx.held.prepares).toStrictEqual(['s-a', 's-b']);
+    expect(ctx.held.prepared.map((request) => request.host)).toStrictEqual(['s-a', 's-b']);
   });
 
-  ctx.held.release('s-b');
+  ctx.release('s-b');
 
   await waitFor(() => {
-    expect(ctx.held.prepares).toStrictEqual(['s-a', 's-b', 's-c']);
+    expect(ctx.held.prepared.map((request) => request.host)).toStrictEqual(['s-a', 's-b', 's-c']);
   });
 
   stopped = true;
 
-  ctx.held.release('s-c');
+  ctx.release('s-c');
 
   const outcome = await result.settled;
 
   expect(outcome).toBe('stopped');
-  expect(ctx.held.harnesses.map((spec) => spec.session)).toStrictEqual(['s-a', 's-b']);
+  expect(ctx.held.harnesses.map((harness) => harness.spec.session)).toStrictEqual(['s-a', 's-b']);
 });

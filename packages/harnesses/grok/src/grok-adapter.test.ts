@@ -143,3 +143,26 @@ test('it refuses inbox messages', () => {
 
   expect(adapter.takesMessages).toBeFalse();
 });
+
+test('it takes neither a model nor an effort from a spawn', () => {
+  const adapter = new GrokAdapter(getAgentEntry(parseConfig([GROK_PLUGIN], {}), 'grok'));
+
+  expect(adapter.profile.spawnOptions).toStrictEqual({
+    model: {
+      supported: false,
+      values: null,
+      examples: [],
+      default: null,
+      backendEffect: null,
+      note: 'atc does not pass this option to Grok.',
+    },
+    effort: {
+      supported: false,
+      values: null,
+      examples: [],
+      default: null,
+      backendEffect: null,
+      note: 'atc does not pass this option to Grok.',
+    },
+  });
+});

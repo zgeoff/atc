@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'bun:test';
 import { appendFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseClaudeTranscriptLine } from '@atc/harness-claude';
+import type { TranscriptRow } from '@atc/protocol';
 import { setupTempDir } from '@atc/test-utils';
 import { loadTranscriptPage } from './load-transcript-page';
 
@@ -14,11 +14,7 @@ function setupTest() {
 test('it reads every row from the start of a transcript', async () => {
   const ctx = setupTest();
   const path = join(ctx.dir, 't.jsonl');
-
-  const content =
-    '{"type":"user","message":{"role":"user","content":"one"}}\n' +
-    '{"type":"user","message":{"role":"user","content":"two"}}\n' +
-    '{"type":"user","message":{"role":"user","content":"three"}}\n';
+  const content = 'one\ntwo\nthree\n';
 
   writeFileSync(path, content);
 
@@ -27,7 +23,7 @@ test('it reads every row from the start of a transcript', async () => {
     from: null,
     limit: 50,
     maxBytes: 262_144,
-    parseLine: parseClaudeTranscriptLine,
+    parseLine: (line) => ({ role: 'user', text: line, tools: [], at: null }),
   });
 
   expect(page.rows).toStrictEqual([
@@ -44,19 +40,14 @@ test('it stops at the row limit and reports more rows', async () => {
   const ctx = setupTest();
   const path = join(ctx.dir, 't.jsonl');
 
-  writeFileSync(
-    path,
-    '{"type":"user","message":{"role":"user","content":"one"}}\n' +
-      '{"type":"user","message":{"role":"user","content":"two"}}\n' +
-      '{"type":"user","message":{"role":"user","content":"three"}}\n',
-  );
+  writeFileSync(path, 'one\ntwo\nthree\n');
 
   const page = await loadTranscriptPage({
     path,
     from: null,
     limit: 2,
     maxBytes: 262_144,
-    parseLine: parseClaudeTranscriptLine,
+    parseLine: (line) => ({ role: 'user', text: line, tools: [], at: null }),
   });
 
   expect(page.rows).toStrictEqual([
@@ -71,19 +62,14 @@ test('it resumes from the offset a page at the row limit returns', async () => {
   const ctx = setupTest();
   const path = join(ctx.dir, 't.jsonl');
 
-  writeFileSync(
-    path,
-    '{"type":"user","message":{"role":"user","content":"one"}}\n' +
-      '{"type":"user","message":{"role":"user","content":"two"}}\n' +
-      '{"type":"user","message":{"role":"user","content":"three"}}\n',
-  );
+  writeFileSync(path, 'one\ntwo\nthree\n');
 
   const first = await loadTranscriptPage({
     path,
     from: null,
     limit: 2,
     maxBytes: 262_144,
-    parseLine: parseClaudeTranscriptLine,
+    parseLine: (line) => ({ role: 'user', text: line, tools: [], at: null }),
   });
 
   const second = await loadTranscriptPage({
@@ -91,7 +77,7 @@ test('it resumes from the offset a page at the row limit returns', async () => {
     from: { path, offset: first.offset },
     limit: 2,
     maxBytes: 262_144,
-    parseLine: parseClaudeTranscriptLine,
+    parseLine: (line) => ({ role: 'user', text: line, tools: [], at: null }),
   });
 
   expect(second.rows).toStrictEqual([{ role: 'user', text: 'three', tools: [], at: null }]);
@@ -102,24 +88,24 @@ test('it picks up rows appended after the last read', async () => {
   const ctx = setupTest();
   const path = join(ctx.dir, 't.jsonl');
 
-  writeFileSync(path, '{"type":"user","message":{"role":"user","content":"one"}}\n');
+  writeFileSync(path, 'one\n');
 
   const first = await loadTranscriptPage({
     path,
     from: null,
     limit: 50,
     maxBytes: 262_144,
-    parseLine: parseClaudeTranscriptLine,
+    parseLine: (line) => ({ role: 'user', text: line, tools: [], at: null }),
   });
 
-  appendFileSync(path, '{"type":"user","message":{"role":"user","content":"two"}}\n');
+  appendFileSync(path, 'two\n');
 
   const second = await loadTranscriptPage({
     path,
     from: { path, offset: first.offset },
     limit: 50,
     maxBytes: 262_144,
-    parseLine: parseClaudeTranscriptLine,
+    parseLine: (line) => ({ role: 'user', text: line, tools: [], at: null }),
   });
 
   expect(second.rows).toStrictEqual([{ role: 'user', text: 'two', tools: [], at: null }]);
@@ -128,38 +114,33 @@ test('it picks up rows appended after the last read', async () => {
 test('it leaves a trailing partial line unread', async () => {
   const ctx = setupTest();
   const path = join(ctx.dir, 't.jsonl');
-  const complete = '{"type":"user","message":{"role":"user","content":"one"}}\n';
 
-  writeFileSync(path, `${complete}{"type":"user","message":{"role":"user","content":"two"}}`);
+  writeFileSync(path, 'one\ntwo');
 
   const page = await loadTranscriptPage({
     path,
     from: null,
     limit: 50,
     maxBytes: 262_144,
-    parseLine: parseClaudeTranscriptLine,
+    parseLine: (line) => ({ role: 'user', text: line, tools: [], at: null }),
   });
 
   expect(page.rows).toStrictEqual([{ role: 'user', text: 'one', tools: [], at: null }]);
-  expect(page.offset).toBe(Buffer.byteLength(complete));
+  expect(page.offset).toBe(Buffer.byteLength('one\n'));
 });
 
 test('it reads a partial line once a later write completes it', async () => {
   const ctx = setupTest();
   const path = join(ctx.dir, 't.jsonl');
 
-  writeFileSync(
-    path,
-    '{"type":"user","message":{"role":"user","content":"one"}}\n' +
-      '{"type":"user","message":{"role":"user","content":"two"}}',
-  );
+  writeFileSync(path, 'one\ntwo');
 
   const first = await loadTranscriptPage({
     path,
     from: null,
     limit: 50,
     maxBytes: 262_144,
-    parseLine: parseClaudeTranscriptLine,
+    parseLine: (line) => ({ role: 'user', text: line, tools: [], at: null }),
   });
 
   appendFileSync(path, '\n');
@@ -169,7 +150,7 @@ test('it reads a partial line once a later write completes it', async () => {
     from: { path, offset: first.offset },
     limit: 50,
     maxBytes: 262_144,
-    parseLine: parseClaudeTranscriptLine,
+    parseLine: (line) => ({ role: 'user', text: line, tools: [], at: null }),
   });
 
   expect(second.rows).toStrictEqual([{ role: 'user', text: 'two', tools: [], at: null }]);
@@ -178,9 +159,7 @@ test('it reads a partial line once a later write completes it', async () => {
 test('it skips lines it cannot parse while advancing past them', async () => {
   const ctx = setupTest();
   const path = join(ctx.dir, 't.jsonl');
-
-  const content =
-    '{"type":"user","message":{"role":"user","content":"one"}}\ngarbage\n{"type":"user","message":{"role":"user","content":"two"}}\n';
+  const content = 'one\ngarbage\ntwo\n';
 
   writeFileSync(path, content);
 
@@ -189,7 +168,8 @@ test('it skips lines it cannot parse while advancing past them', async () => {
     from: null,
     limit: 50,
     maxBytes: 262_144,
-    parseLine: parseClaudeTranscriptLine,
+    parseLine: (line) =>
+      line === 'garbage' ? null : { role: 'user', text: line, tools: [], at: null },
   });
 
   expect(page.rows).toStrictEqual([
@@ -204,18 +184,14 @@ test('it stops at the byte budget but always returns at least one row', async ()
   const ctx = setupTest();
   const path = join(ctx.dir, 't.jsonl');
 
-  writeFileSync(
-    path,
-    '{"type":"user","message":{"role":"user","content":"one"}}\n' +
-      '{"type":"user","message":{"role":"user","content":"two"}}\n',
-  );
+  writeFileSync(path, 'one\ntwo\n');
 
   const page = await loadTranscriptPage({
     path,
     from: null,
     limit: 50,
     maxBytes: 1,
-    parseLine: parseClaudeTranscriptLine,
+    parseLine: (line) => ({ role: 'user', text: line, tools: [], at: null }),
   });
 
   expect(page.rows).toStrictEqual([{ role: 'user', text: 'one', tools: [], at: null }]);
@@ -226,18 +202,14 @@ test('it reads from the start when the cursor belongs to another file', async ()
   const ctx = setupTest();
   const path = join(ctx.dir, 't.jsonl');
 
-  writeFileSync(
-    path,
-    '{"type":"user","message":{"role":"user","content":"one"}}\n' +
-      '{"type":"user","message":{"role":"user","content":"two"}}\n',
-  );
+  writeFileSync(path, 'one\ntwo\n');
 
   const page = await loadTranscriptPage({
     path,
     from: { path: '/elsewhere.jsonl', offset: 5 },
     limit: 50,
     maxBytes: 262_144,
-    parseLine: parseClaudeTranscriptLine,
+    parseLine: (line) => ({ role: 'user', text: line, tools: [], at: null }),
   });
 
   expect(page.rows).toStrictEqual([
@@ -250,18 +222,14 @@ test('it reads from the start when the cursor runs past the end of the file', as
   const ctx = setupTest();
   const path = join(ctx.dir, 't.jsonl');
 
-  writeFileSync(
-    path,
-    '{"type":"user","message":{"role":"user","content":"one"}}\n' +
-      '{"type":"user","message":{"role":"user","content":"two"}}\n',
-  );
+  writeFileSync(path, 'one\ntwo\n');
 
   const page = await loadTranscriptPage({
     path,
     from: { path, offset: 10_000 },
     limit: 50,
     maxBytes: 262_144,
-    parseLine: parseClaudeTranscriptLine,
+    parseLine: (line) => ({ role: 'user', text: line, tools: [], at: null }),
   });
 
   expect(page.rows).toStrictEqual([
@@ -278,7 +246,7 @@ test('it answers a missing transcript with an empty page', async () => {
     from: null,
     limit: 50,
     maxBytes: 262_144,
-    parseLine: parseClaudeTranscriptLine,
+    parseLine: (line) => ({ role: 'user', text: line, tools: [], at: null }),
   });
 
   expect(page).toStrictEqual({ rows: [], offset: 0, more: false });
@@ -287,23 +255,24 @@ test('it answers a missing transcript with an empty page', async () => {
 test('it returns when the file shrinks while it is being read', async () => {
   const ctx = setupTest();
   const path = join(ctx.dir, 't.jsonl');
-  const line = '{"type":"user","message":{"role":"user","content":"row"}}\n';
 
   // The file spans more than one 1 MiB read window, so a read runs after the
   // shrink.
-  writeFileSync(path, line.repeat(30_000));
+  writeFileSync(path, 'a row\n'.repeat(200_000));
 
   // The first line parsed empties the file; every later line parses as is.
-  const parseLine = mock(parseClaudeTranscriptLine).mockImplementationOnce((text) => {
+  const parseLine = mock(
+    (line: string): TranscriptRow => ({ role: 'user', text: line, tools: [], at: null }),
+  ).mockImplementationOnce((line) => {
     writeFileSync(path, '');
 
-    return parseClaudeTranscriptLine(text);
+    return { role: 'user', text: line, tools: [], at: null };
   });
 
   const page = await loadTranscriptPage({
     path,
     from: null,
-    limit: 100_000,
+    limit: 300_000,
     maxBytes: 100_000_000,
     parseLine,
   });
@@ -311,13 +280,13 @@ test('it returns when the file shrinks while it is being read', async () => {
   // The page holds the rows of the first window: the whole lines that fit
   // in 1 MiB.
   expect(page).toStrictEqual({
-    rows: Array.from({ length: 18_078 }, () => ({
+    rows: Array.from({ length: 174_762 }, () => ({
       role: 'user',
-      text: 'row',
+      text: 'a row',
       tools: [],
       at: null,
     })),
-    offset: 18_078 * Buffer.byteLength(line),
+    offset: 174_762 * Buffer.byteLength('a row\n'),
     more: false,
   });
 });

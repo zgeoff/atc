@@ -1,32 +1,101 @@
 import { expect, test } from 'bun:test';
-import { parseConfig } from '@atc/config';
-import { ClaudeAdapter, GatewayAdapter } from '@atc/harness-claude';
-import { getGatewayConfig } from '@atc/harness-claude/testing';
-import { CodexAdapter } from '@atc/harness-codex';
-import { GrokAdapter } from '@atc/harness-grok';
-import { buildMockHostServices, getAgentEntry } from '@atc/test-utils';
+import { buildMockAgentAdapter } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
-import { buildAgentAdapters } from '../agents/build-agent-adapters';
-import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { buildAgentList } from './build-agent-list';
 import { parseSpawnOverrides } from './parse-spawn-overrides';
 
 test('it accepts every model and effort value agents.list advertises as available', () => {
-  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
-    agents: {
-      claude: {},
-      grok: {},
-      codex: {},
-      zai: {
-        kind: 'claude',
-        baseURL: 'https://api.z.ai/api/anthropic',
-        env: { ANTHROPIC_DEFAULT_OPUS_MODEL: 'glm-4.6', ANTHROPIC_DEFAULT_HAIKU_MODEL: 'glm-4.5' },
-      },
-    },
-  });
-
   const agents = buildAgentList(
-    buildAgentAdapters(config, buildMockHostServices()),
+    [
+      buildMockAgentAdapter({
+        id: 'claude',
+        profile: {
+          label: 'Claude',
+          kind: 'claude',
+          bin: 'claude',
+          models: null,
+          spawnOptions: {
+            model: {
+              supported: true,
+              values: null,
+              examples: [
+                { value: 'best', resolvesTo: null },
+                { value: 'opus', resolvesTo: null },
+                { value: 'opus[1m]', resolvesTo: null },
+              ],
+              default: null,
+              backendEffect: 'applied',
+              note: null,
+            },
+            effort: {
+              supported: true,
+              values: ['low', 'medium', 'high', 'xhigh', 'max'],
+              examples: [],
+              default: null,
+              backendEffect: 'applied',
+              note: null,
+            },
+          },
+        },
+      }),
+      buildMockAgentAdapter({
+        id: 'grok',
+        profile: {
+          label: 'Grok',
+          kind: 'grok',
+          bin: 'grok',
+          models: null,
+          spawnOptions: {
+            model: {
+              supported: false,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: null,
+              note: null,
+            },
+            effort: {
+              supported: false,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: null,
+              note: null,
+            },
+          },
+        },
+      }),
+      buildMockAgentAdapter({
+        id: 'zai',
+        profile: {
+          label: 'zai',
+          kind: 'gateway',
+          bin: 'claude',
+          models: { opus: 'glm-4.6', haiku: 'glm-4.5' },
+          spawnOptions: {
+            model: {
+              supported: true,
+              values: null,
+              examples: [
+                { value: 'opus', resolvesTo: 'glm-4.6' },
+                { value: 'haiku', resolvesTo: 'glm-4.5' },
+              ],
+              default: null,
+              backendEffect: 'applied',
+              note: null,
+            },
+            effort: {
+              supported: true,
+              values: ['low', 'high'],
+              examples: [],
+              default: null,
+              backendEffect: 'unverified',
+              note: null,
+            },
+          },
+        },
+      }),
+    ],
     () => true,
     false,
   );
@@ -47,13 +116,8 @@ test('it accepts every model and effort value agents.list advertises as availabl
 
   expect(parsed).toStrictEqual([
     { ok: true, overrides: { model: 'best' } },
-    { ok: true, overrides: { model: 'fable' } },
     { ok: true, overrides: { model: 'opus' } },
-    { ok: true, overrides: { model: 'sonnet' } },
-    { ok: true, overrides: { model: 'haiku' } },
     { ok: true, overrides: { model: 'opus[1m]' } },
-    { ok: true, overrides: { model: 'sonnet[1m]' } },
-    { ok: true, overrides: { model: 'opusplan' } },
     { ok: true, overrides: { effort: 'low' } },
     { ok: true, overrides: { effort: 'medium' } },
     { ok: true, overrides: { effort: 'high' } },
@@ -62,21 +126,67 @@ test('it accepts every model and effort value agents.list advertises as availabl
     { ok: true, overrides: { model: 'opus' } },
     { ok: true, overrides: { model: 'haiku' } },
     { ok: true, overrides: { effort: 'low' } },
-    { ok: true, overrides: { effort: 'medium' } },
     { ok: true, overrides: { effort: 'high' } },
-    { ok: true, overrides: { effort: 'xhigh' } },
-    { ok: true, overrides: { effort: 'max' } },
   ]);
 });
 
 test('it refuses as unsupported every option agents.list does not advertise as available', () => {
-  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {});
-
   const agents = buildAgentList(
     [
-      new ClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
-      new GrokAdapter(getAgentEntry(config, 'grok')),
-      new CodexAdapter(getAgentEntry(config, 'codex')),
+      buildMockAgentAdapter({
+        id: 'grok',
+        profile: {
+          label: 'Grok',
+          kind: 'grok',
+          bin: 'grok',
+          models: null,
+          spawnOptions: {
+            model: {
+              supported: false,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: null,
+              note: null,
+            },
+            effort: {
+              supported: false,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: null,
+              note: null,
+            },
+          },
+        },
+      }),
+      buildMockAgentAdapter({
+        id: 'codex',
+        profile: {
+          label: 'Codex',
+          kind: 'codex',
+          bin: 'codex',
+          models: null,
+          spawnOptions: {
+            model: {
+              supported: true,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: 'applied',
+              note: null,
+            },
+            effort: {
+              supported: false,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: null,
+              note: null,
+            },
+          },
+        },
+      }),
     ],
     () => true,
     false,
@@ -106,10 +216,35 @@ test('it refuses as unsupported every option agents.list does not advertise as a
 
 test('it refuses a model for a registered agent that is not installed', () => {
   const [claude] = buildAgentList(
-    buildAgentAdapters(
-      parseConfig(SHIPPED_HARNESS_PLUGINS, { agents: { claude: {} } }),
-      buildMockHostServices(),
-    ),
+    [
+      buildMockAgentAdapter({
+        id: 'claude',
+        profile: {
+          label: 'Claude',
+          kind: 'claude',
+          bin: 'claude',
+          models: null,
+          spawnOptions: {
+            model: {
+              supported: true,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: 'applied',
+              note: null,
+            },
+            effort: {
+              supported: true,
+              values: ['low', 'medium', 'high', 'xhigh', 'max'],
+              examples: [],
+              default: null,
+              backendEffect: 'applied',
+              note: null,
+            },
+          },
+        },
+      }),
+    ],
     () => false,
     false,
   );
@@ -125,10 +260,35 @@ test('it refuses a model for a registered agent that is not installed', () => {
 
 test('it passes a full model name through as given', () => {
   const [claude] = buildAgentList(
-    buildAgentAdapters(
-      parseConfig(SHIPPED_HARNESS_PLUGINS, { agents: { claude: {} } }),
-      buildMockHostServices(),
-    ),
+    [
+      buildMockAgentAdapter({
+        id: 'claude',
+        profile: {
+          label: 'Claude',
+          kind: 'claude',
+          bin: 'claude',
+          models: null,
+          spawnOptions: {
+            model: {
+              supported: true,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: 'applied',
+              note: null,
+            },
+            effort: {
+              supported: true,
+              values: ['low', 'medium', 'high', 'xhigh', 'max'],
+              examples: [],
+              default: null,
+              backendEffect: 'applied',
+              note: null,
+            },
+          },
+        },
+      }),
+    ],
     () => true,
     false,
   );
@@ -152,10 +312,35 @@ test.each([
   ['m'.repeat(201), 'model must be 1 to 200 characters'],
 ])('it refuses the model %p as bad_args', (model, message) => {
   const [claude] = buildAgentList(
-    buildAgentAdapters(
-      parseConfig(SHIPPED_HARNESS_PLUGINS, { agents: { claude: {} } }),
-      buildMockHostServices(),
-    ),
+    [
+      buildMockAgentAdapter({
+        id: 'claude',
+        profile: {
+          label: 'Claude',
+          kind: 'claude',
+          bin: 'claude',
+          models: null,
+          spawnOptions: {
+            model: {
+              supported: true,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: 'applied',
+              note: null,
+            },
+            effort: {
+              supported: true,
+              values: ['low', 'medium', 'high', 'xhigh', 'max'],
+              examples: [],
+              default: null,
+              backendEffect: 'applied',
+              note: null,
+            },
+          },
+        },
+      }),
+    ],
     () => true,
     false,
   );
@@ -174,12 +359,37 @@ test.each([
   ['minimal', "agent 'claude' takes effort low, medium, high, xhigh, max; got 'minimal'"],
   ['HIGH', "agent 'claude' takes effort low, medium, high, xhigh, max; got 'HIGH'"],
   ['--max', "effort must not start with '-' or hold control characters"],
-])('it refuses the effort %p that Claude Code does not accept', (effort, message) => {
+])('it refuses the effort %p outside the closed set the agent takes', (effort, message) => {
   const [claude] = buildAgentList(
-    buildAgentAdapters(
-      parseConfig(SHIPPED_HARNESS_PLUGINS, { agents: { claude: {} } }),
-      buildMockHostServices(),
-    ),
+    [
+      buildMockAgentAdapter({
+        id: 'claude',
+        profile: {
+          label: 'Claude',
+          kind: 'claude',
+          bin: 'claude',
+          models: null,
+          spawnOptions: {
+            model: {
+              supported: true,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: 'applied',
+              note: null,
+            },
+            effort: {
+              supported: true,
+              values: ['low', 'medium', 'high', 'xhigh', 'max'],
+              examples: [],
+              default: null,
+              backendEffect: 'applied',
+              note: null,
+            },
+          },
+        },
+      }),
+    ],
     () => true,
     false,
   );
@@ -193,51 +403,37 @@ test.each([
   });
 });
 
-test('it accepts a gateway effort', () => {
-  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
-    agents: { zai: { kind: 'claude', baseURL: 'https://api.z.ai/api/anthropic' } },
-  });
-
-  const [zai] = buildAgentList(
-    [new GatewayAdapter(getGatewayConfig(config, 'zai'), config, buildMockHostServices())],
-    () => true,
-    false,
-  );
-
-  invariant(zai !== undefined, 'the agent list holds no gateway entry');
-
-  expect(parseSpawnOverrides(zai, { effort: 'high' })).toStrictEqual({
-    ok: true,
-    overrides: { effort: 'high' },
-  });
-});
-
-test('it refuses a gateway effort outside the levels Claude Code accepts', () => {
-  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
-    agents: { zai: { kind: 'claude', baseURL: 'https://api.z.ai/api/anthropic' } },
-  });
-
-  const [zai] = buildAgentList(
-    [new GatewayAdapter(getGatewayConfig(config, 'zai'), config, buildMockHostServices())],
-    () => true,
-    false,
-  );
-
-  invariant(zai !== undefined, 'the agent list holds no gateway entry');
-
-  expect(parseSpawnOverrides(zai, { effort: 'ultra' })).toStrictEqual({
-    ok: false,
-    code: 'bad_args',
-    message: "agent 'zai' takes effort low, medium, high, xhigh, max; got 'ultra'",
-  });
-});
-
-test('it refuses a codex effort', () => {
+test('it refuses an effort for an agent that takes none', () => {
   const [codex] = buildAgentList(
-    buildAgentAdapters(
-      parseConfig(SHIPPED_HARNESS_PLUGINS, { agents: { codex: {} } }),
-      buildMockHostServices(),
-    ),
+    [
+      buildMockAgentAdapter({
+        id: 'codex',
+        profile: {
+          label: 'Codex',
+          kind: 'codex',
+          bin: 'codex',
+          models: null,
+          spawnOptions: {
+            model: {
+              supported: true,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: 'applied',
+              note: null,
+            },
+            effort: {
+              supported: false,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: null,
+              note: null,
+            },
+          },
+        },
+      }),
+    ],
     () => true,
     false,
   );
@@ -251,12 +447,37 @@ test('it refuses a codex effort', () => {
   });
 });
 
-test('it accepts a codex model', () => {
+test('it accepts any model for an agent whose model option has no closed set', () => {
   const [codex] = buildAgentList(
-    buildAgentAdapters(
-      parseConfig(SHIPPED_HARNESS_PLUGINS, { agents: { codex: {} } }),
-      buildMockHostServices(),
-    ),
+    [
+      buildMockAgentAdapter({
+        id: 'codex',
+        profile: {
+          label: 'Codex',
+          kind: 'codex',
+          bin: 'codex',
+          models: null,
+          spawnOptions: {
+            model: {
+              supported: true,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: 'applied',
+              note: null,
+            },
+            effort: {
+              supported: false,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: null,
+              note: null,
+            },
+          },
+        },
+      }),
+    ],
     () => true,
     false,
   );

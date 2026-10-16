@@ -1,7 +1,6 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { toAgentSessionID, toSessionID } from '@atc/core';
-import { LocalPTYProvider } from '@atc/execution-local';
 import { StateStore, buildTargetIdentity } from '@atc/store';
 import { buildMockFleetEntry, createMigratedStateDB } from '@atc/store/testing';
 import {
@@ -16,11 +15,12 @@ import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-tar
 import type { Session } from './session';
 import type { SessionEventKind } from './session-event-kind';
 import { SessionManager } from './sessions';
+import { buildStubMemoryProvider } from './testing/build-stub-memory-provider';
 
 // The fixed parts every session manager test shares: a real state store, a
-// recorder of logged lines, and the `local` provider on this machine's
-// terminals. Each test builds its targets over it. A manager the test holds
-// after this setup detaches before the store and the provider go.
+// recorder of logged lines, and a `local-pty` provider whose harnesses live
+// in memory. Each test builds its targets over it. A manager the test holds
+// after this setup detaches before the store goes.
 async function setupTest() {
   const tmp = setupTempDir('atc-sessions-');
   const dbPath = join(tmp.dir, 'state.db');
@@ -31,10 +31,7 @@ async function setupTest() {
 
   registerTestCleanup(() => store.stop());
 
-  const local = new LocalPTYProvider();
-
-  registerTestCleanup(() => local.dispose());
-
+  const local = buildStubMemoryProvider({ kind: 'local-pty' });
   const recorder = buildStubLog();
 
   return {
@@ -658,7 +655,11 @@ test('it keeps a crashed sibling restorable as live when another session finishe
 
   await mgr.writeFleet();
 
-  crasher.pty?.kill();
+  const [, crashed] = ctx.local.harnesses;
+
+  invariant(crashed);
+
+  crashed.emitExit({ exitCode: 1 });
 
   await waitFor(() => {
     expect(crasher.state).toBe('exited');
@@ -697,7 +698,7 @@ test('it keeps a crashed sibling restorable as live when another session finishe
   });
 });
 
-test('it ends each harness on this machine when disposed', async () => {
+test('it lets go of each harness when disposed', async () => {
   const ctx = await setupTest();
 
   const mgr = new SessionManager(
@@ -721,17 +722,12 @@ test('it ends each harness on this machine when disposed', async () => {
 
   mgr.log = ctx.log;
 
-  const s = await mgr.spawn(ctx.dir, 'worker', '', 80, 24);
-
-  const harness = s.pty;
-
-  invariant(harness);
+  await mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  await mgr.spawn(ctx.dir, 'helper', '', 80, 24);
 
   mgr[Symbol.dispose]();
 
-  const exited = await harness.waitForExit(2000);
-
-  expect(exited).toBeTrue();
+  expect(ctx.local.harnesses.map((harness) => harness.isDetached())).toStrictEqual([true, true]);
 });
 
 test('it allows a second disposal', async () => {

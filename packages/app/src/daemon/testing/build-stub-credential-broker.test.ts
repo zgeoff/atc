@@ -222,3 +222,49 @@ test('it records each contract call in order', async () => {
     'destroyHost atc-s1',
   ]);
 });
+
+test('it lists the sign-in state of a secret created with one', async () => {
+  const broker = buildStubCredentialBroker();
+
+  broker.createSecret(
+    'codex-chatgpt',
+    'oauth',
+    [{ host: 'chatgpt.com', header: 'authorization', scheme: 'bearer' }],
+    { status: 'ready', idClaims: { email: 'someone@example.com' } },
+  );
+
+  broker.createSecret('glm', 'custom', []);
+
+  const secrets = await broker.readSecrets();
+
+  expect(secrets).toStrictEqual([
+    {
+      name: 'codex-chatgpt',
+      kind: 'oauth',
+      rules: [{ host: 'chatgpt.com', header: 'authorization', scheme: 'bearer' }],
+      oauth: { status: 'ready', idClaims: { email: 'someone@example.com' } },
+    },
+    { name: 'glm', kind: 'custom', rules: [] },
+  ]);
+});
+
+test('it fails the set number of feature reads as an unreachable broker, then answers', async () => {
+  const broker = buildStubCredentialBroker();
+
+  broker.setFeatureFailures(1);
+
+  const failed = broker.readFeatures();
+
+  expect(failed).rejects.toMatchObject({ code: 'unreachable', brokerCode: 'UNREACHABLE' });
+
+  await failed.catch(() => {});
+
+  const features = await broker.readFeatures();
+
+  expect(features).toStrictEqual({
+    grantableTokens: true,
+    secretRebind: true,
+    execRequire: true,
+    oauthSecrets: true,
+  });
+});
