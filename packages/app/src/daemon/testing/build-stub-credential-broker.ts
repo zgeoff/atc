@@ -17,7 +17,7 @@ import { CredentialBrokerError } from '@atc/plugin-api';
  * operator prepares a broker, through the setters, and reads `calls` for
  * every contract call in order.
  */
-export interface StubCredentialBroker extends CredentialBroker {
+interface StubCredentialBroker extends CredentialBroker {
   readonly calls: string[];
   readonly setFeatures: (features: Partial<BrokerFeatures>) => void;
   readonly setIdentity: (identity: BrokerIdentity) => void;
