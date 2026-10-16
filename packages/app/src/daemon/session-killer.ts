@@ -2,7 +2,6 @@ import type { SessionID } from '@atc/core';
 import type { ExecutionCapability } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import type { Session } from './session';
-import type { SessionAdopter } from './session-adopter';
 import type { SessionCallbacks } from './session-callbacks';
 import type { SessionFleetWriter } from './session-fleet-writer';
 import type { SessionRegistry } from './session-registry';
@@ -17,7 +16,10 @@ interface SessionKillerDeps {
     SessionCallbacks,
     'onEvent' | 'onProcessEnded' | 'log' | 'getAuthBinder'
   >;
-  readonly restarts: Pick<SessionAdopter, 'stopRestart'>;
+
+  // Stops a revive's restart that waits on the kill of its outdated
+  // harness, and returns whether one was waiting.
+  readonly restarts: { readonly stopRestart: (id: SessionID) => Promise<boolean> };
 }
 
 /**

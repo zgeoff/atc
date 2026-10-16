@@ -3125,9 +3125,12 @@ test('it leaves a session stopped and starts no fresh harness when a stop lands 
   const stop = daemon.client.sendRequest('session.kill', { session: id, stopOnly: true });
 
   // The harness ignores the hangup, so the kill wait lasts until the test
-  // ends it. The stop has no mark to wait on, and one that reached the
-  // daemon after the end would find a fresh harness and fail the test.
-  await Bun.sleep(100);
+  // ends it once the stop has landed.
+  await waitFor(async () => {
+    const stopping = await daemon.client.sendRequest('session.get', { session: id });
+
+    expect(getRecord(stopping, 'session')).toMatchObject({ alive: false, lastMsg: 'stopping' });
+  });
 
   ctx.port.killProcess(started.name, started.session);
 

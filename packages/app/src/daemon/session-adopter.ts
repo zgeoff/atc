@@ -56,6 +56,7 @@ interface HarnessLaunch {
 
 // A restart whose outdated harness waits on its kill.
 interface HarnessRestart {
+  readonly session: Session;
   stopped: boolean;
   readonly settled: Promise<void>;
 }
@@ -99,8 +100,9 @@ export class SessionAdopter {
   /**
    * Stops a session whose outdated harness waits on its kill before a
    * restart, so the restart starts no fresh harness, and waits until the
-   * session is left stopped and written to the fleet. Returns whether such
-   * a restart was waiting; a session with none is left as it is.
+   * session is left stopped and written to the fleet. The session shows
+   * it stops meanwhile. Returns whether such a restart was waiting; a
+   * session with none is left as it is.
    */
   async stopRestart(id: SessionID): Promise<boolean> {
     const restart = this.restarts.get(id);
@@ -109,7 +111,12 @@ export class SessionAdopter {
       return false;
     }
 
-    restart.stopped = true;
+    if (!restart.stopped) {
+      restart.stopped = true;
+      restart.session.lastMsg = 'stopping';
+
+      this.callbacks.onEvent('state', restart.session);
+    }
 
     await restart.settled;
 
@@ -443,7 +450,7 @@ export class SessionAdopter {
     s.pty = null;
 
     const settled = Promise.withResolvers<void>();
-    const restart: HarnessRestart = { stopped: false, settled: settled.promise };
+    const restart: HarnessRestart = { session: s, stopped: false, settled: settled.promise };
 
     this.restarts.set(s.id, restart);
 
