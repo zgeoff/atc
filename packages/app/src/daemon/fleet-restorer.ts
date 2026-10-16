@@ -97,7 +97,15 @@ export class FleetRestorer {
       return;
     }
 
-    const stored = await this.deps.store.loadFleet();
+    let stored;
+
+    try {
+      stored = await this.deps.store.loadFleet();
+    } catch (error) {
+      this.logRestoreFailure(error);
+
+      return;
+    }
 
     if (stored.length === 0) {
       this.deps.onRestoreSkipped?.('empty');
@@ -112,9 +120,13 @@ export class FleetRestorer {
     try {
       await this.runFleetRestore(80, 24);
     } catch (error) {
-      this.deps.mgr.log(
-        `atc could not restore the fleet (${error instanceof Error ? error.message : String(error)})`,
-      );
+      this.logRestoreFailure(error);
     }
+  }
+
+  private logRestoreFailure(error: unknown): void {
+    this.deps.mgr.log(
+      `atc could not restore the fleet (${error instanceof Error ? error.message : String(error)})`,
+    );
   }
 }
