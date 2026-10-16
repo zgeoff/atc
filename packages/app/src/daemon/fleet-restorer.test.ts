@@ -166,7 +166,10 @@ test('it logs a stored fleet it cannot read at boot and resolves', async () => {
   await ctx.store.stop();
   await ctx.restorer.startBootRestore(true);
 
-  expect(ctx.lines).toContainEqual(expect.stringMatching(/^atc could not restore the fleet \(/));
+  expect(ctx.lines).toSatisfyAny((line: string) =>
+    line.startsWith('atc could not restore the fleet ('),
+  );
+
   expect(ctx.onRestoreSkipped).not.toHaveBeenCalled();
   expect(ctx.onRestoreSettled).not.toHaveBeenCalled();
 });
