@@ -1,5 +1,22 @@
 # Changelog
 
+## [4.11.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.10.0...@zgeoff/atc@4.11.0) (2026-10-16)
+
+
+### Features
+
+* **geo-1051:** add atc backup to copy the daemon's state database ([#652](https://github.com/zgeoff/atc/issues/652)) ([400260b](https://github.com/zgeoff/atc/commit/400260bd4e23960fbc89fd1286cea8f40ee60990))
+
+
+### Bug Fixes
+
+* **geo-1022:** move the codex bridge only on a session start ([#639](https://github.com/zgeoff/atc/issues/639)) ([70f27e9](https://github.com/zgeoff/atc/commit/70f27e93b31327d131202aebeecaab4f0adc79cd))
+* **geo-1023:** mark a choice partial when its menu read fails ([#640](https://github.com/zgeoff/atc/issues/640)) ([a085359](https://github.com/zgeoff/atc/commit/a085359e3d8b396ea94d63a33e63cf8c3f8a75ba))
+* **geo-1026:** hold codex sends while a thread move is pending ([#641](https://github.com/zgeoff/atc/issues/641)) ([ff444f5](https://github.com/zgeoff/atc/commit/ff444f535746a2a3f60e5dabe230480ea005d004))
+* **geo-1028:** wait for a typed path in the form the picker draws it ([#643](https://github.com/zgeoff/atc/issues/643)) ([c24f360](https://github.com/zgeoff/atc/commit/c24f360ca9d25974e8273217e7aa5b34d4496c16))
+* **geo-1030:** restore a session whose host slept as suspended ([#647](https://github.com/zgeoff/atc/issues/647)) ([2e39c4f](https://github.com/zgeoff/atc/commit/2e39c4f6754d8804874e32f4b6b539747839baa6))
+* **geo-912:** keep a session stopped during an adopt's restart ([#656](https://github.com/zgeoff/atc/issues/656)) ([41b2e31](https://github.com/zgeoff/atc/commit/41b2e3129a03d51bf109982d3fe120a0e1115c93))
+
 ## [4.10.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.9.0...@zgeoff/atc@4.10.0) (2026-10-15)
 
 ### Features
