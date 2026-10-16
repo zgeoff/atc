@@ -1,6 +1,19 @@
 import type { Database } from 'bun:sqlite';
 import { randomUUID } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
+import {
+  chmodSync,
+  closeSync,
+  existsSync,
+  fsyncSync,
+  mkdtempSync,
+  openSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  rmSync,
+  statSync,
+} from 'node:fs';
+import { basename, dirname, join as joinPath } from 'node:path';
 import { LOCAL_TARGET } from '@atc/config';
 import type { AgentID, AgentSessionID, DaemonID, MessageID, SessionID } from '@atc/core';
 import {
@@ -14,7 +27,7 @@ import {
 } from '@atc/core';
 import type { AdapterEvent, PublishedRecord, SessionWorkspace } from '@atc/protocol';
 import type { HookEvent } from '@atc/protocol/session';
-import { MESSAGE_SENDER_SCHEMA } from '@atc/protocol/wire';
+import { DaemonError, MESSAGE_SENDER_SCHEMA } from '@atc/protocol/wire';
 import type { MessageSender } from '@atc/protocol/wire';
 import { Kysely, sql } from 'kysely';
 import type {
@@ -159,8 +172,17 @@ export class StateStore {
   // The close under way or done, which every later close waits on.
   private stopping: Promise<void> | null = null;
 
-  private constructor(sqlite: Database, db: Kysely<StateStoreSchema>, daemonID: DaemonID) {
+  // The database file this store opened, which a backup must never replace.
+  private readonly dbPath: string;
+
+  private constructor(
+    sqlite: Database,
+    db: Kysely<StateStoreSchema>,
+    daemonID: DaemonID,
+    dbPath: string,
+  ) {
     this.sqlite = sqlite;
+    this.dbPath = dbPath;
     this.db = db;
     this.daemonID = daemonID;
   }
@@ -196,7 +218,7 @@ export class StateStore {
       .where('key', '=', 'daemon_id')
       .executeTakeFirstOrThrow();
 
-    const store = new StateStore(sqlite, db, toDaemonID(daemonIDRow.value));
+    const store = new StateStore(sqlite, db, toDaemonID(daemonIDRow.value), dbPath);
 
     if (legacyFleetPath !== undefined) {
       await store.adoptLegacyFleet(legacyFleetPath);
@@ -1433,6 +1455,67 @@ export class StateStore {
       .execute();
   }
 
+  // Writes a copy of the whole database to `path` as one consistent
+  // snapshot, through SQLite's `VACUUM INTO`, which reads in one transaction
+  // and so never sees half of a write another connection commits meanwhile.
+  // The copy goes to a staging directory beside `path` that only this user
+  // can enter, is flushed to disk, and then renamed over `path`, so `path` holds
+  // either its old content or a whole copy, never part of one. Resolves to
+  // the copy's size in bytes. A path that is the open database or one of its
+  // log files is refused with `bad_args` before anything is written, since
+  // replacing a file SQLite holds open loses every later write.
+  async writeBackup(path: string): Promise<number> {
+    // The database file resolves in full, since SQLite opens the file a
+    // link points to and names its log files after that path.
+    const live = realpathSync(this.dbPath);
+
+    if (
+      [live, `${live}-wal`, `${live}-shm`, `${live}-journal`].includes(resolveRealFilePath(path))
+    ) {
+      throw new DaemonError(
+        'bad_args',
+        `${path} is the daemon's own database or one of its log files; back up to another path`,
+      );
+    }
+
+    // A fresh directory beside `path` that only this user can enter, so the
+    // copy never exists where another user can read it, and SQLite writes it
+    // to a path that does not exist yet.
+    const stagingDir = mkdtempSync(joinPath(dirname(path), `.${basename(path)}.partial-`));
+    const staging = joinPath(stagingDir, 'backup.db');
+
+    try {
+      await sql`VACUUM INTO ${staging}`.execute(this.db);
+
+      chmodSync(staging, 0o600);
+
+      const fd = openSync(staging, 'r');
+
+      try {
+        fsyncSync(fd);
+      } finally {
+        closeSync(fd);
+      }
+
+      renameSync(staging, path);
+
+      // The rename lives in the directory, so the directory is flushed too:
+      // without it, a power loss can drop the new entry after the command
+      // reported success.
+      const dirFD = openSync(dirname(path), 'r');
+
+      try {
+        fsyncSync(dirFD);
+      } finally {
+        closeSync(dirFD);
+      }
+    } finally {
+      rmSync(stagingDir, { recursive: true, force: true });
+    }
+
+    return statSync(path).size;
+  }
+
   // A second close, or a disposal after one, waits on the first and closes
   // nothing again; a close that fails is forgotten, so the next one retries.
   async stop(): Promise<void> {
@@ -1948,4 +2031,15 @@ function toRuntimeAuthBinding(
     updatedAt: row.updated_at,
     revokedAt: row.revoked_at,
   };
+}
+
+// The path of a file with its directory's symlinks resolved, so two spellings
+// of one location compare equal. A directory that does not exist keeps the
+// path as given.
+function resolveRealFilePath(path: string): string {
+  try {
+    return joinPath(realpathSync(dirname(path)), basename(path));
+  } catch {
+    return path;
+  }
 }

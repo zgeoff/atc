@@ -8,6 +8,7 @@ export * from './log-client-event';
 export * from './read-managed-daemon-unit';
 export * from './restart-daemon-at-socket';
 export * from './run-command';
+export * from './run-daemon-backup';
 export * from './run-daemon-id';
 export * from './run-daemon-restart';
 export * from './run-daemon-restart-worker';

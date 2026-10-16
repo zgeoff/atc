@@ -48,6 +48,7 @@ export function buildStubDaemonContext(overrides: Partial<DaemonContext> = {}): 
     updateSessionScope: makeUnreached('updateSessionScope'),
     isCallerTree: makeUnreached('isCallerTree'),
     quitDaemon: makeUnreached('quitDaemon'),
+    writeStateBackup: makeUnreached('writeStateBackup'),
     ackSession: makeUnreached('ackSession'),
     buildResumeCommand: makeUnreached('buildResumeCommand'),
     readSessionScreen: makeUnreached('readSessionScreen'),

@@ -139,6 +139,9 @@ export const DAEMON_FEATURES = [
   // session's agent waits on and picks one of its options, or presses
   // Escape on it.
   'session.menu',
+
+  // `daemon.backup` exists, open to the daemon's owner only.
+  'daemon.backup',
 ] as const;
 
 export type DaemonFeature = (typeof DAEMON_FEATURES)[number];

@@ -1,6 +1,13 @@
 import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
-import { writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { toAgentSessionID, toMessageID, toSessionID } from '@atc/core';
 import {
@@ -8,6 +15,7 @@ import {
   readQueryPlan,
   registerTestCleanup,
   setupTempDir,
+  waitFor,
 } from '@atc/test-utils';
 import type { CompiledQuery } from 'kysely';
 import invariant from 'tiny-invariant';
@@ -31,7 +39,7 @@ async function setupTest() {
 
   registerTestCleanup(() => store.stop());
 
-  return { dbPath, store, queries };
+  return { dir: tmp.dir, dbPath, store, queries };
 }
 
 test('it round-trips the fleet', async () => {
@@ -5256,4 +5264,229 @@ test('it renames reports to notes and accepted to queued in a database from befo
   expect(results).toStrictEqual(['{"message":"m-1","status":"queued"}', '{"session":"s2"}']);
   expect(indexes).toContain('events_note_id');
   expect(indexes).not.toContain('events_report_id');
+});
+
+test('it writes a backup that a store opens with every fleet row and the same daemon id', async () => {
+  const ctx = await setupTest();
+
+  const first = buildMockFleetEntry();
+  const second = buildMockFleetEntry({ exited: true });
+
+  await ctx.store.writeFleet([first, second]);
+
+  const backupPath = join(ctx.dir, 'backup.db');
+
+  await ctx.store.writeBackup(backupPath);
+
+  const restored = await StateStore.open(backupPath);
+
+  registerTestCleanup(() => restored.stop());
+
+  const fleet = await restored.loadFleet();
+
+  expect(fleet).toStrictEqual([first, second]);
+  expect(restored.daemonID).toBe(ctx.store.daemonID);
+});
+
+test('it resolves the backup to its size in bytes', async () => {
+  const ctx = await setupTest();
+
+  const backupPath = join(ctx.dir, 'backup.db');
+
+  const bytes = await ctx.store.writeBackup(backupPath);
+
+  expect(bytes).toBe(statSync(backupPath).size);
+});
+
+test('it writes a backup that only its owner can read or write', async () => {
+  const ctx = await setupTest();
+
+  const backupPath = join(ctx.dir, 'backup.db');
+
+  await ctx.store.writeBackup(backupPath);
+
+  expect(statSync(backupPath).mode & 0o777).toBe(0o600);
+});
+
+test('it replaces a file already at the backup path', async () => {
+  const ctx = await setupTest();
+
+  const entry = buildMockFleetEntry();
+
+  await ctx.store.writeFleet([entry]);
+
+  const backupPath = join(ctx.dir, 'backup.db');
+
+  writeFileSync(backupPath, 'an older backup');
+
+  await ctx.store.writeBackup(backupPath);
+
+  const restored = await StateStore.open(backupPath);
+
+  registerTestCleanup(() => restored.stop());
+
+  const fleet = await restored.loadFleet();
+
+  expect(fleet).toStrictEqual([entry]);
+});
+
+test.each([[''], ['-wal'], ['-shm'], ['-journal']])(
+  'it refuses a backup onto its own database file with suffix %p and leaves the database open',
+  async (suffix) => {
+    const ctx = await setupTest();
+
+    const entry = buildMockFleetEntry();
+
+    await ctx.store.writeFleet([entry]);
+
+    const refused = ctx.store.writeBackup(`${ctx.dbPath}${suffix}`);
+
+    await Promise.allSettled([refused]);
+
+    const fleet = await ctx.store.loadFleet();
+
+    expect(refused).rejects.toMatchObject({
+      code: 'bad_args',
+      message: `${ctx.dbPath}${suffix} is the daemon's own database or one of its log files; back up to another path`,
+    });
+
+    expect(fleet).toStrictEqual([entry]);
+  },
+);
+
+test('it refuses a backup onto its own database through a symlinked directory', async () => {
+  const ctx = await setupTest();
+
+  const linked = join(ctx.dir, 'linked-state');
+
+  symlinkSync(ctx.dir, linked);
+
+  expect(ctx.store.writeBackup(join(linked, 'state.db'))).rejects.toMatchObject({
+    code: 'bad_args',
+  });
+});
+
+test('it refuses a backup onto the file its database path links to', async () => {
+  const tmp = setupTempDir('atc-store-linked-');
+  const realPath = join(tmp.dir, 'live.db');
+  const linkPath = join(tmp.dir, 'state.db');
+
+  await createMigratedStateDB(realPath);
+
+  symlinkSync(realPath, linkPath);
+
+  const store = await StateStore.open(linkPath);
+
+  registerTestCleanup(() => store.stop());
+
+  expect(store.writeBackup(`${realPath}-wal`)).rejects.toMatchObject({ code: 'bad_args' });
+});
+
+test('it removes its staging file when the backup cannot reach its path', async () => {
+  const ctx = await setupTest();
+
+  const backupPath = join(ctx.dir, 'taken');
+
+  mkdirSync(backupPath);
+
+  expect(ctx.store.writeBackup(backupPath)).rejects.toThrow();
+  expect(readdirSync(ctx.dir).filter((name) => name.includes('.partial'))).toStrictEqual([]);
+});
+
+test('it writes a consistent backup while another connection commits writes', async () => {
+  const ctx = await setupTest();
+
+  const seed = new Database(ctx.dbPath);
+
+  registerTestCleanup(() => {
+    seed.close();
+  });
+
+  seed.run('CREATE TABLE probe (generation INTEGER NOT NULL, slot INTEGER NOT NULL)');
+  seed.run('CREATE TABLE probe_head (generation INTEGER NOT NULL)');
+  seed.run('INSERT INTO probe_head VALUES (0)');
+
+  // About 32 MB of pages, so the copy runs long enough for the writer's
+  // commits to land while it reads.
+  seed.run('CREATE TABLE bulk (data BLOB NOT NULL)');
+
+  seed.run(
+    'WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 4096) INSERT INTO bulk SELECT randomblob(8192) FROM n',
+  );
+
+  const commitLog = join(ctx.dir, 'commits.log');
+
+  // Each transaction adds 20 rows of one generation and moves the head to
+  // it, then logs the time it committed at.
+  const writer = Bun.spawn(
+    [
+      process.execPath,
+      '-e',
+      `
+        import { Database } from 'bun:sqlite';
+        import { appendFileSync } from 'node:fs';
+        const db = new Database(process.env.PROBE_DB);
+        db.run('PRAGMA busy_timeout = 5000');
+        const insert = db.prepare('INSERT INTO probe (generation, slot) VALUES (?, ?)');
+        const head = db.prepare('UPDATE probe_head SET generation = ?');
+        const commit = db.transaction((generation) => {
+          for (let slot = 0; slot < 20; slot++) insert.run(generation, slot);
+          head.run(generation);
+        });
+        for (let generation = 1; ; generation++) {
+          commit(generation);
+          appendFileSync(process.env.PROBE_LOG, Date.now() + '\\n');
+        }
+      `,
+    ],
+    { env: { ...process.env, PROBE_DB: ctx.dbPath, PROBE_LOG: commitLog }, stdout: 'ignore' },
+  );
+
+  registerTestCleanup(async () => {
+    writer.kill('SIGKILL');
+
+    await writer.exited;
+  });
+
+  await waitFor(() => {
+    expect(readFileSync(commitLog, 'utf8')).toInclude('\n');
+  });
+
+  const backupPath = join(ctx.dir, 'backup.db');
+  const startedAt = Date.now();
+
+  await ctx.store.writeBackup(backupPath);
+
+  const endedAt = Date.now();
+
+  writer.kill('SIGKILL');
+
+  await writer.exited;
+
+  const commits = readFileSync(commitLog, 'utf8').trim().split('\n').map(Number);
+
+  const backup = new Database(backupPath, { readonly: true });
+
+  registerTestCleanup(() => {
+    backup.close();
+  });
+
+  const integrity = backup.query<{ integrity_check: string }, []>('PRAGMA integrity_check').get();
+  const head = backup.query<{ generation: number }, []>('SELECT generation FROM probe_head').get();
+
+  const generations = backup
+    .query<{ generation: number; rows: number }, []>(
+      'SELECT generation, COUNT(*) AS rows FROM probe GROUP BY generation ORDER BY generation',
+    )
+    .all();
+
+  invariant(head !== null);
+
+  expect(commits.filter((at) => at > startedAt && at < endedAt)).not.toBeEmpty();
+  expect(integrity).toStrictEqual({ integrity_check: 'ok' });
+  expect(head.generation).toBeLessThan(commits.length);
+
+  expect(generations).toStrictEqual(
+    Array.from({ length: head.generation }, (_, index) => ({ generation: index + 1, rows: 20 })),
+  );
 });

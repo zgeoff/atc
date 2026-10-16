@@ -116,6 +116,14 @@ export const REQUEST_PARAM_SCHEMAS = {
   }),
   'daemon.ping': z.object({}),
   'daemon.quit': z.object({}),
+
+  // The file on the daemon's host the backup is written to, replacing any
+  // file there.
+  'daemon.backup': z.object({
+    path: z
+      .string({ error: 'daemon.backup path must be an absolute path' })
+      .refine((path) => path.startsWith('/'), 'daemon.backup path must be an absolute path'),
+  }),
   'session.list': z.object({}),
   'dirs.list': z.object({}),
   'agents.list': z.object({}),

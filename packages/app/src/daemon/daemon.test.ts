@@ -94,6 +94,7 @@ test('it answers daemon.hello with the build, limits, and features', async () =>
       'message.sender',
       'message.local',
       'session.menu',
+      'daemon.backup',
     ],
     idempotency: { completedRetentionMs: 86_400_000 },
     lastUsedAgent: 'claude',

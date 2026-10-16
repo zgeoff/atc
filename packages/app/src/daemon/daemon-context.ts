@@ -323,6 +323,11 @@ export interface DaemonContext {
   ) => Promise<MenuChoiceResult | 'missing' | 'dead' | 'unsupported'>;
   readonly answerPermission: (request: string, decision: string) => AnswerResult;
   readonly restoreFleet: (cols: number, rows: number) => Promise<number>;
+
+  // Writes a consistent copy of the state database to a path on the
+  // daemon's host, replacing any file there, and resolves to its size in
+  // bytes.
+  readonly writeStateBackup: (path: string) => Promise<number>;
   readonly attachSession: (
     client: OutputClient,
     sessionID: SessionID,

@@ -53,6 +53,7 @@ export const CONTEXT_MEMBER_SCOPES = {
 
   quitDaemon: 'owner-only',
   restoreFleet: 'owner-only',
+  writeStateBackup: 'owner-only',
 
   isSessionVisible: 'narrowed',
   collectSessions: 'narrowed',
