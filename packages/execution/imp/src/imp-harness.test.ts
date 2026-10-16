@@ -1987,7 +1987,7 @@ test('it releases the admission ticket of a connection whose opening throws, unc
   ctx.port.setOpenFailures(1);
 
   const check = mock(() => null);
-  const release = mock();
+  const release = mock<() => void>();
 
   const harness = new ImpHarness(
     ctx.port,
