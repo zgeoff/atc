@@ -12,8 +12,8 @@ import {
   updateEnv,
   waitFor,
 } from '@atc/test-utils';
-import { startTestDaemon } from '../test-utils/start-test-daemon';
-import type { RestoreSettled } from './restore-fleet';
+import type { RestoreSettled } from '../packages/app/src/daemon/restore-fleet';
+import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 test('it restores the stored sessions by itself after a restart', async () => {
   const clock = buildStubClock(0);
