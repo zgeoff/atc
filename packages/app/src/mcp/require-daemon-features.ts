@@ -4,6 +4,7 @@ import type { DaemonFeature } from '@atc/protocol';
 // states it.
 const FEATURE_USES: Readonly<Record<DaemonFeature, string>> = {
   'agents.list': 'atc_spawn_options_get',
+  'daemon.backup': 'atc backup',
   'daemon.id': "the daemon's persisted identity",
   'events.more': "atc_events_read's more flag",
   'events.session': "atc_events_read's session filter",
