@@ -2,7 +2,8 @@
 // to the package rules: no package outside its row, no deep import into
 // another package's src/, no subpath of a package that its exports map does
 // not list, no node: or bun: import in core, no test helper or testing entry
-// in production code, and no confined package outside its owners and files.
+// in production code, no confined package outside its owners and files, and
+// no import of a sibling folder that a package's folder rules leave out.
 // These per-import rules have no other gate. .oxlintrc.json extends the file.
 // An override replaces a rule's options rather than merging them, and the
 // last override that matches a file wins, so each override repeats every ban
@@ -12,7 +13,7 @@ import { join } from 'node:path';
 import { z } from 'zod';
 import type { Confinement } from './package-confinement';
 import { PACKAGE_CONFINEMENT } from './package-confinement';
-import type { PackageRule } from './package-rules';
+import type { FolderRule, PackageRule } from './package-rules';
 import { PACKAGE_RULES } from './package-rules';
 
 export const IMPORT_RULES_FILE = '.oxlintrc.imports.json';
@@ -60,6 +61,9 @@ export function buildImportRules(entries: ReadonlyMap<string, readonly string[]>
 
     overrides.push(
       buildOverride([`${rule.dir}/**/${SOURCE}`], buildPackageOptions(rule, kind, entryPattern)),
+      ...(rule.folders ?? []).map((folder) =>
+        buildFolderOverride(rule, folder, buildPackageOptions(rule, kind, entryPattern)),
+      ),
       buildOverride(
         [
           `${rule.dir}/**/${TEST_SOURCE}`,
@@ -98,6 +102,43 @@ export function buildImportRules(entries: ReadonlyMap<string, readonly string[]>
   );
 
   return { overrides };
+}
+
+/**
+ * The override for one folder of a package: the package's production bans,
+ * and a ban on each sibling folder the folder may not import, and on the
+ * files at the root of src/ when it may not import them. It sits before the
+ * package's test override, which then wins for the folder's tests.
+ */
+function buildFolderOverride(
+  rule: PackageRule,
+  folder: FolderRule,
+  options: RestrictionOptions,
+): Override {
+  const siblings = (rule.folders ?? [])
+    .map((candidate) => candidate.name)
+    .filter((name) => name !== folder.name && !folder.reaches.includes(name));
+
+  const reached = [
+    ...folder.reaches,
+    ...(folder.reachesRoot ? ['the files at the root of src/'] : []),
+  ];
+
+  const message = `The ${folder.name} folder of @atc/${rule.name} may import only ${reached.length === 0 ? 'its own modules' : reached.join(', ')}.`;
+
+  const patterns: RestrictedPattern[] = siblings.map((name) => ({
+    regex: `^\\.\\./${name}(/|$)`,
+    message,
+  }));
+
+  if (!folder.reachesRoot) {
+    patterns.push({ regex: '^\\.\\./[^/]+$', message });
+  }
+
+  return buildOverride([`${rule.dir}/src/${folder.name}/**/${SOURCE}`], {
+    paths: options.paths,
+    patterns: [...options.patterns, ...patterns],
+  });
 }
 
 /**
