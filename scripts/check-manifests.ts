@@ -17,7 +17,8 @@
 // meant to depend on another. A specifier that only resolves a path, such as
 // `Bun.resolveSync(...)`, is not an import here, since its base directory
 // decides where it resolves. The root package holds the repo tooling: e2e/
-// and scripts/ declare devDependencies alone. Prints every finding and exits
+// and scripts/ declare devDependencies alone. Each catalog entry pins an
+// exact version, never a range, a tag, or an empty value. Prints every finding and exits
 // 1 when there is one.
 import { readFileSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
@@ -87,7 +88,10 @@ function main(): void {
 // The root package's own source directories.
 const ROOT_DIRS = ['e2e', 'scripts'];
 const DEPENDENCIES_SCHEMA = z.record(z.string(), z.string()).optional();
-const WORKSPACES_SCHEMA = z.object({ packages: z.array(z.string()).optional() }).optional();
+
+const WORKSPACES_SCHEMA = z
+  .object({ packages: z.array(z.string()).optional(), catalog: DEPENDENCIES_SCHEMA })
+  .optional();
 
 const MANIFEST_SCHEMA = z.object({
   name: z.string().optional(),
@@ -100,7 +104,12 @@ const MANIFEST_SCHEMA = z.object({
 interface Manifest {
   readonly name?: string | undefined;
   readonly exports?: Readonly<Record<string, unknown>> | undefined;
-  readonly workspaces?: { readonly packages?: readonly string[] | undefined } | undefined;
+  readonly workspaces?:
+    | {
+        readonly packages?: readonly string[] | undefined;
+        readonly catalog?: Readonly<Record<string, string>> | undefined;
+      }
+    | undefined;
   readonly dependencies?: Readonly<Record<string, string>> | undefined;
   readonly devDependencies?: Readonly<Record<string, string>> | undefined;
 }
@@ -137,6 +146,10 @@ function readManifest(root: string, dir: string): Manifest {
   return MANIFEST_SCHEMA.parse(JSON.parse(text));
 }
 
+// A full semver version with an optional prerelease and build part, such as
+// `1.7.6` or `0.3.0-beta.1`; a range, a tag, or a wildcard matches none.
+const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[\dA-Za-z.-]+)?(?:\+[\dA-Za-z.-]+)?$/;
+
 function checkManifest(pkg: WorkspacePackage): string[] {
   const findings: string[] = [];
   const manifestPath = pkg.dir === '.' ? 'package.json' : `${pkg.dir}/package.json`;
@@ -157,6 +170,14 @@ function checkManifest(pkg: WorkspacePackage): string[] {
   }
 
   if (pkg.dir === '.') {
+    for (const [name, version] of Object.entries(pkg.manifest.workspaces?.catalog ?? {})) {
+      if (!EXACT_VERSION.test(version)) {
+        findings.push(
+          `catalog range: ${manifestPath} catalog has ${name} at ${version}, not an exact version`,
+        );
+      }
+    }
+
     return findings;
   }
 

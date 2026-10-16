@@ -456,6 +456,50 @@ test('it fails on manifest entries that are not workspace or catalog references'
   });
 });
 
+test('it fails on a root catalog entry or root devDependency that is not exact', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'package.json'),
+    JSON.stringify({
+      name: 'root',
+      workspaces: {
+        packages: ['packages/*'],
+        catalog: {
+          '@types/bun': '1.4.2',
+          '@zgeoff/imp-client': '0.3.0-beta.1',
+          citty: '*',
+          knip: '^6.24.0',
+          kysely: '>=0.29.5',
+          oxfmt: '~0.57.0',
+          oxlint: '1.73.0',
+          tslib: '',
+          'type-fest': 'latest',
+          zod: '4.6.x',
+        },
+      },
+      devDependencies: { knip: 'catalog:', oxfmt: 'catalog:', oxlint: '^1.73.0' },
+    }),
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-manifests.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-manifests: 1 packages, 0 files, 8 findings\n',
+    stderr:
+      'manifest entry: package.json devDependencies has oxlint at ^1.73.0, not catalog:\ncatalog range: package.json catalog has citty at *, not an exact version\ncatalog range: package.json catalog has knip at ^6.24.0, not an exact version\ncatalog range: package.json catalog has kysely at >=0.29.5, not an exact version\ncatalog range: package.json catalog has oxfmt at ~0.57.0, not an exact version\ncatalog range: package.json catalog has tslib at , not an exact version\ncatalog range: package.json catalog has type-fest at latest, not an exact version\ncatalog range: package.json catalog has zod at 4.6.x, not an exact version\n',
+  });
+});
+
 test('it fails on a dependency outside the package row', async () => {
   const ctx = setupTest();
 
