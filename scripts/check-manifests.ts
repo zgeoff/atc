@@ -224,8 +224,8 @@ const TEST_SCHEMA = z.object({ preload: z.array(z.string()).optional() });
 const BUNFIG_SCHEMA = z.object({ test: TEST_SCHEMA.optional() });
 
 /**
- * The finding for each package entry point that loads a preloaded module:
- * a relative preload by the file it resolves to, through the entry's relative
+ * The finding for each package entry point that is or loads a preloaded
+ * module: a relative preload by the file it resolves to, through the entry's relative
  * static imports and re-exports, and a bare preload by name.
  */
 function checkPreloads(root: string, packages: readonly WorkspacePackage[]): string[] {
@@ -241,6 +241,14 @@ function checkPreloads(root: string, packages: readonly WorkspacePackage[]): str
 
   for (const pkg of packages) {
     for (const entry of collectEntryFiles(pkg)) {
+      const entryPreload = preloads.find((candidate) => normalize(candidate) === entry);
+
+      if (entryPreload !== undefined) {
+        findings.push(
+          `preloaded entry: ${entry}, an entry point of ${pkg.dir}, is ${entryPreload}, which bunfig.toml preloads; drop it from the exports map`,
+        );
+      }
+
       for (const [file, loads] of collectStaticLoads(root, entry)) {
         findings.push(
           ...loads.flatMap((specifier) => {

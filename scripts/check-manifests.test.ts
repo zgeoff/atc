@@ -795,7 +795,7 @@ test('it fails on an entry point that loads a preloaded module', async () => {
     join(ctx.dir, 'packages/test-utils/package.json'),
     JSON.stringify({
       name: '@atc/test-utils',
-      exports: { '.': './src/index.ts' },
+      exports: { '.': './src/index.ts', './home': './src/isolate-home.ts' },
       dependencies: { '@zgeoff/bun-test-extended': 'catalog:' },
     }),
   );
@@ -827,11 +827,12 @@ test('it fails on an entry point that loads a preloaded module', async () => {
     stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
-    stdout: 'check-manifests: 2 packages, 3 files, 3 findings\n',
+    stdout: 'check-manifests: 2 packages, 3 files, 4 findings\n',
     stderr:
       'preloaded module: packages/test-utils/src/index.ts, which packages/test-utils/src/index.ts reaches as an entry point of packages/test-utils, loads ./isolate-home, which bunfig.toml preloads as ./packages/test-utils/src/isolate-home.ts; import it by path\n' +
       'preloaded module: packages/test-utils/src/wait-for.ts, which packages/test-utils/src/index.ts reaches as an entry point of packages/test-utils, loads @zgeoff/bun-test-extended, which bunfig.toml preloads as @zgeoff/bun-test-extended; import it by path\n' +
-      'preloaded module: packages/test-utils/src/wait-for.ts, which packages/test-utils/src/index.ts reaches as an entry point of packages/test-utils, loads ./isolate-home.ts, which bunfig.toml preloads as ./packages/test-utils/src/isolate-home.ts; import it by path\n',
+      'preloaded module: packages/test-utils/src/wait-for.ts, which packages/test-utils/src/index.ts reaches as an entry point of packages/test-utils, loads ./isolate-home.ts, which bunfig.toml preloads as ./packages/test-utils/src/isolate-home.ts; import it by path\n' +
+      'preloaded entry: packages/test-utils/src/isolate-home.ts, an entry point of packages/test-utils, is ./packages/test-utils/src/isolate-home.ts, which bunfig.toml preloads; drop it from the exports map\n',
   });
 });
 
