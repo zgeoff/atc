@@ -60,7 +60,7 @@ jobs:
       #   waits for someone to merge it by hand; no step here merges it.
       # - Run 2, triggered by that merge: release-please turns the merged
       #   bump into a tag + GitHub release, and the steps after it attach the
-      #   binaries, update the Homebrew formula and open the cloud pin PR.
+      #   binaries and update the Homebrew formula.
       #
       # The App token exists because GITHUB_TOKEN events don't trigger
       # workflows: a release PR that GITHUB_TOKEN opens or pushes to gets
@@ -164,39 +164,3 @@ jobs:
           git add Formula/atc.rb
           git commit -m "atc $version" || echo "formula already at $version"
           git push
-
-      # zgeoff/cloud's agent image bakes in atc, so each release opens or updates one pull request
-      # there that pins the new version and its atc-linux-x64 sum. cloud's
-      # scripts/open-atc-pin-pr.sh does the work, and cloud's agent image workflow turns on
-      # auto-merge once the image builds and passes its check. The release App has to be installed
-      # on cloud; this token reaches that repository only.
-      - name: Mint cloud token
-        id: cloud-token
-        if:
-          (steps.release.outputs.releases_created == 'true' || github.event_name ==
-          'workflow_dispatch') && vars.RELEASE_APP_ID != ''
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          client-id: ${{ vars.RELEASE_APP_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: cloud
-      # cloud's open-atc-pin-pr.sh runs open-atc-pin-pr.ts with bun, and the release PR's bun
-      # step above doesn't run on a release.
-      - name: Set up bun for the pin pull request
-        if: steps.cloud-token.outputs.token != ''
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-        with:
-          bun-version-file: .bun-version
-      - name: Open the agent image pin pull request in cloud
-        if: steps.cloud-token.outputs.token != ''
-        env:
-          GH_TOKEN: ${{ steps.cloud-token.outputs.token }}
-          CLOUD: ${{ github.repository_owner }}/cloud
-        run: |
-          version=$(jq -r .version package.json)
-          git clone "https://x-access-token:$GH_TOKEN@github.com/$CLOUD.git" cloud
-          cd cloud
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          bash scripts/open-atc-pin-pr.sh "$version" ../dist/SHA256SUMS

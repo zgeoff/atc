@@ -2,10 +2,9 @@
 
 A release happens when someone merges the release PR by hand. release-please keeps one release PR
 open on `main`, and each releasable commit that lands updates its version bump and changelog. No
-workflow merges that PR. Its merge tags the release, attaches the compiled binaries, pushes the
-Homebrew formula and opens the agent image pin PR in zgeoff/cloud. `main.yml` holds every step. This
-runbook covers what the automation does not: its one-time setup, cutting a release, and the
-recoveries a failed release needs.
+workflow merges that PR. Its merge tags the release, attaches the compiled binaries and pushes the
+Homebrew formula. `main.yml` holds every step. This runbook covers what the automation does not: its
+one-time setup, cutting a release, and the recoveries a failed release needs.
 
 ## One-time setup
 
@@ -34,11 +33,6 @@ Install the App on the tap before you set the variable: with the variable set an
 there, the release job fails when it mints the tap token. With the variable unset, the release job
 leaves the formula alone and runs every other step.
 
-### The agent image pin
-
-The imp agent image in zgeoff/cloud bakes in atc, and each release opens or updates one pin PR
-there. Install the release App on `cloud`. cloud's `docs/runbooks/agent-image.md` covers the rest.
-
 ## Cutting a release
 
 1. Open the release PR, the one release-please opened from the
@@ -51,8 +45,8 @@ there. Install the release App on `cloud`. cloud's `docs/runbooks/agent-image.md
 - **The release PR has no checks.** `RELEASE_APP_ID` is unset, so the release job skipped the App
   token step, and release-please opened the PR with `GITHUB_TOKEN`, which starts no workflow. Set up
   the App, then close and reopen the PR to start its checks.
-- **The release is tagged, but its binaries, formula or pin PR are missing.** Run the release steps
-  again for the current version:
+- **The release is tagged, but its binaries or formula are missing.** Run the release steps again
+  for the current version:
 
   ```bash
   gh workflow run main.yml
