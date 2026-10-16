@@ -1,6 +1,6 @@
 export * from './auth/runtime-auth-binder';
 export * from './daemon';
-export * from './daemon-context';
+export type * from './daemon-context';
 export * from './fleet/build-execution-targets';
 export * from './fleet/restore-fleet';
 export * from './sources/build-sources';
