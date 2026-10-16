@@ -30,10 +30,10 @@ and the internal packages each may depend on.
   never starts a daemon.
 - The app's `src/` groups modules by concern: `client/` (the TUI and its connection), `agents/`
   (adapters from the config's agent map), `sources/` (the built-in discovery sources), `plugins/`
-  (the shipped plugin lists and the execution providers built from them), `mcp/` (the MCP tools, the HTTP transport, and the auth
-  server), `federation/` (the gateway's daemon registry), `shared/`, and `test-utils/` (helpers that
-  start or drive the daemon). A module that exists only to back one subcommand stays beside it at
-  the `src/` root.
+  (the shipped plugin lists and the execution providers built from them), `mcp/` (the MCP tools, the
+  HTTP transport, and the auth server), `federation/` (the gateway's daemon registry), `shared/`,
+  and `test-utils/` (helpers that start or drive the daemon). A module that exists only to back one
+  subcommand stays beside it at the `src/` root.
 - `packages/daemon` holds the fleet and per-session runtime state. It loads no plugin: the app
   passes in its execution targets and agent adapters. Its `src/` groups modules in folders
   (`sessions/`, `fleet/`, `auth/`, `transport/`, `sources/`, `workspace/`), and the folder rules in
