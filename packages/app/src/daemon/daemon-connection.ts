@@ -629,6 +629,22 @@ export class DaemonConnection {
 
         return;
       }
+      case 'daemon.backup': {
+        const parsed = parseRequestParams('daemon.backup', req.p);
+
+        if (!parsed.ok) {
+          this.sendErr(req.id, 'bad_args', parsed.message);
+
+          return;
+        }
+
+        this.sendOk(req.id, 'daemon.backup', {
+          path: parsed.data.path,
+          bytes: await ctx.writeStateBackup(parsed.data.path),
+        });
+
+        return;
+      }
       case 'session.update': {
         const parsed = parseRequestParams('session.update', req.p);
 

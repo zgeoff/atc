@@ -95,6 +95,8 @@ Designs for work that is not built yet, each with the spikes behind it.
 - [Events](guides/events.md) — daemon hooks, `atc events` and the events socket
 - [Remote MCP](guides/remote-mcp.md) — serving a hosted assistant, adding and approving clients,
   grants, and the systemd units
+- [Backing up and restoring the daemon](guides/backup.md) — `atc backup` and putting a backup in
+  place of the state database
 - [Running atc-gateway](guides/gateway.md) — the daemon listener and its tokens, the registry,
   serving and clients
 

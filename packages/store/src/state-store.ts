@@ -1,6 +1,15 @@
 import type { Database } from 'bun:sqlite';
 import { randomUUID } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
+import {
+  closeSync,
+  existsSync,
+  fsyncSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  statSync,
+} from 'node:fs';
 import { LOCAL_TARGET } from '@atc/config';
 import type { AgentID, AgentSessionID, DaemonID, MessageID, SessionID } from '@atc/core';
 import {
@@ -1431,6 +1440,40 @@ export class StateStore {
       .set({ phase: 'uncertain', updated_at: at })
       .where('phase', '=', 'granting')
       .execute();
+  }
+
+  // Writes a copy of the whole database to `path` as one consistent
+  // snapshot, through SQLite's `VACUUM INTO`, which reads in one transaction
+  // and so never sees half of a write another connection commits meanwhile.
+  // The copy goes to a staging file beside `path` that only this user can
+  // read, is flushed to disk, and then renamed over `path`, so `path` holds
+  // either its old content or a whole copy, never part of one. Resolves to
+  // the copy's size in bytes.
+  async writeBackup(path: string): Promise<number> {
+    const staging = `${path}.${randomUUID()}.partial`;
+
+    try {
+      // An empty file the copy may fill, created first so the copy never
+      // exists with wider permissions.
+      closeSync(openSync(staging, 'wx', 0o600));
+
+      await sql`VACUUM INTO ${staging}`.execute(this.db);
+
+      const fd = openSync(staging, 'r');
+
+      try {
+        fsyncSync(fd);
+      } finally {
+        closeSync(fd);
+      }
+
+      renameSync(staging, path);
+    } catch (error) {
+      rmSync(staging, { force: true });
+      throw error;
+    }
+
+    return statSync(path).size;
   }
 
   // A second close, or a disposal after one, waits on the first and closes

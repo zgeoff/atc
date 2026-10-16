@@ -15,7 +15,10 @@ The daemon keeps the fleet, the [event trail](../protocol/events.md), the
 [inbox](../protocol/messages.md), the [idempotency keys](../protocol/idempotency.md) and the rest of
 its state in one SQLite file, `atc.db`, in WAL mode. One connection serves the whole daemon, and a
 queue orders every query and transaction behind the one in flight, so the daemon has no write races
-between its own parts. Only the daemon opens the file.
+between its own parts. Only the daemon opens the file. A backup is one more query in that queue: the
+owner's backup request makes the daemon copy the whole database with SQLite's `VACUUM INTO`, which
+reads one snapshot, and rename the copy into place once it is on disk.
+[Backing up and restoring the daemon](../../guides/backup.md) gives the steps.
 
 ## The fleet
 

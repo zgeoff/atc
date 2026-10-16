@@ -487,6 +487,32 @@ const main = defineCommand({
             }),
         },
       }),
+    backup: () =>
+      defineCommand({
+        meta: {
+          name: 'backup',
+          description: "Write a consistent copy of the running daemon's state database to a file",
+        },
+        args: {
+          path: {
+            type: 'positional',
+            required: true,
+            description: 'The file to write, replacing any file there',
+          },
+        },
+        async run(ctx) {
+          const backup = await import('@atc/lifecycle');
+          const lifecycle = await import('./build-lifecycle-host');
+          const hostServices = await resolveHostServices();
+
+          const code = await backup.runDaemonBackup(
+            lifecycle.buildLifecycleHost(process.env, hostServices),
+            resolve(ctx.args.path),
+          );
+
+          process.exit(code);
+        },
+      }),
     events: () =>
       defineCommand({
         meta: {

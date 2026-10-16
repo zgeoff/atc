@@ -6,6 +6,7 @@ test.each([
   ['daemon.hello', { client: 'atc/1.0' }],
   ['daemon.ping', {}],
   ['daemon.quit', {}],
+  ['daemon.backup', { path: '/var/backups/atc.db' }],
   ['session.list', {}],
   ['dirs.list', {}],
   ['fleet.list', {}],
@@ -71,6 +72,24 @@ test('it rejects session.spawn with a non-string cwd the same as a missing one',
   const parsed = parseRequestParams('session.spawn', { cwd: 42 });
 
   expect(parsed).toStrictEqual({ ok: false, message: 'session.spawn requires a cwd' });
+});
+
+test('it rejects daemon.backup with a relative path', () => {
+  const parsed = parseRequestParams('daemon.backup', { path: 'backups/atc.db' });
+
+  expect(parsed).toStrictEqual({
+    ok: false,
+    message: 'daemon.backup path must be an absolute path',
+  });
+});
+
+test('it rejects daemon.backup without a path', () => {
+  const parsed = parseRequestParams('daemon.backup', {});
+
+  expect(parsed).toStrictEqual({
+    ok: false,
+    message: 'daemon.backup path must be an absolute path',
+  });
 });
 
 test('it rejects session.spawn with an empty agent id', () => {

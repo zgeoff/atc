@@ -2532,6 +2532,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       attachments.findEffectiveDims(sessionID) ??
       runtimes.get(sessionID)?.dims ?? { cols: 80, rows: 24 },
     restoreFleet: runFleetRestore,
+    writeStateBackup: (path) => store.writeBackup(path),
     readSessionRecord: async (id, access) => {
       const s = mgr.sessions.find((x) => x.id === id);
 

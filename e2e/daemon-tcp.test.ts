@@ -163,6 +163,7 @@ test('it accepts a TCP handshake with a token a SIGHUP reload kept', async () =>
       'message.sender',
       'message.local',
       'session.menu',
+      'daemon.backup',
     ],
     idempotency: { completedRetentionMs: 86_400_000 },
     lastUsedAgent: 'claude',

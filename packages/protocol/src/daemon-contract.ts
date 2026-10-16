@@ -51,6 +51,10 @@ export const DAEMON_CONTRACT = {
     hello: base.meta(READ).input(P['daemon.hello']).output(HELLO_RESULT_SCHEMA),
     ping: base.meta(READ).input(P['daemon.ping']).output(EMPTY),
     quit: base.meta(OWNER).input(P['daemon.quit']).output(EMPTY),
+    backup: base
+      .meta(OWNER)
+      .input(P['daemon.backup'])
+      .output(z.object({ path: z.string(), bytes: z.number() })),
   },
   dirs: {
     list: base
