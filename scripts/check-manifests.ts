@@ -236,16 +236,21 @@ function checkPreloads(root: string, packages: readonly WorkspacePackage[]): str
   }
 
   const bunfig = BUNFIG_SCHEMA.parse(Bun.TOML.parse(readFileSync(bunfigPath, 'utf8')));
-  const preloads = bunfig.test?.preload ?? [];
+
+  const preloads = (bunfig.test?.preload ?? []).map((preload) => ({
+    preload,
+    file: preload.startsWith('.') ? resolvePreloadFile(root, preload) : undefined,
+  }));
+
   const findings: string[] = [];
 
   for (const pkg of packages) {
     for (const entry of collectEntryFiles(pkg)) {
-      const entryPreload = preloads.find((candidate) => normalize(candidate) === entry);
+      const entryPreload = preloads.find((candidate) => candidate.file === entry);
 
       if (entryPreload !== undefined) {
         findings.push(
-          `preloaded entry: ${entry}, an entry point of ${pkg.dir}, is ${entryPreload}, which bunfig.toml preloads; drop it from the exports map`,
+          `preloaded entry: ${entry}, an entry point of ${pkg.dir}, is ${entryPreload.preload}, which bunfig.toml preloads; drop it from the exports map`,
         );
       }
 
@@ -268,18 +273,34 @@ function checkPreloads(root: string, packages: readonly WorkspacePackage[]): str
   return findings;
 }
 
+// A preload as bunfig.toml lists it, and the root-relative file a relative
+// preload loads.
+interface Preload {
+  readonly preload: string;
+  readonly file: string | undefined;
+}
+
+/**
+ * The root-relative file a relative preload loads, resolved with the
+ * extension and index lookups Bun applies, or the path as written when no
+ * source file matches.
+ */
+function resolvePreloadFile(root: string, preload: string): string {
+  return resolveModule(root, '.', preload) ?? normalize(preload);
+}
+
 // The preload a specifier in the file loads, if any.
 function findPreload(
   root: string,
-  preloads: readonly string[],
+  preloads: readonly Preload[],
   file: string,
   specifier: string,
 ): string | undefined {
   return preloads.find((candidate) =>
-    candidate.startsWith('.')
-      ? resolveModule(root, dirname(file), specifier) === normalize(candidate)
-      : specifier === candidate,
-  );
+    candidate.file === undefined
+      ? specifier === candidate.preload
+      : resolveModule(root, dirname(file), specifier) === candidate.file,
+  )?.preload;
 }
 
 // Every path an exports map lists, conditional entries included.
