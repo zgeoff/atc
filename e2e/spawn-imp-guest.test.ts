@@ -14,9 +14,9 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
-import { buildHostServices } from '../build-host-services';
-import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
-import { startTestDaemon } from '../test-utils/start-test-daemon';
+import { buildHostServices } from '../packages/app/src/build-host-services';
+import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
+import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 // The fixed parts every imp guest test shares: the stub guest tools and the
 // guest folder under a temp directory, and a stub imp port.

@@ -27,8 +27,8 @@ import {
   waitFor,
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
-import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
-import { startTestDaemon } from '../test-utils/start-test-daemon';
+import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
+import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 // The fixed parts every test's daemon runs on: a stub imp port behind
 // the imp provider `box` serves, a local provider, and a git repository a

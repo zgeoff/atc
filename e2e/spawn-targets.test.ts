@@ -10,8 +10,8 @@ import {
   registerTestCleanup,
   waitFor,
 } from '@atc/test-utils';
-import { buildTargetOptionsFromConfig } from '../test-utils/build-target-options-from-config';
-import { startTestDaemon } from '../test-utils/start-test-daemon';
+import { buildTargetOptionsFromConfig } from '../packages/app/src/test-utils/build-target-options-from-config';
+import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 /**
  * The daemon's stand-ins. `providers` builds, for a target id, the

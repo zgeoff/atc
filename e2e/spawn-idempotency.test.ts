@@ -16,8 +16,8 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
-import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { buildPayloadHash } from './build-payload-hash';
+import { buildPayloadHash } from '../packages/app/src/daemon/build-payload-hash';
+import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 test('it answers a retried keyed spawn with the first session and spawns once', async () => {
   const daemon = await startTestDaemon({

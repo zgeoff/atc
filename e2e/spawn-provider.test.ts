@@ -3,7 +3,7 @@ import { LocalPTYProvider } from '@atc/execution-local';
 import { buildStubExecutionProvider } from '@atc/execution-local/testing';
 import { DaemonError } from '@atc/protocol/wire';
 import { buildMockAgentAdapter, getRecord, waitFor } from '@atc/test-utils';
-import { startTestDaemon } from '../test-utils/start-test-daemon';
+import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 test('it streams the output of a session harness on the local pty provider', async () => {
   const provider = new LocalPTYProvider();

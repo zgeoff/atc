@@ -5,7 +5,7 @@ import { StateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import { buildMockAgentAdapter, getRecord, registerTestCleanup, waitFor } from '@atc/test-utils';
 import { faker } from '@faker-js/faker';
-import { startTestDaemon } from '../test-utils/start-test-daemon';
+import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 test('it keeps the last-used agent when a restored session reports its start', async () => {
   const sessionID = toSessionID(faker.string.uuid());

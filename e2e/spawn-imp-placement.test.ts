@@ -4,7 +4,7 @@ import { ImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/testing';
 import { LocalPTYProvider } from '@atc/execution-local';
 import { buildMockAgentAdapter, createStubEchoClaude, getRecord } from '@atc/test-utils';
-import { startTestDaemon } from '../test-utils/start-test-daemon';
+import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 function setupTest() {
   const port = createStubImpPort();

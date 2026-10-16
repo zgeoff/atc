@@ -14,7 +14,7 @@ import {
   createStubBin,
   updateEnv,
 } from '@atc/test-utils';
-import { startTestDaemon } from '../test-utils/start-test-daemon';
+import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 test('it lists the sources it offers in order in agents.list', async () => {
   const daemon = await startTestDaemon({

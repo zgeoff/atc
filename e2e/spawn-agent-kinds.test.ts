@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { buildMockAgentAdapter } from '@atc/test-utils';
-import { startTestDaemon } from '../test-utils/start-test-daemon';
+import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 test('it lists an agent atc has no code for with the kind and label its adapter declares', async () => {
   const acme = buildMockAgentAdapter({
