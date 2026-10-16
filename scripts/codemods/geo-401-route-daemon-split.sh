@@ -68,7 +68,10 @@ for row in "${TESTS[@]}"; do
       >> "$MAPS/package-testmap.tsv"
   fi
 
-  sed -i "\#\"${APP}/${topic}.test.ts\",#d" .oxlintrc.json
+  # the entry goes with or without its comma, and an entry that ended the
+  # list leaves the comma of the one before it, which the list then drops
+  sed -i "\#^ *\"${APP}/${topic}.test.ts\",\?\$#d" .oxlintrc.json
+  perl -0pi -e 's/,(\n\s*\])/$1/g' .oxlintrc.json
 done
 
 for row in "${MODULES[@]}"; do
