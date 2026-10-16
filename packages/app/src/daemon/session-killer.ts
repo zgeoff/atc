@@ -265,11 +265,16 @@ export class SessionKiller {
     }
   }
 
-  // A sub-session whose host stays awake is ended instead, so a kill
-  // never leaves part of its set running.
+  // A sub-session whose host stays awake is ended instead, and one whose
+  // revive waits on the kill of its outdated harness starts no fresh one,
+  // so a kill never leaves part of its set running.
   private async tryStopHarness(s: Session): Promise<void> {
     if (s.pty === null) {
-      this.killTerminal(s);
+      const restartStopped = await this.restarts.stopRestart(s.id);
+
+      if (!restartStopped) {
+        this.killTerminal(s);
+      }
 
       return;
     }
