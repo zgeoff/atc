@@ -779,3 +779,5 @@ packages/app/src/daemon/session-output.ts	daemon	sessions	packages/daemon/src/se
 packages/app/src/daemon/session-reads.ts	daemon	sessions	packages/daemon/src/sessions/session-reads.ts	
 packages/app/src/daemon/permission-prompts.ts	daemon	sessions	packages/daemon/src/sessions/permission-prompts.ts	
 packages/app/src/daemon/screen-detection.ts	daemon	sessions	packages/daemon/src/sessions/screen-detection.ts	
+packages/app/src/daemon/confirm-tokens.ts	daemon	sessions	packages/daemon/src/sessions/confirm-tokens.ts	
+packages/app/src/daemon/session-forgetter.ts	daemon	sessions	packages/daemon/src/sessions/session-forgetter.ts	

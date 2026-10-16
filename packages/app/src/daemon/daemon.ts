@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { HooksConfig, InvalidGitTransports, TargetConfigError } from '@atc/config';
@@ -14,12 +13,13 @@ import { systemClock } from '@atc/core';
 import { LocalPTYProvider } from '@atc/execution-local';
 import { claimDaemonLock, findDaemonRecord, writeDaemonRecord } from '@atc/lifecycle';
 import type { AgentAdapter, SourceProvider } from '@atc/plugin-api';
-import { DaemonError, PROTOCOL_V } from '@atc/protocol/wire';
+import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import { StateStore, buildTargetIdentity } from '@atc/store';
 import type { ExecutionTarget } from './build-execution-targets';
 import { buildSessionEvent } from './build-session-event';
 import { buildTargetAccess } from './build-target-access';
+import { ConfirmTokens } from './confirm-tokens';
 import { createNonBlockingLog } from './create-non-blocking-log';
 import type { NonBlockingLog } from './create-non-blocking-log';
 import { DaemonConnection } from './daemon-connection';
@@ -47,7 +47,7 @@ import type { SettleScheduler } from './run-eject-handoff';
 import { RuntimeAuthBinder } from './runtime-auth-binder';
 import { ScreenDetection } from './screen-detection';
 import { ScreenModel } from './screen-model';
-import type { Session } from './session';
+import { SessionForgetter } from './session-forgetter';
 import { SessionHandoff } from './session-handoff';
 import { SessionInput } from './session-input';
 import { SessionOutput } from './session-output';
@@ -722,61 +722,14 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     ...(opts.homeDir === undefined ? {} : { homeDir: opts.homeDir }),
   });
 
-  // Each confirm token a forget handed out, by token: the session it
-  // forgets, when it stops being taken, and whether a forget took it. A
-  // token stays known for one more lifetime after it expires, so a late
-  // forget learns it expired rather than that it never existed.
-  const confirmTokens = new Map<string, ConfirmToken>();
-
-  const forgetConfirmMs = opts.forgetConfirmMs ?? FORGET_CONFIRM_MS;
-  const forgetClock = opts.forgetClock ?? (() => clock.now());
-
-  const claimConfirmToken = (sessionID: SessionID, token: string) => {
-    const now = forgetClock();
-
-    for (const [held, entry] of confirmTokens) {
-      if (entry.expiresAt + forgetConfirmMs < now) {
-        confirmTokens.delete(held);
-      }
-    }
-
-    const entry = confirmTokens.get(token);
-    let reason: 'unknown' | 'used' | 'expired' | null = null;
-
-    if (entry === undefined || entry.session !== sessionID) {
-      reason = 'unknown';
-    } else if (entry.used) {
-      reason = 'used';
-    } else if (entry.expiresAt <= now) {
-      reason = 'expired';
-    }
-
-    if (reason !== null) {
-      throw new DaemonError(
-        'confirm_token_invalid',
-        `confirm token for session ${sessionID} is ${reason}; call session.forget without a token for a new one`,
-        { reason },
-      );
-    }
-
-    confirmTokens.set(token, {
-      session: sessionID,
-      expiresAt: entry?.expiresAt ?? now,
-      used: true,
-    });
-  };
-
-  // Stops the headless runs a kill or forget ended, once the manager has
-  // acted: a session it removed already lost its run with its runtime, a
-  // session it left exited loses it here, and a sub-session it promoted, or
-  // any session of a kill or forget that failed, keeps working.
-  const stopEndedHeadlessRuns = (set: readonly Session[]) => {
-    for (const s of set) {
-      if (s.state === 'exited') {
-        runtimes.get(s.id)?.stopHeadlessRun();
-      }
-    }
-  };
+  const forgetter = new SessionForgetter({
+    mgr,
+    findRuntime,
+    tokens: new ConfirmTokens({
+      now: opts.forgetClock ?? (() => clock.now()),
+      lifetimeMs: opts.forgetConfirmMs ?? FORGET_CONFIRM_MS,
+    }),
+  });
 
   const catalog = new SpawnCatalog({
     mgr,
@@ -882,85 +835,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         })();
       }, QUIT_FLUSH_DELAY_MS);
     },
-    killSession: async (id, stopOnly) => {
-      const s = mgr.sessions.find((x) => x.id === id);
-
-      if (s === undefined) {
-        return 'missing';
-      }
-
-      for (const live of [s, ...mgr.collectChildren(id)]) {
-        if (live.pty !== null) {
-          mgr.requireExecution(live, mgr.pickKillCapability(live));
-        }
-      }
-
-      const set = [s, ...mgr.collectChildren(id)];
-
-      const outcome = await mgr.kill(id, stopOnly);
-
-      stopEndedHeadlessRuns(set);
-
-      return outcome;
-    },
-
-    // A forget on a target that cannot destroy its host forgets at once. On
-    // one that can, a forget without a token checks the target and answers
-    // with a token, and the forget that carries the token destroys the host.
-    // A refusal the caller asks for reads the session in the same step that
-    // starts the forget, so a pin or revive that lands first is seen. A pin
-    // a sub-session inherits stops every caller but a session it sits under,
-    // so a session can clear away its own sub-sessions; a pin of its own
-    // stops that session too.
-    forgetSession: async (id, confirmToken, refuse, caller) => {
-      const s = mgr.sessions.find((x) => x.id === id);
-
-      if (s === undefined) {
-        return 'missing';
-      }
-
-      const owned = caller !== null && caller !== id && mgr.isCallerTree(caller, id);
-      const inheritsPin = !owned && mgr.sessions.some((x) => x.id === s.parent && x.pinned);
-
-      if (refuse.pinned && (s.pinned || inheritsPin)) {
-        throw new DaemonError(
-          'session_pinned',
-          `session ${id} is pinned, or is a sub-session of a pinned session and the caller is not its parent; unpin it before forgetting it`,
-          { session: id },
-        );
-      }
-
-      if (refuse.live && (s.pty !== null || (s.kind === 'headless' && s.state !== 'exited'))) {
-        throw new DaemonError(
-          'session_live',
-          `session ${id} is live; stop it before forgetting it`,
-          { session: id },
-        );
-      }
-
-      if (mgr.findProvider(s)?.capabilities.destroy === true) {
-        mgr.requireExecution(s, 'destroy');
-
-        if (confirmToken === undefined) {
-          const token = randomUUID();
-          const expiresAt = forgetClock() + forgetConfirmMs;
-
-          confirmTokens.set(token, { session: id, expiresAt, used: false });
-
-          return { confirmToken: token, expiresAt };
-        }
-
-        claimConfirmToken(id, confirmToken);
-      }
-
-      const set = [s, ...mgr.collectChildren(id)];
-
-      const destroyed = await mgr.forget(id);
-
-      stopEndedHeadlessRuns(set);
-
-      return { forgotten: true, destroyed };
-    },
+    killSession: (id, stopOnly) => forgetter.killSession(id, stopOnly),
+    forgetSession: (id, confirmToken, refuse, caller) =>
+      forgetter.forgetSession(id, confirmToken, refuse, caller),
     revokeSessionAuth: (id) => mgr.revokeAuth(id),
     updateSessionAuth: (id) => mgr.updateAuth(id),
     ejectSession: (id, prompt) => handoff.yankSession(id, prompt),
@@ -1337,10 +1214,4 @@ async function tryReconcileAuthBindings(
   }
 
   return true;
-}
-
-interface ConfirmToken {
-  readonly session: SessionID;
-  readonly expiresAt: number;
-  readonly used: boolean;
 }

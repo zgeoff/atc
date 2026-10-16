@@ -44,6 +44,7 @@ TESTS=(
   '16d daemon-resume-command session-resume-command'
   '16d daemon-session-record session-record'
   '16e daemon-detector detection-screen'
+  '16f daemon-forget session-forget'
 )
 
 # ticket, module under packages/app/src/daemon, daemon folder it lands in
@@ -68,6 +69,8 @@ MODULES=(
   '16d session-reads sessions'
   '16e permission-prompts sessions'
   '16e screen-detection sessions'
+  '16f confirm-tokens sessions'
+  '16f session-forgetter sessions'
 )
 
 APP=packages/app/src/daemon

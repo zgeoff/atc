@@ -8,7 +8,7 @@ import {
   getRecord,
   waitFor,
 } from '@atc/test-utils';
-import { startTestDaemon } from '../test-utils/start-test-daemon';
+import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 test('it answers a forget on a host-destroying target with a token and destroys nothing yet', async () => {
   const provider = buildStubExecutionProvider({
