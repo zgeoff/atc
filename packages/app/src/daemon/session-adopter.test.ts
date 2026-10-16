@@ -1,6 +1,7 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { systemClock, toAgentSessionID, toSessionID } from '@atc/core';
+import type { SessionID } from '@atc/core';
 import type { AgentAdapter, SpawnPlan } from '@atc/plugin-api';
 import { StateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/testing';
@@ -78,7 +79,10 @@ async function setupTest(config: SetupTestConfig) {
   });
 
   const claims = new HostDirClaims({ registry });
-  const killer = new SessionKiller({ registry, fleet, callbacks });
+
+  const restarts = { stopRestart: (id: SessionID) => adopter.stopRestart(id) };
+
+  const killer = new SessionKiller({ registry, fleet, callbacks, restarts });
   const harnesses = new SessionHarnesses({ registry, fleet, killer, callbacks });
   const rollback = new SpawnRollback({ registry, fleet, claims, harnesses, callbacks });
   const auth = new AuthSetup({ registry, fleet, claims, harnesses, rollback, store, callbacks });

@@ -16,6 +16,10 @@ interface SessionKillerDeps {
     SessionCallbacks,
     'onEvent' | 'onProcessEnded' | 'log' | 'getAuthBinder'
   >;
+
+  // Stops a revive's restart that waits on the kill of its outdated
+  // harness, and returns whether one was waiting.
+  readonly restarts: { readonly stopRestart: (id: SessionID) => Promise<boolean> };
 }
 
 /**
@@ -30,10 +34,13 @@ export class SessionKiller {
 
   private readonly callbacks: SessionKillerDeps['callbacks'];
 
+  private readonly restarts: SessionKillerDeps['restarts'];
+
   constructor(deps: SessionKillerDeps) {
     this.registry = deps.registry;
     this.fleet = deps.fleet;
     this.callbacks = deps.callbacks;
+    this.restarts = deps.restarts;
   }
 
   // A kill's response is the caller's cue that the session is safely
@@ -47,8 +54,10 @@ export class SessionKiller {
   // forgotten by a kill: forgetting it destroys the host, which takes a
   // confirmed forget. The set is taken before the first await, so a
   // sub-session spawned while the kill waits on a host is not part of it.
-  // With stopOnly, a session that is not live is left as it is: nothing
-  // changes and nothing is removed. Answers what the kill did.
+  // A session whose revive waits on the kill of its outdated harness counts
+  // as live: the revive starts no fresh harness and leaves it stopped. With
+  // stopOnly, a session that is not live is left as it is: nothing changes
+  // and nothing is removed. Answers what the kill did.
   async kill(id: SessionID, stopOnly = false): Promise<'stopped' | 'unchanged' | 'removed'> {
     const s = this.registry.sessions.find((x) => x.id === id);
 
@@ -58,9 +67,17 @@ export class SessionKiller {
 
     const children = this.registry.collectChildren(id);
 
+    const restartStopped = await this.restarts.stopRestart(id);
+
     if (s.pty) {
       await this.stopHarness(s);
 
+      for (const child of children) {
+        if (this.registry.sessions.includes(child) && child.parent === id) {
+          await this.tryStopHarness(child);
+        }
+      }
+    } else if (restartStopped) {
       for (const child of children) {
         if (this.registry.sessions.includes(child) && child.parent === id) {
           await this.tryStopHarness(child);
@@ -248,11 +265,16 @@ export class SessionKiller {
     }
   }
 
-  // A sub-session whose host stays awake is ended instead, so a kill
-  // never leaves part of its set running.
+  // A sub-session whose host stays awake is ended instead, and one whose
+  // revive waits on the kill of its outdated harness starts no fresh one,
+  // so a kill never leaves part of its set running.
   private async tryStopHarness(s: Session): Promise<void> {
     if (s.pty === null) {
-      this.killTerminal(s);
+      const restartStopped = await this.restarts.stopRestart(s.id);
+
+      if (!restartStopped) {
+        this.killTerminal(s);
+      }
 
       return;
     }

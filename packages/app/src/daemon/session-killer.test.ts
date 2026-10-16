@@ -1,6 +1,7 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { toSessionID } from '@atc/core';
+import type { SessionID } from '@atc/core';
 import { StateStore, buildTargetIdentity } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/testing';
 import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
@@ -14,12 +15,14 @@ import { buildStubMemoryProvider } from './testing/build-stub-memory-provider';
 
 interface SetupConfig {
   readonly targets: readonly ExecutionTarget[];
+  readonly restarting?: readonly SessionID[];
 }
 
 // A killer over a real registry of the targets the test gives and a real
 // fleet writer on a migrated state store, with the daemon's callbacks as
-// recorders. The daemon has no runtime auth binder, so a forget destroys
-// a host through its provider.
+// recorders. The revives the config lists wait on the kill of an outdated
+// harness, and every stop of a revive is recorded. The daemon has no
+// runtime auth binder, so a forget destroys a host through its provider.
 async function setupTest(config: SetupConfig) {
   const tmp = setupTempDir('atc-session-killer-');
   const dbPath = join(tmp.dir, 'state.db');
@@ -54,9 +57,24 @@ async function setupTest(config: SetupConfig) {
     callbacks,
   });
 
-  const killer = new SessionKiller({ registry, fleet, callbacks });
+  const restarting = config.restarting ?? [];
+  const stoppedRestarts: SessionID[] = [];
 
-  return { store, registry, killer, callbacks };
+  const restarts = {
+    stopRestart: (id: SessionID) => {
+      const waiting = restarting.includes(id);
+
+      if (waiting) {
+        stoppedRestarts.push(id);
+      }
+
+      return Promise.resolve(waiting);
+    },
+  };
+
+  const killer = new SessionKiller({ registry, fleet, callbacks, restarts });
+
+  return { store, registry, killer, callbacks, stoppedRestarts };
 }
 
 test('it kills a live sub-session along with its parent', async () => {
@@ -112,6 +130,44 @@ test('it kills a live sub-session along with its parent', async () => {
 
   expect(parent.state).toBe('exited');
   expect(child.state).toBe('exited');
+});
+
+test('it stops the revive of a sub-session that waits on its outdated harness along with its parent', async () => {
+  const local = buildStubMemoryProvider();
+
+  const ctx = await setupTest({
+    targets: [
+      buildMockExecutionTarget({
+        id: 'local',
+        kind: 'local-pty',
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: local,
+      }),
+    ],
+    restarting: [toSessionID('s-r-parent'), toSessionID('s-r-child')],
+  });
+
+  const parent = buildMockSession({
+    id: toSessionID('s-r-parent'),
+    name: 'wrangler',
+    state: 'running',
+    pty: null,
+  });
+
+  const child = buildMockSession({
+    id: toSessionID('s-r-child'),
+    name: 'worker',
+    state: 'running',
+    parent: toSessionID('s-r-parent'),
+    pty: null,
+  });
+
+  ctx.registry.sessions.push(parent, child);
+
+  const outcome = await ctx.killer.kill(parent.id, true);
+
+  expect(outcome).toBe('stopped');
+  expect(ctx.stoppedRestarts).toStrictEqual([parent.id, child.id]);
 });
 
 test('it forgets a dead parent with its dead sub-sessions and promotes the live ones', async () => {

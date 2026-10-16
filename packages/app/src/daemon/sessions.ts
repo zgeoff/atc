@@ -201,7 +201,11 @@ export class SessionManager {
     });
 
     const claims = new HostDirClaims({ registry });
-    const killer = new SessionKiller({ registry, fleet, callbacks });
+
+    // The killer reaches the adopter, built after it, only once a kill runs.
+    const restarts = { stopRestart: (id: SessionID) => this.adopter.stopRestart(id) };
+
+    const killer = new SessionKiller({ registry, fleet, callbacks, restarts });
     const harnesses = new SessionHarnesses({ registry, fleet, killer, callbacks });
     const rollback = new SpawnRollback({ registry, fleet, claims, harnesses, callbacks });
     const auth = new AuthSetup({ registry, fleet, claims, harnesses, rollback, store, callbacks });

@@ -54,6 +54,13 @@ interface HarnessLaunch {
   readonly rows: number;
 }
 
+// A restart whose outdated harness waits on its kill.
+interface HarnessRestart {
+  readonly session: Session;
+  stopped: boolean;
+  readonly settled: Promise<void>;
+}
+
 /**
  * Revives a session into a terminal: a fresh harness resumes the same
  * agent session, and on a remote host the host wakes first, attaching a
@@ -63,6 +70,11 @@ export class SessionAdopter {
   // Sessions whose revive waits on their host waking, so a second revive
   // of the same session does not start a second harness.
   private readonly adopting = new Set<SessionID>();
+
+  // Sessions whose outdated harness waits on its kill before the restart
+  // starts a fresh one, each with whether a stop landed meanwhile and a
+  // promise that settles once the restart leaves the session as it ends.
+  private readonly restarts = new Map<SessionID, HarnessRestart>();
 
   private readonly registry: SessionAdopterDeps['registry'];
 
@@ -83,6 +95,32 @@ export class SessionAdopter {
     this.rollback = deps.rollback;
     this.auth = deps.auth;
     this.callbacks = deps.callbacks;
+  }
+
+  /**
+   * Stops a session whose outdated harness waits on its kill before a
+   * restart, so the restart starts no fresh harness, and waits until the
+   * session is left stopped and written to the fleet. The session shows
+   * it stops meanwhile. Returns whether such a restart was waiting; a
+   * session with none is left as it is.
+   */
+  async stopRestart(id: SessionID): Promise<boolean> {
+    const restart = this.restarts.get(id);
+
+    if (restart === undefined) {
+      return false;
+    }
+
+    if (!restart.stopped) {
+      restart.stopped = true;
+      restart.session.lastMsg = 'stopping';
+
+      this.callbacks.onEvent('state', restart.session);
+    }
+
+    await restart.settled;
+
+    return true;
   }
 
   // A sibling's revive failing leaves that sibling asleep; the session
@@ -398,8 +436,8 @@ export class SessionAdopter {
   }
 
   // A kill whose exit atc cannot confirm blocks the session's revives
-  // until the process is gone. A kill, a rollback, or a change that takes
-  // the session out of the caller's reach while the kill waits starts
+  // until the process is gone. A kill, a stop, a rollback, or a change that
+  // takes the session out of the caller's reach while the kill waits starts
   // nothing.
   private async restartHarnessOnHost(
     s: Session,
@@ -411,6 +449,11 @@ export class SessionAdopter {
     // its exit leaves the session as it is.
     s.pty = null;
 
+    const settled = Promise.withResolvers<void>();
+    const restart: HarnessRestart = { session: s, stopped: false, settled: settled.promise };
+
+    this.restarts.set(s.id, restart);
+
     let exited = false;
 
     try {
@@ -418,6 +461,7 @@ export class SessionAdopter {
 
       if (
         exited &&
+        !restart.stopped &&
         canProceed() &&
         s.pty === null &&
         this.registry.sessions.includes(s) &&
@@ -430,16 +474,21 @@ export class SessionAdopter {
       // leaves the session stopped, as a deliberate kill does, and writes
       // that to the fleet before the adopt answers, so a restore after a
       // daemon restart does not revive it.
-      if (s.pty === null) {
-        s.state = 'exited';
-        s.lastMsg = 'killed';
-        s.desired = 'stop';
+      try {
+        if (s.pty === null) {
+          s.state = 'exited';
+          s.lastMsg = 'killed';
+          s.desired = 'stop';
 
-        this.callbacks.onEvent('state', s);
+          this.callbacks.onEvent('state', s);
 
-        await this.fleet.tryWriteFleet(s.id);
+          await this.fleet.tryWriteFleet(s.id);
 
-        this.fleet.emitChange();
+          this.fleet.emitChange();
+        }
+      } finally {
+        this.restarts.delete(s.id);
+        settled.resolve();
       }
     }
 

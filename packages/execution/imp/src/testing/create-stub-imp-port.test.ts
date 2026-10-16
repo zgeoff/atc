@@ -658,6 +658,36 @@ test('it closes a connection with the close code a test drops it with', async ()
   });
 });
 
+test('it ends a process that ignores a hangup when the port kills it', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const opened = ctx.port.openSession(
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: ['sh', '-c', `trap '' HUP; echo up; exec sleep 30`],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    { onStarted: () => {}, onOutput: () => {} },
+  );
+
+  await waitFor(() => {
+    expect(ctx.port.getEnd('imp-a', 's1')).toBeGreaterThan(0);
+  });
+
+  ctx.port.killProcess('imp-a', 's1');
+
+  const ended = await opened.outcome;
+
+  expect(ended).toStrictEqual({ kind: 'exit', code: 1, signal: null, offset: 4 });
+});
+
 test('it ends a connection whose output handler throws with a local error and keeps the process', async () => {
   const ctx = setupTest();
 
