@@ -1,22 +1,22 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { toSessionID } from '@atc/core';
-import { ImpHarness, ImpProvider } from '@atc/execution-imp';
-import { createStubImpPort } from '@atc/execution-imp/testing';
 import { EffectRemainsError } from '@atc/plugin-api';
-import type { HarnessStart, LaunchTicket } from '@atc/plugin-api';
+import type { LaunchTicket } from '@atc/plugin-api';
 import { StateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/testing';
-import { registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
+import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { buildMockAuthBinding } from '../test-utils/build-mock-auth-binding';
 import { RuntimeAuthBinder } from './runtime-auth-binder';
+import { buildStubBinderBroker } from './testing/build-stub-binder-broker';
 import { buildStubCredentialBroker } from './testing/build-stub-credential-broker';
 import { buildStubPregrantedBrokerHost } from './testing/build-stub-pregranted-broker-host';
 
-// A binder over a real state store, an imp provider's broker over a stub
-// imp port, which the test prepares as an operator prepares impd, and a
-// broker stand-in with no imp behind it for the contract's own guarantees.
+// A binder over a real state store, a broker that refuses grants as impd
+// does behind the imp provider, which the test prepares as an operator
+// prepares impd, and a broker stand-in that enforces no authority for the
+// contract's own guarantees.
 async function setupTest() {
   const tmp = setupTempDir('atc-auth-binder-');
   const dbPath = join(tmp.dir, 'state.db');
@@ -27,23 +27,9 @@ async function setupTest() {
 
   registerTestCleanup(() => store.stop());
 
-  const port = createStubImpPort();
-
-  const provider = new ImpProvider(
-    port,
-    { guestDir: join(tmp.dir, 'g') },
-    { atcBinary: null, version: '1.0.0' },
-  );
-
-  registerTestCleanup(() => {
-    provider.dispose();
-  });
-
   return {
-    dir: tmp.dir,
     store,
-    port,
-    host: provider.brokerAuth,
+    host: buildStubBinderBroker('atc-'),
     broker: buildStubCredentialBroker('atc-'),
     binder: new RuntimeAuthBinder(store),
   };
@@ -55,19 +41,18 @@ test('it provisions a host through the gate, a new imp and each grant, in that o
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -88,19 +73,19 @@ test('it provisions a host through the gate, a new imp and each grant, in that o
     }),
   });
 
-  expect(ctx.port.calls).toStrictEqual([
-    'system.info',
-    'tokens.whoami',
-    'secrets.list',
-    'imps.get atc-s1',
-    'imps.create atc-s1',
-    'grants.list atc-s1',
-    'grants.add atc-s1 glm',
+  expect(ctx.host.calls).toStrictEqual([
+    'readFeatures',
+    'readIdentity',
+    'readSecrets',
+    'readHost atc-s1',
+    'createHost atc-s1',
+    'readGrants atc-s1',
+    'createGrant atc-s1 glm',
   ]);
 
   const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
   const grants = await ctx.store.collectAuthGrants(toSessionID('s1'));
-  const imp = await ctx.port.readImp('atc-s1');
+  const imp = await ctx.host.readHost('atc-s1');
 
   invariant(imp);
 
@@ -131,23 +116,22 @@ test('it refuses an impd without exec requirements after reading only its featur
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.features = { ...ctx.port.features, execRequire: false };
+  ctx.host.setFeatures({ execRequire: false });
 
   const created = ctx.binder.createBinding(ctx.host, {
     hostKey: toSessionID('s1'),
@@ -171,11 +155,11 @@ test('it refuses an impd without exec requirements after reading only its featur
     data: { execRequire: false },
   });
 
-  const calls = [...ctx.port.calls];
+  const calls = [...ctx.host.calls];
 
   const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
 
-  expect(calls).toStrictEqual(['system.info']);
+  expect(calls).toStrictEqual(['readFeatures']);
   expect(binding).toBeNull();
 });
 
@@ -183,11 +167,10 @@ test('it refuses a token that reaches every imp and records nothing', async () =
   const ctx = await setupTest();
 
   // The token `host-wide` manages every imp, not only `atc-*` ones.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'host-wide',
     scope: 'manage',
-    imps: null,
+    hosts: null,
     grantable: ['glm'],
   });
 
@@ -210,11 +193,11 @@ test('it refuses a token that reaches every imp and records nothing', async () =
 
   expect(created).rejects.toMatchObject({ code: 'auth_token_too_broad' });
 
-  const calls = [...ctx.port.calls];
+  const calls = [...ctx.host.calls];
 
   const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
 
-  expect(calls).toStrictEqual(['system.info', 'tokens.whoami']);
+  expect(calls).toStrictEqual(['readFeatures', 'readIdentity']);
   expect(binding).toBeNull();
 });
 
@@ -225,19 +208,18 @@ test('it refuses a secret whose rules differ from the binding and creates no imp
   // imps and may grant `glm` and `judge`, and impd holds `judge` for
   // judge.example and `glm` for api.z.ai and elsewhere.example, both custom
   // bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
     { host: 'elsewhere.example', header: 'authorization', scheme: 'bearer' },
   ]);
@@ -261,11 +243,11 @@ test('it refuses a secret whose rules differ from the binding and creates no imp
 
   expect(created).rejects.toMatchObject({ code: 'auth_secret_mismatch' });
 
-  const calls = [...ctx.port.calls];
+  const calls = [...ctx.host.calls];
 
   const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
 
-  expect(calls).toStrictEqual(['system.info', 'tokens.whoami', 'secrets.list']);
+  expect(calls).toStrictEqual(['readFeatures', 'readIdentity', 'readSecrets']);
   expect(binding).toBeNull();
 });
 
@@ -275,23 +257,22 @@ test('it refuses an imp that already holds the name and grants nothing to it', a
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  await ctx.port.createImp({ name: 'atc-s1' });
+  await ctx.host.createHost('s1');
 
   const created = ctx.binder.createBinding(ctx.host, {
     hostKey: toSessionID('s1'),
@@ -312,17 +293,17 @@ test('it refuses an imp that already holds the name and grants nothing to it', a
 
   expect(created).rejects.toMatchObject({ code: 'auth_runtime_exists' });
 
-  const calls = [...ctx.port.calls];
+  const calls = [...ctx.host.calls];
 
-  const grants = await ctx.port.readGrants('atc-s1');
+  const grants = await ctx.host.readGrants('atc-s1');
   const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
 
   expect(calls).toStrictEqual([
-    'imps.create atc-s1',
-    'system.info',
-    'tokens.whoami',
-    'secrets.list',
-    'imps.get atc-s1',
+    'createHost atc-s1',
+    'readFeatures',
+    'readIdentity',
+    'readSecrets',
+    'readHost atc-s1',
   ]);
 
   expect(grants).toStrictEqual([]);
@@ -335,24 +316,23 @@ test('it takes back the imp a refused grant left and drops the record', async ()
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
   // A rebind of the secret's rules leaves the token's grantable list behind.
-  ctx.port.updateSecret('glm', [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }]);
+  ctx.host.updateSecret('glm', [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }]);
 
   const created = ctx.binder.createBinding(ctx.host, {
     hostKey: toSessionID('s1'),
@@ -376,22 +356,22 @@ test('it takes back the imp a refused grant left and drops the record', async ()
     data: { problem: 'forbidden' },
   });
 
-  const imps = ctx.port.collectImpNames();
+  const imps = ctx.host.collectHostNames();
 
   const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
 
-  expect(ctx.port.calls).toStrictEqual([
-    'system.info',
-    'tokens.whoami',
-    'secrets.list',
-    'imps.get atc-s1',
-    'imps.create atc-s1',
-    'grants.list atc-s1',
-    'grants.add atc-s1 glm',
-    'tokens.whoami',
-    'imps.get atc-s1',
-    'imps.destroy atc-s1',
-    'imps.get atc-s1',
+  expect(ctx.host.calls).toStrictEqual([
+    'readFeatures',
+    'readIdentity',
+    'readSecrets',
+    'readHost atc-s1',
+    'createHost atc-s1',
+    'readGrants atc-s1',
+    'createGrant atc-s1 glm',
+    'readIdentity',
+    'readHost atc-s1',
+    'destroyHost atc-s1',
+    'readHost atc-s1',
   ]);
 
   expect(imps).toStrictEqual([]);
@@ -404,19 +384,18 @@ test('it verifies a bound host without granting anything again', async () => {
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -439,7 +418,7 @@ test('it verifies a bound host without granting anything again', async () => {
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
 
-  ctx.port.calls.length = 0;
+  ctx.host.calls.length = 0;
 
   const verified = await ctx.binder.verifyBinding(
     ctx.host,
@@ -459,12 +438,12 @@ test('it verifies a bound host without granting anything again', async () => {
 
   expect(verified.state).toBe('ready');
 
-  expect(ctx.port.calls).toStrictEqual([
-    'system.info',
-    'tokens.whoami',
-    'secrets.list',
-    'imps.get atc-s1',
-    'grants.list atc-s1',
+  expect(ctx.host.calls).toStrictEqual([
+    'readFeatures',
+    'readIdentity',
+    'readSecrets',
+    'readHost atc-s1',
+    'readGrants atc-s1',
   ]);
 });
 
@@ -474,19 +453,18 @@ test('it refuses a host whose grant was revoked outside atc and grants it no mor
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -508,9 +486,9 @@ test('it refuses a host whose grant was revoked outside atc and grants it no mor
   });
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
-  await ctx.port.removeGrant('atc-s1', 'glm');
+  await ctx.host.removeGrant('atc-s1', 'glm');
 
-  ctx.port.calls.length = 0;
+  ctx.host.calls.length = 0;
 
   const verified = ctx.binder.verifyBinding(
     ctx.host,
@@ -533,12 +511,12 @@ test('it refuses a host whose grant was revoked outside atc and grants it no mor
     data: { missing: ['glm'] },
   });
 
-  expect(ctx.port.calls).toStrictEqual([
-    'system.info',
-    'tokens.whoami',
-    'secrets.list',
-    'imps.get atc-s1',
-    'grants.list atc-s1',
+  expect(ctx.host.calls).toStrictEqual([
+    'readFeatures',
+    'readIdentity',
+    'readSecrets',
+    'readHost atc-s1',
+    'readGrants atc-s1',
   ]);
 });
 
@@ -548,19 +526,18 @@ test('it refuses a host that holds a grant its binding does not', async () => {
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -582,7 +559,7 @@ test('it refuses a host that holds a grant its binding does not', async () => {
   });
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
-  await ctx.port.createGrant('atc-s1', 'judge');
+  await ctx.host.createGrant('atc-s1', 'judge');
 
   const verified = ctx.binder.verifyBinding(
     ctx.host,
@@ -605,7 +582,7 @@ test('it refuses a host that holds a grant its binding does not', async () => {
     data: { extra: ['judge'] },
   });
 
-  const grants = await ctx.port.readGrants('atc-s1');
+  const grants = await ctx.host.readGrants('atc-s1');
 
   expect(grants).toStrictEqual(['glm', 'judge']);
 });
@@ -616,19 +593,18 @@ test('it refuses a host whose used profiles changed before it reaches impd', asy
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -651,7 +627,7 @@ test('it refuses a host whose used profiles changed before it reaches impd', asy
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
 
-  ctx.port.calls.length = 0;
+  ctx.host.calls.length = 0;
 
   const verified = ctx.binder.verifyBinding(
     ctx.host,
@@ -670,7 +646,7 @@ test('it refuses a host whose used profiles changed before it reaches impd', asy
   );
 
   expect(verified).rejects.toMatchObject({ code: 'auth_rebind_required' });
-  expect(ctx.port.calls).toStrictEqual([]);
+  expect(ctx.host.calls).toStrictEqual([]);
 });
 
 test('it refuses an imp made again under the recorded name', async () => {
@@ -679,19 +655,18 @@ test('it refuses an imp made again under the recorded name', async () => {
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -713,9 +688,9 @@ test('it refuses an imp made again under the recorded name', async () => {
   });
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
-  await ctx.port.destroyImp('atc-s1');
-  await ctx.port.createImp({ name: 'atc-s1' });
-  await ctx.port.createGrant('atc-s1', 'glm');
+  await ctx.host.destroyHost('s1');
+  await ctx.host.createHost('s1');
+  await ctx.host.createGrant('atc-s1', 'glm');
 
   const verified = ctx.binder.verifyBinding(
     ctx.host,
@@ -742,19 +717,18 @@ test('it revokes every grant through the identity checks alone, without reading 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -778,21 +752,21 @@ test('it revokes every grant through the identity checks alone, without reading 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
 
   // A rule change on the host side never stops a revoke.
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'x-api-key', scheme: 'bearer' },
   ]);
 
-  ctx.port.calls.length = 0;
+  ctx.host.calls.length = 0;
 
   await ctx.binder.revokeBinding(ctx.host, toSessionID('s1'));
 
-  const calls = [...ctx.port.calls];
+  const calls = [...ctx.host.calls];
 
-  const grants = await ctx.port.readGrants('atc-s1');
+  const grants = await ctx.host.readGrants('atc-s1');
   const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
   const rows = await ctx.store.collectAuthGrants(toSessionID('s1'));
 
-  expect(calls).toStrictEqual(['tokens.whoami', 'imps.get atc-s1', 'grants.delete atc-s1 glm']);
+  expect(calls).toStrictEqual(['readIdentity', 'readHost atc-s1', 'removeGrant atc-s1 glm']);
   expect(grants).toStrictEqual([]);
   expect(binding).toMatchObject({ state: 'revoked', revokedAt: expect.toBeNumber() });
   expect(rows).toMatchObject([{ secret: 'glm', phase: 'revoked' }]);
@@ -804,19 +778,18 @@ test('it blocks every launch on a host once its grants are revoked', async () =>
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -840,7 +813,7 @@ test('it blocks every launch on a host once its grants are revoked', async () =>
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
   await ctx.binder.revokeBinding(ctx.host, toSessionID('s1'));
 
-  ctx.port.calls.length = 0;
+  ctx.host.calls.length = 0;
 
   const verified = ctx.binder.verifyBinding(
     ctx.host,
@@ -859,7 +832,7 @@ test('it blocks every launch on a host once its grants are revoked', async () =>
   );
 
   expect(verified).rejects.toMatchObject({ code: 'auth_blocked', data: { state: 'revoked' } });
-  expect(ctx.port.calls).toStrictEqual([]);
+  expect(ctx.host.calls).toStrictEqual([]);
 });
 
 test('it records the block of a revoke and keeps it pending when impd cannot be reached', async () => {
@@ -868,19 +841,18 @@ test('it records the block of a revoke and keeps it pending when impd cannot be 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -923,19 +895,18 @@ test('it counts a grant a secret rebind already dropped as revoked though the to
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -958,7 +929,7 @@ test('it counts a grant a secret rebind already dropped as revoked though the to
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
 
-  ctx.port.updateSecret('glm', [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }]);
+  ctx.host.updateSecret('glm', [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }]);
 
   await ctx.binder.revokeBinding(ctx.host, toSessionID('s1'));
 
@@ -973,19 +944,18 @@ test('it keeps a revoke pending when the token cannot revoke a grant impd still 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -1008,11 +978,10 @@ test('it keeps a revoke pending when the token cannot revoke a grant impd still 
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
 
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: [],
   });
 
@@ -1020,7 +989,7 @@ test('it keeps a revoke pending when the token cannot revoke a grant impd still 
 
   expect(revoked).rejects.toMatchObject({ code: 'auth_revocation_pending' });
 
-  const grants = await ctx.port.readGrants('atc-s1');
+  const grants = await ctx.host.readGrants('atc-s1');
   const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
 
   expect(grants).toStrictEqual(['glm']);
@@ -1033,19 +1002,18 @@ test('it rebinds a host to the next revision, granting the new secret and revoki
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -1068,7 +1036,7 @@ test('it rebinds a host to the next revision, granting the new secret and revoki
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
 
-  ctx.port.calls.length = 0;
+  ctx.host.calls.length = 0;
 
   const revision = await ctx.binder.updateBinding(
     ctx.host,
@@ -1086,22 +1054,22 @@ test('it rebinds a host to the next revision, granting the new secret and revoki
     }),
   );
 
-  const calls = [...ctx.port.calls];
+  const calls = [...ctx.host.calls];
 
-  const grants = await ctx.port.readGrants('atc-s1');
+  const grants = await ctx.host.readGrants('atc-s1');
   const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
 
   expect(revision).toBe(2);
 
   expect(calls).toStrictEqual([
-    'system.info',
-    'tokens.whoami',
-    'secrets.list',
-    'tokens.whoami',
-    'imps.get atc-s1',
-    'grants.list atc-s1',
-    'grants.add atc-s1 judge',
-    'grants.delete atc-s1 glm',
+    'readFeatures',
+    'readIdentity',
+    'readSecrets',
+    'readIdentity',
+    'readHost atc-s1',
+    'readGrants atc-s1',
+    'createGrant atc-s1 judge',
+    'removeGrant atc-s1 glm',
   ]);
 
   expect(grants).toStrictEqual(['judge']);
@@ -1120,19 +1088,18 @@ test('it removes only the grants a failed rebind added and keeps the imp at the 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -1155,27 +1122,26 @@ test('it removes only the grants a failed rebind added and keeps the imp at the 
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
 
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge', 'zeta'],
   });
 
   // Recreated after the token was made, so the token's list no longer
   // covers it and impd refuses its grant.
-  ctx.port.createSecret('zeta', 'custom', [
+  ctx.host.createSecret('zeta', 'custom', [
     { host: 'zeta.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.removeSecret('zeta');
+  ctx.host.removeSecret('zeta');
 
-  ctx.port.createSecret('zeta', 'custom', [
+  ctx.host.createSecret('zeta', 'custom', [
     { host: 'zeta.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.calls.length = 0;
+  ctx.host.calls.length = 0;
 
   const rebound = ctx.binder.updateBinding(
     ctx.host,
@@ -1205,26 +1171,26 @@ test('it removes only the grants a failed rebind added and keeps the imp at the 
 
   expect(rebound).rejects.toMatchObject({ code: 'host_unavailable' });
 
-  const calls = [...ctx.port.calls];
+  const calls = [...ctx.host.calls];
 
   const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
 
-  const imps = ctx.port.collectImpNames();
+  const imps = ctx.host.collectHostNames();
 
-  const grants = await ctx.port.readGrants('atc-s1');
+  const grants = await ctx.host.readGrants('atc-s1');
 
   expect(calls).toStrictEqual([
-    'system.info',
-    'tokens.whoami',
-    'secrets.list',
-    'tokens.whoami',
-    'imps.get atc-s1',
-    'grants.list atc-s1',
-    'grants.add atc-s1 judge',
-    'grants.add atc-s1 zeta',
-    'grants.delete atc-s1 judge',
-    'grants.delete atc-s1 zeta',
-    'grants.list atc-s1',
+    'readFeatures',
+    'readIdentity',
+    'readSecrets',
+    'readIdentity',
+    'readHost atc-s1',
+    'readGrants atc-s1',
+    'createGrant atc-s1 judge',
+    'createGrant atc-s1 zeta',
+    'removeGrant atc-s1 judge',
+    'removeGrant atc-s1 zeta',
+    'readGrants atc-s1',
   ]);
 
   expect(imps).toStrictEqual(['atc-s1']);
@@ -1239,19 +1205,18 @@ test('it takes back one attempt without touching the imp or grants of another ho
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -1289,22 +1254,22 @@ test('it takes back one attempt without touching the imp or grants of another ho
     }),
   });
 
-  ctx.port.calls.length = 0;
+  ctx.host.calls.length = 0;
 
   await ctx.binder.removeAttempt(ctx.host, toSessionID('s1'), first);
 
-  const calls = [...ctx.port.calls];
-  const imps = ctx.port.collectImpNames();
+  const calls = [...ctx.host.calls];
+  const imps = ctx.host.collectHostNames();
 
-  const grants = await ctx.port.readGrants('atc-s2');
+  const grants = await ctx.host.readGrants('atc-s2');
   const firstBinding = await ctx.store.findAuthBinding(toSessionID('s1'));
   const secondBinding = await ctx.store.findAuthBinding(toSessionID('s2'));
 
   expect(calls).toStrictEqual([
-    'tokens.whoami',
-    'imps.get atc-s1',
-    'imps.destroy atc-s1',
-    'imps.get atc-s1',
+    'readIdentity',
+    'readHost atc-s1',
+    'destroyHost atc-s1',
+    'readHost atc-s1',
   ]);
 
   expect(imps).toStrictEqual(['atc-s2']);
@@ -1319,19 +1284,18 @@ test('it leaves a host alone when asked to take back an attempt other than the o
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -1352,12 +1316,12 @@ test('it leaves a host alone when asked to take back an attempt other than the o
     }),
   });
 
-  ctx.port.calls.length = 0;
+  ctx.host.calls.length = 0;
 
   await ctx.binder.removeAttempt(ctx.host, toSessionID('s1'), 'another-attempt');
 
-  expect(ctx.port.calls).toStrictEqual([]);
-  expect(ctx.port.collectImpNames()).toStrictEqual(['atc-s1']);
+  expect(ctx.host.calls).toStrictEqual([]);
+  expect(ctx.host.collectHostNames()).toStrictEqual(['atc-s1']);
 });
 
 test('it forgets a bound host by destroying its imp and dropping the record', async () => {
@@ -1366,19 +1330,18 @@ test('it forgets a bound host by destroying its imp and dropping the record', as
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -1401,15 +1364,15 @@ test('it forgets a bound host by destroying its imp and dropping the record', as
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
 
-  ctx.port.calls.length = 0;
+  ctx.host.calls.length = 0;
 
   const forgotten = await ctx.binder.forgetBinding(ctx.host, toSessionID('s1'));
 
-  const calls = [...ctx.port.calls];
+  const calls = [...ctx.host.calls];
 
-  const secrets = await ctx.port.readSecrets();
+  const secrets = await ctx.host.readSecrets();
 
-  const imps = ctx.port.collectImpNames();
+  const imps = ctx.host.collectHostNames();
   const secretNames = secrets.map((secret) => secret.name);
 
   const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
@@ -1417,10 +1380,10 @@ test('it forgets a bound host by destroying its imp and dropping the record', as
   expect(forgotten).toBeTrue();
 
   expect(calls).toStrictEqual([
-    'tokens.whoami',
-    'imps.get atc-s1',
-    'imps.destroy atc-s1',
-    'imps.get atc-s1',
+    'readIdentity',
+    'readHost atc-s1',
+    'destroyHost atc-s1',
+    'readHost atc-s1',
   ]);
 
   expect(imps).toStrictEqual([]);
@@ -1434,19 +1397,18 @@ test('it refuses to forget a host whose imp was made again and leaves that imp a
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -1468,14 +1430,14 @@ test('it refuses to forget a host whose imp was made again and leaves that imp a
   });
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
-  await ctx.port.destroyImp('atc-s1');
-  await ctx.port.createImp({ name: 'atc-s1' });
+  await ctx.host.destroyHost('s1');
+  await ctx.host.createHost('s1');
 
   const forgotten = ctx.binder.forgetBinding(ctx.host, toSessionID('s1'));
 
   expect(forgotten).rejects.toMatchObject({ code: 'auth_revocation_pending' });
 
-  const imps = ctx.port.collectImpNames();
+  const imps = ctx.host.collectHostNames();
 
   const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
 
@@ -1489,19 +1451,18 @@ test('it takes back a provisioning attempt no fleet entry lists as a daemon star
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -1534,7 +1495,7 @@ test('it takes back a provisioning attempt no fleet entry lists as a daemon star
     },
   );
 
-  const imps = ctx.port.collectImpNames();
+  const imps = ctx.host.collectHostNames();
 
   const firstBinding = await ctx.store.findAuthBinding(toSessionID('s1'));
   const secondBinding = await ctx.store.findAuthBinding(toSessionID('s2'));
@@ -1551,19 +1512,18 @@ test('it fails a rebind a stopped daemon left in flight and revokes only the gra
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -1607,7 +1567,7 @@ test('it fails a rebind a stopped daemon left in flight and revokes only the gra
     2000,
   );
 
-  await ctx.port.createGrant('atc-s1', 'judge');
+  await ctx.host.createGrant('atc-s1', 'judge');
 
   await ctx.binder.reconcileBindings(
     () => ctx.host,
@@ -1615,7 +1575,7 @@ test('it fails a rebind a stopped daemon left in flight and revokes only the gra
     () => {},
   );
 
-  const grants = await ctx.port.readGrants('atc-s1');
+  const grants = await ctx.host.readGrants('atc-s1');
   const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
 
   expect(grants).toStrictEqual(['glm']);
@@ -1628,19 +1588,18 @@ test('it rebinds a provisioned host whose spawn listed but never recorded its st
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -1689,19 +1648,18 @@ test('it refuses to rebind a host whose spawn is still provisioning before it cr
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -1743,19 +1701,18 @@ test('it refuses to take back an attempt through a target whose imp prefix chang
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -1776,26 +1733,18 @@ test('it refuses to take back an attempt through a target whose imp prefix chang
     }),
   });
 
-  await ctx.port.createImp({ name: 'atc-new-s1' });
+  const renamed = ctx.host.buildRenamedBroker('atc-new-');
 
-  const renamed = new ImpProvider(
-    ctx.port,
-    { impPrefix: 'atc-new-' },
-    { atcBinary: null, version: '1.0.0' },
-  );
+  await renamed.createHost('s1');
 
-  registerTestCleanup(() => {
-    renamed.dispose();
-  });
-
-  const removed = ctx.binder.removeAttempt(renamed.brokerAuth, toSessionID('s1'), attemptID);
+  const removed = ctx.binder.removeAttempt(renamed, toSessionID('s1'), attemptID);
 
   expect(removed).rejects.toThrowWithMessage(
     EffectRemainsError,
     /^atc could not take back the runtime auth of host s1 \(/,
   );
 
-  const imps = ctx.port.collectImpNames().toSorted();
+  const imps = ctx.host.collectHostNames().toSorted();
 
   const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
 
@@ -1809,19 +1758,18 @@ test('it keeps the grants a failed rebind added while impd cannot be reached', a
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -1865,7 +1813,7 @@ test('it keeps the grants a failed rebind added while impd cannot be reached', a
     2000,
   );
 
-  await ctx.port.createGrant('atc-s1', 'judge');
+  await ctx.host.createGrant('atc-s1', 'judge');
 
   await ctx.binder.reconcileBindings(
     () => null,
@@ -1873,7 +1821,7 @@ test('it keeps the grants a failed rebind added while impd cannot be reached', a
     () => {},
   );
 
-  const grants = await ctx.port.readGrants('atc-s1');
+  const grants = await ctx.host.readGrants('atc-s1');
 
   expect(grants).toStrictEqual(['glm', 'judge']);
 });
@@ -1884,19 +1832,18 @@ test('it retries the removal of the grants a failed rebind added on a later star
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -1940,7 +1887,7 @@ test('it retries the removal of the grants a failed rebind added on a later star
     2000,
   );
 
-  await ctx.port.createGrant('atc-s1', 'judge');
+  await ctx.host.createGrant('atc-s1', 'judge');
 
   await ctx.binder.reconcileBindings(
     () => null,
@@ -1948,7 +1895,7 @@ test('it retries the removal of the grants a failed rebind added on a later star
     () => {},
   );
 
-  const grantsWhileUnreachable = await ctx.port.readGrants('atc-s1');
+  const grantsWhileUnreachable = await ctx.host.readGrants('atc-s1');
 
   await ctx.binder.reconcileBindings(
     () => ctx.host,
@@ -1956,7 +1903,7 @@ test('it retries the removal of the grants a failed rebind added on a later star
     () => {},
   );
 
-  const grants = await ctx.port.readGrants('atc-s1');
+  const grants = await ctx.host.readGrants('atc-s1');
   const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
 
   expect(grantsWhileUnreachable).toStrictEqual(['glm', 'judge']);
@@ -1970,19 +1917,18 @@ test('it hands a launch over before a revoke that arrives during its admission, 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -2039,19 +1985,18 @@ test('it refuses a launch whose admission waits behind a revoke, handing nothing
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -2098,19 +2043,18 @@ test('it refuses a start planned under another binding hash than the ready one',
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -2148,25 +2092,24 @@ test('it refuses a start planned under another binding hash than the ready one',
   expect(sent).toStrictEqual([]);
 });
 
-test('it holds a launch admission while its connection opens and returns it once the request goes out', async () => {
+test('it holds a launch admission until its ticket is checked and lets the request go at the check', async () => {
   const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -2188,264 +2131,96 @@ test('it holds a launch admission while its connection opens and returns it once
   });
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
-  await ctx.port.createImp({ name: 'imp-x' });
 
-  ctx.port.startUpgradeHold();
+  // The harness keeps the ticket while its connection to impd opens.
+  const tickets: LaunchTicket[] = [];
 
-  const harness = new ImpHarness(
-    ctx.port,
-    {
-      kind: 'start',
-      name: 'imp-x',
-      session: 's2',
-      argv: ['sleep', '30'],
-      env: {},
-      cwd: ctx.dir,
-      cols: 80,
-      rows: 24,
-      require: ['broker'],
-    },
-    {
-      offsets: true,
-      reconnectDelaysMs: [],
-      isSuspending: () => false,
-      onDone: () => {},
-      admit: (kind, send) =>
-        ctx.binder.withLaunchAdmission(
-          toSessionID('s1'),
-          { revision: 1, hash: 'h1', attemptID: null },
-          kind,
-          send,
-        ),
+  await ctx.binder.withLaunchAdmission(
+    toSessionID('s1'),
+    { revision: 1, hash: 'h1', attemptID: null },
+    'start',
+    (ticket) => {
+      tickets.push(ticket);
     },
   );
 
-  registerTestCleanup(() => {
-    harness.detach();
+  const [ticket] = tickets;
+
+  invariant(ticket);
+
+  const held = ctx.binder.countPendingAdmissions(toSessionID('s1'));
+  const refusal = ticket.check();
+
+  expect(held).toBe(1);
+  expect(refusal).toBeNull();
+  expect(ctx.binder.countPendingAdmissions(toSessionID('s1'))).toBe(0);
+});
+
+test('it returns the launch admission of each ticket released unchecked', async () => {
+  const ctx = await setupTest();
+
+  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
+  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
+  // and `judge` for judge.example, both custom bearer secrets.
+  ctx.host.setIdentity({
+    name: 'atc-runtime',
+    scope: 'manage',
+    hosts: ['atc-*'],
+    grantable: ['glm', 'judge'],
   });
 
-  await waitFor(() => {
-    expect(ctx.port.countHeldUpgrades()).toBe(1);
+  ctx.host.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  ctx.host.createSecret('judge', 'custom', [
+    { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const attemptID = await ctx.binder.createBinding(ctx.host, {
+    hostKey: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'imp:test',
+    binding: buildMockAuthBinding({
+      profiles: ['glm'],
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      hash: 'h1',
+    }),
   });
+
+  await ctx.binder.updateReady(toSessionID('s1'), attemptID);
+
+  // Three connections, each of which ends before it opens and releases
+  // its ticket unchecked.
+  const tickets: LaunchTicket[] = [];
+
+  await Promise.all(
+    (['start', 'attach', 'attach'] as const).map((kind) =>
+      ctx.binder.withLaunchAdmission(
+        toSessionID('s1'),
+        { revision: 1, hash: 'h1', attemptID: null },
+        kind,
+        (ticket) => {
+          tickets.push(ticket);
+        },
+      ),
+    ),
+  );
 
   const held = ctx.binder.countPendingAdmissions(toSessionID('s1'));
 
-  ctx.port.stopUpgradeHold();
-
-  await Promise.allSettled([harness.waitForStart()]);
-
-  expect(held).toBe(1);
-  expect(ctx.binder.countPendingAdmissions(toSessionID('s1'))).toBe(0);
-
-  expect(ctx.port.sessionRequests).toStrictEqual([
-    {
-      kind: 'start',
-      name: 'imp-x',
-      session: 's2',
-      argv: ['sleep', '30'],
-      env: {},
-      cwd: ctx.dir,
-      cols: 80,
-      rows: 24,
-      require: ['broker'],
-    },
-  ]);
-});
-
-test('it returns the launch admission of each connection that fails before it opens', async () => {
-  const ctx = await setupTest();
-
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['glm', 'judge'],
-  });
-
-  ctx.port.createSecret('glm', 'custom', [
-    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
-  ]);
-
-  ctx.port.createSecret('judge', 'custom', [
-    { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
-  ]);
-
-  const attemptID = await ctx.binder.createBinding(ctx.host, {
-    hostKey: toSessionID('s1'),
-    target: 'box',
-    targetIdentity: 'imp:test',
-    binding: buildMockAuthBinding({
-      profiles: ['glm'],
-      secrets: [
-        {
-          secret: 'glm',
-          kind: 'custom',
-          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
-        },
-      ],
-      hash: 'h1',
-    }),
-  });
-
-  await ctx.binder.updateReady(toSessionID('s1'), attemptID);
-  await ctx.port.createImp({ name: 'imp-x' });
-
-  ctx.port.setUpgradeFailures(6);
-
-  // Three connections in turn, each failing before it opens; an admission
-  // only ever adds to the host's pending count, so a count of none after
-  // the last shows every one of them returned its own.
-  const starts: PromiseSettledResult<HarnessStart>[] = [];
-
-  for (const session of ['s2', 's3', 's4']) {
-    const harness = new ImpHarness(
-      ctx.port,
-      {
-        kind: 'start',
-        name: 'imp-x',
-        session,
-        argv: ['sleep', '30'],
-        env: {},
-        cwd: ctx.dir,
-        cols: 80,
-        rows: 24,
-        require: ['broker'],
-      },
-      {
-        offsets: true,
-        reconnectDelaysMs: [0],
-        isSuspending: () => false,
-        onDone: () => {},
-        admit: (kind, send) =>
-          ctx.binder.withLaunchAdmission(
-            toSessionID('s1'),
-            { revision: 1, hash: 'h1', attemptID: null },
-            kind,
-            send,
-          ),
-      },
-    );
-
-    registerTestCleanup(() => {
-      harness.detach();
-    });
-
-    starts.push(...(await Promise.allSettled([harness.waitForStart()])));
+  for (const ticket of tickets) {
+    ticket.release();
   }
 
-  expect(starts).toStrictEqual([
-    {
-      status: 'rejected',
-      reason: expect.toContainEntries([
-        ['code', 'host_unavailable'],
-        ['data', { provider: 'imp', problem: 'not_started' }],
-      ]),
-    },
-    {
-      status: 'rejected',
-      reason: expect.toContainEntries([
-        ['code', 'host_unavailable'],
-        ['data', { provider: 'imp', problem: 'not_started' }],
-      ]),
-    },
-    {
-      status: 'rejected',
-      reason: expect.toContainEntries([
-        ['code', 'host_unavailable'],
-        ['data', { provider: 'imp', problem: 'not_started' }],
-      ]),
-    },
-  ]);
-
+  expect(held).toBe(3);
   expect(ctx.binder.countPendingAdmissions(toSessionID('s1'))).toBe(0);
-  expect(ctx.port.sessionRequests).toStrictEqual([]);
-});
-
-test('it returns the launch admission of a connection whose opening throws before it returns', async () => {
-  const ctx = await setupTest();
-
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['glm', 'judge'],
-  });
-
-  ctx.port.createSecret('glm', 'custom', [
-    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
-  ]);
-
-  ctx.port.createSecret('judge', 'custom', [
-    { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
-  ]);
-
-  const attemptID = await ctx.binder.createBinding(ctx.host, {
-    hostKey: toSessionID('s1'),
-    target: 'box',
-    targetIdentity: 'imp:test',
-    binding: buildMockAuthBinding({
-      profiles: ['glm'],
-      secrets: [
-        {
-          secret: 'glm',
-          kind: 'custom',
-          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
-        },
-      ],
-      hash: 'h1',
-    }),
-  });
-
-  await ctx.binder.updateReady(toSessionID('s1'), attemptID);
-  await ctx.port.createImp({ name: 'imp-x' });
-
-  ctx.port.setOpenFailures(1);
-
-  const harness = new ImpHarness(
-    ctx.port,
-    {
-      kind: 'start',
-      name: 'imp-x',
-      session: 's2',
-      argv: ['sleep', '30'],
-      env: {},
-      cwd: ctx.dir,
-      cols: 80,
-      rows: 24,
-      require: ['broker'],
-    },
-    {
-      offsets: true,
-      reconnectDelaysMs: [],
-      isSuspending: () => false,
-      onDone: () => {},
-      admit: (kind, send) =>
-        ctx.binder.withLaunchAdmission(
-          toSessionID('s1'),
-          { revision: 1, hash: 'h1', attemptID: null },
-          kind,
-          send,
-        ),
-    },
-  );
-
-  registerTestCleanup(() => {
-    harness.detach();
-  });
-
-  const started = harness.waitForStart();
-
-  expect(started).rejects.toMatchObject({ code: 'internal' });
-  expect(ctx.binder.countPendingAdmissions(toSessionID('s1'))).toBe(0);
-  expect(ctx.port.sessionRequests).toStrictEqual([]);
 });
 
 test('it refuses to verify a host with no binding as blocked', async () => {
@@ -2524,15 +2299,14 @@ test('it refuses to rebind a host revoked before its spawn recorded the imp', as
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm`, and impd holds `glm` for api.z.ai, a custom
   // bearer secret.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -2579,19 +2353,18 @@ test('it refuses a new imp that already holds a grant, grants it nothing and tak
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -2617,22 +2390,22 @@ test('it refuses a new imp that already holds a grant, grants it nothing and tak
     data: { host: 's1', extra: ['judge'] },
   });
 
-  const calls = [...ctx.port.calls];
+  const calls = [...ctx.host.calls];
 
   // The stand-in's own grant of judge is the only one; the binder never
   // asks for glm.
   expect(calls).toStrictEqual([
-    'system.info',
-    'tokens.whoami',
-    'secrets.list',
-    'imps.get atc-s1',
-    'imps.create atc-s1',
-    'grants.add atc-s1 judge',
-    'grants.list atc-s1',
-    'tokens.whoami',
-    'imps.get atc-s1',
-    'imps.destroy atc-s1',
-    'imps.get atc-s1',
+    'readFeatures',
+    'readIdentity',
+    'readSecrets',
+    'readHost atc-s1',
+    'createHost atc-s1',
+    'createGrant atc-s1 judge',
+    'readGrants atc-s1',
+    'readIdentity',
+    'readHost atc-s1',
+    'destroyHost atc-s1',
+    'readHost atc-s1',
   ]);
 });
 
@@ -2642,19 +2415,18 @@ test('it fails a rebind that cannot revoke a secret the new binding drops as rev
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -2677,7 +2449,7 @@ test('it fails a rebind that cannot revoke a secret the new binding drops as rev
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
 
-  ctx.port.setGrantRemovalFailure('INTERNAL');
+  ctx.host.setGrantRemovalFailure('INTERNAL');
 
   const rebound = ctx.binder.updateBinding(
     ctx.host,
@@ -2908,19 +2680,18 @@ test('it rebinds a changed selection at a verify given a rebind, granting the ad
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -2965,7 +2736,7 @@ test('it rebinds a changed selection at a verify given a rebind, granting the ad
     { log: mock<(line: string) => void>() },
   );
 
-  const grants = await ctx.port.readGrants('atc-s1');
+  const grants = await ctx.host.readGrants('atc-s1');
 
   expect(verified).toMatchObject({ state: 'ready', revision: 2, bindingHash: 'h2', rebind: null });
   expect(grants).toIncludeSameMembers(['glm', 'judge']);
@@ -2977,19 +2748,18 @@ test('it logs one line for each rebind at a verify with the host, the revisions,
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -3042,19 +2812,18 @@ test('it revokes the grant of a dropped profile at a verify given a rebind', asy
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -3099,7 +2868,7 @@ test('it revokes the grant of a dropped profile at a verify given a rebind', asy
     { log: mock<(line: string) => void>() },
   );
 
-  const grants = await ctx.port.readGrants('atc-s1');
+  const grants = await ctx.host.readGrants('atc-s1');
 
   expect(verified).toMatchObject({ state: 'ready', revision: 2, bindingHash: 'h2' });
   expect(grants).toStrictEqual(['glm']);
@@ -3111,19 +2880,18 @@ test('it refuses a changed selection at a verify given a rebind when the imp los
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -3145,7 +2913,7 @@ test('it refuses a changed selection at a verify given a rebind when the imp los
   });
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
-  await ctx.port.removeGrant('atc-s1', 'glm');
+  await ctx.host.removeGrant('atc-s1', 'glm');
 
   const verified = ctx.binder.verifyBinding(
     ctx.host,
@@ -3171,7 +2939,7 @@ test('it refuses a changed selection at a verify given a rebind when the imp los
 
   expect(verified).rejects.toMatchObject({ code: 'auth_grant_missing' });
 
-  const grants = await ctx.port.readGrants('atc-s1');
+  const grants = await ctx.host.readGrants('atc-s1');
   const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
 
   expect(grants).toStrictEqual([]);
@@ -3184,19 +2952,18 @@ test('it refuses a changed selection at a verify given a rebind when the imp was
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -3218,9 +2985,9 @@ test('it refuses a changed selection at a verify given a rebind when the imp was
   });
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
-  await ctx.port.destroyImp('atc-s1');
-  await ctx.port.createImp({ name: 'atc-s1' });
-  await ctx.port.createGrant('atc-s1', 'glm');
+  await ctx.host.destroyHost('s1');
+  await ctx.host.createHost('s1');
+  await ctx.host.createGrant('atc-s1', 'glm');
 
   const verified = ctx.binder.verifyBinding(
     ctx.host,
@@ -3246,7 +3013,7 @@ test('it refuses a changed selection at a verify given a rebind when the imp was
 
   expect(verified).rejects.toMatchObject({ code: 'auth_runtime_mismatch' });
 
-  const grants = await ctx.port.readGrants('atc-s1');
+  const grants = await ctx.host.readGrants('atc-s1');
 
   expect(grants).toStrictEqual(['glm']);
 });
@@ -3257,19 +3024,18 @@ test('it leaves a rebind that fails at a verify blocked as a failed rebind at th
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -3297,7 +3063,7 @@ test('it leaves a rebind that fails at a verify blocked as a failed rebind at th
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
 
-  ctx.port.setGrantRemovalFailure('INTERNAL');
+  ctx.host.setGrantRemovalFailure('INTERNAL');
 
   const verified = ctx.binder.verifyBinding(
     ctx.host,
@@ -3329,19 +3095,18 @@ test('it retries a failed rebind at the next verify given a rebind and moves the
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -3369,7 +3134,7 @@ test('it retries a failed rebind at the next verify given a rebind and moves the
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
 
-  ctx.port.setGrantRemovalFailure('INTERNAL');
+  ctx.host.setGrantRemovalFailure('INTERNAL');
 
   const failed = ctx.binder.verifyBinding(
     ctx.host,
@@ -3390,7 +3155,7 @@ test('it retries a failed rebind at the next verify given a rebind and moves the
 
   await expect(failed).toReject();
 
-  ctx.port.setGrantRemovalFailure(null);
+  ctx.host.setGrantRemovalFailure(null);
 
   const verified = await ctx.binder.verifyBinding(
     ctx.host,
@@ -3409,7 +3174,7 @@ test('it retries a failed rebind at the next verify given a rebind and moves the
     { log: mock<(line: string) => void>() },
   );
 
-  const grants = await ctx.port.readGrants('atc-s1');
+  const grants = await ctx.host.readGrants('atc-s1');
 
   expect(verified).toMatchObject({ state: 'ready', revision: 2, bindingHash: 'h2', rebind: null });
   expect(grants).toStrictEqual(['glm']);
@@ -3421,23 +3186,22 @@ test('it retries a failed rebind at the next verify given a rebind after taking 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm`, `judge` and `zeta`, and impd holds each as a
   // custom bearer secret for its own host.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge', 'zeta'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('zeta', 'custom', [
+  ctx.host.createSecret('zeta', 'custom', [
     { host: 'zeta.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -3467,7 +3231,7 @@ test('it retries a failed rebind at the next verify given a rebind after taking 
 
   // impd removes no grant, so the rebind fails on the dropped judge and
   // leaves the zeta grant it added behind.
-  ctx.port.setGrantRemovalFailure('INTERNAL');
+  ctx.host.setGrantRemovalFailure('INTERNAL');
 
   const failed = ctx.binder.verifyBinding(
     ctx.host,
@@ -3493,9 +3257,9 @@ test('it retries a failed rebind at the next verify given a rebind after taking 
 
   await expect(failed).toReject();
 
-  const left = await ctx.port.readGrants('atc-s1');
+  const left = await ctx.host.readGrants('atc-s1');
 
-  ctx.port.setGrantRemovalFailure(null);
+  ctx.host.setGrantRemovalFailure(null);
 
   const verified = await ctx.binder.verifyBinding(
     ctx.host,
@@ -3519,7 +3283,7 @@ test('it retries a failed rebind at the next verify given a rebind after taking 
     { log: mock<(line: string) => void>() },
   );
 
-  const grants = await ctx.port.readGrants('atc-s1');
+  const grants = await ctx.host.readGrants('atc-s1');
 
   expect(left).toIncludeSameMembers(['glm', 'judge', 'zeta']);
   expect(verified).toMatchObject({ state: 'ready', revision: 2, bindingHash: 'h2' });
@@ -3532,19 +3296,18 @@ test('it keeps the pending admission of another harness on the host through a re
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
   // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.createSecret('judge', 'custom', [
+  ctx.host.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 

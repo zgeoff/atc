@@ -47,11 +47,15 @@ MODULES=(
   'session-spawner sessions'
   'spawn-rollback sessions'
   'split-screen-menu sessions'
+  'testing/build-stub-binder-broker testing'
   'testing/build-stub-credential-broker testing'
   'testing/build-stub-harness-adapter testing'
+  'testing/build-stub-local-provider testing'
   'testing/build-stub-memory-provider testing'
   'testing/build-stub-pregranted-broker-host testing'
+  'testing/build-stub-restore-imp-provider testing'
   'testing/build-stub-targets testing'
+  'testing/run-local-command testing'
   'wait-for-menu-poll sessions'
   'wait-for-menu-quiet sessions'
   'with-owner-only-socket transport'
@@ -89,15 +93,33 @@ for row in "${MODULES[@]}"; do
       printf '\n'
     } >> "$MAPS/package-stagemap.tsv"
   fi
+done
 
-  if [[ -f "${app}.test.ts" ]] && ! has_row "$MAPS/package-testmap.tsv" path_wave6 "${app}.test.ts"; then
+# Each module the daemon takes at wave 7 whose test sits beside it at
+# wave 6 takes that test with it, so the test gets a row beside the module
+# when the test map holds none. This covers the modules above and the
+# modules the maps held from the start alike.
+awk -F'\t' '
+  NR == 1 { for (i = 1; i <= NF; i++) { if ($i == "path_wave6") now = i; if ($i == "path_wave7") next_ = i }; next }
+  $next_ ~ /^packages\/daemon\// { print $now "\t" $next_ }
+' "$MAPS/package-stagemap.tsv" | while IFS=$'\t' read -r now next; do
+  test_now="${now%.ts}.test.ts"
+  test_next="${next%.ts}.test.ts"
+
+  if [[ -f "$test_now" ]] && ! has_row "$MAPS/package-testmap.tsv" path_wave6 "$test_now"; then
     {
-      printf '%s.test.ts\tdaemon\tdaemon\tbeside its module\t%s.test.ts' "$app" "$final"
-      printf "\t${app}.test.ts%.0s" 1 2 3 4 5 6
-      printf "\t${final}.test.ts%.0s" 7 8
+      printf '%s\tdaemon\tdaemon\tbeside its module\t%s' "$test_now" "$test_next"
+      printf "\t${test_now}%.0s" 1 2 3 4 5 6
+      printf "\t${test_next}%.0s" 7 8
       printf '\n'
     } >> "$MAPS/package-testmap.tsv"
   fi
+done
+
+# A daemon test whose cases all moved to an e2e/ journey, since each one
+# started a whole daemon, no longer sits beside its module, so its row goes.
+for test in daemon apply-menu-choice; do
+  sed -i "\#^\(src/daemon\|packages/app/src/daemon\)/${test}\.test\.ts	#d" "$MAPS/package-testmap.tsv"
 done
 
 # The stub targets left the app's test-utils for the daemon's testing folder,

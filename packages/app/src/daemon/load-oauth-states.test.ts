@@ -1,35 +1,13 @@
 import { expect, test } from 'bun:test';
-import { join } from 'node:path';
-import { ImpProvider } from '@atc/execution-imp';
-import { createStubImpPort } from '@atc/execution-imp/testing';
-import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { buildMockAuthBinding } from '../test-utils/build-mock-auth-binding';
 import { loadOAuthStates } from './load-oauth-states';
-
-// An imp provider's broker host over a stub imp port, which reaches
-// impd's features and secrets alone.
-function setupTest() {
-  const tmp = setupTempDir('atc-oauth-states-');
-  const port = createStubImpPort();
-
-  const provider = new ImpProvider(
-    port,
-    { guestDir: join(tmp.dir, 'g') },
-    { atcBinary: null, version: '1.0.0' },
-  );
-
-  registerTestCleanup(() => {
-    provider.dispose();
-  });
-
-  return { port, host: provider.brokerAuth };
-}
+import { buildStubCredentialBroker } from './testing/build-stub-credential-broker';
 
 test('it reads nothing from impd for a binding without an oauth secret', async () => {
-  const ctx = setupTest();
+  const broker = buildStubCredentialBroker();
 
   const states = await loadOAuthStates(
-    ctx.host,
+    broker,
     buildMockAuthBinding({
       secrets: [
         {
@@ -42,25 +20,25 @@ test('it reads nothing from impd for a binding without an oauth secret', async (
   );
 
   expect(states).toBeUndefined();
-  expect(ctx.port.calls).toStrictEqual([]);
+  expect(broker.calls).toStrictEqual([]);
 });
 
 test("it reads each bound oauth secret's sign-in state from impd's features and one secret list", async () => {
-  const ctx = setupTest();
+  const broker = buildStubCredentialBroker();
 
-  ctx.port.createSecret(
+  broker.createSecret(
     'codex-chatgpt',
     'oauth',
     [{ host: 'chatgpt.com', header: 'authorization', scheme: 'bearer' }],
     { status: 'ready', idClaims: { email: 'someone@example.com' } },
   );
 
-  ctx.port.createSecret('glm', 'custom', [
+  broker.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
   const states = await loadOAuthStates(
-    ctx.host,
+    broker,
     buildMockAuthBinding({
       secrets: [
         {
@@ -81,16 +59,16 @@ test("it reads each bound oauth secret's sign-in state from impd's features and 
     'codex-chatgpt': { status: 'ready', idClaims: { email: 'someone@example.com' } },
   });
 
-  expect(ctx.port.calls).toStrictEqual(['system.info', 'secrets.list']);
+  expect(broker.calls).toStrictEqual(['readFeatures', 'readSecrets']);
 });
 
-test('it refuses an impd without oauth secrets before it lists any secret', () => {
-  const ctx = setupTest();
+test('it refuses an impd without oauth secrets before it lists any secret', async () => {
+  const broker = buildStubCredentialBroker();
 
-  ctx.port.features = { ...ctx.port.features, oauthSecrets: false };
+  broker.setFeatures({ oauthSecrets: false });
 
   const loaded = loadOAuthStates(
-    ctx.host,
+    broker,
     buildMockAuthBinding({
       secrets: [
         {
@@ -107,14 +85,16 @@ test('it refuses an impd without oauth secrets before it lists any secret', () =
     message: 'impd lacks oauth secret support, which codex-chatgpt needs',
   });
 
-  expect(ctx.port.calls).toStrictEqual(['system.info']);
+  await loaded.catch(() => {});
+
+  expect(broker.calls).toStrictEqual(['readFeatures']);
 });
 
 test('it refuses a bound oauth secret that impd does not hold', () => {
-  const ctx = setupTest();
+  const broker = buildStubCredentialBroker();
 
   const loaded = loadOAuthStates(
-    ctx.host,
+    broker,
     buildMockAuthBinding({
       secrets: [
         {
@@ -130,14 +110,14 @@ test('it refuses a bound oauth secret that impd does not hold', () => {
 });
 
 test('it refuses a bound oauth secret that impd holds as another kind', () => {
-  const ctx = setupTest();
+  const broker = buildStubCredentialBroker();
 
-  ctx.port.createSecret('codex-chatgpt', 'custom', [
+  broker.createSecret('codex-chatgpt', 'custom', [
     { host: 'chatgpt.com', header: 'authorization', scheme: 'bearer' },
   ]);
 
   const loaded = loadOAuthStates(
-    ctx.host,
+    broker,
     buildMockAuthBinding({
       secrets: [
         {
@@ -153,12 +133,12 @@ test('it refuses a bound oauth secret that impd holds as another kind', () => {
 });
 
 test('it turns a call impd fails into an unavailable host', () => {
-  const ctx = setupTest();
+  const broker = buildStubCredentialBroker();
 
-  ctx.port.setFeatureFailures(1);
+  broker.setFeatureFailures(1);
 
   const loaded = loadOAuthStates(
-    ctx.host,
+    broker,
     buildMockAuthBinding({
       secrets: [
         {

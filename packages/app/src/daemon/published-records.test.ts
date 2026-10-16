@@ -2,7 +2,6 @@ import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { toSessionID } from '@atc/core';
-import { LocalPTYProvider } from '@atc/execution-local';
 import { StateStore, parsePublishedRecord } from '@atc/store';
 import {
   createGitFixture,
@@ -14,6 +13,8 @@ import {
 } from '@atc/test-utils';
 import { $ } from 'bun';
 import { PLACE_COPY, PublishedRecords, REFRESH_COPY } from './published-records';
+import { buildStubMemoryProvider } from './testing/build-stub-memory-provider';
+import { runLocalCommand } from './testing/run-local-command';
 
 async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'atc-records-' });
@@ -34,7 +35,9 @@ async function setupTest() {
     now: () => Date.parse('2026-10-08T09:30:00.000Z'),
   });
 
-  return { fixture, store, localDir, records, provider: new LocalPTYProvider() };
+  const provider = buildStubMemoryProvider({ kind: 'local-pty', runCommand: runLocalCommand });
+
+  return { fixture, store, localDir, records, provider };
 }
 
 test('it publishes a read-only copy in the local directory and returns its path', async () => {

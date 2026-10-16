@@ -2,7 +2,6 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { toSessionID } from '@atc/core';
-import { buildStubExecutionProvider } from '@atc/execution-local/testing';
 import type { CommandSpec } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import { StateStore } from '@atc/store';
@@ -15,6 +14,8 @@ import {
 } from '@atc/test-utils';
 import { $ } from 'bun';
 import { CLAIM_DIR_SCRIPT, VERIFY_SCRIPT, materializeWorkspace } from './materialize-workspace';
+import { buildStubLocalProvider } from './testing/build-stub-local-provider';
+import { runLocalCommand } from './testing/run-local-command';
 
 async function setupTest() {
   const tmp = setupTempDir('atc-materialize-');
@@ -79,16 +80,14 @@ test('it uploads the commit it pinned for the clone inside the host when the bra
   const ctx = await setupTest();
   const git = await createGitFixture({ prefix: 'atc-materialize-git-' });
 
-  const host = buildStubExecutionProvider();
   const dir = join(ctx.scratch, 'ws');
 
   // The host fails its clone, and the branch moves on upstream before the
   // daemon uploads the workspace instead.
-  const provider = {
-    ...host,
+  const provider = buildStubLocalProvider({
     runCommand: async (spec: CommandSpec) => {
       if (!spec.argv.some((arg) => arg.includes('--filter=blob:none'))) {
-        return host.runCommand(spec);
+        return runLocalCommand(spec);
       }
 
       writeFileSync(join(git.work, 'README.md'), 'moved\n');
@@ -100,7 +99,7 @@ test('it uploads the commit it pinned for the clone inside the host when the bra
 
       return { exitCode: 128, stdout: '', stderr: 'fatal: the host cannot reach the repository\n' };
     },
-  };
+  });
 
   const materialized = await materializeWorkspace(
     {
@@ -171,18 +170,8 @@ test('it sets the git identity in the checkout built inside the host', async () 
   const ctx = await setupTest();
   const git = await createGitFixture({ prefix: 'atc-materialize-git-' });
 
-  const host = buildStubExecutionProvider();
+  const provider = buildStubLocalProvider();
   const dir = join(ctx.scratch, 'ws');
-  const commands: CommandSpec[] = [];
-
-  const provider = {
-    ...host,
-    runCommand: (spec: CommandSpec) => {
-      commands.push(spec);
-
-      return host.runCommand(spec);
-    },
-  };
 
   await materializeWorkspace(
     {
@@ -206,7 +195,9 @@ test('it sets the git identity in the checkout built inside the host', async () 
   );
 
   expect(
-    commands.filter((spec) => spec.argv.includes('--file')).map((spec) => [spec.argv, spec.cwd]),
+    provider.commands
+      .filter((spec) => spec.argv.includes('--file'))
+      .map((spec) => [spec.argv, spec.cwd]),
   ).toStrictEqual([
     [['git', 'config', '--file', '.git/config', 'user.name', 'Ada Lovelace'], dir],
     [['git', 'config', '--file', '.git/config', 'user.email', 'ada@example.com'], dir],
@@ -223,7 +214,7 @@ test('it sets the git identity in the checkout uploaded to the host', async () =
   const ctx = await setupTest();
   const git = await createGitFixture({ prefix: 'atc-materialize-git-' });
 
-  const provider = buildStubExecutionProvider();
+  const provider = buildStubLocalProvider();
   const dir = join(ctx.scratch, 'ws');
 
   await materializeWorkspace(
@@ -257,18 +248,8 @@ test('it runs no git identity command when the host has no identity', async () =
   const ctx = await setupTest();
   const git = await createGitFixture({ prefix: 'atc-materialize-git-' });
 
-  const host = buildStubExecutionProvider();
+  const provider = buildStubLocalProvider();
   const dir = join(ctx.scratch, 'ws');
-  const commands: CommandSpec[] = [];
-
-  const provider = {
-    ...host,
-    runCommand: (spec: CommandSpec) => {
-      commands.push(spec);
-
-      return host.runCommand(spec);
-    },
-  };
 
   await materializeWorkspace(
     {
@@ -290,22 +271,20 @@ test('it runs no git identity command when the host has no identity', async () =
     },
   );
 
-  expect(commands.filter((spec) => spec.argv.includes('--file'))).toStrictEqual([]);
+  expect(provider.commands.filter((spec) => spec.argv.includes('--file'))).toStrictEqual([]);
 });
 
 test('it refuses and removes the claimed directory when the git identity cannot be set', async () => {
   const ctx = await setupTest();
   const git = await createGitFixture({ prefix: 'atc-materialize-git-' });
 
-  const host = buildStubExecutionProvider();
   const dir = join(ctx.scratch, 'ws');
   const removed: string[] = [];
 
-  const provider = {
-    ...host,
+  const provider = buildStubLocalProvider({
     runCommand: (spec: CommandSpec) => {
       if (!spec.argv.includes('--file')) {
-        return host.runCommand(spec);
+        return runLocalCommand(spec);
       }
 
       return Promise.resolve({
@@ -314,7 +293,7 @@ test('it refuses and removes the claimed directory when the git identity cannot 
         stderr: 'error: could not lock config file .git/config\nsecond line\n',
       });
     },
-  };
+  });
 
   const materialized = materializeWorkspace(
     {

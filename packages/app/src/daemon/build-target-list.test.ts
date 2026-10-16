@@ -1,30 +1,18 @@
-import { expect, onTestFinished, test } from 'bun:test';
-import { ImpProvider } from '@atc/execution-imp';
-import { createStubImpPort } from '@atc/execution-imp/testing';
-import { LocalPTYProvider } from '@atc/execution-local';
-import { registerTestCleanup } from '@atc/test-utils';
+import { expect, test } from 'bun:test';
 import { buildTargetList } from './build-target-list';
-
-/**
- * An imp provider over a stub imp port.
- */
-function setupTest() {
-  const port = createStubImpPort();
-
-  const provider = new ImpProvider(port, {}, { atcBinary: null, version: '1.0.0' });
-
-  registerTestCleanup(() => {
-    provider.dispose();
-  });
-
-  return { provider };
-}
+import { buildStubCredentialBroker } from './testing/build-stub-credential-broker';
+import { buildStubMemoryProvider } from './testing/build-stub-memory-provider';
 
 test('it lists an imp target as reaching the broker', () => {
-  const ctx = setupTest();
+  const provider = buildStubMemoryProvider({
+    kind: 'imp',
+    remote: true,
+    capabilities: { headless: false, suspend: true, destroy: true },
+    brokerAuth: buildStubCredentialBroker(),
+  });
 
   const entries = buildTargetList(
-    [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider }],
+    [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider }],
     null,
   );
 
@@ -53,9 +41,7 @@ test('it lists an imp target as reaching the broker', () => {
 });
 
 test('it lists the local target and a target without a provider as reaching no broker', () => {
-  const local = new LocalPTYProvider();
-
-  onTestFinished(() => local.dispose());
+  const local = buildStubMemoryProvider({ kind: 'local-pty' });
 
   const entries = buildTargetList(
     [

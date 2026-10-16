@@ -1,11 +1,11 @@
 import { expect, mock, test } from 'bun:test';
-import { buildStubExecutionProvider } from '@atc/execution-local/testing';
 import type { ExecutionProvider } from '@atc/plugin-api';
+import { buildStubMemoryProvider } from '../daemon/testing/build-stub-memory-provider';
 import { buildTargetOptionsFromConfig } from './build-target-options-from-config';
 
 test('it gives each parsed target the provider its kind builds for its id', () => {
-  const local = buildStubExecutionProvider({ kind: 'local-pty' });
-  const box = buildStubExecutionProvider({ kind: 'local-pty' });
+  const local = buildStubMemoryProvider({ kind: 'local-pty' });
+  const box = buildStubMemoryProvider({ kind: 'local-pty' });
 
   const factory = mock<(id: string) => ExecutionProvider>()
     .mockReturnValueOnce(local)

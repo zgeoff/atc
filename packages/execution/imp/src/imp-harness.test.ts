@@ -1,6 +1,6 @@
-import { expect, test } from 'bun:test';
+import { expect, mock, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
-import type { HarnessAttachment, HarnessExit } from '@atc/plugin-api';
+import type { HarnessAttachment, HarnessExit, LaunchTicket } from '@atc/plugin-api';
 import {
   buildStubFailingAttachmentListener,
   buildStubLaunchAdmission,
@@ -1913,6 +1913,117 @@ test('it sends the start of a harness whose admission check passes as its connec
       require: ['broker'],
     },
   ]);
+});
+
+test('it releases the admission ticket of each connection that fails before it opens, unchecked', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-b' });
+
+  // The first connection and its one reconnect both fail to open.
+  ctx.port.setUpgradeFailures(2);
+
+  const check = mock(() => null);
+  const admitted: LaunchTicket[] = [];
+
+  const released = new Set<LaunchTicket>();
+
+  const harness = new ImpHarness(
+    ctx.port,
+    buildMockImpSessionRequest({
+      name: 'imp-b',
+      session: 's2',
+      argv: ['sleep', '30'],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+      require: ['broker'],
+    }),
+    {
+      offsets: true,
+      reconnectDelaysMs: [0],
+      isSuspending: () => false,
+      onDone: () => {},
+      admit: (_kind, send) => {
+        const ticket: LaunchTicket = {
+          check,
+          release: () => {
+            released.add(ticket);
+          },
+        };
+
+        admitted.push(ticket);
+
+        send(ticket);
+
+        return Promise.resolve();
+      },
+    },
+  );
+
+  registerTestCleanup(() => {
+    harness.kill();
+  });
+
+  const started = harness.waitForStart();
+
+  expect(started).rejects.toMatchObject({
+    code: 'host_unavailable',
+    data: { provider: 'imp', problem: 'not_started' },
+  });
+
+  expect(admitted).toHaveLength(2);
+  expect([...released]).toStrictEqual(admitted);
+  expect(check).not.toHaveBeenCalled();
+  expect(ctx.port.sessionRequests).toStrictEqual([]);
+});
+
+test('it releases the admission ticket of a connection whose opening throws, unchecked', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-b' });
+
+  ctx.port.setOpenFailures(1);
+
+  const check = mock(() => null);
+  const release = mock<() => void>();
+
+  const harness = new ImpHarness(
+    ctx.port,
+    buildMockImpSessionRequest({
+      name: 'imp-b',
+      session: 's2',
+      argv: ['sleep', '30'],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+      require: ['broker'],
+    }),
+    {
+      offsets: true,
+      reconnectDelaysMs: [],
+      isSuspending: () => false,
+      onDone: () => {},
+      admit: (_kind, send) => {
+        send({ check, release });
+
+        return Promise.resolve();
+      },
+    },
+  );
+
+  registerTestCleanup(() => {
+    harness.kill();
+  });
+
+  const started = harness.waitForStart();
+
+  expect(started).rejects.toMatchObject({ code: 'internal' });
+  expect(release).toHaveBeenCalledOnce();
+  expect(check).not.toHaveBeenCalled();
+  expect(ctx.port.sessionRequests).toStrictEqual([]);
 });
 
 test('it settles a start that impd answers by attaching to the running process as not created', async () => {

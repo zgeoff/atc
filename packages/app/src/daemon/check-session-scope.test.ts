@@ -1,17 +1,19 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { LocalPTYProvider } from '@atc/execution-local';
 import { buildStubGH, createGitFixture, createStubBin, setupTempDir } from '@atc/test-utils';
 import { $ } from 'bun';
 import { checkSessionScope } from './check-session-scope';
+import { buildStubMemoryProvider } from './testing/build-stub-memory-provider';
+import { runLocalCommand } from './testing/run-local-command';
 
 async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'atc-scope-check-' });
 
   const bin = setupTempDir('atc-scope-check-bin-');
+  const provider = buildStubMemoryProvider({ kind: 'local-pty', runCommand: runLocalCommand });
 
-  return { fixture, bin: bin.dir, provider: new LocalPTYProvider() };
+  return { fixture, bin: bin.dir, provider };
 }
 
 test('it records a worktree with the branch git reads from it', async () => {

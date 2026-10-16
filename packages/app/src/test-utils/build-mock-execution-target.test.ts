@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { LocalPTYProvider } from '@atc/execution-local';
+import { buildStubMemoryProvider } from '../daemon/testing/build-stub-memory-provider';
 import { buildMockExecutionTarget } from './build-mock-execution-target';
 
 test('it builds a default execution target', () => {
@@ -13,7 +13,7 @@ test('it builds a default execution target', () => {
 });
 
 test('it applies overrides on top of the defaults', () => {
-  const provider = new LocalPTYProvider();
+  const provider = buildStubMemoryProvider({ kind: 'local-pty' });
 
   expect(
     buildMockExecutionTarget({
@@ -33,7 +33,7 @@ test('it applies overrides on top of the defaults', () => {
 });
 
 test('it keeps a provider override as the same instance', () => {
-  const provider = new LocalPTYProvider();
+  const provider = buildStubMemoryProvider({ kind: 'local-pty' });
 
   expect(buildMockExecutionTarget({ provider }).provider).toBe(provider);
 });

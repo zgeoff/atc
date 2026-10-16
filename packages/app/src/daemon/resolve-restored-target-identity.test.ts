@@ -1,45 +1,33 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { toSessionID } from '@atc/core';
-import { ImpProvider } from '@atc/execution-imp';
-import { buildMockImpIdentity, createStubImpPort } from '@atc/execution-imp/testing';
 import { buildTargetIdentity } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import { resolveRestoredTargetIdentity } from './resolve-restored-target-identity';
+import { buildStubRestoreImpProvider } from './testing/build-stub-restore-imp-provider';
 
-function setupTest() {
-  const port = createStubImpPort();
-
-  const provider = new ImpProvider(port, {}, { version: '1.0.0' });
-
-  onTestFinished(() => {
-    provider.dispose();
-  });
-
-  return { port, provider };
-}
-
-test('it restores a legacy binding only when its imp exists under the current credentials', async () => {
-  const ctx = setupTest();
+test('it restores a legacy binding once the provider confirms its imp exists', async () => {
+  const provider = buildStubRestoreImpProvider();
   const entry = buildMockFleetEntry({ target: 'cloud', targetIdentity: 'imp:0123456789abcdef' });
 
-  await ctx.port.createImp({ name: ctx.provider.getImpName(entry.sessionID) });
+  provider.createHost(entry.sessionID);
 
   const target = {
     id: 'cloud',
     kind: 'imp',
     options: { image: 'new' },
     identity: buildTargetIdentity('imp', { image: 'new' }),
-    provider: ctx.provider,
+    provider,
   };
 
   const identity = await resolveRestoredTargetIdentity(target, entry);
 
   expect(identity).toBe(target.identity);
-  expect(ctx.port.createSpecs).toStrictEqual([{ name: ctx.provider.getImpName(entry.sessionID) }]);
+  expect(provider.checked).toStrictEqual([entry.sessionID]);
+  expect(provider.prepared).toStrictEqual([]);
 });
 
 test('it refuses a legacy binding whose imp is gone without creating an imp', async () => {
-  const ctx = setupTest();
+  const provider = buildStubRestoreImpProvider();
   const entry = buildMockFleetEntry({ target: 'cloud', targetIdentity: 'imp:0123456789abcdef' });
 
   const target = {
@@ -47,67 +35,42 @@ test('it refuses a legacy binding whose imp is gone without creating an imp', as
     kind: 'imp',
     options: { image: 'new' },
     identity: buildTargetIdentity('imp', { image: 'new' }),
-    provider: ctx.provider,
+    provider,
   };
 
   const identity = await resolveRestoredTargetIdentity(target, entry);
 
   expect(identity).toBe('imp:0123456789abcdef');
-  expect(ctx.port.createSpecs).toStrictEqual([]);
+  expect(provider.checked).toStrictEqual([entry.sessionID]);
+  expect(provider.prepared).toStrictEqual([]);
 });
 
 test('it refuses a versioned binding to a different server even when an imp has the same name', async () => {
-  const ctx = setupTest();
+  const provider = buildStubRestoreImpProvider();
 
   const entry = buildMockFleetEntry({
     target: 'cloud',
     targetIdentity: buildTargetIdentity('imp', { url: 'http://server-a' }),
   });
 
-  await ctx.port.createImp({ name: ctx.provider.getImpName(entry.sessionID) });
+  provider.createHost(entry.sessionID);
 
   const target = {
     id: 'cloud',
     kind: 'imp',
     options: { url: 'http://server-b' },
     identity: buildTargetIdentity('imp', { url: 'http://server-b' }),
-    provider: ctx.provider,
+    provider,
   };
 
   const identity = await resolveRestoredTargetIdentity(target, entry);
 
   expect(identity).toBe(entry.targetIdentity);
-  expect(ctx.port.calls).toStrictEqual([`imps.create ${ctx.provider.getImpName(entry.sessionID)}`]);
-});
-
-test('it refuses a legacy binding when current credentials cannot reach its imp', async () => {
-  const ctx = setupTest();
-  const entry = buildMockFleetEntry({ target: 'cloud', targetIdentity: 'imp:0123456789abcdef' });
-
-  await ctx.port.createImp({ name: ctx.provider.getImpName(entry.sessionID) });
-
-  ctx.port.setIdentity(buildMockImpIdentity({ imps: ['other-*'] }));
-
-  const target = {
-    id: 'cloud',
-    kind: 'imp',
-    options: {},
-    identity: buildTargetIdentity('imp', {}),
-    provider: ctx.provider,
-  };
-
-  const identity = await resolveRestoredTargetIdentity(target, entry);
-
-  expect(identity).toBe('imp:0123456789abcdef');
-
-  expect(ctx.port.calls).toStrictEqual([
-    `imps.create ${ctx.provider.getImpName(entry.sessionID)}`,
-    'tokens.whoami',
-  ]);
+  expect(provider.checked).toStrictEqual([]);
 });
 
 test('it checks the shared host of a legacy sub-session', async () => {
-  const ctx = setupTest();
+  const provider = buildStubRestoreImpProvider();
 
   const entry = buildMockFleetEntry({
     target: 'cloud',
@@ -115,17 +78,18 @@ test('it checks the shared host of a legacy sub-session', async () => {
     hostKey: toSessionID('parent-host'),
   });
 
-  await ctx.port.createImp({ name: ctx.provider.getImpName('parent-host') });
+  provider.createHost('parent-host');
 
   const target = {
     id: 'cloud',
     kind: 'imp',
     options: {},
     identity: buildTargetIdentity('imp', {}),
-    provider: ctx.provider,
+    provider,
   };
 
   const identity = await resolveRestoredTargetIdentity(target, entry);
 
   expect(identity).toBe(target.identity);
+  expect(provider.checked).toStrictEqual(['parent-host']);
 });

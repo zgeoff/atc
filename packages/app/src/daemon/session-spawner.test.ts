@@ -2,7 +2,6 @@ import { expect, mock, test } from 'bun:test';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { systemClock, toSessionID } from '@atc/core';
-import { LocalPTYProvider } from '@atc/execution-local';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { EffectRemainsError } from '@atc/plugin-api';
 import { StateStore } from '@atc/store';
@@ -25,6 +24,7 @@ import { SessionSpawner } from './session-spawner';
 import { SpawnRollback } from './spawn-rollback';
 import { buildStubHarnessAdapter } from './testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from './testing/build-stub-memory-provider';
+import { runLocalCommand } from './testing/run-local-command';
 
 // The agents and execution targets a test runs its sessions under, and the
 // runner of each spawn's steps; the spawner's own when absent.
@@ -427,15 +427,9 @@ test.each([
 ] as const)(
   'it undoes every step before a failed %s step, last step first, and leaves nothing running',
   async (failing, undone, trustRemovals, bridgeStops, cloneKept, started) => {
-    const local = new LocalPTYProvider();
-
     // Harnesses run in memory; the workspace's directory commands run on
     // this machine, so the clone's directory resolves and is removed.
-    const provider = buildStubMemoryProvider({
-      kind: 'local-pty',
-      runCommand: (spec) => local.runCommand(spec),
-    });
-
+    const provider = buildStubMemoryProvider({ kind: 'local-pty', runCommand: runLocalCommand });
     const removeTrust = mock(() => Promise.resolve());
     const ran: SpawnStepName[] = [];
 
