@@ -190,7 +190,9 @@
           { "from": "file", "name": "SessionOutputDeps" },
           { "from": "file", "name": "SessionReadsDeps" },
           { "from": "file", "name": "PermissionPromptsDeps" },
-          { "from": "file", "name": "ScreenDetectionDeps" }
+          { "from": "file", "name": "ScreenDetectionDeps" },
+          { "from": "file", "name": "ConfirmTokensDeps" },
+          { "from": "file", "name": "SessionForgetterDeps" }
         ]
       }
     ],
@@ -280,7 +282,6 @@
         "packages/app/src/daemon/daemon-connection-reach.test.ts",
         "packages/app/src/daemon/daemon-fleet-restart.test.ts",
         "packages/app/src/daemon/daemon-fleet.test.ts",
-        "packages/app/src/daemon/daemon-forget.test.ts",
         "packages/app/src/daemon/daemon-principals.test.ts",
         "packages/app/src/daemon/daemon-runtime-auth.test.ts",
         "packages/app/src/daemon/daemon-tcp.test.ts"

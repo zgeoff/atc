@@ -79,7 +79,7 @@ export interface SessionRecord {
  * must carry, with the time it stops being taken; or the forgotten session,
  * with whether its host was destroyed.
  */
-type ForgetResult =
+export type ForgetResult =
   | { readonly confirmToken: string; readonly expiresAt: number }
   | { readonly forgotten: true; readonly destroyed: boolean };
 
@@ -88,7 +88,7 @@ type ForgetResult =
  * of a pinned one unless that pin belongs to the caller or a session above
  * the caller, and a live session.
  */
-interface ForgetRefusals {
+export interface ForgetRefusals {
   readonly pinned: boolean;
   readonly live: boolean;
 }
@@ -158,7 +158,7 @@ export interface TapClient {
  * What a kill did to its session: it stopped a live one, left an exited
  * one as it was, removed an exited one, or found no such session.
  */
-type KillOutcome = 'stopped' | 'unchanged' | 'removed' | 'missing';
+export type KillOutcome = 'stopped' | 'unchanged' | 'removed' | 'missing';
 
 export interface DaemonContext {
   readonly build: string;
