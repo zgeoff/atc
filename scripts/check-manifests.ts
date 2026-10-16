@@ -18,9 +18,11 @@
 // `Bun.resolveSync(...)`, is not an import here, since its base directory
 // decides where it resolves. The root package holds the repo tooling: e2e/
 // and scripts/ declare devDependencies alone. Each catalog entry pins an
-// exact version, never a range, a tag, or an empty value. Prints every finding and exits
-// 1 when there is one.
-import { readFileSync } from 'node:fs';
+// exact version, never a range, a tag, or an empty value. No package entry
+// point loads a module that bunfig.toml preloads, through its static imports
+// and re-exports, since a preload runs top-level code that would then run in
+// every importer too. Prints every finding and exits 1 when there is one.
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
 import { dirname, join, normalize, resolve } from 'node:path';
 import { z } from 'zod';
@@ -59,6 +61,8 @@ function main(): void {
       findings.push(...checkComputed(file, imports, pkg.dir !== '.'));
     }
   }
+
+  findings.push(...checkPreloads(root, packages));
 
   // the mods belong to no workspace package, but the confinement rules that
   // lint:mods applies read only quoted specifiers too
@@ -214,6 +218,123 @@ function checkManifest(pkg: WorkspacePackage): string[] {
   }
 
   return findings;
+}
+
+const TEST_SCHEMA = z.object({ preload: z.array(z.string()).optional() });
+const BUNFIG_SCHEMA = z.object({ test: TEST_SCHEMA.optional() });
+
+/**
+ * The finding for each package entry point that loads a preloaded module:
+ * a relative preload by the file it resolves to, through the entry's relative
+ * static imports and re-exports, and a bare preload by name.
+ */
+function checkPreloads(root: string, packages: readonly WorkspacePackage[]): string[] {
+  const bunfigPath = join(root, 'bunfig.toml');
+
+  if (!existsSync(bunfigPath)) {
+    return [];
+  }
+
+  const bunfig = BUNFIG_SCHEMA.parse(Bun.TOML.parse(readFileSync(bunfigPath, 'utf8')));
+  const preloads = bunfig.test?.preload ?? [];
+  const findings: string[] = [];
+
+  for (const pkg of packages) {
+    for (const entry of collectEntryFiles(pkg)) {
+      for (const [file, loads] of collectStaticLoads(root, entry)) {
+        findings.push(
+          ...loads.flatMap((specifier) => {
+            const preload = findPreload(root, preloads, file, specifier);
+
+            return preload === undefined
+              ? []
+              : [
+                  `preloaded module: ${file}, which ${entry} reaches as an entry point of ${pkg.dir}, loads ${specifier}, which bunfig.toml preloads as ${preload}; import it by path`,
+                ];
+          }),
+        );
+      }
+    }
+  }
+
+  return findings;
+}
+
+// The preload a specifier in the file loads, if any.
+function findPreload(
+  root: string,
+  preloads: readonly string[],
+  file: string,
+  specifier: string,
+): string | undefined {
+  return preloads.find((candidate) =>
+    candidate.startsWith('.')
+      ? resolveModule(root, dirname(file), specifier) === normalize(candidate)
+      : specifier === candidate,
+  );
+}
+
+// Every path an exports map lists, conditional entries included.
+function collectEntryFiles(pkg: WorkspacePackage): string[] {
+  const targets: string[] = [];
+  const pending: unknown[] = Object.values(pkg.manifest.exports ?? {});
+
+  for (let target = pending.pop(); target !== undefined; target = pending.pop()) {
+    if (typeof target === 'string') {
+      targets.push(normalize(join(pkg.dir, target)));
+    } else if (typeof target === 'object' && target !== null) {
+      pending.push(...Object.values(target));
+    }
+  }
+
+  return targets.toSorted();
+}
+
+const MODULE_SUFFIXES = ['', '.ts', '.tsx', '/index.ts', '/index.tsx'];
+const SOURCE_FILE = /\.(?:ts|tsx|js|mjs)$/;
+
+/**
+ * Each file the entry reaches through relative static loads, with its static
+ * load specifiers, starting at the entry itself.
+ */
+function collectStaticLoads(root: string, entry: string): Map<string, readonly string[]> {
+  const reached = new Map<string, readonly string[]>();
+
+  const pending = [entry];
+
+  for (let file = pending.pop(); file !== undefined; file = pending.pop()) {
+    if (reached.has(file) || !SOURCE_FILE.test(file) || !existsSync(join(root, file))) {
+      continue;
+    }
+
+    const loads = collectImports(readFileSync(join(root, file), 'utf8')).staticLoads;
+
+    reached.set(file, loads);
+
+    for (const specifier of loads.filter((candidate) => candidate.startsWith('.'))) {
+      const target = resolveModule(root, dirname(file), specifier);
+
+      if (target !== undefined) {
+        pending.push(target);
+      }
+    }
+  }
+
+  return reached;
+}
+
+/**
+ * The root-relative source file a relative specifier loads from the
+ * directory, or undefined when no source file matches, as for a text import
+ * of a shell script.
+ */
+function resolveModule(root: string, dir: string, specifier: string): string | undefined {
+  const base = normalize(join(dir, specifier));
+
+  return MODULE_SUFFIXES.map((suffix) => `${base}${suffix}`).find(
+    (path) =>
+      SOURCE_FILE.test(path) && existsSync(join(root, path)) && statSync(join(root, path)).isFile(),
+  );
 }
 
 /**

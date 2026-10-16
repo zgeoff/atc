@@ -777,3 +777,112 @@ test('it fails on a package with no exports map or a wildcard entry', async () =
       'no exports: packages/core/package.json holds no exports map\nwildcard entry: packages/protocol/package.json exports ./*, which makes every matching file public; list each entry point\n',
   });
 });
+
+test('it fails on an entry point that loads a preloaded module', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'package.json'),
+    JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'bunfig.toml'),
+    '[test]\npreload = ["./packages/test-utils/src/isolate-home.ts", "@zgeoff/bun-test-extended"]\n',
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/test-utils/package.json'),
+    JSON.stringify({
+      name: '@atc/test-utils',
+      exports: { '.': './src/index.ts' },
+      dependencies: { '@zgeoff/bun-test-extended': 'catalog:' },
+    }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/test-utils/src/index.ts'),
+    "export * from './isolate-home';\nexport * from './wait-for';\n",
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/test-utils/src/wait-for.ts'),
+    "import '@zgeoff/bun-test-extended';\nimport { ROOT } from './isolate-home.ts';\n\nexport const WAIT = ROOT;\n",
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/test-utils/src/isolate-home.ts'),
+    "export const ROOT = '/';\n",
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-manifests.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-manifests: 2 packages, 3 files, 3 findings\n',
+    stderr:
+      'preloaded module: packages/test-utils/src/index.ts, which packages/test-utils/src/index.ts reaches as an entry point of packages/test-utils, loads ./isolate-home, which bunfig.toml preloads as ./packages/test-utils/src/isolate-home.ts; import it by path\n' +
+      'preloaded module: packages/test-utils/src/wait-for.ts, which packages/test-utils/src/index.ts reaches as an entry point of packages/test-utils, loads @zgeoff/bun-test-extended, which bunfig.toml preloads as @zgeoff/bun-test-extended; import it by path\n' +
+      'preloaded module: packages/test-utils/src/wait-for.ts, which packages/test-utils/src/index.ts reaches as an entry point of packages/test-utils, loads ./isolate-home.ts, which bunfig.toml preloads as ./packages/test-utils/src/isolate-home.ts; import it by path\n',
+  });
+});
+
+test('it lets a test load a preloaded module that no entry point reaches', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'package.json'),
+    JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'bunfig.toml'),
+    '[test]\npreload = ["./packages/test-utils/src/isolate-home.ts"]\n',
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/test-utils/package.json'),
+    JSON.stringify({ name: '@atc/test-utils', exports: { '.': './src/index.ts' } }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/test-utils/src/index.ts'),
+    "import SCRIPT from './unpack.sh' with { type: 'text' };\n\nexport const UNPACK = SCRIPT;\n",
+  );
+
+  await Bun.write(join(ctx.dir, 'packages/test-utils/src/unpack.sh'), 'tar -x "$1"\n');
+
+  await Bun.write(
+    join(ctx.dir, 'packages/test-utils/src/isolate-home.test.ts'),
+    "import { ROOT } from './isolate-home';\n\nexport const HOME = ROOT;\n",
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/test-utils/src/isolate-home.ts'),
+    "export const ROOT = '/';\n",
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-manifests.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 0,
+    stdout: 'check-manifests: 2 packages, 3 files, 0 findings\n',
+    stderr: '',
+  });
+});
