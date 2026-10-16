@@ -5330,7 +5330,7 @@ test('it replaces a file already at the backup path', async () => {
   expect(fleet).toStrictEqual([entry]);
 });
 
-test.each([[''], ['-wal'], ['-shm']])(
+test.each([[''], ['-wal'], ['-shm'], ['-journal']])(
   'it refuses a backup onto its own database file with suffix %p and leaves the database open',
   async (suffix) => {
     const ctx = await setupTest();

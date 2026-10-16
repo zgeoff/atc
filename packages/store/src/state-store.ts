@@ -1498,6 +1498,17 @@ export class StateStore {
       }
 
       renameSync(staging, path);
+
+      // The rename lives in the directory, so the directory is flushed too:
+      // without it, a power loss can drop the new entry after the command
+      // reported success.
+      const dirFD = openSync(dirname(path), 'r');
+
+      try {
+        fsyncSync(dirFD);
+      } finally {
+        closeSync(dirFD);
+      }
     } finally {
       rmSync(stagingDir, { recursive: true, force: true });
     }
