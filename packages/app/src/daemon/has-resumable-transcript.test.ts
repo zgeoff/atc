@@ -1,0 +1,113 @@
+import { expect, test } from 'bun:test';
+import { join } from 'node:path';
+import { toAgentSessionID, toSessionID } from '@atc/core';
+import type { AgentAdapter } from '@atc/plugin-api';
+import { StateStore } from '@atc/store';
+import { createMigratedStateDB } from '@atc/store/testing';
+import { buildStubLog, registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
+import { hasResumableTranscript } from './has-resumable-transcript';
+import { SessionManager } from './sessions';
+import { buildStubHarnessAdapter } from './testing/build-stub-harness-adapter';
+import { buildStubMemoryProvider } from './testing/build-stub-memory-provider';
+
+interface SetupTestConfig {
+  // The one agent the sessions run.
+  readonly adapter: AgentAdapter;
+
+  // Whether the target's host runs away from the daemon's machine.
+  readonly remote: boolean;
+}
+
+// A session manager on one `local` target over the in-memory provider and
+// a real state store.
+async function setupTest(config: SetupTestConfig) {
+  const tmp = setupTempDir('atc-resumable-transcript-');
+  const dbPath = join(tmp.dir, 'state.db');
+
+  await createMigratedStateDB(dbPath);
+
+  const store = await StateStore.open(dbPath);
+
+  registerTestCleanup(() => store.stop());
+
+  const mgr = new SessionManager(
+    null,
+    store,
+    join(tmp.dir, 'status.json'),
+    [config.adapter],
+    [
+      buildMockExecutionTarget({
+        id: 'local',
+        identity: 'local-pty:test',
+        provider: buildStubMemoryProvider({ kind: 'local-pty', remote: config.remote }),
+      }),
+    ],
+    [],
+    {},
+  );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
+
+  // A remote spawn logs its step times.
+  mgr.log = buildStubLog().log;
+
+  return { dir: tmp.dir, mgr };
+}
+
+test('it asks the agent whether it can resume the conversation of a local session', async () => {
+  const ctx = await setupTest({
+    adapter: {
+      ...buildStubHarnessAdapter(),
+      canResume: (opts) => opts.agentSessionID === 'a-1',
+    },
+    remote: false,
+  });
+
+  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+
+  s.agentSessionID = toAgentSessionID('a-1');
+
+  expect(hasResumableTranscript(ctx.mgr, s.id)).toBeTrue();
+});
+
+test('it finds a local session resumable only when its agent says so', async () => {
+  const ctx = await setupTest({
+    adapter: { ...buildStubHarnessAdapter(), canResume: () => false },
+    remote: false,
+  });
+
+  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+
+  s.agentSessionID = toAgentSessionID('a-1');
+
+  expect(hasResumableTranscript(ctx.mgr, s.id)).toBeFalse();
+});
+
+test('it finds a remote session resumable once it holds an agent session id', async () => {
+  const ctx = await setupTest({
+    adapter: { ...buildStubHarnessAdapter(), canResume: () => false },
+    remote: true,
+  });
+
+  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+
+  s.agentSessionID = toAgentSessionID('a-1');
+
+  expect(hasResumableTranscript(ctx.mgr, s.id)).toBeTrue();
+});
+
+test('it finds a remote session without an agent session id not resumable', async () => {
+  const ctx = await setupTest({ adapter: buildStubHarnessAdapter(), remote: true });
+  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+
+  expect(hasResumableTranscript(ctx.mgr, s.id)).toBeFalse();
+});
+
+test('it finds a session the manager does not hold not resumable', async () => {
+  const ctx = await setupTest({ adapter: buildStubHarnessAdapter(), remote: false });
+
+  expect(hasResumableTranscript(ctx.mgr, toSessionID('s-gone'))).toBeFalse();
+});

@@ -40,6 +40,9 @@ TESTS=(
   '16c daemon-headless hook-headless'
   '16c daemon-hook-agent hook-agent'
   '16c daemon-imp-bridge bridge-imp'
+  '16d daemon-permission-pending session-permission-pending'
+  '16d daemon-resume-command session-resume-command'
+  '16d daemon-session-record session-record'
 )
 
 # ticket, module under packages/app/src/daemon, daemon folder it lands in
@@ -56,6 +59,12 @@ MODULES=(
   '16c message-bridges sessions'
   '16c start-event-sweep transport'
   '16c testing/build-stub-message-bridges testing'
+  '16d get-descriptor sessions'
+  '16d has-resumable-transcript sessions'
+  '16d session-handoff sessions'
+  '16d session-input sessions'
+  '16d session-output sessions'
+  '16d session-reads sessions'
 )
 
 APP=packages/app/src/daemon

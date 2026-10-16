@@ -182,7 +182,13 @@
           { "from": "file", "name": "EventSweepDeps" },
           { "from": "file", "name": "EventTrailDeps" },
           { "from": "file", "name": "HookIntakeDeps" },
-          { "from": "file", "name": "MessageBridgesDeps" }
+          { "from": "file", "name": "MessageBridgesDeps" },
+          { "from": "file", "name": "DescriptorSource" },
+          { "from": "file", "name": "ResumeSource" },
+          { "from": "file", "name": "SessionHandoffDeps" },
+          { "from": "file", "name": "SessionInputDeps" },
+          { "from": "file", "name": "SessionOutputDeps" },
+          { "from": "file", "name": "SessionReadsDeps" }
         ]
       }
     ],
@@ -274,11 +280,8 @@
         "packages/app/src/daemon/daemon-fleet-restart.test.ts",
         "packages/app/src/daemon/daemon-fleet.test.ts",
         "packages/app/src/daemon/daemon-forget.test.ts",
-        "packages/app/src/daemon/daemon-permission-pending.test.ts",
         "packages/app/src/daemon/daemon-principals.test.ts",
-        "packages/app/src/daemon/daemon-resume-command.test.ts",
         "packages/app/src/daemon/daemon-runtime-auth.test.ts",
-        "packages/app/src/daemon/daemon-session-record.test.ts",
         "packages/app/src/daemon/daemon-tcp.test.ts"
       ],
       "rules": {
