@@ -34,9 +34,15 @@ TESTS=(
   '16a daemon-workspace spawn-workspace'
   '16b daemon-answer-notices message-answer-notices'
   '16b daemon-messages message-delivery'
+  '16c daemon-codex-app-server bridge-codex-app-server'
+  '16c daemon-event-sweep hook-event-sweep'
+  '16c daemon-events hook-events'
+  '16c daemon-headless hook-headless'
+  '16c daemon-hook-agent hook-agent'
+  '16c daemon-imp-bridge bridge-imp'
 )
 
-# ticket, module under packages/app/src/daemon, daemon folder
+# ticket, module under packages/app/src/daemon, daemon folder it lands in
 MODULES=(
   '16a spawn-catalog sources'
   '16a spawn-replay sessions'
@@ -45,6 +51,11 @@ MODULES=(
   '16b emit-inbox-closed sessions'
   '16b message-refused-error sessions'
   '16b message-service sessions'
+  '16c event-trail transport'
+  '16c hook-intake sessions'
+  '16c message-bridges sessions'
+  '16c start-event-sweep transport'
+  '16c testing/build-stub-message-bridges testing'
 )
 
 APP=packages/app/src/daemon
@@ -88,7 +99,7 @@ for row in "${MODULES[@]}"; do
   fi
 
   app="${APP}/${module}"
-  final="packages/daemon/src/${folder}/${module}"
+  final="packages/daemon/src/${folder}/${module##*/}"
 
   if ! grep -q "^${app}.ts	" "$MAPS/package-filemap.tsv"; then
     printf '%s.ts\tdaemon\t%s\t%s.ts\t\n' "$app" "$folder" "$final" >> "$MAPS/package-filemap.tsv"

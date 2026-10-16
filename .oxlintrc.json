@@ -264,18 +264,12 @@
       // name; listed by file, so a new orphan test still fails the rule
       "files": [
         "packages/app/src/daemon/daemon-auth-gateway.test.ts",
-        "packages/app/src/daemon/daemon-codex-app-server.test.ts",
         "packages/app/src/daemon/daemon-config-file.test.ts",
         "packages/app/src/daemon/daemon-connection-reach.test.ts",
         "packages/app/src/daemon/daemon-detector.test.ts",
-        "packages/app/src/daemon/daemon-event-sweep.test.ts",
-        "packages/app/src/daemon/daemon-events.test.ts",
         "packages/app/src/daemon/daemon-fleet-restart.test.ts",
         "packages/app/src/daemon/daemon-fleet.test.ts",
         "packages/app/src/daemon/daemon-forget.test.ts",
-        "packages/app/src/daemon/daemon-headless.test.ts",
-        "packages/app/src/daemon/daemon-hook-agent.test.ts",
-        "packages/app/src/daemon/daemon-imp-bridge.test.ts",
         "packages/app/src/daemon/daemon-permission-pending.test.ts",
         "packages/app/src/daemon/daemon-principals.test.ts",
         "packages/app/src/daemon/daemon-resume-command.test.ts",

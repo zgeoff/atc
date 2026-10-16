@@ -12,7 +12,7 @@ import {
   waitFor,
 } from '@atc/test-utils';
 import { z } from 'zod';
-import { startTestDaemon } from '../test-utils/start-test-daemon';
+import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 // One line of the stand-in's request log.
 const REQUEST_LINE_SCHEMA = z.object({ method: z.string(), params: z.unknown() });

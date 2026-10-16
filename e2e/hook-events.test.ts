@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { decodeMessage } from '@atc/protocol/wire';
 import { buildMockAgentAdapter, spawnNamedSession, subscribeToSocketLines } from '@atc/test-utils';
-import { startTestDaemon } from '../test-utils/start-test-daemon';
+import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 // Events-socket tests: snapshot-then-stream and read-only behavior. The
 // overflow disconnect lives in start-events-server.test.ts, and protocol

@@ -766,3 +766,8 @@ packages/app/src/daemon/message-service.ts	daemon	sessions	packages/daemon/src/s
 packages/app/src/daemon/build-message-owner.ts	daemon	sessions	packages/daemon/src/sessions/build-message-owner.ts	
 packages/app/src/daemon/emit-inbox-closed.ts	daemon	sessions	packages/daemon/src/sessions/emit-inbox-closed.ts	
 packages/app/src/daemon/message-refused-error.ts	daemon	sessions	packages/daemon/src/sessions/message-refused-error.ts	
+packages/app/src/daemon/event-trail.ts	daemon	transport	packages/daemon/src/transport/event-trail.ts	
+packages/app/src/daemon/hook-intake.ts	daemon	sessions	packages/daemon/src/sessions/hook-intake.ts	
+packages/app/src/daemon/message-bridges.ts	daemon	sessions	packages/daemon/src/sessions/message-bridges.ts	
+packages/app/src/daemon/start-event-sweep.ts	daemon	transport	packages/daemon/src/transport/start-event-sweep.ts	
+packages/app/src/daemon/testing/build-stub-message-bridges.ts	daemon	testing	packages/daemon/src/testing/build-stub-message-bridges.ts	
