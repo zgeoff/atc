@@ -172,6 +172,7 @@ class StubImpPort implements ImpPort {
     execRequire: true,
     oauthSecrets: true,
     readOnlyFiles: false,
+    execDropSysAdmin: true,
   };
 
   // Where the port keeps each imp's read-only files, one folder per imp
@@ -982,7 +983,8 @@ class StubImpPort implements ImpPort {
 
   /**
    * Gives impd the features of a daemon from before grantable tokens,
-   * secret rebinds and exec requirements, which has none of those flags.
+   * secret rebinds, exec requirements and capability drops, which has none
+   * of those flags.
    */
   setOldDaemonFeatures(): void {
     this.features = {
@@ -993,6 +995,7 @@ class StubImpPort implements ImpPort {
       execRequire: false,
       oauthSecrets: false,
       readOnlyFiles: false,
+      execDropSysAdmin: false,
     };
   }
 

@@ -23,6 +23,7 @@ export const IMP_PLUGIN = definePlugin({
     'guestDir',
     'guestATC',
     'rebindChangedAuth',
+    'dropSysAdmin',
   ],
   configSchema: () => EXECUTION_TARGET_CONFIG_SCHEMA,
   create: (config, host) => {

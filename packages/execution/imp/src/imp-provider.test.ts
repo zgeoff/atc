@@ -903,6 +903,111 @@ test('it asks impd to require the broker on a harness start that requires one', 
   ]);
 });
 
+test('it starts a harness without CAP_SYS_ADMIN on a target that drops it', async () => {
+  const ctx = setupTest();
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g'), dropSysAdmin: true },
+    { atcBinary: null, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await ctx.port.createImp({ name: 'atc-s1' });
+
+  const harness = provider.spawnHarness({
+    session: 's1',
+    host: 's1',
+    bin: 'sleep',
+    args: ['30'],
+    cwd: ctx.dir,
+    env: {},
+    cols: 80,
+    rows: 24,
+  });
+
+  registerTestCleanup(() => {
+    harness.kill();
+  });
+
+  invariant(harness.waitForStart !== undefined, 'the imp harness reports no start');
+
+  await Promise.allSettled([harness.waitForStart()]);
+
+  expect<readonly unknown[]>(ctx.port.sessionRequests).toStrictEqual([
+    expect.objectContaining({ kind: 'start', name: 'atc-s1', dropSysAdmin: true }),
+  ]);
+});
+
+test('it starts a harness with CAP_SYS_ADMIN on a target that leaves it', async () => {
+  const ctx = setupTest();
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g') },
+    { atcBinary: null, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await ctx.port.createImp({ name: 'atc-s1' });
+
+  const harness = provider.spawnHarness({
+    session: 's1',
+    host: 's1',
+    bin: 'sleep',
+    args: ['30'],
+    cwd: ctx.dir,
+    env: {},
+    cols: 80,
+    rows: 24,
+  });
+
+  registerTestCleanup(() => {
+    harness.kill();
+  });
+
+  invariant(harness.waitForStart !== undefined, 'the imp harness reports no start');
+
+  await Promise.allSettled([harness.waitForStart()]);
+
+  const [start] = ctx.port.sessionRequests;
+
+  invariant(start !== undefined, 'the harness sent no start');
+
+  expect(Object.keys(start)).not.toContain('dropSysAdmin');
+});
+
+test('it refuses to ready an imp for a target that drops CAP_SYS_ADMIN on an impd that cannot', () => {
+  const ctx = setupTest();
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g'), dropSysAdmin: true },
+    { atcBinary: null, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  ctx.port.setOldDaemonFeatures();
+
+  expect(provider.prepareHost({ host: 's1', daemonID: 'd1' })).rejects.toMatchObject({
+    code: 'host_unavailable',
+    message:
+      "imp atc-s1 cannot be used: impd cannot start a harness without CAP_SYS_ADMIN, which this target's dropSysAdmin asks for",
+    data: { provider: 'imp', problem: 'impd_outdated' },
+  });
+
+  expect(ctx.port.createSpecs).toStrictEqual([]);
+});
+
 test('it starts a harness with a relative working directory under the guest home, which impd would resolve from the root', async () => {
   const ctx = setupTest();
 

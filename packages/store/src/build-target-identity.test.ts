@@ -39,6 +39,14 @@ test.each([
   );
 });
 
+// a session whose harness started with CAP_SYS_ADMIN must not count as one
+// that dropped it
+test('it builds another identity for an imp target that turns on dropSysAdmin', () => {
+  expect(buildTargetIdentity('imp', { url: 'http://impd:7070' })).not.toBe(
+    buildTargetIdentity('imp', { url: 'http://impd:7070', dropSysAdmin: true }),
+  );
+});
+
 test('it builds the same identity for a target that turns on the changed-auth rebind as for one without it', () => {
   expect(buildTargetIdentity('imp', { url: 'http://impd', rebindChangedAuth: true })).toBe(
     buildTargetIdentity('imp', { url: 'http://impd' }),

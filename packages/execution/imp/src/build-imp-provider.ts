@@ -22,7 +22,9 @@ interface ImpProviderBuild {
  * followed by up to 10 lowercase letters, digits or hyphens, so the name
  * it builds with a host key's 20 characters stays within impd's 31.
  * `rebindChangedAuth`, false when absent, lets a launch rebind a host whose
- * auth selection changed, and must be a boolean when given. `image`,
+ * auth selection changed, and must be a boolean when given. `dropSysAdmin`,
+ * false when absent, runs each harness without CAP_SYS_ADMIN and
+ * CAP_SYS_PTRACE, and must be a boolean when given. `image`,
  * `memoryMib`, `guestDir`, and `guestATC` pass through. No provider when
  * `url` is missing, so the
  * target lists and refuses every spawn. Both token options, either one not
@@ -66,11 +68,21 @@ export function buildImpProvider(
     };
   }
 
+  const dropSysAdmin = options['dropSysAdmin'];
+
+  if (dropSysAdmin !== undefined && typeof dropSysAdmin !== 'boolean') {
+    return {
+      provider: null,
+      problem: `target ${JSON.stringify(id)} must give dropSysAdmin as true or false`,
+    };
+  }
+
   const provider = new ImpProvider(
     new ImpClientPort({ url, readToken: source.readToken }),
     {
       ...(impPrefix === undefined ? {} : { impPrefix }),
       ...(rebindChangedAuth === undefined ? {} : { rebindChangedAuth }),
+      ...(dropSysAdmin === undefined ? {} : { dropSysAdmin }),
       ...pickString(options, 'image'),
       ...pickString(options, 'guestDir'),
       ...pickString(options, 'guestATC'),

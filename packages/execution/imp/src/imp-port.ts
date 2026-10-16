@@ -95,6 +95,10 @@ export interface ImpFeatures {
 
   // impd writes files an imp's processes see read-only, root included.
   readonly readOnlyFiles: boolean;
+
+  // A start may run its command without CAP_SYS_ADMIN, so root in it cannot
+  // remount those read-only files writable.
+  readonly execDropSysAdmin: boolean;
 }
 
 /**
@@ -251,6 +255,10 @@ export type ImpSessionRequest =
       // impd refuses the start with `PRECONDITION_FAILED` and runs nothing
       // when any of these is not ready.
       readonly require?: readonly ImpExecRequirement[];
+
+      // The command and all it starts run without CAP_SYS_ADMIN and
+      // CAP_SYS_PTRACE.
+      readonly dropSysAdmin?: boolean;
     }
   | {
       readonly kind: 'attach';

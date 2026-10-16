@@ -68,6 +68,7 @@ export class ImpClientPort implements ImpPort {
       execRequire: features?.['execRequire'] === true,
       oauthSecrets: features?.['oauthSecrets'] === true,
       readOnlyFiles: features?.['readOnlyFiles'] === true,
+      execDropSysAdmin: features?.['execDropSysAdmin'] === true,
     };
   };
 
@@ -403,13 +404,16 @@ function toPortError(error: unknown): ImpPortError {
 }
 
 // A start or an attach as the client takes it, with the requirements impd
-// checks before the command runs or the attach joins it.
+// checks before the command runs or the attach joins it, and a start's drop
+// of CAP_SYS_ADMIN.
 type ExecStartWithRequire = ExecSessionOptions['start'] & {
   readonly require?: readonly ImpExecRequirement[];
+  readonly dropSysAdmin?: boolean;
 };
 
 // The client sends every field of a start or an attach as it is, so a list
-// of requirements reaches impd though the client's types lack it.
+// of requirements and the drop reach impd though the client's types lack
+// them.
 function buildExecStart(request: ImpSessionRequest): ExecStartWithRequire {
   if (request.kind === 'attach') {
     return {
@@ -434,6 +438,7 @@ function buildExecStart(request: ImpSessionRequest): ExecStartWithRequire {
     rows: request.rows,
     ...(request.resumeFrom === undefined ? {} : { resumeFrom: request.resumeFrom }),
     ...(request.require === undefined ? {} : { require: request.require }),
+    ...(request.dropSysAdmin === true ? { dropSysAdmin: true } : {}),
   };
 }
 
