@@ -1,5 +1,14 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { join, relative } from 'node:path';
 import {
   KEYS,
@@ -1169,6 +1178,38 @@ test('it runs a command with the guest home as HOME once the test gives one', as
   });
 
   expect(Buffer.from(result.stdout).toString()).toBe(`${ctx.dir}\n`);
+});
+
+test('it runs a command in an absolute working directory as it stands, so a `..` after a symlink leaves its target', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  mkdirSync(join(ctx.dir, 'far', 'nested'), { recursive: true });
+  symlinkSync(join(ctx.dir, 'far', 'nested'), join(ctx.dir, 'link'));
+
+  const result = await ctx.port.runCommand('imp-a', {
+    argv: ['pwd', '-P'],
+    cwd: `${ctx.dir}/link/..`,
+  });
+
+  expect(Buffer.from(result.stdout).toString()).toBe(`${join(realpathSync(ctx.dir), 'far')}\n`);
+});
+
+test('it runs a command in a relative working directory from the root with no lexical folding', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  mkdirSync(join(ctx.dir, 'far', 'nested'), { recursive: true });
+  symlinkSync(join(ctx.dir, 'far', 'nested'), join(ctx.dir, 'link'));
+
+  const result = await ctx.port.runCommand('imp-a', {
+    argv: ['pwd', '-P'],
+    cwd: `${relative('/', ctx.dir)}/link/..`,
+  });
+
+  expect(Buffer.from(result.stdout).toString()).toBe(`${join(realpathSync(ctx.dir), 'far')}\n`);
 });
 
 test('it runs a command with the PATH the test gives in place of the guest one', async () => {

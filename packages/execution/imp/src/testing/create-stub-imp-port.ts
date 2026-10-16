@@ -1771,13 +1771,15 @@ class StubImpPort implements ImpPort {
 
   // A working directory as impd resolves it inside an imp: a relative one
   // from the root, as its agent runs there, and a missing one as the
-  // guest's home, when the test gave one.
+  // guest's home, when the test gave one. A path goes to the process as it
+  // stands, with no lexical folding, so a `..` after a symlink leaves the
+  // link's target, as the kernel walks it.
   private resolveGuestCwd(cwd: string | undefined): string | undefined {
     if (cwd === undefined) {
       return this.homeDir ?? undefined;
     }
 
-    return posix.resolve('/', cwd);
+    return posix.isAbsolute(cwd) ? cwd : `/${cwd}`;
   }
 
   private startProcess(imp: StubImp, request: ImpSessionRequest): StubProcess | null {
