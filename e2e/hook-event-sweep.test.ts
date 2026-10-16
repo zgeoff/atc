@@ -8,7 +8,7 @@ import {
   registerTestCleanup,
   waitFor,
 } from '@atc/test-utils';
-import { startTestDaemon } from '../test-utils/start-test-daemon';
+import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 /**
  * A daemon whose trail is stamped from a stepped clock and whose sweep runs

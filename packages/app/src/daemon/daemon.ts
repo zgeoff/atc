@@ -10,38 +10,21 @@ import {
 } from '@atc/config';
 import { formatListenRefusal, isAllowedListenHost } from '@atc/config/host';
 import type { AgentID, Clock, SessionID } from '@atc/core';
-import { ansi, systemClock, toMessageID, truncateToBytes } from '@atc/core';
+import { ansi, systemClock } from '@atc/core';
 import { LocalPTYProvider } from '@atc/execution-local';
 import { claimDaemonLock, findDaemonRecord, writeDaemonRecord } from '@atc/lifecycle';
-import type {
-  AgentAdapter,
-  MessageBridge,
-  MessageBridgeHost,
-  MessageBridgeTap,
-  ScreenMenu,
-  SourceProvider,
-} from '@atc/plugin-api';
+import type { AgentAdapter, ScreenMenu, SourceProvider } from '@atc/plugin-api';
 import { planTypedLineInput } from '@atc/plugin-api';
-import type { AdapterEvent, SessionDescriptor, SessionState } from '@atc/protocol';
-import type { HookEvent } from '@atc/protocol/session';
+import type { SessionDescriptor, SessionState } from '@atc/protocol';
 import { DaemonError, MAX_CHUNK, PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import { StateStore, buildTargetIdentity } from '@atc/store';
-import type { EventScope } from '@atc/store';
-import { ANSWER_BYTE_CAP } from './answer-byte-cap';
 import { applyMenuChoice } from './apply-menu-choice';
 import type { MenuChoiceResult } from './apply-menu-choice';
 import { AttachRegistry } from './attach-registry';
-import { buildAnswerView } from './build-answer-view';
-import { buildBridgeTapClient } from './build-bridge-tap-client';
 import type { ExecutionTarget } from './build-execution-targets';
-import { buildFleetEvents } from './build-fleet-events';
 import { buildMenuView } from './build-menu-view';
-import { buildMessageOwner } from './build-message-owner';
-import { buildNoteTrailEntry } from './build-note-trail-entry';
-import { buildNoteView } from './build-note-view';
 import { buildSessionEvent } from './build-session-event';
-import { buildSessionNoteEvent } from './build-session-note-event';
 import { buildTargetAccess } from './build-target-access';
 import { createNonBlockingLog } from './create-non-blocking-log';
 import type { NonBlockingLog } from './create-non-blocking-log';
@@ -49,19 +32,19 @@ import { DaemonConnection } from './daemon-connection';
 import type { DaemonContext, OutputClient, TapClient } from './daemon-context';
 import { emitInboxClosed } from './emit-inbox-closed';
 import { EventSignal } from './event-signal';
+import { EventTrail } from './event-trail';
 import { findPeerSession } from './find-peer-session';
-import { formatLogField } from './format-log-field';
+import { HookIntake } from './hook-intake';
 import { startHookServer } from './hooks';
 import { IdempotencyLedger } from './idempotency-ledger';
-import { isOwnHookEvent } from './is-own-hook-event';
 import { isTreeInReach } from './is-tree-in-reach';
 import { loadTranscriptPage } from './load-transcript-page';
 import { makeHookRunner } from './make-hook-runner';
 import type { HookScope } from './make-hook-runner';
 import { MENU_TIMING } from './menu-terminal';
 import type { MenuTerminal, MenuTiming } from './menu-terminal';
+import { MessageBridges } from './message-bridges';
 import { MessageService } from './message-service';
-import { parseNote } from './parse-note';
 import { PermissionRegistry } from './permission-registry';
 import { PublishedRecords } from './published-records';
 import { readKnownMenu } from './read-known-menu';
@@ -78,13 +61,12 @@ import { SessionRuntime } from './session-runtime';
 import { SessionManager } from './sessions';
 import { SpawnCatalog } from './spawn-catalog';
 import { SpawnService } from './spawn-service';
+import { startEventSweep } from './start-event-sweep';
 import { startEventsServer } from './start-events-server';
 import { startHeadlessTurn } from './start-headless-turn';
-import { startSessionBridge } from './start-session-bridge';
 import { startTCPListener } from './start-tcp-listener';
 import type { TCPListener } from './start-tcp-listener';
 import { TapRegistry } from './tap-registry';
-import type { TargetAccess } from './target-access';
 import { withOwnerOnlySocket } from './with-owner-only-socket';
 import { writeLineSteps } from './write-line-steps';
 
@@ -319,12 +301,6 @@ const LOCAL_PRINCIPAL = 'local';
 const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
 const IDEMPOTENCY_SWEEP_MS = 60 * 60 * 1000;
 
-// A trail row is kept this long after it was recorded, and the sweep that
-// drops older ones, along with the rows the trail reads leave out, runs this
-// often.
-const EVENT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-const EVENT_SWEEP_MS = 60 * 60 * 1000;
-
 // How long a TCP handshake waits once its address has failed too often.
 const HANDSHAKE_FAILURE_DELAY_MS = 10_000;
 
@@ -413,21 +389,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   idempotencySweep.unref();
 
-  await tryRemoveExpiredEvents(store, clock);
-
-  // Each sweep schedules the next before it runs, so a failed sweep leaves
-  // the rows for the next one.
-  const eventSweepClock = opts.eventSweepClock ?? systemClock;
-  let stopEventSweep: (() => void) | null = null;
-
-  const scheduleEventSweep = () => {
-    stopEventSweep = eventSweepClock.schedule(() => {
-      scheduleEventSweep();
-      void tryRemoveExpiredEvents(store, clock);
-    }, EVENT_SWEEP_MS);
-  };
-
-  scheduleEventSweep();
+  const stopEventSweep = await startEventSweep({
+    store,
+    clock,
+    sweepClock: opts.eventSweepClock ?? systemClock,
+  });
 
   // With no configured targets the daemon serves the local one alone,
   // which needs no atc version since no atc runs inside it.
@@ -535,50 +501,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   const eventSignal = new EventSignal(clock);
 
-  // A live session's scope also matches the rows it wrote under an earlier
-  // atc id, through the agent session id a restore carries on. Under an
-  // access, the scope holds only the atc ids of the sessions whose whole
-  // tree is on targets the access holds, so a session outside it matches
-  // nothing, as a session never seen does. It holds no agent session id there: a session on
-  // another target can resume the same agent session, and its rows would
-  // match.
-  const buildEventScope = (
-    sessionID: SessionID | null,
-    access: TargetAccess | null,
-  ): EventScope | null => {
-    if (access === null) {
-      if (sessionID === null) {
-        return null;
-      }
-
-      const agentSessionID = mgr.sessions.find((x) => x.id === sessionID)?.agentSessionID;
-
-      return {
-        atcIDs: [sessionID],
-        agentSessionIDs: agentSessionID === undefined ? [] : [agentSessionID],
-      };
-    }
-
-    const visible = mgr.sessions.filter(
-      (x) =>
-        (sessionID === null || x.id === sessionID) && isTreeInReach(mgr.sessions, x.id, access),
-    );
-
-    return { atcIDs: visible.map((x) => x.id), agentSessionIDs: [] };
-  };
-
-  // The sessions that may name a trail row: under an access, only those
-  // whose whole tree is on targets it holds.
-  const collectNamingDescriptors = (access: TargetAccess | null): SessionDescriptor[] => {
-    const reached = new Set(
-      mgr.sessions
-        .filter((x) => access === null || isTreeInReach(mgr.sessions, x.id, access))
-        .map((x) => x.id),
-    );
-
-    return mgr.collectDescriptors().filter((d) => reached.has(d.id));
-  };
-
   // One runtime per live session: its screen model, output sequence
   // counter, PTY dims, its resize/detect/boot timers, its live headless
   // run, and its pending eject and boot waiters. Created when the session
@@ -635,84 +557,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   const attachments = new AttachRegistry<OutputClient>();
   const taps = new TapRegistry<TapClient>();
-
-  // A note id, which a remote session's reporter gives each note,
-  // makes a resent note land once; a resent answer changes nothing, since
-  // only an unanswered message takes one.
-  const applyNote = async (e: HookEvent, noteID?: string) => {
-    const note = parseNote(e.payload);
-
-    if (note === null) {
-      return;
-    }
-
-    if (note.kind === 'note') {
-      const sender = mgr.sessions.find((x) => x.id === e.atcId);
-
-      if (sender === undefined) {
-        opts.onNoteIgnored?.(e.atcId, 'note');
-      } else {
-        const capped = { ...note, text: truncateToBytes(note.text, ANSWER_BYTE_CAP) };
-        const sentAt = clock.now();
-        const entry = buildNoteTrailEntry(sender.id, sender.agentSessionID, capped, sentAt, noteID);
-
-        const written = await messages.recordTrailEntry(entry);
-
-        if (written) {
-          emitEvent(buildSessionNoteEvent(sender.id, capped, sentAt), findHookScope(sender.id));
-        }
-      }
-
-      return;
-    }
-
-    const s = mgr.sessions.find((x) => x.id === e.atcId);
-    const owner = s === undefined ? { atcID: e.atcId } : buildMessageOwner(s);
-
-    if (note.kind === 'unanswered') {
-      try {
-        const unanswered = await store.updateMessagesUnanswered(
-          note.messages,
-          owner,
-          note.reason,
-          clock.now(),
-          note.turn,
-        );
-
-        if (unanswered.length === 0) {
-          opts.onNoteIgnored?.(e.atcId, 'unanswered');
-        }
-
-        for (const record of unanswered) {
-          await messages.recordMessageStatus(e.atcId, record);
-          await messages.recordAnswerNotice(record);
-        }
-      } catch {}
-
-      return;
-    }
-
-    try {
-      // One statement answers the whole turn, so a reader that sees any
-      // member answered already finds every sibling answered beside it.
-      const answered = await store.updateMessagesAnswered(
-        note.messages,
-        owner,
-        truncateToBytes(note.answer, ANSWER_BYTE_CAP),
-        clock.now(),
-        note.turn,
-      );
-
-      if (answered.length === 0) {
-        opts.onNoteIgnored?.(e.atcId, 'answered');
-      }
-
-      for (const record of answered) {
-        await messages.recordMessageStatus(e.atcId, record);
-        await messages.recordAnswerNotice(record);
-      }
-    } catch {}
-  };
 
   // The screen tier of the detector stack: once a session's output has
   // quiesced, judge the serialized screen and flip running/needs_you.
@@ -865,7 +709,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     runtime.screen ??= new ScreenModel(cols, rows);
 
     // A bridge delivers only once its session lists and its terminal boots.
-    messageBridges.get(s.id)?.startDelivery();
+    bridges.startDelivery(s.id);
   };
 
   const onOutput: SessionManager['onOutput'] = (s, data) => {
@@ -948,7 +792,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   const onProcessEnded: SessionManager['onProcessEnded'] = (s) => {
     endedProcesses.add(s.id);
-    void stopMessageBridge(s.id);
+    void bridges.stopBridge(s.id);
     void messages.updateEndedSessionMessages(s);
   };
 
@@ -957,7 +801,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
     if (kind === 'removed') {
       endedProcesses.delete(s.id);
-      void stopMessageBridge(s.id);
+      void bridges.stopBridge(s.id);
       void messages.updateEndedSessionMessages(s);
     }
 
@@ -988,279 +832,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
   };
 
-  const recordHookEvent = async (e: HookEvent, ev: Readonly<AdapterEvent> | null) => {
-    await store.recordEvent(e, ev, clock.now());
-
-    eventSignal.emit();
-  };
-
-  // A headless turn has no terminal hooks of its own, so the daemon writes
-  // its start and end to the trail under a synthetic event name.
-  const recordHeadlessTurnEvent = (sessionID: SessionID, ev: Readonly<AdapterEvent>) => {
-    const s = mgr.sessions.find((x) => x.id === sessionID);
-
-    void recordHookEvent(
-      {
-        atcId: sessionID,
-        event: 'HeadlessTurn',
-        payload: s?.agentSessionID === undefined ? {} : { session_id: s.agentSessionID },
-      },
-      ev,
-    );
-  };
-
-  const applyHookEvent = (e: HookEvent) => {
-    if (e.event === 'Note') {
-      void applyNote(e);
-
-      return;
-    }
-
-    const before = mgr.sessions.find((s) => s.id === e.atcId);
-    const runtime = runtimes.get(e.atcId);
-
-    // A harness nested inside a session inherits its environment and reports
-    // under its id; only the harness atc started may change the session, and
-    // a line from any other is logged and dropped.
-    if (
-      before !== undefined &&
-      runtime !== undefined &&
-      !isOwnHookEvent(
-        e.agent,
-        mgr.findAdapter(before.agent)?.hookAgent ?? before.agent,
-        runtime.hasAgentHookLines,
-      )
-    ) {
-      mgr.log(
-        `atc hook event=dropped session=${formatLogField(e.atcId)} agent=${formatLogField(e.agent ?? '')} hook=${formatLogField(e.event)}`,
-      );
-
-      return;
-    }
-
-    if (runtime !== undefined && e.agent !== undefined) {
-      runtime.hasAgentHookLines = true;
-    }
-
-    const previousAgentSessionID = before?.agentSessionID;
-    const plan = mgr.applyHook(e, runtime?.harnessState);
-
-    if (plan !== null && runtime !== undefined) {
-      runtime.harnessState = plan.next;
-    }
-
-    const events = plan?.events ?? [];
-
-    // A headless session's trail comes from its runs alone: hook reports from
-    // its dying terminal, or from a run's own CLI, stay out of it. A line
-    // records the last event it planned, which the session's state follows.
-    const trailEvent = before?.kind === 'headless' ? null : (events.at(-1) ?? null);
-
-    if (e.event !== 'Statusline') {
-      void recordHookEvent(e, trailEvent);
-    }
-
-    const currentAgentSessionID = mgr.sessions.find((s) => s.id === e.atcId)?.agentSessionID;
-
-    if (currentAgentSessionID !== undefined && currentAgentSessionID !== previousAgentSessionID) {
-      void store.updateMessageOwner(e.atcId, previousAgentSessionID, currentAgentSessionID);
-      void store.updateTrailOwner(e.atcId, currentAgentSessionID);
-    }
-
-    // Only a session start shows the terminal on a conversation: a turn of
-    // an older one can still end after the terminal moves on. The session's
-    // bridge follows the terminal and delivers nothing more to the older
-    // conversation; a start on the conversation it serves changes nothing.
-    if (currentAgentSessionID !== undefined && events.some((ev) => ev.kind === 'started')) {
-      messageBridges.get(e.atcId)?.updateThread(currentAgentSessionID);
-    }
-
-    for (const ev of events) {
-      if (ev.kind === 'ended') {
-        runtime?.pendingEject?.();
-      }
-
-      // A revived session announcing itself is the cue a staggered restore
-      // waits on before booting the next one.
-      if (ev.kind === 'started') {
-        if (runtime !== undefined) {
-          runtime.startedAt = clock.now();
-        }
-
-        runtime?.bootWaiter?.();
-        const started = mgr.sessions.find((s) => s.id === e.atcId);
-
-        if (started !== undefined && runtime !== undefined && runtime.pendingLastUsed) {
-          runtime.pendingLastUsed = false;
-          void store.writeLastUsedAgent(started.agent);
-        } else if (started !== undefined) {
-          opts.onLastUsedUnchanged?.(started.id);
-        }
-      }
-    }
-  };
-
-  const reporter = startHookServer(applyHookEvent, opts.reporterSocketPath);
-
-  // A remote harness reports through a socket that serves it alone, so a
-  // line that names any other session is dropped.
-  const onRelay: SessionManager['onRelay'] = (binding, relay) => {
-    startSessionBridge(relay, binding, {
-      findSession: (sessionID) => mgr.sessions.find((x) => x.id === sessionID),
-      applyHookEvent,
-      applyNote: async (sessionID, payload, noteID) => {
-        if (parseNote(payload) === null) {
-          return false;
-        }
-
-        await applyNote({ atcId: sessionID, event: 'Note', payload: { ...payload } }, noteID);
-
-        return true;
-      },
-      attachTap: (client, sessionID, notices) => ctx.attachTap(client, sessionID, null, notices),
-      ackMessage: (client, sessionID, messageID) =>
-        ctx.ackMessage(client, sessionID, messageID, null),
-      ackNotice: (client, sessionID, messageID) => ctx.ackNotice(client, sessionID, messageID),
-      detachTap: (client) => {
-        taps.detachAll(client);
-      },
-    });
-  };
-
-  // The bridges in the daemon that take local sessions' messages, one per
-  // session whose agent has one, from the launch that starts it until the
-  // session's process ends.
-  const messageBridges = new Map<SessionID, MessageBridge>();
-
-  const stopMessageBridge = async (sessionID: SessionID) => {
-    const bridge = messageBridges.get(sessionID);
-
-    messageBridges.delete(sessionID);
-
-    await bridge?.stop();
-  };
-
-  // The daemon's side of one session's bridge. Its tap takes the inbox as an
-  // `atc tap` does, and its acks and notes land as the tap's and the
-  // reporter's do, for this session alone.
-  const buildMessageBridgeHost = (sessionID: SessionID): MessageBridgeHost => {
-    const bridgeClients = new Map<MessageBridgeTap, TapClient>();
-
-    const findOwner = () => {
-      const s = mgr.sessions.find((x) => x.id === sessionID);
-
-      return s === undefined ? null : buildMessageOwner(s);
-    };
-
-    return {
-      attachTap: (tap) => {
-        const client = buildBridgeTapClient(tap);
-
-        bridgeClients.set(tap, client);
-
-        return ctx.attachTap(client, sessionID, null, true) === 'ok';
-      },
-      detachTap: (tap) => {
-        const client = bridgeClients.get(tap);
-
-        bridgeClients.delete(tap);
-
-        if (client !== undefined) {
-          taps.detachAll(client);
-        }
-      },
-      ackMessage: async (id) => {
-        const owner = findOwner();
-
-        if (owner === null) {
-          return;
-        }
-
-        const delivered = await store.updateMessageDelivered(toMessageID(id), owner, clock.now());
-
-        if (delivered !== null) {
-          await messages.recordMessageStatus(sessionID, delivered);
-        }
-
-        void messages.drainSessionInbox(sessionID);
-      },
-      ackNotice: async (id) => {
-        const delivered = await store.updateNoticeDelivered(
-          toMessageID(id),
-          sessionID,
-          clock.now(),
-        );
-
-        if (delivered !== null) {
-          await messages.recordNoticeStatus(delivered, 'notice-delivered');
-        }
-
-        void messages.drainSessionInbox(sessionID);
-      },
-      applyNote: async (payload) => {
-        if (parseNote(payload) === null) {
-          return false;
-        }
-
-        await applyNote({ atcId: sessionID, event: 'Note', payload: { ...payload } });
-
-        // A message the bridge settled without an ack, as one the App
-        // Server refused, frees the tap for the next one.
-        void messages.drainSessionInbox(sessionID);
-
-        return true;
-      },
-      collectUnsettledMessages: async () => {
-        const owner = findOwner();
-
-        if (owner === null) {
-          return [];
-        }
-
-        const unsettled = await store.collectUnsettledMessages(owner);
-
-        return unsettled.flatMap((record) =>
-          record.status === 'queued' || record.status === 'delivered'
-            ? [{ id: record.id, status: record.status }]
-            : [],
-        );
-      },
-      log: (line) => {
-        mgr.log(line);
-      },
-    };
-  };
-
-  const startMessageBridge: SessionManager['startMessageBridge'] = async (launch) => {
-    if (launch.adapter.startMessageBridge === undefined) {
-      return null;
-    }
-
-    await stopMessageBridge(launch.session);
-
-    const bridge = await launch.adapter.startMessageBridge({
-      session: launch.session,
-      cwd: launch.cwd,
-      env: launch.env,
-      withheldEnv: launch.withheldEnv,
-      options: launch.options,
-      dir: join(stateDir, 'sessions', launch.session, 'codex'),
-      host: buildMessageBridgeHost(launch.session),
-    });
-
-    // A second launch of the session can start its bridge while this one
-    // started, so the bridge this one replaces stops here.
-    const replaced = messageBridges.get(launch.session);
-
-    messageBridges.set(launch.session, bridge);
-
-    if (replaced !== undefined && replaced !== bridge) {
-      await replaced.stop();
-    }
-
-    return bridge.plan;
-  };
-
   // The manager takes every callback above when it is built, so no session
   // event arrives before its handler exists.
   const mgr = new SessionManager(
@@ -1275,9 +846,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       onOutput,
       onProcessEnded,
       onEvent,
-      onRelay,
-      startMessageBridge,
-      stopMessageBridge,
+      onRelay: (binding, relay) => {
+        hooks.startRelay(binding, relay);
+      },
+      startMessageBridge: (launch) => bridges.startBridge(launch),
+      stopMessageBridge: (sessionID) => bridges.stopBridge(sessionID),
     },
   );
 
@@ -1331,6 +904,41 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     isProcessEnded: (sessionID) => endedProcesses.has(sessionID),
     tapGraceMs: opts.tapGraceMs ?? TAP_GRACE_MS,
   });
+
+  const hooks = new HookIntake({
+    mgr,
+    store,
+    clock,
+    messages,
+    taps,
+    findRuntime,
+    eventSignal,
+    emitEvent,
+    findHookScope,
+    updateBridgeThread: (sessionID, agentSessionID) => {
+      bridges.updateThread(sessionID, agentSessionID);
+    },
+    ...(opts.onNoteIgnored === undefined ? {} : { onNoteIgnored: opts.onNoteIgnored }),
+    ...(opts.onLastUsedUnchanged === undefined
+      ? {}
+      : { onLastUsedUnchanged: opts.onLastUsedUnchanged }),
+  });
+
+  const bridges = new MessageBridges({
+    mgr,
+    store,
+    clock,
+    messages,
+    taps,
+    applyNote: (e) => hooks.applyNote(e),
+    stateDir,
+  });
+
+  const trail = new EventTrail({ mgr, store, clock, eventSignal });
+
+  const reporter = startHookServer((e) => {
+    hooks.applyHookEvent(e);
+  }, opts.reporterSocketPath);
 
   const spawns = new SpawnService({
     mgr,
@@ -1629,7 +1237,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
             findRuntime,
             sid,
             p,
-            recordHeadlessTurnEvent,
+            (turnSessionID, ev) => {
+              hooks.recordHeadlessTurnEvent(turnSessionID, ev);
+            },
             opts.reporterSocketPath,
           ),
       });
@@ -1838,7 +1448,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
           findRuntime,
           sessionID,
           data.trimEnd(),
-          recordHeadlessTurnEvent,
+          (turnSessionID, ev) => {
+            hooks.recordHeadlessTurnEvent(turnSessionID, ev);
+          },
           opts.reporterSocketPath,
         )
           ? 'ok'
@@ -1998,83 +1610,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       return { path, page };
     },
-    readEvents: async (afterID, limit, waitMs, sessionID, access) => {
-      const deadline = clock.now() + waitMs;
-
-      // A wake for an event the read leaves out (a heartbeat, or another
-      // session's event under a session filter) loops back to wait out the
-      // rest of the window. The scope is built again after every await, so
-      // a session whose tree left the access while the read waited matches
-      // nothing, and a read whose scope changed under its query runs again.
-      for (;;) {
-        const generation = eventSignal.generation;
-        const scope = buildEventScope(sessionID, access);
-
-        // A read from a cursor takes one row past the limit to learn whether
-        // more follow; the latest events have nothing after them.
-        const rows =
-          afterID === null
-            ? await store.collectLatestEvents(limit, scope)
-            : await store.collectEventsAfter(afterID, limit + 1, scope);
-
-        if (
-          access !== null &&
-          JSON.stringify(buildEventScope(sessionID, access)) !== JSON.stringify(scope)
-        ) {
-          continue;
-        }
-
-        const remaining = deadline - clock.now();
-
-        if (rows.length > 0 || remaining <= 0 || eventSignal.disposed) {
-          const naming = collectNamingDescriptors(access);
-
-          // Under an access an event takes no alias, so each event keeps the
-          // atc id it was recorded under for the check that sends it.
-          const aliases = access === null ? naming : [];
-
-          return {
-            events: buildFleetEvents(rows.slice(0, limit), naming, aliases),
-            more: rows.length > limit,
-          };
-        }
-
-        await eventSignal.waitForNext(generation, remaining);
-      }
-    },
-    readNote: async (id, access) => {
-      const stored = await store.findNote(id, buildEventScope(null, access));
-
-      if (stored === null) {
-        return null;
-      }
-
-      const naming = collectNamingDescriptors(access);
-      const aliases = access === null ? naming : [];
-
-      // Under an access a note takes no alias, so a session in reach
-      // never names a note whose own session left the access while the
-      // query waited.
-      return {
-        owner: stored.atcID,
-        view: buildNoteView(stored, naming, aliases),
-      };
-    },
-    readAnswer: async (id, access) => {
-      const stored = await store.findAnswer(id, buildEventScope(null, access));
-
-      if (stored === null) {
-        return null;
-      }
-
-      const naming = collectNamingDescriptors(access);
-      const aliases = access === null ? naming : [];
-
-      return {
-        owner: stored.atcID,
-        view: buildAnswerView(stored, naming, aliases),
-      };
-    },
+    readEvents: (afterID, limit, waitMs, sessionID, access) =>
+      trail.readEvents(afterID, limit, waitMs, sessionID, access),
+    readNote: (id, access) => trail.readNote(id, access),
+    readAnswer: (id, access) => trail.readAnswer(id, access),
     writeSessionMessage: (sessionID, caller, text, keyed, access, callerSession) =>
       messages.writeSessionMessage(sessionID, caller, text, keyed, access, callerSession),
     attachTap: (client, sessionID, access, notices) =>
@@ -2094,7 +1633,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     released = true;
 
     clearInterval(idempotencySweep);
-    stopEventSweep?.();
+    stopEventSweep();
     eventsServer?.stop();
     reporter.stop(true);
     mgr.detachAll();
@@ -2113,9 +1652,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
     runtimes.clear();
 
-    // A bridge's App Server runs beside the daemon, not under a session's
-    // terminal, so it ends with the daemon.
-    await Promise.all([...messageBridges.keys()].map((id) => stopMessageBridge(id)));
+    await bridges.stopAll();
 
     eventSignal.dispose();
 
@@ -2413,17 +1950,6 @@ function getDescriptor(mgr: SessionManager, id: SessionID): SessionDescriptor {
 async function tryRemoveExpiredIdempotencyKeys(store: StateStore, clock: Clock): Promise<boolean> {
   try {
     await store.removeExpiredIdempotencyKeys(clock.now() - IDEMPOTENCY_TTL_MS);
-  } catch {
-    return false;
-  }
-
-  return true;
-}
-
-// A sweep that fails leaves the rows for the next one.
-async function tryRemoveExpiredEvents(store: StateStore, clock: Clock): Promise<boolean> {
-  try {
-    await store.removeExpiredEvents(clock.now() - EVENT_TTL_MS);
   } catch {
     return false;
   }
