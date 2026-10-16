@@ -7,7 +7,8 @@
 # reads all land there instead of the user's. It removes every variable atc sets for a session it
 # hosts, so nothing reports to a live daemon from an enclosing session, and an inherited
 # CLAUDE_CONFIG_DIR, so the Claude config folder resolves inside the home too.
-# It keeps every other variable, ATC_BIN included. The directory is removed on exit.
+# It removes the variables a Codex tool's process inherits, which the hook reporter
+# reads as the mark of a nested harness. It keeps every other variable, ATC_BIN included. The directory is removed on exit.
 # It also sets ATC_CLI_ENTRY and ATC_GATEWAY_ENTRY to the source entries of
 # the atc and atc-gateway commands, so a shared test helper that runs either
 # finds it without knowing where the app package sits.
@@ -36,5 +37,6 @@ export ATC_TEST_HOME="$root"
 export ATC_CLI_ENTRY="$repo/packages/app/src/cli.ts"
 export ATC_GATEWAY_ENTRY="$repo/packages/app/src/gateway.ts"
 unset ATC_SESSION_ID ATC_SOCKET ATC_BRIDGE ATC_OUTBOX ATC_SESSION_RECORD CLAUDE_CONFIG_DIR
+unset CODEX_THREAD_ID CODEX_SESSION_ID CODEX_TOOL_CALL_ID
 
 "$@"

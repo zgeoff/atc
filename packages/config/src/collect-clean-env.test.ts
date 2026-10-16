@@ -57,6 +57,18 @@ test('it strips every variable a parent Codex sandbox sets under its prefix', ()
   ]);
 });
 
+test('it strips the variables a parent Codex thread sets on its tool processes', () => {
+  updateEnv('CODEX_THREAD_ID', 'codex-parent');
+  updateEnv('CODEX_SESSION_ID', 'codex-parent');
+  updateEnv('CODEX_TOOL_CALL_ID', 'call-1');
+
+  expect(collectCleanEnv()).not.toContainAnyKeys([
+    'CODEX_THREAD_ID',
+    'CODEX_SESSION_ID',
+    'CODEX_TOOL_CALL_ID',
+  ]);
+});
+
 test('it keeps a Claude variable outside the parent-session prefix', () => {
   updateEnv('CLAUDE_CONFIG_DIR', '/tmp/claude-config');
 
