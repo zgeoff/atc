@@ -17,8 +17,8 @@ import {
   tryCreateListeners,
   waitFor,
 } from '@atc/test-utils';
-import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { startDaemon } from './daemon';
+import { startDaemon } from '../packages/app/src/daemon/daemon';
+import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 /**
  * A temp directory for a test that starts its daemon itself, with the paths

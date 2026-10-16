@@ -1,6 +1,6 @@
 import { basename, isAbsolute } from 'node:path';
 import type { AgentID, SessionID } from '@atc/core';
-import { isRecord, toSessionID } from '@atc/core';
+import { toSessionID } from '@atc/core';
 import type { SourceProvider, SourceRequest } from '@atc/plugin-api';
 import {
   CONTROL_CHARACTER,
@@ -23,10 +23,13 @@ import {
   encodeMessage,
 } from '@atc/protocol/wire';
 import type { ErrorCode, EventMsg, RequestMsg, SocketWriter } from '@atc/protocol/wire';
+import { match } from 'ts-pattern';
 import { buildLegacyMessageHashes } from './build-legacy-message-hashes';
 import { buildPayloadHash } from './build-payload-hash';
 import { buildScopedContext } from './build-scoped-context';
 import { buildTargetForbiddenError } from './build-target-forbidden-error';
+import { checkTCPHello } from './check-tcp-hello';
+import { ConnectionView } from './connection-view';
 import type { DaemonContext, SpawnParams } from './daemon-context';
 import type { KeyedRequest } from './idempotency-ledger';
 import { isOwnerOnlyMethod } from './is-owner-only-method';
@@ -34,18 +37,12 @@ import type { TranscriptPosition } from './load-transcript-page';
 import type { MessageCaller } from './message-caller';
 import { parseSpawnOverrides } from './parse-spawn-overrides';
 import { TargetAccess } from './target-access';
+import type { TCPPeer } from './tcp-peer';
 
 // The targets a request may use and the namespace of its idempotency keys.
 interface RequestScope {
   readonly access: TargetAccess;
   readonly keyNamespace: string;
-}
-
-// What a limited connection is sent for one event, and the sessions that
-// event moved out of its view.
-interface ViewUpdate {
-  readonly events: readonly EventMsg[];
-  readonly withdrawn: readonly SessionID[];
 }
 
 // What a source request holds: the source's id and the target it is for.
@@ -62,25 +59,6 @@ interface ResolvedSourceRequest {
 
 interface PeerSocket extends SocketWriter {
   readonly end: () => void;
-}
-
-/**
- * What a connection accepted over TCP needs from its listener: the check of
- * the bearer token its handshake presents, which answers with the matched
- * token's fingerprint, or null for a missing or wrong token.
- */
-export interface TCPPeer {
-  readonly verifyHandshake: (presented: string | null) => Promise<string | null>;
-
-  // Counts a line other than a handshake, or one over the size cap, sent
-  // before a handshake passed, as a failed handshake from the peer's
-  // address.
-  readonly recordFailure: (reason: 'unexpected_line' | 'line_too_long') => void;
-
-  // Records a handshake or a request refused for a principal the config
-  // does not list. The principal itself is never logged: an unlisted one
-  // is whatever the peer sent, a credential included.
-  readonly recordRefusedPrincipal: () => void;
 }
 
 export class DaemonConnection {
@@ -124,15 +102,8 @@ export class DaemonConnection {
   // of another program.
   private helloClient = 'unknown client';
 
-  // The sessions in this limited connection's view, the sessions the daemon
-  // holds that the view leaves out, and the permission requests the
-  // connection was shown, so the events that end them reach it after the
-  // session is gone.
-  private readonly shownSessions = new Set<SessionID>();
-
-  private readonly withheldSessions = new Set<SessionID>();
-
-  private readonly shownRequests = new Set<string>();
+  // What this connection sees of the fleet while its access is limited.
+  private readonly view: ConnectionView;
 
   // The listener of a connection accepted over TCP, null on the local
   // socket.
@@ -156,6 +127,7 @@ export class DaemonConnection {
     this.tcp = tcp;
     this.peerSession = peerSession;
 
+    this.view = new ConnectionView(ctx);
     this.queue = new OutboundQueue(peer, ctx.queueBytes);
 
     // A TCP connection acts only as the principals its requests give, so
@@ -188,7 +160,7 @@ export class DaemonConnection {
     const view =
       this.access === null
         ? { events: [event], withdrawn: [] }
-        : this.updateView(event, this.access);
+        : this.view.updateView(event, this.access);
 
     for (const visible of view.events) {
       if (!this.queue.send(encodeMessage(visible))) {
@@ -446,101 +418,6 @@ export class DaemonConnection {
     }
 
     return { access: this.access.merge(access), keyNamespace: `client:${this.principal}` };
-  }
-
-  // Brings this limited connection's view up to date for an event and
-  // returns what the connection is sent for it, and the sessions that left
-  // the view. A session whose tree moved out of reach leaves the view as a
-  // removed session does; one whose tree came back into reach joins it as
-  // an added session does. The event itself reaches the connection when its
-  // session is in the view, or is gone from the daemon after the connection
-  // was shown it.
-  private updateView(event: EventMsg, access: TargetAccess): ViewUpdate {
-    const sessionID = findEventSession(event);
-    const request = typeof event['request'] === 'string' ? event['request'] : null;
-    const sent: EventMsg[] = [];
-    const withdrawn: SessionID[] = [];
-
-    for (const id of this.shownSessions) {
-      if (id !== sessionID && this.isWithheld(id, access)) {
-        this.shownSessions.delete(id);
-        this.withheldSessions.add(id);
-        withdrawn.push(id);
-        sent.push({ v: PROTOCOL_V, ev: 'SessionRemoved', s: id });
-      }
-    }
-
-    for (const id of this.withheldSessions) {
-      if (this.ctx.findSessionGrant(id) === null) {
-        this.withheldSessions.delete(id);
-      } else if (id !== sessionID && this.ctx.canSeeSession(id, access)) {
-        this.withheldSessions.delete(id);
-        this.shownSessions.add(id);
-        sent.push(...this.buildSessionAdded(id));
-      }
-    }
-
-    if (sessionID === null) {
-      if (request !== null && this.shownRequests.has(request)) {
-        sent.push(event);
-      }
-
-      return { events: sent, withdrawn };
-    }
-
-    if (this.ctx.canSeeSession(sessionID, access)) {
-      if (this.withheldSessions.delete(sessionID) && event.ev !== 'SessionAdded') {
-        sent.push(...this.buildSessionAdded(sessionID));
-      }
-
-      this.shownSessions.add(sessionID);
-
-      if (request !== null) {
-        this.shownRequests.add(request);
-      }
-
-      sent.push(event);
-
-      return { events: sent, withdrawn };
-    }
-
-    if (this.isWithheld(sessionID, access)) {
-      this.withheldSessions.add(sessionID);
-
-      if (this.shownSessions.delete(sessionID)) {
-        withdrawn.push(sessionID);
-        sent.push({ v: PROTOCOL_V, ev: 'SessionRemoved', s: sessionID });
-      }
-
-      return { events: sent, withdrawn };
-    }
-
-    // The session is gone from the daemon.
-    this.withheldSessions.delete(sessionID);
-
-    if (this.shownSessions.has(sessionID)) {
-      sent.push(event);
-    }
-
-    if (event.ev === 'SessionRemoved') {
-      this.shownSessions.delete(sessionID);
-    }
-
-    return { events: sent, withdrawn };
-  }
-
-  // Whether the daemon holds the session but the access does not reach its
-  // whole tree.
-  private isWithheld(id: SessionID, access: TargetAccess): boolean {
-    return this.ctx.findSessionGrant(id) !== null && !this.ctx.canSeeSession(id, access);
-  }
-
-  // The event that adds the session to a view, or none when the daemon no
-  // longer lists it.
-  private buildSessionAdded(id: SessionID): EventMsg[] {
-    const session = this.ctx.collectSessions().find((x) => x.id === id);
-
-    return session === undefined ? [] : [{ v: PROTOCOL_V, ev: 'SessionAdded', session }];
   }
 
   // A store query that rejects must end one request, never the daemon: a
@@ -1504,26 +1381,20 @@ export class DaemonConnection {
     const decision = parsed.data.decision;
     const result = ctx.answerPermission(request, decision);
 
-    switch (result) {
-      case 'ok': {
+    match(result)
+      .with('ok', () => {
         this.sendOk(req.id, 'permission.respond', {});
-
-        return;
-      }
-      case 'already_answered': {
+      })
+      .with('already_answered', () => {
         this.sendErr(req.id, 'already_answered', `request '${request}' was already answered`);
-
-        return;
-      }
-      case 'unsupported': {
+      })
+      .with('unsupported', () => {
         this.sendErr(req.id, 'unsupported', `request '${request}' is answered with keystrokes`);
-
-        return;
-      }
-      case 'unknown': {
+      })
+      .with('unknown', () => {
         this.sendErr(req.id, 'bad_args', `unknown permission request '${request}'`);
-      }
-    }
+      })
+      .exhaustive();
   }
 
   private async applySessionGet(req: RequestMsg, ctx: DaemonContext): Promise<void> {
@@ -2045,59 +1916,26 @@ export class DaemonConnection {
     this.helloed = true;
 
     this.helloAnswered = (async () => {
-      const fingerprint = await tcp.verifyHandshake(findBearerToken(req.p));
+      const hello = await checkTCPHello(req, {
+        tcp,
+        hasListedPrincipal: (principal) => this.ctx.hasListedPrincipal(principal),
+        build: this.ctx.build,
+      });
 
-      if (fingerprint === null) {
-        this.sendErr(req.id, 'unauthorized', 'daemon.hello over TCP needs a valid bearer token');
+      if (!hello.ok) {
+        this.sendErr(req.id, hello.code, hello.message);
         this.peer.end();
 
         return;
       }
 
-      const parsedHello = parseRequestParams('daemon.hello', req.p);
-
-      if (!parsedHello.ok) {
-        this.sendErr(req.id, 'bad_args', parsedHello.message);
-        this.peer.end();
-
-        return;
+      if (hello.principal !== null) {
+        this.setPrincipal(hello.principal);
       }
 
-      const principal = parsedHello.data.principal ?? null;
-
-      if (principal !== null && !this.ctx.hasListedPrincipal(principal)) {
-        tcp.recordRefusedPrincipal();
-
-        this.sendErr(
-          req.id,
-          'unauthorized',
-          `principal '${principal}' is not listed in principals`,
-        );
-
-        this.peer.end();
-
-        return;
-      }
-
-      if (req.v !== PROTOCOL_V) {
-        this.sendErr(
-          req.id,
-          'protocol_mismatch',
-          `${parsedHello.data.client} speaks protocol v${req.v}, daemon ${this.ctx.build} speaks v${PROTOCOL_V}; restart the daemon so both run the same build`,
-        );
-
-        this.peer.end();
-
-        return;
-      }
-
-      if (principal !== null) {
-        this.setPrincipal(principal);
-      }
-
-      this.callerSession = parsedHello.data.session ?? null;
-      this.helloClient = parsedHello.data.client;
-      this.fingerprint = fingerprint;
+      this.callerSession = hello.session;
+      this.helloClient = hello.client;
+      this.fingerprint = hello.fingerprint;
 
       await this.sendHelloOk(req.id);
     })();
@@ -2116,13 +1954,7 @@ export class DaemonConnection {
     this.principal = principal;
     this.access = access;
 
-    for (const session of this.ctx.collectSessions()) {
-      const view = this.ctx.canSeeSession(session.id, access)
-        ? this.shownSessions
-        : this.withheldSessions;
-
-      view.add(session.id);
-    }
+    this.view.startView(access);
   }
 
   private async sendHelloOk(id: number): Promise<void> {
@@ -2176,31 +2008,9 @@ function isRequestMethod(method: string): method is RequestMethod {
 
 // The token of a handshake's `auth: { scheme: "bearer", token }`, or null
 // when its params hold none.
-function findBearerToken(p: Readonly<Record<string, unknown>> | undefined): string | null {
-  const auth = p?.['auth'];
-
-  if (!isRecord(auth) || auth['scheme'] !== 'bearer' || typeof auth['token'] !== 'string') {
-    return null;
-  }
-
-  return auth['token'];
-}
 
 // The session an event belongs to, from its session id or the session it
 // adds, or null for an event of no session.
-function findEventSession(event: EventMsg): SessionID | null {
-  if (typeof event['s'] === 'string') {
-    return toSessionID(event['s']);
-  }
-
-  const session = event['session'];
-
-  if (isRecord(session) && typeof session['id'] === 'string') {
-    return toSessionID(session['id']);
-  }
-
-  return null;
-}
 
 function isPlainWorkspaceDir(dir: string): boolean {
   return (

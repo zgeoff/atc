@@ -17,8 +17,8 @@ import {
   waitFor,
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
-import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { RuntimeAuthBinder } from './runtime-auth-binder';
+import { RuntimeAuthBinder } from '../packages/app/src/daemon/runtime-auth-binder';
+import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 interface SetupConfig {
   readonly rebindChangedAuth: boolean;

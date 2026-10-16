@@ -783,3 +783,16 @@ packages/app/src/daemon/confirm-tokens.ts	daemon	sessions	packages/daemon/src/se
 packages/app/src/daemon/session-forgetter.ts	daemon	sessions	packages/daemon/src/sessions/session-forgetter.ts	
 packages/app/src/daemon/fleet-restorer.ts	daemon	fleet	packages/daemon/src/fleet/fleet-restorer.ts	
 packages/app/src/daemon/update-ended-fleet-messages.ts	daemon	fleet	packages/daemon/src/fleet/update-ended-fleet-messages.ts	
+packages/app/src/daemon/build-bind-refusal.ts	daemon	transport	packages/daemon/src/transport/build-bind-refusal.ts	
+packages/app/src/daemon/check-tcp-hello.ts	daemon	transport	packages/daemon/src/transport/check-tcp-hello.ts	
+packages/app/src/daemon/connection-view.ts	daemon	transport	packages/daemon/src/transport/connection-view.ts	
+packages/app/src/daemon/listen-options.ts	daemon	transport	packages/daemon/src/transport/listen-options.ts	
+packages/app/src/daemon/plan-binding-reconcile.ts	daemon	auth	packages/daemon/src/auth/plan-binding-reconcile.ts	
+packages/app/src/daemon/plan-binding-verify.ts	daemon	auth	packages/daemon/src/auth/plan-binding-verify.ts	
+packages/app/src/daemon/plan-launch-admission.ts	daemon	auth	packages/daemon/src/auth/plan-launch-admission.ts	
+packages/app/src/daemon/plan-ready-update.ts	daemon	auth	packages/daemon/src/auth/plan-ready-update.ts	
+packages/app/src/daemon/plan-rebind-start.ts	daemon	auth	packages/daemon/src/auth/plan-rebind-start.ts	
+packages/app/src/daemon/require-listen-tokens.ts	daemon	transport	packages/daemon/src/transport/require-listen-tokens.ts	
+packages/app/src/daemon/tcp-peer.ts	daemon	transport	packages/daemon/src/transport/tcp-peer.ts	
+packages/app/src/daemon/try-reconcile-auth-bindings.ts	daemon	auth	packages/daemon/src/auth/try-reconcile-auth-bindings.ts	
+packages/app/src/daemon/try-remove-expired-idempotency-keys.ts	daemon	transport	packages/daemon/src/transport/try-remove-expired-idempotency-keys.ts	

@@ -47,6 +47,12 @@ TESTS=(
   '16f daemon-forget session-forget'
   '16g daemon-fleet fleet-stored'
   '16g daemon-fleet-restart fleet-restart'
+  '16h daemon-auth-gateway auth-gateway'
+  '16h daemon-config-file config-file'
+  '16h daemon-connection-reach transport-connection-reach'
+  '16h daemon-principals auth-principals'
+  '16h daemon-runtime-auth auth-runtime'
+  '16h daemon-tcp transport-tcp'
 )
 
 # ticket, topic test an earlier change folded into its module's own test,
@@ -83,6 +89,19 @@ MODULES=(
   '16f session-forgetter sessions'
   '16g fleet-restorer fleet'
   '16g update-ended-fleet-messages fleet'
+  '16h build-bind-refusal transport'
+  '16h check-tcp-hello transport'
+  '16h connection-view transport'
+  '16h listen-options transport'
+  '16h plan-binding-reconcile auth'
+  '16h plan-binding-verify auth'
+  '16h plan-launch-admission auth'
+  '16h plan-ready-update auth'
+  '16h plan-rebind-start auth'
+  '16h require-listen-tokens transport'
+  '16h tcp-peer transport'
+  '16h try-reconcile-auth-bindings auth'
+  '16h try-remove-expired-idempotency-keys transport'
 )
 
 APP=packages/app/src/daemon
@@ -126,6 +145,9 @@ for row in "${TESTS[@]}"; do
   perl -0pi -e 's/,(\n\s*\])/$1/g' .oxlintrc.json
 done
 
+# the allowlist override goes once the last topic test leaves it
+perl -0pi -e 's/,\n    \{\n      \/\/ the daemon\.ts topic tests:[^{}]*?"files": \[\n\s*\],\n      "rules": \{\n[^{}]*?\}\n    \}(\n  \])/$1/' .oxlintrc.json
+
 for row in "${MODULES[@]}"; do
   read -r owner module folder <<< "$row"
 
@@ -151,7 +173,8 @@ for row in "${MODULES[@]}"; do
     } >> "$MAPS/package-stagemap.tsv"
   fi
 
-  if ! grep -q "^${app}.test.ts	" "$MAPS/package-testmap.tsv"; then
+  # a module that holds only types has no test, so it takes no test row
+  if [[ -f "${app}.test.ts" ]] && ! grep -q "^${app}.test.ts	" "$MAPS/package-testmap.tsv"; then
     {
       printf '%s.test.ts\tdaemon\tdaemon\tbeside its module\t%s.test.ts' "$app" "$final"
       printf "\t${app}.test.ts%.0s" 1 2 3 4 5 6
