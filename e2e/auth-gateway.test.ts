@@ -15,10 +15,10 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
-import { buildAgentAdapters } from '../agents/build-agent-adapters';
-import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
-import { startTestDaemon } from '../test-utils/start-test-daemon';
-import type { RestoreSettled } from './restore-fleet';
+import { buildAgentAdapters } from '../packages/app/src/agents/build-agent-adapters';
+import type { RestoreSettled } from '../packages/app/src/daemon/restore-fleet';
+import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
+import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 /**
  * A temp directory holding a fake Claude that records each start in

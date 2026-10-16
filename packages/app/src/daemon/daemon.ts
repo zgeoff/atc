@@ -7,7 +7,6 @@ import {
   loadListenerTokens,
   parseRestoreBootTimeoutMs,
 } from '@atc/config';
-import { formatListenRefusal, isAllowedListenHost } from '@atc/config/host';
 import type { AgentID, Clock, SessionID } from '@atc/core';
 import { systemClock } from '@atc/core';
 import { LocalPTYProvider } from '@atc/execution-local';
@@ -16,6 +15,7 @@ import type { AgentAdapter, SourceProvider } from '@atc/plugin-api';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import { StateStore, buildTargetIdentity } from '@atc/store';
+import { buildBindRefusal } from './build-bind-refusal';
 import type { ExecutionTarget } from './build-execution-targets';
 import { buildSessionEvent } from './build-session-event';
 import { buildTargetAccess } from './build-target-access';
@@ -33,6 +33,7 @@ import { HookIntake } from './hook-intake';
 import { startHookServer } from './hooks';
 import { IdempotencyLedger } from './idempotency-ledger';
 import { isTreeInReach } from './is-tree-in-reach';
+import type { ListenOptions } from './listen-options';
 import { makeHookRunner } from './make-hook-runner';
 import type { HookScope } from './make-hook-runner';
 import { MENU_TIMING } from './menu-terminal';
@@ -42,6 +43,7 @@ import { MessageService } from './message-service';
 import { PermissionPrompts } from './permission-prompts';
 import { PublishedRecords } from './published-records';
 import { readPeerPID } from './read-peer-pid';
+import { requireListenTokens } from './require-listen-tokens';
 import type { RestoreSettled } from './restore-fleet';
 import type { SettleScheduler } from './run-eject-handoff';
 import { RuntimeAuthBinder } from './runtime-auth-binder';
@@ -62,6 +64,8 @@ import { startHeadlessTurn } from './start-headless-turn';
 import { startTCPListener } from './start-tcp-listener';
 import type { TCPListener } from './start-tcp-listener';
 import { TapRegistry } from './tap-registry';
+import { tryReconcileAuthBindings } from './try-reconcile-auth-bindings';
+import { tryRemoveExpiredIdempotencyKeys } from './try-remove-expired-idempotency-keys';
 import { updateEndedFleetMessages } from './update-ended-fleet-messages';
 import { withOwnerOnlySocket } from './with-owner-only-socket';
 
@@ -235,30 +239,6 @@ export interface DaemonOptions {
   readonly homeDir?: string;
 }
 
-// The TCP listener's address and the file holding the tokens a handshake
-// may present.
-interface ListenOptions {
-  readonly host: string;
-  readonly port: number;
-  readonly tokenFile: string;
-
-  // How long a handshake waits once its source address has failed five
-  // times within a minute; 10 s when unset.
-  readonly failureDelayMs?: number;
-
-  // How many delayed handshakes may wait at once across every address; 64
-  // when unset.
-  readonly maxDelayedHandshakes?: number;
-
-  // How long the refusal log folds repeated refusals from one peer into one
-  // line; a minute when unset.
-  readonly refusalLogIntervalMs?: number;
-
-  // How many peers and kinds of refusal the refusal log tracks at once;
-  // 1024 when unset.
-  readonly maxRefusalWindows?: number;
-}
-
 export interface DaemonHandle {
   // A second stop, or a disposal after one, waits on the first and stops
   // nothing again.
@@ -376,10 +356,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   await store.reconcileIdempotencyKeys(clock.now());
   await store.reconcileAuthBindings(clock.now());
 
-  await tryRemoveExpiredIdempotencyKeys(store, clock);
+  await tryRemoveExpiredIdempotencyKeys(store, clock, IDEMPOTENCY_TTL_MS);
 
   const idempotencySweep = setInterval(() => {
-    void tryRemoveExpiredIdempotencyKeys(store, clock);
+    void tryRemoveExpiredIdempotencyKeys(store, clock, IDEMPOTENCY_TTL_MS);
   }, IDEMPOTENCY_SWEEP_MS);
 
   idempotencySweep.unref();
@@ -1052,84 +1032,4 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     listenPort: tcpListener?.port ?? null,
     refreshTokens,
   };
-}
-
-// The tokens the TCP listener starts with. Throws, with the code a refused
-// start carries, for an address outside the allowed ranges or a token file
-// that fails to load, so the daemon never starts with a listener that
-// takes no token or binds where it must not.
-function requireListenTokens(listen: ListenOptions): readonly string[] {
-  if (!isAllowedListenHost(listen.host)) {
-    throw Object.assign(new Error(`atc daemon: ${formatListenRefusal(listen.host)}`), {
-      code: 'listen_refused',
-    });
-  }
-
-  const loaded = loadListenerTokens(listen.tokenFile);
-
-  if (!loaded.ok) {
-    throw Object.assign(new Error(`atc daemon: --token-file: ${loaded.reason}`), {
-      code: 'listen_refused',
-    });
-  }
-
-  return loaded.tokens;
-}
-
-// The refused start for a TCP listener whose bind failed, holding the
-// address and the bind error's code, such as EADDRINUSE for a port another
-// socket holds.
-function buildBindRefusal(listen: ListenOptions, error: unknown): Error {
-  const code: unknown = error instanceof Error ? Reflect.get(error, 'code') : null;
-
-  const address = listen.host.includes(':')
-    ? `[${listen.host}]:${listen.port}`
-    : `${listen.host}:${listen.port}`;
-
-  const reason = typeof code === 'string' ? code : String(error);
-
-  return Object.assign(new Error(`atc daemon: --listen cannot bind ${address} (${reason})`), {
-    code: 'listen_refused',
-  });
-}
-
-// A sweep that fails leaves the keys for the next one.
-async function tryRemoveExpiredIdempotencyKeys(store: StateStore, clock: Clock): Promise<boolean> {
-  try {
-    await store.removeExpiredIdempotencyKeys(clock.now() - IDEMPOTENCY_TTL_MS);
-  } catch {
-    return false;
-  }
-
-  return true;
-}
-
-// Settles the runtime auth bindings a stopped daemon left mid-change, each
-// through its target's broker; a host with a fleet entry is listed, and a
-// failure is logged and leaves its binding blocked.
-async function tryReconcileAuthBindings(
-  binder: RuntimeAuthBinder,
-  store: StateStore,
-  targets: ReadonlyMap<string, ExecutionTarget>,
-  log: (line: string) => void,
-): Promise<boolean> {
-  try {
-    const fleet = await store.loadFleet();
-
-    const listed = new Set(fleet.map((entry) => entry.hostKey ?? entry.sessionID));
-
-    await binder.reconcileBindings(
-      (target) => targets.get(target)?.provider?.brokerAuth ?? null,
-      listed,
-      log,
-    );
-  } catch (error) {
-    log(
-      `atc could not settle runtime auth bindings (${error instanceof Error ? error.message : String(error)})`,
-    );
-
-    return false;
-  }
-
-  return true;
 }

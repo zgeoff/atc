@@ -19,11 +19,11 @@ import {
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
-import { buildPrincipalCaller } from '../mcp/build-principal-caller';
-import { runTool } from '../mcp/run-tool';
-import { TransportCaller } from '../mcp/transport-caller';
-import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { buildStubTargets } from './testing/build-stub-targets';
+import { buildStubTargets } from '../packages/app/src/daemon/testing/build-stub-targets';
+import { buildPrincipalCaller } from '../packages/app/src/mcp/build-principal-caller';
+import { runTool } from '../packages/app/src/mcp/run-tool';
+import { TransportCaller } from '../packages/app/src/mcp/transport-caller';
+import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 test('it refuses a client a configured target other than local when the config has no principals', async () => {
   const harnesses: string[] = [];

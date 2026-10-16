@@ -3,9 +3,9 @@ import { toDaemonID, toMessageID, toSessionID } from '@atc/core';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { buildMockFleetEntry, buildMockMessageRecord } from '@atc/store/testing';
 import { buildMockSessionDescriptor, buildStubPeerSocket } from '@atc/test-utils';
-import { buildStubDaemonContext } from '../test-utils/build-stub-daemon-context';
-import { DaemonConnection } from './daemon-connection';
-import type { DaemonContext } from './daemon-context';
+import { DaemonConnection } from '../packages/app/src/daemon/daemon-connection';
+import type { DaemonContext } from '../packages/app/src/daemon/daemon-context';
+import { buildStubDaemonContext } from '../packages/app/src/test-utils/build-stub-daemon-context';
 
 test('it answers session.get whose session leaves the view during the read as for a session that does not exist', async () => {
   const entered = Promise.withResolvers<void>();

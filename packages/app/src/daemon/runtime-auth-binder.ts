@@ -9,6 +9,11 @@ import { z } from 'zod';
 import { BrokerAuthorityError } from './broker-authority-error';
 import type { AuthBinding } from './build-auth-binding';
 import { collectSecretRuleMismatches } from './collect-secret-rule-mismatches';
+import { planBindingReconcile } from './plan-binding-reconcile';
+import { planBindingVerify } from './plan-binding-verify';
+import { planLaunchAdmission } from './plan-launch-admission';
+import { planReadyUpdate } from './plan-ready-update';
+import { planRebindStart } from './plan-rebind-start';
 import { verifyBrokerAuthority } from './verify-broker-authority';
 import { verifyCleanupAuthority } from './verify-cleanup-authority';
 
@@ -144,7 +149,7 @@ export class RuntimeAuthBinder {
     await this.withHostLock(hostKey, async () => {
       const row = await this.store.findAuthBinding(hostKey);
 
-      if (row?.state === 'provisioning' && row.attemptID === attemptID && row.rebind === null) {
+      if (planReadyUpdate(row, attemptID) === 'ready') {
         await this.store.updateAuthBinding(hostKey, { state: 'ready' }, this.now());
       }
     });
@@ -184,11 +189,9 @@ export class RuntimeAuthBinder {
       }
 
       const isChanged = row.bindingHash !== binding.hash;
+      const plan = planBindingVerify(row, isChanged, rebind !== null);
 
-      const isRebindable =
-        rebind !== null && isChanged && (row.state === 'ready' || row.state === 'rebind_failed');
-
-      if (row.state !== 'ready' && !isRebindable) {
+      if (plan === 'blocked') {
         throw new DaemonError(
           'auth_blocked',
           `the runtime auth of host ${hostKey} is ${row.state}; rebind it to launch again`,
@@ -196,7 +199,7 @@ export class RuntimeAuthBinder {
         );
       }
 
-      if (isRebindable) {
+      if (plan === 'rebind' && rebind !== null) {
         return this.updateChangedBinding(host, row, binding, rebind);
       }
 
@@ -337,13 +340,7 @@ export class RuntimeAuthBinder {
     return this.withHostLock(hostKey, async () => {
       const row = await this.store.findAuthBinding(hostKey);
 
-      const isProvisioning =
-        admission.attemptID !== null &&
-        row?.state === 'provisioning' &&
-        row.attemptID === admission.attemptID &&
-        row.rebind === null;
-
-      if (row === null || (row.state !== 'ready' && !isProvisioning)) {
+      if (row === null || planLaunchAdmission(row, admission.attemptID) === 'blocked') {
         throw new DaemonError(
           'auth_blocked',
           `the runtime auth of host ${hostKey} is ${row?.state ?? 'gone'}; nothing launches on it until a rebind`,
@@ -479,16 +476,7 @@ export class RuntimeAuthBinder {
   ): Promise<number> {
     const hostKey = row.hostKey;
 
-    // A spawn whose session listed but never recorded its start leaves a
-    // provisioned imp a rebind may take on.
-    const isProvisioned = row.state === 'provisioning' && row.rebind === null && row.impID !== null;
-
-    if (
-      row.state !== 'ready' &&
-      row.state !== 'revoked' &&
-      row.state !== 'rebind_failed' &&
-      !isProvisioned
-    ) {
+    if (planRebindStart(row) === 'blocked') {
       throw new DaemonError(
         'auth_blocked',
         `the runtime auth of host ${hostKey} is ${row.state}, which a rebind cannot move on from`,
@@ -632,19 +620,18 @@ export class RuntimeAuthBinder {
 
     for (const row of rows) {
       const host = findHost(row.target);
-      const isOrphan = !listedHostKeys.has(row.hostKey);
+
+      const plan = planBindingReconcile(row, {
+        isOrphan: !listedHostKeys.has(row.hostKey),
+        hasHost: host !== null,
+      });
 
       try {
-        if (
-          row.rebind !== null &&
-          (row.state === 'provisioning' || row.state === 'rebind_failed')
-        ) {
+        if (plan === 'settle_rebind') {
           await this.reconcileRebind(host, row);
-        } else if (
-          isOrphan &&
-          (row.state === 'provisioning' || row.state === 'rollback_pending') &&
-          host !== null
-        ) {
+        }
+
+        if (plan === 'remove_attempt' && host !== null) {
           await this.removeAttempt(host, row.hostKey, row.attemptID);
         }
       } catch (error) {

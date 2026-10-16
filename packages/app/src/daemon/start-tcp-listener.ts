@@ -1,9 +1,10 @@
 import type { Clock } from '@atc/core';
-import type { DaemonConnection, TCPPeer } from './daemon-connection';
+import type { DaemonConnection } from './daemon-connection';
 import { findTokenFingerprint } from './find-token-fingerprint';
 import { formatLogField } from './format-log-field';
 import { HandshakeThrottle } from './handshake-throttle';
 import { RefusalLog } from './refusal-log';
+import type { TCPPeer } from './tcp-peer';
 
 // The slice of an accepted socket a protocol connection writes to and ends.
 interface ListenerSocket {

@@ -273,22 +273,6 @@
           }
         ]
       }
-    },
-    {
-      // the daemon.ts topic tests: the daemon split (GEO-401) moved each
-      // topic of daemon.ts into a test of its own, so no module shares its
-      // name; listed by file, so a new orphan test still fails the rule
-      "files": [
-        "packages/app/src/daemon/daemon-auth-gateway.test.ts",
-        "packages/app/src/daemon/daemon-config-file.test.ts",
-        "packages/app/src/daemon/daemon-connection-reach.test.ts",
-        "packages/app/src/daemon/daemon-principals.test.ts",
-        "packages/app/src/daemon/daemon-runtime-auth.test.ts",
-        "packages/app/src/daemon/daemon-tcp.test.ts"
-      ],
-      "rules": {
-        "zgeoff/test-beside-module": "off"
-      }
     }
   ],
   "ignorePatterns": [".claude/**", "docs/design/**", "mods/**"]
