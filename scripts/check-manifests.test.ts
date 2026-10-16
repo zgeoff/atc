@@ -888,6 +888,102 @@ test('it lets a test load a preloaded module that no entry point reaches', async
   });
 });
 
+test('it lets an entry point name a preloaded module only through type-only specifiers', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'package.json'),
+    JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'bunfig.toml'),
+    '[test]\npreload = ["./packages/test-utils/src/isolate-home.ts"]\n',
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/test-utils/package.json'),
+    JSON.stringify({ name: '@atc/test-utils', exports: { '.': './src/index.ts' } }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/test-utils/src/index.ts'),
+    "export { type Home } from './isolate-home.ts';\nexport * from './wait-for';\n",
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/test-utils/src/wait-for.ts'),
+    "import { type Home } from './isolate-home.ts';\n\nexport const WAIT: Home | null = null;\n",
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/test-utils/src/isolate-home.ts'),
+    "export type Home = { root: string };\nexport const startHome = () => '/';\n",
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-manifests.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 0,
+    stdout: 'check-manifests: 2 packages, 3 files, 0 findings\n',
+    stderr: '',
+  });
+});
+
+test('it fails on an entry point that names a preloaded module among a value and a type', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'package.json'),
+    JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'bunfig.toml'),
+    '[test]\npreload = ["./packages/test-utils/src/isolate-home.ts"]\n',
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/test-utils/package.json'),
+    JSON.stringify({ name: '@atc/test-utils', exports: { '.': './src/index.ts' } }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/test-utils/src/index.ts'),
+    "export { type Home, startHome } from './isolate-home.ts';\n",
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/test-utils/src/isolate-home.ts'),
+    "export type Home = { root: string };\nexport const startHome = () => '/';\n",
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-manifests.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-manifests: 2 packages, 2 files, 1 findings\n',
+    stderr:
+      'preloaded module: packages/test-utils/src/index.ts, which packages/test-utils/src/index.ts reaches as an entry point of packages/test-utils, loads ./isolate-home.ts, which bunfig.toml preloads as ./packages/test-utils/src/isolate-home.ts; import it by path\n',
+  });
+});
+
 test('it resolves an extensionless preload the way bun does', async () => {
   const ctx = setupTest();
 
