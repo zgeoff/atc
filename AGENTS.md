@@ -19,38 +19,99 @@ The rules a task needs are not repeated here. Load the skill for the work before
 | `docs-writing`    | writing or editing any committed prose: `docs/`, READMEs, this file, skills                   |
 | `tool-contract`   | adding, renaming, or redescribing an `atc mcp` tool or an atc-bridge tool                     |
 
+## Layout
+
+A Bun workspace. The root package is private and holds the repo tooling. Every workspace package is
+private, sits under `packages/`, and is named `@atc/<name>`; `scripts/package-rules.ts` lists them
+and the internal packages each may depend on.
+
+- `packages/app` holds the app: both entrypoints and every module they wire together. `cli.ts` is
+  the CLI entrypoint. `gateway.ts` is the entrypoint of the separate `atc-gateway` binary, which
+  never starts a daemon.
+- The app's `src/` groups modules by concern: `daemon/` (the fleet and per-session runtime state),
+  `client/` (the TUI and its connection), `agents/` (adapters from the config's agent map),
+  `workspace/` (a spawn's workspace source), `sources/` (the spawn picker's source order),
+  `plugins/` (the shipped plugin lists), `mcp/` (the MCP tools, the HTTP transport, and the auth
+  server), `federation/` (the gateway's daemon registry), `shared/`, and `test-utils/` (helpers that
+  start or drive the daemon). A module that exists only to back one subcommand stays beside it at
+  the `src/` root.
+- `packages/harnesses/`, `packages/execution/`, and `packages/sources/` hold one plugin package
+  each; the app wires them together. `packages/plugin-api` holds the contracts a plugin implements,
+  among them the `AgentAdapter` interface.
+- `packages/test-utils` holds the generic test helpers, stand-ins, factories, and the test preload.
+- `e2e/` holds the end-to-end suites, `mods/` the `atc-bridge` Claude Code mod, `bin/atc` the dev
+  shim that runs the CLI from a checkout, and `scripts/` the repo tooling.
+
+### Entry points
+
+An entry point is the `index.ts` at the root of a folder, and the rest of the folder stays internal.
+Most packages have one entry, `.`, and a package with a `src/testing/` folder adds a `./testing`
+entry that `.` never re-exports. A package gets a second entry only for a reason, never one entry
+per file. The usual reason is start-up time: a hook or statusline command starts once per event
+inside a session, so a package whose `.` entry builds Zod schemas, the protocol contract, or the
+store keeps what a reporter needs in a light entry that `.` re-exports. A module never imports its
+own package by name; imports inside a package stay relative. The preload modules that `bunfig.toml`
+loads by path stay out of `@atc/test-utils`'s entry, because they run top-level code.
+
+## Commands
+
+- `bun run typecheck`, `bun run lint`, and `bun run test` are the local checks.
+  `bun run test:related <files>` runs the tests beside the files you pass.
+- `bun run lint:full` adds the type-aware pass and the type check. It runs in CI only: never run it
+  locally.
+- `bun run build:import-rules` regenerates `.oxlintrc.imports.json` after a change to
+  `scripts/package-rules.ts` or `scripts/package-confinement.ts`.
+- `bun run build:atc-bridge` regenerates the mod's embedded copy after a change to
+  `mods/atc-bridge/`.
+- lefthook runs the light checks before a commit and a push. Defer larger checks to CI, as the
+  environment you work in may have conservative memory limits.
+
+## Checks
+
+Each gate is a root `package.json` script; invoke it by script name, never by re-spelling the
+command. A failure prints its own reason, and the rules live where each bullet points.
+
+- `bun run check:imports`: the import graph inside the app's `src/` — cycles and the directory rows
+  in `scripts/check-imports.ts`.
+- `bun run lint` (oxlint): the per-import package rules in `.oxlintrc.imports.json`, generated from
+  `scripts/package-rules.ts` and `scripts/package-confinement.ts`, plus `.oxlintrc.json`.
+- `bun run lint:mods`: the confinement rules and the `require()` and `import()`-type bans for
+  `mods/`, in `.oxlintrc.mods.json`.
+- `bun run check:manifests`: each package's manifest, `exports` map, and import specifiers, in
+  `scripts/check-manifests.ts`.
+- `bun run check:reach`: what the gateway entry, the reporters, and `cli.ts` may reach, in
+  `scripts/check-reach.ts`.
+- `bun run check:bundle`: the execution providers the atc bundle carries, in
+  `scripts/check-bundle.ts`.
+- `bun run check:disable-baseline`: the count of directives that switch off an import rule, against
+  `scripts/disable-baseline.json`.
+- `bun run deadcode`: knip, configured in `knip.json`.
+- `bun run test:isolation`: the suite in a canary home, failing when a test touches a real home.
+
 ## Operations
 
 - Perform all work on a branch in a git worktree under `.worktrees/` (e.g.
   `git worktree add .worktrees/<branch> -b <branch>`) — never commit directly on `main`.
-- Use [Conventional Commits](https://www.conventionalcommits.org/) for all commit messages.
-- A squash merge makes the PR title the commit subject, so a PR title is a Conventional Commit too.
+- Commit messages and PR titles are [Conventional Commits](https://www.conventionalcommits.org/) in
+  the imperative mood. A squash merge makes the PR title the commit subject, so
   `feat(#412): add the retry budget` is a title; `add the retry budget` is not.
-- Commit subjects and PR titles use the imperative mood ("add X", never "added X" or a bare noun
-  phrase).
 - Open PRs against `main` using the PR template (`.github/PULL_REQUEST_TEMPLATE.md`). Descriptions
   are condensed: lead paragraph ≤2 sentences, one-line bullets, ≤150 words — write the short version
   first, don't draft long and trim.
 - After pushing, link the PR URL in your response.
 - A PR is ready only when its checks are green: watch CI (`gh pr checks <n> --watch`) after opening
   or updating, and report a failure with what you're doing about it.
-- Light linting, formatting, and other checks run via lefthook's pre-commit and pre-push hooks.
-  Defer to CI for larger checks, as the environment you're operating in may have conservative memory
-  constraints.
-- `bun run lint` is plain oxlint. `bun run lint:full` adds the type-aware pass and the type check,
-  and is CI-only: never run it locally.
 
 ## Dependencies
 
-- Pin exact versions — no `^`/`~` ranges. (`bun add` saves exact automatically via `exact = true` in
-  bunfig.toml — the rule applies to hand-written edits.) The 7-day `minimumReleaseAge` gate applies.
-  When the latest version is younger than the gate, pin the newest version that passes — don't add
-  exclusions for convenience.
+- Pin exact versions — no `^`/`~` ranges. `bun add` saves exact; the rule applies to hand-written
+  edits.
+- The 7-day `minimumReleaseAge` gate applies. When the latest version is younger than the gate, pin
+  the newest version that passes — don't add exclusions for convenience.
 - A dependency knip can't see gets its `knip.json` ignore entry in the same PR that introduces it,
-  with the reason in the PR description.
-- `knip.json` ignores two dependencies that oxlint loads where knip cannot trace them, and takes no
-  comments, so the reasons live here. `.oxlintrc.json` extends `@zgeoff/oxlint-config` through a
-  `node_modules` path, and that config loads `@stylistic/eslint-plugin` by name as a JS plugin.
+  with the reason in the PR description. `knip.json` takes no comments, so the reasons for its two
+  ignores live here: `.oxlintrc.json` extends `@zgeoff/oxlint-config` through a `node_modules` path,
+  and that config loads `@stylistic/eslint-plugin` by name as a JS plugin.
 
 ## Review bots
 
@@ -74,170 +135,67 @@ cover it too.
   PR that got no review at all, such as one opened before the bot was installed: request it once
   with that bot's documented trigger, such as `@coderabbitai review` for CodeRabbit.
 
-## Layout
-
-A Bun workspace whose root package is private and holds the repo tooling. Every workspace package
-sits under `packages/`, is private, is named `@atc/<name>`, and takes each external dependency from
-the root catalog (`workspaces.catalog`). `packages/app` holds the app: both entrypoints and every
-module they wire together. Its `src/` groups its modules by concern, each still one primary export
-per file: `daemon/` owns the fleet and per-session runtime state; `client/` is the TUI and its
-connection to the daemon; `agents/` builds the agent adapters from the config's agent map;
-`workspace/` resolves a spawn's workspace source and clones, sanitizes, and archives it; `sources/`
-puts the spawn picker's discovery sources in the order the daemon offers them; `shared/` holds
-utilities used across the rest of the app's `src/`. Each harness, execution, and source plugin sits
-in a package of its own under `packages/harnesses/`, `packages/execution/`, or `packages/sources/`,
-and the app wires them together. `cli.ts` is the CLI entrypoint, and `gateway.ts` is the entrypoint
-of the separate `atc-gateway` binary, which must never reach `daemon/`, `agents/`, or any module
-that starts a daemon. A module that exists only to back one of its subcommands stays beside it at
-the app's `src/` root, while the `tui` and `daemon` subcommands load their subsystems from `client/`
-and `daemon/`. `bun run check:imports` fails on an import cycle in the app and on an import a
-directory's rule forbids; the rules live in `scripts/check-imports.ts`. Each import rule has one
-gate: the oxlint overrides own the rules that one import statement breaks, and the scripts own the
-rules about manifests and the import graph, so a rule change touches one file and a failure prints
-one message. `scripts/package-rules.ts` holds the packages and the internal packages each may depend
-on, and three gates read it. The oxlint overrides in `.oxlintrc.imports.json`, which
-`bun run build:import-rules` generates, refuse an import outside a package's row, a deep import into
-another package's `src/`, a subpath that a package's `exports` map does not list, a test helper in
-production code, and a confined external package outside the packages and files that
-`scripts/package-confinement.ts` lists. Those rules read import and export statements and `import()`
-calls, and oxlint refuses a `require()` call, so every module load takes a form they read.
-`bun run lint:mods` applies the confinement rules and the bans on `require()` and on `import()`
-types to `mods/`, which the main oxlint config ignores because the mod follows Claude Code's mod API
-rather than the repo's style rules. `bun run check:manifests` fails on an import the manifest does
-not declare, on a package with no `exports` map or with a wildcard entry, on a relative path into
-another package, and on a specifier that no import rule can read: a module load whose specifier is
-not a quoted string, or a resolve form in a workspace package whose specifier is not a literal.
-`bun run check:reach` fails when the gateway entry reaches a module the gateway must never load, and
-when the static import graph of a reporter or of `cli.ts` reaches a package module outside the light
-entries. `bun run check:bundle` fails when the atc bundle carries an execution provider that the
-shipped execution plugins list leaves out, or when a build whose list keeps only the local provider
-carries any other provider's code. `bun run check:disable-baseline` fails when more directives
-switch off an import rule than `scripts/disable-baseline.json` allows. `mcp/` holds the MCP tool
-definitions and request handling that `mcp-server.ts` serves, plus the HTTP transport behind
-`mcp-http-server.ts` and the better-auth authorization server and its pages. `federation/` holds the
-gateway's daemon registry, per-daemon callers, and id and cursor rewriting, and imports only
-`shared/` and `protocol/`. The app's `test-utils/` holds the helpers that start or drive the daemon.
-The `@atc/plugin-api` package (`packages/plugin-api/`) holds the contracts a harness, execution, or
-source plugin implements, among them the `AgentAdapter` interface, the host services a plugin
-receives, and the helpers harnesses share. The `@atc/test-utils` package (`packages/test-utils/`)
-holds the generic test helpers, stand-ins, and factories and the test preload, each helper with its
-test beside it. A helper that runs atc or atc-gateway takes the source entry that
-`scripts/with-test-home.sh` exports, so it does not depend on where the app sits. No production
-module imports either one. `e2e/` at the repo root holds the end-to-end suites that run the whole
-program, and `bin/atc` is the dev shim that runs the app's CLI entrypoint from a checkout. `mods/`
-holds the `atc-bridge` Claude Code mod. `scripts/` holds repo tooling, not app code.
-
-Each workspace package lists its entry points in an explicit `exports` map, so another package
-imports only what the package means to share. An entry point is the `index.ts` at the root of a
-folder: it re-exports what other packages may use, and the rest of the folder stays internal. Most
-packages have one entry, `.`, at `src/index.ts`, and a package with a `src/testing/` folder adds a
-`./testing` entry that `.` never re-exports. A second entry moves its modules into a folder of its
-own, and a package gets one only for a reason, never one entry per file. The reason is usually
-start-up time. A compiled entry point runs the top-level code of every module it re-exports, and a
-hook or statusline command starts once per event inside a session, so the reporters and the static
-imports of `cli.ts` load only the light entries that `scripts/check-reach.ts` lists. A package whose
-`.` entry builds Zod schemas, the protocol contract, or the store keeps the modules a reporter needs
-in a light entry, and its `.` entry re-exports that light entry, so a module off the reporters' path
-can import everything through `.`. Core's `.` entry is itself light: it leaves the Zod field
-builders, whose import loads Zod, to its `./schema` entry. The store's `./sqlite` entry gives the
-gateway its `mcp-auth.db` opener without the rest of the store. A module never imports its own
-package by name: imports inside a package stay relative. `@atc/test-utils` has one `.` entry, and
-the preload modules that `bunfig.toml` loads by path stay out of it, because they run top-level
-code.
-
 ## Runtime rules
 
 - Bun only. `bun test`, never vitest or jest. `bun <file>`, never node or ts-node.
 - PTYs come from `bun-pty`. Never add `node-pty`: its fd-socket plumbing delivers no data events
   under Bun.
-- The TUI is hand-rolled ANSI on purpose — no TUI framework. Escape sequences are written as
-  `\u001B` escapes, never raw bytes and never `\x1b`.
-- Everything the hooks and CI run is a root `package.json` script; invoke gates by script name,
-  never by re-spelling the underlying command.
+- The TUI is hand-rolled ANSI on purpose — no TUI framework. Write escape sequences as `\u001B`
+  escapes, never raw bytes.
 - Releases ship only compiled binaries (`bun build --compile`). Code that needs a file outside the
   bundle at runtime (a package's native binary, the source tree) checks `isCompiledBinary()` and
   takes the path that works without `node_modules`; the daemon suite runs through each binary in CI
   with `ATC_BIN`, so that branch is tested.
 - The live install on a machine runs an installed release: the global MCP server entry, every
   service unit, and every long-running `atc` process start `~/.local/bin/atc` (or the release's
-  install path), never `bun packages/app/src/cli.ts` from a checkout. A pull or branch switch in a
-  checkout then never changes the protocol a live client speaks. Run source builds against a daemon
-  of their own, in a state directory of their own.
+  install path), never `bun packages/app/src/cli.ts` from a checkout, so a pull or branch switch in
+  a checkout never changes the protocol a live client speaks. Run source builds against a daemon of
+  their own, in a state directory of their own.
 
 ## Agent integration contract
+
+[Agent integration](docs/architecture/agents/agent-integration.md) describes how each agent is
+instrumented. These rules hold for any change to it:
 
 - Everything specific to one agent CLI lives in its adapter behind the `AgentAdapter` interface — a
   new agent CLI is an adapter, not a refactor.
 - Claude sessions are instrumented only through files atc writes and passes per invocation: the
-  generated `--settings` file (`writeHookSettings`), holding hooks (`SessionStart`, `Notification`,
-  `Stop`, `UserPromptSubmit`, `SessionEnd`) and a chained statusline, and the `atc-bridge` mod
-  passed as `--plugin-dir`. A session that signs in through impd's broker on an imp also gets a
-  Claude config folder of its own in its guest folder, passed as `CLAUDE_CONFIG_DIR` and seeded with
-  onboarding state, the seen mark of the one-time offer to block reads outside the working
-  directories, clone trust, and a sign-in file that holds the broker placeholder, which a Claude CLI
-  a tool starts signs in with. Every Claude session gets a scratch folder of its own, passed as
-  `--add-dir` and as `TMPDIR`. Stock Claude's folder also takes an allow-listed copy of the daemon
-  host's own Claude config at each launch; atc reads that config and never writes it.
-- The `atc-bridge` mod's source lives in `mods/atc-bridge/`. `bun run build:atc-bridge` regenerates
-  its embedded copy in `packages/harnesses/claude/src/bridge/atc-bridge-files.ts`, which compiled
-  binaries write out. The mods API is early access, so CI validates and tests the mod against one
-  pinned Claude Code version. Never write into the user's own agent config (Claude, Grok, or any
-  future agent); instrumentation an agent cannot take per-invocation is a documented self-install
-  step. One exception: a local launch that opts into clone trust adds one folder-trust entry for its
-  verified clone root to the user's Claude config, under Claude's own lock, since Claude takes trust
-  no other way.
-- The config's `agents` map is the registry: one adapter per entry, keyed by the entry's id, so
-  several entries of one kind coexist. A Claude-compatible backend is an entry with a `baseURL`, not
-  a new adapter class per vendor: it gets its own agent id, its own generated settings file, and its
-  `ANTHROPIC_BASE_URL` in that file's `env` block. The credential never goes in the file — a helper
-  command supplies it.
-- Grok attention is a user-installed hook file at `$GROK_HOME/hooks/atc-reporter.json`. atc prints
-  that file (`atc grok-hooks`) and never writes into the user's Grok config.
-- Codex attention is user-installed hook entries in `$CODEX_HOME/hooks.json`, printed by
-  `atc codex-hooks` and trusted once in the Codex TUI — Codex parses untrusted hooks but never runs
-  them. A Codex session that signs in through impd's broker on an imp instead gets a Codex home of
-  its own in its guest folder, passed as `CODEX_HOME`, with a sign-in file that holds no credential,
-  a config, and those hook entries, which it runs with `--dangerously-bypass-hook-trust`. A Claude
-  session whose auth selects that ChatGPT sign-in gets a Codex home without hook entries in its auth
-  binding's revision folder, passed as `CODEX_HOME`, for the Codex CLI it runs as a tool.
+  generated `--settings` file, the `atc-bridge` mod passed as `--plugin-dir`, and the per-session
+  folders the doc lists.
+- Never write into the user's own agent config (Claude, Grok, or any future agent); instrumentation
+  an agent cannot take per invocation is a documented self-install step (`atc grok-hooks`,
+  `atc codex-hooks`). One exception: a local launch that opts into clone trust adds one folder-trust
+  entry for its verified clone root to the user's Claude config, under Claude's own lock, since
+  Claude takes trust no other way.
+- The config's `agents` map is the registry: one adapter per entry, keyed by the entry's id. A
+  Claude-compatible backend is an entry with a `baseURL`, not a new adapter class per vendor, and
+  its credential never goes in the generated file — a helper command supplies it.
 - Hook and statusline reporters run inside the wrangled session and must always exit 0 — a broken
   reporter must never break the session it reports on.
 - The agent is the naming authority for sessions: `/rename` custom-titles beat user-typed names beat
   auto-summaries.
-- A spawn through `atc mcp` from inside a session makes a sub-session of the caller: listed under
-  it, pinned and killed with it, one level deep. The MCP server reads the caller from
-  `ATC_SESSION_ID`; `detached: true` opts out, and `atc_session_update` with `parent: null` detaches
-  an existing sub-session.
-- State lives in `~/.local/state/atc/`: `atc.db` (SQLite — fleet, hook-event trail, spawn history)
-  plus `status.json`, which stays a plain file because statusline reporters read it without speaking
-  the protocol. `mcp-auth.db` holds the OAuth state of `atc mcp --http` and the owner's passkeys;
-  only that process, `atc clients`, `atc grants`, and `atc passkeys` open it, never the daemon.
-  `daemon.lock` admits one daemon per state directory, and `daemon.json` holds its pid and socket
-  paths for clients whose environment computes other socket paths. The fleet is rewritten on
-  deliberate kills only, so crashes leave a restorable fleet; killed sessions persist as exited
-  entries until a second kill removes them, except on a target that can destroy its host, where only
-  a confirmed `session.forget` removes one.
+- The mods API is early access, so CI validates and tests the mod against one pinned Claude Code
+  version.
+
+## State
+
+State lives in `~/.local/state/atc/`; the [architecture overview](docs/architecture/overview.md)
+covers its stores. These rules hold for any change to it:
+
+- `status.json` stays a plain file, because statusline reporters read it without speaking the
+  protocol.
+- Only `atc mcp --http`, `atc clients`, `atc grants`, and `atc passkeys` open `mcp-auth.db`, never
+  the daemon.
+- A session death the owner never asked for rewrites nothing in the fleet, so a crash leaves a
+  restorable fleet. [Fleet and restore](docs/architecture/daemon/fleet-and-restore.md) holds the
+  rules for each rewrite.
 
 ## MCP and bridge tools
 
-The `tool-contract` skill holds the rules for every `atc mcp` tool and every atc-bridge tool, each
-with an example from the current tools; load it before you add, rename, or redescribe one. An agent
-picks a tool from its name and description alone, so the rules start there:
-
-- Name an `atc mcp` tool `atc_<noun>_<verb>`, where the noun is the channel it reaches
-  (`atc_terminal_type`, `atc_message_send`); a bridge tool takes a single verb or noun inside the
-  `mcp__atc-bridge__` namespace (`note`). Never imply a capability the tool lacks.
-- Write the description in order: what the tool does and on which channel, when to use another tool
-  instead, what the result means, then the limits.
-- Say only what a result shows (written, queued, delivered, answered), and name the read that shows
-  more.
-- State what the tool cannot do, what it destroys, its defaults, and what a retry does.
-- Put field meanings in output-schema property descriptions, never an `enum`, and keep one sentence
-  in the description that states where a partial or failing result is flagged.
-- State a known bug without an issue reference, and remove the clause with the fix.
-- Check each claim against the code or a live run on a dev daemon, never from memory.
-- Rename with a breaking change and no alias; an old daemon gets `daemon_outdated`.
-- Use one word per concept across tools, events, CLI, and docs: note, never report.
+The `tool-contract` skill holds the rules for every `atc mcp` tool and every atc-bridge tool; load
+it before you add, rename, or redescribe one. An `atc mcp` tool is named `atc_<noun>_<verb>`, where
+the noun is the channel it reaches. Check each claim in a description against the code or a live run
+on a dev daemon, never from memory.
 
 ## Writing
 
@@ -255,14 +213,13 @@ picks a tool from its name and description alone, so the rules start there:
 
 ## Testing
 
-Testing conventions live in the shared `testing` skill and in atc's `project-testing` skill (the
-test home and the PTY harness); load both. Two rules worth restating here: never spawn the real
-`claude` binary in tests (verification against real Claude Code happens manually before merging
-changes to the integration contract), and every gate is invoked as a root package script. One
-exception to the first rule: `test:atc-bridge` runs `claude plugin validate` and
-`claude plugin test` on the mod, and neither starts a session.
-
-The Claude config lock's test runs against `proper-lockfile`, the lock library Claude Code bundles,
-and not against Claude itself. So the manual check before an integration-contract merge also
-confirms that the pinned Claude Code version refreshes a held lock well inside the age at which atc
-takes a lock over as stale.
+- Never spawn the real `claude` binary in tests. Verification against real Claude Code happens
+  manually before merging a change to the agent integration contract. One exception:
+  `test:atc-bridge` runs `claude plugin validate` and `claude plugin test` on the mod, and neither
+  starts a session.
+- The Claude config lock's test runs against `proper-lockfile`, the lock library Claude Code
+  bundles, not against Claude itself. So the manual check before an integration-contract merge also
+  confirms that the pinned Claude Code version refreshes a held lock well inside the age at which
+  atc takes a lock over as stale.
+- A test helper that runs atc or atc-gateway takes the source entry that `scripts/with-test-home.sh`
+  exports, so it does not depend on where the app sits.
