@@ -90,6 +90,7 @@ console.log('connected');
     statusPath: join(ctx.stateDir, 'status.json'),
     build: 'atc/test-build',
     adapter: buildMockAgentAdapter(),
+    targets: [],
   });
 
   registerTestCleanup(() => daemon.stop());
@@ -118,6 +119,7 @@ test('it reports a codex hello as the last-used agent instead of coercing it to 
     reporterSocketPath: join(ctx.dir, 'reporter.sock'),
     build: 'atc/test-build',
     adapter: buildMockAgentAdapter(),
+    targets: [],
     dbPath: join(ctx.dir, 'state.db'),
     statusPath: join(ctx.dir, 'status.json'),
   });
@@ -163,6 +165,7 @@ test('it finds a running daemon through the state directory when XDG_RUNTIME_DIR
     reporterSocketPath: join(ctx.dir, 'run', 'atc.sock'),
     build: 'atc/test-build',
     adapter: buildMockAgentAdapter(),
+    targets: [],
     dbPath: join(ctx.stateDir, 'atc.db'),
     statusPath: join(ctx.stateDir, 'status.json'),
   });
@@ -271,6 +274,7 @@ test('it never reports a wait when a daemon answers on the first try', async () 
     reporterSocketPath: join(ctx.dir, 'reporter.sock'),
     build: 'atc/test-build',
     adapter: buildMockAgentAdapter(),
+    targets: [],
     dbPath: join(ctx.dir, 'state.db'),
     statusPath: join(ctx.dir, 'status.json'),
   });
@@ -316,6 +320,7 @@ test('it finds a running daemon through the record at the paths it is given', as
     reporterSocketPath: join(ctx.dir, 'run', 'atc.sock'),
     build: 'atc/test-build',
     adapter: buildMockAgentAdapter(),
+    targets: [],
     dbPath: join(ctx.stateDir, 'atc.db'),
     statusPath: join(ctx.stateDir, 'status.json'),
   });

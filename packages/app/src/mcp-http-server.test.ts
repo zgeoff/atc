@@ -8,6 +8,7 @@ import { startDaemon } from './daemon/daemon';
 import { runMCPHTTPServer } from './mcp-http-server';
 import { openMCPAuth } from './mcp/open-mcp-auth';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
+import { buildLocalTarget } from './test-utils/build-local-target';
 
 /**
  * A real daemon listening in a temp directory, the files the server's boot
@@ -22,6 +23,7 @@ async function setupTest() {
     socketPath,
     reporterSocketPath: join(tmp.dir, 'reporter.sock'),
     build: 'atc/test-build',
+    targets: [buildLocalTarget()],
     adapter: buildMockAgentAdapter(),
     dbPath: join(tmp.dir, 'state.db'),
     statusPath: join(tmp.dir, 'status.json'),

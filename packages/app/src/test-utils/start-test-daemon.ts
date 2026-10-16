@@ -10,6 +10,7 @@ import {
 import type { Socket } from 'bun';
 import { startDaemon } from '../daemon/daemon';
 import type { DaemonHandle, DaemonOptions } from '../daemon/daemon';
+import { buildLocalTarget } from './build-local-target';
 
 /**
  * Where a test daemon keeps its sockets and state, all inside one temp
@@ -26,12 +27,18 @@ interface TestDaemonPaths {
 
 /**
  * Every daemon option except the paths and the build string, which the
- * harness owns.
+ * harness owns. The targets are the local one alone when absent.
  */
 type TestDaemonOptions = Omit<
   DaemonOptions,
-  'socketPath' | 'reporterSocketPath' | 'eventsSocketPath' | 'dbPath' | 'statusPath' | 'build'
->;
+  | 'socketPath'
+  | 'reporterSocketPath'
+  | 'eventsSocketPath'
+  | 'dbPath'
+  | 'statusPath'
+  | 'build'
+  | 'targets'
+> & { readonly targets?: DaemonOptions['targets'] };
 
 /**
  * Builds the options for one boot from the daemon's paths. It runs before
@@ -184,6 +191,7 @@ export async function startTestDaemon(config: TestDaemonConfig = {}): Promise<Te
         logs.push(line);
       },
       ...options,
+      targets: options.targets ?? [buildLocalTarget()],
       socketPath: paths.socketPath,
       reporterSocketPath: paths.reporterSocketPath,
       eventsSocketPath: paths.eventsSocketPath,

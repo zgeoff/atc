@@ -4,13 +4,13 @@ import type { SessionID } from '@atc/core';
 import { toAgentSessionID, toSessionID } from '@atc/core';
 import { ImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/testing';
+import { LocalPTYProvider } from '@atc/execution-local';
 import { buildStubHeldProvider } from '@atc/execution-local/testing';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { StateStore, buildTargetIdentity } from '@atc/store';
 import { buildMockFleetEntry, createMigratedStateDB } from '@atc/store/testing';
 import {
   buildMockAgentAdapter,
-  buildMockHostServices,
   buildStubClock,
   buildStubHeadlessRunner,
   buildStubLog,
@@ -26,6 +26,7 @@ import type { Session } from './session';
 import { SessionRuntime } from './session-runtime';
 import { SessionManager } from './sessions';
 import { startHeadlessTurn } from './start-headless-turn';
+import { buildStubMemoryProvider } from './testing/build-stub-memory-provider';
 
 /**
  * A session manager over a fresh state store, as one daemon life sees it,
@@ -57,7 +58,19 @@ async function setupTest(config: Readonly<{ targets?: readonly ExecutionTarget[]
   const recorder = buildStubLog();
   const statusPath = join(tmp.dir, 'status.json');
 
-  const mgr = new SessionManager(buildMockAgentAdapter(), store, statusPath, [], config.targets);
+  // with no targets of the test's own, sessions run on the `local` target
+  // under the identity a local row binds to
+  const targets = config.targets ?? [
+    {
+      id: 'local',
+      kind: 'local-pty',
+      options: {},
+      identity: buildTargetIdentity('local-pty', {}),
+      provider: new LocalPTYProvider(),
+    },
+  ];
+
+  const mgr = new SessionManager(buildMockAgentAdapter(), store, statusPath, [], targets);
 
   registerTestCleanup(() => {
     mgr.detachAll();
@@ -72,6 +85,7 @@ async function setupTest(config: Readonly<{ targets?: readonly ExecutionTarget[]
     port,
     impProvider,
     held,
+    targets,
     mgr,
     logged: recorder.lines,
     log: recorder.log,
@@ -138,7 +152,13 @@ test('it keeps a sub-session under the session that resumed its parent agent ses
   // release waits for every session it holds to get its terminal and writes
   // its fleet once more: each adopted terminal fires a fleet write, and the
   // last write queues behind them, so none lands after the store closes.
-  const restarted = new SessionManager(buildMockAgentAdapter(), ctx.store, ctx.statusPath, []);
+  const restarted = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    ctx.targets,
+  );
 
   registerTestCleanup(() => {
     restarted.detachAll();
@@ -206,7 +226,13 @@ test('it keeps a sub-session under a sub-session that resumed their parent agent
   // release waits for every session it holds to get its terminal and writes
   // its fleet once more: each adopted terminal fires a fleet write, and the
   // last write queues behind them, so none lands after the store closes.
-  const restarted = new SessionManager(buildMockAgentAdapter(), ctx.store, ctx.statusPath, []);
+  const restarted = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    ctx.targets,
+  );
 
   registerTestCleanup(() => {
     restarted.detachAll();
@@ -282,7 +308,13 @@ test('it restores two crossed resumes with the earlier one top-level and the lat
   // release waits for every session it holds to get its terminal and writes
   // its fleet once more: each adopted terminal fires a fleet write, and the
   // last write queues behind them, so none lands after the store closes.
-  const restarted = new SessionManager(buildMockAgentAdapter(), ctx.store, ctx.statusPath, []);
+  const restarted = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    ctx.targets,
+  );
 
   registerTestCleanup(() => {
     restarted.detachAll();
@@ -376,6 +408,7 @@ test('it starts no terminal on a later restore for a session an earlier restore 
     ctx.store,
     ctx.statusPath,
     [],
+    ctx.targets,
   );
 
   registerTestCleanup(() => {
@@ -452,6 +485,7 @@ test('it revives on a later restore a session an earlier restore left without a 
     ctx.store,
     ctx.statusPath,
     [],
+    ctx.targets,
   );
 
   registerTestCleanup(() => {
@@ -521,6 +555,7 @@ test('it starts no terminal for a queued session whose headless turn starts whil
     ctx.store,
     ctx.statusPath,
     [],
+    ctx.targets,
   );
 
   registerTestCleanup(() => {
@@ -597,8 +632,7 @@ test('it restores sessions stored before the providers moved into packages by ta
         },
       },
     ],
-    buildMockHostServices({ version: '1.0.0' }),
-    { FIXTURE_IMP_TOKEN: 'fixture-token' },
+    (config) => ({ provider: buildStubMemoryProvider({ kind: config.provider }), problem: null }),
   );
 
   onTestFinished(async () => {
@@ -659,8 +693,7 @@ test('it refuses a stored session whose target config revision differs from the 
         },
       },
     ],
-    buildMockHostServices({ version: '1.0.0' }),
-    { FIXTURE_IMP_TOKEN: 'fixture-token' },
+    (config) => ({ provider: buildStubMemoryProvider({ kind: config.provider }), problem: null }),
   );
 
   onTestFinished(async () => {
@@ -704,8 +737,7 @@ test('it restores a stored session on its own target config revision after anoth
         options: { url: 'http://impd.example:7272', tokenEnv: 'FIXTURE_IMP_TOKEN' },
       },
     ],
-    buildMockHostServices({ version: '1.0.0' }),
-    { FIXTURE_IMP_TOKEN: 'fixture-token' },
+    (config) => ({ provider: buildStubMemoryProvider({ kind: config.provider }), problem: null }),
   );
 
   onTestFinished(async () => {

@@ -1,4 +1,4 @@
-import type { HostServices } from '@atc/plugin-api';
+import type { HostServices } from './host-services';
 
 export interface GHRun {
   readonly exitCode: number;

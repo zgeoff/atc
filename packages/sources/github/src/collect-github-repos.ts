@@ -1,8 +1,7 @@
-import type { HostServices } from '@atc/plugin-api';
+import { runGH } from '@atc/plugin-api';
+import type { GHRun, HostServices } from '@atc/plugin-api';
 import { z } from 'zod';
 import { readGitProtocol } from './read-git-protocol';
-import { runGH } from './run-gh';
-import type { GHRun } from './run-gh';
 
 interface GitHubRepo {
   // `owner/repo`, which a git workspace source takes as its URL.

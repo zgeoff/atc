@@ -787,6 +787,7 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
   const adapterBuilder = await import('./agents/build-agent-adapters');
   const headless = await import('@atc/harness-claude');
   const targets = await import('./daemon/build-execution-targets');
+  const providers = await import('./plugins/build-shipped-execution-provider');
   const sourceOrder = await import('./sources/build-sources');
   const builtinSources = await import('./sources/collect-builtin-sources');
   const home = await import('@atc/config/host');
@@ -796,7 +797,11 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
   // deterministically; unset means the production default.
   const queueBytes = Number(process.env['ATC_QUEUE_BYTES']);
   const cfg = config.loadConfig(harnessPlugins.SHIPPED_HARNESS_PLUGINS);
-  const built = targets.buildExecutionTargets(cfg.targets, hostServices);
+
+  const built = targets.buildExecutionTargets(cfg.targets, (target) =>
+    providers.buildShippedExecutionProvider(target, hostServices, process.env),
+  );
+
   const targetErrors = [...cfg.targetErrors, ...built.errors];
 
   for (const error of targetErrors) {

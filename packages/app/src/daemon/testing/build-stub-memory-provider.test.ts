@@ -1,5 +1,5 @@
 import { expect, mock, test } from 'bun:test';
-import type { HarnessExit } from '@atc/plugin-api';
+import type { ExecutionProvider, HarnessExit } from '@atc/plugin-api';
 import { buildStubClock } from '@atc/test-utils';
 import { buildStubCredentialBroker } from './build-stub-credential-broker';
 import { buildStubMemoryProvider } from './build-stub-memory-provider';
@@ -290,6 +290,18 @@ test('it records each archive transfer with its host', async () => {
     { archive, dir: '/work' },
     { archive, dir: '/guest/work', host: 'box' },
   ]);
+});
+
+test('it records an archive transfer and then unpacks it through the config', async () => {
+  const transferArchive = mock<ExecutionProvider['transferArchive']>(() => Promise.resolve());
+  const provider = buildStubMemoryProvider({ transferArchive });
+
+  const archive = new Uint8Array([1, 2, 3]);
+
+  await provider.transferArchive(archive, '/guest/work', 'box');
+
+  expect(provider.transfers).toStrictEqual([{ archive, dir: '/guest/work', host: 'box' }]);
+  expect(transferArchive).toHaveBeenCalledExactlyOnceWith(archive, '/guest/work', 'box');
 });
 
 test('it answers every command with a clean exit when the config gives no answer', async () => {

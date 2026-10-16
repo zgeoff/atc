@@ -1,5 +1,5 @@
+import { runGH } from '@atc/plugin-api';
 import type { HostServices } from '@atc/plugin-api';
-import { runGH } from './run-gh';
 
 /**
  * The clone protocol the gh config on this host prefers: `ssh` when it says

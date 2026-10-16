@@ -1,8 +1,7 @@
 import type { TargetConfigError } from '@atc/config';
-import { LOCAL_TARGET, statusFile } from '@atc/config';
+import { statusFile } from '@atc/config';
 import type { AgentID, AgentSessionID, Clock, SessionID } from '@atc/core';
 import { systemClock, truncateDetail, truncateToBytes } from '@atc/core';
-import { LocalPTYProvider } from '@atc/execution-local';
 import type {
   AgentAdapter,
   ExecutionCapability,
@@ -42,7 +41,7 @@ import type { SessionEventKind } from './session-event-kind';
 import { SessionFleetWriter } from './session-fleet-writer';
 import { SessionHarnesses } from './session-harnesses';
 import { SessionKiller } from './session-killer';
-import { LOCAL_TARGET_IDENTITY, SessionRegistry } from './session-registry';
+import { SessionRegistry } from './session-registry';
 import type { TargetBinding } from './session-registry';
 import { SessionRestorer } from './session-restorer';
 import { SessionSpawner } from './session-spawner';
@@ -150,15 +149,7 @@ export class SessionManager {
     store: FleetStore,
     statusPath: string | undefined = statusFile,
     adapters: readonly AgentAdapter[] = [],
-    targets: readonly ExecutionTarget[] = [
-      {
-        id: LOCAL_TARGET.id,
-        kind: LOCAL_TARGET.provider,
-        options: LOCAL_TARGET.options,
-        identity: LOCAL_TARGET_IDENTITY,
-        provider: new LocalPTYProvider(),
-      },
-    ],
+    targets: readonly ExecutionTarget[] = [],
     targetErrors: readonly TargetConfigError[] = [],
     events: SessionManagerEvents = {},
   ) {

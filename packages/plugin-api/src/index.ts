@@ -29,5 +29,6 @@ export * from './harness/plan-typed-line-input';
 export type * from './host-services';
 export * from './is-host-name-allowed';
 export type * from './message-bridge';
+export * from './run-gh';
 export * from './target-unavailable-error';
 export type * from './types';
