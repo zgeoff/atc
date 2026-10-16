@@ -14,7 +14,6 @@ import { systemClock } from '@atc/core';
 import { LocalPTYProvider } from '@atc/execution-local';
 import { claimDaemonLock, findDaemonRecord, writeDaemonRecord } from '@atc/lifecycle';
 import type { AgentAdapter, SourceProvider } from '@atc/plugin-api';
-import type { SessionState } from '@atc/protocol';
 import { DaemonError, PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import { StateStore, buildTargetIdentity } from '@atc/store';
@@ -39,13 +38,14 @@ import { MENU_TIMING } from './menu-terminal';
 import type { MenuTiming } from './menu-terminal';
 import { MessageBridges } from './message-bridges';
 import { MessageService } from './message-service';
-import { PermissionRegistry } from './permission-registry';
+import { PermissionPrompts } from './permission-prompts';
 import { PublishedRecords } from './published-records';
 import { readPeerPID } from './read-peer-pid';
 import { restoreFleet } from './restore-fleet';
 import type { RestoreSettled } from './restore-fleet';
 import type { SettleScheduler } from './run-eject-handoff';
 import { RuntimeAuthBinder } from './runtime-auth-binder';
+import { ScreenDetection } from './screen-detection';
 import { ScreenModel } from './screen-model';
 import type { Session } from './session';
 import { SessionHandoff } from './session-handoff';
@@ -470,29 +470,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     return s === undefined ? null : { cwd: s.cwd, repoRoot: s.repoRoot };
   };
 
-  const registry = new PermissionRegistry(
-    {
-      onRequested: (req) => {
-        emitEvent(
-          {
-            v: PROTOCOL_V,
-            ev: 'PermissionRequested',
-            request: req.id,
-            s: req.sessionID,
-            message: req.message,
-            respondable: req.respondable,
-          },
-          findHookScope(req.sessionID),
-        );
-      },
-      onResolved: (id, decision) => {
-        emitEvent({ v: PROTOCOL_V, ev: 'PermissionResolved', request: id, decision });
-      },
-    },
-    undefined,
-    clock,
-  );
-
+  const permissions = new PermissionPrompts({ clock, emitEvent, findHookScope });
   const eventSignal = new EventSignal(clock);
 
   // One runtime per live session: its screen model, output sequence
@@ -505,57 +483,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   const findRuntime = (sessionID: SessionID) => runtimes.get(sessionID);
 
   const taps = new TapRegistry<TapClient>();
-
-  // The screen tier of the detector stack: once a session's output has
-  // quiesced, judge the serialized screen and flip running/needs_you.
-  const scheduleDetect = (sessionID: SessionID) => {
-    if (!mgr.hasScreenDetector) {
-      opts.onDetectSkipped?.(sessionID);
-
-      return;
-    }
-
-    const s = mgr.sessions.find((x) => x.id === sessionID);
-    const detector = s === undefined ? null : (mgr.findAdapter(s.agent)?.screenDetector ?? null);
-    const runtime = runtimes.get(sessionID);
-
-    if (detector === null) {
-      opts.onDetectSkipped?.(sessionID);
-    }
-
-    if (detector === null || runtime === undefined) {
-      return;
-    }
-
-    runtime.cancelDetect?.();
-
-    runtime.cancelDetect = clock.schedule(() => {
-      runtime.cancelDetect = undefined;
-      void applyScreenJudgment(sessionID);
-    }, 300);
-  };
-
-  const applyScreenJudgment = async (sessionID: SessionID) => {
-    const s = mgr.sessions.find((x) => x.id === sessionID);
-    const detector = s === undefined ? null : (mgr.findAdapter(s.agent)?.screenDetector ?? null);
-    const model = runtimes.get(sessionID)?.screen ?? null;
-
-    if (detector === null || model === null) {
-      return;
-    }
-
-    const screen = await model.renderReplay();
-
-    const judgment = detector.detectAttention(screen);
-
-    if (judgment === 'needs-input') {
-      mgr.updateAttention(sessionID, 'needs_you', 'waiting at a prompt');
-    }
-
-    if (judgment === 'working') {
-      mgr.updateAttention(sessionID, 'running', 'working');
-    }
-  };
 
   // The sessions whose process end the daemon saw, until a harness starts
   // for them again.
@@ -580,33 +507,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     bridges.startDelivery(s.id);
   };
 
-  // Permission requests are synthesized from attention transitions: entering
-  // needs_you opens one, and leaving it (answered directly in the terminal,
-  // or the session dying) dismisses whatever is pending. Each session's
-  // previous state is tracked purely to detect that transition.
-  const lastStates = new Map<SessionID, SessionState>();
-
-  const recordAttention: SessionManager['onEvent'] = (kind, s) => {
-    if (kind === 'removed') {
-      registry.answerAll(s.id, 'dismissed');
-      lastStates.delete(s.id);
-
-      return;
-    }
-
-    const prev = lastStates.get(s.id);
-
-    lastStates.set(s.id, s.state);
-
-    if (s.state === 'needs_you' && prev !== 'needs_you') {
-      registry.open(s.id, s.lastMsg, false);
-    }
-
-    if (prev === 'needs_you' && s.state !== 'needs_you') {
-      registry.answerAll(s.id, 'dismissed');
-    }
-  };
-
   const onProcessEnded: SessionManager['onProcessEnded'] = (s) => {
     endedProcesses.add(s.id);
     void bridges.stopBridge(s.id);
@@ -614,7 +514,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   };
 
   const onEvent: SessionManager['onEvent'] = (kind, s) => {
-    recordAttention(kind, s);
+    permissions.recordSessionEvent(kind, s);
 
     if (kind === 'removed') {
       endedProcesses.delete(s.id);
@@ -755,13 +655,22 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   const trail = new EventTrail({ mgr, store, clock, eventSignal });
 
+  const detection = new ScreenDetection({
+    mgr,
+    clock,
+    findRuntime,
+    onDetectSkipped: opts.onDetectSkipped,
+  });
+
   const output = new SessionOutput({
     mgr,
     clock,
     findRuntime,
     emitEvent,
     findHookScope,
-    scheduleDetect,
+    scheduleDetect: (sessionID) => {
+      detection.scheduleDetect(sessionID);
+    },
   });
 
   const startTurn = (sessionID: SessionID, prompt: string) =>
@@ -947,7 +856,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     findTargetIdentity: (target) => targets.find((x) => x.id === target)?.identity ?? null,
     canSeeSession: (id, access) => isTreeInReach(mgr.sessions, id, access),
     isSessionVisible: () => true,
-    findPermissionSession: (request) => registry.findSessionID(request),
+    findPermissionSession: (request) => permissions.findSessionID(request),
     resolveSpawnParent: (id) => spawns.resolveSpawnParent(id),
     resolveSpawnTarget: (requested) => spawns.resolveSpawnTarget(requested),
     requireWorkspaceTarget: (target) => {
@@ -1070,7 +979,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     readSessionScreen: (id) => input.readSessionScreen(id),
     readSessionMenu: (id) => input.readSessionMenu(id),
     applySessionMenuChoice: (id, choice) => input.applySessionMenuChoice(id, choice),
-    answerPermission: (request, decision) => registry.answer(request, decision),
+    answerPermission: (request, decision) => permissions.answer(request, decision),
     attachSession: (client, sessionID, dims) => output.attachSession(client, sessionID, dims),
     detachSession: (client, sessionID) => {
       output.detachSession(client, sessionID);

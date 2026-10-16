@@ -777,3 +777,5 @@ packages/app/src/daemon/session-handoff.ts	daemon	sessions	packages/daemon/src/s
 packages/app/src/daemon/session-input.ts	daemon	sessions	packages/daemon/src/sessions/session-input.ts	
 packages/app/src/daemon/session-output.ts	daemon	sessions	packages/daemon/src/sessions/session-output.ts	
 packages/app/src/daemon/session-reads.ts	daemon	sessions	packages/daemon/src/sessions/session-reads.ts	
+packages/app/src/daemon/permission-prompts.ts	daemon	sessions	packages/daemon/src/sessions/permission-prompts.ts	
+packages/app/src/daemon/screen-detection.ts	daemon	sessions	packages/daemon/src/sessions/screen-detection.ts	

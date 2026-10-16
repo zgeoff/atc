@@ -3,7 +3,7 @@ import { isRecord } from '@atc/core';
 import type { SessionID } from '@atc/core';
 import type { EventMsg } from '@atc/protocol/wire';
 import { buildMockAgentAdapter, getRecord, waitFor } from '@atc/test-utils';
-import { startTestDaemon } from '../test-utils/start-test-daemon';
+import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 test('it flags a hook-less agent waiting at a prompt via the screen detector', async () => {
   const daemon = await startTestDaemon({
