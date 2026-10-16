@@ -17,6 +17,7 @@ import {
 } from '@atc/test-utils';
 import { buildHostServices } from '../packages/app/src/build-host-services';
 import { startDaemon } from '../packages/app/src/daemon/daemon';
+import { buildLocalTarget } from '../packages/app/src/test-utils/build-local-target';
 
 function setupTest() {
   return startTUIHarness();
@@ -400,6 +401,7 @@ async function setupManagedReconnectTest() {
     dbPath: join(stateDir, 'atc.db'),
     statusPath: join(stateDir, 'status.json'),
     build: buildHostServices().build,
+    targets: [buildLocalTarget()],
     adapter: buildMockAgentAdapter(),
   });
 

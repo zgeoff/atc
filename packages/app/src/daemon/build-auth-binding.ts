@@ -3,7 +3,6 @@ import { resolveAuthProfiles } from '@atc/config';
 import type { AuthProfileProblem, ResolvedAuthSecret } from '@atc/config';
 import type { AgentID } from '@atc/core';
 import { sortJSONKeys } from '@atc/core';
-import type { GatewayConfig } from '@atc/harness-claude';
 import type { AuthProfile, GatewayAuth } from '@atc/plugin-api';
 
 /**
@@ -25,7 +24,13 @@ export interface AuthBinding {
   readonly hash: string;
 }
 
-type AuthGateway = Pick<GatewayConfig, 'id' | 'baseURL'> & { readonly auth: GatewayAuth };
+// The parts of a gateway entry a binding reads: its agent id, its endpoint,
+// and the auth it asks for.
+interface AuthGateway {
+  readonly id: AgentID;
+  readonly baseURL: string;
+  readonly auth: GatewayAuth;
+}
 
 /**
  * Plans the binding a gateway's auth asks for against the current auth

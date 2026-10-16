@@ -1,4 +1,5 @@
 import { runCommand } from '@atc/lifecycle/run-command';
+import { runGH } from '@atc/plugin-api';
 import type { ExecutionProvider } from '@atc/plugin-api';
 import type {
   DeclaredScope,
@@ -7,7 +8,6 @@ import type {
   RecordedWorktree,
 } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
-import { runGH } from '@atc/source-github';
 import { z } from 'zod';
 import { findHostBranch } from './find-host-branch';
 import { runHostGit } from './run-host-git';

@@ -18,6 +18,7 @@ import {
   waitFor,
 } from '@atc/test-utils';
 import { startDaemon } from '../packages/app/src/daemon/daemon';
+import { buildLocalTarget } from '../packages/app/src/test-utils/build-local-target';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 /**
@@ -969,6 +970,7 @@ test('it refuses to start a listener on an address outside the allowed ranges', 
       socketPath: ctx.socketPath,
       reporterSocketPath: ctx.reporterSocketPath,
       build: 'atc/test-build',
+      targets: [buildLocalTarget()],
       adapter: buildMockAgentAdapter(),
       dbPath: ctx.dbPath,
       statusPath: ctx.statusPath,
@@ -987,6 +989,7 @@ test('it refuses to start a listener whose token file holds a short token', () =
       socketPath: ctx.socketPath,
       reporterSocketPath: ctx.reporterSocketPath,
       build: 'atc/test-build',
+      targets: [buildLocalTarget()],
       adapter: buildMockAgentAdapter(),
       dbPath: ctx.dbPath,
       statusPath: ctx.statusPath,
@@ -1029,6 +1032,7 @@ test('it logs no listener start when the TCP listener cannot bind', async () => 
     socketPath: ctx.socketPath,
     reporterSocketPath: ctx.reporterSocketPath,
     build: 'atc/test-build',
+    targets: [buildLocalTarget()],
     adapter: buildMockAgentAdapter(),
     dbPath: ctx.dbPath,
     statusPath: ctx.statusPath,
@@ -1469,6 +1473,7 @@ test('it refuses a listener whose port another socket holds', () => {
       socketPath: ctx.socketPath,
       reporterSocketPath: ctx.reporterSocketPath,
       build: 'atc/test-build',
+      targets: [buildLocalTarget()],
       adapter: buildMockAgentAdapter(),
       dbPath: ctx.dbPath,
       statusPath: ctx.statusPath,
@@ -1494,6 +1499,7 @@ test('it releases the daemon lock and leaves no socket or record behind when the
     socketPath: ctx.socketPath,
     reporterSocketPath: ctx.reporterSocketPath,
     build: 'atc/test-build',
+    targets: [buildLocalTarget()],
     adapter: buildMockAgentAdapter(),
     dbPath: ctx.dbPath,
     statusPath: ctx.statusPath,

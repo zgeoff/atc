@@ -11,6 +11,7 @@ import {
   waitFor,
 } from '@atc/test-utils';
 import { startDaemon } from '../packages/app/src/daemon/daemon';
+import { buildLocalTarget } from '../packages/app/src/test-utils/build-local-target';
 
 /**
  * A real daemon listening at the socket path the tap subcommand computes
@@ -28,6 +29,7 @@ async function setupTest() {
     reporterSocketPath: join(tmp.dir, 'reporter.sock'),
     build: 'atc/test-build',
     adapter: buildMockAgentAdapter({ takesMessages: true }),
+    targets: [buildLocalTarget()],
     dbPath: join(tmp.dir, 'state.db'),
     statusPath: join(tmp.dir, 'status.json'),
   });

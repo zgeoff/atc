@@ -10,6 +10,7 @@ import {
 } from '@atc/test-utils';
 import { buildHostServices } from '../packages/app/src/build-host-services';
 import { startDaemon } from '../packages/app/src/daemon/daemon';
+import { buildLocalTarget } from '../packages/app/src/test-utils/build-local-target';
 
 function setupTest() {
   return startTUIHarness();
@@ -35,6 +36,7 @@ test('it waits for a managed daemon instead of starting one while the unit is do
     dbPath: join(ctx.home, '.local', 'state', 'atc', 'atc.db'),
     statusPath: join(ctx.home, '.local', 'state', 'atc', 'status.json'),
     build: buildHostServices().build,
+    targets: [buildLocalTarget()],
     adapter: buildMockAgentAdapter(),
   });
 
@@ -61,6 +63,7 @@ test('it reconnects a client after a managed daemon restarts without starting a 
     dbPath: join(ctx.home, '.local', 'state', 'atc', 'atc.db'),
     statusPath: join(ctx.home, '.local', 'state', 'atc', 'status.json'),
     build: buildHostServices().build,
+    targets: [buildLocalTarget()],
     adapter: buildMockAgentAdapter(),
   };
 
@@ -121,6 +124,7 @@ test('it reconnects again when a replacement closes during the fleet refresh', a
     dbPath: join(ctx.home, '.local', 'state', 'atc', 'atc.db'),
     statusPath: join(ctx.home, '.local', 'state', 'atc', 'status.json'),
     build: buildHostServices().build,
+    targets: [buildLocalTarget()],
     adapter: buildMockAgentAdapter(),
   };
 
@@ -173,6 +177,7 @@ test('it keeps help open when a managed daemon returns', async () => {
     dbPath: join(ctx.home, '.local', 'state', 'atc', 'atc.db'),
     statusPath: join(ctx.home, '.local', 'state', 'atc', 'status.json'),
     build: buildHostServices().build,
+    targets: [buildLocalTarget()],
     adapter: buildMockAgentAdapter(),
   };
 

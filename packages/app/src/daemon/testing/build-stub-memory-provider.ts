@@ -33,6 +33,10 @@ interface StubMemoryProviderConfig {
   // Answers each command; absent, every command exits 0 and prints nothing.
   readonly runCommand?: (spec: CommandSpec) => Promise<CommandResult>;
 
+  // Unpacks each archive after the stand-in records it; absent, each
+  // transfer resolves with nothing unpacked.
+  readonly transferArchive?: ExecutionProvider['transferArchive'];
+
   // Host operations of the test's own, run after the stand-in records the
   // call; absent, each resolves.
   readonly prepareHost?: ExecutionProvider['prepareHost'];
@@ -150,7 +154,7 @@ export function buildStubMemoryProvider(config: StubMemoryProviderConfig = {}): 
 
       transfers.push(transfer);
 
-      return Promise.resolve();
+      return config.transferArchive?.(archive, dir, host) ?? Promise.resolve();
     },
     runCommand: (spec) => {
       commands.push(spec);

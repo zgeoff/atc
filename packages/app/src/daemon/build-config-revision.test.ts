@@ -1,5 +1,4 @@
-import { expect, onTestFinished, test } from 'bun:test';
-import { buildMockHostServices } from '@atc/test-utils';
+import { expect, test } from 'bun:test';
 import { buildConfigRevision } from './build-config-revision';
 import { buildExecutionTargets } from './build-execution-targets';
 
@@ -17,15 +16,8 @@ test('it builds the revision a daemon reported before the providers moved into p
         },
       },
     ],
-    buildMockHostServices({ version: '1.0.0' }),
-    { FIXTURE_IMP_TOKEN: 'fixture-token' },
+    () => ({ provider: null, problem: null }),
   );
-
-  onTestFinished(async () => {
-    for (const target of built.targets) {
-      await target.provider?.dispose();
-    }
-  });
 
   // clients compare this revision across daemons and restarts, so no change
   // to where a provider's code lives may move it while the config stays

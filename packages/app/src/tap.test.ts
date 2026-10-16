@@ -14,6 +14,7 @@ import {
 } from '@atc/test-utils';
 import { startDaemon } from './daemon/daemon';
 import { runTap } from './tap';
+import { buildLocalTarget } from './test-utils/build-local-target';
 
 /**
  * A real daemon listening in a temp directory, and a client that has sent
@@ -30,6 +31,7 @@ async function setupTest() {
     socketPath,
     reporterSocketPath: join(tmp.dir, 'reporter.sock'),
     build: 'atc/test-build',
+    targets: [buildLocalTarget()],
     adapter: buildMockAgentAdapter({ takesMessages: true }),
     dbPath: join(tmp.dir, 'state.db'),
     statusPath: join(tmp.dir, 'status.json'),

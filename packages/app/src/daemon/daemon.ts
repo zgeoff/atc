@@ -9,12 +9,11 @@ import {
 } from '@atc/config';
 import type { AgentID, Clock, SessionID } from '@atc/core';
 import { systemClock } from '@atc/core';
-import { LocalPTYProvider } from '@atc/execution-local';
 import { claimDaemonLock, findDaemonRecord, writeDaemonRecord } from '@atc/lifecycle';
 import type { AgentAdapter, SourceProvider } from '@atc/plugin-api';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
-import { StateStore, buildTargetIdentity } from '@atc/store';
+import { StateStore } from '@atc/store';
 import { buildBindRefusal } from './build-bind-refusal';
 import type { ExecutionTarget } from './build-execution-targets';
 import { buildSessionEvent } from './build-session-event';
@@ -86,11 +85,10 @@ export interface DaemonOptions {
   // defaults; `claude` when unset.
   readonly defaultAgent?: AgentID;
 
-  // Where sessions run, in config order; one `local` target on the local
-  // pseudo-terminal provider when unset. A spawn without a target runs on
+  // Where sessions run, in config order. A spawn without a target runs on
   // the default one: `local` when unset and the targets hold it, and none
   // otherwise, which refuses such a spawn.
-  readonly targets?: readonly ExecutionTarget[];
+  readonly targets: readonly ExecutionTarget[];
   readonly defaultTarget?: string | null;
 
   // The target config problems the daemon started with. A target they cover
@@ -370,18 +368,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     sweepClock: opts.eventSweepClock ?? systemClock,
   });
 
-  // With no configured targets the daemon serves the local one alone,
-  // which needs no atc version since no atc runs inside it.
-  const targets: readonly ExecutionTarget[] = opts.targets ?? [
-    {
-      id: LOCAL_TARGET.id,
-      kind: LOCAL_TARGET.provider,
-      options: LOCAL_TARGET.options,
-      identity: buildTargetIdentity(LOCAL_TARGET.provider, LOCAL_TARGET.options),
-      provider: new LocalPTYProvider(),
-    },
-  ];
-
+  const targets = opts.targets;
   const targetErrors = opts.targetErrors ?? [];
   const principals = opts.principals ?? null;
   const gitTransports = opts.gitTransports ?? DEFAULT_GIT_TRANSPORTS;

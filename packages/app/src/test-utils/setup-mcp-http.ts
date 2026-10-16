@@ -15,6 +15,7 @@ import { openMCPAuth } from '../mcp/open-mcp-auth';
 import { startMCPHTTPServer } from '../mcp/start-mcp-http-server';
 import { TransportCaller } from '../mcp/transport-caller';
 import { openMCPAuthDatabase } from '../open-mcp-auth-database';
+import { buildLocalTarget } from './build-local-target';
 
 interface MCPHTTPSetupOptions {
   // Further Host header values the server accepts.
@@ -62,6 +63,7 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
       socketPath,
       reporterSocketPath: join(tmp.dir, 'reporter.sock'),
       build: 'atc/test-build',
+      targets: [buildLocalTarget()],
       adapter: buildMockAgentAdapter(),
       dbPath: join(tmp.dir, 'state.db'),
       statusPath: join(tmp.dir, 'status.json'),
