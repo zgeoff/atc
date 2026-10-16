@@ -291,14 +291,27 @@ function collectEntryFiles(pkg: WorkspacePackage): string[] {
     if (typeof target === 'string') {
       targets.push(normalize(join(pkg.dir, target)));
     } else if (typeof target === 'object' && target !== null) {
-      pending.push(...Object.values(target));
+      const conditions: unknown[] = Object.values(target);
+
+      pending.push(...conditions);
     }
   }
 
   return targets.toSorted();
 }
 
-const MODULE_SUFFIXES = ['', '.ts', '.tsx', '/index.ts', '/index.tsx'];
+const MODULE_SUFFIXES = [
+  '',
+  '.ts',
+  '.tsx',
+  '.js',
+  '.mjs',
+  '/index.ts',
+  '/index.tsx',
+  '/index.js',
+  '/index.mjs',
+];
+
 const SOURCE_FILE = /\.(?:ts|tsx|js|mjs)$/;
 
 /**
