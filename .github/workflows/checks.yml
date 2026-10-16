@@ -82,6 +82,9 @@ jobs:
       - name: Lint
         run: bun run lint:full
 
+      - name: Lint mods
+        run: bun run lint:mods
+
       - name: Doc links
         run: bash .claude/skills/docs-writing/scripts/check-links.sh
 

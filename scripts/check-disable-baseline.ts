@@ -3,7 +3,9 @@
 // removes a stale directive, but nothing else stops a new one from switching
 // off a package rule. A directive counts when it names an import rule, or
 // names no rule at all and so switches off every rule. oxlint honours
-// `eslint-disable` comments as well as its own, so both count. Only real
+// `eslint-disable` comments as well as its own, and a rule name with any
+// plugin prefix or none, so both comments count and a rule matches by the
+// name after its last slash. Only real
 // comments count: the module is tokenized, so a string or template that holds
 // a directive's words is skipped, and a block comment may list its rules over
 // several lines. Prints the count and exits 1 when it exceeds the baseline.
@@ -45,12 +47,14 @@ function main(): void {
 
 const BASELINE_FILE = 'scripts/disable-baseline.json';
 const BASELINE_SCHEMA = z.object({ importRuleDisables: z.number().int().nonnegative() });
-const SOURCE_DIRS = ['packages', 'e2e', 'scripts'];
+const SOURCE_DIRS = ['packages', 'e2e', 'scripts', 'mods'];
 
+// the require ban keeps every module load in a form the import rules read
 const IMPORT_RULES: ReadonlySet<string> = new Set([
   'no-restricted-imports',
-  'import/no-cycle',
-  'import/no-dynamic-require',
+  'no-cycle',
+  'no-dynamic-require',
+  'no-require-imports',
 ]);
 
 const DIRECTIVE =
@@ -96,7 +100,7 @@ function isImportRuleDirective(comment: string): boolean {
     .split('--')[0]
     ?.split(/[\s,*]+/)
     .filter((rule) => rule !== '')
-    .map((rule) => rule.replace(/^eslint\//, ''));
+    .map((rule) => rule.slice(rule.lastIndexOf('/') + 1));
 
   return rules === undefined || rules.length === 0 || rules.some((rule) => IMPORT_RULES.has(rule));
 }

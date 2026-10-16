@@ -18,8 +18,8 @@ test('it collects static, type-only, dynamic and required specifiers', () => {
     specifiers: ['./a', '@atc/core', 'zod', './side-effect', './d', './e'],
     resolveOnly: [],
     staticLoads: ['./a', 'zod', './side-effect'],
-    nonLiteralLines: [],
-    templateLines: [],
+    computedLoadLines: [],
+    computedResolveLines: [],
   });
 });
 
@@ -52,20 +52,29 @@ test('it marks a specifier that only a resolve form names', () => {
     specifiers: ['bun-pty/package.json', './b', './c.txt'],
     resolveOnly: ['bun-pty/package.json', './c.txt'],
     staticLoads: ['./b'],
-    nonLiteralLines: [],
-    templateLines: [],
+    computedLoadLines: [],
+    computedResolveLines: [],
   });
 });
 
 test('it reports the line of a module reference whose specifier is computed', () => {
   expect(
-    collectImports("const name = './a';\n\nexport const A = await import(name);\n"),
+    collectImports(
+      [
+        "const name = './a';",
+        '',
+        'export const A = await import(name);',
+        "export const B = require(name.replace('a', 'b'));",
+        'export const C = Bun.resolveSync(name, import.meta.dir);',
+        '',
+      ].join('\n'),
+    ),
   ).toStrictEqual({
     specifiers: [],
     resolveOnly: [],
     staticLoads: [],
-    nonLiteralLines: [3],
-    templateLines: [],
+    computedLoadLines: [3, 4],
+    computedResolveLines: [5],
   });
 });
 
@@ -83,8 +92,8 @@ test('it reports the line of a module load whose specifier is a template literal
     specifiers: ['node:fs', './a.txt', './b'],
     resolveOnly: ['./a.txt'],
     staticLoads: [],
-    nonLiteralLines: [],
-    templateLines: [1, 3],
+    computedLoadLines: [1, 3],
+    computedResolveLines: [],
   });
 });
 
@@ -95,7 +104,7 @@ test('it ignores import text inside comments and strings', () => {
     specifiers: [],
     resolveOnly: [],
     staticLoads: [],
-    nonLiteralLines: [],
-    templateLines: [],
+    computedLoadLines: [],
+    computedResolveLines: [],
   });
 });

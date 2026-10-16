@@ -1,0 +1,16 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  // the mods follow Claude Code's mod API rather than the repo's style rules,
+  // so they take only the generated import rules; .oxlintrc.json ignores them
+  "extends": ["./.oxlintrc.imports.json"],
+  "categories": { "correctness": "off" },
+  // the import rules read neither a require() call nor an import() type
+  // annotation, so the mods refuse both
+  "rules": {
+    "typescript/no-require-imports": "error",
+    "typescript/consistent-type-imports": [
+      "error",
+      { "prefer": "type-imports", "fixStyle": "separate-type-imports" }
+    ]
+  }
+}

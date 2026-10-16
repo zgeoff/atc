@@ -4,9 +4,9 @@ import { collectTokens } from './collect-tokens';
 
 // What a module imports: every literal specifier, the ones among them that
 // only a resolve form names, the ones a static import or export loads as the
-// module loads, the line of each module reference whose specifier is
-// computed, and the line of each module load whose specifier is a template
-// literal, which oxlint's import rules do not read.
+// module loads, the line of each module load whose specifier is not a quoted
+// string, which oxlint's import rules do not read, and the line of each
+// resolve form whose specifier is not a literal, which no graph reads.
 export interface ImportList {
   readonly specifiers: readonly string[];
   readonly resolveOnly: readonly string[];
@@ -14,8 +14,8 @@ export interface ImportList {
   // a type-only statement loads nothing, and a dynamic import loads its
   // module only when the code reaches it
   readonly staticLoads: readonly string[];
-  readonly nonLiteralLines: readonly number[];
-  readonly templateLines: readonly number[];
+  readonly computedLoadLines: readonly number[];
+  readonly computedResolveLines: readonly number[];
 }
 
 // Static imports and re-exports, type-only ones included, side-effect
@@ -33,8 +33,8 @@ export function collectImports(source: string): ImportList {
   const loaded = new Set<string>();
   const staticLoads = new Set<string>();
 
-  const nonLiteralLines: number[] = [];
-  const templateLines: number[] = [];
+  const computedLoadLines: number[] = [];
+  const computedResolveLines: number[] = [];
 
   // whether the import or export statement the scan is inside is type-only
   let isTypeOnly = false;
@@ -70,20 +70,20 @@ export function collectImports(source: string): ImportList {
           argument?.kind === SyntaxKind.NoSubstitutionTemplateLiteral) &&
         (after?.kind === SyntaxKind.CloseParenToken || after?.kind === SyntaxKind.CommaToken);
 
+      const isLoad = !isResolveForm(tokens, i);
+
       if (isLiteral) {
         specifiers.add(argument.value);
-
-        const isLoad = !isResolveForm(tokens, i);
 
         if (isLoad) {
           loaded.add(argument.value);
         }
+      }
 
-        if (isLoad && argument.kind === SyntaxKind.NoSubstitutionTemplateLiteral) {
-          templateLines.push(getLineNumber(source, token.start));
-        }
-      } else {
-        nonLiteralLines.push(getLineNumber(source, token.start));
+      if (isLoad && (!isLiteral || argument.kind !== SyntaxKind.StringLiteral)) {
+        computedLoadLines.push(getLineNumber(source, token.start));
+      } else if (!isLoad && !isLiteral) {
+        computedResolveLines.push(getLineNumber(source, token.start));
       }
     }
   }
@@ -92,8 +92,8 @@ export function collectImports(source: string): ImportList {
     specifiers: [...specifiers],
     resolveOnly: [...specifiers].filter((specifier) => !loaded.has(specifier)),
     staticLoads: [...staticLoads],
-    nonLiteralLines,
-    templateLines,
+    computedLoadLines,
+    computedResolveLines,
   };
 }
 
