@@ -18,7 +18,7 @@ test('it lets a scoped identity that may grant every bound secret activate the b
   expect(broker.calls).toStrictEqual(['readFeatures', 'readIdentity']);
 });
 
-test('it refuses a broker without grantable tokens, secret rebinds and exec requirements after reading only its features', () => {
+test('it refuses a broker without grantable tokens, secret rebinds and exec requirements before it checks the token', () => {
   const broker = buildStubCredentialBroker('atc-');
 
   broker.setFeatures({
@@ -42,7 +42,7 @@ test('it refuses a broker without grantable tokens, secret rebinds and exec requ
     data: { grantableTokens: false, secretRebind: false, execRequire: false },
   });
 
-  expect(broker.calls).toStrictEqual(['readFeatures']);
+  expect(broker.calls).toStrictEqual(['readFeatures', 'readIdentity']);
 });
 
 test.each([
@@ -61,7 +61,7 @@ test.each([
   const refusal = verifyBrokerAuthority(broker, { impNames: ['atc-s1'], secrets: ['glm'] });
 
   expect(refusal).rejects.toMatchObject({ code: 'auth_impd_too_old' });
-  expect(broker.calls).toStrictEqual(['readFeatures']);
+  expect(broker.calls).toStrictEqual(['readFeatures', 'readIdentity']);
 });
 
 test('it refuses an identity below manage scope', () => {
@@ -324,7 +324,7 @@ test('it refuses a broker without oauth secrets for a binding that holds one', (
     data: { oauthSecrets: false, secrets: ['codex-chatgpt'] },
   });
 
-  expect(broker.calls).toStrictEqual(['readFeatures']);
+  expect(broker.calls).toStrictEqual(['readFeatures', 'readIdentity']);
 });
 
 test('it lets a broker without oauth secrets activate a binding that holds none', async () => {

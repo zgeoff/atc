@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { makeKeyedLock, systemClock } from '@atc/core';
+import { getSettledValue, makeKeyedLock, systemClock } from '@atc/core';
 import type { SessionID } from '@atc/core';
 import type { BrokerHost, CredentialBroker, LaunchTicket } from '@atc/plugin-api';
 import { CredentialBrokerError, EffectRemainsError } from '@atc/plugin-api';
@@ -108,8 +108,15 @@ export class RuntimeAuthBinder {
       const impName = host.getHostName(request.hostKey);
       const binding = request.binding;
 
+      // The read of the name goes out with the gate's reads, and the gate
+      // still refuses first.
+      const [gate, existing] = await Promise.allSettled([
+        verifyGate(host, impName, binding),
+        host.readHost(impName),
+      ]);
+
       try {
-        await verifyGate(host, impName, binding);
+        getSettledValue(gate);
       } catch (error) {
         throw toAuthRefusal(error);
       }
@@ -130,7 +137,7 @@ export class RuntimeAuthBinder {
       );
 
       try {
-        await this.createImpAndGrants(host, request.hostKey, impName, binding, attemptID);
+        await this.createImpAndGrants(host, request.hostKey, impName, binding, attemptID, existing);
       } catch (error) {
         await this.removeAttemptLocked(host, request.hostKey, attemptID);
 
@@ -211,13 +218,21 @@ export class RuntimeAuthBinder {
         );
       }
 
+      // The imp and its grants are read with the gate's reads, and each
+      // check still refuses in the gate, imp, grants order.
+      const [gate, impRead, grantsRead] = await Promise.allSettled([
+        verifyGate(host, row.impName, binding),
+        tryReadImp(host, row.impName),
+        tryReadGrants(host, row.impName),
+      ]);
+
       try {
-        await verifyGate(host, row.impName, binding);
+        getSettledValue(gate);
       } catch (error) {
         throw toAuthRefusal(error);
       }
 
-      const imp = await tryReadImp(host, row.impName);
+      const imp = getSettledValue(impRead);
 
       if (imp === null || imp.id !== row.impID || row.impName !== host.getHostName(hostKey)) {
         throw new DaemonError(
@@ -227,8 +242,7 @@ export class RuntimeAuthBinder {
         );
       }
 
-      const held = await tryReadGrants(host, row.impName);
-
+      const held = getSettledValue(grantsRead);
       const bound = binding.secrets.map((secret) => secret.secret);
       const missing = bound.filter((secret) => !held.includes(secret));
       const extra = held.filter((secret) => !bound.includes(secret));
@@ -642,17 +656,20 @@ export class RuntimeAuthBinder {
     }
   }
 
-  // The imp, then its id on the record, then the check that impd holds no
-  // grant on it, then each grant, each one recorded as granting before impd
-  // is asked and as granted after.
+  // The imp, given the read of its name, then its id on the record, then
+  // the check that impd holds no grant on it, then the grants at once, each
+  // one recorded as granting before impd is asked and as granted after.
+  // Every grant settles before a failed one rejects, so a take-back never
+  // runs beside a grant still in flight.
   private async createImpAndGrants(
     host: CredentialBroker,
     hostKey: SessionID,
     impName: string,
     binding: AuthBinding,
     attemptID: string,
+    read: PromiseSettledResult<BrokerHost | null>,
   ): Promise<void> {
-    const existing = await host.readHost(impName);
+    const existing = getSettledValue(read);
 
     if (existing !== null) {
       await this.store.removeAuthBinding(hostKey);
@@ -695,18 +712,24 @@ export class RuntimeAuthBinder {
       );
     }
 
-    for (const secret of binding.secrets) {
-      const grant = {
-        hostKey,
-        secret: secret.secret,
-        revision: 1,
-        attemptID,
-        preexisting: false,
-      };
+    const granted = await Promise.allSettled(
+      binding.secrets.map(async (secret) => {
+        const grant = {
+          hostKey,
+          secret: secret.secret,
+          revision: 1,
+          attemptID,
+          preexisting: false,
+        };
 
-      await this.store.upsertAuthGrant({ ...grant, phase: 'granting' }, this.now());
-      await host.createGrant(impName, secret.secret);
-      await this.store.upsertAuthGrant({ ...grant, phase: 'granted' }, this.now());
+        await this.store.upsertAuthGrant({ ...grant, phase: 'granting' }, this.now());
+        await host.createGrant(impName, secret.secret);
+        await this.store.upsertAuthGrant({ ...grant, phase: 'granted' }, this.now());
+      }),
+    );
+
+    for (const result of granted) {
+      getSettledValue(result);
     }
   }
 
@@ -999,6 +1022,7 @@ function assertRecordedImpName(host: CredentialBroker, row: RuntimeAuthBinding):
 
 // The full gate on a binding: impd's features and the token's authority
 // over the imp and every bound secret, then each secret's kind and rules.
+// The secrets are read with the authority's reads and checked after them.
 async function verifyGate(
   host: CredentialBroker,
   impName: string,
@@ -1010,10 +1034,14 @@ async function verifyGate(
     .filter((secret) => secret.kind === 'oauth')
     .map((secret) => secret.secret);
 
-  await verifyBrokerAuthority(host, { impNames: [impName], secrets, oauthSecrets });
+  const [authority, secretsRead] = await Promise.allSettled([
+    verifyBrokerAuthority(host, { impNames: [impName], secrets, oauthSecrets }),
+    host.readSecrets(),
+  ]);
 
-  const held = await host.readSecrets();
+  getSettledValue(authority);
 
+  const held = getSettledValue(secretsRead);
   const mismatches = collectSecretRuleMismatches(binding.secrets, held);
 
   if (mismatches.length > 0) {

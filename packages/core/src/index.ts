@@ -10,6 +10,7 @@ export * from './create-step-timer';
 export type * from './daemon-id';
 export * from './expand-home';
 export * from './format-home-path';
+export * from './get-settled-value';
 export * from './is-broker-variable';
 export * from './is-git-url';
 export * from './is-home-relative';

@@ -47,6 +47,49 @@ test('it reaches the same hosts through a broker with another prefix', async () 
   expect(broker.collectHostNames()).toStrictEqual(['atc-s1']);
 });
 
+test('it records held calls as they arrive and answers none of them before a release', async () => {
+  const broker = buildStubBinderBroker();
+
+  broker.holdCalls();
+
+  const created = broker.createHost('s1');
+  const read = broker.readHost('atc-s1');
+
+  const heldCalls = await broker.waitForHeldCalls(2);
+
+  const heldHosts = broker.collectHostNames();
+
+  broker.releaseCalls();
+
+  await created;
+
+  const host = await read;
+
+  expect(heldCalls).toStrictEqual(['createHost atc-s1', 'readHost atc-s1']);
+  expect(heldHosts).toStrictEqual([]);
+  expect(host).toStrictEqual({ id: 'host-1', name: 'atc-s1' });
+});
+
+test('it lists the held calls without waiting for any', () => {
+  const broker = buildStubBinderBroker();
+
+  broker.holdCalls();
+  void broker.readFeatures();
+  expect(broker.collectHeldCalls()).toStrictEqual(['readFeatures']);
+});
+
+test('it answers calls at once again after a release', async () => {
+  const broker = buildStubBinderBroker();
+
+  broker.holdCalls();
+  broker.releaseCalls();
+
+  await broker.createHost('s1');
+
+  expect(broker.collectHeldCalls()).toStrictEqual([]);
+  expect(broker.collectHostNames()).toStrictEqual(['atc-s1']);
+});
+
 test('it records each contract call in order', async () => {
   const broker = buildStubBinderBroker();
 
