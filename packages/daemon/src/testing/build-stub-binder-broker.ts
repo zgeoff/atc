@@ -54,7 +54,7 @@ export interface StubBinderBroker extends CredentialBroker {
   readonly collectHeldCalls: () => string[];
 
   // Resolves to the held calls once at least the count of them are held.
-  readonly waitForHeldCalls: (count: number) => Promise<string[]>;
+  readonly waitForHeldCalls: (count: number) => Promise<readonly string[]>;
 
   // Answers every held call in the order they arrived, and holds no more.
   readonly releaseCalls: () => void;
@@ -89,7 +89,12 @@ export function buildStubBinderBroker(hostPrefix = 'atc-'): StubBinderBroker {
   };
 
   const held: { readonly call: string; readonly answer: () => void }[] = [];
-  const heldWaits: { readonly count: number; readonly resolve: (calls: string[]) => void }[] = [];
+
+  const heldWaits: {
+    readonly count: number;
+    readonly resolve: (calls: readonly string[]) => void;
+  }[] = [];
+
   let holding = false;
   const collectHeldCalls = () => held.map((entry) => entry.call);
 

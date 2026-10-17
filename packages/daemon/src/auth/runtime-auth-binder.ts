@@ -667,7 +667,7 @@ export class RuntimeAuthBinder {
     impName: string,
     binding: AuthBinding,
     attemptID: string,
-    read: PromiseSettledResult<BrokerHost | null>,
+    read: Readonly<PromiseSettledResult<BrokerHost | null>>,
   ): Promise<void> {
     const existing = getSettledValue(read);
 
