@@ -1,0 +1,451 @@
+import { sql } from 'kysely';
+import type { Kysely } from 'kysely';
+import type { Migration } from 'kysely/migration';
+import { collectFleetColumns } from './collect-fleet-columns';
+import type { ColumnInfoRow } from './collect-fleet-columns';
+import { createSessionOwners } from './create-session-owners';
+import type { StateStoreSchema } from './state-store-schema';
+import { updateFleetAgentSessionIDToShared } from './update-fleet-agent-session-id-to-shared';
+import { updateFleetKeyToSessionID } from './update-fleet-key-to-session-id';
+import { updateSpawnHistoryKeyToTarget } from './update-spawn-history-key-to-target';
+import { withImmediateTransaction } from './with-immediate-transaction';
+
+// Every shape the tables have shipped with, oldest first. A step that rebuilds
+// a table carries every row across; no step drops a row.
+export const MIGRATIONS: Record<string, Migration> = {
+  '001_create_initial_schema': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema
+        .createTable('fleet')
+        .ifNotExists()
+        .addColumn('claude_id', 'text', (c) => c.primaryKey())
+        .addColumn('name', 'text', (c) => c.notNull())
+        .addColumn('cwd', 'text', (c) => c.notNull())
+        .execute();
+
+      await db.schema
+        .createTable('events')
+        .ifNotExists()
+        .addColumn('id', 'integer', (c) => c.primaryKey().autoIncrement())
+        .addColumn('ts', 'text', (c) => c.notNull())
+        .addColumn('atc_id', 'text', (c) => c.notNull())
+        .addColumn('event', 'text', (c) => c.notNull())
+        .addColumn('message', 'text')
+        .addColumn('session_id', 'text')
+        .execute();
+
+      await db.schema
+        .createTable('spawn_history')
+        .ifNotExists()
+        .addColumn('cwd', 'text', (c) => c.primaryKey())
+        .addColumn('last_spawn', 'integer', (c) => c.notNull())
+        .execute();
+
+      await db.schema
+        .createTable('prefs')
+        .ifNotExists()
+        .addColumn('key', 'text', (c) => c.primaryKey())
+        .addColumn('value', 'text', (c) => c.notNull())
+        .execute();
+    },
+  },
+  '002_rename_fleet_claude_id_to_agent_session_id': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('fleet').renameColumn('claude_id', 'agent_session_id').execute();
+    },
+  },
+  '003_add_fleet_pinned': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema
+        .alterTable('fleet')
+        .addColumn('pinned', 'integer', (c) => c.notNull().defaultTo(0))
+        .execute();
+    },
+  },
+  '004_add_fleet_last_attached': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('fleet').addColumn('last_attached', 'integer').execute();
+    },
+  },
+  '005_add_fleet_agent': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema
+        .alterTable('fleet')
+        .addColumn('agent', 'text', (c) => c.notNull().defaultTo('claude'))
+        .execute();
+    },
+  },
+  '006_add_fleet_exited': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema
+        .alterTable('fleet')
+        .addColumn('exited', 'integer', (c) => c.notNull().defaultTo(0))
+        .execute();
+    },
+  },
+  '007_add_fleet_parent': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('fleet').addColumn('parent', 'text').execute();
+    },
+  },
+  '008_add_fleet_prompt_result_transcript': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('fleet').addColumn('prompt', 'text').execute();
+      await db.schema.alterTable('fleet').addColumn('result', 'text').execute();
+      await db.schema.alterTable('fleet').addColumn('transcript_path', 'text').execute();
+    },
+  },
+  '009_add_events_kind_detail': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('events').addColumn('kind', 'text').execute();
+      await db.schema.alterTable('events').addColumn('detail', 'text').execute();
+    },
+  },
+  '010_add_events_trail_indexes': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema
+        .createIndex('events_atc_id_ts')
+        .ifNotExists()
+        .on('events')
+        .columns(['atc_id', 'ts'])
+        .execute();
+
+      await db.schema
+        .createIndex('events_session_id_ts')
+        .ifNotExists()
+        .on('events')
+        .columns(['session_id', 'ts'])
+        .execute();
+
+      // Partial, so the trail reads walk only the rows they return. The
+      // predicate text must match the reads' filter for SQLite to pick it.
+      await sql`CREATE INDEX IF NOT EXISTS events_trail ON events (id) WHERE kind IS NOT NULL AND kind != 'heartbeat'`.execute(
+        db,
+      );
+    },
+  },
+  '011_create_messages': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema
+        .createTable('messages')
+        .ifNotExists()
+        .addColumn('id', 'text', (c) => c.primaryKey())
+        .addColumn('atc_id', 'text', (c) => c.notNull())
+        .addColumn('agent_session_id', 'text')
+        .addColumn('sender', 'text', (c) => c.notNull())
+        .addColumn('text', 'text', (c) => c.notNull())
+        .addColumn('status', 'text', (c) => c.notNull())
+        .addColumn('sent_at', 'integer', (c) => c.notNull())
+        .addColumn('delivered_at', 'integer')
+        .addColumn('answered_at', 'integer')
+        .addColumn('answer', 'text')
+        .execute();
+    },
+  },
+  '012_index_messages_by_owner': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema
+        .createIndex('messages_atc_id_status_sent_at')
+        .ifNotExists()
+        .on('messages')
+        .columns(['atc_id', 'status', 'sent_at'])
+        .execute();
+
+      await db.schema
+        .createIndex('messages_agent_session_id_status_sent_at')
+        .ifNotExists()
+        .on('messages')
+        .columns(['agent_session_id', 'status', 'sent_at'])
+        .execute();
+    },
+  },
+  '013_add_messages_turn_id': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('messages').addColumn('turn_id', 'text').execute();
+
+      await db.schema
+        .createIndex('messages_turn_id')
+        .ifNotExists()
+        .on('messages')
+        .column('turn_id')
+        .execute();
+    },
+  },
+  '014_add_fleet_model_effort': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('fleet').addColumn('model', 'text').execute();
+      await db.schema.alterTable('fleet').addColumn('effort', 'text').execute();
+    },
+  },
+  '015_rebuild_fleet_keyed_by_session_id': {
+    async up(db: Kysely<StateStoreSchema>) {
+      // The ledger records this step only after it returns, so a crash in
+      // between leaves a rebuilt table behind a ledger that still lacks it.
+      const columns = await collectFleetColumns(db);
+
+      if (columns.has('session_id')) {
+        return;
+      }
+
+      await withImmediateTransaction(db, () => updateFleetKeyToSessionID(db));
+    },
+  },
+  '016_create_session_owner': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await withImmediateTransaction(db, () => createSessionOwners(db));
+    },
+  },
+  '017_create_idempotency': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema
+        .createTable('idempotency')
+        .ifNotExists()
+        .addColumn('principal', 'text', (c) => c.notNull())
+        .addColumn('operation', 'text', (c) => c.notNull())
+        .addColumn('key', 'text', (c) => c.notNull())
+        .addColumn('payload_hash', 'text', (c) => c.notNull())
+        .addColumn('state', 'text', (c) => c.notNull())
+        .addColumn('effect_ref', 'text', (c) => c.notNull())
+        .addColumn('result', 'text')
+        .addColumn('created_at', 'integer', (c) => c.notNull())
+        .addColumn('updated_at', 'integer', (c) => c.notNull())
+        .addPrimaryKeyConstraint('idempotency_pk', ['principal', 'operation', 'key'])
+        .execute();
+
+      await db.schema
+        .createIndex('idempotency_state_updated_at')
+        .ifNotExists()
+        .on('idempotency')
+        .columns(['state', 'updated_at'])
+        .execute();
+    },
+  },
+  '018_add_fleet_target': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('fleet').addColumn('target', 'text').execute();
+      await db.schema.alterTable('fleet').addColumn('target_identity', 'text').execute();
+    },
+  },
+  '019_add_idempotency_effect_target': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('idempotency').addColumn('effect_target', 'text').execute();
+
+      await db.schema
+        .alterTable('idempotency')
+        .addColumn('effect_target_identity', 'text')
+        .execute();
+    },
+  },
+  '020_create_workspace_materialization': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema
+        .createTable('workspace_materialization')
+        .ifNotExists()
+        .addColumn('session_id', 'text', (c) => c.primaryKey())
+        .addColumn('target', 'text', (c) => c.notNull())
+        .addColumn('dir', 'text', (c) => c.notNull())
+        .addColumn('source_kind', 'text', (c) => c.notNull())
+        .addColumn('phase', 'text', (c) => c.notNull())
+        .addColumn('repo_url', 'text')
+        .addColumn('sha', 'text')
+        .addColumn('ref', 'text')
+        .addColumn('error_code', 'text')
+        .addColumn('started_at', 'integer', (c) => c.notNull())
+        .addColumn('updated_at', 'integer', (c) => c.notNull())
+        .addColumn('materialized_at', 'integer')
+        .addColumn('withheld_env', 'text')
+        .execute();
+    },
+  },
+  '021_add_fleet_lifecycle': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('fleet').addColumn('desired', 'text').execute();
+      await db.schema.alterTable('fleet').addColumn('host_key', 'text').execute();
+    },
+  },
+  '022_add_events_report_id': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('events').addColumn('report_id', 'text').execute();
+
+      await db.schema
+        .createIndex('events_report_id')
+        .ifNotExists()
+        .unique()
+        .on('events')
+        .column('report_id')
+        .execute();
+    },
+  },
+  '023_add_events_report_text': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('events').addColumn('report_text', 'text').execute();
+    },
+  },
+  '024_rebuild_spawn_history_keyed_by_target': {
+    async up(db: Kysely<StateStoreSchema>) {
+      // The ledger records this step only after it returns, so a crash in
+      // between leaves a rebuilt table behind a ledger that still lacks it.
+      const columns = await sql<ColumnInfoRow>`PRAGMA table_info(spawn_history)`.execute(db);
+
+      if (columns.rows.some((column) => column.name === 'target')) {
+        return;
+      }
+
+      await withImmediateTransaction(db, () => updateSpawnHistoryKeyToTarget(db));
+    },
+  },
+  '025_create_runtime_auth': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema
+        .createTable('runtime_auth_binding')
+        .ifNotExists()
+        .addColumn('host_key', 'text', (c) => c.primaryKey())
+        .addColumn('target', 'text', (c) => c.notNull())
+        .addColumn('target_identity', 'text', (c) => c.notNull())
+        .addColumn('imp_name', 'text', (c) => c.notNull())
+        .addColumn('imp_id', 'text')
+        .addColumn('revision', 'integer', (c) => c.notNull())
+        .addColumn('binding_hash', 'text', (c) => c.notNull())
+        .addColumn('binding_json', 'text', (c) => c.notNull())
+        .addColumn('state', 'text', (c) => c.notNull())
+        .addColumn('attempt_id', 'text', (c) => c.notNull())
+        .addColumn('imp_created_by_attempt', 'integer', (c) => c.notNull().defaultTo(0))
+        .addColumn('rebind_revision', 'integer')
+        .addColumn('rebind_binding_hash', 'text')
+        .addColumn('rebind_binding_json', 'text')
+        .addColumn('rebind_attempt_id', 'text')
+        .addColumn('created_at', 'integer', (c) => c.notNull())
+        .addColumn('updated_at', 'integer', (c) => c.notNull())
+        .addColumn('revoked_at', 'integer')
+        .execute();
+
+      await db.schema
+        .createTable('runtime_auth_grant')
+        .ifNotExists()
+        .addColumn('host_key', 'text', (c) => c.notNull())
+        .addColumn('secret', 'text', (c) => c.notNull())
+        .addColumn('revision', 'integer', (c) => c.notNull())
+        .addColumn('attempt_id', 'text', (c) => c.notNull())
+        .addColumn('preexisting', 'integer', (c) => c.notNull())
+        .addColumn('phase', 'text', (c) => c.notNull())
+        .addColumn('updated_at', 'integer', (c) => c.notNull())
+        .addPrimaryKeyConstraint('runtime_auth_grant_pk', ['host_key', 'secret'])
+        .execute();
+    },
+  },
+  '026_add_fleet_resume_interrupted_turns': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema
+        .alterTable('fleet')
+        .addColumn('resume_interrupted_turns', 'integer')
+        .execute();
+    },
+  },
+  '027_create_published_record': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema
+        .createTable('published_record')
+        .ifNotExists()
+        .addColumn('session_id', 'text', (c) => c.primaryKey())
+        .addColumn('record', 'text', (c) => c.notNull())
+        .addColumn('revision', 'integer', (c) => c.notNull())
+        .addColumn('updated_at', 'integer', (c) => c.notNull())
+        .execute();
+    },
+  },
+  '028_rename_reports_to_notes_and_accepted_to_queued': {
+    async up(db: Kysely<StateStoreSchema>) {
+      // Each step can run again after a crash: a column renames only while
+      // it still carries the old name, and every value update matches the
+      // old value alone.
+      const columns = await sql<ColumnInfoRow>`PRAGMA table_info(events)`.execute(db);
+
+      const names = new Set(columns.rows.map((column) => column.name));
+
+      if (names.has('report_id')) {
+        await sql`ALTER TABLE events RENAME COLUMN report_id TO note_id`.execute(db);
+      }
+
+      if (names.has('report_text')) {
+        await sql`ALTER TABLE events RENAME COLUMN report_text TO note_text`.execute(db);
+      }
+
+      await sql`DROP INDEX IF EXISTS events_report_id`.execute(db);
+      await sql`CREATE UNIQUE INDEX IF NOT EXISTS events_note_id ON events (note_id)`.execute(db);
+      await sql`UPDATE events SET kind = 'note' WHERE kind = 'report'`.execute(db);
+      await sql`UPDATE events SET event = 'SessionNote' WHERE event = 'SessionReport'`.execute(db);
+
+      await sql`UPDATE events SET kind = 'message-queued' WHERE kind = 'message-accepted'`.execute(
+        db,
+      );
+
+      await sql`UPDATE messages SET status = 'queued' WHERE status = 'accepted'`.execute(db);
+
+      // A replayed message send answers with the result its first run
+      // cached, which holds the status the message was written with.
+      await sql`
+        UPDATE idempotency
+        SET result = json_set(result, '$.status', 'queued')
+        WHERE operation = 'session.message'
+          AND result IS NOT NULL
+          AND json_valid(result)
+          AND json_extract(result, '$.status') = 'accepted'
+      `.execute(db);
+    },
+  },
+  '029_add_fleet_auth_revision': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('fleet').addColumn('auth_revision', 'integer').execute();
+    },
+  },
+  '030_add_messages_unanswered': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('messages').addColumn('unanswered_at', 'integer').execute();
+      await db.schema.alterTable('messages').addColumn('unanswered_reason', 'text').execute();
+    },
+  },
+  '031_rebuild_fleet_without_unique_agent_session_id': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await withImmediateTransaction(db, async () => {
+        await updateFleetAgentSessionIDToShared(db);
+
+        await db.schema
+          .createIndex('fleet_agent_session_id')
+          .ifNotExists()
+          .on('fleet')
+          .column('agent_session_id')
+          .execute();
+      });
+    },
+  },
+  '032_add_messages_answer_notice': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('messages').addColumn('sender_session', 'text').execute();
+      await db.schema.alterTable('messages').addColumn('notice_queued_at', 'integer').execute();
+      await db.schema.alterTable('messages').addColumn('notice_delivered_at', 'integer').execute();
+
+      await db.schema
+        .createIndex('messages_sender_session_notice')
+        .ifNotExists()
+        .on('messages')
+        .columns(['sender_session', 'notice_delivered_at'])
+        .execute();
+    },
+  },
+  '033_add_messages_sender_kind': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('messages').addColumn('sender_kind', 'text').execute();
+      await db.schema.alterTable('messages').addColumn('sender_id', 'text').execute();
+    },
+  },
+  '034_add_events_answer_text': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('events').addColumn('answer_text', 'text').execute();
+    },
+  },
+  '035_add_fleet_suspended': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('fleet').addColumn('suspended', 'integer').execute();
+    },
+  },
+};

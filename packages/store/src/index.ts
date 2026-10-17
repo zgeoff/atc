@@ -10,5 +10,6 @@ export * from './snapshot/read-stored-rows';
 export * from './sqlite';
 export * from './stale-ownership-error';
 export * from './state-store';
+export type * from './stored-event';
 export type * from './trail-entry';
 export type * from './workspace-materialization';

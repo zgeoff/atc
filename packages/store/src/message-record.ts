@@ -37,3 +37,8 @@ export interface MessageRecord {
   readonly noticeQueuedAt?: number;
   readonly noticeDeliveredAt?: number;
 }
+
+export interface TurnSibling {
+  readonly id: MessageID;
+  readonly atcID: SessionID;
+}
