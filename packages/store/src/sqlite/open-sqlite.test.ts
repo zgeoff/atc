@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from '@atc/test-utils';
 import { openSQLite } from './open-sqlite';
+import { registerRefusedSQLiteName } from './register-refused-sqlite-name';
 
 function setupTest() {
   const tmp = setupTempDir('atc-open-sqlite-');
@@ -55,4 +56,13 @@ test('it binds a named parameter without its prefix when the options ask for str
   });
 
   expect(sqlite.query('SELECT $value AS value').get({ value: 7 })).toStrictEqual({ value: 7 });
+});
+
+test('it refuses a file whose name this process refuses, and creates nothing', () => {
+  const ctx = setupTest();
+
+  onTestFinished(registerRefusedSQLiteName('test.db'));
+
+  expect(() => openSQLite(ctx.dbPath)).toThrow(expect.objectContaining({ code: 'sqlite_refused' }));
+  expect(existsSync(ctx.dbPath)).toBe(false);
 });

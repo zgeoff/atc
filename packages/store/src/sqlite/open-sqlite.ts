@@ -1,4 +1,5 @@
 import { Database } from 'bun:sqlite';
+import { requireOpenableSQLitePath } from './register-refused-sqlite-name';
 
 interface SQLiteOptions {
   // Binds a named parameter without its prefix.
@@ -12,6 +13,8 @@ interface SQLiteOptions {
 }
 
 export function openSQLite(path: string, options: SQLiteOptions = {}): Database {
+  requireOpenableSQLitePath(path);
+
   const sqlite = new Database(path, { create: true, strict: options.strict === true });
 
   // A reader in another process never blocks the writer.

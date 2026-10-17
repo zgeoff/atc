@@ -1,7 +1,9 @@
 import { Database } from 'bun:sqlite';
-import { expect, test } from 'bun:test';
-import { join } from 'node:path';
+import { expect, onTestFinished, test } from 'bun:test';
+import { writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { registerRefusedSQLiteName } from '../sqlite/register-refused-sqlite-name';
 import { readStoredFleetFile } from './read-stored-fleet-file';
 
 function setupTest() {
@@ -73,6 +75,15 @@ test('it reads null for a missing database file', () => {
   expect(readStoredFleetFile(ctx.dbPath)).toBeNull();
 });
 
+test('it reads null for a path whose parent is a file', () => {
+  const ctx = setupTest();
+  const plain = join(dirname(ctx.dbPath), 'plain');
+
+  writeFileSync(plain, '');
+
+  expect(readStoredFleetFile(join(plain, 'atc.db'))).toBeNull();
+});
+
 test('it reads null for a database without a fleet table', () => {
   const ctx = setupTest();
 
@@ -85,4 +96,14 @@ test('it reads null for a database without a fleet table', () => {
   db.run('CREATE TABLE prefs (key TEXT, value TEXT)');
 
   expect(readStoredFleetFile(ctx.dbPath)).toBeNull();
+});
+
+test('it refuses a file whose name this process refuses', () => {
+  const ctx = setupTest();
+
+  onTestFinished(registerRefusedSQLiteName('atc.db'));
+
+  expect(() => readStoredFleetFile(ctx.dbPath)).toThrow(
+    expect.objectContaining({ code: 'sqlite_refused' }),
+  );
 });

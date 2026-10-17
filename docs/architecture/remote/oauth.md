@@ -19,11 +19,13 @@ proxy or tunnel serves. The public URL's origin is the OAuth issuer, and `<origi
 resource every token is bound to.
 
 The server keeps its state in `mcp-auth.db`, a SQLite file separate from `atc.db`. atc creates it
-readable by its owner only and sets that mode again on every open. The daemon never opens it, and
-the client and grant commands open it directly, so they work whether or not the server runs. The
-file holds clients, consent, short-lived owner sessions, the owner's passkeys as credential ids and
-public keys, and hashes of enrollment tokens, access tokens, refresh tokens and authorization codes,
-never one of those tokens in the clear.
+readable by its owner only and sets that mode again on every open. The daemon never opens it: the
+reach check fails when a module that the daemon's entry points reach names the file, and the
+`atc daemon` process refuses to open any SQLite file with that name. The client and grant commands
+open it directly, so they work whether or not the server runs. The file holds clients, consent,
+short-lived owner sessions, the owner's passkeys as credential ids and public keys, and hashes of
+enrollment tokens, access tokens, refresh tokens and authorization codes, never one of those tokens
+in the clear.
 
 Pending approvals and their WebAuthn challenges live in memory, and the server signs each
 authorization request and owner session with a secret it draws at start. Restarting the server
