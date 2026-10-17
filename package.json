@@ -70,6 +70,7 @@
     "check:manifests": "bun scripts/check-manifests.ts",
     "check:raw-escapes": "bun scripts/check-raw-escapes.ts",
     "check:reach": "bun scripts/check-reach.ts",
+    "check:source-entries": "bun scripts/check-source-entries.ts",
     "deadcode": "bun scripts/deadcode.ts",
     "demo:record": "bash scripts/record-demo.sh",
     "files:branch": "bun scripts/collect-branch-files.ts",
