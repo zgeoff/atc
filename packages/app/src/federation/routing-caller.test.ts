@@ -180,7 +180,7 @@ test('it sends no read to a replacement connection whose handshake lacks the pri
 test('it refuses a request that carries no verified client', async () => {
   const ctx = await setupTest();
 
-  await expect(ctx.router.sendRequest('dirs.list')).rejects.toThrowWithMessage(
+  expect(ctx.router.sendRequest('dirs.list')).rejects.toThrowWithMessage(
     Error,
     'the gateway sends a request only as the verified client of the call',
   );
