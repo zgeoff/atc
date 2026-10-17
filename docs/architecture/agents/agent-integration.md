@@ -157,5 +157,11 @@ every connection, the bridge therefore recovers before it sends anything. It rea
 stored turns and settles each queued or delivered message from the turn that holds its id. A queued
 message that no turn holds stays queued, and a delivered one that no turn holds becomes unanswered
 as never started. A failed read changes no message: the bridge drops the connection and tries again
-later. Notifications that arrive during recovery wait until it ends, and the bridge's tap attaches
-only then, so a turn that completes while the connection is set up cannot cause a resend.
+later. A send whose connection drops before its answer stays tied to the thread it went to, because
+the terminal can move before the next connection recovers. Recovery then reads that thread's turns
+as well: a message that a turn of the old thread holds settles there or becomes unanswered with the
+reason `thread_switched`, and only a message that the old thread never took goes to the new one. A
+message stays off the new thread when the server refuses to read the old thread's history, because
+the old thread may have taken it. Notifications that arrive during recovery wait until it ends, and
+the bridge's tap attaches only then, so a turn that completes while the connection is set up cannot
+cause a resend.
