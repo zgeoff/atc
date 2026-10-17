@@ -158,11 +158,12 @@ stored turns and settles each queued or delivered message from the turn that hol
 message that no turn holds stays queued, and a delivered one that no turn holds becomes unanswered
 as never started. A failed read changes no message: the bridge drops the connection and tries again
 later. A send whose connection drops before its answer stays tied to the thread it went to, because
-the terminal can move before the next connection recovers. Recovery then reads that thread's turns
-as well: a message that a turn of the old thread holds settles there or becomes unanswered with the
-reason `thread_switched`, and only a message that the old thread never took goes to the new one. A
-message stays off the new thread when the server finds no readable history for the old thread,
-because the old thread may have taken it. Any other failed read of the old thread fails the
-recovery, which changes no message. Notifications that arrive during recovery wait until it ends,
-and the bridge's tap attaches only then, so a turn that completes while the connection is set up
-cannot cause a resend.
+the terminal can move before the next connection recovers. The bridge keeps that tie in a file in
+the session's own state folder until a recovery reads the thread, so a daemon restart in between
+keeps it. Recovery then reads that thread's turns as well: a message that a turn of the old thread
+holds settles there or becomes unanswered with the reason `thread_switched`, and only a message that
+the old thread never took goes to the new one. A message stays off the new thread when the server
+finds no readable history for the old thread, because the old thread may have taken it. Any other
+failed read of the old thread fails the recovery, which changes no message. Notifications that
+arrive during recovery wait until it ends, and the bridge's tap attaches only then, so a turn that
+completes while the connection is set up cannot cause a resend.
