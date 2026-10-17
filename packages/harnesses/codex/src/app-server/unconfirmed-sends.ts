@@ -16,7 +16,7 @@ export class UnconfirmedSends {
   constructor(path: string | null, log: (line: string) => void) {
     this.path = path;
     this.log = log;
-    this.threads = path === null ? new Map() : loadThreads(path, log);
+    this.threads = path === null ? new Map<string, string>() : loadThreads(path, log);
   }
 
   findThread(message: string): string | undefined {
@@ -74,12 +74,12 @@ function loadThreads(path: string, log: (line: string) => void): Map<string, str
     text = readFileSync(path, 'utf8');
   } catch (error) {
     if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
-      return new Map();
+      return new Map<string, string>();
     }
 
     log(`codex app server: the unconfirmed sends in ${path} did not read (${String(error)})`);
 
-    return new Map();
+    return new Map<string, string>();
   }
 
   try {
@@ -89,6 +89,6 @@ function loadThreads(path: string, log: (line: string) => void): Map<string, str
   } catch (error) {
     log(`codex app server: the unconfirmed sends in ${path} did not parse (${String(error)})`);
 
-    return new Map();
+    return new Map<string, string>();
   }
 }
