@@ -333,8 +333,9 @@ function removeCarriedMessage(carried: TapMessage[], msg: TapMessage): void {
   carried.splice(carried.indexOf(msg), 1);
 }
 
-// Why atc did not take the answer, or null once it did: a run that throws
-// and a run that exits nonzero both fail.
+// Why atc did not take the answer, or null once it did. The reporter always
+// exits 0, so only its printed delivery result shows that atc took the answer;
+// a run that throws, exits nonzero or prints anything else fails.
 async function tryRunAnswer(
   $: EngineInterface,
   messageID: string,
@@ -347,7 +348,11 @@ async function tryRunAnswer(
       timeoutMs: 5000,
     });
 
-    return ran.exitCode === 0 ? null : `atc exited with ${String(ran.exitCode)}`;
+    if (ran.exitCode !== 0) {
+      return `atc exited with ${String(ran.exitCode)}`;
+    }
+
+    return ran.stdout.trim() === 'delivered' ? null : 'the answer did not reach atc';
   } catch (error) {
     return String(error);
   }

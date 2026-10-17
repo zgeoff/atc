@@ -19,15 +19,19 @@ interface NoteOptions {
   readonly reason?: string;
 }
 
-// Where the reporter reads its text and how it exits: stdin and the process
-// by default.
+// Where the reporter reads its text, prints its delivery result, and how it
+// exits: stdin, stdout and the process by default.
 interface NoteIO {
   readonly readStdin: () => Promise<string>;
+  readonly print: (text: string) => void;
   readonly exit: (code: number) => void;
 }
 
 const PROCESS_IO: NoteIO = {
   readStdin: () => new Response(Bun.stdin.stream()).text(),
+  print: (text) => {
+    process.stdout.write(text);
+  },
   exit: (code) => {
     process.exit(code);
   },
@@ -38,6 +42,8 @@ export async function runNote(
   options: NoteOptions,
   io: NoteIO = PROCESS_IO,
 ): Promise<void> {
+  let isDelivered = false;
+
   try {
     const session = readSessionEnv(process.env);
     const sock = session.socket;
@@ -48,14 +54,20 @@ export async function runNote(
       const payload = buildNotePayload(kind, options, stdin);
 
       if (payload !== null && session.bridge === true) {
-        await sendBridgeNote(sock, session.outbox ?? '', payload);
+        isDelivered = await sendBridgeNote(sock, session.outbox ?? '', payload);
       } else if (payload !== null) {
         const line = `${JSON.stringify({ atcId, event: 'Note', payload })}\n`;
 
-        await sendReport(sock, line, 2000);
+        isDelivered = await sendReport(sock, line, 2000);
       }
     }
   } catch {}
+
+  // The exit code stays 0, so a caller that must know whether atc took the
+  // note reads this line instead.
+  const delivery = isDelivered ? 'delivered' : 'undelivered';
+
+  io.print(`${delivery}\n`);
 
   // always 0, so the note never blocks the session it reports on
   io.exit(0);
@@ -65,10 +77,11 @@ async function sendBridgeNote(
   sock: string,
   outbox: string,
   payload: Readonly<Record<string, string | readonly string[]>>,
-): Promise<void> {
+): Promise<boolean> {
   // an id of its own, so a resent note lands once
   const noteID = randomUUID();
   const file = outbox === '' ? null : join(outbox, `${noteID}.json`);
+  let isQueued = false;
 
   // the outbox holds the note until the bridge takes or refuses it, so the
   // session's tap sends it again after a dropped connection
@@ -76,6 +89,8 @@ async function sendBridgeNote(
     try {
       mkdirSync(outbox, { recursive: true });
       writeFileSync(file, JSON.stringify({ noteID, payload }));
+
+      isQueued = true;
     } catch {}
   }
 
@@ -87,6 +102,10 @@ async function sendBridgeNote(
   if (isFinal && file !== null) {
     rmSync(file, { force: true });
   }
+
+  // A note the outbox holds counts as delivered, because the tap sends it
+  // again; a refused note never arrives.
+  return answer?.['ok'] === true || (!isFinal && isQueued);
 }
 
 function buildNotePayload(
