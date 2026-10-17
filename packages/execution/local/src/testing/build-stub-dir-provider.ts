@@ -24,9 +24,6 @@ interface StubDirOptions {
   readonly afterTransfer?: (dir: string) => Promise<void>;
 }
 
-/**
- * The directory-tree provider the factory below builds, one per call.
- */
 class StubDirProvider implements ExecutionProvider {
   readonly kind = 'fixture-dir';
 
@@ -123,16 +120,6 @@ class StubDirProvider implements ExecutionProvider {
   readonly dispose = (): void => {};
 }
 
-/**
- * Builds an execution provider of kind `fixture-dir` for tests whose host is
- * a directory tree the test owns: a transfer unpacks the archive with tar
- * into the directory it is given, and a command runs as a child process in
- * its working directory. Paths pass through unchanged, so a test points them
- * into its own temp tree. Every transfer and command is recorded in `calls`.
- * Harnesses start on a local pseudo-terminal, and each one's spec is
- * recorded in `harnesses`. Suspending or destroying a host rejects, since
- * the test's own tree neither sleeps nor goes away.
- */
 export function buildStubDirProvider(options: StubDirOptions = {}): StubDirProvider {
   return new StubDirProvider(options);
 }

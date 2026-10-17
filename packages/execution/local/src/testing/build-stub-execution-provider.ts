@@ -16,10 +16,7 @@ interface StubExecutionProviderConfig {
   // commands run on this machine.
   readonly commandFailure?: Readonly<Error>;
 
-  /**
-   * Called with each harness spec before the harness starts; a throw from
-   * it aborts the spawn.
-   */
+  // A throw aborts the spawn.
   readonly onSpawn?: (spec: HarnessSpec) => void;
 }
 
@@ -30,30 +27,11 @@ interface StubExecutionProvider extends ExecutionProvider {
   // Every host the daemon destroyed, in order.
   readonly destroyed: string[];
 
-  /**
-   * Rejects every host suspend with the error, recording nothing, until
-   * called with null.
-   */
   readonly setSuspendFailure: (error: Readonly<Error> | null) => void;
 
-  /**
-   * Rejects every host destroy with the error, recording nothing, until
-   * called with null.
-   */
   readonly setDestroyFailure: (error: Readonly<Error> | null) => void;
 }
 
-/**
- * An execution provider for daemon tests that runs harnesses, transfers, and
- * commands on this machine as the local pseudo-terminal provider does, with
- * the capabilities the config changes on top of its own. The config can
- * mark the host remote, and can make every command reject with an error
- * instead of running. It reports each harness spec to the config before
- * starting it. A host suspend or destroy does nothing to the machine: it records the host in `suspended` or
- * `destroyed` and resolves, or rejects with the error a failure setter gave.
- * The daemon calls them only when the capabilities declare `suspend` or
- * `destroy`.
- */
 export function buildStubExecutionProvider(
   config: StubExecutionProviderConfig = {},
 ): StubExecutionProvider {

@@ -16,10 +16,6 @@ type ImpdRouter = {
     : N]: ImpClient[N];
 };
 
-/**
- * One RPC procedure of impd's published contract, by its dotted path, such
- * as `leases.acquire`.
- */
 export type ImpdProcedure = {
   [N in Extract<keyof ImpdRouter, string>]: `${N}.${Extract<keyof ImpdRouter[N], string>}`;
 }[Extract<keyof ImpdRouter, string>];
@@ -33,9 +29,6 @@ type ImpdCall<P extends ImpdProcedure> = P extends `${infer N extends keyof Impd
 type ImpdResult<P extends ImpdProcedure> =
   ImpdCall<P> extends (...args: never) => infer R ? R : never;
 
-/**
- * What impd answers a procedure with, as the contract types it.
- */
 export type ImpdOutput<P extends ImpdProcedure> = Awaited<ImpdResult<P>>;
 
 // The errors the client types a procedure's call to reject with, for each
@@ -46,12 +39,8 @@ type ImpdError<P extends ImpdProcedure> = P extends unknown
     : never
   : never;
 
-/**
- * A refusal impd may answer a procedure with: one code of the procedure's
- * error map and the data the contract gives that code, the `BAD_REQUEST`
- * that oRPC answers an input its schema rejects with, or the
- * `INTERNAL_SERVER_ERROR` it answers a failure the map lacks with.
- */
+// Beside the procedure's error map, oRPC answers an input its schema rejects
+// with BAD_REQUEST and a failure the map lacks with INTERNAL_SERVER_ERROR.
 export type ImpdRefusal<P extends ImpdProcedure> =
   | (Extract<ImpdError<P>, ORPCError<string, unknown>> extends infer E
       ? E extends ORPCError<infer C, infer D>
@@ -68,9 +57,6 @@ type ImpdRefusalOf<C, D> = unknown extends D
     ? { readonly code: C; readonly data?: D }
     : { readonly code: C; readonly data: D };
 
-/**
- * A refusal code impd may answer a procedure with and send no data.
- */
 export type ImpdBareRefusalCode<P extends ImpdProcedure> =
   ImpdRefusal<P> extends infer R
     ? R extends { readonly code: infer C; readonly data?: infer D }
@@ -80,24 +66,12 @@ export type ImpdBareRefusalCode<P extends ImpdProcedure> =
       : never
     : never;
 
-/**
- * Where an exec's data sits in the session's output, as impd starts it.
- */
 export type ImpdSessionOutput = ExecStarted['output'];
 
-/**
- * How impd ends an exec WebSocket, as the client reports it, without the
- * client's own local errors. A refusal that impd's exec protocol defines
- * data for carries that data.
- */
 export type ImpdExecOutcome =
   | Exclude<ExecOutcome, { readonly kind: 'failed' | 'local_error' }>
   | ({ readonly kind: 'failed'; readonly message: string } & ImpdExecRefusal);
 
-/**
- * A refusal of an exec start or attach: a code with the data impd's exec
- * protocol gives it, or a code of the contract's error map with its data.
- */
 export type ImpdExecRefusal =
   | { readonly code: 'NO_SESSION'; readonly data: NoSessionData }
   | { readonly code: 'INVALID_RESUME'; readonly data: InvalidResumeData }

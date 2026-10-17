@@ -2,36 +2,11 @@ import { ImpClientPort } from './imp-client-port';
 import { ImpProvider } from './imp-provider';
 import { readImpToken } from './read-imp-token';
 
-/**
- * The provider of an `imp` target, or the problem that keeps it from one.
- * A problem never includes a token or any other environment value.
- */
 interface ImpProviderBuild {
   readonly provider: ImpProvider | null;
   readonly problem: string | null;
 }
 
-/**
- * The provider of target `id` from its `imp` options: `url` is where impd
- * listens, and at most one of `tokenEnv` and `tokenFile` gives the token,
- * so no credential sits in the config. `tokenEnv` holds the name of the
- * daemon's environment variable that carries the token, read once here.
- * `tokenFile` holds the path of a file that carries it, read here and again
- * before each impd call and connection. `impPrefix` starts every imp name
- * the target builds, `atc-` when absent, and must be a lowercase letter
- * followed by up to 10 lowercase letters, digits or hyphens, so the name
- * it builds with a host key's 20 characters stays within impd's 31.
- * `rebindChangedAuth`, false when absent, lets a launch rebind a host whose
- * auth selection changed, and must be a boolean when given. `dropSysAdmin`,
- * false when absent, runs each harness without CAP_SYS_ADMIN and
- * CAP_SYS_PTRACE, and must be a boolean when given. `image`,
- * `memoryMib`, `guestDir`, and `guestATC` pass through. No provider when
- * `url` is missing, so the
- * target lists and refuses every spawn. Both token options, either one not
- * a non-empty string, an unset or empty variable, or an empty or unreadable
- * file is a problem and leaves no provider; a target without either calls
- * impd with no token. `version` holds the atc version the daemon runs.
- */
 export function buildImpProvider(
   id: string,
   options: Readonly<Record<string, unknown>>,
@@ -52,6 +27,8 @@ export function buildImpProvider(
 
   const impPrefix = options['impPrefix'];
 
+  // At most 11 characters keep a name built with a host key's 20 within
+  // impd's 31.
   if (impPrefix !== undefined && !isImpPrefix(impPrefix)) {
     return {
       provider: null,

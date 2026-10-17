@@ -1,25 +1,12 @@
 import { faker } from '@faker-js/faker';
 import type { ImpSessionRequest } from '../imp-port';
 
-/**
- * The request that starts a process on an imp.
- */
 type StartRequest = Extract<ImpSessionRequest, { readonly kind: 'start' }>;
 
-/**
- * The request that attaches to a process already running on an imp.
- */
 type AttachRequest = Extract<ImpSessionRequest, { readonly kind: 'attach' }>;
 
 type AttachOverrides = Partial<AttachRequest> & { readonly kind: 'attach' };
 
-/**
- * A request that starts `true` on an imp with an empty environment, or, for
- * an override of kind `attach`, one that attaches without waking the imp.
- * Either carries no resume point and no requirements, and an arbitrary imp
- * name, session name, and terminal size; a start's directory is arbitrary
- * too. Each override replaces the default of its field.
- */
 export function buildMockImpSessionRequest(overrides?: Partial<StartRequest>): StartRequest;
 export function buildMockImpSessionRequest(overrides: AttachOverrides): AttachRequest;
 

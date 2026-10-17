@@ -1,12 +1,7 @@
 import { readFileSync } from 'node:fs';
 
-/**
- * The systemd release a systemd program at `path` belongs to, or null when
- * the file cannot be read or holds no release. Every systemd program links
- * the `libsystemd-shared-<release>` library of its own release, so the
- * library's name in the file holds the release, read without running the
- * program.
- */
+// Every systemd program links the libsystemd-shared library of its own
+// release, so the file names the release without running the program.
 export function findSystemdVersion(path: string): number | null {
   let bytes: string;
 

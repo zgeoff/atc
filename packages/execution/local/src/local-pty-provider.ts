@@ -16,13 +16,6 @@ import { buildHarnessArgv } from './build-harness-argv';
 import { readNativeEnvKeys } from './read-native-env-keys';
 import type { SessionScopes } from './session-scopes';
 
-/**
- * The `local-pty` provider: harnesses run as child processes of the daemon
- * on a `bun-pty` pseudo-terminal, and files and commands touch the daemon's
- * own host. The host is the daemon's machine, so there is nothing to
- * suspend or destroy. Given scopes, each harness starts in a scope of its
- * own, and a disposal stops every scope.
- */
 export class LocalPTYProvider implements ExecutionProvider {
   readonly kind = 'local-pty';
 
@@ -56,10 +49,9 @@ export class LocalPTYProvider implements ExecutionProvider {
   // The daemon's own machine is always ready.
   readonly prepareHost = (): Promise<void> => Promise.resolve();
 
-  // The daemon's machine keeps no process the daemon lets go of, so a
-  // detach ends the harness as a kill does, after dropping every listener.
-  // It has no credential broker, so a harness that requires one never
-  // starts here.
+  // The daemon's machine keeps no process the daemon lets go of, so a detach
+  // ends the harness as a kill does. With no credential broker here, a harness
+  // that requires one never starts.
   readonly spawnHarness = (spec: HarnessSpec): HarnessHandle => {
     if (spec.requireBroker === true) {
       throw new DaemonError(
@@ -130,10 +122,9 @@ export class LocalPTYProvider implements ExecutionProvider {
         }
       },
 
-      // bun-pty's kill sends one SIGHUP and reports an exit at once, whether
-      // the process ended or not, so the exit is read from the process id
-      // instead: the library reaps its child, so the id stops answering a
-      // signal once the process is gone.
+      // bun-pty's kill reports an exit at once whether the process ended or not, so
+      // the exit is read from the pid, which stops answering a signal once the
+      // library reaps its child.
       waitForExit: (timeoutMs) =>
         waitUntil(() => !isProcessRunning(pty.pid), {
           clock: this.clock,
@@ -225,10 +216,9 @@ function buildPTYEnv(spec: HarnessSpec): Record<string, string> {
   };
 }
 
-// The PTY library starts its child from the environment the daemon started
-// with and lays the map over it, so the harness starts behind `env`, which
-// unsets every name the map leaves out before it replaces itself with the
-// harness. The pid stays the harness's own.
+// The PTY library lays the map over the environment the daemon started with,
+// so the harness starts behind env, which unsets every name the map leaves out
+// and replaces itself with the harness.
 const ENV_BIN = '/usr/bin/env';
 
 // The program is found on the map's PATH before the harness starts, so a

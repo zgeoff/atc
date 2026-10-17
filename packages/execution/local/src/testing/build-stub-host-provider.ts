@@ -1,13 +1,6 @@
 import type { ExecutionProvider } from '@atc/plugin-api';
 import { LocalPTYProvider } from '../local-pty-provider';
 
-/**
- * An execution provider of kind `imp-like` whose hosts can be put to sleep
- * and destroyed, as an imp's can, while every harness, archive transfer, and
- * command runs on this machine through the local terminal provider.
- * Readying, suspending, and destroying a host each do nothing and settle at
- * once.
- */
 export function buildStubHostProvider(): ExecutionProvider {
   const local = new LocalPTYProvider();
 

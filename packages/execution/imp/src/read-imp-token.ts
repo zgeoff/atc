@@ -1,11 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { ImpPortError } from './imp-port-error';
 
-/**
- * The impd token held in the file at `path`, without one trailing newline.
- * An empty or unreadable file throws an `UNAUTHORIZED` port error whose
- * message holds the path and the read's error code, never file content.
- */
+// A message names the path and the read's error code, never the file's content.
 export function readImpToken(path: string): string {
   let text: string;
 

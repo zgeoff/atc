@@ -35,14 +35,6 @@ import READ_GUEST_ATC_SCRIPT from './read-guest-atc.sh' with { type: 'text' };
 import READY_GUEST_DIR_SCRIPT from './ready-guest-dir.sh' with { type: 'text' };
 import UNPACK_SCRIPT from './unpack-archive.sh' with { type: 'text' };
 
-/**
- * The options an `imp` target takes beside its provider: the image a new
- * imp boots, the memory it gets, the folder inside each imp that atc's
- * files go under, the path of an atc binary already installed in the
- * image, the prefix every imp name the target builds starts with, and
- * whether a launch rebinds a host whose auth selection changed, and whether
- * each harness runs without CAP_SYS_ADMIN. None holds a credential.
- */
 interface ImpTargetOptions {
   readonly impPrefix?: string;
   readonly rebindChangedAuth?: boolean;
@@ -97,14 +89,6 @@ const GZIP_LEVEL = 2;
 // which neither mkdir nor tar uses.
 const NO_GZIP_CODE = 69;
 
-/**
- * The `imp` provider: one imp, a VM that impd hosts, per top-level session,
- * and every sub-session on the same target in its parent's imp. The daemon
- * holds each imp it uses with a lease labelled `atc-<daemonID>`, renews it
- * while a harness runs there, and gives it back when the last harness ends
- * or before it puts the imp to sleep; it never forces a sleep. Each harness
- * is an imp session, and the daemon is its one attacher.
- */
 export class ImpProvider implements ExecutionProvider {
   readonly kind = 'imp';
 
@@ -379,10 +363,8 @@ export class ImpProvider implements ExecutionProvider {
   };
 
   readonly transferArchive = async (archive: Uint8Array, dir: string, host?: string) => {
-    // The archive crosses the network to impd, so it goes over gzipped:
-    // imp-base ships gzip and no faster decompressor. An imp without gzip
-    // refuses the transfer before it reads any input, and nothing falls back
-    // to an uncompressed upload.
+    // The archive crosses the network, so it goes gzipped: imp-base ships gzip and
+    // no faster decompressor, and nothing falls back to an uncompressed upload.
     const compressed = await gzipAsync(archive, { level: GZIP_LEVEL });
 
     // The archive records the daemon host's owners. Commands in an imp run as
@@ -440,10 +422,9 @@ export class ImpProvider implements ExecutionProvider {
     }
   };
 
-  // Gives back the daemon's own lease first, since a lease blocks a sleep,
-  // then asks impd to sleep the imp without force. Another owner's lease
-  // refuses the sleep: the daemon takes its lease back and the refusal
-  // carries what impd showed of the other leases.
+  // A lease blocks a sleep, so the daemon's own goes back first and the sleep
+  // never forces. Another owner's lease refuses it, and the daemon takes its
+  // lease back.
   readonly suspendHost = (hostKey: string, isIdle?: () => boolean): Promise<void> =>
     this.withHostTurn(this.getImpName(hostKey), async () => {
       const host = this.getHost(hostKey);
@@ -527,11 +508,9 @@ export class ImpProvider implements ExecutionProvider {
     }
   };
 
-  // Takes back what a failed prepare left: an imp it created is destroyed,
-  // which ends the lease on it too, since no session was ever listed on it;
-  // on an imp that existed before, only the lease this prepare took is
-  // given back, and the imp itself stays. Resolves to false when an imp it
-  // created may still stand; a lease left behind runs out on its own.
+  // An imp this prepare created is destroyed, which ends its lease too; on an
+  // imp that existed before, only the lease goes back. False when a created imp
+  // may still stand.
   private async tryUndoPrepare(
     name: string,
     label: string,
@@ -557,11 +536,8 @@ export class ImpProvider implements ExecutionProvider {
     return true;
   }
 
-  // Readies the folder the harnesses' report sockets live in, and readies
-  // `bin/atc` when a harness needs atc: the image's atc when the target
-  // sets one that runs the daemon's version, else the provider's atc
-  // binary, copied in when the imp lacks it, as a cold boot of an imp
-  // leaves it.
+  // A cold boot clears the guest folder, so each readying links the image's atc
+  // or copies the provider's binary in again.
   private async setupGuest(
     name: string,
     installATC: boolean,
@@ -592,10 +568,8 @@ export class ImpProvider implements ExecutionProvider {
     await this.copyATCBinary(name, this.atcBinary);
   }
 
-  // Points `bin/atc` at the image's atc when it runs the daemon's version,
-  // and at a copy of the provider's atc binary otherwise, logging which.
-  // The first readying of an imp reads the image's version in the same
-  // command that links it; a later one links again or checks the copy.
+  // The first readying reads the image's version in the same command that links
+  // it; a later one links again or checks the copy.
   private async setupGuestATC(
     name: string,
     image: string,
@@ -697,15 +671,9 @@ export class ImpProvider implements ExecutionProvider {
     }
   }
 
-  // A socket inside the imp that serves one harness: each connection a
-  // process opens there reaches the daemon as that harness's relay, and
-  // nothing else reaches the daemon through it. impd ends a forward for
-  // good when its tunnel socket closes while the harness keeps running, so
-  // a forward that ends before the harness does listens again on the same
-  // path, after the provider's reconnect delays, until the harness ends.
-  // Hooks that run in between find no socket and are lost. A forward the
-  // imp's sleep ended stays ended, since a listen wakes a sleeping imp; the
-  // harness a wake revives opens a forward of its own.
+  // impd ends a forward for good when its tunnel socket closes, so one that ends
+  // before the harness listens again on the same path. A forward the imp's sleep
+  // ended stays ended, since a listen wakes a sleeping imp.
   private openReporter(host: ImpHost, spec: HarnessSpec) {
     const base = `${this.guest.dir}/run/${buildSocketName(spec.session)}`;
     const path = `${base}.sock`;

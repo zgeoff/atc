@@ -14,9 +14,6 @@ import { ImpHarness } from './imp-harness';
 import { buildMockImpSessionRequest } from './testing/build-mock-imp-session-request';
 import { createStubImpPort } from './testing/create-stub-imp-port';
 
-/**
- * A stub imp port and a temp directory of the test's own.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-imp-harness-');
   const port = createStubImpPort();

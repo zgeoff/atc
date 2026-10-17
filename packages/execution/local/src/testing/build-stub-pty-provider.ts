@@ -16,15 +16,6 @@ interface StubPTYProviderConfig {
   readonly destroyHost?: ExecutionProvider['destroyHost'];
 }
 
-/**
- * An execution provider for daemon tests that runs every harness on a real
- * local pseudo-terminal, as the `local-pty` provider does, under whatever
- * kind and capabilities the test gives it, so a target of any kind starts
- * a real process. Each spawn is reported to `onSpawn` first. Host
- * readying, sleeping, and destroying take the test's own operations when
- * given, and the local provider's otherwise: readying always succeeds, and
- * a sleep or a destroy rejects.
- */
 export function buildStubPTYProvider(config: StubPTYProviderConfig = {}): ExecutionProvider {
   const local = new LocalPTYProvider();
 

@@ -15,21 +15,8 @@ interface ImpHarnessContext {
   readonly refusal: DaemonError | null;
 }
 
-/**
- * The lifecycle of an imp harness as one statechart, holding state only:
- * the harness performs every effect and reads its state back from here.
- *
- * Two regions run side by side. `run` follows the session until it ends:
- * while following, `connection` holds whether the open connection has started,
- * `process` whether the request that starts the process went out, `screen`
- * whether the next connection replaces the screen, and `kill` whether a
- * kill waits for the next connection to start. A connection that starts
- * resumes the screen and sends the waiting kill. The first `END` stops the
- * following for good, as an exit impd reported or as one nothing confirms.
- *
- * `start` settles once: started by the first connection that starts, or
- * refused by an `END` that comes before one, with the refusal it carries.
- */
+// Holds state only: the harness performs every effect and reads its state
+// back from here.
 export const IMP_HARNESS_MACHINE = setup({
   types: {
     // oxlint-disable-next-line no-unsafe-type-assertion -- xstate's typed-setup contract: this value is never read, it only carries the context type past the type layer

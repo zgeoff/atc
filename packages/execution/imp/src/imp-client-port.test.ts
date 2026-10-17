@@ -7,9 +7,6 @@ import { ImpClientPort } from './imp-client-port';
 import { readImpToken } from './read-imp-token';
 import { buildMockImpSessionRequest } from './testing/build-mock-imp-session-request';
 
-/**
- * An impd stand-in on a real HTTP port.
- */
 function setupTest() {
   const impd = startStubImpd();
 

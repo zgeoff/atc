@@ -43,10 +43,9 @@ interface ImpHarnessHost {
   // listens; a rejection ends the harness before it starts.
   readonly ready?: Promise<void>;
 
-  // Admits each request that has requirements by calling send, or rejects
-  // with the refusal that ends the harness, sending nothing. The ticket
-  // send gets is checked just before the request goes out, and a refusal
-  // from it ends the harness with nothing sent.
+  // Admits a request that has requirements by calling send, or rejects with the
+  // refusal that ends the harness. The ticket is checked again just before the
+  // request goes out, and a refusal there ends the harness with nothing sent.
   readonly admit?: (
     kind: 'start' | 'attach',
     send: (ticket: LaunchTicket) => void,
@@ -58,17 +57,6 @@ interface ImpHarnessHost {
 // would also undo the modes of every attached client's own terminal.
 const SCREEN_RESET = `${ansi.reset}${ansi.cursorHome}${ansi.eraseScreen}`;
 
-/**
- * A harness running in an imp session, as the daemon's one connection to
- * it. Input written before the session starts waits for it. A kill sends
- * the process SIGHUP, as closing a terminal does; a detach closes the
- * connection and leaves the process running under its session name.
- *
- * A connection that ends without an exit reconnects without waking the
- * imp. Where impd carries offsets, a reconnect resumes after the last byte
- * the daemon has and drops any byte below it; a gap, or an imp without
- * offsets, gets a fresh attach that clears the screen before its replay.
- */
 export class ImpHarness implements HarnessHandle {
   private readonly port: ImpPort;
 
@@ -309,11 +297,9 @@ export class ImpHarness implements HarnessHandle {
     }
   }
 
-  // An impd from before exec requirements ignores them and runs the
-  // command anyway, so the start of a harness that has any, and each
-  // reattach, goes out only after impd shows it honours them and the host
-  // admits it; otherwise the harness ends as impd's own client refuses an
-  // outdated impd, and nothing runs.
+  // An impd from before exec requirements ignores them and runs the command
+  // anyway, so a start or reattach that has any waits until impd shows it
+  // honours them and the host admits it.
   private openCheckedConnection(request: ImpSessionRequest): void {
     if (!this.hasRequirements) {
       this.openConnection(request);
@@ -382,10 +368,8 @@ export class ImpHarness implements HarnessHandle {
     }
   }
 
-  // Whether an admitted request may still go out, as it goes out.
-  // A refusal there, or a check that throws, closes the connection unsent
-  // and ends the harness with it, once the port has returned to the
-  // caller. Only a start that passes counts as sent.
+  // A refusal or a throw closes the connection unsent and ends the harness once
+  // the port has returned to the caller. Only a start that passes counts as sent.
   private checkTicket(ticket: LaunchTicket, kind: ImpSessionRequest['kind']): boolean {
     let refusal: DaemonError | null;
 
@@ -432,10 +416,9 @@ export class ImpHarness implements HarnessHandle {
     this.emitExit({ exitCode: 1, reason: 'ended', detail: `launch refused (${detail})` });
   }
 
-  // A start counts as sent only once the port's gate runs, just before the
-  // start goes out, and one with a ticket only once its check passes there
-  // too. The ticket goes back whenever the connection ends or the harness
-  // lets go of it.
+  // A start counts as sent only once the gate runs, and with a ticket only once
+  // its check passes. The ticket goes back whenever the connection ends or the
+  // harness lets go of it.
   private openConnection(request: ImpSessionRequest, ticket?: LaunchTicket): void {
     const gate = this.makeGate(request, ticket);
 
@@ -472,10 +455,8 @@ export class ImpHarness implements HarnessHandle {
     void this.waitForOutcome(connection, ticket ?? null);
   }
 
-  // impd's client can still fail a start after its connection opens, as a
-  // feature check that times out does, and then sends nothing; so only the
-  // gate, which runs as the start goes out, marks it sent. An attach
-  // without a ticket needs no gate.
+  // impd's client can fail a start after the connection opens, as a feature
+  // check that times out does, sending nothing; so only the gate marks it sent.
   private makeGate(request: ImpSessionRequest, ticket?: LaunchTicket): (() => boolean) | undefined {
     if (ticket !== undefined) {
       return () => this.checkTicket(ticket, request.kind);
@@ -600,10 +581,9 @@ export class ImpHarness implements HarnessHandle {
     this.applyOutcome(outcome, wasStarted);
   }
 
-  // impd closes a connection whose send it dropped under backpressure with
-  // 1011, and detaches a slow one: either resumes at once. A drop resumes at
-  // once only on a connection that had started, so a connection impd drops
-  // before it answers counts as a failed reconnect.
+  // impd closes a connection whose send it dropped with 1011, and detaches a slow
+  // one. Either resumes at once, a drop only on a started connection, so one
+  // dropped before impd answers counts as a failed reconnect.
   private applyOutcome(outcome: ImpSessionOutcome, wasStarted: boolean): void {
     if (outcome.kind !== 'local_error') {
       this.localErrors = 0;
@@ -939,10 +919,9 @@ const EXIT_CODE_SCHEMA = z.object({ exitCode: z.number() });
 const COLD_BOOT_SCHEMA = z.object({ bootId: z.unknown().optional() });
 const CAUSE_SCHEMA = z.object({ cause: z.string() });
 
-// What ended a process impd no longer holds. In the same boot, the kept
-// previous generation gives its exit. Across a cold boot, the first boot
-// after the daemon's own gives the cause; without the daemon's boot among
-// impd's last cold boots, the cause is unknown.
+// In the same boot, the kept previous generation gives the exit. Across a cold
+// boot, the first boot after the daemon's own gives the cause, unknown when
+// impd no longer lists the daemon's boot.
 function buildLostExit(
   data: unknown,
   cursor: Readonly<{ bootId: string; generation: string }> | null,
@@ -1011,10 +990,8 @@ function parsePrecondition(data: unknown): { reason?: string; detail?: string } 
   };
 }
 
-// A refusal's message as detail a session list row can hold: credentials
-// redacted while line breaks still bound a header's value, then control
-// characters taken out so the text cannot redraw the row, and whitespace
-// flattened to one line.
+// Credentials are redacted while line breaks still bound a header's value,
+// then control characters go, so the text cannot redraw a list row.
 function buildSafeDetail(message: string): string {
   return sanitizeDetail(message)
     .replaceAll(/[\p{Cc}\p{Cf}]/gu, ' ')
