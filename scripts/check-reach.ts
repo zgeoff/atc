@@ -216,15 +216,22 @@ const DAEMON_REFUSED_MODULES: readonly string[] = [`${APP_SOURCE}/open-mcp-auth-
 /**
  * The findings for the daemon: each module the daemon entry's import graph
  * reaches that the daemon must never reach, and each import in that graph
- * that resolves to no file.
+ * that resolves to no file. In a tree that has the atc CLI entry, a missing
+ * daemon entry or refused module is a finding too.
  */
 function checkDaemon(
   root: string,
   known: ReadonlySet<string>,
   exports: ReadonlyMap<string, string>,
 ): string[] {
+  const missing = existsSync(join(root, APP_SOURCE, 'cli.ts'))
+    ? [DAEMON_ENTRY, ...DAEMON_REFUSED_MODULES]
+        .filter((module) => !known.has(module))
+        .map((module) => `missing daemon module: ${module} does not exist`)
+    : [];
+
   if (!known.has(DAEMON_ENTRY)) {
-    return [];
+    return missing;
   }
 
   const reached = collectReached(
@@ -239,7 +246,7 @@ function checkDaemon(
       `refused module: ${DAEMON_ENTRY} reaches ${module}, which opens the gateway's mcp-auth.db`,
   );
 
-  return [...refused, ...reached.unresolved];
+  return [...missing, ...refused, ...reached.unresolved];
 }
 
 interface Reach {
