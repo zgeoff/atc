@@ -4,12 +4,6 @@ import { z } from 'zod';
 import { resolveHomeDir } from './host/resolve-home-dir';
 import { normalizeConfigDir } from './normalize-config-dir';
 
-/**
- * One configured hook: a shell command the daemon runs when the named wire
- * event broadcasts. `dir` narrows it to sessions whose repo root or working
- * directory sits at or under that path; `timeout` caps the run in
- * milliseconds before the process is killed.
- */
 export interface HookEntry {
   readonly command: string;
   readonly dir?: string;
@@ -27,14 +21,8 @@ const HOOK_ENTRY_SCHEMA = z.object({
   timeout: buildOptionalPositiveNumber(),
 });
 
-/**
- * Reads the hooks map, keyed by wire-event name. An entry without a command
- * is left out; an event name with no valid entries is dropped. Unknown event
- * names are kept as written — they never fire, and a future daemon that
- * emits them starts firing without a config change. A `dir` is stored with
- * `~` expanded to `home` and trailing slashes trimmed, ready for path
- * matching.
- */
+// an unknown event name is kept: it never fires, and a daemon that emits it
+// later starts firing without a config change.
 export function collectHooks(raw: unknown, home: string = resolveHomeDir()): HooksConfig {
   if (!isRecord(raw)) {
     return {};

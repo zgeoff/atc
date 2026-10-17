@@ -25,16 +25,6 @@ const PROCESS_IO: BackupIO = {
 // its length grows with the database.
 const PROBE_DEADLINE_MS = 3000;
 
-/**
- * Asks the running daemon to write a consistent copy of its state database
- * to `path`, an absolute path on the daemon's host, and prints one line with
- * the path and the copy's size. It reaches the daemon over the owner's local
- * socket, the one this environment computes, else the one the daemon
- * recorded in the state directory, and never boots a daemon: with none
- * running, it prints a hint to stderr instead. A daemon that predates the
- * request, or that refuses it, gets one line on stderr too. Resolves to the
- * exit code: 0 once the daemon answered ok, else 1.
- */
 export async function runDaemonBackup(
   host: LifecycleHost,
   path: string,

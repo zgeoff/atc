@@ -17,14 +17,6 @@ interface CommandOptions {
   readonly onSpawn?: (pid: number) => void;
 }
 
-/**
- * Runs `argv` with no input and returns its exit code and its output, each
- * trimmed. A command that cannot start, such as one missing from PATH,
- * reads as exit code 127 with the spawn error as its stderr, the way a
- * shell reports it. With a signal, the command leads its own process group,
- * and an abort kills that group, so a wrapper leaves no process behind; an
- * aborted command reads as exit code -1 with no output.
- */
 export async function runCommand(
   argv: readonly string[],
   options: CommandOptions = {},

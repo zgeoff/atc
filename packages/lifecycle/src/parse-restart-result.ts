@@ -11,12 +11,6 @@ interface RestartInterruptedRow {
   readonly id: string;
 }
 
-/**
- * What a finished restart reports: the daemon now serving, how much of the
- * fleet came back, the rows that did not, and the sessions the restart
- * interrupted. `code` is the exit code of the restart, and `error` holds the
- * reason the restart stopped before it could count the fleet.
- */
 export interface RestartResult {
   readonly runID: string;
   readonly code: number;
@@ -46,10 +40,6 @@ const RESULT_SCHEMA = z.object({
   error: z.string().nullable(),
 });
 
-/**
- * Reads a restart result from a line of JSON, or null when the line holds
- * anything else.
- */
 export function parseRestartResult(line: string): RestartResult | null {
   let raw: unknown;
 

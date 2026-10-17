@@ -36,18 +36,6 @@ interface DaemonProbeOptions {
   readonly keepOpen?: boolean;
 }
 
-/**
- * Opens the daemon at the first of `socketPaths` that answers, sends this
- * build's hello, and runs `read` on the open client. The hello and `read`
- * together must finish within the socket's share of the time left before
- * the deadline: a daemon that accepts the socket and never answers has its
- * client closed then, which rejects every request still waiting. A hello the daemon's protocol refuses ends the probe with
- * the refusal, since it still identifies the daemon; a socket that refuses
- * the connection, or a daemon that closes it before it answers, passes the
- * probe to the next socket. Resolves null when no socket answers. The
- * client closes once `read` settles, unless `keepOpen` is set, and a `read`
- * that rejects rejects the probe.
- */
 export async function tryOpenDaemon<T>(
   socketPaths: readonly string[],
   options: DaemonProbeOptions,
@@ -83,6 +71,8 @@ export async function tryOpenDaemon<T>(
           session: readSessionEnv(process.env).sessionID,
         });
       } catch (error) {
+        // a refused hello still identifies the daemon, so it ends the probe; any
+        // other failure passes the probe to the next socket.
         if (error instanceof DaemonError && error.code === 'protocol_mismatch') {
           return { kind: 'refused', socketPath, message: error.message };
         }

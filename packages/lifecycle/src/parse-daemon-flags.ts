@@ -3,11 +3,6 @@ export interface DaemonFlags {
   readonly tokenFile: string | null;
 }
 
-/**
- * The `--listen` and `--token-file` values among a daemon's command-line
- * arguments. Both the `--flag value` and `--flag=value` forms count; a flag
- * the line lacks reads as null.
- */
 export function parseDaemonFlags(args: readonly string[]): DaemonFlags {
   return {
     listen: findFlagValue(args, '--listen'),

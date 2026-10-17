@@ -20,24 +20,6 @@ interface FailedRows {
 
 const UNSIZED_READ_MS = 30_000;
 
-/**
- * Restores the stored fleet on a daemon and waits for every stored row to
- * show up. `snapshot` holds the rows read from the old daemon before it
- * stopped, with their original exit status; without one, the new daemon's
- * rows are read instead. The call joins a restore the daemon already started by itself. A
- * row that is not exited must be listed with a live terminal before the deadline
- * passes (`timeoutSeconds` when set, else the rows that are not exited times
- * `restoreBootTimeoutMs`, plus 30 s), and an exited row must be listed. A stored row that is not listed
- * failed to restore, and a listed row that is still without a live terminal
- * at the deadline failed to revive. A listed row without a live terminal
- * whose agent the new daemon's config no longer holds fails at once, since
- * no wait can revive it, and so does one whose restore was refused in a
- * way no later try lifts, with the refusal as its reason. The deadline counts from the call, and
- * every request to the daemon is held to it: the daemon must answer the first
- * list before it, and when it overtakes a later list, the verdict comes from
- * the last list the daemon answered. The deadline, the waits between lists,
- * and every request's time limit run on `clock`.
- */
 export async function verifyRestoredFleet(
   client: Pick<DaemonClient, 'sendRequest'>,
   timeoutSeconds: number | null,
@@ -87,10 +69,8 @@ export async function verifyRestoredFleet(
   return { total: stored.length, failed: found.failed };
 }
 
-/**
- * Runs a request and rejects once the deadline passes, so a daemon that
- * stops answering cannot hold the restart, and its lock, open.
- */
+// the deadline rejects so a daemon that stops answering cannot hold the
+// restart, and its lock, open.
 async function sendBounded<T>(send: () => Promise<T>, deadline: number, clock: Clock): Promise<T> {
   let stopTimer: (() => void) | undefined;
 
@@ -144,11 +124,7 @@ async function tryRestore(
 // leaves the rest of the deadline to list the rows.
 const AGENTS_READ_MS = 5000;
 
-/**
- * Reads the ids of the agents in the new daemon's config, or returns null
- * when the daemon predates the agent list, answers without one, or does
- * not answer within its time limit, so every row stays one that waiting can still revive.
- */
+// null keeps every row one that waiting can still revive.
 async function tryReadAgentIDs(
   client: Pick<DaemonClient, 'sendRequest'>,
   deadline: number,
@@ -173,10 +149,6 @@ async function tryReadAgentIDs(
   }
 }
 
-/**
- * Lists the rows again, or returns null when the deadline passes before the
- * daemon answers, so the caller keeps the verdict of the last list it got.
- */
 async function tryCollectFailedRows(
   client: Pick<DaemonClient, 'sendRequest'>,
   stored: readonly StoredRow[],

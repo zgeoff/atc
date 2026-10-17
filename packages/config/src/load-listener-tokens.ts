@@ -7,13 +7,6 @@ type LoadedListenerTokens =
   | { readonly ok: true; readonly tokens: readonly string[] }
   | { readonly ok: false; readonly reason: string };
 
-/**
- * Reads the TCP listener's token file: one or two tokens, one per line,
- * each at least 32 bytes once surrounding whitespace is trimmed. A final
- * newline is allowed. An unreadable file, an empty one, a blank line, a
- * third token, or a short token makes the whole file invalid, so a broken
- * file never leaves part of it working.
- */
 export function loadListenerTokens(path: string): LoadedListenerTokens {
   let text: string;
 

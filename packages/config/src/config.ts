@@ -80,10 +80,6 @@ export interface Config {
   removedKeys: readonly string[];
 }
 
-/**
- * Where the spawn picker looks for directories beyond its own history: each
- * root contributes its child directories and their worktrees.
- */
 interface DirsConfig {
   readonly roots: readonly string[];
 }
@@ -137,16 +133,6 @@ const CONFIG_SCHEMA = z.object({
   restoreFleetOnRestart: buildOptionalBoolean(),
 });
 
-/**
- * Reads and parses config.json. Only an absent file means every default,
- * the implicit `local` target included, and a first run writes those
- * defaults out. A file that exists but cannot be read or parsed loads as
- * unusable: every default but the targets, which it leaves empty with the
- * problem as the one target error, so nothing runs until the file is fixed.
- * `plugins` are the harness plugins that read the agents, `home` is the
- * directory a `~` in the file expands to, and `state` is the state
- * directory it creates. Never throws.
- */
 export function loadConfig(
   plugins: readonly AgentConfigPlugin[],
   file: string = configFile,
@@ -207,12 +193,6 @@ function buildDefaultConfig(plugins: readonly AgentConfigPlugin[]): Config {
   };
 }
 
-/**
- * A config for a file that exists but cannot be used: every default but the
- * targets, which are empty, with no default target and the file's problem
- * as the one target error, and the principals, which get no target, since
- * the file's own principals cannot be read.
- */
 function buildUnusableConfig(
   plugins: readonly AgentConfigPlugin[],
   problem: 'config_malformed' | 'config_unreadable',
@@ -228,14 +208,9 @@ function buildUnusableConfig(
   };
 }
 
-/**
- * Writes the first-run config, never over a file that appeared since the
- * read. The text goes to a file of this process's own first and is linked
- * into place whole, so another process that starts at the same moment
- * reads either no file or the complete one, never a half-written one. A
- * failure leaves the defaults in effect for this run, so it is not an
- * error.
- */
+// staged in a file of this process's own and linked into place whole, so a
+// process starting at the same moment reads no file or the complete one, and
+// a file that appeared since the read is never overwritten.
 function tryWriteDefaultConfig(file: string): void {
   const staged = `${file}.${process.pid}.tmp`;
 
@@ -251,12 +226,6 @@ function tryWriteDefaultConfig(file: string): void {
   } catch {}
 }
 
-/**
- * The config.json text a first run writes: the `claude` agent alone. It
- * leaves out the targets and principals, so the file holds the one implicit `local` target and no
- * principals until the user sets their own, no auth profiles, and the
- * errors a parse reports, which belong to no file.
- */
 export function renderDefaultConfig(): string {
   const {
     authProfiles: _authProfiles,
@@ -289,16 +258,6 @@ export function renderDefaultConfig(): string {
   )}\n`;
 }
 
-/**
- * Parses a user-written config.json's already-decoded JSON value into a
- * Config, applying every default a malformed or absent field falls back to.
- * `plugins` are the harness plugins that read the agents. A file that sets
- * no `agents` runs one entry of each, on its defaults, in plugin order. A
- * root that is not an object leaves the config unusable, with no targets,
- * and `file` is the path its error holds. `home` is the directory a `~` in
- * a directory root or a hook's `dir` expands to. Total: no shape of `raw`
- * throws, so a hand-edited config never stops atc starting.
- */
 export function parseConfig(
   plugins: readonly AgentConfigPlugin[],
   raw: unknown,
@@ -379,12 +338,6 @@ export function parseConfig(
 // as leaders would swallow ordinary typing.
 const RESERVED_CODES = new Set([0x09, 0x0d, 0x1b]);
 
-/**
- * Decodes a leader name like "ctrl-space", "ctrl-]", or "ctrl-a" into its
- * control byte and status-bar label. Unknown or reserved keys decode to
- * null, so a bad config falls back to the default instead of breaking the
- * client.
- */
 function decodeLeader(name: string): LeaderKey | null {
   const m = /^ctrl-(?<key>.+)$/iu.exec(name.trim().toLowerCase());
   const key = m?.groups?.['key'];

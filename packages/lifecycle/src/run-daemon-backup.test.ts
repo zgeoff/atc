@@ -5,10 +5,6 @@ import { setupTempDir, startStubLegacyDaemon } from '@atc/test-utils';
 import { runDaemonBackup } from './run-daemon-backup';
 import { buildMockLifecycleHost } from './testing/build-mock-lifecycle-host';
 
-/**
- * A lifecycle host whose home and runtime directory are a fresh temp
- * directory, so its daemon socket is one the test can listen on.
- */
 function setupTest() {
   const tmp = setupTempDir('run-daemon-backup-');
 

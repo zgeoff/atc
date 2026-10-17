@@ -2,13 +2,6 @@ import { readdirSync, statSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { resolvePathInput } from './resolve-path-input';
 
-/**
- * Shell-style completion of a typed path: the child directories of the
- * typed parent whose names start with the last segment, and the typed
- * directory itself first when it exists, so Enter takes it. A trailing
- * slash lists every child. Hidden directories show only when the segment
- * starts with a dot. Input that is not a path completes to nothing.
- */
 export function collectPathCompletions(input: string, cwd: string, home: string): string[] {
   const target = resolvePathInput(input, cwd, home);
 

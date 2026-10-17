@@ -24,13 +24,6 @@ export interface RestartOptions {
 
 const START_WAIT_MS = 30_000;
 
-/**
- * Stops the running daemon, starts exactly one in its place, restores the
- * stored fleet on it, and reports what came back. The preflight prints
- * before anything stops. A failure on the way is a result, never a throw.
- * The replacement runs through the host's invocation, every handshake sends
- * the build it reads, and every wait runs on the host's clock.
- */
 export async function restartDaemon(
   host: LifecycleHost,
   options: RestartOptions,

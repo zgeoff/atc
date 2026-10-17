@@ -2,11 +2,7 @@ import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolveHomeDir } from '@atc/config/host';
 
-/**
- * Finds an installed daemon user unit without a connection to the service
- * manager, in the user unit directories that `env` gives. An installed or
- * masked unit keeps ownership while it is stopped.
- */
+// an installed or masked unit keeps ownership while it is stopped.
 export function readManagedDaemonUnit(
   env: Readonly<Record<string, string | undefined>>,
 ): string | null {

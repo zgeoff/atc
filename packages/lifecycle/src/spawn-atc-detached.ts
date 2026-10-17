@@ -8,12 +8,7 @@ interface SpawnATCDetachedOptions {
   readonly stdio?: StdioOptions;
 }
 
-/**
- * Starts this build of atc, through the argv that starts its CLI, with
- * `args` in a session of its own, so it outlives the caller, and releases
- * the handle so the caller can exit. The child's stdio is discarded unless
- * `options` routes it elsewhere.
- */
+// a session of its own lets the child outlive the caller.
 export function spawnATCDetached(
   atcArgv: readonly string[],
   args: readonly string[],

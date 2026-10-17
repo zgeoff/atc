@@ -14,13 +14,9 @@ const IPV6_RANGES: readonly IPv6Range[] = [
   { groups: [0xfd_7a, 0x11_5c, 0xa1_e4], bits: 48 },
 ];
 
-/**
- * Whether a TCP listener may bind the host: an IP literal that is loopback
- * (`127.0.0.0/8`, `::1`) or inside the tailnet ranges `100.64.0.0/10` and
- * `fd7a:115c:a1e4::/48`. The protocol carries no TLS, so a listener relies
- * on the tailnet's encryption, and a wildcard bind or a host name, whose
- * address could resolve anywhere, is refused.
- */
+// the protocol carries no TLS, so a listener relies on the tailnet's
+// encryption, and a wildcard bind or a host name, whose address could
+// resolve anywhere, is refused.
 export function isAllowedListenHost(host: string): boolean {
   if (isIPv4(host)) {
     const octets = host.split('.').map(Number);

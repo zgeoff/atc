@@ -12,14 +12,6 @@ type DaemonRestartStep =
   | { readonly kind: 'unit' }
   | { readonly kind: 'stopped'; readonly killed: boolean };
 
-/**
- * Takes a daemon out of service so a daemon of this build can take its
- * place. A daemon a user service runs is restarted by the service manager,
- * through the host's `systemctl`, which starts the replacement too, and a
- * failed restart rejects with the manager's output. Any other daemon gets
- * SIGTERM and, when it still runs after the stop's wait, SIGKILL, and the
- * caller starts the replacement. The waits run on the host's clock.
- */
 export async function restartDaemonProcess(
   target: DaemonTarget,
   host: Pick<LifecycleHost, 'clock' | 'runSystemctl'>,

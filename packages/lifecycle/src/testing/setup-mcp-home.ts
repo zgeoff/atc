@@ -12,20 +12,6 @@ import {
 import { findPidFilePID } from '../find-pid-file-pid';
 import { stopDaemonProcess } from '../stop-daemon-process';
 
-/**
- * A temp home for running `atc mcp` against, with the stand-in `claude` and
- * `grok` at `claudeBin` and `grokBin` and a config that registers them with
- * no extra arguments. A server started with this home as its `HOME` and
- * `XDG_RUNTIME_DIR` boots its daemon here. Each stand-in appends its pid,
- * which is its process group as a session leader, to `stub-pids` in the
- * home. `teardown` stops the daemon, when one wrote its pid file here, and
- * waits for it to exit; then it kills the daemon's process group and every
- * group `stub-pids` records, such as a reporter a stopped session left
- * behind, waits until each group is empty, and removes the home. That
- * teardown runs once the current test finishes, so it must run inside a
- * test; calling `teardown` sooner runs it then, and a second teardown does
- * nothing.
- */
 export function setupMCPHome() {
   const tmp = setupTempDir('atc-mcp-');
 
@@ -74,10 +60,6 @@ export function setupMCPHome() {
   };
 }
 
-/**
- * The pids the stand-ins recorded in the home, one per line; none when no
- * stand-in ran.
- */
 function readStubPIDs(home: string): number[] {
   const path = join(home, 'stub-pids');
 

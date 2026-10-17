@@ -1,21 +1,10 @@
 import { isAbsolute } from 'node:path';
 import { expandHome, isHomeRelative, isRecord } from '@atc/core';
 
-/**
- * Where the client reads a remote daemon's bearer token: a file that holds
- * it, or a command that prints it, run without a shell. The token itself
- * never sits in the config.
- */
 export type RemoteDaemonToken =
   | { readonly kind: 'file'; readonly path: string }
   | { readonly kind: 'command'; readonly argv: readonly string[] };
 
-/**
- * A daemon on another host that `atc --daemon <name>` connects the TUI to:
- * the TCP address its `--listen` serves, where its token comes from, and
- * the principal from that daemon's own `principals` map that the TUI acts
- * as, since a daemon serves a TCP request only as a listed principal.
- */
 export interface RemoteDaemon {
   readonly name: string;
   readonly host: string;
@@ -29,14 +18,6 @@ interface RemoteDaemonsConfig {
   readonly errors: readonly string[];
 }
 
-/**
- * Reads the `daemons` map: each name to an `address` of `<host>:<port>`, a
- * non-empty `principal`, and exactly one of `tokenFile`, an absolute or `~` path that `home`
- * expands, and `tokenCommand`, a non-empty array of strings. An inline
- * `token` is refused, so a config file never holds a credential. An entry
- * that breaks a rule is left out with an error, and the other entries
- * stay.
- */
 export function collectRemoteDaemons(raw: unknown, home: string): RemoteDaemonsConfig {
   if (raw === undefined) {
     return { daemons: new Map(), errors: [] };

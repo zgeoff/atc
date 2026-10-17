@@ -22,33 +22,11 @@ interface DaemonProcessConfig {
   readonly args?: readonly string[];
 }
 
-/**
- * One boot of the daemon: its process and the file its stderr goes to.
- */
 interface DaemonBoot {
   readonly proc: Subprocess;
   readonly stderrPath: string;
 }
 
-/**
- * Starts `atc daemon` as its own process on a home, with the test's
- * environment, HOME and XDG_RUNTIME_DIR at the home, and a PATH of the system
- * directories alone unless the config's variables set another. It returns at
- * once; `openClient` waits up to 15 seconds for the socket and connects,
- * sending no handshake, and fails at once with the daemon's stderr when the
- * daemon exits before it listens. `restart` stops the daemon with the given
- * signal, waits for it to exit, and starts another on the same home with the
- * same config, and throws once the daemon is stopped. `readStderr` reads
- * what the current boot printed, from a file in `stderrDir`, a directory
- * under the home that no other daemon on the home writes. `stop` closes
- * every client it opened, kills the daemon and waits for it to exit, then
- * kills the daemon the home's state directory records, which a restart the
- * test asked atc for may have started. That stop runs once the current test
- * finishes, so it must run inside a test; calling `stop` sooner runs it
- * then, and a second stop does nothing. `stderrDir` is removed once the
- * current test finishes, after the stop, so a test can still read the
- * stderr after an early stop.
- */
 export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
   const socketPath = join(config.home, 'atc-daemon.sock');
   const stateDir = join(config.home, '.local', 'state', 'atc');
@@ -168,10 +146,9 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
       }
     };
 
-    // Polls the socket while the daemon runs. Once the daemon exits, it dials
-    // no more and leaves the connect to the wait after the exit. Once the
-    // other wait settles or the daemon stops, each attempt resolves empty,
-    // which ends the polling.
+    // polls only while the daemon runs, leaving the connect after an exit to
+    // the other wait; once either wait settles or the daemon stops, each attempt
+    // resolves empty, which ends the polling.
     const openWhenListening = () =>
       waitFor(
         () => {

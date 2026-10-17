@@ -11,13 +11,6 @@ interface AuthProfiles {
   readonly errors: readonly string[];
 }
 
-/**
- * Reads the `authProfiles` map under impd's own rules for secret names,
- * broker hosts and header names. A profile that breaks a rule is left out
- * with an error, so a gateway that selects it is refused rather than bound
- * to a rule impd would reject or apply differently. Dependencies are
- * names only here; whether they resolve is a property of each selection.
- */
 export function collectAuthProfiles(raw: unknown): AuthProfiles {
   if (raw === undefined) {
     return { profiles: new Map(), errors: [] };

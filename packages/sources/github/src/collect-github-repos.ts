@@ -68,14 +68,6 @@ const REPO_LIST_SCHEMA = z.array(
   }),
 );
 
-/**
- * Lists one owner's GitHub repositories through the gh CLI on this host,
- * as the gh account signed in there sees them. gh is optional: a host
- * without it, or with gh signed out, is refused as `github_unavailable`
- * with the problem, and any other gh failure carries gh's own message. A gh
- * that takes longer than the time limit, 20 s unless given, is refused as
- * failed. gh never prompts here.
- */
 export async function collectGitHubRepos(
   request: GitHubListRequest,
 ): Promise<GitHubRepoListing | GitHubUnavailable> {

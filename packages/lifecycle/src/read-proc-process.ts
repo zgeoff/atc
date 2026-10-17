@@ -8,12 +8,6 @@ interface ProcProcess {
   readonly env: Readonly<Record<string, string>>;
 }
 
-/**
- * Reads a process's command line and environment from its entry under
- * `procRoot`, the real `/proc` outside tests. Null when the entry cannot be
- * read: the process is gone or belongs to another user, or the system has
- * no `/proc`, as on macOS.
- */
 export function readProcProcess(procRoot: string, pid: number): ProcProcess | null {
   let cmdline: string;
   let environ: string;

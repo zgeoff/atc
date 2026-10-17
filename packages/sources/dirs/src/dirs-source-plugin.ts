@@ -3,11 +3,6 @@ import { z } from 'zod';
 import { buildDirsSource } from './build-dirs-source';
 import { collectZoxideDirs } from './collect-zoxide-dirs';
 
-/**
- * The source plugin of the directories on the daemon's host: the children
- * of the configured roots, zoxide's frecency list, and typed paths under
- * the daemon user's home. It runs zoxide through the host's command runner.
- */
 export const DIRS_SOURCE_PLUGIN = definePlugin({
   kind: 'source',
   id: 'dirs',

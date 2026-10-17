@@ -7,15 +7,9 @@ interface BuildSource {
   readonly roots: readonly string[];
 }
 
-/**
- * The build identity used in the protocol handshake. The version alone
- * never changes between pulls, so the newest mtime across the source trees
- * (or the compiled binary's, when no tree can be read) is folded in — a
- * client and daemon from different checkouts of the same version still read
- * as different builds, which is what triggers the stale-daemon restart. Any
- * source file counts: a stamp taken from a single file misses every change
- * that lands elsewhere and leaves stale daemons in service.
- */
+// the version alone never changes between pulls, so the newest mtime across
+// every source file is folded in; a stamp from one file misses changes that
+// land elsewhere and leaves stale daemons in service.
 export function getBuild(source: BuildSource): string {
   let stamp = 0;
 

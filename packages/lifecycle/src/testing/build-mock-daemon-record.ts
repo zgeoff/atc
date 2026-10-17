@@ -3,11 +3,6 @@ import type { MockOverrides } from '@atc/test-utils';
 import { faker } from '@faker-js/faker';
 import type { DaemonRecord } from '../find-daemon-record';
 
-/**
- * The record a daemon writes beside its state directory, for a daemon with
- * no events socket and no TCP listener. The pid and the socket paths are
- * arbitrary. Overrides replace the defaults field by field.
- */
 export function buildMockDaemonRecord(
   overrides: MockOverrides<DaemonRecord, keyof DaemonRecord> = {},
 ): DaemonRecord {

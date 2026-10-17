@@ -10,14 +10,8 @@ export interface StaleDaemonEvidence {
   readonly pidFilePID: number | null;
 }
 
-/**
- * Picks the pid of the daemon behind the socket that refused the
- * handshake, from whichever source belongs to that socket: the state
- * directory's record when it lists that socket, else the pid file beside
- * it. A record for any other socket belongs to a different daemon, so it
- * never supplies the pid; with no source for that socket, there is no pid
- * to stop.
- */
+// a record for any other socket belongs to a different daemon, so it never
+// supplies the pid.
 export function pickStaleDaemonPID(evidence: StaleDaemonEvidence): number | null {
   if (evidence.record !== null && evidence.record.socketPath === evidence.socketPath) {
     return evidence.record.pid;

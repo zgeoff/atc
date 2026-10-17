@@ -18,17 +18,6 @@ interface DirsSourceServices {
   readonly homeDir: string;
 }
 
-/**
- * The directories on the daemon's host a session can run in: the spawn
- * history the requesting principal may read, most recent first, then the
- * configured roots, then zoxide's list. A directory that no longer exists
- * is left out, and a duplicate keeps its first place. Typed input is a
- * directory when it is absolute or starts with `~`, which stands for the
- * daemon user's home. A typed path completes against the daemon host's
- * filesystem; a relative one resolves under the client's directory, which
- * a caller sends only when the daemon runs on the client's machine, and
- * under the home otherwise.
- */
 export function buildDirsSource(services: DirsSourceServices): SourceProvider {
   return {
     id: 'dirs',
@@ -66,6 +55,8 @@ export function buildDirsSource(services: DirsSourceServices): SourceProvider {
       return Promise.resolve(interpretation);
     },
     complete(input, request) {
+      // a caller sends its cwd only when the daemon runs on the client's machine,
+      // so a relative path resolves under the home otherwise.
       return Promise.resolve(
         collectPathCompletions(input, request.clientCwd ?? services.homeDir, services.homeDir),
       );

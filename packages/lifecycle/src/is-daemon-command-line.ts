@@ -1,12 +1,5 @@
 import { basename } from 'node:path';
 
-/**
- * Whether a command line starts the atc daemon: the atc entry (the `atc`
- * shim or a compiled `atc` binary as the program, or the CLI source file as
- * the runtime's script) directly followed by the `daemon` subcommand, and
- * then nothing, a flag, or `serve`. Any other program that merely passes a
- * `daemon` argument is not the daemon.
- */
 export function isDaemonCommandLine(args: readonly string[]): boolean {
   const at = args.indexOf('daemon');
 

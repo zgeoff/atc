@@ -3,13 +3,6 @@ import type { AuthProfile, PluginConfigContext } from '@atc/plugin-api';
 import { z } from 'zod';
 import type { AgentEntry, AgentKind, ParsedAgentEntry } from './agent-entry';
 
-/**
- * What one harness kind adds to the fields every agent entry takes: the
- * kind, the fields its entries may set beside the common ones, the label an
- * entry whose id is the kind shows, and the check of the fields that need
- * more than a type check, such as `auth`, which runs once every field has
- * the right type.
- */
 interface AgentEntrySpec {
   readonly kind: AgentKind;
   readonly fields: readonly string[];
@@ -23,19 +16,8 @@ interface AgentEntryReadArgs {
   readonly authProfiles: ReadonlyMap<string, AuthProfile>;
 }
 
-/**
- * A harness kind's read of one entry: the entry it loads, with the problems
- * that keep it loaded, or every problem that refuses it.
- */
 export type AgentEntryRead = ParsedAgentEntry | { readonly problems: readonly string[] };
 
-/**
- * The schema of one agent entry of a harness kind, for the entry and config
- * the context holds. It refuses a field no kind takes as unknown, a field
- * another kind takes as not valid for this kind, and a wrong-typed value,
- * one issue per problem in the entry's own field order, then runs the
- * kind's own check. An entry it accepts carries every default.
- */
 export function buildAgentEntrySchema(
   spec: AgentEntrySpec,
   context: PluginConfigContext,

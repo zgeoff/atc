@@ -5,12 +5,6 @@ type ParsedListenAddress =
   | { readonly ok: true; readonly host: string; readonly port: number }
   | { readonly ok: false; readonly message: string };
 
-/**
- * Parses a `--listen` value: `<host>:<port>`, with an IPv6 host in
- * brackets (`[::1]:8415`). The host must be an address a listener may bind
- * (loopback or a tailnet range) and the port a decimal from 0 to 65535,
- * where 0 lets the kernel pick a free port.
- */
 export function parseListenAddress(raw: string): ParsedListenAddress {
   const match = /^(?:\[(?<v6>[^\]]+)\]|(?<v4>[^:[\]]+)):(?<port>\d{1,5})$/u.exec(raw);
   const host = match?.groups?.['v6'] ?? match?.groups?.['v4'];

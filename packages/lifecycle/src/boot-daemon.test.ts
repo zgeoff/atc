@@ -14,12 +14,6 @@ import {
 import { bootDaemonClient } from './boot-daemon';
 import { buildMockLifecycleHost } from './testing/build-mock-lifecycle-host';
 
-/**
- * A fresh home that serves as both the client's home and its runtime
- * directory, so the host's paths put the daemon's socket at `sockPath` and
- * its state directory at `stateDir`, and the path of the stand-in daemon
- * of another protocol. The cases that boot a real daemon run end to end.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-boot-daemon-');
   const stateDir = join(tmp.dir, '.local', 'state', 'atc');

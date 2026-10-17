@@ -6,12 +6,6 @@ interface ReplacementOverrides {
   readonly tokenFile: string | null;
 }
 
-/**
- * Starts one daemon, detached, through the argv that starts this build's
- * CLI, the way the one it replaces was started: its
- * environment, its working directory, and its `--listen` and `--token-file`
- * values, except where `overrides` sets them.
- */
 export function startReplacementDaemon(
   atcArgv: readonly string[],
   old: DaemonProcess,

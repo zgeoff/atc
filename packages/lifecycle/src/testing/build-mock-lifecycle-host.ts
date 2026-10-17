@@ -5,14 +5,6 @@ import type { MockOverrides } from '@atc/test-utils';
 import { faker } from '@faker-js/faker';
 import type { LifecycleHost } from '../lifecycle-host';
 
-/**
- * A lifecycle host for a test: an invocation that runs `false` and reads the
- * build `atc/test-build`, the paths of an arbitrary home without a runtime
- * directory, the wall clock, the real `/proc`, the 15 s restore boot time,
- * no installed user unit, and a `systemctl` that is missing, the way a
- * machine without systemd reports it, so no test reaches a real service
- * manager. Overrides merge into fresh defaults at every depth.
- */
 export function buildMockLifecycleHost(
   overrides: MockOverrides<LifecycleHost, keyof LifecycleHost> = {},
 ): LifecycleHost {
@@ -24,6 +16,8 @@ export function buildMockLifecycleHost(
       procRoot: '/proc',
       restoreBootTimeoutMs: 15_000,
       findManagedUnit: () => null,
+
+      // a missing systemctl, so no test reaches a real service manager.
       runSystemctl: () =>
         Promise.resolve({
           code: 127,

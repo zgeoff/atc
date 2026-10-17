@@ -13,14 +13,6 @@ import { writeRestartResult } from './write-restart-result';
 // How long a restart that finds another in flight waits for it to finish.
 const JOIN_WAIT_MS = 15 * 60_000;
 
-/**
- * Runs one restart as the handoff worker: it takes the restart lock and
- * restarts the daemon, or, when another restart holds the lock, waits for
- * that restart to finish and reports its result without touching the
- * daemon. Prints its pid as a JSON record first, then each step, to stdout,
- * which the caller follows in the run log, and ends the log with the result
- * record. Resolves the exit code.
- */
 export async function runDaemonRestartWorker(
   host: LifecycleHost,
   options: RestartOptions,

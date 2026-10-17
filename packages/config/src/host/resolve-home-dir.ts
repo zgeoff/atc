@@ -1,12 +1,7 @@
 import { homedir } from 'node:os';
 
-/**
- * The user's home directory: `HOME` in the environment when it is set,
- * which is how Node's `os.homedir()` resolves it, otherwise the account's
- * home. Bun's `os.homedir()` reads `$HOME` once at startup, so this reads
- * the environment it is given on every call, and a test preload that points
- * `$HOME` at a temp directory moves every path derived from it.
- */
+// Bun's `os.homedir()` reads `$HOME` once at startup, so the environment is
+// read on every call, and a test preload that moves `$HOME` moves every path.
 export function resolveHomeDir(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): string {

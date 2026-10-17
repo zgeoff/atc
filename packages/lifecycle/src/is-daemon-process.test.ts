@@ -4,10 +4,6 @@ import { join } from 'node:path';
 import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { isDaemonProcess } from './is-daemon-process';
 
-/**
- * A temp directory holding a checkout entry that a process started as
- * `cli.ts daemon` runs. The directory goes once the test finishes.
- */
 function setupTest() {
   const dir = setupTempDir('is-daemon-process-').dir;
   const cli = join(dir, 'checkout', 'src', 'cli.ts');

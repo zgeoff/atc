@@ -1,16 +1,8 @@
 import { isRecord } from '@atc/core';
 import { DEFAULT_GIT_TRANSPORTS } from './default-git-transports';
 
-/**
- * Where workspace sources come from and where their checkouts land: the
- * GitHub owner whose repositories the spawn picker lists by default, or
- * null to list the gh account's own; the ids of the sources the picker
- * offers, in order, or null for the default order; the git transports the
- * daemon fetches over; the root a checkout lands under on any target
- * without its own, or null for the default; and each target's own root, by
- * target id. A root is kept as written: whether it fits its target, such
- * as `~` on a remote target, is checked where the target is known.
- */
+// a root is kept as written; whether it fits its target, such as `~` on a
+// remote target, is checked where the target is known.
 export interface WorkspacesConfig {
   readonly githubOwner: string | null;
   readonly sources: readonly string[] | null;
@@ -19,10 +11,6 @@ export interface WorkspacesConfig {
   readonly targetRoots: ReadonlyMap<string, string>;
 }
 
-/**
- * A transport list the config holds that atc cannot use, with the config
- * errors it raised. The daemon runs no git while the list is invalid.
- */
 export interface InvalidGitTransports {
   readonly invalid: string;
 }
@@ -37,16 +25,6 @@ interface CollectedWorkspacesConfig {
 // A GitHub account or organization login.
 const GITHUB_OWNER_PATTERN = /^[A-Za-z\d][A-Za-z\d-]{0,38}$/u;
 
-/**
- * Reads the `workspaces` section of config.json. An owner that is not a
- * GitHub login is dropped, so a typo lists the gh account's own
- * repositories instead of failing, a source order that is not a list of
- * ids falls back to the default order, and a root that is not a non-empty
- * string is dropped. A transport list that is not a
- * list of transports atc allows is a config error, and the list is then
- * invalid, never the default, so the daemon runs no git until it is fixed.
- * An empty list is valid and allows no transport.
- */
 export function collectWorkspacesConfig(raw: unknown): CollectedWorkspacesConfig {
   const section = isRecord(raw) ? raw : {};
   const owner = section['githubOwner'];
