@@ -9,16 +9,6 @@ interface StubGrokConfig {
   readonly composer: string;
 }
 
-/**
- * Creates a stand-in for the Grok CLI as `fake-grok` under the directory and
- * returns its path. It prints its arguments, reports a `session_start` as
- * `fake-grok-1` with its working directory and a `notification` asking
- * permission to edit, prints `FAKE_GROK_HOOKS_DONE` once its reports are
- * sent, then runs the composer. Files in `$HOME` steer a scenario:
- * `fake-grok-hold-start` reports nothing and only echoes input lines as
- * `GOT:<line>`; `fake-grok-events.jsonl` holds the hook payloads to report
- * after `session_start` in place of the notification, one per line.
- */
 export function createStubGrok(dir: string, config: StubGrokConfig): string {
   const report = `${config.atc.map((part) => `"${part}"`).join(' ')} hook-report --agent grok`;
 

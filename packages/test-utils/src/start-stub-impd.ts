@@ -7,22 +7,6 @@ import { registerTestCleanup } from './register-test-cleanup';
 // or start it and exit 2 at once without reading stdin.
 type StubExecReply = 'refuse' | 'count' | 'exit-early';
 
-/**
- * Starts an impd stand-in on a real HTTP port. It records the authorization
- * header of each call and WebSocket upgrade, and the path and input of each
- * RPC call. It answers a call with the answer the caller set for its path in
- * `answers`, or else as system info, and answers a tunnel listen as
- * listening, keeping that control socket in `controls` so a caller can
- * announce a guest connection on it. It answers a relay accept as opened,
- * keeping that relay socket in `relays` so a caller can send the guest's
- * bytes and eof on it. It records each exec open message in
- * `execOpens` and answers it as `exec.reply` says, a refusal as a start
- * whose broker is not ready by default. It takes no WebSocket message over
- * 2 MiB, as impd refuses one over its own limit. The server stops, dropping
- * every open connection at once, when the current test finishes, so it must
- * run inside a test; `stop` stops it sooner and resolves once it has
- * stopped, and a second stop does nothing.
- */
 export function startStubImpd() {
   const authorizations: (string | null)[] = [];
   const calls: { path: string; input: unknown }[] = [];
@@ -62,6 +46,7 @@ export function startStubImpd() {
         : Response.json({ json: answer.json }, { status: answer.status });
     },
     websocket: {
+      // Impd refuses a message over its own limit.
       maxPayloadLength: 2 * 1024 * 1024,
       message: (socket, message) => {
         const seen = counted.get(socket);

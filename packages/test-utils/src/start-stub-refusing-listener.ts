@@ -9,13 +9,6 @@ interface StubRefusingListener {
   readonly stop: () => void;
 }
 
-/**
- * A stand-in for a daemon's TCP listener refusing a connection whose first
- * line is not a handshake: on a loopback port, it records what each read
- * takes from a connection and ends that connection, answering nothing.
- * It stops once the current test finishes, so it must run inside a test;
- * `stop` stops it sooner, and a second stop does nothing.
- */
 export function startStubRefusingListener(): StubRefusingListener {
   const received: string[] = [];
 

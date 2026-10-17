@@ -1,17 +1,11 @@
 import type { LaunchTicket } from '@atc/plugin-api';
 import type { DaemonError } from '@atc/protocol/wire';
 
-/**
- * A runtime auth binder's launch admission for a harness behind the
- * broker. `admit` admits every start and attach: it hands `send` a ticket
- * at once, before the admission settles, as the binder does under its host
- * lock, and then resolves. The ticket's check runs the given check, which
- * returns the refusal that stops the request unsent or null to let it go,
- * and may throw as a broken binder would. Its release does nothing.
- */
 export function buildStubLaunchAdmission(check: () => DaemonError | null) {
   return {
     admit: (_kind: 'start' | 'attach', send: (ticket: LaunchTicket) => void): Promise<void> => {
+      // The ticket goes out before the admission settles, as the binder sends it
+      // under its host lock.
       send({ check, release: () => {} });
 
       return Promise.resolve();

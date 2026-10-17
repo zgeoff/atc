@@ -1,12 +1,5 @@
 import type { DaemonClient, EventMsg } from '@atc/protocol/wire';
 
-/**
- * Makes the client the session's tap and acks each message the tap is
- * handed, the way an agent's inbox reader does, so the daemon drains the
- * whole backlog one message per ack. `messages` holds each InboxMessage in
- * the order it arrived and `closed` each InboxClosed. The client's event
- * callback is replaced.
- */
 export async function startStubTap(client: DaemonClient, session: string) {
   const messages: EventMsg[] = [];
   const closed: EventMsg[] = [];

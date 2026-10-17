@@ -2,21 +2,6 @@ import type { Database, SQLQueryBindings } from 'bun:sqlite';
 import { CompiledQuery } from 'kysely';
 import type { DatabaseConnection, Driver, QueryResult } from 'kysely';
 
-/**
- * A kysely `Driver` over one bun:sqlite handle. SQLite has a single
- * connection, so `acquireConnection` hands it out to one caller at a time,
- * in the order the callers asked, and `releaseConnection` lets the next
- * caller in — the ordering every transaction (and every plain query) relies
- * on once the store runs asynchronously.
- *
- * A transaction is a plain `begin`, `commit`, or `rollback` on that one
- * connection. A statement that returns columns answers with its rows; any
- * other statement answers with no rows, the count of rows it changed, and
- * the last inserted row id. Streaming is not supported and throws.
- *
- * `destroy` waits for the caller that holds the connection to release it,
- * and leaves the handle open: the caller that opened the handle closes it.
- */
 export class BunSqliteDriver implements Driver {
   private readonly connection: DatabaseConnection;
 
@@ -32,6 +17,8 @@ export class BunSqliteDriver implements Driver {
     return Promise.resolve();
   }
 
+  // SQLite has one connection, so callers take it in turn, in the order they
+  // asked; every transaction and plain query relies on that ordering.
   async acquireConnection(): Promise<DatabaseConnection> {
     const previous = this.turn;
     let release: (() => void) | undefined;

@@ -4,10 +4,6 @@ import { join } from 'node:path';
 import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { readStoredFleetFile } from './read-stored-fleet-file';
 
-/**
- * A path for the state database in a fresh temp directory, which each test
- * fills or leaves missing. The directory goes once the test finishes.
- */
 function setupTest() {
   const tmp = setupTempDir('read-stored-fleet-file-');
 

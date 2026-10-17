@@ -3,10 +3,6 @@ import { registerTestCleanup } from './register-test-cleanup';
 
 type BridgeRequest = Readonly<Record<string, unknown>>;
 
-/**
- * The lines the bridge writes back for one request, in order, or `null` to
- * end the connection without answering.
- */
 type BridgeResponder = (request: BridgeRequest) => readonly BridgeRequest[] | null;
 
 interface StubSessionBridge {
@@ -19,17 +15,6 @@ interface StubSessionBridge {
   readonly stop: () => void;
 }
 
-/**
- * A stand-in for the session bridge a remote host's commands dial: listens
- * on the unix socket path and reads newline-delimited JSON requests,
- * buffering a partial line per connection. It opens every tap, answering a
- * `tap.open` request with `ok` under the request's id as the real bridge
- * does once it attaches the tap, and hands every other request to the
- * responder, writing back each line it returns. A line that is not a JSON
- * object reaches the responder as an empty request. The listener stops once
- * the current test finishes, so it must run inside a test; `stop` stops it
- * sooner, and a second stop does nothing.
- */
 export function startStubSessionBridge(path: string, respond: BridgeResponder): StubSessionBridge {
   const requests: BridgeRequest[] = [];
   let reads = 0;
@@ -52,6 +37,7 @@ export function startStubSessionBridge(path: string, respond: BridgeResponder): 
 
           requests.push(request);
 
+          // The real bridge answers tap.open with ok once it attaches the tap.
           const answers =
             request['op'] === 'tap.open' ? [{ id: request['id'], ok: true }] : respond(request);
 

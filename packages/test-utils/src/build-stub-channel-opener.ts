@@ -6,14 +6,6 @@ interface StubChannelOpenerOptions {
   readonly holdDial?: number;
 }
 
-/**
- * A dial function that opens each connection with the opener at the dial's
- * position in the list, and every dial past the end with the last one, so
- * a test can send a first connection to one place and every reconnect to
- * another. The dial at `holdDial` waits before it opens: `waitForHeld`
- * resolves once that dial has started, and `releaseHeld` lets it go on.
- * `countOpened` returns how many dials it has made.
- */
 export function buildStubChannelOpener<Address, Channel>(
   openers: readonly [ChannelOpener<Address, Channel>, ...ChannelOpener<Address, Channel>[]],
   options: StubChannelOpenerOptions = {},

@@ -104,12 +104,9 @@ export interface LegacyFleetEntry {
   readonly parent?: AgentSessionID;
 }
 
-// A legacy fleet.json entry's keys. name, cwd, and the resolved agentSessionID are
-// required: a row missing any of them cannot restore a session, so the whole
-// row parses to undefined rather than a half-built entry. Fleet files
-// written before the id key was agent-neutral carry it under its Claude-era
-// name, so agentSessionID is read off whichever key the row actually has
-// before validation.
+// Name, cwd and agentSessionID are required: a row missing any cannot restore,
+// so it parses to undefined rather than a half-built entry. A legacy file may
+// carry the id under its Claude-era key, so that key is read before validation.
 const FLEET_ENTRY_SCHEMA = z.preprocess(
   (value) => {
     if (!isRecord(value)) {

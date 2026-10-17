@@ -1,17 +1,8 @@
 import { createStubBin } from './create-stub-bin';
 
-/**
- * Creates the composer the stub agents finish in, as `fake-composer.js`
- * under the directory, and returns its path; run it with bun. It is modelled
- * on the TUIs Codex and Grok draw: raw mode with bracketed paste on. Each
- * read is one input event batch. A bracketed paste lands in the composer
- * whole, newlines kept; a lone CR outside a paste submits; a lone LF is
- * Ctrl-J and adds a newline; any other read of more than one byte is a paste
- * burst whose line breaks stay in the composer. A read that ends partway
- * into a paste marker holds that part for the next read. It prints
- * `FAKE_COMPOSER_READY` once paste mode is on, every byte received so far as
- * `RECEIVED:<json>` after each read, and each submission as `SUBMIT:<json>`.
- */
+// Modelled on the composers the Codex and Grok TUIs draw: raw mode with
+// bracketed paste on, where each read is one input event batch and a read of
+// more than one byte outside a paste is a paste burst.
 export function createStubComposer(dir: string): string {
   return createStubBin(
     dir,

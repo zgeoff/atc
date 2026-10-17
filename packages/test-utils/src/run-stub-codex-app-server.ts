@@ -5,13 +5,6 @@ import {
   startStubCodexAppServer,
 } from './start-stub-codex-app-server';
 
-/**
- * A stand-in `codex app-server --listen unix://<path>` process. It takes the
- * directory a test owns, then Codex's own arguments, reads its scenario from
- * `app-server-scenario.json` in the directory when the file exists, and
- * appends each request it takes to `app-server-requests.jsonl` there. It
- * serves until it is told to stop.
- */
 function main(argv: readonly string[]): void {
   const [dir, command, flag, listen] = argv;
 

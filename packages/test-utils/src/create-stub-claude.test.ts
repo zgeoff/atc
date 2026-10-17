@@ -9,11 +9,6 @@ import { runCommand } from './run-command';
 import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
-/**
- * A fresh home with a settings file whose `SessionStart` hook command
- * appends each payload it reads to `hooks.jsonl` as a line, as atc's own
- * settings file holds the reporter there.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-stub-claude-');
   const settings = join(tmp.dir, 'settings.json');

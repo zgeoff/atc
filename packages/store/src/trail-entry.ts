@@ -38,8 +38,4 @@ interface ReportTrailEntry extends TrailEntryBase {
   readonly noteID?: string;
 }
 
-/**
- * One message status change, answer notice change, or session note as the
- * event trail holds it, beside the hook events.
- */
 export type TrailEntry = MessageTrailEntry | AnsweredTrailEntry | ReportTrailEntry;

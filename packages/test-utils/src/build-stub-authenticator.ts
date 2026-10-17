@@ -22,9 +22,6 @@ interface Ceremony {
   readonly userVerified?: boolean;
 }
 
-/**
- * A registration response in the JSON form a page posts.
- */
 export interface StubRegistration {
   readonly id: string;
   readonly rawId: string;
@@ -38,9 +35,6 @@ export interface StubRegistration {
   readonly authenticatorAttachment: 'platform';
 }
 
-/**
- * An authentication response in the JSON form a page posts.
- */
 export interface StubAssertion {
   readonly id: string;
   readonly rawId: string;
@@ -54,15 +48,6 @@ export interface StubAssertion {
   readonly clientExtensionResults: Readonly<Record<string, never>>;
 }
 
-/**
- * A software passkey authenticator that holds one ES256 credential, for
- * driving a WebAuthn relying party the way a browser and a platform
- * authenticator do. `create` makes the credential and returns a
- * registration with `none` attestation; `get` signs an assertion with it,
- * counting signatures up from 1. Each takes the ceremony a browser sees, so
- * a test can send a wrong origin, a wrong RP ID, or an unverified user.
- * `get` before `create` throws.
- */
 export function buildStubAuthenticator() {
   const credentialID = randomBytes(16);
 

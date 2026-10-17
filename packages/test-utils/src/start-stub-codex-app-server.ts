@@ -2,22 +2,6 @@ import { rmSync } from 'node:fs';
 import type { ServerWebSocket } from 'bun';
 import { z } from 'zod';
 
-/**
- * How the stand-in behaves. `reply` is the text of the final reply the
- * stand-in model gives each turn. `holdTurns` leaves each turn in progress
- * until a later step completes it. `dropOnTurnStart` takes the
- * `turn/start` of that number, counted from one, and closes the connection
- * in place of its answer, so the client never learns the server took the
- * message. `completeHeldTurnsOnResume` completes every held turn on a
- * `thread/resume`, with its notifications sent before the answer, as a turn
- * that ends while a client reconnects does. `failTurnsListFrom` answers
- * every `thread/turns/list` with an error on the connection of that number,
- * counted from one, and on every later one. `rejectTurnStarts` answers
- * every `turn/start` with an error and takes no message.
- * `overloadTurnStarts` answers that many of the first `turn/start`
- * requests with the overload error -32_001 and takes nothing from them, as
- * Codex does when its queue is full.
- */
 export const STUB_CODEX_APP_SERVER_SCENARIO_SCHEMA = z.object({
   reply: z.string().optional(),
   holdTurns: z.boolean().optional(),
@@ -32,9 +16,6 @@ export type StubCodexAppServerScenario = Readonly<
   z.output<typeof STUB_CODEX_APP_SERVER_SCENARIO_SCHEMA>
 >;
 
-/**
- * One request a client sent the stand-in, as it arrived.
- */
 export interface StubCodexAppServerRequest {
   readonly method: string;
   readonly params: unknown;
@@ -86,23 +67,6 @@ const TURNS_LIST_PARAMS_SCHEMA = z.looseObject({
   cursor: z.string().nullish(),
 });
 
-/**
- * Starts a stand-in Codex App Server on a Unix socket, speaking the v2
- * JSON-RPC over WebSocket that `codex app-server --listen unix://<path>`
- * speaks, for the methods a bridge sends: `initialize`, `thread/start`,
- * `thread/resume`, `thread/inject_items`, `thread/turns/list` and
- * `turn/start`. A `turn/start` on a thread with a turn in progress joins
- * that turn and returns its id, as Codex does. Each turn's items are the
- * user message, with the `clientUserMessageId` as its `clientId`, and one
- * final answer, each announced with `item/started` and `item/completed`,
- * then `turn/completed`. Threads and turns outlive a connection, so a
- * reconnect finds them. A request for an unknown thread fails with code
- * -32_600, as Codex fails it. `requests` holds every request in order, and
- * `onRequest` sees each one as it arrives. `callTool` sends the latest
- * connection a dynamic tool call and resolves with the client's result.
- * `completeHeldTurns` completes every turn still in progress, as a model
- * that finishes its work does.
- */
 export function startStubCodexAppServer(
   socket: string,
   scenario: StubCodexAppServerScenario,
@@ -156,6 +120,8 @@ export function startStubCodexAppServer(
   };
 
   const startTurn = (thread: StubThread, text: string, clientID: string | undefined) => {
+    // A turn/start on a thread with a turn in progress joins that turn, as Codex
+    // does.
     const active = thread.turns.find((t) => t.status === 'inProgress');
     const turn = active ?? { id: mintID('turn'), status: 'inProgress' as const, items: [] };
 
@@ -214,6 +180,7 @@ export function startStubCodexAppServer(
     const thread = findThread(params);
 
     if (thread === null) {
+      // Codex fails a request for a thread it has not loaded with this code.
       return { error: { code: -32_600, message: 'thread not loaded' } };
     }
 
@@ -266,6 +233,7 @@ export function startStubCodexAppServer(
     if (method === 'turn/start' && overloads < (scenario.overloadTurnStarts ?? 0)) {
       overloads += 1;
 
+      // Codex answers with this overload error when its queue is full.
       return { error: { code: -32_001, message: 'Server overloaded; retry later.' } };
     }
 

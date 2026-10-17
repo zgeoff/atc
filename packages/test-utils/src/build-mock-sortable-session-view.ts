@@ -1,10 +1,6 @@
 import type { SortableSessionView } from '@atc/protocol';
 import { faker } from '@faker-js/faker';
 
-/**
- * The ordering fields of a running, unpinned, top-level session, as the
- * session list sorts it. The id and both times are arbitrary.
- */
 export function buildMockSortableSessionView(
   overrides: Partial<SortableSessionView> = {},
 ): SortableSessionView {

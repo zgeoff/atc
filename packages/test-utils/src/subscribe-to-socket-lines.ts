@@ -26,18 +26,6 @@ interface SocketLinesOptions {
   readonly wait?: (ms: number) => Promise<void>;
 }
 
-/**
- * Connects to a unix socket and collects every complete newline-terminated
- * line it sends, buffering a partial line across reads. `write` sends the
- * whole of what it is given, the rest going out as the socket drains,
- * and throws instead when the unsent bytes already fill the queue.
- * `waitForLine` polls until the collected count reaches `count` and returns
- * the lines, throwing when `timeoutMs` passes first or the connection
- * closes short of the count; a stub clock passed as `now` and `wait` steps
- * that timeout without waiting it out. The connection ends once the current
- * test finishes, so it must run inside a test; `unsubscribe` ends it
- * sooner, and a second end does nothing.
- */
 export async function subscribeToSocketLines(
   path: string,
   options: SocketLinesOptions = {},

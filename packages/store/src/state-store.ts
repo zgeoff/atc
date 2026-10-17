@@ -62,14 +62,11 @@ import type { MaterializationUpdate, WorkspaceMaterialization } from './workspac
 // Spelled as the partial index's predicate so SQLite can match them.
 const TRAIL_FILTER = sql<boolean>`kind IS NOT NULL AND kind != 'heartbeat'`;
 
-/**
- * Some sessions' slice of the event trail: rows under their atc ids, plus
- * rows under their agent session ids, since rows written before atc session
- * ids stayed stable across restores carry an earlier atc id. A scope of no
- * sessions matches no row.
- */
 export interface EventScope {
   readonly atcIDs: readonly SessionID[];
+
+  // A row written before atc session ids stayed stable across restores
+  // carries an earlier atc id, so the scope matches agent session ids too.
   readonly agentSessionIDs: readonly AgentSessionID[];
 }
 
@@ -105,19 +102,11 @@ export interface SpawnDir {
   readonly grant: SpawnTarget;
 }
 
-/**
- * Another message one turn answered, and the atc id it was sent to.
- */
 export interface TurnSibling {
   readonly id: MessageID;
   readonly atcID: SessionID;
 }
 
-/**
- * One note as the trail holds it. A note recorded before the trail kept
- * whole texts has only its preview, so its text is that preview and
- * `complete` is false.
- */
 export interface StoredNote {
   readonly id: number;
 
@@ -127,14 +116,12 @@ export interface StoredNote {
   readonly agentSessionID: AgentSessionID | null;
   readonly label: string;
   readonly text: string;
+
+  // False for a note recorded before the trail kept whole texts, whose text
+  // is its preview.
   readonly complete: boolean;
 }
 
-/**
- * One message answer as the trail holds it. An answer recorded before the
- * trail kept whole answers has only its preview, so its text is that
- * preview and `complete` is false.
- */
 export interface StoredAnswer {
   readonly id: number;
 
@@ -144,22 +131,12 @@ export interface StoredAnswer {
   readonly agentSessionID: AgentSessionID | null;
   readonly message: MessageID;
   readonly text: string;
+
+  // False for an answer recorded before the trail kept whole answers, whose
+  // text is its preview.
   readonly complete: boolean;
 }
 
-/**
- * Daemon state in one SQLite store: the restorable fleet, the event trail
- * (hook events, message status changes, and notes) that events.read and
- * lastActivityAt read, the spawn-directory
- * history, and the per-session message inbox. The statusline contract
- * file (status.json) stays a plain file because reporters inside wrangled
- * sessions read it without speaking to the daemon. An existing fleet.json
- * seeds the fleet table once, so upgrading never loses a restorable fleet.
- * Every query runs through kysely against the schema the migration ladder
- * maintains, executed by a driver over the one bun:sqlite connection this
- * store owns. That makes every method here asynchronous; the driver's
- * connection mutex is what keeps every write ordered regardless.
- */
 export class StateStore {
   private readonly sqlite: Database;
 
@@ -340,13 +317,9 @@ export class StateStore {
     return recency;
   }
 
-  // Rewrites this daemon's rows for the given entries and drops its rows
-  // for the removed sessions, plus any row of its own that an entry
-  // replaces by holding the same agent session id: an exited row, or one on
-  // the entry's own target. Every other row stays as it stands, so a row the
-  // daemon never loaded survives a write. A session
-  // another daemon owns, or one whose stored ownership epoch has moved past
-  // this daemon's, rejects the whole write as stale.
+  // A row the daemon never loaded stays as it stands, so it survives a write.
+  // A session another daemon owns, or one whose stored ownership epoch has
+  // moved past this daemon's, rejects the whole write as stale.
   async writeFleet(
     entries: readonly FleetEntry[],
     removed: readonly SessionID[] = [],
@@ -664,13 +637,9 @@ export class StateStore {
     return row?.ts === null || row?.ts === undefined ? null : Date.parse(row.ts);
   }
 
-  // Drops each trail row recorded before the given time in epoch
-  // milliseconds, and each row the trail reads leave out (a heartbeat or an
-  // unclassified hook event) at any age. The newest row under each atc id
-  // and under each agent session id stays, so a session's last activity time
-  // and its place in the restore order survive; past the given time it stays
-  // only while a fleet row holds either id. Row ids are never reused, so a
-  // cursor past a dropped row still reads every later row.
+  // The newest row under each atc id and each agent session id stays, so a
+  // session's last activity and restore order survive; past the cutoff it
+  // stays only while a fleet row holds either id.
   async removeExpiredEvents(before: number): Promise<void> {
     const cutoff = new Date(before).toISOString();
 
@@ -712,10 +681,6 @@ export class StateStore {
       .execute();
   }
 
-  /**
-   * Each directory a spawn ran in, with the target it ran on, most recent
-   * first. A directory spawned on several targets has one entry for each.
-   */
   async collectSpawnDirs(): Promise<SpawnDir[]> {
     const rows = await this.db
       .selectFrom('spawn_history')
@@ -867,11 +832,9 @@ export class StateStore {
     return row === undefined ? null : toMessageRecord(row);
   }
 
-  // Answers every given message the owner holds unanswered in one statement,
-  // so a reader sees all of one turn's messages answered or none of them.
-  // The same statement queues the answer notice of each message that has a
-  // sender session, so a stop after it never loses the notice. Returns the
-  // messages it answered, oldest first.
+  // One statement, so a reader sees all of one turn's messages answered or
+  // none, and it queues the answer notice of each message with a sender
+  // session too, so a stop after it never loses a notice.
   async updateMessagesAnswered(
     ids: readonly MessageID[],
     owner: MessageOwner,
@@ -901,11 +864,9 @@ export class StateStore {
     return rows.map((row) => toMessageRecord(row)).toSorted((a, b) => a.sentAt - b.sentAt);
   }
 
-  // Marks every given message the owner holds unsettled as unanswered in one
-  // statement, so a reader sees all of one turn's messages settled or none of
-  // them. A message already answered or unanswered is left as it is. The
-  // same statement queues the answer notice of each message that has a
-  // sender session. Returns the messages it marked, oldest first.
+  // One statement, so a reader sees all of one turn's messages settled or
+  // none, and it queues the answer notice of each message with a sender
+  // session too. A message already settled is left as it is.
   async updateMessagesUnanswered(
     ids: readonly MessageID[],
     owner: MessageOwner,
@@ -935,11 +896,9 @@ export class StateStore {
     return rows.map((row) => toMessageRecord(row)).toSorted((a, b) => a.sentAt - b.sentAt);
   }
 
-  // Marks every message the owner holds delivered as unanswered in one
-  // statement, for a session whose process ended, so no turn is left to
-  // settle them. A queued message stays queued for the session's next
-  // process. The same statement queues the answer notice of each message
-  // that has a sender session. Returns the messages it marked, oldest first.
+  // For a session whose process ended, so no turn is left to settle its
+  // delivered messages; a queued message waits for the next process. One
+  // statement also queues the answer notice of each with a sender session.
   async updateDeliveredMessagesUnanswered(
     owner: MessageOwner,
     reason: string,
@@ -1142,10 +1101,9 @@ export class StateStore {
       .execute();
   }
 
-  // Runs once as a daemon starts, before it serves a request: every key
-  // still in progress belonged to a daemon that stopped mid-effect, so its
-  // outcome is unknown. A key whose effect left its row behind completes;
-  // one whose effect left no trace stays unknown.
+  // Runs as a daemon starts, before it serves a request: a key still in
+  // progress belonged to a daemon that stopped mid-effect. One whose effect
+  // left its row behind completes; one that left no trace stays unknown.
   async reconcileIdempotencyKeys(at: number): Promise<void> {
     await this.db.transaction().execute(async (trx) => {
       await trx
@@ -1254,10 +1212,9 @@ export class StateStore {
     return row === undefined ? null : toWorkspaceMaterialization(row);
   }
 
-  // Runs once as a daemon starts, before it serves a request: a
-  // materialization still short of ready or failed belonged to a daemon that
-  // stopped partway through it, and its workspace was never verified, so it
-  // fails as interrupted.
+  // Runs as a daemon starts, before it serves a request: a materialization
+  // short of ready or failed was cut off by a stopped daemon before its
+  // workspace was verified.
   async reconcileMaterializations(at: number): Promise<void> {
     await this.db
       .updateTable('workspace_materialization')
@@ -1455,15 +1412,9 @@ export class StateStore {
       .execute();
   }
 
-  // Writes a copy of the whole database to `path` as one consistent
-  // snapshot, through SQLite's `VACUUM INTO`, which reads in one transaction
-  // and so never sees half of a write another connection commits meanwhile.
-  // The copy goes to a staging directory beside `path` that only this user
-  // can enter, is flushed to disk, and then renamed over `path`, so `path` holds
-  // either its old content or a whole copy, never part of one. Resolves to
-  // the copy's size in bytes. A path that is the open database or one of its
-  // log files is refused with `bad_args` before anything is written, since
-  // replacing a file SQLite holds open loses every later write.
+  // VACUUM INTO reads in one transaction, so the copy never holds half of a
+  // write; the flushed copy is renamed over the path, which then holds its
+  // old content or a whole copy. Resolves to the copy's size in bytes.
   async writeBackup(path: string): Promise<number> {
     // The database file resolves in full, since SQLite opens the file a
     // link points to and names its log files after that path.
@@ -1472,6 +1423,7 @@ export class StateStore {
     if (
       [live, `${live}-wal`, `${live}-shm`, `${live}-journal`].includes(resolveRealFilePath(path))
     ) {
+      // Replacing a file SQLite holds open loses every later write.
       throw new DaemonError(
         'bad_args',
         `${path} is the daemon's own database or one of its log files; back up to another path`,
@@ -1625,9 +1577,8 @@ function isReplaceableBy(row: ReplaceableRow, later: ReplaceableRow): boolean {
 }
 
 // The entry that takes the place of a row written before entries[from], or
-// undefined when the row stays. A row is replaced by the last later entry
-// that may replace it, and that entry in turn by its own, so the result is
-// always an entry the fleet keeps.
+// undefined when the row stays. Replacement chains to the last later entry,
+// so the result is always an entry the fleet keeps.
 function findReplacement(
   row: ReplaceableRow,
   entries: readonly FleetEntry[],
@@ -1644,20 +1595,9 @@ function findReplacement(
   return undefined;
 }
 
-// Two sessions share an agent session id when one resumes the other's agent
-// session. The fleet keeps one row per agent session id and target, the
-// entry written last, plus every live row on another target, and relinks the
-// survivors as a one-level hierarchy of rows it holds:
-//
-// 1. A link to a dropped row follows to the row that replaced it. A row that
-//    replaced its own parent follows that parent's link instead, and a link
-//    to a row the fleet does not hold makes the row top-level.
-// 2. Where the links form a cycle, the row written first in the cycle
-//    becomes top-level.
-// 3. A row whose parent is itself a sub-session moves up to the top-level
-//    row above it.
-//
-// Every walk takes at most one step per entry, so it ends on any input.
+// One row per agent session id and target, the entry written last, plus every
+// live row on another target, relinked one level deep. Every walk takes at most
+// one step per entry, so it ends on any input.
 function buildFleetWithoutReplacedRows(entries: readonly FleetEntry[]): FleetEntry[] {
   const replaced = new Map<SessionID, SessionID>();
 
@@ -1677,7 +1617,8 @@ function buildFleetWithoutReplacedRows(entries: readonly FleetEntry[]): FleetEnt
   const bound = entries.length;
 
   // The surviving row an entry's parent link resolves to, or undefined when
-  // it resolves to no row the fleet keeps.
+  // it resolves to no row the fleet keeps. A row that replaced its own parent
+  // follows that parent's link instead.
   const findSurvivingParent = (entry: FleetEntry): SessionID | undefined => {
     let link = entry.parent;
 

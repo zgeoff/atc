@@ -1,10 +1,3 @@
-/**
- * A terminal that keeps every chunk written to it, in order, and draws
- * nothing. `getText` returns everything written. `countChunks` returns how
- * many chunks are written so far, and `getTextSince` returns only
- * what was written after that position, so a test reads only the output of
- * the action it checks.
- */
 export function buildStubTerminal() {
   const chunks: string[] = [];
 

@@ -42,10 +42,9 @@ interface FleetTable {
   // a row from before launch revisions were recorded.
   auth_revision: number | null;
 
-  // 1 when the session's harness is kept inside a host that went to sleep,
-  // whoever put it to sleep, so a restore after a daemon restart lists it
-  // as suspended. 0 for any other harness, and null for a row from before
-  // a sleep was recorded.
+  // 1 when the harness is kept inside a host that went to sleep, so a restore
+  // after a daemon restart lists it as suspended; 0 for any other harness, and
+  // null for a row from before sleeps were recorded.
   suspended: number | null;
 }
 
@@ -95,10 +94,8 @@ interface SessionOwnerTable {
   updated_at: number;
 }
 
-// One idempotency key per principal and operation: the hash of the payload
-// it first arrived with, where the keyed effect stands, and the effect it
-// names. A key whose outcome is unknown never expires, so a retry of it can
-// never start a fresh effect.
+// One key per principal and operation. A key whose outcome is unknown never
+// expires, so a retry of it can never start a fresh effect.
 interface IdempotencyTable {
   principal: string;
   operation: string;
@@ -188,10 +185,9 @@ interface MessagesTable {
   agent_session_id: string | null;
   sender: string;
 
-  // The kind of caller that sent the message, connector, session or owner,
-  // and the connector's client id or the session's atc id; null on a row
-  // written before the daemon typed its senders, and the id null for the
-  // owner.
+  // The kind of caller that sent the message (connector, session or owner) and
+  // the connector's client id or the session's atc id; null on a row from before
+  // senders were typed, and the id null for the owner.
   sender_kind: string | null;
   sender_id: string | null;
   text: string;
@@ -217,10 +213,6 @@ interface MessagesTable {
   notice_delivered_at: number | null;
 }
 
-/**
- * The state store's schema: what the query builder and the migration
- * ladder both build against.
- */
 export interface StateStoreSchema {
   fleet: FleetTable;
   events: EventsTable;
@@ -235,13 +227,8 @@ export interface StateStoreSchema {
   published_record: PublishedRecordTable;
 }
 
-// Every shape the fleet table has shipped with: the oldest carries only
-// agent_session_id under its Claude-era name plus name and cwd, and each
-// later step adds one column the daemon grew to depend on, until the
-// rebuild that keys the table by the atc session id. events later gains
-// columns of its own, as does messages, spawn_history is rebuilt to key each
-// directory by the target it was spawned on, and prefs has carried one shape
-// since it was added.
+// Every shape the tables have shipped with, oldest first. A step that rebuilds
+// a table carries every row across; no step drops a row.
 const MIGRATIONS: Record<string, Migration> = {
   '001_create_initial_schema': {
     async up(db: Kysely<StateStoreSchema>) {
@@ -684,26 +671,17 @@ const PROVIDER: MigrationProvider = {
   getMigrations: () => Promise.resolve(MIGRATIONS),
 };
 
-/**
- * Brings a state-store database up to the current schema through kysely's
- * `Migrator`, one additive step at a time. A database from before the
- * ladder existed is recognized at whichever shape it stopped at by a
- * baselining pass that records the steps its columns already satisfy, so
- * only what is genuinely missing runs. Three steps rebuild a table, the
- * fleet twice and the spawn history once, and carry every row across; no
- * step drops a row.
- */
+// A database from before the ladder existed is baselined at whichever shape it
+// stopped at, so only the steps it is missing run.
 export async function runMigrations(db: Kysely<StateStoreSchema>): Promise<void> {
   // A baselined step can land out of order relative to a step that turned
   // out to still be missing beside it, so the ledger the baselining pass
   // writes is not guaranteed to be a contiguous prefix of the ladder.
   const migrator = new Migrator({ db, provider: PROVIDER, allowUnorderedMigrations: true });
 
-  // Baselining writes straight into the ledger, so the ledger has to exist
-  // first, and only the opening step can create it. A database that already
-  // has a ledger has been baselined once and goes straight to the latest
-  // step — running the opening step against a full ledger would read as a
-  // request to migrate back down to it.
+  // Baselining writes straight into the ledger, which only the opening step
+  // creates. A database with a ledger goes straight to the latest step: the
+  // opening step against a full ledger would read as a migration back down.
   if (!(await hasMigrationLedger(db))) {
     const opened = await migrator.migrateTo('001_create_initial_schema');
 
@@ -739,10 +717,9 @@ function requireMigrated(result: MigrationResultSet): void {
   throw new Error('kysely migration failed', { cause: result.error });
 }
 
-// The migrator's own ledger has no concept of a database that already
-// carries a later step's outcome from before the ladder existed. Recording
-// those steps here, straight into the ledger, is what lets the migrator run
-// only the steps a legacy database's fleet table genuinely still needs.
+// The migrator's ledger knows no database that carries a later step's outcome
+// from before the ladder; recording those steps lets it run only the steps a
+// legacy fleet table still needs.
 async function recordLegacyBaseline(db: Kysely<StateStoreSchema>): Promise<void> {
   const columns = await collectFleetColumns(db);
 
@@ -947,10 +924,9 @@ async function collectFleetColumns(db: Kysely<StateStoreSchema>): Promise<Readon
   return new Set(result.rows.map((row) => row.name));
 }
 
-// Each step is judged solely by whether its own column is already there —
-// never by whether an earlier step's column is — because a database from
-// before the ladder existed can carry any one of these columns without the
-// others.
+// Each step is judged only by its own column, never an earlier step's, since a
+// database from before the ladder can carry any one of these columns without
+// the others.
 function pickBaselineSteps(columns: ReadonlySet<string>): readonly string[] {
   const steps: string[] = [];
 

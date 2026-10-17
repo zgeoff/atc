@@ -1,11 +1,6 @@
 import { DAEMON_EVENT_SCHEMA } from '@atc/protocol';
 import type { EventMsg } from '@atc/protocol/wire';
 
-/**
- * Throws unless a daemon event, apart from its protocol version, parses
- * under the contract's event schema to the same value, so the schema
- * neither refuses the event nor drops a field of it.
- */
 export function assertContractEvent(event: EventMsg): void {
   const { v: _v, ...body } = event;
   const parsed = DAEMON_EVENT_SCHEMA.safeParse(body);

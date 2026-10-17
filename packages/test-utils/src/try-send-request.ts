@@ -1,13 +1,5 @@
 import { DaemonError } from '@atc/protocol/wire';
 
-/**
- * Sends a request and returns its answer as plain data, `{ ok }` or, when
- * the daemon refuses it, `{ error: { code, message, data } }`, with every
- * occurrence of `id` replaced by `<id>`, so the answers to the same request
- * for two ids compare whole: a refusal for a session a client may not see
- * and one for a session that never existed must read alike. A failure that
- * is not a daemon refusal rejects as it is.
- */
 export async function trySendRequest(
   send: () => Promise<Readonly<Record<string, unknown>>>,
   id: string,
@@ -17,6 +9,9 @@ export async function trySendRequest(
     (error: unknown) => ({ error: toRefusal(error) }),
   );
 
+  // The answers for two ids then compare whole, so a refusal for a session a
+  // client may not see can be checked to read like one for a session that never
+  // existed.
   return JSON.parse(JSON.stringify(answer).replaceAll(id, '<id>'));
 }
 

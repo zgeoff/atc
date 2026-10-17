@@ -9,12 +9,6 @@ interface StubCodexConfig {
   readonly composer: string;
 }
 
-/**
- * Creates a stand-in for the Codex CLI as `fake-codex` under the directory
- * and returns its path. It prints its arguments, reports a `SessionStart`
- * as `fake-codex-1` with its working directory and a rollout under `$HOME`,
- * then a `Stop` whose last message is `pong`, then runs the composer.
- */
 export function createStubCodex(dir: string, config: StubCodexConfig): string {
   const report = `${config.atc.map((part) => `"${part}"`).join(' ')} hook-report --agent codex`;
 

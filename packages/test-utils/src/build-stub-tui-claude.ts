@@ -1,17 +1,5 @@
 import { getSourceEntry } from './get-source-entry';
 
-/**
- * The script of a stand-in `claude` for the TUI suites. It prints
- * `FAKE_CLAUDE_UP args: ` and its arguments at start and again on every
- * SIGWINCH, as the real one repaints on a resize. It reports `SessionStart`
- * through the real reporter with session id `fake-1` and transcript
- * `$HOME/fake-transcript.jsonl`, then a permission `Notification`, and
- * echoes each line it reads as `GOT:<line>` for five minutes. Scenario files
- * in `$HOME` change it: `fake-claude-events.jsonl` replaces the
- * notification with its hook lines, and a run with `--resume` among its
- * arguments touches `fake-claude-resume-held` and waits, before it prints
- * or reports anything, while `fake-claude-hold-resume` exists.
- */
 export function buildStubTUIClaude(): string {
   const report = `"${process.execPath}" "${getSourceEntry('atc')}" hook-report`;
 

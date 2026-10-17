@@ -5,11 +5,6 @@ type SendRequest = (
   p?: Readonly<Record<string, unknown>>,
 ) => Promise<Readonly<Record<string, unknown>>>;
 
-/**
- * Sends one session.spawn request at 80x24 through the given request sender
- * and returns the new session's id. Throws when the answer carries no
- * session descriptor with a string id.
- */
 export async function spawnNamedSession(
   send: SendRequest,
   name: string,

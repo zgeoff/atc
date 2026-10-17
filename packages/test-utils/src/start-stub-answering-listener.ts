@@ -11,16 +11,6 @@ interface StubAnsweringListener {
   readonly stop: () => Promise<void>;
 }
 
-/**
- * A stand-in for a daemon socket that answers a handshake: it listens on
- * the unix socket path, records each connection it accepts and the first
- * read each one sends, answers that read with the line `answer`, and
- * leaves every later byte unread on the connection. Resolves once it
- * listens. Once the current test finishes, it destroys every connection it
- * accepted and closes, so it must run inside a test; `stop` does so
- * sooner and resolves once the server has closed, and a second stop does
- * nothing.
- */
 export async function startStubAnsweringListener(path: string): Promise<StubAnsweringListener> {
   const peers: Socket[] = [];
   const lines: string[] = [];

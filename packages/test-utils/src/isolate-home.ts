@@ -3,14 +3,9 @@ import { join, normalize } from 'node:path';
 import { SESSION_ENV_NAMES } from '@atc/protocol/session';
 import { removeEnvOverrides } from './remove-env-overrides';
 
-// Holds every test run to the isolated home the package test scripts set
-// up before Bun starts, marked by ATC_TEST_HOME. A bare `bun test` stops
-// here: Bun hands a spawned child the environment it started with, not one
-// a preload changed, so only a home set before Bun starts reaches every
-// subprocess a test runs. A run under a marker whose paths do not match it
-// stops too. Both exit before any test imports atc. Once the home holds,
-// every environment variable a test overrides through the shared helper is
-// put back after that test, so the test home's own values return too.
+// Bun hands a spawned child the environment it started with, not one a preload
+// changed, so only a home the test script sets before Bun starts reaches every
+// subprocess a test runs.
 const marker = process.env['ATC_TEST_HOME'];
 
 if (marker === undefined) {
@@ -23,9 +18,8 @@ afterEach(() => {
   removeEnvOverrides();
 });
 
-// An inherited marker is trusted only when every isolated variable already
-// points under it and no enclosing session's variables remain; a stale or
-// hand-set marker stops the run before any test imports atc. An inherited
+// An inherited marker is trusted only when every isolated variable points under
+// it and no enclosing session's variables remain; an inherited
 // CLAUDE_CONFIG_DIR would move the Claude config folder out of the home.
 function requireTestHome(root: string): void {
   const expected: Readonly<Record<string, string>> = {

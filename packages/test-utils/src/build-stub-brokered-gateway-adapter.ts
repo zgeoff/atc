@@ -1,16 +1,6 @@
 import type { AgentAdapter } from '@atc/plugin-api';
 import { buildMockAgentAdapter } from './build-mock-agent-adapter';
 
-/**
- * An agent adapter `glm` for daemon tests that only starts behind impd's
- * broker and takes the credential of a GLM gateway from it: the auth
- * profile `glm`, a custom bearer secret `glm` for api.z.ai, behind the
- * gateway at https://api.z.ai/api/anthropic with the placeholder
- * `ANTHROPIC_AUTH_TOKEN`. Every guest spawn sleeps, with the binding's
- * variables, when it has one, and `CLAUDE_CONFIG_DIR` set to
- * `claude-config` in the guest folder. Every other member is the plain
- * agent adapter's.
- */
 export function buildStubBrokeredGatewayAdapter(): AgentAdapter {
   return buildMockAgentAdapter({
     id: 'glm',

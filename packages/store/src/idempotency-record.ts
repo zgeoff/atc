@@ -1,9 +1,3 @@
-/**
- * Where a keyed effect stands. `in_progress` holds while the daemon that
- * claimed the key runs the effect; `completed` once the effect is durable;
- * `outcome_unknown` when a daemon stopped mid-effect and its start-up
- * reconciliation found no trace of the effect.
- */
 export type IdempotencyState = 'in_progress' | 'completed' | 'outcome_unknown';
 
 // One idempotency key and the effect it names.
@@ -28,10 +22,7 @@ export interface IdempotencyRecord {
   readonly updatedAt: number;
 }
 
-/**
- * A target name and the identity it held, which a replay of the key is
- * authorized against.
- */
+// A replay of the key is authorized against this target and identity.
 export interface EffectTarget {
   readonly target: string;
   readonly targetIdentity: string;

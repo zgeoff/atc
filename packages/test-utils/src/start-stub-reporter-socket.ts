@@ -12,17 +12,6 @@ interface StubReporterSocket {
   readonly stop: () => void;
 }
 
-/**
- * A stand-in for the daemon's reporter socket: listens on the unix socket
- * path and collects each newline-terminated line any connection writes,
- * buffering a partial line per connection, as the daemon reads the lines
- * hook and report commands send. It never writes back, and leaves each
- * connection for the sender to close. `waitForLine` resolves with the first
- * line once one has arrived, and rejects naming the socket when none arrives
- * within `timeoutMs`, 5 seconds by default. The listener stops once the
- * current test finishes, so it must run inside a test; `stop` stops it
- * sooner, and a second stop does nothing.
- */
 export function startStubReporterSocket(path: string): StubReporterSocket {
   const lines: string[] = [];
   let reads = 0;

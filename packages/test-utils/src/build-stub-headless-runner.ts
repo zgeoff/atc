@@ -19,13 +19,6 @@ interface StubHeadlessRunner {
   readonly waitForRun: (index: number) => Promise<StubHeadlessRun>;
 }
 
-/**
- * A headless runner for daemon tests that starts no process. Each run the
- * daemon starts is recorded in `runs`, in order, and does nothing until
- * the test plays it by calling the run's events: output, a finished turn,
- * or a turn that needs the user. A stop marks the run stopped and plays
- * nothing, as a killed turn reports nothing more.
- */
 export function buildStubHeadlessRunner(): StubHeadlessRunner {
   const runs: StubHeadlessRun[] = [];
   const started: PromiseWithResolvers<StubHeadlessRun>[] = [];

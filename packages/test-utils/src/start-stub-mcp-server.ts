@@ -17,13 +17,6 @@ interface StubMCPServer {
   readonly stop: () => Promise<void>;
 }
 
-/**
- * A stand-in for an MCP HTTP server on a loopback port: it answers every
- * request with the JSON body given, and records each request's method,
- * path, authorization and content-type headers, and JSON body. `url` holds
- * its origin. It stops once the current test finishes, so it must run
- * inside a test; `stop` stops it sooner, and a second stop does nothing.
- */
 export function startStubMCPServer(answer: unknown): StubMCPServer {
   const requests: StubMCPRequest[] = [];
 

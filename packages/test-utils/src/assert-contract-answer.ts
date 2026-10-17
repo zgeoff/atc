@@ -1,10 +1,5 @@
 import { findAnswerSchema } from '@atc/protocol';
 
-/**
- * Throws unless a daemon answer parses under its method's contract output
- * schema to the same value, so the schema neither refuses the answer nor
- * drops a field of it. A method the contract does not define passes.
- */
 export function assertContractAnswer(method: string, ok: Readonly<Record<string, unknown>>): void {
   const schema = findAnswerSchema(method);
 

@@ -14,12 +14,6 @@ interface StubGHOptions {
   readonly argvFile?: string;
 }
 
-/**
- * The script of a stand-in `gh` that answers each command with the reply
- * the test gave for its first argument: the stdout and stderr verbatim,
- * then the exit code, 0 when unset. A `hang` reply waits until it is
- * killed, as a gh that never answers does.
- */
 export function buildStubGH(options: StubGHOptions): string {
   const record =
     options.argvFile === undefined

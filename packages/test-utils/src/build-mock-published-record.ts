@@ -5,11 +5,6 @@ import type { MockOverrides } from './mock-overrides';
 
 type DefaultedKey = keyof PublishedRecord;
 
-/**
- * A first-revision version 1 record of a fresh session on the local target,
- * whose workspace is an arbitrary directory on a branch, with no declared
- * scope. Overrides merge into fresh defaults at every depth.
- */
 export function buildMockPublishedRecord(
   overrides: MockOverrides<PublishedRecord, DefaultedKey> = {},
 ): PublishedRecord {

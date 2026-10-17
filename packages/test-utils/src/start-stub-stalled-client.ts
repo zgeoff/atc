@@ -11,15 +11,6 @@ interface StubStalledClient {
   readonly stop: () => void;
 }
 
-/**
- * A stand-in for a daemon client that stops reading: it connects to the
- * daemon's unix socket, sends a `daemon.hello` with no auth as `client`,
- * reads the first chunk the daemon sends, and then holds its next read on
- * a promise that never resolves, so whatever the daemon sends it after
- * that backs up. Resolves once that first chunk arrives. The connection is
- * destroyed once the current test finishes, so it must run inside a test;
- * `stop` destroys it sooner, and a second stop does nothing.
- */
 export async function startStubStalledClient(
   socketPath: string,
   client: string,

@@ -29,19 +29,6 @@ interface FailingAgentAdapterConfig {
   readonly ready: ReadyPipe | null;
 }
 
-/**
- * An agent adapter whose first spawn fails after its process has started:
- * the daemon reads the adapter's headless runner once the process runs, and
- * that read throws, as many times as the config holds, while every other
- * read finds no headless runner. Every member but the spawn plan and the
- * headless runner is the mock adapter's.
- *
- * With a ready pipe, the stub makes the pipe at that path before it
- * resolves, and the first failing read blocks until a process writes its
- * pid there. A read that finds no writer within the timeout throws instead
- * of failing the start. `getReadyPID` returns the pid that read took.
- * `countPlans` reads how many spawns the adapter has planned.
- */
 export async function createStubFailingAgentAdapter(config: FailingAgentAdapterConfig) {
   let planned = 0;
   let readsToFail = 0;
@@ -101,10 +88,9 @@ async function createPipe(path: string): Promise<void> {
 
 const PIPE_POLL_MS = 5;
 
-// The read opens the pipe without blocking and polls it, since the adapter
-// reads the pid inside a synchronous getter. Before a writer opens the pipe,
-// a read finds it at its end, so the pid is complete only once some bytes
-// have come and a later read finds the end again: the writer has closed it.
+// The adapter reads the pid inside a synchronous getter, so the read polls
+// without blocking. A read finds the pipe at its end before a writer opens it
+// too, so the pid is whole only once bytes came and a later read finds the end.
 function readPID(ready: ReadyPipe): number {
   const fd = openSync(ready.path, constants.O_RDONLY | constants.O_NONBLOCK);
   const deadline = performance.now() + ready.timeoutMs;

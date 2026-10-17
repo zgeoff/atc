@@ -8,12 +8,7 @@ interface StaleOwnership {
   readonly writerEpoch: number;
 }
 
-/**
- * A fleet write refused because it touches a session another daemon owns,
- * or one whose stored ownership epoch has moved past the writer's. The
- * store wrote nothing, and the daemon answers its caller with
- * `stale_epoch`.
- */
+// The store wrote nothing, and the daemon answers its caller with stale_epoch.
 export class StaleOwnershipError extends Error {
   readonly sessionID: SessionID;
 

@@ -25,21 +25,6 @@ interface StubDaemonRequestsOptions {
   readonly wait?: (ms: number) => Promise<void>;
 }
 
-/**
- * A daemon request channel that answers only when the test says so. Every
- * request sent through `sendRequest` waits until `answer` or
- * `answerOldest` resolves it, or until `refuse` rejects the latest one with
- * an error. Each of those waits for a request under the
- * method to be waiting, resolves the latest or the oldest one, and then
- * waits for the client to react: to send another request, or to raise the
- * count `countReactions` reads. A wait that outlasts `timeoutMs` rejects:
- * with `no <method> request is waiting for an answer` when nothing was
- * sent under the method, and with `nothing reacted to the <method> answer`
- * when the client never reacted. A test that takes the `now` and `wait`
- * of a stub clock steps that timeout without waiting it out. `collectSent` returns the params of every
- * request sent under a method, answered or not, in the order they were
- * sent.
- */
 export function buildStubDaemonRequests(options: StubDaemonRequestsOptions) {
   const sent: StubRequest[] = [];
 

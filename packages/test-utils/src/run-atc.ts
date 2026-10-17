@@ -22,12 +22,6 @@ interface ATCResult {
   readonly stderr: string;
 }
 
-/**
- * Runs one atc subcommand as its own process against a home and resolves
- * once it exits, with its exit code and everything it printed. The process
- * inherits the test's environment with HOME and XDG_RUNTIME_DIR pointed at
- * the home, then the run's own variables over that.
- */
 export async function runATC(run: Readonly<ATCRun>): Promise<ATCResult> {
   const env = Object.fromEntries(
     Object.entries({

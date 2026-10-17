@@ -1,19 +1,6 @@
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { z } from 'zod';
 
-/**
- * One menu the stand-in shows: its text lines, its options, its kind, and
- * the item the cursor starts on, the first when absent. `numbered` draws
- * `1. Yes`, `plain` draws the label alone, and `boxes` draws `[✔] name` for
- * each option, ticked as `checked` holds, with `submit` as a last item
- * without a box. `window` draws only that many options at a time, as Claude
- * Code's lists do: `↑` and `↓` in the cursor's column beside the first and
- * last rows mark options out of view, except on the cursor's own row; the
- * list scrolls one row when the cursor moves onto its top row or past its
- * bottom row; and the arrows wrap from the first option to the last and
- * back, except that the down arrow on the last option of a box menu moves
- * to `submit`.
- */
 const STUB_MENU_SCHEMA = z.object({
   kind: z.enum(['numbered', 'plain', 'boxes']),
   text: z.array(z.string()).readonly(),
@@ -26,24 +13,17 @@ const STUB_MENU_SCHEMA = z.object({
 
 type StubMenu = Readonly<z.output<typeof STUB_MENU_SCHEMA>>;
 
-/**
- * What the stand-in runs: its menus in order, the file whose arrival moves
- * it from the first menu to the second, the file whose arrival makes it
- * exit without printing anything, and the hold of its first menu, as
- * Claude Code holds a dialog that has just opened. During the hold the
- * arrows move the cursor, while Enter and Escape do nothing and restart the
- * hold. When the hold ends, the cursor goes back to where it started.
- * `enterDelayMs` makes the stand-in answer each Enter only that long after
- * it reads the key, as a busy agent does. `pickOpensNext` shows the second
- * menu in place of the outcome once an option of the first is picked, as a
- * dialog that leads to another does. The second menu takes keys however it
- * appears.
- */
 const STUB_MENU_SPEC_SCHEMA = z.object({
   menus: z.array(STUB_MENU_SCHEMA),
   switchFile: z.string().optional(),
   exitFile: z.string().optional(),
+
+  // Held as Claude Code holds a dialog that just opened: arrows move the cursor,
+  // enter and escape do nothing but restart the hold, and the cursor goes back
+  // to its start when the hold ends.
   holdMs: z.number().optional(),
+
+  // Answers each enter only that long after reading it, as a busy agent does.
   enterDelayMs: z.number().optional(),
   pickOpensNext: z.boolean().optional(),
 });
@@ -55,17 +35,6 @@ const KEY_NAMES: Readonly<Record<string, string>> = {
   '\u001B': 'escape',
 };
 
-/**
- * A stand-in `claude` that waits on a menu the way Claude Code's dialogs
- * draw one: a rule, the text, then the options with a `❯` cursor. The up
- * and down arrows move the cursor without wrapping, Enter
- * picks the option under it or ticks and clears a box, and Escape dismisses
- * the menu. Arguments: the spec file and the log file; it ignores the rest,
- * such as the flags atc adds to a Claude launch. Each key it reads appends
- * `{ "key": name }` to the log, and each outcome appends `{ "picked":
- * label }`, `{ "toggled": label, "checked": bool }`, `{ "enabled": [...] }`
- * or `{ "dismissed": true }`. It stays up after the outcome until killed.
- */
 function main() {
   const [specPath, logPath] = process.argv.slice(2);
 

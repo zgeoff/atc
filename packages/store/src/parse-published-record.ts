@@ -40,10 +40,6 @@ const PUBLISHED_RECORD_SCHEMA = z.object({
   scope: SCOPE_SCHEMA,
 });
 
-/**
- * Reads a published record back from the JSON the state store holds; null
- * for text that is not a version 1 record.
- */
 export function parsePublishedRecord(text: string): PublishedRecord | null {
   let raw: unknown;
 

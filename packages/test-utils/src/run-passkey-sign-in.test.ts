@@ -12,14 +12,12 @@ import { runPasskeyEnrollment } from './run-passkey-enrollment';
 import { runPasskeySignIn } from './run-passkey-sign-in';
 import { setupTempDir } from './setup-temp-dir';
 
-// The MCP HTTP server with the owner's passkey enrolled, and its
-// authorization database opened the way `atc clients` opens it, with one
-// client. Sign-in never reaches the daemon, so the caller points at a
-// socket nothing listens on and never dials it.
 async function setupTest() {
   const tmp = setupTempDir('atc-run-passkey-sign-in-');
   const dbPath = join(tmp.dir, 'mcp-auth.db');
 
+  // Sign-in never reaches the daemon, so the caller points at a socket nothing
+  // listens on and never dials it.
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );

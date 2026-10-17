@@ -8,24 +8,6 @@ interface GitFixtureConfig {
   readonly prefix?: string;
 }
 
-/**
- * A bare upstream at `upstream.git` on branch `main` and a work clone of it
- * at `work`, both in a fresh temp directory, holding one pushed commit that
- * adds `README.md`. The clone commits as `atc <atc@example.com>` without
- * signing, and its origin is this fixture's own upstream. `sha` is that
- * commit's id, the same in every fixture. `env` is the process environment
- * without any `GIT_*` variable and with the host's system and global git
- * config switched off: a git hook exports `GIT_DIR` and friends, which
- * would point git at the repository running the hook, and a system-wide Git
- * LFS install adds a pre-push hook that refuses the fixture. Run every git
- * command a test adds with it.
- *
- * The first call in a process builds a template pair under the test home,
- * and each call copies it, so a fixture costs a copy instead of a run of
- * git commands. The directory is removed once the current test finishes,
- * so it must run inside a test; `remove` removes it sooner, and a second
- * removal does nothing.
- */
 export async function createGitFixture(config: GitFixtureConfig = {}) {
   const env = buildGitEnv(process.env);
 
@@ -64,6 +46,9 @@ function buildGitEnv(
   source: Readonly<Record<string, string | undefined>>,
 ): Record<string, string | undefined> {
   return {
+    // A git hook exports GIT_DIR and friends, which would point git at the repo
+    // running the hook, and a system-wide Git LFS install adds a pre-push hook
+    // that refuses the fixture; every git command a test adds runs with this env.
     ...Object.fromEntries(Object.entries(source).filter(([name]) => !name.startsWith('GIT_'))),
     GIT_CONFIG_NOSYSTEM: '1',
     GIT_CONFIG_GLOBAL: '/dev/null',
@@ -75,7 +60,8 @@ interface GitTemplate {
   readonly sha: string;
 }
 
-// The template pair, built once per process.
+// The template pair, built once per process: each fixture copies it, which
+// costs a copy instead of a run of git commands.
 let template: Promise<GitTemplate> | null = null;
 
 function resolveTemplate(): Promise<GitTemplate> {

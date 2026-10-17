@@ -11,10 +11,6 @@ import { startStubStalledListener } from './start-stub-stalled-listener';
 import { subscribeToSocketLines } from './subscribe-to-socket-lines';
 import { waitFor } from './wait-for';
 
-// A unix socket server and a subscriber connected to it; `peer` is the
-// server's side of that connection, which the test writes through, and
-// `received` collects what the subscriber sends. The config's clock, when
-// given, is the one the subscriber's line waits read.
 async function setupTest(config: Parameters<typeof subscribeToSocketLines>[1] = {}) {
   const tmp = setupTempDir('atc-sock-lines-');
   const path = join(tmp.dir, 'lines.sock');

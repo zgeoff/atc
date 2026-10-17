@@ -1,10 +1,5 @@
 import type { AgentEntry, Config } from '@atc/config';
 
-/**
- * The registry entry a parsed config holds under an agent id. A test that
- * builds an adapter from a config reads the entry through this, so a config
- * that lacks the agent fails the test with the id named.
- */
 export function getAgentEntry(config: Pick<Config, 'agents'>, id: string): AgentEntry {
   const entry = config.agents.find((candidate) => candidate.id === id);
 

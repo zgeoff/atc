@@ -6,10 +6,6 @@ import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
-/**
- * The composer running in a terminal of its own, with everything it prints
- * gathered into `output.text`, waiting until it is ready for input.
- */
 async function setupTest() {
   const tmp = setupTempDir('atc-stub-composer-');
 
