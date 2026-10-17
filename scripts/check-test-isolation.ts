@@ -1,13 +1,5 @@
-// Runs a test gate (default: `bun run test`) inside a synthetic "live" home
-// that holds canary copies of everything atc, the agent CLIs, and git keep
-// there, with HOME, XDG_RUNTIME_DIR, the XDG config, data, state, and cache
-// homes, GROK_HOME, CODEX_HOME, ATC_SESSION_ID, and ATC_SOCKET all pointing
-// into it, the way a run inside an atc session sees them. It fails when the
-// gate changes, removes, or reads a canary, or creates a file, directory, or
-// socket under the synthetic home's atc, git config, codex, grok, or claude
-// directories. Reads are caught through access times, so they are detected
-// only on a filesystem that updates them. A gate that fails exits with its
-// own code before any snapshot is compared.
+// Runs a test gate in a synthetic home of canary files and fails when the
+// gate touches one; reads show only where access times update.
 // Usage: bun scripts/check-test-isolation.ts [gate command...]
 import {
   chmodSync,

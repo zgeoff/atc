@@ -26,11 +26,6 @@ interface DaemonTestConfig {
   readonly mainClient: false;
 }
 
-/**
- * A real daemon whose Claude adapter is a stand-in that idles, with a main
- * client that has sent its handshake and collects every event it receives,
- * unless the config turns that client off.
- */
 function setupTest(config: DaemonTestConfig): ReturnType<typeof startTestDaemon<DaemonTestConfig>>;
 function setupTest(): ReturnType<typeof startTestDaemon<Record<never, never>>>;
 

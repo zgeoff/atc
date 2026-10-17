@@ -5,11 +5,6 @@ import { DaemonClient } from '@atc/protocol/wire';
 import { registerTestCleanup, resolveATCCommand, setupTempDir, waitFor } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 
-/**
- * A fresh home whose computed daemon socket sits in it, and the command atc
- * runs as with an environment that makes that home its home and runtime
- * directory. The home is removed once the test finishes.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-mcp-http-wait-');
 

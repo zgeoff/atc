@@ -41,18 +41,15 @@ interface StepHold {
 interface BridgeState {
   sessionID: string | null;
   runningTurnID: string | null;
-  // Claude Code records each block of a streaming response once the block
-  // ends, and a row appended between two of them splits the response in two:
-  // a server tool call then sits in one assistant message and its result in
-  // the next, and the API refuses every later request. A delivery waits while
-  // this is set.
+  // Claude Code records each streaming block once it ends. A row appended between two blocks
+  // puts a server tool call and its result in separate assistant messages, and the API then
+  // refuses every later request, so a delivery waits while this is set.
   stepHold: StepHold | null;
   delivering: Promise<void>;
   reporting: Promise<void>;
-  // A submitted message waits here until the turn that carries it starts.
-  // Another turn that ends without an answer leaves it waiting, because the
-  // host can still run its queued prompt; only a hook's drop shows it never
-  // will.
+  // A submitted message waits here until the turn that carries it starts. Another turn that
+  // ends without an answer leaves it waiting, because the host can still run its queued prompt;
+  // only a hook's drop shows it never will.
   readonly awaitingTurn: Map<string, TapMessage>;
   readonly carried: Map<string, TapMessage[]>;
   readonly unseen: Set<string>;
@@ -87,23 +84,10 @@ const NOTE_TOOL = 'mcp__atc-bridge__note';
 const NOTE_LABELS = ['progress', 'blocked', 'decision'] as const;
 const ANSWER_TOOL = 'mcp__atc-bridge__answer';
 
-// Every atc command runs in the root folder. Left to the default, a command
-// runs in the session's working folder, which follows the agent's cd; once the
-// agent removes that folder, as when it cleans up a worktree it worked in, the
-// spawn fails with ENOENT on the atc binary itself.
+// A command left in the session's working folder, which follows the agent's cd, fails with
+// ENOENT on the atc binary once the agent removes that folder, as when it cleans up a worktree.
 const ATC_CWD = '/';
 
-/**
- * Delivers the atc inbox of the session named by ATC_SESSION_ID into the
- * conversation and serves the note and answer tools. The answer tool reports
- * its text as the answer to one message the running turn carries, at once.
- * When a turn ends, it reports the turn's final reply, with the turn's id, as
- * the answer to every message the turn carried that the answer tool left
- * without one; a turn that ends without an answer is reported as unanswered
- * for those messages, with the cause. It also delivers the answer notices of
- * messages this session sent, which no turn reports on. Outside atc it changes
- * nothing.
- */
 export const register: Register = (on) => {
   const state: BridgeState = {
     sessionID: null,

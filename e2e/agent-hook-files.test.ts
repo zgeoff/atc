@@ -3,9 +3,6 @@ import { mkdirSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolveATCCommand, runATC, setupTempDir } from '@atc/test-utils';
 
-/**
- * A home for the printing CLI, removed once the test finishes.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-e2e-hook-files-');
 

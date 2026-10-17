@@ -20,13 +20,6 @@ import { $ } from 'bun';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
-/**
- * The runtime an imp clone launch runs on: a stub imp port, an imp provider
- * over it that hands the guest a stub atc, a fake Claude that appends its
- * arguments to the `starts` log when it starts, and beside them `work`, a
- * git clone with one commit, holding `README.md`. Each test sets impd's
- * token and secrets and starts its own daemon with the agents it selects.
- */
 async function setupTest() {
   const tmp = setupTempDir('atc-project-settings-');
 

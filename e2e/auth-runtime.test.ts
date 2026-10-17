@@ -24,12 +24,6 @@ interface SetupConfig {
   readonly rebindChangedAuth: boolean;
 }
 
-/**
- * A stub imp port whose impd holds nothing until the test adds it, and
- * the imp provider over it, which each test hands to the daemon it starts
- * as the target `box`; the config chooses whether that target rebinds a
- * changed auth selection.
- */
 function setupTest(config?: SetupConfig) {
   const tmp = setupTempDir('atc-runtime-auth-');
   const port = createStubImpPort();

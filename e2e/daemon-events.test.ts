@@ -13,11 +13,6 @@ import {
   waitFor,
 } from '@atc/test-utils';
 
-/**
- * A home with a stub Claude CLI and an empty config directory, for the
- * `atc daemon` that each test starts once it has written the config
- * offering the stub.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-e2e-events-');
   const atc = resolveATCCommand();

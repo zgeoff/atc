@@ -1019,10 +1019,9 @@ test('it answers outcome_unknown for a failed spawn whose killed process outlast
   const pids = setupTempDir('atc-idempotency-pid-');
   const pidPipe = join(pids.dir, 'child.pid');
 
-  // The child takes a second to exit after SIGHUP, longer than the given
-  // wait and shorter than the default one, and the start fails only once it
-  // has set that trap and written its pid. It ends by itself after the
-  // rollback's kill, so nothing outlives the test.
+  // The child takes a second to exit after SIGHUP, longer than the given wait and shorter than the
+  // default one, and the start fails only once it has set that trap and written its pid. It ends
+  // by itself after the rollback's kill, so nothing outlives the test.
   const stub = await createStubFailingAgentAdapter({
     firstPlan: {
       bin: 'bash',

@@ -14,10 +14,6 @@ import {
   waitFor,
 } from '@atc/test-utils';
 
-/**
- * A home with a stub Codex CLI whose terminals share one background server,
- * and the config path the test writes before it starts the `atc daemon`.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-e2e-codex-shared-');
   const atc = resolveATCCommand();

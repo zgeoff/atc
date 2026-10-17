@@ -2,10 +2,6 @@ import { expect, test } from 'bun:test';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
 import { resolveATCCommand, setupTempDir } from '@atc/test-utils';
 
-/**
- * An `atc daemon` process on a fresh home, with a client that has sent its
- * handshake.
- */
 async function setupTest() {
   const tmp = setupTempDir('atc-e2e-quit-');
   const daemon = startDaemonProcess({ command: resolveATCCommand(), home: tmp.dir });

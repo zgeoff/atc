@@ -34,12 +34,6 @@ import { $ } from 'bun';
 import invariant from 'tiny-invariant';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
-/**
- * A git fixture in `dir`, a bare upstream at `upstream` and a clone of it
- * at `work` holding one pushed commit `sha` that adds `README.md`. Fixture
- * git commands run with `env`, which reads neither the host's system nor
- * its global git config.
- */
 async function setupTest() {
   const git = await createGitFixture({ prefix: 'atc-workspace-' });
 

@@ -10,10 +10,6 @@ import {
 } from '@atc/test-utils';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
-/**
- * A client home whose config may name a remote daemon, and the token file
- * that daemon entry reads.
- */
 function setupTest() {
   const tui = startTUIHarness();
 

@@ -1,7 +1,5 @@
 // Embeds the atc-bridge mod's files into a generated module in the harness-claude package, so
-// the daemon can write the mod from a compiled binary. The atc command the
-// mod runs is rendered when the daemon writes it, and the mod's tests stay
-// behind.
+// the daemon can write the mod from a compiled binary. The mod's tests stay behind.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 

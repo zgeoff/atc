@@ -13,15 +13,6 @@ import {
 } from '@atc/test-utils';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
-/**
- * A daemon whose sessions take messages, with a sender session and a
- * recipient session, and a client that runs inside the sender: its
- * handshake holds the sender's id, as an `atc mcp` started in the session
- * sends it. The planned spawn gives each session's process; the default
- * runs on until it is killed. Hook lines read as the Claude adapter reads
- * them, so a SessionStart makes a session revivable. `noteIgnored` records
- * each note that settles no message.
- */
 async function setupTest(planSpawn = mock(() => ({ bin: 'sleep', args: ['30'] }))) {
   const claude = new ClaudeAdapter(
     buildMockAgentEntry({ id: 'claude' }),
@@ -36,6 +27,8 @@ async function setupTest(planSpawn = mock(() => ({ bin: 'sleep', args: ['30'] })
       adapter: buildMockAgentAdapter({
         takesMessages: true,
         planSpawn,
+
+        // Hook lines read as Claude's read, so a SessionStart makes a session revivable.
         planHookEvents: (hook) => claude.planHookEvents(hook),
       }),
       onNoteIgnored: noteIgnored,
@@ -47,6 +40,8 @@ async function setupTest(planSpawn = mock(() => ({ bin: 'sleep', args: ['30'] })
 
   const sender = await spawnNamedSession(send, 'sender', daemon.dir);
   const recipient = await spawnNamedSession(send, 'recipient', daemon.dir);
+
+  // Its handshake holds the sender's id, as an `atc mcp` started in that session sends it.
   const inside = await daemon.openClient({ session: sender });
 
   return { daemon, sender, recipient, inside, noteIgnored };

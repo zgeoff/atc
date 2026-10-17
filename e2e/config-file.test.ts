@@ -18,13 +18,6 @@ import {
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
-/**
- * The fixed parts of a daemon whose targets come from a config.json on disk
- * through the real load: a temp directory of the test's own, a config path
- * in it, which the test writes or leaves absent before the boot, the claude
- * stand-in, whose headless runner records each turn it starts in `runs`,
- * and `harnesses`, which records the target of each spawn.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-daemon-config-file-');
   const configDir = join(tmp.dir, 'config');

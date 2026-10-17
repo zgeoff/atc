@@ -2,28 +2,23 @@ import { SyntaxKind } from 'typescript/unstable/ast';
 import type { Token } from './collect-tokens';
 import { collectTokens } from './collect-tokens';
 
-// What a module imports: every literal specifier, the ones among them that
-// only a resolve form names, the ones a static import or export loads as the
-// module loads, the line of each module load whose specifier is not a quoted
-// string, which oxlint's import rules do not read, and the line of each
-// resolve form whose specifier is not a literal, which no graph reads.
 export interface ImportList {
   readonly specifiers: readonly string[];
+
+  // The specifiers that only a resolve form names
   readonly resolveOnly: readonly string[];
 
   // a type-only statement, or one whose every specifier is type-only, loads
   // nothing, and a dynamic import loads its module only when the code
   // reaches it
   readonly staticLoads: readonly string[];
+
+  // A load whose specifier is not a quoted string, which oxlint's import rules
+  // do not read, and a resolve form whose specifier is not a literal
   readonly computedLoadLines: readonly number[];
   readonly computedResolveLines: readonly number[];
 }
 
-// Static imports and re-exports, type-only ones included, side-effect
-// imports, and every call that loads or resolves a module: `import(...)`,
-// import types among them, `require(...)` and `import x = require(...)`,
-// `import.meta.resolve(...)`, `Bun.resolve(...)` and `Bun.resolveSync(...)`,
-// and `new URL(..., import.meta.url)`.
 export function collectImports(source: string): ImportList {
   const tokens = collectTokens(source);
 
@@ -99,11 +94,8 @@ export function collectImports(source: string): ImportList {
   };
 }
 
-/**
- * Whether the import or export statement starting at token i is type-only,
- * as `import type { A } from` and `export type { A } from` are. A `type`
- * that is itself the imported name, as in `import type from`, is not.
- */
+// A `type` that is itself the imported name, as in `import type from`, does
+// not make the statement type-only
 function isTypeOnlyStatement(tokens: readonly Token[], i: number): boolean {
   const after = tokens[i + 2];
 
@@ -115,13 +107,8 @@ function isTypeOnlyStatement(tokens: readonly Token[], i: number): boolean {
   );
 }
 
-/**
- * Whether the import or export statement starting at token i lists only
- * inline type-only specifiers, as `import { type A } from` and
- * `export { type A, type B as C } from` do; Bun erases such a statement and
- * never runs its module. A list that mixes in a value name, follows a
- * default import, or is empty still loads the module.
- */
+// Bun erases a statement whose braces list only inline type-only specifiers
+// and never runs its module; an empty list still loads it
 function hasOnlyTypeSpecifiers(tokens: readonly Token[], i: number): boolean {
   if (tokens[i + 1]?.kind !== SyntaxKind.OpenBraceToken) {
     return false;
@@ -148,20 +135,12 @@ function hasOnlyTypeSpecifiers(tokens: readonly Token[], i: number): boolean {
   return specifiers.length > 0 && specifiers.every((specifier) => isTypeOnlySpecifier(specifier));
 }
 
-/**
- * Whether the specifier's tokens make it type-only. `type A` and
- * `type A as B` are, two and four tokens long; `type` alone and `type as B`
- * name a value called type, one and three tokens long.
- */
+// `type A` and `type A as B` are type-only, two and four tokens long; `type`
+// alone and `type as B` name a value called type, one and three tokens long
 function isTypeOnlySpecifier(element: readonly Token[]): boolean {
   return element[0]?.kind === SyntaxKind.TypeKeyword && element.length % 2 === 0;
 }
 
-/**
- * Whether the module reference starting at token i only resolves a path,
- * as `import.meta.resolve(...)`, `Bun.resolve(...)`, `Bun.resolveSync(...)`
- * and `new URL(...)` do, rather than loading the module.
- */
 function isResolveForm(tokens: readonly Token[], i: number): boolean {
   const token = tokens[i];
 
@@ -172,12 +151,6 @@ function isResolveForm(tokens: readonly Token[], i: number): boolean {
   );
 }
 
-/**
- * The index of the parenthesis that opens a module-loading call starting at
- * token i, or null when none starts there. A property such as
- * `module.require(` is not one, and a `new URL(` counts only when its
- * arguments hold `import.meta.url`.
- */
 function findLoadParen(tokens: readonly Token[], i: number): number | null {
   const token = tokens[i];
   const previous = tokens[i - 1]?.kind;
@@ -227,10 +200,6 @@ function hasTexts(tokens: readonly Token[], start: number, texts: readonly strin
   return texts.every((text, offset) => tokens[start + offset]?.text === text);
 }
 
-/**
- * The index of the parenthesis that closes the one at `open`, or the token
- * count when the module ends first.
- */
 function findCloseParen(tokens: readonly Token[], open: number): number {
   let depth = 0;
 

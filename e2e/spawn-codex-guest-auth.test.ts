@@ -17,12 +17,6 @@ import { buildAgentAdapters } from '../packages/app/src/agents/build-agent-adapt
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
-/**
- * The imp target `box` over a stub imp port that holds no identity or
- * secret until the test adds them, in a temp directory. The guest has an
- * atc stand-in, and `fakeCodex` is a stand-in Codex that appends its Codex
- * home and arguments to the `starts` log.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-codex-guest-auth-');
   const guestDir = join(tmp.dir, 'g');

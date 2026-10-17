@@ -24,10 +24,6 @@ import {
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 
-/**
- * A home with stub Claude and Grok CLIs for the `atc daemon` that each test
- * starts once it has written the config offering them.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-e2e-restore-');
   const atc = resolveATCCommand();

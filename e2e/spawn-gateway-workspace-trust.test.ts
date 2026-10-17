@@ -30,10 +30,6 @@ import invariant from 'tiny-invariant';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
-// The fixed parts every test's daemon runs on: a stub imp port behind
-// the imp provider `box` serves, a local provider, and a git repository a
-// spawn can clone, in a temp directory. `fakeClaude` is a stand-in Claude
-// that appends each run's arguments to the `starts` log.
 async function setupTest() {
   const tmp = setupTempDir('atc-workspace-trust-');
   const port = createStubImpPort();

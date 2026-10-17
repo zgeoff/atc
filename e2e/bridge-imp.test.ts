@@ -19,10 +19,6 @@ import { buildHostServices } from '../packages/app/src/build-host-services';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
-// A real daemon whose one target `box`, its default, runs Claude sessions
-// on the imp provider over a stub imp port, with the guest folder under
-// a temp directory, the stub guest atc running this source tree, and the
-// stub claude as Claude's binary.
 async function setupTest() {
   const tmp = setupTempDir('atc-imp-bridge-');
   const clis = createStubGuestCLIs(join(tmp.dir, 'bin'));

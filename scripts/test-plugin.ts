@@ -5,13 +5,9 @@ import { z } from 'zod';
 import { PACKAGE_RULES } from './package-rules';
 import type { PackageRule } from './package-rules';
 
-// Builds one plugin package in a workspace of its own, holding the plugin,
-// the internal packages its rule lets it import, the shared test helpers,
-// and the repo's test setup, and nothing else: no app, no daemon. In that
-// workspace it installs, type-checks, and runs the plugin's tests, so a
-// plugin that reaches past its rule, or whose tests need a daemon, fails.
-// Usage: bun scripts/test-plugin.ts <plugin> [--keep], where <plugin> is a
-// package rule's name, such as harness-claude.
+// Tests one plugin package in a workspace holding only it, the packages its
+// rule reaches and the test helpers, so a plugin that reaches past its rule
+// fails. Usage: bun scripts/test-plugin.ts <plugin> [--keep], such as harness-claude
 
 const repo = join(import.meta.dir, '..');
 

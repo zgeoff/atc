@@ -21,10 +21,6 @@ import {
 import { buildLocalTarget } from '../packages/app/src/test-utils/build-local-target';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
-/**
- * A temp directory for a test that starts its daemon itself, with the paths
- * the daemon takes inside it, removed once the test finishes.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-daemon-tcp-');
 

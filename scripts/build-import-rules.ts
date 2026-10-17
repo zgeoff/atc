@@ -1,14 +1,6 @@
 // Writes .oxlintrc.imports.json, the oxlint overrides that hold each package
-// to the package rules: no import of a package by its own name, no package
-// outside its row, no deep import into
-// another package's src/, no subpath of a package that its exports map does
-// not list, no node: or bun: import in core, no test helper or testing entry
-// in production code, no confined package outside its owners and files, and
-// no import of a sibling folder that a package's folder rules leave out.
-// These per-import rules have no other gate. .oxlintrc.json extends the file.
-// An override replaces a rule's options rather than merging them, and the
-// last override that matches a file wins, so each override repeats every ban
-// that holds for its files.
+// to the package rules. An override replaces a rule's options and the last
+// match wins, so each override repeats every ban that holds for its files.
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
@@ -43,13 +35,6 @@ interface Override {
 const SOURCE = '*.{ts,tsx,js,mjs}';
 const TEST_SOURCE = '*.test.{ts,tsx,js,mjs}';
 
-/**
- * The overrides file: per package a production override and a later test
- * override, an override for each file a confinement lists after them, then
- * e2e/ and scripts/, then mods/.
- * `entries` holds each existing package's entry points, as its exports map
- * lists them, keyed by package name.
- */
 export function buildImportRules(entries: ReadonlyMap<string, readonly string[]>): {
   readonly overrides: readonly Override[];
 } {
@@ -105,12 +90,7 @@ export function buildImportRules(entries: ReadonlyMap<string, readonly string[]>
   return { overrides };
 }
 
-/**
- * The override for one folder of a package: the package's production bans,
- * and a ban on each sibling folder the folder may not import, and on the
- * files at the root of src/ when it may not import them. It sits before the
- * package's test override, which then wins for the folder's tests.
- */
+// Sits before the package's test override, which then wins for the folder's tests
 function buildFolderOverride(
   rule: PackageRule,
   folder: FolderRule,
@@ -142,14 +122,9 @@ function buildFolderOverride(
   });
 }
 
-/**
- * One pattern that refuses every subpath of a package but the entry points
- * its exports map lists, and the bare name of a package whose map lists no
- * `.` entry. oxlint's regular expressions take no lookahead, so the pattern
- * is a gitignore-style group: each package's subpaths at any depth, minus
- * each named entry. A package with no manifest yet has no
- * group, so the rules hold for it from the change that creates it.
- */
+// oxlint's regular expressions take no lookahead, so the pattern is a
+// gitignore-style group: each package's subpaths at any depth, minus each
+// named entry
 function buildEntryPattern(entries: ReadonlyMap<string, readonly string[]>): RestrictedPattern {
   const group: string[] = [];
 
@@ -168,10 +143,6 @@ function buildEntryPattern(entries: ReadonlyMap<string, readonly string[]>): Res
   return { group, message: 'Import a package through an entry point its exports map lists.' };
 }
 
-/**
- * Each file that a confinement lists, with every confined package it may
- * import, in the order the table lists them.
- */
 function collectConfinedFiles(): Map<string, string[]> {
   const files = new Map<string, string[]>();
 
@@ -207,10 +178,6 @@ function getFileKind(rule: PackageRule, file: string): FileKind {
   return isTest ? 'test' : 'production';
 }
 
-/**
- * Every ban that holds for one kind of file in a package. `allowed` holds
- * the confined packages that a confinement lists the file for.
- */
 function buildPackageOptions(
   rule: PackageRule,
   kind: FileKind,
@@ -305,11 +272,7 @@ const CHILD_PROCESS_PATHS: readonly RestrictedPath[] = ['node:child_process', 'c
   }),
 );
 
-/**
- * One pattern per confined package that the package does not own and the
- * file may not import. `owner` is null for files outside every workspace
- * package.
- */
+// `owner` is null for files outside every workspace package
 function buildConfinementPatterns(
   owner: string | null,
   kind: FileKind,
@@ -343,10 +306,6 @@ const MANIFEST_SCHEMA = z.object({
   exports: z.record(z.string(), z.unknown()).optional(),
 });
 
-/**
- * The entry points of each package in the package rules whose manifest
- * exists, as its exports map lists them, keyed by package name.
- */
 export function collectEntries(root: string): Map<string, readonly string[]> {
   const entries = new Map<string, readonly string[]>();
 

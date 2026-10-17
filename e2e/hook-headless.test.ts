@@ -17,13 +17,6 @@ import {
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
-/**
- * A real daemon whose claude stand-in hands an ejected session to a
- * headless runner that records each turn in `runs` and plays nothing until
- * the test does. The settle before a handoff waits on `scheduler`, which
- * runs no timer until the test does, and every git transport is allowed,
- * since a workspace clone reads a local upstream.
- */
 async function setupTest() {
   const headless = buildStubHeadlessRunner();
   const scheduler = buildStubTimeoutScheduler();
@@ -32,6 +25,8 @@ async function setupTest() {
     prefix: 'atc-headless-',
     options: () => ({
       adapter: buildMockAgentAdapter({ headlessRunner: headless.runner }),
+
+      // A workspace clone reads a local upstream.
       gitTransports: ['https', 'ssh', 'http', 'file'],
       scheduleEjectSettle: scheduler.schedule,
     }),

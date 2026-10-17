@@ -14,15 +14,6 @@ import {
 } from '@atc/test-utils';
 import { buildHostServices } from '../packages/app/src/build-host-services';
 
-/**
- * A fresh home for a client process: `dir` serves as both its home and its
- * runtime directory, so the client computes `sockPath` as the daemon's
- * socket and `stateDir` as the daemon's state directory. The client reads
- * those paths from its environment, so each test boots it in a subprocess
- * with `env`. `bootModule` is the boot the subprocess imports, and
- * `hostModule` the entry's builder of the host it boots on, from the host
- * services `servicesModule` builds.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-daemon-boot-');
   const stateDir = join(tmp.dir, '.local', 'state', 'atc');
@@ -34,6 +25,8 @@ function setupTest() {
     dir: tmp.dir,
     stateDir,
     sockPath: join(tmp.dir, 'atc-daemon.sock'),
+
+    // The client reads its paths from its environment, so each test boots it in a subprocess.
     env: { ...process.env, HOME: tmp.dir, XDG_RUNTIME_DIR: tmp.dir },
     bootModule: join(import.meta.dir, '..', 'packages', 'lifecycle', 'src', 'boot-daemon.ts'),
     hostModule: join(import.meta.dir, '..', 'packages', 'app', 'src', 'build-lifecycle-host.ts'),

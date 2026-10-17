@@ -15,11 +15,6 @@ import {
   waitFor,
 } from '@atc/test-utils';
 
-/**
- * A home with stub Claude, Grok, and Codex CLIs and an empty config
- * directory, for a test to write the config it is about and start a daemon
- * on.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-e2e-config-');
   const atc = resolveATCCommand();

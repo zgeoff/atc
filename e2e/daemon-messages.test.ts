@@ -17,11 +17,6 @@ import {
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 
-/**
- * A home with a stub Claude CLI and an empty config directory, for the
- * `atc daemon` that each test starts once it has written the config
- * offering the stub.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-e2e-messages-');
   const atc = resolveATCCommand();

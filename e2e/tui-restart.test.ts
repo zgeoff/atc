@@ -330,12 +330,6 @@ test('it stops a daemon of an older build when the user asks for the update and 
   expect(screen.slice(screen.lastIndexOf('restarting daemon'))).not.toInclude('update ready');
 });
 
-/**
- * Boots the client on a daemon of its own, then hands the socket path to a
- * daemon on another protocol and kills the first daemon, so the client's
- * reconnect reaches the other one. Returns the harness, that daemon's
- * process, and the client's terminal.
- */
 async function setupReconnectTest() {
   const ctx = setupTest();
   const stateDir = join(ctx.home, '.local', 'state', 'atc');
@@ -379,12 +373,6 @@ async function setupReconnectTest() {
   return { ctx, legacy, pty };
 }
 
-/**
- * Boots the client on a daemon that a user unit manages, then stops that
- * daemon, so the client waits for it to return without starting one.
- * Returns the harness and a starter for a daemon on another protocol on
- * the same socket, which the waiting client reaches next.
- */
 async function setupManagedReconnectTest() {
   const ctx = setupTest();
   const stateDir = join(ctx.home, '.local', 'state', 'atc');
@@ -422,12 +410,6 @@ async function setupManagedReconnectTest() {
   };
 }
 
-/**
- * Starts a stand-in daemon as its own process on the socket path, recorded
- * in the state directory, and waits until it listens. It speaks another
- * protocol, or this one as an older build when `build` is `current`. It is
- * killed once the test finishes.
- */
 async function startStubDaemonProcess(socketPath: string, stateDir: string, build?: 'current') {
   const daemon = Bun.spawn(
     [

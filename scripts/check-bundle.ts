@@ -1,12 +1,6 @@
 // Checks which execution providers the atc bundle carries. The daemon reaches
 // a provider's code only through the shipped execution plugins list, so a
-// provider the list leaves out stays out of the bundle, with every external
-// package that only it depends on. Two builds of the atc entry hold that:
-// the atc build as it ships, which may carry only the providers the list
-// imports, and a local-only build, whose list keeps the local provider
-// alone and which may carry no other provider. Each build must also carry
-// every provider it keeps, so the check cannot pass on a bundle that lost
-// them. Prints every finding and exits 1 when there is one.
+// provider the list leaves out stays out of the bundle, with its own packages.
 import { readFileSync, realpathSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import type { BunPlugin } from 'bun';
@@ -26,6 +20,8 @@ async function main(): Promise<void> {
 
   const local = providers.filter((provider) => provider.name === LOCAL_PROVIDER);
 
+  // Each build must also carry every provider it keeps, so the check cannot
+  // pass on a bundle that lost them
   const builds = [
     { label: 'atc', kept: shipped },
     { label: 'local-only atc', kept: local },
@@ -73,10 +69,6 @@ const MANIFEST_SCHEMA = z.object({
   devDependencies: z.record(z.string(), z.string()).optional(),
 });
 
-/**
- * Every execution provider package under the root, with the external
- * packages that only it depends on.
- */
 function loadProviders(root: string): Provider[] {
   const manifests = [...new Bun.Glob('packages/**/package.json').scanSync({ cwd: root })]
     .filter((path) => !path.split('/').includes('node_modules'))
@@ -112,12 +104,8 @@ function loadProviders(root: string): Provider[] {
 
 const STAND_IN_NAMESPACE = 'dropped-provider';
 
-/**
- * Every input `bun build` bundles from the atc entry, as a path relative to
- * the root, when the shipped execution plugins list imports only the kept
- * providers. Each module of another provider that the list imports turns
- * into a stand-in that holds the same export names and no code.
- */
+// Each module of a dropped provider that the list imports turns into a
+// stand-in that holds the same export names and no code
 async function collectBundled(
   root: string,
   providers: readonly Provider[],
@@ -140,14 +128,12 @@ async function collectBundled(
     throw new Error(`bun build ${ENTRY} failed: ${logs}`);
   }
 
-  // bun writes an input inside the working directory relative to it,
-  // whatever the build's root, and one outside it as an absolute path. A
-  // linked package's inputs can arrive under its link in node_modules, so
-  // each input counts at the path its link leads to; a stand-in holds no
-  // provider code and counts as nothing
   return Object.keys(build.metafile.inputs)
     .filter((input) => !input.startsWith(`${STAND_IN_NAMESPACE}:`))
     .map((input) => {
+      // bun writes an input inside the working directory relative to it and
+      // one outside as absolute, and a linked package's input can arrive under
+      // its link, so each counts at the path its link leads to
       const path = realpathSync(resolve(process.cwd(), input));
 
       return relative(root, path);
@@ -183,18 +169,10 @@ function makeDropPlugin(registryPath: string, dropped: readonly Provider[]): Bun
   };
 }
 
-/**
- * Whether a specifier names one of the provider's entry points: its root
- * entry, such as `@atc/execution-imp`, or a named one below it.
- */
 function isEntryOf(provider: Provider, specifier: string): boolean {
   return specifier === provider.name || specifier.startsWith(`${provider.name}/`);
 }
 
-/**
- * The names a module exports, following each `export * from` of a barrel
- * into the module it re-exports.
- */
 function collectExportNames(path: string): string[] {
   const source = readFileSync(path, 'utf8');
 
@@ -213,11 +191,6 @@ function collectExportNames(path: string): string[] {
   return [...new Set(names)];
 }
 
-/**
- * The findings for one build: a bundled file of a provider the build does
- * not keep, a bundled external package that only such a provider depends
- * on, and a kept provider with no file in the bundle.
- */
 function checkBundle(
   label: string,
   providers: readonly Provider[],
@@ -249,10 +222,6 @@ function checkBundle(
   return findings;
 }
 
-/**
- * The external package an input under node_modules belongs to, such as
- * `@impz/client`, or null for a workspace input.
- */
 function findExternalPackage(input: string): string | null {
   const parts = input.split('/');
   const index = parts.lastIndexOf('node_modules');

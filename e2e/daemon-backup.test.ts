@@ -14,10 +14,6 @@ import {
   waitForEvent,
 } from '@atc/test-utils';
 
-/**
- * Two fresh homes, each with a stub Claude CLI and the config directory its
- * daemon reads, and a working directory both daemons can start sessions in.
- */
 function setupTest() {
   const atc = resolveATCCommand();
   const work = setupTempDir('atc-e2e-backup-work-').dir;
