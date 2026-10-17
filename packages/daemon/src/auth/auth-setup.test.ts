@@ -7,7 +7,8 @@ import { SessionRegistry } from '../sessions/session-registry';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
-import { AuthSetup, READ_PROJECT_SETTINGS_SCRIPT } from './auth-setup';
+import { AuthSetup } from './auth-setup';
+import { READ_PROJECT_SETTINGS_SCRIPT } from './read-project-settings-script';
 
 interface SetupConfig {
   readonly adapters: readonly AgentAdapter[];
