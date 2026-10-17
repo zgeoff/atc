@@ -1,0 +1,14 @@
+{
+  "rules": ".claude/skills/code-style/SKILL.md",
+  "synced": [
+    ".github/PULL_REQUEST_TEMPLATE.md",
+    ".editorconfig",
+    "socket.yml",
+    ".github/workflows/audit-fix.yml",
+    ".claude/skills/testing/**",
+    ".claude/skills/code-style/**",
+    ".claude/skills/docs-writing/**",
+    ".claude/skills/skill-writing/**",
+    ".claude/hooks/skill-gate/**"
+  ]
+}
