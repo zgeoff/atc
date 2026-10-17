@@ -235,6 +235,18 @@ test.each([
   expect(ctx.io.exit).toHaveBeenCalledExactlyOnceWith(1);
 });
 
+test('it lists the commands it has when the command line names one it does not', async () => {
+  const ctx = setupTest();
+
+  await runATCCLI(['clients', 'rename'], ctx.io);
+
+  expect(ctx.io.print).toHaveBeenCalledExactlyOnceWith(
+    expect.stringMatching(/add <OPTIONS> <name> +Add a client and print its client ID/u),
+  );
+
+  expect(ctx.io.printError).toHaveBeenCalledExactlyOnceWith('Command not found: rename');
+});
+
 test.each([{ args: ['session'] }, { args: ['config'] }])(
   'it prints the usage and exits 1 on $args, which names no command',
   async (row) => {

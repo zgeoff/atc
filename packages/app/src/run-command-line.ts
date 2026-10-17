@@ -39,21 +39,25 @@ export async function runCommandLine(
   tree: CommandTree,
   io: CommandLineIO,
 ): Promise<void> {
-  let refused: RefusedCommand = { path: [], usage: '' };
+  let refusedPath: readonly string[] = [];
+
+  const options = {
+    name: tree.name,
+    version: tree.version,
+    description: tree.description,
+    subCommands: { ...tree.subCommands },
+    strict: true,
+    usageSilent: true,
+    renderHeader: null,
+  };
 
   try {
     const shown = await cli([...argv], entry, {
-      name: tree.name,
-      version: tree.version,
-      description: tree.description,
-      subCommands: { ...tree.subCommands },
-      strict: true,
-      usageSilent: true,
-      renderHeader: null,
-      renderValidationErrors: async (ctx) => {
-        refused = { path: ctx.commandPath, usage: await renderCommandUsage(ctx) };
+      ...options,
+      renderValidationErrors: (ctx) => {
+        refusedPath = ctx.commandPath;
 
-        return '';
+        return Promise.resolve('');
       },
     });
 
@@ -66,14 +70,18 @@ export async function runCommandLine(
       throw error;
     }
 
-    if (tree.lenient?.has(refused.path[0] ?? '') === true) {
-      io.printError(`${tree.name} ${refused.path.join(' ')}: ${formatReasons(error)}`);
+    if (tree.lenient?.has(refusedPath[0] ?? '') === true) {
+      io.printError(`${tree.name} ${refusedPath.join(' ')}: ${formatReasons(error)}`);
       io.exit(0);
 
       return;
     }
 
-    io.print(`${refused.usage}\n`);
+    // The usage `--help` prints for the refused command, which lists the
+    // commands below it where a name was not found.
+    const usage = await cli([...refusedPath, '--help'], entry, options);
+
+    io.print(`${usage ?? ''}\n`);
     io.printError(formatReasons(error));
     io.exit(1);
   }
@@ -89,11 +97,6 @@ export function makeMissingCommandRun(io: CommandLineIO) {
     io.printError('No command specified.');
     io.exit(1);
   };
-}
-
-interface RefusedCommand {
-  readonly path: readonly string[];
-  readonly usage: string;
 }
 
 function renderCommandUsage(ctx: Readonly<CommandContext>): Promise<string> {
