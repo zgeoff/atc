@@ -17,9 +17,10 @@ to require the broker for that process. impd refuses and runs nothing when the b
 on the imp, the imp holds no grant, the process would set its own proxy or CA variable, or the start
 would join a running process that started without the requirement. That refusal is
 `broker_not_ready`. An attach that reconnects to the harness carries no requirement, because impd's
-exec protocol takes none on an attach. An impd too old to understand the requirement would ignore
-it, so the daemon reads impd's features first and refuses to launch on such an impd with
-`auth_impd_too_old`.
+exec protocol takes none on an attach, so impd never checks the broker on it. The daemon still
+admits every reconnect through the binding, so a revoked or blocked binding stops the attach before
+it reaches impd. An impd too old to understand the requirement would ignore it, so the daemon reads
+impd's features first and refuses to launch on such an impd with `auth_impd_too_old`.
 
 ## What the broker guarantees
 

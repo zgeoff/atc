@@ -78,6 +78,11 @@ export class ImpHarness implements HarnessHandle {
 
   private readonly session: string;
 
+  // Whether the start lists requirements. impd checks them on the start
+  // alone, since its exec protocol gives an attach none, so the start and
+  // every reattach pass the host's admission before they go out.
+  private readonly hasRequirements: boolean;
+
   // The request that starts the process. Until it goes out to impd, a retry
   // sends it again, since there is no process to attach to.
   private readonly start: ImpSessionRequest;
@@ -154,6 +159,7 @@ export class ImpHarness implements HarnessHandle {
     this.host = host;
     this.name = start.name;
     this.session = start.session;
+    this.hasRequirements = start.kind === 'start' && (start.require?.length ?? 0) > 0;
     this.start = start;
     this.cols = start.cols;
     this.rows = start.rows;
@@ -304,15 +310,12 @@ export class ImpHarness implements HarnessHandle {
   }
 
   // An impd from before exec requirements ignores them and runs the
-  // command anyway, so a request that has any goes out only after impd
-  // shows it honours them; otherwise the harness ends as impd's own
-  // client refuses an outdated impd, and nothing runs.
+  // command anyway, so the start of a harness that has any, and each
+  // reattach, goes out only after impd shows it honours them and the host
+  // admits it; otherwise the harness ends as impd's own client refuses an
+  // outdated impd, and nothing runs.
   private openCheckedConnection(request: ImpSessionRequest): void {
-    if (
-      request.kind === 'attach' ||
-      request.require === undefined ||
-      request.require.length === 0
-    ) {
+    if (!this.hasRequirements) {
       this.openConnection(request);
 
       return;
