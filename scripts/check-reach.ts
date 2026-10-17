@@ -213,12 +213,8 @@ const DAEMON_ENTRY = 'packages/daemon/src/index.ts';
 // authorization database, mcp-auth.db.
 const DAEMON_REFUSED_MODULES: readonly string[] = [`${APP_SOURCE}/open-mcp-auth-database.ts`];
 
-/**
- * The findings for the daemon: each module the daemon entry's import graph
- * reaches that the daemon must never reach, and each import in that graph
- * that resolves to no file. In a tree that has the atc CLI entry, a missing
- * daemon entry or refused module is a finding too.
- */
+// Each refused module the daemon entry reaches, and each import that resolves to no file. With
+// the atc CLI entry present, a missing daemon entry or refused module is a finding too.
 function checkDaemon(
   root: string,
   known: ReadonlySet<string>,
