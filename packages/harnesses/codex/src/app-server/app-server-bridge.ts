@@ -6,23 +6,28 @@ import type {
   UnsettledMessage,
 } from '@atc/plugin-api';
 import { z } from 'zod';
+import { answerToolCall } from './answer-tool-call';
 import type {
   AppServerConnection,
   AppServerNotification,
   AppServerRequest,
 } from './app-server-connection';
 import { AppServerError } from './app-server-error';
+import { applyLeftThreadRecovery } from './apply-left-thread-recovery';
+import { applyThreadRecovery } from './apply-thread-recovery';
+import { applyTurnCompleted } from './apply-turn-completed';
+import { buildModelParams } from './build-model-params';
 import { buildThreadStartParams } from './build-thread-start-params';
-import { NOTE_LABELS } from './note-labels';
+import { collectLeftThreads } from './collect-left-threads';
+import { collectThreadTurns } from './collect-thread-turns';
+import { NOTICE_PREFIX } from './notice-prefix';
 import { parseAppServerTurn } from './parse-app-server-turn';
 import type { AppServerTurn } from './parse-app-server-turn';
-import { planLeftThreadRecovery } from './plan-left-thread-recovery';
 import type { LeftThreadRecovery } from './plan-left-thread-recovery';
 import { planThreadRecovery } from './plan-thread-recovery';
-import { planTurnSettlement } from './plan-turn-settlement';
-import type { TurnSettlement } from './plan-turn-settlement';
-import { renderAtcAnswer } from './render-atc-answer';
-import { renderAtcEnvelope } from './render-atc-envelope';
+import { sendBridgedMessage } from './send-bridged-message';
+import { sendBridgedNotice } from './send-bridged-notice';
+import type { TurnSendContext } from './turn-send-context';
 import { UnconfirmedSends } from './unconfirmed-sends';
 
 export interface AppServerBridgeConfig {
@@ -42,12 +47,6 @@ export interface AppServerBridgeConfig {
 }
 
 const THREAD_RESULT_SCHEMA = z.looseObject({ thread: z.looseObject({ id: z.string() }) });
-const TURN_RESULT_SCHEMA = z.looseObject({ turn: z.looseObject({ id: z.string() }) });
-
-const TURNS_PAGE_SCHEMA = z.looseObject({
-  data: z.array(z.unknown()),
-  nextCursor: z.string().nullish(),
-});
 
 const NOTIFICATION_SCHEMA = z.looseObject({
   threadId: z.string().optional(),
@@ -55,26 +54,6 @@ const NOTIFICATION_SCHEMA = z.looseObject({
   turn: z.unknown().optional(),
   item: z.unknown().optional(),
 });
-
-const TOOL_CALL_SCHEMA = z.looseObject({
-  threadId: z.string(),
-  turnId: z.string(),
-  tool: z.string(),
-  arguments: z.record(z.string(), z.unknown()).optional(),
-});
-
-// A notice goes out as a user message whose client id holds this prefix,
-// so no stored turn mistakes it for a message of the session's own.
-const NOTICE_PREFIX = 'notice:';
-
-// The JSON-RPC error code a Codex App Server answers with when its queue
-// is full: the request was not taken, and the same request may succeed
-// later.
-const OVERLOADED_CODE = -32_001;
-
-// The JSON-RPC error code a Codex App Server answers a history read with
-// when the thread has no history it can read.
-const INVALID_REQUEST_CODE = -32_600;
 
 // each connection settles every unsettled message from the thread's stored turns before it
 // delivers, since the server keeps no record of which client message ids it took
@@ -127,6 +106,8 @@ export class AppServerBridge {
 
   private readonly tap: MessageBridgeTap;
 
+  private readonly sendContext: TurnSendContext;
+
   constructor(config: AppServerBridgeConfig) {
     this.config = config;
     this.threadID = config.resumeThread;
@@ -145,6 +126,27 @@ export class AppServerBridge {
         this.scheduleSend(() => this.sendNotice(notice));
       },
       close: () => {},
+    };
+
+    this.sendContext = {
+      host: config.host,
+      model: config.model,
+      unconfirmed: this.unconfirmed,
+      waitOutOverload: (conn) => this.waitOutOverload(conn),
+      dropConnection: (conn) => {
+        if (conn === this.conn) {
+          this.detachConnection();
+          this.scheduleReconnect();
+        }
+      },
+      resetOverload: () => {
+        this.overloadDelay = this.config.retryMs?.first ?? 500;
+      },
+      carryMessage: (message, turn) => {
+        if (!this.settledTurns.has(turn)) {
+          this.carried.set(message, turn);
+        }
+      },
     };
   }
 
@@ -214,7 +216,13 @@ export class AppServerBridge {
         return;
       }
 
-      void this.answerToolCall(conn, request);
+      void answerToolCall({
+        conn,
+        request,
+        threadID: this.threadID,
+        carried: this.carried,
+        host: this.config.host,
+      });
     };
 
     conn.onClose = () => {
@@ -234,7 +242,7 @@ export class AppServerBridge {
         await conn.sendRequest('thread/resume', {
           threadId: this.threadID,
           excludeTurns: true,
-          ...this.buildModelParams(),
+          ...buildModelParams(this.config.model),
         });
 
         return this.threadID;
@@ -295,12 +303,20 @@ export class AppServerBridge {
     try {
       const all = await this.config.host.collectUnsettledMessages();
 
-      left = await this.collectLeftThreads(conn, all);
+      left = await collectLeftThreads({
+        conn,
+        unsettled: all,
+        unconfirmed: this.unconfirmed,
+        host: this.config.host,
+        isLeft: (message) => this.isLeft(message),
+      });
 
       // A message a left thread holds belongs to that thread alone, so the
       // thread the bridge serves never sends it again.
       unsettled = [...left.flatMap((l) => l.kept), ...all.filter((m) => !this.isLeft(m.id))];
-      turns = unsettled.length === 0 ? [] : await this.collectTurns(conn, this.threadID, unsettled);
+
+      turns =
+        unsettled.length === 0 ? [] : await collectThreadTurns(conn, this.threadID, unsettled);
     } catch (error) {
       this.config.host.log(
         `codex app server: recovery of session ${this.config.session} stopped, every message kept as it was (${String(error)})`,
@@ -319,52 +335,18 @@ export class AppServerBridge {
     }
 
     for (const recovery of left) {
-      for (const id of recovery.acks) {
-        await this.config.host.ackMessage(id);
-      }
-
-      for (const settlement of recovery.settlements) {
-        await this.applySettlement(settlement);
-      }
-
-      if (recovery.stranded.length > 0) {
-        await this.config.host.applyNote({
-          kind: 'unanswered',
-          messages: recovery.stranded,
-          reason: 'thread_switched',
-        });
-      }
+      await applyLeftThreadRecovery(this.config.host, recovery);
     }
 
     this.unconfirmed.removeMessages(unconfirmed);
 
-    const recovery = planThreadRecovery(unsettled, turns);
-
-    for (const id of recovery.acks) {
-      await this.config.host.ackMessage(id);
-    }
-
-    for (const settlement of recovery.settlements) {
-      this.settledTurns.add(settlement.turn);
-
-      await this.applySettlement(settlement);
-    }
-
-    if (recovery.lost.length > 0) {
-      await this.config.host.applyNote({
-        kind: 'unanswered',
-        messages: recovery.lost,
-        reason: 'not_started',
-      });
-    }
-
-    for (const [message, turn] of recovery.carried) {
-      this.carried.set(message, turn);
-    }
-
-    for (const [turn, reply] of recovery.replies) {
-      this.replies.set(turn, reply);
-    }
+    await applyThreadRecovery({
+      recovery: planThreadRecovery(unsettled, turns),
+      carried: this.carried,
+      replies: this.replies,
+      settledTurns: this.settledTurns,
+      host: this.config.host,
+    });
 
     if (conn !== this.conn) {
       return;
@@ -378,53 +360,18 @@ export class AppServerBridge {
     }
 
     for (const request of this.waitingToolCalls.splice(0)) {
-      void this.answerToolCall(conn, request);
+      void answerToolCall({
+        conn,
+        request,
+        threadID: this.threadID,
+        carried: this.carried,
+        host: this.config.host,
+      });
     }
 
     if (!this.config.host.attachTap(this.tap)) {
       this.config.host.log(`codex app server: session ${this.config.session} refused the tap`);
     }
-  }
-
-  // A left thread with no readable history strands its messages, since it
-  // may have taken them; any other failure rejects, and recovery retries.
-  private async collectLeftThreads(
-    conn: AppServerConnection,
-    unsettled: readonly UnsettledMessage[],
-  ): Promise<LeftThreadRecovery[]> {
-    const byThread = new Map<string, UnsettledMessage[]>();
-
-    for (const message of unsettled) {
-      const thread = this.unconfirmed.findThread(message.id);
-
-      if (thread !== undefined && this.isLeft(message.id)) {
-        byThread.set(thread, [...(byThread.get(thread) ?? []), message]);
-      }
-    }
-
-    const left: LeftThreadRecovery[] = [];
-
-    for (const [thread, messages] of byThread) {
-      let turns: AppServerTurn[] | null;
-
-      try {
-        turns = await this.collectTurns(conn, thread, messages);
-      } catch (error) {
-        if (!(error instanceof AppServerError) || error.code !== INVALID_REQUEST_CODE) {
-          throw error;
-        }
-
-        this.config.host.log(
-          `codex app server: the history of left thread ${thread} did not read (${String(error)})`,
-        );
-
-        turns = null;
-      }
-
-      left.push(planLeftThreadRecovery(messages, turns));
-    }
-
-    return left;
   }
 
   // Whether the message went unconfirmed to a thread other than the one the
@@ -433,46 +380,6 @@ export class AppServerBridge {
     const thread = this.unconfirmed.findThread(message);
 
     return thread !== undefined && thread !== this.threadID;
-  }
-
-  // Pages back through the thread's turns until every unsettled message
-  // has its turn or the history ends. A failed page rejects the whole read.
-  private async collectTurns(
-    conn: AppServerConnection,
-    thread: string | null,
-    unsettled: readonly UnsettledMessage[],
-  ): Promise<AppServerTurn[]> {
-    const open = new Set(unsettled.map((m) => m.id));
-
-    const turns: AppServerTurn[] = [];
-    let cursor: string | null = null;
-
-    do {
-      const result = await conn.sendRequest('thread/turns/list', {
-        threadId: thread,
-        limit: 20,
-        itemsView: 'full',
-        cursor,
-      });
-
-      const page = TURNS_PAGE_SCHEMA.parse(result);
-
-      for (const raw of page.data) {
-        const turn = parseAppServerTurn(raw);
-
-        if (turn !== null) {
-          turns.push(turn);
-
-          for (const item of turn.items) {
-            open.delete(item.clientId ?? '');
-          }
-        }
-      }
-
-      cursor = page.nextCursor ?? null;
-    } while (cursor !== null && open.size > 0);
-
-    return turns;
   }
 
   private applyNotification(notification: AppServerNotification): void {
@@ -513,53 +420,15 @@ export class AppServerBridge {
       const turn = parseAppServerTurn(params.data.turn);
 
       if (turn !== null) {
-        void this.applyTurnCompleted(turn);
+        void applyTurnCompleted({
+          turn,
+          carried: this.carried,
+          replies: this.replies,
+          settledTurns: this.settledTurns,
+          host: this.config.host,
+        });
       }
     }
-  }
-
-  private async applyTurnCompleted(turn: AppServerTurn): Promise<void> {
-    if (this.settledTurns.has(turn.id)) {
-      return;
-    }
-
-    this.settledTurns.add(turn.id);
-
-    const messages = [...this.carried].filter(([, t]) => t === turn.id).map(([m]) => m);
-
-    const reply =
-      this.replies.get(turn.id) ?? turn.items.findLast((i) => i.type === 'agentMessage')?.text;
-
-    for (const message of messages) {
-      this.carried.delete(message);
-    }
-
-    this.replies.delete(turn.id);
-
-    const settlement = planTurnSettlement(turn.id, turn.status, messages, reply);
-
-    if (settlement !== null) {
-      await this.applySettlement(settlement);
-    }
-  }
-
-  private async applySettlement(settlement: TurnSettlement): Promise<void> {
-    const payload =
-      settlement.kind === 'answered'
-        ? {
-            kind: 'answered',
-            messages: settlement.messages,
-            answer: settlement.answer,
-            turn: settlement.turn,
-          }
-        : {
-            kind: 'unanswered',
-            messages: settlement.messages,
-            reason: settlement.reason,
-            turn: settlement.turn,
-          };
-
-    await this.config.host.applyNote(payload);
   }
 
   private async updateThreadNow(thread: string): Promise<void> {
@@ -625,8 +494,7 @@ export class AppServerBridge {
     })();
   }
 
-  // A message that fails to send stays queued: the connection drops, and
-  // the next one recovers before the tap hands the message over again.
+  // Sends a message once the bridge is ready on a thread it is not leaving.
   private async sendMessage(message: BridgedMessage): Promise<void> {
     const conn = this.conn;
     const thread = this.threadID;
@@ -635,71 +503,12 @@ export class AppServerBridge {
       return;
     }
 
-    let turnID: string;
-
-    try {
-      const result = await conn.sendRequest('turn/start', {
-        threadId: thread,
-        input: [{ type: 'text', text: renderAtcEnvelope(message), text_elements: [] }],
-        clientUserMessageId: message.id,
-        ...this.buildModelParams(),
-      });
-
-      const started = TURN_RESULT_SCHEMA.parse(result);
-
-      turnID = started.turn.id;
-    } catch (error) {
-      if (isOverload(error)) {
-        this.config.host.log(
-          `codex app server: the App Server is overloaded; message ${message.id} stayed queued (${error.message})`,
-        );
-
-        const again = await this.waitOutOverload(conn);
-
-        if (again) {
-          await this.sendMessage(message);
-        }
-
-        return;
-      }
-
-      // An error the server answered shows it refused the message, and a
-      // resend would meet the same refusal, so the message ends unanswered.
-      if (isRefusal(error)) {
-        this.config.host.log(
-          `codex app server: the App Server refused message ${message.id} (${error.message})`,
-        );
-
-        await this.config.host.applyNote({
-          kind: 'unanswered',
-          messages: [message.id],
-          reason: 'error',
-        });
-
-        return;
-      }
-
-      this.config.host.log(
-        `codex app server: message ${message.id} stayed queued (${String(error)})`,
-      );
-
-      this.unconfirmed.setThread(message.id, thread);
-
-      if (conn === this.conn) {
-        this.detachConnection();
-        this.scheduleReconnect();
-      }
-
-      return;
-    }
-
-    this.overloadDelay = this.config.retryMs?.first ?? 500;
-
-    if (!this.settledTurns.has(turnID)) {
-      this.carried.set(message.id, turnID);
-    }
-
-    await this.config.host.ackMessage(message.id);
+    await sendBridgedMessage(this.sendContext, {
+      conn,
+      thread,
+      message,
+      resend: () => this.sendMessage(message),
+    });
   }
 
   private async sendNotice(notice: BridgedNotice): Promise<void> {
@@ -709,61 +518,12 @@ export class AppServerBridge {
       return;
     }
 
-    try {
-      await conn.sendRequest('turn/start', {
-        threadId: this.threadID,
-        input: [{ type: 'text', text: renderAtcAnswer(notice), text_elements: [] }],
-        clientUserMessageId: `${NOTICE_PREFIX}${notice.id}`,
-        ...this.buildModelParams(),
-      });
-    } catch (error) {
-      if (isOverload(error)) {
-        this.config.host.log(
-          `codex app server: the App Server is overloaded; notice ${notice.id} stayed queued (${error.message})`,
-        );
-
-        const again = await this.waitOutOverload(conn);
-
-        if (again) {
-          await this.sendNotice(notice);
-        }
-
-        return;
-      }
-
-      // A notice the server refused is taken all the same, so it holds up
-      // no later item of the inbox.
-      if (isRefusal(error)) {
-        this.config.host.log(
-          `codex app server: the App Server refused notice ${notice.id} (${error.message})`,
-        );
-
-        await this.config.host.ackNotice(notice.id);
-
-        return;
-      }
-
-      this.config.host.log(
-        `codex app server: notice ${notice.id} stayed queued (${String(error)})`,
-      );
-
-      if (conn === this.conn) {
-        this.detachConnection();
-        this.scheduleReconnect();
-      }
-
-      return;
-    }
-
-    this.overloadDelay = this.config.retryMs?.first ?? 500;
-
-    await this.config.host.ackNotice(notice.id);
-  }
-
-  // every thread and turn request carries the spawn's model, if any, so a message that arrives
-  // before the terminal applies that model still runs on it
-  private buildModelParams(): { model?: string } {
-    return this.config.model === undefined ? {} : { model: this.config.model };
+    await sendBridgedNotice(this.sendContext, {
+      conn,
+      thread: this.threadID,
+      notice,
+      resend: () => this.sendNotice(notice),
+    });
   }
 
   // waits inside the send in flight so later items queue behind it and the order holds; true
@@ -794,84 +554,6 @@ export class AppServerBridge {
     this.endOverloadWait = undefined;
 
     return !ended && conn === this.conn && !this.stopped;
-  }
-
-  // Serves a call to one of the bridge's own tools on its thread; every
-  // other server request, approvals among them, is left to the terminal.
-  private async answerToolCall(
-    conn: AppServerConnection,
-    request: AppServerRequest,
-  ): Promise<void> {
-    if (request.method !== 'item/tool/call') {
-      return;
-    }
-
-    const call = TOOL_CALL_SCHEMA.safeParse(request.params);
-
-    if (!call.success || call.data.threadId !== this.threadID) {
-      return;
-    }
-
-    const args = call.data.arguments ?? {};
-    const text = typeof args['text'] === 'string' ? args['text'].trim() : '';
-
-    const sendRefusal = (reason: string) => {
-      conn.sendResult(request.id, {
-        success: false,
-        contentItems: [{ type: 'inputText', text: reason }],
-      });
-    };
-
-    if (text === '') {
-      sendRefusal(`${call.data.tool} needs non-empty text`);
-
-      return;
-    }
-
-    if (call.data.tool === 'note') {
-      const label = typeof args['label'] === 'string' ? args['label'] : 'progress';
-
-      if (!NOTE_LABELS.some((l) => l === label)) {
-        sendRefusal(`note label must be ${NOTE_LABELS.join(', ')}`);
-
-        return;
-      }
-
-      await this.config.host.applyNote({ kind: 'note', label, text });
-
-      conn.sendResult(request.id, {
-        success: true,
-        contentItems: [{ type: 'inputText', text: 'Handed to atc for its event feed.' }],
-      });
-
-      return;
-    }
-
-    if (call.data.tool !== 'answer') {
-      return;
-    }
-
-    const message = typeof args['message'] === 'string' ? args['message'] : '';
-
-    if (this.carried.get(message) !== call.data.turnId) {
-      sendRefusal(`the running turn carries no message ${message}`);
-
-      return;
-    }
-
-    this.carried.delete(message);
-
-    await this.config.host.applyNote({
-      kind: 'answered',
-      message,
-      answer: text,
-      turn: call.data.turnId,
-    });
-
-    conn.sendResult(request.id, {
-      success: true,
-      contentItems: [{ type: 'inputText', text: `Handed to atc as the answer to ${message}.` }],
-    });
   }
 
   // Closes the connection and detaches the tap, so nothing is delivered
@@ -927,15 +609,4 @@ export class AppServerBridge {
 
     await this.reconcileMessages();
   }
-}
-
-// Whether a request failed because the server answered it with an error,
-// as opposed to a connection that closed before an answer came.
-function isRefusal(error: unknown): error is AppServerError {
-  return error instanceof AppServerError && error.code !== -1;
-}
-
-// Whether the server turned a request away because its queue was full.
-function isOverload(error: unknown): error is AppServerError {
-  return error instanceof AppServerError && error.code === OVERLOADED_CODE;
 }
