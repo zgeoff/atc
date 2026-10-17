@@ -1,12 +1,9 @@
-import { posix } from 'node:path';
 import type { AgentID, SessionID, StepTimer } from '@atc/core';
-import { buildTarArchive, isBrokerVariable } from '@atc/core';
 import type {
   AgentAdapter,
   CredentialBroker,
   ExecutionProvider,
   GuestPaths,
-  GuestSpawnPlan,
   HarnessSpec,
   SpawnOptions,
   SpawnPlan,
@@ -19,30 +16,16 @@ import type { SessionCallbacks } from '../sessions/session-callbacks';
 import type { SessionHarnesses } from '../sessions/session-harnesses';
 import type { SessionRegistry } from '../sessions/session-registry';
 import type { SpawnRollback } from '../sessions/spawn-rollback';
-import { REPOSITORY_ENV_UNSET_ARGV } from '../workspace/repository-env-unset-argv';
 import { buildAuthBinding } from './build-auth-binding';
 import type { AuthBinding } from './build-auth-binding';
+import { buildBrokerTargetRefusal } from './build-broker-target-refusal';
+import { buildGuestRefusal } from './build-guest-refusal';
 import { formatAuthNotice } from './format-auth-notice';
 import { loadOAuthStates } from './load-oauth-states';
+import { requireGuestEnv } from './require-guest-env';
+import { requireProjectSettings } from './require-project-settings';
 import type { RuntimeAuthBinder } from './runtime-auth-binder';
-
-// prints `<path>\0F<base64>\0` per path that exists: start files in the resolved dir, then root
-// files there, in every dir above and in the worktree's main checkout; `U` replaces `F<base64>`
-// for anything not a readable regular file within the size cap, and a missing dir exits 3
-export const READ_PROJECT_SETTINGS_SCRIPT = `cd -P -- "$1" 2>/dev/null || exit 3; shift; d=$(pwd -P)
-emit() {
-  [ -e "$1" ] || [ -L "$1" ] || return 0
-  if [ -f "$1" ] && n=$(wc -c < "$1" 2>/dev/null) && [ "$n" -le 1048576 ] && b=$(base64 -w0 -- "$1" 2>/dev/null); then printf '%s\\0F%s\\0' "$1" "$b"; else printf '%s\\0U\\0' "$1"; fi
-}
-while [ "$#" -gt 0 ] && [ "$1" != -- ]; do emit "\${d%/}/$1"; shift; done; [ "$#" -gt 0 ] && shift
-m=$(git -c safe.directory='*' -c core.fsmonitor=false rev-parse --path-format=absolute --git-common-dir 2>/dev/null) && m=\${m%/.git} || m=
-for n in "$@"; do p=$d; while :; do emit "\${p%/}/$n"; [ "$p" = / ] && break; p=\${p%/*}; [ -n "$p" ] || p=/; done; [ -z "$m" ] || emit "\${m%/}/$n"; done
-exit 0`;
-
-const ABSENT_DIR_EXIT = 3;
-
-// The largest settings file atc reads.
-const MAX_SETTINGS_BYTES = 1_048_576;
+import { setupGuest } from './setup-guest';
 
 // A readied host's harness plan, and the auth attempt that provisioned the
 // host, if one did.
@@ -331,7 +314,10 @@ export class AuthSetup {
         : null;
 
     try {
-      await this.setupGuest(adapter, provider, hostKey, target, dir, plan.files, timer);
+      await setupGuest(
+        { store: this.store, callbacks: this.callbacks, harnesses: this.harnesses },
+        { adapter, provider, hostKey, target, dir, planned: plan.files, timer },
+      );
 
       if (auth !== null && cwd !== null) {
         await timer.withStep('project-settings', () =>
@@ -461,124 +447,14 @@ export class AuthSetup {
     return { binding: row, heldRevision: held?.revision ?? row.revision };
   }
 
-  // Readies a remote host and the files a guest plan reads there, after
-  // the agent's sign-in check.
-  private async setupGuest(
-    adapter: AgentAdapter,
-    provider: ExecutionProvider,
-    hostKey: SessionID,
-    target: string,
-    dir: string,
-
-    planned: GuestSpawnPlan['files'],
-    timer: StepTimer,
-  ): Promise<void> {
-    await provider.prepareHost({
-      host: hostKey,
-      daemonID: this.store.daemonID,
-      installATC: adapter.planGuestSpawn !== undefined,
-      log: this.callbacks.log,
-      isIdle: () => this.harnesses.isHostIdle(hostKey, target),
-      timer,
-    });
-
-    const check = adapter.planAuthCheck?.();
-
-    if (check !== undefined) {
-      const result = await timer.withStep('auth-check', () =>
-        provider.runCommand({ argv: check, cwd: '/', host: hostKey }),
-      );
-
-      if (result.exitCode !== 0) {
-        throw new DaemonError(
-          'auth_not_configured',
-          `agent '${adapter.id}' is not signed in on target '${target}'; sign it in inside the host's image`,
-          { agent: adapter.id, target },
-        );
-      }
-    }
-
-    const files = Object.entries(planned).map(([path, file]) =>
-      typeof file === 'string' || file instanceof Uint8Array
-        ? { path, content: file }
-        : { path, content: file.content, mode: file.mode },
-    );
-
-    if (files.length > 0) {
-      await timer.withStep('settings-transfer', () =>
-        provider.transferArchive(buildTarArchive(files), dir, hostKey),
-      );
-    }
-  }
-
-  async requireProjectSettings(
+  requireProjectSettings(
     adapter: AgentAdapter,
     provider: ExecutionProvider,
     hostKey: SessionID,
     target: string,
     cwd: string,
   ): Promise<void> {
-    const check = adapter.planProjectSettingsCheck?.();
-
-    if (check === undefined) {
-      return;
-    }
-
-    // The host resolves the directory as given, since a lexical join would
-    // drop a parent step after a symlink that the host follows.
-    const home = posix.isAbsolute(cwd)
-      ? null
-      : await this.claims.resolveHostHome(provider, hostKey);
-
-    const dir = home === null ? cwd : `${home}/${cwd}`;
-
-    const found = await provider.runCommand({
-      argv: [
-        ...REPOSITORY_ENV_UNSET_ARGV,
-        'sh',
-        '-c',
-        READ_PROJECT_SETTINGS_SCRIPT,
-        'sh',
-        dir,
-        ...check.files,
-        '--',
-        ...check.rootFiles,
-      ],
-      cwd: '/',
-      host: hostKey,
-    });
-
-    if (found.exitCode === ABSENT_DIR_EXIT) {
-      return;
-    }
-
-    if (found.exitCode !== 0) {
-      throw this.buildUnreadableSettingsRefusal(adapter.id, target, dir);
-    }
-
-    for (const [path, read] of collectSettingsReads(found.stdout)) {
-      const content = read === null ? null : Buffer.from(read, 'base64');
-
-      // a file the host holds but cannot read as a settings file refuses, since what the agent
-      // would take from it is unknown
-      if (content === null || content.byteLength > MAX_SETTINGS_BYTES) {
-        throw this.buildUnreadableSettingsRefusal(adapter.id, target, path);
-      }
-
-      const refusal = check.findRefusal(path, new TextDecoder().decode(content));
-
-      if (refusal !== null) {
-        throw new DaemonError(refusal.code, refusal.message, { ...refusal.data, target });
-      }
-    }
-  }
-
-  private buildUnreadableSettingsRefusal(agent: string, target: string, path: string): DaemonError {
-    return new DaemonError(
-      'auth_target_unsupported',
-      `agent '${agent}' signs in through impd's broker on target '${target}', but atc cannot read ${path} there as a settings file to check it for settings that would override that sign-in`,
-      { agent, target, problem: 'project_settings_unreadable', file: path },
-    );
+    return requireProjectSettings(this.claims, { adapter, provider, hostKey, target, cwd });
   }
 
   // launches on the host stay blocked until a rebind; a running harness keeps running while
@@ -662,82 +538,4 @@ export class AuthSetup {
 
     return binder;
   }
-}
-
-// An agent that takes its credential from impd's broker on a target that
-// reaches none.
-function buildBrokerTargetRefusal(agent: string, target: string): DaemonError {
-  return new DaemonError(
-    'auth_target_unsupported',
-    `agent '${agent}' takes its credential from impd's broker, which target '${target}' does not reach`,
-    { agent, target },
-  );
-}
-
-// An agent that plans no remote spawn: for want of an atc inside the host
-// when the host has none, or because the agent never runs remotely.
-function buildGuestRefusal(
-  provider: string,
-  agent: string,
-  target: string,
-  hasNoATC: boolean,
-): DaemonError {
-  return hasNoATC
-    ? new DaemonError(
-        'unsupported_operation',
-        `agent '${agent}' cannot run on target '${target}': its host has no atc to report through; run a compiled atc daemon on Linux, or set the target's guestATC to an atc installed in its image`,
-        { provider, agent, problem: 'no_guest_atc' },
-      )
-    : new DaemonError(
-        'unsupported_operation',
-        `agent '${agent}' cannot run on a remote target such as '${target}'`,
-        { provider, agent, problem: 'remote_unsupported' },
-      );
-}
-
-// A guest plan's variables start the harness as they are, so none may be
-// one atc sets for its own reporting, and behind the broker none may be a
-// proxy or CA variable that would route around the broker.
-function requireGuestEnv(
-  agent: string,
-  target: string,
-  env: Readonly<Record<string, string>>,
-  behindBroker: boolean,
-): void {
-  const own = Object.keys(env).find((key) => key.startsWith('ATC_'));
-
-  if (own !== undefined) {
-    throw new Error(`agent '${agent}' plans ${own}, which atc sets for the harness itself`);
-  }
-
-  const broker = behindBroker ? Object.keys(env).find((key) => isBrokerVariable(key)) : undefined;
-
-  if (broker !== undefined) {
-    throw new DaemonError(
-      'auth_target_unsupported',
-      `agent '${agent}' plans ${broker} on target '${target}', which would route around impd's broker`,
-      { agent, target, problem: 'guest_env_conflict', variable: broker },
-    );
-  }
-}
-
-// Each path the settings read printed, once and in the order it first
-// printed it, with the file's content in base64, or null for a path it
-// could not read as a settings file.
-function collectSettingsReads(stdout: string): Map<string, string | null> {
-  const fields = stdout.split('\0');
-
-  const reads = new Map<string, string | null>();
-
-  for (let i = 0; i + 1 < fields.length; i += 2) {
-    const path = fields[i] ?? '';
-    const read = fields[i + 1] ?? '';
-    const content = read.startsWith('F') ? read.slice(1) : null;
-
-    if (path !== '' && !reads.has(path)) {
-      reads.set(path, content);
-    }
-  }
-
-  return reads;
 }
