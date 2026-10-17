@@ -2947,7 +2947,7 @@ test('it refuses the next session request with the code and data it is given', a
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  ctx.port.setNextSessionFailure('FORBIDDEN', { reason: 'scope' });
+  ctx.port.setNextSessionFailure({ code: 'FORBIDDEN', data: { reason: 'scope' } });
 
   const connection = ctx.port.openSession(
     { kind: 'attach', name: 'imp-a', session: 's1', cols: 80, rows: 24, wake: true },
@@ -2969,7 +2969,7 @@ test('it refuses the next session request with the message it is given', async (
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  ctx.port.setNextSessionFailure(null, null, 'the socket closed mid-answer');
+  ctx.port.setNextSessionFailure({ code: null, data: null }, 'the socket closed mid-answer');
 
   const connection = ctx.port.openSession(
     { kind: 'attach', name: 'imp-a', session: 's1', cols: 80, rows: 24, wake: true },

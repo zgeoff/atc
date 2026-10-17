@@ -315,7 +315,7 @@ test('it does a fresh attach when impd refuses its resume offset', async () => {
     expect(output.join('')).toInclude('UP:');
   });
 
-  ctx.port.setNextSessionFailure('INVALID_RESUME', { end: 0, bufferStart: 0 });
+  ctx.port.setNextSessionFailure({ code: 'INVALID_RESUME', data: { end: 0, bufferStart: 0 } });
   ctx.port.stopConnection('imp-a', 's1', 1011);
 
   await waitFor(() => {
@@ -623,13 +623,16 @@ test('it ends with the kept exit code of its own generation when impd no longer 
     expect(output.join('')).toInclude('UP:');
   });
 
-  ctx.port.setNextSessionFailure('NO_SESSION', {
-    bootId: ctx.port.getBootID('imp-a'),
-    coldBoots: [],
-    previous: {
-      executionGeneration: ctx.port.getGeneration('imp-a', 's1'),
-      end: 10,
-      exitCode: 7,
+  ctx.port.setNextSessionFailure({
+    code: 'NO_SESSION',
+    data: {
+      bootId: ctx.port.getBootID('imp-a'),
+      coldBoots: [],
+      previous: {
+        executionGeneration: ctx.port.getGeneration('imp-a', 's1'),
+        end: 10,
+        exitCode: 7,
+      },
     },
   });
 
@@ -743,7 +746,7 @@ test('it ends with the refusal message in the detail when impd refuses without a
     expect(output.join('')).toInclude('UP:');
   });
 
-  ctx.port.setNextSessionFailure(null, undefined, 'the sentinel refusal reason');
+  ctx.port.setNextSessionFailure({ code: null }, 'the sentinel refusal reason');
   ctx.port.stopConnection('imp-a', 's1', 1011);
 
   await waitFor(() => {
@@ -801,8 +804,7 @@ test('it redacts credential-shaped runs from a refusal message it shows', async 
   });
 
   ctx.port.setNextSessionFailure(
-    null,
-    undefined,
+    { code: null },
     'proxy rejected Bearer abcdefghijklmnopqrstuvwxyz0123456789 and key 0123456789abcdef0123456789abcdef',
   );
 
@@ -864,8 +866,7 @@ test('it redacts short credentials in URL, header, and authorization shapes it s
   });
 
   ctx.port.setNextSessionFailure(
-    null,
-    undefined,
+    { code: null },
     'dial failed: https://alice:demo-pass@api.example.test/v1?api_key=demo-secret with x-api-key: demo-secret and Authorization: Basic ZGVtbzpwYXNz',
   );
 
@@ -1695,9 +1696,12 @@ test('it rejects its start as auth_impd_too_old when impd refuses it as outdated
 
   await ctx.port.createImp({ name: 'imp-b' });
 
-  ctx.port.setNextSessionFailure('PRECONDITION_FAILED', {
-    reason: 'impd_outdated',
-    detail: 'impd takes no exec requirements',
+  ctx.port.setNextSessionFailure({
+    code: 'PRECONDITION_FAILED',
+    data: {
+      reason: 'impd_outdated',
+      detail: 'impd takes no exec requirements',
+    },
   });
 
   const harness = new ImpHarness(

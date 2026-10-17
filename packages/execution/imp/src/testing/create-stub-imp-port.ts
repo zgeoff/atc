@@ -102,6 +102,11 @@ interface StubConnection {
   finished: boolean;
   process: StubProcess | null;
   readonly stop: (outcome: StubSessionOutcome) => void;
+
+  // Ends the connection with a refusal outside impd's contract.
+  readonly stopMalformed: (
+    outcome: Extract<ImpSessionOutcome, { readonly kind: 'failed' }>,
+  ) => void;
 }
 
 interface StubProcess {
@@ -249,6 +254,10 @@ class StubImpPort implements ImpPort {
     readonly refusal: ImpdExecRefusal;
     readonly message?: string;
   } | null = null;
+
+  // A refusal outside impd's contract that the next session request gets
+  // instead, or null.
+  private nextMalformedFailure: { readonly code: string; readonly data: unknown } | null = null;
 
   // Feature reads still to fail as an unreachable impd before they answer.
   private featureFailures = 0;
@@ -767,23 +776,30 @@ class StubImpPort implements ImpPort {
 
     const outcome = Promise.withResolvers<ImpSessionOutcome>();
 
+    const stopConnection = (result: ImpSessionOutcome) => {
+      if (connection.finished) {
+        return;
+      }
+
+      connection.finished = true;
+
+      if (connection.process?.connection === connection) {
+        connection.process.connection = null;
+      }
+
+      outcome.resolve(result);
+    };
+
     const connection: StubConnection = {
       handlers,
       sent: 0,
       finished: false,
       process: null,
       stop: (result) => {
-        if (connection.finished) {
-          return;
-        }
-
-        connection.finished = true;
-
-        if (connection.process?.connection === connection) {
-          connection.process.connection = null;
-        }
-
-        outcome.resolve(result);
+        stopConnection(result);
+      },
+      stopMalformed: (result) => {
+        stopConnection(result);
       },
     };
 
@@ -1547,13 +1563,7 @@ class StubImpPort implements ImpPort {
    * allows an exec refusal, or the message of the refusal when it carries
    * one instead.
    */
-  setNextSessionFailure<C extends ImpdExecRefusal['code']>(
-    code: C,
-    data: Extract<ImpdExecRefusal, { readonly code: C }>['data'],
-    message?: string,
-  ): void {
-    const refusal = { code, data } as Extract<ImpdExecRefusal, { readonly code: C }>;
-
+  setNextSessionFailure(refusal: ImpdExecRefusal, message?: string): void {
     this.nextFailure = { refusal, ...(message === undefined ? {} : { message }) };
   }
 
@@ -1564,7 +1574,7 @@ class StubImpPort implements ImpPort {
    * contract does not type.
    */
   setNextMalformedSessionFailure(code: string, data: unknown): void {
-    this.nextFailure = { refusal: { code, data } as unknown as ImpdExecRefusal };
+    this.nextMalformedFailure = { code, data };
   }
 
   // The state an imp is in, or null when it does not exist.
@@ -1836,6 +1846,21 @@ class StubImpPort implements ImpPort {
         kind: 'closed',
         reason: `code ${this.drops.closeCode}`,
         closeCode: this.drops.closeCode,
+      });
+
+      return;
+    }
+
+    const malformed = this.nextMalformedFailure;
+
+    if (malformed !== null) {
+      this.nextMalformedFailure = null;
+
+      connection.stopMalformed({
+        kind: 'failed',
+        code: malformed.code,
+        message: `impd refused the session (${malformed.code})`,
+        data: malformed.data,
       });
 
       return;

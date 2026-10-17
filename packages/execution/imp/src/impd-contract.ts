@@ -21,8 +21,8 @@ type ImpdRouter = {
  * as `leases.acquire`.
  */
 export type ImpdProcedure = {
-  [N in keyof ImpdRouter & string]: `${N}.${keyof ImpdRouter[N] & string}`;
-}[keyof ImpdRouter & string];
+  [N in Extract<keyof ImpdRouter, string>]: `${N}.${Extract<keyof ImpdRouter[N], string>}`;
+}[Extract<keyof ImpdRouter, string>];
 
 type ImpdCall<P extends ImpdProcedure> = P extends `${infer N extends keyof ImpdRouter}.${infer M}`
   ? M extends keyof ImpdRouter[N]
