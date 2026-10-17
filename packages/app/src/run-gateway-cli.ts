@@ -44,13 +44,6 @@ const PROCESS_IO: GatewayCLIIO = {
   },
 };
 
-/**
- * Runs the `atc-gateway` command line, which serves the MCP tools over HTTP
- * for the daemons a registry lists and manages the clients that may connect
- * to it and the owner's passkeys. Every subcommand takes the state directory
- * from `--state-dir`, anywhere on the command line, over
- * `ATC_GATEWAY_STATE_DIR`, and exits 1 without one or on two that differ.
- */
 export async function runGatewayCLI(
   argv: readonly string[],
   env: Readonly<Record<string, string | undefined>>,

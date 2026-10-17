@@ -2,10 +2,6 @@ import { expect, test } from 'bun:test';
 import { resolveATCCommand, runATC, setupTempDir } from '@atc/test-utils';
 import pkg from '../packages/app/package.json';
 
-/**
- * A temp directory the CLI runs with as its home, removed once the test
- * finishes.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-e2e-cli-command-line-');
 

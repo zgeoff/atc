@@ -24,10 +24,6 @@ interface RestartFlags {
   readonly timeout: string | null;
 }
 
-/**
- * What each `atc` command runs once its command line is parsed, and the
- * console and exit the command line uses.
- */
 export interface ATCCLIIO extends CommandLineIO {
   readonly runTUI: (daemon: string | null) => Promise<void>;
   readonly runMCP: (flags: MCPFlags) => Promise<void>;
@@ -58,13 +54,6 @@ interface DaemonValues {
   readonly 'token-file'?: string | undefined;
 }
 
-/**
- * Runs the `atc` command line: with no command it opens the client TUI, and
- * the hidden `hook-report`, `statusline`, `note`, `answer`, and `unanswered`
- * commands are the reporters injected into wrangled sessions. A reporter
- * exits 0 on a command line it refuses, so a broken reporter never breaks
- * its session; every other refused command line exits 1.
- */
 export async function runATCCLI(argv: readonly string[], io: ATCCLIIO): Promise<void> {
   const runDaemonServe = async (values: DaemonValues): Promise<void> => {
     await io.runDaemon(values.listen ?? null, values['token-file'] ?? null);

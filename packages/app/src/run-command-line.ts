@@ -26,13 +26,6 @@ export interface CommandTree {
   readonly lenient?: ReadonlySet<string>;
 }
 
-/**
- * Runs a command line through its command tree. Every command refuses a
- * flag it does not declare. `--help` prints the usage of the command it
- * follows and `--version` prints the version, each then exiting 0. A
- * command line the parser refuses prints the refused command's usage and
- * every reason, then exits 1, or exits 0 for a lenient command.
- */
 export async function runCommandLine(
   argv: readonly string[],
   entry: Command,
@@ -87,10 +80,6 @@ export async function runCommandLine(
   }
 }
 
-/**
- * The runner of a command that only groups others: it prints its usage and
- * exits 1, since the command line names none of them.
- */
 export function makeMissingCommandRun(io: CommandLineIO) {
   return async (ctx: Readonly<CommandContext>): Promise<void> => {
     io.print(`${await renderCommandUsage(ctx)}\n`);
