@@ -1,10 +1,3 @@
-/**
- * The text a failed tool call or note read shows for an error. An error
- * that holds a lowercase protocol-style code, as every daemon error and a
- * router's refusal about a daemon do, reads as `<code>: <message>`. A
- * system error's uppercase code is already in its message, so it and any
- * other error read as the message alone.
- */
 export function formatToolError(error: unknown): string {
   if (hasProtocolCode(error)) {
     return `${error.code}: ${error.message}`;
@@ -14,6 +7,8 @@ export function formatToolError(error: unknown): string {
 }
 
 function hasProtocolCode(error: unknown): error is Error & { readonly code: string } {
+  // only a lowercase code is shown: a system error's uppercase code is already in its
+  // message.
   return (
     error instanceof Error &&
     'code' in error &&

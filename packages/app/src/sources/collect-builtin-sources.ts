@@ -22,12 +22,6 @@ interface BuiltinSourceOptions {
   readonly host: HostServices;
 }
 
-/**
- * The built-in sources this host can run, each created by its source
- * plugin from the slice of config it reads: the directories on the daemon's
- * host, GitHub when gh is on this host, and a typed git URL, which needs
- * nothing beyond git.
- */
 export function collectBuiltinSources(options: BuiltinSourceOptions): SourceProvider[] {
   const context = { authProfiles: new Map() };
 

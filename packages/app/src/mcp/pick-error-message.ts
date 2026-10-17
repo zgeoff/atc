@@ -9,12 +9,9 @@ const ERROR_MESSAGES: Readonly<Record<string, string>> = {
   invalid_request: 'the request is malformed.',
 };
 
-/**
- * The sentence the error page shows for an error code, or a generic one for
- * a code atc does not know. The page never shows text from the request, so a
- * link to it cannot make atc's origin display words an attacker chose.
- */
 export function pickErrorMessage(code: string | null): string {
+  // the page never shows text from the request, so a link to it cannot make
+  // atc's origin display words an attacker chose.
   const reason =
     code !== null && Object.hasOwn(ERROR_MESSAGES, code) ? ERROR_MESSAGES[code] : undefined;
 

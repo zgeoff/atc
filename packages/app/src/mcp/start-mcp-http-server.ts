@@ -54,9 +54,6 @@ interface MCPHTTPServerOptions {
   readonly clock?: Clock;
 }
 
-/**
- * A running MCP HTTP server.
- */
 export interface MCPHTTPServer {
   // The loopback address the server answers on, for clients on this machine.
   readonly url: string;
@@ -69,23 +66,6 @@ export interface MCPHTTPServer {
   readonly stop: () => Promise<void>;
 }
 
-/**
- * Serves atc's MCP tools over streamable HTTP at `/mcp` and `/`, with
- * better-auth as the OAuth 2.1 authorization server in the same process and
- * the owner signing in with a passkey. Only
- * the routes a connector and the owner's browser need reach better-auth;
- * every other path is a 404. Each answered request prints one line with its
- * method, path, JSON-RPC method and tool, status, duration, and MCP protocol
- * version, and never a body, query, credential, or address. A request whose Host header is not the server's own is
- * refused, so a DNS rebinding page cannot reach it through a browser, and a
- * browser form post from any other origin is refused too. Each sign-in
- * outcome, those two refusals included, prints one `atc security {json}`
- * line, capped per kind of event and minute. With `probes`,
- * `/healthz` answers 200 while the server serves and `/readyz` answers 200
- * once the authorization server's database is open, else 503; both pass
- * the Host check first and answer with an empty body, so they disclose
- * nothing about the fleet.
- */
 export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise<MCPHTTPServer> {
   const clock = options.clock ?? systemClock;
 
@@ -248,6 +228,7 @@ function answerProbeRequest(
 
   const isReady = path === '/healthz' || ready;
 
+  // an empty body, so a probe learns nothing about the fleet.
   return new Response(null, { status: isReady ? 200 : 503 });
 }
 
@@ -496,10 +477,7 @@ async function answerMetadataRequest(
   });
 }
 
-// A code exchange binds its tokens to the owner session that approved it;
-// once issued, every token is detached from its session, so a session's end
-// never ends the grant, and the session, whose one authorization is done, is
-// deleted.
+// better-auth binds a code exchange's tokens to the owner session that approved it.
 async function answerTokenRequest(
   ctx: HTTPServerContext,
   request: Request,
@@ -522,6 +500,7 @@ async function answerTokenRequest(
 
     const sessionIDs = attached.flatMap((row) => (row.sessionId === null ? [] : [row.sessionId]));
 
+    // detached tokens outlive their session, so a session's end never ends a grant.
     await ctx.store.db
       .updateTable('oauthAccessToken')
       .set({ sessionId: null })
@@ -534,6 +513,7 @@ async function answerTokenRequest(
       .where('sessionId', 'is not', null)
       .execute();
 
+    // the session's one authorization is done.
     await ctx.store.db
       .deleteFrom('session')
       .where((eb) =>

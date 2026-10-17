@@ -1,22 +1,8 @@
 import { Database } from 'bun:sqlite';
 import { DaemonError } from '@atc/protocol/wire';
 
-/**
- * The last outcome the gateway saw for a keyed request: `pending` until an
- * answer arrives, `completed` for any answer the daemon gave other than
- * `outcome_unknown`, and `uncertain` for `outcome_unknown` or a response
- * that never arrived.
- */
 export type BindingOutcome = 'pending' | 'completed' | 'uncertain';
 
-/**
- * The daemon a keyed spawn or message went to: bound per principal,
- * operation, and key before the request leaves the gateway, so every retry
- * reaches the same daemon whatever the default daemon is by then. The
- * daemon's announced completed-key retention, null when it announced none,
- * decides when the binding may go. The payload hash binds the key to the
- * request it was first used with, as the daemon's own ledger does.
- */
 export interface KeyBinding {
   readonly principal: string;
   readonly operation: string;
@@ -54,14 +40,6 @@ interface BindingRow {
   readonly claim_id: string;
 }
 
-/**
- * `gateway.db`: the keyed-request bindings, and nothing else the gateway
- * could rebuild. A binding outlives the daemon's promise to deduplicate its
- * key: a completed binding goes only once twice the daemon's announced
- * retention has passed since its answer, and a pending or uncertain one,
- * or one bound to a daemon that announced no retention, stays for good, as
- * the daemon keeps such a key.
- */
 export class GatewayStore {
   private readonly db: Database;
 
@@ -93,16 +71,6 @@ export class GatewayStore {
     return new GatewayStore(db);
   }
 
-  /**
-   * Binds the key to the daemon under the given claim id unless a binding
-   * for it already exists, and
-   * returns the binding that holds after the call: the new one, or the one
-   * an earlier request made, whose daemon the request must go to. Throws
-   * `idempotency_conflict` when the key's binding holds another payload, so
-   * a reused key never reaches a daemon that may have dropped it already.
-   * A binding an older gateway made holds the hash the same payload had
-   * there, which matches when it is one of `legacyPayloadHashes`.
-   */
   claimBinding(
     binding: Omit<KeyBinding, 'outcome' | 'outcomeAt' | 'sentAt' | 'effectRef'>,
     now: number,
@@ -133,6 +101,7 @@ export class GatewayStore {
       throw new Error('a claimed key binding is missing');
     }
 
+    // a reused key never reaches a daemon that may have dropped it already
     if (
       held.payloadHash !== binding.payloadHash &&
       !legacyPayloadHashes.includes(held.payloadHash)
@@ -157,14 +126,9 @@ export class GatewayStore {
     return row === null ? null : toKeyBinding(row);
   }
 
-  /**
-   * Takes the key's first send: marks the binding sent unless a request
-   * under the key was sent before, in one statement, so of any number of
-   * calls, across gateway processes too, exactly one takes it. Returns
-   * whether this call took it: only that call's request may run the
-   * effect, and every later one may only replay it.
-   */
   claimFirstSend(principal: string, operation: string, key: string, now: number): boolean {
+    // one conditional statement, so of any number of calls, across gateway processes too,
+    // exactly one takes the first send and every later one may only replay
     return (
       this.db
         .query(
@@ -176,13 +140,6 @@ export class GatewayStore {
     );
   }
 
-  /**
-   * Records the last outcome of the key's request, and the effect id an
-   * uncertain answer returned, keeping one recorded earlier when this
-   * answer holds none. A completed outcome stays completed: a later
-   * request under the key whose answer never arrived changes nothing the
-   * daemon already answered.
-   */
   updateOutcome(
     principal: string,
     operation: string,
@@ -191,6 +148,8 @@ export class GatewayStore {
     now: number,
     effectRef: string | null = null,
   ): void {
+    // a completed outcome stays completed, and an answer without an effect id keeps the one
+    // recorded earlier
     this.db
       .query(
         `UPDATE key_binding
@@ -201,11 +160,6 @@ export class GatewayStore {
       .run({ principal, operation, key, outcome, now, effectRef });
   }
 
-  /**
-   * Removes the key's binding when the given claim wrote it and no request
-   * under the key was sent, for a request the gateway refused before it
-   * sent anything. A binding another claim wrote, or one sent, stays.
-   */
   removeBinding(principal: string, operation: string, key: string, claimID: string): void {
     this.db
       .query(
@@ -216,11 +170,9 @@ export class GatewayStore {
       .run({ principal, operation, key, claimID });
   }
 
-  /**
-   * Removes every completed binding whose daemon announced a retention and
-   * whose answer is older than twice that retention. Returns how many went.
-   */
   removeExpiredBindings(now: number): number {
+    // a binding outlives the daemon's promise to deduplicate its key: only a completed one
+    // goes, at twice the announced retention, as the daemon keeps every other key
     return this.db
       .query(
         `DELETE FROM key_binding

@@ -3,11 +3,6 @@ import { readJSONRecord, runMCPAuthorization } from '@atc/test-utils';
 import { runGrants } from './grants';
 import { setupMCPHTTP } from './test-utils/setup-mcp-http';
 
-/**
- * A real daemon behind `atc mcp --http`, whose authorization database the
- * command opens, so it reads the grants the server issued. Both stop, and
- * the home goes, once the test finishes.
- */
 async function setupTest() {
   const server = await setupMCPHTTP();
 

@@ -20,15 +20,6 @@ interface KindWindow {
 const MAX_EVENTS_PER_WINDOW = 20;
 const WINDOW_MS = 60_000;
 
-/**
- * Prints sign-in events as `atc security {json}` lines, capped per kind and
- * window so a flood of bad requests cannot flood the journal. A kind's
- * window starts at its first event. Past the cap, events are dropped and
- * counted, and once the window ends the log prints one `suppressed` event
- * with the kind and the count, then starts the kind afresh on its next
- * event. The window's end is scheduled on the clock when its first event is
- * dropped, so the count prints even if no further request arrives.
- */
 export class SecurityEventLog {
   private readonly opts: SecurityEventLogOptions;
 
@@ -69,10 +60,6 @@ export class SecurityEventLog {
     );
   }
 
-  /**
-   * Prints the `suppressed` event of every window that dropped events and
-   * forgets every window, for a server that stops.
-   */
   drain(): void {
     for (const [kind, window] of this.windows) {
       this.printSuppressed(kind, window, this.opts.clock.now());

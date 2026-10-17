@@ -2,9 +2,6 @@ import { parseJSONStrings } from '@atc/core';
 import type { Kysely } from 'kysely';
 import type { MCPAuthSchema } from './mcp-auth-schema';
 
-/**
- * A client added with `atc clients add`.
- */
 export interface ClientView {
   readonly clientID: string;
   readonly name: string;
@@ -12,9 +9,6 @@ export interface ClientView {
   readonly createdAt: string | null;
 }
 
-/**
- * Every client the authorization server knows, oldest first.
- */
 export async function collectClients(db: Kysely<MCPAuthSchema>): Promise<readonly ClientView[]> {
   const rows = await db
     .selectFrom('oauthClient')

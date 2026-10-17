@@ -6,22 +6,6 @@ import { renderEnrollPage } from './render-enroll-page';
 import type { HTTPServerContext, Requester } from './types';
 import { verifyPasskeyRegistration } from './verify-passkey-registration';
 
-/**
- * Answers `GET /enroll` and `POST /enroll`, where the owner enrolls a
- * passkey with a one-time token that a host command printed. The page
- * first asks for the token. A posted token that the database holds
- * unexpired gets the passkey prompt with a fresh challenge bound to that
- * token. The posted registration must verify against that challenge, the
- * origin, and the RP ID, with the user verified; it then stores the
- * passkey and spends the token in one step, so a token enrolls at most one
- * passkey. Enrolling signs nobody in and approves nothing: the owner then
- * signs in with the passkey from a client's authorization.
- *
- * Each posted token or registration that fails writes one `owner_auth`
- * security event with `failed` and why, `invalid_token` for a token the
- * database does not hold unexpired; a stored passkey writes `succeeded`.
- * Showing the token form writes nothing.
- */
 export async function answerEnrollRequest(
   ctx: HTTPServerContext,
   method: 'GET' | 'POST',
@@ -150,10 +134,6 @@ const PROMPT_TIMEOUT_MS = 120_000;
 // an authenticator files each one under the one atc account.
 const OWNER_HANDLE = Buffer.from('atc-owner').toString('base64url');
 
-// The prompt step with a fresh challenge bound to the token. The options
-// ask for a discoverable passkey with user verification and no
-// attestation, and exclude the passkeys already enrolled, so an
-// authenticator that holds one refuses to make a second.
 async function buildCeremonyResponse(
   ctx: HTTPServerContext,
   status: number,
@@ -173,6 +153,8 @@ async function buildCeremonyResponse(
       { type: 'public-key', alg: -257 },
     ],
     timeout: PROMPT_TIMEOUT_MS,
+
+    // an authenticator that already holds an enrolled passkey refuses to make a second.
     excludeCredentials: enrolled.map((row) => ({ type: 'public-key', id: row.id })),
     authenticatorSelection: {
       residentKey: 'required',

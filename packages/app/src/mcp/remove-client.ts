@@ -1,11 +1,6 @@
 import type { Kysely } from 'kysely';
 import type { MCPAuthSchema } from './mcp-auth-schema';
 
-/**
- * Removes a client and everything it holds: its access and refresh tokens,
- * its consent, and when its grants were last used. Returns false for an
- * unknown client id.
- */
 export function removeClient(db: Kysely<MCPAuthSchema>, clientID: string): Promise<boolean> {
   return db.transaction().execute(async (trx) => {
     const grants = await trx

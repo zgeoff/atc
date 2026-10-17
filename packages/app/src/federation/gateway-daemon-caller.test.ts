@@ -23,11 +23,6 @@ import type { RegistryDaemon } from './types';
 // The principal every request in these tests acts as.
 const GW = { id: 'gw', name: 'Lantern Notes' };
 
-/**
- * A real daemon with a TCP listener on loopback `port` that takes one fixed
- * token. `daemon` is its harness, whose client is the owner's connection on the
- * local socket, and `daemonID` the state identity its handshake returns.
- */
 async function setupTest() {
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-caller-',

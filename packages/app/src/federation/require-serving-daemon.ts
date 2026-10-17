@@ -3,13 +3,6 @@ import { buildDaemonOutdatedError } from './build-daemon-outdated-error';
 import type { GatewayDaemonCaller } from './gateway-daemon-caller';
 import type { DaemonHello, RegistryDaemon } from './types';
 
-/**
- * The handshake of the daemon a call is about to reach, read from the
- * connection the call rides. Throws `daemon_outdated` with the daemon's
- * name when that daemon lacks a feature the call needs, so a daemon that
- * would ignore an option never answers as if it had honoured it, and
- * whatever the daemon caller throws when the daemon cannot be reached.
- */
 export async function requireServingDaemon(
   getCaller: (name: string) => GatewayDaemonCaller,
   daemon: RegistryDaemon,
@@ -19,6 +12,8 @@ export async function requireServingDaemon(
 
   const missing = required.find((feature) => !hello.features.has(feature));
 
+  // a daemon that would ignore an option the call relies on must never answer as if it
+  // had honoured it
   if (missing !== undefined) {
     throw buildDaemonOutdatedError(daemon.name, missing);
   }

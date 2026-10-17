@@ -7,10 +7,6 @@ import { openMCPAuth } from './mcp/open-mcp-auth';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
 import { runGateway } from './run-gateway';
 
-/**
- * A temp directory for the registry and the state directory. The directory
- * goes once the test finishes.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-run-gateway-');
 

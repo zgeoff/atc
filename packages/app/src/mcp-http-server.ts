@@ -18,14 +18,12 @@ interface MCPHTTPFlags {
   readonly waitForDaemon: boolean;
 }
 
-// What the server reaches outside itself, the process's own by default: its
-// config, the authorization database, the files that locate the daemon it
-// boots or waits for (null for the process's own, the only ones at which it
-// starts a daemon), the console, the exit, and the signal listeners that
-// stop it.
 interface MCPHTTPServerIO {
   readonly loadConfig: () => MCPHTTPConfig;
   readonly dbPath: string;
+
+  // null for the process's own daemon files, the only ones at which it starts
+  // a daemon
   readonly daemonPaths: DaemonPaths | null;
   readonly print: (line: string) => void;
   readonly printError: (line: string) => void;
@@ -64,14 +62,6 @@ interface MCPHTTPServerHost {
 // restart covers a daemon that takes longer.
 const DAEMON_WAIT_MS = 30_000;
 
-/**
- * Runs `atc mcp --http` in the foreground: boots the daemon when it is down,
- * or with `--wait-for-daemon` waits for one and exits when none answers, and
- * serves MCP over HTTP until Ctrl-C, through the daemon boot and the
- * database opener the entry wires in. The owner signs in to approve a
- * client with a passkey, which `atc passkeys enroll` enrolls; with none
- * enrolled the server says so at start.
- */
 export async function runMCPHTTPServer(
   build: string,
   flags: MCPHTTPFlags,

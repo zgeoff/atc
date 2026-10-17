@@ -3,11 +3,6 @@ import { createActor } from 'xstate';
 import { buildStubClientScreens } from '../test-utils/build-stub-client-screens';
 import { buildClientMachine } from './build-client-machine';
 
-/**
- * A client machine, not yet started, whose screens each record their name,
- * and the session or mode they were given, in `calls` in the order they
- * open.
- */
 function setupTest() {
   const screens = buildStubClientScreens();
   const actor = createActor(buildClientMachine(screens.deps));

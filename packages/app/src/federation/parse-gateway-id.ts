@@ -1,11 +1,5 @@
 import type { GatewayRegistry, RegistryDaemon } from './types';
 
-/**
- * The daemon a gateway id routes to and the daemon's own id inside it, or
- * null for an id the gateway must answer as one that never existed: a
- * malformed id, an unknown daemon name, or an incarnation other than the
- * one the registry pins behind the name.
- */
 export function parseGatewayID(
   value: string,
   registry: GatewayRegistry,

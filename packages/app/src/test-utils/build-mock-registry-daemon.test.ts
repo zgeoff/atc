@@ -18,7 +18,7 @@ test('it builds a default registry daemon', () => {
   });
 });
 
-test('it applies overrides on top of the defaults', () => {
+test('it applies overrides on top of the defaults, taking the incarnation from an overridden daemon id', () => {
   expect(
     buildMockRegistryDaemon({
       name: 'cloud',

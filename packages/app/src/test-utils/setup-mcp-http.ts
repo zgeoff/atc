@@ -22,22 +22,6 @@ interface MCPHTTPSetupOptions {
   readonly allowedHosts?: readonly string[];
 }
 
-/**
- * A real daemon in a temp directory and `atc mcp --http` in front of it on a
- * free port, with the owner's passkey enrolled on `authenticator` through
- * the server's enrollment page, and every request line and security event
- * line the server prints after that collected. The authorization server's database sits where atc keeps it
- * under `home`, so a CLI run with that home opens the same file. `store` is
- * the authorization server's database opened a second time the way
- * `atc clients` and `atc grants` open it, and `createClient` adds a client
- * through it and returns the client id. `restartDaemon` stops the daemon and
- * starts a fresh one on the same socket and database, the way an operator
- * restarts it, with the principals it is given; `countDaemonClients` reads
- * how many connections the current daemon holds open. Everything it starts
- * stops, and the directory is removed, once the current test finishes, so it
- * must run inside a test; `teardown` does so sooner, and a second teardown
- * does nothing.
- */
 export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
   const tmp = setupTempDir('atc-mcp-http-');
 

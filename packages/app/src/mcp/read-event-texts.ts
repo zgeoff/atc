@@ -17,22 +17,6 @@ const TEXT_READ_DEADLINE_MS = 10_000;
 // whole, or the error the read failed with.
 type TextRead = Readonly<Record<string, unknown>>;
 
-/**
- * An events page with the whole text of each of its notes, read through
- * `note.get`, and the whole answer of each message-answered event, read
- * through `answer.get`, by the page's own caller, so each read rides the
- * reach the page was read under. The reads run one at a time in page
- * order, so one text at most is ever in flight, under one deadline for
- * them all. A note or answered event gains the `text` and `complete` its
- * read returns, or `textError` when the read fails or outlasts the
- * deadline, and keeps its preview in `detail`. The page stops before the
- * first such event whose text would carry it past the budget, or whose read
- * would start after the deadline: it then holds the cursor of the last
- * event it keeps and `more` true, so the next read starts at that event.
- * Every other field of the page, such as a gateway's `unavailable` and
- * `truncated`, passes through unchanged. The deadline runs on `clock`, the
- * wall clock by default.
- */
 export async function readEventTexts(
   caller: FleetCaller,
   page: Readonly<Record<string, unknown>>,
@@ -71,6 +55,7 @@ async function readPageTexts(
   const kept: Readonly<Record<string, unknown>>[] = [];
   let used = 0;
 
+  // the reads run one at a time in page order, so at most one text is in flight.
   for (const event of events) {
     const source = pickTextSource(event['kind']);
 

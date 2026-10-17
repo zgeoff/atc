@@ -9,12 +9,6 @@ interface EnrollPageView {
   readonly error: string | null;
 }
 
-/**
- * The page where the owner enrolls a passkey with the one-time token a host
- * command printed. It first asks for the token; once the token checks out,
- * it shows a button that runs the passkey prompt for its challenge and
- * posts the new passkey with the token. Every dynamic value is escaped.
- */
 export function renderEnrollPage(view: EnrollPageView): string {
   const error = view.error === null ? '' : `<p class="error">${toHTMLText(view.error)}</p>`;
 

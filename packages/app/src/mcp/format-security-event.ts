@@ -1,27 +1,12 @@
 import { normalizeClientName } from '../shared/normalize-client-name';
 import type { SecurityEvent } from './types';
 
-/**
- * The event the log writes in place of the events its burst cap dropped:
- * `reason` holds the kind that was dropped, and `count` how many.
- */
 export interface SuppressedSecurityEvent {
   readonly kind: 'suppressed';
   readonly reason: SecurityEvent['kind'];
   readonly count: number;
 }
 
-/**
- * Formats a sign-in event as one `atc security {json}` line, stamped with
- * `at` in epoch milliseconds. The line holds only the contract's fields,
- * each picked by name, so a field added to the event never reaches the
- * line by accident. Every string from the client has its control and format
- * characters dropped and its length cut, and the path becomes one of a fixed
- * set of routes, else `other`. A forwarded address is always marked
- * `unverified`, since anyone can send the header it comes from. An
- * `owner_auth` event's `method` is `passkey` for a sign-in and
- * `enrollment_token` for a passkey enrollment.
- */
 export function formatSecurityEvent(
   event: SecurityEvent | SuppressedSecurityEvent,
   at: number,

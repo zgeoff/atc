@@ -10,11 +10,6 @@ import { openMCPAuth } from './mcp/open-mcp-auth';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
 import { buildLocalTarget } from './test-utils/build-local-target';
 
-/**
- * A real daemon listening in a temp directory, the files the server's boot
- * looks for it at, and the path the authorization database lands at. The
- * daemon stops, and then the directory goes, once the test finishes.
- */
 async function setupTest() {
   const tmp = setupTempDir('atc-mcp-http-server-');
   const socketPath = join(tmp.dir, 'atc-daemon.sock');

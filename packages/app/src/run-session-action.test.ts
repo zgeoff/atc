@@ -12,11 +12,6 @@ import {
 import { runSessionAction } from './run-session-action';
 import { startTestDaemon } from './test-utils/start-test-daemon';
 
-/**
- * A stub imp port whose impd holds nothing until the test adds it, and the
- * imp provider over it, which each test hands to the daemon it starts as
- * the target `box`.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-session-action-');
   const port = createStubImpPort();

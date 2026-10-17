@@ -15,13 +15,10 @@ interface NewPasskey {
   readonly now: number;
 }
 
-/**
- * Stores a newly enrolled passkey and spends the enrollment token it came
- * with, in one transaction. Returns false, storing nothing, when the token
- * was already spent, reset, or expired, so one token enrolls one passkey.
- */
 export function createPasskey(db: Kysely<MCPAuthSchema>, passkey: NewPasskey): Promise<boolean> {
   return db.transaction().execute(async (trx) => {
+    // spending the token in the same transaction as the insert lets one token
+    // enroll one passkey.
     const spent = await trx
       .deleteFrom('atc_enrollment_token')
       .where('token_hash', '=', passkey.tokenHash)

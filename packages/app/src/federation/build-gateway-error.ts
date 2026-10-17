@@ -3,13 +3,6 @@ import { buildRuledValue } from './build-ruled-value';
 import { ERROR_DATA_RULES } from './id-rules';
 import type { RegistryDaemon } from './types';
 
-/**
- * A daemon's error as the gateway returns it: the same code, every id in
- * its `data` rewritten for the daemon, and every daemon id its message
- * quotes, from the data or from the request, replaced by its gateway id.
- * `requestIDs` maps each daemon id the request carried to the gateway id
- * the caller sent.
- */
 export function buildGatewayError(
   error: Readonly<DaemonError>,
   daemon: Pick<RegistryDaemon, 'name' | 'incarnation'>,

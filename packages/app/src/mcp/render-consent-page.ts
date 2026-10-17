@@ -21,11 +21,6 @@ const SCOPE_LABELS: Readonly<Record<GrantScope, string>> = {
 // withheld.
 const GRANTED_BY_DEFAULT: ReadonlySet<GrantScope> = new Set<GrantScope>(['read']);
 
-/**
- * The page where the operator picks what a client may do: one checkbox per
- * scope it requested, with only `read` ticked to start. Every dynamic value is
- * escaped.
- */
 export function renderConsentPage(view: ConsentPageView): string {
   const scopeRows = view.scopes
     .map((scope) => {

@@ -3,13 +3,6 @@ import type { MockOverrides } from '@atc/test-utils';
 import { faker } from '@faker-js/faker';
 import type { MirrorSession } from '../client/to-mirror-session';
 
-/**
- * A client's mirror of a live, running Claude session in a local terminal
- * on the `local` target: read, unpinned, not resumable, unable to eject,
- * with no parent and the agent's default model. The id, name, directory,
- * last message, and times are arbitrary. Overrides replace the defaults
- * field by field.
- */
 export function buildMockMirrorSession(
   overrides: MockOverrides<MirrorSession, keyof MirrorSession> = {},
 ): MirrorSession {

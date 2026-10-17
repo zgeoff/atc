@@ -3,13 +3,6 @@ import type { MockOverrides } from '@atc/test-utils';
 import { faker } from '@faker-js/faker';
 import type { RegistryDaemon } from '../federation/types';
 
-/**
- * A registry daemon with an arbitrary name, address, pinned daemon id,
- * and token. Its incarnation is the first 8 characters of the
- * daemon id in play, the override's when one is given, so a gateway id
- * built from it routes back unless an override sets the incarnation too.
- * Overrides merge into fresh defaults at every depth.
- */
 export function buildMockRegistryDaemon(
   overrides: MockOverrides<RegistryDaemon, keyof RegistryDaemon> = {},
 ): RegistryDaemon {

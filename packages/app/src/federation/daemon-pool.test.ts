@@ -10,11 +10,6 @@ import { DaemonPool } from './daemon-pool';
 // The principal every request in these tests acts as.
 const GW = { id: 'gw', name: 'Lantern Notes' };
 
-/**
- * Two real daemons, `cloud` and `pc`, each with a TCP listener on a
- * loopback port that takes one fixed token, and `cloudID` and `pcID`, the
- * state identity each one's handshake returns.
- */
 async function setupTest() {
   const tmp = setupTempDir('atc-daemon-pool-');
 

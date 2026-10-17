@@ -25,19 +25,6 @@ import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemo
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { openGatewayCaller } from './open-gateway-caller';
 
-/**
- * The gateway's caller behind the MCP HTTP server, as the gateway entrypoint
- * wires them, in front of two real daemons, `cloud` (the default) and
- * `pc`, each listening on a loopback TCP port for the gateway's token, read
- * from `cloud-token` and `pc-token` in `dir`, with a principals key that
- * lets the OAuth client `Claude` use the local target. `claudeID` is the
- * client id of `Claude`, and `claudeToken` an access token of it. `auth` is the authorization store, and
- * `authenticator` holds the owner's enrolled passkey, so a test can
- * register and authorize a client of its own. `clock` runs every timer of
- * the gateway's daemon connections and fan-out waits, so none runs unless a
- * test advances it.
- * Sessions run in `dir`.
- */
 async function setupTest() {
   const tmp = setupTempDir('atc-gateway-');
   const authDBPath = join(tmp.dir, 'mcp-auth.db');
@@ -105,6 +92,9 @@ async function setupTest() {
 
   const cloudID = String(cloudHello['daemonID']);
   const pcID = String(pcHello['daemonID']);
+
+  // runs every timer of the daemon connections and fan-out waits, so none fires unless a
+  // test advances it
   const clock = buildStubClock(Date.now());
 
   const cloudDaemon = buildMockRegistryDaemon({

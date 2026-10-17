@@ -48,10 +48,7 @@ export function cols(): number {
   return process.stdout.columns || 80;
 }
 
-/**
- * The width of the picker box, borders included. An item row holds 4
- * columns fewer.
- */
+// borders included; an item row holds 4 columns fewer.
 export function getPickerWidth(): number {
   return Math.min(cols() - 4, 90);
 }
@@ -319,10 +316,9 @@ export function drawOverlay(view: OverlayView, write: (chunk: string) => void = 
     modelMax,
   });
 
-  // The grouped view clusters sessions under dim repository headers, with
-  // pinned sessions leading in their own cluster; the flat view shows a
-  // directory column instead. The rows keep the sorted order either way. A
-  // sub-session row follows its parent indented, and never opens a header.
+  // the grouped view clusters sessions under dim repository headers, pinned ones first;
+  // the flat view shows a directory column instead. A sub-session row follows its parent
+  // indented and never opens a header.
   let lastKey: string | null = null;
 
   for (const [i, s] of view.sessions.entries()) {

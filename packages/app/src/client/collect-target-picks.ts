@@ -19,10 +19,6 @@ export interface TargetPick {
   readonly brokerAuth: boolean;
 }
 
-/**
- * The execution targets an `agents.list` answer holds, in config order. An
- * answer from a daemon without targets, or a malformed entry, yields none.
- */
 export function collectTargetPicks(answer: Readonly<Record<string, unknown>>): TargetPick[] {
   const targets = answer['targets'];
 

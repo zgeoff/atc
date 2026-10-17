@@ -5,14 +5,6 @@ import { answerRPCRequest } from './mcp/answer-rpc-request';
 import { TransportCaller } from './mcp/transport-caller';
 import type { FleetCaller, ToolContext } from './mcp/types';
 
-/**
- * An MCP server over stdio bridging to the atc daemon: any MCP client —
- * including a wrangled session — can list, spawn, and drive the fleet.
- * stdout carries only JSON-RPC lines; the daemon is booted on demand,
- * through the boot the entry wires in. Once the daemon restarts, the next
- * request reconnects to the socket the boot reached, so the server outlives
- * the daemon it started against.
- */
 export async function runMCPServer(
   build: string,
   bootDaemon: () => Promise<DaemonBoot>,
@@ -21,10 +13,9 @@ export async function runMCPServer(
 
   boot.client.stop();
 
-  // The server inherits the calling session's id from its environment, so a
-  // spawn from inside a session nests under it by default, and each
+  // a spawn from inside a session nests under it by default, and each
   // connection's handshake claims that session for the answers to the
-  // messages it sends.
+  // messages it sends
   const callerSessionID = readSessionEnv(process.env).sessionID ?? null;
 
   const caller = new TransportCaller(
@@ -82,6 +73,7 @@ async function answerRPCLine(
   const outcome = await answerRPCRequest(parsed, { caller, build, toolContext });
 
   if (outcome.kind === 'reply') {
+    // stdout carries only JSON-RPC lines
     process.stdout.write(`${JSON.stringify(outcome.body)}\n`);
   }
 }

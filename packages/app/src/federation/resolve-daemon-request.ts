@@ -13,15 +13,6 @@ const ID_PARAMS: readonly (readonly [string, 'session' | 'message' | 'note' | 'a
   ['answer', 'answer'],
 ];
 
-/**
- * A daemon request's route: the daemon its id params point at, or null
- * for a request with none; the params with each gateway id replaced by the
- * daemon's own id; and each daemon id mapped back to the gateway id the
- * caller sent, for errors that quote it. An id that is malformed, holds
- * an unknown name or a stale incarnation, or points at another daemon than
- * the request's other ids gets the refusal a daemon gives for an id it
- * never held.
- */
 export function resolveDaemonRequest(
   params: Readonly<Record<string, unknown>>,
   registry: GatewayRegistry,

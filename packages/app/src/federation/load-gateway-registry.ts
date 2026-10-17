@@ -6,11 +6,6 @@ type LoadedGatewayRegistry =
   | { readonly ok: true; readonly registry: GatewayRegistry }
   | { readonly ok: false; readonly errors: readonly string[] };
 
-/**
- * Reads the registry file and parses it with the tokens from the
- * environment. An unreadable file or one that is not JSON refuses the
- * registry like any other problem in it.
- */
 export function loadGatewayRegistry(
   path: string,
   env: Readonly<Record<string, string | undefined>>,

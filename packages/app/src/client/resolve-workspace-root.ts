@@ -17,14 +17,6 @@ interface RootTarget {
 // Where checkouts land on the daemon's own machine without a configured root.
 const DEFAULT_ROOT = '~/.local/share/atc/workspaces';
 
-/**
- * The directory git workspaces land under on a target: the target's own
- * root, else the global root, else the default. On the daemon's own
- * machine a leading `~` expands to the home directory. On any other target
- * the root must be absolute, since `~` there is a home this client cannot
- * see, so a root that is not is refused with the config key to set. The
- * home directory defaults to the user's own.
- */
 export function resolveWorkspaceRoot(
   config: WorkspacesConfig,
   target: RootTarget,
@@ -40,6 +32,7 @@ export function resolveWorkspaceRoot(
       : { ok: false, message: `workspaces root '${root}' must be an absolute path` };
   }
 
+  // `~` on another target is a home this client cannot see.
   if (configured === null || !configured.startsWith('/')) {
     return {
       ok: false,

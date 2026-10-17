@@ -3,18 +3,8 @@ import type { MockOverrides } from '@atc/test-utils';
 import { faker } from '@faker-js/faker';
 import type { GatewayStore } from '../federation/gateway-store';
 
-/**
- * The binding a keyed request claims in the gateway store, before any
- * outcome or send is recorded for it.
- */
 type KeyBindingClaim = Parameters<GatewayStore['claimBinding']>[0];
 
-/**
- * A claim of a keyed spawn by an arbitrary principal under an arbitrary
- * key, bound to an arbitrary daemon that announced an arbitrary retention,
- * with an arbitrary payload hash and claim id. Overrides replace the
- * defaults field by field.
- */
 export function buildMockKeyBindingClaim(
   overrides: MockOverrides<KeyBindingClaim, keyof KeyBindingClaim> = {},
 ): KeyBindingClaim {

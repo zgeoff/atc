@@ -3,11 +3,6 @@ import { join } from 'node:path';
 import { setupTempDir, startStubReporterSocket, updateEnv } from '@atc/test-utils';
 import { runHookReport } from './hook-report';
 
-/**
- * A stub of the daemon's reporter socket in a temp directory, for the
- * reporter to send its line to. The stub stops, and the directory goes,
- * once the test finishes.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-hook-report-');
   const sock = join(tmp.dir, 'reporter.sock');

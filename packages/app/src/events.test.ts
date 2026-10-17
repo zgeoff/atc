@@ -3,10 +3,6 @@ import { join } from 'node:path';
 import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { runEvents } from './events';
 
-/**
- * A socket path in a fresh temp directory, and recorders for what the
- * command writes and the code it exits with.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-events-cli-');
   const out: string[] = [];

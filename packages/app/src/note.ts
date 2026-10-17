@@ -33,17 +33,6 @@ const PROCESS_IO: NoteIO = {
   },
 };
 
-/**
- * Runs inside wrangled sessions: reads stdin verbatim and forwards it to the
- * atc socket as a Note envelope of the given kind. An `answered` envelope
- * carries stdin as the final reply of the turn that carried the given
- * message, or every given message at once, plus that turn's id when one is
- * given; an `unanswered` envelope reports that the turn that carried the given
- * messages ended without an answer, with the reason and no stdin; a `note`
- * carries it as text for the user under the given label,
- * `progress` when none is given. Inside a remote host it goes to the session bridge instead. Always
- * exits 0 so it never blocks the session it reports on.
- */
 export async function runNote(
   kind: string,
   options: NoteOptions,
@@ -68,21 +57,21 @@ export async function runNote(
     }
   } catch {}
 
+  // always 0, so the note never blocks the session it reports on
   io.exit(0);
 }
 
-// Inside a remote host, a note goes to the session bridge under an id of
-// its own, and waits in the outbox until the bridge takes or refuses it, so
-// the session's tap sends it again after a dropped connection. A resent
-// note lands once, and a refused one is never resent.
 async function sendBridgeNote(
   sock: string,
   outbox: string,
   payload: Readonly<Record<string, string | readonly string[]>>,
 ): Promise<void> {
+  // an id of its own, so a resent note lands once
   const noteID = randomUUID();
   const file = outbox === '' ? null : join(outbox, `${noteID}.json`);
 
+  // the outbox holds the note until the bridge takes or refuses it, so the
+  // session's tap sends it again after a dropped connection
   if (file !== null) {
     try {
       mkdirSync(outbox, { recursive: true });
@@ -92,6 +81,7 @@ async function sendBridgeNote(
 
   const answer = await sendBridgeRequest(sock, 'note', { noteID, payload }, 2000);
 
+  // a refused note is final too, so it is never resent
   const isFinal = answer?.['ok'] === true || answer?.['code'] === 'forbidden';
 
   if (isFinal && file !== null) {

@@ -62,20 +62,6 @@ interface KeyedRoute {
   readonly principal: Principal;
 }
 
-/**
- * The gateway's caller for the MCP tools, the same shape as the caller the
- * tool handlers take: each request goes to the one
- * daemon its ids, its `daemon` param, or the registry's default daemon
- * picks, in that order, and never to another daemon when that one fails.
- * A request always acts as the principal it is given, which the HTTP layer
- * takes from the verified OAuth client id, and a request without one never
- * leaves. A keyed spawn or message is bound to its daemon before it is
- * sent, so a retry reaches the same daemon whatever the default is by
- * then. `session.list`, `agents.list`, and `events.read` ask every daemon
- * in parallel and report the daemons that did not answer; `daemons.list`
- * answers from the gateway itself. Every id in an answer or a daemon's
- * error comes back as a gateway id.
- */
 export class RoutingCaller {
   private readonly opts: RoutingCallerOptions;
 
@@ -116,11 +102,7 @@ export class RoutingCaller {
       .otherwise(() => this.sendRouted(m, params, named, required, principal));
   }
 
-  /**
-   * The features any daemon that is up announces, plus `fleet.daemons`, so
-   * the tool list offers an option when at least one daemon serves it and
-   * the inputs that pick a daemon always.
-   */
+  // every feature any up daemon announces, so the tool list offers an option one daemon serves
   async readFeatures(): Promise<ReadonlySet<GatewayFeature>> {
     const outcomes = await Promise.all(
       [...this.opts.registry.daemons.values()].map((daemon) =>
@@ -215,15 +197,6 @@ export class RoutingCaller {
     return this.sendKeyed(keyed, route);
   }
 
-  // Sends a keyed request to the daemon its binding holds. Only the first
-  // write under the key, across every call and gateway process, goes out
-  // as a normal request: right before each write the binding is marked
-  // sent, and a write that finds it sent already goes out replay-only, so
-  // the daemon answers it from the key it holds and runs nothing when it
-  // holds none. A gateway restart between the claim and the first write
-  // leaves the binding unsent, so the next call makes that first send;
-  // one after leaves it sent, so the next call replays. A refusal before
-  // anything is sent leaves no trace of the key.
   private async sendKeyed(
     keyed: KeyedRoute,
     route: RoutedSend['route'],
@@ -238,6 +211,9 @@ export class RoutingCaller {
         required: keyed.required,
         principal: keyed.principal,
         key: keyed.key,
+
+        // marks the key sent right before each write, so only the first write under it, across
+        // calls and gateway processes, runs; a later one goes out replay-only
         prepareParams: (params) =>
           this.opts.store.claimFirstSend(
             keyed.principal.id,
@@ -249,6 +225,7 @@ export class RoutingCaller {
             : { ...params, replayOnly: true },
       });
     } catch (error) {
+      // a refusal before anything was sent leaves no trace of the key
       if (error instanceof GatewayError) {
         this.opts.store.removeBinding(keyed.principal.id, keyed.m, keyed.key, claimed.claimID);
       }
@@ -321,23 +298,19 @@ export class RoutingCaller {
     }
   }
 
-  // The daemon a keyed request goes to: the one an earlier call with the
-  // same principal, operation, and key was bound to, or else the one the
-  // call picked, bound now, before anything is sent. A bound daemon whose
-  // state identity changed, or that left the registry, is unavailable; the
-  // key never goes to another daemon. Completed bindings past their
-  // retention go first.
   private async claimRoute(
     route: KeyedRoute,
   ): Promise<{ readonly daemon: RegistryDaemon; readonly claimID: string }> {
     const store = this.opts.store;
     const now = this.getClock().now();
 
+    // expired bindings go first, so a key past its retention binds afresh
     store.removeExpiredBindings(now);
 
     const held = store.findBinding(route.principal.id, route.m, route.key);
     const bound = held === null ? null : this.opts.registry.daemons.get(held.daemon);
 
+    // a key never moves to another daemon, even when its bound daemon changed or left
     if (held !== null && (bound === undefined || bound?.daemonID !== held.daemonID)) {
       throw new GatewayError(
         'daemon_unavailable',
@@ -380,10 +353,6 @@ export class RoutingCaller {
     return { daemon, claimID };
   }
 
-  // Asks every daemon at once. `session.list` merges the sessions and adds
-  // each daemon's state, so a daemon that did not answer reads as down,
-  // never as one with no sessions; `agents.list` returns each daemon's
-  // answer, or its state alone, under its name.
   private async sendFanOut(
     m: 'session.list' | 'agents.list',
     required: readonly DaemonFeature[],
@@ -419,6 +388,8 @@ export class RoutingCaller {
       };
     }
 
+    // each daemon's state sits beside the merged sessions, so one that did not answer reads
+    // as down, never as one with no sessions
     return {
       sessions: answered.flatMap((entry) => collectSessions(entry.outcome)),
       daemons: answered.map((entry) => ({

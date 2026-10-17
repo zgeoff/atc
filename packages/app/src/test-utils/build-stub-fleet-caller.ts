@@ -2,10 +2,6 @@ import type { DaemonFeature, Principal } from '@atc/protocol';
 import { DAEMON_FEATURES } from '@atc/protocol';
 import type { FleetCaller, FleetFeature } from '../mcp/types';
 
-/**
- * One request a stub fleet caller received: the method and each further
- * argument the sender passed, with an argument left undefined left out.
- */
 interface StubFleetRequest {
   readonly m: string;
   readonly p?: Readonly<Record<string, unknown>>;
@@ -26,14 +22,6 @@ interface StubFleetCallerConfig {
   readonly features?: readonly FleetFeature[];
 }
 
-/**
- * A fleet caller that stands in for a daemon connection: it records every
- * request in `requests`, in the order sent, and replies through the
- * config's `answer`, by default an empty record. It reports the config's
- * `features`, by default every feature a current daemon announces, and it
- * checks no request's required features against them, so a test that needs
- * that refusal uses a real connection.
- */
 export function buildStubFleetCaller(
   config: StubFleetCallerConfig = {},
 ): FleetCaller & { readonly requests: readonly StubFleetRequest[] } {
@@ -43,6 +31,9 @@ export function buildStubFleetCaller(
 
   return {
     requests,
+
+    // required features are never checked against the reported ones, so a test
+    // of that refusal needs a real connection.
     sendRequest: (m, p, required, principal) => {
       const request: StubFleetRequest = {
         m,

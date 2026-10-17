@@ -3,12 +3,6 @@ import { expect, mock, onTestFinished, test } from 'bun:test';
 import invariant from 'tiny-invariant';
 import { assign, createActor, fromPromise, setup } from 'xstate';
 
-/**
- * A started machine that invokes one request actor each time it enters
- * `loading` and leaves `loading` on LEAVE. Each request resolves only when
- * the test resolves its entry in `requests`, in the order they started, and
- * `onDone` records every result the machine takes.
- */
 function setupTest() {
   const requests: PromiseWithResolvers<string>[] = [];
   const onDone = mock();

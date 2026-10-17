@@ -11,12 +11,6 @@ interface PluginContractArgs<K extends PluginKind, C> {
   readonly context: PluginContext;
 }
 
-/**
- * The contract a plugin creates from a config slice the host built: the
- * slice parses through the plugin's schema, then the plugin's factory runs.
- * Throws when the slice does not parse, which only a host bug causes, and
- * whatever the factory throws.
- */
 export function createPluginContract<K extends PluginKind, C>(
   args: PluginContractArgs<K, C>,
 ): ReturnType<PluginDefinition<K, C>['create']> {

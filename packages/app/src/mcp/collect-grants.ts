@@ -4,10 +4,6 @@ import { GRANT_SCOPES } from '../shared/grant-scope';
 import type { GrantScope } from '../shared/grant-scope';
 import type { MCPAuthSchema } from './mcp-auth-schema';
 
-/**
- * One authorization a client holds: every refresh token rotated from one
- * authorization code, identified by that code's id.
- */
 export interface GrantView {
   readonly grantID: string;
   readonly clientID: string;
@@ -17,10 +13,6 @@ export interface GrantView {
   readonly lastUsedAt: string | null;
 }
 
-/**
- * Every grant with a live refresh token, oldest first: one not revoked or
- * rotated away and not yet expired.
- */
 export async function collectGrants(db: Kysely<MCPAuthSchema>): Promise<readonly GrantView[]> {
   const rows = await db
     .selectFrom('oauthRefreshToken')

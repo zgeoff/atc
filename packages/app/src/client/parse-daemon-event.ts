@@ -70,11 +70,6 @@ const DAEMON_EVENT_SCHEMA = z.discriminatedUnion('ev', [
   }),
 ]);
 
-/**
- * Turns a raw event line into the typed union, or null when the kind is
- * unrecognized or a known kind's payload is malformed. Total by design: a
- * miss is dropped by the caller, never thrown.
- */
 export function parseDaemonEvent(raw: EventMsg): DaemonEvent | null {
   const parsed = DAEMON_EVENT_SCHEMA.safeParse(raw);
 

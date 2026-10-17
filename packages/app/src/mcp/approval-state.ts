@@ -8,9 +8,6 @@ interface ApprovalRequest {
   readonly redirectURI: string;
 }
 
-/**
- * An authorization request waiting for the owner to sign in with a passkey.
- */
 export interface PendingApproval extends ApprovalRequest {
   // Random, minted with the approval and never taken from the request, so
   // the security events of one authorization can be matched up.
@@ -22,10 +19,6 @@ export interface PendingApproval extends ApprovalRequest {
   challenge: { readonly value: string; readonly expiresAt: number } | null;
 }
 
-/**
- * What taking a request's challenge found: the challenge, which no later
- * take returns again, or why there is none to verify an assertion against.
- */
 export type TakenChallenge =
   | { readonly kind: 'taken'; readonly challenge: string }
   | { readonly kind: 'expired' }
@@ -44,28 +37,12 @@ const MINUTE_MS = 60_000;
 // expires sooner.
 const CHALLENGE_MS = 5 * MINUTE_MS;
 
-/**
- * The request an owner session's passkey sign-in approved: its consent
- * binding and the correlation id of its security events.
- */
 export interface ApprovedRequest {
   readonly binding: string;
   readonly correlationID: string;
   readonly expiresAt: number;
 }
 
-/**
- * The approvals waiting for the owner, held in memory by the HTTP process.
- * A client's new approval past its limit drops that client's oldest, and a
- * full set of waiting approvals makes room by dropping the oldest overall, so
- * no client can hold the owner's approvals hostage and a refused start lasts
- * at most a minute. Each waiting approval holds at most one WebAuthn
- * challenge, which a fresh login page replaces and a verification takes, so
- * an assertion signed for one request or one page verifies against no other.
- * Once a passkey signs the owner in, the owner session holds the binding of
- * the one request it approved until that request's consent is answered or
- * the binding expires.
- */
 export class ApprovalState {
   private readonly pendingMs: number;
 
@@ -99,6 +76,8 @@ export class ApprovalState {
     const own = [...this.pending].filter(([, approval]) => approval.clientID === request.clientID);
     const [ownOldest] = own;
 
+    // a new approval drops the oldest rather than being refused, so no client can
+    // hold the owner's approvals hostage.
     if (own.length >= MAX_PENDING_PER_CLIENT && ownOldest !== undefined) {
       this.pending.delete(ownOldest[0]);
     }

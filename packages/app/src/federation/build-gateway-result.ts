@@ -3,13 +3,6 @@ import { buildRuledValue } from './build-ruled-value';
 import { ID_RULES } from './id-rules';
 import type { RegistryDaemon } from './types';
 
-/**
- * A daemon method's answer as the gateway returns it, every id field in
- * the method's rules rewritten for the daemon that answered. Throws for a
- * method without rules, so no answer leaves the gateway unchecked, and for
- * `events.read`, whose answer goes through the event merge, which owns its
- * cursors.
- */
 export function buildGatewayResult(
   method: string,
   result: Readonly<Record<string, unknown>>,

@@ -6,11 +6,6 @@ import type { MCPAuthSchema } from './mcp-auth-schema';
 // How long an enrollment token stays usable after the host command mints it.
 const ENROLLMENT_TOKEN_MS = 15 * 60_000;
 
-/**
- * Mints a one-time enrollment token: 32 random bytes, of which the
- * database keeps only the hash. The token enrolls one passkey before it
- * expires, 15 minutes after `now`, in epoch milliseconds.
- */
 export async function createEnrollmentToken(
   db: Kysely<MCPAuthSchema>,
   now: number,

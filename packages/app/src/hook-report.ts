@@ -21,22 +21,14 @@ const PROCESS_IO: HookReportIO = {
 // in a harness that a tool started inside the session.
 const CODEX_TOOL_THREAD_KEY = 'CODEX_THREAD_ID';
 
-/**
- * Runs as a hook inside wrangled sessions. Reads the hook event from stdin
- * (Claude snake_case keys or Grok camelCase keys) and forwards a PascalCase
- * event name to the atc unix socket, with the agent id the hook command
- * gave it, so the daemon can tell a nested harness's report from the
- * session's own. A hook of a harness that a Codex tool started forwards
- * nothing, since it shares the session's agent and would read as the
- * session's own. Always exits 0 so it never blocks the session it reports
- * on.
- */
 export async function runHookReport(agent: string, io: HookReportIO = PROCESS_IO): Promise<void> {
   const session = readSessionEnv(process.env);
   const sock = session.socket;
   const atcId = session.sessionID;
   const nested = process.env[CODEX_TOOL_THREAD_KEY] !== undefined;
 
+  // a nested harness shares the session's agent, so its report would read as
+  // the session's own
   if (sock !== undefined && atcId !== undefined && !nested) {
     const raw = await io.readStdin();
 
@@ -52,10 +44,14 @@ export async function runHookReport(agent: string, io: HookReportIO = PROCESS_IO
 
     const rawName = payload['hook_event_name'] ?? payload['hookEventName'];
     const event = typeof rawName === 'string' ? normalizeHookEventName(rawName) : rawName;
+
+    // the agent id lets the daemon tell a nested harness's report from the
+    // session's own
     const line = `${JSON.stringify({ atcId, ...(agent === '' ? {} : { agent }), event, payload })}\n`;
 
     await sendReport(sock, line, 2000);
   }
 
+  // always 0, so the hook never blocks the session it reports on
   io.exit(0);
 }

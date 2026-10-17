@@ -25,15 +25,6 @@ import type { RegistryDaemon } from './types';
 // The principal every request in these tests acts as.
 const GW = { id: 'gw', name: 'Lantern Notes' };
 
-/**
- * Two real daemons, `cloud` (the default) and `pc`, each with a TCP
- * listener on a loopback port that takes one fixed token and a principals
- * key that lets `gw` use the local target, and `registry`, which lists
- * both at their listeners. `router` routes over a pool that dials each
- * listener and over `store`, the binding store at `storePath`, which a
- * test opens again for a second gateway on the same bindings. `dir` takes any other
- * file a test needs.
- */
 async function setupTest() {
   const tmp = setupTempDir('atc-routing-caller-');
 
@@ -184,6 +175,15 @@ test('it sends no read to a replacement connection whose handshake lacks the pri
 
   expect(read).rejects.toMatchObject({ code: 'outcome_unknown' });
   expect(legacy.requests.map((request) => request.m)).toStrictEqual(['daemon.hello']);
+});
+
+test('it refuses a request that carries no verified client', async () => {
+  const ctx = await setupTest();
+
+  expect(ctx.router.sendRequest('dirs.list')).rejects.toThrowWithMessage(
+    Error,
+    'the gateway sends a request only as the verified client of the call',
+  );
 });
 
 test('it runs only one of two concurrent keyed spawns with one key on two daemons', async () => {

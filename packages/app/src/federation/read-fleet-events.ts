@@ -31,17 +31,6 @@ const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
 const MAX_WAIT_MS = 30_000;
 
-/**
- * One `events.read` across the fleet: every daemon the plan asks is read in
- * parallel, each within the fan-out time, and the pages merge into one page
- * under a gateway cursor. A daemon that does not answer in time, or cannot
- * be reached, is listed under `unavailable` and keeps its position. A read
- * filtered to one session asks only its daemon, and that daemon's own
- * refusal, or its lack of the session filter, fails the call. With
- * `waitMs`, the daemons are first read without waiting; only when none has
- * an event does each wait, and the call returns as soon as one of them has
- * an event, the others keeping their positions.
- */
 export async function readFleetEvents(
   deps: FleetEventsDeps,
   params: Readonly<Record<string, unknown>>,

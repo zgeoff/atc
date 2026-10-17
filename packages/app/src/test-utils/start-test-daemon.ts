@@ -12,10 +12,6 @@ import {
 import type { Socket } from 'bun';
 import { buildLocalTarget } from './build-local-target';
 
-/**
- * Where a test daemon keeps its sockets and state, all inside one temp
- * directory, so the daemon's lock and record files land there too.
- */
 interface TestDaemonPaths {
   readonly dir: string;
   readonly socketPath: string;
@@ -25,10 +21,6 @@ interface TestDaemonPaths {
   readonly statusPath: string;
 }
 
-/**
- * Every daemon option except the paths and the build string, which the
- * harness owns. The targets are the local one alone when absent.
- */
 type TestDaemonOptions = Omit<
   DaemonOptions,
   | 'socketPath'
@@ -40,11 +32,8 @@ type TestDaemonOptions = Omit<
   | 'targets'
 > & { readonly targets?: DaemonOptions['targets'] };
 
-/**
- * Builds the options for one boot from the daemon's paths. It runs before
- * every boot, so it may also write what the daemon reads at start, such as
- * a token file or a fake agent binary under the directory.
- */
+// it runs before every boot, so it may also write files the daemon reads at
+// start under the directory.
 type TestDaemonOptionsBuilder = (
   paths: TestDaemonPaths,
 ) => TestDaemonOptions | Promise<TestDaemonOptions>;
@@ -58,9 +47,6 @@ interface TestDaemonConfig {
   readonly mainClient?: boolean;
 }
 
-/**
- * A running test daemon and the calls that drive it.
- */
 interface TestDaemon extends TestDaemonPaths {
   readonly build: string;
   readonly logs: string[];
@@ -75,10 +61,6 @@ interface TestDaemon extends TestDaemonPaths {
   readonly dispose: () => Promise<void>;
 }
 
-/**
- * The harness a config starts: one that opens no main client has neither
- * that client nor the events it would collect.
- */
 type StartedTestDaemon<Config extends TestDaemonConfig> = Config extends {
   readonly mainClient: false;
 }
@@ -89,26 +71,6 @@ type StartedTestDaemon<Config extends TestDaemonConfig> = Config extends {
 // their handshake.
 const BUILD = 'atc/test-build';
 
-/**
- * A real daemon in a fresh temp directory, with a main client that has
- * already sent its handshake unless the config turns that client off, which
- * leaves every connection the daemon counts to the test. The options
- * builder chooses what the daemon wires; the harness sets the paths and the
- * build, and collects the daemon's log lines unless the options set their
- * own log. `events` collects every event the main client receives, across
- * restarts. `openClient` opens another client over the unix socket and
- * sends its handshake with the given params; `openTCPClient` connects to
- * the TCP listener and sends nothing, so the test drives that handshake
- * itself. `sendHookLines` writes reporter lines to the reporter socket and
- * resolves once the daemon has closed the connection. `stop` closes every
- * client and stops the daemon; `restart` does the same, then boots on the
- * same paths and state with the options given or the last ones, and opens
- * a new main client unless the config turns it off. `dispose` stops what is
- * running and removes the directory. It runs once the current test
- * finishes, so the harness must start inside a test; calling it sooner runs
- * it then, and a second call does nothing. A first boot that fails runs it
- * before the start rejects.
- */
 export function startTestDaemon<const Config extends TestDaemonConfig = TestDaemonConfig>(
   config?: Config,
 ): Promise<StartedTestDaemon<Config>>;

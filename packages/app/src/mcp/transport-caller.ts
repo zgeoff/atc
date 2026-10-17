@@ -13,30 +13,12 @@ interface DaemonConnection {
   readonly features: ReadonlySet<DaemonFeature>;
 }
 
-/**
- * A daemon caller that survives a daemon restart: its connection rides an
- * `on-demand` daemon transport, so once the connection ends the next request
- * opens and handshakes a fresh one. A request that was in flight when the
- * connection ended is retried once on a fresh connection when it is
- * read-only, or when it is a spawn or a message the daemon takes under an
- * idempotency key: the request keeps its key, minted here when the caller
- * passed none, so the daemon runs it at most once. Any other request fails,
- * because a spawn or a message must not run twice.
- *
- * The keyed retry goes out unchanged, never replay-only. The socket leads
- * to a daemon on the same state directory, whose ledger claims a key before
- * the effect starts and keeps a completed key far longer than a reconnect
- * takes, so the retry replays a request the daemon got and runs once one it
- * never got, which a replay-only retry would fail instead.
- */
 export class TransportCaller implements FleetCaller {
   private readonly transport: DaemonTransport<DaemonConnection>;
 
-  // The third argument connects to the daemon at a socket path; each
-  // channel it returns is handshaken before a request rides it, claiming the
-  // session the caller runs inside, which takes the answer notices of the
-  // messages it sends; null claims none. The session defaults to the one
-  // the environment names.
+  // each channel is handshaken before a request rides it, claiming the session the
+  // caller runs inside, which takes the answer notices of the messages it sends;
+  // null claims none.
   constructor(
     socketPath: string,
     build: string,
@@ -70,6 +52,7 @@ export class TransportCaller implements FleetCaller {
     try {
       return await opened.client.sendRequest(m, params, principal?.id, principal?.name);
     } catch (error) {
+      // only a read-only or keyed request is retried, since any other must not run twice.
       if (
         !this.transport.isLost(opened) ||
         !(keyed || PROCEDURE_TRAITS.get(m)?.readOnly === true)

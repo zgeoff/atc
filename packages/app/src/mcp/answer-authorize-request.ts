@@ -3,27 +3,6 @@ import { buildPageResponse } from './build-page-response';
 import { findClientName } from './find-client-name';
 import type { AuthorizeInvalidReason, HTTPServerContext, Requester } from './types';
 
-/**
- * Answers `GET /oauth2/authorize`. Before better-auth validates the request,
- * atc sets three parameters of its own:
- *
- * - `prompt=login consent`, so every authorization asks for a fresh passkey
- *   sign-in and shows the consent page, whatever session or consent a
- *   browser kept from before.
- * - `offline_access` in a requested scope, so every grant gets a refresh token.
- * - `resource=<origin>/mcp` when the client gave none, so every token is bound
- *   to the one resource atc serves.
- *
- * A request better-auth sends on to the login page gets a pending approval,
- * which the passkey sign-in on that page answers. Nothing about it prints
- * outside the security event, so no log holds a value that signs in.
- *
- * Each request writes one security event: `authorize_started` with a fresh
- * correlation id when the approval starts, or refused by the limit on
- * starts, and `authorize_invalid` with better-auth's error code when
- * better-auth refuses the request. The event reads only the `error`
- * parameter of better-auth's redirect, never the rest of its query.
- */
 export async function answerAuthorizeRequest(
   ctx: HTTPServerContext,
   url: URL,
@@ -31,6 +10,8 @@ export async function answerAuthorizeRequest(
 ): Promise<Response> {
   const params = new URLSearchParams(url.searchParams);
 
+  // every authorization asks for a fresh passkey sign-in and the consent page,
+  // whatever session or consent the browser kept.
   params.set('prompt', 'login consent');
 
   const scope = params.get('scope');

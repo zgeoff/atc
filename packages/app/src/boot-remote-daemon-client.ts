@@ -17,11 +17,6 @@ const RETRY_INTERVAL_MS = 1000;
 // takes the local one for it.
 const NO_FALLBACK = 'The TUI did not fall back to the local daemon.';
 
-/**
- * A remote daemon that refused the connection, closed it before its
- * handshake answer, or did not answer in time: the one failure a waiting
- * boot tries again.
- */
 class RemoteDaemonUnreachableError extends Error {
   constructor(message: string, options?: Readonly<ErrorOptions>) {
     super(message, options);
@@ -36,22 +31,6 @@ interface RemoteBootOptions extends DaemonBootOptions {
   readonly answerTimeoutMs?: number;
 }
 
-/**
- * Opens a handshaken client to a daemon on another host over TCP,
- * presenting the bearer token its config entry points at, and makes every
- * request of the client act as the entry's principal. It never starts,
- * finds, or restarts a local daemon, so a failure rejects with a message
- * that holds the daemon's name and address and says the TUI did not fall
- * back to the local daemon. A daemon on another protocol rejects with
- * `protocol_mismatch` and both builds and both versions, and the boot never
- * offers to restart it: `onProtocolMismatch` is not called. A refused token
- * rejects with `unauthorized`. An unreachable daemon rejects at once,
- * unless the options hold `onWaitForDaemon`: the boot then calls it once
- * and tries again each second until the daemon answers, as a client whose
- * connection dropped waits for its daemon to return. The boot reports the
- * daemon as never stale, since this client cannot restart it, and holds
- * its `<host>:<port>` where a local boot holds its socket path.
- */
 export async function bootRemoteDaemonClient(
   daemon: RemoteDaemon,
   build: string,
@@ -165,6 +144,8 @@ async function openRemoteDaemon(
 
     return {
       client: answered.client,
+
+      // never stale, since this client cannot restart a daemon on another host
       stale: false,
       lastUsedAgent: toAgentID(answered.hello['lastUsedAgent']),
       features: parseDaemonFeatures(answered.hello),

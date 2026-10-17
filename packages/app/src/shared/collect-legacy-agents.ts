@@ -3,10 +3,7 @@ import { isRecord } from '@atc/core';
 import { collectClaudeAuth, collectGateways } from '@atc/harness-claude';
 import type { AuthProfile } from '@atc/plugin-api';
 
-/**
- * The agent keys of the old config.json shape, already defaulted: a binary and arguments per harness, and the raw `claudeAuth`
- * and `gateways` values.
- */
+// the caller has already filled each absent key with its default.
 interface LegacyAgentKeys {
   readonly claudeBin: string;
   readonly claudeArgs: readonly string[];
@@ -26,16 +23,11 @@ interface LegacyAgents {
   readonly errors: string[];
 }
 
-/**
- * Translates the old agent keys to registry entries: `claude`, `grok`, and
- * `codex` in that order, then each gateway the old parse accepts, in file
- * order. The parse is the old lenient one, so an absent or wrong-typed field
- * takes its default.
- */
 export function collectLegacyAgents(
   keys: LegacyAgentKeys,
   authProfiles: ReadonlyMap<string, AuthProfile>,
 ): LegacyAgents {
+  // the old parse is lenient: an absent or wrong-typed field takes its default.
   const claudeAuth = collectLegacyClaudeAuth(keys.claudeAuth, authProfiles);
   const gateways = collectGateways(keys.gateways, keys.claudeBin, keys.claudeArgs, authProfiles);
 

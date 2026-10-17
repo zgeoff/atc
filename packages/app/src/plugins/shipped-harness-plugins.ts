@@ -1,8 +1,5 @@
 import type { HarnessPlugin } from '@atc/config';
 import { buildHarnessPlugins } from './build-harness-plugins';
 
-/**
- * The harness plugins atc ships, on their default options: what reading
- * config takes.
- */
+// reading config needs none of the adapter options.
 export const SHIPPED_HARNESS_PLUGINS: readonly HarnessPlugin[] = buildHarnessPlugins();

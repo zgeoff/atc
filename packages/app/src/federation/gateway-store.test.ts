@@ -5,10 +5,6 @@ import { buildMockKeyBindingClaim } from '../test-utils/build-mock-key-binding-c
 import { buildBindingPayloadHash } from './build-binding-payload-hash';
 import { GatewayStore } from './gateway-store';
 
-/**
- * A gateway store on a file in a temp directory. `path` is that file, so a
- * test can open it again the way a restarted gateway does.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-gateway-store-');
   const path = join(tmp.dir, 'gateway.db');

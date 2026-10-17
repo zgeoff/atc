@@ -17,16 +17,6 @@ interface MCPHTTPRequest {
   readonly body: string;
 }
 
-/**
- * Answers `POST /mcp`: one JSON-RPC message from a client holding an access
- * token. Every request checks its token against the authorization server's
- * database, so a revoked grant loses access at once, and a token bound to any
- * other resource is refused. A tool call outside the token's scopes is a 403
- * that names the missing scope. Every request acts as the client's id, so the
- * daemon limits it to the targets that principal may use, and carries the
- * client's name, which the daemon labels each message the client sends
- * with.
- */
 export async function answerMCPRequest(
   ctx: HTTPServerContext,
   request: MCPHTTPRequest,
