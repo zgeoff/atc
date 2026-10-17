@@ -133,6 +133,7 @@ const CONFIG_SCHEMA = z.object({
   restoreFleetOnRestart: buildOptionalBoolean(),
 });
 
+// never throws: a file it cannot read or parse loads with no targets.
 export function loadConfig(
   plugins: readonly AgentConfigPlugin[],
   file: string = configFile,
@@ -258,6 +259,8 @@ export function renderDefaultConfig(): string {
   )}\n`;
 }
 
+// total: no shape of `raw` throws, so a hand-edited config never stops atc
+// starting.
 export function parseConfig(
   plugins: readonly AgentConfigPlugin[],
   raw: unknown,
