@@ -20,10 +20,6 @@ interface SetupTestConfig {
   readonly destroy: boolean;
 }
 
-// A session manager on one `local` target over the in-memory provider, a
-// real state store, and the forgetter over them with tokens on a stopped
-// clock; each session the manager announces gets the runtime the daemon
-// gives it.
 async function setupTest(config: SetupTestConfig) {
   const tmp = setupTempDir('atc-session-forgetter-');
   const dbPath = join(tmp.dir, 'state.db');

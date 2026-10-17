@@ -22,11 +22,6 @@ interface SessionKillerDeps {
   readonly restarts: { readonly stopRestart: (id: SessionID) => Promise<boolean> };
 }
 
-/**
- * Ends sessions on purpose: a kill stops a live session and its live
- * sub-sessions, or forgets a dead one, and a forget drops a session for
- * good, destroying its host where its target can.
- */
 export class SessionKiller {
   private readonly registry: SessionKillerDeps['registry'];
 
@@ -43,21 +38,8 @@ export class SessionKiller {
     this.restarts = deps.restarts;
   }
 
-  // A kill's response is the caller's cue that the session is safely
-  // archived, so the write it depends on must land before that response
-  // goes out. A kill acts on the whole set: killing a session kills its
-  // live sub-sessions with it, and forgetting a dead one forgets its dead
-  // sub-sessions and promotes any live ones to top level. A live session
-  // that owns a host that can sleep puts the host to sleep instead, with
-  // every harness on it kept inside, and fails whole when the host stays
-  // awake. A dead session on a target that can destroy its host is not
-  // forgotten by a kill: forgetting it destroys the host, which takes a
-  // confirmed forget. The set is taken before the first await, so a
-  // sub-session spawned while the kill waits on a host is not part of it.
-  // A session whose revive waits on the kill of its outdated harness counts
-  // as live: the revive starts no fresh harness and leaves it stopped. With
-  // stopOnly, a session that is not live is left as it is: nothing changes
-  // and nothing is removed. Answers what the kill did.
+  // the response is the caller's cue that the session is safely archived,
+  // so the fleet write lands before it
   async kill(id: SessionID, stopOnly = false): Promise<'stopped' | 'unchanged' | 'removed'> {
     const s = this.registry.sessions.find((x) => x.id === id);
 
@@ -65,6 +47,8 @@ export class SessionKiller {
       return 'unchanged';
     }
 
+    // taken before the first await, so a sub-session spawned while the kill
+    // waits on a host is not part of it
     const children = this.registry.collectChildren(id);
 
     const restartStopped = await this.restarts.stopRestart(id);
@@ -120,19 +104,6 @@ export class SessionKiller {
     return 'stopped';
   }
 
-  /**
-   * Forgets a session for good, whether it runs or not, and returns whether
-   * its host was destroyed. A session that owns a host its target can
-   * destroy destroys the host, and every session on that host goes with it;
-   * a session on its parent's host ends its own harness alone, and one
-   * kept asleep in that host is refused until the host wakes. Its dead
-   * sub-sessions on other hosts go with it, unless their own target can
-   * destroy their host or they carry a pin of their own, and its live ones
-   * become top-level. A failed destroy
-   * throws before anything is forgotten. The sub-sessions it may forget are
-   * taken before the first await; one spawned while the forget waits on a
-   * host becomes top-level.
-   */
   async forget(id: SessionID): Promise<boolean> {
     const s = this.registry.sessions.find((x) => x.id === id);
 
@@ -140,14 +111,15 @@ export class SessionKiller {
       return false;
     }
 
+    // taken before the first await, so a sub-session spawned while the
+    // forget waits on a host becomes top-level
     const children = this.registry.collectChildren(id);
     const provider = this.registry.findProvider(s);
     const destroys = provider !== null && provider.capabilities.destroy && s.hostKey === s.id;
 
-    // A harness kept inside a sleeping host it does not own still has a
-    // process there, which the daemon can neither reach nor end while the
-    // host sleeps. Its record keeps that process owned until the host wakes
-    // or its owner's forget destroys the host.
+    // a harness asleep in a host it does not own has a process the daemon
+    // cannot reach or end; its record keeps that process owned until the
+    // host wakes or its owner's forget destroys the host
     if (!destroys && s.pty === null && s.vm === 'asleep') {
       throw new DaemonError(
         'unsupported_operation',
@@ -164,6 +136,7 @@ export class SessionKiller {
           ? false
           : await binder.forgetBinding(provider.brokerAuth ?? null, s.hostKey);
 
+      // a failed destroy throws before anything is forgotten
       if (!bound) {
         await provider.destroyHost(s.hostKey);
       }
@@ -192,14 +165,6 @@ export class SessionKiller {
     return destroys;
   }
 
-  // Removes a forgotten session and its dead sub-sessions, except one whose
-  // own target can destroy its host: forgetting that one destroys the host,
-  // which takes its own confirmed forget. A sub-session with a pin of its own
-  // stays too, since its pin guards it from its parent. Only a sub-session among the given
-  // ones may go. Every sub-session that stays becomes top-level before the
-  // session's removal is announced, and is announced after it, so no
-  // announcement ever finds a sub-session whose parent is gone or a parent
-  // standing without the sub-sessions that leave with it.
   private removeWithChildren(s: Session, forgettable: readonly Session[]): void {
     const kept: Session[] = [];
     const dropped: Session[] = [];
@@ -207,6 +172,8 @@ export class SessionKiller {
     for (const child of this.registry.collectChildren(s.id)) {
       const live = child.pty !== null || (child.kind === 'headless' && child.state !== 'exited');
 
+      // a pin of its own guards a sub-session from its parent; one whose
+      // target can destroy its host takes its own confirmed forget
       if (
         live ||
         child.pinned ||
@@ -221,6 +188,9 @@ export class SessionKiller {
       }
     }
 
+    // kept sub-sessions are top-level before the removal is announced and
+    // announced after it, so no announcement finds a parent gone or one
+    // standing without the sub-sessions that leave with it
     this.registry.remove(s);
 
     for (const child of kept) {
@@ -232,10 +202,6 @@ export class SessionKiller {
     }
   }
 
-  /**
-   * The capability a kill of a live session needs on its target: `suspend`
-   * for a session that owns a host that can sleep, `kill` for any other.
-   */
   pickKillCapability(s: Session): ExecutionCapability {
     return this.canSuspendHost(s) ? 'suspend' : 'kill';
   }

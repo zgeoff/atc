@@ -55,11 +55,6 @@ export type ResumeCommand =
   | { readonly refusal: 'missing' }
   | { readonly refusal: 'unsupported'; readonly reason: string };
 
-/**
- * The callbacks a manager takes when it is built. Each one left out does
- * nothing, and a manager with no message bridge starts every session
- * without one.
- */
 type SessionManagerEvents = Partial<
   Pick<
     SessionCallbacks,
@@ -74,12 +69,6 @@ type SessionManagerEvents = Partial<
   >
 >;
 
-/**
- * The daemon's sessions, and every operation on them: it wires the session
- * modules together over one registry and one set of callbacks. It takes its
- * callbacks when it is built, so no session event arrives before its
- * handler exists, and the daemon sets its settings after it is built.
- */
 export class SessionManager {
   readonly onOutput: (s: Session, data: string) => void;
 
@@ -144,6 +133,8 @@ export class SessionManager {
 
   private readonly store: FleetStore;
 
+  // events are taken at build time, so no session event arrives before its
+  // handler exists
   constructor(
     fallback: AgentAdapter | null | undefined,
     store: FleetStore,
@@ -429,10 +420,6 @@ export class SessionManager {
     return s;
   }
 
-  // Adds a checked scope to a session's published record and returns the
-  // record as it stands after. The checks run on the session's host, so a
-  // remote host that is not awake refuses the change until a revive wakes
-  // it.
   async updateScope(id: SessionID, scope: DeclaredScope): Promise<PublishedRecord | 'missing'> {
     const s = this.registry.sessions.find((x) => x.id === id);
 
@@ -446,6 +433,7 @@ export class SessionManager {
 
     const provider = this.registry.requireExecution(s, 'spawn').provider;
 
+    // the scope checks run on the session's host
     if (provider.remote && s.vm !== 'awake') {
       throw new DaemonError(
         'host_unavailable',
@@ -468,19 +456,6 @@ export class SessionManager {
     return record;
   }
 
-  /**
-   * Renames and/or pins a session on a caller's behalf. A rename lands at
-   * user strength, so auto-summaries stop overwriting it while an
-   * in-session rename still wins. Pinned sessions lead the TUI's list. A
-   * sub-session inherits its parent's pin, and a pin of its own guards it
-   * from its parent's forget too. A null parent makes a sub-session
-   * top-level before any pin applies, so its pin, kill, and forget no
-   * longer follow its former parent. A sub-session that runs in its
-   * parent's host is refused a detach and a pin of its own, since the host
-   * owner's kill and forget would still end it. A rename of a session the
-   * agent named itself is skipped and returns 'agent_named', after any
-   * other change applies.
-   */
   updateSession(id: SessionID, changes: SessionChanges): boolean | 'shared_host' | 'agent_named' {
     const s = this.registry.sessions.find((x) => x.id === id);
 
@@ -488,6 +463,8 @@ export class SessionManager {
       return false;
     }
 
+    // the host owner's kill and forget would still end a sub-session in its
+    // host, so it gets no detach or pin of its own
     if (
       s.parent !== null &&
       s.hostKey !== s.id &&
@@ -496,6 +473,8 @@ export class SessionManager {
       return 'shared_host';
     }
 
+    // detach before any pin applies, so the pin, kill, and forget no longer
+    // follow the former parent
     if (changes.parent === null && s.parent !== null) {
       s.parent = null;
 
@@ -507,6 +486,9 @@ export class SessionManager {
 
     if (changes.name !== undefined && changes.name !== '' && !renameSkipped) {
       s.name = changes.name;
+
+      // auto-summaries stop overwriting a user-strength name, while an
+      // in-session rename still wins
       s.namedBy = 'user';
 
       this.onEvent('renamed', s);
@@ -606,11 +588,9 @@ export class SessionManager {
     }));
   }
 
-  // Applies one hook line to its session: the adapter plans the line's
-  // events from the state it returned for the session's previous line, and
-  // the session takes each event in order. Returns the plan, so the caller
-  // can key lifecycle bookkeeping and the event trail on its events and
-  // keep its next state, or null when no session or adapter matches.
+  // the adapter plans from the state it returned for the previous line; the
+  // plan goes back so the caller can key its bookkeeping and trail on its
+  // events and keep the next state
   applyHook(e: HookEvent, prev?: unknown): HookPlan | null {
     const s = this.registry.sessions.find((x) => x.id === e.atcId);
 
@@ -784,12 +764,6 @@ export class SessionManager {
     this.fleet.emitChange();
   }
 
-  // Shell command that re-opens this session outside atc, on the daemon's
-  // machine. A session on another machine has none: its folder, and any
-  // settings file the command would pass, sit on a different machine than
-  // the one the command would run on. An agent whose adapter builds no
-  // command, such as a gateway that signs in through impd's broker alone,
-  // has none either.
   buildResumeCommand(id: SessionID): ResumeCommand {
     const s = this.registry.sessions.find((x) => x.id === id);
 
@@ -797,6 +771,8 @@ export class SessionManager {
       return { refusal: 'missing' };
     }
 
+    // its folder, and any settings file the command would pass, sit on a
+    // different machine than the one the command would run on
     if (!this.registry.isLocalTarget(s.target)) {
       return {
         refusal: 'unsupported',
@@ -807,6 +783,7 @@ export class SessionManager {
     const command =
       this.registry.findAdapter(s.agent)?.buildResumeCommand(s.cwd, s.agentSessionID) ?? null;
 
+    // e.g. a gateway that signs in through impd's broker alone
     if (command === null) {
       return {
         refusal: 'unsupported',

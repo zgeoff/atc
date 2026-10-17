@@ -3,31 +3,16 @@ import type { ExecutionCapability } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import type { ExecutionTarget } from './build-execution-targets';
 
-// The target a session runs on and the identity it was bound to there; a
-// null identity is a session not yet bound, which binds to the target as
-// it stands now. A null target is a spawn that names none when the config
-// gives no default.
+// a null identity is a session not yet bound, which binds to the target as it
+// stands now; a null target is a spawn that names none when the config gives
+// no default
 interface TargetBinding {
   readonly target: string | null;
   readonly targetIdentity: string | null;
 }
 
-/**
- * The refusal for running work of the given capability on a session's
- * target, or null when the target serves it. Every path that starts a
- * harness, writes to one, or runs a headless turn asks this first, so no
- * path runs a session anywhere but the target it is bound to:
- *
- * - `target_config_invalid` when the config file exists but cannot be
- *   read or parsed, which refuses every target, `local` included; when the
- *   config's `targets` map, or the target's own entry, is malformed; and
- *   when there is no target because the config gives no default.
- * - `unknown_target` when no target holds the id.
- * - `target_changed` when the target's identity is not the one the session
- *   was bound to: the target holds another provider or connection options.
- * - `target_unavailable` when this daemon has no provider of its kind.
- * - `unsupported_operation` when the provider lacks the capability.
- */
+// every path that starts a harness, writes to one, or runs a headless turn asks this
+// first, so no path runs a session anywhere but the target it is bound to
 export function findExecutionRefusal(
   targets: ReadonlyMap<string, ExecutionTarget>,
   errors: readonly TargetConfigError[],

@@ -1,8 +1,5 @@
-/**
- * The variables that pin git to a repository other than the one in its
- * working directory, such as the `GIT_DIR` a git hook exports. A command
- * that must act on its own directory runs without every one of them.
- */
+// every variable that pins git to a repository other than its working directory, such as
+// the GIT_DIR a git hook exports
 export const REPOSITORY_ENV_VARS: ReadonlySet<string> = new Set([
   'GIT_ALTERNATE_OBJECT_DIRECTORIES',
   'GIT_COMMON_DIR',

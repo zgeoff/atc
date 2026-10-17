@@ -2,15 +2,6 @@ import type { Stats } from 'node:fs';
 import { readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
-/**
- * The repository a directory belongs to, for clustering sessions in the
- * overlay. Walks toward the filesystem root looking for a `.git` entry: a
- * directory holding HEAD marks the repository root itself, and a linked
- * worktree's `.git` file points back at the main repository, so worktrees
- * cluster with it. A directory outside any repository resolves to itself, and
- * so does one whose path cannot be read: a filesystem error other than a
- * missing entry ends the walk instead of throwing.
- */
 export function resolveRepoRoot(cwd: string): string {
   let dir = cwd;
 

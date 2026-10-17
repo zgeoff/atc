@@ -1,12 +1,6 @@
 import type { InvalidGitTransports } from '@atc/config';
 import { DaemonError } from '@atc/protocol/wire';
 
-/**
- * The transports git may fetch over, or the refusal of a git operation
- * when the configured list is invalid: the daemon then runs no git at all,
- * and the error quotes the config errors it printed at startup, with
- * `data` as its detail.
- */
 export function requireGitTransports(
   policy: readonly string[] | InvalidGitTransports,
   data?: Readonly<Record<string, unknown>>,

@@ -22,12 +22,6 @@ interface SessionForgetterDeps {
   readonly tokens: Pick<ConfirmTokens, 'mintToken' | 'claimToken'>;
 }
 
-/**
- * Kills and forgets sessions with their sub-sessions, and stops the
- * headless runs of the sessions a kill or forget ended. A forget on a
- * target that can destroy its host takes two calls: one that answers with
- * a confirm token, and one that carries the token and destroys the host.
- */
 export class SessionForgetter {
   private readonly mgr: SessionForgetterDeps['mgr'];
 
@@ -65,14 +59,8 @@ export class SessionForgetter {
     return outcome;
   }
 
-  // A forget on a target that cannot destroy its host forgets at once. On
-  // one that can, a forget without a token checks the target and answers
-  // with a token, and the forget that carries the token destroys the host.
-  // A refusal the caller asks for reads the session in the same step that
-  // starts the forget, so a pin or revive that lands first is seen. A pin
-  // a sub-session inherits stops every caller but a session it sits under,
-  // so a session can clear away its own sub-sessions; a pin of its own
-  // stops that session too.
+  // the refusals read the session in the same step that starts the forget,
+  // so a pin or revive that lands first is seen
   async forgetSession(
     id: SessionID,
     confirmToken: string | undefined,
@@ -121,10 +109,9 @@ export class SessionForgetter {
     return { forgotten: true, destroyed };
   }
 
-  // Runs once the manager has acted: a session it removed already lost its
-  // run with its runtime, a session it left exited loses it here, and a
-  // sub-session it promoted, or any session of a kill or forget that
-  // failed, keeps working.
+  // runs once the manager has acted: a removed session already lost its run
+  // with its runtime, and a promoted sub-session, or any session of a failed
+  // kill or forget, keeps working
   private stopEndedHeadlessRuns(set: readonly Session[]): void {
     for (const s of set) {
       if (s.state === 'exited') {

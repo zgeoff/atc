@@ -3,10 +3,6 @@ import { systemClock } from '@atc/core';
 import type { Clock } from '@atc/core';
 import type { EventMsg } from '@atc/protocol/wire';
 
-/**
- * The session paths a hook's `dir` filter is matched against. Null when the
- * event carries no session, in which case only unfiltered hooks fire.
- */
 export interface HookScope {
   readonly cwd: string;
   readonly repoRoot: string;
@@ -14,10 +10,6 @@ export interface HookScope {
 
 type RunHooks = (event: EventMsg, scope: HookScope | null) => void;
 
-/**
- * How one hook run ended: its exit code, or the signal that ended it, or
- * neither when the command failed to spawn.
- */
 export interface HookOutcome {
   readonly command: string;
   readonly exitCode: number | null;
@@ -25,29 +17,14 @@ export interface HookOutcome {
 }
 
 interface HookRunnerOptions {
-  /**
-   * Runs once per call, after every hook the call started has exited or
-   * failed to spawn, with each one's outcome in configured order; a call
-   * that starts none settles at once with none.
-   */
+  // once per call, after every hook it started has ended; a call that starts none settles at once
   readonly onSettled?: (event: EventMsg, outcomes: readonly HookOutcome[]) => void;
 
-  /**
-   * The clock that arms the kill of a run that outlives its timeout; the
-   * wall clock when unset. The armed kill keeps the process alive no longer
-   * than the hook's own process does, since a run disarms it once it exits.
-   */
   readonly clock?: Clock;
 }
 
-/**
- * Builds the daemon's hook runner. Each call fires every configured command
- * for the event's name, with the wire-event JSON on stdin and the event name
- * in `ATC_EVENT`. Hooks are observational and fire-and-forget: the daemon
- * never waits on one, a run past its timeout is killed, and a nonzero exit
- * or spawn failure is logged to stderr and otherwise ignored. An event with
- * no matching hook does no work beyond the match.
- */
+// hooks are fire-and-forget: the daemon never waits on one, and a nonzero exit or spawn failure
+// is only logged to stderr
 export function makeHookRunner(hooks: HooksConfig, options: HookRunnerOptions = {}): RunHooks {
   const onSettled = options.onSettled ?? (() => {});
   const clock = options.clock ?? systemClock;
@@ -125,6 +102,7 @@ async function runHook(entry: HookEntry, event: EventMsg, clock: Clock): Promise
 
     return { command: entry.command, exitCode: proc.exitCode, signalCode: proc.signalCode };
   } finally {
+    // disarmed on exit, so the armed kill never holds the process open past the hook
     disarm();
   }
 }

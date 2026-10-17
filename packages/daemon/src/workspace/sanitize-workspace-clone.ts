@@ -16,17 +16,8 @@ interface SanitizeRefusal {
   readonly message: string;
 }
 
-/**
- * Strips a fresh clone of everything that could authenticate as, or run code
- * for, the host it was cloned on, before the clone leaves that host. Objects,
- * refs, HEAD, and the checked-out branch stay. The origin URL is reset to its
- * token-free form; every credential setting, every http extra header, every
- * remote URL carrying a credential, and every URL rewrite whose either side holds
- * userinfo are removed from the repository config; hooks, reflogs (which
- * record the clone URL), and any `.git-credentials` or `.netrc` file are
- * deleted. The result is then checked: the history still reads and the
- * config holds no credential.
- */
+// strips everything that could authenticate as, or run code for, the host the clone was made
+// on, before the clone leaves that host
 export async function sanitizeWorkspaceClone(
   dir: string,
   url: string,
@@ -58,6 +49,8 @@ export async function sanitizeWorkspaceClone(
 
   await rm(join(gitDir, 'hooks'), { recursive: true, force: true });
   await mkdir(join(gitDir, 'hooks'));
+
+  // reflogs record the clone URL
   await rm(join(gitDir, 'logs'), { recursive: true, force: true });
 
   for (const file of ['.git-credentials', '.netrc']) {

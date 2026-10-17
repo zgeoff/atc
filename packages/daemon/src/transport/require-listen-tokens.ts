@@ -2,12 +2,6 @@ import { loadListenerTokens } from '@atc/config';
 import { formatListenRefusal, isAllowedListenHost } from '@atc/config/host';
 import type { ListenOptions } from './listen-options';
 
-/**
- * The tokens the TCP listener starts with. Throws, with the code a refused
- * start carries, for an address outside the allowed ranges or a token file
- * that fails to load, so the daemon never starts with a listener that
- * takes no token or binds where it must not.
- */
 export function requireListenTokens(
   listen: Pick<ListenOptions, 'host' | 'tokenFile'>,
 ): readonly string[] {

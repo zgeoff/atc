@@ -10,12 +10,6 @@ const GIT_OPTIONS = ['-c', 'safe.directory=*', '-c', 'core.fsmonitor=false'];
 // A remote host runs git without the variables that would point it at
 // another repository than the directory it is given.
 
-/**
- * Runs git against a directory on a session's host and returns what it
- * printed. A provider on the daemon's own machine shares the daemon's
- * filesystem, so the daemon runs git there itself; a remote host runs it
- * through the provider.
- */
 export async function runHostGit(
   provider: ExecutionProvider,
   host: string,

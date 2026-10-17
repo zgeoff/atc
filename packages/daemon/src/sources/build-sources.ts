@@ -10,13 +10,6 @@ interface BuiltSources {
   readonly missing: readonly string[];
 }
 
-/**
- * The sources the spawn picker offers, in the configured order, else the
- * default one. A source the order leaves out is not offered, and an id
- * with no available source is skipped, so a source that cannot run on
- * this host is simply not offered; a configured order reports such ids as
- * missing.
- */
 export function buildSources(
   available: readonly SourceProvider[],
   order: readonly string[] | null,

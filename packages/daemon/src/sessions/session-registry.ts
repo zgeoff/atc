@@ -34,11 +34,6 @@ interface SessionRegistryDeps {
   readonly callbacks: Pick<SessionCallbacks, 'onEvent'>;
 }
 
-/**
- * The sessions the daemon lists, the agents and execution targets they run
- * under, and the lookups every other session module makes on them. Its
- * agents and targets never change after it is built.
- */
 export class SessionRegistry {
   sessions: Session[] = [];
 
@@ -84,13 +79,6 @@ export class SessionRegistry {
     this.callbacks = deps.callbacks;
   }
 
-  /**
-   * The provider a binding's work runs on, after every target check: throws
-   * the refusal for a target the config leaves unusable, one that is gone,
-   * one whose identity is not the binding's, one with no provider here, and
-   * a provider that lacks the capability. Returns the identity a new session
-   * binds to as well.
-   */
   requireExecution(
     binding: Readonly<TargetBinding>,
     capability: ExecutionCapability,
@@ -125,11 +113,8 @@ export class SessionRegistry {
     return this.targets.get(s.target)?.provider ?? null;
   }
 
-  /**
-   * Adapter registered under this id, or null when there is none. Lookup
-   * never falls back to another id: a session whose agent is not registered
-   * is unsupported, not somebody else's spawn.
-   */
+  // never falls back to another id: a session whose agent is not registered
+  // is unsupported, not somebody else's spawn
   findAdapter(id: AgentID): AgentAdapter | null {
     return this.adapters[id] ?? null;
   }

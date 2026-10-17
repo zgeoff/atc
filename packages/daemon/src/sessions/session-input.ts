@@ -29,14 +29,6 @@ interface SessionInputDeps {
   readonly startHeadlessTurn: (sessionID: SessionID, prompt: string) => boolean;
 }
 
-/**
- * Drives a session's terminal for its clients: raw input, a typed line
- * submitted the way the agent takes one, the screen as text, and the menu
- * the agent waits on, read or chosen from. Every write goes through the
- * session's input queue, so input from one caller never lands between the
- * keys of another's line or menu choice. A headless session takes a line
- * as the prompt of its next turn.
- */
 export class SessionInput {
   private readonly mgr: SessionInputDeps['mgr'];
 
@@ -142,11 +134,9 @@ export class SessionInput {
 
     const typed = Promise.withResolvers<'ok' | 'dead'>();
 
-    // The writes before the line's first pause go out in the tick the
-    // request arrives in, and the session's input queue holds any other
-    // input until the last write, so none lands between the text and its
-    // submit key. A session whose terminal ends or is replaced mid-line gets
-    // none of the rest.
+    // the queue holds any other input until the last write, so none lands
+    // between the text and its submit key; a terminal that ends or is
+    // replaced mid-line gets none of the rest
     runtime.input.schedule(() => {
       const result = writeLineSteps(steps, terminal, (ms) => Bun.sleep(ms));
 

@@ -6,14 +6,7 @@ const SO_PEERCRED = 17;
 // `struct ucred` holds the peer's pid, uid and gid, each 32 bits wide.
 const UCRED_FIELDS = 3;
 
-/**
- * The pid of the process at the other end of a unix socket that a Bun
- * listener accepted, read once from the kernel through `SO_PEERCRED`. The
- * kernel records the pid of the process that connected, at the moment it
- * connected. Null on a platform other than Linux, which has no
- * `SO_PEERCRED`, on a Linux without glibc's `libc.so.6`, and when the socket
- * holds no descriptor or the call fails.
- */
+// the kernel records the pid of the process that connected, at the moment it connected
 export function readPeerPID(socket: object): number | null {
   const fd: unknown = Reflect.get(socket, 'fd');
 

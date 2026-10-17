@@ -2,13 +2,6 @@ import { toSessionID } from '@atc/core';
 import { faker } from '@faker-js/faker';
 import type { Session } from '../sessions/session';
 
-/**
- * A session manager's record of an exited Claude session on the `local`
- * target with no terminal: read, unpinned, auto-named, with no parent,
- * withheld env, workspace, model, or agent session id, and its own host.
- * The id, name, directories, and times are arbitrary. An override replaces
- * the field it names.
- */
 export function buildMockSession(overrides: Partial<Session> = {}): Session {
   const id = overrides.id ?? toSessionID(faker.string.uuid());
   const cwd = faker.system.directoryPath();

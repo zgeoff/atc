@@ -74,20 +74,12 @@ export interface SessionRecord {
   readonly sessionRecord: PublishedRecord | null;
 }
 
-/**
- * What `session.forget` answers: the token a forget that destroys a host
- * must carry, with the time it stops being taken; or the forgotten session,
- * with whether its host was destroyed.
- */
 export type ForgetResult =
   | { readonly confirmToken: string; readonly expiresAt: number }
   | { readonly forgotten: true; readonly destroyed: boolean };
 
-/**
- * The states a forget refuses to act on: a pinned session, or a sub-session
- * of a pinned one unless that pin belongs to the caller or a session above
- * the caller, and a live session.
- */
+// a pinned session, or a sub-session of one unless the pin belongs to the caller or a
+// session above the caller; and a live session
 export interface ForgetRefusals {
   readonly pinned: boolean;
   readonly live: boolean;
@@ -100,10 +92,7 @@ export interface SessionTranscriptRead {
   readonly page: TranscriptPage;
 }
 
-// The `agents.list` answer: the host the daemon runs on, each agent, each
-// execution target, what a spawn without either runs with, a digest of
-// the target config, and the target config problems the daemon started
-// with.
+// the `agents.list` answer
 interface AgentList {
   readonly daemon: {
     readonly hostname: string;
@@ -154,10 +143,6 @@ export interface TapClient {
   readonly sendEvent: (event: EventMsg) => void;
 }
 
-/**
- * What a kill did to its session: it stopped a live one, left an exited
- * one as it was, removed an exited one, or found no such session.
- */
 export type KillOutcome = 'stopped' | 'unchanged' | 'removed' | 'missing';
 
 export interface DaemonContext {
@@ -197,10 +182,8 @@ export interface DaemonContext {
   // unknown session.
   readonly canSeeSession: (id: SessionID, access: TargetAccess) => boolean;
 
-  // Whether the request this context serves may still see the session: any
-  // session for the daemon's owner, and for a principal only a session whose
-  // whole tree it reaches. A read answers only after asking this, in the
-  // same step as it sends, so no await lies between the check and the send.
+  // any session for the daemon's owner, and for a principal only one whose whole tree
+  // it reaches; a read asks this in the same step as it sends, with no await between
   readonly isSessionVisible: (id: SessionID) => boolean;
 
   // The session a permission request belongs to, answered or not, or null
@@ -247,10 +230,9 @@ export interface DaemonContext {
     request: Omit<Parameters<typeof checkRepositoryAccess>[0], 'transports'>,
   ) => ReturnType<typeof checkRepositoryAccess>;
 
-  // Runs the plan, which throws the refusal for a spawn it refuses, then
-  // spawns. Answers with the `session.spawn` ok payload, which a keyed
-  // retry replays as the first spawn answered it while the access, when
-  // there is one, still reaches the target the spawn's session was bound to.
+  // runs the plan, which throws the refusal for a spawn it refuses, then spawns; a keyed
+  // retry replays the first answer while the access, when there is one, still reaches
+  // the target the spawn's session was bound to
   readonly spawnSession: (
     plan: () => SpawnParams,
     keyed: KeyedRequest | null,
@@ -261,11 +243,9 @@ export interface DaemonContext {
   // exited one alone. Answers what happened to it.
   readonly killSession: (id: SessionID, stopOnly: boolean) => Promise<KillOutcome>;
 
-  // Forgets a session, or answers with the token a forget that destroys a
-  // host must carry. Throws the refusal for a token it does not take, and
-  // for a pinned or live session when the caller asks it to refuse one. The
-  // caller is the session the request comes from, or null for a client
-  // outside any session.
+  // answers with the token a forget that destroys a host must carry; throws for a token it
+  // does not take, and for a pinned or live session the caller asks it to refuse; the
+  // caller is the requesting session, or null for a client outside any session
   readonly forgetSession: (
     id: SessionID,
     confirmToken: string | undefined,
@@ -282,10 +262,9 @@ export interface DaemonContext {
   // at its next launch, or null for no such session.
   readonly updateSessionAuth: (id: SessionID) => Promise<AuthRebound | null>;
 
-  // Renames, pins, or makes top-level a session; false for no such session,
-  // 'shared_host' for a detach or a pin of a sub-session in its parent's
-  // host, and 'agent_named' when the other changes applied but the rename
-  // was skipped because the agent named the session itself.
+  // false for no such session, 'shared_host' for a detach or pin of a sub-session in its
+  // parent's host, and 'agent_named' when the other changes applied but the rename was
+  // skipped because the agent named the session itself
   readonly updateSession: (
     id: SessionID,
     changes: SessionChanges,
@@ -313,10 +292,8 @@ export interface DaemonContext {
     id: SessionID,
   ) => Promise<MenuView | null | 'missing' | 'no_screen' | 'unsupported'>;
 
-  // Picks an option of the menu the session's screen shows, or presses
-  // Escape on it, behind any input already queued for the session. A choice
-  // the screen does not match rejects with a DaemonError and writes nothing
-  // that picks an option.
+  // picks an option, or presses Escape, behind any input already queued for the session;
+  // a choice the screen does not match rejects and writes nothing that picks an option
   readonly applySessionMenuChoice: (
     id: SessionID,
     choice: MenuChoice,
@@ -340,11 +317,9 @@ export interface DaemonContext {
     data: string,
   ) => 'busy' | 'ok' | 'missing' | 'dead';
 
-  // Types a line into the session and submits it the way the session's
-  // agent accepts a line, as opposed to the raw bytes the input write takes.
-  // Settles once the line's last write has gone to the session.
-  // A session waiting on a permission prompt refuses the line, since typed
-  // text would confirm the prompt's highlighted option.
+  // submits a line the way the session's agent accepts one, settling once its last write
+  // has gone; a session waiting on a permission prompt refuses it, since typed text
+  // would confirm the prompt's highlighted option
   readonly writeSessionLine: (
     sessionID: SessionID,
     text: string,
@@ -389,33 +364,24 @@ export interface DaemonContext {
     access: TargetAccess | null,
   ) => Promise<EventsPage>;
 
-  // One note by the trail id of its event, with the atc id of the session
-  // that sent it, or null for a trail id that holds no note, or whose
-  // note's session is outside the access when there is one. The view may
-  // name the note by another session; who may read it is checked against
-  // the sender.
+  // null for a trail id that holds no note, or whose note's session is outside the
+  // access; the view may name the note by another session, but who may read it is
+  // checked against the sender
   readonly readNote: (
     id: number,
     access: TargetAccess | null,
   ) => Promise<{ readonly owner: SessionID; readonly view: NoteView } | null>;
 
-  // One message answer by the trail id of its message-answered event, with
-  // the atc id of the session that answered it, or null for a trail id that
-  // holds no answer, or whose session is outside the access when there is
-  // one. Who may read it is checked against that session.
+  // null for a trail id that holds no answer, or whose answering session is outside the
+  // access; who may read it is checked against the answering session
   readonly readAnswer: (
     id: number,
     access: TargetAccess | null,
   ) => Promise<{ readonly owner: SessionID; readonly view: AnswerView } | null>;
 
-  // Answers with the `session.message` ok payload, which a keyed retry
-  // replays with the message's current status, or with the refusal. Under
-  // an access, a session whose tree leaves it before the write refuses as
-  // 'missing'. The caller is who the connection and request show sent it,
-  // which the message's sender is built from. The sender session is the
-  // session the caller runs inside, as its connection holds it; it takes
-  // the message's answer notice when it takes messages and, under an
-  // access, its tree is in reach.
+  // a keyed retry replays with the message's current status; under an access, a session
+  // whose tree leaves it before the write refuses as 'missing'; the sender session takes
+  // the answer notice when it takes messages and, under an access, its tree is in reach
   readonly writeSessionMessage: (
     sessionID: SessionID,
     caller: MessageCaller,

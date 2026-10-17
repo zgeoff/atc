@@ -9,10 +9,8 @@ import type { SessionCallbacks } from './session-callbacks';
 import type { SessionKiller } from './session-killer';
 import type { SessionRegistry } from './session-registry';
 
-// What a spawn readied once its host was ready, which a failed start takes
-// back: the auth attempt that provisioned the host, if one did, and the
-// workspace directory the spawn created there, as the host resolves it,
-// if it created one.
+// what a failed start takes back: the auth attempt that provisioned the
+// host, and the workspace directory the spawn created, as the host resolves it
 export interface SpawnReadied {
   readonly attemptID: string | null;
   readonly root: string | null;
@@ -25,12 +23,6 @@ interface SessionHarnessesDeps {
   readonly callbacks: Pick<SessionCallbacks, 'onOutput' | 'onEvent' | 'onProcessEnded' | 'log'>;
 }
 
-/**
- * The harnesses the daemon starts and follows: which hosts a launch is
- * readying, the bridge epoch each start or attach opens under, the auth
- * revision each host's binding held at its latest launch, and what each
- * listed spawn readied while it waits on its harness's start.
- */
 export class SessionHarnesses {
   // The launches readying each host, by host key. A launch counts from its
   // setup until its harness spawns, which follows the setup with no wait,
@@ -64,11 +56,6 @@ export class SessionHarnesses {
     this.callbacks = deps.callbacks;
   }
 
-  // Follows a harness's output and its end. An exit, or a host that lost the
-  // process, leaves the session exited; a host that went to sleep with the
-  // process inside leaves it suspended, for a revive to find. A session
-  // mid-handoff keeps its headless state, since the terminal dying is
-  // expected there.
   attachHarness(s: Session, pty: HarnessHandle, hostLifecycle: boolean): void {
     s.vm = hostLifecycle ? 'awake' : 'none';
     s.attachment = hostLifecycle ? 'attached' : 'local';
@@ -105,6 +92,8 @@ export class SessionHarnesses {
 
       const transition = HARNESS_EXIT_TRANSITIONS[exit.reason ?? 'exited'];
 
+      // a session mid-handoff keeps its headless state, since its terminal
+      // dying is expected there
       if (s.kind === 'pty' && s.state !== 'exited') {
         s.state = 'exited';
         s.unread = this.registry.focusedId !== s.id;
@@ -132,13 +121,9 @@ export class SessionHarnesses {
     });
   }
 
-  // Records the revision a revived harness launched under once its start
-  // settles. A start that made the process launched under the plan's; one
-  // that attached to a process the host still ran keeps the revision that
-  // process launched under, or the one the host held before this launch,
-  // and shows that the newer one applies at its next launch. A changed
-  // revision is written to the fleet, so a restore after a daemon restart
-  // finds the revision the process launched under.
+  // a harness attached to a process the host still ran keeps the revision
+  // that process launched under; the fleet write lets a restore after a
+  // daemon restart find it
   updateLaunchRevision(
     s: Session,
     revision: number,
@@ -160,11 +145,6 @@ export class SessionHarnesses {
     }
   }
 
-  // Waits for a revived harness behind the broker to start. A refused start
-  // already ended the harness; the host goes back to sleep when no other
-  // harness runs there, and the refusal is thrown. A spawn that still has a
-  // checkout to remove there leaves the sleep to its rollback, which needs
-  // the host awake.
   async waitForAuthStart(
     s: Session,
     provider: ExecutionProvider,
@@ -173,6 +153,8 @@ export class SessionHarnesses {
     try {
       return await pty.waitForStart?.();
     } catch (error) {
+      // a spawn with a checkout still to remove leaves the sleep to its
+      // rollback, which needs the host awake
       const hasCheckout = (this.startingSpawns.get(s.id)?.root ?? null) !== null;
 
       if (!hasCheckout && this.isHostIdle(s.hostKey, s.target) && provider.capabilities.suspend) {

@@ -38,27 +38,9 @@ interface GitRun {
   readonly timedOut: boolean;
 }
 
-/**
- * Runs one git command to completion, feeding it any given input, and
- * returns its exit code and output. A command given a time limit is
- * stopped once it passes it, with every process it started, and reported
- * as timed out. Once git exits, its output has 30 s to close: output that
- * a process git left holds open past that kills git's process group and
- * fails the run with `git_output_open`.
- * git never prompts on a terminal here, since the daemon has none to answer
- * with, its messages stay in the C locale so callers can read them, and it
- * fetches only over the transports it is given, https and ssh unless told
- * otherwise, whatever URL a host config rewrite or a submodule hands it.
- * Variables that pin git to some other repository, such as the `GIT_DIR` a
- * git hook exports, are dropped so the command acts on its own directory.
- *
- * An isolated command reads only the repository's own config and
- * attributes: the host's system and global config and its system and global
- * attributes files are ignored, and every LFS filter is switched off. A
- * checkout run this way runs no filter the host configured, so it can
- * neither execute host code nor reach the network with the host's
- * credentials.
- */
+// an isolated command reads only the repository's own config and attributes, so a checkout
+// runs no filter the host configured: it can neither execute host code nor reach the network
+// with the host's credentials
 const ISOLATED_ARGS = [
   '-c',
   'core.attributesFile=/dev/null',
@@ -89,6 +71,9 @@ export async function runGit(
       ...collectHostEnv(),
       ...options.env,
       ...(isolated ? ISOLATED_ENV : {}),
+
+      // the daemon has no terminal to answer a prompt, callers read git's messages in the C
+      // locale, and git fetches only over the given transports, whatever a rewrite hands it
       GIT_TERMINAL_PROMPT: '0',
       LC_ALL: 'C',
       GIT_ALLOW_PROTOCOL: (options.transports ?? DEFAULT_GIT_TRANSPORTS).join(':'),
@@ -178,11 +163,8 @@ const DEFAULT_OPEN_OUTPUT_WATCH: OpenOutputWatch = {
   },
 };
 
-// A run waits for git's output to close as well as for its exit, so output
-// that stays open after the exit holds the run. Past the bound, a line says
-// which git it waited on, git's process group is killed, and the wait
-// fails, since the hangup of output whose writer is gone may never arrive.
-// It resolves once the output closes or the run stops the group itself.
+// the hangup of output whose writer is gone may never arrive, so past the bound the run
+// reports which git it waited on, kills git's process group, and fails
 async function waitForOutputClose(
   pid: number,
   exited: Readonly<Promise<number>>,

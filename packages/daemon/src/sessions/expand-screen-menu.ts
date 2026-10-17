@@ -1,15 +1,6 @@
 import type { ScreenMenu, ScreenMenuOption } from '@atc/plugin-api';
 import { splitScreenMenu } from './split-screen-menu';
 
-/**
- * The whole menu a screen shows part of, read through a whole menu atc
- * read before: the same text, the window's list rows in the whole list's
- * order, and the same items after the list. The window's boxes and cursor
- * replace the whole menu's, since the window is the newer read, and every
- * option out of view keeps its box as atc last saw it. Returns null when
- * the window is not part of that menu, or when its scroll marks show
- * options that the whole menu does not hold beside the window.
- */
 export function expandScreenMenu(part: ScreenMenu, whole: ScreenMenu): ScreenMenu | null {
   if (part.text !== whole.text) {
     return null;
@@ -32,6 +23,7 @@ export function expandScreenMenu(part: ScreenMenu, whole: ScreenMenu): ScreenMen
     return null;
   }
 
+  // the window is the newer read, so its boxes win; options out of view keep the boxes last seen
   const list = known.list.map((option, index) => shown.list[index - offset] ?? option);
 
   const highlighted =
@@ -42,13 +34,8 @@ export function expandScreenMenu(part: ScreenMenu, whole: ScreenMenu): ScreenMen
   return { text: whole.text, options: [...list, ...shown.after], highlighted };
 }
 
-// Where the window's rows start in the whole list: the one place their
-// labels match in order, with options above it exactly when the window marks
-// some above, and options below it exactly when the window marks some below.
-// The cursor's own row hides its mark, so options may sit beyond an edge
-// without a mark when the cursor is on that edge's row. A window that matches
-// in more than one place, as repeated labels allow, has no place, since the
-// screen cannot show which one the cursor is in.
+// a window matching in more than one place, as repeated labels allow, has no place, since the
+// screen cannot show which one the cursor is in
 function findListOffset(
   part: ScreenMenu,
   shown: readonly ScreenMenuOption[],

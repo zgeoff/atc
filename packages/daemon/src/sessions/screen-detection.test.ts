@@ -19,10 +19,6 @@ interface SetupTestConfig {
   readonly adapters: readonly AgentAdapter[];
 }
 
-// A session manager on one `local` target over the in-memory provider, a
-// real state store, and the detection over them; each session the manager
-// announces gets the runtime the daemon gives it, and each output reaches
-// its screen before the detection sees it.
 async function setupTest(config: SetupTestConfig) {
   const tmp = setupTempDir('atc-screen-detection-');
   const dbPath = join(tmp.dir, 'state.db');

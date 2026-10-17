@@ -1,16 +1,12 @@
 import type { SessionID } from '@atc/core';
 
-/**
- * What one session bridge was opened for: the session, the target and
- * target identity it ran on, the host it runs on, and the epoch of the
- * harness start or attach that opened it. Every start or attach of the
- * session takes a new epoch.
- */
 export interface BridgeBinding {
   readonly sessionID: SessionID;
   readonly target: string;
   readonly targetIdentity: string;
   readonly hostKey: SessionID;
+
+  // every start or attach of the session takes a new epoch
   readonly epoch: number;
 }
 
@@ -23,11 +19,6 @@ interface BoundSession {
   readonly bridgeEpoch: number;
 }
 
-/**
- * Whether a bridge's binding still matches the live session it serves. A
- * session that is gone, moved to another target or identity or host, or
- * started or attached again since the bridge opened fails the check.
- */
 export function isBindingCurrent(
   binding: Readonly<BridgeBinding>,
   session: Readonly<BoundSession> | undefined,

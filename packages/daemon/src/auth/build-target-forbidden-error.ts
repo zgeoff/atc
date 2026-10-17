@@ -1,9 +1,5 @@
 import { DaemonError } from '@atc/protocol/wire';
 
-/**
- * The refusal of a spawn to a target the principal may not use, which a
- * replay of a held spawn key outside the principal's reach answers with too.
- */
 export function buildTargetForbiddenError(target: string): DaemonError {
   return new DaemonError(
     'target_forbidden',

@@ -17,20 +17,9 @@ type NarrowedMember = {
 
 type SharedMember = Exclude<keyof DaemonContext, NarrowedMember>;
 
-/**
- * The daemon as a principal with the given access sees it. Its keyed
- * spawns and messages hold their keys in the given namespace, apart from
- * every other namespace's. A session exists here only when the access
- * reaches every session in its tree: its top-level session and each
- * sub-session of that one. Every lookup of any other session answers as a
- * lookup of an unknown session does, so the request's own handling refuses
- * it with the words and data it gives a session that never existed. Lists
- * leave such sessions out, the directory list leaves out directories
- * spawned only on targets outside the access, and a spawn may use only a
- * target the access holds, a spawn's replayed answer included. A kill, a
- * forget, or a change checks the tree in the same synchronous step that
- * starts it, so a sub-session added after the check is never part of it.
- */
+// a session outside the access answers as an unknown session does, so a
+// refusal never shows the principal that it exists; a spawn may use only a
+// target the access holds, a held key's replayed answer included
 export function buildScopedContext(
   ctx: DaemonContext,
   access: TargetAccess,

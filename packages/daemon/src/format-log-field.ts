@@ -2,13 +2,9 @@
 // ends in `...`.
 const MAX_FIELD_CHARS = 64;
 
-/**
- * Formats a value for one `key=value` field of a log line. Every character
- * outside printable ASCII, and a space, `"`, `=`, or `\`, is written as a
- * `\u{hex}` escape, so a value from the network can neither move the
- * terminal, start a new line, nor forge another field. The value is cut to
- * 64 characters before it is escaped.
- */
+// escapes every character outside printable ASCII, and a space, `"`, `=`, or `\`,
+// so a value from the network can neither move the terminal, start a new line,
+// nor forge another field
 export function formatLogField(value: string): string {
   let formatted = '';
   let kept = 0;

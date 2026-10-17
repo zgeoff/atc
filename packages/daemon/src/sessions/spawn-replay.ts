@@ -14,13 +14,6 @@ interface SpawnReplayDeps {
   readonly store: Pick<StateStore, 'loadFleet'>;
 }
 
-/**
- * Answers a retried spawn under an idempotency key the ledger completed:
- * with the session as it stands now when it is listed, else with the
- * descriptor the first spawn answered. Under an access, a replay whose
- * session the access does not reach is refused as a fresh spawn to its
- * target would be.
- */
 export class SpawnReplay {
   private readonly mgr: SpawnReplayDeps['mgr'];
 
@@ -73,14 +66,11 @@ export class SpawnReplay {
     );
   }
 
-  // Throws the refusal a fresh spawn to the target gets when the access
-  // does not reach the target, and the identity, a held spawn key recorded
-  // for its session. A key that records none is refused: nothing it holds
-  // shows where its session ran. A session the daemon still holds is
-  // refused the same way when the access does not reach its whole tree.
   private requireLiveTreeInReach(record: IdempotencyRecord, access: TargetAccess): void {
     const bound = record.effectTarget;
 
+    // nothing a key without a recorded target holds shows where its
+    // session ran
     if (bound === null) {
       throw buildTargetForbiddenError(findReplayTarget(record));
     }
@@ -96,10 +86,6 @@ export class SpawnReplay {
     }
   }
 
-  // Throws the refusal of a replay out of reach when a held spawn key's
-  // session is no longer live and the access does not reach the whole tree
-  // its fleet rows hold, as the live check refuses a live tree. A session
-  // with no fleet row has no tree left to check.
   private async requireStoredTreeInReach(
     record: IdempotencyRecord,
     access: TargetAccess,
@@ -123,6 +109,7 @@ export class SpawnReplay {
 
     const own = members.find((member) => member.id === record.effectRef);
 
+    // a session with no fleet row has no tree left to check
     if (own !== undefined && !isTreeInReach(members, own.id, access)) {
       throw buildTargetForbiddenError(record.effectTarget?.target ?? findReplayTarget(record));
     }

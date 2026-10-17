@@ -21,10 +21,6 @@ interface HarnessExitTransition {
   readonly writesFleet: boolean;
 }
 
-/**
- * The transition a harness exit makes, one row per exit reason. An exit
- * with no reason is an `exited` exit.
- */
 export const HARNESS_EXIT_TRANSITIONS: Readonly<
   Record<NonNullable<HarnessExit['reason']>, HarnessExitTransition>
 > = {

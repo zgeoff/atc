@@ -66,12 +66,6 @@ interface HookIntakeDeps {
   readonly onLastUsedUnchanged?: (sessionID: SessionID) => void;
 }
 
-/**
- * Takes what sessions report: each hook line a session's reporter sends,
- * which changes the session and lands in the trail, and each note, which
- * records a session's note or settles the messages its turn answered. A
- * remote harness reports through a relay that serves its session alone.
- */
 export class HookIntake {
   private readonly mgr: HookIntakeDeps['mgr'];
 
@@ -154,10 +148,8 @@ export class HookIntake {
 
     const events = plan?.events ?? [];
 
-    // A headless session's trail comes from its runs alone: hook reports
-    // from its dying terminal, or from a run's own CLI, stay out of it. A
-    // line records the last event it planned, which the session's state
-    // follows.
+    // a headless session's trail comes from its runs alone: hook reports from its dying terminal
+    // or a run's own CLI stay out; a line records the last event it planned, as the state does
     const trailEvent = before?.kind === 'headless' ? null : (events.at(-1) ?? null);
 
     if (e.event !== 'Statusline') {
@@ -171,10 +163,8 @@ export class HookIntake {
       void this.store.updateTrailOwner(e.atcId, currentAgentSessionID);
     }
 
-    // Only a session start shows the terminal on a conversation: a turn of
-    // an older one can still end after the terminal moves on. The session's
-    // bridge follows the terminal and delivers nothing more to the older
-    // conversation; a start on the conversation it serves changes nothing.
+    // only a session start shows the terminal on a conversation: a turn of an older one can still
+    // end after the terminal moves on, and the bridge must not follow it back
     if (currentAgentSessionID !== undefined && events.some((ev) => ev.kind === 'started')) {
       this.updateBridgeThread(e.atcId, currentAgentSessionID);
     }

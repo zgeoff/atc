@@ -26,16 +26,9 @@ import { formatAuthNotice } from './format-auth-notice';
 import { loadOAuthStates } from './load-oauth-states';
 import type { RuntimeAuthBinder } from './runtime-auth-binder';
 
-// Enters a directory as the host resolves it and prints two fields, each
-// followed by a NUL, for every path where something, even a dangling
-// symlink, stands: each start file in that directory, then each root file
-// in that directory, every directory above it, and the main checkout of the
-// git worktree it lies in. The first field is the path. The second is `F`
-// and the file's content in base64 for a regular file, following a symlink,
-// that it reads and that is no larger than any settings file atc reads, and
-// `U` for anything else, such as a FIFO, a device that would never end, or
-// a file it cannot read. A `--` argument ends the start files. A directory
-// that does not exist exits with the absent status.
+// prints `<path>\0F<base64>\0` per path that exists: start files in the resolved dir, then root
+// files there, in every dir above and in the worktree's main checkout; `U` replaces `F<base64>`
+// for anything not a readable regular file within the size cap, and a missing dir exits 3
 export const READ_PROJECT_SETTINGS_SCRIPT = `cd -P -- "$1" 2>/dev/null || exit 3; shift; d=$(pwd -P)
 emit() {
   [ -e "$1" ] || [ -L "$1" ] || return 0
@@ -94,18 +87,12 @@ export interface HarnessPlan extends SpawnPlan {
     readonly attemptID: string | null;
   } | null;
 
-  // The revision the host's binding held before this launch verified it,
-  // the latest a process the start attaches to instead of making can have
-  // launched under; null for a launch that creates its binding or takes no
-  // runtime auth.
+  // the revision the host's binding held before this launch verified it, the latest a process
+  // the start attaches to can have launched under; null when the launch creates its binding or
+  // takes no runtime auth
   readonly heldRevision: number | null;
 }
 
-/**
- * What a rebind of a session's host did: the revision the binding holds
- * now, and the sessions on the host whose harness launched under an older
- * one and reads the new revision's settings only at its next launch.
- */
 export interface AuthRebound {
   readonly revision: number;
   readonly restartPending: readonly SessionID[];
@@ -124,12 +111,6 @@ interface AuthSetupDeps {
   readonly callbacks: Pick<SessionCallbacks, 'onEvent' | 'log' | 'getAuthBinder'>;
 }
 
-/**
- * Sets up a harness's host and its credential: how an agent takes its
- * credential from impd's broker on a target, the runtime auth binding a
- * launch creates or verifies, the guest files and checks a remote launch
- * needs, and the project settings a launch behind the broker reads first.
- */
 export class AuthSetup {
   private readonly registry: AuthSetupDeps['registry'];
 
@@ -155,12 +136,8 @@ export class AuthSetup {
     this.callbacks = deps.callbacks;
   }
 
-  /**
-   * Throws the refusal for an agent that takes its credential from impd's
-   * broker on a target where it cannot, before a spawn or an adopt does
-   * any work: a target whose provider reaches no broker, for an agent that
-   * starts only behind one, or a broker the daemon cannot bind.
-   */
+  // throws before a spawn or an adopt does any work, for an agent that needs a broker the
+  // target does not reach or the daemon cannot bind
   requireAgentTarget(agent: AgentID, target: string): void {
     const selection = this.registry.findAdapter(agent)?.findAuthSelection?.() ?? null;
 
@@ -179,13 +156,8 @@ export class AuthSetup {
     }
   }
 
-  // What a harness of this agent needs to take its credential from impd's
-  // broker on a provider, or null when it takes none there: the agent
-  // takes none at all, or its selection lets it start on a target that
-  // reaches no broker under that host's own sign-in. Throws the refusal
-  // for an agent that starts only behind the broker on a target whose
-  // provider has none, so its credential never falls back to a local
-  // start, and for a selection the current auth profiles cannot bind.
+  // null when the agent may start on this provider under the host's own sign-in; an agent that
+  // starts only behind the broker is refused instead, so it never falls back to a local start
   resolveHarnessAuth(
     adapter: AgentAdapter,
     provider: ExecutionProvider,
@@ -250,13 +222,8 @@ export class AuthSetup {
     );
   }
 
-  // On a remote host the agent plans a guest spawn, whose files unpack into
-  // the session's own guest folder, and the agent's sign-in check runs
-  // there first. Every refusal comes before the harness starts. A harness
-  // behind the broker has its binding created or verified before the host
-  // is readied, and a binding this call created is taken back when a later
-  // step fails; the attempt that created it comes back with the plan. A
-  // spawn's new host of its own without a binding is destroyed instead.
+  // every refusal comes before the harness starts; a failure once the host is readied takes
+  // back the binding this call created, or destroys a spawn's own new host
   async setupHarnessOnHost(
     adapter: AgentAdapter,
     provider: ExecutionProvider,
@@ -448,18 +415,14 @@ export class AuthSetup {
     };
   }
 
-  // Verifies the binding a revive or a sub-session launches under, moving
-  // a changed selection to the current one on a target that rebinds it, and
-  // marks each harness on the host that launched under an older revision.
-  // Only a host whose every session runs the launching agent rebinds, since
-  // two agents that select different profiles would each move the host
-  // back on their own launches.
   private async verifyHarnessAuth(
     agent: AgentID,
     provider: ExecutionProvider,
     hostKey: SessionID,
     auth: HarnessAuthSetup,
   ): Promise<VerifiedAuth> {
+    // only a host whose every session runs this agent rebinds: two agents that select
+    // different profiles would each move the host back on their own launches
     const isSoleAgent = this.registry.sessions.every(
       (other) => other.hostKey !== hostKey || other.agent === agent,
     );
@@ -548,13 +511,6 @@ export class AuthSetup {
     }
   }
 
-  // Reads each project settings file the agent applies for a harness behind
-  // the broker, from the directory it starts in as the host resolves it, and
-  // throws the agent's refusal for one that would override its sign-in. An
-  // absent file passes; one the host holds but cannot read, that is not a
-  // regular file, or that is larger than any settings file refuses, since
-  // what the agent would take from it is unknown. A relative directory is
-  // under the host's home.
   async requireProjectSettings(
     adapter: AgentAdapter,
     provider: ExecutionProvider,
@@ -603,6 +559,8 @@ export class AuthSetup {
     for (const [path, read] of collectSettingsReads(found.stdout)) {
       const content = read === null ? null : Buffer.from(read, 'base64');
 
+      // a file the host holds but cannot read as a settings file refuses, since what the agent
+      // would take from it is unknown
       if (content === null || content.byteLength > MAX_SETTINGS_BYTES) {
         throw this.buildUnreadableSettingsRefusal(adapter.id, target, path);
       }
@@ -623,12 +581,8 @@ export class AuthSetup {
     );
   }
 
-  /**
-   * Withdraws every grant of the runtime auth binding on a session's host.
-   * Launches on the host stay blocked until a rebind, and a harness that
-   * runs keeps running while impd fails its later requests. Returns false
-   * for no such session.
-   */
+  // launches on the host stay blocked until a rebind; a running harness keeps running while
+  // impd fails its later requests
   async revokeAuth(id: SessionID): Promise<boolean> {
     const s = this.registry.sessions.find((x) => x.id === id);
 
@@ -644,13 +598,6 @@ export class AuthSetup {
     return true;
   }
 
-  /**
-   * Binds a session's host to its agent's current auth selection at the
-   * next revision, and returns that revision with every session on the host
-   * whose latest harness launched under an older one, or null for no such
-   * session. Each of those sessions shows that the new revision applies at
-   * its next launch, since a harness keeps the settings it launched with.
-   */
   async updateAuth(id: SessionID): Promise<AuthRebound | null> {
     const s = this.registry.sessions.find((x) => x.id === id);
 
@@ -685,6 +632,8 @@ export class AuthSetup {
 
     this.harnesses.authRevisions.set(s.hostKey, revision);
 
+    // a harness keeps the settings it launched with, so each one under an older revision shows
+    // that the new one applies at its next launch
     const pending = this.registry.sessions.filter(
       (other) => other.hostKey === s.hostKey && this.harnesses.isAuthOutdated(other),
     );

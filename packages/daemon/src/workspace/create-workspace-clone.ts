@@ -32,29 +32,6 @@ type IncompleteCheckout = Exclude<
   { readonly ok: true }
 >;
 
-/**
- * Clones a repository into an empty directory and checks out the commit its
- * ref points at that moment. A branch ref is checked out as that branch; a tag
- * or a full commit id leaves HEAD detached at the commit. The clone copies
- * objects rather than hard-linking them, takes no hook templates, and runs no
- * hooks on checkout.
- *
- * A ref, or a full commit id, that the upstream does not have is refused as
- * `ref_not_found`, and the directory is removed.
- *
- * The checked-out commit must be the whole workspace: one that uses
- * submodules or tracks paths through Git LFS is refused and the directory is
- * removed. The clone fetches without checking out, and the checkout then
- * runs isolated from the host's system and global git config, so no filter
- * the host configured, LFS or otherwise, runs or reaches the network.
- *
- * Without a credential, git authenticates through the host's own git
- * config. An env credential is read from the named variable and handed to git
- * only through a private askpass helper for the network commands, never
- * through the command line or the URL, and the helper is deleted before this
- * returns. The host's credential helpers are switched off for those commands
- * so none of them stores the token.
- */
 export async function createWorkspaceClone(
   request: CloneRequest,
 ): Promise<CloneRefusal | CreatedClone | IncompleteCheckout> {
@@ -102,6 +79,7 @@ async function createCloneAtRef(
     return { ok: false, code: 'clone_failed', message: clone.stderr.trim() };
   }
 
+  // isolated, so no filter the host configured, LFS or otherwise, runs or reaches the network
   const checkout = await runGit(
     [
       '-c',

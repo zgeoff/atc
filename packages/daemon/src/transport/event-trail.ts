@@ -28,13 +28,6 @@ type NoteRead = Awaited<ReturnType<DaemonContext['readNote']>>;
 
 type AnswerRead = Awaited<ReturnType<DaemonContext['readAnswer']>>;
 
-/**
- * Reads the hook-event trail: a page of events after a cursor, held until
- * one arrives or the wait runs out, and one note or message answer by its
- * trail id. Under an access, a read matches only the sessions whose whole
- * tree is on targets the access holds, and names each row by the atc id it
- * was recorded under.
- */
 export class EventTrail {
   private readonly mgr: EventTrailDeps['mgr'];
 
@@ -51,11 +44,9 @@ export class EventTrail {
     this.eventSignal = deps.eventSignal;
   }
 
-  // A wake for an event the read leaves out (a heartbeat, or another
-  // session's event under a session filter) loops back to wait out the
-  // rest of the window. The scope is built again after every await, so a
-  // session whose tree left the access while the read waited matches
-  // nothing, and a read whose scope changed under its query runs again.
+  // A wake for an event the read leaves out loops back to wait out the rest of the window.
+  // The scope is built again after every await, so a session whose tree left the access
+  // while the read waited matches nothing.
   async readEvents(
     afterID: number | null,
     limit: number,
@@ -80,6 +71,7 @@ export class EventTrail {
         access !== null &&
         JSON.stringify(this.buildEventScope(sessionID, access)) !== JSON.stringify(scope)
       ) {
+        // the scope changed under the query, so the read runs again
         continue;
       }
 
@@ -137,13 +129,8 @@ export class EventTrail {
     };
   }
 
-  // A live session's scope also matches the rows it wrote under an earlier
-  // atc id, through the agent session id a restore carries on. Under an
-  // access, the scope holds only the atc ids of the sessions whose whole
-  // tree is on targets the access holds, so a session outside it matches
-  // nothing, as a session never seen does. It holds no agent session id
-  // there: a session on another target can resume the same agent session,
-  // and its rows would match.
+  // A live session's scope also matches the rows it wrote under an earlier atc id, through
+  // the agent session id a restore carries on.
   private buildEventScope(
     sessionID: SessionID | null,
     access: TargetAccess | null,
@@ -167,6 +154,8 @@ export class EventTrail {
       (x) => (sessionID === null || x.id === sessionID) && isTreeInReach(sessions, x.id, access),
     );
 
+    // no agent session id under an access: a session on another target can resume the same
+    // agent session, and its rows would match
     return { atcIDs: visible.map((x) => x.id), agentSessionIDs: [] };
   }
 

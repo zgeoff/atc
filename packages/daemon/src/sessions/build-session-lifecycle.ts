@@ -13,11 +13,6 @@ interface LifecycleFacts {
   readonly state: 'running' | 'needs_you' | 'done' | 'exited';
 }
 
-/**
- * Builds the four layers from a session's facts. The harness runs while the
- * session holds a terminal or a live headless run. A harness without one is
- * suspended while it is kept inside a sleeping host, and exited otherwise.
- */
 export function buildSessionLifecycle(facts: Readonly<LifecycleFacts>): SessionLifecycle {
   const running = facts.hasHarness || (facts.kind === 'headless' && facts.state !== 'exited');
   let harness: SessionLifecycle['harness'] = 'exited';

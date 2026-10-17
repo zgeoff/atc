@@ -2,12 +2,8 @@ import { createHash } from 'node:crypto';
 import type { ScreenMenu } from '@atc/plugin-api';
 import type { MenuView } from '@atc/protocol';
 
-/**
- * The menu as a client reads it: each option numbered from 1, and a token
- * built from the text, the labels and the boxes. A cursor move keeps the
- * token, so a choice that walks the cursor to its option still matches it.
- */
 export function buildMenuView(menu: ScreenMenu): MenuView {
+  // the highlight stays out of the token, so a choice that walks the cursor still matches it
   const menuToken = createHash('sha256')
     .update(
       JSON.stringify([menu.text, menu.options.map((option) => [option.label, option.checked])]),

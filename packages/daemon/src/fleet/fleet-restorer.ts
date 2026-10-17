@@ -28,12 +28,6 @@ interface FleetRestorerDeps {
   readonly onRestoreSkipped?: ((reason: 'disabled' | 'empty') => void) | undefined;
 }
 
-/**
- * Restores the stored fleet, by itself when the daemon starts with the
- * option set, or on request. A restore runs from its first call until its
- * staggered terminal adoption finishes, and a restore requested meanwhile
- * joins it, so the fleet never registers twice at once.
- */
 export class FleetRestorer {
   private readonly deps: FleetRestorerDeps;
 
@@ -46,6 +40,8 @@ export class FleetRestorer {
   // Resolves with the count of sessions the restore registered, before
   // their terminals finish booting.
   runFleetRestore(cols: number, rows: number): Promise<number> {
+    // a restore runs until its staggered terminal adoption settles, and one requested
+    // meanwhile joins it, so the fleet never registers twice at once
     if (this.inFlight !== null) {
       return this.inFlight;
     }
@@ -86,10 +82,8 @@ export class FleetRestorer {
     return restored.promise;
   }
 
-  // The stored fleet restores once per start, at the size a restored
-  // terminal takes until its first attach resizes it, and only when the
-  // option is set and the store holds a fleet. A failure is logged and
-  // never stops the daemon.
+  // the stored fleet restores once per start, at the size a restored terminal takes
+  // until its first attach resizes it; a failure is logged and never stops the daemon
   async startBootRestore(enabled: boolean): Promise<void> {
     if (!enabled) {
       this.deps.onRestoreSkipped?.('disabled');

@@ -1,9 +1,5 @@
 import type { BrokerSecret, BrokerSecretKind, BrokerSecretRule } from '@atc/plugin-api';
 
-/**
- * One secret as a resolved binding expects impd to hold it: its kind and
- * the complete set of rules, one per host.
- */
 interface ExpectedSecret {
   readonly secret: string;
   readonly kind: BrokerSecretKind;
@@ -25,15 +21,6 @@ type SecretRuleMismatch =
       readonly actual: readonly BrokerSecretRule[];
     };
 
-/**
- * Compares the secrets a resolved binding expects with the secrets impd
- * lists, secret by secret. Each expected secret must exist with the same
- * kind and exactly the same set of rules, in any order: a rule impd holds
- * that the binding lacks is a mismatch as much as a missing one, since it
- * sends the credential to a host the binding never approved. An empty
- * result means every expected secret matches; secrets the binding does not
- * expect are ignored.
- */
 export function collectSecretRuleMismatches(
   expected: readonly ExpectedSecret[],
   secrets: readonly BrokerSecret[],
@@ -74,6 +61,8 @@ function hasSameRules(
   const leftKeys = left.map((rule) => toRuleKey(rule)).toSorted();
   const rightKeys = right.map((rule) => toRuleKey(rule)).toSorted();
 
+  // a held rule the binding lacks is a mismatch too: it sends the credential
+  // to a host the binding never approved
   return (
     leftKeys.length === rightKeys.length && leftKeys.every((key, index) => key === rightKeys[index])
   );

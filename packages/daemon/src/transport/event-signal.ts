@@ -1,11 +1,6 @@
 import { systemClock } from '@atc/core';
 import type { Clock } from '@atc/core';
 
-/**
- * Wakes long-polling readers when the event trail grows. A reader notes the
- * signal's count before it queries and waits from that count, so an event
- * recorded between the query and the wait is never missed.
- */
 export class EventSignal {
   generation = 0;
 

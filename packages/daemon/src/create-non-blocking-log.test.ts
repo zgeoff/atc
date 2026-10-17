@@ -10,13 +10,6 @@ import {
   waitFor,
 } from '@atc/test-utils';
 
-/**
- * A daemon in a process of its own whose TCP listener logs every refusal
- * on a line of its own to the daemon's stderr, a named pipe at `fifoPath`
- * that nothing reads until the test opens it. A pipe from the spawn itself
- * would not do: the runtime reads those as they fill. The daemon prints
- * the port its listener bound, which `port` holds.
- */
 async function setupTest() {
   const tmp = setupTempDir('atc-non-blocking-log-');
   const fifoPath = join(tmp.dir, 'stderr');
@@ -24,6 +17,8 @@ async function setupTest() {
   // The listener refuses to start without a token file.
   writeFileSync(join(tmp.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
+  // stderr is a named pipe because a pipe from the spawn itself never fills: the
+  // runtime reads it as it fills
   await runCommand(['mkfifo', fifoPath]);
 
   // The read end opens first and never blocks, so the write end opens at

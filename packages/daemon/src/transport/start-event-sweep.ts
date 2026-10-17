@@ -17,11 +17,6 @@ interface EventSweepDeps {
   readonly sweepClock: Clock;
 }
 
-/**
- * Drops the trail rows past their age once, then again on a timer, and
- * returns the call that stops the timer. Each sweep schedules the next
- * before it runs, so a failed sweep leaves the rows for the next one.
- */
 export async function startEventSweep(deps: EventSweepDeps): Promise<() => void> {
   await tryRemoveExpiredEvents(deps);
 
@@ -29,6 +24,7 @@ export async function startEventSweep(deps: EventSweepDeps): Promise<() => void>
 
   const scheduleSweep = () => {
     stop = deps.sweepClock.schedule(() => {
+      // the next sweep is scheduled before this one runs, so a failed sweep never stops the timer
       scheduleSweep();
       void tryRemoveExpiredEvents(deps);
     }, EVENT_SWEEP_MS);

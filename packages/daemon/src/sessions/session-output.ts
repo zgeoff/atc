@@ -33,12 +33,6 @@ interface SessionOutputDeps {
   readonly scheduleDetect: (sessionID: SessionID) => void;
 }
 
-/**
- * Carries each session's terminal output to the clients attached to it.
- * The screen model takes every byte, attached or not, and an attaching
- * client first gets the screen replayed as ordinary output. A session's
- * terminal takes the smallest size across its attached clients.
- */
 export class SessionOutput {
   private readonly mgr: SessionOutputDeps['mgr'];
 
@@ -139,11 +133,9 @@ export class SessionOutput {
     this.attachments.attach(sessionID, client, dims);
     this.mgr.attach(sessionID);
 
-    // The PTY and screen model take the new effective size before the
-    // replay renders, so the repaint arrives at the attaching terminal's
-    // own dims instead of the previous attachment's: a replay at stale dims
-    // paints vertically misaligned and the agent's resize repaint only
-    // redraws its live region, never the rows above it.
+    // resize before the replay renders: a replay at the previous attachment's
+    // dims paints misaligned, and the agent's resize repaint only redraws its
+    // live region, never the rows above it
     this.applyEffectiveDims(sessionID);
     void this.sendReplay(sessionID, client);
     const attached = getDescriptor(this.mgr, sessionID);

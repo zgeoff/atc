@@ -16,11 +16,6 @@ interface SessionFleetWriterDeps {
   readonly callbacks: Pick<SessionCallbacks, 'onChange' | 'log' | 'getRecords'>;
 }
 
-/**
- * Writes the fleet the registry lists: the store's rows, continuously, so
- * a crash or a quit leaves a restorable fleet, and the status file the
- * statusline reporters read.
- */
 export class SessionFleetWriter {
   private readonly store: FleetStore;
 
@@ -42,10 +37,9 @@ export class SessionFleetWriter {
     this.callbacks.onChange();
   }
 
-  // Consumed by the injected statusline command so wrangled sessions render
-  // fleet state inside their own status line. The file is written beside
-  // its place and renamed over it, so a reader that opens it mid-write
-  // still sees the whole previous file, never a truncated or empty one.
+  // the statusline command injected into sessions reads this file; it is written beside
+  // its place and renamed over it, so a reader that opens it mid-write still sees the
+  // whole previous file, never a truncated or empty one
   writeStatus() {
     const c = this.registry.countStates();
     const urgent = this.registry.sortSessions().find((s) => s.state === 'needs_you');
@@ -61,15 +55,9 @@ export class SessionFleetWriter {
     }
   }
 
-  // Persisted continuously so a crash (or quit) leaves a restorable fleet.
-  // A write covers the listed sessions and the ones dropped on purpose
-  // since the last write; a stored row the daemon has not restored yet
-  // stays as it is, so a write before `R` keeps it restorable. Deliberate
-  // kills rewrite the fleet; unexpected session/atc deaths do not, so the
-  // last known fleet survives for `R` restore. Sessions whose
-  // terminal is gone persist as exited entries, so the killed archive
-  // survives a daemon restart too. A session the agent has not yet given
-  // its own session id persists as well, under its atc session id alone.
+  // a stored row the daemon has not restored yet stays as it is, so a write before a
+  // restore keeps it restorable; deliberate kills rewrite the fleet and unexpected
+  // deaths do not, so the last known fleet survives for a restore
   async writeFleet(): Promise<void> {
     const fleet: FleetEntry[] = [];
 
@@ -115,10 +103,9 @@ export class SessionFleetWriter {
     }
   }
 
-  // A write nobody awaits that fails leaves the stored rows as they were,
-  // and must not take the daemon down unhandled. A stale ownership epoch is
-  // expected and surfaces on the next write a request awaits; any other
-  // failure is logged with the session whose change it was writing.
+  // a failed write nobody awaits must not take the daemon down unhandled; a stale
+  // ownership epoch surfaces on the next write a request awaits, and any other
+  // failure is logged with the session whose change it was writing
   async tryWriteFleet(sessionID: SessionID): Promise<boolean> {
     try {
       await this.writeFleet();

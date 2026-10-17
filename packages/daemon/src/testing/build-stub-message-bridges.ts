@@ -1,10 +1,5 @@
 import type { MessageBridge, MessageBridgeRequest } from '@atc/plugin-api';
 
-/**
- * A message bridge stand-in and the start an adapter offers it through:
- * each start records its request and answers with a fresh bridge that
- * plans the `stub-bridge` binary and records what the daemon asks of it.
- */
 interface StubMessageBridges {
   // Every start the daemon asked for, in order.
   readonly requests: MessageBridgeRequest[];
@@ -21,11 +16,6 @@ interface StubMessageBridge extends MessageBridge {
   readonly countStops: () => number;
 }
 
-/**
- * A bridge source for daemon tests: an adapter that spreads in its
- * `startMessageBridge` takes its messages through a bridge in the daemon,
- * and the test reads each request's host to drive the daemon's side.
- */
 export function buildStubMessageBridges(): StubMessageBridges {
   const requests: MessageBridgeRequest[] = [];
   const bridges: StubMessageBridge[] = [];

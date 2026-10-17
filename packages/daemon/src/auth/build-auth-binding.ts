@@ -5,15 +5,6 @@ import type { AgentID } from '@atc/core';
 import { sortJSONKeys } from '@atc/core';
 import type { AuthProfile, GatewayAuth } from '@atc/plugin-api';
 
-/**
- * What a session's runtime is bound to through impd's broker: every
- * profile its gateway's selection reaches, the secrets they need impd to
- * hold with exactly these rules, the placeholder variables in place of a
- * credential, the variables the profiles set, and the endpoint. `hash`
- * covers the secrets and their rules, and the profile variables when there
- * are any, so a change to a profile the binding does not reach leaves it as
- * it was, and a change to one it reaches gives another hash.
- */
 export interface AuthBinding {
   readonly agent: AgentID;
   readonly baseURL: string;
@@ -32,12 +23,6 @@ interface AuthGateway {
   readonly auth: GatewayAuth;
 }
 
-/**
- * Plans the binding a gateway's auth asks for against the current auth
- * profiles, or the problem that refuses it. The hash is the SHA-256 of the
- * resolved secrets (and profile variables, when set) as canonical JSON, with each list sorted, so the order
- * of the selection or of the config never changes it.
- */
 export function buildAuthBinding(
   gateway: AuthGateway,
   profiles: ReadonlyMap<string, AuthProfile>,

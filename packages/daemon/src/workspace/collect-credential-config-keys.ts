@@ -1,12 +1,5 @@
 import { normalizeGitURL } from './normalize-git-url';
 
-/**
- * Every key in a `git config --list -z` listing whose setting can carry a
- * secret: credential helpers and usernames, http extra headers (where an
- * Authorization header rides), remote URLs that lose something when
- * stripped of credentials, and URL rewrites whose either side holds
- * userinfo. A key set more than once is listed once.
- */
 export function collectCredentialConfigKeys(listing: string): string[] {
   const keys = new Set<string>();
 
@@ -30,6 +23,7 @@ function isCredentialEntry(lowered: string, key: string, value: string): boolean
     return true;
   }
 
+  // an Authorization header rides in an http extra header
   if (lowered.startsWith('http.') && lowered.endsWith('.extraheader')) {
     return true;
   }

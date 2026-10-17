@@ -1,11 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { SessionID } from '@atc/core';
 
-/**
- * A fresh atc session id: a random uuid. Every session the session manager
- * spawns gets one, and the fleet row keeps it, so the id stays the same
- * across daemon restarts and fleet restores.
- */
+// random rather than counted: the fleet row keeps the id across daemon restarts and restores
 export function mintSessionID(): SessionID {
   // oxlint-disable-next-line no-unsafe-type-assertion -- this is where atc mints a session id
   return randomUUID() as SessionID;

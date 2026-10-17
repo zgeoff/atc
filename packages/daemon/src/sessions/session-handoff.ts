@@ -32,12 +32,6 @@ interface SessionHandoffDeps {
   readonly scheduleResize: (sessionID: SessionID) => void;
 }
 
-/**
- * Moves a session between its terminal and headless turns. An eject ends
- * the terminal and hands the conversation to a headless turn; an adopt
- * stops a headless run and starts a terminal that resumes it. Both refuse
- * a session whose agent cannot resume its conversation.
- */
 export class SessionHandoff {
   private readonly mgr: SessionHandoffDeps['mgr'];
 

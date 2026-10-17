@@ -12,20 +12,6 @@ export interface ScreenText {
 // tracking, bracketed paste, focus events); these are the ones it drops.
 const REPLAYED_DEC_MODES = new Set([1006, 1007, 2031]);
 
-/**
- * A per-session vt state machine: consumes every PTY byte continuously and
- * renders the current screen as an ANSI replay string, so attaching a
- * client is an instant repaint instead of a resize jiggle. Scrollback is
- * capped aggressively — the model exists for the current screen, not
- * history; transcripts on disk are the durable copy.
- *
- * The serializer covers buffer content and the modes the vt engine tracks,
- * but not the input-encoding state a fullscreen agent sets: SGR mouse
- * encoding, alternate scroll, color-scheme reports, the kitty keyboard
- * protocol, and modifyOtherKeys. Those are tracked here and folded into the
- * replay, which first resets every input mode so a replay painted over
- * another session's screen never inherits its input state.
- */
 export class ScreenModel {
   private readonly term: Terminal;
 
@@ -40,11 +26,15 @@ export class ScreenModel {
   private modifyOtherKeys = 0;
 
   constructor(cols: number, rows: number) {
+    // scrollback stays small: the model serves the current screen, and the
+    // transcripts on disk are the durable copy
     this.term = new Terminal({ cols, rows, allowProposedApi: true, scrollback: 300 });
     this.serializer = new SerializeAddon();
 
     this.term.loadAddon(this.serializer);
 
+    // the serializer drops the input-encoding state a fullscreen agent sets,
+    // so these handlers track it for the replay
     for (const final of ['h', 'l'] as const) {
       this.term.parser.registerCsiHandler({ prefix: '?', final }, (params) => {
         for (const p of params) {
@@ -106,10 +96,6 @@ export class ScreenModel {
     return this.term.modes.bracketedPasteMode;
   }
 
-  // The visible rows of whichever buffer the session is showing, as plain
-  // text with no escape sequences: one line per row, trailing blanks
-  // trimmed from each row, trailing blank rows dropped. Drains pending
-  // writes first, so text recorded just before the read is never missing.
   async renderText(): Promise<ScreenText> {
     await this.waitForFlush();
 
@@ -147,13 +133,9 @@ export class ScreenModel {
     } while (pending !== this.flushed);
   }
 
-  // A session on the alternate screen serializes as the normal buffer, a
-  // buffer switch, then the alternate buffer. The switch clears nothing on a
-  // terminal already in alternate mode — and the client always is, since its
-  // chrome runs there — so the normal-buffer paint would linger under the
-  // alternate one, showing through every cell the serializer skips as blank.
-  // The replay therefore keeps only what the switch precedes: the content of
-  // the buffer the session is actually showing.
+  // the client is always in alternate mode, where the buffer switch clears
+  // nothing, so a normal-buffer paint before it would show through blank
+  // cells: keep only what follows the last switch
   private renderVisibleScreen(): string {
     const serialized = this.serializer.serialize();
     const altSwitch = `${ansi.altScreenOn}${ansi.cursorHome}`;

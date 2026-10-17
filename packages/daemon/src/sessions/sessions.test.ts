@@ -17,10 +17,7 @@ import type { Session } from './session';
 import type { SessionEventKind } from './session-event-kind';
 import { SessionManager } from './sessions';
 
-// The fixed parts every session manager test shares: a real state store, a
-// recorder of logged lines, and a `local-pty` provider whose harnesses live
-// in memory. Each test builds its targets over it. A manager the test holds
-// after this setup detaches before the store goes.
+// a manager the test holds after this setup detaches before the store goes
 async function setupTest() {
   const tmp = setupTempDir('atc-sessions-');
   const dbPath = join(tmp.dir, 'state.db');

@@ -15,13 +15,8 @@ const SCP_PATTERN = /^(?:[^@/:\s]+@)?[^@/:\s]+:/u;
 // Schemes git treats as ssh.
 const SSH_SCHEMES: ReadonlySet<string> = new Set(['ssh', 'git+ssh', 'ssh+git']);
 
-/**
- * Checks that a repository URL uses one of the allowed git transports,
- * without running git. The scp-style form is ssh, a remote-helper URL is
- * its helper's transport, and a path is the `file` transport. A URL that
- * git could read as an option is refused whatever the transports.
- */
 export function checkGitTransport(url: string, transports: readonly string[]): TransportCheck {
+  // git would read a leading dash as an option, whatever the transports
   if (url.startsWith('-')) {
     return { ok: false, code: 'invalid_git_url', message: 'a git URL must not start with -' };
   }

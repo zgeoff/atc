@@ -26,13 +26,6 @@ interface Subscriber {
   readonly end: () => void;
 }
 
-/**
- * Starts the read-only events listener. A subscriber connects with no
- * handshake and receives NDJSON wire events: first the snapshot, then every
- * broadcast behind it. Input on the socket is ignored. A subscriber whose
- * outbound queue overflows is disconnected rather than stalled — on
- * reconnect it gets a fresh snapshot instead of the backlog it missed.
- */
 export function startEventsServer(opts: EventsServerOptions): EventsServer {
   const subscribers = new Set<Subscriber>();
 
@@ -82,6 +75,8 @@ export function startEventsServer(opts: EventsServerOptions): EventsServer {
 
       for (const subscriber of subscribers) {
         if (!subscriber.queue.send(line)) {
+          // a subscriber that falls behind is dropped rather than stalled; on reconnect it gets
+          // a fresh snapshot instead of the backlog it missed
           subscriber.end();
         }
       }

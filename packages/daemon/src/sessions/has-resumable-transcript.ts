@@ -8,11 +8,6 @@ interface ResumeSource {
   readonly findProvider: SessionManager['findProvider'];
 }
 
-/**
- * Whether the session's agent can resume the conversation the session
- * holds. A session the manager does not hold, or one whose agent is gone,
- * has none.
- */
 export function hasResumableTranscript(mgr: ResumeSource, id: SessionID): boolean {
   const s = mgr.sessions.find((x) => x.id === id);
 

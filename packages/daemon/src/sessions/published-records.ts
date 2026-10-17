@@ -15,19 +15,12 @@ import type { CheckedScope } from '../auth/check-session-scope';
 import { mergeRecordedScope } from '../auth/merge-recorded-scope';
 import { findHostBranch } from './find-host-branch';
 
-/**
- * Where the state store keeps each session's published record.
- */
 interface PublishedRecordStore {
   readonly findPublishedRecord: (sessionID: SessionID) => Promise<PublishedRecord | null>;
   readonly writePublishedRecord: (record: PublishedRecord) => Promise<void>;
   readonly removePublishedRecord: (sessionID: SessionID) => Promise<void>;
 }
 
-/**
- * One session as its record sees it: the host it runs on, the directory
- * it runs in, and what its workspace was materialized from.
- */
 interface RecordSubject {
   readonly session: SessionID;
   readonly target: string;
@@ -67,11 +60,7 @@ const NO_COPY_CODE = 3;
 // place, and exits NO_COPY_CODE when there is none.
 export const REFRESH_COPY = `[ -e "$1/$2" ] || exit ${NO_COPY_CODE}; ${PLACE_COPY}`;
 
-/**
- * Publishes each session's record: the state store holds it, and the
- * session's provider places a read-only copy where the session reads it.
- * Only the daemon writes either, from what it checked itself.
- */
+// only the daemon writes the record or its read-only copy, from what it checked itself
 export class PublishedRecords {
   private readonly options: PublishedRecordsOptions;
 
@@ -202,10 +191,8 @@ export class PublishedRecords {
     };
   }
 
-  // The branch atc checked a workspace out on, else the branch of a
-  // directory on the daemon's machine. A remote directory atc did not
-  // materialize records none, so a spawn there runs no command on the host
-  // before its harness starts.
+  // a remote directory atc did not materialize records no branch, so a spawn there runs no
+  // command on the host before its harness starts
   private findBranch(subject: RecordSubject): Promise<string | null> {
     if (subject.branch !== undefined) {
       return Promise.resolve(subject.branch);
@@ -285,11 +272,9 @@ export class PublishedRecords {
     return `${dir}/${name}`;
   }
 
-  // A harness that started before its host kept read-only files reads the
-  // guest-folder copy, and a later start of the same session reattaches to
-  // that process with the environment it started with. So the copy there
-  // stays current for as long as it exists: a cold boot clears the guest
-  // folder and ends that process with it.
+  // a harness started before its host kept read-only files reads the guest-folder copy, and a
+  // later start reattaches to it with that environment, so the copy stays current while it
+  // exists; a cold boot clears the folder and ends that process with it
   private async refreshGuestCopy(
     subject: RecordSubject,
     name: string,

@@ -53,16 +53,8 @@ interface AccessRefusal {
   readonly message: string;
 }
 
-/**
- * Checks that the daemon's host can read a git workspace source the way a
- * workspace spawn from it would, without cloning: the URL resolves exactly
- * as the materializer resolves it, against the git config of a fresh empty
- * directory, and one `git ls-remote` authenticates exactly as the clone
- * does. A readable upstream answers with its branches, tags, and default
- * branch, and with the commit the requested ref points at now. A full
- * commit id is taken as it is: a listing holds refs, not objects, so only
- * the clone can tell that the upstream lacks it.
- */
+// reads the source exactly as a workspace spawn from it would, without cloning: the URL
+// resolves as the materializer resolves it, and the listing authenticates as the clone does
 export async function checkRepositoryAccess(
   request: AccessRequest,
 ): Promise<AccessRefusal | RepositoryAccess> {
@@ -89,6 +81,7 @@ export async function checkRepositoryAccess(
 
     const access = { ok: true, url: resolved.url, head: listing.head, refs: listing.refs } as const;
 
+    // a listing holds refs, not objects, so only the clone can tell that the upstream lacks it
     if (request.sha !== undefined) {
       return { ...access, resolved: { sha: request.sha, branch: null } };
     }

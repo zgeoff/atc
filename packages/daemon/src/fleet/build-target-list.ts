@@ -34,15 +34,11 @@ const NO_CAPABILITIES: ExecutionCapabilities = {
   destroy: false,
 };
 
-/**
- * One `agents.list` target entry per configured target, in config order.
- * An entry holds the target's id, provider kind, and capabilities, never its
- * options, since those can hold a host's address or an account.
- */
 export function buildTargetList(
   targets: readonly ExecutionTarget[],
   defaultTarget: string | null,
 ): TargetEntry[] {
+  // never a target's options, which can hold a host's address or an account
   return targets.map((target) => ({
     id: target.id,
     provider: target.kind,

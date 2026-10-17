@@ -2,11 +2,6 @@ import { encodeCursor } from '@atc/protocol';
 import type { SessionDescriptor } from '@atc/protocol';
 import type { StoredNote } from '@atc/store';
 
-/**
- * One note as `note.get` returns it: the cursor of its event, when it
- * arrived, the session that sent it and that session's name, its label, its
- * text, and whether that text is whole.
- */
 export interface NoteView {
   readonly note: string;
   readonly at: number;
@@ -17,18 +12,13 @@ export interface NoteView {
   readonly complete: boolean;
 }
 
-/**
- * Builds the view from the sessions that may name it. A row written before
- * atc session ids stayed stable across restores carries an earlier atc id,
- * so a session of `aliases` that holds its agent session id names it when
- * no session holds the atc id. The alias only names the note: whoever
- * checks who may read it checks the row's own atc id.
- */
 export function buildNoteView(
   stored: StoredNote,
   sessions: readonly SessionDescriptor[],
   aliases: readonly SessionDescriptor[],
 ): NoteView {
+  // a row can hold an older atc id of a restored session, so an alias holding its agent session
+  // id names it; the alias only names it, and a read check still uses the row's own atc id
   const live =
     sessions.find((s) => s.id === stored.atcID) ??
     (stored.agentSessionID === null

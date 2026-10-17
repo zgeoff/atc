@@ -1,29 +1,10 @@
 import type { DaemonContext } from '../daemon-context';
 
-/**
- * How a request a principal sends reaches a member of the daemon's
- * context:
- *
- * - `narrowed`: the principal's context replaces the member with one that
- *   reaches only the sessions and targets the access holds.
- * - `daemon-wide`: the principal gets the daemon's own member, which holds
- *   or acts on nothing that belongs to one session or one target's
- *   sessions.
- * - `caller-checked`: the principal gets the daemon's own member, which
- *   reaches sessions; every request that calls it checks the session
- *   against the access first, or passes the access itself.
- * - `owner-only`: the principal gets the daemon's own member, which only a
- *   request open to the daemon's owner alone calls, and the connection
- *   refuses such a request from a principal before it builds the
- *   principal's context.
- */
+// a narrowed member reaches only the access's sessions and targets; a caller-checked one is
+// shared, so each request that calls it checks the session against the access or passes it;
+// an owner-only one is called only by owner-only requests, which a principal never reaches
 export type ContextMemberScope = 'narrowed' | 'daemon-wide' | 'caller-checked' | 'owner-only';
 
-/**
- * The scope of each member of the daemon's context. A member the table
- * leaves out fails to compile, so a new member reaches a principal only
- * once its scope is stated here.
- */
 export const CONTEXT_MEMBER_SCOPES = {
   build: 'daemon-wide',
   daemonID: 'daemon-wide',

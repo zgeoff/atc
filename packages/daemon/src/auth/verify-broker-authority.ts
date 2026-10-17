@@ -3,28 +3,14 @@ import type { CredentialBroker } from '@atc/plugin-api';
 import { BrokerAuthorityError } from './broker-authority-error';
 import { verifyTokenImpAuthority } from './verify-token-imp-authority';
 
-/**
- * What a provisioning call is about to touch: the imps under their actual
- * names, as the target's runtime namespace builds them, every secret the
- * binding grants them, and those of the secrets it binds as kind `oauth`.
- */
 interface BrokerActivation {
   readonly impNames: readonly string[];
   readonly secrets: readonly string[];
   readonly oauthSecrets?: readonly string[];
 }
 
-/**
- * The gate before atc grants or relies on a brokered credential. It reads
- * impd's features and the token's identity at once, checks them in that
- * order, and writes nothing, so a refusal leaves impd as it was. It rejects unless impd has grantable
- * tokens, secret rebinds and exec requirements, so a start can refuse to
- * run without a ready broker, and oauth secrets when the binding holds one,
- * the token may manage each imp and reaches no
- * imp outside the namespace whose imp names start with the prefix, and the
- * token may grant every bound secret.
- * Whether each secret's rules match the binding is a separate comparison.
- */
+// reads only, so a refusal leaves impd as it was; whether each secret's rules
+// match the binding is a separate comparison
 export async function verifyBrokerAuthority(
   broker: Pick<CredentialBroker, 'hostPrefix' | 'readFeatures' | 'readIdentity'>,
   activation: BrokerActivation,

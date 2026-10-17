@@ -11,10 +11,7 @@ export interface PermissionRequest {
 
 export type AnswerResult = 'ok' | 'already_answered' | 'unsupported' | 'unknown';
 
-/**
- * What a registry calls as its requests open and resolve, given when it is
- * built so that no request opens before both exist.
- */
+// given at construction, so no request opens before both callbacks exist
 export interface PermissionCallbacks {
   readonly onRequested: (req: PermissionRequest) => void;
   readonly onResolved: (id: string, decision: string) => void;
@@ -25,13 +22,7 @@ interface PendingRequest {
   readonly cancelTimeout: () => void;
 }
 
-/**
- * Pending permission requests with first-response-wins arbitration. The
- * first answer resolves a request and every later answer reports
- * already_answered; an unanswered request times out to deny; requests that
- * stop mattering (the session was answered directly or died) resolve as
- * dismissed. Resolution always reaches the callbacks exactly once.
- */
+// each request resolves exactly once, so the callbacks hear every resolution once
 export class PermissionRegistry {
   private readonly callbacks: PermissionCallbacks;
 
@@ -41,10 +32,8 @@ export class PermissionRegistry {
 
   private readonly pending = new Map<string, PendingRequest>();
 
-  // Each answered request's session, kept to tell already_answered from
-  // unknown. It keeps the 1000 most recently used, so a long-lived daemon
-  // cannot grow it without bound; an answer to a forgotten request gets
-  // unknown.
+  // tells already_answered from unknown; it keeps the 1000 most recent, so a long-lived daemon
+  // cannot grow it without bound, and an answer to a forgotten request gets unknown
   private readonly resolved = new LRUCache<string, SessionID>({ max: 1000 });
 
   private counter = 0;
@@ -90,10 +79,6 @@ export class PermissionRegistry {
     return 'ok';
   }
 
-  /**
-   * The session a request belongs to, answered or not, or null for a
-   * request this registry never opened.
-   */
   findSessionID(id: string): SessionID | null {
     return this.pending.get(id)?.req.sessionID ?? this.resolved.get(id) ?? null;
   }

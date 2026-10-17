@@ -1,17 +1,13 @@
 import type { FleetEntry } from '@atc/store';
 import type { ExecutionTarget } from './build-execution-targets';
 
-/**
- * Resolves a stored imp binding to the connection identity only after the
- * provider confirms the existing host through its current credentials.
- * A missing or unreachable host keeps its stored identity and refuses work.
- */
 export async function resolveRestoredTargetIdentity(
   target: ExecutionTarget | undefined,
   entry: FleetEntry,
 ): Promise<string | undefined> {
   const identity = entry.targetIdentity;
 
+  // only an unversioned imp binding is confirmed against an existing host
   if (
     target?.kind !== 'imp' ||
     identity === undefined ||

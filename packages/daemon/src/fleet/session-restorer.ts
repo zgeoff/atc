@@ -25,11 +25,7 @@ interface SessionRestorerDeps {
   readonly callbacks: Pick<SessionCallbacks, 'onEvent' | 'getClock'>;
 }
 
-/**
- * Brings a fleet row back as a listed session without a terminal, so the
- * fleet lists before any harness starts, and tracks which restored
- * sessions still wait for one.
- */
+// a restored session lists without a terminal, so the fleet lists before any harness starts
 export class SessionRestorer {
   private readonly registry: SessionRestorerDeps['registry'];
 

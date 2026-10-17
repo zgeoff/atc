@@ -7,16 +7,10 @@ interface WorkspaceTar {
   readonly done: Promise<TarOutcome>;
 }
 
-/**
- * Streams an uncompressed tar of a directory, `.git` included, with entries
- * relative to the directory. The archive is read as it is produced and never
- * written to disk. A failure partway through still ends the stream, so a
- * consumer drains it and then awaits the outcome before trusting what it
- * received. Options the host passes to GNU tar through `TAR_OPTIONS` are
- * ignored, since one could follow symlinks out of the directory or leave
- * files out.
- */
+// a failure partway through still ends the stream, so a consumer drains it and then awaits
+// the outcome before trusting what it received
 export function readWorkspaceTar(dir: string): WorkspaceTar {
+  // a host's TAR_OPTIONS could follow symlinks out of the directory or leave files out
   const { TAR_OPTIONS: _ignored, ...env } = process.env;
 
   const proc = Bun.spawn(['tar', '-c', '-f', '-', '-C', dir, '.'], {

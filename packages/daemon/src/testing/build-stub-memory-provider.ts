@@ -48,11 +48,6 @@ interface StubMemoryProviderConfig {
   readonly clock?: Clock;
 }
 
-/**
- * One harness the in-memory provider started: the spec it started with,
- * what the daemon wrote to it and resized it to, and how it ended. A test
- * drives it as its process would, through `emitData` and `emitExit`.
- */
 interface StubMemoryHarness extends HarnessHandle {
   readonly spec: HarnessSpec;
   readonly written: string[];
@@ -91,17 +86,6 @@ export interface StubMemoryProvider extends ExecutionProvider {
   readonly countDisposals: () => number;
 }
 
-/**
- * An execution provider for daemon tests that runs nothing: each harness
- * lives in memory, where the test reads what the daemon wrote to it and
- * drives its output and exit. A kill ends a harness with exit code 0 and a
- * forced kill with 137, each reported on the next microtask as a process's
- * exit arrives after its signal; a detach leaves the harness running and
- * drops every listener, as a remote host keeps a process the daemon lets go
- * of. Transfers and commands are recorded, and commands answer through the
- * config. Host operations are recorded and then take the config's own
- * operation, resolving when it has none.
- */
 export function buildStubMemoryProvider(config: StubMemoryProviderConfig = {}): StubMemoryProvider {
   const harnesses: StubMemoryHarness[] = [];
   const prepared: HostRequest[] = [];
@@ -212,6 +196,7 @@ function buildStubMemoryHarness(spec: HarnessSpec, clock: Clock): StubMemoryHarn
   };
 
   const scheduleExit = (exitCode: number): void => {
+    // a process's exit arrives after its signal, never inside the kill call
     queueMicrotask(() => {
       emitExit({ exitCode });
     });

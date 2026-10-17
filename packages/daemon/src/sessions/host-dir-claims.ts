@@ -19,10 +19,8 @@ export interface WorkspaceReservation {
   readonly kind: 'workspace' | 'plain';
 }
 
-// Prints a directory with every symlink in it resolved: its nearest
-// existing directory as the host resolves it and a newline, which keeps a
-// name that ends in newlines whole, then a NUL and the rest of the path as
-// given.
+// prints the nearest existing directory with every symlink resolved and a newline, which keeps a
+// name ending in newlines whole, then a NUL and the rest of the path as given
 export const RESOLVE_DIR_SCRIPT = `p=$1; s=; while [ ! -d "$p" ]; do s=/\${p##*/}$s; p=\${p%/*}; [ -n "$p" ] || p=/; done; cd -P -- "$p" && pwd -P && printf '\\0%s' "$s"`;
 
 // Resolves a directory as the script above does, but fails when any part
@@ -30,10 +28,8 @@ export const RESOLVE_DIR_SCRIPT = `p=$1; s=; while [ ! -d "$p" ]; do s=/\${p##*/
 // target was removed, since the directory it stands for could lie anywhere.
 export const RESOLVE_UNLINKED_DIR_SCRIPT = `p=$1; while [ ! -d "$p" ]; do [ ! -L "$p" ] || exit 6; p=\${p%/*}; [ -n "$p" ] || p=/; done; ${RESOLVE_DIR_SCRIPT}`;
 
-// Removes a directory only while it still resolves to itself: it enters
-// the directory, compares where it landed with the path it was given, and
-// removes the contents from inside it, so no symlink changed on the way is
-// followed, then the directory itself, which is empty by then.
+// removes a directory only while it still resolves to itself, emptying it from inside so no
+// symlink changed on the way is followed, then removing it once empty
 export const REMOVE_DIR_SCRIPT =
   'cd -P -- "$1" || exit 3; [ "$(pwd -P; printf x)" = "$2" ] || exit 4; find . -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + || exit 5; cd / && rmdir -- "$1"';
 
@@ -45,12 +41,6 @@ interface HostDirClaimsDeps {
   readonly registry: Pick<SessionRegistry, 'sessions' | 'hasHostLifecycle'>;
 }
 
-/**
- * The workspace directories spawns hold on their hosts until their sessions
- * list, and the removal of a directory a failed spawn claimed: each check
- * and its hold run in one turn, so of two spawns that race for a directory
- * at most one passes.
- */
 export class HostDirClaims {
   // The workspace directory each spawn on a shared host, and each plain
   // spawn on the daemon's own machine, holds from its overlap check until
@@ -71,20 +61,13 @@ export class HostDirClaims {
     this.registry = deps.registry;
   }
 
-  /**
-   * Gives back the workspace directory a spawn reserved on a shared host.
-   * The spawn's session listing gives it back, and so does a failed spawn,
-   * except one whose effects may still stand, whose directory stays
-   * reserved so no other workspace lands in or around what it left.
-   */
+  // a failed spawn whose effects may still stand keeps its reservation, so no other workspace
+  // lands in or around what it left
   releaseWorkspace(id: SessionID): void {
     this.reservations.delete(id);
   }
 
-  // Claims a workspace's directory on a shared host, refusing one inside
-  // or around the directory of a session listed there or of another spawn's
-  // reservation. The check and the reservation run in one turn, so of two
-  // concurrent spawns at most one passes.
+  // the check and the reservation run in one turn, so of two concurrent spawns at most one passes
   claimWorkspace(id: SessionID, hostKey: SessionID, target: string, dir: string): void {
     const listed = this.registry.sessions
       .filter((s) => s.hostKey === hostKey && s.target === target && posix.isAbsolute(s.cwd))
@@ -94,15 +77,9 @@ export class HostDirClaims {
     this.reservations.set(id, { hostKey, target, dir, resolved: null, kind: 'workspace' });
   }
 
-  // Holds a plain spawn's directory on a shared host until the session
-  // lists, refusing one inside or around a directory a workspace spawn is
-  // still building there: that spawn's rollback could remove it. While a
-  // rollback removes a directory on the host, every plain spawn there is
-  // refused, since its directory may reach the one going through a
-  // symlink no check has resolved yet. Plain spawns share directories
-  // freely, and a rollback resolves each held plain directory on the host
-  // and keeps a directory that holds one.
   claimPlainDir(id: SessionID, hostKey: SessionID, target: string, dir: string): void {
+    // a plain directory may reach the one a rollback is removing through a symlink no check has
+    // resolved yet, so every plain spawn on the host waits for the removal
     if ((this.removals.get(buildHostSlot(hostKey, target)) ?? 0) > 0) {
       throw new DaemonError(
         'workspace_overlap',
@@ -111,6 +88,7 @@ export class HostDirClaims {
       );
     }
 
+    // a workspace still being built may be removed by its rollback; plain spawns share freely
     for (const [other, r] of this.reservations) {
       if (!posix.isAbsolute(dir)) {
         break;
@@ -134,16 +112,12 @@ export class HostDirClaims {
     this.reservations.set(id, { hostKey, target, dir, resolved: null, kind: 'plain' });
   }
 
-  // Holds a plain spawn's directory on the daemon's own machine until the
-  // session lists, refusing one inside or around a directory a workspace
-  // rollback removes there now, as given or with every symlink in it
-  // resolved. A relative directory is refused while any removal runs. A
-  // rollback there resolves each held directory and keeps a directory
-  // that holds one, so the check and the hold run in one turn. Symlinks
-  // are resolved only while a removal runs, since resolving blocks the
-  // daemon.
+  // the check and the hold run in one turn: a running rollback resolves each held directory and
+  // keeps a directory that holds one
   claimMachineDir(id: SessionID, target: string, dir: string): void {
     if (this.machineRemovals.length > 0) {
+      // symlinks are resolved only while a removal runs, since resolving blocks the daemon; a
+      // relative directory is refused while any removal runs
       const forms = posix.isAbsolute(dir) ? [dir, resolveMachineDir(dir)] : null;
 
       const removal = this.machineRemovals.find(
@@ -162,14 +136,8 @@ export class HostDirClaims {
     this.reservations.set(id, { hostKey: id, target, dir, resolved: null, kind: 'plain' });
   }
 
-  // The directory a spawn's workspace lands in, as the readied host
-  // resolves it: every later step creates, fills, and removes this
-  // physical path, never the requested one. On a shared host the spawn's
-  // claim is checked again against every directory as the host resolves
-  // it, and records the physical path, in the turn after the last wait,
-  // with the sessions listed then. A directory the daemon picked on a
-  // shared host is reserved only here, once checked, so two spawns that
-  // picked the same one never refuse each other before either holds it.
+  // every later step creates, fills, and removes the physical path this resolves to, never the
+  // requested one
   async claimHostDir(
     provider: ExecutionProvider,
     id: SessionID,
@@ -183,12 +151,15 @@ export class HostDirClaims {
     const physical = await this.resolveHostDir(provider, hostKey, dir);
     const listed = await this.resolveListedDirs(provider, hostKey, target);
 
+    // the claim is checked in the turn after the last wait, against the sessions listed then
     if (this.collectHostSessionIDs(hostKey, target) !== before) {
       return this.claimHostDir(provider, id, hostKey, target, dir, picked);
     }
 
     const reservation = this.reservations.get(id);
 
+    // a picked directory is reserved only here, once checked, so two spawns that picked the same
+    // one never refuse each other before either holds it
     if (reservation !== undefined || picked) {
       this.requireSeparateWorkspace(id, hostKey, target, dir, [dir, physical], listed.dirs);
       this.reservations.set(id, { hostKey, target, dir, resolved: physical, kind: 'workspace' });
@@ -197,12 +168,9 @@ export class HostDirClaims {
     return physical;
   }
 
-  // Removes the physical directory a failed spawn claimed, and resolves to
-  // whether it did. It removes nothing while the directory, as the host
-  // resolves it in the turn after the last wait, holds the directory of a
-  // listed session or of another spawn's claim, or once the directory no
-  // longer resolves to itself on the host; the directory then stays for an
-  // operator to remove.
+  // removes nothing while the directory, as resolved in the turn after the last wait, holds a
+  // listed session's or another claim's directory, or no longer resolves to itself; it then
+  // stays for an operator to remove
   async removeClaimedDir(
     provider: ExecutionProvider,
     id: SessionID,
@@ -210,10 +178,9 @@ export class HostDirClaims {
     target: string,
     dir: string,
   ): Promise<boolean> {
-    // Targets without hosts run their sessions on the daemon's machine, so
-    // the directory stays while a session listed on any of them, or a plain
-    // spawn still starting there, runs inside. While the removal runs, a
-    // plain spawn there inside or around the directory is refused.
+    // targets without hosts run on the daemon's machine, so the directory stays while a session on
+    // any of them, or a plain spawn starting there, runs inside; while the removal runs, a plain
+    // spawn there inside or around the directory is refused
     if (!this.registry.hasHostLifecycle(target)) {
       const others = this.collectMachineDirs(id);
 
@@ -421,14 +388,8 @@ export class HostDirClaims {
     };
   }
 
-  // The directories that the listed entries the host could not resolve
-  // stand for, or null when any of them may lie anywhere. A relative
-  // directory that cannot be entered, such as one removed inside the guest,
-  // is joined to the host's home and resolved through its nearest existing
-  // directory, and every missing part lies beneath that one unless a
-  // missing part is a symlink, which keeps the entry unknown. An absolute
-  // directory was resolved that way already, and the host follows a `..`
-  // step through symlinks rather than lexically, so either stays unknown.
+  // null when any entry may lie anywhere; a relative one that cannot be entered, such as one
+  // removed inside the guest, resolves from the host's home unless a missing part is a symlink
   private async resolveFromHome(
     provider: ExecutionProvider,
     hostKey: SessionID,
@@ -438,6 +399,8 @@ export class HostDirClaims {
       return [];
     }
 
+    // an absolute directory was resolved that way already, and the host follows `..` through
+    // symlinks rather than lexically, so either stays unknown
     if (unresolved.some(([, cwd]) => posix.isAbsolute(cwd) || cwd.split('/').includes('..'))) {
       return null;
     }
@@ -471,12 +434,8 @@ export class HostDirClaims {
     return resolved.some((r) => r === null) ? null : resolved.flatMap((r) => r ?? []);
   }
 
-  // A directory on a host with every symlink in it resolved: an absolute
-  // one through its nearest existing directory, and a relative one as a
-  // harness started in it sees it, since the provider starts both from
-  // the home of the user they run as. A null
-  // host resolves it on the daemon's own machine. A caller may pass a
-  // stricter script that prints the same form.
+  // a relative directory resolves as a harness started in it sees it, since the provider starts
+  // both from the home of the user they run as; a stricter script must print the same form
   async resolveHostDir(
     provider: ExecutionProvider,
     hostKey: SessionID | null,

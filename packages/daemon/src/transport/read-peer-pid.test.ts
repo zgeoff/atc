@@ -3,10 +3,6 @@ import { join } from 'node:path';
 import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { readPeerPID } from './read-peer-pid';
 
-/**
- * A unix socket listener in a fresh temp directory that resolves `peer`
- * with what `readPeerPID` reads for the first connection it accepts.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-peer-pid-');
   const socketPath = join(tmp.dir, 'peer.sock');

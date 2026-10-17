@@ -13,10 +13,8 @@ import { buildStubCredentialBroker } from '../testing/build-stub-credential-brok
 import { buildStubPregrantedBrokerHost } from '../testing/build-stub-pregranted-broker-host';
 import { RuntimeAuthBinder } from './runtime-auth-binder';
 
-// A binder over a real state store, a broker that refuses grants as impd
-// does behind the imp provider, which the test prepares as an operator
-// prepares impd, and a broker stand-in that enforces no authority for the
-// contract's own guarantees.
+// a binder over a real state store, a broker that refuses grants as impd does behind the imp
+// provider, and a broker stand-in that enforces no authority for the contract's own guarantees
 async function setupTest() {
   const tmp = setupTempDir('atc-auth-binder-');
   const dbPath = join(tmp.dir, 'state.db');
@@ -278,10 +276,7 @@ test('it refuses a token that reaches every imp and records nothing', async () =
 test('it refuses a secret whose rules differ from the binding and creates no imp', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `judge` for
-  // judge.example and `glm` for api.z.ai and elsewhere.example, both custom
-  // bearer secrets.
+  // impd as an operator prepared it, holding `glm` for a host the binding never approved
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',

@@ -47,15 +47,6 @@ interface SpawnOptionEntries {
   readonly effort: SpawnOptionEntry;
 }
 
-/**
- * One `agents.list` entry per registered adapter, in registration order. An
- * entry carries only the adapter's profile and what its interface offers,
- * so no environment value, credential, helper command, or base URL reaches
- * it. Every session runs in a PTY, so each agent can be attached, read as a
- * screen, and typed into. A stand-in adapter without a profile is listed
- * under its id as both label and kind. hasBrokerTarget holds whether any
- * target reaches impd's credential broker.
- */
 export function buildAgentList(
   adapters: readonly AgentAdapter[],
   isInstalled: (bin: string) => boolean,
@@ -72,6 +63,8 @@ export function buildAgentList(
       (adapter.findSpawnRefusal?.() ?? null) === null &&
       (!brokerRequired || hasBrokerTarget);
 
+    // only the profile and what the interface offers: no environment value, credential,
+    // helper command, or base URL may reach a client
     return {
       id: adapter.id,
       label: profile?.label ?? adapter.id,
@@ -83,6 +76,8 @@ export function buildAgentList(
         spawn: spawnable,
         readTranscript: adapter.parseTranscriptLine !== undefined,
         message: adapter.takesMessages,
+
+        // every session runs in a PTY
         attach: true,
         screen: true,
         input: true,

@@ -9,14 +9,8 @@ interface EndedFleetMessagesDeps {
   readonly messages: Pick<MessageService, 'updateEndedMessages'>;
 }
 
-/**
- * Marks the messages that the stored fleet's local sessions held delivered
- * as never answered. Every harness on the daemon's own machine ended with
- * the daemon before this one, so none of them answers. A row whose agent
- * session id a live row on a remote target holds marks only its own
- * messages: that session may still run there. A failure leaves the
- * messages as they were.
- */
+// every harness on the daemon's own machine ended with the previous daemon, so none
+// of those messages will be answered
 export async function updateEndedFleetMessages(deps: EndedFleetMessagesDeps): Promise<void> {
   try {
     const fleet = await deps.store.loadFleet();

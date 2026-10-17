@@ -8,12 +8,6 @@ interface TreeMember extends TargetGrant {
   readonly parent: SessionID | null;
 }
 
-/**
- * Whether the access reaches every session in the tree the given session
- * belongs to: its top-level session and each sub-session of that one. A
- * session the list does not hold, or one whose parent it does not hold,
- * is out of reach.
- */
 export function isTreeInReach(
   sessions: readonly TreeMember[],
   id: SessionID,
@@ -28,5 +22,6 @@ export function isTreeInReach(
   const root = session.parent ?? session.id;
   const tree = sessions.filter((x) => x.id === root || x.parent === root);
 
+  // a session whose parent the list does not hold is out of reach
   return tree.some((x) => x.id === root) && tree.every((x) => access.canUse(x));
 }
