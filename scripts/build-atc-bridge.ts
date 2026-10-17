@@ -5,6 +5,8 @@ import { join } from 'node:path';
 
 function main(): void {
   const modDir = join(import.meta.dir, '..', 'mods', 'atc-bridge');
+
+  // The atc command file stays out: the daemon renders it when it writes the mod.
   const embedded = ['.claude-plugin/plugin.json', 'hooks/hooks.json', 'hooks/register.ts'];
 
   const entries = embedded.map(

@@ -410,6 +410,8 @@ async function setupManagedReconnectTest() {
   };
 }
 
+// The stub speaks another protocol, or with 'current' the current one as an
+// older build would.
 async function startStubDaemonProcess(socketPath: string, stateDir: string, build?: 'current') {
   const daemon = Bun.spawn(
     [
