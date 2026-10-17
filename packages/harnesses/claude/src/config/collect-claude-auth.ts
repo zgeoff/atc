@@ -3,15 +3,6 @@ import { resolveAuthProfiles } from '@atc/config';
 import { BROKER_PLACEHOLDER, isRecord, isSubscriptionOverrideVariable } from '@atc/core';
 import type { AuthProfile } from '@atc/plugin-api';
 
-/**
- * The profiles a stock Claude session on a target that reaches impd's
- * broker signs in through: one of them sends the subscription's setup
- * token to the Anthropic API as a bearer authorization header, and the
- * rest bind beside it, such as a GitHub token or an MCP server's key.
- * `placeholderEnv` holds the variables that stand in for a credential of
- * a profile that is not Anthropic's, such as a key the session's own
- * scripts send to another API.
- */
 interface ClaudeAuth {
   readonly profiles: readonly string[];
   readonly placeholderEnv: Readonly<Record<string, string>>;
@@ -23,17 +14,8 @@ interface CollectedClaudeAuth {
   readonly errors: readonly string[];
 }
 
-/**
- * Reads a Claude subscription auth entry against the auth profiles, `field`
- * being the key it was set under in error text. An entry that
- * does not resolve, or whose profiles send no bearer authorization header
- * to the Anthropic API, is left out with every problem that refused it, so
- * stock Claude keeps the sign-in of the host it runs on rather than binding
- * a credential the CLI would never send. A placeholder that breaks a rule
- * refuses the entry too, so no variable stands in for an Anthropic
- * credential. An MCP server that breaks a rule is left out alone, with an
- * error, and the sign-in stays.
- */
+// an entry whose profiles send no bearer header to the Anthropic API is refused, so stock
+// Claude keeps its host's sign-in rather than binding a credential the CLI never sends
 export function collectClaudeAuth(
   raw: unknown,
   authProfiles: ReadonlyMap<string, AuthProfile>,
@@ -117,13 +99,9 @@ interface PlaceholderContext {
   readonly envOwners: Readonly<Record<string, string>>;
 }
 
-// Reads the `placeholderEnv` map, variable names to the selected profile
-// whose credential the variable stands in for, into the variables and the
-// broker's placeholder, or every rule it breaks. atc alone sets the
-// subscription token's placeholder and the variables of the launch, so a
-// variable Claude Code, the Codex CLI, or atc reads, and a variable bound
-// to a profile that sends a credential to Anthropic, are refused, as is a
-// proxy or CA variable, which would route the session around the broker.
+// atc alone sets the subscription token's placeholder and the launch's variables, so a variable
+// Claude Code, the Codex CLI or atc reads is refused, as is a proxy or CA variable, which would
+// route the session around the broker
 function parsePlaceholderEnv(
   raw: unknown,
   field: string,
@@ -157,10 +135,8 @@ function parsePlaceholderEnv(
 // A variable name a shell can export.
 const VARIABLE_NAME = /^[A-Z_a-z]\w*$/u;
 
-// The first rule a placeholder breaks, or null. The profile must be one
-// that sends its credential to one host that is not Anthropic's, so the
-// broker swaps the placeholder there and nowhere the subscription token
-// goes.
+// the profile must send its credential to one host that is not Anthropic's, so the broker swaps
+// the placeholder there and nowhere the subscription token goes
 function findPlaceholderProblem(
   key: string,
   entry: unknown,

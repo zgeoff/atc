@@ -1,18 +1,9 @@
 import { BROKER_PLACEHOLDER } from '@atc/core';
 import type { GuestFile } from '@atc/plugin-api';
 
-/**
- * The `.credentials.json` of a session's own Claude config folder, which
- * holds no credential: its access token is the placeholder that impd's
- * broker swaps for the subscription token on each request to the Claude
- * API. The session's CLI signs in from the placeholder variable it starts
- * with, but Claude Code removes that variable from every tool it runs, and
- * a CLI started with no setting sources reads no settings `env`. A Claude
- * CLI that a tool starts, such as a `claude -p` judge, therefore signs in
- * from this file. The token carries no refresh token and no expiry, so the
- * CLI never tries to refresh it, and its one scope is inference, the scope
- * of a setup token. Only the owner may read the file, as with a real one.
- */
+// Claude Code strips the placeholder variable from every tool it runs, so a CLI a tool starts,
+// such as a `claude -p` judge, signs in from this file; with no refresh token or expiry the
+// CLI never tries to refresh it
 export function buildClaudeCredentialsFile(): GuestFile {
   const credentials = {
     claudeAiOauth: {

@@ -1,12 +1,7 @@
 import { buildHookCommand, buildHookEntry } from '@atc/plugin-api';
 import { GROK_HOOKS } from './grok-hooks';
 
-/**
- * Print the Grok hook file to stdout. The operator copies it to
- * `$GROK_HOME/hooks/atc-reporter.json`; atc never writes that path. Each
- * hook runs atc through `atcArgv`. `write` takes the printed text, stdout by
- * default.
- */
+// the operator copies this to `$GROK_HOME/hooks/atc-reporter.json`; atc never writes that path
 export function printGrokHookFile(
   atcArgv: readonly string[],
   write: (text: string) => void = (text) => {

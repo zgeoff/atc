@@ -3,30 +3,14 @@ import { resolveAuthProfiles } from '@atc/config';
 import type { GuestFile, GuestOAuthState } from '@atc/plugin-api';
 import { buildCodexAuthFile, buildCodexConfig, findCodexSignIn } from '@atc/plugin-api';
 
-/**
- * A Codex home for the Codex CLI that a Claude session on a remote host
- * runs as a tool, such as `codex review`: its files, keyed by their path
- * inside the guest folder, the `CODEX_HOME` variable that points the CLI
- * at them, and the variables the launch unsets, since each would sign
- * Codex in another way.
- */
 interface CodexHomePlan {
   readonly files: Readonly<Record<string, GuestFile>>;
   readonly env: Readonly<Record<string, string>>;
   readonly unsetEnv: readonly string[];
 }
 
-/**
- * Plans the Codex home of a Claude session that signs in through impd's
- * broker, in the revision folder of its auth binding. When the selected
- * profiles send an `oauth` secret to `chatgpt.com` as a bearer
- * authorization header and impd lists that secret's sign-in as ready, the
- * home holds the sign-in file a brokered Codex session gets, with no
- * credential in it, and the config that keeps the sign-in in that file.
- * The home replaces the image's own Codex home, its settings included.
- * Any other selection, or a sign-in that is not ready, plans no home, and
- * Codex keeps the sign-in of the host's image.
- */
+// the home replaces the image's own Codex home, its settings included; without a ready
+// chatgpt.com sign-in Codex keeps the image's sign-in
 export function planCodexHome(
   authProfiles: Config['authProfiles'],
   selected: readonly string[],

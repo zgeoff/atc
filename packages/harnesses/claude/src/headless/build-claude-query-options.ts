@@ -4,11 +4,6 @@ import { CLAUDE_EFFORT_LEVELS } from '../claude-effort-levels';
 import { buildHeadlessEnv } from './build-headless-env';
 import { resolveHeadlessExecutable } from './resolve-headless-executable';
 
-/**
- * One headless turn as the Claude CLI runs it: the neutral turn request plus
- * the binary, permission mode, mod folder, and settings file the Claude and
- * gateway adapters supply.
- */
 export interface ClaudeHeadlessRunRequest extends HeadlessRunRequest {
   // The Claude Code binary a compiled atc hands the Agent SDK.
   readonly claudeBin: string;
@@ -33,11 +28,6 @@ const PERMISSION_MODES = [
   'dontAsk',
 ] as const;
 
-/**
- * The Agent SDK options one headless turn runs with, apart from the abort
- * controller and stderr sink the live run owns. A permission mode or effort
- * the SDK does not accept is left out, so the SDK applies its own default.
- */
 export function buildClaudeQueryOptions(
   opts: ClaudeHeadlessRunRequest,
   compiled: boolean,

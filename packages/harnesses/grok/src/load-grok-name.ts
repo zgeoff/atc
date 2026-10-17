@@ -14,19 +14,13 @@ const SUMMARY_SCHEMA = z.object({
 
 type GrokSummary = z.infer<typeof SUMMARY_SCHEMA>;
 
-/**
- * The name a Grok session's summary at `source` gives it, or null when it
- * gives none. When `source` is gone, the summary of the same session id
- * under any working directory in `home` stands in, since Grok files a
- * session under the directory it started in. A title the person set in
- * Grok wins over every name; Grok's own title, then its summary, never
- * override a name a person typed in atc.
- */
 export function loadGrokName(
   home: string,
   source: string,
   namedBy: 'user' | 'auto' | 'agent',
 ): Promise<NameUpdate | null> {
+  // grok files a session under the directory it started in, so a gone `source` falls back to the
+  // same session id under any directory in `home`
   const summary = readSummary(source) ?? readSummary(findGrokSummary(home, source));
   const update = summary === null ? null : buildNameUpdate(summary, namedBy);
 
@@ -40,6 +34,7 @@ function buildNameUpdate(
   const title = summary.generated_title ?? '';
   const sessionSummary = summary.session_summary ?? '';
 
+  // a title the person set in grok wins over every name, a name typed in atc included
   if (summary.title_is_manual === true && title !== '') {
     return { name: title, namedBy: 'agent' };
   }

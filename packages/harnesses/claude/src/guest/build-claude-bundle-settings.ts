@@ -1,21 +1,7 @@
 import { isRecord } from '@atc/core';
 
-/**
- * The user settings a session's own Claude config folder starts with, from
- * the host's own `settings.json`: the keys on the allow-list alone, an
- * `env` block cut to its own allow-list, and the host's permissions with a
- * default of auto mode, which Claude Code honours at user scope only. The
- * permissions never block reads outside the working directories, which
- * would refuse a read an unattended session needs, and deny the session's
- * file tools the guest's sign-in state: the global config in the config
- * folder `guestDir` and the credentials file under the home's default
- * config folder. Any other key stays on
- * the host, so a setting that holds a credential, a plugin, or a host path
- * never reaches a guest unless it is listed here. The statusline command
- * reads the guest's copy of a script under the host's config folder: a path
- * under any of `hostDirs`, the spellings of that folder, moves under
- * `guestDir`.
- */
+// any key off the allow-list stays on the host, so a credential, plugin or host path never
+// reaches a guest; auto mode is the default here since Claude Code honours it at user scope only
 export function buildClaudeBundleSettings(
   settings: unknown,
   hostDirs: readonly string[],

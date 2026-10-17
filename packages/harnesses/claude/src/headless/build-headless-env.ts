@@ -14,12 +14,6 @@ interface HeadlessEnvParams {
   readonly recordPath?: string;
 }
 
-/**
- * The clean process environment for a headless run, plus what the atc-bridge
- * mod needs to find its session: the mod folder to load and the session and
- * reporter socket it taps. A run without a session id carries none of them,
- * since the mod stays off outside atc.
- */
 export function buildHeadlessEnv(params: HeadlessEnvParams): Record<string, string> {
   return collectCleanEnv(
     {

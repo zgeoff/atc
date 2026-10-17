@@ -1,12 +1,7 @@
 import { isRecord } from '@atc/core';
 import { findFlagValue } from '@atc/plugin-api';
 
-/**
- * The permission mode a Claude CLI agent's configuration sets: an explicit
- * `--permission-mode` in its arguments, else the `permissions.defaultMode`
- * its settings hold, or null when neither sets one. The argument wins, as it
- * does for the CLI itself.
- */
+// the argument wins over the settings, as it does for the CLI itself
 export function findClaudePermissionMode(
   args: readonly string[],
   settings: Readonly<Record<string, unknown>> | undefined,

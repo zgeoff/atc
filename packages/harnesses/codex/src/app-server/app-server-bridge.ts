@@ -22,14 +22,6 @@ import type { TurnSettlement } from './plan-turn-settlement';
 import { renderAtcAnswer } from './render-atc-answer';
 import { renderAtcEnvelope } from './render-atc-envelope';
 
-/**
- * What one bridge works with: its atc session, the folder a new thread
- * works in, the daemon's side of the bridge, how it opens a connection to
- * the session's App Server, the thread a restored session resumes, the
- * model the spawn asked for, if any, and the waits between reconnect
- * attempts and between sends the server turns away as overloaded, which
- * double from `first` up to `max`.
- */
 export interface AppServerBridgeConfig {
   readonly session: string;
   readonly cwd: string;
@@ -37,6 +29,8 @@ export interface AppServerBridgeConfig {
   readonly openConnection: () => Promise<AppServerConnection>;
   readonly resumeThread: string | null;
   readonly model?: string;
+
+  // the waits between reconnects and between overloaded sends, doubling from `first` up to `max`
   readonly retryMs?: { readonly first: number; readonly max: number };
 }
 
@@ -71,29 +65,8 @@ const NOTICE_PREFIX = 'notice:';
 // later.
 const OVERLOADED_CODE = -32_001;
 
-/**
- * The daemon's bridge to one session's Codex App Server thread. It starts
- * or resumes the thread, and once delivery starts it sends each inbox
- * message with `turn/start`, with the message id as the client message id,
- * marks it delivered once the server takes it, and settles it when its
- * turn ends: answered with the turn's last reply, or unanswered. A send the
- * server turns away as overloaded leaves the message or notice queued, and
- * the bridge sends it again after a wait that doubles with each refusal;
- * later sends wait behind it, so the order holds.
- * The thread and each turn run on the model the spawn asked for, so a
- * message that arrives before the terminal applies that model still runs
- * on it. It serves
- * the `atc.note` and `atc.answer` tool calls of its thread and answers no
- * other server request, so approvals stay with the terminal.
- *
- * Each connection recovers before it delivers anything: it reads the
- * thread's stored turns and settles every unsettled message from them,
- * since the server keeps no record of which client message ids it took.
- * A failed read stops the recovery with every message as it was, and the
- * bridge drops the connection and tries again later. Notifications that
- * arrive before a recovery finishes wait and apply after it, and the tap
- * that hands the bridge inbox messages attaches only then.
- */
+// each connection settles every unsettled message from the thread's stored turns before it
+// delivers, since the server keeps no record of which client message ids it took
 export class AppServerBridge {
   threadID: string | null;
 
@@ -155,11 +128,7 @@ export class AppServerBridge {
     };
   }
 
-  /**
-   * Connects, then starts the session's thread or resumes the one it was
-   * given, and resolves with the thread's id. A thread that cannot be
-   * resumed is replaced by a new one. Rejects when no App Server answers.
-   */
+  // a thread that cannot be resumed is replaced by a new one
   async open(): Promise<string> {
     try {
       return await this.openThread(true);
@@ -169,26 +138,13 @@ export class AppServerBridge {
     }
   }
 
-  /**
-   * Starts delivery: the first recovery runs, then the tap attaches.
-   */
   startDelivery(): void {
     this.delivering = true;
     void this.reconcileMessages();
   }
 
-  /**
-   * Moves the bridge to the thread the terminal shows now, as after the
-   * terminal starts or resumes another thread. The move waits behind the
-   * send in flight, so a message the old thread took is tracked there and
-   * never sent again. Then the connection drops, so nothing more goes to
-   * the old thread, and the next one resumes the new thread and recovers
-   * before it delivers. Each message a turn of the old thread still carries
-   * ends unanswered, since no turn of the new thread will carry it. The
-   * thread the bridge already serves changes nothing. Until the move runs,
-   * every send it waits behind leaves its item queued, so an item the
-   * server turns away as overloaded never goes to the old thread again.
-   */
+  // the move waits behind the send in flight, so a message the old thread took is tracked there
+  // and never sent again; then the connection drops and the next one resumes the new thread
   updateThread(thread: string): void {
     // A send that waits out an overload holds the queue, so the move ends
     // the wait rather than wait behind it. A send whose overload answer
@@ -201,9 +157,6 @@ export class AppServerBridge {
     this.scheduleSend(() => this.updateThreadNow(thread));
   }
 
-  /**
-   * Stops the bridge for good: no reconnect follows, and the tap detaches.
-   */
   stop(): void {
     this.stopped = true;
 
@@ -707,18 +660,14 @@ export class AppServerBridge {
     await this.config.host.ackNotice(notice.id);
   }
 
-  // The model field of a thread or turn request: the model the spawn asked
-  // for, or nothing, which leaves the model to the server.
+  // every thread and turn request carries the spawn's model, if any, so a message that arrives
+  // before the terminal applies that model still runs on it
   private buildModelParams(): { model?: string } {
     return this.config.model === undefined ? {} : { model: this.config.model };
   }
 
-  // Waits out the overload inside the send in flight, so every item the
-  // daemon hands over meanwhile queues behind it and the order holds.
-  // Resolves true when the item should go again on the same connection.
-  // A dropped connection, a stop or a thread move ends the wait with false,
-  // and the item stays queued for the next connection's tap. A move that
-  // is already pending skips the wait.
+  // waits inside the send in flight so later items queue behind it and the order holds; true
+  // means send again on the same connection, and a drop, stop or thread move ends it with false
   private async waitOutOverload(conn: AppServerConnection): Promise<boolean> {
     if (this.pendingThread !== null) {
       return false;

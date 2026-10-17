@@ -5,21 +5,8 @@ import { resolveHomeDir } from '@atc/config/host';
 import type { GuestFile } from '@atc/plugin-api';
 import { buildClaudeBundleSettings } from './build-claude-bundle-settings';
 
-/**
- * The files of the Claude config bundle, read from the host's config folder
- * `hostDir` and keyed by their path inside the guest's config folder
- * `guestDir`: `CLAUDE.md`, the filtered `settings.json`, `statusline.sh`,
- * every file under `agents/` and `output-styles/`, and each folder under
- * `skills/` that holds a `SKILL.md`. Symlinks resolve to copies of what
- * they point at, and a file its owner may execute unpacks executable.
- * Nothing else in the host's folder ships, so its account state, history,
- * credentials, and backups stay there, and so does any entry whose name
- * starts with a dot. A symlink ships only when what it resolves to could
- * ship by its own path: a file whose name starts with a dot never does, and
- * neither does a file in the host's folder outside the shipped entries. A
- * missing entry ships nothing. `homeDir` is the user's home, which decides
- * whether the host folder is the default one.
- */
+// only the listed entries ship, so the host's account state, history, credentials, backups and
+// dot-entries stay there
 export function loadClaudeConfigBundle(
   hostDir: string,
   guestDir: string,
@@ -137,10 +124,8 @@ function collectTreeFiles(
   return files;
 }
 
-// Whether the file a path resolves to may ship: its name starts with no
-// dot, and inside the host's real folder `hostReal` it sits in a shipped
-// entry, so a symlink never carries credentials, account state, or the
-// unfiltered settings.
+// a symlink ships only when its target could ship by its own path, so it never carries
+// credentials, account state, or the unfiltered settings
 function shouldShipFile(path: string, hostReal: string): boolean {
   const real = realpathSync(path);
 

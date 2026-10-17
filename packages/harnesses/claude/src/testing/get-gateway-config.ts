@@ -2,11 +2,6 @@ import type { Config } from '@atc/config';
 import { getAgentEntry } from '@atc/test-utils';
 import type { GatewayConfig } from '../config/collect-gateways';
 
-/**
- * The gateway a parsed config holds under an agent id: a Claude entry with a
- * base URL, without the registry's `kind`, which a gateway does not carry.
- * Throws when the config holds no such agent or the entry has no base URL.
- */
 export function getGatewayConfig(config: Pick<Config, 'agents'>, id: string): GatewayConfig {
   const { kind: _kind, ...entry } = getAgentEntry(config, id);
 

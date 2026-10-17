@@ -30,20 +30,8 @@ const CURRENT_MARK = /^✔\s+/u;
 // border above the menu never makes the text the whole screen.
 const MAX_TEXT_LINES = 24;
 
-/**
- * Reads the menu Claude Code waits on from its screen as plain text, or null
- * when it shows none. A menu is the last line on the screen that holds the
- * `❯` cursor, with text after it and the lines beside it indented to the same column: numbered
- * options (`1. Yes`), whose wrapped lines join the option above them, boxes
- * (`[✔] name`) with a plain item such as `Enable selected` among them, or
- * plain options, one per line. A list longer than its window marks its first
- * row with `↑` and its last with `↓` in the cursor's column, except on the
- * cursor's own row, so a list that fills its window with the cursor on its
- * last row reads as one that may scroll, with neither mark. Its text is the
- * lines above the options up to the dialog's border. The prompt box, whose `❯` line sits straight under a
- * rule with the draft's lines down to the next rule, is no menu, and neither
- * is a single option.
- */
+// a menu is the last `❯` line with options indented to its column; the prompt box, whose `❯`
+// line sits under a rule, is no menu, and neither is a single option
 export function findClaudeMenu(screen: string, height = TALL_ROWS): ScreenMenu | null {
   const lines = screen.split('\n');
   const at = lines.findLastIndex((line) => hasPointer(line));
@@ -216,10 +204,9 @@ function findScroll(rows: readonly string[], column: number): ScreenMenuScroll |
   return above || below ? { above, below } : null;
 }
 
-// Both marks absent when the list fills a window Claude Code could draw on
-// a screen this tall and the cursor sits on its last row, where it hides
-// the mark of options below; null for any other list without marks. The
-// list is the options with a box when any has one.
+// both marks absent when the list fills a window Claude Code could draw on a screen this tall
+// and the cursor sits on its last row, where it hides the mark of options below; the list is
+// the boxed options when any has a box
 function findHiddenScroll(parsed: ParsedOptions, height: number): ScreenMenuScroll | null {
   const boxed = parsed.options.findLastIndex((option) => option.checked !== null);
   const listed = boxed === -1 ? parsed.options.length : boxed + 1;

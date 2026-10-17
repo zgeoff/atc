@@ -11,14 +11,6 @@ interface ClaudeEntryArgs {
   readonly authProfiles: ReadonlyMap<string, AuthProfile>;
 }
 
-/**
- * A Claude entry with the `auth` it holds, or every problem with it. With a
- * base URL the entry is a gateway and its auth is the gateway's. Without
- * one it is stock Claude, whose auth is profiles alone and whose
- * environment may not override or route around the subscription sign-in.
- * An MCP server a stock entry's auth breaks a rule with is left out, and
- * its problem stays beside the entry it loads.
- */
 export function readClaudeEntry(args: ClaudeEntryArgs): AgentEntryRead {
   const entry = args.entry;
   const raw = args.raw['auth'];

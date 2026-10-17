@@ -8,13 +8,6 @@ const NAME_LINE_SCHEMA = z.discriminatedUnion('type', [
   z.object({ type: z.literal('summary'), summary: z.string() }),
 ]);
 
-/**
- * The name a Claude session's transcript `source` gives it, or null when
- * it gives none. Claude is the naming authority: a custom title always
- * wins, and a summary never overrides a name a person typed. `grep` picks
- * the two line types out of the transcript, which can run to many
- * megabytes, without reading it into the daemon's memory.
- */
 export async function loadClaudeName(
   source: string,
   namedBy: 'user' | 'auto' | 'agent',
@@ -22,6 +15,7 @@ export async function loadClaudeName(
   let text: string;
 
   try {
+    // the transcript can run to many megabytes, so grep picks the two line types out of it
     const proc = Bun.spawn(['grep', '-E', '"type":"(custom-title|summary)"', source], {
       stdout: 'pipe',
       stderr: 'ignore',

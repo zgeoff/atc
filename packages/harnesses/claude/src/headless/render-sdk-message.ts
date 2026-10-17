@@ -15,10 +15,6 @@ type RenderableBlock =
   | Pick<Extract<ContentBlock, { type: 'tool_use' }>, 'type' | 'name' | 'input'>
   | Pick<Exclude<ContentBlock, { type: 'text' | 'tool_use' }>, 'type'>;
 
-/**
- * The fields of an SDK message that its output line reads. Every SDK
- * message carries them.
- */
 export type RenderableSDKMessage =
   | {
       readonly type: SDKAssistantMessage['type'];
@@ -28,11 +24,6 @@ export type RenderableSDKMessage =
   | Pick<SDKResultError, 'type' | 'subtype'>
   | Pick<Exclude<SDKMessage, { type: 'assistant' | 'result' }>, 'type'>;
 
-/**
- * One structured SDK message → zero or one plain-text line for the session's
- * output pipe: assistant text verbatim, tool calls as compact one-liners,
- * results as a closing line.
- */
 export function renderSDKMessage(message: RenderableSDKMessage): string | null {
   return match(message)
     .with({ type: 'assistant' }, (m) => renderAssistantContent(m.message.content))

@@ -5,12 +5,6 @@ import { buildClaudeQueryOptions } from './build-claude-query-options';
 import type { ClaudeHeadlessRunRequest } from './build-claude-query-options';
 import { renderSDKMessage } from './render-sdk-message';
 
-/**
- * Runs one headless Agent SDK turn over a session, rendering its structured
- * messages as plain lines into the session's output pipe. The run ends in
- * done (with the turn's whole result) or needs_you (errors, turn limits,
- * anything a human must look at).
- */
 export function startClaudeHeadlessRun(
   opts: ClaudeHeadlessRunRequest,
   events: HeadlessRunEvents,

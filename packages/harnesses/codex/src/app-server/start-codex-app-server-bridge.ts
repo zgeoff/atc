@@ -7,12 +7,6 @@ import { AppServerBridge } from './app-server-bridge';
 import { AppServerConnection } from './app-server-connection';
 import { AppServerError } from './app-server-error';
 
-/**
- * How a session's App Server starts: the Codex binary, the terminal plan
- * for the server's address and the thread, how long a new server gets to
- * listen, how long a stopping one gets to exit before it is killed, and the
- * waits between reconnect attempts.
- */
 export interface CodexAppServerLaunch {
   readonly bin: string;
   readonly planTerminal: (remote: string, thread: string) => SpawnPlan;
@@ -28,18 +22,9 @@ const LISTEN_POLL_MS = 50;
 // launch sets its own.
 const STOP_GRACE_MS = 5000;
 
-/**
- * Starts the session's own Codex App Server on a Unix socket in the
- * session's folder, with the session's environment, so the hooks and tools
- * the server runs report as the session. Then it opens the bridge and the
- * thread on the model the spawn asked for, and returns the plan that
- * starts the terminal on that thread.
- * A server that exits is started again on the bridge's next connection,
- * and the terminal rejoins it by itself. A server an earlier daemon left
- * running on the socket is ended first. The stop ends the bridge, then the
- * server, and removes the socket. A start that fails stops what it started
- * before it rejects.
- */
+// the session's own server runs in the session's environment so its hooks and tools report as
+// the session; one that exits restarts on the bridge's next connection and the terminal rejoins
+// it by itself, and a failed start stops what it started before it rejects
 export async function startCodexAppServerBridge(
   request: MessageBridgeRequest,
   launch: CodexAppServerLaunch,
@@ -156,12 +141,8 @@ export async function startCodexAppServerBridge(
   };
 }
 
-// Ends the server an earlier daemon started for this session and never
-// stopped, as after a crash. The pid counts only while its process still
-// runs this session's server command, so a pid the system gave to another
-// process since is left alone. A server that ignores the stop signal for
-// the grace period is killed outright, and one that outlives that too
-// fails the start, so no second server runs beside one atc lost track of.
+// the pid counts only while it still runs this session's server command, since the system may
+// reuse it; a server that outlives the kill fails the start, so no second server runs beside it
 async function killOrphanedServer(
   pidFile: string,
   command: string,

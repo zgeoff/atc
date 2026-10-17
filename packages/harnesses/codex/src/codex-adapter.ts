@@ -45,14 +45,8 @@ const CODEX_MODEL_FLAGS = ['-m', '--model'];
 const NO_DAEMON_FLAG = '--no-daemon';
 const REMOTE_FLAG = '--remote';
 
-/**
- * The Codex CLI adapter: spawn arguments, hook payload mapping, resume
- * semantics, and session_index.jsonl name-pulling. Hooks are a user-installed
- * entry in the Codex hook config (`atc codex-hooks` prints it) that the user
- * trusts once in the Codex TUI; atc never writes into the user's Codex config.
- * An entry with `auth` signs in on an imp through the ChatGPT sign-in impd's
- * broker holds, with a Codex home of the session's own that atc writes.
- */
+// atc never writes the user's codex config: hooks are an entry the user installs and trusts
+// once in the codex TUI
 export class CodexAdapter implements AgentAdapter {
   readonly id: AgentID;
 
@@ -123,12 +117,9 @@ export class CodexAdapter implements AgentAdapter {
     return {
       bin: this.entry.bin,
       args: [
-        // Codex's shared background server keeps the environment of the
-        // terminal that started it and runs every thread's hooks and tools
-        // there, so a terminal on it reports as that first session. Each
-        // terminal therefore runs its own server. The configured arguments
-        // already carry the flag, or connect to a remote server, which Codex
-        // refuses to combine with it; either way Codex takes no second copy.
+        // codex's shared background server runs every thread's hooks and tools in the environment
+        // of the terminal that started it, so each terminal runs its own; configured arguments
+        // that carry the flag or a remote server, which codex refuses to combine with it, add none
         ...(this.entry.args.some(isDaemonChoiceFlag) ? [] : [NO_DAEMON_FLAG]),
 
         // A model override replaces any model flag the configured arguments
@@ -166,10 +157,8 @@ export class CodexAdapter implements AgentAdapter {
     });
   }
 
-  // A terminal on the session's own App Server resumes the thread the
-  // bridge holds there, in place of the server of its own that a plain
-  // launch runs. A server choice the configured arguments carry gives way
-  // to it.
+  // a terminal on the session's own app server resumes the bridge's thread there instead of
+  // running a server of its own; a server choice in the configured arguments gives way to it
   private planRemoteTerminal(opts: SpawnOptions, remote: string, thread: string): SpawnPlan {
     const replaced = opts.model === undefined ? [REMOTE_FLAG] : [REMOTE_FLAG, ...CODEX_MODEL_FLAGS];
 
@@ -209,12 +198,9 @@ export class CodexAdapter implements AgentAdapter {
     };
   }
 
-  // A remote session without the broker runs as a local spawn plans it,
-  // under the sign-in of the host's image. One behind the broker reports
-  // through the atc inside its host, so without one it cannot run there,
-  // and it runs with a Codex home of its own: a sign-in file that holds
-  // no credential, a config, and the hook file, staged per binding
-  // revision. Its hooks are trusted at launch, since atc wrote them.
+  // without the broker a remote session runs as a local spawn plans it; behind the broker it needs
+  // the atc inside its host to report, and its own codex home's hooks are trusted at launch, since
+  // atc wrote them
   private planSignedInGuestSpawn(opts: SpawnOptions, guest: GuestPaths): GuestSpawnPlan | null {
     if (guest.auth === undefined) {
       return { ...this.planSpawn(opts), files: {} };

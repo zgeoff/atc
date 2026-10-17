@@ -1,11 +1,5 @@
 import type { SpawnPlan } from '@atc/plugin-api';
 
-/**
- * The launch of a CLI on a remote host that first creates the session's
- * scratch folder `scratch`, readable by its owner alone, and then runs
- * `argv`, the CLI's own command line, with the folder as its temporary
- * folder.
- */
 export function buildScratchLaunch(
   scratch: string,
   argv: readonly string[],

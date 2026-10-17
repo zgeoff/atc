@@ -3,18 +3,8 @@ import type { ProjectSettingsCheck } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import { z } from 'zod';
 
-/**
- * The check of a Claude CLI session's project settings before a launch
- * behind impd's broker. The CLI applies a repository's
- * `.claude/settings.json` from the directory it starts in, and its
- * `.claude/settings.local.json` from there and from the repository's root
- * or a worktree's main checkout, once the folder is trusted; a person can
- * accept that trust inside the session. Each file refuses the launch when
- * its `env` block sets a variable that would override the sign-in or route
- * around the broker, or when it sets `apiKeyHelper`. A file that is not a
- * JSON object refuses it too, since what the CLI would take from it is
- * unknown. A refusal holds the setting's name, never its value.
- */
+// a file that is not a JSON object refuses too, since what the CLI would take from it is
+// unknown; a refusal names the setting, never its value
 export function buildClaudeProjectSettingsCheck(agent: string): ProjectSettingsCheck {
   return {
     files: ['.claude/settings.json', LOCAL_SETTINGS_FILE],

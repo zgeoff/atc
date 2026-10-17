@@ -14,27 +14,14 @@ const REFRESH_MS = 1000;
 const WAIT_MS = 5000;
 const RETRY_MS = 50;
 
-/**
- * Tuning a caller may pass: the clock that times the wait for the lock,
- * judges whether a held lock went stale, and times and stamps each refresh
- * of a held lock's age, and a callback run each time the lock is found held
- * by someone else.
- */
 export interface ClaudeConfigLockOptions {
   readonly clock?: Clock;
   readonly onBusy?: () => void;
 }
 
-/**
- * Runs the callback while holding the lock the Claude CLI takes before it
- * writes its global config: a directory beside the file named for it with
- * a `.lock` suffix, created with `mkdir` so only one holder succeeds. The
- * config's folder is created first when it does not exist yet. A lock left
- * by a dead holder is taken over once it goes stale, and a held lock's age
- * is refreshed while the callback runs so no one takes it over. Release
- * removes the lock only while it is still the directory this call created.
- * Waiting longer than a few seconds throws without running the callback.
- */
+// takes the lock the Claude CLI takes before it writes its global config: a `.lock` directory
+// beside the file, made with `mkdir` so one holder wins; release removes it only while it is
+// still the directory this call created
 export async function withClaudeConfigLock<T>(
   configPath: string,
   run: () => Promise<T>,

@@ -49,13 +49,6 @@ import { planClaudeLineInput } from '../plan-claude-line-input';
 import { resolveClaudePermissionMode } from '../resolve-claude-permission-mode';
 import { SESSION_SCRATCH_FOLDER } from '../session-scratch-folder';
 
-/**
- * The Claude CLI pointed at a Claude-compatible backend other than the
- * default one. Hooks, transcripts, naming, and resume semantics are the
- * CLI's, so the gateway reads them as stock Claude does; only the spawn
- * plan and the resume command differ, because both have to name the
- * settings file that carries the backend.
- */
 export class GatewayAdapter implements AgentAdapter {
   readonly id: AgentID;
 
@@ -142,10 +135,8 @@ export class GatewayAdapter implements AgentAdapter {
           });
   }
 
-  // A gateway whose credential comes through impd's broker is refused
-  // before anything is prepared for it when its placeholders cannot pair
-  // with the broker's header, or when its settings env would route the CLI
-  // around the broker.
+  // refused before anything is prepared, when the placeholders cannot pair with the broker's
+  // header or the settings env would route the CLI around the broker
   findSpawnRefusal(): DaemonError | null {
     const auth = this.gateway.auth;
 
@@ -173,13 +164,9 @@ export class GatewayAdapter implements AgentAdapter {
     };
   }
 
-  // A gateway whose credential comes through impd's broker alone never
-  // starts on the daemon's machine: started without the broker, the CLI
-  // would send whatever credential it holds to the gateway's host. One
-  // with a credential helper as well starts there under that helper. A
-  // session's scratch folder lies under its own folder in atc's state
-  // folder, and is its temporary folder too.
   planSpawn(opts: SpawnOptions, session?: SessionID): SpawnPlan {
+    // started without the broker, the CLI would send whatever credential it holds to the
+    // gateway's host; a gateway with a credential helper starts here under that helper
     if (isBrokerOnlyGateway(this.gateway)) {
       throw this.buildBrokerRefusal('which only an imp target can give it');
     }
@@ -202,18 +189,8 @@ export class GatewayAdapter implements AgentAdapter {
     };
   }
 
-  // A gateway whose credential comes through impd's broker runs on a
-  // remote host with a settings file of the session's own per binding
-  // revision, a Claude config folder of its own that holds no account,
-  // and placeholders in place of the credential, which the broker swaps
-  // for the real one on the host's side. A shell seeds the config folder
-  // before it runs the CLI, since a transferred file would replace the
-  // state an earlier run left, and creates the session's scratch folder,
-  // its temporary folder too. The launch takes the auth's own arguments
-  // when it sets them, and never the credential helper, which runs on the
-  // daemon's machine alone. A gateway without auth never runs remotely.
-  // When the placeholder is the API key variable, the seed approves it and
-  // the shell refuses to start under a host that sets the bearer variable.
+  // the guest holds placeholders the broker swaps for the real credential on the host's side,
+  // and never the credential helper, which runs on the daemon's machine alone
   planGuestSpawn(opts: SpawnOptions, guest: GuestPaths): GuestSpawnPlan | null {
     if (this.gateway.auth === undefined) {
       return null;
@@ -258,6 +235,8 @@ export class GatewayAdapter implements AgentAdapter {
 
     const args = this.gateway.auth.args ?? this.gateway.args;
     const approvedAPIKey = findAPIKeyPlaceholder(guest.auth.env);
+
+    // a host-set bearer variable would put a second credential header beside the api key
     const refusedEnv = approvedAPIKey === null ? [] : [BEARER_PAIRING.variable];
 
     const launch = buildClaudeGuestLaunch(
@@ -302,14 +281,8 @@ export class GatewayAdapter implements AgentAdapter {
     return { events: [buildClaudeHookEvent(e)] };
   }
 
-  // Shell command that re-opens this session outside atc. It carries the
-  // gateway's configured arguments and its configured permission mode as an
-  // explicit flag, so that mode overrides the one the CLI would restore, and
-  // the generated settings file, because without it the CLI would resume
-  // the session against the default backend.
-  // A gateway whose credential comes through impd's broker alone has none,
-  // since outside atc the broker never reaches it.
   buildResumeCommand(cwd: string, agentSessionID: AgentSessionID | undefined): string | null {
+    // outside atc the broker never reaches the session
     if (isBrokerOnlyGateway(this.gateway)) {
       return null;
     }
@@ -321,17 +294,15 @@ export class GatewayAdapter implements AgentAdapter {
       .map((arg) => ` ${toShellArg(arg)}`)
       .join('');
 
+    // without the settings file the CLI would resume against the default backend
     const settings = toShellArg(this.files.writeSettings());
     const resume = agentSessionID === undefined ? '' : ` ${agentSessionID}`;
 
     return `cd ${toShellArg(cwd)} && ${this.gateway.bin}${args} --settings ${settings} --resume${resume}`;
   }
 
-  // A brokered session's Claude config is fresh, so the CLI's own default
-  // mode would apply rather than the one the owner's settings set. Every
-  // start therefore names its mode: the one the launch's arguments or the
-  // gateway's settings set, else the CLI's manual mode, which asks before
-  // each action.
+  // a brokered session's Claude config is fresh, so without an explicit mode the CLI's own
+  // default would apply rather than the one the owner's settings set
   private buildGuestModeArgs(args: readonly string[]): string[] {
     if (findFlagValue(args, ['--permission-mode']) !== null) {
       return [];
@@ -357,16 +328,8 @@ export class GatewayAdapter implements AgentAdapter {
     );
   }
 
-  // The Claude CLI sends one of two variables as its credential, each in
-  // its own header: ANTHROPIC_AUTH_TOKEN as a bearer authorization header,
-  // and ANTHROPIC_API_KEY as a raw x-api-key header. The placeholders must
-  // include exactly one of them, holding the placeholder, for a profile
-  // whose rule on the base URL's host sets that variable's header. Any
-  // other variable passes through to the session for a tool in it, whose
-  // own host a selected profile covers, except the other credential
-  // variables the CLI reads, which would put a second credential header on
-  // the request that the broker never fills, and the variable that names
-  // the session's Claude config folder, which atc sets itself.
+  // other placeholder variables pass through for tools in the session, except credential
+  // variables the CLI reads, which would add a second header the broker never fills
   private findPlaceholderRefusal(
     env: Readonly<Record<string, string>>,
     profiles: readonly string[],
@@ -455,10 +418,6 @@ function isBrokerOnlyGateway(gateway: GatewayConfig): boolean {
   return gateway.auth !== undefined && gateway.apiKeyHelper === undefined;
 }
 
-/**
- * A variable the Claude CLI sends as its credential, and the header and
- * scheme impd's broker must set for the base URL's host to fill it.
- */
 interface CredentialPairing {
   readonly variable: string;
   readonly header: string;
@@ -482,11 +441,7 @@ const API_KEY_PAIRING: CredentialPairing = {
 
 const CREDENTIAL_PAIRINGS: readonly CredentialPairing[] = [BEARER_PAIRING, API_KEY_PAIRING];
 
-// The placeholder a session sends as an x-api-key header, or null when it
-// sends a bearer header. The CLI asks a person whether to use that
-// variable unless its config approves it, and a bearer variable set by the
-// host would put a second credential header beside it, which the backend
-// refuses.
+// the CLI asks a person whether to use an api key variable unless its config approves it
 function findAPIKeyPlaceholder(env: Readonly<Record<string, string>>): string | null {
   return env[API_KEY_PAIRING.variable] ?? null;
 }

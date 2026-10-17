@@ -7,14 +7,8 @@ interface CollectedCodexAuth {
   readonly errors: readonly string[];
 }
 
-/**
- * Reads the `auth` of a Codex entry against the auth profiles: the
- * profiles a Codex session on a target that reaches impd's broker signs in
- * through. One of them must send an `oauth` secret to `chatgpt.com` as a
- * bearer authorization header, where Codex sends its ChatGPT sign-in, and
- * the rest bind beside it, such as a GitHub token. An entry that does not
- * resolve or holds no such profile gets null and every problem with it.
- */
+// one profile must send an `oauth` secret to `chatgpt.com` as a bearer authorization header,
+// where codex sends its chatgpt sign-in; the rest bind beside it, such as a github token
 export function collectCodexAuth(
   raw: unknown,
   authProfiles: ReadonlyMap<string, AuthProfile>,

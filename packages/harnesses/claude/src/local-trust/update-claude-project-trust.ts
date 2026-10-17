@@ -9,23 +9,8 @@ import type { ClaudeConfigLockOptions } from './with-claude-config-lock';
 // A project entry the CLI's trust dialog has already accepted.
 const TrustedEntrySchema = z.looseObject({ hasTrustDialogAccepted: z.literal(true) });
 
-/**
- * Accepts the Claude CLI's folder trust for one exact directory in its
- * global config, under the lock the CLI writes that config under. Only the
- * directory's entry in `projects` changes: every other key keeps its value,
- * and an entry already trusted leaves the file as it is. The write lands
- * through a rename, so a reader sees the old file or the new one, never
- * part of either.
- *
- * Resolves to a function that takes the trust back, for a launch that
- * fails before the CLI starts: it puts back the entry as it was, unless
- * something has changed the entry since, which leaves it as it stands.
- * The lock options apply to both the trust and its taking back.
- *
- * The config is written back from the values as read, never from a zod
- * parse's output, since a parse drops a `__proto__` key and reorders keys
- * the CLI wrote.
- */
+// resolves to an undo for a launch that fails before the CLI starts; the undo leaves an entry
+// something changed since as it stands
 export async function updateClaudeProjectTrust(
   configPath: string,
   root: string,
@@ -45,6 +30,8 @@ export async function updateClaudeProjectTrust(
 
       const base = isRecord(entry) ? entry : {};
 
+      // written from the values as read, never a zod parse's output, which drops a `__proto__` key
+      // and reorders the keys the CLI wrote
       await writeClaudeConfig(configPath, {
         ...config,
         projects: { ...projects, [root]: { ...base, hasTrustDialogAccepted: true } },

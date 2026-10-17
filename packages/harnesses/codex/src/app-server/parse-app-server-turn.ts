@@ -1,22 +1,15 @@
 import { z } from 'zod';
 
-/**
- * One item of a turn, as far as the bridge reads it: a `userMessage` with
- * the `clientId` its sender gave, or an `agentMessage` with its text.
- */
 interface AppServerItem {
   readonly type: string;
   readonly clientId?: string;
   readonly text?: string;
 }
 
-/**
- * One turn of a thread: its id, its status (`inProgress`, `completed`,
- * `interrupted` or `failed`), and the items the server sent with it, which
- * a notification may leave out.
- */
 export interface AppServerTurn {
   readonly id: string;
+
+  // `inProgress`, `completed`, `interrupted` or `failed`
   readonly status: string;
   readonly items: readonly AppServerItem[];
 }
@@ -33,10 +26,6 @@ const TURN_SCHEMA = z.looseObject({
   items: z.array(z.unknown()).optional(),
 });
 
-/**
- * Parses a turn the App Server sent, or null when it holds no id or status.
- * An item the bridge cannot read is left out.
- */
 export function parseAppServerTurn(value: unknown): AppServerTurn | null {
   const parsed = TURN_SCHEMA.safeParse(value);
 

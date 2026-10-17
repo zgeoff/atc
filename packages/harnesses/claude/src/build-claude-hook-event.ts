@@ -19,12 +19,6 @@ const CLAUDE_HOOK_PAYLOAD_SCHEMA = z.object({
 
 type ClaudeHookPayload = z.infer<typeof CLAUDE_HOOK_PAYLOAD_SCHEMA>;
 
-/**
- * The event one hook line of a Claude session means. A notice is a
- * needs-input event, a permission prompt or an idle notice by its type,
- * and the transcript path is both the session's name source and its
- * transcript.
- */
 export function buildClaudeHookEvent(e: HookEvent): AdapterEvent {
   return buildClaudeStyleHookEvent(e, {
     hooks: CLAUDE_HOOKS,
