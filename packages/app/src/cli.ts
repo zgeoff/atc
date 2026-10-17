@@ -1,6 +1,6 @@
 // atc CLI entry: no subcommand opens the client TUI; `hook-report` and
 // `statusline` are the commands injected into wrangled sessions.
-import { resolve } from 'node:path';
+import { basename, resolve } from 'node:path';
 import { parseListenAddress } from '@atc/config/host';
 import type { HostServices } from '@atc/plugin-api';
 import { runATCCLI } from './run-atc-cli';
@@ -307,6 +307,12 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
   const sourceOrder = await import('@atc/daemon');
   const builtinSources = await import('./sources/collect-builtin-sources');
   const home = await import('@atc/config/host');
+  const sqlite = await import('@atc/store/sqlite');
+
+  // The daemon never opens the gateway's authorization database, by any
+  // route, so an open of a file with its name fails in this process.
+  sqlite.registerRefusedSQLiteName(basename(config.mcpAuthDBFile));
+
   const hostServices = await resolveHostServices();
 
   // Test harnesses shrink the outbound queue to force overflow

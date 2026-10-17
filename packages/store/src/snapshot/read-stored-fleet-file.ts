@@ -1,10 +1,14 @@
 import { Database } from 'bun:sqlite';
+import { requireOpenableSQLitePath } from '../sqlite/register-refused-sqlite-name';
 import type { StoredRow } from './read-stored-rows';
 
 // Reads a daemon whose protocol this build cannot speak: a column its schema
 // lacks reads as its default, so an older daemon's database reads without a
 // migration.
 export function readStoredFleetFile(dbPath: string): StoredRow[] | null {
+  // a refused file throws, where a file that will not open reads as none
+  requireOpenableSQLitePath(dbPath);
+
   let db: Database;
 
   try {

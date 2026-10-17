@@ -4,9 +4,11 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, normalize, resolve } from 'node:path';
+import { SyntaxKind } from 'typescript/unstable/ast';
 import { z } from 'zod';
 import { collectImports } from './collect-imports';
 import { collectSourceFiles } from './collect-source-files';
+import { collectTokens } from './collect-tokens';
 import { PACKAGE_RULES } from './package-rules';
 
 async function main(): Promise<void> {
@@ -205,42 +207,98 @@ function isReporterLoadable(file: string): boolean {
   return folders.some((folder) => path.startsWith(`${folder}/`));
 }
 
-const DAEMON_ENTRY = 'packages/daemon/src/index.ts';
+// The daemon package's entry points: its main entry and the test helpers it
+// exports, which other packages' tests load.
+const DAEMON_ENTRIES: readonly string[] = [
+  'packages/daemon/src/index.ts',
+  'packages/daemon/src/testing/index.ts',
+];
 
 // The modules the daemon must never reach: the opener of the gateway's
 // authorization database, mcp-auth.db.
 const DAEMON_REFUSED_MODULES: readonly string[] = [`${APP_SOURCE}/open-mcp-auth-database.ts`];
 
-// Each refused module the daemon entry reaches, and each import that resolves to no file. With
-// the atc CLI entry present, a missing daemon entry or refused module is a finding too.
+// The names that lead to mcp-auth.db: its file name and the config path that
+// holds it. A reached file that names either could open the database without
+// the opener.
+const AUTH_DB_NAMES: readonly string[] = ['mcp-auth.db', 'mcpAuthDBFile'];
+
+// The config modules that define the mcp-auth.db path, the only files the
+// daemon reaches that may name it.
+const AUTH_DB_PATH_MODULES: ReadonlySet<string> = new Set([
+  'packages/config/src/host/resolve-paths.ts',
+  'packages/config/src/host/process-paths.ts',
+]);
+
+// The tokens that can hold a name: identifiers, strings, and template parts.
+// A comment is no token, so a comment may name the database.
+const NAME_TOKEN_KINDS: ReadonlySet<SyntaxKind> = new Set([
+  SyntaxKind.Identifier,
+  SyntaxKind.StringLiteral,
+  SyntaxKind.NoSubstitutionTemplateLiteral,
+  SyntaxKind.TemplateHead,
+  SyntaxKind.TemplateMiddle,
+  SyntaxKind.TemplateTail,
+]);
+
+// Per daemon entry: each refused module, each reached file that names
+// mcp-auth.db, and each unresolved import. Beside the atc CLI entry, a missing
+// daemon entry or refused module is a finding too.
 function checkDaemon(
   root: string,
   known: ReadonlySet<string>,
   exports: ReadonlyMap<string, string>,
 ): string[] {
   const missing = existsSync(join(root, APP_SOURCE, 'cli.ts'))
-    ? [DAEMON_ENTRY, ...DAEMON_REFUSED_MODULES]
+    ? [...DAEMON_ENTRIES, ...DAEMON_REFUSED_MODULES]
         .filter((module) => !known.has(module))
         .map((module) => `missing daemon module: ${module} does not exist`)
     : [];
 
-  if (!known.has(DAEMON_ENTRY)) {
-    return missing;
+  const findings = [...missing];
+
+  for (const entry of DAEMON_ENTRIES.filter((candidate) => known.has(candidate))) {
+    const reached = collectReached(
+      known,
+      exports,
+      [entry],
+      (file) => collectImports(readFileSync(join(root, file), 'utf8')).specifiers,
+    );
+
+    for (const module of DAEMON_REFUSED_MODULES.filter((refused) => reached.files.has(refused))) {
+      findings.push(
+        `refused module: ${entry} reaches ${module}, which opens the gateway's mcp-auth.db`,
+      );
+    }
+
+    for (const file of [...reached.files].toSorted()) {
+      const line = AUTH_DB_PATH_MODULES.has(file)
+        ? undefined
+        : findAuthDBName(readFileSync(join(root, file), 'utf8'));
+
+      if (line !== undefined) {
+        findings.push(
+          `named database: ${entry} reaches ${file}, which names the gateway's mcp-auth.db at line ${line}`,
+        );
+      }
+    }
+
+    findings.push(...reached.unresolved);
   }
 
-  const reached = collectReached(
-    known,
-    exports,
-    [DAEMON_ENTRY],
-    (file) => collectImports(readFileSync(join(root, file), 'utf8')).specifiers,
+  return findings;
+}
+
+// The 1-based line of the first token that names mcp-auth.db, or undefined
+// when no token does.
+function findAuthDBName(source: string): number | undefined {
+  const token = collectTokens(source).find(
+    (candidate) =>
+      NAME_TOKEN_KINDS.has(candidate.kind) &&
+      AUTH_DB_NAMES.some((name) => candidate.value.includes(name)),
   );
 
-  const refused = DAEMON_REFUSED_MODULES.filter((module) => reached.files.has(module)).map(
-    (module) =>
-      `refused module: ${DAEMON_ENTRY} reaches ${module}, which opens the gateway's mcp-auth.db`,
-  );
-
-  return [...missing, ...refused, ...reached.unresolved];
+  return token === undefined ? undefined : source.slice(0, token.start).split('\n').length;
 }
 
 interface Reach {

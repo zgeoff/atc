@@ -415,6 +415,11 @@ test('it passes reporters whose static imports load only light entry points', as
   await Bun.write(join(ctx.dir, 'packages/daemon/src/index.ts'), 'export const DAEMON = 1;\n');
 
   await Bun.write(
+    join(ctx.dir, 'packages/daemon/src/testing/index.ts'),
+    'export const STUB = 1;\n',
+  );
+
+  await Bun.write(
     join(ctx.dir, 'packages/app/src/open-mcp-auth-database.ts'),
     'export const OPEN = 1;\n',
   );
@@ -491,6 +496,11 @@ test('it fails on a reporter whose static imports load a root entry point', asyn
   await Bun.write(join(ctx.dir, 'packages/daemon/src/index.ts'), 'export const DAEMON = 1;\n');
 
   await Bun.write(
+    join(ctx.dir, 'packages/daemon/src/testing/index.ts'),
+    'export const STUB = 1;\n',
+  );
+
+  await Bun.write(
     join(ctx.dir, 'packages/app/src/open-mcp-auth-database.ts'),
     'export const OPEN = 1;\n',
   );
@@ -565,6 +575,11 @@ test('it fails on a CLI entry whose static imports load the core schema entry', 
   await Bun.write(join(ctx.dir, 'packages/daemon/src/index.ts'), 'export const DAEMON = 1;\n');
 
   await Bun.write(
+    join(ctx.dir, 'packages/daemon/src/testing/index.ts'),
+    'export const STUB = 1;\n',
+  );
+
+  await Bun.write(
     join(ctx.dir, 'packages/app/src/open-mcp-auth-database.ts'),
     'export const OPEN = 1;\n',
   );
@@ -636,6 +651,11 @@ test('it fails on a missing reporter entry beside the CLI entry', async () => {
 
   await Bun.write(join(ctx.dir, 'packages/app/src/gateway.ts'), 'console.log(1);\n');
   await Bun.write(join(ctx.dir, 'packages/daemon/src/index.ts'), 'export const DAEMON = 1;\n');
+
+  await Bun.write(
+    join(ctx.dir, 'packages/daemon/src/testing/index.ts'),
+    'export const STUB = 1;\n',
+  );
 
   await Bun.write(
     join(ctx.dir, 'packages/app/src/open-mcp-auth-database.ts'),
@@ -781,8 +801,9 @@ test('it fails on a missing daemon entry beside the CLI entry', async () => {
     stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
-    stdout: 'check-reach: 1 files reached, 1 bundled, 1 findings\n',
-    stderr: 'missing daemon module: packages/daemon/src/index.ts does not exist\n',
+    stdout: 'check-reach: 1 files reached, 1 bundled, 2 findings\n',
+    stderr:
+      'missing daemon module: packages/daemon/src/index.ts does not exist\nmissing daemon module: packages/daemon/src/testing/index.ts does not exist\n',
   });
 });
 
@@ -806,6 +827,11 @@ test('it fails on a missing mcp-auth.db opener beside the CLI entry', async () =
   );
 
   await Bun.write(join(ctx.dir, 'packages/daemon/src/index.ts'), 'export const DAEMON = 1;\n');
+
+  await Bun.write(
+    join(ctx.dir, 'packages/daemon/src/testing/index.ts'),
+    'export const STUB = 1;\n',
+  );
 
   const checked = await runCommand([
     process.execPath,
@@ -854,5 +880,196 @@ test('it fails on a daemon entry that reaches the mcp-auth.db opener through a t
     stdout: 'check-reach: 1 files reached, 1 bundled, 1 findings\n',
     stderr:
       "refused module: packages/daemon/src/index.ts reaches packages/app/src/open-mcp-auth-database.ts, which opens the gateway's mcp-auth.db\n",
+  });
+});
+
+test('it fails on a daemon testing entry that reaches the mcp-auth.db opener', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(join(ctx.dir, 'packages/app/src/gateway.ts'), 'console.log(1);\n');
+
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/open-mcp-auth-database.ts'),
+    'export const OPEN = 1;\n',
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/daemon/src/testing/index.ts'),
+    "export { OPEN } from '../../../app/src/open-mcp-auth-database';\n",
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-reach.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-reach: 1 files reached, 1 bundled, 1 findings\n',
+    stderr:
+      "refused module: packages/daemon/src/testing/index.ts reaches packages/app/src/open-mcp-auth-database.ts, which opens the gateway's mcp-auth.db\n",
+  });
+});
+
+test('it fails on a daemon module that opens mcp-auth.db by its file name', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(join(ctx.dir, 'packages/app/src/gateway.ts'), 'console.log(1);\n');
+
+  await Bun.write(
+    join(ctx.dir, 'packages/daemon/src/serve.ts'),
+    "import { join } from 'node:path';\n\nexport const SERVE = (dir: string) => join(dir, 'mcp-auth.db');\n",
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/daemon/src/index.ts'),
+    "export { SERVE } from './serve';\n",
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-reach.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-reach: 1 files reached, 1 bundled, 1 findings\n',
+    stderr:
+      "named database: packages/daemon/src/index.ts reaches packages/daemon/src/serve.ts, which names the gateway's mcp-auth.db at line 3\n",
+  });
+});
+
+test('it fails on a daemon module that names mcp-auth.db inside a template', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(join(ctx.dir, 'packages/app/src/gateway.ts'), 'console.log(1);\n');
+
+  await Bun.write(
+    join(ctx.dir, 'packages/daemon/src/index.ts'),
+    `export const SERVE = (dir: string) => \`\${dir}/mcp-auth.db\`;\n`,
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-reach.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-reach: 1 files reached, 1 bundled, 1 findings\n',
+    stderr:
+      "named database: packages/daemon/src/index.ts reaches packages/daemon/src/index.ts, which names the gateway's mcp-auth.db at line 1\n",
+  });
+});
+
+test('it fails on a daemon test helper that reads the config path of mcp-auth.db', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(join(ctx.dir, 'packages/app/src/gateway.ts'), 'console.log(1);\n');
+
+  await Bun.write(
+    join(ctx.dir, 'packages/config/src/host/process-paths.ts'),
+    "export const mcpAuthDBFile = '/state/mcp-auth.db';\n",
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/daemon/src/testing/index.ts'),
+    "import { mcpAuthDBFile } from '../../../config/src/host/process-paths';\n\nexport const STUB = mcpAuthDBFile;\n",
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-reach.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-reach: 1 files reached, 1 bundled, 1 findings\n',
+    stderr:
+      "named database: packages/daemon/src/testing/index.ts reaches packages/daemon/src/testing/index.ts, which names the gateway's mcp-auth.db at line 1\n",
+  });
+});
+
+test('it passes a daemon entry that reaches the config modules that define the mcp-auth.db path', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(join(ctx.dir, 'packages/app/src/gateway.ts'), 'console.log(1);\n');
+
+  await Bun.write(
+    join(ctx.dir, 'packages/config/src/host/resolve-paths.ts'),
+    `export const resolvePaths = (dir: string) => ({ mcpAuthDBFile: \`\${dir}/mcp-auth.db\` });\n`,
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/config/src/host/process-paths.ts'),
+    "import { resolvePaths } from './resolve-paths';\n\nexport const { mcpAuthDBFile } = resolvePaths('/state');\n",
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/daemon/src/index.ts'),
+    "export * from '../../config/src/host/process-paths';\n",
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-reach.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 0,
+    stdout: 'check-reach: 1 files reached, 1 bundled, 0 findings\n',
+    stderr: '',
+  });
+});
+
+test('it passes a daemon module that names mcp-auth.db only in a comment', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(join(ctx.dir, 'packages/app/src/gateway.ts'), 'console.log(1);\n');
+
+  await Bun.write(
+    join(ctx.dir, 'packages/daemon/src/index.ts'),
+    '// never opens mcp-auth.db\nexport const DAEMON = 1;\n',
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-reach.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 0,
+    stdout: 'check-reach: 1 files reached, 1 bundled, 0 findings\n',
+    stderr: '',
   });
 });
