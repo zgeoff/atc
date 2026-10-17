@@ -12,7 +12,6 @@ import { createActor } from 'xstate';
 import { z } from 'zod';
 import { IMP_HARNESS_MACHINE } from './imp-harness-machine';
 import type {
-  ImpExecRequirement,
   ImpPort,
   ImpSessionConnection,
   ImpSessionHandlers,
@@ -79,9 +78,10 @@ export class ImpHarness implements HarnessHandle {
 
   private readonly session: string;
 
-  // What impd must have ready before the start and every reattach, so an
-  // attach never joins the process past a requirement the start had.
-  private readonly require: readonly ImpExecRequirement[] | undefined;
+  // Whether the start lists requirements. impd checks them on the start
+  // alone, since its exec protocol gives an attach none, so the start and
+  // every reattach pass the host's admission before they go out.
+  private readonly hasRequirements: boolean;
 
   // The request that starts the process. Until it goes out to impd, a retry
   // sends it again, since there is no process to attach to.
@@ -159,7 +159,7 @@ export class ImpHarness implements HarnessHandle {
     this.host = host;
     this.name = start.name;
     this.session = start.session;
-    this.require = start.require;
+    this.hasRequirements = start.kind === 'start' && (start.require?.length ?? 0) > 0;
     this.start = start;
     this.cols = start.cols;
     this.rows = start.rows;
@@ -310,11 +310,12 @@ export class ImpHarness implements HarnessHandle {
   }
 
   // An impd from before exec requirements ignores them and runs the
-  // command anyway, so a request that has any goes out only after impd
-  // shows it honours them; otherwise the harness ends as impd's own
-  // client refuses an outdated impd, and nothing runs.
+  // command anyway, so the start of a harness that has any, and each
+  // reattach, goes out only after impd shows it honours them and the host
+  // admits it; otherwise the harness ends as impd's own client refuses an
+  // outdated impd, and nothing runs.
   private openCheckedConnection(request: ImpSessionRequest): void {
-    if (request.require === undefined || request.require.length === 0) {
+    if (!this.hasRequirements) {
       this.openConnection(request);
 
       return;
@@ -742,7 +743,6 @@ export class ImpHarness implements HarnessHandle {
       cols: this.cols,
       rows: this.rows,
       wake: false,
-      ...(this.require === undefined ? {} : { require: this.require }),
       ...(cursor === null
         ? {}
         : { resumeFrom: { executionGeneration: cursor.generation, offset: this.highWater } }),

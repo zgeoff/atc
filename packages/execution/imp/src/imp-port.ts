@@ -1,6 +1,6 @@
 /**
  * What the imp provider needs from impd, the imp host daemon, in atc's own
- * terms. The real binding wraps `@zgeoff/imp-client`, and the test fixture
+ * terms. The real binding wraps `@impz/client`, and the test fixture
  * runs imps as local pseudo-terminals, so nothing outside the imp modules
  * depends on the client library. Every call that impd refuses rejects with
  * an `ImpPortError` carrying impd's code and data.
@@ -106,7 +106,7 @@ export interface ImpFeatures {
  * `broker` is the credential broker, with its CA installed in the imp and
  * a grant behind its variables.
  */
-export type ImpExecRequirement = 'broker';
+type ImpExecRequirement = 'broker';
 
 type ImpScope = 'read' | 'exec' | 'manage';
 
@@ -270,10 +270,6 @@ export type ImpSessionRequest =
 
       // false fails with `INVALID_STATE` instead of booting or waking the imp.
       readonly wake: boolean;
-
-      // impd refuses the attach with `PRECONDITION_FAILED` when any of these
-      // is not ready, or when the process did not start with it required.
-      readonly require?: readonly ImpExecRequirement[];
     };
 
 export interface ImpSessionHandlers {

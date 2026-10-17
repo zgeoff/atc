@@ -12,7 +12,7 @@
     "@atc/core": "workspace:*",
     "@atc/plugin-api": "workspace:*",
     "@atc/protocol": "workspace:*",
-    "@zgeoff/imp-client": "catalog:",
+    "@impz/client": "catalog:",
     "ts-pattern": "catalog:",
     "xstate": "catalog:",
     "zod": "catalog:"

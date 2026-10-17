@@ -179,20 +179,20 @@ test.each([
   [
     'the imp client outside its file',
     'packages/execution/imp/src/a.ts',
-    '@zgeoff/imp-client',
-    '@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists.',
+    '@impz/client',
+    '@impz/client belongs to the files that scripts/package-confinement.ts lists.',
   ],
   [
     'the imp client in an e2e journey',
     'e2e/a.test.ts',
-    '@zgeoff/imp-client',
-    '@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists.',
+    '@impz/client',
+    '@impz/client belongs to the files that scripts/package-confinement.ts lists.',
   ],
   [
     'the imp client in a script module',
     'scripts/a.mjs',
-    '@zgeoff/imp-client',
-    '@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists.',
+    '@impz/client',
+    '@impz/client belongs to the files that scripts/package-confinement.ts lists.',
   ],
   [
     'the Claude SDK outside its files',
@@ -444,7 +444,7 @@ test('it refuses a confined package in a mod, which only the mods config lints',
 
   await Bun.write(
     join(ctx.dir, 'mods/bridge/hooks/register.ts'),
-    "import { ImpClient } from '@zgeoff/imp-client';\n\nexport const VALUE = [ImpClient];\n",
+    "import { ImpClient } from '@impz/client';\n\nexport const VALUE = [ImpClient];\n",
   );
 
   const linted = await runCommand(
@@ -469,7 +469,7 @@ test('it refuses a confined package in a mod, which only the mods config lints',
   expect(report.diagnostics).toPartiallyContain({
     code: 'eslint(no-restricted-imports)',
     filename: 'mods/bridge/hooks/register.ts',
-    help: '@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists.',
+    help: '@impz/client belongs to the files that scripts/package-confinement.ts lists.',
   });
 });
 
@@ -521,7 +521,7 @@ test('it refuses an import() type annotation in a mod', async () => {
 
   await Bun.write(
     join(ctx.dir, 'mods/bridge/hooks/register.ts'),
-    "export type Client = import('@zgeoff/imp-client').ImpClient;\n",
+    "export type Client = import('@impz/client').ImpClient;\n",
   );
 
   const linted = await runCommand(

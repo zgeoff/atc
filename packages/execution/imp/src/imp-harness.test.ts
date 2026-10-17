@@ -1,6 +1,7 @@
 import { expect, mock, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import type { HarnessAttachment, HarnessExit, LaunchTicket } from '@atc/plugin-api';
+import { DaemonError } from '@atc/protocol/wire';
 import {
   buildStubFailingAttachmentListener,
   buildStubLaunchAdmission,
@@ -315,7 +316,7 @@ test('it does a fresh attach when impd refuses its resume offset', async () => {
     expect(output.join('')).toInclude('UP:');
   });
 
-  ctx.port.setNextSessionFailure('INVALID_RESUME', { end: 0, bufferStart: 0 });
+  ctx.port.setNextSessionFailure({ code: 'INVALID_RESUME', data: { end: 0, bufferStart: 0 } });
   ctx.port.stopConnection('imp-a', 's1', 1011);
 
   await waitFor(() => {
@@ -623,13 +624,16 @@ test('it ends with the kept exit code of its own generation when impd no longer 
     expect(output.join('')).toInclude('UP:');
   });
 
-  ctx.port.setNextSessionFailure('NO_SESSION', {
-    bootId: ctx.port.getBootID('imp-a'),
-    coldBoots: [],
-    previous: {
-      executionGeneration: ctx.port.getGeneration('imp-a', 's1'),
-      end: 10,
-      exitCode: 7,
+  ctx.port.setNextSessionFailure({
+    code: 'NO_SESSION',
+    data: {
+      bootId: ctx.port.getBootID('imp-a'),
+      coldBoots: [],
+      previous: {
+        executionGeneration: ctx.port.getGeneration('imp-a', 's1'),
+        end: 10,
+        exitCode: 7,
+      },
     },
   });
 
@@ -683,7 +687,7 @@ test('it ends with the kept exit code when the cold boots impd returns do not re
     expect(output.join('')).toInclude('UP:');
   });
 
-  ctx.port.setNextSessionFailure('NO_SESSION', {
+  ctx.port.setNextMalformedSessionFailure('NO_SESSION', {
     bootId: ctx.port.getBootID('imp-a'),
     coldBoots: 'not a list',
     previous: {
@@ -743,7 +747,7 @@ test('it ends with the refusal message in the detail when impd refuses without a
     expect(output.join('')).toInclude('UP:');
   });
 
-  ctx.port.setNextSessionFailure(null, undefined, 'the sentinel refusal reason');
+  ctx.port.setNextSessionFailure({ code: null }, 'the sentinel refusal reason');
   ctx.port.stopConnection('imp-a', 's1', 1011);
 
   await waitFor(() => {
@@ -801,8 +805,7 @@ test('it redacts credential-shaped runs from a refusal message it shows', async 
   });
 
   ctx.port.setNextSessionFailure(
-    null,
-    undefined,
+    { code: null },
     'proxy rejected Bearer abcdefghijklmnopqrstuvwxyz0123456789 and key 0123456789abcdef0123456789abcdef',
   );
 
@@ -864,8 +867,7 @@ test('it redacts short credentials in URL, header, and authorization shapes it s
   });
 
   ctx.port.setNextSessionFailure(
-    null,
-    undefined,
+    { code: null },
     'dial failed: https://alice:demo-pass@api.example.test/v1?api_key=demo-secret with x-api-key: demo-secret and Authorization: Basic ZGVtbzpwYXNz',
   );
 
@@ -1559,7 +1561,7 @@ test('it rejects its start as broker_not_ready and ends without running when imp
   );
 });
 
-test('it requires the broker again on the attach that reconnects a harness whose start required it', async () => {
+test('it sends no requirements on the attach that reconnects a harness whose start required the broker', async () => {
   const ctx = setupTest();
 
   ctx.port.setIdentity({
@@ -1634,7 +1636,6 @@ test('it requires the broker again on the attach that reconnects a harness whose
       cols: 80,
       rows: 24,
       wake: false,
-      require: ['broker'],
       resumeFrom: { executionGeneration: ctx.port.getGeneration('imp-b', 's2'), offset: 0 },
     },
   ]);
@@ -1696,7 +1697,13 @@ test('it rejects its start as auth_impd_too_old when impd refuses it as outdated
 
   await ctx.port.createImp({ name: 'imp-b' });
 
-  ctx.port.setNextSessionFailure('PRECONDITION_FAILED', { reason: 'impd_outdated' });
+  ctx.port.setNextSessionFailure({
+    code: 'PRECONDITION_FAILED',
+    data: {
+      reason: 'impd_outdated',
+      detail: 'impd takes no exec requirements',
+    },
+  });
 
   const harness = new ImpHarness(
     ctx.port,
@@ -1899,6 +1906,201 @@ test('it sends the start of a harness whose admission check passes as its connec
   });
 
   expect(harness.waitForStart()).resolves.toStrictEqual({ created: true });
+
+  expect(ctx.port.sessionRequests).toStrictEqual([
+    {
+      kind: 'start',
+      name: 'imp-b',
+      session: 's2',
+      argv: ['sleep', '30'],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+      require: ['broker'],
+    },
+  ]);
+});
+
+test('it refuses the attach that reconnects a brokered harness once its admission is blocked, sending no attach', async () => {
+  const ctx = setupTest();
+
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['imp-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  await ctx.port.createImp({ name: 'imp-b' });
+  await ctx.port.createGrant('imp-b', 'glm');
+
+  const kinds: string[] = [];
+
+  const blocked = new DaemonError(
+    'auth_blocked',
+    'the runtime auth of host s2 is revoked; nothing launches on it until a rebind',
+    { host: 's2', state: 'revoked' },
+  );
+
+  const harness = new ImpHarness(
+    ctx.port,
+    buildMockImpSessionRequest({
+      name: 'imp-b',
+      session: 's2',
+      argv: ['sleep', '30'],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+      require: ['broker'],
+    }),
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {},
+      admit: (kind, send) => {
+        kinds.push(kind);
+
+        if (kind === 'attach') {
+          return Promise.reject(blocked);
+        }
+
+        send({ check: () => null, release: () => {} });
+
+        return Promise.resolve();
+      },
+    },
+  );
+
+  registerTestCleanup(() => {
+    harness.kill();
+  });
+
+  const exits: HarnessExit[] = [];
+
+  harness.onExit((exit) => {
+    exits.push(exit);
+  });
+
+  await harness.waitForStart();
+
+  ctx.port.stopConnection('imp-b', 's2', 1011);
+
+  await waitFor(() => {
+    expect(exits).toHaveLength(1);
+  });
+
+  expect(kinds).toStrictEqual(['start', 'attach']);
+
+  expect(exits).toStrictEqual([
+    {
+      exitCode: 1,
+      reason: 'ended',
+      detail:
+        'launch refused (the runtime auth of host s2 is revoked; nothing launches on it until a rebind)',
+    },
+  ]);
+
+  expect(ctx.port.sessionRequests).toStrictEqual([
+    {
+      kind: 'start',
+      name: 'imp-b',
+      session: 's2',
+      argv: ['sleep', '30'],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+      require: ['broker'],
+    },
+  ]);
+});
+
+test('it closes the attach that reconnects a brokered harness unsent when a revoke refuses its ticket', async () => {
+  const ctx = setupTest();
+
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['imp-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  await ctx.port.createImp({ name: 'imp-b' });
+  await ctx.port.createGrant('imp-b', 'glm');
+
+  const checks: (DaemonError | null)[] = [
+    null,
+    new DaemonError(
+      'auth_blocked',
+      'the runtime auth of host s2 is revoked; nothing launches on it until a rebind',
+      { host: 's2', state: 'revoked' },
+    ),
+  ];
+
+  const harness = new ImpHarness(
+    ctx.port,
+    buildMockImpSessionRequest({
+      name: 'imp-b',
+      session: 's2',
+      argv: ['sleep', '30'],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+      require: ['broker'],
+    }),
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {},
+      admit: (_kind, send) => {
+        send({ check: () => checks.shift() ?? null, release: () => {} });
+
+        return Promise.resolve();
+      },
+    },
+  );
+
+  registerTestCleanup(() => {
+    harness.kill();
+  });
+
+  const exits: HarnessExit[] = [];
+
+  harness.onExit((exit) => {
+    exits.push(exit);
+  });
+
+  await harness.waitForStart();
+
+  ctx.port.stopConnection('imp-b', 's2', 1011);
+
+  await waitFor(() => {
+    expect(exits).toHaveLength(1);
+  });
+
+  expect(exits).toStrictEqual([
+    {
+      exitCode: 1,
+      reason: 'ended',
+      detail:
+        'launch refused (the runtime auth of host s2 is revoked; nothing launches on it until a rebind)',
+    },
+  ]);
 
   expect(ctx.port.sessionRequests).toStrictEqual([
     {

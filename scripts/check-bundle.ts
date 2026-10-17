@@ -251,7 +251,7 @@ function checkBundle(
 
 /**
  * The external package an input under node_modules belongs to, such as
- * `@zgeoff/imp-client`, or null for a workspace input.
+ * `@impz/client`, or null for a workspace input.
  */
 function findExternalPackage(input: string): string | null {
   const parts = input.split('/');

@@ -1358,7 +1358,7 @@ test('it answers outcome_unknown for a workspace spawn whose host it cannot take
     }),
   });
 
-  ctx.port.setDestroyFailure('INTERNAL');
+  ctx.port.setDestroyFailure('INTERNAL_SERVER_ERROR');
 
   const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws'),
@@ -1419,7 +1419,7 @@ test('it keeps the key of a workspace spawn whose host it cannot take back as ou
     }),
   });
 
-  ctx.port.setDestroyFailure('INTERNAL');
+  ctx.port.setDestroyFailure('INTERNAL_SERVER_ERROR');
 
   const failed = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws'),
@@ -4318,7 +4318,7 @@ test('it answers outcome_unknown for a workspace spawn whose own host it cannot 
 
   mkdirSync(dest, { recursive: true });
 
-  ctx.port.setDestroyFailure('INTERNAL');
+  ctx.port.setDestroyFailure('INTERNAL_SERVER_ERROR');
 
   const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: dest,
@@ -4381,7 +4381,7 @@ test('it keeps the key of a workspace spawn whose own host it cannot destroy as 
 
   mkdirSync(join(ctx.dir, 'box', 'ws'), { recursive: true });
 
-  ctx.port.setDestroyFailure('INTERNAL');
+  ctx.port.setDestroyFailure('INTERNAL_SERVER_ERROR');
 
   const failed = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws'),
@@ -4459,8 +4459,8 @@ test('it answers outcome_unknown for a spawn whose failed readying leaves an imp
     }),
   });
 
-  ctx.port.setAcquireFailure(0, 'INTERNAL');
-  ctx.port.setDestroyFailure('INTERNAL');
+  ctx.port.setAcquireFailure(0, 'INTERNAL_SERVER_ERROR');
+  ctx.port.setDestroyFailure('INTERNAL_SERVER_ERROR');
 
   const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws'),
@@ -4521,8 +4521,8 @@ test('it keeps the key of a spawn whose failed readying leaves an imp it cannot 
     }),
   });
 
-  ctx.port.setAcquireFailure(0, 'INTERNAL');
-  ctx.port.setDestroyFailure('INTERNAL');
+  ctx.port.setAcquireFailure(0, 'INTERNAL_SERVER_ERROR');
+  ctx.port.setDestroyFailure('INTERNAL_SERVER_ERROR');
 
   const failed = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws'),
@@ -4600,7 +4600,7 @@ test('it refuses a spawn whose readying fails and destroys the imp the readying 
     }),
   });
 
-  ctx.port.setAcquireFailure(0, 'INTERNAL');
+  ctx.port.setAcquireFailure(0, 'INTERNAL_SERVER_ERROR');
 
   const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws'),

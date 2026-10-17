@@ -1712,7 +1712,7 @@ test('it listens on the guest socket again when impd fails the destroy that was 
     );
   });
 
-  ctx.port.setDestroyFailure('UNAVAILABLE');
+  ctx.port.setDestroyFailure('SERVICE_UNAVAILABLE');
   ctx.port.stopDestroyHold();
 
   expect(destroy).rejects.toThrow();

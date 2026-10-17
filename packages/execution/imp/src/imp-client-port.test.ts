@@ -839,7 +839,7 @@ test('it sends the request of a session connection whose gate stays open as it o
   ]);
 });
 
-test('it sends the requirements of an attach to impd', async () => {
+test('it sends an attach to impd without requirements, as the exec protocol of impd takes none', async () => {
   const ctx = setupTest();
 
   const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
@@ -852,7 +852,6 @@ test('it sends the requirements of an attach to impd', async () => {
       cols: 80,
       rows: 24,
       wake: false,
-      require: ['broker'],
     },
     { onStarted: () => {}, onOutput: () => {} },
   );
@@ -867,13 +866,17 @@ test('it sends the requirements of an attach to impd', async () => {
       cols: 80,
       rows: 24,
       wake: false,
-      require: ['broker'],
     },
   ]);
 });
 
 test('it sends the drop of CAP_SYS_ADMIN on a start to impd', async () => {
   const ctx = setupTest();
+
+  ctx.impd.answers.set('/rpc/system/info', {
+    status: 200,
+    json: { features: { sessionOffsets: true, leases: true, execDropSysAdmin: true } },
+  });
 
   const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
 
@@ -908,6 +911,46 @@ test('it sends the drop of CAP_SYS_ADMIN on a start to impd', async () => {
       dropSysAdmin: true,
     },
   ]);
+});
+
+test('it refuses a start that drops CAP_SYS_ADMIN on an impd without the drop, sending impd nothing', async () => {
+  const ctx = setupTest();
+
+  ctx.impd.answers.set('/rpc/system/info', {
+    status: 200,
+    json: { features: { sessionOffsets: true, leases: true } },
+  });
+
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
+
+  const connection = port.openSession(
+    {
+      kind: 'start',
+      name: 'atc-s1',
+      session: 'atc-s1',
+      argv: ['claude'],
+      env: {},
+      cwd: '/work',
+      cols: 80,
+      rows: 24,
+      dropSysAdmin: true,
+    },
+    { onStarted: () => {}, onOutput: () => {} },
+  );
+
+  const outcome = await connection.outcome;
+
+  expect(outcome).toStrictEqual({
+    kind: 'failed',
+    code: 'PRECONDITION_FAILED',
+    message: 'nothing was started: this impd cannot start a command without CAP_SYS_ADMIN',
+    data: {
+      reason: 'impd_outdated',
+      detail: 'this impd cannot start a command without CAP_SYS_ADMIN',
+    },
+  });
+
+  expect(ctx.impd.execOpens).toStrictEqual([]);
 });
 
 test('it sends a start without requirements when the request holds none', async () => {

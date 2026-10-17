@@ -243,7 +243,7 @@ test('it leaves a confined package and a computed specifier to the other gates',
 
   await Bun.write(
     join(ctx.dir, 'e2e/imp.test.ts'),
-    "import { ImpClient } from '@zgeoff/imp-client';\n\nexport const CLIENT = ImpClient;\n",
+    "import { ImpClient } from '@impz/client';\n\nexport const CLIENT = ImpClient;\n",
   );
 
   const checked = await runCommand([

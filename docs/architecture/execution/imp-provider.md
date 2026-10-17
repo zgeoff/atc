@@ -5,7 +5,10 @@ sub-session on the same target in its parent's imp. An imp can sleep with its pr
 wake later from memory, so a kill puts the imp to sleep rather than ending the session, and a revive
 finds the agent exactly as it was. The provider declares every capability except headless runs. The
 daemon reaches impd only through an imp port, an interface the tests drive with a fixture port that
-runs real pseudo-terminals.
+runs real pseudo-terminals. The fixture port builds every answer and refusal in the shape that
+impd's published client types give it, then passes it through the translations the real port uses. A
+change to impd's contract that the fixture no longer matches therefore fails the type check, and
+bumping the pinned client reruns that check.
 
 [Targets](./targets.md) covers the checks every provider shares, and
 [runtime auth](./runtime-auth.md) covers the broker grants an imp can hold.

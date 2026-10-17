@@ -463,7 +463,7 @@ test('it answers outcome_unknown for a spawn whose agent is not signed in on a h
     }),
   });
 
-  ctx.port.setDestroyFailure('INTERNAL');
+  ctx.port.setDestroyFailure('INTERNAL_SERVER_ERROR');
 
   expect(
     daemon.client.sendRequest('session.spawn', {
@@ -510,7 +510,7 @@ test('it keeps the key of a spawn whose agent is not signed in on a host it cann
 
   const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
-  ctx.port.setDestroyFailure('INTERNAL');
+  ctx.port.setDestroyFailure('INTERNAL_SERVER_ERROR');
 
   await Promise.allSettled([daemon.client.sendRequest('session.spawn', params)]);
 

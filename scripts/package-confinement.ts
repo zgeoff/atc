@@ -31,9 +31,15 @@ export const PACKAGE_CONFINEMENT: readonly Confinement[] = [
     inTests: true,
   },
   {
-    specifier: '@zgeoff/imp-client',
+    specifier: '@impz/client',
     owners: [],
-    files: ['packages/execution/imp/src/imp-client-port.ts'],
+
+    // the real port calls impd through the client, and the contract types
+    // the impd stand-in is checked against come from its declarations
+    files: [
+      'packages/execution/imp/src/imp-client-port.ts',
+      'packages/execution/imp/src/impd-contract.ts',
+    ],
     inTests: true,
   },
   {
