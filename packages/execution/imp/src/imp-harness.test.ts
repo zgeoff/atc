@@ -683,7 +683,7 @@ test('it ends with the kept exit code when the cold boots impd returns do not re
     expect(output.join('')).toInclude('UP:');
   });
 
-  ctx.port.setNextSessionFailure('NO_SESSION', {
+  ctx.port.setNextMalformedSessionFailure('NO_SESSION', {
     bootId: ctx.port.getBootID('imp-a'),
     coldBoots: 'not a list',
     previous: {
@@ -1559,7 +1559,7 @@ test('it rejects its start as broker_not_ready and ends without running when imp
   );
 });
 
-test('it requires the broker again on the attach that reconnects a harness whose start required it', async () => {
+test('it sends no requirements on the attach that reconnects a harness whose start required the broker', async () => {
   const ctx = setupTest();
 
   ctx.port.setIdentity({
@@ -1634,7 +1634,6 @@ test('it requires the broker again on the attach that reconnects a harness whose
       cols: 80,
       rows: 24,
       wake: false,
-      require: ['broker'],
       resumeFrom: { executionGeneration: ctx.port.getGeneration('imp-b', 's2'), offset: 0 },
     },
   ]);
@@ -1696,7 +1695,10 @@ test('it rejects its start as auth_impd_too_old when impd refuses it as outdated
 
   await ctx.port.createImp({ name: 'imp-b' });
 
-  ctx.port.setNextSessionFailure('PRECONDITION_FAILED', { reason: 'impd_outdated' });
+  ctx.port.setNextSessionFailure('PRECONDITION_FAILED', {
+    reason: 'impd_outdated',
+    detail: 'impd takes no exec requirements',
+  });
 
   const harness = new ImpHarness(
     ctx.port,

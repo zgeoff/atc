@@ -102,8 +102,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -251,8 +251,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -389,8 +389,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -538,8 +538,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -676,8 +676,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -825,8 +825,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -963,8 +963,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -1112,8 +1112,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -1250,8 +1250,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -1391,8 +1391,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -1529,8 +1529,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -1678,8 +1678,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -1816,8 +1816,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -1970,8 +1970,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -2128,8 +2128,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -2302,8 +2302,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -2460,8 +2460,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -2618,8 +2618,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -2780,8 +2780,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -2953,8 +2953,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -3091,8 +3091,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -3240,8 +3240,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -3378,8 +3378,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -3527,8 +3527,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -3665,8 +3665,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -3814,8 +3814,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -3952,8 +3952,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -4101,8 +4101,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -4239,8 +4239,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -4388,8 +4388,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -4526,8 +4526,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -4675,8 +4675,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -4813,8 +4813,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -4962,8 +4962,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -5100,8 +5100,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -5249,8 +5249,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -5387,8 +5387,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -5540,8 +5540,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -5678,8 +5678,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -5823,8 +5823,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -5961,8 +5961,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -6114,8 +6114,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -6252,8 +6252,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -6405,8 +6405,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -6535,8 +6535,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -6668,8 +6668,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -6802,8 +6802,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -6932,8 +6932,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -7066,8 +7066,8 @@
                 "message": "Production code never imports a testing entry or a testing/ folder."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -7208,8 +7208,8 @@
                 "message": "Import a package through an entry point its exports map lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -7334,8 +7334,8 @@
                 "message": "Import a package through an entry point its exports map lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -7460,8 +7460,8 @@
                 "message": "Import a package through an entry point its exports map lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -7586,8 +7586,8 @@
                 "message": "Import a package through an entry point its exports map lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -7777,6 +7777,132 @@
       }
     },
     {
+      "files": ["packages/execution/imp/src/impd-contract.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
+                "message": "@atc/execution-imp may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "group": [
+                  "@atc/app",
+                  "@atc/app/*",
+                  "@atc/app/*/**",
+                  "@atc/config/*",
+                  "@atc/config/*/**",
+                  "!@atc/config/claude-statusline",
+                  "!@atc/config/host",
+                  "@atc/core/*",
+                  "@atc/core/*/**",
+                  "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
+                  "@atc/execution-imp/*",
+                  "@atc/execution-imp/*/**",
+                  "!@atc/execution-imp/testing",
+                  "@atc/execution-local/*",
+                  "@atc/execution-local/*/**",
+                  "!@atc/execution-local/testing",
+                  "@atc/harness-claude/*",
+                  "@atc/harness-claude/*/**",
+                  "!@atc/harness-claude/testing",
+                  "@atc/harness-codex/*",
+                  "@atc/harness-codex/*/**",
+                  "@atc/harness-grok/*",
+                  "@atc/harness-grok/*/**",
+                  "@atc/lifecycle/*",
+                  "@atc/lifecycle/*/**",
+                  "!@atc/lifecycle/run-command",
+                  "!@atc/lifecycle/testing",
+                  "@atc/plugin-api/*",
+                  "@atc/plugin-api/*/**",
+                  "@atc/protocol/*",
+                  "@atc/protocol/*/**",
+                  "!@atc/protocol/session",
+                  "!@atc/protocol/wire",
+                  "!@atc/protocol/wire/transport",
+                  "@atc/source-dirs/*",
+                  "@atc/source-dirs/*/**",
+                  "@atc/source-git/*",
+                  "@atc/source-git/*/**",
+                  "@atc/source-github/*",
+                  "@atc/source-github/*/**",
+                  "@atc/store/*",
+                  "@atc/store/*/**",
+                  "!@atc/store/sqlite",
+                  "!@atc/store/testing",
+                  "@atc/test-utils/*",
+                  "@atc/test-utils/*/**"
+                ],
+                "message": "Import a package through an entry point its exports map lists."
+              },
+              {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "Production code never imports the shared test helpers."
+              },
+              {
+                "regex": "(^|/)testing(/|$)",
+                "message": "Production code never imports a testing entry or a testing/ folder."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^bun:sqlite(/|$)",
+                "message": "bun:sqlite belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^kysely(/|$)",
+                "message": "kysely belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^better-auth(/|$)",
+                "message": "better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@better-auth(/|$)",
+                "message": "@better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "files": ["packages/harnesses/claude/src/headless/build-claude-query-options.ts"],
       "rules": {
         "no-restricted-imports": [
@@ -7874,8 +8000,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^bun:sqlite(/|$)",
@@ -8024,8 +8150,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^bun:sqlite(/|$)",
@@ -8174,8 +8300,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^bun:sqlite(/|$)",
@@ -8316,8 +8442,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -8434,8 +8560,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -8487,8 +8613,8 @@
                 "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
-                "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",

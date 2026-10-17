@@ -12,7 +12,6 @@ import { createActor } from 'xstate';
 import { z } from 'zod';
 import { IMP_HARNESS_MACHINE } from './imp-harness-machine';
 import type {
-  ImpExecRequirement,
   ImpPort,
   ImpSessionConnection,
   ImpSessionHandlers,
@@ -78,10 +77,6 @@ export class ImpHarness implements HarnessHandle {
   private readonly name: string;
 
   private readonly session: string;
-
-  // What impd must have ready before the start and every reattach, so an
-  // attach never joins the process past a requirement the start had.
-  private readonly require: readonly ImpExecRequirement[] | undefined;
 
   // The request that starts the process. Until it goes out to impd, a retry
   // sends it again, since there is no process to attach to.
@@ -159,7 +154,6 @@ export class ImpHarness implements HarnessHandle {
     this.host = host;
     this.name = start.name;
     this.session = start.session;
-    this.require = start.require;
     this.start = start;
     this.cols = start.cols;
     this.rows = start.rows;
@@ -314,7 +308,11 @@ export class ImpHarness implements HarnessHandle {
   // shows it honours them; otherwise the harness ends as impd's own
   // client refuses an outdated impd, and nothing runs.
   private openCheckedConnection(request: ImpSessionRequest): void {
-    if (request.require === undefined || request.require.length === 0) {
+    if (
+      request.kind === 'attach' ||
+      request.require === undefined ||
+      request.require.length === 0
+    ) {
       this.openConnection(request);
 
       return;
@@ -742,7 +740,6 @@ export class ImpHarness implements HarnessHandle {
       cols: this.cols,
       rows: this.rows,
       wake: false,
-      ...(this.require === undefined ? {} : { require: this.require }),
       ...(cursor === null
         ? {}
         : { resumeFrom: { executionGeneration: cursor.generation, offset: this.highWater } }),

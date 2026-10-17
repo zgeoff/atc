@@ -126,9 +126,12 @@ test('it provisions the host of a spawn before readying it and starts the harnes
     expect.toStartWith(`exec.start ${imp} `),
   ]);
 
-  expect(ctx.port.sessionRequests.map((request) => [request.kind, request.require])).toStrictEqual([
-    ['start', ['broker']],
-  ]);
+  expect(
+    ctx.port.sessionRequests.map((request) => [
+      request.kind,
+      request.kind === 'start' ? request.require : undefined,
+    ]),
+  ).toStrictEqual([['start', ['broker']]]);
 
   expect(grants).toStrictEqual(['glm']);
   expect(binding).toMatchObject({ state: 'ready', revision: 1, impName: imp });
@@ -832,9 +835,12 @@ test('it binds an agent that takes the broker credential only where a broker is 
 
   const grants = await ctx.port.readGrants(imp);
 
-  expect(ctx.port.sessionRequests.map((request) => [request.kind, request.require])).toStrictEqual([
-    ['start', ['broker']],
-  ]);
+  expect(
+    ctx.port.sessionRequests.map((request) => [
+      request.kind,
+      request.kind === 'start' ? request.require : undefined,
+    ]),
+  ).toStrictEqual([['start', ['broker']]]);
 
   expect(grants).toStrictEqual(['glm']);
 });
@@ -1241,7 +1247,12 @@ test('it revives a session whose agent takes no broker credential on a host that
   await daemon.client.sendRequest('session.kill', { session: id });
   await daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
-  expect(ctx.port.sessionRequests.map((request) => [request.kind, request.require])).toStrictEqual([
+  expect(
+    ctx.port.sessionRequests.map((request) => [
+      request.kind,
+      request.kind === 'start' ? request.require : undefined,
+    ]),
+  ).toStrictEqual([
     ['start', undefined],
     ['start', undefined],
   ]);
@@ -2327,7 +2338,12 @@ test('it revives a slept session after verifying its binding, granting nothing a
     expect.toStartWith(`exec.start ${imp} `),
   ]);
 
-  expect(ctx.port.sessionRequests.map((request) => [request.kind, request.require])).toStrictEqual([
+  expect(
+    ctx.port.sessionRequests.map((request) => [
+      request.kind,
+      request.kind === 'start' ? request.require : undefined,
+    ]),
+  ).toStrictEqual([
     ['start', ['broker']],
     ['start', ['broker']],
   ]);
@@ -3493,7 +3509,12 @@ test("it runs a sub-session under the same binding in its parent's imp without g
     ),
   ).toStrictEqual([]);
 
-  expect(ctx.port.sessionRequests.map((request) => [request.kind, request.require])).toStrictEqual([
+  expect(
+    ctx.port.sessionRequests.map((request) => [
+      request.kind,
+      request.kind === 'start' ? request.require : undefined,
+    ]),
+  ).toStrictEqual([
     ['start', ['broker']],
     ['start', ['broker']],
   ]);

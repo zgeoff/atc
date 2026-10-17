@@ -8,6 +8,7 @@ import { registerTestCleanup } from '@atc/test-utils';
 import type { Subprocess } from 'bun';
 import { spawn } from 'bun-pty';
 import type { IPty } from 'bun-pty';
+import { buildImpdRefusal } from '../build-impd-refusal';
 import type {
   ColdBoot,
   ColdBootCause,
@@ -33,6 +34,20 @@ import type {
   ResumeResult,
 } from '../imp-port';
 import { ImpPortError } from '../imp-port-error';
+import type {
+  ImpdBareRefusalCode,
+  ImpdExecOutcome,
+  ImpdExecRefusal,
+  ImpdOutput,
+  ImpdSessionOutput,
+} from '../impd-contract';
+import { toImpFeatures } from '../to-imp-features';
+import { toImpIdentity } from '../to-imp-identity';
+import { toImpLease } from '../to-imp-lease';
+import type { ImpdLease } from '../to-imp-lease';
+import { toImpSecret } from '../to-imp-secret';
+import type { ImpdListedSecret } from '../to-imp-secret';
+import { toImpView } from '../to-imp-view';
 
 /**
  * Creates an in-process stand-in for impd behind the imp port, calling impd
@@ -49,11 +64,14 @@ import { ImpPortError } from '../imp-port-error';
  * caller's identity must reach the imp and, under imp patterns, list the
  * secret as grantable; a grant is idempotent, one secret per host, and a
  * destroyed imp or a rebound or removed secret takes its grants with it. A
- * start or an attach that requires the broker is refused with
+ * start that requires the broker is refused with
  * `PRECONDITION_FAILED` and reason `broker_not_ready`, and runs nothing,
  * while the broker fails or the imp holds no grant, when the start sets a
  * broker variable, and when it would join a process that started without
- * the broker required. Once the current test finishes, the stand-in kills
+ * the broker required; an attach carries no requirements, as impd's exec
+ * protocol gives it none. Every answer and refusal takes the shape impd's
+ * published contract gives it, and reaches the port through the
+ * translations the real port uses. Once the current test finishes, the stand-in kills
  * every process and stops every forward it holds, so it must be created inside
  * a test; `stop` does so sooner, and a second stop does nothing. A stop
  * that finds a guest command ended in part, such as one that exited while
@@ -72,12 +90,18 @@ export function createStubImpPort(
   return new StubImpPort(principal, now, report);
 }
 
+// How a stub connection ends: as impd ends an exec, or with a local error
+// when a handler on the daemon's side throws.
+type StubSessionOutcome =
+  | ImpdExecOutcome
+  | Extract<ImpSessionOutcome, { readonly kind: 'local_error' }>;
+
 interface StubConnection {
   readonly handlers: ImpSessionHandlers;
   sent: number;
   finished: boolean;
   process: StubProcess | null;
-  readonly stop: (outcome: ImpSessionOutcome) => void;
+  readonly stop: (outcome: StubSessionOutcome) => void;
 }
 
 interface StubProcess {
@@ -94,8 +118,8 @@ interface StubProcess {
   ended: boolean;
   connection: StubConnection | null;
 
-  // Whether its start required the broker, which an attach that requires
-  // it needs.
+  // Whether its start required the broker, which a start that requires it
+  // and would join the process needs.
   readonly requireBroker: boolean;
 }
 
@@ -214,14 +238,16 @@ class StubImpPort implements ImpPort {
 
   // Lease acquisitions that go through before the next one fails, and
   // impd's code for that failure, or null for none.
-  private acquireFailure: { skip: number; readonly code: string } | null = null;
+  private acquireFailure: {
+    skip: number;
+    readonly code: ImpdBareRefusalCode<'leases.acquire'>;
+  } | null = null;
 
   // A refusal the next session request gets instead of an answer, with the
   // message it carries when it has one of its own.
   private nextFailure: {
-    readonly code: string | null;
+    readonly refusal: ImpdExecRefusal;
     readonly message?: string;
-    readonly data: unknown;
   } | null = null;
 
   // Feature reads still to fail as an unreachable impd before they answer.
@@ -297,10 +323,10 @@ class StubImpPort implements ImpPort {
   private commandFailure: string | null = null;
 
   // impd's code for every imp destroy while destroys fail, or null.
-  private destroyFailure: string | null = null;
+  private destroyFailure: ImpdBareRefusalCode<'imps.destroy'> | null = null;
 
   // impd's code for every grant removal while removals fail, or null.
-  private grantRemovalFailure: string | null = null;
+  private grantRemovalFailure: ImpdBareRefusalCode<'grants.delete'> | 'UNREACHABLE' | null = null;
 
   // Whether every reverse forward closes each new guest connection at once.
   private refusingRelays = false;
@@ -348,27 +374,65 @@ class StubImpPort implements ImpPort {
       return Promise.reject(new ImpPortError('UNREACHABLE', 'impd did not answer'));
     }
 
-    return Promise.resolve(this.features);
+    const features = this.features;
+
+    const info: Pick<ImpdOutput<'system.info'>, 'features'> = {
+      features: {
+        sessionOffsets: features.sessionOffsets,
+        leases: features.leases,
+        grantableTokens: features.grantableTokens,
+        secretRebind: features.secretRebind,
+        execRequire: features.execRequire,
+        oauthSecrets: features.oauthSecrets,
+        readOnlyFiles: features.readOnlyFiles,
+        execDropSysAdmin: features.execDropSysAdmin,
+      },
+    };
+
+    return Promise.resolve(toImpFeatures(info));
   }
 
   readIdentity(): Promise<ImpIdentity> {
     this.calls.push('tokens.whoami');
 
-    return Promise.resolve(this.identity);
+    const identity = this.identity;
+
+    return Promise.resolve(
+      toImpIdentity({
+        kind: identity.kind,
+        name: identity.name,
+        scope: identity.scope,
+        imps: identity.imps,
+        grantable: identity.grantable,
+      }),
+    );
   }
 
   readSecrets(): Promise<readonly ImpSecret[]> {
     this.calls.push('secrets.list');
 
     return Promise.resolve(
-      [...this.secrets.values()].map((secret): ImpSecret => {
+      [...this.secrets.values()].map((secret) => {
         const imps = [...this.imps.values()]
           .filter((imp) => imp.grants.has(secret.name))
           .map((imp) => imp.name);
 
-        const listed = { name: secret.name, kind: secret.kind, rules: secret.rules, imps };
+        const listed: ImpdListedSecret = {
+          name: secret.name,
+          kind: secret.kind,
+          rules: secret.rules.map((rule) => ({
+            host: rule.host,
+            header: rule.header,
+            scheme: rule.scheme,
+            ...(rule.user === undefined ? {} : { user: rule.user }),
+          })),
+          imps,
+          ...(secret.oauth === undefined
+            ? {}
+            : { oauth: { status: secret.oauth.status, idClaims: secret.oauth.idClaims } }),
+        };
 
-        return secret.oauth === undefined ? listed : Object.assign(listed, { oauth: secret.oauth });
+        return toImpSecret(listed);
       }),
     );
   }
@@ -379,10 +443,12 @@ class StubImpPort implements ImpPort {
     const imp = this.imps.get(name);
 
     if (imp === undefined) {
-      return Promise.reject(buildNotFound(name));
+      return Promise.reject(buildNotFound('grants.list', name));
     }
 
-    return Promise.resolve([...imp.grants]);
+    const grants: ImpdOutput<'grants.list'> = [...imp.grants];
+
+    return Promise.resolve(grants);
   }
 
   createGrant(name: string, secret: string): Promise<void> {
@@ -406,10 +472,17 @@ class StubImpPort implements ImpPort {
 
     if (clash !== undefined) {
       return Promise.reject(
-        new ImpPortError('CONFLICT', `grant ${clash} covers a host of ${secret}`, {
-          kind: 'grant',
-          name: `${name}/${clash}`,
-        }),
+        buildImpdRefusal(
+          'grants.add',
+          {
+            code: 'CONFLICT',
+            data: {
+              kind: 'grant',
+              name: `${name}/${clash}`,
+            },
+          },
+          `grant ${clash} covers a host of ${secret}`,
+        ),
       );
     }
 
@@ -440,7 +513,7 @@ class StubImpPort implements ImpPort {
     this.calls.push(`imps.get ${name}`);
 
     const imp = this.imps.get(name);
-    const view = imp === undefined ? null : this.buildView(imp);
+    const view = imp === undefined ? null : toImpView(this.buildImpdImp(imp));
 
     return Promise.resolve(view);
   }
@@ -451,7 +524,17 @@ class StubImpPort implements ImpPort {
 
     if (this.imps.has(spec.name)) {
       return Promise.reject(
-        new ImpPortError('CONFLICT', `imp ${spec.name} exists`, { kind: 'imp', name: spec.name }),
+        buildImpdRefusal(
+          'imps.create',
+          {
+            code: 'CONFLICT',
+            data: {
+              kind: 'imp',
+              name: spec.name,
+            },
+          },
+          `imp ${spec.name} exists`,
+        ),
       );
     }
 
@@ -470,7 +553,7 @@ class StubImpPort implements ImpPort {
     this.imps.set(spec.name, imp);
     this.bootCold(imp, 'start');
 
-    return Promise.resolve(this.buildView(imp));
+    return Promise.resolve(toImpView(this.buildImpdImp(imp)));
   }
 
   acquireLease(name: string, label: string, ttlSeconds: number): Promise<ImpLease> {
@@ -511,13 +594,19 @@ class StubImpPort implements ImpPort {
     }
 
     if (label === 'hold' || ttlSeconds < 10 || ttlSeconds > 3600) {
-      return Promise.reject(new ImpPortError('BAD_REQUEST', 'the label or ttl is not allowed'));
+      return Promise.reject(
+        buildImpdRefusal(
+          'leases.acquire',
+          { code: 'BAD_REQUEST' },
+          'the label or ttl is not allowed',
+        ),
+      );
     }
 
     const imp = this.imps.get(name);
 
     if (imp === undefined) {
-      return Promise.reject(buildNotFound(name));
+      return Promise.reject(buildNotFound('leases.acquire', name));
     }
 
     this.updateAwake(imp);
@@ -526,7 +615,7 @@ class StubImpPort implements ImpPort {
 
     imp.leases.set(`${this.principal}\u0000${label}`, { principal: this.principal, label, until });
 
-    return Promise.resolve(buildLease(name, this.principal, label, until));
+    return Promise.resolve(toImpLease(buildImpdLease(name, this.principal, label, until)));
   }
 
   renewLease(name: string, label: string, ttlSeconds: number): Promise<ImpLease> {
@@ -537,14 +626,20 @@ class StubImpPort implements ImpPort {
     const lease = imp?.leases.get(key);
 
     if (imp === undefined || lease === undefined || lease.until <= this.now()) {
-      return Promise.reject(new ImpPortError('LEASE_NOT_HELD', 'the caller holds no such lease'));
+      return Promise.reject(
+        buildImpdRefusal(
+          'leases.renew',
+          { code: 'LEASE_NOT_HELD' },
+          'the caller holds no such lease',
+        ),
+      );
     }
 
     const until = this.now() + ttlSeconds * 1000;
 
     imp.leases.set(key, { ...lease, until });
 
-    return Promise.resolve(buildLease(name, this.principal, label, until));
+    return Promise.resolve(toImpLease(buildImpdLease(name, this.principal, label, until)));
   }
 
   releaseLease(name: string, label: string): Promise<boolean> {
@@ -569,10 +664,14 @@ class StubImpPort implements ImpPort {
     const imp = this.imps.get(name);
 
     if (imp === undefined) {
-      return Promise.reject(buildNotFound(name));
+      return Promise.reject(buildNotFound('leases.release', name));
     }
 
-    return Promise.resolve(imp.leases.delete(`${this.principal}\u0000${label}`));
+    const released: ImpdOutput<'leases.release'> = {
+      released: imp.leases.delete(`${this.principal}\u0000${label}`),
+    };
+
+    return Promise.resolve(released.released);
   }
 
   suspendImp(name: string): Promise<void> {
@@ -581,7 +680,7 @@ class StubImpPort implements ImpPort {
     const imp = this.imps.get(name);
 
     if (imp === undefined) {
-      return Promise.reject(buildNotFound(name));
+      return Promise.reject(buildNotFound('imps.sleep', name));
     }
 
     const live = [...imp.leases.values()].filter((lease) => lease.until > this.now());
@@ -593,10 +692,19 @@ class StubImpPort implements ImpPort {
       const otherPrincipals = new Set(others.map((lease) => lease.principal));
 
       return Promise.reject(
-        new ImpPortError('LEASED', 'the imp is leased', {
-          leases: own.map((lease) => buildLease(name, lease.principal, lease.label, lease.until)),
-          otherCount: otherPrincipals.size,
-        }),
+        buildImpdRefusal(
+          'imps.sleep',
+          {
+            code: 'LEASED',
+            data: {
+              leases: own.map((lease) =>
+                buildImpdLease(name, lease.principal, lease.label, lease.until),
+              ),
+              otherCount: otherPrincipals.size,
+            },
+          },
+          'the imp is leased',
+        ),
       );
     }
 
@@ -631,7 +739,7 @@ class StubImpPort implements ImpPort {
     const imp = this.imps.get(name);
 
     if (imp === undefined) {
-      return Promise.reject(buildNotFound(name));
+      return Promise.reject(buildNotFound('imps.destroy', name));
     }
 
     for (const proc of imp.sessions.values()) {
@@ -745,11 +853,15 @@ class StubImpPort implements ImpPort {
     this.calls.push(`files.write ${name} ${path}`);
 
     if (!this.imps.has(name)) {
-      throw buildNotFound(name);
+      throw buildNotFound('files.write', name);
     }
 
     if (this.readOnlyFilesDir === null) {
-      throw new ImpPortError('AGENT_OUTDATED', "the imp's agent has no read-only files yet");
+      throw buildImpdRefusal(
+        'files.write',
+        { code: 'AGENT_OUTDATED' },
+        "the imp's agent has no read-only files yet",
+      );
     }
 
     const target = posix.join(this.readOnlyFilesDir, name, path);
@@ -759,7 +871,9 @@ class StubImpPort implements ImpPort {
     await writeFile(staged, content, { mode: 0o444, flag: 'wx' });
     await rename(staged, target);
 
-    return target;
+    const written: ImpdOutput<'files.write'> = { path: target };
+
+    return written.path;
   }
 
   async runCommand(name: string, command: ImpCommand): Promise<ImpCommandResult> {
@@ -768,14 +882,21 @@ class StubImpPort implements ImpPort {
     const imp = this.imps.get(name);
 
     if (imp === undefined) {
-      throw buildNotFound(name);
+      throw buildNotFound('exec.ticket', name);
     }
 
     if (imp.state !== 'running') {
-      throw new ImpPortError('INVALID_STATE', `imp ${name} is ${imp.state}`, {
-        state: imp.state,
-        allowed: ['running'],
-      });
+      throw buildImpdRefusal(
+        'exec.ticket',
+        {
+          code: 'INVALID_STATE',
+          data: {
+            state: imp.state,
+            allowed: ['running'],
+          },
+        },
+        `imp ${name} is ${imp.state}`,
+      );
     }
 
     const line = command.argv.join(' ');
@@ -1199,7 +1320,7 @@ class StubImpPort implements ImpPort {
    * Fails a lease acquisition with an impd code once `skip` more have gone
    * through.
    */
-  setAcquireFailure(skip: number, code: string): void {
+  setAcquireFailure(skip: number, code: ImpdBareRefusalCode<'leases.acquire'>): void {
     this.acquireFailure = { skip, code };
   }
 
@@ -1398,14 +1519,14 @@ class StubImpPort implements ImpPort {
    * Fails every imp destroy with an impd code, leaving the imp, until
    * called with null.
    */
-  setDestroyFailure(code: string | null): void {
+  setDestroyFailure(code: ImpdBareRefusalCode<'imps.destroy'> | null): void {
     this.destroyFailure = code;
   }
 
   /**
    * Fails every grant removal with an impd code until called with null.
    */
-  setGrantRemovalFailure(code: string | null): void {
+  setGrantRemovalFailure(code: ImpdBareRefusalCode<'grants.delete'> | 'UNREACHABLE' | null): void {
     this.grantRemovalFailure = code;
   }
 
@@ -1422,11 +1543,28 @@ class StubImpPort implements ImpPort {
   }
 
   /**
-   * Refuses the next session request with an impd code and its data, or the
-   * message of the refusal when it carries one instead.
+   * Refuses the next session request with a code and data impd's contract
+   * allows an exec refusal, or the message of the refusal when it carries
+   * one instead.
    */
-  setNextSessionFailure(code: string | null, data: unknown, message?: string): void {
-    this.nextFailure = { code, data, ...(message === undefined ? {} : { message }) };
+  setNextSessionFailure<C extends ImpdExecRefusal['code']>(
+    code: C,
+    data: Extract<ImpdExecRefusal, { readonly code: C }>['data'],
+    message?: string,
+  ): void {
+    const refusal = { code, data } as Extract<ImpdExecRefusal, { readonly code: C }>;
+
+    this.nextFailure = { refusal, ...(message === undefined ? {} : { message }) };
+  }
+
+  /**
+   * Refuses the next session request with a code and data outside impd's
+   * contract, as a broken impd might send them, for a test of how the
+   * daemon reads a refusal it cannot trust. It is the one answer the
+   * contract does not type.
+   */
+  setNextMalformedSessionFailure(code: string, data: unknown): void {
+    this.nextFailure = { refusal: { code, data } as unknown as ImpdExecRefusal };
   }
 
   // The state an imp is in, or null when it does not exist.
@@ -1543,30 +1681,58 @@ class StubImpPort implements ImpPort {
     const patterns = identity.imps;
 
     if (identity.scope !== 'manage') {
-      return new ImpPortError('FORBIDDEN', 'the caller cannot manage grants', { reason: 'scope' });
+      return buildImpdRefusal(
+        'grants.add',
+        {
+          code: 'FORBIDDEN',
+          data: {
+            reason: 'scope',
+          },
+        },
+        'the caller cannot manage grants',
+      );
     }
 
     if (patterns !== null && !isHostNameAllowed(patterns, name)) {
-      return new ImpPortError('FORBIDDEN', `imp ${name} is outside the caller's patterns`, {
-        reason: 'imp_out_of_scope',
-      });
+      return buildImpdRefusal(
+        'grants.add',
+        { code: 'FORBIDDEN', data: { reason: 'imp_out_of_scope' } },
+        `imp ${name} is outside the caller's patterns`,
+      );
     }
 
     if (
       patterns !== null &&
       (!identity.grantable.includes(secret) || this.staleGrantable.has(secret))
     ) {
-      return new ImpPortError('FORBIDDEN', `the caller cannot grant ${secret}`, {
-        reason: 'not_grantable',
-      });
+      return buildImpdRefusal(
+        'grants.add',
+        {
+          code: 'FORBIDDEN',
+          data: {
+            reason: 'not_grantable',
+          },
+        },
+        `the caller cannot grant ${secret}`,
+      );
     }
 
     if (!this.imps.has(name)) {
-      return buildNotFound(name);
+      return buildNotFound('grants.add', name);
     }
 
     if (!this.secrets.has(secret)) {
-      return new ImpPortError('NOT_FOUND', `no secret ${secret}`, { kind: 'secret', name: secret });
+      return buildImpdRefusal(
+        'grants.add',
+        {
+          code: 'NOT_FOUND',
+          data: {
+            kind: 'secret',
+            name: secret,
+          },
+        },
+        `no secret ${secret}`,
+      );
     }
 
     return null;
@@ -1588,7 +1754,11 @@ class StubImpPort implements ImpPort {
     return imp;
   }
 
-  private buildView(imp: StubImp): ImpView {
+  // An imp as impd lists it to the port's principal: its own leases in
+  // full, and a count of the other principals that hold one.
+  private buildImpdImp(
+    imp: StubImp,
+  ): Pick<ImpdOutput<'imps.get'>, 'id' | 'name' | 'state' | 'leases'> {
     const live = [...imp.leases.values()].filter((lease) => lease.until > this.now());
     const own = live.filter((lease) => lease.principal === this.principal);
     const others = live.filter((lease) => lease.principal !== this.principal);
@@ -1597,8 +1767,12 @@ class StubImpPort implements ImpPort {
       id: imp.id,
       name: imp.name,
       state: imp.state,
-      leases: own.map((lease) => buildLease(imp.name, lease.principal, lease.label, lease.until)),
-      otherLeaseCount: new Set(others.map((lease) => lease.principal)).size,
+      leases: {
+        leases: own.map((lease) =>
+          buildImpdLease(imp.name, lease.principal, lease.label, lease.until),
+        ),
+        otherCount: new Set(others.map((lease) => lease.principal)).size,
+      },
     };
   }
 
@@ -1674,9 +1848,8 @@ class StubImpPort implements ImpPort {
 
       connection.stop({
         kind: 'failed',
-        code: failure.code,
-        message: failure.message ?? `impd refused the session (${failure.code})`,
-        data: failure.data,
+        message: failure.message ?? `impd refused the session (${failure.refusal.code})`,
+        ...failure.refusal,
       });
 
       return;
@@ -1752,16 +1925,17 @@ class StubImpPort implements ImpPort {
     this.attachProcess(imp, proc, request, connection, running === undefined);
   }
 
-  // Why the broker a start or an attach requires is not ready, or null
-  // when it is or the request requires nothing. A broker variable the
-  // start sets, or a running process that started without the broker
-  // required, fails the requirement as impd's would.
+  // Why the broker a start requires is not ready, or null when it is or
+  // the request requires nothing; an attach carries no requirements in
+  // impd's exec protocol. A broker variable the start sets, or a running
+  // process it would join that started without the broker required, fails
+  // the requirement as impd's would.
   private findBrokerProblem(
     imp: StubImp,
     request: ImpSessionRequest,
     running: StubProcess | undefined,
   ): string | null {
-    if (request.require?.includes('broker') !== true) {
+    if (request.kind !== 'start' || request.require?.includes('broker') !== true) {
       return null;
     }
 
@@ -1773,10 +1947,7 @@ class StubImpPort implements ImpPort {
       return 'the imp holds no grant';
     }
 
-    const overridden =
-      request.kind === 'start'
-        ? Object.keys(request.env).find((key) => isBrokerVariable(key))
-        : undefined;
+    const overridden = Object.keys(request.env).find((key) => isBrokerVariable(key));
 
     if (overridden !== undefined) {
       return overridden;
@@ -1931,24 +2102,23 @@ class StubImpPort implements ImpPort {
     const previous = imp.previous.get(request.session);
 
     const started = tryEmit(connection, () => {
-      connection.handlers.onStarted({
-        created,
-        output:
-          this.continuity === 'none'
-            ? { continuity: 'none' }
-            : {
-                continuity: 'offsets',
-                bootId: imp.bootId,
-                executionGeneration: proc.generation,
-                bufferStart,
-                end: proc.end,
-                offset: from,
-                prelude: preludeBytes.length,
-                coldBoots: imp.coldBoots,
-                ...(previous === undefined ? {} : { previous }),
-                ...(resume === undefined ? {} : { resume }),
-              },
-      });
+      const output: ImpdSessionOutput =
+        this.continuity === 'none'
+          ? { continuity: 'none' }
+          : {
+              continuity: 'offsets',
+              bootId: imp.bootId,
+              executionGeneration: proc.generation,
+              bufferStart,
+              end: proc.end,
+              offset: from,
+              prelude: preludeBytes.length,
+              coldBoots: imp.coldBoots,
+              ...(previous === undefined ? {} : { previous }),
+              ...(resume === undefined ? {} : { resume }),
+            };
+
+      connection.handlers.onStarted({ created, output });
     });
 
     if (!started) {
@@ -1985,12 +2155,29 @@ class StubImpPort implements ImpPort {
   }
 }
 
-function buildNotFound(name: string): ImpPortError {
-  return new ImpPortError('NOT_FOUND', `no imp ${name}`, { kind: 'imp', name });
+// The procedures the stand-in answers on an imp it may not hold.
+type StubImpProcedure =
+  | 'exec.ticket'
+  | 'files.write'
+  | 'grants.add'
+  | 'grants.list'
+  | 'imps.destroy'
+  | 'imps.sleep'
+  | 'leases.acquire'
+  | 'leases.release';
+
+// impd's refusal of a call on an imp it does not hold. The
+// procedure only types the refusal.
+function buildNotFound(procedure: StubImpProcedure, name: string): ImpPortError {
+  return buildImpdRefusal(
+    procedure,
+    { code: 'NOT_FOUND', data: { kind: 'imp', name } },
+    `no imp ${name}`,
+  );
 }
 
-function buildLease(name: string, principal: string, label: string, until: number): ImpLease {
-  return { name, owner: { principal, display: principal, label }, until };
+function buildImpdLease(name: string, principal: string, label: string, until: number): ImpdLease {
+  return { name, owner: { principal, display: principal, label }, until: new Date(until) };
 }
 
 function tryKill(pty: IPty, signal: NodeJS.Signals): void {

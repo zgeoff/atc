@@ -125,7 +125,7 @@
         "@atc/core": "workspace:*",
         "@atc/plugin-api": "workspace:*",
         "@atc/protocol": "workspace:*",
-        "@zgeoff/imp-client": "catalog:",
+        "@impz/client": "catalog:",
         "ts-pattern": "catalog:",
         "xstate": "catalog:",
         "zod": "catalog:",
@@ -327,6 +327,7 @@
     "@better-auth/oauth-provider": "1.7.6",
     "@commitlint/cli": "21.2.0",
     "@faker-js/faker": "10.6.0",
+    "@impz/client": "2.3.0",
     "@modelcontextprotocol/sdk": "1.31.0",
     "@orpc/contract": "1.15.4",
     "@simplewebauthn/server": "14.0.3",
@@ -338,7 +339,6 @@
     "@xterm/headless": "6.0.0",
     "@zgeoff/bun-test-extended": "0.0.4",
     "@zgeoff/format-codemod": "0.1.0",
-    "@zgeoff/imp-client": "1.4.0",
     "@zgeoff/oxlint-config": "0.2.0",
     "better-auth": "1.7.6",
     "bun-pty": "0.4.10",
@@ -516,6 +516,8 @@
     "@humanwhocodes/module-importer": ["@humanwhocodes/module-importer@1.0.1", "", {}, "sha512-bxveV4V8v5Yb4ncFTT3rPSgZBOpCkjfK0y4oVVVJwIuDVBRMDXrPyXRL988i5ap9m9bnyEEjWfm5WkBmtffLfA=="],
 
     "@humanwhocodes/retry": ["@humanwhocodes/retry@0.4.3", "", {}, "sha512-bV0Tgo9K4hfPCek+aMAn81RppFKv2ySDQeMoSZuvTASywNTnVJCArCZE2FWqpvIatKu7VMRLWlR1EazvVhDyhQ=="],
+
+    "@impz/client": ["@impz/client@2.3.0", "", { "dependencies": { "@orpc/client": "^1.14.15", "@orpc/contract": "^1.14.15", "zod": "^4.4.3" }, "peerDependencies": { "@opentelemetry/api": ">=1.9.0" }, "optionalPeers": ["@opentelemetry/api"] }, "sha512-MpdPIU4Vz3oApjwRWjYxXhW0x/nKEnGePnkc5Gr5PJePoKa/krfgg4xG2xZuRvzjZwb4YgZEI+y8eWBKZjaVpg=="],
 
     "@jest/diff-sequences": ["@jest/diff-sequences@30.4.0", "", {}, "sha512-zOpzlfUs45l6u7jm39qr87JCHUDsaeCtvL+kQe/Vn9jSnRB4/5IPXISm0h9I1vZW/o00Kn4UTJ2MOlhnUGwv3g=="],
 
@@ -826,8 +828,6 @@
     "@zgeoff/bun-test-extended": ["@zgeoff/bun-test-extended@0.0.4", "", { "dependencies": { "jest-extended": "7.0.0", "jest-matcher-utils": "30.4.1" } }, "sha512-wvayMrCNIq4lqu71thA5nsTMaAwMuK0mLW1+RNrlfS+874Ut/+/DPv9GQ3tM8MazGv2b/KO95ZYbXQZ1KYDy9g=="],
 
     "@zgeoff/format-codemod": ["@zgeoff/format-codemod@0.1.0", "", { "dependencies": { "oxc-parser": "0.137.0" }, "bin": { "format-codemod": "dist/cli.js" } }, "sha512-WVP6d3iuuaKuYrGIuHLkTxjI3W2IQzeAq6TtUiZiz+uw4f2AF2q4GgKQ6czpz/89qgZXauvhl1Pcef1/NZl4Rg=="],
-
-    "@zgeoff/imp-client": ["@zgeoff/imp-client@1.4.0", "", { "dependencies": { "@orpc/client": "^1.14.15", "@orpc/contract": "^1.14.15", "zod": "^4.4.3" }, "peerDependencies": { "@opentelemetry/api": ">=1.9.0" }, "optionalPeers": ["@opentelemetry/api"] }, "sha512-TK+oWOQb6WL2dfyYhOR7pEJshxGdAXwyxQkYtDc/T+tUx4qy514ZYKo8j3Xzuv+gXmO4mtGi/VqjOUjFBv6EBw=="],
 
     "@zgeoff/oxlint-config": ["@zgeoff/oxlint-config@0.2.0", "", { "dependencies": { "@stylistic/eslint-plugin": "5.10.0" }, "peerDependencies": { "oxlint": ">=1.71.0" } }, "sha512-wdHEVoGxq447T3Pru4dJ8Up6DB/bhj19ew4XZ8r0kOkw5XmqDdxAAz+mkAwsjRVTMWyD4WJojm2oRYfvV8DlaA=="],
 
