@@ -44,7 +44,10 @@ Each session's files live in the target's guest folder inside the imp. A Claude 
 reports through an atc inside the imp, which the daemon readies before the session starts:
 
 - When the target points at the image's own atc and that atc prints the daemon's version, the daemon
-  links to it and uploads nothing. It reads the image's version once per imp.
+  links to it and uploads nothing. It runs the image's atc for its version once per binary, because
+  a cold start of that atc takes most of a readying. The same command that links it prints the
+  binary's resolved path, inode, size and modification time, and a new imp whose binary matches
+  takes the known version without running it.
 - Otherwise a compiled daemon on Linux copies its own binary into the guest folder.
 - A daemon run from source has no binary to copy, so it refuses a remote Claude Code spawn whose
   image holds no matching atc, and its refusal holds both versions.

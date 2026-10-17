@@ -1,3 +1,4 @@
+import { systemClock } from '@atc/core';
 import { createImpClient, openExecSession, openReverseForward } from '@impz/client';
 import type { ExecOutcome, ExecSessionOptions, ImpClient } from '@impz/client';
 import { match } from 'ts-pattern';
@@ -29,25 +30,69 @@ import { toImpView } from './to-imp-view';
 interface ImpClientPortOptions {
   readonly url: string;
   readonly readToken: () => string | null;
+  readonly now?: () => number;
 }
+
+// How long one read of impd's slow status report answers later features
+// reads; the features change only when impd is replaced, which the doc on
+// runtime auth weighs.
+const FEATURES_MAX_AGE_MS = 30_000;
 
 export class ImpClientPort implements ImpPort {
   private readonly url: string;
 
   private readonly readToken: () => string | null;
 
+  private readonly now: () => number;
+
   // The client for the token read last, rebuilt when the token changes.
   private client: Readonly<{ token: string | null; client: ImpClient }> | null = null;
+
+  // The last read of impd's features under a token, from when it went out,
+  // dropped when it rejects.
+  private features: Readonly<{
+    token: string | null;
+    at: number;
+    read: Promise<ImpFeatures>;
+  }> | null = null;
 
   constructor(options: ImpClientPortOptions) {
     this.url = options.url;
     this.readToken = options.readToken;
+    this.now = options.now ?? systemClock.now;
   }
 
-  readonly readFeatures = async (): Promise<ImpFeatures> => {
-    const info = await this.tryCall((client) => client.system.info());
+  readonly readFeatures = (): Promise<ImpFeatures> => {
+    const token = this.tryReadToken();
 
-    return toImpFeatures(info);
+    if (token instanceof ImpPortError) {
+      return Promise.reject(token);
+    }
+
+    const at = this.now();
+    const held = this.features;
+
+    if (held !== null && held.token === token && at - held.at < FEATURES_MAX_AGE_MS) {
+      return held.read;
+    }
+
+    const read = (async (): Promise<ImpFeatures> => {
+      try {
+        const info = await this.tryCall((client) => client.system.info());
+
+        return toImpFeatures(info);
+      } catch (error) {
+        if (this.features?.token === token && this.features.at === at) {
+          this.features = null;
+        }
+
+        throw error;
+      }
+    })();
+
+    this.features = { token, at, read };
+
+    return read;
   };
 
   readonly readIdentity = async (): Promise<ImpIdentity> => {

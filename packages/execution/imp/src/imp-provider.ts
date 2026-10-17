@@ -144,6 +144,11 @@ export class ImpProvider implements ExecutionProvider {
   // never changes, and `bin/atc` there then runs the daemon's version.
   private readonly imageATCVersions = new Map<string, string | null>();
 
+  // The signature an image's atc showed when it printed its version last, its
+  // resolved path, inode, size and mtime, so a new imp of the same image takes
+  // that version without running it.
+  private imageATC: Readonly<{ signature: string; version: string }> | null = null;
+
   // Whether impd carries output offsets, once a prepare has read its
   // features; an impd without the flag carries none.
   private offsets = false;
@@ -598,17 +603,33 @@ export class ImpProvider implements ExecutionProvider {
       copiedVersion = ready.code === 0 ? this.version : null;
     } else {
       const read = await this.port.runCommand(name, {
-        argv: ['sh', '-c', READ_GUEST_ATC_SCRIPT, 'sh', dir, image, this.version],
+        argv: [
+          'sh',
+          '-c',
+          READ_GUEST_ATC_SCRIPT,
+          'sh',
+          dir,
+          image,
+          this.version,
+          this.imageATC?.signature ?? '',
+          this.imageATC?.version ?? '',
+        ],
       });
 
       if (read.code !== 0) {
         throw new Error(`reading the atc versions in ${name} exited ${read.code ?? 'by a signal'}`);
       }
 
-      const [readImage, readCopied] = new TextDecoder().decode(read.stdout).split('\n');
+      const [readImage, readCopied, readSignature] = new TextDecoder()
+        .decode(read.stdout)
+        .split('\n');
 
       imageVersion = readImage === undefined || readImage === '' ? null : readImage;
       copiedVersion = readCopied === undefined || readCopied === '' ? null : readCopied;
+
+      if (imageVersion !== null && readSignature !== undefined && readSignature !== '') {
+        this.imageATC = { signature: readSignature, version: imageVersion };
+      }
     }
 
     const found =

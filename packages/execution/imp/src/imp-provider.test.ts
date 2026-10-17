@@ -134,7 +134,7 @@ test('it destroys the imp a failed prepare created, since no session holds it', 
     'imps.get atc-s1',
     'imps.create atc-s1',
     'leases.acquire atc-s1 atc-d1',
-    `exec.run atc-s1 sh -c ${READ_GUEST_ATC_SCRIPT} sh ${join(ctx.dir, 'g')} ${join(ctx.dir, 'missing-atc')} 1.0.0`,
+    `exec.run atc-s1 sh -c ${READ_GUEST_ATC_SCRIPT} sh ${join(ctx.dir, 'g')} ${join(ctx.dir, 'missing-atc')} 1.0.0  `,
     'imps.destroy atc-s1',
   ]);
 
@@ -572,9 +572,15 @@ test("it copies the daemon's atc again on a later readying of an imp that lost i
   expect(readFileSync(join(ctx.dir, 'g', 'bin', 'atc'), 'utf8')).toBe('#!/bin/sh\necho 1.0.0\n');
 });
 
-test("it reads the image's version again for an imp created after the one it read was destroyed", async () => {
+test("it links a new imp to the image's atc without running it when the image's atc is the one it ran before", async () => {
   const ctx = setupTest();
-  const guestATC = createStubBin(ctx.dir, 'image-atc', '#!/bin/sh\necho 1.0.0\n');
+  const runs = join(ctx.dir, 'runs');
+
+  const guestATC = createStubBin(
+    ctx.dir,
+    'image-atc',
+    `#!/bin/sh\necho run >> ${runs}\necho 1.0.0\n`,
+  );
 
   const provider = new ImpProvider(
     ctx.port,
@@ -588,9 +594,45 @@ test("it reads the image's version again for an imp created after the one it rea
 
   await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true });
   await provider.destroyHost('s1');
-  await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true });
 
-  expect(ctx.port.calls.filter((call) => call.includes('--version'))).toBeArrayOfSize(2);
+  rmSync(join(ctx.dir, 'g'), { recursive: true });
+
+  await provider.prepareHost({ host: 's2', daemonID: 'd1', installATC: true });
+
+  expect(readFileSync(runs, 'utf8')).toBe('run\n');
+  expect(ctx.port.calls.filter((call) => call.startsWith('exec.run atc-s2'))).toBeArrayOfSize(1);
+  expect(readlinkSync(join(ctx.dir, 'g', 'bin', 'atc'))).toBe(guestATC);
+});
+
+test("it runs the image's atc again for a new imp when the image's atc changed since it ran", async () => {
+  const ctx = setupTest();
+  const runs = join(ctx.dir, 'runs');
+
+  const guestATC = createStubBin(
+    ctx.dir,
+    'image-atc',
+    `#!/bin/sh\necho run >> ${runs}\necho 1.0.0\n`,
+  );
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g'), guestATC },
+    { atcBinary: null, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true });
+  await provider.destroyHost('s1');
+
+  rmSync(join(ctx.dir, 'g'), { recursive: true });
+  createStubBin(ctx.dir, 'image-atc', `#!/bin/sh\necho changed >> ${runs}\necho 1.0.0\n`);
+
+  await provider.prepareHost({ host: 's2', daemonID: 'd1', installATC: true });
+
+  expect(readFileSync(runs, 'utf8')).toBe('run\nchanged\n');
 });
 
 test('it refuses a retried prepare on an imp whose atc runs another version when the daemon has no binary to copy', async () => {

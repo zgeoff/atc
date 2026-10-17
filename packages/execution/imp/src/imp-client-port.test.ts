@@ -1,7 +1,13 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { registerTestCleanup, setupTempDir, startStubImpd, waitFor } from '@atc/test-utils';
+import {
+  buildStubClock,
+  registerTestCleanup,
+  setupTempDir,
+  startStubImpd,
+  waitFor,
+} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { ImpClientPort } from './imp-client-port';
 import { readImpToken } from './read-imp-token';
@@ -54,6 +60,76 @@ test('it calls impd with the new token on the next call after the token file cha
   await port.readFeatures();
 
   expect(ctx.impd.authorizations).toStrictEqual(['Bearer first-token', 'Bearer second-token']);
+});
+
+test('it answers the features reads within 30 seconds of a read with its one call to impd', async () => {
+  const ctx = setupTest();
+  const stub = buildStubClock(1000);
+
+  const port = new ImpClientPort({
+    url: ctx.impd.url,
+    readToken: () => 'features-token',
+    now: stub.now,
+  });
+
+  await Promise.all([port.readFeatures(), port.readFeatures()]);
+
+  stub.advance(29_999);
+
+  await port.readFeatures();
+
+  expect(ctx.impd.calls).toStrictEqual([{ path: '/rpc/system/info', input: undefined }]);
+});
+
+test('it calls impd for the features again 30 seconds after its last call', async () => {
+  const ctx = setupTest();
+  const stub = buildStubClock(1000);
+
+  const port = new ImpClientPort({
+    url: ctx.impd.url,
+    readToken: () => 'features-token',
+    now: stub.now,
+  });
+
+  await port.readFeatures();
+
+  stub.advance(30_000);
+
+  await port.readFeatures();
+
+  expect(ctx.impd.calls).toStrictEqual([
+    { path: '/rpc/system/info', input: undefined },
+    { path: '/rpc/system/info', input: undefined },
+  ]);
+});
+
+test('it calls impd for the features again after impd refused the read before', async () => {
+  const ctx = setupTest();
+  const stub = buildStubClock(1000);
+
+  const port = new ImpClientPort({
+    url: ctx.impd.url,
+    readToken: () => 'features-token',
+    now: stub.now,
+  });
+
+  ctx.impd.answers.set('/rpc/system/info', {
+    status: 503,
+    json: { defined: true, code: 'UNAVAILABLE', status: 503, message: 'impd is starting' },
+  });
+
+  const refused = await port.readFeatures().then(
+    () => null,
+    (error: unknown) => error,
+  );
+
+  ctx.impd.answers.delete('/rpc/system/info');
+
+  const features = await port.readFeatures();
+
+  expect(refused).toMatchObject({ code: 'UNAVAILABLE' });
+  expect(features.leases).toBe(true);
+  expect(ctx.impd.calls).toHaveLength(2);
 });
 
 test('it refuses a call as unauthorized without reaching impd when the token file is empty', () => {
