@@ -1045,6 +1045,49 @@ test('it leaves a message to the final reply when atc prints undelivered for its
   ]);
 });
 
+test('it takes an answer from an atc build that prints no delivery result', async (engine, on) => {
+  const clock = mock.clock(on);
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  on('process.run', () => ({
+    value: {
+      exitCode: 0,
+      stdout: '',
+      stderr: '',
+      isStdoutTruncated: false,
+      isStderrTruncated: false,
+    },
+  }));
+
+  on('turn.start', ($, e) => ({ turnId: e.turnId }));
+  on('session.start', ($, e) => ({ cwd: e.cwd }));
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__answer' } }));
+
+  on('process.spawn', async function* () {
+    yield { stream: 'stdout', text: '{"id":"m-1","from":"alice","text":"one"}\n' };
+
+    return { value: { code: 0, signal: null } };
+  });
+
+  on('prompt.submit', async ($, e) => {
+    await engine.turn.start({ text: e.text, turnId: 't-1' });
+
+    return { text: e.text };
+  });
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await clock.settle();
+
+  const answered = await engine.tool.call({
+    tool: 'mcp__atc-bridge__answer',
+    message: 'm-1',
+    text: 'for alice',
+  });
+
+  expect(answered.result).toBe('Handed to atc as the answer to m-1.');
+});
+
 test('it reports a message unanswered when its answer fails after its turn ended', async (engine, on) => {
   const clock = mock.clock(on);
   const ran: string[][] = [];

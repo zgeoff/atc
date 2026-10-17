@@ -471,7 +471,7 @@ test('it keeps a bridge note in the outbox when the bridge closes without answer
   expect(name).toMatch(/^[\da-f-]{36}\.json$/u);
   expect(codes).toStrictEqual([0]);
   expect(others).toStrictEqual([]);
-  expect(printed).toStrictEqual(['delivered\n']);
+  expect(printed).toStrictEqual(['undelivered\n']);
 
   expect(bridge.requests).toStrictEqual([
     {
@@ -517,4 +517,38 @@ test('it prints delivered once the bridge takes a note', async () => {
 
   expect(printed).toStrictEqual(['delivered\n']);
   expect(readdirSync(outbox)).toStrictEqual([]);
+});
+
+test('it prints undelivered and keeps a bridge answer in the outbox when the bridge refuses a stale binding', async () => {
+  const tmp = setupTempDir('atc-note-');
+  const sock = join(tmp.dir, 'bridge.sock');
+  const outbox = join(tmp.dir, 'outbox');
+
+  mkdirSync(outbox);
+
+  startStubSessionBridge(sock, (request) => [
+    { id: request['id'], ok: false, code: 'stale_binding' },
+  ]);
+
+  updateEnv('ATC_BRIDGE', '1');
+  updateEnv('ATC_SOCKET', sock);
+  updateEnv('ATC_OUTBOX', outbox);
+  updateEnv('ATC_SESSION_ID', 's1');
+
+  const printed: string[] = [];
+
+  await runNote(
+    'answered',
+    { message: 'm-1', messages: '', label: '', turn: '' },
+    {
+      readStdin: () => Promise.resolve('all done'),
+      print: (text) => {
+        printed.push(text);
+      },
+      exit: () => {},
+    },
+  );
+
+  expect(printed).toStrictEqual(['undelivered\n']);
+  expect(readdirSync(outbox)).toHaveLength(1);
 });

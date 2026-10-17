@@ -81,7 +81,6 @@ async function sendBridgeNote(
   // an id of its own, so a resent note lands once
   const noteID = randomUUID();
   const file = outbox === '' ? null : join(outbox, `${noteID}.json`);
-  let isQueued = false;
 
   // the outbox holds the note until the bridge takes or refuses it, so the
   // session's tap sends it again after a dropped connection
@@ -89,8 +88,6 @@ async function sendBridgeNote(
     try {
       mkdirSync(outbox, { recursive: true });
       writeFileSync(file, JSON.stringify({ noteID, payload }));
-
-      isQueued = true;
     } catch {}
   }
 
@@ -103,9 +100,9 @@ async function sendBridgeNote(
     rmSync(file, { force: true });
   }
 
-  // A note the outbox holds counts as delivered, because the tap sends it
-  // again; a refused note never arrives.
-  return answer?.['ok'] === true || (!isFinal && isQueued);
+  // Only a note the bridge took counts as delivered. A caller may then send
+  // an answer again, which changes nothing once atc holds one.
+  return answer?.['ok'] === true;
 }
 
 function buildNotePayload(
