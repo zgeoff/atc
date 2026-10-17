@@ -28,7 +28,7 @@ jobs:
       - name: Audit
         run: bun run audit
 
-      # informational: the log shows what has newer versions; upgrades are
-      # deliberate PRs, never automatic
+      # informational: Renovate opens the upgrade PRs from the shared preset in
+      # zgeoff/tools, and a failed audit above starts the audit-fix workflow
       - name: Outdated
         run: bun outdated || true
