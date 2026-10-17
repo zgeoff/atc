@@ -3019,6 +3019,100 @@ test('it ends the next session connections unreachable without sending their req
   expect(ctx.port.sessionRequests).toStrictEqual([]);
 });
 
+test('it ends a start that drops CAP_SYS_ADMIN unreachable when its capability check times out, never running its gate', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  ctx.port.setExecCheckFailures(1);
+
+  const gates: string[] = [];
+
+  const connection = ctx.port.openSession(
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: ['sleep', '30'],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+      dropSysAdmin: true,
+    },
+    { onStarted: () => {}, onOutput: () => {} },
+    () => {
+      gates.push('checked');
+
+      return true;
+    },
+  );
+
+  const outcome = await connection.outcome;
+
+  expect(outcome).toStrictEqual({
+    kind: 'unreachable',
+    detail: 'system.info: The operation timed out.',
+  });
+
+  expect(gates).toStrictEqual([]);
+  expect(ctx.port.sessionRequests).toStrictEqual([]);
+  expect(ctx.port.countFailedExecChecks()).toBe(1);
+});
+
+test('it ends a start that requires the broker unreachable when its capability check times out, sending nothing', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  ctx.port.setExecCheckFailures(1);
+
+  const connection = ctx.port.openSession(
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: ['sleep', '30'],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+      require: ['broker'],
+    },
+    { onStarted: () => {}, onOutput: () => {} },
+  );
+
+  const outcome = await connection.outcome;
+
+  expect(outcome).toStrictEqual({
+    kind: 'unreachable',
+    detail: 'system.info: The operation timed out.',
+  });
+
+  expect(ctx.port.sessionRequests).toStrictEqual([]);
+});
+
+test('it sends an attach while a capability check failure waits, keeping that failure for a start', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  ctx.port.setExecCheckFailures(1);
+
+  const connection = ctx.port.openSession(
+    { kind: 'attach', name: 'imp-a', session: 's1', cols: 80, rows: 24, wake: true },
+    { onStarted: () => {}, onOutput: () => {} },
+  );
+
+  await connection.outcome;
+
+  expect(ctx.port.sessionRequests).toStrictEqual([
+    { kind: 'attach', name: 'imp-a', session: 's1', cols: 80, rows: 24, wake: true },
+  ]);
+
+  expect(ctx.port.countFailedExecChecks()).toBe(0);
+});
+
 test('it holds a session connection open without sending its request while upgrades are held', async () => {
   const ctx = setupTest();
 
