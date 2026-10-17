@@ -67,11 +67,9 @@ const ALLOWED_PACKAGES: ReadonlySet<string> = new Set([
 const GATEWAY_APP_MODULES: readonly string[] = [
   'gateway.ts',
   'run-gateway-cli.ts',
+  'run-command-line.ts',
   'run-gateway.ts',
   'open-mcp-auth-database.ts',
-  'parse-gateway-state-dir.ts',
-  'parse-port.ts',
-  'collect-redirect-uris.ts',
   'clients.ts',
   'passkeys.ts',
   'shared/grant-scope.ts',

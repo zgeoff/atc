@@ -25,7 +25,7 @@
     "@better-auth/oauth-provider": "catalog:",
     "@simplewebauthn/server": "catalog:",
     "better-auth": "catalog:",
-    "citty": "catalog:",
+    "gunshi": "catalog:",
     "kysely": "catalog:",
     "reflect-metadata": "catalog:",
     "ts-pattern": "catalog:",
