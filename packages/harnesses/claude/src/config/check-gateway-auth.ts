@@ -7,9 +7,6 @@ import {
 } from '@atc/core';
 import type { AuthProfile, GatewayAuth } from '@atc/plugin-api';
 
-/**
- * The fields of a gateway entry that its auth is checked against.
- */
 interface GatewayAuthEntry {
   readonly baseURL?: string | undefined;
   readonly env: Readonly<Record<string, string>>;

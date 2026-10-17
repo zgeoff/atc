@@ -8,11 +8,8 @@ interface CodexEntryArgs {
   readonly authProfiles: ReadonlyMap<string, AuthProfile>;
 }
 
-/**
- * A Codex entry with the `auth` it holds, or every problem with that auth.
- * Codex takes no placeholder variable: atc writes the sign-in file the CLI
- * reads in place of a credential.
- */
+// codex takes no placeholder variable: atc writes the sign-in file the cli reads in place of a
+// credential
 export function readCodexEntry(args: CodexEntryArgs): AgentEntryRead {
   const raw = args.raw['auth'];
 

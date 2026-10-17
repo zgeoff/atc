@@ -1,9 +1,5 @@
 import type { HarnessPlugin } from '@atc/config';
 import { buildClaudePlugin } from './build-claude-plugin';
 
-/**
- * The Claude harness plugin with its adapters on their default paths and
- * no headless runner, which reading config and a test that creates no
- * headless run both take.
- */
+// no headless runner: reading config and a test that starts no headless run both take this
 export const CLAUDE_PLUGIN: HarnessPlugin = buildClaudePlugin();

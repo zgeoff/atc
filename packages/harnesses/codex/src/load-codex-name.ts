@@ -6,18 +6,12 @@ import { z } from 'zod';
 // One line of the session index: a thread's id and its title.
 const INDEX_LINE_SCHEMA = z.object({ id: z.string(), thread_name: z.string() });
 
-/**
- * The name the session index in `codexHome` gives the Codex thread
- * `source`, or null when it gives none. The index appends a line each time
- * a title changes, so the last line for the thread wins. The index does not
- * record whether /rename or Codex set a title, so a title never overrides a
- * name a person typed.
- */
 export async function loadCodexName(
   codexHome: string,
   source: string,
   namedBy: 'user' | 'auto' | 'agent',
 ): Promise<NameUpdate | null> {
+  // the index does not record whether a person or codex set a title, so none overrides a typed name
   if (namedBy === 'user') {
     return null;
   }
@@ -39,6 +33,7 @@ export async function loadCodexName(
       return parsed.success && parsed.data.id === source ? [parsed.data.thread_name] : [];
     });
 
+  // the index appends a line on each title change, so the last one wins
   const name = names.at(-1);
 
   return name === undefined || name === '' ? null : { name };

@@ -3,29 +3,18 @@ import type { AppServerTurn } from './parse-app-server-turn';
 import { planTurnSettlement } from './plan-turn-settlement';
 import type { TurnSettlement } from './plan-turn-settlement';
 
-/**
- * What the thread's stored turns show about the session's unsettled
- * messages. `acks` holds each queued message a turn holds, which the
- * server took before the daemon marked it delivered. `settlements` holds
- * each ended turn's outcome for the messages it carried. `lost` holds each
- * delivered message no turn holds. `carried` matches each message of a turn
- * still in progress to that turn, and `replies` each such turn to its last
- * reply so far.
- */
 export interface ThreadRecovery {
+  // queued messages a stored turn holds, which the server took before they were marked
+  // delivered
   readonly acks: readonly string[];
   readonly settlements: readonly TurnSettlement[];
+
+  // delivered messages no stored turn holds
   readonly lost: readonly string[];
   readonly carried: ReadonlyMap<string, string>;
   readonly replies: ReadonlyMap<string, string>;
 }
 
-/**
- * Plans the recovery of the session's unsettled messages from the thread's
- * stored turns. A message's turn is the turn whose user message holds the
- * message's id as its client id. A queued message no turn holds stays
- * queued, for delivery to send.
- */
 export function planThreadRecovery(
   unsettled: readonly UnsettledMessage[],
   turns: readonly AppServerTurn[],

@@ -1,10 +1,7 @@
 import type { BridgedNotice } from '@atc/plugin-api';
 import { encodeAttribute } from './encode-attribute';
 
-/**
- * Renders the outcome of a message the session sent as the `<atc-answer>`
- * notice the model reads, the same notice the Claude bridge delivers.
- */
+// the same notice the claude bridge delivers
 export function renderAtcAnswer(notice: BridgedNotice): string {
   const reason =
     notice.status === 'unanswered' && notice.reason !== undefined

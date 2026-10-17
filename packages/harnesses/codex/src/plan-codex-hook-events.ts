@@ -14,18 +14,8 @@ interface CodexHookPlan {
   readonly next?: CodexHookState;
 }
 
-/**
- * The event one hook line of a Codex session means, and the state the
- * session's next line reads. Codex reports a session start each time the
- * terminal starts, resumes, clears, compacts, or forks a thread, so only a
- * session start moves the session to another thread. A turn of the old
- * thread can still run after the move, and its hook lines report the old
- * thread: such a line means only that the session is alive. Its approval
- * request raises no attention, because the session's state follows the
- * thread the terminal shows, and no later line of the old thread could
- * clear that attention without overwriting the shown thread's state. A
- * line before the first session start is taken as it reads.
- */
+// codex reports a session start each time the terminal starts, resumes, clears, compacts or
+// forks a thread, so only a session start moves the session to another thread
 export function planCodexHookEvents(e: HookEvent, prev: unknown): CodexHookPlan {
   const parsed = CODEX_HOOK_STATE_SCHEMA.safeParse(prev);
   const state = parsed.success ? parsed.data : undefined;
@@ -42,5 +32,7 @@ export function planCodexHookEvents(e: HookEvent, prev: unknown): CodexHookPlan 
     return { events: [ev], ...keep };
   }
 
+  // a turn of an older thread can still run after a move; its approval request would raise
+  // attention no later line of that thread could clear without overwriting the shown thread
   return { events: [{ kind: 'heartbeat' }], ...keep };
 }

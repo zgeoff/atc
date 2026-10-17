@@ -27,12 +27,8 @@ const GROK_UNSUPPORTED_OPTION: SpawnOptionSpec = {
   note: 'atc does not pass this option to Grok.',
 };
 
-/**
- * The Grok Build adapter: spawn arguments, hook payload mapping,
- * resume semantics, and summary.json name-pulling. The state Grok's hook
- * mapping reads travels with each session's hook lines, so the adapter
- * holds none.
- */
+// the state the hook mapping reads travels with each session's hook lines, so the adapter holds
+// none
 export class GrokAdapter implements AgentAdapter {
   readonly id: AgentID;
 

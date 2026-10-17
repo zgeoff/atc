@@ -5,14 +5,7 @@ import { loadClaudeStatusLine } from '@atc/config/claude-statusline';
 import { buildHookSettings } from './build-hook-settings';
 import type { HookSettingsProfile } from './build-hook-settings';
 
-/**
- * Writes the settings file passed to a wrangled session as
- * `claude --settings`, one per agent id, into the folder `dir`, and returns
- * its path. Its hooks run the atc CLI that `cliArgv` runs. Its statusline
- * takes the padding of the person's own statusline, from the Claude config
- * folder of the home `homeDir`, which atc's statusline chains, so the two
- * line up.
- */
+// the statusline takes the padding of the person's own, which atc's chains, so the two line up
 export function writeHookSettings(
   profile: HookSettingsProfile,
   cliArgv: readonly string[],

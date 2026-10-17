@@ -3,17 +3,9 @@ import type { MockOverrides } from '@atc/test-utils';
 import { faker } from '@faker-js/faker';
 import type { GatewayConfig } from '../config/collect-gateways';
 
-/**
- * The fields the defaults set; every other field is absent until an
- * override gives it whole.
- */
 type DefaultedKey = 'id' | 'label' | 'mark' | 'bin' | 'args' | 'baseURL' | 'env';
 
-/**
- * A Claude-compatible backend with no arguments, no environment, no helper
- * command, no settings, and no auth. The id, label, mark, binary, and base
- * URL are arbitrary. Overrides merge into fresh defaults at every depth.
- */
+// overrides merge into fresh defaults at every depth
 export function buildMockGatewayConfig(
   overrides: MockOverrides<GatewayConfig, DefaultedKey> = {},
 ): GatewayConfig {

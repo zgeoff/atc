@@ -1,14 +1,8 @@
 import type { SpawnOverrides } from '@atc/plugin-api';
 import { buildArgsWithoutFlags } from '@atc/plugin-api';
 
-/**
- * The configured leading arguments for a Claude CLI spawn with the session's
- * model and effort applied. An override replaces any `--model` or `--effort`
- * the configured arguments carry, value included, so the session never
- * depends on which occurrence the CLI honours. Without overrides the
- * configured arguments pass through unchanged. Each value travels as its own
- * argument, never through a shell.
- */
+// an override replaces every `--model` or `--effort` with its value, so the session never
+// depends on which occurrence the CLI honours
 export function buildClaudeOverrideArgs(
   configured: readonly string[],
   overrides: SpawnOverrides,

@@ -3,12 +3,7 @@ import type { HookSettingsProfile } from './build-hook-settings';
 import type { ClaudeAdapterOptions } from './claude-adapter-options';
 import { writeHookSettings } from './write-hook-settings';
 
-/**
- * The files a Claude launch on the daemon's machine reads: the settings
- * file of one agent id and the atc-bridge mod. Each is written on its
- * first use, so creating the files touches no state, and once only, so
- * every later launch reuses it.
- */
+// each file is written on its first use, so creating this touches no state, and once only
 export class ClaudeLaunchFiles {
   private settingsFile: string | undefined;
 

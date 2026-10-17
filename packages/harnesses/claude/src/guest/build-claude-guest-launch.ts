@@ -3,27 +3,8 @@ import { SESSION_SCRATCH_FOLDER } from '../session-scratch-folder';
 import { CLAUDE_CONFIG_BUNDLE_FOLDER } from './claude-config-bundle-folder';
 import { CLAUDE_CONFIG_SEED_FILE } from './claude-config-seed-file';
 
-/**
- * The launch of a Claude CLI that runs in a remote host with a config
- * folder of the session's own inside its guest folder, so no account or
- * setting of the host's image reaches it. A shell copies the seed into the
- * folder only when the folder holds no `.claude.json` yet, then runs the
- * CLI, so a resumed session keeps the state the CLI wrote, a folder trust
- * a person accepted included. A `.claude.json` an earlier run left takes
- * the mark that the CLI's one-time offer to block reads outside the
- * working directories was seen, so an unattended session never waits on
- * that offer. The shell also creates the session's scratch folder in the
- * guest folder, which the CLI takes as its temporary folder. When the
- * guest folder holds the config bundle
- * staged under `bundleKey`, the shell replaces the bundle's entries in the
- * config folder with the staged ones and removes every staged bundle, so
- * each launch reads the bundle its own transfer carried and never one an
- * earlier launch left. `argv` is the CLI's own command line. The
- * shell exits before it runs the CLI when the host's environment sets any
- * of `refusedEnv`, which must be variable names, and says which one. It
- * unsets each of `unsetEnv`, also variable names, so neither the CLI nor
- * any tool it runs inherits them.
- */
+// the shell seeds the config only when it holds no `.claude.json`, so a resumed session keeps
+// the state the CLI wrote, a folder trust a person accepted included
 export function buildClaudeGuestLaunch(
   guestDir: string,
   argv: readonly string[],
@@ -110,10 +91,9 @@ const SEEN_OFFER_STEP = `{ grep -q '"${SEEN_OFFER_KEY}"${COLON}true' "$1/.claude
 // the offer may wait for an answer.
 const SEEN_OFFER_CHECK = `{ grep -q '"${SEEN_OFFER_KEY}"${COLON}true' "$1/.claude.json" || echo "atc: could not mark the outside-read offer seen in $1/.claude.json, so Claude may stop to ask once" >&2; }`;
 
-// The arguments are the config folder, the seed, the folder bundles stage
-// in, this launch's staged bundle, the scratch folder, and the CLI's own
-// command line. The removed entries are every top-level entry a bundle can
-// hold, so one the host dropped leaves the config folder too.
+// args: config folder, seed, bundle staging folder, this launch's bundle, scratch folder, argv;
+// every entry a bundle can hold is removed first, so one the host dropped leaves too, and every
+// staged bundle is removed so a later launch never reads this one
 const SEED_CONFIG_SCRIPT = [
   'mkdir -p "$1"',
   'mkdir -p "$5"',

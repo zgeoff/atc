@@ -4,13 +4,6 @@ import { buildHookCommand, buildHookEntry } from '@atc/plugin-api';
 import { z } from 'zod';
 import { CLAUDE_HOOKS } from './claude-hooks';
 
-/**
- * What one agent id needs on top of the shared instrumentation. The
- * environment block and the credential helper point the CLI at a backend
- * other than the default one; both are absent for the stock agent. The
- * settings are whatever else the config asked this agent's sessions to start
- * with.
- */
 export interface HookSettingsProfile {
   readonly id: AgentID;
   readonly env?: Readonly<Record<string, string>>;
@@ -18,29 +11,13 @@ export interface HookSettingsProfile {
   readonly settings?: Readonly<Record<string, unknown>>;
 }
 
-/**
- * The settings object injected into wrangled sessions via
- * `claude --settings`. The user's own settings are untouched; these hooks
- * only exist in sessions atc spawns, and identify themselves via the
- * session id in their session environment and the agent id on their
- * command line. A nested harness inherits the env but not the command
- * line, so the agent id keeps its reports from passing as the session's
- * own.
- *
- * A settings-file env block outranks a shell export of the same variable, so
- * a session's backend is decided here rather than by whatever the terminal
- * happened to carry. The credential is never part of it: the helper command
- * supplies that at run time, so it never reaches a file atc writes.
- *
- * The hooks run the atc CLI that `cliArgv` runs. A session on a remote host
- * gets the argv of the atc inside that host, whose statusline renders that
- * session's own state alone.
- */
 export function buildHookSettings(
   profile: HookSettingsProfile,
   statuslinePadding: number,
   cliArgv: readonly string[],
 ): Record<string, unknown> {
+  // the agent id on the command line keeps a nested harness's reports, which inherit the env
+  // but not the command line, from passing as the session's own
   const command = buildHookCommand(`hook-report --agent ${toShellArg(profile.id)}`, cliArgv);
   const entry = [buildHookEntry(command, 5)];
 
@@ -58,6 +35,9 @@ export function buildHookSettings(
       command: buildHookCommand(`statusline --agent ${toShellArg(profile.id)}`, cliArgv),
       padding: statuslinePadding,
     },
+
+    // a settings-file env block outranks a shell export of the same variable; the credential
+    // stays out of it, supplied at run time by the helper command
     ...(profile.env === undefined || Object.keys(profile.env).length === 0
       ? {}
       : { env: profile.env }),
@@ -75,12 +55,7 @@ type SessionHooks = Readonly<Record<string, readonly unknown[]>>;
 // this file takes.
 const CONFIGURED_HOOKS_SCHEMA = z.record(z.string(), z.array(z.unknown()));
 
-/**
- * atc's own reporter plus whatever the config added, per event. The reporter
- * runs first and the configured entries follow it, so an added hook joins the
- * fleet's rather than displacing it. A block that is not hook lists is left out
- * whole, and costs its own entries rather than atc's.
- */
+// atc's reporter runs first, so a configured hook joins it rather than displacing it
 function mergeSessionHooks(own: SessionHooks, configured: unknown): SessionHooks {
   const parsed = CONFIGURED_HOOKS_SCHEMA.safeParse(configured);
 

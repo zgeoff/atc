@@ -1,17 +1,8 @@
 import type { SpawnPlan } from '@atc/plugin-api';
 import { CODEX_TRUST_SEED_FILE } from './codex-trust-seed-file';
 
-/**
- * The launch of a Codex CLI that runs in a remote host with a Codex home of
- * the session's own inside its guest folder, so no sign-in or setting of
- * the host's image reaches it. The folder persists for the session, so a
- * resume finds the sessions Codex recorded there. Before each run a shell
- * copies in the sign-in file, the config, and the hook file staged under
- * `authDir`, a folder of the guest folder, appends the clone trust seed to
- * that config when the guest folder holds one, and unsets every variable
- * that would sign Codex in another way. `argv` is the CLI's own command
- * line.
- */
+// a codex home of the session's own in its guest folder keeps the host image's sign-in and
+// settings out, and lasts the session so a resume finds the threads codex recorded there
 export function buildCodexGuestLaunch(
   guestDir: string,
   authDir: string,

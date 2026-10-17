@@ -1,18 +1,12 @@
 import { z } from 'zod';
 import { AppServerError } from './app-server-error';
 
-/**
- * A request the server sent the client, which waits for the client's answer.
- */
 export interface AppServerRequest {
   readonly id: number | string;
   readonly method: string;
   readonly params: unknown;
 }
 
-/**
- * A notification the server sent, which takes no answer.
- */
 export interface AppServerNotification {
   readonly method: string;
   readonly params: unknown;
@@ -31,14 +25,6 @@ interface Waiting {
   readonly reject: (error: Readonly<AppServerError>) => void;
 }
 
-/**
- * One client connection to a Codex App Server: JSON-RPC 2.0 messages over a
- * WebSocket, as `codex app-server --listen` serves them. A request resolves
- * with the server's result or rejects with an `AppServerError`, and every
- * request still waiting when the connection closes rejects, so no caller
- * waits on a closed connection. Notifications and server requests reach
- * the listeners set on the connection, in the order they arrived.
- */
 export class AppServerConnection {
   onNotification: (notification: AppServerNotification) => void = () => {};
 
@@ -73,10 +59,7 @@ export class AppServerConnection {
     });
   }
 
-  /**
-   * Opens a connection to the server at the URL, `ws+unix://<path>` for a
-   * Unix socket, and resolves once it is open.
-   */
+  // `ws+unix://<path>` reaches a unix socket
   static async open(url: string): Promise<AppServerConnection> {
     const ws = new WebSocket(url);
 

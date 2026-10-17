@@ -1,7 +1,3 @@
-/**
- * How one ended turn settles the messages it carried: answered with its
- * final reply, or unanswered with the reason the turn gave none.
- */
 export type TurnSettlement =
   | {
       readonly kind: 'answered';
@@ -16,13 +12,6 @@ export type TurnSettlement =
       readonly reason: string;
     };
 
-/**
- * Plans how an ended turn settles the messages it carried: a completed turn
- * with a final reply answers them with it, and any other end leaves them
- * unanswered, `interrupted` for an interrupted turn and `error` for a
- * failed one or one that gave no reply. A turn still in progress, or one
- * that carried no message, settles nothing.
- */
 export function planTurnSettlement(
   turn: string,
   status: string,

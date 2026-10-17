@@ -5,15 +5,8 @@ import type { AuthProfile, GatewayAuth } from '@atc/plugin-api';
 import { z } from 'zod';
 import { checkGatewayAuth } from './check-gateway-auth';
 
-/**
- * A Claude-compatible backend the Claude CLI is pointed at: its own agent id,
- * its own row in the spawn menu, and its own generated settings file. The
- * credential is never held here: a helper command supplies it at run time,
- * and, with `auth`, impd's credential broker adds it to each request on the
- * host's side, so it stays out of the file atc writes. A gateway with both
- * runs the helper on the daemon's machine and takes the broker's
- * credential on an imp.
- */
+// the credential never lives here: a helper command supplies it at run time and, with `auth`,
+// impd's broker adds it to each request, so it stays out of the file atc writes
 export interface GatewayConfig {
   readonly id: AgentID;
   readonly label: string;
@@ -51,13 +44,8 @@ const GATEWAY_ENTRY_SCHEMA = z.object({
   settings: buildOptionalSettings(),
 });
 
-/**
- * Reads the gateway map into menu order. An entry without a base URL, or
- * under an id another adapter already answers to, is left out rather than
- * registered half-formed: every gateway in the result can be spawned. A
- * gateway with `auth` is checked against the auth profiles, and one that
- * fails a check is left out with an error for each problem.
- */
+// an entry without a base URL or under a taken id is left out rather than registered
+// half-formed, so every gateway returned can be spawned
 export function collectGateways(
   raw: unknown,
   claudeBin: string,

@@ -53,16 +53,9 @@ interface GrokHookPlan {
   readonly next?: GrokHookState;
 }
 
-/**
- * The event one hook line of a Grok session means, and the state the
- * session's next line reads. `prev` is the state the session's previous
- * line left; anything else reads as none. Three rules need that state: a
- * stop for a prompt older than the latest submitted one is stale and only a
- * heartbeat, an idle notice right after a permission prompt shows nothing
- * finished, and a subagent's line is only a heartbeat for its session. A
- * session end leaves no state. `home` is the Grok home that holds the
- * session summaries a name comes from.
- */
+// three rules need the previous line's state: a stop for a prompt older than the latest is stale,
+// an idle notice right after a permission prompt shows nothing finished, and a subagent's line
+// is only a heartbeat for its session
 export function planGrokHookEvents(e: HookEvent, prev: unknown, home: string): GrokHookPlan {
   const parsed = GROK_HOOK_PAYLOAD_SCHEMA.safeParse(e.payload);
   const payload: GrokHookPayload = parsed.success ? parsed.data : {};

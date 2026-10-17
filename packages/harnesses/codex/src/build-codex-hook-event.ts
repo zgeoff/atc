@@ -18,12 +18,7 @@ const CODEX_HOOK_PAYLOAD_SCHEMA = z.object({
 
 type CodexHookPayload = z.infer<typeof CODEX_HOOK_PAYLOAD_SCHEMA>;
 
-/**
- * The event one hook line of a Codex session means. A permission request
- * is a needs-input event that holds the tool awaiting approval. The
- * session id is the session's name source, since the session index keys
- * titles by it, and the rollout path is its transcript.
- */
+// the session id is the name source, since the session index keys titles by it
 export function buildCodexHookEvent(e: HookEvent): AdapterEvent {
   return buildClaudeStyleHookEvent(e, {
     hooks: CODEX_HOOKS,

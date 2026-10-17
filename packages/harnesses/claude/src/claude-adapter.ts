@@ -67,10 +67,6 @@ import { planClaudeLineInput } from './plan-claude-line-input';
 import { resolveClaudePermissionMode } from './resolve-claude-permission-mode';
 import { SESSION_SCRATCH_FOLDER } from './session-scratch-folder';
 
-/**
- * The Claude Code adapter: spawn arguments, `--settings` instrumentation,
- * resume semantics, transcript name-pulling, and statusline chaining.
- */
 export class ClaudeAdapter implements AgentAdapter {
   readonly id: AgentID;
 
@@ -160,11 +156,8 @@ export class ClaudeAdapter implements AgentAdapter {
     };
   }
 
-  // With `auth` configured, Claude signs in with the subscription
-  // token impd's broker holds on a target that reaches the broker, and
-  // with the sign-in of the host it runs on anywhere else. The entry's own
-  // placeholders stand in for the credentials of its other profiles, and
-  // the subscription token's placeholder is always atc's.
+  // with `auth`, Claude signs in with the broker's subscription token on a target that reaches
+  // the broker and with its host's own sign-in anywhere else
   findAuthSelection(): AuthSelection | null {
     const auth = this.entry.auth;
 
@@ -189,13 +182,7 @@ export class ClaudeAdapter implements AgentAdapter {
     };
   }
 
-  // A remote session reports through the atc inside its host, so without
-  // one it has no instrumentation and cannot run there. Its settings and
-  // its copy of the mod travel with it, and it has no statusline. Its
-  // scratch folder lies in its guest folder, which a shell creates before
-  // it runs the CLI. A session that signs in through impd's broker runs
-  // with a config folder of its own and the placeholder in place of the
-  // token.
+  // a remote session reports through the atc inside its host, so without one it cannot run there
   planGuestSpawn(opts: SpawnOptions, guest: GuestPaths): GuestSpawnPlan | null {
     if (guest.atc === null) {
       return null;
@@ -258,12 +245,8 @@ export class ClaudeAdapter implements AgentAdapter {
     return { events: [buildClaudeHookEvent(e)] };
   }
 
-  // Shell command that re-opens this session outside atc (or anywhere). A
-  // permission mode the configured arguments set travels as an explicit
-  // flag, so it overrides the mode the CLI would restore. The generated
-  // settings file travels only for an entry that sets its own settings or
-  // environment, since the file sits on the daemon's machine and an entry
-  // without either needs nothing from it.
+  // the generated settings file sits on the daemon's machine, so it travels only for an entry
+  // that sets its own settings or environment
   buildResumeCommand(cwd: string, agentSessionID: AgentSessionID | undefined): string | null {
     const configured = findClaudePermissionMode(this.entry.args, this.entry.settings);
     const mode = configured === null ? '' : ` --permission-mode ${toShellArg(configured)}`;
@@ -283,28 +266,14 @@ export class ClaudeAdapter implements AgentAdapter {
     return opts.resume === false ? [] : buildRestoreModeArgs(this.entry.args, this.entry.settings);
   }
 
-  // A settings file of the session's own per binding revision carries the
-  // placeholder, and so does the CLI's environment. The configured
-  // arguments go without a permission mode, so the mode the session's own
-  // user settings set applies. Those user settings, with the rest of the
-  // config bundle, come from the host's own Claude config folder as it is
-  // at this launch, staged under a key of this launch's own. A credential,
-  // endpoint, or provider variable in the configured settings, or in the
-  // host's environment, would keep the CLI from sending the placeholder, so
-  // either refuses the start. The entry's MCP servers reach the CLI through
-  // an MCP config file of the binding revision, each with the placeholder
-  // in its header. Their flag and the scratch folder's sit ahead of the
-  // settings flag, so neither variadic flag takes the prompt as one of its
-  // values. When the profiles send a ChatGPT sign-in as well, the revision
-  // holds a Codex home, so the Codex CLI the session runs as a tool signs
-  // in through the broker too, with every variable that would sign it in
-  // another way unset.
   private planSubscriptionGuestSpawn(
     opts: SpawnOptions,
     dir: string,
     auth: NonNullable<GuestPaths['auth']>,
     argv: readonly string[],
   ): GuestSpawnPlan {
+    // a credential, endpoint or provider variable in the configured settings or the host's
+    // environment would keep the CLI from sending the placeholder
     const refusal = this.findCredentialOverride();
 
     if (refusal !== null) {
@@ -318,6 +287,8 @@ export class ClaudeAdapter implements AgentAdapter {
     const mcpArgs = mcpServers.length === 0 ? [] : ['--mcp-config', `${dir}/${mcpPath}`];
     const bundleKey = randomUUID();
 
+    // when the profiles send a ChatGPT sign-in too, the Codex CLI the session runs as a tool signs
+    // in through the broker, with every variable that would sign it in another way unset
     const codexHome = planCodexHome(
       this.authProfiles,
       this.entry.auth?.profiles ?? [],
@@ -326,6 +297,8 @@ export class ClaudeAdapter implements AgentAdapter {
       auth.oauth ?? {},
     );
 
+    // the configured arguments drop their permission mode, so the mode the session's own user
+    // settings set applies
     const launch = buildClaudeGuestLaunch(
       dir,
       [
@@ -390,10 +363,7 @@ export class ClaudeAdapter implements AgentAdapter {
     };
   }
 
-  // The refusal for an entry whose environment, settings environment, or
-  // inline `--settings` argument sets a variable that overrides the
-  // subscription sign-in or routes the CLI around impd's broker, or null
-  // when it sets none.
+  // a variable overrides the subscription sign-in or routes the CLI around impd's broker
   private findCredentialOverride(): DaemonError | null {
     const settingsEnv = this.entry.settings?.['env'];
 
