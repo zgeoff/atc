@@ -1,4 +1,5 @@
 import { assign, setup } from 'xstate';
+import type { Actor } from 'xstate';
 
 type ClientMachineEvent =
   | { readonly type: 'ATTACH'; readonly sessionID: string }
@@ -204,3 +205,9 @@ export function buildClientMachine(deps: ClientMachineDeps) {
     },
   });
 }
+
+// The running client machine that the TUI sends its events to.
+export type ClientActor = Actor<ReturnType<typeof buildClientMachine>>;
+
+// The screen the client shows, as the machine's mode region holds it.
+export type ClientMode = ReturnType<ClientActor['getSnapshot']>['value']['mode'];
