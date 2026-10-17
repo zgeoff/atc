@@ -1780,6 +1780,44 @@ test('it starts a harness that requires the broker after one failed feature read
   expect(ctx.port.findState('imp-b')).toBe('running');
 });
 
+test('it starts a harness that drops CAP_SYS_ADMIN after its capability check times out once, sending the start again rather than an attach', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-b' });
+
+  ctx.port.setExecCheckFailures(1);
+
+  const harness = new ImpHarness(
+    ctx.port,
+    buildMockImpSessionRequest({
+      name: 'imp-b',
+      session: 's2',
+      argv: ['sleep', '30'],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+      dropSysAdmin: true,
+    }),
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {},
+    },
+  );
+
+  registerTestCleanup(() => {
+    harness.kill();
+  });
+
+  await harness.waitForStart();
+
+  expect(ctx.port.countFailedExecChecks()).toBe(1);
+  expect(ctx.port.sessionRequests.map((request) => request.kind)).toStrictEqual(['start']);
+  expect(ctx.port.findState('imp-b')).toBe('running');
+});
+
 test('it refuses a harness that requires the broker once its feature reads keep failing, sending no exec', async () => {
   const ctx = setupTest();
 

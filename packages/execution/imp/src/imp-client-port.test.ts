@@ -715,8 +715,15 @@ test('it sends the requirements of a start to impd and ends the connection with 
   });
 });
 
-test('it closes a session connection whose gate shuts as it opens, sending impd nothing', async () => {
+test('it closes a session connection whose gate shuts as its request goes out, sending impd nothing', async () => {
   const ctx = setupTest();
+
+  // The client asks impd whether it checks exec requirements before a
+  // start that requires one.
+  ctx.impd.answers.set('/rpc/system/info', {
+    status: 200,
+    json: { features: { sessionOffsets: true, leases: true, execRequire: true } },
+  });
 
   const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
 
@@ -744,12 +751,17 @@ test('it closes a session connection whose gate shuts as it opens, sending impd 
 
   const outcome = await connection.outcome;
 
-  expect(outcome).toStrictEqual({ kind: 'closed', reason: 'closed before sending' });
+  expect(outcome).toStrictEqual({
+    kind: 'closed',
+    reason: 'closed before sending',
+    closeCode: 1000,
+  });
+
   expect(gates).toStrictEqual(['checked']);
   expect(ctx.impd.execOpens).toStrictEqual([]);
 });
 
-test('it closes a session connection whose gate throws as it opens, sending impd nothing', async () => {
+test('it closes a session connection whose gate throws as its request goes out, sending impd nothing', async () => {
   const ctx = setupTest();
 
   // The client asks impd whether it checks exec requirements before a
@@ -781,7 +793,12 @@ test('it closes a session connection whose gate throws as it opens, sending impd
 
   const outcome = await connection.outcome;
 
-  expect(outcome).toStrictEqual({ kind: 'closed', reason: 'closed before sending' });
+  expect(outcome).toStrictEqual({
+    kind: 'closed',
+    reason: 'closed before sending',
+    closeCode: 1000,
+  });
+
   expect(ctx.impd.execOpens).toStrictEqual([]);
 });
 
@@ -951,6 +968,87 @@ test('it refuses a start that drops CAP_SYS_ADMIN on an impd without the drop, s
   });
 
   expect(ctx.impd.execOpens).toStrictEqual([]);
+});
+
+test('it never runs the gate of a start whose capability check fails, sending impd nothing', async () => {
+  const ctx = setupTest();
+
+  ctx.impd.answers.set('/rpc/system/info', { status: 503, json: { message: 'impd is busy' } });
+
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
+
+  const gates: string[] = [];
+
+  const connection = port.openSession(
+    {
+      kind: 'start',
+      name: 'atc-s1',
+      session: 'atc-s1',
+      argv: ['claude'],
+      env: {},
+      cwd: '/work',
+      cols: 80,
+      rows: 24,
+      dropSysAdmin: true,
+    },
+    { onStarted: () => {}, onOutput: () => {} },
+    () => {
+      gates.push('checked');
+
+      return true;
+    },
+  );
+
+  const outcome = await connection.outcome;
+
+  expect(outcome).toStrictEqual({
+    kind: 'failed',
+    code: null,
+    message: 'impd answered system.info with 503; nothing was started',
+  });
+
+  expect(gates).toStrictEqual([]);
+  expect(ctx.impd.execOpens).toStrictEqual([]);
+});
+
+test('it runs the gate of a start that drops CAP_SYS_ADMIN once its capability check passes', async () => {
+  const ctx = setupTest();
+
+  ctx.impd.answers.set('/rpc/system/info', {
+    status: 200,
+    json: { features: { sessionOffsets: true, leases: true, execDropSysAdmin: true } },
+  });
+
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
+
+  const gates: number[] = [];
+
+  const connection = port.openSession(
+    {
+      kind: 'start',
+      name: 'atc-s1',
+      session: 'atc-s1',
+      argv: ['claude'],
+      env: {},
+      cwd: '/work',
+      cols: 80,
+      rows: 24,
+      dropSysAdmin: true,
+    },
+    { onStarted: () => {}, onOutput: () => {} },
+    () => {
+      gates.push(ctx.impd.calls.length);
+
+      return true;
+    },
+  );
+
+  await connection.outcome;
+
+  // The gate runs after the one system.info call, with the start still unsent.
+  expect(gates).toStrictEqual([1]);
+  expect(ctx.impd.calls).toStrictEqual([{ path: '/rpc/system/info', input: undefined }]);
+  expect(ctx.impd.execOpens).toHaveLength(1);
 });
 
 test('it sends a start without requirements when the request holds none', async () => {

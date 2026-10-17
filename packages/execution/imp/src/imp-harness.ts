@@ -382,7 +382,7 @@ export class ImpHarness implements HarnessHandle {
     }
   }
 
-  // Whether an admitted request may still go out as its connection opens.
+  // Whether an admitted request may still go out, as it goes out.
   // A refusal there, or a check that throws, closes the connection unsent
   // and ends the harness with it, once the port has returned to the
   // caller. Only a start that passes counts as sent.
@@ -432,11 +432,12 @@ export class ImpHarness implements HarnessHandle {
     this.emitExit({ exitCode: 1, reason: 'ended', detail: `launch refused (${detail})` });
   }
 
-  // A request without a ticket counts as sent once the port has it; one
-  // with a ticket only once its check passes, and the ticket goes back
-  // whenever the connection ends or the harness lets go of it.
+  // A start counts as sent only once the port's gate runs, just before the
+  // start goes out, and one with a ticket only once its check passes there
+  // too. The ticket goes back whenever the connection ends or the harness
+  // lets go of it.
   private openConnection(request: ImpSessionRequest, ticket?: LaunchTicket): void {
-    const gate = ticket === undefined ? undefined : () => this.checkTicket(ticket, request.kind);
+    const gate = this.makeGate(request, ticket);
 
     const handlers: ImpSessionHandlers = {
       onStarted: (started) => {
@@ -467,12 +468,28 @@ export class ImpHarness implements HarnessHandle {
 
     this.state.send({ type: 'CONNECTION_OPENED' });
 
-    if (ticket === undefined && request.kind === 'start') {
-      this.state.send({ type: 'START_SENT' });
-    }
-
     this.requestedSize = { cols: request.cols, rows: request.rows };
     void this.waitForOutcome(connection, ticket ?? null);
+  }
+
+  // impd's client can still fail a start after its connection opens, as a
+  // feature check that times out does, and then sends nothing; so only the
+  // gate, which runs as the start goes out, marks it sent. An attach
+  // without a ticket needs no gate.
+  private makeGate(request: ImpSessionRequest, ticket?: LaunchTicket): (() => boolean) | undefined {
+    if (ticket !== undefined) {
+      return () => this.checkTicket(ticket, request.kind);
+    }
+
+    if (request.kind === 'attach') {
+      return undefined;
+    }
+
+    return () => {
+      this.state.send({ type: 'START_SENT' });
+
+      return true;
+    };
   }
 
   private applyStarted(connection: ImpSessionConnection, started: ImpSessionStarted): void {

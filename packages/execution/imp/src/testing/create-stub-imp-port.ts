@@ -273,6 +273,13 @@ class StubImpPort implements ImpPort {
   // before they open and before any gate runs.
   private upgradeFailures = 0;
 
+  // Capability checks still to time out, each ending its start unreachable
+  // once the connection opens, before any gate runs.
+  private execCheckFailures = 0;
+
+  // Capability checks that timed out.
+  private failedExecChecks = 0;
+
   // The connections still opening while upgrades are held, each sending
   // its request once it opens; null while connections open at once.
   private upgrades: (() => void)[] | null = null;
@@ -803,9 +810,21 @@ class StubImpPort implements ImpPort {
       },
     };
 
-    // The request reaches impd once the connection opens, after the gate
-    // lets it go; a closed gate sends nothing.
+    // The request reaches impd once the connection opens, after impd's
+    // client checks the features a start needs and the gate lets it go; a
+    // check that times out or a closed gate sends nothing.
     const sendToImpd = () => {
+      if (this.execCheckFailures > 0 && needsExecCheck(request)) {
+        this.execCheckFailures -= 1;
+        this.failedExecChecks += 1;
+
+        setTimeout(() => {
+          connection.stop({ kind: 'unreachable', detail: 'system.info: The operation timed out.' });
+        }, 0);
+
+        return;
+      }
+
       if (gate !== undefined && !tryPassGate(gate)) {
         connection.stop({ kind: 'closed', reason: 'closed before sending', closeCode: 1000 });
 
@@ -1361,6 +1380,20 @@ class StubImpPort implements ImpPort {
    */
   setUpgradeFailures(count: number): void {
     this.upgradeFailures = count;
+  }
+
+  /**
+   * Times out the capability check that impd's client runs before each of
+   * the next starts that requires the broker or drops CAP_SYS_ADMIN, so
+   * each ends unreachable once its connection opens, with nothing sent.
+   */
+  setExecCheckFailures(count: number): void {
+    this.execCheckFailures = count;
+  }
+
+  // How many capability checks timed out.
+  countFailedExecChecks(): number {
+    return this.failedExecChecks;
   }
 
   /**
@@ -2218,6 +2251,15 @@ function tryKillGroup(leader: number): void {
   try {
     process.kill(-leader, 'SIGKILL');
   } catch {}
+}
+
+// impd's client reads impd's features before a start that requires the
+// broker or drops CAP_SYS_ADMIN, and before nothing else.
+function needsExecCheck(request: ImpSessionRequest): boolean {
+  return (
+    request.kind === 'start' &&
+    ((request.require !== undefined && request.require.length > 0) || request.dropSysAdmin === true)
+  );
 }
 
 // A gate that throws keeps the request from going out, as a closed one does.
