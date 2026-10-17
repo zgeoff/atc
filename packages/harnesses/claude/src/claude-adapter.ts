@@ -514,5 +514,5 @@ function buildClaudeSpawnOptions(claudeArgs: readonly string[]): SpawnOptionSpec
 // A binary name or path that needs no quoting stays bare, so the default
 // entry resumes with plain `claude`; anything else is quoted as one word.
 function formatShellWord(value: string): string {
-  return /^[\w./-]+$/.test(value) ? value : toShellArg(value);
+  return /^[\w./-]+$/u.test(value) ? value : toShellArg(value);
 }

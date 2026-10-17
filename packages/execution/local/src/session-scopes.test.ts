@@ -29,7 +29,7 @@ test('it starts a command in a scope of its own bound to the daemon service', ()
   expect(command.file).toBe(ctx.systemdRun);
 
   expect(command.args.join('\n')).toMatch(
-    /^--user\n--scope\n--quiet\n--collect\n--expand-environment=no\n--unit=atc-daemon-session-0a1b2c3d-s1-[\da-f]{8}\.scope\n--description=atc session s1\n--property=BindsTo=atc-daemon\.service\n--\n\/usr\/bin\/env\n--\n\/bin\/claude\n\$HOME$/,
+    /^--user\n--scope\n--quiet\n--collect\n--expand-environment=no\n--unit=atc-daemon-session-0a1b2c3d-s1-[\da-f]{8}\.scope\n--description=atc session s1\n--property=BindsTo=atc-daemon\.service\n--\n\/usr\/bin\/env\n--\n\/bin\/claude\n\$HOME$/u,
   );
 });
 
@@ -66,7 +66,7 @@ test('it replaces each character a unit name cannot hold in the scope name', () 
 
   expect(
     scopes.buildCommand('a/b c', ['/bin/true']).args.find((arg) => arg.startsWith('--unit=')),
-  ).toMatch(/^--unit=atc-daemon-session-0a1b2c3d-a_b_c-[\da-f]{8}\.scope$/);
+  ).toMatch(/^--unit=atc-daemon-session-0a1b2c3d-a_b_c-[\da-f]{8}\.scope$/u);
 });
 
 test('it stops the scopes an earlier daemon run of the service left behind', async () => {

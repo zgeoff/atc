@@ -18,6 +18,6 @@ function hasProtocolCode(error: unknown): error is Error & { readonly code: stri
     error instanceof Error &&
     'code' in error &&
     typeof error.code === 'string' &&
-    /^[a-z][a-z_]*$/.test(error.code)
+    /^[a-z][a-z_]*$/u.test(error.code)
   );
 }

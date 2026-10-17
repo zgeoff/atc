@@ -158,7 +158,7 @@ function makeDropPlugin(registryPath: string, dropped: readonly Provider[]): Bun
   return {
     name: 'drop-providers',
     setup(builder) {
-      builder.onResolve({ filter: /^@atc\/execution-/ }, (args) => {
+      builder.onResolve({ filter: /^@atc\/execution-/u }, (args) => {
         const isDropped = dropped.some((provider) => isEntryOf(provider, args.path));
 
         if (args.importer !== registryPath || !isDropped) {
@@ -171,7 +171,7 @@ function makeDropPlugin(registryPath: string, dropped: readonly Provider[]): Bun
         };
       });
 
-      builder.onLoad({ filter: /.*/, namespace: STAND_IN_NAMESPACE }, (args) => {
+      builder.onLoad({ filter: /.*/u, namespace: STAND_IN_NAMESPACE }, (args) => {
         const exports = collectExportNames(args.path);
 
         return {
@@ -200,7 +200,7 @@ function collectExportNames(path: string): string[] {
 
   const names = new Bun.Transpiler({ loader: 'ts' }).scan(source).exports;
 
-  for (const match of source.matchAll(/^export \* from '(?<specifier>[^']+)';$/gm)) {
+  for (const match of source.matchAll(/^export \* from '(?<specifier>[^']+)';$/gmu)) {
     const specifier = match.groups?.['specifier'];
 
     if (specifier !== undefined) {

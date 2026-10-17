@@ -10,13 +10,13 @@ test('it passes an answer its contract parses unchanged', () => {
 test('it throws for an answer its contract refuses', () => {
   expect(() => {
     assertContractAnswer('session.screen', { text: 'hi', cols: 80 });
-  }).toThrowWithMessage(Error, /^session\.screen answered outside its contract/);
+  }).toThrowWithMessage(Error, /^session\.screen answered outside its contract/u);
 });
 
 test('it throws for an answer holding a field its contract drops', () => {
   expect(() => {
     assertContractAnswer('session.screen', { text: 'hi', cols: 80, rows: 24, cursor: 3 });
-  }).toThrowWithMessage(Error, /^session\.screen answered fields its contract drops/);
+  }).toThrowWithMessage(Error, /^session\.screen answered fields its contract drops/u);
 });
 
 test('it passes any answer to a method the contract does not define', () => {

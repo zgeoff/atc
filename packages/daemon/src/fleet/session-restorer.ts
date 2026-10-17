@@ -224,7 +224,7 @@ function formatTargetRefusal(code: ErrorCode, target: string, identity: string):
   }
 
   if (code === 'target_changed') {
-    if (/^imp:[\da-f]{16}$/.test(identity)) {
+    if (/^imp:[\da-f]{16}$/u.test(identity)) {
       return `target '${target}' binding unverified`;
     }
 

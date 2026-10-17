@@ -28,7 +28,7 @@ test('it fails a gate that reads a canary', async () => {
   expect(run.exitCode).toBe(1);
 
   expect(run.stderr).toMatch(
-    /^test isolation: the gate reached the synthetic live home:\n< \S+\/home\/\.claude\.json [0-9a-f]{64} \d+ \d+\n> \S+\/home\/\.claude\.json [0-9a-f]{64} \d+ \d+\n$/,
+    /^test isolation: the gate reached the synthetic live home:\n< \S+\/home\/\.claude\.json [0-9a-f]{64} \d+ \d+\n> \S+\/home\/\.claude\.json [0-9a-f]{64} \d+ \d+\n$/u,
   );
 });
 
@@ -44,7 +44,7 @@ test('it fails a gate that creates a file in the atc state directory', async () 
   expect(run.exitCode).toBe(1);
 
   expect(run.stderr).toMatch(
-    /^test isolation: the gate reached the synthetic live home:\n> \S+\/home\/\.local\/state\/atc\/stray\n$/,
+    /^test isolation: the gate reached the synthetic live home:\n> \S+\/home\/\.local\/state\/atc\/stray\n$/u,
   );
 });
 

@@ -507,7 +507,7 @@ test('it reports the second test ran', () => {
     {
       exitCode: 0,
       stdout: expect.toSatisfy((stdout: string) =>
-        /fixture test ran\n[\s\S]*fixture test ran\n/.test(stdout),
+        /fixture test ran\n[\s\S]*fixture test ran\n/u.test(stdout),
       ),
       stderr: expect.toInclude(' 2 pass\n 0 fail\n'),
     },

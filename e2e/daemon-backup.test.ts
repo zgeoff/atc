@@ -116,7 +116,7 @@ test('it backs up a running daemon to a file that a fresh daemon restores with e
   // is checked before the journey goes on.
   expect(backup.stderr).toBe('');
   expect(backup.exitCode).toBe(0);
-  expect(backup.stdout).toMatch(/^atc backup: wrote \d+ bytes to .*\/atc-backup\.db\n$/);
+  expect(backup.stdout).toMatch(/^atc backup: wrote \d+ bytes to .*\/atc-backup\.db\n$/u);
 
   writeFileSync(
     ctx.fresh.configPath,

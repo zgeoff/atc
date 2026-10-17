@@ -8,7 +8,7 @@ export type ParsedPort =
  * exponents, and surrounding whitespace are all refused rather than coerced.
  */
 export function parsePort(raw: string): ParsedPort {
-  const port = /^\d{1,5}$/.test(raw) ? Number(raw) : Number.NaN;
+  const port = /^\d{1,5}$/u.test(raw) ? Number(raw) : Number.NaN;
 
   if (!Number.isInteger(port) || port > 65_535) {
     return { ok: false, message: `--port takes a port from 0 to 65535, not '${raw}'` };

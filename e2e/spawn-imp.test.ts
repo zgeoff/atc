@@ -96,6 +96,7 @@ test('it logs how long each step of a spawn on an imp took', async () => {
     expect.stringMatching(
       new RegExp(
         String.raw`^atc: spawn of session ${id} on target 'box' took features \d+, inspect-imp \d+, create-imp \d+, lease \d+, guest-atc \d+, record \d+, harness-start \d+, total \d+$`,
+        'u',
       ),
     ),
   ]);
@@ -120,6 +121,7 @@ test('it logs how long each step of a wake on an imp took', async () => {
     expect.stringMatching(
       new RegExp(
         String.raw`^atc: wake of session ${id} on target 'box' took features \d+, inspect-imp \d+, lease \d+, guest-atc \d+, record \d+, harness-start \d+, total \d+$`,
+        'u',
       ),
     ),
   ]);
@@ -302,10 +304,10 @@ test('it starts a remote harness with only the variables atc sets, never the dae
 
   expect<Readonly<Record<string, unknown>>>(request.env).toStrictEqual({
     ATC_BRIDGE: '1',
-    ATC_OUTBOX: expect.stringMatching(new RegExp(`^${ctx.dir}/g/run/[0-9a-f]{16}\\.outbox$`)),
+    ATC_OUTBOX: expect.stringMatching(new RegExp(`^${ctx.dir}/g/run/[0-9a-f]{16}\\.outbox$`, 'u')),
     ATC_SESSION_ID: getRecord(spawned, 'session')['id'],
     ATC_SESSION_RECORD: join(ctx.dir, 'g', 'records', `${spawnedID}.json`),
-    ATC_SOCKET: expect.stringMatching(new RegExp(`^${ctx.dir}/g/run/[0-9a-f]{16}\\.sock$`)),
+    ATC_SOCKET: expect.stringMatching(new RegExp(`^${ctx.dir}/g/run/[0-9a-f]{16}\\.sock$`, 'u')),
     LANG: 'C.UTF-8',
     PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
     TERM: 'xterm-256color',
@@ -418,7 +420,7 @@ test('it revives a slept session inside the same process by waking its imp', asy
       .map((event) => String(event['d']))
       .join('');
 
-    const match = /UP:(?<pid>\d+)/.exec(output);
+    const match = /UP:(?<pid>\d+)/u.exec(output);
 
     invariant(match?.groups?.['pid'] !== undefined, 'the harness has not started');
 
@@ -894,7 +896,7 @@ test('it revives a session whose imp another owner put to sleep in the same proc
   await ctx.client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
 
   const pid = await waitFor(() => {
-    const match = /UP:(?<pid>\d+)/.exec(
+    const match = /UP:(?<pid>\d+)/u.exec(
       ctx.events
         .filter((event) => event.ev === 'SessionOutput')
         .map((event) => String(event['d']))

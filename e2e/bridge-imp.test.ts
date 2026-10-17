@@ -141,7 +141,7 @@ test("it answers a status read on a remote session's bridge with that session's 
   // letters and digits kept, cut to 16 characters.
   const socketName = id
     .toLowerCase()
-    .replaceAll(/[^a-z0-9]/g, '')
+    .replaceAll(/[^a-z0-9]/gu, '')
     .slice(0, 16);
 
   const status = await sendBridgeRequest(
@@ -174,7 +174,7 @@ test('it answers an op the bridge does not offer with forbidden and closes the c
   // letters and digits kept, cut to 16 characters.
   const socketName = id
     .toLowerCase()
-    .replaceAll(/[^a-z0-9]/g, '')
+    .replaceAll(/[^a-z0-9]/gu, '')
     .slice(0, 16);
 
   const answers: Readonly<Record<string, unknown>>[] = [];
@@ -394,7 +394,7 @@ test("it records a remote session's note, needs-input and turn-done after impd c
   // letters and digits kept, cut to 16 characters.
   const socketName = id
     .toLowerCase()
-    .replaceAll(/[^a-z0-9]/g, '')
+    .replaceAll(/[^a-z0-9]/gu, '')
     .slice(0, 16);
 
   const socketPath = join(ctx.guestDir, 'run', `${socketName}.sock`);

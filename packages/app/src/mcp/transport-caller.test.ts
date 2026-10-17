@@ -112,7 +112,7 @@ test('it refuses a filtered read unsent when an older daemon replaced the one it
   const legacy = startStubLegacyDaemon(ctx.socketPath);
   const read = ctx.caller.sendRequest('events.read', { session: 's-1' }, ['events.session']);
 
-  expect(read).rejects.toThrow(/^daemon_outdated: /);
+  expect(read).rejects.toThrow(/^daemon_outdated: /u);
   expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
 });
 
@@ -199,7 +199,7 @@ test('it refuses to retry a keyed spawn unsent when the daemon behind the socket
 
   const spawn = caller.sendRequest('session.spawn', { cwd: '/tmp' });
 
-  expect(spawn).rejects.toThrow(/^daemon_outdated: /);
+  expect(spawn).rejects.toThrow(/^daemon_outdated: /u);
   expect(dropping.keys).toHaveLength(1);
 });
 

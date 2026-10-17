@@ -334,7 +334,7 @@ test('it joins a restart already in flight and reports its result without a seco
   expect(restarts.map((run) => run.exitCode)).toStrictEqual([0, 0]);
 
   expect(
-    restarts.map((run) => /^daemon pid (?<pid>\d+), build/m.exec(run.stdout)?.groups?.['pid']),
+    restarts.map((run) => /^daemon pid (?<pid>\d+), build/mu.exec(run.stdout)?.groups?.['pid']),
   ).toStrictEqual([String(finalPID), String(finalPID)]);
 
   expect(getRecords(listed, 'sessions').map((s) => s['id'])).toIncludeSameMembers([

@@ -346,7 +346,7 @@ const SOURCE_EXTENSIONS = ['.ts', '.tsx', '.js', '.mjs'];
  * undefined: the walk follows source modules only.
  */
 function findModule(known: ReadonlySet<string>, base: string): string | null | undefined {
-  const path = base.replace(/\.js$/, '');
+  const path = base.replace(/\.js$/u, '');
 
   for (const candidate of [
     base,

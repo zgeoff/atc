@@ -45,7 +45,7 @@ test('it rejects a spawn the server refuses', async () => {
 
   expect(mcp.spawnSession({ cwd: ctx.home, agent: 'gemini' })).rejects.toThrowWithMessage(
     TypeError,
-    /^spawn returned no session id: unsupported: no adapter for agent 'gemini'/,
+    /^spawn returned no session id: unsupported: no adapter for agent 'gemini'/u,
   );
 });
 
@@ -69,5 +69,5 @@ test('it rejects a request still pending when the server stops', async () => {
 
   // The helper's own release awaits this stop once the test finishes.
   void mcp.stop();
-  expect(held).rejects.toThrowWithMessage(Error, /^atc mcp stopped answering before request 2$/);
+  expect(held).rejects.toThrowWithMessage(Error, /^atc mcp stopped answering before request 2$/u);
 });

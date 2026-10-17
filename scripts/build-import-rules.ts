@@ -200,7 +200,7 @@ type FileKind = 'production' | 'test';
 function getFileKind(rule: PackageRule, file: string): FileKind {
   const isTest =
     rule.name === 'test-utils' ||
-    /\.test\.[a-z]+$/.test(file) ||
+    /\.test\.[a-z]+$/u.test(file) ||
     file.slice(rule.dir.length).split('/').includes('testing') ||
     (rule.name === 'app' && file.startsWith(`${rule.dir}/src/test-utils/`));
 

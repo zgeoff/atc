@@ -4,13 +4,13 @@ import { MAX_REGISTRY_DAEMONS } from './max-registry-daemons';
 import type { GatewayRegistry, RegistryDaemon } from './types';
 
 // A daemon name: never a `.`, which separates the parts of a gateway id.
-const NAME_PATTERN = /^[a-z][a-z0-9-]{0,30}$/;
+const NAME_PATTERN = /^[a-z][a-z0-9-]{0,30}$/u;
 
 // A daemon ID as a daemon mints it: a lowercase UUID.
-const DAEMON_ID_PATTERN = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/;
+const DAEMON_ID_PATTERN = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/u;
 
 // `<host>:<port>`, with an IPv6 host in brackets.
-const ADDRESS_PATTERN = /^(?:\[(?<v6>[^\]]+)\]|(?<host>[^:[\]]+)):(?<port>\d{1,5})$/;
+const ADDRESS_PATTERN = /^(?:\[(?<v6>[^\]]+)\]|(?<host>[^:[\]]+)):(?<port>\d{1,5})$/u;
 
 type ParsedGatewayRegistry =
   | { readonly ok: true; readonly registry: GatewayRegistry }

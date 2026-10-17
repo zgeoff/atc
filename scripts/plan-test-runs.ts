@@ -48,7 +48,9 @@ export function planTestRuns(files: readonly string[], skips: readonly TestSkip[
 // and its own title joined by spaces, so the pattern refuses exactly the
 // listed full names and accepts every other name.
 function buildSkipPattern(names: readonly string[]): string {
-  const alternatives = names.map((name) => name.replaceAll(/[\\^$.*+?()[\]{}|]/g, String.raw`\$&`));
+  const alternatives = names.map((name) =>
+    name.replaceAll(/[\\^$.*+?()[\]{}|]/gu, String.raw`\$&`),
+  );
 
   return `^(?!(?:${alternatives.join('|')})$)`;
 }

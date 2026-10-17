@@ -16,9 +16,9 @@ export function normalizeClientName(
   }
 
   const folded = raw
-    .replaceAll(/[\t\n\v\f\r]/g, ' ')
+    .replaceAll(/[\t\n\v\f\r]/gu, ' ')
     .replaceAll(/[\p{Cc}\p{Cf}]/gu, '')
-    .replaceAll(/\s+/g, ' ')
+    .replaceAll(/\s+/gu, ' ')
     .trim();
 
   // The cut counts code points, so it never splits a surrogate pair.

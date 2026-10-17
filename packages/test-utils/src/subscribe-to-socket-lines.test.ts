@@ -97,7 +97,7 @@ test('it throws on a write while the unsent bytes fill the queue', async () => {
     subscriber.write('y');
   }).toThrowWithMessage(
     Error,
-    /^the socket refused a 1-character write: \d+ bytes are still unsent$/,
+    /^the socket refused a 1-character write: \d+ bytes are still unsent$/u,
   );
 });
 

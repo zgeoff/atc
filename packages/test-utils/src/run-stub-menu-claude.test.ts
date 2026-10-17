@@ -338,7 +338,7 @@ test('it takes Enter once the hold has ended', async () => {
   });
 
   await waitFor(() => {
-    expect(menu.output.text.match(/❯ No, exit/g)).toHaveLength(2);
+    expect(menu.output.text.match(/❯ No, exit/gu)).toHaveLength(2);
   });
 
   menu.pty.write(KEYS.enter);

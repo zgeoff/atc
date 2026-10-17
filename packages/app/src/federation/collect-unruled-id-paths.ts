@@ -3,7 +3,7 @@ import type { IDRule } from './id-rules';
 
 // A value that holds one of atc's ids: a session id or daemon ID is a
 // UUID, and a message id is a UUID behind `m-`.
-const ID_PATTERN = /[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}/;
+const ID_PATTERN = /[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}/u;
 
 /**
  * The paths of every string in a daemon answer that holds an id but has no

@@ -381,7 +381,7 @@ test('it seeds an empty fleet from a legacy fleet.json', async () => {
   expect(fleet).toStrictEqual([
     {
       sessionID: expect.toSatisfy((id: string) =>
-        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/.test(id),
+        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/u.test(id),
       ),
       name: 'seeded',
       cwd: '/z',
@@ -416,7 +416,7 @@ test('it never overwrites an existing fleet table from the legacy file', async (
   expect(fleet).toStrictEqual([
     {
       sessionID: expect.toSatisfy((id: string) =>
-        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/.test(id),
+        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/u.test(id),
       ),
       name: 'stale',
       cwd: '/old',
@@ -752,7 +752,7 @@ test('it adds parent to a fleet row that predates it', async () => {
   expect(fleet).toStrictEqual([
     {
       sessionID: expect.toSatisfy((id: string) =>
-        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/.test(id),
+        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/u.test(id),
       ),
       name: 'old',
       cwd: '/x',
@@ -846,7 +846,7 @@ test('it renames the id column and defaults agent for a store written before bot
   expect(fleet).toStrictEqual([
     {
       sessionID: expect.toSatisfy((id: string) =>
-        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/.test(id),
+        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/u.test(id),
       ),
       name: 'old',
       cwd: '/x',
@@ -894,7 +894,7 @@ test('it adds pinned to a fleet row that predates it', async () => {
   expect(fleet).toStrictEqual([
     {
       sessionID: expect.toSatisfy((id: string) =>
-        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/.test(id),
+        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/u.test(id),
       ),
       name: 'old',
       cwd: '/x',
@@ -942,7 +942,7 @@ test('it adds the last-attached time to a fleet row that predates it', async () 
   expect(fleet).toStrictEqual([
     {
       sessionID: expect.toSatisfy((id: string) =>
-        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/.test(id),
+        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/u.test(id),
       ),
       name: 'old',
       cwd: '/x',
@@ -990,7 +990,7 @@ test('it adds agent to a fleet row that predates it', async () => {
   expect(fleet).toStrictEqual([
     {
       sessionID: expect.toSatisfy((id: string) =>
-        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/.test(id),
+        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/u.test(id),
       ),
       name: 'old',
       cwd: '/x',
@@ -1039,7 +1039,7 @@ test('it adds exited to a fleet row that predates it', async () => {
   expect(fleet).toStrictEqual([
     {
       sessionID: expect.toSatisfy((id: string) =>
-        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/.test(id),
+        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/u.test(id),
       ),
       name: 'old',
       cwd: '/x',
@@ -1216,7 +1216,7 @@ test('it keeps the fleet of a migrated database across a reopen', async () => {
   expect(fleet).toStrictEqual([
     {
       sessionID: expect.toSatisfy((id: string) =>
-        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/.test(id),
+        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/u.test(id),
       ),
       name: 'first',
       cwd: '/x',
@@ -3453,7 +3453,7 @@ test('it links a legacy fleet.json sub-session to its parent by the minted sessi
   expect(fleet).toStrictEqual([
     {
       sessionID: expect.toSatisfy((id: string) =>
-        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/.test(id),
+        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/u.test(id),
       ),
       name: 'wrangler',
       cwd: '/z',
@@ -3462,7 +3462,7 @@ test('it links a legacy fleet.json sub-session to its parent by the minted sessi
     },
     {
       sessionID: expect.toSatisfy((id: string) =>
-        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/.test(id),
+        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/u.test(id),
       ),
       name: 'worker',
       cwd: '/z',
@@ -3589,7 +3589,7 @@ test('it rebuilds a fleet at the model-and-effort shape keyed by a minted sessio
   expect(fleet).toStrictEqual([
     {
       sessionID: expect.toSatisfy((id: string) =>
-        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/.test(id),
+        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/u.test(id),
       ),
       name: 'wrangler',
       cwd: '/x',
@@ -3605,7 +3605,7 @@ test('it rebuilds a fleet at the model-and-effort shape keyed by a minted sessio
     },
     {
       sessionID: expect.toSatisfy((id: string) =>
-        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/.test(id),
+        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/u.test(id),
       ),
       name: 'worker',
       cwd: '/x',
@@ -3616,7 +3616,7 @@ test('it rebuilds a fleet at the model-and-effort shape keyed by a minted sessio
     },
     {
       sessionID: expect.toSatisfy((id: string) =>
-        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/.test(id),
+        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/u.test(id),
       ),
       name: 'stray',
       cwd: '/x',
@@ -3625,7 +3625,7 @@ test('it rebuilds a fleet at the model-and-effort shape keyed by a minted sessio
     },
     {
       sessionID: expect.toSatisfy((id: string) =>
-        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/.test(id),
+        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/u.test(id),
       ),
       name: 'unreported',
       cwd: '/x',
@@ -3670,7 +3670,7 @@ test('it mints a random uuid as the daemon id', async () => {
   const ctx = await setupTest();
 
   expect(ctx.store.daemonID).toMatch(
-    /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/,
+    /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/u,
   );
 });
 

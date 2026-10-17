@@ -87,7 +87,7 @@ test('it rejects an archive tar cannot unpack', () => {
 
   expect(transfer).rejects.toThrowWithMessage(
     Error,
-    new RegExp(`^tar exited [1-9]\\d* unpacking into ${join(ctx.dir, 'ws')}: \\S`),
+    new RegExp(`^tar exited [1-9]\\d* unpacking into ${join(ctx.dir, 'ws')}: \\S`, 'u'),
   );
 });
 

@@ -60,7 +60,7 @@ function main(): void {
 const SOURCE_ROOT = 'packages/app/src';
 
 function resolveImport(file: string, specifier: string, known: ReadonlySet<string>): string | null {
-  const base = relative('.', join(dirname(file), specifier.replace(/\.js$/, '')));
+  const base = relative('.', join(dirname(file), specifier.replace(/\.js$/u, '')));
 
   for (const candidate of [base, `${base}.ts`, `${base}/index.ts`]) {
     if (known.has(candidate)) {

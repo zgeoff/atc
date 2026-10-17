@@ -149,7 +149,7 @@ test('it refuses a pinned session when the caller asks it to', async () => {
     null,
   );
 
-  expect(forgotten).rejects.toThrowWithMessage(DaemonError, /is pinned/);
+  expect(forgotten).rejects.toThrowWithMessage(DaemonError, /is pinned/u);
 });
 
 test('it forgets a sub-session of a pinned session when its parent asks', async () => {
@@ -207,7 +207,7 @@ test('it refuses a sub-session of a pinned session that another caller asks to f
     null,
   );
 
-  expect(forgotten).rejects.toThrowWithMessage(DaemonError, /is pinned/);
+  expect(forgotten).rejects.toThrowWithMessage(DaemonError, /is pinned/u);
 });
 
 test('it refuses a live session when the caller asks it to', async () => {
@@ -221,7 +221,7 @@ test('it refuses a live session when the caller asks it to', async () => {
     null,
   );
 
-  expect(forgotten).rejects.toThrowWithMessage(DaemonError, /is live/);
+  expect(forgotten).rejects.toThrowWithMessage(DaemonError, /is live/u);
 });
 
 test('it answers a forget of a session the manager does not hold as missing', async () => {

@@ -151,7 +151,7 @@ function loadTokenSource(
 // impd's imp name rule, a lowercase letter then up to 30 lowercase letters,
 // digits or hyphens, with room left for the 20 characters of a host key.
 // It holds no `*`, so the prefix never reads as an imp pattern.
-const IMP_PREFIX = /^[a-z][a-z0-9-]{0,10}$/;
+const IMP_PREFIX = /^[a-z][a-z0-9-]{0,10}$/u;
 
 function isImpPrefix(value: unknown): value is string {
   return typeof value === 'string' && IMP_PREFIX.test(value);

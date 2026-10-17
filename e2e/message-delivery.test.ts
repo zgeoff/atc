@@ -50,7 +50,7 @@ test('it accepts a message for a session that has not reported SessionStart', as
     text: 'hello',
   });
 
-  expect(ok).toStrictEqual({ message: expect.stringMatching(/^m-/), status: 'queued' });
+  expect(ok).toStrictEqual({ message: expect.stringMatching(/^m-/u), status: 'queued' });
 });
 
 test('it queues a message to a started session within the start-up grace window', async () => {
@@ -93,7 +93,7 @@ test('it queues a message to a started session within the start-up grace window'
 
   const ok = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
 
-  expect(ok).toStrictEqual({ message: expect.stringMatching(/^m-/), status: 'queued' });
+  expect(ok).toStrictEqual({ message: expect.stringMatching(/^m-/u), status: 'queued' });
 });
 
 test('it refuses a message once the grace window passes with no tap ever attached', async () => {
@@ -178,7 +178,7 @@ test('it accepts a message to a started session once a tap is connected', async 
 
   const ok = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
 
-  expect(ok).toStrictEqual({ message: expect.stringMatching(/^m-/), status: 'queued' });
+  expect(ok).toStrictEqual({ message: expect.stringMatching(/^m-/u), status: 'queued' });
 });
 
 test('it refuses a message to a session whose agent cannot take messages', async () => {
@@ -314,7 +314,7 @@ test('it queues a message for a session that waits for its restore boot after a 
     text: 'hello',
   });
 
-  expect(ok).toStrictEqual({ message: expect.stringMatching(/^m-/), status: 'queued' });
+  expect(ok).toStrictEqual({ message: expect.stringMatching(/^m-/u), status: 'queued' });
 });
 
 test('it hands a message queued during the restore to the session tap that attaches after its boot', async () => {
@@ -883,7 +883,7 @@ test('it keeps queueing messages after the tap connection drops', async () => {
 
   const queued = await daemon.client.sendRequest('session.message', { session: id, text: 'after' });
 
-  expect(queued).toStrictEqual({ message: expect.stringMatching(/^m-/), status: 'queued' });
+  expect(queued).toStrictEqual({ message: expect.stringMatching(/^m-/u), status: 'queued' });
 });
 
 test('it refuses a message to a session whose process died even after a tap attached', async () => {
@@ -2939,7 +2939,7 @@ test('it queues a message to a revived session before it reports SessionStart ag
 
   const ok = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
 
-  expect(ok).toStrictEqual({ message: expect.stringMatching(/^m-/), status: 'queued' });
+  expect(ok).toStrictEqual({ message: expect.stringMatching(/^m-/u), status: 'queued' });
 });
 
 test('it marks a delivered message unanswered as session_ended when the process exits', async () => {

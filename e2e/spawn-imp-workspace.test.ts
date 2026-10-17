@@ -135,7 +135,7 @@ test('it materializes a workspace on the host of an imp spawn and starts the ses
   });
 
   expect<readonly unknown[]>(ctx.port.collectImpNames()).toStrictEqual([
-    expect.stringMatching(/^atc-[0-9a-f]{20}$/),
+    expect.stringMatching(/^atc-[0-9a-f]{20}$/u),
   ]);
 
   expect(

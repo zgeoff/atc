@@ -14,7 +14,7 @@ type ParsedStateDir =
 
 // A flag: one or two dashes, a name, and an optional `=<value>`. A lone `-`
 // is a positional.
-const FLAG_PATTERN = /^--?(?<name>[^=]+)(?:=(?<value>[\s\S]*))?$/;
+const FLAG_PATTERN = /^--?(?<name>[^=]+)(?:=(?<value>[\s\S]*))?$/u;
 
 /**
  * Finds the state directory in the whole `atc-gateway` command line, before,

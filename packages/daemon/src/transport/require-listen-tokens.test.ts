@@ -26,7 +26,7 @@ test('it refuses a wildcard bind before it reads the token file', () => {
 
   expect(() =>
     requireListenTokens({ host: '0.0.0.0', tokenFile: join(ctx.dir, 'missing') }),
-  ).toThrowWithMessage(Error, /^atc daemon: .*0\.0\.0\.0/);
+  ).toThrowWithMessage(Error, /^atc daemon: .*0\.0\.0\.0/u);
 });
 
 test('it refuses a token file that fails to load', () => {
@@ -34,5 +34,5 @@ test('it refuses a token file that fails to load', () => {
 
   expect(() =>
     requireListenTokens({ host: '127.0.0.1', tokenFile: join(ctx.dir, 'missing') }),
-  ).toThrowWithMessage(Error, /^atc daemon: --token-file: cannot read /);
+  ).toThrowWithMessage(Error, /^atc daemon: --token-file: cannot read /u);
 });

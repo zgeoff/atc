@@ -15,7 +15,7 @@ export async function resolveRestoredTargetIdentity(
   if (
     target?.kind !== 'imp' ||
     identity === undefined ||
-    !/^imp:[\da-f]{16}$/.test(identity) ||
+    !/^imp:[\da-f]{16}$/u.test(identity) ||
     target.provider?.checkExistingHost === undefined
   ) {
     return identity;

@@ -908,7 +908,7 @@ test('it ends a failed spawn that ignores its kill with a forced kill before it 
   const pid = stub.getReadyPID();
 
   expect(spawned).rejects.toMatchObject({ code: 'internal' });
-  expect(() => process.kill(pid, 0)).toThrowWithMessage(Error, /ESRCH/);
+  expect(() => process.kill(pid, 0)).toThrowWithMessage(Error, /ESRCH/u);
 });
 
 test('it completes the rollback of a failed spawn that ignores its kill, so a retry spawns once', async () => {
@@ -1243,7 +1243,7 @@ test('it answers a failed spawn only once its killed process has exited', async 
   const pid = stub.getReadyPID();
 
   expect(spawned).rejects.toMatchObject({ code: 'internal' });
-  expect(() => process.kill(pid, 0)).toThrowWithMessage(Error, /ESRCH/);
+  expect(() => process.kill(pid, 0)).toThrowWithMessage(Error, /ESRCH/u);
 });
 
 test('it lets a retry spawn once after a failed spawn whose killed process took time to exit', async () => {

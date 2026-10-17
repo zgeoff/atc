@@ -96,7 +96,7 @@ test('it rejects a repository with no origin', async () => {
 
   expect(collectBranchFiles({ cwd: ctx.repo, env: ctx.env })).rejects.toThrowWithMessage(
     Error,
-    /cannot find the base of this branch/,
+    /cannot find the base of this branch/u,
   );
 });
 

@@ -46,9 +46,9 @@ interface SourceEntry {
  * variable's name and the entry's repo-relative path.
  */
 function parseSourceEntries(script: string): SourceEntry[] {
-  return [...script.matchAll(/^export (?<name>ATC_[A-Z_]+_ENTRY)="\$repo\/(?<path>[^"]+)"$/gm)].map(
-    (match) => ({ name: match.groups?.['name'] ?? '', path: match.groups?.['path'] ?? '' }),
-  );
+  return [
+    ...script.matchAll(/^export (?<name>ATC_[A-Z_]+_ENTRY)="\$repo\/(?<path>[^"]+)"$/gmu),
+  ].map((match) => ({ name: match.groups?.['name'] ?? '', path: match.groups?.['path'] ?? '' }));
 }
 
 /**
@@ -59,7 +59,7 @@ function parseSourceEntries(script: string): SourceEntry[] {
  */
 function collectHelperFiles(root: string): string[] {
   const helpers = collectSourceFiles(root, 'packages').filter(
-    (file) => /\/(?:test-utils|testing)\//.test(file) && !/\.test\.[cm]?[jt]sx?$/.test(file),
+    (file) => /\/(?:test-utils|testing)\//u.test(file) && !/\.test\.[cm]?[jt]sx?$/u.test(file),
   );
 
   return [...collectSourceFiles(root, 'e2e'), ...helpers];
@@ -81,7 +81,7 @@ function collectHardCodedEntries(
 ): HardCodedEntry[] {
   const patterns = entries.map((entry) => ({
     entry,
-    pattern: new RegExp(`(?:^|[/'"\`])${RegExp.escape(basename(entry.path))}(?![\\w.-])`),
+    pattern: new RegExp(`(?:^|[/'"\`])${RegExp.escape(basename(entry.path))}(?![\\w.-])`, 'u'),
   }));
 
   return source

@@ -25,7 +25,7 @@ export function isDaemonCommandLine(args: readonly string[]): boolean {
 function isATCEntry(entry: string, at: number): boolean {
   const name = basename(entry);
 
-  if (at === 1 && /^atc(?:-[a-z0-9]+)*$/.test(name)) {
+  if (at === 1 && /^atc(?:-[a-z0-9]+)*$/u.test(name)) {
     return true;
   }
 

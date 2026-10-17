@@ -152,7 +152,7 @@ function readManifest(root: string, dir: string): Manifest {
 
 // A full semver version with an optional prerelease and build part, such as
 // `1.7.6` or `0.3.0-beta.1`; a range, a tag, or a wildcard matches none.
-const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[\dA-Za-z.-]+)?(?:\+[\dA-Za-z.-]+)?$/;
+const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[\dA-Za-z.-]+)?(?:\+[\dA-Za-z.-]+)?$/u;
 
 function checkManifest(pkg: WorkspacePackage): string[] {
   const findings: string[] = [];
@@ -333,7 +333,7 @@ const MODULE_SUFFIXES = [
   '/index.mjs',
 ];
 
-const SOURCE_FILE = /\.(?:ts|tsx|js|mjs)$/;
+const SOURCE_FILE = /\.(?:ts|tsx|js|mjs)$/u;
 
 /**
  * Each file the entry reaches through relative static loads, with its static

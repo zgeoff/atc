@@ -1120,7 +1120,7 @@ test('it keeps a full UUID imp session name inside the session limit', async () 
   const requests = ctx.port.sessionRequests.map((request) => `${request.kind} ${request.session}`);
 
   expect<readonly unknown[]>(requests).toStrictEqual([
-    expect.stringMatching(/^start [a-z0-9][a-z0-9-]{0,31}$/),
+    expect.stringMatching(/^start [a-z0-9][a-z0-9-]{0,31}$/u),
   ]);
 });
 

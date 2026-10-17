@@ -4,7 +4,7 @@ import { mintMessageID } from './mint-message-id';
 test('it mints an m- prefixed uuid id', () => {
   const id = mintMessageID();
 
-  expect(id).toMatch(/^m-[0-9a-f-]{36}$/);
+  expect(id).toMatch(/^m-[0-9a-f-]{36}$/u);
 });
 
 test('it never mints the same id twice in a row', () => {
