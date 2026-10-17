@@ -86,7 +86,12 @@ resumes or clears it, so a resumed session keeps its queue.
 
 The mod wraps each message in an `<atc-message>` envelope that holds the sender and the message id.
 When the session is idle, the mod submits the message as a new turn; when a turn is running, it adds
-the message to that turn. One turn can therefore carry several messages.
+the message to that turn. One turn can therefore carry several messages. The mod adds a message only
+between two model responses of the turn, and waits while one streams. Claude Code records each block
+of a response as the block ends, so a message added mid-response would split the response in the
+transcript. A server tool call, such as the advisor, would then sit in one assistant message and its
+result in the next, and the API refuses every later request of the session. A paused response keeps
+the mod waiting until the response that continues it ends.
 
 The final reply of a turn is meant for the person at the terminal, so the model answers each message
 on its own with the mod's `answer` tool, which takes the message id and the answer text. The mod

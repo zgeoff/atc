@@ -1,4 +1,4 @@
-import type { EngineInterface, Register } from 'claude-code';
+import type { EngineInterface, Register, TurnStepResult } from 'claude-code';
 import { ATC_CLI } from './atc-cli.ts';
 
 const SENDER_KINDS = ['connector', 'session', 'local', 'owner'] as const;
@@ -31,9 +31,22 @@ type TapItem =
   | { readonly kind: 'message'; readonly msg: TapMessage }
   | { readonly kind: 'answer'; readonly notice: TapNotice };
 
+// Settles when the main loop's response, and every server tool call in it,
+// has ended.
+interface StepHold {
+  readonly ended: Promise<void>;
+  readonly end: () => void;
+}
+
 interface BridgeState {
   sessionID: string | null;
   runningTurnID: string | null;
+  // Claude Code records each block of a streaming response once the block
+  // ends, and a row appended between two of them splits the response in two:
+  // a server tool call then sits in one assistant message and its result in
+  // the next, and the API refuses every later request. A delivery waits while
+  // this is set.
+  stepHold: StepHold | null;
   delivering: Promise<void>;
   reporting: Promise<void>;
   // A submitted message waits here until the turn that carries it starts.
@@ -95,6 +108,7 @@ export const register: Register = (on) => {
   const state: BridgeState = {
     sessionID: null,
     runningTurnID: null,
+    stepHold: null,
     delivering: Promise.resolve(),
     reporting: Promise.resolve(),
     awaitingTurn: new Map(),
@@ -191,8 +205,12 @@ export const register: Register = (on) => {
     return started;
   });
 
-  on('turn.step', async function* updateSeenMessages($, e, next) {
-    if (e.agentId === undefined && e.turnId === state.runningTurnID) {
+  on('turn.step', async function* updateStepState($, e, next) {
+    if (e.agentId !== undefined) {
+      return yield* next(e);
+    }
+
+    if (e.turnId === state.runningTurnID) {
       for (const msg of state.carried.get(e.turnId) ?? []) {
         state.unseen.delete(msg.id);
       }
@@ -200,11 +218,31 @@ export const register: Register = (on) => {
       state.unseenNotices.get(e.turnId)?.splice(0);
     }
 
-    return yield* next(e);
+    updateStepStarted(state);
+
+    let isServerToolRunning = false;
+
+    try {
+      const stepped = yield* next(e);
+
+      isServerToolRunning = isServerToolUnfinished(stepped);
+
+      return stepped;
+    } finally {
+      // A paused response's server tool call goes on in the next step, so the
+      // hold stays until that step ends.
+      if (!isServerToolRunning) {
+        updateStepEnded(state);
+      }
+    }
   });
 
   on('turn.complete', async ($, e, next) => {
     const completed = await next(e);
+
+    if (e.agentId === undefined) {
+      updateStepEnded(state);
+    }
 
     if (state.sessionID !== null && e.agentId === undefined) {
       updateTurnCompleted($, state, e.turnId, e.answer, e.reason);
@@ -281,6 +319,31 @@ export const register: Register = (on) => {
     return { result: `Handed to atc as the answer to ${msg.id}.` };
   });
 };
+
+// A step that continues a paused response keeps the hold the paused step left.
+function updateStepStarted(state: BridgeState): void {
+  if (state.stepHold !== null) {
+    return;
+  }
+
+  const { promise, resolve } = Promise.withResolvers<void>();
+
+  state.stepHold = { ended: promise, end: resolve };
+}
+
+function updateStepEnded(state: BridgeState): void {
+  state.stepHold?.end();
+  state.stepHold = null;
+}
+
+// The API pauses a long response before a server tool call's result, and the
+// engine sends the response back to go on: the call has no end yet.
+function isServerToolUnfinished(stepped: TurnStepResult): boolean {
+  return (
+    stepped.stopReason === 'pause_turn' ||
+    (stepped.serverToolUses ?? []).some((use) => use.endedAt === undefined)
+  );
+}
 
 function removeCarriedMessage(carried: TapMessage[], msg: TapMessage): void {
   carried.splice(carried.indexOf(msg), 1);
@@ -440,6 +503,8 @@ function scheduleDelivery($: EngineInterface, state: BridgeState, msg: TapMessag
 }
 
 async function sendMessage($: EngineInterface, state: BridgeState, msg: TapMessage): Promise<void> {
+  await waitForStepEnd(state);
+
   const turnID = state.runningTurnID;
 
   if (turnID !== null && (await tryUpdateConversation($, msg.id, renderEnvelope(msg)))) {
@@ -465,6 +530,14 @@ async function sendMessage($: EngineInterface, state: BridgeState, msg: TapMessa
     $.ui.log(`atc-bridge: a hook dropped ${msg.id} (${submitted.drop})`, { to: 'debug' });
 
     scheduleUnansweredReport($, state, [msg.id], 'not_started', null);
+  }
+}
+
+// A hold that ends lets the next delivery go, which a step that starts at once
+// can hold again.
+async function waitForStepEnd(state: BridgeState): Promise<void> {
+  while (state.stepHold !== null) {
+    await state.stepHold.ended;
   }
 }
 
@@ -526,13 +599,15 @@ function scheduleNoticeDelivery($: EngineInterface, state: BridgeState, notice: 
     });
 }
 
-// A notice never waits for a turn and never joins one's carried messages, so
-// no turn reports an answer for it.
+// A notice never waits for a turn to start and never joins one's carried
+// messages, so no turn reports an answer for it.
 async function sendNotice(
   $: EngineInterface,
   state: BridgeState,
   notice: TapNotice,
 ): Promise<void> {
+  await waitForStepEnd(state);
+
   const turnID = state.runningTurnID;
   const text = renderAnswerNotice(notice);
 

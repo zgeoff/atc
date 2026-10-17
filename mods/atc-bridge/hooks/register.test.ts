@@ -1492,3 +1492,286 @@ test('it submits an answer notice that arrives mid-turn when the session refuses
 
   expect(ctx.ran).toStrictEqual([]);
 });
+
+test('it appends a message sent during a server tool call only after the call has its result', async (engine, on) => {
+  const ctx = setupTest({ on });
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  const tapLine = Promise.withResolvers<void>();
+  const advice = Promise.withResolvers<void>();
+  const rowsAtResult: number[] = [];
+
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
+
+  on('process.spawn', async function* () {
+    await tapLine.promise;
+
+    yield { stream: 'stdout', text: '{"id":"m-1","from":"alice","text":"hi"}\n' };
+
+    return { value: { code: 0, signal: null } };
+  });
+
+  const session = mock.session(on);
+
+  // The model writes the advisor call, and the API runs it before the response
+  // goes on with the call's result.
+  on('turn.step', async function* ($, e) {
+    yield { kind: 'text', index: 0, text: 'asking the advisor' };
+
+    await advice.promise;
+
+    rowsAtResult.push(session.appended().length);
+
+    return {
+      turnId: e.turnId,
+      index: e.index,
+      answer: 'asking the advisor',
+      toolUses: [],
+      serverToolUses: [{ id: 'srvtoolu_1', name: 'advisor', input: {}, startedAt: 1, endedAt: 2 }],
+      stopReason: 'end_turn',
+      usage: null,
+    };
+  });
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await engine.turn.start({ text: 'typed by the user', turnId: 't-1' });
+
+  const stream = engine.turn.step({
+    turnId: 't-1',
+    index: 0,
+    model: 'claude-opus-5-5',
+    messageCount: 1,
+  });
+
+  await stream.next();
+
+  tapLine.resolve();
+
+  await ctx.clock.settle();
+
+  advice.resolve();
+
+  await stream.next();
+  await ctx.clock.settle();
+
+  expect(rowsAtResult).toStrictEqual([0]);
+
+  expect(session.appended().map((row) => row.message.content)).toStrictEqual([
+    [{ type: 'text', text: '<atc-message id="m-1" from="alice">\nhi\n</atc-message>' }],
+  ]);
+});
+
+test('it holds a message across a paused response until its server tool call has its result', async (engine, on) => {
+  const ctx = setupTest({ on });
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  const tapLine = Promise.withResolvers<void>();
+  const rowsAtResult: number[] = [];
+
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
+
+  on('process.spawn', async function* () {
+    await tapLine.promise;
+
+    yield { stream: 'stdout', text: '{"id":"m-1","from":"alice","text":"hi"}\n' };
+
+    return { value: { code: 0, signal: null } };
+  });
+
+  const session = mock.session(on);
+
+  // The API pauses the response before the advisor's result, and the next
+  // step goes on with it.
+  on('turn.step', async function* ($, e) {
+    yield { kind: 'text', index: 0, text: 'asking the advisor' };
+    rowsAtResult.push(session.appended().length);
+
+    return {
+      turnId: e.turnId,
+      index: e.index,
+      answer: 'asking the advisor',
+      toolUses: [],
+      serverToolUses: [
+        e.index === 0
+          ? { id: 'srvtoolu_1', name: 'advisor', input: {}, startedAt: 1 }
+          : { id: 'srvtoolu_1', name: 'advisor', input: {}, startedAt: 1, endedAt: 2 },
+      ],
+      stopReason: e.index === 0 ? 'pause_turn' : 'end_turn',
+      usage: null,
+    };
+  });
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await engine.turn.start({ text: 'typed by the user', turnId: 't-1' });
+
+  const paused = engine.turn.step({
+    turnId: 't-1',
+    index: 0,
+    model: 'claude-opus-5-5',
+    messageCount: 1,
+  });
+
+  await paused.next();
+
+  tapLine.resolve();
+
+  await paused.next();
+  await ctx.clock.settle();
+
+  const resumed = engine.turn.step({
+    turnId: 't-1',
+    index: 1,
+    model: 'claude-opus-5-5',
+    messageCount: 2,
+  });
+
+  await resumed.next();
+  await resumed.next();
+  await ctx.clock.settle();
+
+  expect(rowsAtResult).toStrictEqual([0, 0]);
+
+  expect(session.appended().map((row) => row.message.content)).toStrictEqual([
+    [{ type: 'text', text: '<atc-message id="m-1" from="alice">\nhi\n</atc-message>' }],
+  ]);
+});
+
+test('it appends an answer notice sent during a server tool call only after the call has its result', async (engine, on) => {
+  const ctx = setupTest({ on });
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  const tapLine = Promise.withResolvers<void>();
+  const advice = Promise.withResolvers<void>();
+  const rowsAtResult: number[] = [];
+
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
+
+  on('process.spawn', async function* () {
+    await tapLine.promise;
+
+    yield {
+      stream: 'stdout',
+      text: '{"kind":"answer","id":"m-1","from":"s-2","status":"answered","answer":"done"}\n',
+    };
+
+    return { value: { code: 0, signal: null } };
+  });
+
+  const session = mock.session(on);
+
+  on('turn.step', async function* ($, e) {
+    yield { kind: 'text', index: 0, text: 'asking the advisor' };
+
+    await advice.promise;
+
+    rowsAtResult.push(session.appended().length);
+
+    return {
+      turnId: e.turnId,
+      index: e.index,
+      answer: 'asking the advisor',
+      toolUses: [],
+      serverToolUses: [{ id: 'srvtoolu_1', name: 'advisor', input: {}, startedAt: 1, endedAt: 2 }],
+      stopReason: 'end_turn',
+      usage: null,
+    };
+  });
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await engine.turn.start({ text: 'typed by the user', turnId: 't-1' });
+
+  const stream = engine.turn.step({
+    turnId: 't-1',
+    index: 0,
+    model: 'claude-opus-5-5',
+    messageCount: 1,
+  });
+
+  await stream.next();
+
+  tapLine.resolve();
+
+  await ctx.clock.settle();
+
+  advice.resolve();
+
+  await stream.next();
+  await ctx.clock.settle();
+
+  expect(rowsAtResult).toStrictEqual([0]);
+
+  expect(session.appended().map((row) => row.message.content)).toStrictEqual([
+    [
+      {
+        type: 'text',
+        text: '<atc-answer id="m-1" from="s-2" status="answered">\ndone\n</atc-answer>',
+      },
+    ],
+  ]);
+});
+
+test('it appends a message at once while the turn runs a tool between steps', async (engine, on) => {
+  const ctx = setupTest({ on });
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  const tapLine = Promise.withResolvers<void>();
+  const submitted: string[] = [];
+
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
+
+  on('process.spawn', async function* () {
+    await tapLine.promise;
+
+    yield { stream: 'stdout', text: '{"id":"m-1","from":"alice","text":"hi"}\n' };
+
+    return { value: { code: 0, signal: null } };
+  });
+
+  const session = mock.session(on);
+
+  on('prompt.submit', ($, e) => {
+    submitted.push(e.text);
+
+    return { text: e.text };
+  });
+
+  on('turn.step', async function* ($, e) {
+    yield { kind: 'text', index: 0, text: 'running a tool' };
+
+    return {
+      turnId: e.turnId,
+      index: e.index,
+      answer: 'running a tool',
+      toolUses: [{ name: 'Bash', input: { command: 'echo sample' } }],
+      stopReason: 'tool_use',
+      usage: null,
+    };
+  });
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await engine.turn.start({ text: 'typed by the user', turnId: 't-1' });
+
+  const stream = engine.turn.step({
+    turnId: 't-1',
+    index: 0,
+    model: 'claude-opus-5-5',
+    messageCount: 1,
+  });
+
+  await stream.next();
+  await stream.next();
+
+  tapLine.resolve();
+
+  await ctx.clock.settle();
+
+  expect(session.appended().map((row) => row.message.content)).toStrictEqual([
+    [{ type: 'text', text: '<atc-message id="m-1" from="alice">\nhi\n</atc-message>' }],
+  ]);
+
+  expect(submitted).toStrictEqual([]);
+});
