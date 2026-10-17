@@ -1,5 +1,6 @@
 import { expect, mock, test } from 'bun:test';
 import {
+  chmodSync,
   existsSync,
   lstatSync,
   mkdirSync,
@@ -637,6 +638,31 @@ test("it runs the image's atc again for a new imp when the image's atc was rewri
   await provider.prepareHost({ host: 's2', daemonID: 'd1', installATC: true });
 
   expect(readFileSync(runs, 'utf8')).toBe('run\nnew\n');
+});
+
+test("it refuses a new imp whose image's atc lost its execute bit since it ran, when the daemon has no binary to copy", async () => {
+  const ctx = setupTest();
+  const guestATC = createStubBin(ctx.dir, 'image-atc', '#!/bin/sh\necho 1.0.0\n');
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g'), guestATC },
+    { atcBinary: null, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true });
+  await provider.destroyHost('s1');
+
+  rmSync(join(ctx.dir, 'g'), { recursive: true });
+  chmodSync(guestATC, 0o644);
+
+  expect(
+    provider.prepareHost({ host: 's2', daemonID: 'd1', installATC: true }),
+  ).rejects.toMatchObject({ code: 'unsupported_operation', data: { problem: 'no_guest_atc' } });
 });
 
 test("it runs the image's atc again for a new imp when the image's atc changed since it ran", async () => {
