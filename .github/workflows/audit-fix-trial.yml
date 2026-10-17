@@ -1,0 +1,19 @@
+# A trial of the shared audit-fix workflow on this seeded branch; the branch
+# never merges.
+name: Audit fix trial
+
+on:
+  push:
+    branches: [test/audit-fix-seed]
+
+jobs:
+  audit-fix:
+    permissions:
+      contents: read
+    uses: zgeoff/tools/.github/workflows/audit-fix.yml@feat/renovate-audit-fix
+    with:
+      base-branch: test/audit-fix-seed
+      automerge: false
+    secrets:
+      REPO_SYNC_APP_CLIENT_ID: ${{ secrets.REPO_SYNC_APP_CLIENT_ID }}
+      REPO_SYNC_APP_PRIVATE_KEY: ${{ secrets.REPO_SYNC_APP_PRIVATE_KEY }}
