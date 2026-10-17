@@ -1,4 +1,6 @@
 import { expect, test } from 'bun:test';
+import { runCommand } from '@atc/test-utils';
+import invariant from 'tiny-invariant';
 import { buildHookSettings } from './build-hook-settings';
 
 test('it points the settings at the credential helper command', () => {
@@ -19,7 +21,7 @@ test('it points the settings at the credential helper command', () => {
           hooks: [
             {
               type: 'command',
-              command: '"/usr/local/bin/atc" hook-report --agent \'zai\'',
+              command: '"/usr/local/bin/atc" hook-report --agent=\'zai\'',
               timeout: 5,
             },
           ],
@@ -30,7 +32,7 @@ test('it points the settings at the credential helper command', () => {
           hooks: [
             {
               type: 'command',
-              command: '"/usr/local/bin/atc" hook-report --agent \'zai\'',
+              command: '"/usr/local/bin/atc" hook-report --agent=\'zai\'',
               timeout: 5,
             },
           ],
@@ -41,7 +43,7 @@ test('it points the settings at the credential helper command', () => {
           hooks: [
             {
               type: 'command',
-              command: '"/usr/local/bin/atc" hook-report --agent \'zai\'',
+              command: '"/usr/local/bin/atc" hook-report --agent=\'zai\'',
               timeout: 5,
             },
           ],
@@ -52,7 +54,7 @@ test('it points the settings at the credential helper command', () => {
           hooks: [
             {
               type: 'command',
-              command: '"/usr/local/bin/atc" hook-report --agent \'zai\'',
+              command: '"/usr/local/bin/atc" hook-report --agent=\'zai\'',
               timeout: 5,
             },
           ],
@@ -63,7 +65,7 @@ test('it points the settings at the credential helper command', () => {
           hooks: [
             {
               type: 'command',
-              command: '"/usr/local/bin/atc" hook-report --agent \'zai\'',
+              command: '"/usr/local/bin/atc" hook-report --agent=\'zai\'',
               timeout: 5,
             },
           ],
@@ -72,7 +74,7 @@ test('it points the settings at the credential helper command', () => {
     },
     statusLine: {
       type: 'command',
-      command: '"/usr/local/bin/atc" statusline --agent \'zai\'',
+      command: '"/usr/local/bin/atc" statusline --agent=\'zai\'',
       padding: 0,
     },
     env: { ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic' },
@@ -123,12 +125,25 @@ test('it reports every hook the fleet needs to track a session', () => {
   ]);
 });
 
+test('it hands a dash-led agent ID to each reporter as the value of its --agent flag', async () => {
+  const settings = buildHookSettings({ id: '-custom' }, 0, ['printf', String.raw`%s\n`]);
+  const statusLine = settings['statusLine'];
+
+  invariant(typeof statusLine === 'object' && statusLine !== null && 'command' in statusLine);
+  invariant(typeof statusLine.command === 'string');
+
+  // printf stands in for atc and prints each word the shell hands it.
+  const ran = await runCommand(['sh', '-c', statusLine.command]);
+
+  expect(ran.stdout).toBe('statusline\n--agent=-custom\n');
+});
+
 test('it mirrors the padding of the statusline it chains', () => {
   expect(
     buildHookSettings({ id: 'claude' }, 3, ['/usr/local/bin/atc'])['statusLine'],
   ).toStrictEqual({
     type: 'command',
-    command: '"/usr/local/bin/atc" statusline --agent \'claude\'',
+    command: '"/usr/local/bin/atc" statusline --agent=\'claude\'',
     padding: 3,
   });
 });
@@ -161,7 +176,7 @@ test('it runs its own reporter before a configured hook on the same event', () =
         hooks: [
           {
             type: 'command',
-            command: '"/usr/local/bin/atc" hook-report --agent \'zai\'',
+            command: '"/usr/local/bin/atc" hook-report --agent=\'zai\'',
             timeout: 5,
           },
         ],
@@ -186,7 +201,7 @@ test('it keeps its own value for a key the configured settings also name', () =>
     env: { ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic' },
     statusLine: {
       type: 'command',
-      command: '"/usr/local/bin/atc" statusline --agent \'zai\'',
+      command: '"/usr/local/bin/atc" statusline --agent=\'zai\'',
       padding: 0,
     },
   });
@@ -227,7 +242,7 @@ test('it gives every command it registers the agent id of its session', () => {
           hooks: [
             {
               type: 'command',
-              command: '"/usr/local/bin/atc" hook-report --agent \'zai\'',
+              command: '"/usr/local/bin/atc" hook-report --agent=\'zai\'',
               timeout: 5,
             },
           ],
@@ -238,7 +253,7 @@ test('it gives every command it registers the agent id of its session', () => {
           hooks: [
             {
               type: 'command',
-              command: '"/usr/local/bin/atc" hook-report --agent \'zai\'',
+              command: '"/usr/local/bin/atc" hook-report --agent=\'zai\'',
               timeout: 5,
             },
           ],
@@ -249,7 +264,7 @@ test('it gives every command it registers the agent id of its session', () => {
           hooks: [
             {
               type: 'command',
-              command: '"/usr/local/bin/atc" hook-report --agent \'zai\'',
+              command: '"/usr/local/bin/atc" hook-report --agent=\'zai\'',
               timeout: 5,
             },
           ],
@@ -260,7 +275,7 @@ test('it gives every command it registers the agent id of its session', () => {
           hooks: [
             {
               type: 'command',
-              command: '"/usr/local/bin/atc" hook-report --agent \'zai\'',
+              command: '"/usr/local/bin/atc" hook-report --agent=\'zai\'',
               timeout: 5,
             },
           ],
@@ -271,7 +286,7 @@ test('it gives every command it registers the agent id of its session', () => {
           hooks: [
             {
               type: 'command',
-              command: '"/usr/local/bin/atc" hook-report --agent \'zai\'',
+              command: '"/usr/local/bin/atc" hook-report --agent=\'zai\'',
               timeout: 5,
             },
           ],
@@ -280,7 +295,7 @@ test('it gives every command it registers the agent id of its session', () => {
     },
     statusLine: {
       type: 'command',
-      command: '"/usr/local/bin/atc" statusline --agent \'zai\'',
+      command: '"/usr/local/bin/atc" statusline --agent=\'zai\'',
       padding: 0,
     },
   });

@@ -114,7 +114,7 @@ test('it hands a gateway entry the settings folder, home and mod folder it is gi
           hooks: [
             {
               type: 'command',
-              command: `"/opt/atc/bin/atc" hook-report --agent 'zai'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent='zai'`,
               timeout: 5,
             },
           ],
@@ -125,7 +125,7 @@ test('it hands a gateway entry the settings folder, home and mod folder it is gi
           hooks: [
             {
               type: 'command',
-              command: `"/opt/atc/bin/atc" hook-report --agent 'zai'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent='zai'`,
               timeout: 5,
             },
           ],
@@ -136,7 +136,7 @@ test('it hands a gateway entry the settings folder, home and mod folder it is gi
           hooks: [
             {
               type: 'command',
-              command: `"/opt/atc/bin/atc" hook-report --agent 'zai'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent='zai'`,
               timeout: 5,
             },
           ],
@@ -147,7 +147,7 @@ test('it hands a gateway entry the settings folder, home and mod folder it is gi
           hooks: [
             {
               type: 'command',
-              command: `"/opt/atc/bin/atc" hook-report --agent 'zai'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent='zai'`,
               timeout: 5,
             },
           ],
@@ -158,7 +158,7 @@ test('it hands a gateway entry the settings folder, home and mod folder it is gi
           hooks: [
             {
               type: 'command',
-              command: `"/opt/atc/bin/atc" hook-report --agent 'zai'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent='zai'`,
               timeout: 5,
             },
           ],
@@ -167,7 +167,7 @@ test('it hands a gateway entry the settings folder, home and mod folder it is gi
     },
     statusLine: {
       type: 'command',
-      command: `"/opt/atc/bin/atc" statusline --agent 'zai'`,
+      command: `"/opt/atc/bin/atc" statusline --agent='zai'`,
       padding: 3,
     },
     env: { ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic' },

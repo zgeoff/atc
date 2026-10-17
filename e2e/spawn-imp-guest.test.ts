@@ -122,9 +122,9 @@ test('it gives a remote Claude session settings, a statusline, and a mod that re
 
   expect(settings).toMatchObject({
     hooks: {
-      SessionStart: [{ hooks: [{ command: `"${guestATC}" hook-report --agent 'claude'` }] }],
+      SessionStart: [{ hooks: [{ command: `"${guestATC}" hook-report --agent='claude'` }] }],
     },
-    statusLine: { command: `"${guestATC}" statusline --agent 'claude'` },
+    statusLine: { command: `"${guestATC}" statusline --agent='claude'` },
   });
 
   expect(readFileSync(join(dir, 'atc-bridge', 'hooks', 'atc-cli.ts'), 'utf8')).toInclude(

@@ -166,6 +166,8 @@ test.each([
   { args: ['grok-hooks'], run: 'printGrokHooks', with: [] },
   { args: ['hook-report'], run: 'runHookReport', with: [''] },
   { args: ['hook-report', '--agent', 'claude'], run: 'runHookReport', with: ['claude'] },
+  { args: ['hook-report', '--agent=-custom'], run: 'runHookReport', with: ['-custom'] },
+  { args: ['statusline', '--agent=-custom'], run: 'runStatusline', with: ['-custom'] },
   { args: ['tap', '--session', 's-1'], run: 'runTap', with: ['s-1', false] },
   { args: ['tap', '--session=s-1', '--notices'], run: 'runTap', with: ['s-1', true] },
   {
