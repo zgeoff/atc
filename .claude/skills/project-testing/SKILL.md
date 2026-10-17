@@ -2,8 +2,8 @@
 name: project-testing
 description:
   atc's test harness facts on top of the shared testing skill — the per-run test home, the PTY
-  harness that drives the real TUI, and socket delivery. Load together with the testing skill when
-  designing, writing, or reviewing atc tests.
+  harness that drives the real TUI, the stand-ins for agent CLIs, and socket delivery. Load together
+  with the testing skill when designing, writing, or reviewing atc tests.
 ---
 
 # atc testing
@@ -34,6 +34,14 @@ home a preload sets never reaches a test's subprocesses.
   [`check-test-isolation.ts`](../../../scripts/check-test-isolation.ts) owns the check. Run it after
   adding anything that writes generated state. It catches a read through access times, so only on a
   filesystem that updates them, and CI runs it on Linux.
+
+## Agent CLIs
+
+- Never spawn the real `claude` binary in a test. A test drives a stand-in, such as the PTY
+  harness's stand-in `claude`. One exception: `bun run test:atc-bridge` runs
+  `claude plugin validate` and `claude plugin test` on the mod, and neither starts a session.
+- The Claude config lock's test runs against `proper-lockfile`, the lock library Claude Code
+  bundles, because no test runs Claude itself.
 
 ## The PTY harness
 
