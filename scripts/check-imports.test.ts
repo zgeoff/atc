@@ -18,13 +18,13 @@ test('it passes a tree whose imports follow the directory rules', async () => {
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/protocol/hook-event.ts'),
+    join(ctx.dir, 'packages/app/src/plugins/hook-event.ts'),
     "import type { SessionID } from '../shared/session-id';\n\nexport interface HookEvent {\n  atcId: SessionID;\n}\n",
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/daemon/hooks.ts'),
-    "import type { HookEvent } from '../protocol/hook-event';\n\nexport const HOOKS: HookEvent[] = [];\n",
+    join(ctx.dir, 'packages/app/src/agents/hooks.ts'),
+    "import type { HookEvent } from '../plugins/hook-event';\n\nexport const HOOKS: HookEvent[] = [];\n",
   );
 
   const checked = await runCommand([
@@ -78,13 +78,13 @@ test('it fails on an import of a directory the importer may not use', async () =
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/daemon/hooks.ts'),
+    join(ctx.dir, 'packages/app/src/client/hooks.ts'),
     'export interface HookEvent {}\n',
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/store/state-store.ts'),
-    "import type {\n  HookEvent,\n} from '../daemon/hooks';\n\nexport type Row = HookEvent;\n",
+    join(ctx.dir, 'packages/app/src/mcp/state-store.ts'),
+    "import type {\n  HookEvent,\n} from '../client/hooks';\n\nexport type Row = HookEvent;\n",
   );
 
   const checked = await runCommand([
@@ -101,26 +101,23 @@ test('it fails on an import of a directory the importer may not use', async () =
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
     stderr:
-      'forbidden edge: packages/app/src/store/state-store.ts imports packages/app/src/daemon/hooks.ts (store -> daemon)\n',
+      'forbidden edge: packages/app/src/mcp/state-store.ts imports packages/app/src/client/hooks.ts (mcp -> client)\n',
   });
 });
 
-test('it lets a sources module import workspace and the daemon import sources', async () => {
+test('it lets an agents module import plugins and a source root module import agents', async () => {
   const ctx = setupTest();
 
+  await Bun.write(join(ctx.dir, 'packages/app/src/plugins/probe.ts'), 'export const PROBE = 1;\n');
+
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/workspace/probe.ts'),
-    'export const PROBE = 1;\n',
+    join(ctx.dir, 'packages/app/src/agents/types.ts'),
+    "export { PROBE } from '../plugins/probe';\n",
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/sources/types.ts'),
-    "export { PROBE } from '../workspace/probe';\n",
-  );
-
-  await Bun.write(
-    join(ctx.dir, 'packages/app/src/daemon/connection.ts'),
-    "export { PROBE } from '../sources/types';\n",
+    join(ctx.dir, 'packages/app/src/hook-report.ts'),
+    "export { PROBE } from './agents/types';\n",
   );
 
   const checked = await runCommand([
@@ -140,14 +137,14 @@ test('it lets a sources module import workspace and the daemon import sources', 
   });
 });
 
-test('it fails on a sources module importing the daemon', async () => {
+test('it fails on a sources module importing the client', async () => {
   const ctx = setupTest();
 
-  await Bun.write(join(ctx.dir, 'packages/app/src/daemon/ids.ts'), 'export const ID = 1;\n');
+  await Bun.write(join(ctx.dir, 'packages/app/src/client/ids.ts'), 'export const ID = 1;\n');
 
   await Bun.write(
     join(ctx.dir, 'packages/app/src/sources/types.ts'),
-    "export { ID } from '../daemon/ids';\n",
+    "export { ID } from '../client/ids';\n",
   );
 
   const checked = await runCommand([
@@ -164,7 +161,7 @@ test('it fails on a sources module importing the daemon', async () => {
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
     stderr:
-      'forbidden edge: packages/app/src/sources/types.ts imports packages/app/src/daemon/ids.ts (sources -> daemon)\n',
+      'forbidden edge: packages/app/src/sources/types.ts imports packages/app/src/client/ids.ts (sources -> client)\n',
   });
 });
 
@@ -199,7 +196,10 @@ test('it fails on a directory module importing a source root module', async () =
 test('it lets the composition root and a test file import any directory', async () => {
   const ctx = setupTest();
 
-  await Bun.write(join(ctx.dir, 'packages/app/src/daemon/daemon.ts'), 'export const DAEMON = 1;\n');
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/sources/discover.ts'),
+    'export const SOURCES = 1;\n',
+  );
 
   await Bun.write(
     join(ctx.dir, 'packages/app/src/client/daemon-client.ts'),
@@ -208,11 +208,11 @@ test('it lets the composition root and a test file import any directory', async 
 
   await Bun.write(
     join(ctx.dir, 'packages/app/src/cli.ts'),
-    "const daemon = await import('./daemon/daemon');\n\nexport const LOADED = daemon;\n",
+    "const sources = await import('./sources/discover');\n\nexport const LOADED = sources;\n",
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/daemon/daemon.test.ts'),
+    join(ctx.dir, 'packages/app/src/sources/discover.test.ts'),
     "import { CLIENT } from '../client/daemon-client';\n\nexport const USED = CLIENT;\n",
   );
 
@@ -237,7 +237,7 @@ test('it leaves a confined package and a computed specifier to the other gates',
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/daemon/imp-provider.ts'),
+    join(ctx.dir, 'packages/app/src/agents/imp-provider.ts'),
     "import type { IPty } from 'bun-pty';\n\nconst name = './ids';\n\nexport const IDS = await import(name);\nexport type Handle = IPty;\n",
   );
 
@@ -292,11 +292,14 @@ test('it fails on a module in a directory with no import rule', async () => {
 test('it ignores import text inside a one-line string literal', async () => {
   const ctx = setupTest();
 
-  await Bun.write(join(ctx.dir, 'packages/app/src/daemon/daemon.ts'), 'export const DAEMON = 1;\n');
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/sources/discover.ts'),
+    'export const SOURCES = 1;\n',
+  );
 
   await Bun.write(
     join(ctx.dir, 'packages/app/src/agents/bridge-files.ts'),
-    "export const FILES = {\n  'register.ts': \"import { DAEMON } from '../daemon/daemon';\\n\",\n};\n",
+    "export const FILES = {\n  'register.ts': \"import { SOURCES } from '../sources/discover';\\n\",\n};\n",
   );
 
   const checked = await runCommand([
@@ -316,14 +319,17 @@ test('it ignores import text inside a one-line string literal', async () => {
   });
 });
 
-test('it fails on a source root module that is not the composition root importing the daemon', async () => {
+test('it fails on a source root module that is not the composition root importing a sources module', async () => {
   const ctx = setupTest();
 
-  await Bun.write(join(ctx.dir, 'packages/app/src/daemon/daemon.ts'), 'export const DAEMON = 1;\n');
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/sources/discover.ts'),
+    'export const SOURCES = 1;\n',
+  );
 
   await Bun.write(
     join(ctx.dir, 'packages/app/src/statusline.ts'),
-    "import { DAEMON } from './daemon/daemon';\n\nexport const USED = DAEMON;\n",
+    "import { SOURCES } from './sources/discover';\n\nexport const USED = SOURCES;\n",
   );
 
   const checked = await runCommand([
@@ -340,18 +346,18 @@ test('it fails on a source root module that is not the composition root importin
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
     stderr:
-      'forbidden edge: packages/app/src/statusline.ts imports packages/app/src/daemon/daemon.ts (root -> daemon)\n',
+      'forbidden edge: packages/app/src/statusline.ts imports packages/app/src/sources/discover.ts (root -> sources)\n',
   });
 });
 
 test('it reads an import whose list holds a comment with an apostrophe', async () => {
   const ctx = setupTest();
 
-  await Bun.write(join(ctx.dir, 'packages/app/src/daemon/ids.ts'), 'export const ID = 1;\n');
+  await Bun.write(join(ctx.dir, 'packages/app/src/client/ids.ts'), 'export const ID = 1;\n');
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/store/rows.ts'),
-    "import {\n  ID, // the daemon's id, `quoted`\n} from '../daemon/ids';\n\nexport const USED = ID;\n",
+    join(ctx.dir, 'packages/app/src/mcp/rows.ts'),
+    "import {\n  ID, // the client's id, `quoted`\n} from '../client/ids';\n\nexport const USED = ID;\n",
   );
 
   const checked = await runCommand([
@@ -368,18 +374,18 @@ test('it reads an import whose list holds a comment with an apostrophe', async (
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
     stderr:
-      'forbidden edge: packages/app/src/store/rows.ts imports packages/app/src/daemon/ids.ts (store -> daemon)\n',
+      'forbidden edge: packages/app/src/mcp/rows.ts imports packages/app/src/client/ids.ts (mcp -> client)\n',
   });
 });
 
 test('it reads a require call', async () => {
   const ctx = setupTest();
 
-  await Bun.write(join(ctx.dir, 'packages/app/src/daemon/ids.ts'), 'export const ID = 1;\n');
+  await Bun.write(join(ctx.dir, 'packages/app/src/client/ids.ts'), 'export const ID = 1;\n');
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/store/rows.ts'),
-    "const ids = require('../daemon/ids');\n\nexport const USED = ids;\n",
+    join(ctx.dir, 'packages/app/src/mcp/rows.ts'),
+    "const ids = require('../client/ids');\n\nexport const USED = ids;\n",
   );
 
   const checked = await runCommand([
@@ -396,18 +402,18 @@ test('it reads a require call', async () => {
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
     stderr:
-      'forbidden edge: packages/app/src/store/rows.ts imports packages/app/src/daemon/ids.ts (store -> daemon)\n',
+      'forbidden edge: packages/app/src/mcp/rows.ts imports packages/app/src/client/ids.ts (mcp -> client)\n',
   });
 });
 
 test('it reads an import-equals require', async () => {
   const ctx = setupTest();
 
-  await Bun.write(join(ctx.dir, 'packages/app/src/daemon/ids.ts'), 'export const ID = 1;\n');
+  await Bun.write(join(ctx.dir, 'packages/app/src/client/ids.ts'), 'export const ID = 1;\n');
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/store/rows.ts'),
-    "import ids = require('../daemon/ids');\n\nexport const USED = ids;\n",
+    join(ctx.dir, 'packages/app/src/mcp/rows.ts'),
+    "import ids = require('../client/ids');\n\nexport const USED = ids;\n",
   );
 
   const checked = await runCommand([
@@ -424,18 +430,18 @@ test('it reads an import-equals require', async () => {
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
     stderr:
-      'forbidden edge: packages/app/src/store/rows.ts imports packages/app/src/daemon/ids.ts (store -> daemon)\n',
+      'forbidden edge: packages/app/src/mcp/rows.ts imports packages/app/src/client/ids.ts (mcp -> client)\n',
   });
 });
 
 test('it reads a dynamic import whose specifier is a template literal', async () => {
   const ctx = setupTest();
 
-  await Bun.write(join(ctx.dir, 'packages/app/src/daemon/ids.ts'), 'export const ID = 1;\n');
+  await Bun.write(join(ctx.dir, 'packages/app/src/client/ids.ts'), 'export const ID = 1;\n');
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/store/rows.ts'),
-    'export const LOADED = await import(`../daemon/ids`);\n',
+    join(ctx.dir, 'packages/app/src/mcp/rows.ts'),
+    'export const LOADED = await import(`../client/ids`);\n',
   );
 
   const checked = await runCommand([
@@ -452,18 +458,18 @@ test('it reads a dynamic import whose specifier is a template literal', async ()
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
     stderr:
-      'forbidden edge: packages/app/src/store/rows.ts imports packages/app/src/daemon/ids.ts (store -> daemon)\n',
+      'forbidden edge: packages/app/src/mcp/rows.ts imports packages/app/src/client/ids.ts (mcp -> client)\n',
   });
 });
 
 test('it reads an import that follows a regular expression holding a quote', async () => {
   const ctx = setupTest();
 
-  await Bun.write(join(ctx.dir, 'packages/app/src/daemon/ids.ts'), 'export const ID = 1;\n');
+  await Bun.write(join(ctx.dir, 'packages/app/src/client/ids.ts'), 'export const ID = 1;\n');
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/store/rows.ts'),
-    "export const QUOTE = /['\"`]/;\n\nexport { ID } from '../daemon/ids';\n",
+    join(ctx.dir, 'packages/app/src/mcp/rows.ts'),
+    "export const QUOTE = /['\"`]/;\n\nexport { ID } from '../client/ids';\n",
   );
 
   const checked = await runCommand([
@@ -480,18 +486,18 @@ test('it reads an import that follows a regular expression holding a quote', asy
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
     stderr:
-      'forbidden edge: packages/app/src/store/rows.ts imports packages/app/src/daemon/ids.ts (store -> daemon)\n',
+      'forbidden edge: packages/app/src/mcp/rows.ts imports packages/app/src/client/ids.ts (mcp -> client)\n',
   });
 });
 
 test('it reads an import that follows a regular expression after a control condition', async () => {
   const ctx = setupTest();
 
-  await Bun.write(join(ctx.dir, 'packages/app/src/daemon/ids.ts'), 'export const ID = 1;\n');
+  await Bun.write(join(ctx.dir, 'packages/app/src/client/ids.ts'), 'export const ID = 1;\n');
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/store/rows.ts'),
-    "const ok = true;\nif (ok) /`/.test('a');\n\nexport { ID } from '../daemon/ids';\n",
+    join(ctx.dir, 'packages/app/src/mcp/rows.ts'),
+    "const ok = true;\nif (ok) /`/.test('a');\n\nexport { ID } from '../client/ids';\n",
   );
 
   const checked = await runCommand([
@@ -508,18 +514,18 @@ test('it reads an import that follows a regular expression after a control condi
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
     stderr:
-      'forbidden edge: packages/app/src/store/rows.ts imports packages/app/src/daemon/ids.ts (store -> daemon)\n',
+      'forbidden edge: packages/app/src/mcp/rows.ts imports packages/app/src/client/ids.ts (mcp -> client)\n',
   });
 });
 
 test('it reads an import that follows a regular expression after a block', async () => {
   const ctx = setupTest();
 
-  await Bun.write(join(ctx.dir, 'packages/app/src/daemon/ids.ts'), 'export const ID = 1;\n');
+  await Bun.write(join(ctx.dir, 'packages/app/src/client/ids.ts'), 'export const ID = 1;\n');
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/store/rows.ts'),
-    "{\n  const a = 1;\n}\n/`/.test('a');\n\nexport { ID } from '../daemon/ids';\n",
+    join(ctx.dir, 'packages/app/src/mcp/rows.ts'),
+    "{\n  const a = 1;\n}\n/`/.test('a');\n\nexport { ID } from '../client/ids';\n",
   );
 
   const checked = await runCommand([
@@ -536,18 +542,18 @@ test('it reads an import that follows a regular expression after a block', async
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
     stderr:
-      'forbidden edge: packages/app/src/store/rows.ts imports packages/app/src/daemon/ids.ts (store -> daemon)\n',
+      'forbidden edge: packages/app/src/mcp/rows.ts imports packages/app/src/client/ids.ts (mcp -> client)\n',
   });
 });
 
 test('it reads a literal module resolved through import.meta.resolve', async () => {
   const ctx = setupTest();
 
-  await Bun.write(join(ctx.dir, 'packages/app/src/daemon/ids.ts'), 'export const ID = 1;\n');
+  await Bun.write(join(ctx.dir, 'packages/app/src/client/ids.ts'), 'export const ID = 1;\n');
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/store/rows.ts'),
-    "export const PATH = import.meta.resolve('../daemon/ids');\n",
+    join(ctx.dir, 'packages/app/src/mcp/rows.ts'),
+    "export const PATH = import.meta.resolve('../client/ids');\n",
   );
 
   const checked = await runCommand([
@@ -564,18 +570,18 @@ test('it reads a literal module resolved through import.meta.resolve', async () 
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
     stderr:
-      'forbidden edge: packages/app/src/store/rows.ts imports packages/app/src/daemon/ids.ts (store -> daemon)\n',
+      'forbidden edge: packages/app/src/mcp/rows.ts imports packages/app/src/client/ids.ts (mcp -> client)\n',
   });
 });
 
 test('it reads a literal module resolved through Bun.resolveSync', async () => {
   const ctx = setupTest();
 
-  await Bun.write(join(ctx.dir, 'packages/app/src/daemon/ids.ts'), 'export const ID = 1;\n');
+  await Bun.write(join(ctx.dir, 'packages/app/src/client/ids.ts'), 'export const ID = 1;\n');
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/store/rows.ts'),
-    "export const PATH = Bun.resolveSync('../daemon/ids', import.meta.dir);\n",
+    join(ctx.dir, 'packages/app/src/mcp/rows.ts'),
+    "export const PATH = Bun.resolveSync('../client/ids', import.meta.dir);\n",
   );
 
   const checked = await runCommand([
@@ -592,18 +598,18 @@ test('it reads a literal module resolved through Bun.resolveSync', async () => {
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
     stderr:
-      'forbidden edge: packages/app/src/store/rows.ts imports packages/app/src/daemon/ids.ts (store -> daemon)\n',
+      'forbidden edge: packages/app/src/mcp/rows.ts imports packages/app/src/client/ids.ts (mcp -> client)\n',
   });
 });
 
 test('it reads a literal module located with a URL relative to import.meta.url', async () => {
   const ctx = setupTest();
 
-  await Bun.write(join(ctx.dir, 'packages/app/src/daemon/ids.ts'), 'export const ID = 1;\n');
+  await Bun.write(join(ctx.dir, 'packages/app/src/client/ids.ts'), 'export const ID = 1;\n');
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/store/rows.ts'),
-    "export const PATH = new URL('../daemon/ids.ts', import.meta.url);\n",
+    join(ctx.dir, 'packages/app/src/mcp/rows.ts'),
+    "export const PATH = new URL('../client/ids.ts', import.meta.url);\n",
   );
 
   const checked = await runCommand([
@@ -620,7 +626,7 @@ test('it reads a literal module located with a URL relative to import.meta.url',
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
     stderr:
-      'forbidden edge: packages/app/src/store/rows.ts imports packages/app/src/daemon/ids.ts (store -> daemon)\n',
+      'forbidden edge: packages/app/src/mcp/rows.ts imports packages/app/src/client/ids.ts (mcp -> client)\n',
   });
 });
 
@@ -628,7 +634,7 @@ test('it ignores a URL that is not relative to the module', async () => {
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/store/rows.ts'),
+    join(ctx.dir, 'packages/app/src/mcp/rows.ts'),
     "const base = 'https://example.com';\nexport const SITE = new URL(base);\n",
   );
 
