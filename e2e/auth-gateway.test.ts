@@ -20,12 +20,6 @@ import { buildAgentAdapters } from '../packages/app/src/agents/build-agent-adapt
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
-/**
- * A temp directory holding a fake Claude that records each start in
- * `marker`, and the providers of the two targets a daemon runs on: a local
- * provider, and an imp provider `box` over a stub imp port. `settles` collects the fleet restores
- * a daemon reports to the `onRestoreSettled` recorder.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-auth-gateway-');
   const port = createStubImpPort();

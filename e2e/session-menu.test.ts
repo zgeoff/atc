@@ -7,10 +7,6 @@ import { buildAgentAdapters } from '../packages/app/src/agents/build-agent-adapt
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
-// A daemon whose `claude` agent is the real Claude adapter running the
-// stand-in menu `claude` on `menu.json` in the daemon's directory, logging
-// to `menu.log` there, beside a `grok` agent that reads no menus, and a
-// spawn that waits for the session's menu.
 async function setupTest() {
   const daemon = await startTestDaemon({
     prefix: 'atc-menu-choice-',

@@ -6,10 +6,6 @@ import { startDaemonProcess } from '@atc/lifecycle/testing';
 import { getString, resolveATCCommand, runATC, setupTempDir, waitFor } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 
-/**
- * A fresh home for the daemons and atc commands a test starts; a daemon
- * that finds no config there writes its own on first run.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-e2e-startup-');
 
@@ -156,10 +152,9 @@ test('it refuses to start a daemon whose --listen port another socket holds, lea
   expect(existsSync(join(ctx.home, '.local', 'state', 'atc', 'daemon.json'))).toBeFalse();
 });
 
-// A compiled binary loads no .env file from its working directory, while the
-// source entry keeps Bun's runtime autoload, so these run on the binary only.
-// With no daemon running, `daemon id` prints the socket path it tried, which
-// follows XDG_RUNTIME_DIR and so shows whether a variable reached the process.
+// The source entry keeps Bun's .env autoload, so these run on the compiled binary only. With no
+// daemon running, `daemon id` prints the socket path it tried, which follows XDG_RUNTIME_DIR and
+// so shows whether a variable reached the process.
 test.skipIf(process.env['ATC_BIN'] === undefined)(
   'it ignores a .env file in the working directory of the compiled binary',
   async () => {
@@ -201,19 +196,9 @@ test.skipIf(process.env['ATC_BIN'] === undefined)(
   },
 );
 
-// Claude kills a hook that runs past its 5 s limit. A hook starts at the
-// same moment as the session's other atc processes on a guest of two vCPUs,
-// so the CPU a start costs, not its wall time on an idle runner, decides
-// whether it finishes in time. One runner type can differ twofold in speed
-// from one machine to the next, so the budget is a multiple of a bare start
-// of the Bun runtime, which this file runs under and the binary embeds,
-// measured on the same machine with its starts interleaved with the
-// reporter's. A bare start costs relatively more on macOS, so the multiple
-// is per platform, about halfway between a healthy start and one that parses
-// the whole bundle. Nine starts of each give medians that one noisy start
-// cannot move. Without an event socket the reporter exits as soon as it
-// starts, so its median is the start alone, and a start that fails before
-// its work counts as a failure, not as a cheap start.
+// Claude kills a hook past its 5 s limit, and on a busy guest the start's CPU cost decides that.
+// Runners of one type differ twofold in speed, so the budget is a multiple of a bare Bun start
+// measured on the same machine, with the two kinds of start interleaved.
 test.skipIf(process.env['ATC_BIN'] === undefined)(
   'it starts the hook reporter of the compiled binary within a fixed multiple of the CPU time of a bare Bun start',
   async () => {
@@ -227,8 +212,10 @@ test.skipIf(process.env['ATC_BIN'] === undefined)(
       [[process.execPath, '-e', '0'], bareCPUMs],
     ];
 
+    // Nine starts of each give medians that one noisy start cannot move.
     for (let run = 0; run < 9; run += 1) {
       for (const [command, cpuMs] of starts) {
+        // Without an event socket the reporter exits once started, so its cost is the start alone.
         const proc = Bun.spawn(command, {
           cwd: ctx.home,
           env: { PATH: process.env['PATH'], HOME: ctx.home },
@@ -250,6 +237,8 @@ test.skipIf(process.env['ATC_BIN'] === undefined)(
       }
     }
 
+    // A bare start costs relatively more on macOS. Each multiple sits about halfway between a
+    // healthy start and one that parses the whole bundle.
     const multiples: Partial<Record<string, number>> = { linux: 16, darwin: 8 };
     const multiple = multiples[process.platform];
     const reporterMedian = reporterCPUMs.toSorted((a, b) => a - b).at(4);
@@ -258,6 +247,7 @@ test.skipIf(process.env['ATC_BIN'] === undefined)(
     invariant(multiple !== undefined, `no startup budget for ${process.platform}`);
     invariant(reporterMedian !== undefined && bareMedian !== undefined);
 
+    // A start that fails before its work counts as a failure, not as a cheap start.
     expect(exitCodes).toStrictEqual(Array.from({ length: 18 }, () => 0));
     expect(reporterMedian).toBeLessThan(multiple * bareMedian);
   },

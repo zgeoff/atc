@@ -13,12 +13,6 @@ import {
 } from '@atc/test-utils';
 import { buildLocalTarget } from '../packages/app/src/test-utils/build-local-target';
 
-/**
- * A real daemon listening at the socket path the tap subcommand computes
- * from `XDG_RUNTIME_DIR`, which `env` points at the temp directory, and a
- * client that has sent its handshake and collects every event. The client,
- * the daemon, and the directory are released once the test finishes.
- */
 async function setupTest() {
   const tmp = setupTempDir('atc-e2e-tap-');
 

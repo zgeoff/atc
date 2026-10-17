@@ -8,12 +8,6 @@ import {
 import invariant from 'tiny-invariant';
 import { setupMCPHTTP } from '../packages/app/src/test-utils/setup-mcp-http';
 
-/**
- * A real daemon behind `atc mcp --http`, whose authorization database sits
- * under a temp home, and the environment that points a spawned CLI at that
- * home, so `atc grants` reads the grants the server issued. Both stop and
- * the home is removed once the test finishes.
- */
 async function setupTest() {
   const server = await setupMCPHTTP();
 

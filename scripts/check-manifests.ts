@@ -1,27 +1,6 @@
 // Checks that every workspace package's manifest declares what its files
 // import, and that no file reaches into another package by a relative path.
-// Each workspace package lists its entry points in an explicit exports map
-// with no wildcard; the oxlint import rules, not this check, refuse an import
-// of a subpath the map does not list. A bare import resolves to a package the
-// manifest declares: in dependencies for production files, in either list for
-// tests and testing modules. Each `@atc/*` entry is `workspace:*`, each other
-// entry `catalog:`, and a package's `@atc/*` dependencies stay inside its row
-// of the package rules. A module load whose specifier is not a quoted string
-// fails, since oxlint's import rules read only quoted specifiers and so would
-// never apply the package rules to it, and so does a resolve form in a
-// workspace package whose specifier is not a literal, since the import graph
-// could not follow it. The module loads of mods/, which belongs to no
-// package, are held to the same rule. A relative specifier, literal
-// `import()` included, must resolve inside the importing file's package. Bun links every workspace package
-// where any package can resolve it, so only the manifest proves a package
-// meant to depend on another. A specifier that only resolves a path, such as
-// `Bun.resolveSync(...)`, is not an import here, since its base directory
-// decides where it resolves. The root package holds the repo tooling: e2e/
-// and scripts/ declare devDependencies alone. Each catalog entry pins an
-// exact version, never a range, a tag, or an empty value. No package entry
-// point loads a module that bunfig.toml preloads, through its static imports
-// and re-exports, since a preload runs top-level code that would then run in
-// every importer too. Prints every finding and exits 1 when there is one.
+// Bun links every workspace package everywhere, so only the manifest proves a dependency.
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
 import { dirname, join, normalize, resolve } from 'node:path';
@@ -51,6 +30,8 @@ function main(): void {
       const imports = collectImports(readFileSync(join(root, file), 'utf8'));
 
       for (const specifier of imports.specifiers) {
+        // A path-only resolve such as `Bun.resolveSync(...)` is not an import:
+        // its base directory decides where it resolves
         if (!imports.resolveOnly.includes(specifier)) {
           findings.push(...checkSpecifier(pkg, packages, file, specifier));
         }
@@ -123,10 +104,6 @@ interface WorkspacePackage {
   readonly manifest: Manifest;
 }
 
-/**
- * The root package, then every package the root's workspace globs match, in
- * sorted order.
- */
 function collectPackages(root: string): WorkspacePackage[] {
   const manifest = readManifest(root, '.');
 
@@ -223,11 +200,8 @@ function checkManifest(pkg: WorkspacePackage): string[] {
 const TEST_SCHEMA = z.object({ preload: z.array(z.string()).optional() });
 const BUNFIG_SCHEMA = z.object({ test: TEST_SCHEMA.optional() });
 
-/**
- * The finding for each package entry point that is or loads a preloaded
- * module: a relative preload by the file it resolves to, through the entry's relative
- * static imports and re-exports, and a bare preload by name.
- */
+// A preload runs top-level code, which would then run in every importer of
+// an entry point that loads it
 function checkPreloads(root: string, packages: readonly WorkspacePackage[]): string[] {
   const bunfigPath = join(root, 'bunfig.toml');
 
@@ -280,11 +254,6 @@ interface Preload {
   readonly file: string | undefined;
 }
 
-/**
- * The root-relative file a relative preload loads, resolved with the
- * extension and index lookups Bun applies, or the path as written when no
- * source file matches.
- */
 function resolvePreloadFile(root: string, preload: string): string {
   return resolveModule(root, '.', preload) ?? normalize(preload);
 }
@@ -335,10 +304,6 @@ const MODULE_SUFFIXES = [
 
 const SOURCE_FILE = /\.(?:ts|tsx|js|mjs)$/u;
 
-/**
- * Each file the entry reaches through relative static loads, with its static
- * load specifiers, starting at the entry itself.
- */
 function collectStaticLoads(root: string, entry: string): Map<string, readonly string[]> {
   const reached = new Map<string, readonly string[]>();
 
@@ -365,11 +330,7 @@ function collectStaticLoads(root: string, entry: string): Map<string, readonly s
   return reached;
 }
 
-/**
- * The root-relative source file a relative specifier loads from the
- * directory, or undefined when no source file matches, as for a text import
- * of a shell script.
- */
+// Undefined when no source file matches, as for a text import of a shell script
 function resolveModule(root: string, dir: string, specifier: string): string | undefined {
   const base = normalize(join(dir, specifier));
 
@@ -379,11 +340,9 @@ function resolveModule(root: string, dir: string, specifier: string): string | u
   );
 }
 
-/**
- * The finding for each module load in the file whose specifier is not a
- * quoted string, and, when `withResolves` holds, for each resolve form whose
- * specifier is not a literal.
- */
+// oxlint's import rules read only quoted specifiers, so they never apply the
+// package rules to a computed load, and the import graph cannot follow a
+// computed resolve
 function checkComputed(file: string, imports: ImportList, withResolves: boolean): string[] {
   return [...imports.computedLoadLines, ...(withResolves ? imports.computedResolveLines : [])]
     .toSorted((a, b) => a - b)
@@ -463,10 +422,6 @@ const APP_TESTS: ReadonlySet<string> = new Set([
   'packages/test-utils/src/start-tui-harness.test.ts',
 ]);
 
-/**
- * The package whose directory holds the path: the deepest workspace package
- * that contains it, or the root package.
- */
 function findOwner(packages: readonly WorkspacePackage[], path: string): WorkspacePackage {
   const owners = packages.filter(
     (candidate) => candidate.dir !== '.' && path.startsWith(`${candidate.dir}/`),

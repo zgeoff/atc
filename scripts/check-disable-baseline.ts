@@ -1,14 +1,6 @@
-// Counts the lint directives that switch off an import rule, and fails when
-// the count rises above the committed baseline. The unused-directive report
-// removes a stale directive, but nothing else stops a new one from switching
-// off a package rule. A directive counts when it names an import rule, or
-// names no rule at all and so switches off every rule. oxlint honours
-// `eslint-disable` comments as well as its own, and a rule name with any
-// plugin prefix or none, so both comments count and a rule matches by the
-// name after its last slash. Only real
-// comments count: the module is tokenized, so a string or template that holds
-// a directive's words is skipped, and a block comment may list its rules over
-// several lines. Prints the count and exits 1 when it exceeds the baseline.
+// Fails when the lint directives that switch off an import rule, or every
+// rule, outnumber the committed baseline: nothing else stops a new one from
+// switching off a package rule.
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { z } from 'zod';
@@ -57,14 +49,12 @@ const IMPORT_RULES: ReadonlySet<string> = new Set([
   'no-require-imports',
 ]);
 
+// oxlint honours `eslint-disable` too
 const DIRECTIVE =
   /^(?:\/\/|\/\*)\s*(?:oxlint|eslint)-disable(?:-next-line|-line)?(?<rules>(?:\s[\s\S]*|\*\/)?)$/u;
 
-/**
- * The line of each directive in the source that switches off an import
- * rule.
- */
 function collectDirectives(source: string): number[] {
+  // Tokenized, so a string or template that holds a directive's words is skipped
   const tokens = collectTokens(source);
   const end = tokens.at(-1);
 
@@ -100,6 +90,8 @@ function isImportRuleDirective(comment: string): boolean {
     .split('--')[0]
     ?.split(/[\s,*]+/u)
     .filter((rule) => rule !== '')
+
+    // oxlint takes a rule name with any plugin prefix or none
     .map((rule) => rule.slice(rule.lastIndexOf('/') + 1));
 
   return rules === undefined || rules.length === 0 || rules.some((rule) => IMPORT_RULES.has(rule));

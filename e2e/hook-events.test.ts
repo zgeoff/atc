@@ -7,10 +7,6 @@ import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemo
 // overflow disconnect lives in start-events-server.test.ts, and protocol
 // behavior in daemon.test.ts.
 
-/**
- * A real daemon with its events socket, whose sessions run a sleep with no
- * agent CLI behind them.
- */
 function setupTest() {
   return startTestDaemon({
     prefix: 'atc-events-',

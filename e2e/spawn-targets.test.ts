@@ -13,13 +13,6 @@ import {
 } from '@atc/test-utils';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
-/**
- * The daemon's stand-ins. `providers` builds, for a target id, the
- * `local-pty` provider, which runs harnesses on a real pseudo-terminal; the
- * target id of each harness started lands in `harnesses`. The agent's
- * headless runner records each turn in `headless.runs` and plays nothing
- * until the test does.
- */
 function setupTest() {
   const harnesses: string[] = [];
   const headless = buildStubHeadlessRunner();

@@ -1,21 +1,6 @@
-// Moves the files that one wave of the package migration moves, as the stage
-// and test maps in scripts/package-map give them: each file goes from its
-// path in the wave before to its path in this wave. Then it rewrites every
-// relative import, in the moved files and in every other source file, that
-// names a moved file or that a move changed. An import that crosses into
-// another workspace package becomes that package's entry, such as
-// `@atc/test-utils/wait-for`, when the package exports one; otherwise it
-// stays a relative path, which check-manifests reports. A path the map holds
-// in parentheses or as `-` belongs to a ticket, not to the codemod. A second
-// run finds every file at its new path and changes nothing. Path literals
-// that are not import specifiers are left for the move's author. Each
-// `--package <name>` limits the move to the files that land in that package,
-// so a wave that several tickets share moves one ticket's package at a time.
-// A file that would leave the app while it imports a module that stays there
-// waits for a later run, and so does each file that imports it, until no
-// move leaves an import behind in the app. A test may still reach into the
-// app, so a test waits only for a module of the move that waits.
-// Usage: bun scripts/run-wave-move.ts <wave> [root] [--package <name>]...
+// Moves one wave's files as the maps in scripts/package-map give them and
+// rewrites every relative import that names a moved file. A second run changes
+// nothing. Usage: bun scripts/run-wave-move.ts <wave> [root] [--package <name>]...
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname, join, normalize, relative, resolve } from 'node:path';
 import { SyntaxKind } from 'typescript/unstable/ast';
@@ -72,11 +57,8 @@ function main(): void {
 
 const APP_DIR = 'packages/app/';
 
-/**
- * The planned moves less every file that would leave the app while one of
- * its relative imports stays there, repeated until a pass holds nothing
- * more, since a held file keeps its importers in the app too.
- */
+// A file that would leave the app while one of its imports stays there waits,
+// and so do its importers, so this repeats until a pass holds nothing more
 function collectReadyMoves(
   root: string,
   planned: ReadonlyMap<string, string>,
@@ -169,12 +151,6 @@ const MAP_TABLES = [
   ['package-testmap.tsv', 'test'],
 ] as const;
 
-/**
- * Each path this wave moves a file from, keyed to the path it moves to, for
- * the files that land in one of the given package directories, or in any
- * package when none is given. A file already at its new path is no longer a
- * move.
- */
 function collectMoves(
   root: string,
   wave: number,
@@ -207,6 +183,7 @@ function collectMoves(
   return moves;
 }
 
+// A path in parentheses or `-` belongs to a ticket, not to the codemod
 function isPlainPath(path: string): boolean {
   return path !== '' && path !== '-' && !path.startsWith('(');
 }
@@ -263,10 +240,6 @@ interface RewriteContext {
   readonly entries: readonly PackageEntry[];
 }
 
-/**
- * The source with each relative specifier pointed at its target's new path,
- * as seen from the file's new path.
- */
 function buildMovedSource(
   source: string,
   file: string,
@@ -305,10 +278,6 @@ function buildMovedSource(
   return updated;
 }
 
-/**
- * Whether token i is the specifier of an import, an export, or an
- * `import(...)` or `require(...)` call, rather than any other string.
- */
 function isSpecifierToken(tokens: readonly Token[], i: number): boolean {
   const token = tokens[i];
   const previous = tokens[i - 1]?.kind;
@@ -337,11 +306,8 @@ function findModule(known: ReadonlySet<string>, file: string, specifier: string)
   return [base, `${base}.ts`, `${base}/index.ts`].find((candidate) => known.has(candidate)) ?? null;
 }
 
-/**
- * The specifier that names `imported` from `file`: a package entry when the
- * two sit in different packages and the imported one exports the file, else
- * a relative path written in the original specifier's style.
- */
+// A relative path across packages stays when the package exports no entry for
+// the file, and check-manifests reports it
 function buildSpecifier(
   file: string,
   imported: string,

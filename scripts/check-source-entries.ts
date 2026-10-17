@@ -1,9 +1,6 @@
 // Fails when a test helper hard-codes the source entry of a command that
-// `scripts/with-test-home.sh` exports as an `ATC_*_ENTRY` variable. The check
-// reads the entries from the wrapper, so a package move that changes an entry
-// path moves the check with it. A helper reads the variable instead, and a
-// literal path or a `join` of its segments leaves the helper behind on a move.
-// Prints each hit's file, line, and variable, and exits 1 when it finds one.
+// `scripts/with-test-home.sh` exports as an `ATC_*_ENTRY` variable, since a
+// literal path is left behind when a package move changes the entry.
 import { readFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { collectSourceFiles } from './collect-source-files';
@@ -41,23 +38,14 @@ interface SourceEntry {
   readonly path: string;
 }
 
-/**
- * Each `export ATC_*_ENTRY="$repo/<path>"` line of the wrapper, as the
- * variable's name and the entry's repo-relative path.
- */
 function parseSourceEntries(script: string): SourceEntry[] {
   return [
     ...script.matchAll(/^export (?<name>ATC_[A-Z_]+_ENTRY)="\$repo\/(?<path>[^"]+)"$/gmu),
   ].map((match) => ({ name: match.groups?.['name'] ?? '', path: match.groups?.['path'] ?? '' }));
 }
 
-/**
- * The modules a test runs commands through: every module of the end-to-end
- * suites, and each module that is not itself a test inside a package's
- * `test-utils` or `testing` folder or the shared test-utils package. A unit
- * test of a helper stays out, since an entry path there is fixture data.
- */
 function collectHelperFiles(root: string): string[] {
+  // A helper's unit test stays out, since an entry path there is fixture data
   const helpers = collectSourceFiles(root, 'packages').filter(
     (file) => /\/(?:test-utils|testing)\//u.test(file) && !/\.test\.[cm]?[jt]sx?$/u.test(file),
   );
@@ -70,15 +58,11 @@ interface HardCodedEntry {
   entry: SourceEntry;
 }
 
-/**
- * Each line of the source that holds an entry's file name as the end of a
- * path or as a string of its own, so `'cli.ts'` in a `join` counts as well
- * as a whole path, with the entry it matches. Lines are 1-based.
- */
 function collectHardCodedEntries(
   source: string,
   entries: readonly SourceEntry[],
 ): HardCodedEntry[] {
+  // The bare file name matches too, so `'cli.ts'` in a `join` counts
   const patterns = entries.map((entry) => ({
     entry,
     pattern: new RegExp(`(?:^|[/'"\`])${RegExp.escape(basename(entry.path))}(?![\\w.-])`, 'u'),

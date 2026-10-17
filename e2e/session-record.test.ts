@@ -18,11 +18,6 @@ import { $ } from 'bun';
 import invariant from 'tiny-invariant';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
-/**
- * A git fixture whose work clone the sessions run in, and a daemon whose
- * one target, `box`, starts each harness on the daemon's machine and keeps
- * the spec it started it with.
- */
 async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'atc-session-record-' });
 

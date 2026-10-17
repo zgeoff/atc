@@ -4,22 +4,11 @@
 import type { TestSkip } from './load-test-skips';
 
 export interface TestRun {
-  /**
-   * The arguments after `bun run test`.
-   */
+  // The arguments after `bun run test`
   args: string[];
-
-  /**
-   * The skip-list entries that this run leaves out.
-   */
   skips: TestSkip[];
 }
 
-/**
- * Returns the runs that cover every selected test except the skipped ones,
- * in the order of the files. An entry for a file that is not selected
- * changes nothing.
- */
 export function planTestRuns(files: readonly string[], skips: readonly TestSkip[]): TestRun[] {
   const plain = files.filter((file) => !skips.some((skip) => skip.file === file));
   const runs: TestRun[] = plain.length > 0 ? [{ args: [...plain], skips: [] }] : [];

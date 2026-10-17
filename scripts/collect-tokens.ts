@@ -36,10 +36,9 @@ const BLOCK_OPENERS: ReadonlySet<SyntaxKind> = new Set([
   SyntaxKind.TryKeyword,
 ]);
 
-// The module's tokens, with the two context-dependent ones settled the way
-// the parser settles them: a slash where an expression can start begins a
-// regular expression, and the brace that closes a template substitution
-// continues the template.
+// A slash where an expression can start begins a regular expression, and
+// the brace that closes a template substitution continues the template, as
+// the parser settles them.
 export function collectTokens(source: string): Token[] {
   const scanner = createScanner(true, undefined, source);
   const tokens: Token[] = [];

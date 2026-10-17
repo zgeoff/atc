@@ -16,11 +16,6 @@ const testSkipsSchema = z.array(testSkipSchema);
 
 export type TestSkip = z.infer<typeof testSkipSchema>;
 
-/**
- * Reads and parses the skip list at the given path. Throws when the file is
- * missing, is not JSON, holds an entry without a test file, a test name or a
- * Linear issue ID, or holds the same test twice.
- */
 export function loadTestSkips(path: string): TestSkip[] {
   const parsed = testSkipsSchema.safeParse(JSON.parse(readFileSync(path, 'utf8')));
 

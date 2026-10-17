@@ -28,14 +28,7 @@ import { $ } from 'bun';
 import invariant from 'tiny-invariant';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
-/**
- * The runtime an imp workspace spawn runs on: a stub imp port whose imps
- * run their commands on this machine, an imp provider over it, and a temp
- * directory `dir` for the test's host paths, beside a git fixture: a bare
- * upstream and a clone of it whose one pushed commit adds `README.md`, at
- * commit `sha`. Each test sets impd's token and secret and starts its own
- * daemon with the agents and targets it selects.
- */
+// The stub imp port runs each imp's commands on this machine.
 async function setupTest() {
   const git = await createGitFixture({ prefix: 'atc-imp-workspace-git-' });
 
@@ -80,10 +73,8 @@ test('it materializes a workspace on the host of an imp spawn and starts the ses
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -168,10 +159,8 @@ test('it materializes a git source without a cwd under the home of an imp and st
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -538,10 +527,8 @@ test('it lands concurrent sub-sessions of one repository without a cwd side by s
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -686,10 +673,9 @@ test('it lands one of two concurrent sub-sessions without a cwd at the base of a
 
   baseHold.stop();
 
-  // A spawn that moves on from the base then waits on the host at its
-  // second directory, so the other spawn checks the base while the first
-  // has claimed nothing else yet. The hold stops once each spawn has
-  // either landed or waits there.
+  // A spawn past the base then waits on the host at its second directory, so
+  // the other spawn checks the base before the first claims anything else.
+  // The hold stops once each spawn has landed or waits there.
   const nextHold = ctx.port.startCommandHold(` sh ${base}-2`);
 
   await waitFor(() => {
@@ -722,10 +708,8 @@ test('it materializes a workspace for a local spawn on the daemon host and start
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -793,10 +777,8 @@ test('it refuses a workspace sub-session under a revoked parent before resolving
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -881,10 +863,8 @@ test('it materializes a workspace sub-session on the host of a ready parent and 
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -958,10 +938,8 @@ test('it destroys the host of its own that a spawn readied when its workspace fa
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -1032,10 +1010,8 @@ test('it takes back the imp and binding a brokered spawn provisioned when its wo
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -1177,10 +1153,8 @@ test("it leaves a parent running on its host when a sub-session's workspace fail
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -1258,10 +1232,8 @@ test('it destroys the host of its own that a plain workspace spawn readied when 
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -1327,10 +1299,8 @@ test('it answers outcome_unknown for a workspace spawn whose host it cannot take
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -1388,10 +1358,8 @@ test('it keeps the key of a workspace spawn whose host it cannot take back as ou
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -1466,10 +1434,8 @@ test('it refuses a workspace spawn whose host fails its sign-in check and takes 
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -1537,10 +1503,8 @@ test("it refuses a sub-session workspace inside its parent's directory before cl
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -1613,10 +1577,8 @@ test("it materializes a sub-session workspace beside its parent's directory on t
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -1688,10 +1650,8 @@ test('it refuses a git workspace whose credential variable is unset before touch
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -1760,10 +1720,8 @@ test('it materializes a git workspace on an imp host when its credential variabl
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -1835,10 +1793,8 @@ test('it claims the directory of a workspace sub-session on the shared host befo
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -1917,10 +1873,8 @@ test('it claims the directory of a workspace sub-session under the home of the s
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -2005,10 +1959,8 @@ test('it refuses a workspace spawn inside another one still materializing on the
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -2112,10 +2064,8 @@ test('it materializes concurrent workspace spawns into sibling directories on th
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -2210,10 +2160,8 @@ test("it keeps another session's files inside its directory when a workspace spa
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -2315,10 +2263,8 @@ test('it refuses a plain sub-session inside a workspace still materializing on t
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -2411,10 +2357,8 @@ test('it keeps the files of a plain sub-session still starting through a symlink
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -2522,10 +2466,8 @@ test('it refuses a plain sub-session on the shared host while a workspace rollba
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -2623,10 +2565,8 @@ test('it starts a plain sub-session on the shared host once a workspace rollback
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -2736,10 +2676,8 @@ test('it keeps the files of a relative plain sub-session still starting when a w
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -2853,10 +2791,8 @@ test('it keeps its directory when a workspace rollback cannot resolve a plain su
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -2978,10 +2914,8 @@ test('it keeps its directory when a workspace rollback cannot resolve a relative
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -3108,10 +3042,8 @@ test('it removes its directory when a workspace rollback meets a listed relative
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -3207,10 +3139,8 @@ test('it starts a plain sub-session beside a workspace still materializing on th
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -3297,10 +3227,8 @@ test('it removes the directory it claimed when a workspace spawn rolls back on t
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -3382,10 +3310,8 @@ test('it gives back the directory a rolled-back workspace spawn claimed, so a re
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -3464,10 +3390,8 @@ test("it removes a sub-session's checkout but keeps its parent and the files bes
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -3569,10 +3493,8 @@ test('it spawns a sub-session again on the shared host after its failed start re
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -3675,10 +3597,8 @@ test("it removes a sub-session's checkout on its parent's sleeping host when its
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -3785,10 +3705,8 @@ test("it answers outcome_unknown and logs the path of a sub-session's checkout i
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -3872,10 +3790,8 @@ test("it keeps the key of a sub-session's checkout it cannot remove, so a retry 
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -3962,10 +3878,8 @@ test("it keeps the claim on a sub-session's checkout it cannot remove, so a spaw
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -4053,10 +3967,8 @@ test("it refuses a workspace destination that a symlink places inside its parent
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -4130,10 +4042,8 @@ test("it refuses a workspace destination inside its parent's relative directory 
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -4211,10 +4121,8 @@ test('it materializes a workspace through a symlinked directory that leads away 
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -4283,10 +4191,8 @@ test('it answers outcome_unknown for a workspace spawn whose own host it cannot 
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -4348,10 +4254,8 @@ test('it keeps the key of a workspace spawn whose own host it cannot destroy as 
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -4428,10 +4332,8 @@ test('it answers outcome_unknown for a spawn whose failed readying leaves an imp
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -4490,10 +4392,8 @@ test('it keeps the key of a spawn whose failed readying leaves an imp it cannot 
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -4569,10 +4469,8 @@ test('it refuses a spawn whose readying fails and destroys the imp the readying 
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -4638,10 +4536,8 @@ test('it keeps the files of a session listed inside its directory while a worksp
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -4750,10 +4646,8 @@ test('it refuses a workspace cwd with a dot-dot segment before touching impd', a
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -4811,10 +4705,8 @@ test('it refuses a workspace cwd with a control character before touching impd',
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -4872,10 +4764,8 @@ test('it materializes a workspace through a symlink to a directory whose name en
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -4948,10 +4838,8 @@ test('it removes only the directory it created when a symlink in the requested p
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -5039,10 +4927,8 @@ test('it leaves its directory and reports it when the directory it created no lo
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes the credential impd holds for api.z.ai from the broker, and
-  // `unsigned` takes it too but fails its sign-in check in the host;
-  // `plain` takes none, and `unsigned-plain` takes none and fails its
-  // sign-in check.
+  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
+  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 

@@ -1,19 +1,12 @@
 // Runs the tests that sit beside the given files: a test file runs itself,
 // and a source file runs its sibling test file. The tests on the pre-push
 // skip list stay out, each with a printed line that holds its Linear issue.
-// Prints a line and exits 0 when none of the files has a test.
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { TestSkip } from './load-test-skips';
 import { loadTestSkips } from './load-test-skips';
 import { planTestRuns } from './plan-test-runs';
 
-/**
- * Returns the test files related to the given paths, in order and without
- * duplicates. A path ending in .test.ts selects itself when it exists; any
- * other .ts path (declaration files excluded) selects its sibling .test.ts
- * when that exists. Paths resolve against cwd.
- */
 export function collectRelatedTests(paths: readonly string[], cwd: string): string[] {
   const selected = new Set<string>();
 
@@ -34,12 +27,6 @@ export function collectRelatedTests(paths: readonly string[], cwd: string): stri
   return [...selected];
 }
 
-/**
- * Runs the repo's test script over the tests related to the given paths,
- * leaving out the skipped tests, and returns the first failing run's exit
- * code, or 0 after printing a note when there are no related tests. Every
- * run goes ahead even when an earlier one fails.
- */
 export async function runRelatedTests(
   paths: readonly string[],
   cwd: string,

@@ -4,12 +4,6 @@ import { join } from 'node:path';
 import { resolveGatewayCommand, runCommand, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 
-/**
- * A temp directory to run the gateway in, so a relative path lands there,
- * and the command and environment to run one with: `PATH` and a `HOME`
- * inside the temp directory that nothing creates, so a write under it shows
- * in the directory listing. The directory goes once the test finishes.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-gateway-bin-');
 
@@ -20,6 +14,8 @@ function setupTest() {
     // Bun's transpiler cache would write under HOME when the source entry runs.
     env: {
       PATH: process.env['PATH'] ?? '',
+
+      // Nothing creates this home, so a write under it shows in the directory listing.
       HOME: join(tmp.dir, 'home'),
       BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0',
     },

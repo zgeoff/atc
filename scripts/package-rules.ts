@@ -1,8 +1,6 @@
-// The workspace packages and the internal packages each may depend on: the
-// package plan's dependency order. The oxlint import rules, check-manifests
-// and check-reach all read this one table. A package is named `@atc/<name>`
-// and lives at its directory whether or not the directory exists yet, so the
-// rules hold for a package from the change that creates it.
+// The workspace packages and the internal packages each may depend on, read
+// by the oxlint import rules, check-manifests and check-reach. A row holds
+// whether or not its directory exists, so it covers the change that creates it.
 export interface PackageRule {
   readonly name: string;
   readonly dir: string;
@@ -17,21 +15,17 @@ export interface PackageRule {
   readonly folders?: readonly FolderRule[];
 }
 
-/**
- * One folder of a package and the sibling folders its production files may
- * import, and whether they may import the files at the root of src/.
- */
 export interface FolderRule {
   readonly name: string;
   readonly reaches: readonly string[];
+
+  // Whether the folder's production files may import the files at the root of src/
   readonly reachesRoot: boolean;
 }
 
-// The daemon's folders, each with the folders it imports. Sessions, auth,
-// transport and fleet import one another, so their rules keep each one from
-// reaching the folders it does not use yet; the workspace folder imports no
-// other folder, and no folder imports sources, which only the files at the
-// root of src/ reach.
+// Sessions, auth, transport and fleet import one another, so their rules keep
+// each one from reaching the folders it does not use. No folder imports
+// sources, which only the files at the root of src/ reach.
 const DAEMON_FOLDERS: readonly FolderRule[] = [
   {
     name: 'auth',

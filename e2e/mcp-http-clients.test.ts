@@ -2,11 +2,6 @@ import { expect, test } from 'bun:test';
 import { resolveATCCommand, runCommand, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 
-/**
- * A fresh home for the CLI, where its authorization database lands, and the
- * environment that points a spawned CLI at it. The home is removed once the
- * test finishes.
- */
 function setupTest() {
   const home = setupTempDir('atc-e2e-clients-');
 

@@ -8,11 +8,6 @@ export interface Client {
   close: () => void;
 }
 
-/**
- * Opens one App Server client over WebSocket, logs requests, responses and
- * the notifications the runs care about, and initializes it with the
- * experimental API on.
- */
 export async function openClient(url: string, log: string, tag: string): Promise<Client> {
   const ws = new WebSocket(url);
 

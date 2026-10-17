@@ -7,11 +7,6 @@ import { DaemonClient } from '@atc/protocol/wire';
 import { registerTestCleanup, resolveATCCommand, setupTempDir } from '@atc/test-utils';
 import { z } from 'zod';
 
-/**
- * A fresh home for the `atc daemon` that each test starts with a TCP
- * listener once it has written the token file. `tokenFile` is the file the
- * daemon reads its tokens from, and the file a SIGHUP reloads.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-e2e-tcp-');
 

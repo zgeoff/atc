@@ -4,10 +4,6 @@ import { join } from 'node:path';
 import { resolveATCCommand, runATC, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 
-/**
- * A temp directory for the config file under migration, which is also the
- * home the CLI runs with, removed once the test finishes.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-e2e-config-migrate-');
 

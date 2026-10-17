@@ -1,10 +1,6 @@
-// The external packages that only some files may import, and the ones no
-// file may import at all. Every file of an owner package may import a
-// confined package, and so may each file that `files` lists, in any package.
-// A production file outside both never imports it; `inTests` confines it in
-// test files and helpers too. app owns each package that its modules still
-// import until they move to the package that owns it. The oxlint import
-// rules are the one gate that reads this table.
+// The external packages that only an owner package's files and the listed
+// `files` may import; `inTests` confines one in tests and helpers too. The
+// oxlint import rules are the one gate that reads this table.
 export interface Confinement {
   readonly specifier: string;
   readonly owners: readonly string[];
@@ -17,10 +13,9 @@ export const PACKAGE_CONFINEMENT: readonly Confinement[] = [
     specifier: 'bun-pty',
     owners: [],
 
-    // the local provider spawns sessions in PTYs, the fake impd runs its
-    // guests in real PTYs, as impd does, the TUI harness runs the real client
-    // in one, as a terminal does, and the raw-mode reads of the stub composer
-    // and the stub menu need a real terminal to run in
+    // Sessions, the fake impd's guests and the TUI harness's client run in
+    // real PTYs, and the stub composer's and stub menu's raw-mode reads need a
+    // real terminal
     files: [
       'packages/execution/local/src/local-pty-provider.ts',
       'packages/execution/imp/src/testing/create-stub-imp-port.ts',

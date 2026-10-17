@@ -21,11 +21,6 @@ import {
   waitForEvent,
 } from '@atc/test-utils';
 
-/**
- * A home with stub Claude, Grok, and Codex CLIs and an empty config
- * directory, for the `atc daemon` that each test starts once it has
- * written the config offering them.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-e2e-terminal-');
   const atc = resolveATCCommand();
@@ -367,10 +362,9 @@ test.each([['codex'], ['grok']])(
 
     await client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
 
-    // The client sees output before the daemon's screen model has parsed
-    // it, and a submit reads the paste mode from that model. A screen read
-    // waits for the parse, so once it shows the banner, the paste mode the
-    // composer turned on just before it is in force.
+    // A submit reads the paste mode from the daemon's screen model, which can lag the output the
+    // client sees. A screen read waits for the parse, so once it shows the banner, the paste mode
+    // the composer turned on just before it is in force.
     await waitFor(async () => {
       const read = await client.sendRequest('session.screen', { session: id });
 

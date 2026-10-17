@@ -22,13 +22,6 @@ import { buildAgentAdapters } from '../packages/app/src/agents/build-agent-adapt
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
-/**
- * A stub imp port, which each test gives its token identity and broker
- * secrets, and the targets a daemon runs with over it: `local`, and an
- * imp target `box` whose guest folders live under `g`. The guest has an atc stand-in, so a Claude
- * gateway plans a real guest spawn. `fakeClaude` is a fake claude that
- * records each start in `claude-starts.log` under the directory.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-gateway-guest-auth-');
   const port = createStubImpPort();

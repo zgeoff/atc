@@ -16,13 +16,6 @@ import {
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
-/**
- * What a local clone launch needs before its daemon starts: a git fixture
- * whose upstream a spawn clones, a user home of its own for the Claude
- * config, and a Claude CLI script that appends its arguments to its
- * `starts` log and then sleeps. Each test starts its own daemon with the
- * adapters and the target options it needs.
- */
 async function setupTest() {
   const git = await createGitFixture({ prefix: 'atc-local-workspace-trust-' });
 

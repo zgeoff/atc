@@ -20,12 +20,6 @@ import {
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 
-/**
- * A home with a stub Claude CLI and an empty config directory, and a fake
- * systemd that `path` finds first, for the `atc daemon` that each test
- * starts with that PATH once it has written its config. Every atc command
- * the test runs gets the same PATH.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-e2e-restart-');
   const atc = resolveATCCommand();

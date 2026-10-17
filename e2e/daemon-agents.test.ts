@@ -16,10 +16,6 @@ import {
   waitForEvent,
 } from '@atc/test-utils';
 
-/**
- * A home with stub Claude, Grok, and Codex CLIs for the `atc daemon` that
- * each test starts once it has written the config offering them.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-e2e-agents-');
   const atc = resolveATCCommand();

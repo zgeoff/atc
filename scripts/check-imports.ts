@@ -1,11 +1,6 @@
-// Checks the import graph under the app's source root, packages/app/src/: no
-// cycles (type-only imports count), and each directory imports only the
-// directories its row allows. Modules at the source root have a row of their
-// own. The composition root may import any directory, and test files are
-// exempt from the direction rules. What the gateway entry may reach is
-// check-reach's job, which external packages a file may import is the oxlint
-// import rules' job, and a module load whose specifier is not a quoted string
-// is check-manifests' job. Prints every finding and exits 1 when there is one.
+// Checks the import graph under packages/app/src/: no cycles (type-only
+// imports count), and each directory imports only the directories its row
+// allows. Test files are exempt from the direction rules.
 import { readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { collectImports } from './collect-imports';
@@ -127,20 +122,14 @@ function checkDirection(file: string, targets: readonly string[]): string[] {
   return findings;
 }
 
-/**
- * The first directory under the source root, or `root` for a module at the
- * source root.
- */
 function getLayer(file: string): string {
   const parts = relative(SOURCE_ROOT, file).split('/');
 
   return parts.length > 1 ? (parts[0] ?? 'root') : 'root';
 }
 
-/**
- * Tarjan's strongly connected components: every component with more than one
- * file, or a file importing itself, is a cycle.
- */
+// Tarjan's strongly connected components: every component with more than one
+// file, or a file importing itself, is a cycle
 function collectCycles(graph: ReadonlyMap<string, readonly string[]>): string[][] {
   const index = new Map<string, number>();
   const low = new Map<string, number>();

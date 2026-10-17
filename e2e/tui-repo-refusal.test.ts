@@ -11,10 +11,6 @@ import {
 } from '@atc/test-utils';
 import { $ } from 'bun';
 
-/**
- * The client's harness with a signed-out `gh` on the PATH of the client and
- * its daemons, and a git upstream for the spawn to clone.
- */
 async function setupTest() {
   const tui = startTUIHarness();
 

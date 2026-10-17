@@ -5,11 +5,8 @@ import { join } from 'node:path';
 import { buildMockAgentAdapter } from '@atc/test-utils';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
-/**
- * A mock agent adapter for the daemon to boot with. It takes messages, so
- * the message methods reach their own checks.
- */
 function setupTest() {
+  // It takes messages, so the message methods reach their own checks.
   const adapter = buildMockAgentAdapter({ takesMessages: true });
 
   return { adapter };

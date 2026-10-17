@@ -2,10 +2,6 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { resolveATCCommand, runATC, setupTempDir, startStubReporterSocket } from '@atc/test-utils';
 
-/**
- * A home with a stub of the daemon's reporter socket in it, for the answer
- * subcommand to send its line to.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-e2e-answer-');
   const sock = join(tmp.dir, 'reporter.sock');

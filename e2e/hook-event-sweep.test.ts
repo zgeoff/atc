@@ -10,12 +10,6 @@ import {
 } from '@atc/test-utils';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
-/**
- * A daemon whose trail is stamped from a stepped clock and whose sweep runs
- * on a second one, with one spawned session and a read-only connection to
- * its database. Its hooks read a SessionStart as a start, a Stop as a
- * finished turn, and every other line as a heartbeat.
- */
 async function setupTest() {
   // The trail clock starts on a fixed day, so each row's time is exact.
   const clock = buildStubClock(Date.parse('2026-01-01T00:00:00.000Z'));

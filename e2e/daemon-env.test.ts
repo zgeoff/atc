@@ -15,11 +15,6 @@ import {
 } from '@atc/test-utils';
 import { $ } from 'bun';
 
-/**
- * A home with a stub Claude CLI and an empty config directory, for a test
- * to write the config offering it and start a daemon on with the
- * environment it is about.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-e2e-env-');
   const atc = resolveATCCommand();

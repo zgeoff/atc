@@ -1,27 +1,6 @@
 // Checks what the atc-gateway entry can reach. The gateway binary must never
 // start a daemon or run a session on its own machine, so nothing it imports,
-// however indirectly and type-only imports included, may belong to a package
-// outside its allowance: core, protocol, config, gateway, mcp, reporters,
-// store's sqlite folder for the mcp-auth.db opener, and the app's gateway
-// modules. A file's package is the package whose directory holds it, as
-// scripts/package-rules.ts lists them, so a new file needs no entry of its
-// own. An app module counts only when the gateway's list of app modules holds
-// it or its folder, and a file in no package directory is a finding. A second
-// step bundles the entry with `bun build --metafile` and holds every bundled
-// source file to the same rule, which catches a reach the source walk cannot
-// read.
-//
-// A second rule holds the reporters to their start-up time. A hook or
-// statusline command starts once per event inside a session, and a compiled
-// entry point runs the top-level code of every module it re-exports, so the
-// static import graph of each reporter and of cli.ts, whose static imports
-// load before every subcommand, reaches no module whose top-level code builds
-// schemas, the protocol contract, or the store. Type-only imports and dynamic
-// imports load nothing at start-up, so the walk leaves them out. Of the
-// packages, the walk may reach core outside its schema entry, which loads
-// Zod, the light entries of protocol and config, and lifecycle's run-command
-// entry. The rule holds for a tree that has the atc CLI entry. Prints every
-// finding and exits 1 when there is one.
+// type-only imports included, may belong to a package outside its allowance.
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, normalize, resolve } from 'node:path';
@@ -83,8 +62,7 @@ const ALLOWED_PACKAGES: ReadonlySet<string> = new Set([
 
 // The app modules behind the atc-gateway binary's own commands, as paths
 // under the app's src/: a path that ends in `/` holds every file in that
-// folder. Every other app module, cli.ts and the atc subcommand modules among
-// them, is out of the gateway's reach.
+// folder. Every other app module, cli.ts among them, is out of reach.
 const GATEWAY_APP_MODULES: readonly string[] = [
   'gateway.ts',
   'run-gateway-cli.ts',
@@ -124,10 +102,6 @@ interface Owner {
   readonly path: string;
 }
 
-/**
- * The package whose directory holds the file, and the file's path inside
- * that directory. Undefined when no package directory holds the file.
- */
 function findPackage(file: string): Owner | undefined {
   const rule = PACKAGE_RULES.find((candidate) => file.startsWith(`${candidate.dir}/`));
 
@@ -138,18 +112,15 @@ function findPackage(file: string): Owner | undefined {
   return { name: rule.name, path: file.slice(rule.dir.length + 1) };
 }
 
-/**
- * Whether the path is the module, or sits inside it when the module is a
- * folder ending in `/`.
- */
 function isWithin(path: string, module: string): boolean {
   return module.endsWith('/') ? path.startsWith(module) : path === module;
 }
 
 const APP_SOURCE = 'packages/app/src';
 
-// The reporters, and cli.ts, whose static imports load before every
-// subcommand, the reporters among them.
+// A hook or statusline command starts once per event inside a session, and
+// cli.ts's static imports load before every subcommand, so none of these may
+// load a module whose top-level code builds schemas, the protocol contract, or the store.
 const REPORTER_ENTRIES = [
   'cli.ts',
   'hook-report.ts',
@@ -159,12 +130,9 @@ const REPORTER_ENTRIES = [
   'statusline.ts',
 ].map((file) => `${APP_SOURCE}/${file}`);
 
-// The folders under src/ that a reporter may load, by package name: the
-// light entries of the packages whose root entry builds schemas, the
-// protocol contract, or the store, or, for a package whose root entry is
-// light, every folder but the ones its heavy entries hold. Core's schema
-// entry loads Zod. Every other package, store among them, stays out of a
-// reporter's reach.
+// The folders under src/ that a reporter may load, by package name: a light
+// root entry allows every folder but its heavy ones, such as core's schema
+// entry, which loads Zod. Every other package stays out of a reporter's reach.
 type ReporterAllowance = readonly string[] | { readonly except: readonly string[] };
 
 const REPORTER_FOLDERS: ReadonlyMap<string, ReporterAllowance> = new Map<string, ReporterAllowance>(
@@ -176,12 +144,6 @@ const REPORTER_FOLDERS: ReadonlyMap<string, ReporterAllowance> = new Map<string,
   ],
 );
 
-/**
- * The findings for the reporters' start-up: each package module that a
- * reporter's static import graph loads outside the folders the reporters
- * may load, a reporter entry that is missing, and a static import that
- * resolves to no file.
- */
 function checkReporters(
   root: string,
   known: ReadonlySet<string>,
@@ -204,6 +166,8 @@ function checkReporters(
       known,
       exports,
       [entry],
+
+      // Type-only and dynamic imports load nothing at start-up
       (file) => collectImports(readFileSync(join(root, file), 'utf8')).staticLoads,
     );
 
@@ -221,10 +185,6 @@ function checkReporters(
   return findings;
 }
 
-/**
- * Whether a reporter may load the file at start-up: an app module, or a
- * package module inside a folder that the package's row allows.
- */
 function isReporterLoadable(file: string): boolean {
   if (file.startsWith(`${APP_SOURCE}/`)) {
     return true;
@@ -251,11 +211,6 @@ interface Reach {
   readonly unresolved: readonly string[];
 }
 
-/**
- * Every workspace source file the entries import, however indirectly,
- * following the specifiers that `pick` returns for each file. An `@atc/*`
- * import resolves through the target package's exports.
- */
 function collectReached(
   known: ReadonlySet<string>,
   exports: ReadonlyMap<string, string>,
@@ -283,10 +238,8 @@ function collectReached(
   return { files, unresolved };
 }
 
-/**
- * The workspace source file a specifier names: null when it names none that
- * exists, undefined when it names an external package or a non-source file.
- */
+// Null when the specifier names no workspace file that exists, undefined when
+// it names an external package or a non-source file
 function resolveSpecifier(
   known: ReadonlySet<string>,
   exports: ReadonlyMap<string, string>,
@@ -308,11 +261,6 @@ function resolveSpecifier(
   return undefined;
 }
 
-/**
- * The source file an `@atc/*` specifier names: an exact entry point first,
- * then a wildcard entry such as `./*` exporting `./src/*.ts`. Null when no
- * entry matches.
- */
 function findExport(exports: ReadonlyMap<string, string>, specifier: string): string | null {
   const exact = exports.get(specifier);
 
@@ -340,11 +288,8 @@ function findExport(exports: ReadonlyMap<string, string>, specifier: string): st
 
 const SOURCE_EXTENSIONS = ['.ts', '.tsx', '.js', '.mjs'];
 
-/**
- * The module a relative path names, or null when no source file matches it.
- * A path that leaves every source file, such as a package.json, resolves to
- * undefined: the walk follows source modules only.
- */
+// A path to a non-source file, such as a package.json, resolves to undefined:
+// the walk follows source modules only
 function findModule(known: ReadonlySet<string>, base: string): string | null | undefined {
   const path = base.replace(/\.js$/u, '');
 
@@ -367,11 +312,6 @@ const PACKAGE_MANIFEST_SCHEMA = z.object({
   exports: z.record(z.string(), z.string()).optional(),
 });
 
-/**
- * Each workspace entry point's specifier, such as `@atc/store/sqlite`, keyed
- * to the source file it exports. A wildcard entry keeps its `*` on both
- * sides, such as `@atc/core/*` keyed to `packages/core/src/*.ts`.
- */
 function collectExports(root: string): Map<string, string> {
   const exports = new Map<string, string>();
 
@@ -396,10 +336,7 @@ function collectExports(root: string): Map<string, string> {
   return exports;
 }
 
-/**
- * Every source file under the repo root that `bun build` bundles from the
- * entry, packages from node_modules aside.
- */
+// The bundle catches a reach that the source walk cannot read
 async function collectBundled(root: string, entry: string): Promise<string[]> {
   const out = mkdtempSync(join(tmpdir(), 'check-reach-'));
 

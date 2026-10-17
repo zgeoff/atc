@@ -1,10 +1,6 @@
-// Gives @atc/daemon its two entry points once the wave 7 move has run with a
-// wildcard exports map. Each import of `@atc/daemon/<module>` outside the
-// package becomes an import of `@atc/daemon`, or of `@atc/daemon/testing`
-// for a module under testing/, and the matching index re-exports the
-// module. The exports map then lists the two entries alone. A second run
-// finds no deep import and changes nothing.
-// Usage: bun scripts/codemods/geo-401-daemon-entries.ts
+// Rewrites each deep `@atc/daemon/<module>` import outside the package to
+// `@atc/daemon` or `@atc/daemon/testing` and re-exports the module from that
+// index. A second run changes nothing. Usage: bun scripts/codemods/geo-401-daemon-entries.ts
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 

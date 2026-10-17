@@ -11,11 +11,6 @@ import {
   waitFor,
 } from '@atc/test-utils';
 
-/**
- * A home with an empty config directory for the `atc daemon` each test
- * starts, the path of the probe a session's process runs, and the file the
- * probe writes its outcome to.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-e2e-peer-');
   const configDir = join(tmp.dir, '.config', 'atc');
@@ -219,10 +214,8 @@ test.skipIf(process.platform !== 'linux')(
 
     const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
-    // The session inherits the daemon's runtime directory, so `atc events`
-    // finds the daemon's events socket without either variable. The first
-    // line it streams is the snapshot's entry for the session itself, and
-    // the test reads the file until that line parses.
+    // The session inherits the daemon's runtime directory, so `atc events` finds the events socket
+    // without either variable. Its first line is the snapshot's entry for the session itself.
     createStubBin(
       ctx.home,
       'probe-agent',
