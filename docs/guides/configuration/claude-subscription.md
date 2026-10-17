@@ -9,12 +9,10 @@ session's tools.
 
 1. Run `claude setup-token` on your machine. It prints an OAuth token that bills against your Pro or
    Max subscription and lasts one year.
-2. Add the token to impd as a `custom` secret on `api.anthropic.com`, with the value on stdin:
-
-   ```bash
-   impz secret add claude-setup-token --kind=custom --hosts=api.anthropic.com --header=authorization --scheme=bearer
-   ```
-
+2. Add the token to impd as a `custom` secret named `claude-setup-token` on the host
+   `api.anthropic.com`, with a bearer `authorization` header. impz's
+   [credential connectors guide](https://github.com/zgeoff/impz/blob/main/docs/guides/connectors.md#secrets-and-grants)
+   gives the command.
 3. List the secret in the `--grantable` secrets of the target's impd token when you make the token.
 4. Add a profile for the secret and select it in the entry's `auth`, beside any other profile the
    session needs:
@@ -83,7 +81,9 @@ The same `env` and `settings` load on a stock entry without `auth`, where nothin
 
 A revoked grant or an expired token gives `API Error: 401` inside the session, and Claude never
 falls back to another sign-in. To renew the token, run `claude setup-token` again and replace the
-secret with `impz secret add claude-setup-token --replace`.
+secret's value with the new token, as the connectors guide's
+[rotate or rebind](https://github.com/zgeoff/impz/blob/main/docs/guides/connectors.md#rotate-or-rebind)
+section describes.
 
 ## Claude config bundle
 

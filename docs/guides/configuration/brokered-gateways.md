@@ -109,8 +109,10 @@ its keys held by impd, looks like this:
 }
 ```
 
-Add the key to impd with `impz secret add jev-imp-agents --kind=custom --hosts=api.typesafe.ai`, and
-list `jev-imp-agents` in the `--grantable` list of the target's token.
+Add the key to impd as a `custom` secret named `jev-imp-agents` on the host `api.typesafe.ai`, as
+impz's
+[credential connectors guide](https://github.com/zgeoff/impz/blob/main/docs/guides/connectors.md#secrets-and-grants)
+shows, and list `jev-imp-agents` in the `--grantable` list of the target's token.
 
 ## API key header
 
@@ -119,14 +121,9 @@ Some backends take the key only in an `x-api-key` header and refuse a request th
 `ANTHROPIC_AUTH_TOKEN` out, so Claude sends no `Authorization` header. For example, Meta's
 `api.meta.ai`:
 
-1. Add the key to impd with a rule that sets the raw value in `x-api-key`:
-
-   ```sh
-   impz secret add muse --kind=custom --hosts=api.meta.ai --header=x-api-key --scheme=raw
-   ```
-
-   impd reads the key from stdin or a prompt. List `muse` in the `--grantable` list of the target's
-   token.
+1. Add the key to impd as a `custom` secret named `muse` on the host `api.meta.ai`, with the header
+   `x-api-key` and the scheme `raw`, so impd sets the key alone in that header. List `muse` in the
+   `--grantable` list of the target's token.
 
 2. Add the profile and the gateway entry:
 

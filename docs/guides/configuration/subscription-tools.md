@@ -13,12 +13,10 @@ that the server's profile sets, and impd swaps in the credential for the server'
 credential never enters the imp. To give sessions Linear's MCP server with a Linear personal API
 key:
 
-1. Add the key to impd as a `custom` secret on `mcp.linear.app`, with the value on stdin:
-
-   ```bash
-   impz secret add linear-imp-agents --kind=custom --hosts=mcp.linear.app --header=authorization --scheme=bearer
-   ```
-
+1. Add the key to impd as a `custom` secret named `linear-imp-agents` on the host `mcp.linear.app`,
+   with a bearer `authorization` header. impz's
+   [credential connectors guide](https://github.com/zgeoff/impz/blob/main/docs/guides/connectors.md#secrets-and-grants)
+   gives the command.
 2. List the secret in the `--grantable` secrets of the target's impd token.
 3. Add a profile for the secret, select it in the entry's `auth`, and point a server at it:
 
@@ -64,12 +62,8 @@ holds `imp-broker-placeholder` in place of an API key impd holds, for the script
 session runs. impd swaps in the key when a request carries the placeholder to the profile's host, so
 the key never enters the imp. To give a session's eval scripts the Jev key in `TYPESAFE_API_KEY`:
 
-1. Add the key to impd as a `custom` secret on `api.typesafe.ai`:
-
-   ```bash
-   impz secret add jev-imp-agents --kind=custom --hosts=api.typesafe.ai
-   ```
-
+1. Add the key to impd as a `custom` secret named `jev-imp-agents` on the host `api.typesafe.ai`,
+   with a bearer `authorization` header, as the credential connectors guide shows.
 2. List the secret in the `--grantable` secrets of the target's impd token.
 3. Add a profile for the secret, select it in the entry's `auth`, and bind the variable to it:
 

@@ -50,9 +50,10 @@ with it:
 A `github` profile gives a session HTTPS git and the GitHub API. It holds `secret`, `kind` and
 `dependencies` only, so it takes no `env`, since impd's `github` kind sets the rules:
 `Authorization: Basic` for `x-access-token` on `github.com`, and a bearer `authorization` header on
-`api.github.com` and `uploads.github.com`. Add the secret with
-`impz secret add <secret> --kind github`, list it in the `--grantable` secrets of the target's impd
-token when you make the token, and select the profile beside the model's:
+`api.github.com` and `uploads.github.com`. Add the secret to impd with the `github` kind, as impz's
+[credential connectors guide](https://github.com/zgeoff/impz/blob/main/docs/guides/connectors.md#secrets-and-grants)
+shows, list it in the `--grantable` secrets of the target's impd token when you make the token, and
+select the profile beside the model's:
 
 ```json
 {
@@ -78,12 +79,7 @@ impd sets `GH_TOKEN` and `GITHUB_TOKEN` to `imp-broker-placeholder` in the sessi
 A `custom` profile's `env` sets variables in the guest of each session that reaches the profile,
 through the entry's `auth.profiles` or a dependency. The local target never gets them. This gives a
 tool in the guest the endpoint of a service the broker authenticates, such as 1Password Connect. Add
-the secret with its value on stdin:
-
-```sh
-impz secret add op-connect --kind custom --hosts op-connect.geoff.cloud --header authorization --scheme bearer
-```
-
+the secret to impd as a `custom` secret on the Connect host, with a bearer `authorization` header.
 Then add a profile that sets the variables, and select it in an agent's `auth.profiles`:
 
 ```json
@@ -91,11 +87,11 @@ Then add a profile that sets the variables, and select it in an agent's `auth.pr
   "authProfiles": {
     "op-connect": {
       "secret": "op-connect",
-      "host": "op-connect.geoff.cloud",
+      "host": "op-connect.example.com",
       "header": "authorization",
       "scheme": "bearer",
       "env": {
-        "OP_CONNECT_HOST": "https://op-connect.geoff.cloud",
+        "OP_CONNECT_HOST": "https://op-connect.example.com",
         "OP_CONNECT_TOKEN": "imp-broker-placeholder"
       }
     }
