@@ -48,10 +48,10 @@ reports through an atc inside the imp, which the daemon readies before the sessi
 
 A cold boot of the imp clears the guest folder, so each readying restores the link or the copy. The
 session's settings and its copy of the `atc-bridge` mod unpack into a folder for the session. Its
-[record](./session-record.md) goes to impd's read-only files, which no process in the imp can write.
-On an impd or an imp agent from before them, the record lands in the guest folder instead, owned by
-root and mode 0444. A remote session's statusline shows its own state alone, never the rest of the
-fleet, because the imp holds no copy of the fleet.
+[record](./session-record.md) goes to impd's read-only files, which refuse a plain write from any
+process in the imp. On an impd or an imp agent from before them, the record lands in the guest
+folder instead, owned by root and mode 0444. A remote session's statusline shows its own state
+alone, never the rest of the fleet, because the imp holds no copy of the fleet.
 
 ## Working directories
 

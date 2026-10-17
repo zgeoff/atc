@@ -91,18 +91,19 @@ each sub-session in its parent's imp. A kill of the top-level session puts its i
 [daemon architecture](../../architecture/execution/imp-provider.md) covers the lifecycle. Its
 options:
 
-| Key                    | Default    | What it does                                                                                         |
-| ---------------------- | ---------- | ---------------------------------------------------------------------------------------------------- |
-| `url`                  | required   | Where impd listens. Without it the target lists as unavailable.                                      |
-| `impPrefix`            | `atc-`     | The start of every imp name the target builds.                                                       |
-| `tokenEnv`             | unset      | The environment variable of the daemon that holds the impd token.                                    |
-| `tokenFile`            | unset      | The file that holds the impd token.                                                                  |
-| `image`                | impd's     | The image a new imp boots.                                                                           |
-| `memoryMib`            | impd's     | The memory a new imp gets.                                                                           |
-| `guestDir`             | `/tmp/atc` | The folder inside each imp that atc's files go under.                                                |
-| `guestATC`             | unset      | An atc binary installed in the image, which hooks run when it prints the daemon's version.           |
-| `rebindChangedAuth`    | `false`    | Whether a revive or restore rebinds a host whose agent's auth profiles changed, instead of refusing. |
-| `trustClonedWorkspace` | `false`    | Default for clone trust; an explicit launch value takes precedence. See [clone trust](#clone-trust). |
+| Key                    | Default    | What it does                                                                                          |
+| ---------------------- | ---------- | ----------------------------------------------------------------------------------------------------- |
+| `url`                  | required   | Where impd listens. Without it the target lists as unavailable.                                       |
+| `impPrefix`            | `atc-`     | The start of every imp name the target builds.                                                        |
+| `tokenEnv`             | unset      | The environment variable of the daemon that holds the impd token.                                     |
+| `tokenFile`            | unset      | The file that holds the impd token.                                                                   |
+| `image`                | impd's     | The image a new imp boots.                                                                            |
+| `memoryMib`            | impd's     | The memory a new imp gets.                                                                            |
+| `guestDir`             | `/tmp/atc` | The folder inside each imp that atc's files go under.                                                 |
+| `guestATC`             | unset      | An atc binary installed in the image, which hooks run when it prints the daemon's version.            |
+| `rebindChangedAuth`    | `false`    | Whether a revive or restore rebinds a host whose agent's auth profiles changed, instead of refusing.  |
+| `dropSysAdmin`         | `false`    | Whether each harness starts without `CAP_SYS_ADMIN`, so root in it cannot remount the session record. |
+| `trustClonedWorkspace` | `false`    | Default for clone trust; an explicit launch value takes precedence. See [clone trust](#clone-trust).  |
 
 A workspace on an imp gets the daemon host's git `user.name` and `user.email` in its own
 `.git/config`, since the image holds no git identity. A host that has no value for both sets none.

@@ -222,6 +222,20 @@ test('it reports a target whose rebindChangedAuth is not a boolean, without a pr
   });
 });
 
+test('it reports a target whose dropSysAdmin is not a boolean, without a provider', () => {
+  const built = buildImpProvider(
+    'box',
+    { url: 'http://127.0.0.1:9', dropSysAdmin: 'yes' },
+    '1.0.0',
+    {},
+  );
+
+  expect(built).toStrictEqual({
+    provider: null,
+    problem: 'target "box" must give dropSysAdmin as true or false',
+  });
+});
+
 test.each([
   [''],
   ['*'],

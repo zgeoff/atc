@@ -93,10 +93,10 @@ The daemon's state store holds each record, and every provider places a copy whe
 it. atc writes the copy before each harness start, so a revive or a restored fleet finds it in
 place, and rewrites it on every change.
 
-| Provider    | `ATC_SESSION_RECORD`                        | Protection                                                                                                                                    |
-| ----------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `local-pty` | `<state dir>/records/<session>.json`        | The file is mode 0444 in a directory of mode 0700.                                                                                            |
-| `imp`       | `/run/imp/files/atc/records/<session>.json` | impd's read-only files: a plain write fails with `EROFS`, as root too, but root with `CAP_SYS_ADMIN` can remount `/run/imp/files` read-write. |
+| Provider    | `ATC_SESSION_RECORD`                        | Protection                                                                                                                                                                          |
+| ----------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `local-pty` | `<state dir>/records/<session>.json`        | The file is mode 0444 in a directory of mode 0700.                                                                                                                                  |
+| `imp`       | `/run/imp/files/atc/records/<session>.json` | impd's read-only files: a plain write fails with `EROFS`, as root too, but root with `CAP_SYS_ADMIN` can remount `/run/imp/files` read-write unless the target sets `dropSysAdmin`. |
 
 atc replaces the file through a rename, so a reader never sees a half-written record. On an imp, atc
 hands the copy to impd, whose agent keeps it outside the imp's container and shows it there on a
@@ -146,6 +146,19 @@ one that forks twice and lets the middle process exit is adopted by another proc
 finds it in no session. The same user can also change the mode of the local copy of the record.
 Inside an imp, a write to the copy fails, root's included, but root in the container holds the
 capability to remount impd's read-only mount and change the copy until atc writes it again, and it
-can write the fallback copy outright. A reader that needs the record to hold against a hostile
-session reads it from atc through `session.get` rather than from the copy, and a session that must
-not reach the owner's reach at all runs on an imp.
+can write the fallback copy outright.
+
+An imp target that sets `dropSysAdmin` closes the remount path. atc starts every harness on it
+without `CAP_SYS_ADMIN` and `CAP_SYS_PTRACE`, so neither the session nor anything it starts can
+remount the mount, and none can trace a process that still holds the capability to make it remount.
+The option covers every session on the target, because a sub-session shares its parent's imp and one
+session with the capability could change every record there. atc refuses to ready an imp for the
+target on an impd that cannot drop the capabilities, and impd refuses the start on an agent that
+cannot, so a harness on such a target never runs with them. The drop stops the session from mounting
+filesystems or starting `dockerd` itself. It does not reach the image's own services, which start
+outside the harness: a `dockerd` the image runs as a service can still start a privileged container
+for the session, so a target that relies on the drop boots an image without one.
+
+A reader that needs the record to hold against a hostile session reads it from atc through
+`session.get` rather than from the copy, and a session that must not reach the owner's reach at all
+runs on an imp.

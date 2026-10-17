@@ -40,12 +40,13 @@ import UNPACK_SCRIPT from './unpack-archive.sh' with { type: 'text' };
  * imp boots, the memory it gets, the folder inside each imp that atc's
  * files go under, the path of an atc binary already installed in the
  * image, the prefix every imp name the target builds starts with, and
- * whether a launch rebinds a host whose auth selection changed. None holds
- * a credential.
+ * whether a launch rebinds a host whose auth selection changed, and whether
+ * each harness runs without CAP_SYS_ADMIN. None holds a credential.
  */
 interface ImpTargetOptions {
   readonly impPrefix?: string;
   readonly rebindChangedAuth?: boolean;
+  readonly dropSysAdmin?: boolean;
   readonly image?: string;
   readonly memoryMib?: number;
   readonly guestDir?: string;
@@ -279,6 +280,16 @@ export class ImpProvider implements ExecutionProvider {
       this.offsets = features.sessionOffsets;
       this.readOnlyFiles = features.readOnlyFiles;
 
+      // an impd without the feature drops the field and would start the
+      // harness with the capability
+      if (this.target.dropSysAdmin === true && !features.execDropSysAdmin) {
+        throw new DaemonError(
+          'host_unavailable',
+          `imp ${name} cannot be used: impd cannot start a harness without CAP_SYS_ADMIN, which this target's dropSysAdmin asks for`,
+          { provider: 'imp', problem: 'impd_outdated' },
+        );
+      }
+
       const existing = await timer.withStep('inspect-imp', () => this.port.readImp(name));
 
       if (existing === null) {
@@ -347,6 +358,7 @@ export class ImpProvider implements ExecutionProvider {
         cols: spec.cols,
         rows: spec.rows,
         ...(spec.requireBroker === true ? { require: ['broker'] } : {}),
+        ...(this.target.dropSysAdmin === true ? { dropSysAdmin: true } : {}),
       },
       {
         offsets: this.offsets,

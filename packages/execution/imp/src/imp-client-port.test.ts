@@ -35,6 +35,7 @@ test('it calls impd with the token its token file holds', async () => {
     execRequire: false,
     oauthSecrets: false,
     readOnlyFiles: false,
+    execDropSysAdmin: false,
   });
 
   expect(ctx.impd.authorizations).toStrictEqual(['Bearer file-token']);
@@ -240,6 +241,7 @@ test.each([
       execRequire: 'true',
       oauthSecrets: 'true',
       readOnlyFiles: 'true',
+      execDropSysAdmin: 'true',
     },
   ],
   [
@@ -253,6 +255,7 @@ test.each([
       execRequire: true,
       oauthSecrets: true,
       readOnlyFiles: true,
+      execDropSysAdmin: true,
     },
   ],
 ])('it reads grant and exec requirement flags sent as %s as %p', async (_kind, flag, sent) => {
@@ -272,6 +275,7 @@ test.each([
     execRequire: flag,
     oauthSecrets: flag,
     readOnlyFiles: flag,
+    execDropSysAdmin: flag,
   });
 });
 
@@ -831,6 +835,44 @@ test('it sends the requirements of an attach to impd', async () => {
       rows: 24,
       wake: false,
       require: ['broker'],
+    },
+  ]);
+});
+
+test('it sends the drop of CAP_SYS_ADMIN on a start to impd', async () => {
+  const ctx = setupTest();
+
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
+
+  const connection = port.openSession(
+    {
+      kind: 'start',
+      name: 'atc-s1',
+      session: 'atc-s1',
+      argv: ['claude'],
+      env: {},
+      cwd: '/work',
+      cols: 80,
+      rows: 24,
+      dropSysAdmin: true,
+    },
+    { onStarted: () => {}, onOutput: () => {} },
+  );
+
+  await connection.outcome;
+
+  expect(ctx.impd.execOpens).toStrictEqual([
+    {
+      type: 'start',
+      name: 'atc-s1',
+      session: 'atc-s1',
+      argv: ['claude'],
+      tty: true,
+      env: {},
+      cwd: '/work',
+      cols: 80,
+      rows: 24,
+      dropSysAdmin: true,
     },
   ]);
 });

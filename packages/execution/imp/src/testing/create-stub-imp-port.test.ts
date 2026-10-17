@@ -1610,6 +1610,7 @@ test('it reports the features of an old daemon without the grant and exec requir
     execRequire: false,
     oauthSecrets: false,
     readOnlyFiles: false,
+    execDropSysAdmin: false,
   });
 });
 
@@ -2724,6 +2725,7 @@ test('it answers a feature read once the failures are spent', async () => {
     execRequire: true,
     oauthSecrets: true,
     readOnlyFiles: false,
+    execDropSysAdmin: true,
   });
 });
 
