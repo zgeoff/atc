@@ -13,23 +13,9 @@ const FLUSH_INTERVAL_MS = 100;
 // The node:fs write without a callback, which Bun runs on its thread pool.
 const writeAsync = promisify(write);
 
-/**
- * Creates a LogTape sink that writes each record as one plain line to a
- * file descriptor without ever blocking the event loop, so a reader that
- * stops reading stalls nothing but the log. LogTape's non-blocking stream
- * sink holds the records, and each write goes through the asynchronous
- * node:fs write, which Bun runs on its thread pool, one write at a time.
- *
- * A record the sink drops, or one that fails to format or to write, is
- * counted, and the next write starts with one `atc log dropped=N` line. A
- * failed write counts the lines it carried again, and the next write
- * tries again. Disposal writes the lines the sink still holds, then the
- * count of any it dropped, and leaves the descriptor open.
- *
- * A write to a full pipe that nobody reads never returns, and it keeps the
- * process alive until the process calls exit, which nothing here holds
- * back.
- */
+// Each write goes through the asynchronous node:fs write on Bun's thread pool, so a reader that
+// stops reading stalls only the log. A dropped or failed line is counted, and the next write
+// starts with `atc log dropped=N`. A write to a full pipe nobody reads never returns.
 export function createStderrSink(fd: number): Sink & AsyncDisposable & Drainable {
   const encoder = new TextEncoder();
 

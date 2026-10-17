@@ -9,27 +9,13 @@ const STDERR_FD = 2;
 // so an unread stderr delays the exit no longer.
 const STOP_TIMEOUT_MS = 1000;
 
-/**
- * The process's LogTape configuration, which `stop` disposes of.
- */
 export interface StderrLog {
   readonly stop: () => Promise<void>;
 }
 
-/**
- * Configures LogTape for the process, once, so that every logger under the
- * `atc` category writes plain lines to stderr, or to the given descriptor,
- * through a sink that never blocks the event loop. LogTape's own
- * diagnostics write nowhere, so the descriptor carries only atc's lines.
- *
- * `stop` disposes of the configuration, which writes the lines the sink
- * still holds and the count of any it dropped, and resolves once that is
- * done or a second has passed on the given clock, whichever comes first:
- * every line reaches a reader that keeps reading, and an unread pipe holds
- * a process that exits after it back no longer than the second. Every call
- * waits on the one disposal, so a second shutdown path that calls it while
- * the first runs exits no sooner.
- */
+// LogTape's own diagnostics write nowhere, so the descriptor carries only atc's lines. `stop` gives
+// up after a second, so an unread pipe holds an exiting process back no longer, and every call
+// waits on the one disposal, so a second shutdown path exits no sooner.
 export async function startStderrLog(
   fd: number = STDERR_FD,
   clock: Clock = systemClock,
