@@ -1,10 +1,3 @@
-/**
- * What the imp provider needs from impd, the imp host daemon, in atc's own
- * terms. The real binding wraps `@impz/client`, and the test fixture
- * runs imps as local pseudo-terminals, so nothing outside the imp modules
- * depends on the client library. Every call that impd refuses rejects with
- * an `ImpPortError` carrying impd's code and data.
- */
 export interface ImpPort {
   // impd's capability flags; an impd without them has neither.
   readonly readFeatures: () => Promise<ImpFeatures>;
@@ -19,10 +12,8 @@ export interface ImpPort {
   // The names of the secrets granted to an imp.
   readonly readGrants: (name: string) => Promise<readonly string[]>;
 
-  // Grants a secret to an imp. impd's grant add is idempotent: granting one
-  // the imp already holds changes nothing, and impd returns no creation or
-  // ownership receipt, so nothing in the result tells a new grant from an
-  // existing one or shows who added it.
+  // impd's grant add is idempotent and returns no receipt, so nothing in the
+  // result tells a new grant from an existing one or shows who added it.
   readonly createGrant: (name: string, secret: string) => Promise<void>;
 
   // Revokes a secret from an imp, and reports whether impd held the grant.
@@ -46,13 +37,9 @@ export interface ImpPort {
   readonly suspendImp: (name: string) => Promise<void>;
   readonly destroyImp: (name: string) => Promise<void>;
 
-  // Opens one connection to a session's terminal, as impd's single
-  // attacher: a start runs the command under the session name, or attaches
-  // when it already runs; an attach only attaches. gate runs just before
-  // the request goes out, after the connection to impd opens and after any
-  // feature check impd's client makes first; false closes the connection
-  // with nothing sent, and a connection that ends before then never runs
-  // it.
+  // Opens a connection as impd's single attacher; a start attaches when the
+  // command already runs. gate runs as the request goes out, after any feature
+  // check; false closes the connection unsent, and an earlier end never runs it.
   readonly openSession: (
     request: ImpSessionRequest,
     handlers: ImpSessionHandlers,
@@ -103,11 +90,8 @@ export interface ImpFeatures {
   readonly execDropSysAdmin: boolean;
 }
 
-/**
- * What a start can ask impd to have ready before its command runs:
- * `broker` is the credential broker, with its CA installed in the imp and
- * a grant behind its variables.
- */
+// A requirement impd readies before the command runs: for the broker, its CA
+// installed in the imp and a grant behind its variables.
 type ImpExecRequirement = 'broker';
 
 type ImpScope = 'read' | 'exec' | 'manage';
@@ -138,13 +122,9 @@ export interface ImpSecret {
   readonly oauth?: ImpOAuthState;
 }
 
-/**
- * Where an `oauth` secret's sign-in stands: `ready` while impd holds an
- * access token, `pending` until a refresh first works, and `needs_login`
- * once the token endpoint refused the refresh token for good. `idClaims`
- * holds the payload of the last ID token, identifiers and never a
- * credential, or null before impd has one.
- */
+// pending lasts until a refresh first works, and needs_login follows the token
+// endpoint refusing the refresh token for good. idClaims holds the last ID
+// token's identifiers, never a credential.
 interface ImpOAuthState {
   readonly status: 'pending' | 'ready' | 'needs_login';
   readonly idClaims: Readonly<Record<string, unknown>> | null;
@@ -222,11 +202,8 @@ export type ResumeResult =
       readonly firstOffset: number;
     };
 
-/**
- * Where a connection's data sits in the session's output. `none` is an imp
- * whose agent carries no offsets, which replays recent output on every
- * connection.
- */
+// An imp whose agent carries no offsets replays recent output on every
+// connection.
 type SessionOutput =
   | { readonly continuity: 'none' }
   | {
@@ -286,12 +263,6 @@ export interface ImpSessionStarted {
   readonly output: SessionOutput;
 }
 
-/**
- * How a connection ended: the process exited, impd refused or failed the
- * request, impd detached the connection while the process ran on, the
- * socket closed, with its close code once it had opened, or a handler on
- * the daemon's side threw and the client closed the socket.
- */
 export type ImpSessionOutcome =
   | {
       readonly kind: 'exit';
@@ -314,6 +285,8 @@ export type ImpSessionOutcome =
   | { readonly kind: 'unreachable'; readonly detail: string }
   | { readonly kind: 'unauthorized' }
   | { readonly kind: 'bad_message'; readonly detail: string }
+
+  // A handler on the daemon's side threw, and the client closed the socket.
   | { readonly kind: 'local_error'; readonly detail: string };
 
 export interface ImpSessionConnection {

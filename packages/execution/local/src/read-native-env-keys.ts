@@ -1,18 +1,8 @@
 import { CString, FFIType, dlopen, read } from 'bun:ffi';
 import { readFileSync } from 'node:fs';
 
-/**
- * The names in the daemon process's native environment: the block a
- * native library reads when it starts a child, as opposed to the copy Bun
- * keeps for `process.env`. Changes to `process.env` never reach that
- * block, so it keeps every variable the daemon started with, including
- * ones deleted from `process.env` since.
- *
- * Linux reads the block from `/proc/self/environ`; macOS walks the live
- * `environ` array that `_NSGetEnviron` returns. Any other platform throws,
- * since a harness started without the list could inherit a withheld
- * variable.
- */
+// Changes to process.env never reach the native block a library starts a
+// child from, so it keeps every variable the daemon started with.
 export function readNativeEnvKeys(): string[] {
   const keys = new Set<string>();
 
@@ -36,6 +26,7 @@ function readNativeEnvEntries(): string[] {
     return readDarwinEnviron();
   }
 
+  // A harness started without the list could inherit a withheld variable.
   throw new Error(`atc cannot read the native environment on ${process.platform}`);
 }
 

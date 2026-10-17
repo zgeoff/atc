@@ -4,10 +4,9 @@ import { buildTarArchive } from '@atc/core';
 
 const gzipAsync = promisify(gzip);
 
-// On a 102 MB release binary, level 6 sends 1 MB less than level 3 for
-// about 0.5 s more CPU, which the process pays once and every copy reuses.
-// Level 9 sends 1.2 MB less again but adds about 2.7 s to the first copy,
-// more than a slow link saves on it.
+// On a 102 MB binary, level 6 sends 1 MB less than level 3 for about 0.5 s
+// more CPU, paid once per process. Level 9 saves 1.2 MB more but adds about
+// 2.7 s to the first copy, more than a slow link saves on it.
 const GZIP_LEVEL = 6;
 
 // The binary does not change while the process runs, so each path is read
@@ -15,11 +14,6 @@ const GZIP_LEVEL = 6;
 // again.
 const archives = new Map<string, Promise<Uint8Array>>();
 
-/**
- * Reads the gzipped tar that installs the binary at `atcBinary` as
- * `bin/atc`, building it on the first call for that path and returning the
- * same bytes on every later one.
- */
 export function readGuestATCArchive(atcBinary: string): Promise<Uint8Array> {
   const archive = archives.get(atcBinary) ?? readUncachedArchive(atcBinary);
 

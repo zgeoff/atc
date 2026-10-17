@@ -5,9 +5,6 @@ import { buildTarArchive } from '@atc/core';
 import { setupTempDir } from '@atc/test-utils';
 import { readGuestATCArchive } from './read-guest-atc-archive';
 
-/**
- * A temp directory.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-guest-atc-archive-');
 

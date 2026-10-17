@@ -3,9 +3,6 @@ import { DaemonError } from '@atc/protocol/wire';
 import { createActor } from 'xstate';
 import { IMP_HARNESS_MACHINE } from './imp-harness-machine';
 
-/**
- * A started actor of the machine, stopped once the test ends.
- */
 function setupTest() {
   const actor = createActor(IMP_HARNESS_MACHINE).start();
 

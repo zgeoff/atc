@@ -49,37 +49,9 @@ import { toImpSecret } from '../to-imp-secret';
 import type { ImpdListedSecret } from '../to-imp-secret';
 import { toImpView } from '../to-imp-view';
 
-/**
- * Creates an in-process stand-in for impd behind the imp port, calling impd
- * as the principal, `token:atc` when absent. Each imp is a set of
- * real `bun-pty` processes on this machine; a sleeping imp stops them with
- * SIGSTOP and a wake continues them, so a memory wake keeps each process
- * and its generation. Every session keeps an exact 262144-byte ring with
- * offsets, a fresh attach skips to the next line and sends a mode prelude,
- * and impd's refusals carry its codes and data: `LEASED`, `LEASE_NOT_HELD`,
- * `NO_SESSION`, `INVALID_STATE`, `INVALID_RESUME`, `NOT_FOUND`, `CONFLICT`,
- * and `FORBIDDEN`. Leases belong to principals; the port acts as
- * `principal`, and a test adds other owners' leases, cold boots, and
- * dropped sockets through the controls. Grants follow impd 0.27: the
- * caller's identity must reach the imp and, under imp patterns, list the
- * secret as grantable; a grant is idempotent, one secret per host, and a
- * destroyed imp or a rebound or removed secret takes its grants with it. A
- * start that requires the broker is refused with
- * `PRECONDITION_FAILED` and reason `broker_not_ready`, and runs nothing,
- * while the broker fails or the imp holds no grant, when the start sets a
- * broker variable, and when it would join a process that started without
- * the broker required; an attach carries no requirements, as impd's exec
- * protocol gives it none. Every answer and refusal takes the shape impd's
- * published contract gives it, and reaches the port through the
- * translations the real port uses. Once the current test finishes, the stand-in kills
- * every process and stops every forward it holds, so it must be created inside
- * a test; `stop` does so sooner, and a second stop does nothing. A stop
- * that finds a guest command ended in part, such as one that exited while
- * its output stayed open, reports one line per command through `report`,
- * stderr when absent: its argv and which of its stdout, stderr, and exit
- * it still waited for. Leases expire, and cold boots are
- * stamped, by `now`, the wall clock when absent.
- */
+// Must be created inside a test, since the test's end kills every process and
+// forward the stand-in holds. A sleeping imp SIGSTOPs its processes, so a
+// memory wake keeps each process and its generation.
 export function createStubImpPort(
   principal = 'token:atc',
   now: () => number = Date.now,
@@ -180,9 +152,6 @@ const RING_BYTES = 262_144;
 // The mode bytes a fresh attach sends ahead of a ring that has wrapped.
 const PRELUDE = '\u001B[0m';
 
-/**
- * The impd stand-in the factory above creates, one per call.
- */
 class StubImpPort implements ImpPort {
   // Every port call, in order, as `<call> <imp> [<detail>]`.
   readonly calls: string[] = [];
@@ -1137,11 +1106,6 @@ class StubImpPort implements ImpPort {
     return { listening: Promise.resolve(), ended: ended.promise, stop: forward.stop };
   }
 
-  /**
-   * Gives impd the features of a daemon from before grantable tokens,
-   * secret rebinds, exec requirements and capability drops, which has none
-   * of those flags.
-   */
   setOldDaemonFeatures(): void {
     this.features = {
       sessionOffsets: true,
@@ -1155,20 +1119,13 @@ class StubImpPort implements ImpPort {
     };
   }
 
-  /**
-   * Sets who the port calls impd as, as a new token in the token file
-   * does; its grantable list covers each secret as it is now.
-   */
+  // A new token's grantable list covers each secret as it now stands.
   setIdentity(identity: ImpIdentity): void {
     this.identity = identity;
 
     this.staleGrantable.clear();
   }
 
-  /**
-   * Adds a secret to impd, as `impz secret add` does, with its rules, and
-   * the sign-in state impd lists for a secret of kind `oauth`.
-   */
   createSecret(
     name: string,
     kind: ImpSecret['kind'],
@@ -1178,10 +1135,7 @@ class StubImpPort implements ImpPort {
     this.secrets.set(name, { name, kind, rules, ...(oauth === undefined ? {} : { oauth }) });
   }
 
-  /**
-   * Changes a secret's rules, as a rebind does: every imp loses its grant
-   * of the secret, and no token's grantable list covers it any longer.
-   */
+  // As a rebind does, no token's grantable list covers the secret any longer.
   updateSecret(name: string, rules: readonly ImpSecretRule[]): void {
     const secret = this.secrets.get(name);
 
@@ -1194,19 +1148,12 @@ class StubImpPort implements ImpPort {
     this.staleGrantable.add(name);
   }
 
-  /**
-   * Deletes a secret, as `impz secret rm` does, with every grant of it; a
-   * secret made again under the name is one no token's list covers.
-   */
   removeSecret(name: string): void {
     this.secrets.delete(name);
     this.removeGrants(name);
     this.staleGrantable.add(name);
   }
 
-  /**
-   * Adds a lease another principal holds on an imp, so it refuses to sleep.
-   */
   acquireOtherLease(name: string, principal: string, label: string, ttlSeconds: number): void {
     const imp = this.getImp(name);
 
@@ -1217,10 +1164,6 @@ class StubImpPort implements ImpPort {
     });
   }
 
-  /**
-   * Puts an imp to sleep with force, as a person's `impz sleep` does: every
-   * lease ends and every connection is detached as lost.
-   */
   suspendWithForce(name: string): void {
     const imp = this.getImp(name);
 
@@ -1228,10 +1171,6 @@ class StubImpPort implements ImpPort {
     this.updateAsleep(imp);
   }
 
-  /**
-   * Ends a session's process with a signal it cannot ignore, as a person's
-   * `kill -9` inside the imp does, so its exit reaches its connection.
-   */
   killProcess(name: string, session: string): void {
     const proc = this.getImp(name).sessions.get(session);
 
@@ -1243,49 +1182,30 @@ class StubImpPort implements ImpPort {
     tryKill(proc.pty, 'SIGKILL');
   }
 
-  /**
-   * Boots an imp cold for the given cause: every process ends without a
-   * delivered exit, and every connection is detached as lost.
-   */
   bootImpCold(name: string, cause: ColdBootCause): void {
     this.bootCold(this.getImp(name), cause);
   }
 
-  /**
-   * Closes the connection on a session with a WebSocket close code, as impd
-   * does when it drops a send under backpressure (1011).
-   */
+  // impd closes with 1011 when it drops a send under backpressure.
   stopConnection(name: string, session: string, closeCode: number): void {
     const proc = this.getImp(name).sessions.get(session);
 
     proc?.connection?.stop({ kind: 'closed', reason: `code ${closeCode}`, closeCode });
   }
 
-  /**
-   * Closes every guest connection on every reverse forward, as a dropped
-   * network does, while each forward keeps listening for the next one.
-   */
   stopRelays(): void {
     for (const forward of this.forwards) {
       forward.stopRelays();
     }
   }
 
-  /**
-   * Ends every reverse forward as impd does when the forward's tunnel
-   * socket closes under it, or when impd loses the guest: the guest socket
-   * goes away, and each forward settles its end with the one given.
-   */
+  // impd ends a forward when its tunnel socket closes or it loses the guest.
   stopForwards(end: Exclude<ImpForwardEnd, { kind: 'stopped' }>): void {
     for (const forward of this.forwards) {
       forward.end(end);
     }
   }
 
-  /**
-   * Closes each new guest connection on every reverse forward at once, as
-   * a network that drops every connection does, until the refusal stops.
-   */
   startRelayRefusal(): void {
     this.refusingRelays = true;
   }
@@ -1294,11 +1214,6 @@ class StubImpPort implements ImpPort {
     this.refusingRelays = false;
   }
 
-  /**
-   * Fails the broker in every imp, as a CA install that failed on boot
-   * does, so every start that requires it is refused, until the failure
-   * stops.
-   */
   startBrokerFailure(): void {
     this.brokerFailing = true;
   }
@@ -1307,11 +1222,7 @@ class StubImpPort implements ImpPort {
     this.brokerFailing = false;
   }
 
-  /**
-   * Drops every byte a guest writes on a relayed connection, as a network
-   * that loses one direction does, until the drop stops; what the daemon
-   * writes still reaches the guest.
-   */
+  // What the daemon writes still reaches the guest.
   startGuestByteDrop(): void {
     this.droppingGuestBytes = true;
   }
@@ -1325,10 +1236,6 @@ class StubImpPort implements ImpPort {
     return this.droppedGuestBytes;
   }
 
-  /**
-   * Holds every session answer back, as a slow network does, until the
-   * hold stops.
-   */
   startAnswerHold(): void {
     this.held ??= [];
   }
@@ -1338,9 +1245,6 @@ class StubImpPort implements ImpPort {
     return this.held?.length ?? 0;
   }
 
-  /**
-   * Sends every held answer, in order, and answers at once again.
-   */
   stopAnswerHold(): void {
     const held = this.held ?? [];
 
@@ -1351,42 +1255,28 @@ class StubImpPort implements ImpPort {
     }
   }
 
-  /**
-   * Fails a lease acquisition with an impd code once `skip` more have gone
-   * through.
-   */
+  // Fails once skip more acquisitions have gone through.
   setAcquireFailure(skip: number, code: ImpdBareRefusalCode<'leases.acquire'>): void {
     this.acquireFailure = { skip, code };
   }
 
-  /**
-   * Drops the next session requests before impd answers them, closing
-   * each with the close code.
-   */
   setSessionDrops(count: number, closeCode: number): void {
     this.drops = { count, closeCode };
   }
 
-  /**
-   * Throws from opening the next session connections, before they return.
-   */
+  // The open throws before it returns a connection.
   setOpenFailures(count: number): void {
     this.openFailures = count;
   }
 
-  /**
-   * Fails the upgrade of the next session connections, so each ends
-   * unreachable without opening.
-   */
+  // Each connection ends unreachable without opening.
   setUpgradeFailures(count: number): void {
     this.upgradeFailures = count;
   }
 
-  /**
-   * Times out the capability check that impd's client runs before each of
-   * the next starts that requires the broker or drops CAP_SYS_ADMIN, so
-   * each ends unreachable once its connection opens, with nothing sent.
-   */
+  // impd's client checks capabilities before a start that requires the broker
+  // or drops CAP_SYS_ADMIN; a check that times out ends the start unreachable
+  // with nothing sent.
   setExecCheckFailures(count: number): void {
     this.execCheckFailures = count;
   }
@@ -1396,10 +1286,6 @@ class StubImpPort implements ImpPort {
     return this.failedExecChecks;
   }
 
-  /**
-   * Holds every session connection open, as a slow WebSocket upgrade does,
-   * so its request reaches impd only once the hold stops.
-   */
   startUpgradeHold(): void {
     this.upgrades ??= [];
   }
@@ -1409,9 +1295,6 @@ class StubImpPort implements ImpPort {
     return this.upgrades?.length ?? 0;
   }
 
-  /**
-   * Opens every held connection, in order, and the next at once.
-   */
   stopUpgradeHold(): void {
     const upgrades = this.upgrades ?? [];
 
@@ -1422,11 +1305,8 @@ class StubImpPort implements ImpPort {
     }
   }
 
-  /**
-   * Calls listener at the start of every lease acquisition, before the
-   * acquisition returns or waits on a hold, so the caller's turn has not
-   * yet ended. Returns the call that stops it.
-   */
+  // A listener runs before the acquisition returns or waits on a hold, so the
+  // caller's turn has not yet ended.
   subscribeToLeaseAcquires(listener: (name: string, label: string) => void): () => void {
     this.leaseAcquireListeners.add(listener);
 
@@ -1435,10 +1315,6 @@ class StubImpPort implements ImpPort {
     };
   }
 
-  /**
-   * Holds every lease acquisition, as an imp that takes long to wake does,
-   * until the hold stops.
-   */
   startLeaseHold(): void {
     this.leaseHold ??= Promise.withResolvers<void>();
   }
@@ -1448,17 +1324,11 @@ class StubImpPort implements ImpPort {
     return this.heldLeases;
   }
 
-  /**
-   * Lets every held lease acquisition go through, and the next at once.
-   */
   stopLeaseHold(): void {
     this.leaseHold?.resolve();
     this.leaseHold = null;
   }
 
-  /**
-   * Holds every lease release until the hold stops.
-   */
   startReleaseHold(): void {
     this.releaseHold ??= Promise.withResolvers<void>();
   }
@@ -1468,17 +1338,11 @@ class StubImpPort implements ImpPort {
     return this.heldReleases;
   }
 
-  /**
-   * Lets every held lease release go through, and the next at once.
-   */
   stopReleaseHold(): void {
     this.releaseHold?.resolve();
     this.releaseHold = null;
   }
 
-  /**
-   * Holds every imp destroy until the hold stops.
-   */
   startDestroyHold(): void {
     this.destroyHold ??= Promise.withResolvers<void>();
   }
@@ -1488,37 +1352,19 @@ class StubImpPort implements ImpPort {
     return this.heldDestroys;
   }
 
-  /**
-   * Lets every held imp destroy go through, and the next at once.
-   */
   stopDestroyHold(): void {
     this.destroyHold?.resolve();
     this.destroyHold = null;
   }
 
-  /**
-   * Starts every process inside an imp with dir as its HOME, and in dir
-   * when the request holds no working directory, as impd does with the
-   * guest's home.
-   */
   setHomeDir(dir: string): void {
     this.homeDir = dir;
   }
 
-  /**
-   * Runs every command inside an imp with path as its PATH in place of the
-   * guest's standard one, so a test can give an imp a tool or take one
-   * away.
-   */
   setGuestPath(path: string): void {
     this.guestPath = path;
   }
 
-  /**
-   * Holds every command whose argv holds match until the returned hold
-   * stops. Throws while another hold is active, so no hold replaces one a
-   * command still waits on.
-   */
   startCommandHold(match: string): StubCommandHold {
     if (this.commandHold !== null) {
       throw new Error(`a hold on ${this.commandHold.match} is still active`);
@@ -1556,32 +1402,18 @@ class StubImpPort implements ImpPort {
     hold?.done.resolve();
   }
 
-  /**
-   * Exits 1 from every command whose argv holds match, without running
-   * it, until called with null.
-   */
   setCommandFailure(match: string | null): void {
     this.commandFailure = match;
   }
 
-  /**
-   * Fails every imp destroy with an impd code, leaving the imp, until
-   * called with null.
-   */
   setDestroyFailure(code: ImpdBareRefusalCode<'imps.destroy'> | null): void {
     this.destroyFailure = code;
   }
 
-  /**
-   * Fails every grant removal with an impd code until called with null.
-   */
   setGrantRemovalFailure(code: ImpdBareRefusalCode<'grants.delete'> | 'UNREACHABLE' | null): void {
     this.grantRemovalFailure = code;
   }
 
-  /**
-   * Fails the next feature reads as an unreachable impd.
-   */
   setFeatureFailures(count: number): void {
     this.featureFailures = count;
   }
@@ -1591,21 +1423,12 @@ class StubImpPort implements ImpPort {
     return this.failedFeatureReads;
   }
 
-  /**
-   * Refuses the next session request with a code and data impd's contract
-   * allows an exec refusal, or the message of the refusal when it carries
-   * one instead.
-   */
   setNextSessionFailure(refusal: ImpdExecRefusal, message?: string): void {
     this.nextFailure = { refusal, ...(message === undefined ? {} : { message }) };
   }
 
-  /**
-   * Refuses the next session request with a code and data outside impd's
-   * contract, as a broken impd might send them, for a test of how the
-   * daemon reads a refusal it cannot trust. It is the one answer the
-   * contract does not type.
-   */
+  // The one answer the contract does not type, for a test of how the daemon
+  // reads a refusal it cannot trust.
   setNextMalformedSessionFailure(code: string, data: unknown): void {
     this.nextMalformedFailure = { code, data };
   }
@@ -1647,11 +1470,7 @@ class StubImpPort implements ImpPort {
     return proc.argv;
   }
 
-  /**
-   * The exit a session's process left that no connection has received, or
-   * null while the process runs, once an attach delivered the exit, and for
-   * a session the imp does not hold.
-   */
+  // Null while the process runs and once an attach has delivered the exit.
   findUndeliveredExit(name: string, session: string): { readonly code: number | null } | null {
     return this.imps.get(name)?.sessions.get(session)?.exited ?? null;
   }
@@ -1667,14 +1486,9 @@ class StubImpPort implements ImpPort {
     return proc.end;
   }
 
-  // Kills every process and stops every forward the stand-in holds, and
-  // resolves once every guest command it killed exits. The kill takes each
-  // command's whole process group, so a child the command left holding its
-  // output ends too, and each run the stop cut short settles as killed. A
-  // command a hold still holds then exits as a killed one does, without
-  // running. It runs
-  // once the current test finishes; calling it sooner runs it then, and a
-  // second call does nothing.
+  // Runs once the current test finishes, or sooner when called, and only once.
+  // The kill takes each command's whole process group, so a child left holding
+  // the command's output ends too.
   readonly stop: () => Promise<void> = registerTestCleanup(async () => {
     this.stopped = true;
 
@@ -1983,11 +1797,8 @@ class StubImpPort implements ImpPort {
     this.attachProcess(imp, proc, request, connection, running === undefined);
   }
 
-  // Why the broker a start requires is not ready, or null when it is or
-  // the request requires nothing; an attach carries no requirements in
-  // impd's exec protocol. A broker variable the start sets, or a running
-  // process it would join that started without the broker required, fails
-  // the requirement as impd's would.
+  // An attach carries no requirements in impd's exec protocol, so only a start
+  // can fail one.
   private findBrokerProblem(
     imp: StubImp,
     request: ImpSessionRequest,
@@ -2016,11 +1827,9 @@ class StubImpPort implements ImpPort {
       : null;
   }
 
-  // A working directory as impd resolves it inside an imp: a relative one
-  // from the root, as its agent runs there, and a missing one as the
-  // guest's home, when the test gave one. A path goes to the process as it
-  // stands, with no lexical folding, so a `..` after a symlink leaves the
-  // link's target, as the kernel walks it.
+  // impd starts a relative directory from the root, where its agent runs. A
+  // path goes over unfolded, so a `..` after a symlink leaves the link's target,
+  // as the kernel walks it.
   private resolveGuestCwd(cwd: string | undefined): string | undefined {
     if (cwd === undefined) {
       return this.homeDir ?? undefined;

@@ -3,10 +3,6 @@ import { CredentialBrokerError } from '@atc/plugin-api';
 import type { ImpPort, ImpSecret, ImpView } from './imp-port';
 import { ImpPortError } from './imp-port-error';
 
-/**
- * How the imp provider creates and destroys the imp a host key runs on,
- * and the imp names it builds.
- */
 interface ImpBrokerHosts {
   readonly impPrefix: string;
   readonly getImpName: (hostKey: string) => string;
@@ -14,11 +10,6 @@ interface ImpBrokerHosts {
   readonly destroyImp: (hostKey: string) => Promise<void>;
 }
 
-/**
- * impd's credential broker in atc's terms: each host is an imp, and each
- * impd refusal rejects as a broker error that keeps impd's code. A destroy
- * the provider makes of a missing imp counts as done.
- */
 export function buildImpCredentialBroker(port: ImpPort, hosts: ImpBrokerHosts): CredentialBroker {
   return {
     hostPrefix: hosts.impPrefix,

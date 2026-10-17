@@ -13,10 +13,6 @@ import invariant from 'tiny-invariant';
 import { LocalPTYProvider } from './local-pty-provider';
 import { SessionScopes } from './session-scopes';
 
-/**
- * A local pseudo-terminal provider and a temp directory for the harnesses
- * it runs.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-local-pty-');
 

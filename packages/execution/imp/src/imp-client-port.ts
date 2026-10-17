@@ -26,24 +26,11 @@ import { toImpLease } from './to-imp-lease';
 import { toImpSecret } from './to-imp-secret';
 import { toImpView } from './to-imp-view';
 
-/**
- * Where impd listens, and how the daemon reads the token it calls impd
- * with: null for no token. The port reads the token again before each
- * call and connection, so a token that changes at its source takes effect
- * on the next one. A read that throws fails that call without reaching
- * impd.
- */
 interface ImpClientPortOptions {
   readonly url: string;
   readonly readToken: () => string | null;
 }
 
-/**
- * The imp port over `@impz/client`: RPC calls for imps and leases,
- * one exec WebSocket per session connection, and one reverse forward per
- * guest socket. Every refusal impd sends becomes an `ImpPortError` with its
- * code and data, and a call that never reaches impd carries `UNREACHABLE`.
- */
 export class ImpClientPort implements ImpPort {
   private readonly url: string;
 
@@ -394,10 +381,8 @@ async function waitForSessionOutcome(outcome: Promise<ExecOutcome>): Promise<Imp
 // when one arrives, so a command's input goes over in pieces well below it.
 const STDIN_CHUNK_BYTES = 1024 * 1024;
 
-// Runs a command with its input sent a piece at a time, once impd starts
-// it. A command that ends before it takes all its input answers with its
-// own exit, and an exec that ends any other way rejects with impd's code
-// or the transport's.
+// A command that ends before it takes all its input answers with its own exit;
+// an exec that ends any other way rejects.
 async function runCommandInChunks(
   url: string,
   token: string | null,
@@ -568,11 +553,9 @@ function openRelay(accept: RelayAccept): ImpRelayConnection {
   };
 }
 
-// The client sends its request as the socket's first message, once the
-// socket opens and any feature check it makes first passes, and holds
-// every other message until then. The gate runs on that first send, so a
-// check that fails never runs it, and a closed gate, or one that throws,
-// closes the socket and drops that message and every later one.
+// The client sends the request as the socket's first message and holds every
+// other until then, so the gate runs on that send. A closed or throwing gate
+// closes the socket and drops every later message.
 function openGatedSocket(
   url: string,
   headers: Readonly<Record<string, string>>,

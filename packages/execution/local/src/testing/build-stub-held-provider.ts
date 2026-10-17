@@ -1,14 +1,8 @@
 import type { ExecutionProvider, HarnessSpec, HostRequest } from '@atc/plugin-api';
 import { LocalPTYProvider } from '../local-pty-provider';
 
-/**
- * An execution provider that runs on this machine as the local
- * pseudo-terminal provider does, except that each host preparation holds
- * until the test calls `release` with that host, so a test can act while a
- * harness is still starting. `prepares` holds the host of each preparation
- * in the order it began, and `harnesses` each harness spec in the order it
- * started.
- */
+// Each host preparation holds until the test releases that host, so a test
+// can act while a harness is still starting.
 export function buildStubHeldProvider() {
   const local = new LocalPTYProvider();
   const gates = new Map<string, PromiseWithResolvers<void>>();

@@ -4,9 +4,6 @@ import { join } from 'node:path';
 import { runCommand, setupTempDir } from '@atc/test-utils';
 import { buildHomeRelativeCommand } from './build-home-relative-command';
 
-/**
- * A temp directory that stands in for the guest's home.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-home-relative-command-');
 

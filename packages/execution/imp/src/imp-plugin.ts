@@ -5,11 +5,6 @@ import {
 } from '@atc/plugin-api';
 import { buildImpProvider } from './build-imp-provider';
 
-/**
- * The execution plugin that runs sessions on imps through impd. A target
- * without a `url`, or with options that keep it from impd, gets no provider:
- * the factory throws, with the problem when the options hold one.
- */
 export const IMP_PLUGIN = definePlugin({
   kind: 'execution',
   id: 'imp',

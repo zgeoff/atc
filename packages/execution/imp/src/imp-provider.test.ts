@@ -33,9 +33,6 @@ import { buildMockImpIdentity } from './testing/build-mock-imp-identity';
 import { createStubImpPort } from './testing/create-stub-imp-port';
 import UNPACK_SCRIPT from './unpack-archive.sh' with { type: 'text' };
 
-/**
- * A stub imp port and a temp directory.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-imp-provider-');
   const port = createStubImpPort();
@@ -250,10 +247,8 @@ test.each([
     const ctx = setupTest();
     const guestATC = createStubBin(ctx.dir, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
 
-    // A comment pads the new atc past the bytes the pause lets through, so
-    // the pause falls inside the file and not after it. tar writes in
-    // records of 10 KiB, so a pause after two of them leaves the new atc on
-    // disk and half written.
+    // tar writes 10 KiB records, so a pause after two leaves the new atc half
+    // written; the comment pads the binary past the bytes the pause lets through.
     const atcBinary = createStubBin(
       ctx.dir,
       'daemon-atc',

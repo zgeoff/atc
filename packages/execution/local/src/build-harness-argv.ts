@@ -12,23 +12,16 @@ interface HarnessArgvConfig {
   readonly args: readonly string[];
 }
 
-/**
- * The arguments `env` takes to start a harness: every name to unset, then
- * the program and its arguments.
- *
- * macOS clears every `DYLD_` variable on the way into a protected system
- * program such as `env` or `/bin/sh`, so on macOS the map's own ones are set
- * again after the unsets, the one place the argv holds a value. `env` reads
- * a word holding `=` as an assignment even after `--`, so a program path
- * holding one starts through `/bin/sh`, which exports those variables again
- * before it runs the program by its first argument. The shell reads each
- * value from a positional argument and never from its script, so no value
- * needs quoting.
- */
 export function buildHarnessArgv(config: HarnessArgvConfig): string[] {
   const unset = [...config.unset.flatMap((name) => ['-u', name]), '--'];
+
+  // macOS clears every DYLD_ variable on the way into a protected program such
+  // as env or /bin/sh, so the map's own are set again after the unsets.
   const dyld = config.platform === 'darwin' ? collectDYLDEntries(config.env) : [];
 
+  // env reads a word holding = as an assignment even after --, so such a
+  // program starts through /bin/sh, which reads each value from a positional
+  // argument, so no value needs quoting.
   if (!config.bin.includes('=')) {
     return [...unset, ...dyld.map((entry) => toAssignment(entry)), config.bin, ...config.args];
   }
