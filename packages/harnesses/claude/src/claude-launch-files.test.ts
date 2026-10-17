@@ -34,7 +34,7 @@ test("it writes the agent's settings file into the state folder", () => {
   expect(settings).toBe(join(ctx.stateDir, 'hook-settings-claude.json'));
 
   expect(JSON.parse(readFileSync(settings, 'utf8'))).toMatchObject({
-    statusLine: { command: '"/opt/atc/bin/atc" statusline --agent \'claude\'' },
+    statusLine: { command: '"/opt/atc/bin/atc" statusline --agent=\'claude\'' },
   });
 });
 

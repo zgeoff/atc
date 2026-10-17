@@ -28,7 +28,7 @@ test('it writes one settings file per agent id into the state folder', () => {
   expect(file).toBe(join(ctx.stateDir, 'hook-settings-zai.json'));
 
   expect(JSON.parse(readFileSync(file, 'utf8'))).toMatchObject({
-    statusLine: { command: '"/opt/atc/bin/atc" statusline --agent \'zai\'', padding: 0 },
+    statusLine: { command: '"/opt/atc/bin/atc" statusline --agent=\'zai\'', padding: 0 },
   });
 });
 
