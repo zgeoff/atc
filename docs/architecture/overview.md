@@ -94,12 +94,29 @@ connection that orders every query ([fleet and restore](./daemon/fleet-and-resto
 - **Session records** hold what atc vouches for about each session
   ([session record](./execution/session-record.md)).
 
-Four things sit beside `atc.db`. `status.json` holds the fleet's counts for the statusline, and
-stays a plain file because a statusline helper reads it without speaking the protocol. `mcp-auth.db`
-holds the OAuth state of `atc mcp --http`, which the daemon never opens
-([OAuth](./remote/oauth.md)). The `records/` folder holds a read-only copy of each local session's
-record. `listing-cache.json` belongs to the TUI clients, not the daemon: it holds the repository
-lists the spawn picker showed, so the next open shows one at once while the client lists again.
+The state directory holds these entries beside `atc.db` and its SQLite WAL files:
+
+- `status.json` holds the fleet's counts for the statusline, and stays a plain file because a
+  statusline helper reads it without speaking the protocol.
+- `mcp-auth.db` holds the OAuth state of `atc mcp --http`, which the daemon never opens
+  ([OAuth](./remote/oauth.md)).
+- `daemon.lock` is the lock file that admits one daemon per state directory, and `daemon.json` holds
+  the running daemon's pid and the socket paths it listens on ([the daemon](./daemon/daemon.md)).
+- The `restarts/` folder holds the run logs of `atc daemon restart` and the record of the last
+  finished restart. `daemon-restart.lock` admits one restart at a time.
+- The `records/` folder holds a read-only copy of each local session's record.
+- The `sessions/` folder holds one folder per session, with its scratch folder and, for a Codex
+  session, the folder of its message bridge.
+- Each `hook-settings-<agent_id>.json` is the generated Claude `--settings` file of one agent entry,
+  and the `atc-bridge/` folder holds the copy of the mod that Claude sessions load
+  ([agent integration](./agents/agent-integration.md)).
+- `listing-cache.json` belongs to the TUI clients, not the daemon: it holds the repository lists the
+  spawn picker showed, so the next open shows one at once while the client lists again. A client of
+  a remote daemon keeps its lists in `listing-cache-<daemon_name>.json`.
+- `fleet.json` exists only in a state directory older than `atc.db`, and the store seeds the fleet
+  from it once.
+- When `$XDG_RUNTIME_DIR` is unset, the sockets and the daemon's pid file sit here too.
+
 Terminal output is never stored: each screen model lives in memory, and the agent's own transcript
 on disk is the durable copy of a session.
 
