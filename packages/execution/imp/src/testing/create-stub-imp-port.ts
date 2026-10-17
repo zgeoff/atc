@@ -2202,7 +2202,7 @@ function buildNotFound(procedure: StubImpProcedure, name: string): ImpPortError 
 }
 
 function buildImpdLease(name: string, principal: string, label: string, until: number): ImpdLease {
-  return { name, owner: { principal, display: principal, label }, until };
+  return { name, owner: { principal, display: principal, label }, until: new Date(until) };
 }
 
 function tryKill(pty: IPty, signal: NodeJS.Signals): void {
