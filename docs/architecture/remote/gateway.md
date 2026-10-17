@@ -48,7 +48,10 @@ never fails over to another daemon. Listings of sessions and agents fan out to e
 report each daemon's state beside the merged answer: up, down, unauthorized, refused, outdated, or
 changed when its identity no longer matches the registry. An event read merges every daemon's trail
 under one gateway cursor that keeps each daemon's place, so a daemon that did not answer resumes
-from where it stopped on the next call.
+from where it stopped on the next call. The page lists a daemon that did not answer under
+`unavailable`, one the read started at its newest or latest events under `started`, and one whose
+older events went unread under `truncated`. A read that waits first reads every daemon without
+waiting, and only when none has an event does each wait, returning as soon as one has.
 
 The gateway carries no terminal stream. It serves a screen read, a transcript read and a submitted
 line, and no attach or raw input, because an MCP tool call has nowhere to put a live stream.

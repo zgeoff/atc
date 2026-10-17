@@ -12,9 +12,6 @@ interface RegistrationCheck {
   readonly rpID: string;
 }
 
-/**
- * A passkey a registration created, ready to store.
- */
 export interface RegisteredPasskey {
   readonly id: string;
   readonly publicKey: Uint8Array;
@@ -22,13 +19,6 @@ export interface RegisteredPasskey {
   readonly transports: readonly string[];
 }
 
-/**
- * The passkey a posted WebAuthn registration creates, when it parses and
- * verifies with the expected challenge, origin, and RP ID and with the user
- * verified, else null, never a throw. atc asks for no attestation, so it
- * trusts the new passkey through the enrollment token that came with it,
- * not through its maker.
- */
 export async function verifyPasskeyRegistration(
   check: RegistrationCheck,
 ): Promise<RegisteredPasskey | null> {

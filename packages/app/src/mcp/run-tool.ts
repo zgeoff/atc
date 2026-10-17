@@ -7,10 +7,6 @@ import { parseIdempotencyKey } from './parse-idempotency-key';
 import { readEventTexts } from './read-event-texts';
 import type { FleetCaller, ToolContext } from './types';
 
-/**
- * A tool's result: the text every client reads, and for a tool whose result
- * is data, that data as an object for clients that read structured content.
- */
 interface ToolResult {
   readonly text: string;
   readonly structured: Readonly<Record<string, unknown>> | null;
@@ -332,15 +328,17 @@ export function runTool(
     .with('atc_message_send', async () => {
       const key = parseIdempotencyKey(args['idempotencyKey']);
 
-      // A caller inside a session is told its answers arrive as notices, so
-      // a daemon that queues none refuses the send instead of leaving the
-      // caller waiting. The daemon labels the message with who called, so
-      // one that would take a caller-given name refuses it too.
       const required: DaemonFeature[] = [
         'vocabulary.note',
         'message.unanswered',
+
+        // the daemon labels the message with who called, so one that would take a
+        // caller-given name refuses the send.
         'message.sender',
         ...(key === undefined ? [] : (['message.idempotency'] as const)),
+
+        // a caller inside a session is told its answers arrive as notices, so a daemon
+        // that queues none refuses the send instead of leaving the caller waiting.
         ...(ctx.callerSessionID === null ? [] : (['message.notice'] as const)),
       ];
 
@@ -424,11 +422,8 @@ const SESSION_PINNED_REFUSAL =
 const SESSION_LIVE_REFUSAL =
   'session_live: the session is live. Pass stop: true to stop and forget it.';
 
-// The daemon checks pinned and live in the same step that forgets, so a pin
-// or revive that lands just before the forget still refuses it. Null when
-// the daemon a gateway routes the forget to lacks the checks; the caller
-// then checks the session itself. A refusal keeps the wording of the
-// caller's own check.
+// the daemon checks pinned and live in the same step that forgets, so a pin or
+// revive that lands just before the forget still refuses it.
 async function trySendGuardedForget(
   caller: FleetCaller,
   params: Readonly<Record<string, unknown>>,
@@ -451,6 +446,8 @@ async function trySendGuardedForget(
       isRecord(error.data) &&
       error.data['feature'] === 'session.forget.preconditions'
     ) {
+      // the daemon a gateway routes the forget to lacks the checks, so the caller
+      // checks the session itself.
       return null;
     }
 
@@ -495,15 +492,8 @@ async function requireForgettable(
   }
 }
 
-// The inherited id can point at a session another daemon hosts, or one
-// this daemon no longer lists; the spawn then lands top-level instead of
-// failing the tool call. The top-level spawn has a different payload, so it
-// runs under its own key, a fixed-length hash of the caller's: a retry of the
-// tool call derives the same key and replays it rather than conflicting with
-// the nested attempt's key, and the derived key fits the daemon's cap
-// whatever the caller's length. An answer
-// that holds an effect id is a keyed spawn that already ran, which a
-// top-level spawn would only duplicate.
+// the inherited id can point at a session another daemon hosts, or one this
+// daemon no longer lists; the spawn then lands top-level instead of failing.
 async function sendNestedSpawn(
   caller: FleetCaller,
   params: Readonly<Record<string, unknown>>,
@@ -513,6 +503,8 @@ async function sendNestedSpawn(
   try {
     return await caller.sendRequest('session.spawn', { ...params, parent }, required);
   } catch (error) {
+    // an answer that holds an effect id is a keyed spawn that already ran, which a
+    // top-level spawn would only duplicate.
     if (
       error instanceof DaemonError &&
       error.code === 'no_such_session' &&
@@ -534,6 +526,9 @@ function buildTopLevelParams(
     return params;
   }
 
+  // the top-level spawn has a different payload, so it runs under its own key. A retry
+  // derives the same key and replays it instead of conflicting with the nested key,
+  // and the fixed-length hash fits the daemon's cap whatever the caller's length.
   const digest = createHash('sha256').update(key).digest('hex');
 
   return { ...params, idempotencyKey: `top-level:${digest}` };

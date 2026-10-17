@@ -55,10 +55,9 @@ let focusedID: string | null = null;
 let fleetCount = 0;
 let lastUsedAgent: AgentID = loadConfig(SHIPPED_HARNESS_PLUGINS).defaultAgent;
 
-// The readable harness label and tier-alias map per agent: the config alone
-// until the daemon's `agents.list` answer arrives and re-resolves them
-// whenever the overlay opens, so a backend configured after this client
-// started still lists under its name.
+// the config alone until the daemon's `agents.list` answer arrives; it re-resolves on
+// every overlay open, so a backend configured after this client started still lists
+// under its name.
 const bootMetadata = resolveAgentMetadata(loadConfig(SHIPPED_HARNESS_PLUGINS), {});
 let agentLabels: Readonly<Record<AgentID, string>> = bootMetadata.labels;
 let agentModels: Readonly<Record<AgentID, Readonly<Record<string, string>>>> = bootMetadata.models;
@@ -287,10 +286,8 @@ function renderOverlay(confirm: 'none' | 'kill' | 'destroy' = getConfirm()) {
   scheduleStatus();
 }
 
-// Rereads what the overlay labels rows with: each agent's readable name and
-// tier aliases, and which execution targets can take a spawn. Target
-// availability moves as remote hosts wake and sleep, so the overlay refresh
-// keeps the column honest rather than trusting the boot-time answer.
+// target availability moves as remote hosts wake and sleep, so each overlay refresh
+// rereads it rather than trusting the boot-time answer.
 async function refreshAgents() {
   try {
     const answer = await getClient().sendRequest('agents.list');
@@ -901,15 +898,6 @@ interface DaemonLink {
   readonly restarted: boolean;
 }
 
-/**
- * The connection to the daemon, which reconnects as soon as it is lost. The
- * first open is the client's boot, and its failure ends the client before
- * the first frame. A later open waits for the daemon the way the boot does;
- * a daemon on another protocol that the user keeps in service cannot serve
- * this client, and a remote boot waits out an unreachable daemon itself, so
- * either failure ends the client. Any other failure is logged and the next
- * open follows a backoff.
- */
 const transport: DaemonTransport<DaemonLink> = new DaemonTransport<DaemonLink>({
   reconnect: 'always',
   backoffMs: [0, 200, 1000, 2000],
@@ -920,6 +908,9 @@ const transport: DaemonTransport<DaemonLink> = new DaemonTransport<DaemonLink>({
 
     return openDaemonLink(phase);
   },
+
+  // the boot's own failure ends the client, and so does a daemon on another protocol the
+  // user keeps, or a remote daemon, whose boot already waits out an unreachable one.
   isFatal: (error) =>
     transport.findLatest() === null ||
     (error instanceof DaemonError && error.code === 'protocol_mismatch') ||
@@ -1069,14 +1060,6 @@ function isDaemonRestarting(): boolean {
   return service.getSnapshot().matches({ daemon: 'restarting' });
 }
 
-/**
- * Asks on the terminal whether to restart a daemon that speaks another
- * protocol, reading a single key. Anything but `y` declines, and so does a
- * terminal that cannot answer. On the first boot the prompt goes to stderr
- * and the key comes straight from stdin; once the TUI owns the screen and
- * stdin, the prompt replaces the screen and the TUI's own reader passes
- * the key on.
- */
 async function waitForRestartConsent(
   mismatch: ProtocolMismatch,
   phase: 'boot' | 'tui',
@@ -1156,13 +1139,6 @@ async function refreshMirror() {
   fleetCount = Array.isArray(entries) ? entries.length : 0;
 }
 
-/**
- * The deliberate half of the stale-daemon story: quits the old daemon,
- * boots one from the current build, and restores the whole fleet, so an
- * update never interrupts sessions until the user picks the moment. A
- * press while a restart runs joins it rather than starting another, and
- * the status bar says a restart is running until it finishes.
- */
 const restartDaemonOnce = makeSingleFlight(async () => {
   service.send({ type: 'RESTART_STARTED' });
 
@@ -1200,10 +1176,8 @@ async function restartDaemon() {
     return;
   }
 
-  // A new daemon may map aliases differently, so rows fall back to the
-  // config baseline until its own answer arrives; the target count goes
-  // back to none for the same reason, hiding the column until the new
-  // daemon reports what it can spawn on.
+  // a new daemon may map aliases and targets differently, so rows fall back to the config
+  // baseline, and the target column hides, until its own answer arrives.
   const baseline = resolveAgentMetadata(loadConfig(SHIPPED_HARNESS_PLUGINS), {});
 
   agentLabels = baseline.labels;
@@ -1347,11 +1321,6 @@ stdout.on('resize', () => {
   drawMode();
 });
 
-/**
- * Draws the current mode's screen again after something else held the
- * terminal. An attached session repaints only through the agent, so it is
- * left to the resize the daemon passes on.
- */
 function drawMode() {
   switch (getMode()) {
     case 'home': {
@@ -1380,6 +1349,7 @@ function drawMode() {
       break;
     }
     case 'attached': {
+      // a session repaints only through the agent, on the resize the daemon passes on.
       break;
     }
   }

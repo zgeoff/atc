@@ -9,16 +9,6 @@ interface SessionPasskey {
   readonly passkeyID: string;
 }
 
-/**
- * Whether the owner session a passkey sign-in created may carry on to
- * consent: in one transaction, the passkey that signed and the session both
- * still exist. Otherwise it removes the session and returns false. A
- * passkey removal or reset deletes passkeys and every owner session in one
- * transaction, so whichever commits first, no session outlives it: one that
- * commits before this check makes the check fail, and one that commits after
- * it deletes the session. A transaction that fails, such as one a
- * concurrent write keeps busy, removes the session and returns false.
- */
 export async function verifySessionPasskey(
   db: Kysely<MCPAuthSchema>,
   check: SessionPasskey,
@@ -46,6 +36,8 @@ export async function verifySessionPasskey(
       return false;
     });
   } catch {
+    // a transaction that fails, such as one a concurrent write keeps busy, still
+    // removes the session.
     await db.deleteFrom('session').where('id', '=', check.sessionID).execute();
 
     return false;

@@ -1,8 +1,5 @@
-/**
- * The columns of the authorization server's database that atc reads and
- * writes itself. better-auth owns the tables and their migrations; dates are
- * ISO 8601 strings and string lists are JSON arrays.
- */
+// only the columns atc reads and writes itself: better-auth owns the tables and
+// their migrations. Dates are ISO 8601 strings and string lists are JSON arrays.
 export interface MCPAuthSchema {
   readonly oauthClient: {
     readonly id: string;

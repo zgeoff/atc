@@ -4,13 +4,6 @@ import { TargetUnavailableError } from '@atc/plugin-api';
 import { createPluginContract } from './create-plugin-contract';
 import { SHIPPED_EXECUTION_PLUGINS } from './shipped-execution-plugins';
 
-/**
- * Builds a target entry's provider from the shipped execution plugin its
- * kind selects, or none when this build ships no such plugin. The host's
- * services hold the atc version the daemon runs, which an imp's atc must
- * match. A provider that cannot start from `env` gives none, with the
- * problem its plugin reports.
- */
 export function buildShippedExecutionProvider(
   config: TargetConfig,
   host: HostServices,

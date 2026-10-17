@@ -33,10 +33,6 @@ export type TextEdit =
   | { readonly kind: 'move'; readonly delta: 1 | -1 }
   | { readonly kind: 'input'; readonly value: string };
 
-/**
- * What one stdin chunk does to a text-entry screen, decided without touching
- * the screen. The caller owns the input string and applies the answer.
- */
 export function planTextEdit(
   buf: Buffer,
   input: string,

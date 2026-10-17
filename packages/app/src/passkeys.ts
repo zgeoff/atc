@@ -42,18 +42,6 @@ const PROCESS_IO: PasskeysIO = {
   now: () => systemClock.now(),
 };
 
-/**
- * Runs `atc passkeys` or `atc-gateway passkeys`, the owner's passkey
- * management on the host that runs the server: lists the enrolled
- * passkeys, removes one, or prints a one-time enrollment token that
- * enrolls one more passkey through the server's `/enroll` page. With
- * `reset`, enroll first removes every passkey, every unspent token, and
- * every browser sign-in, which is the recovery after losing every passkey.
- * Grants and their tokens stay through a removal and a reset. It opens the
- * authorization server's database directly, so it works whether or not the
- * server is running, and only a user who can open that file can run it.
- * Removing a passkey that does not exist sets exit code 1.
- */
 export async function runPasskeys(
   action: PasskeysAction,
   target: PasskeysTarget,

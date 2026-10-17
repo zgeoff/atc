@@ -34,13 +34,6 @@ interface MCPAuthOptions {
 // through consent to the code exchange, which every token detaches from.
 const OWNER_SESSION_SECONDS = 3 * APPROVAL_WINDOW_SECONDS;
 
-/**
- * Opens the authorization server's SQLite database and the better-auth
- * instance over it, creating or updating its tables, with the file readable
- * and writable by its owner only. better-auth runs the OAuth 2.1 flows: fixed
- * public clients, PKCE, opaque access tokens, rotating refresh tokens, and
- * revocation. Telemetry stays off whatever the environment says.
- */
 export async function openMCPAuth(options: MCPAuthOptions) {
   // better-auth reads these when it builds its context; an empty endpoint
   // turns its telemetry into a no-op.

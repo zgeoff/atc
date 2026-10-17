@@ -5,14 +5,6 @@ import { isRecord } from '@atc/core';
 import { readSessionEnv, sendBridgeRequest } from '@atc/protocol/session';
 import { sendReport } from './shared/report';
 
-/**
- * Runs as the statusLine command injected into wrangled sessions. Chains the
- * user's own statusline (from settings.json in the Claude config folder,
- * `$CLAUDE_CONFIG_DIR` or ~/.claude), appends the atc fleet
- * segment, and heartbeats the session id back to the atc socket, with the
- * agent id the command gave it. Always exits 0 so it never breaks the
- * session it renders for.
- */
 export async function runStatusline(agent: string): Promise<void> {
   const raw = await new Response(Bun.stdin.stream()).text();
 
@@ -66,6 +58,8 @@ export async function runStatusline(agent: string): Promise<void> {
   const line = [chained, segment].filter((part) => part !== '').join(' \u001B[90m▏\u001B[0m ');
 
   console.log(line);
+
+  // always 0, so the statusline never breaks the session it renders for
   process.exit(0);
 }
 

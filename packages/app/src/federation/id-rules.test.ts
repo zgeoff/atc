@@ -13,14 +13,9 @@ import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { collectUnruledIDPaths } from './collect-unruled-id-paths';
 import { ERROR_DATA_RULES, ID_RULES } from './id-rules';
 
-/**
- * A real daemon whose sessions run `sleep`. Every answer these tests check
- * comes from it, so a field the daemon starts sending with an id in it fails
- * the check until a rule covers it. Sessions start in `cwd`, a directory
- * under `/tmp` and not under the temp root: an atc session's temp root holds
- * its session id, and a path with an id in it fails the check too.
- */
 async function setupTest() {
+  // under `/tmp`, not the temp root: a session's temp root holds its session id, and a path
+  // with an id in it fails the check
   const cwd = mkdtempSync('/tmp/atc-id-rules-cwd-');
 
   registerTestCleanup(() => {

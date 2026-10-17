@@ -11,11 +11,6 @@ import { buildOptionalString, buildOptionalStringArray } from '@atc/core/schema'
 import { z } from 'zod';
 import { collectLegacyAgents } from './shared/collect-legacy-agents';
 
-/**
- * What `atc config migrate` makes of a config.json's decoded value: the file
- * rewritten around `agents` with a note per gateway it could not carry over,
- * a file that needs no change, or a file it cannot migrate.
- */
 type MigratedConfig =
   | { readonly kind: 'migrated'; readonly text: string; readonly notes: readonly string[] }
   | { readonly kind: 'current' }
@@ -35,14 +30,6 @@ const LEGACY_KEYS_SCHEMA = z.object({
   authProfiles: z.unknown().optional(),
 });
 
-/**
- * Rewrites a config.json that uses the old agent keys so it holds the same
- * agents under `agents`, and drops every key atc no longer reads. A file
- * that holds `agents` and a removed key is rewritten without the key. The old keys are removed and `agents` takes the
- * place of the first of them, or the end of the file when it sets none. Each
- * entry holds only the fields that differ from a default. Values are copied
- * and never reported, so a note names a key and a reason only.
- */
 export function buildMigratedConfig(raw: unknown): MigratedConfig {
   if (!isRecord(raw) || Array.isArray(raw)) {
     return {
@@ -54,6 +41,7 @@ export function buildMigratedConfig(raw: unknown): MigratedConfig {
   const present = Object.keys(raw).filter((key) => LEGACY_AGENT_KEYS.includes(key));
   const removed = REMOVED_CONFIG_KEYS.filter((key) => Object.hasOwn(raw, key));
 
+  // a note names a key and a reason only, never a value
   const removedNotes = removed.map(
     (key) => `atc config migrate: ${key} is dropped: atc no longer reads it`,
   );

@@ -16,15 +16,6 @@ type ParsedGatewayRegistry =
   | { readonly ok: true; readonly registry: GatewayRegistry }
   | { readonly ok: false; readonly errors: readonly string[] };
 
-/**
- * Parses a registry file's JSON and the environment the tokens come from.
- * Every daemon needs a name matching `^[a-z][a-z0-9-]{0,30}$`, an address,
- * a pinned `daemonID`, and a non-empty token in `ATC_GATEWAY_TOKEN_<NAME>`
- * (the name upper-cased, `-` as `_`). `defaultDaemon` is required and must
- * be one of the daemons. A registry lists at most as many daemons as an
- * events cursor across all of them can hold. Any problem refuses the whole registry, so the
- * gateway never starts with part of its fleet.
- */
 export function parseGatewayRegistry(
   raw: unknown,
   env: Readonly<Record<string, string | undefined>>,

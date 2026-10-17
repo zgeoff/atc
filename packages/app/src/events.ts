@@ -18,14 +18,6 @@ const processIO: EventsIO = {
   exit: (code) => process.exit(code),
 };
 
-/**
- * Streams the daemon's events socket to stdout, one NDJSON wire event per
- * line, until the daemon closes the connection. When no daemon is
- * listening, prints a hint to stderr and exits nonzero instead of booting
- * one. A daemon that closes the connection before it sends a byte refused
- * the stream, so that close prints an error to stderr and exits nonzero
- * too, where a close after the stream started ends the command cleanly.
- */
 export async function runEvents(io: EventsIO = processIO): Promise<void> {
   const closed = Promise.withResolvers<void>();
   let bytes = 0;
@@ -62,6 +54,7 @@ export async function runEvents(io: EventsIO = processIO): Promise<void> {
 
   await closed.promise;
 
+  // a close before the first byte means the daemon refused the stream
   if (bytes === 0) {
     io.printError(
       `atc events: the daemon at ${io.socketPath} closed the stream before it sent an event`,

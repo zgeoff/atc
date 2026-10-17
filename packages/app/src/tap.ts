@@ -49,18 +49,6 @@ const PROCESS_IO: TapIO = {
   },
 };
 
-/**
- * Streams one session's inbox to stdout, one NDJSON line per message, and
- * acks each message once its line is written. With `notices`, it also
- * streams the answer notices of the messages the session sent, one line
- * each, `kind` "answer", with no `text`, and acks each one the same way. It talks to the daemon that
- * is already running and never boots one: a tap runs inside the session it
- * serves, so a restart from here would take the whole fleet down. Exits 1
- * with a hint when no daemon listens or the session cannot be tapped, and
- * 0 once the daemon closes the connection or ends the subscription because
- * another tap replaced it or the session was removed. It dials the daemon
- * at `socketPath`, the running daemon's socket by default.
- */
 export async function runTap(
   session: string,
   socketPath: string = daemonSocketPath,
@@ -80,6 +68,8 @@ export async function runTap(
   let client: DaemonClient;
 
   try {
+    // never boots a daemon: a tap runs inside the session it serves, so a
+    // restart from here would take the whole fleet down
     client = await DaemonClient.open(socketPath);
   } catch {
     io.printError(`atc tap: no daemon at ${socketPath} — start atc first`);
@@ -183,6 +173,7 @@ async function ackInboxMessage(
   }
 
   try {
+    // acks only once the line is written
     await client.sendRequest('message.ack', { session, message });
   } catch (error) {
     io.printError(`atc tap: ${formatError(error)}`);

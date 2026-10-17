@@ -1,8 +1,4 @@
-/**
- * The flags `atc-gateway` accepts anywhere on its command line: those that
- * take a value, and switches that take none. Names are written without
- * their leading dashes.
- */
+// names without their leading dashes
 export interface GatewayFlags {
   readonly values: ReadonlySet<string>;
   readonly switches: ReadonlySet<string>;
@@ -16,16 +12,6 @@ type ParsedStateDir =
 // is a positional.
 const FLAG_PATTERN = /^--?(?<name>[^=]+)(?:=(?<value>[\s\S]*))?$/u;
 
-/**
- * Finds the state directory in the whole `atc-gateway` command line, before,
- * between, or after its subcommands, so no position can drop the flag.
- * `--state-dir <dir>` and `--state-dir=<dir>` count; a value after `--` or
- * held by another flag never does. Every `--state-dir` must give the same
- * directory. The flag wins over `ATC_GATEWAY_STATE_DIR`, and with neither
- * the result is null. A flag the gateway does not know, a switch given a
- * value, and a flag whose value is missing or starts with `-` are refused,
- * since reading them either way could pick the wrong directory.
- */
 export function parseGatewayStateDir(
   argv: readonly string[],
   env: Readonly<Record<string, string | undefined>>,
@@ -49,6 +35,8 @@ export function parseGatewayStateDir(
     const name = match.groups?.['name'] ?? '';
     const inline = match.groups?.['value'];
 
+    // a token this cannot read for sure is refused, since reading it either way
+    // could pick the wrong directory
     if (flags.switches.has(name)) {
       if (inline !== undefined) {
         return { ok: false, message: `${token} takes no value` };

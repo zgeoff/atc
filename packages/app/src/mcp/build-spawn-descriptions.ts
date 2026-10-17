@@ -1,7 +1,3 @@
-/**
- * One agent as the spawn descriptions list it: its id and whether its binary
- * resolves on the daemon's host.
- */
 export interface RegisteredAgent {
   readonly id: string;
   readonly installed: boolean;
@@ -12,14 +8,6 @@ interface SpawnDescriptions {
   readonly agent: string;
 }
 
-/**
- * The `atc_session_spawn` description and its `agent` field description,
- * naming the agents the daemon registered when the tool list was built. Only
- * a registered id appears, and a registered agent whose binary is missing is
- * marked not installed. null leaves every agent unnamed, for a tool list
- * built while the daemon could not answer. Both point at `atc_spawn_options_get`
- * for the current list.
- */
 export function buildSpawnDescriptions(
   agents: readonly RegisteredAgent[] | null,
 ): SpawnDescriptions {

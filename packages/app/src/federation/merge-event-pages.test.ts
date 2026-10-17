@@ -13,11 +13,6 @@ interface MergeEventsTestConfig<Name extends string> {
   readonly daemons: readonly Name[];
 }
 
-/**
- * The real daemons the config lists, each with one session that a message
- * writes an event for, found by name. The merge tests that need daemons'
- * own cursor semantics read through them.
- */
 async function setupTest<const Name extends string>(config: MergeEventsTestConfig<Name>) {
   const started = await Promise.all(
     config.daemons.map(async (name) => {

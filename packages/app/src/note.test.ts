@@ -10,11 +10,6 @@ import {
 import invariant from 'tiny-invariant';
 import { runNote } from './note';
 
-/**
- * A stub of the daemon's reporter socket in a temp directory, for the
- * reporter to send its line to; the reporter must exit 0 on every path.
- * The stub stops, and the directory goes, once the test finishes.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-note-');
   const sock = join(tmp.dir, 'reporter.sock');

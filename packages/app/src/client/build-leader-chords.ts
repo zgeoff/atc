@@ -1,10 +1,5 @@
-/**
- * Every byte sequence a terminal may deliver for the leader key. A terminal
- * with no keyboard enhancements sends the bare control byte, one running the
- * kitty keyboard protocol sends a CSI-u chord, and one running xterm's
- * modifyOtherKeys sends a CSI-27 chord — a fullscreen agent can switch the
- * terminal into either of the enhanced encodings mid-session.
- */
+// a fullscreen agent can switch the terminal into the kitty keyboard protocol or xterm's
+// modifyOtherKeys mid-session, so the leader matches the bare byte and both chords.
 export function buildLeaderChords(code: number): readonly string[] {
   const base = getBaseCodePoint(code);
 

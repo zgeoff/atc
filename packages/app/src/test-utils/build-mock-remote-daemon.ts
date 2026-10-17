@@ -1,11 +1,6 @@
 import type { RemoteDaemon } from '@atc/config';
 import { faker } from '@faker-js/faker';
 
-/**
- * A remote daemon from the config with an arbitrary name, address, token
- * file path, and principal. A token override replaces the default token source
- * whole, since a file source and a command source share no field to merge.
- */
 export function buildMockRemoteDaemon(overrides: Partial<RemoteDaemon> = {}): RemoteDaemon {
   return {
     name: overrides.name ?? faker.string.alpha({ length: 8, casing: 'lower' }),

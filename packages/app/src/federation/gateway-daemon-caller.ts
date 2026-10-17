@@ -36,28 +36,6 @@ type SendingConnection = Readonly<{ channel: Readonly<GatewayChannel>; hello: Da
 const CONNECT_TIMEOUT_MS = 10_000;
 const RESPONSE_TIMEOUT_MS = 30_000;
 
-/**
- * The gateway's caller for one named daemon: it dials the daemon's TCP
- * address with the daemon's bearer token, keeps one connection open on an
- * `on-demand` daemon transport, and
- * sends nothing to a daemon whose handshake returns another `daemonID`
- * than the registry pins. A failure before the request leaves is
- * `daemon_unavailable`, or `daemon_unauthorized` for a refused token. A
- * request sent whose response never arrives, because the connection ended
- * or 30 s passed beyond the request's own `waitMs`, is never a failure: a
- * keyed or read-only request is sent once more on a fresh connection to
- * the same daemon. A keyed retry goes out replay-only, under the same key,
- * and only while that connection announces both the key's feature and
- * replay-only requests; a daemon that holds no such key answers it
- * `idempotency_key_unknown`, which ends as `outcome_unknown`.
- * Any other request, a reconnect without that feature, or a second loss is
- * `outcome_unknown`. A daemon's
- * own error passes through as it came. `prepareParams` runs right before
- * each write of the request, first send and retry alike, and returns the
- * params that go out; params it marks `replayOnly` never reach a connection
- * that does not announce replay-only requests, which ends as
- * `outcome_unknown` with nothing sent.
- */
 export class GatewayDaemonCaller {
   private readonly opts: GatewayDaemonCallerOptions;
 
@@ -116,10 +94,9 @@ export class GatewayDaemonCaller {
       throw this.buildOutcomeUnknown(m);
     }
 
-    // A keyed retry only ever replays: it goes out replay-only, and only to
-    // a daemon that announces it takes the key and replay-only requests, so
-    // a daemon whose first send never arrived, or that has dropped the key
-    // since, runs nothing a second time.
+    // a keyed retry only ever replays, and only to a daemon that announces the key and
+    // replay-only requests, so a daemon whose first send never arrived, or that has dropped
+    // the key since, runs nothing a second time
     const replays =
       keyFeature !== undefined &&
       fresh.hello.features.has(keyFeature) &&
@@ -146,10 +123,6 @@ export class GatewayDaemonCaller {
     throw this.buildOutcomeUnknown(m);
   }
 
-  /**
-   * The handshake of the connection the next request rides, opening one
-   * when none is open.
-   */
   async readHello(): Promise<DaemonHello> {
     const opened = await this.transport.waitForConnection();
 
@@ -162,11 +135,6 @@ export class GatewayDaemonCaller {
     return Promise.resolve();
   }
 
-  // Sends one request, answering with the daemon's answer, or with `lost`
-  // when no response arrived. A daemon's error rejects as it came, except
-  // `idempotency_key_unknown`, which a replay-only request gets for a key
-  // the daemon never held or has dropped, and which ends as
-  // `outcome_unknown`.
   private async trySend(
     connection: SendingConnection,
     m: string,
@@ -230,6 +198,7 @@ export class GatewayDaemonCaller {
       return { kind: 'lost' };
     }
 
+    // a replay-only request gets this for a key the daemon never held or has dropped
     if (raced.error instanceof DaemonError && raced.error.code === 'idempotency_key_unknown') {
       throw this.buildOutcomeUnknown(m);
     }

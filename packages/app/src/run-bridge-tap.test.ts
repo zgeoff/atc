@@ -4,11 +4,6 @@ import { join } from 'node:path';
 import { setupTempDir, startStubSessionBridge } from '@atc/test-utils';
 import { runBridgeTap } from './run-bridge-tap';
 
-/**
- * A temp directory for a tap inside a remote host: the socket path where a
- * test starts its stand-in session bridge, and the outbox the tap sends its
- * notes from. The directory goes once the test finishes.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-bridge-tap-');
   const outbox = join(tmp.dir, 'outbox');

@@ -44,15 +44,6 @@ const PROCESS_IO: GatewayIO = {
   },
 };
 
-/**
- * Runs `atc-gateway` in the foreground: serves the MCP tools over HTTP for
- * the daemons the registry lists, routing every call to one of them over
- * TCP, until SIGINT or SIGTERM. It never starts or reaches a local daemon.
- * The keyed-request bindings (`gateway.db`) and the authorization server
- * (`mcp-auth.db`) live in the state directory, the only place it writes. A
- * registry that fails to load, or a server that fails to start, prints the
- * reason and exits 1.
- */
 export async function runGateway(
   build: string,
   flags: GatewayFlags,

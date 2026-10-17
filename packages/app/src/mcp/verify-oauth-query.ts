@@ -1,11 +1,5 @@
 import { constantTimeEqual, makeSignature } from 'better-auth/crypto';
 
-/**
- * Whether a signed authorization query is one better-auth signed with this
- * secret and has not expired: exactly one `sig`, matching the HMAC of every
- * other parameter sorted by name and then value, and an `exp` still ahead
- * of `now`, in epoch milliseconds.
- */
 export async function verifyOAuthQuery(
   oauthQuery: string,
   secret: string,

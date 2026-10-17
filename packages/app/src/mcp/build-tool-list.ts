@@ -16,15 +16,6 @@ interface MCPTool {
   };
 }
 
-/**
- * The tools `tools/list` returns for a daemon announcing the given
- * features. A tool the daemon cannot serve is left out, and a tool it serves
- * in an older form is listed without the output schema and input properties
- * that form lacks, so a client never sees an option the daemon would ignore.
- * The spawn tool's description and its agent field's description name the
- * registered agents; null leaves them unnamed. No schema depends on which
- * agents the host registers or installs.
- */
 export function buildToolList(
   features: ReadonlySet<FleetFeature>,
   agents: readonly RegisteredAgent[] | null,

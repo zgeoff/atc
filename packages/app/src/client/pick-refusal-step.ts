@@ -18,13 +18,7 @@ const REFUSAL_STEPS: ReadonlyMap<string, RefusalStep> = new Map<string, RefusalS
   ['workspace_mismatch', 'confirm'],
 ]);
 
-/**
- * The step of the git spawn flow that can fix a workspace spawn's
- * refusal: the destination for one that already exists, the ref for one
- * the upstream lacks, the source step for a URL or clone failure, and the
- * confirm screen for a refusal of the commit or the target's copy of it.
- * Null for any other refusal, which stays on the step that sent the spawn.
- */
 export function pickRefusalStep(code: string): RefusalStep | null {
+  // any other refusal stays on the step that sent the spawn.
   return REFUSAL_STEPS.get(code) ?? null;
 }

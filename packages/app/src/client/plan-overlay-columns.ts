@@ -42,10 +42,7 @@ export interface OverlayColumnInput {
 
 type ColumnKey = 'dir' | 'model' | 'event' | 'harness' | 'target' | 'name' | 'lifecycle';
 
-// How much pressure it takes to crowd a column out, from first to go to
-// last: the flat view's directory, then the model and the last event, then
-// the harness, the target, and the name, with the lifecycle text held
-// longest.
+// from the first column crowded out to the last.
 const SHRINK_ORDER: readonly ColumnKey[] = [
   'dir',
   'model',
@@ -79,15 +76,6 @@ const FLOOR: Readonly<Record<ColumnKey, number>> = {
   lifecycle: 9,
 };
 
-/**
- * The column widths a session row draws with. Each column starts at the
- * shorter of its preferred width and the longest value it would draw; while
- * the row outgrows the box, the column under the least pressure that still
- * holds its floor gives up a cell at a time in the order above, so the
- * model and the last event shrink first and the name, target, and harness
- * last. Whatever width is left over after the row fits goes to the last
- * event.
- */
 export function planOverlayColumns(input: Readonly<OverlayColumnInput>): OverlayColumnPlan {
   const widths: Record<ColumnKey, number> = {
     dir: input.grouped ? 0 : PREFERRED.dir,

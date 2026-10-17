@@ -4,14 +4,6 @@ import { resolveHomeDir } from '@atc/config/host';
 import { formatHomePath } from '@atc/core';
 import { collectRootDirs } from '@atc/source-dirs';
 
-/**
- * Every source the picker lists, merged in the order the reader expects
- * to find a directory: where the client runs, then the daemon's spawn
- * history (most recent first), then the configured roots, then zoxide's
- * frecency list. A path that no longer exists is dropped, a duplicate keeps
- * its first position, and an empty merge falls back to the home directory:
- * `home` when given, otherwise the account's.
- */
 export interface DirSources {
   readonly cwd: string;
   readonly recent: readonly string[];
@@ -70,22 +62,12 @@ export function formatDir(d: string): string {
   return formatHomePath(d, resolveHomeDir());
 }
 
-/**
- * The short display name for a directory: its leaf, which is the name a
- * session spawned there takes when its own name is left blank.
- */
 export function formatDirName(d: string): string {
   return basename(d);
 }
 
 const SEPARATORS = new Set(['/', '-', '_', '.', ' ']);
 
-/**
- * Scores how well a filter fuzzy-matches a candidate: every filter
- * character must appear in order, consecutive characters and characters
- * starting a word score higher, and a miss is null rather than zero so
- * non-matches are distinguishable from weak matches.
- */
 export function findFuzzyScore(candidate: string, filter: string): number | null {
   const hay = candidate.toLowerCase();
   const needle = filter.toLowerCase();
@@ -96,6 +78,7 @@ export function findFuzzyScore(candidate: string, filter: string): number | null
   for (const ch of needle) {
     const hit = hay.indexOf(ch, pos);
 
+    // a miss is null, not zero, so it never ranks as a weak match.
     if (hit === -1) {
       return null;
     }

@@ -1,12 +1,5 @@
 import { toHTMLText } from './to-html-text';
 
-/**
- * An HTML response from the authorization server, sent with headers that
- * keep it out of frames and caches and confine where its form may post.
- * `body` is either a full page or a plain message, which is escaped and
- * wrapped in a minimal page. The page runs no script unless
- * `scriptSources` lists the policy sources that allow one.
- */
 export function buildPageResponse(
   status: number,
   body: { readonly page: string } | { readonly message: string },

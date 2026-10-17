@@ -8,27 +8,6 @@ import type { HTTPServerContext, OwnerAuthFailure, Requester } from './types';
 import { verifyPasskeyAssertion } from './verify-passkey-assertion';
 import { verifySessionPasskey } from './verify-session-passkey';
 
-/**
- * Answers `GET /login` and `POST /login`, the passkey sign-in page
- * better-auth sends a browser to. The page exists only for an authorization
- * request that holds a pending approval. Each page shown mints a fresh
- * challenge for that one request, replacing the last, and each posted
- * assertion takes it, so an assertion verifies at most once and only for
- * the request whose page asked for it. An assertion from an enrolled
- * passkey, for the expected origin and RP ID, with the user verified, signs
- * the owner in, binds the new owner session to this one request, and
- * better-auth carries the request on to the consent page. A failed
- * assertion shows the page again with a fresh challenge, and the fifth
- * failure ends the request. A sign-in whose passkey a removal or reset
- * deleted before the owner session existed fails, and its session goes.
- * With no passkey enrolled, the page offers no sign-in. No other credential
- * signs the owner in.
- *
- * Each posted sign-in writes one `owner_auth` security event: `succeeded`
- * once the owner session exists, or `failed` with why, carrying the
- * request's correlation id when the approval still waits. A sign-in posted
- * for an approval that expired or was used fails as `expired`.
- */
 export async function answerLoginRequest(
   ctx: HTTPServerContext,
   method: 'GET' | 'POST',
@@ -93,6 +72,7 @@ export async function answerLoginRequest(
     });
   }
 
+  // the challenge is taken whether or not the assertion verifies, so it counts once.
   const taken = ctx.approvals.claimChallenge(oauthQuery);
 
   const passkeyID =

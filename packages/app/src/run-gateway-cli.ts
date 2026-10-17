@@ -54,21 +54,13 @@ const GATEWAY_FLAGS = {
   switches: new Set(['help', 'h', 'version', 'reset']),
 };
 
-/**
- * Runs the `atc-gateway` command line: reads the state directory from the
- * whole of it, since the argument parser hands a subcommand only the
- * arguments after its name, then parses the rest and runs the subcommand
- * it names. A state directory that cannot be read prints the reason and
- * exits 1 before any subcommand runs. `--help` anywhere prints the usage of
- * the command it follows and exits 0, `--version` alone prints the version,
- * and a command line the parser refuses prints that command's usage and
- * the reason, then exits 1.
- */
 export async function runGatewayCLI(
   argv: readonly string[],
   env: Readonly<Record<string, string | undefined>>,
   io: GatewayCLIIO = PROCESS_IO,
 ): Promise<void> {
+  // read from the whole command line, since the argument parser hands a
+  // subcommand only the arguments after its name
   const parsed = parseGatewayStateDir(argv, env, GATEWAY_FLAGS);
 
   if (!parsed.ok) {
@@ -112,11 +104,6 @@ export async function runGatewayCLI(
   }
 }
 
-/**
- * The usage renderer of the deepest command the command line names: each
- * word past the flags and their values, joined to the ones before it, while
- * the joined name has a usage.
- */
 function pickUsage(
   usages: Readonly<Record<string, () => Promise<string>>>,
   argv: readonly string[],
@@ -199,13 +186,6 @@ const PASSKEYS_META = {
   description: 'List, enroll, or remove the passkeys the owner signs in to the gateway with',
 };
 
-/**
- * The `atc-gateway` command tree, which serves the MCP tools over HTTP for
- * the daemons a registry lists and manages the clients that may connect to
- * it and the owner's passkeys, and the usage of each command in it, keyed by the subcommand names
- * that lead to it. Every subcommand takes the state directory read from
- * the whole command line, or exits 1 without one.
- */
 function buildGatewayCommand(stateDir: string | null, io: GatewayCLIIO) {
   const serve = defineCommand({
     meta: { name: 'serve', description: 'Serve MCP over HTTP behind OAuth' },

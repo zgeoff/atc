@@ -19,13 +19,6 @@ import { resetPasskeys } from './reset-passkeys';
 import { startMCPHTTPServer } from './start-mcp-http-server';
 import { TransportCaller } from './transport-caller';
 
-// `atc mcp --http` on a free port, on a clock that stands still unless a
-// test advances it, with the owner's passkey enrolled on `authenticator`,
-// one client `dots` whose id is `clientID`, and every request line and
-// security event line printed after the enrollment collected. The
-// authorization database is opened a second time the way `atc clients`
-// opens it. Sign-in never reaches the daemon, so the caller points at a
-// socket nothing listens on and never dials it.
 async function setupTest() {
   const tmp = setupTempDir('atc-answer-login-');
   const dbPath = join(tmp.dir, 'mcp-auth.db');
@@ -33,6 +26,7 @@ async function setupTest() {
   const security: string[] = [];
   const clock = buildStubClock(Date.now());
 
+  // sign-in never reaches the daemon, so nothing listens on this socket.
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );

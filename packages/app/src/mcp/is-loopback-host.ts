@@ -1,8 +1,3 @@
-/**
- * Whether a host name or address reaches only this machine: `localhost`, an
- * IPv4 address in 127.0.0.0/8, or `::1` with or without the brackets a URL
- * puts around it.
- */
 export function isLoopbackHost(host: string): boolean {
   return (
     host === 'localhost' ||

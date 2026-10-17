@@ -26,13 +26,6 @@ const PROCESS_IO: GrantsIO = {
   },
 };
 
-/**
- * Runs `atc grants`: lists the grants clients of `atc mcp --http` hold, or
- * revokes one. A revoked grant's tokens stop working at once, and its client
- * has to go through approval again. It opens the authorization server's
- * database at `dbPath` directly, so it works whether or not the server is
- * running. Revoking a grant that does not exist sets exit code 1.
- */
 export async function runGrants(
   revoke: string | null,
   dbPath: string = mcpAuthDBFile,

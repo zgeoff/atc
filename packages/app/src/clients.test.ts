@@ -4,10 +4,6 @@ import { setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { runClients } from './clients';
 
-/**
- * A temp directory that holds the authorization database the command opens.
- * The directory goes once the test finishes.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-clients-');
 

@@ -4,13 +4,6 @@ import type { RemoteDaemon } from '@atc/config';
 // How long a token command may run before the read gives up on it.
 const TOKEN_COMMAND_TIMEOUT_MS = 10_000;
 
-/**
- * Reads a remote daemon's bearer token from the file or the command its
- * config entry holds, trimmed of surrounding whitespace. The token must be
- * one non-empty line. A failure rejects with a message that holds the
- * daemon's name and the token's source, never the token or the command's
- * output.
- */
 export async function readRemoteDaemonToken(daemon: RemoteDaemon): Promise<string> {
   const source = daemon.token;
 
@@ -21,6 +14,8 @@ export async function readRemoteDaemonToken(daemon: RemoteDaemon): Promise<strin
 
   const token = text.trim();
 
+  // a failure names the daemon and the token's source, never the token or the
+  // command's output
   if (token === '' || token.includes('\n')) {
     throw new Error(
       `daemon '${daemon.name}': ${formatTokenSource(daemon)} must hold one token on one line`,

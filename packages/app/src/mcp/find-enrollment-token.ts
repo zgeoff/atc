@@ -2,10 +2,6 @@ import type { Kysely } from 'kysely';
 import { deriveTokenHash } from './derive-token-hash';
 import type { MCPAuthSchema } from './mcp-auth-schema';
 
-/**
- * The hash of an enrollment token the database holds and that has not
- * expired at `now`, in epoch milliseconds, or null for any other token.
- */
 export async function findEnrollmentToken(
   db: Kysely<MCPAuthSchema>,
   token: string,

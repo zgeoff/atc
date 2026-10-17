@@ -34,16 +34,6 @@ import { buildPrincipalCaller } from './build-principal-caller';
 import { runTool } from './run-tool';
 import { TransportCaller } from './transport-caller';
 
-/**
- * A real daemon whose sessions run `sleep`, and `atc mcp`'s caller in front
- * of it, which connects on its first request. The daemon has three targets:
- * the default `local` target, whose sessions run on this machine; `box`, an
- * imp target over a stub imp port; and `imp`, whose provider can destroy
- * hosts and records each host it destroys in `stubProvider.destroyed`.
- * `planSpawn` records the options of each launch the agent plans, a resume
- * id among them. The daemon also listens on a loopback TCP port that takes
- * one fixed token, for a gateway's pool to reach it.
- */
 async function setupTest() {
   const planSpawn = mock<AgentAdapter['planSpawn']>(() => ({ bin: 'sleep', args: ['30'] }));
 

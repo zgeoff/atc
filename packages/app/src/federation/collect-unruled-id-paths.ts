@@ -5,12 +5,6 @@ import type { IDRule } from './id-rules';
 // UUID, and a message id is a UUID behind `m-`.
 const ID_PATTERN = /[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}/u;
 
-/**
- * The paths of every string in a daemon answer that holds an id but has no
- * rule, so a daemon field that starts carrying an id cannot leave the
- * gateway without its daemon's name. A ruled field and everything below a
- * ruled locator or an opaque value count as covered.
- */
 export function collectUnruledIDPaths(
   value: unknown,
   rules: ReadonlyMap<string, IDRule>,

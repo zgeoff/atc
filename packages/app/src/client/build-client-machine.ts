@@ -18,10 +18,6 @@ type ClientMachineEvent =
   | { readonly type: 'RESTART_AWAITING_FRESH'; readonly freshUntil: number }
   | { readonly type: 'RESTART_ENDED'; readonly connected: boolean };
 
-/**
- * The restart prompt on screen while the TUI owns stdin, and the reader of
- * its key, which takes the next key in place of the current mode.
- */
 export interface RestartConsent {
   readonly prompt: string;
   readonly answer: (key: string) => void;
@@ -52,26 +48,6 @@ export interface ClientMachineDeps {
   readonly openEject: (sessionID: string) => void;
 }
 
-/**
- * The client as a statechart of four regions that run side by side.
- *
- * `mode` is the screen: which mode each event moves to, and what runs on
- * entry. `ATTACH` and `OVERLAY` reach several of its modes because several
- * keys and outcomes lead to the same place — attaching a session, or
- * falling back to the overlay — and each landing runs the same entry work
- * regardless of where it was sent from.
- *
- * `confirm` holds the overlay's pending confirmation: a kill, or a forget
- * that destroys the session's host. The next key settles it, and opening
- * the overlay again drops it.
- *
- * `consent` holds the restart prompt that waits for its key, so the key
- * goes to the prompt in place of the current mode.
- *
- * `daemon` follows the connection: `connected`, `waiting` once it is lost
- * until the transport opens the next one, and `restarting` while a
- * deliberate restart runs, which a loss or a reconnect leaves as it is.
- */
 export function buildClientMachine(deps: ClientMachineDeps) {
   return setup({
     types: {

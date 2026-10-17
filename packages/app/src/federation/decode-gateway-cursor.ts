@@ -3,15 +3,6 @@ import { DaemonError } from '@atc/protocol/wire';
 import { MAX_EVENTS_CURSOR_BYTES } from './max-events-cursor-bytes';
 import type { GatewayRegistry } from './types';
 
-/**
- * Each registry daemon's position in a gateway events cursor, by daemon
- * name: its own cursor, or null for a daemon that has not answered since the
- * read that started the cursor. A daemon the cursor leaves out is absent. The gateway refuses with `bad_args` a
- * cursor over 4 KiB, one it cannot decode, one with a version other than
- * 1, one read under another filter, and one whose part for a daemon holds
- * another incarnation than the registry pins. A part for a name the
- * registry no longer lists is dropped.
- */
 export function decodeGatewayCursor(
   raw: string,
   filter: string,

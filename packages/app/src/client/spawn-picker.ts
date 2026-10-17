@@ -93,11 +93,9 @@ export interface SpawnPickerDeps<TMirror> {
   // each time it opens.
   readonly configPath: string;
 
-  // Called each time the flow drops an answer, with the kind of answer it
-  // dropped: one for a flow or a request that has since moved on, which
-  // changes nothing, or a listing for a source the flow has left, which
-  // fills nothing and only clears the pending listing so that source lists
-  // again when its step reopens.
+  // a dropped answer from a stale flow or request changes nothing; a dropped listing for a
+  // source the flow left only clears the pending listing, so that source lists again when
+  // its step reopens.
   readonly onDropAnswer?: (kind: DroppedAnswer) => void;
 
   // Records any other decision the flow takes without drawing anything,
@@ -163,26 +161,6 @@ type SourceStepAction =
   | { readonly kind: 'probe'; readonly url: string }
   | { readonly kind: 'browse'; readonly scope: string };
 
-/**
- * The modal flow behind n and r: agent, then source, then name, then an
- * optional first prompt. The sources are the ones the daemon offers, in
- * its order, and Tab cycles them; a daemon that offers none gets the local
- * directory flow alone. A source of directories is followed by the
- * execution target when more than one target can run it. A source of git
- * repositories opens the target first, then its candidates, the ref, and a
- * confirm screen with the destination the checkout lands in, so every
- * request about the repository is made for the target the spawn runs on.
- * A choice of agent or target with one row the source can use is no
- * choice: the flow takes that row and goes on, and Esc from the step after
- * it goes back past it. A daemon that lists targets none of which can run
- * the source shows the target step with the reason.
- * Typed input a source does not match against its candidates is read by
- * the source, then by the others in order. Every path out of the flow
- * either attaches the new session or returns the client to the screen it
- * came from. A spawn the daemon refuses is no path out: the flow returns to
- * the step that can fix the cause and shows why. Esc cancels a request in
- * flight and drops its late answer.
- */
 export class SpawnPicker<TMirror extends { readonly id: string }> {
   private readonly deps: SpawnPickerDeps<TMirror>;
 
@@ -236,10 +214,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   // when it offers some or the daemon lists none.
   private targetGap: string | null = null;
 
-  // The git source's candidates and the scope they were listed under, or
-  // the notice that stands in for a list the daemon could not give, with
-  // the source and target they were listed for. A listing runs behind the
-  // step, so typing goes on.
+  // the git source's candidates, or the notice standing in for a list the daemon could not
+  // give, for the source and target they were listed for. A listing runs behind the step,
+  // so typing goes on.
   private candidates: ListedCandidate[] = [];
 
   private listedScope: string | null = null;
@@ -1068,10 +1045,6 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.render();
   }
 
-  /**
-   * A typed path completes against the filesystem, like a shell; anything
-   * else fuzzy-filters the merged list.
-   */
   private collectDirItems(): string[] {
     return resolvePathInput(this.input, this.deps.cwd, this.deps.home) === null
       ? pickMatches(this.dirs, this.input)
@@ -1154,10 +1127,8 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     }
   }
 
-  // Lists a source of directories and opens the directory step on it, with
-  // the client's own directory first. The flow stays where it is until the
-  // listing answers, and an answer that comes after the flow moved on is
-  // dropped.
+  // the client's own directory lists first. The flow stays where it is until the listing
+  // answers, and an answer that comes after the flow moved on is dropped.
   private async openPathSource(index: number, scope: string | null) {
     const source = this.sources?.[index];
     const generation = this.generation;
@@ -1213,10 +1184,8 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.render();
   }
 
-  // Moves the flow to a source of git repositories, carrying the typed text
-  // across: the target step first when the spawn has one and the flow had
-  // no repository target yet, then the source step, which
-  // acts as asked once it opens.
+  // the target step comes first when there is one and no repository target is chosen yet,
+  // so every request about the repository goes to the target the spawn runs on.
   private openGitSource(index: number, draft: string, action: SourceStepAction) {
     const fromGit = this.isGitFlow();
 
@@ -1345,12 +1314,8 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     return this.target === null ? {} : { target: this.target.id };
   }
 
-  // Lists the git source's candidates behind the step, under a scope or
-  // the source's own default, and keeps each listing it gets in the
-  // listing cache. A daemon that cannot list them leaves a notice row, or
-  // the cached listing the step shows with the failure in its hint.
-  // Typing goes on meanwhile, and Esc stops a listing the step shows
-  // nothing for.
+  // a daemon that cannot list leaves a notice row, or the cached listing with the failure in
+  // its hint. Typing goes on meanwhile, and Esc stops a listing the step shows nothing for.
   private async loadCandidates(scope: string | null) {
     const source = this.findSource();
     const generation = this.generation;
@@ -1385,10 +1350,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       failure = error;
     }
 
-    // A listing that answers after the flow moved on still holds what the
-    // daemon lists, so the cache keeps it for the next open. An empty one
-    // replaces a kept list too, so a repository the daemon no longer lists
-    // never comes back from the cache.
+    // a late answer still holds what the daemon lists, so the cache keeps it. An empty one
+    // replaces a kept list too, so a repository the daemon no longer lists never comes back
+    // from the cache.
     if (answer !== null && Array.isArray(answer['candidates'])) {
       void this.deps.listingCache?.writeListing(key, {
         candidates: answer['candidates'],
@@ -1645,10 +1609,8 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     return result;
   }
 
-  // Checks that the daemon's host can read the repository at this URL for
-  // the spawn's target, and opens the ref step with its refs. A failure
-  // stays on the source step with git's error and offers the other URL
-  // form the daemon returns, when there is one.
+  // a failure stays on the source step with git's error and offers the other URL form the
+  // daemon returns, when there is one.
   private async checkRepoAccess(label: string, url: string) {
     const probed = await this.sendPending('probe', `checking access to ${url}…`, 'git.probe', {
       url,
@@ -1913,19 +1875,14 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     return this.target ?? this.targets.find((t) => t.isDefault) ?? null;
   }
 
-  // Opens the target step when more than one target can run the flow's
-  // source, or none can although the daemon lists targets, and answers
-  // whether it did. The chosen target is selected, else for a repository
-  // the default when it takes a workspace and the first target that does
-  // when it does not, else the default.
+  // opens only when more than one target can run the source, or none can although the
+  // daemon lists targets, and answers whether it did.
   private openTargetStep(): boolean {
     const eligible = this.collectEligibleTargets();
 
     if (eligible.length === 1 || (this.targets.length === 0 && this.targetGap === null)) {
-      // The one target that can run the source is the spawn's, default or
-      // not, so the spawn names it and its provider decides whether a
-      // directory runs in place. A daemon that lists no targets runs the
-      // spawn on its default.
+      // the spawn names the one usable target, default or not, so its provider decides whether
+      // a directory runs in place. A daemon that lists no targets runs the spawn on its default.
       this.target = eligible[0] ?? null;
 
       return false;
@@ -2129,10 +2086,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.deps.toBase();
   }
 
-  // A refused git workspace spawn returns to the step that can fix it. Any
-  // other refusal keeps the picker on the step that sent it, with the
-  // entered text back in the input, so the user can fix the cause and retry
-  // or back out.
+  // a refused git workspace spawn returns to the step that can fix it; any other refusal
+  // stays on the step that sent it with the entered text back, so the user can fix the
+  // cause and retry or back out.
   private applySpawnRefusal(error: unknown, prompt: string) {
     const reason = formatError(error);
     const code = error instanceof DaemonError ? error.code : 'internal';
@@ -2177,11 +2133,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.render();
   }
 
-  // What the spawn sends for its source. A git repository goes as a git
-  // workspace at the commit the confirm screen showed, with the ref it was
-  // chosen by. A chosen target goes with the spawn; a local directory runs
-  // in place when the spawn's target is on the daemon's own machine, and is
-  // materialized at the same path from its pushed HEAD on any other.
+  // a repository goes at the commit the confirm screen showed. A local directory runs in
+  // place on a target on the daemon's own machine, and on any other is materialized at the
+  // same path from its pushed HEAD.
   private buildSourceParams(): Readonly<Record<string, unknown>> {
     const target = this.buildTargetParam();
 

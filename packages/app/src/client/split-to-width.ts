@@ -1,8 +1,3 @@
-/**
- * Splits text into rows of at most `width` characters, breaking at spaces
- * and counting a grapheme cluster as one character. A word wider than a
- * row breaks at the row's edge, never inside a character.
- */
 export function splitToWidth(text: string, width: number): string[] {
   if (width <= 0) {
     return [text];

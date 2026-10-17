@@ -16,12 +16,6 @@ import {
 import { runTap } from './tap';
 import { buildLocalTarget } from './test-utils/build-local-target';
 
-/**
- * A real daemon listening in a temp directory, and a client that has sent
- * its handshake and collects every event. The client and the daemon, which
- * a test may already have stopped, stop once the test finishes, before the
- * directory goes.
- */
 async function setupTest() {
   const tmp = setupTempDir('atc-tap-');
   const socketPath = join(tmp.dir, 'atc-daemon.sock');

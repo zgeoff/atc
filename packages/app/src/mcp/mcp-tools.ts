@@ -8,12 +8,8 @@ import type { FleetFeature } from './types';
 
 const NO_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(z.strictObject({}));
 
-/**
- * The session id shape MCP tool schemas require: present and described.
- * The daemon's wire request schemas share a defaulted-session shape
- * instead, since they tolerate an absent session by defaulting it to an
- * empty string.
- */
+// tool schemas require the session; the daemon's wire schemas default an absent
+// one to an empty string instead.
 const SESSION_ID_BASE = z.object({
   session: z.string().describe('The atc session id, from atc_sessions_list'),
 });
@@ -946,11 +942,9 @@ interface MCPToolDefinition {
   readonly outputSchema?: Readonly<Record<string, unknown>>;
   readonly annotations: MCPToolAnnotations;
 
-  // What the connected daemon has to announce for the tool to be listed at
-  // all, for its output schema to be declared, and for each listed input
-  // property to be offered. An older daemon gets the tool without them.
-  // `outputUnless` leaves the output schema out when the caller announces
-  // that feature, for a tool whose result takes another shape there.
+  // what the daemon must announce for the tool to be listed, its output schema
+  // declared, and each input offered; an older daemon gets the tool without them.
+  // `outputUnless` drops the output schema when the caller announces that feature.
   readonly requires?: {
     readonly tool?: FleetFeature;
     readonly output?: FleetFeature;

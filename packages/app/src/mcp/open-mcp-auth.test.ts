@@ -16,10 +16,9 @@ test('it sends no telemetry when the environment turns it on', async () => {
   const ctx = setupTest();
   const collector = startStubTelemetryCollector();
 
-  // better-auth never sends telemetry under NODE_ENV=test, so the store
-  // opens in a production-mode process of its own. A request the store
-  // starts keeps that process alive until the collector answers it, so the
-  // process exits only after any request has arrived.
+  // better-auth never sends telemetry under NODE_ENV=test, so the store opens in a
+  // production-mode process. A request the store starts keeps that process alive
+  // until the collector answers, so the process exits only after any request arrived.
   const opened = Bun.spawn(
     [
       process.execPath,

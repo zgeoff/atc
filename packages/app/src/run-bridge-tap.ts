@@ -66,18 +66,6 @@ const PROCESS_IO: BridgeTapIO = {
   },
 };
 
-/**
- * Streams the session's inbox to stdout from inside a remote host, through
- * the session bridge at the given socket. It prints each message once as
- * one NDJSON line and acks it after the line is written. A dropped
- * connection, as a host's sleep or a daemon restart leaves it, reconnects
- * with a growing wait of at most 5 seconds and no end; each new connection
- * replays the messages not yet acked, and one already printed is acked
- * again and not printed twice. With `notices`, it also prints and acks
- * the answer notices of the messages the session sent, the same way. Each
- * connection also sends the notes the outbox still holds. Exits 0 once the
- * inbox closes and 1 when the bridge refuses the tap.
- */
 export async function runBridgeTap(
   socketPath: string,
   outbox: string,
@@ -88,6 +76,8 @@ export async function runBridgeTap(
 
   let wait = FIRST_RETRY_MS;
 
+  // a dropped connection, as a host's sleep or a daemon restart leaves it,
+  // reconnects with no end
   for (;;) {
     const end = await runTapConnection(socketPath, outbox, seen, io, notices);
 

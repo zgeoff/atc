@@ -1,9 +1,8 @@
 import { createHash } from 'node:crypto';
 
-// Runs the ceremony a page's `atc-passkey` JSON block holds, `create` to
-// enroll a passkey or `get` to sign in with one, puts the credential's JSON
-// in the form's `credential` field, and posts the form. A prompt that ends
-// without a credential leaves the form unsent and the button ready again.
+// runs the `create` or `get` ceremony a page's `atc-passkey` block holds and posts
+// the credential's JSON with the form; a prompt that ends without one leaves the
+// form unsent and the button ready again.
 const SOURCE = `(() => {
   const data = document.getElementById('atc-passkey');
   const form = document.getElementById('atc-passkey-form');
@@ -43,10 +42,6 @@ const SOURCE = `(() => {
   });
 })();`;
 
-/**
- * The one script atc's sign-in and enrollment pages run, and the
- * Content-Security-Policy source that allows it and no other script.
- */
 export const PASSKEY_SCRIPT = {
   source: SOURCE,
   policySource: `'sha256-${createHash('sha256').update(SOURCE).digest('base64')}'`,

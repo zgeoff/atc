@@ -4,10 +4,6 @@ import { join } from 'node:path';
 import { setupTempDir } from '@atc/test-utils';
 import { loadGatewayRegistry } from './load-gateway-registry';
 
-/**
- * A temp directory and `path`, a registry file path inside it that no test
- * has written yet.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-gateway-registry-');
 

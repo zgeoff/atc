@@ -21,17 +21,6 @@ interface AssertionCheck {
   readonly now: number;
 }
 
-/**
- * The id of the enrolled passkey a posted WebAuthn assertion signs the
- * owner in with, or null when it does not: it parses, its
- * credential is an enrolled passkey, and it verifies against that passkey's
- * public key with the expected challenge, origin, and RP ID, with the user
- * verified and a signature counter past the stored one when the
- * authenticator keeps one. A passing assertion stores its counter and the
- * time of use, and passes only if the passkey still holds the counter it
- * was checked against when that store runs. Any failure is null, never a
- * throw.
- */
 export async function verifyPasskeyAssertion(
   db: Kysely<MCPAuthSchema>,
   check: AssertionCheck,

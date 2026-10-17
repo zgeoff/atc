@@ -4,12 +4,6 @@ type ResolvedRemoteDaemon =
   | { readonly ok: true; readonly daemon: RemoteDaemon }
   | { readonly ok: false; readonly message: string };
 
-/**
- * The daemon that `--daemon <name>` selects from the config's `daemons`
- * map, or a message that says why none can be used: the entry broke a
- * rule, or the map holds no entry of that name. `file` is the config path
- * the message mentions.
- */
 export function resolveRemoteDaemon(
   config: Pick<Config, 'daemons' | 'daemonErrors'>,
   name: string,

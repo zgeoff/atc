@@ -12,13 +12,6 @@ export interface AgentMetadata {
   readonly models: Readonly<Record<AgentID, Readonly<Record<string, string>>>>;
 }
 
-/**
- * The labels and model aliases the overlay draws with, resolved from the
- * config a client reads at start and the daemon's `agents.list` answer once
- * it arrives. The answer wins, so a backend the daemon registers under a
- * stand-in adapter still lists under its own name; the config alone covers
- * the window before the answer lands.
- */
 export function resolveAgentMetadata(config: Config, listed: unknown): AgentMetadata {
   const labels: Record<AgentID, string> = {};
   const models: Record<AgentID, Readonly<Record<string, string>>> = {};
@@ -35,6 +28,8 @@ export function resolveAgentMetadata(config: Config, listed: unknown): AgentMeta
         continue;
       }
 
+      // the answer wins, so a backend the daemon registers under a stand-in adapter still
+      // lists under its own name.
       if (typeof entry['label'] === 'string' && entry['label'] !== '') {
         labels[entry['id']] = entry['label'];
       }

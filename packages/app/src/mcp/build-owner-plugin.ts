@@ -12,23 +12,12 @@ import { isAllowedRedirectURI } from './is-allowed-redirect-uri';
 const OWNER_EMAIL = 'owner@atc.invalid';
 const REDIRECT_URI = z.string().refine(isAllowedRedirectURI);
 
-/**
- * The better-auth plugin that makes the operator the one user. Its endpoints
- * are server-only: better-auth refuses them over HTTP, so only atc's own
- * routes reach them, and only after checking what they guard.
- *
- * - `signInOwner` starts an owner session and sets its cookie. atc calls it
- *   once the owner's passkey assertion verified; with the signed
- *   authorization query in the body, better-auth then resumes the
- *   authorization.
- * - `verifyMCPAccessToken` returns the introspection payload of an active
- *   access token and rejects any other token.
- * - `createFixedClient` registers a public client: no secret, PKCE required,
- *   and every scope atc grants open to request.
- */
 export function buildOwnerPlugin() {
   return {
     id: 'atc-owner',
+
+    // every endpoint is server-only: better-auth refuses it over HTTP, so only atc's
+    // own routes reach it, after checking what it guards.
     endpoints: {
       signInOwner: createAuthEndpoint(
         '/atc/sign-in-owner',

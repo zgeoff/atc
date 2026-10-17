@@ -14,13 +14,6 @@ interface LoginPageView {
   readonly error: string | null;
 }
 
-/**
- * The page where the owner signs in with a passkey before choosing what a
- * client may do: the client's name, the full redirect URI, and a button
- * that runs the passkey prompt for this page's challenge and posts the
- * result. With no passkey enrolled, the page says how to enroll one and
- * offers no sign-in. Every dynamic value is escaped.
- */
 export function renderLoginPage(view: LoginPageView): string {
   const error = view.error === null ? '' : `<p class="error">${toHTMLText(view.error)}</p>`;
 

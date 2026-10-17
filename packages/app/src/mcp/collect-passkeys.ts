@@ -1,18 +1,12 @@
 import type { Kysely } from 'kysely';
 import type { MCPAuthSchema } from './mcp-auth-schema';
 
-/**
- * An enrolled passkey as `atc passkeys list` shows it.
- */
 export interface PasskeyView {
   readonly id: string;
   readonly createdAt: string;
   readonly lastUsedAt: string | null;
 }
 
-/**
- * Every enrolled passkey, oldest first.
- */
 export async function collectPasskeys(db: Kysely<MCPAuthSchema>): Promise<readonly PasskeyView[]> {
   const rows = await db
     .selectFrom('atc_passkey')

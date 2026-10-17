@@ -5,10 +5,6 @@ import { setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { runConfigMigrate } from './run-config-migrate';
 
-/**
- * A temp directory for the config file under migration. The directory goes
- * once the test finishes.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-config-migrate-');
 

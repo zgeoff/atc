@@ -18,26 +18,6 @@ interface ConsentRequest {
   readonly requester: Requester;
 }
 
-/**
- * Answers `GET /consent` and `POST /consent`. Both refuse a request unless
- * its signed query is valid, its prompt no longer asks for a login, and its
- * owner session is the one a passkey signed in for this same request.
- * The page lists the scopes the client requested, with only `read` ticked to
- * start. The form goes to better-auth's consent endpoint with the ticked
- * scopes plus `offline_access`; better-auth refuses any scope the client did
- * not request. Allowing nothing denies the request. Either way the browser
- * returns to the client with its owner session cookie cleared.
- *
- * One login answers one consent: the answer ends the session's binding, so
- * it can approve nothing else. An answer that issues no authorization code
- * deletes the session outright. One that issues a code leaves the session
- * only until the code expires, since the code exchange needs it, and the
- * exchange deletes it.
- *
- * Each answer writes one `consent` security event with the request's
- * correlation id: `allowed` when the answer issued an authorization code,
- * else `denied`, with `none_ticked` when allow came with no scope ticked.
- */
 export async function answerConsentRequest(
   ctx: HTTPServerContext,
   request: ConsentRequest,
@@ -79,6 +59,7 @@ export async function answerConsentRequest(
 
   const sessionID = verified.sessionID;
 
+  // either answer ends the session's binding, so one sign-in approves one request.
   ctx.approvals.removeApproved(sessionID);
 
   const ticked = form.getAll('scope');
@@ -111,6 +92,8 @@ export async function answerConsentRequest(
   const issuedCode =
     consented.ok && typeof next === 'string' && new URL(next).searchParams.has('code');
 
+  // the code exchange still needs the session, so it stays until the code expires;
+  // an answer that issued no code deletes it now.
   await (issuedCode
     ? ctx.store.db
         .updateTable('session')
@@ -157,10 +140,6 @@ export async function answerConsentRequest(
   });
 }
 
-// The owner session id and the request's correlation id when the request
-// may reach consent, else null. A query still asking for a login is one
-// better-auth signed for the login page, which no passkey sign-in carried
-// past.
 async function verifyConsentRequest(
   ctx: HTTPServerContext,
   oauthQuery: string,
@@ -172,6 +151,8 @@ async function verifyConsentRequest(
     return null;
   }
 
+  // a query still asking for a login is one better-auth signed for the login page,
+  // which no passkey sign-in carried past.
   const prompt = (new URLSearchParams(oauthQuery).get('prompt') ?? '').split(' ');
 
   if (prompt.includes('login')) {

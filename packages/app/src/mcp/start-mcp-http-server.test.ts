@@ -26,14 +26,8 @@ import { revokeGrant } from './revoke-grant';
 import { startMCPHTTPServer } from './start-mcp-http-server';
 import { TransportCaller } from './transport-caller';
 
-// A real daemon, `atc mcp --http` in front of it on a free port with every
-// request line and security event line it prints after the owner's passkey
-// enrolled collected, the clock it runs on, the authenticator that holds
-// that passkey, and the authorization server's database opened a second
-// time the way `atc clients` opens it.
-// `restartServer` restarts the server on its port. The caller, the server,
-// and the database live in the daemon's directory, so each registers its
-// release to run before that directory goes.
+// the caller, the server, and the database live in the daemon's directory, so
+// each registers its release to run before that directory goes.
 async function setupTest() {
   const daemon = await startTestDaemon({
     prefix: 'atc-mcp-http-',

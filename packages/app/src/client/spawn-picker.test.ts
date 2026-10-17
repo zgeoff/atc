@@ -14,20 +14,10 @@ import { openListingCache } from './open-listing-cache';
 import { SpawnPicker } from './spawn-picker';
 import { toMirrorSession } from './to-mirror-session';
 
-/**
- * What a spawn picker needs besides its scenario: a config at `configPath`
- * in a fresh temp directory, which is also the client's own directory
- * `cwd`, a stub `terminal` it draws into, and a daemon that answers only
- * when a test says so. `deps` wires them for the picker's constructor.
- * `counts` records each draw, each return to the screen the flow came
- * from, each attach, and each answer the picker dropped, and `dropped`
- * holds the kind of each dropped answer in order.
- */
 function setupTest() {
-  // Typed text fuzzy-filters the directories the directory step lists, the
-  // client's own first, by every character in order. The temp root sits
-  // directly under /tmp, whatever TMPDIR holds, so the only separators in
-  // its path come before any letter a filter such as `acme/` needs.
+  // the directory filter fuzzy-matches every typed character in order. The temp root sits
+  // directly under /tmp, whatever TMPDIR holds, so the only separators in its path come
+  // before any letter a filter such as `acme/` needs.
   const cwd = mkdtempSync('/tmp/atc-spawn-picker-');
 
   onTestFinished(() => {

@@ -1,11 +1,6 @@
 import type { Kysely } from 'kysely';
 import type { MCPAuthSchema } from './mcp-auth-schema';
 
-/**
- * Revokes a grant: its access and refresh tokens go, along with the
- * consent its client holds, so the client must go through approval again.
- * Returns false for an unknown grant id.
- */
 export function revokeGrant(db: Kysely<MCPAuthSchema>, grantID: string): Promise<boolean> {
   return db.transaction().execute(async (trx) => {
     const grant = await trx

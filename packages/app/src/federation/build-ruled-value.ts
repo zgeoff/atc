@@ -5,14 +5,6 @@ import type { RegistryDaemon } from './types';
 
 type DaemonRef = Pick<RegistryDaemon, 'name' | 'incarnation'>;
 
-/**
- * A daemon answer with every field a rule covers rewritten for the
- * gateway: ids carry the daemon's name and incarnation, and a locator's
- * daemon ID gives way to them. A `cursor` field is left for the event
- * merge, a `keep` object is still searched for ruled fields below it, and
- * an `opaque` value passes whole.
- * Fields without a rule pass unchanged.
- */
 export function buildRuledValue(
   value: unknown,
   rules: ReadonlyMap<string, IDRule>,

@@ -43,13 +43,6 @@ const PROCESS_IO: ClientsIO = {
   },
 };
 
-/**
- * Runs `atc clients` or `atc-gateway clients`: lists the clients that may
- * connect to the MCP HTTP server, adds one, or removes one along with every
- * token and consent it holds. It opens the authorization server's database
- * directly, so it works whether or not the server is running. A refused
- * add exits 1 at once, and a refused remove sets exit code 1.
- */
 export async function runClients(
   action: ClientsAction,
   target: ClientsTarget,

@@ -8,13 +8,6 @@ const MAX_CHALLENGES = 8;
 // How long an enrollment page's challenge stays valid.
 const CHALLENGE_MS = 5 * 60_000;
 
-/**
- * The WebAuthn challenges of the enrollment pages in progress, held in
- * memory by the HTTP process and keyed by the hash of the enrollment token
- * each page checked. Each token holds at most one challenge, which a fresh
- * page replaces and a verification takes, so a registration signed for one
- * page or one token verifies against no other.
- */
 export class EnrollmentState {
   private readonly now: () => number;
 

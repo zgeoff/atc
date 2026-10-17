@@ -18,21 +18,15 @@ interface HostServicesOptions {
   readonly compiled?: boolean;
 }
 
-/**
- * The host services of this atc process: the argv that runs its CLI, its
- * release version, the wall clock, the machine's commands, and `log` for
- * its log lines. A compiled binary is its own CLI entry, and under bun the
- * argv runs the CLI entry beside this module. The build is read again on
- * every access, stamped with the newest source file across every workspace
- * package of the checkout or with the compiled binary, so a long-lived
- * process that a rebuild overtakes reads the new stamp.
- */
 export function buildHostServices(options: HostServicesOptions = {}): HostServices {
   const compiled = options.compiled ?? isCompiledBinary();
 
   return {
     atcArgv: compiled ? [process.execPath] : [process.execPath, join(import.meta.dir, 'cli.ts')],
     version: pkg.version,
+
+    // a getter, so a long-lived process that a rebuild overtakes reads the new
+    // stamp
     get build() {
       return getBuild({ version: pkg.version, roots: collectSourceRoots() });
     },

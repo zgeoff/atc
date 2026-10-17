@@ -22,12 +22,6 @@ const CONSOLE_IO: ConfigMigrateIO = {
   },
 };
 
-/**
- * Runs `atc config migrate`: prints the config.json rewritten around
- * `agents`, or with `write` copies the file to a timestamped backup beside it
- * and rewrites it in place. Returns the exit code. Notes and problems go to
- * stderr and name keys and paths, never values.
- */
 export function runConfigMigrate(
   file: string,
   write: boolean,
