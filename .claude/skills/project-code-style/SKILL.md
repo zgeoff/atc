@@ -39,6 +39,8 @@ when the two lists differ.
 - `destroy`: deletes an execution host and everything on it, which nothing brings back
   (`destroyHost`), as opposed to `remove`, which deletes one record or file.
 - `detach`
+- `dispose`: releases every resource an object holds in one call (`SessionRuntime.dispose`), and is
+  safe to call more than once.
 - `draw`
 - `forget`: drops a session from the fleet for good (`forgetSession`), destroying its host where its
   target can, as opposed to `remove`, which deletes one record without touching what it describes.
@@ -48,10 +50,15 @@ when the two lists differ.
 - `materialize`: builds a resource on an execution target from a source held elsewhere, through the
   target's provider operations, and checks the result before it counts as ready
   (`materializeWorkspace`).
+- `mint`: generates a new id that atc itself is the sole authority for (`mintSessionID`), as opposed
+  to `to<Brand>`, which trusts an id that arrived from outside atc.
 - `quit`
 - `reconcile`: settles stored state that a stopped daemon left mid-change against the evidence the
   change leaves behind (`reconcileIdempotencyKeys`).
 - `renew`: extend a lease that `acquire` took.
+- `sanitize`: strips a resource of credentials and executable configuration in place and checks that
+  none remain (`sanitizeWorkspaceClone`), as opposed to `update`, which makes no promise about what
+  is left.
 - `suspend`: puts an execution host to sleep with its processes kept inside it, so a later wake
   finds them as they were (`suspendHost`), as opposed to `kill`, which ends a process.
 - `transfer`: moves content into an execution provider's host (`transferArchive`), as opposed to
