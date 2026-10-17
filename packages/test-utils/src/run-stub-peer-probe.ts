@@ -1,23 +1,6 @@
 import { writeFileSync } from 'node:fs';
 import { DaemonClient, DaemonError } from '@atc/protocol/wire';
 
-/**
- * Runs one probe of what the daemon lets a local client do, the way a
- * process inside a session would try it, and writes the outcome to a file
- * as JSON. Arguments: the probe, the socket path, a session id, and the
- * output path.
- *
- * - `scope-add` sends a handshake without a session and adds an empty scope
- *   to the session's record. It writes `{ "ok": true }`, or the refusal's
- *   `code`.
- * - `message` sends a handshake without a session and sends the session a
- *   message that gives `from` as `someone-else`. It writes the `from` and
- *   `sender` that `message.get` reads back for it, or the refusal's `code`.
- * - `message-as` does the same with a request that acts as the principal
- *   `client-7`, named `Lantern Notes`.
- * - `hello` sends a handshake that gives the session. It writes
- *   `{ "ok": true }`, or the refusal's `code`.
- */
 async function main() {
   const [probe, socketPath, session, outPath] = process.argv.slice(2);
 

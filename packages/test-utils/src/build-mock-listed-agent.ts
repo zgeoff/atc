@@ -5,12 +5,6 @@ import type { MockOverrides } from './mock-overrides';
 
 type ListedAgentOverrides = MockOverrides<AgentEntry, keyof AgentEntry>;
 
-/**
- * An agent as the `agents.list` answer shows it: a Claude agent that is not
- * installed, so it cannot start a session, with no models and no supported
- * spawn options. The id and label are arbitrary. Overrides merge into fresh
- * defaults at every depth.
- */
 export function buildMockListedAgent(overrides: ListedAgentOverrides = {}): AgentEntry {
   return mergeDeep<AgentEntry, keyof AgentEntry>(
     {

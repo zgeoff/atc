@@ -1,13 +1,5 @@
 import { registerTestCleanup } from './register-test-cleanup';
 
-/**
- * An HTTP stand-in for an upstream that hangs: it listens on a real port of
- * the loopback address, takes every request, and never answers one. `paths`
- * holds the request path of each request it took, in order. The server
- * stops, dropping the connections it holds, once the current test finishes,
- * so it must run inside a test; `stop` stops it sooner and resolves once it
- * has stopped, and a second stop does nothing.
- */
 export function startStubSilentServer() {
   const paths: string[] = [];
 

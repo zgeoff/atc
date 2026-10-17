@@ -8,13 +8,6 @@ interface EnrollmentServer {
   readonly origin: string;
 }
 
-/**
- * Enrolls the authenticator's passkey on a running MCP HTTP server the way
- * the owner's browser does: posts the enrollment token to `/enroll`, runs
- * the creation options the page returns through the authenticator on the
- * server's origin, and posts the new passkey with the token. Throws when
- * either step's response is not the one that leads on.
- */
 export async function runPasskeyEnrollment(
   server: EnrollmentServer,
   token: string,

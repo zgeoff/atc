@@ -31,15 +31,6 @@ interface MCPAuthorization {
   readonly verifier: string;
 }
 
-/**
- * Drives one authorization through a running MCP HTTP server the way a
- * browser and the owner do: opens the authorization request with PKCE,
- * signs in on the login page with the authenticator's passkey for the
- * challenge that page holds, and ticks the given scopes on the consent page. Each request starts with no cookies,
- * as a fresh browser would. Returns the consent page it passed, where the
- * browser landed, and what a token request needs, and throws when any step's
- * response lacks the value the next step depends on.
- */
 export async function runMCPAuthorization(
   server: MCPAuthorizationServer,
   request: MCPAuthorizationRequest,

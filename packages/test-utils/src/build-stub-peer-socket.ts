@@ -1,15 +1,3 @@
-/**
- * A peer socket for tests that drive a daemon connection without a socket:
- * while accepting, it takes every byte at once, as a peer with room does,
- * and keeps what the daemon wrote; while not, it takes none and returns 0,
- * as a socket whose kernel buffer is full does, so backpressure is a switch
- * instead of a buffer race. It starts accepting, and `setAccepting` flips
- * it. `hasEnded` is true once the daemon has ended the connection, which
- * changes nothing else the stub does. `collectFrames`
- * parses each complete line written so far as one protocol frame, in order.
- * `waitForAnswer` resolves with the frame answering the request id once the
- * daemon has written it, that id left out, so two answers compare whole.
- */
 export function buildStubPeerSocket() {
   const decoder = new TextDecoder();
   const waiters = new Map<number, PromiseWithResolvers<Record<string, unknown>>>();
@@ -27,6 +15,8 @@ export function buildStubPeerSocket() {
   return {
     socket: {
       write: (data: Uint8Array): number => {
+        // Taking no bytes stands in for a full kernel buffer, so backpressure is a
+        // switch instead of a buffer race.
         if (!accepting) {
           return 0;
         }

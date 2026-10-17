@@ -8,20 +8,6 @@ import type {
 
 type StubMessageStatus = 'queued' | 'delivered' | 'answered' | 'unanswered';
 
-/**
- * A stand-in for the daemon's side of a message bridge, holding one
- * session's messages and answer notices in memory with the daemon's
- * statuses. Like the daemon's inbox drain, each queue, ack and note hands
- * an attached tap one item: the oldest queued message it has not handed
- * that tap, or with none left, the oldest such notice. It hands one even
- * while the tap still holds an earlier item it never acked. An item a
- * detached tap never acked waits for the next tap; an answer or unanswered note
- * settles only a queued or delivered message; and a note payload it
- * cannot read is refused. `queueMessage` queues a new message and
- * `queueNotice` a new notice. `statuses` holds each message's status,
- * `noticeStatuses` each notice's, `notes` each note payload in order,
- * `attaches` the count of taps attached, and `logs` each log line.
- */
 export function buildStubMessageBridgeHost(initial: readonly UnsettledMessage[] = []) {
   const statuses = new Map<string, StubMessageStatus>(initial.map((m) => [m.id, m.status]));
   const texts = new Map<string, BridgedMessage>();

@@ -1,33 +1,24 @@
 import type { SessionID } from '@atc/core';
 
-/**
- * Where a session's runtime auth binding stands:
- *
- * - `provisioning`: an attempt is creating the imp or adding grants.
- * - `ready`: every grant is in place and the session may launch.
- * - `revoked`: atc withdrew the grants; the session never launches again
- *   until an explicit rebind.
- * - `revocation_pending`: the binding is blocked, but impd has not yet
- *   confirmed every grant gone, so access may remain until the owner
- *   resolves it.
- * - `rollback_pending`: a failed attempt left effects atc could not
- *   confirm removed.
- * - `rebind_failed`: a rebind failed; the binding keeps its old revision,
- *   the failed one is kept beside it, and auth stays blocked until a
- *   retry: an explicit rebind, or the next launch on a target that
- *   rebinds a changed selection.
- */
 export type RuntimeAuthBindingState =
   | 'provisioning'
   | 'ready'
+
+  // The session never launches again until an explicit rebind.
   | 'revoked'
+
+  // Blocked, but impd has not confirmed every grant gone, so access may
+  // remain until the owner resolves it.
   | 'revocation_pending'
+
+  // A failed attempt left effects atc could not confirm removed.
   | 'rollback_pending'
+
+  // The binding keeps its old revision with the failed one beside it, and
+  // auth stays blocked until an explicit rebind or the next launch on a
+  // target that rebinds a changed selection.
   | 'rebind_failed';
 
-/**
- * A rebind's revision, the binding it moves to, and the attempt making it.
- */
 interface RuntimeAuthRebind {
   readonly revision: number;
   readonly bindingHash: string;
@@ -35,11 +26,8 @@ interface RuntimeAuthRebind {
   readonly attemptID: string;
 }
 
-/**
- * One host's runtime auth binding, keyed by the session that owns the imp;
- * its sub-sessions share it. The binding holds secret names and rules,
- * never a credential value.
- */
+// Keyed by the session that owns the imp, and shared by its sub-sessions.
+// The binding holds secret names and rules, never a credential value.
 export interface RuntimeAuthBinding {
   readonly hostKey: SessionID;
   readonly target: string;
@@ -82,29 +70,27 @@ export interface RuntimeAuthBindingUpdate {
   readonly revokedAt?: number;
 }
 
-/**
- * Where one secret's grant to a host's imp stands. `uncertain` is a grant a
- * stopped daemon left `granting`, which impd's grant list settles on next
- * use; `revocation_pending` is one atc could not confirm removed.
- */
 export type RuntimeAuthGrantPhase =
   | 'granting'
   | 'granted'
+
+  // Left granting by a stopped daemon; impd's grant list settles it on next
+  // use.
   | 'uncertain'
   | 'revoking'
   | 'revoked'
+
+  // Atc could not confirm the grant removed.
   | 'revocation_pending';
 
-/**
- * One secret's grant to a host's imp: the revision and attempt that added
- * it, and whether impd held it before that attempt, which rules it out of
- * the attempt's rollback.
- */
 export interface RuntimeAuthGrant {
   readonly hostKey: SessionID;
   readonly secret: string;
   readonly revision: number;
   readonly attemptID: string;
+
+  // Impd held the grant before the attempt, which rules it out of the
+  // attempt's rollback.
   readonly preexisting: boolean;
   readonly phase: RuntimeAuthGrantPhase;
   readonly updatedAt: number;

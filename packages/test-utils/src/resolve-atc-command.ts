@@ -1,12 +1,7 @@
 import { getSourceEntry } from './get-source-entry';
 
-/**
- * The command an end-to-end suite runs atc as: the compiled binary that
- * `ATC_BIN` holds when a smoke run sets it, or else the source entry under
- * the test's own bun, so one suite proves both. Read at each call, so a test
- * that sets the variable sees its own value.
- */
 export function resolveATCCommand(): string[] {
+  // Read at each call, so a test that sets the variable sees its own value.
   const bin = process.env['ATC_BIN'];
 
   return bin === undefined ? [process.execPath, getSourceEntry('atc')] : [bin];

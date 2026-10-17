@@ -1,11 +1,5 @@
 import { isRecord } from '@atc/core';
 
-/**
- * Narrows one field of a record to a record, for tests pulling a nested
- * payload (a wire event's session descriptor, a response's session) out of
- * loosely typed JSON. Throws rather than letting a malformed fixture pass a
- * test vacuously.
- */
 export function getRecord(
   value: Readonly<Record<string, unknown>>,
   key: string,

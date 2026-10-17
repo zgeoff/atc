@@ -3,21 +3,6 @@ import { join } from 'node:path';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { startStubLegacyDaemon } from './start-stub-legacy-daemon';
 
-/**
- * Runs a daemon of another protocol version as its own process, recorded in
- * the state directory the way a real daemon records itself, so a client
- * that finds it by its record can stop it. Arguments: the socket path to
- * listen on, the state directory, and `current` as an optional third, which
- * makes it a daemon of an older build on this protocol instead. It refuses
- * every handshake with `protocol_mismatch`, unless it speaks the current
- * protocol, answers the session list and the fleet as empty, and hosts one
- * session, a child process that sleeps for
- * a minute. Once it listens it prints `up` and the session's pid on one
- * line, and it runs until it is killed. On SIGTERM or SIGINT it kills and
- * reaps the session, then dies of the same signal, and it kills the session
- * whenever it exits, so a caller that stops only the daemon leaves nothing
- * behind.
- */
 function main() {
   const socketPath = process.argv.at(2);
   const stateDir = process.argv.at(3);
@@ -36,6 +21,8 @@ function main() {
 
   const session = Bun.spawn(['sleep', '60']);
 
+  // Killing the session on every exit means a caller that stops only the daemon
+  // leaves nothing behind.
   process.on('exit', () => {
     session.kill('SIGKILL');
   });
@@ -52,6 +39,8 @@ function main() {
     });
   }
 
+  // Recorded the way a real daemon records itself, so a client that finds it by
+  // its record can stop it.
   writeFileSync(
     join(stateDir, 'daemon.json'),
     JSON.stringify({

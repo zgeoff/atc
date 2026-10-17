@@ -6,12 +6,6 @@ type MessageRecordOverrides = {
   readonly [K in keyof MessageRecord]?: MessageRecord[K] | undefined;
 };
 
-/**
- * A message accepted for a session and not yet delivered: a fresh message
- * id and a fresh atc id, an arbitrary sender, text, and send time, and no
- * agent session id, delivery, answer, or turn. An override replaces the
- * field it names, and an override of undefined leaves that field out.
- */
 export function buildMockMessageRecord(overrides: MessageRecordOverrides = {}): MessageRecord {
   return {
     id: toMessageID(faker.string.uuid()),

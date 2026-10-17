@@ -1,9 +1,3 @@
-/**
- * Reads the stream in the background and keeps every chunk it has read, as
- * text, in arrival order, until the stream ends. `read` returns all the text
- * read so far, so a test can wait on output from a process that never
- * exits.
- */
 export function startOutputCapture(stream: ReadableStream<Uint8Array>) {
   let text = '';
 

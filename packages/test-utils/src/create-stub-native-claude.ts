@@ -2,17 +2,8 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runCommand } from './run-command';
 
-/**
- * Creates a stand-in for the Claude CLI as a native program under the
- * directory, which it creates when missing, and returns the program's path.
- * It prints `FAKE_NATIVE_DYLD:[<value>]` with the `DYLD_ATC_TEST` value it
- * started with, or `unset`, then reads its input until the input closes.
- *
- * A native program that no system protection covers keeps its `DYLD_`
- * variables on macOS, where a script loses them on the way into its
- * protected interpreter. The system C compiler builds it, so the test host
- * needs `cc` on its PATH. Call it only inside a test.
- */
+// A native program keeps its DYLD_ variables on macOS, where a script loses
+// them on the way into its protected interpreter.
 export async function createStubNativeClaude(dir: string, name: string): Promise<string> {
   const cc = Bun.which('cc');
 

@@ -20,18 +20,6 @@ interface GitHTTPServerOptions {
   readonly onRequest?: () => Promise<void> | void;
 }
 
-/**
- * Serves the bare repositories under a directory over smart HTTP through
- * `git http-backend` on a loopback port, and refuses every request that
- * carries no basic auth, so a client only clones by authenticating. The
- * backend runs with the environment it is given. With a delay, each
- * authenticated request waits that long before it is served, which makes a
- * clone through it slow. An `onRequest` callback runs, and is awaited, while
- * each authenticated request is held, so it sees the client that sent the
- * request still running. It stops once the current test finishes, so it
- * must run inside a test; `stop` stops it sooner, and a second stop does
- * nothing.
- */
 export function startGitHTTPServer(
   root: string,
   env: Readonly<Record<string, string | undefined>>,

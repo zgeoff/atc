@@ -4,10 +4,6 @@ import { faker } from '@faker-js/faker';
 import { mergeDeep } from './merge-deep';
 import type { MockOverrides } from './mock-overrides';
 
-/**
- * The fields the defaults set; every other field is absent until an
- * override gives it whole.
- */
 type DefaultedKey =
   | 'id'
   | 'name'
@@ -27,14 +23,6 @@ type DefaultedKey =
   | 'locator'
   | 'lifecycle';
 
-/**
- * The wire view of a live, running Claude session in a local terminal on
- * the `local` target, as `session.list` and the session events carry it:
- * read, unpinned, named by the user, with no parent, workspace, model, or
- * agent session id. The id, name, directories, last message, times, and
- * daemon id are arbitrary. Overrides merge into fresh defaults at every
- * depth.
- */
 export function buildMockSessionDescriptor(
   overrides: MockOverrides<SessionDescriptor, DefaultedKey> = {},
 ): SessionDescriptor {

@@ -1,20 +1,13 @@
 import { createHash } from 'node:crypto';
 import { sortJSONKeys } from '@atc/core';
 
-/**
- * The identity a session binds to when it spawns on a target: the provider
- * kind, a colon, and the first 16 hex digits of a sha256 over the target's
- * options with sorted keys. Imp identities include a format version and
- * omit image, memory, guest-atc, and changed-auth rebind options, which do
- * not select an existing imp. A target reused with other connection options has another identity.
- * Target options hold no credential
- * values, only references such as an environment variable's name, so the
- * identity never derives from a secret.
- */
+// Target options hold only references to credentials, such as a variable's
+// name, so the identity never derives from a secret.
 export function buildTargetIdentity(
   kind: string,
   options: Readonly<Record<string, unknown>>,
 ): string {
+  // Options that never select an existing imp stay out of its identity.
   const boundOptions =
     kind === 'imp'
       ? Object.fromEntries(

@@ -21,12 +21,6 @@ interface StubGHCommand {
   readonly calls: readonly (readonly string[])[];
 }
 
-/**
- * A stand-in for gh behind the host's command runner, so a source's test
- * drives gh with no process. Each run answers as the host's runner does:
- * output trimmed, and an aborted run, or one whose signal aborted before
- * the call, as exit code -1 with no output.
- */
 export function buildStubGHCommand(options: StubGHCommandOptions): StubGHCommand {
   const calls: (readonly string[])[] = [];
 
@@ -55,6 +49,8 @@ export function buildStubGHCommand(options: StubGHCommandOptions): StubGHCommand
 function waitForAbort(signal: Readonly<AbortSignal> | undefined): Promise<HostCommandResult> {
   const ended = Promise.withResolvers<HostCommandResult>();
 
+  // An aborted run answers as the host's runner answers one: exit code -1 and
+  // no output.
   const onAbort = () => {
     ended.resolve({ code: -1, stdout: '', stderr: '', aborted: true });
   };

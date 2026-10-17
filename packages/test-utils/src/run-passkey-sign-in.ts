@@ -19,13 +19,6 @@ interface SignInCeremony {
   readonly userVerified?: boolean;
 }
 
-/**
- * Signs in on an MCP HTTP server's login page the way the owner's browser
- * does: opens the login page `login` points at, has the authenticator sign
- * the challenge that page holds, and posts the assertion with the page's
- * signed query. Returns the server's answer to the post unfollowed. Throws
- * when the page holds no sign-in ceremony.
- */
 export async function runPasskeySignIn(
   server: SignInServer,
   login: URL,

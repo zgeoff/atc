@@ -5,18 +5,6 @@ interface StubTimer {
   readonly callback: () => void;
 }
 
-/**
- * A clock that moves only when the test advances it, for code that takes a
- * clock in place of the wall clock and the runtime's timers. It starts at
- * the given epoch milliseconds. `advance` moves the time forward and runs,
- * in due order, every scheduled callback whose time has come, including
- * one a callback schedules within the step. `collectPending` returns, in
- * due order, how many milliseconds each callback still waiting has left,
- * which lets a test wait until the code under test has scheduled one and
- * check its delay. `collectDelays` returns the delay of every callback ever
- * scheduled, in the order the code scheduled them, whether it ran, was
- * cancelled, or still waits.
- */
 export function buildStubClock(startMs: number) {
   let time = startMs;
   let nextID = 0;

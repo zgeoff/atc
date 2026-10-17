@@ -1,24 +1,20 @@
 import { Database } from 'bun:sqlite';
 
-// How a database is opened beyond the journal mode every atc database
-// shares. `strict` lets a statement bind a named parameter without its
-// prefix. `busyTimeoutMs` makes a write wait that long for another
-// process's lock before it fails, and `foreignKeys` enforces the schema's
-// foreign keys, cascades included, which SQLite leaves off by default.
 interface SQLiteOptions {
+  // Binds a named parameter without its prefix.
   readonly strict?: boolean;
+
+  // How long a write waits for another process's lock before it fails.
   readonly busyTimeoutMs?: number;
+
+  // Enforces foreign keys, cascades included, which SQLite leaves off by default.
   readonly foreignKeys?: boolean;
 }
 
-/**
- * Opens a SQLite database, creating its file when it does not exist, in
- * write-ahead-log mode, so a reader in another process never blocks the
- * writer. It sets only the pragmas the options ask for.
- */
 export function openSQLite(path: string, options: SQLiteOptions = {}): Database {
   const sqlite = new Database(path, { create: true, strict: options.strict === true });
 
+  // A reader in another process never blocks the writer.
   sqlite.run('PRAGMA journal_mode = WAL;');
 
   if (options.busyTimeoutMs !== undefined) {

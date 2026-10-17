@@ -11,10 +11,6 @@ import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
-/**
- * One home with the real client running in it under a pseudo-terminal,
- * and the calls that drive and read it.
- */
 export type TUIHarness = ReturnType<typeof startTUIHarness>;
 
 interface TUIHarnessOptions {
@@ -36,33 +32,6 @@ interface TUIHarnessOptions {
 const COLS = 110;
 const INPUT_MAX = Math.min(COLS - 4, 90) - 8;
 
-/**
- * A fresh home for one run of the real `atc` client in a pseudo-terminal,
- * holding stand-in `claude` and `grok` binaries, which take scenario files
- * dropped into the home, and a config that points at them. `boot` starts
- * the client in the home with the arguments given, and a client given none
- * starts its own daemon there; a later `boot` starts a new client on the
- * same home and stops capturing the old one.
- * `read` returns every byte the client drew since the last `reset`, and
- * `waitFor` polls that capture for a needle. The client appends what it
- * decides without drawing to a log: `countClientLogLines` returns how many
- * lines it holds, and `waitForClientLog` polls for a line written after
- * that many.
- * `formatInput` returns a picker's input row holding the text given as the
- * client draws it in the harness's terminal, which drops the head of a text
- * too long for the row; a wait for typed text uses it, so a long temp root
- * still matches.
- * `writeConfig` writes the home's config: the stand-in binaries and the git
- * transports the fixture repositories need, with the fields given laid over
- * them. `env` is the environment the client runs with, so a daemon started
- * with it serves the client. A wait made before the client draws anything
- * gets `bootMs` for that first byte. Every wait reads its deadline from
- * `now` and sleeps between retries through `wait`, the wall clock and a real
- * sleep unless the options set them. `stop` kills every client a boot
- * started, stops the daemon in the home, and removes the home. That stop runs once the current test
- * finishes, so it must run inside a test; calling `stop` sooner runs it
- * then, and a second stop does nothing.
- */
 export function startTUIHarness(options: TUIHarnessOptions = {}) {
   const now = options.now ?? Date.now;
   const wait = options.wait ?? Bun.sleep;
@@ -122,10 +91,9 @@ export function startTUIHarness(options: TUIHarnessOptions = {}) {
   let exited: Promise<number> | null = null;
   let out = '';
 
-  // When the latest client boot wrote its first byte. The client draws
-  // nothing until its daemon handshake completes, so that byte is the
-  // readiness signal: waits before it get the boot budget, waits after it
-  // the interaction budget.
+  // When the latest client boot wrote its first byte. The client draws nothing
+  // before its daemon handshake completes, so waits before that byte get the boot
+  // budget, and waits after it their own.
   let firstOutputAt: number | null = null;
 
   owned.defer(() => stopClientAndDaemon(home, pty, firstOutputAt === null));
@@ -136,6 +104,8 @@ export function startTUIHarness(options: TUIHarnessOptions = {}) {
     env,
     writeConfig,
 
+    // The client drops the head of a text too long for the row, so a wait for
+    // typed text under a long temp root still matches.
     formatInput(text: string): string {
       const shown = text.length <= INPUT_MAX ? text : `…${text.slice(-(INPUT_MAX - 1))}`;
 
@@ -199,11 +169,9 @@ export function startTUIHarness(options: TUIHarnessOptions = {}) {
     async waitFor(needle: string, ms = 4000): Promise<void> {
       const start = now();
 
-      // The client gives its daemon 8 seconds to answer before it draws an
-      // error, so the boot phase waits that long plus 1 second for the
-      // client's own cold start, which measures under 1.1 seconds on a
-      // runner loaded at four times its cores. Every wait after the first
-      // byte keeps its own deadline.
+      // The client gives its daemon 8 seconds before it draws an error; the extra
+      // second covers its own cold start, under 1.1 seconds on a runner loaded at
+      // four times its cores.
       const bootMs = options.bootMs ?? 8000 + 1000;
 
       const firstAt = await waitFor(
@@ -267,10 +235,9 @@ export function startTUIHarness(options: TUIHarnessOptions = {}) {
   };
 }
 
-// The client started a daemon inside the home; its pid file is how the
-// harness finds and stops it. The daemon writes that file once its modules
-// load, so a client killed before its first frame can leave a daemon that
-// has not written it yet.
+// The harness finds the daemon through its pid file, which the daemon writes
+// once its modules load, so a client killed before its first frame can leave
+// a daemon that has not written it yet.
 async function stopClientAndDaemon(home: string, pty: IPty | null, beforeFirstFrame: boolean) {
   pty?.kill();
 

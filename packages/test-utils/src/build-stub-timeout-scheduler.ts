@@ -6,15 +6,6 @@ interface StubTimer {
   state: 'pending' | 'ran' | 'cancelled';
 }
 
-/**
- * A timeout scheduler for code that takes one in place of `setTimeout`: no
- * timer ever runs on its own. `schedule` records the timer and returns what
- * cancels it, as a real scheduler does; `runTimer` runs the oldest pending
- * timer of the given delay and throws when none is pending, so a test both
- * proves the code asked for that delay and moves time past it.
- * `collectDelays` returns the delay of every timer in the order the code
- * started them, and `collectPendingDelays` those neither run nor cancelled.
- */
 export function buildStubTimeoutScheduler() {
   const timers: StubTimer[] = [];
 

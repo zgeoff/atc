@@ -11,9 +11,6 @@ export interface StoredRow {
   readonly agentSessionID: string | null;
 }
 
-/**
- * Reads the fleet rows a daemon has stored, exited ones included.
- */
 export async function readStoredRows(
   client: Pick<DaemonClient, 'sendRequest'>,
 ): Promise<StoredRow[]> {

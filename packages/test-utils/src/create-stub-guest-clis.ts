@@ -1,28 +1,6 @@
 import { createStubBin } from './create-stub-bin';
 import { getSourceEntry } from './get-source-entry';
 
-/**
- * Creates the command-line tools a remote host runs for a session, as
- * scripts under the directory: `atc` runs the atc CLI from this source tree,
- * and `claude` is a stand-in agent that prints `UP:<pid>`, then reads one
- * command per line and prints `GOT:<line>` after each, reporting through
- * that atc:
- *
- * - `start <id>`: a SessionStart for agent session `<id>`, with a
- *   transcript at a path only the host holds;
- * - `notify <text>`: a Notification carrying the text;
- * - `stop`: a Stop, as at the end of a turn;
- * - `nested <id>`: a SessionStart for agent session `<id>` from a Codex
- *   harness nested inside the session;
- * - `forge <session>`: a Notification as atc session `<session>` instead
- *   of its own;
- * - `tap <file>`: the session's tap, run in the background and printing
- *   into the file;
- * - `answer <message> <text>`: the message answered with the text;
- * - `note <text>`: a note labelled `progress`.
- *
- * Returns each tool's path.
- */
 export function createStubGuestCLIs(dir: string) {
   const cliPath = getSourceEntry('atc');
 

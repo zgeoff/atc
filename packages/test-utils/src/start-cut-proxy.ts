@@ -9,10 +9,9 @@ interface CutProxyOptions {
   readonly method: string;
   readonly cuts: number;
 
-  // `close` ends both sides where the response would pass; `hold`
-  // swallows it and every later byte from the target, leaving the
-  // connection open; `drop` ends both sides in place of forwarding the
-  // request, so the target never sees it.
+  // Close ends both sides where the response would pass; hold swallows it and
+  // every later byte from the target, keeping the link open; drop ends both
+  // sides in place of forwarding the request, so the target never sees it.
   readonly mode: 'close' | 'hold' | 'drop';
 }
 
@@ -42,15 +41,6 @@ interface ProxyLink {
   readonly onHold: () => void;
 }
 
-/**
- * A TCP proxy on a loopback port that forwards an NDJSON protocol
- * connection byte for byte, except that for the first `cuts` requests of
- * the method it loses the target's next answer after the request reached
- * the target: the request runs, and the client never sees its response.
- * It stops, ending every link, once the current test finishes, so it must
- * run inside a test; `stop` stops it sooner, and a second stop does
- * nothing.
- */
 export function startCutProxy(options: CutProxyOptions): CutProxy {
   let cutsLeft = options.cuts;
   let requests = 0;

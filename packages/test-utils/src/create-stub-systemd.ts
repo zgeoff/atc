@@ -30,23 +30,9 @@ interface StubSystemd {
   readonly remove: () => void;
 }
 
-/**
- * Writes a stand-in `systemctl` and `systemd-run` that touch no service
- * manager. Without a MainPID, `systemctl show -p MainPID` prints a pid no
- * process holds, so no daemon is ever a unit's main process. With
- * `writeMainPID`, `systemctl restart` stops that pid with SIGTERM and starts
- * `atcCommand daemon` in the background. `systemctl show --property=BoundBy`
- * prints the units `writeBoundBy` wrote, or nothing. `systemd-run` runs the
- * command after `--` in the background with only the `--setenv` variables,
- * as a transient unit sees them, and appends its output to the
- * `StandardOutput=append:` file. `systemd-run --scope` instead replaces
- * itself with the command, which keeps its environment, its terminal, and
- * the pid, as a scope does. The `systemd-run` file holds the name of the
- * `libsystemd-shared-261` library, as a program of systemd 261 does. Every
- * call is logged. The stand-ins' directory is removed once the
- * current test finishes, so it must run inside a test; `remove` removes it
- * sooner, and a second removal does nothing.
- */
+// Without a main pid, systemctl prints one no process holds, so no daemon is
+// ever a unit's main process; systemd-run --scope execs the command, keeping
+// its environment, terminal and pid as a scope does.
 export function createStubSystemd(atcCommand: readonly string[]): StubSystemd {
   const root = mkdtempSync(join(tmpdir(), 'atc-stub-systemd-'));
 

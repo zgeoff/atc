@@ -4,17 +4,6 @@ import { StateStore } from '../state-store';
 
 let template: Promise<string> | undefined;
 
-/**
- * Creates a state database at the path that is already at the latest schema,
- * by copying a database the store migrated once per test process. A store
- * opened on the copy finds every migration applied and runs none, so a test
- * that needs a ready store skips the migration ladder. Each copy is a file of
- * its own; every copy holds the same daemon id, minted when the template was
- * migrated. The template sits in the test home, which the test script removes
- * on exit, under a name of its own per process, since parallel test processes
- * share that home. It rejects when `ATC_TEST_HOME` is unset, as it is
- * outside the test script.
- */
 export async function createMigratedStateDB(dbPath: string): Promise<void> {
   const home = process.env['ATC_TEST_HOME'];
 
@@ -30,6 +19,7 @@ export async function createMigratedStateDB(dbPath: string): Promise<void> {
 }
 
 async function createTemplateStateDB(home: string): Promise<string> {
+  // One name per process, since parallel test processes share the test home.
   const path = join(home, `migrated-state-${String(process.pid)}.db`);
 
   const store = await StateStore.open(path);

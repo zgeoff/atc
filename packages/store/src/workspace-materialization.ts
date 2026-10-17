@@ -1,13 +1,5 @@
 import type { SessionID } from '@atc/core';
 
-/**
- * Where a spawn's workspace stands on its way to the execution target:
- * resolving the source to a commit, cloning it on the daemon's host,
- * transferring the archive to the target, and verifying the target's
- * checkout, then `ready` or `failed`. A row a stopped daemon left in any
- * other phase is reconciled to `failed` before the next daemon serves a
- * request, so no workspace ever counts as ready without its verification.
- */
 export type MaterializationPhase =
   | 'resolving'
   | 'cloning'
@@ -16,11 +8,6 @@ export type MaterializationPhase =
   | 'ready'
   | 'failed';
 
-/**
- * One spawn's workspace materialization, keyed by the session it is for.
- * The repository URL is the token-free form, and the row never holds a
- * credential or the reference to one.
- */
 export interface WorkspaceMaterialization {
   readonly sessionID: SessionID;
   readonly target: string;
@@ -29,6 +16,8 @@ export interface WorkspaceMaterialization {
   readonly dir: string;
   readonly sourceKind: 'path' | 'git';
   readonly phase: MaterializationPhase;
+
+  // The token-free form: the row never holds a credential or a reference to one.
   readonly repoURL: string | null;
   readonly sha: string | null;
 

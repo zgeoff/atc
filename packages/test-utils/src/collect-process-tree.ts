@@ -7,13 +7,6 @@ export interface TreeProcess {
   readonly env: Readonly<Record<string, string>>;
 }
 
-/**
- * Collects the argv and environment of every live process descended from
- * the root process, read from `/proc`, so a test can check what a child
- * was started with while it still runs. The root itself is left out. A
- * process that exits during the scan is left out too. Linux only, since
- * only Linux has `/proc`.
- */
 export async function collectProcessTree(rootPID: number): Promise<TreeProcess[]> {
   const entries = await readdir('/proc');
 

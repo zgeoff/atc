@@ -18,15 +18,8 @@ interface CommandResult {
   readonly stderr: string;
 }
 
-/**
- * Runs a command as its own process and resolves once it exits and its
- * output closes, with its exit code, the signal that ended it, and
- * everything it printed. The run never blocks the test's event loop, so the
- * test's timeout still applies. The command leads a process group of its
- * own, and a run still incomplete when the test finishes has that whole
- * group killed, so a child the command left holding its output ends too.
- * Call it only inside a test, never from a cleanup.
- */
+// Call it only inside a test, never from a cleanup, since it registers a
+// cleanup of its own.
 export async function runCommand(
   cmd: readonly string[],
   options: Readonly<CommandOptions> = {},
@@ -37,6 +30,9 @@ export async function runCommand(
     stdin: options.stdin === undefined ? 'ignore' : Buffer.from(options.stdin),
     stdout: 'pipe',
     stderr: 'pipe',
+
+    // Leading its own process group lets the cleanup kill a child the command
+    // left holding its output.
     detached: true,
   });
 

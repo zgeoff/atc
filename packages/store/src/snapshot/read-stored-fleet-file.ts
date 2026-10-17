@@ -1,15 +1,9 @@
 import { Database } from 'bun:sqlite';
 import type { StoredRow } from './read-stored-rows';
 
-/**
- * Reads the stored fleet rows straight from the state database, read-only,
- * for a daemon whose protocol this build cannot speak. Each column is read
- * under the name the file's schema gives it, and one the schema lacks reads
- * as its default, so an older daemon's database reads without a migration. On a schema that records
- * session ownership, only the rows this state directory's daemon owns are
- * read, as the daemon's own fleet list reads them. Returns null when the
- * file is missing or cannot be read.
- */
+// Reads a daemon whose protocol this build cannot speak: a column its schema
+// lacks reads as its default, so an older daemon's database reads without a
+// migration.
 export function readStoredFleetFile(dbPath: string): StoredRow[] | null {
   let db: Database;
 

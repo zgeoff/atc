@@ -1,18 +1,6 @@
 import { LineDecoder, PROTOCOL_V, decodeMessage, encodeMessage } from '@atc/protocol/wire';
 import { registerTestCleanup } from './register-test-cleanup';
 
-/**
- * A daemon stand-in on a unix socket path that speaks the real wire format
- * to a fleet restore check: it answers every `fleet.restore` with an empty
- * result, answers each other request with the next reply the test pushes
- * onto `lists`, and withholds the answer to any request that finds `lists`
- * empty. It refuses a method the test adds to `unknown` with the
- * `unknown_method` error a daemon that predates the method returns, and
- * takes no reply from `lists` for it. `methods` holds the method of each
- * request it took, in order. The listener stops once the current test
- * finishes, so it must run inside a test; `stop` stops it sooner, and a
- * second stop does nothing.
- */
 export function startStubRestoreDaemon(socketPath: string) {
   const lists: Readonly<Record<string, unknown>>[] = [];
   const methods: string[] = [];

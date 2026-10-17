@@ -1,15 +1,5 @@
 import { getSourceEntry } from './get-source-entry';
 
-/**
- * The script of a stand-in `claude` for the stdio MCP suites. It appends its
- * pid to `$HOME/stub-pids`, prints `FAKE_CLAUDE_UP args: ` and its
- * arguments, and ends by echoing its input back until that input closes.
- * Unless the file
- * `$HOME/fake-claude-hold-start` exists, it first reports `SessionStart`
- * through the real reporter with session id `fake-1` and transcript
- * `$HOME/fake-transcript.jsonl`, and when `$HOME/fake-claude-note` exists it
- * files that file's text as a note labelled `decision`.
- */
 export function buildStubMCPClaude(): string {
   const cli = `"${process.execPath}" "${getSourceEntry('atc')}"`;
 

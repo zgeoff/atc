@@ -10,18 +10,9 @@ interface StubSharedServerCodexConfig {
   readonly composer: string;
 }
 
-/**
- * Creates a stand-in for a Codex CLI that shares one background server
- * between its terminals, as `fake-codex` under the directory, and returns
- * its path. Without `--no-daemon`, the first start records its own
- * `ATC_SESSION_ID` and `ATC_SOCKET` in `codex-shared-server.env` under the
- * directory, as the server it starts keeps its environment, and every start
- * runs its hooks with the recorded pair, as Codex runs hooks inside that
- * server. With `--no-daemon`, a start runs its hooks with its own pair. The
- * stub prints its arguments, reports a `SessionStart` for its thread, which
- * is `fake-thread-<its own ATC_SESSION_ID>` or the id after `resume`, then
- * a `Stop` whose last message is `done <thread>`, then runs the composer.
- */
+// Codex runs hooks inside the background server its first terminal starts, which
+// keeps that start's environment, so every start without --no-daemon reports
+// with the session id and socket the first start recorded.
 export function createStubSharedServerCodex(
   dir: string,
   config: StubSharedServerCodexConfig,

@@ -15,32 +15,12 @@ interface MCPStdioOptions {
   readonly command?: readonly string[];
 }
 
-/**
- * One tool call's result as the server returned it: `isError` as sent,
- * `structured` as its `structuredContent`, and the text of its only content
- * item.
- */
 interface MCPToolResult {
   readonly isError: unknown;
   readonly text: string;
   readonly structured: Readonly<Record<string, unknown>> | undefined;
 }
 
-/**
- * `atc mcp` from this checkout, run as a subprocess over stdio, with an
- * `initialize` already answered, so the daemon the server boots or joins is
- * up. `sendRequest` sends one JSON-RPC request under the next id and
- * resolves with its whole response. `sendToolCall` sends `tools/call` and
- * resolves with the result, rejecting when the response holds no result, the
- * result holds anything but one text item, or its structured content is not
- * an object. `spawnSession` spawns through `atc_session_spawn` and resolves
- * with the new session's id. A request still unanswered when the server's
- * stdout ends rejects. When `initialize` fails, the server is stopped
- * before the start rejects. The server stops once the current test
- * finishes, so it must run inside a test; `stop` stops it sooner and waits
- * for it to exit, and a second stop waits for the same exit. The daemon
- * stays up for the home to stop.
- */
 export async function startMCPStdio(options: MCPStdioOptions) {
   const proc = Bun.spawn(
     [...(options.command ?? [process.execPath, getSourceEntry('atc'), 'mcp'])],
@@ -59,6 +39,7 @@ export async function startMCPStdio(options: MCPStdioOptions) {
     },
   );
 
+  // The daemon the server booted or joined stays up, for the home to stop.
   const stop = registerTestCleanup(async (): Promise<void> => {
     void proc.stdin.end();
     proc.kill();
@@ -131,11 +112,6 @@ export async function startMCPStdio(options: MCPStdioOptions) {
   return server;
 }
 
-/**
- * Reads the server's stdout as JSON-RPC lines and resolves the pending
- * request each response's id matches. Once stdout ends, or holds a line that
- * is not JSON, every request not yet resolved rejects.
- */
 async function readResponses(
   stdout: Readonly<ReadableStream<Uint8Array>>,
   pending: ReadonlyMap<number, PromiseWithResolvers<Readonly<Record<string, unknown>>>>,
