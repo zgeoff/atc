@@ -1,6 +1,7 @@
 import { Database } from 'bun:sqlite';
 import { expect, onTestFinished, test } from 'bun:test';
-import { join } from 'node:path';
+import { writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { registerRefusedSQLiteName } from '../sqlite/register-refused-sqlite-name';
 import { readStoredFleetFile } from './read-stored-fleet-file';
@@ -72,6 +73,15 @@ test('it reads null for a missing database file', () => {
   const ctx = setupTest();
 
   expect(readStoredFleetFile(ctx.dbPath)).toBeNull();
+});
+
+test('it reads null for a path whose parent is a file', () => {
+  const ctx = setupTest();
+  const plain = join(dirname(ctx.dbPath), 'plain');
+
+  writeFileSync(plain, '');
+
+  expect(readStoredFleetFile(join(plain, 'atc.db'))).toBeNull();
 });
 
 test('it reads null for a database without a fleet table', () => {

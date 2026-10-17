@@ -38,16 +38,28 @@ function collectLinkNames(path: string): string[] {
   let current = path;
 
   for (let hop = 0; hop < MAX_LINK_HOPS; hop += 1) {
-    const stats = lstatSync(current, { throwIfNoEntry: false });
+    const target = findLinkTarget(current);
 
-    if (stats === undefined || !stats.isSymbolicLink()) {
+    if (target === undefined) {
       break;
     }
 
-    current = resolve(dirname(current), readlinkSync(current));
+    current = resolve(dirname(current), target);
 
     names.push(basename(current));
   }
 
   return names;
+}
+
+// Undefined for a path that is no symlink, and for one this process cannot
+// read, which the SQLite open then fails to reach as well.
+function findLinkTarget(path: string): string | undefined {
+  try {
+    const stats = lstatSync(path, { throwIfNoEntry: false });
+
+    return stats?.isSymbolicLink() === true ? readlinkSync(path) : undefined;
+  } catch {
+    return undefined;
+  }
 }
