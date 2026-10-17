@@ -1,5 +1,34 @@
 # Changelog
 
+## [4.12.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.11.0...@zgeoff/atc@4.12.0) (2026-10-17)
+
+### Features
+
+- **geo-880:** let an imp target run its harnesses without cap_sys_admin
+  ([#680](https://github.com/zgeoff/atc/issues/680))
+  ([f1ad6dd](https://github.com/zgeoff/atc/commit/f1ad6dda272a7234a4cfc5eb2e47f815aac0e19d))
+
+### Bug Fixes
+
+- **geo-1148:** keep a nested codex run from reporting as its session
+  ([#673](https://github.com/zgeoff/atc/issues/673))
+  ([fe5efc1](https://github.com/zgeoff/atc/commit/fe5efc110f41aebab2b4bd3239f88b25d9517329))
+- **geo-1161:** pass a preload named only through type-only specifiers
+  ([#679](https://github.com/zgeoff/atc/issues/679))
+  ([746120c](https://github.com/zgeoff/atc/commit/746120c692be0f0badcbc33e0849a0924665cc90))
+- **geo-1169:** hold an atc-bridge delivery while a response streams
+  ([#689](https://github.com/zgeoff/atc/issues/689))
+  ([8830117](https://github.com/zgeoff/atc/commit/88301174cb034df194ba43a8c8126fdbffaf2caf))
+- **geo-1172:** retry a start whose capability check times out
+  ([#688](https://github.com/zgeoff/atc/issues/688))
+  ([0e40551](https://github.com/zgeoff/atc/commit/0e40551519f62b85457be5e3833b0fce92c25295))
+
+### Performance Improvements
+
+- **geo-201:** cut round trips from auth-binding and guest-atc
+  ([#681](https://github.com/zgeoff/atc/issues/681))
+  ([70c7464](https://github.com/zgeoff/atc/commit/70c7464073a1038c93e909271f4edd93090f7e94))
+
 ## [4.11.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.10.0...@zgeoff/atc@4.11.0) (2026-10-16)
 
 ### Features
