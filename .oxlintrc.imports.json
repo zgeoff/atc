@@ -7123,7 +7123,259 @@
       }
     },
     {
-      "files": ["packages/execution/imp/src/testing/create-stub-imp-port.ts"],
+      "files": ["packages/execution/imp/src/testing/answer-stub-session.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/execution-imp(/|$)",
+                "message": "A module in @atc/execution-imp imports its own package by a relative path, never by name."
+              },
+              {
+                "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
+                "message": "@atc/execution-imp may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "group": [
+                  "@atc/app",
+                  "@atc/app/*",
+                  "@atc/app/*/**",
+                  "@atc/config/*",
+                  "@atc/config/*/**",
+                  "!@atc/config/claude-statusline",
+                  "!@atc/config/host",
+                  "@atc/core/*",
+                  "@atc/core/*/**",
+                  "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
+                  "@atc/execution-imp/*",
+                  "@atc/execution-imp/*/**",
+                  "!@atc/execution-imp/testing",
+                  "@atc/execution-local/*",
+                  "@atc/execution-local/*/**",
+                  "!@atc/execution-local/testing",
+                  "@atc/harness-claude/*",
+                  "@atc/harness-claude/*/**",
+                  "!@atc/harness-claude/testing",
+                  "@atc/harness-codex/*",
+                  "@atc/harness-codex/*/**",
+                  "@atc/harness-grok/*",
+                  "@atc/harness-grok/*/**",
+                  "@atc/lifecycle/*",
+                  "@atc/lifecycle/*/**",
+                  "!@atc/lifecycle/run-command",
+                  "!@atc/lifecycle/testing",
+                  "@atc/plugin-api/*",
+                  "@atc/plugin-api/*/**",
+                  "@atc/protocol/*",
+                  "@atc/protocol/*/**",
+                  "!@atc/protocol/session",
+                  "!@atc/protocol/wire",
+                  "!@atc/protocol/wire/transport",
+                  "@atc/source-dirs/*",
+                  "@atc/source-dirs/*/**",
+                  "@atc/source-git/*",
+                  "@atc/source-git/*/**",
+                  "@atc/source-github/*",
+                  "@atc/source-github/*/**",
+                  "@atc/store/*",
+                  "@atc/store/*/**",
+                  "!@atc/store/sqlite",
+                  "!@atc/store/testing",
+                  "@atc/test-utils/*",
+                  "@atc/test-utils/*/**"
+                ],
+                "message": "Import a package through an entry point its exports map lists."
+              },
+              {
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/execution/imp/src/testing/stub-imp.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/execution-imp(/|$)",
+                "message": "A module in @atc/execution-imp imports its own package by a relative path, never by name."
+              },
+              {
+                "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
+                "message": "@atc/execution-imp may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "group": [
+                  "@atc/app",
+                  "@atc/app/*",
+                  "@atc/app/*/**",
+                  "@atc/config/*",
+                  "@atc/config/*/**",
+                  "!@atc/config/claude-statusline",
+                  "!@atc/config/host",
+                  "@atc/core/*",
+                  "@atc/core/*/**",
+                  "!@atc/core/schema",
+                  "@atc/daemon/*",
+                  "@atc/daemon/*/**",
+                  "!@atc/daemon/testing",
+                  "@atc/execution-imp/*",
+                  "@atc/execution-imp/*/**",
+                  "!@atc/execution-imp/testing",
+                  "@atc/execution-local/*",
+                  "@atc/execution-local/*/**",
+                  "!@atc/execution-local/testing",
+                  "@atc/harness-claude/*",
+                  "@atc/harness-claude/*/**",
+                  "!@atc/harness-claude/testing",
+                  "@atc/harness-codex/*",
+                  "@atc/harness-codex/*/**",
+                  "@atc/harness-grok/*",
+                  "@atc/harness-grok/*/**",
+                  "@atc/lifecycle/*",
+                  "@atc/lifecycle/*/**",
+                  "!@atc/lifecycle/run-command",
+                  "!@atc/lifecycle/testing",
+                  "@atc/plugin-api/*",
+                  "@atc/plugin-api/*/**",
+                  "@atc/protocol/*",
+                  "@atc/protocol/*/**",
+                  "!@atc/protocol/session",
+                  "!@atc/protocol/wire",
+                  "!@atc/protocol/wire/transport",
+                  "@atc/source-dirs/*",
+                  "@atc/source-dirs/*/**",
+                  "@atc/source-git/*",
+                  "@atc/source-git/*/**",
+                  "@atc/source-github/*",
+                  "@atc/source-github/*/**",
+                  "@atc/store/*",
+                  "@atc/store/*/**",
+                  "!@atc/store/sqlite",
+                  "!@atc/store/testing",
+                  "@atc/test-utils/*",
+                  "@atc/test-utils/*/**"
+                ],
+                "message": "Import a package through an entry point its exports map lists."
+              },
+              {
+                "regex": "^@impz/client(/|$)",
+                "message": "@impz/client belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/execution/imp/src/testing/try-kill.ts"],
       "rules": {
         "no-restricted-imports": [
           "error",

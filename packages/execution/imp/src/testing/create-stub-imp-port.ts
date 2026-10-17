@@ -1,16 +1,9 @@
-import { randomBytes, randomUUID } from 'node:crypto';
-import { rmSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { mkdir, rename, writeFile } from 'node:fs/promises';
 import { posix } from 'node:path';
-import { isBrokerVariable } from '@atc/core';
-import { isHostNameAllowed } from '@atc/plugin-api';
 import { registerTestCleanup } from '@atc/test-utils';
-import type { Subprocess } from 'bun';
-import { spawn } from 'bun-pty';
-import type { IPty } from 'bun-pty';
 import { buildImpdRefusal } from '../build-impd-refusal';
 import type {
-  ColdBoot,
   ColdBootCause,
   ImpCommand,
   ImpCommandResult,
@@ -26,28 +19,22 @@ import type {
   ImpSecretRule,
   ImpSessionConnection,
   ImpSessionHandlers,
-  ImpSessionOutcome,
   ImpSessionRequest,
   ImpState,
   ImpView,
-  PreviousGeneration,
-  ResumeResult,
 } from '../imp-port';
 import { ImpPortError } from '../imp-port-error';
-import type {
-  ImpdBareRefusalCode,
-  ImpdExecOutcome,
-  ImpdExecRefusal,
-  ImpdOutput,
-  ImpdSessionOutput,
-} from '../impd-contract';
+import type { ImpdBareRefusalCode, ImpdExecRefusal, ImpdOutput } from '../impd-contract';
 import { toImpFeatures } from '../to-imp-features';
-import { toImpIdentity } from '../to-imp-identity';
-import { toImpLease } from '../to-imp-lease';
-import type { ImpdLease } from '../to-imp-lease';
-import { toImpSecret } from '../to-imp-secret';
-import type { ImpdListedSecret } from '../to-imp-secret';
-import { toImpView } from '../to-imp-view';
+import { buildNotFound } from './build-not-found';
+import { StubImpCommands } from './stub-imp-commands';
+import type { StubCommandHold } from './stub-imp-commands';
+import { StubImpFleet } from './stub-imp-fleet';
+import { StubImpForwards } from './stub-imp-forwards';
+import { StubImpLeases } from './stub-imp-leases';
+import { StubImpSecrets } from './stub-imp-secrets';
+import { StubImpSessions } from './stub-imp-sessions';
+import { tryKill } from './try-kill';
 
 // Must be created inside a test, since the test's end kills every process and
 // forward the stand-in holds. A sleeping imp SIGSTOPs its processes, so a
@@ -61,96 +48,6 @@ export function createStubImpPort(
 ): StubImpPort {
   return new StubImpPort(principal, now, report);
 }
-
-// How a stub connection ends: as impd ends an exec, or with a local error
-// when a handler on the daemon's side throws.
-type StubSessionOutcome =
-  | ImpdExecOutcome
-  | Extract<ImpSessionOutcome, { readonly kind: 'local_error' }>;
-
-interface StubConnection {
-  readonly handlers: ImpSessionHandlers;
-  sent: number;
-  finished: boolean;
-  process: StubProcess | null;
-  readonly stop: (outcome: StubSessionOutcome) => void;
-
-  // Ends the connection with a refusal outside impd's contract.
-  readonly stopMalformed: (
-    outcome: Extract<ImpSessionOutcome, { readonly kind: 'failed' }>,
-  ) => void;
-}
-
-interface StubProcess {
-  readonly pty: IPty;
-  readonly generation: string;
-
-  // The command line the process started with.
-  readonly argv: readonly string[];
-  ring: Uint8Array;
-  end: number;
-  exited: { readonly code: number | null } | null;
-
-  // Ended by a cold boot: its exit is never delivered.
-  ended: boolean;
-  connection: StubConnection | null;
-
-  // Whether its start required the broker, which a start that requires it
-  // and would join the process needs.
-  readonly requireBroker: boolean;
-}
-
-interface StubLease {
-  readonly principal: string;
-  readonly label: string;
-  readonly until: number;
-}
-
-interface StubImp {
-  readonly id: string;
-  readonly name: string;
-  state: ImpState;
-  bootId: string;
-  coldBoots: ColdBoot[];
-  readonly leases: Map<string, StubLease>;
-  readonly sessions: Map<string, StubProcess>;
-  readonly previous: Map<string, PreviousGeneration>;
-
-  // The secrets granted to the imp.
-  readonly grants: Set<string>;
-}
-
-// The PATH every stub process runs with: a guest's own, never the
-// daemon's.
-const GUEST_PATH = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
-
-interface StubRelay {
-  readonly dataListeners: ((data: Uint8Array) => void)[];
-  readonly closeListeners: (() => void)[];
-  readonly endListeners: (() => void)[];
-
-  // Bytes a write handed over that the socket has not taken yet, and the
-  // writes waiting for them to go.
-  unsent: Uint8Array;
-  readonly roomWaiters: (() => void)[];
-}
-
-// A hold on the commands whose argv holds its text: entered resolves with
-// the argv of the first command it holds, and stop lets every command it
-// holds run.
-interface StubCommandHold {
-  readonly entered: Promise<string>;
-  readonly stop: () => void;
-}
-
-// The exit code of a guest command killed by SIGKILL.
-const KILLED_CODE = 137;
-
-// impd keeps exactly this many bytes of each generation's output.
-const RING_BYTES = 262_144;
-
-// The mode bytes a fresh attach sends ahead of a ring that has wrapped.
-const PRELUDE = '\u001B[0m';
 
 class StubImpPort implements ImpPort {
   // Every port call, in order, as `<call> <imp> [<detail>]`.
@@ -177,23 +74,6 @@ class StubImpPort implements ImpPort {
   // name; null stands for an imp agent from before them.
   readOnlyFilesDir: string | null = null;
 
-  // Who the port calls impd as.
-  private identity: ImpIdentity = {
-    kind: 'token',
-    name: 'atc',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: [],
-  };
-
-  // Grantable secrets rebound or removed since the identity was set, which
-  // its list no longer covers, as a secret's new generation leaves a
-  // token's list behind.
-  private readonly staleGrantable = new Set<string>();
-
-  // The secrets impd holds, by name; which imps hold each is the grants'.
-  private readonly secrets = new Map<string, Omit<ImpSecret, 'imps'>>();
-
   // What a session's agent carries: `none` replays on every connection and
   // ignores resumes.
   continuity: 'offsets' | 'none' = 'offsets';
@@ -202,151 +82,38 @@ class StubImpPort implements ImpPort {
   // impd's at-least-once delivery allows.
   resumeOverlap = 0;
 
-  // Session answers held back while a test lets output pile up, or null
-  // when answers go out at once.
-  private held: (() => void)[] | null = null;
-
-  // How many of the next session requests impd drops before it answers,
-  // and the close code it drops them with.
-  private drops = { count: 0, closeCode: 1011 };
-
-  // Lease acquisitions that go through before the next one fails, and
-  // impd's code for that failure, or null for none.
-  private acquireFailure: {
-    skip: number;
-    readonly code: ImpdBareRefusalCode<'leases.acquire'>;
-  } | null = null;
-
-  // A refusal the next session request gets instead of an answer, with the
-  // message it carries when it has one of its own.
-  private nextFailure: {
-    readonly refusal: ImpdExecRefusal;
-    readonly message?: string;
-  } | null = null;
-
-  // A refusal outside impd's contract that the next session request gets
-  // instead, or null.
-  private nextMalformedFailure: { readonly code: string; readonly data: unknown } | null = null;
-
   // Feature reads still to fail as an unreachable impd before they answer.
   private featureFailures = 0;
 
   // Feature reads that failed as an unreachable impd.
   private failedFeatureReads = 0;
 
-  // Session connections whose opening still throws before it returns, as
-  // an invalid authorization header makes the socket's constructor throw.
-  private openFailures = 0;
+  private readonly fleet: StubImpFleet;
 
-  // Session connections still to fail their upgrade, ending unreachable
-  // before they open and before any gate runs.
-  private upgradeFailures = 0;
+  private readonly secrets: StubImpSecrets;
 
-  // Capability checks still to time out, each ending its start unreachable
-  // once the connection opens, before any gate runs.
-  private execCheckFailures = 0;
+  private readonly leases: StubImpLeases;
 
-  // Capability checks that timed out.
-  private failedExecChecks = 0;
+  private readonly commands: StubImpCommands;
 
-  // The connections still opening while upgrades are held, each sending
-  // its request once it opens; null while connections open at once.
-  private upgrades: (() => void)[] | null = null;
+  private readonly forwards: StubImpForwards;
 
-  // The lease releases wait for this hold to end, while one is held.
-  private releaseHold: PromiseWithResolvers<void> | null = null;
-
-  // The lease acquisitions wait for this hold to end, while one is held.
-  private leaseHold: PromiseWithResolvers<void> | null = null;
-
-  // How many lease acquisitions and releases wait on their holds.
-  private heldLeases = 0;
-
-  private heldReleases = 0;
-
-  // The imp destroys wait for this hold to end, while one is held.
-  private destroyHold: PromiseWithResolvers<void> | null = null;
-
-  private heldDestroys = 0;
-
-  // Called at the start of every lease acquisition, in the caller's turn.
-  private readonly leaseAcquireListeners = new Set<(name: string, label: string) => void>();
-
-  // The guest's home inside every imp: a missing working directory
-  // resolves to it and every process takes it as HOME, as impd gives one;
-  // null for the test's own working directory and environment.
-  private homeDir: string | null = null;
-
-  private guestPath = GUEST_PATH;
-
-  // Commands whose argv holds this text wait for the hold to stop, while
-  // one is held.
-  private commandHold: {
-    readonly match: string;
-    readonly entered: PromiseWithResolvers<string>;
-    readonly done: PromiseWithResolvers<void>;
-  } | null = null;
-
-  // How many commands wait on a command hold.
-  private heldCommands = 0;
-
-  // The guest commands running now, which a stop kills, each with its argv
-  // and the parts of its end not yet seen: stdout, stderr, and exit.
-  private readonly commands = new Map<
-    Subprocess,
-    { readonly line: string; readonly pending: Set<string> }
-  >();
-
-  // Set once the stand-in stops, so a command a hold released never runs.
-  private stopped = false;
-
-  // Settles once a stop has killed every guest command, so a run still
-  // waiting on a killed command's output stops waiting.
-  private readonly killed = Promise.withResolvers<null>();
-
-  // Commands whose argv holds this text exit 1 without running, or null.
-  private commandFailure: string | null = null;
-
-  // impd's code for every imp destroy while destroys fail, or null.
-  private destroyFailure: ImpdBareRefusalCode<'imps.destroy'> | null = null;
-
-  // impd's code for every grant removal while removals fail, or null.
-  private grantRemovalFailure: ImpdBareRefusalCode<'grants.delete'> | 'UNREACHABLE' | null = null;
-
-  // Whether every reverse forward closes each new guest connection at once.
-  private refusingRelays = false;
-
-  // Whether the broker fails in every imp, as a CA that did not install
-  // leaves it.
-  private brokerFailing = false;
-
-  // Whether every relayed connection drops what the guest writes, while
-  // what the daemon writes still reaches the guest.
-  private droppingGuestBytes = false;
-
-  // How many guest bytes the drop has thrown away.
-  private droppedGuestBytes = 0;
-
-  private readonly principal: string;
-
-  // The time in epoch milliseconds that leases expire against.
-  private readonly now: () => number;
-
-  private readonly imps = new Map<string, StubImp>();
-
-  private readonly forwards = new Set<{
-    stop: () => void;
-    stopRelays: () => void;
-    end: (end: ImpForwardEnd) => void;
-  }>();
-
-  // Takes one line per guest command a stop finds still running.
-  private readonly report: (line: string) => void;
+  private readonly sessions: StubImpSessions;
 
   constructor(principal: string, now: () => number, report: (line: string) => void) {
-    this.principal = principal;
-    this.now = now;
-    this.report = report;
+    const calls = this.calls;
+
+    this.fleet = new StubImpFleet({ principal, now, calls, createSpecs: this.createSpecs });
+    this.secrets = new StubImpSecrets({ calls, fleet: this.fleet });
+    this.leases = new StubImpLeases({ calls, fleet: this.fleet });
+    this.commands = new StubImpCommands({ calls, imps: this.fleet.imps, report });
+    this.forwards = new StubImpForwards({ calls });
+
+    this.sessions = new StubImpSessions({
+      calls,
+      sessionRequests: this.sessionRequests,
+      context: { fleet: this.fleet, commands: this.commands, settings: this },
+    });
   }
 
   readFeatures(): Promise<ImpFeatures> {
@@ -378,366 +145,51 @@ class StubImpPort implements ImpPort {
   }
 
   readIdentity(): Promise<ImpIdentity> {
-    this.calls.push('tokens.whoami');
-
-    const identity = this.identity;
-
-    return Promise.resolve(
-      toImpIdentity({
-        kind: identity.kind,
-        name: identity.name,
-        scope: identity.scope,
-        imps: identity.imps,
-        grantable: identity.grantable,
-      }),
-    );
+    return this.secrets.readIdentity();
   }
 
   readSecrets(): Promise<readonly ImpSecret[]> {
-    this.calls.push('secrets.list');
-
-    return Promise.resolve(
-      [...this.secrets.values()].map((secret) => {
-        const imps = [...this.imps.values()]
-          .filter((imp) => imp.grants.has(secret.name))
-          .map((imp) => imp.name);
-
-        const listed: ImpdListedSecret = {
-          name: secret.name,
-          kind: secret.kind,
-          rules: secret.rules.map((rule) => ({
-            host: rule.host,
-            header: rule.header,
-            scheme: rule.scheme,
-            ...(rule.user === undefined ? {} : { user: rule.user }),
-          })),
-          imps,
-          ...(secret.oauth === undefined
-            ? {}
-            : { oauth: { status: secret.oauth.status, idClaims: secret.oauth.idClaims } }),
-        };
-
-        return toImpSecret(listed);
-      }),
-    );
+    return this.secrets.readSecrets();
   }
 
   readGrants(name: string): Promise<readonly string[]> {
-    this.calls.push(`grants.list ${name}`);
-
-    const imp = this.imps.get(name);
-
-    if (imp === undefined) {
-      return Promise.reject(buildNotFound('grants.list', name));
-    }
-
-    const grants: ImpdOutput<'grants.list'> = [...imp.grants];
-
-    return Promise.resolve(grants);
+    return this.secrets.readGrants(name);
   }
 
   createGrant(name: string, secret: string): Promise<void> {
-    this.calls.push(`grants.add ${name} ${secret}`);
-
-    const refusal = this.findGrantRefusal(name, secret);
-
-    if (refusal !== null) {
-      return Promise.reject(refusal);
-    }
-
-    const imp = this.getImp(name);
-
-    const hosts = new Set(this.secrets.get(secret)?.rules.map((rule) => rule.host));
-
-    const clash = [...imp.grants].find(
-      (held) =>
-        held !== secret &&
-        (this.secrets.get(held)?.rules ?? []).some((rule) => hosts.has(rule.host)),
-    );
-
-    if (clash !== undefined) {
-      return Promise.reject(
-        buildImpdRefusal(
-          'grants.add',
-          {
-            code: 'CONFLICT',
-            data: {
-              kind: 'grant',
-              name: `${name}/${clash}`,
-            },
-          },
-          `grant ${clash} covers a host of ${secret}`,
-        ),
-      );
-    }
-
-    imp.grants.add(secret);
-
-    return Promise.resolve();
+    return this.secrets.createGrant(name, secret);
   }
 
   removeGrant(name: string, secret: string): Promise<boolean> {
-    this.calls.push(`grants.delete ${name} ${secret}`);
-
-    if (this.grantRemovalFailure !== null) {
-      return Promise.reject(
-        new ImpPortError(this.grantRemovalFailure, 'impd did not remove the grant'),
-      );
-    }
-
-    const refusal = this.findGrantRefusal(name, secret);
-
-    if (refusal !== null) {
-      return Promise.reject(refusal);
-    }
-
-    return Promise.resolve(this.getImp(name).grants.delete(secret));
+    return this.secrets.removeGrant(name, secret);
   }
 
   readImp(name: string): Promise<ImpView | null> {
-    this.calls.push(`imps.get ${name}`);
-
-    const imp = this.imps.get(name);
-    const view = imp === undefined ? null : toImpView(this.buildImpdImp(imp));
-
-    return Promise.resolve(view);
+    return this.fleet.readImp(name);
   }
 
   createImp(spec: ImpCreateSpec): Promise<ImpView> {
-    this.calls.push(`imps.create ${spec.name}`);
-    this.createSpecs.push(spec);
-
-    if (this.imps.has(spec.name)) {
-      return Promise.reject(
-        buildImpdRefusal(
-          'imps.create',
-          {
-            code: 'CONFLICT',
-            data: {
-              kind: 'imp',
-              name: spec.name,
-            },
-          },
-          `imp ${spec.name} exists`,
-        ),
-      );
-    }
-
-    const imp: StubImp = {
-      id: randomUUID(),
-      name: spec.name,
-      state: 'stopped',
-      bootId: '',
-      coldBoots: [],
-      leases: new Map(),
-      sessions: new Map(),
-      previous: new Map(),
-      grants: new Set(),
-    };
-
-    this.imps.set(spec.name, imp);
-    this.bootCold(imp, 'start');
-
-    return Promise.resolve(toImpView(this.buildImpdImp(imp)));
+    return this.fleet.createImp(spec);
   }
 
   acquireLease(name: string, label: string, ttlSeconds: number): Promise<ImpLease> {
-    this.calls.push(`leases.acquire ${name} ${label}`);
-
-    for (const listener of this.leaseAcquireListeners) {
-      listener(name, label);
-    }
-
-    return this.leaseHold === null
-      ? this.applyLease(name, label, ttlSeconds)
-      : this.waitForLease(name, label, ttlSeconds);
-  }
-
-  private async waitForLease(name: string, label: string, ttlSeconds: number): Promise<ImpLease> {
-    this.heldLeases += 1;
-
-    await this.leaseHold?.promise;
-
-    this.heldLeases -= 1;
-
-    return this.applyLease(name, label, ttlSeconds);
-  }
-
-  private applyLease(name: string, label: string, ttlSeconds: number): Promise<ImpLease> {
-    const failure = this.acquireFailure;
-
-    if (failure !== null) {
-      if (failure.skip === 0) {
-        this.acquireFailure = null;
-
-        return Promise.reject(
-          new ImpPortError(failure.code, `impd refused the lease (${failure.code})`),
-        );
-      }
-
-      failure.skip -= 1;
-    }
-
-    if (label === 'hold' || ttlSeconds < 10 || ttlSeconds > 3600) {
-      return Promise.reject(
-        buildImpdRefusal(
-          'leases.acquire',
-          { code: 'BAD_REQUEST' },
-          'the label or ttl is not allowed',
-        ),
-      );
-    }
-
-    const imp = this.imps.get(name);
-
-    if (imp === undefined) {
-      return Promise.reject(buildNotFound('leases.acquire', name));
-    }
-
-    this.updateAwake(imp);
-
-    const until = this.now() + ttlSeconds * 1000;
-
-    imp.leases.set(`${this.principal}\u0000${label}`, { principal: this.principal, label, until });
-
-    return Promise.resolve(toImpLease(buildImpdLease(name, this.principal, label, until)));
+    return this.leases.acquireLease(name, label, ttlSeconds);
   }
 
   renewLease(name: string, label: string, ttlSeconds: number): Promise<ImpLease> {
-    this.calls.push(`leases.renew ${name} ${label}`);
-
-    const imp = this.imps.get(name);
-    const key = `${this.principal}\u0000${label}`;
-    const lease = imp?.leases.get(key);
-
-    if (imp === undefined || lease === undefined || lease.until <= this.now()) {
-      return Promise.reject(
-        buildImpdRefusal(
-          'leases.renew',
-          { code: 'LEASE_NOT_HELD' },
-          'the caller holds no such lease',
-        ),
-      );
-    }
-
-    const until = this.now() + ttlSeconds * 1000;
-
-    imp.leases.set(key, { ...lease, until });
-
-    return Promise.resolve(toImpLease(buildImpdLease(name, this.principal, label, until)));
+    return this.leases.renewLease(name, label, ttlSeconds);
   }
 
   releaseLease(name: string, label: string): Promise<boolean> {
-    this.calls.push(`leases.release ${name} ${label}`);
-
-    return this.releaseHold === null
-      ? this.applyRelease(name, label)
-      : this.waitForRelease(name, label);
-  }
-
-  private async waitForRelease(name: string, label: string): Promise<boolean> {
-    this.heldReleases += 1;
-
-    await this.releaseHold?.promise;
-
-    this.heldReleases -= 1;
-
-    return this.applyRelease(name, label);
-  }
-
-  private applyRelease(name: string, label: string): Promise<boolean> {
-    const imp = this.imps.get(name);
-
-    if (imp === undefined) {
-      return Promise.reject(buildNotFound('leases.release', name));
-    }
-
-    const released: ImpdOutput<'leases.release'> = {
-      released: imp.leases.delete(`${this.principal}\u0000${label}`),
-    };
-
-    return Promise.resolve(released.released);
+    return this.leases.releaseLease(name, label);
   }
 
   suspendImp(name: string): Promise<void> {
-    this.calls.push(`imps.sleep ${name}`);
-
-    const imp = this.imps.get(name);
-
-    if (imp === undefined) {
-      return Promise.reject(buildNotFound('imps.sleep', name));
-    }
-
-    const live = [...imp.leases.values()].filter((lease) => lease.until > this.now());
-
-    if (imp.state === 'running' && live.length > 0) {
-      const own = live.filter((lease) => lease.principal === this.principal);
-      const others = live.filter((lease) => lease.principal !== this.principal);
-
-      const otherPrincipals = new Set(others.map((lease) => lease.principal));
-
-      return Promise.reject(
-        buildImpdRefusal(
-          'imps.sleep',
-          {
-            code: 'LEASED',
-            data: {
-              leases: own.map((lease) =>
-                buildImpdLease(name, lease.principal, lease.label, lease.until),
-              ),
-              otherCount: otherPrincipals.size,
-            },
-          },
-          'the imp is leased',
-        ),
-      );
-    }
-
-    this.updateAsleep(imp);
-
-    return Promise.resolve();
+    return this.fleet.suspendImp(name);
   }
 
   destroyImp(name: string): Promise<void> {
-    this.calls.push(`imps.destroy ${name}`);
-
-    return this.destroyHold === null ? this.applyDestroy(name) : this.waitForDestroy(name);
-  }
-
-  private async waitForDestroy(name: string): Promise<void> {
-    this.heldDestroys += 1;
-
-    await this.destroyHold?.promise;
-
-    this.heldDestroys -= 1;
-
-    return this.applyDestroy(name);
-  }
-
-  private applyDestroy(name: string): Promise<void> {
-    if (this.destroyFailure !== null) {
-      return Promise.reject(
-        new ImpPortError(this.destroyFailure, `impd could not destroy ${name}`),
-      );
-    }
-
-    const imp = this.imps.get(name);
-
-    if (imp === undefined) {
-      return Promise.reject(buildNotFound('imps.destroy', name));
-    }
-
-    for (const proc of imp.sessions.values()) {
-      proc.connection?.stop({ kind: 'closed', reason: 'imp destroyed', closeCode: 1000 });
-      proc.connection = null;
-      proc.exited ??= { code: null };
-
-      tryKill(proc.pty, 'SIGKILL');
-    }
-
-    this.imps.delete(name);
-
-    return Promise.resolve();
+    return this.fleet.destroyImp(name);
   }
 
   openSession(
@@ -745,118 +197,14 @@ class StubImpPort implements ImpPort {
     handlers: ImpSessionHandlers,
     gate?: () => boolean,
   ): ImpSessionConnection {
-    if (this.openFailures > 0) {
-      this.openFailures -= 1;
-      throw new TypeError('the authorization header is invalid');
-    }
-
-    const outcome = Promise.withResolvers<ImpSessionOutcome>();
-
-    const stopConnection = (result: ImpSessionOutcome) => {
-      if (connection.finished) {
-        return;
-      }
-
-      connection.finished = true;
-
-      if (connection.process?.connection === connection) {
-        connection.process.connection = null;
-      }
-
-      outcome.resolve(result);
-    };
-
-    const connection: StubConnection = {
-      handlers,
-      sent: 0,
-      finished: false,
-      process: null,
-      stop: (result) => {
-        stopConnection(result);
-      },
-      stopMalformed: (result) => {
-        stopConnection(result);
-      },
-    };
-
-    // The request reaches impd once the connection opens, after impd's
-    // client checks the features a start needs and the gate lets it go; a
-    // check that times out or a closed gate sends nothing.
-    const sendToImpd = () => {
-      if (this.execCheckFailures > 0 && needsExecCheck(request)) {
-        this.execCheckFailures -= 1;
-        this.failedExecChecks += 1;
-
-        setTimeout(() => {
-          connection.stop({ kind: 'unreachable', detail: 'system.info: The operation timed out.' });
-        }, 0);
-
-        return;
-      }
-
-      if (gate !== undefined && !tryPassGate(gate)) {
-        connection.stop({ kind: 'closed', reason: 'closed before sending', closeCode: 1000 });
-
-        return;
-      }
-
-      this.calls.push(`exec.${request.kind} ${request.name} ${request.session}`);
-      this.sessionRequests.push(request);
-
-      // impd answers over the network: nothing reaches the caller before
-      // openSession returns.
-      setTimeout(() => {
-        if (this.held === null) {
-          this.answerSession(request, connection);
-        } else {
-          this.held.push(() => {
-            this.answerSession(request, connection);
-          });
-        }
-      }, 0);
-    };
-
-    if (this.upgradeFailures > 0) {
-      this.upgradeFailures -= 1;
-
-      setTimeout(() => {
-        connection.stop({ kind: 'unreachable', detail: 'the upgrade failed' });
-      }, 0);
-    } else if (this.upgrades === null) {
-      sendToImpd();
-    } else {
-      this.upgrades.push(sendToImpd);
-    }
-
-    return {
-      outcome: outcome.promise,
-      write: (data) => {
-        if (!connection.finished && connection.process !== null) {
-          connection.process.pty.write(new TextDecoder().decode(data));
-        }
-      },
-      resize: (cols, rows) => {
-        if (!connection.finished && connection.process !== null) {
-          connection.process.pty.resize(cols, rows);
-        }
-      },
-      sendSignal: (signal) => {
-        if (!connection.finished && connection.process !== null) {
-          tryKill(connection.process.pty, 'SIGCONT');
-          tryKill(connection.process.pty, toSignal(signal));
-        }
-      },
-      close: () => {
-        connection.stop({ kind: 'closed', reason: 'closed by the client', closeCode: 1000 });
-      },
-    };
+    return this.sessions.openSession(request, handlers, gate);
   }
 
   // Replaces the file through a rename, at mode 0444, as impd's agent does.
   async writeReadOnlyFile(name: string, path: string, content: string): Promise<string> {
     this.calls.push(`files.write ${name} ${path}`);
 
-    if (!this.imps.has(name)) {
+    if (!this.fleet.imps.has(name)) {
       throw buildNotFound('files.write', name);
     }
 
@@ -880,96 +228,8 @@ class StubImpPort implements ImpPort {
     return written.path;
   }
 
-  async runCommand(name: string, command: ImpCommand): Promise<ImpCommandResult> {
-    this.calls.push(`exec.run ${name} ${command.argv.join(' ')}`);
-
-    const imp = this.imps.get(name);
-
-    if (imp === undefined) {
-      throw buildNotFound('exec.ticket', name);
-    }
-
-    if (imp.state !== 'running') {
-      throw buildImpdRefusal(
-        'exec.ticket',
-        {
-          code: 'INVALID_STATE',
-          data: {
-            state: imp.state,
-            allowed: ['running'],
-          },
-        },
-        `imp ${name} is ${imp.state}`,
-      );
-    }
-
-    const line = command.argv.join(' ');
-    const hold = this.commandHold;
-
-    if (hold !== null && line.includes(hold.match)) {
-      hold.entered.resolve(line);
-
-      this.heldCommands += 1;
-
-      await hold.done.promise;
-
-      this.heldCommands -= 1;
-    }
-
-    // A command that gets past the hold after a stop, held or not, ends as a
-    // killed one does, so no process outlives the stop.
-    if (this.stopped) {
-      return { code: KILLED_CODE, stdout: new Uint8Array(0), stderr: new Uint8Array(0) };
-    }
-
-    if (this.commandFailure !== null && line.includes(this.commandFailure)) {
-      const encoder = new TextEncoder();
-
-      return { code: 1, stdout: new Uint8Array(0), stderr: encoder.encode('the command failed\n') };
-    }
-
-    const cwd = this.resolveGuestCwd(command.cwd);
-
-    const proc = Bun.spawn([...command.argv], {
-      ...(cwd === undefined ? {} : { cwd }),
-      env: { PATH: this.guestPath, ...(this.homeDir === null ? {} : { HOME: this.homeDir }) },
-      stdin: command.stdin ?? 'ignore',
-      stdout: 'pipe',
-      stderr: 'pipe',
-      detached: true,
-    });
-
-    const pending = new Set(['stdout', 'stderr', 'exit']);
-
-    this.commands.set(proc, { line, pending });
-
-    const settled = await Promise.race([
-      Promise.all([
-        new Response(proc.stdout).bytes().finally(() => {
-          pending.delete('stdout');
-        }),
-        new Response(proc.stderr).bytes().finally(() => {
-          pending.delete('stderr');
-        }),
-        proc.exited.finally(() => {
-          pending.delete('exit');
-        }),
-      ]),
-      this.killed.promise,
-    ]);
-
-    this.commands.delete(proc);
-
-    // A run the stop cut short ends as a killed one does, without waiting
-    // for output: the runtime can miss the close of a pipe whose last
-    // holder a kill ended, and then that output never ends.
-    if (settled === null) {
-      return { code: KILLED_CODE, stdout: new Uint8Array(0), stderr: new Uint8Array(0) };
-    }
-
-    const [stdout, stderr, code] = settled;
-
-    return { code, stdout, stderr };
+  runCommand(name: string, command: ImpCommand): Promise<ImpCommandResult> {
+    return this.commands.runCommand(name, command);
   }
 
   openReverseForward(
@@ -977,133 +237,7 @@ class StubImpPort implements ImpPort {
     guestPath: string,
     onConnection: (connection: ImpRelayConnection) => void,
   ): ImpReverseForward {
-    this.calls.push(`reverse ${name} ${guestPath}`);
-
-    const server = Bun.listen<StubRelay>({
-      unix: guestPath,
-      socket: {
-        open: (socket) => {
-          const relay: StubRelay = {
-            dataListeners: [],
-            closeListeners: [],
-            endListeners: [],
-            unsent: new Uint8Array(0),
-            roomWaiters: [],
-          };
-
-          socket.data = relay;
-
-          if (this.refusingRelays) {
-            socket.end();
-
-            return;
-          }
-
-          relays.add(socket);
-
-          onConnection({
-            onData: (listener) => {
-              relay.dataListeners.push(listener);
-            },
-            onClose: (listener) => {
-              relay.closeListeners.push(listener);
-            },
-            onEnd: (listener) => {
-              relay.endListeners.push(listener);
-            },
-
-            // A socket write takes what fits and drops the rest, so the
-            // remainder waits for the next drain.
-            write: async (data) => {
-              relay.unsent = mergeTail(relay.unsent, data, Number.POSITIVE_INFINITY);
-              relay.unsent = relay.unsent.subarray(socket.write(relay.unsent));
-
-              if (relay.unsent.length > 0) {
-                const room = Promise.withResolvers<void>();
-
-                relay.roomWaiters.push(room.resolve);
-
-                await room.promise;
-              }
-            },
-            close: () => {
-              socket.end();
-            },
-          });
-        },
-        data: (socket, buf) => {
-          if (this.droppingGuestBytes) {
-            this.droppedGuestBytes += buf.length;
-
-            return;
-          }
-
-          for (const listener of socket.data.dataListeners) {
-            listener(new Uint8Array(buf));
-          }
-        },
-        end: (socket) => {
-          for (const listener of socket.data.endListeners) {
-            listener();
-          }
-        },
-        drain(socket) {
-          const relay = socket.data;
-
-          relay.unsent = relay.unsent.subarray(socket.write(relay.unsent));
-
-          if (relay.unsent.length === 0) {
-            for (const resolve of relay.roomWaiters.splice(0)) {
-              resolve();
-            }
-          }
-        },
-        close: (socket) => {
-          relays.delete(socket);
-
-          for (const resolve of socket.data.roomWaiters.splice(0)) {
-            resolve();
-          }
-
-          for (const listener of socket.data.closeListeners) {
-            listener();
-          }
-        },
-        error() {},
-      },
-    });
-
-    const relays = new Set<{ readonly end: () => void }>();
-
-    const ended = Promise.withResolvers<ImpForwardEnd>();
-
-    // The first end counts, as each end stops the listener and removes the
-    // guest socket.
-    const forward = {
-      end: (end: ImpForwardEnd) => {
-        if (!this.forwards.delete(forward)) {
-          return;
-        }
-
-        server.stop(true);
-
-        rmSync(guestPath, { force: true });
-
-        ended.resolve(end);
-      },
-      stop: () => {
-        forward.end({ kind: 'stopped' });
-      },
-      stopRelays: () => {
-        for (const relay of relays) {
-          relay.end();
-        }
-      },
-    };
-
-    this.forwards.add(forward);
-
-    return { listening: Promise.resolve(), ended: ended.promise, stop: forward.stop };
+    return this.forwards.openReverseForward(name, guestPath, onConnection);
   }
 
   setOldDaemonFeatures(): void {
@@ -1119,11 +253,8 @@ class StubImpPort implements ImpPort {
     };
   }
 
-  // A new token's grantable list covers each secret as it now stands.
   setIdentity(identity: ImpIdentity): void {
-    this.identity = identity;
-
-    this.staleGrantable.clear();
+    this.secrets.setIdentity(identity);
   }
 
   createSecret(
@@ -1132,286 +263,191 @@ class StubImpPort implements ImpPort {
     rules: readonly ImpSecretRule[],
     oauth?: ImpSecret['oauth'],
   ): void {
-    this.secrets.set(name, { name, kind, rules, ...(oauth === undefined ? {} : { oauth }) });
+    this.secrets.createSecret(name, kind, rules, oauth);
   }
 
-  // As a rebind does, no token's grantable list covers the secret any longer.
   updateSecret(name: string, rules: readonly ImpSecretRule[]): void {
-    const secret = this.secrets.get(name);
-
-    if (secret === undefined) {
-      throw new Error(`no secret ${name}`);
-    }
-
-    this.secrets.set(name, { ...secret, rules });
-    this.removeGrants(name);
-    this.staleGrantable.add(name);
+    this.secrets.updateSecret(name, rules);
   }
 
   removeSecret(name: string): void {
-    this.secrets.delete(name);
-    this.removeGrants(name);
-    this.staleGrantable.add(name);
+    this.secrets.removeSecret(name);
   }
 
   acquireOtherLease(name: string, principal: string, label: string, ttlSeconds: number): void {
-    const imp = this.getImp(name);
-
-    imp.leases.set(`${principal}\u0000${label}`, {
-      principal,
-      label,
-      until: this.now() + ttlSeconds * 1000,
-    });
+    this.leases.acquireOtherLease(name, principal, label, ttlSeconds);
   }
 
   suspendWithForce(name: string): void {
-    const imp = this.getImp(name);
-
-    imp.leases.clear();
-    this.updateAsleep(imp);
+    this.fleet.suspendWithForce(name);
   }
 
   killProcess(name: string, session: string): void {
-    const proc = this.getImp(name).sessions.get(session);
-
-    if (proc === undefined) {
-      throw new Error(`no session ${session} on imp ${name}`);
-    }
-
-    tryKill(proc.pty, 'SIGCONT');
-    tryKill(proc.pty, 'SIGKILL');
+    this.fleet.killProcess(name, session);
   }
 
   bootImpCold(name: string, cause: ColdBootCause): void {
-    this.bootCold(this.getImp(name), cause);
+    this.fleet.bootImpCold(name, cause);
   }
 
-  // impd closes with 1011 when it drops a send under backpressure.
   stopConnection(name: string, session: string, closeCode: number): void {
-    const proc = this.getImp(name).sessions.get(session);
-
-    proc?.connection?.stop({ kind: 'closed', reason: `code ${closeCode}`, closeCode });
+    this.fleet.stopConnection(name, session, closeCode);
   }
 
   stopRelays(): void {
-    for (const forward of this.forwards) {
-      forward.stopRelays();
-    }
+    this.forwards.stopRelays();
   }
 
-  // impd ends a forward when its tunnel socket closes or it loses the guest.
   stopForwards(end: Exclude<ImpForwardEnd, { kind: 'stopped' }>): void {
-    for (const forward of this.forwards) {
-      forward.end(end);
-    }
+    this.forwards.stopForwards(end);
   }
 
   startRelayRefusal(): void {
-    this.refusingRelays = true;
+    this.forwards.startRelayRefusal();
   }
 
   stopRelayRefusal(): void {
-    this.refusingRelays = false;
+    this.forwards.stopRelayRefusal();
   }
 
   startBrokerFailure(): void {
-    this.brokerFailing = true;
+    this.sessions.startBrokerFailure();
   }
 
   stopBrokerFailure(): void {
-    this.brokerFailing = false;
+    this.sessions.stopBrokerFailure();
   }
 
-  // What the daemon writes still reaches the guest.
   startGuestByteDrop(): void {
-    this.droppingGuestBytes = true;
+    this.forwards.startGuestByteDrop();
   }
 
   stopGuestByteDrop(): void {
-    this.droppingGuestBytes = false;
+    this.forwards.stopGuestByteDrop();
   }
 
-  // How many bytes guests wrote that the drop threw away.
   countDroppedGuestBytes(): number {
-    return this.droppedGuestBytes;
+    return this.forwards.countDroppedGuestBytes();
   }
 
   startAnswerHold(): void {
-    this.held ??= [];
+    this.sessions.startAnswerHold();
   }
 
-  // How many session answers wait for the answer hold to stop.
   countHeldAnswers(): number {
-    return this.held?.length ?? 0;
+    return this.sessions.countHeldAnswers();
   }
 
   stopAnswerHold(): void {
-    const held = this.held ?? [];
-
-    this.held = null;
-
-    for (const answer of held) {
-      answer();
-    }
+    this.sessions.stopAnswerHold();
   }
 
-  // Fails once skip more acquisitions have gone through.
   setAcquireFailure(skip: number, code: ImpdBareRefusalCode<'leases.acquire'>): void {
-    this.acquireFailure = { skip, code };
+    this.leases.setAcquireFailure(skip, code);
   }
 
   setSessionDrops(count: number, closeCode: number): void {
-    this.drops = { count, closeCode };
+    this.sessions.setSessionDrops(count, closeCode);
   }
 
-  // The open throws before it returns a connection.
   setOpenFailures(count: number): void {
-    this.openFailures = count;
+    this.sessions.setOpenFailures(count);
   }
 
-  // Each connection ends unreachable without opening.
   setUpgradeFailures(count: number): void {
-    this.upgradeFailures = count;
+    this.sessions.setUpgradeFailures(count);
   }
 
-  // impd's client checks capabilities before a start that requires the broker
-  // or drops CAP_SYS_ADMIN; a check that times out ends the start unreachable
-  // with nothing sent.
   setExecCheckFailures(count: number): void {
-    this.execCheckFailures = count;
+    this.sessions.setExecCheckFailures(count);
   }
 
-  // How many capability checks timed out.
   countFailedExecChecks(): number {
-    return this.failedExecChecks;
+    return this.sessions.countFailedExecChecks();
   }
 
   startUpgradeHold(): void {
-    this.upgrades ??= [];
+    this.sessions.startUpgradeHold();
   }
 
-  // How many connections wait for the upgrade hold to stop.
   countHeldUpgrades(): number {
-    return this.upgrades?.length ?? 0;
+    return this.sessions.countHeldUpgrades();
   }
 
   stopUpgradeHold(): void {
-    const upgrades = this.upgrades ?? [];
-
-    this.upgrades = null;
-
-    for (const send of upgrades) {
-      send();
-    }
+    this.sessions.stopUpgradeHold();
   }
 
-  // A listener runs before the acquisition returns or waits on a hold, so the
-  // caller's turn has not yet ended.
   subscribeToLeaseAcquires(listener: (name: string, label: string) => void): () => void {
-    this.leaseAcquireListeners.add(listener);
-
-    return () => {
-      this.leaseAcquireListeners.delete(listener);
-    };
+    return this.leases.subscribeToLeaseAcquires(listener);
   }
 
   startLeaseHold(): void {
-    this.leaseHold ??= Promise.withResolvers<void>();
+    this.leases.startLeaseHold();
   }
 
-  // How many lease acquisitions wait for the lease hold to stop.
   countHeldLeases(): number {
-    return this.heldLeases;
+    return this.leases.countHeldLeases();
   }
 
   stopLeaseHold(): void {
-    this.leaseHold?.resolve();
-    this.leaseHold = null;
+    this.leases.stopLeaseHold();
   }
 
   startReleaseHold(): void {
-    this.releaseHold ??= Promise.withResolvers<void>();
+    this.leases.startReleaseHold();
   }
 
-  // How many lease releases wait for the release hold to stop.
   countHeldReleases(): number {
-    return this.heldReleases;
+    return this.leases.countHeldReleases();
   }
 
   stopReleaseHold(): void {
-    this.releaseHold?.resolve();
-    this.releaseHold = null;
+    this.leases.stopReleaseHold();
   }
 
   startDestroyHold(): void {
-    this.destroyHold ??= Promise.withResolvers<void>();
+    this.fleet.startDestroyHold();
   }
 
-  // How many imp destroys wait for the destroy hold to stop.
   countHeldDestroys(): number {
-    return this.heldDestroys;
+    return this.fleet.countHeldDestroys();
   }
 
   stopDestroyHold(): void {
-    this.destroyHold?.resolve();
-    this.destroyHold = null;
+    this.fleet.stopDestroyHold();
   }
 
   setHomeDir(dir: string): void {
-    this.homeDir = dir;
+    this.commands.setHomeDir(dir);
   }
 
   setGuestPath(path: string): void {
-    this.guestPath = path;
+    this.commands.setGuestPath(path);
   }
 
   startCommandHold(match: string): StubCommandHold {
-    if (this.commandHold !== null) {
-      throw new Error(`a hold on ${this.commandHold.match} is still active`);
-    }
-
-    const hold = {
-      match,
-      entered: Promise.withResolvers<string>(),
-      done: Promise.withResolvers<void>(),
-    };
-
-    this.commandHold = hold;
-
-    const stop = () => {
-      if (this.commandHold === hold) {
-        this.commandHold = null;
-      }
-
-      hold.done.resolve();
-    };
-
-    return { entered: hold.entered.promise, stop };
+    return this.commands.startCommandHold(match);
   }
 
-  // How many commands wait for their command hold to stop.
   countHeldCommands(): number {
-    return this.heldCommands;
+    return this.commands.countHeldCommands();
   }
 
-  // Lets every command the active hold holds run, and the next at once.
   stopCommandHold(): void {
-    const hold = this.commandHold;
-
-    this.commandHold = null;
-    hold?.done.resolve();
+    this.commands.stopCommandHold();
   }
 
   setCommandFailure(match: string | null): void {
-    this.commandFailure = match;
+    this.commands.setCommandFailure(match);
   }
 
   setDestroyFailure(code: ImpdBareRefusalCode<'imps.destroy'> | null): void {
-    this.destroyFailure = code;
+    this.fleet.setDestroyFailure(code);
   }
 
   setGrantRemovalFailure(code: ImpdBareRefusalCode<'grants.delete'> | 'UNREACHABLE' | null): void {
-    this.grantRemovalFailure = code;
+    this.secrets.setGrantRemovalFailure(code);
   }
 
   setFeatureFailures(count: number): void {
@@ -1424,698 +460,55 @@ class StubImpPort implements ImpPort {
   }
 
   setNextSessionFailure(refusal: ImpdExecRefusal, message?: string): void {
-    this.nextFailure = { refusal, ...(message === undefined ? {} : { message }) };
+    this.sessions.setNextSessionFailure(refusal, message);
   }
 
-  // The one answer the contract does not type, for a test of how the daemon
-  // reads a refusal it cannot trust.
   setNextMalformedSessionFailure(code: string, data: unknown): void {
-    this.nextMalformedFailure = { code, data };
+    this.sessions.setNextMalformedSessionFailure(code, data);
   }
 
-  // The state an imp is in, or null when it does not exist.
   findState(name: string): ImpState | null {
-    return this.imps.get(name)?.state ?? null;
+    return this.fleet.findState(name);
   }
 
-  // The names of the imps the stub holds.
   collectImpNames(): string[] {
-    return [...this.imps.keys()];
+    return this.fleet.collectImpNames();
   }
 
-  // The boot an imp runs in.
   getBootID(name: string): string {
-    return this.getImp(name).bootId;
+    return this.fleet.getBootID(name);
   }
 
-  // The generation running under a session name.
   getGeneration(name: string, session: string): string {
-    const proc = this.getImp(name).sessions.get(session);
-
-    if (proc === undefined) {
-      throw new Error(`no session ${session} on imp ${name}`);
-    }
-
-    return proc.generation;
+    return this.fleet.getGeneration(name, session);
   }
 
-  // The command line of the process running under a session name.
   getProcessArgv(name: string, session: string): readonly string[] {
-    const proc = this.getImp(name).sessions.get(session);
-
-    if (proc === undefined) {
-      throw new Error(`no session ${session} on imp ${name}`);
-    }
-
-    return proc.argv;
+    return this.fleet.getProcessArgv(name, session);
   }
 
-  // Null while the process runs and once an attach has delivered the exit.
   findUndeliveredExit(name: string, session: string): { readonly code: number | null } | null {
-    return this.imps.get(name)?.sessions.get(session)?.exited ?? null;
+    return this.fleet.findUndeliveredExit(name, session);
   }
 
-  // The offset after the last byte a session's running generation wrote.
   getEnd(name: string, session: string): number {
-    const proc = this.getImp(name).sessions.get(session);
-
-    if (proc === undefined) {
-      throw new Error(`no session ${session} on imp ${name}`);
-    }
-
-    return proc.end;
+    return this.fleet.getEnd(name, session);
   }
 
   // Runs once the current test finishes, or sooner when called, and only once.
-  // The kill takes each command's whole process group, so a child left holding
-  // the command's output ends too.
   readonly stop: () => Promise<void> = registerTestCleanup(async () => {
-    this.stopped = true;
+    const commands = this.commands.kill();
 
-    this.stopCommandHold();
-
-    const commands = [...this.commands.keys()];
-
-    // A command that ended in part, its exit seen but its output still open
-    // or the reverse, is a wait that may never end. One with nothing seen
-    // yet is a command the stop cuts short, which is ordinary.
-    for (const running of this.commands.values()) {
-      if (running.pending.size === 0 || running.pending.size === 3) {
-        continue;
-      }
-
-      this.report(
-        `the stub imp port stopped while a guest command still ran: ${running.line}; it waited for ${[...running.pending].join(', ')}`,
-      );
-    }
-
-    for (const command of commands) {
-      tryKillGroup(command.pid);
-    }
-
-    this.killed.resolve(null);
-
-    for (const imp of this.imps.values()) {
+    for (const imp of this.fleet.imps.values()) {
       for (const proc of imp.sessions.values()) {
         tryKill(proc.pty, 'SIGCONT');
         tryKill(proc.pty, 'SIGKILL');
       }
     }
 
-    for (const forward of this.forwards) {
-      forward.stop();
-    }
-
-    this.imps.clear();
+    this.forwards.stop();
+    this.fleet.imps.clear();
 
     await Promise.all(commands.map((command) => command.exited));
   });
-
-  // impd's refusal of a grant or revoke: the scope and pattern checks run
-  // before anything is looked up, then a missing imp or secret.
-  private findGrantRefusal(name: string, secret: string): ImpPortError | null {
-    const identity = this.identity;
-    const patterns = identity.imps;
-
-    if (identity.scope !== 'manage') {
-      return buildImpdRefusal(
-        'grants.add',
-        {
-          code: 'FORBIDDEN',
-          data: {
-            reason: 'scope',
-          },
-        },
-        'the caller cannot manage grants',
-      );
-    }
-
-    if (patterns !== null && !isHostNameAllowed(patterns, name)) {
-      return buildImpdRefusal(
-        'grants.add',
-        { code: 'FORBIDDEN', data: { reason: 'imp_out_of_scope' } },
-        `imp ${name} is outside the caller's patterns`,
-      );
-    }
-
-    if (
-      patterns !== null &&
-      (!identity.grantable.includes(secret) || this.staleGrantable.has(secret))
-    ) {
-      return buildImpdRefusal(
-        'grants.add',
-        {
-          code: 'FORBIDDEN',
-          data: {
-            reason: 'not_grantable',
-          },
-        },
-        `the caller cannot grant ${secret}`,
-      );
-    }
-
-    if (!this.imps.has(name)) {
-      return buildNotFound('grants.add', name);
-    }
-
-    if (!this.secrets.has(secret)) {
-      return buildImpdRefusal(
-        'grants.add',
-        {
-          code: 'NOT_FOUND',
-          data: {
-            kind: 'secret',
-            name: secret,
-          },
-        },
-        `no secret ${secret}`,
-      );
-    }
-
-    return null;
-  }
-
-  private removeGrants(secret: string): void {
-    for (const imp of this.imps.values()) {
-      imp.grants.delete(secret);
-    }
-  }
-
-  private getImp(name: string): StubImp {
-    const imp = this.imps.get(name);
-
-    if (imp === undefined) {
-      throw new Error(`no imp ${name}`);
-    }
-
-    return imp;
-  }
-
-  // An imp as impd lists it to the port's principal: its own leases in
-  // full, and a count of the other principals that hold one.
-  private buildImpdImp(
-    imp: StubImp,
-  ): Pick<ImpdOutput<'imps.get'>, 'id' | 'name' | 'state' | 'leases'> {
-    const live = [...imp.leases.values()].filter((lease) => lease.until > this.now());
-    const own = live.filter((lease) => lease.principal === this.principal);
-    const others = live.filter((lease) => lease.principal !== this.principal);
-
-    return {
-      id: imp.id,
-      name: imp.name,
-      state: imp.state,
-      leases: {
-        leases: own.map((lease) =>
-          buildImpdLease(imp.name, lease.principal, lease.label, lease.until),
-        ),
-        otherCount: new Set(others.map((lease) => lease.principal)).size,
-      },
-    };
-  }
-
-  // A sleeping imp wakes from memory with every process as it was; a
-  // stopped one boots cold.
-  private updateAwake(imp: StubImp): void {
-    if (imp.state === 'sleeping') {
-      imp.state = 'running';
-
-      for (const proc of imp.sessions.values()) {
-        tryKill(proc.pty, 'SIGCONT');
-      }
-    } else if (imp.state !== 'running') {
-      this.bootCold(imp, 'start');
-    }
-  }
-
-  private updateAsleep(imp: StubImp): void {
-    if (imp.state !== 'running') {
-      return;
-    }
-
-    imp.state = 'sleeping';
-
-    for (const proc of imp.sessions.values()) {
-      tryKill(proc.pty, 'SIGSTOP');
-      proc.connection?.stop({ kind: 'detached', reason: 'lost', offset: proc.end });
-    }
-  }
-
-  private bootCold(imp: StubImp, cause: ColdBootCause): void {
-    for (const proc of imp.sessions.values()) {
-      proc.connection?.stop({ kind: 'detached', reason: 'lost', offset: proc.end });
-      proc.ended = true;
-
-      tryKill(proc.pty, 'SIGCONT');
-      tryKill(proc.pty, 'SIGKILL');
-    }
-
-    imp.sessions.clear();
-    imp.previous.clear();
-
-    imp.state = 'running';
-    imp.bootId = randomUUID();
-
-    imp.coldBoots = [
-      { bootId: imp.bootId, cause, at: new Date(this.now()).toISOString() },
-      ...imp.coldBoots,
-    ].slice(0, 4);
-  }
-
-  private answerSession(request: ImpSessionRequest, connection: StubConnection): void {
-    if (connection.finished) {
-      return;
-    }
-
-    if (this.drops.count > 0) {
-      this.drops.count -= 1;
-
-      connection.stop({
-        kind: 'closed',
-        reason: `code ${this.drops.closeCode}`,
-        closeCode: this.drops.closeCode,
-      });
-
-      return;
-    }
-
-    const malformed = this.nextMalformedFailure;
-
-    if (malformed !== null) {
-      this.nextMalformedFailure = null;
-
-      connection.stopMalformed({
-        kind: 'failed',
-        code: malformed.code,
-        message: `impd refused the session (${malformed.code})`,
-        data: malformed.data,
-      });
-
-      return;
-    }
-
-    const failure = this.nextFailure;
-
-    if (failure !== null) {
-      this.nextFailure = null;
-
-      connection.stop({
-        kind: 'failed',
-        message: failure.message ?? `impd refused the session (${failure.refusal.code})`,
-        ...failure.refusal,
-      });
-
-      return;
-    }
-
-    const imp = this.imps.get(request.name);
-
-    if (imp === undefined) {
-      connection.stop({
-        kind: 'failed',
-        code: 'NOT_FOUND',
-        message: `no imp ${request.name}`,
-        data: { kind: 'imp', name: request.name },
-      });
-
-      return;
-    }
-
-    if (imp.state !== 'running' && request.kind === 'attach' && !request.wake) {
-      connection.stop({
-        kind: 'failed',
-        code: 'INVALID_STATE',
-        message: `imp ${imp.name} is ${imp.state}`,
-        data: {
-          state: imp.state,
-          allowed: ['running'],
-          ...(imp.state === 'creating' ? {} : { coldBoots: imp.coldBoots }),
-        },
-      });
-
-      return;
-    }
-
-    this.updateAwake(imp);
-
-    const running = imp.sessions.get(request.session);
-    const brokerProblem = this.findBrokerProblem(imp, request, running);
-
-    if (brokerProblem !== null) {
-      connection.stop({
-        kind: 'failed',
-        code: 'PRECONDITION_FAILED',
-        message: `the broker is not ready in imp ${imp.name}`,
-        data: { reason: 'broker_not_ready', detail: brokerProblem },
-      });
-
-      return;
-    }
-
-    if (running === undefined && request.kind === 'attach') {
-      const previous = imp.previous.get(request.session);
-
-      connection.stop({
-        kind: 'failed',
-        code: 'NO_SESSION',
-        message: `no session ${request.session}`,
-        data: {
-          bootId: imp.bootId,
-          coldBoots: imp.coldBoots,
-          ...(previous === undefined ? {} : { previous }),
-        },
-      });
-
-      return;
-    }
-
-    const proc = running ?? this.startProcess(imp, request);
-
-    if (proc === null) {
-      return;
-    }
-
-    this.attachProcess(imp, proc, request, connection, running === undefined);
-  }
-
-  // An attach carries no requirements in impd's exec protocol, so only a start
-  // can fail one.
-  private findBrokerProblem(
-    imp: StubImp,
-    request: ImpSessionRequest,
-    running: StubProcess | undefined,
-  ): string | null {
-    if (request.kind !== 'start' || request.require?.includes('broker') !== true) {
-      return null;
-    }
-
-    if (this.brokerFailing) {
-      return 'the broker CA did not install';
-    }
-
-    if (imp.grants.size === 0) {
-      return 'the imp holds no grant';
-    }
-
-    const overridden = Object.keys(request.env).find((key) => isBrokerVariable(key));
-
-    if (overridden !== undefined) {
-      return overridden;
-    }
-
-    return running !== undefined && !running.requireBroker
-      ? 'the session did not start with the broker required'
-      : null;
-  }
-
-  // impd starts a relative directory from the root, where its agent runs. A
-  // path goes over unfolded, so a `..` after a symlink leaves the link's target,
-  // as the kernel walks it.
-  private resolveGuestCwd(cwd: string | undefined): string | undefined {
-    if (cwd === undefined) {
-      return this.homeDir ?? undefined;
-    }
-
-    return posix.isAbsolute(cwd) ? cwd : `/${cwd}`;
-  }
-
-  private startProcess(imp: StubImp, request: ImpSessionRequest): StubProcess | null {
-    if (request.kind !== 'start') {
-      return null;
-    }
-
-    const pty = spawn(request.argv[0] ?? 'false', request.argv.slice(1), {
-      name: 'xterm-256color',
-      cols: request.cols,
-      rows: request.rows,
-      cwd: this.resolveGuestCwd(request.cwd) ?? request.cwd,
-      env: { ...request.env, ...(this.homeDir === null ? {} : { HOME: this.homeDir }) },
-    });
-
-    const proc: StubProcess = {
-      pty,
-      generation: randomBytes(16).toString('hex'),
-      argv: [...request.argv],
-      ring: new Uint8Array(0),
-      end: 0,
-      exited: null,
-      ended: false,
-      connection: null,
-      requireBroker: request.require?.includes('broker') === true,
-    };
-
-    imp.sessions.set(request.session, proc);
-
-    pty.onData((text) => {
-      const data = new TextEncoder().encode(text);
-
-      proc.ring = mergeTail(proc.ring, data, RING_BYTES);
-      proc.end += data.length;
-
-      const connection = proc.connection;
-
-      if (connection !== null) {
-        connection.sent = proc.end;
-
-        tryEmit(connection, () => {
-          connection.handlers.onOutput(data);
-        });
-      }
-    });
-
-    pty.onExit((exit) => {
-      if (proc.ended) {
-        return;
-      }
-
-      const exitCode = exit.exitCode;
-
-      proc.exited = { code: exitCode };
-
-      imp.previous.set(request.session, {
-        executionGeneration: proc.generation,
-        end: proc.end,
-        exitCode,
-      });
-
-      const connection = proc.connection;
-
-      // An exit nobody received stays attachable until a connection
-      // delivers it.
-      if (connection !== null) {
-        imp.sessions.delete(request.session);
-        connection.stop({ kind: 'exit', code: exitCode, signal: null, offset: proc.end });
-      }
-    });
-
-    return proc;
-  }
-
-  private attachProcess(
-    imp: StubImp,
-    proc: StubProcess,
-    request: ImpSessionRequest,
-    connection: StubConnection,
-    created: boolean,
-  ): void {
-    const bufferStart = proc.end - proc.ring.length;
-    let from = bufferStart;
-    let prelude = '';
-    let resume: ResumeResult | undefined;
-
-    if (request.resumeFrom !== undefined && this.continuity === 'offsets') {
-      const resumeFrom = request.resumeFrom;
-
-      if (resumeFrom.executionGeneration !== proc.generation) {
-        resume = {
-          kind: 'generation_changed',
-          executionGeneration: proc.generation,
-          firstOffset: bufferStart,
-        };
-      } else if (resumeFrom.offset > proc.end) {
-        connection.stop({
-          kind: 'failed',
-          code: 'INVALID_RESUME',
-          message: 'the resume offset is past the end',
-          data: { end: proc.end, bufferStart },
-        });
-
-        return;
-      } else if (resumeFrom.offset < bufferStart) {
-        resume = { kind: 'gap', from: resumeFrom.offset, to: bufferStart };
-      } else {
-        resume = { kind: 'exact' };
-        from = Math.max(bufferStart, resumeFrom.offset - this.resumeOverlap);
-      }
-    } else if (bufferStart > 0) {
-      // A ring that has wrapped can start inside an escape sequence, so a
-      // fresh attach skips to the next line and resets the modes first.
-      const newline = proc.ring.indexOf(0x0a);
-
-      from = bufferStart + (newline === -1 ? 0 : newline + 1);
-      prelude = PRELUDE;
-    }
-
-    proc.connection?.stop({
-      kind: 'detached',
-      reason: 'taken_over',
-      offset: proc.connection.sent,
-    });
-
-    connection.process = proc;
-    connection.sent = proc.end;
-
-    const preludeBytes = new TextEncoder().encode(prelude);
-
-    const previous = imp.previous.get(request.session);
-
-    const started = tryEmit(connection, () => {
-      const output: ImpdSessionOutput =
-        this.continuity === 'none'
-          ? { continuity: 'none' }
-          : {
-              continuity: 'offsets',
-              bootId: imp.bootId,
-              executionGeneration: proc.generation,
-              bufferStart,
-              end: proc.end,
-              offset: from,
-              prelude: preludeBytes.length,
-              coldBoots: imp.coldBoots,
-              ...(previous === undefined ? {} : { previous }),
-              ...(resume === undefined ? {} : { resume }),
-            };
-
-      connection.handlers.onStarted({ created, output });
-    });
-
-    if (!started) {
-      return;
-    }
-
-    const backlog = proc.ring.subarray(from - bufferStart);
-
-    for (const bytes of [preludeBytes, backlog]) {
-      const sent =
-        bytes.length === 0 ||
-        tryEmit(connection, () => {
-          connection.handlers.onOutput(bytes);
-        });
-
-      if (!sent) {
-        return;
-      }
-    }
-
-    if (proc.exited !== null) {
-      const name = findSessionName(imp, proc);
-
-      if (name !== undefined) {
-        imp.sessions.delete(name);
-      }
-
-      connection.stop({ kind: 'exit', code: proc.exited.code, signal: null, offset: proc.end });
-
-      return;
-    }
-
-    proc.connection = connection;
-  }
-}
-
-// The procedures the stand-in answers on an imp it may not hold.
-type StubImpProcedure =
-  | 'exec.ticket'
-  | 'files.write'
-  | 'grants.add'
-  | 'grants.list'
-  | 'imps.destroy'
-  | 'imps.sleep'
-  | 'leases.acquire'
-  | 'leases.release';
-
-// impd's refusal of a call on an imp it does not hold. The
-// procedure only types the refusal.
-function buildNotFound(procedure: StubImpProcedure, name: string): ImpPortError {
-  return buildImpdRefusal(
-    procedure,
-    { code: 'NOT_FOUND', data: { kind: 'imp', name } },
-    `no imp ${name}`,
-  );
-}
-
-function buildImpdLease(name: string, principal: string, label: string, until: number): ImpdLease {
-  return { name, owner: { principal, display: principal, label }, until: new Date(until) };
-}
-
-function tryKill(pty: IPty, signal: NodeJS.Signals): void {
-  try {
-    process.kill(pty.pid, signal);
-  } catch {}
-}
-
-// A guest command leads a process group of its own, so the kill also ends
-// a child it left holding its output; a group already empty has nothing
-// left to kill.
-function tryKillGroup(leader: number): void {
-  try {
-    process.kill(-leader, 'SIGKILL');
-  } catch {}
-}
-
-// impd's client reads impd's features before a start that requires the
-// broker or drops CAP_SYS_ADMIN, and before nothing else.
-function needsExecCheck(request: ImpSessionRequest): boolean {
-  return (
-    request.kind === 'start' &&
-    ((request.require !== undefined && request.require.length > 0) || request.dropSysAdmin === true)
-  );
-}
-
-// A gate that throws keeps the request from going out, as a closed one does.
-function tryPassGate(gate: () => boolean): boolean {
-  try {
-    return gate();
-  } catch {
-    return false;
-  }
-}
-
-function toSignal(name: string): NodeJS.Signals {
-  return name === 'SIGKILL' || name === 'SIGTERM' || name === 'SIGINT' ? name : 'SIGHUP';
-}
-
-function mergeTail(ring: Uint8Array, data: Uint8Array, limit: number): Uint8Array {
-  const joined = new Uint8Array(ring.length + data.length);
-
-  joined.set(ring, 0);
-  joined.set(data, ring.length);
-
-  return joined.length > limit ? joined.slice(joined.length - limit) : joined;
-}
-
-// Calls a connection's handler as the imp client does: a handler that
-// throws ends the connection with a local error and closes it.
-function tryEmit(connection: StubConnection, emit: () => void): boolean {
-  try {
-    emit();
-
-    return true;
-  } catch (error) {
-    connection.stop({
-      kind: 'local_error',
-      detail: error instanceof Error ? error.message : String(error),
-    });
-
-    return false;
-  }
-}
-
-function findSessionName(imp: StubImp, proc: StubProcess): string | undefined {
-  for (const [name, held] of imp.sessions) {
-    if (held === proc) {
-      return name;
-    }
-  }
-
-  return undefined;
 }

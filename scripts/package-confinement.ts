@@ -18,7 +18,9 @@ export const PACKAGE_CONFINEMENT: readonly Confinement[] = [
     // real terminal
     files: [
       'packages/execution/local/src/local-pty-provider.ts',
-      'packages/execution/imp/src/testing/create-stub-imp-port.ts',
+      'packages/execution/imp/src/testing/answer-stub-session.ts',
+      'packages/execution/imp/src/testing/stub-imp.ts',
+      'packages/execution/imp/src/testing/try-kill.ts',
       'packages/test-utils/src/start-tui-harness.ts',
       'packages/test-utils/src/create-stub-composer.test.ts',
       'packages/test-utils/src/run-stub-menu-claude.test.ts',
