@@ -8,6 +8,7 @@ import {
   readlinkSync,
   rmSync,
   symlinkSync,
+  utimesSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
@@ -602,6 +603,40 @@ test("it links a new imp to the image's atc without running it when the image's 
   expect(readFileSync(runs, 'utf8')).toBe('run\n');
   expect(ctx.port.calls.filter((call) => call.startsWith('exec.run atc-s2'))).toBeArrayOfSize(1);
   expect(readlinkSync(join(ctx.dir, 'g', 'bin', 'atc'))).toBe(guestATC);
+});
+
+test("it runs the image's atc again for a new imp when the image's atc was rewritten to the same size within the same second", async () => {
+  const ctx = setupTest();
+  const runs = join(ctx.dir, 'runs');
+
+  const guestATC = createStubBin(
+    ctx.dir,
+    'image-atc',
+    `#!/bin/sh\necho run >> ${runs}\necho 1.0.0\n`,
+  );
+
+  utimesSync(guestATC, 1_700_000_000.1, 1_700_000_000.1);
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g'), guestATC },
+    { atcBinary: null, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true });
+  await provider.destroyHost('s1');
+
+  rmSync(join(ctx.dir, 'g'), { recursive: true });
+  writeFileSync(guestATC, `#!/bin/sh\necho new >> ${runs}\necho 1.0.0\n`);
+  utimesSync(guestATC, 1_700_000_000.2, 1_700_000_000.2);
+
+  await provider.prepareHost({ host: 's2', daemonID: 'd1', installATC: true });
+
+  expect(readFileSync(runs, 'utf8')).toBe('run\nnew\n');
 });
 
 test("it runs the image's atc again for a new imp when the image's atc changed since it ran", async () => {

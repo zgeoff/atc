@@ -12,7 +12,7 @@
 # $5: that version, or empty.
 mkdir -p "$1/run" "$1/bin" || exit 1
 path=$(readlink -f "$2" 2> /dev/null) &&
-  stat=$(stat -c '%i %s %Y' "$path" 2> /dev/null) &&
+  stat=$(stat -c '%i %s %y' "$path" 2> /dev/null) &&
   signature="$path $stat" || signature=
 if [ -n "$signature" ] && [ "$signature" = "$4" ] && [ -n "$5" ]; then
   image=$5
