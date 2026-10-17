@@ -1,13 +1,13 @@
 import { posix } from 'node:path';
 import { socketPath } from '@atc/config';
-import type { AgentID, AgentSessionID, SessionID, StepTimer } from '@atc/core';
-import { buildTarArchive, createStepTimer } from '@atc/core';
-import type { AgentAdapter, ExecutionProvider, SpawnOverrides } from '@atc/plugin-api';
+import type { AgentID, AgentSessionID, SessionID } from '@atc/core';
+import { createStepTimer } from '@atc/core';
+import type { SpawnOverrides } from '@atc/plugin-api';
 import { EffectRemainsError } from '@atc/plugin-api';
-import type { DeclaredScope, SessionWorkspace } from '@atc/protocol';
+import type { DeclaredScope } from '@atc/protocol';
 import { buildSessionEnv } from '@atc/protocol/session';
 import { DaemonError } from '@atc/protocol/wire';
-import type { AuthSetup, HarnessAuthSetup, HarnessSetup } from '../auth/auth-setup';
+import type { AuthSetup } from '../auth/auth-setup';
 import type { SessionFleetWriter } from '../fleet/session-fleet-writer';
 import type { HostDirClaims } from './host-dir-claims';
 import { mintSessionID } from './mint-session-id';
@@ -18,32 +18,10 @@ import type { Session } from './session';
 import type { SessionCallbacks } from './session-callbacks';
 import type { SessionHarnesses, SpawnReadied } from './session-harnesses';
 import type { SessionRegistry } from './session-registry';
+import { setupSpawn } from './setup-spawn';
+import type { SpawnMaterializer } from './spawn-materializer';
+import type { SpawnRequest } from './spawn-request';
 import type { SpawnRollback } from './spawn-rollback';
-
-// A session's ready workspace and the variables its harnesses go without.
-interface MaterializedSpawn {
-  readonly workspace: SessionWorkspace;
-
-  // The branch the checkout is on, null for a detached checkout.
-  readonly branch: string | null;
-  readonly withheldEnv: readonly string[];
-}
-
-// resolves to null for a directory that runs as it stands
-export type SpawnMaterializer = (
-  host: SpawnHostAccess,
-  targetIdentity: string,
-) => Promise<MaterializedSpawn | null>;
-
-export interface SpawnHostAccess {
-  // called once the source resolves; attempt 1 is the spawn's directory, and
-  // attempt n is that directory with `-n` appended
-  readonly readyHost: (
-    attempt: number,
-  ) => Promise<{ readonly host: SessionID; readonly dir: string }>;
-  readonly removeClaim: (dir: string) => Promise<boolean>;
-  readonly timer: StepTimer;
-}
 
 interface SessionSpawnerDeps {
   readonly registry: Pick<
@@ -104,46 +82,6 @@ interface SessionSpawnerDeps {
   // Runs each spawn's steps and unwinds them on a failure; the spawn steps
   // runner when unset.
   readonly runSteps?: SpawnStepRunner;
-}
-
-// What a spawn settled on before its first step: the agent, the target and
-// its host, the auth the harness takes, and the caller's request.
-interface SpawnRequest {
-  readonly adapter: AgentAdapter;
-  readonly provider: ExecutionProvider;
-  readonly execution: ReturnType<SessionRegistry['requireExecution']>;
-  readonly auth: ReturnType<AuthSetup['resolveHarnessAuth']>;
-  readonly id: SessionID;
-  readonly hostKey: SessionID;
-  readonly target: string;
-  readonly cwd: string;
-  readonly name: string;
-  readonly prompt: string;
-  readonly cols: number;
-  readonly rows: number;
-  readonly resume: boolean | AgentSessionID;
-  readonly namedBy: 'user' | 'auto';
-  readonly agent: AgentID;
-  readonly parent: SessionID | null;
-  readonly overrides: SpawnOverrides;
-  readonly materialize: SpawnMaterializer | null;
-  readonly requireInReach: () => void;
-  readonly autoDir: boolean;
-  readonly scope: DeclaredScope | null;
-  readonly trustClonedWorkspace: boolean;
-  readonly timer: StepTimer;
-
-  // Builds the caller's answer once the harness started, as the spawn's
-  // last step, so a failure there unwinds the spawn too.
-  readonly answer: ((s: Session) => void) | null;
-}
-
-// What the workspace's undo reads from the steps after it: the auth
-// attempt the host was set up with, and whether the workspace passed its
-// project-settings check and its trust.
-interface SpawnWorkspaceState {
-  readonly findAttemptID: () => string | null;
-  readonly isChecked: () => boolean;
 }
 
 export class SessionSpawner {
@@ -293,15 +231,6 @@ export class SessionSpawner {
     const timer = spawn.timer;
     const materialize = spawn.materialize;
 
-    const authSetup: HarnessAuthSetup | null =
-      auth === null
-        ? null
-        : {
-            ...auth,
-            mode: hostKey === id ? 'create' : 'verify',
-            targetIdentity: spawn.execution.identity,
-          };
-
     // a directory the daemon picked is reserved once per attempt, so a held
     // one moves the spawn to the next attempt; a failure whose effects may
     // still stand keeps the reservation, so no workspace lands around them
@@ -325,135 +254,21 @@ export class SessionSpawner {
       },
     );
 
-    // A spawn that builds its workspace reads the workspace's project
-    // settings once it is built, not when the host is readied before it.
-    const startDir = materialize === null ? cwd : null;
-
-    // The host is set up once, when the workspace's source resolves or, for
-    // a directory that runs as it stands, before the harness starts. Its
-    // undo takes back the host when the spawn readied it for itself.
-    let hostSetup: Promise<HarnessSetup> | null = null;
-    let attemptID: string | null = null;
-
-    const setupHost = () => {
-      hostSetup ??= steps.run(
-        'host',
-        async () => {
-          const setup = await this.auth.setupHarnessOnHost(
-            adapter,
-            provider,
-            id,
-            hostKey,
-            target,
-            { prompt: spawn.prompt, resume: spawn.resume, ...spawn.overrides },
-            authSetup,
-            startDir,
-            hostKey === id,
-            timer,
-          );
-
-          attemptID = setup.attemptID;
-
-          return setup;
-        },
-        async (setup) => {
-          if (this.rollback.shouldTakeHost(provider, id, hostKey, target, setup.attemptID)) {
-            await this.rollback.destroyFailedSpawnHost(provider, id, hostKey, setup.attemptID);
-          }
-        },
-      );
-
-      return hostSetup;
-    };
-
-    // Takes back trust a spawn accepted in the user's own agent config.
-    let removeTrust: (() => Promise<void>) | null = null;
-
-    // Whether the workspace passed its project-settings check and its trust.
-    let checked = false;
-
     // The host stays readying until the record is published, so nothing
     // gives its lease back or puts it to sleep before the harness starts.
-    const prepared = await this.harnesses.withHostReadying(hostKey, async () => {
-      const built =
-        materialize === null
-          ? { materialized: null, root: null }
-          : await this.buildSpawnWorkspace(steps, spawn, materialize, setupHost, {
-              findAttemptID: () => attemptID,
-              isChecked: () => checked,
-            });
-
-      const setup = await setupHost();
-
-      if (spawn.trustClonedWorkspace && built.root === null) {
-        throw new DaemonError(
-          'bad_args',
-          'trustClonedWorkspace requires a successfully cloned workspace',
-        );
-      }
-
-      const root = built.root;
-
-      // A launch behind the broker reads the project settings of the clone
-      // it starts in, once the clone is on the host and before it is trusted.
-      if (root !== null && auth !== null) {
-        await steps.run('project-settings', () =>
-          timer.withStep('project-settings', () =>
-            this.auth.requireProjectSettings(adapter, provider, hostKey, target, root),
-          ),
-        );
-      }
-
-      if (root !== null && spawn.trustClonedWorkspace) {
-        await steps.run(
-          'trust',
-          async () => {
-            removeTrust = await this.applyWorkspaceTrust(spawn, root);
-          },
-          () => this.rollback.removeLocalTrust(removeTrust, id),
-        );
-      }
-
-      checked = true;
-
-      const records = this.callbacks.getRecords();
-      const recordDir = spawn.autoDir && root !== null ? root : cwd;
-
-      const recordPath = await steps.run(
-        'record',
-        () =>
-          records === null
-            ? null
-            : timer.withStep('record', () =>
-                records
-                  .createRecord(
-                    {
-                      session: id,
-                      target,
-                      provider,
-                      host: hostKey,
-                      dir: recordDir,
-                      workspace: built.materialized?.workspace ?? null,
-                      ...(built.materialized === null ? {} : { branch: built.materialized.branch }),
-                    },
-                    spawn.scope,
-                  )
-
-                  // A record stored before its copy failed to land is this
-                  // step's own partial work, so the step takes it back.
-                  .catch(async (error: unknown) => {
-                    await records.remove(id);
-
-                    throw error;
-                  }),
-              ),
-        async () => {
-          await this.callbacks.getRecords()?.remove(id);
+    const prepared = await this.harnesses.withHostReadying(hostKey, () =>
+      setupSpawn(
+        {
+          registry: this.registry,
+          claims: this.claims,
+          rollback: this.rollback,
+          auth: this.auth,
+          callbacks: this.callbacks,
         },
-      );
-
-      return { setup, materialized: built.materialized, root, recordPath };
-    });
+        steps,
+        spawn,
+      ),
+    );
 
     // A spawn whose directory the daemon picked runs in the one it claimed,
     // as the host resolves it.
@@ -619,133 +434,6 @@ export class SessionSpawner {
     }
 
     return session;
-  }
-
-  private async buildSpawnWorkspace(
-    steps: SpawnSteps,
-    spawn: Readonly<SpawnRequest>,
-    materialize: SpawnMaterializer,
-    setupHost: () => Promise<unknown>,
-    state: SpawnWorkspaceState,
-  ): Promise<{ readonly materialized: MaterializedSpawn | null; readonly root: string | null }> {
-    const provider = spawn.provider;
-    const id = spawn.id;
-    const hostKey = spawn.hostKey;
-    const target = spawn.target;
-    const timer = spawn.timer;
-    const dir = spawn.cwd;
-    let landed: string | null = null;
-    let hostHome: string | null = null;
-
-    const materialized = await steps.run(
-      'workspace',
-      () =>
-        materialize(
-          {
-            readyHost: async (attempt) => {
-              await setupHost();
-
-              // A directory the daemon picked on a remote target is relative
-              // to the home there, which only the readied host can resolve.
-              hostHome ??= posix.isAbsolute(dir)
-                ? ''
-                : await timer.withStep('host-home', () =>
-                    this.claims.resolveHostHome(provider, hostKey),
-                  );
-
-              const base = posix.isAbsolute(dir) ? dir : posix.join(hostHome, dir);
-              const candidate = attempt === 1 ? base : `${base}-${attempt}`;
-
-              const landing = await timer.withStep('dir-claim', () =>
-                this.registry.hasHostLifecycle(target)
-                  ? this.claims.claimHostDir(
-                      provider,
-                      id,
-                      hostKey,
-                      target,
-                      candidate,
-                      spawn.autoDir && hostKey !== id,
-                    )
-                  : this.claims.resolveHostDir(provider, null, candidate),
-              );
-
-              landed = landing;
-
-              return { host: hostKey, dir: landing };
-            },
-            removeClaim: (landing) =>
-              this.claims.removeClaimedDir(provider, id, hostKey, target, landing),
-            timer,
-          },
-          spawn.execution.identity,
-        ),
-      async (built) => {
-        const root = landed;
-
-        const takesHost = this.rollback.shouldTakeHost(
-          provider,
-          id,
-          hostKey,
-          target,
-          state.findAttemptID(),
-        );
-
-        // when the host's undo takes the host back, the directory goes with
-        // it: a checked workspace is skipped, and a failed removal of an
-        // unchecked one does not stop the unwind
-        if (built === null || root === null || (takesHost && state.isChecked())) {
-          return;
-        }
-
-        if (takesHost) {
-          await this.rollback
-            .removeSpawnWorkspace(provider, id, hostKey, target, root)
-            .catch(() => {});
-
-          return;
-        }
-
-        await this.rollback.removeSpawnWorkspace(provider, id, hostKey, target, root);
-      },
-    );
-
-    return { materialized, root: materialized === null ? null : landed };
-  }
-
-  // Trusts a cloned workspace: in the user's own agent config on the local
-  // target, returning how to take the trust back, or in the session's guest
-  // folder on an imp, which takes nothing back.
-  private async applyWorkspaceTrust(
-    spawn: Readonly<SpawnRequest>,
-    root: string,
-  ): Promise<(() => Promise<void>) | null> {
-    const adapter = spawn.adapter;
-    const provider = spawn.provider;
-
-    if (!provider.remote) {
-      const update = adapter.updateLocalWorkspaceTrust;
-
-      if (update === undefined) {
-        throw new DaemonError('unsupported', 'this adapter cannot trust a cloned workspace');
-      }
-
-      return update.call(adapter, root);
-    }
-
-    const planned = adapter.planGuestWorkspaceTrust?.(root);
-
-    if (planned === undefined || planned === null || provider.guest === undefined) {
-      throw new DaemonError('unsupported', 'this adapter cannot trust a cloned workspace');
-    }
-
-    const files = Object.entries(planned).map(([path, content]) => ({ path, content }));
-    const dir = `${provider.guest.dir}/sessions/${spawn.id}`;
-
-    await spawn.timer.withStep('trust-transfer', () =>
-      provider.transferArchive(buildTarArchive(files), dir, spawn.hostKey),
-    );
-
-    return null;
   }
 
   // one host serves a top-level session and every sub-session bound to the

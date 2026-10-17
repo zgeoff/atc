@@ -26,12 +26,12 @@ import type { Dims } from './sessions/attach-registry';
 import type { AgentEntry } from './sessions/build-agent-list';
 import type { AnswerView } from './sessions/build-answer-view';
 import type { NoteView } from './sessions/build-note-view';
+import type { ResumeCommand } from './sessions/build-resume-command';
 import type { TranscriptPage, TranscriptPosition } from './sessions/load-transcript-page';
 import type { MessageCaller } from './sessions/message-caller';
 import type { AnswerResult } from './sessions/permission-registry';
 import type { ScreenText } from './sessions/screen-model';
 import type { SessionChanges } from './sessions/session-changes';
-import type { ResumeCommand } from './sessions/sessions';
 import type { KeyedRequest } from './transport/idempotency-ledger';
 import type { checkRepositoryAccess } from './workspace/check-repository-access';
 
