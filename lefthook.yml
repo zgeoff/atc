@@ -43,6 +43,8 @@ pre-push:
       run: bun run check:disable-baseline
     - name: check:raw-escapes
       run: bun run check:raw-escapes
+    - name: check:source-entries
+      run: bun run check:source-entries
     - name: lint:mods
       run: bun run lint:mods
     - name: lint
