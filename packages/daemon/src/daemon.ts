@@ -14,12 +14,11 @@ import type { AgentAdapter, SourceProvider } from '@atc/plugin-api';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import { StateStore } from '@atc/store';
+import { getLogger } from '@logtape/logtape';
 import { buildTargetAccess } from './auth/build-target-access';
 import { isTreeInReach } from './auth/is-tree-in-reach';
 import { RuntimeAuthBinder } from './auth/runtime-auth-binder';
 import { tryReconcileAuthBindings } from './auth/try-reconcile-auth-bindings';
-import { createNonBlockingLog } from './create-non-blocking-log';
-import type { NonBlockingLog } from './create-non-blocking-log';
 import type { DaemonContext, TapClient } from './daemon-context';
 import type { ExecutionTarget } from './fleet/build-execution-targets';
 import { FleetRestorer } from './fleet/fleet-restorer';
@@ -201,8 +200,9 @@ export interface DaemonOptions {
   // entrypoint exits the process, tests leave it unset.
   readonly onQuit?: () => void;
 
-  // Where background failures are reported, one line at a time; stderr
-  // when unset.
+  // Where background failures and the TCP listener's lines are reported,
+  // one line at a time. When unset, failures go to stderr and the
+  // listener's lines to LogTape's `atc tcp` logger.
   readonly log?: (line: string) => void;
 
   // Called each time the daemon leaves a session's new output unjudged
@@ -288,13 +288,6 @@ const REFUSAL_LOG_INTERVAL_MS = 60_000;
 // How many peers and kinds of refusal the TCP listener's refusal log tracks
 // at once.
 const MAX_REFUSAL_WINDOWS = 1024;
-
-// Where the TCP listener logs when the daemon is given no log.
-const STDERR_FD = 2;
-
-// How long a stopping daemon waits for the TCP listener's log to write the
-// lines it still holds, so an unread stderr delays the exit no longer.
-const LOG_DRAIN_TIMEOUT_MS = 1000;
 
 // How long startup waits for a daemon that is shutting down to release the
 // state lock before refusing to start.
@@ -879,14 +872,17 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   // refuses the start before any client can connect, and releases what the
   // daemon holds, the lock included.
   let tcpListener: TCPListener | null = null;
-  let listenerLog: NonBlockingLog | null = null;
 
   if (opts.listen !== undefined && listenTokens !== null) {
-    // A given log writes as it is called, so it has nothing to drain.
-    listenerLog =
-      opts.log === undefined
-        ? createNonBlockingLog(STDERR_FD, clock)
-        : { log: opts.log, drain: () => Promise.resolve() };
+    // A daemon given no log writes the listener's lines through LogTape,
+    // which the process configures.
+    const tcpLogger = getLogger(['atc', 'tcp']);
+
+    const listenerLog =
+      opts.log ??
+      ((line: string) => {
+        tcpLogger.info('{line}', { line });
+      });
 
     try {
       tcpListener = startTCPListener({
@@ -903,7 +899,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
           return connection;
         },
         closeConnection: detachConnection,
-        log: listenerLog.log,
+        log: listenerLog,
         refusalLogIntervalMs: opts.listen.refusalLogIntervalMs ?? REFUSAL_LOG_INTERVAL_MS,
         maxRefusalWindows: opts.listen.maxRefusalWindows ?? MAX_REFUSAL_WINDOWS,
         clock,
@@ -979,11 +975,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       server.stop(true);
 
       await releaseResources();
-
-      // The stopped listener logs no more lines, so this writes the ones the
-      // log still holds, waiting no longer than the timeout when nothing
-      // reads stderr.
-      await listenerLog?.drain(LOG_DRAIN_TIMEOUT_MS);
     })();
 
     const current = stopping;

@@ -24,6 +24,7 @@
       "@commitlint/cli": "21.2.0",
       "@faker-js/faker": "10.6.0",
       "@impz/client": "2.3.0",
+      "@logtape/logtape": "2.4.0",
       "@modelcontextprotocol/sdk": "1.31.0",
       "@orpc/contract": "1.15.4",
       "@simplewebauthn/server": "14.0.3",

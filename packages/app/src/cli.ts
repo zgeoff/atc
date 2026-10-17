@@ -855,6 +855,10 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
     headless.startClaudeHeadlessRun,
   );
 
+  // The daemon's own lines go to stderr through LogTape, and a stop or a
+  // quit stops the log before the process exits.
+  const stderrLog = await daemon.startStderrLog();
+
   let handle: Awaited<ReturnType<typeof daemon.startDaemon>>;
 
   try {
@@ -884,7 +888,9 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
         ? { tapGraceMs: graceOverride }
         : {}),
       ...(Number.isFinite(queueBytes) && queueBytes > 0 ? { queueBytes } : {}),
-      onQuit: () => process.exit(0),
+      onQuit: () => {
+        void stderrLog.stop().then(() => process.exit(0));
+      },
     });
   } catch (error) {
     // A second daemon on the same state directory, or a listener whose
@@ -907,6 +913,7 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
   process.on('SIGTERM', () => {
     void (async () => {
       await handle.stop();
+      await stderrLog.stop();
 
       process.exit(0);
     })();

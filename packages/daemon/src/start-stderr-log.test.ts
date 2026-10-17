@@ -1,5 +1,12 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { closeSync, constants, createReadStream, openSync, writeFileSync } from 'node:fs';
+import {
+  closeSync,
+  constants,
+  createReadStream,
+  openSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { DaemonClient } from '@atc/protocol/wire';
 import {
@@ -9,6 +16,8 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
+import { getLogger, reset } from '@logtape/logtape';
+import { startStderrLog } from './start-stderr-log';
 
 async function setupTest() {
   const tmp = setupTempDir('atc-non-blocking-log-');
@@ -119,9 +128,9 @@ test('it delivers every line to a stderr reader that keeps reading', async () =>
     expect(output.join('')).toStartWith('atc tcp event=listening ');
   });
 
-  // The log holds 64 KiB behind a write in flight and drops past that,
-  // however fast its reader reads, so the refusals go out in bursts of 500
-  // lines (about 39 KiB) and the reader takes each burst before the next.
+  // The log holds 1024 lines behind the ones it is writing and drops past
+  // that, however fast its reader reads, so the refusals go out in bursts
+  // of 500 lines and the reader takes each burst before the next.
   for (let sent = 500; sent <= 2000; sent += 500) {
     await sendLinesBeforeHandshake(ctx.port, 500);
 
@@ -212,4 +221,40 @@ test('it writes every line it holds at SIGTERM, and the count of the ones it dro
     last: '',
     total: 3000,
   });
+});
+
+test('it resolves a second stop that overlaps the first only once every line it holds is written', async () => {
+  const tmp = setupTempDir('atc-stderr-log-');
+  const outputPath = join(tmp.dir, 'stderr');
+  const fd = openSync(outputPath, 'w');
+
+  onTestFinished(() => {
+    closeSync(fd);
+  });
+
+  const log = await startStderrLog(fd);
+
+  onTestFinished(() => reset());
+
+  for (let count = 1; count <= 100; count++) {
+    const line = `atc tcp event=handshake_refused peer=127.0.0.1 reason=unexpected_line count=${String(count)}`;
+
+    getLogger(['atc', 'tcp']).info('{line}', { line });
+  }
+
+  const first = log.stop();
+
+  await log.stop();
+
+  const written = readFileSync(outputPath, 'utf8');
+
+  await first;
+
+  expect(written).toBe(
+    Array.from(
+      { length: 100 },
+      (_, index) =>
+        `atc tcp event=handshake_refused peer=127.0.0.1 reason=unexpected_line count=${String(index + 1)}\n`,
+    ).join(''),
+  );
 });

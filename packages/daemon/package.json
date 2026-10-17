@@ -14,6 +14,7 @@
     "@atc/plugin-api": "workspace:*",
     "@atc/protocol": "workspace:*",
     "@atc/store": "workspace:*",
+    "@logtape/logtape": "catalog:",
     "@xterm/addon-serialize": "catalog:",
     "@xterm/headless": "catalog:",
     "lru-cache": "catalog:",
