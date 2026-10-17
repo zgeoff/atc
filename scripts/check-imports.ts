@@ -80,41 +80,24 @@ const COMPOSITION_ROOTS: ReadonlySet<string> = new Set([
 
 const ALLOWED_IMPORTS: Readonly<Record<string, readonly string[]>> = {
   shared: [],
-  protocol: ['shared'],
 
   // the plugin registry: the plugins atc ships, from their packages
-  plugins: ['shared', 'protocol'],
-  agents: ['shared', 'protocol', 'plugins'],
-  workspace: ['shared', 'protocol'],
-  sources: ['shared', 'protocol', 'workspace', 'plugins'],
-  store: ['shared', 'protocol'],
-  daemon: ['shared', 'protocol', 'agents', 'workspace', 'sources', 'store', 'plugins'],
+  plugins: ['shared'],
+  agents: ['shared', 'plugins'],
+  sources: ['shared', 'plugins'],
 
   // the client reads the agents from config through the shipped harness
   // plugins
-  client: ['shared', 'protocol', 'plugins'],
-  mcp: ['shared', 'protocol'],
-  federation: ['shared', 'protocol'],
+  client: ['shared', 'plugins'],
+  mcp: ['shared'],
+  federation: ['shared'],
 
   // modules at the source root: the subcommand modules beside the entrypoints
-  root: ['shared', 'protocol', 'agents', 'client', 'mcp', 'federation', 'plugins'],
+  root: ['shared', 'agents', 'client', 'mcp', 'federation', 'plugins'],
 
   // the shared test helpers wire real modules together the way a test does,
   // and no production row lists them, so no production module imports one
-  'test-utils': [
-    'shared',
-    'protocol',
-    'agents',
-    'workspace',
-    'sources',
-    'store',
-    'daemon',
-    'client',
-    'mcp',
-    'federation',
-    'root',
-    'plugins',
-  ],
+  'test-utils': ['shared', 'agents', 'sources', 'client', 'mcp', 'federation', 'root', 'plugins'],
 };
 
 function checkDirection(file: string, targets: readonly string[]): string[] {
