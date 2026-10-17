@@ -33,6 +33,7 @@ async function main(): Promise<void> {
       .toSorted()
       .flatMap((file) => checkFile('bundles', file)),
     ...checkReporters(root, known, exports),
+    ...checkDaemon(root, known, exports),
   ];
 
   for (const finding of findings) {
@@ -204,6 +205,41 @@ function isReporterLoadable(file: string): boolean {
   }
 
   return folders.some((folder) => path.startsWith(`${folder}/`));
+}
+
+const DAEMON_ENTRY = 'packages/daemon/src/index.ts';
+
+// The modules the daemon must never reach: the opener of the gateway's
+// authorization database, mcp-auth.db.
+const DAEMON_REFUSED_MODULES: readonly string[] = [`${APP_SOURCE}/open-mcp-auth-database.ts`];
+
+/**
+ * The findings for the daemon: each module the daemon entry's import graph
+ * reaches that the daemon must never reach, and each import in that graph
+ * that resolves to no file.
+ */
+function checkDaemon(
+  root: string,
+  known: ReadonlySet<string>,
+  exports: ReadonlyMap<string, string>,
+): string[] {
+  if (!known.has(DAEMON_ENTRY)) {
+    return [];
+  }
+
+  const reached = collectReached(
+    known,
+    exports,
+    [DAEMON_ENTRY],
+    (file) => collectImports(readFileSync(join(root, file), 'utf8')).specifiers,
+  );
+
+  const refused = DAEMON_REFUSED_MODULES.filter((module) => reached.files.has(module)).map(
+    (module) =>
+      `refused module: ${DAEMON_ENTRY} reaches ${module}, which opens the gateway's mcp-auth.db`,
+  );
+
+  return [...refused, ...reached.unresolved];
 }
 
 interface Reach {
