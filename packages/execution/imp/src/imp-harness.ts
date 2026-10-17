@@ -1,16 +1,14 @@
-import { ansi, truncateSummary } from '@atc/core';
-import type {
-  HarnessAttachment,
-  HarnessExit,
-  HarnessHandle,
-  HarnessStart,
-  LaunchTicket,
-} from '@atc/plugin-api';
+import type { HarnessExit, HarnessHandle, HarnessStart, LaunchTicket } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import { P, match } from 'ts-pattern';
-import { createActor } from 'xstate';
-import { z } from 'zod';
-import { IMP_HARNESS_MACHINE } from './imp-harness-machine';
+import { buildLostExit } from './build-lost-exit';
+import { buildPreconditionRefusal } from './build-precondition-refusal';
+import { buildStateExit } from './build-state-exit';
+import { formatOutcome } from './format-outcome';
+import { ImpHarnessEvents } from './imp-harness-events';
+import type { ImpHarnessHost } from './imp-harness-host';
+import { ImpHarnessOutput } from './imp-harness-output';
+import { ImpHarnessState } from './imp-harness-state';
 import type {
   ImpPort,
   ImpSessionConnection,
@@ -20,42 +18,8 @@ import type {
   ImpSessionStarted,
   PreviousGeneration,
 } from './imp-port';
-import { sanitizeDetail } from './sanitize-detail';
-
-// What the harness asks of the provider that started it.
-interface ImpHarnessHost {
-  // Whether the provider is putting the harness's host to sleep, so a
-  // connection the sleep ends is the sleep's and not the harness's end.
-  readonly isSuspending: () => boolean;
-
-  // Called once, when the harness ends or the daemon lets go of it; for an
-  // end, after every exit listener has run.
-  readonly onDone: () => void;
-
-  // Whether impd carries output offsets, so a reconnect can resume.
-  readonly offsets: boolean;
-
-  // The wait before each reconnect after a connection ends without an
-  // exit; the harness ends once they run out.
-  readonly reconnectDelaysMs: readonly number[];
-
-  // Settles once the harness may start, such as when its report socket
-  // listens; a rejection ends the harness before it starts.
-  readonly ready?: Promise<void>;
-
-  // Admits a request that has requirements by calling send, or rejects with the
-  // refusal that ends the harness. The ticket is checked again just before the
-  // request goes out, and a refusal there ends the harness with nothing sent.
-  readonly admit?: (
-    kind: 'start' | 'attach',
-    send: (ticket: LaunchTicket) => void,
-  ) => Promise<void>;
-}
-
-// The bytes a fresh attach sends listeners ahead of its replay: reset the
-// attributes, home the cursor, and clear the screen. A full terminal reset
-// would also undo the modes of every attached client's own terminal.
-const SCREEN_RESET = `${ansi.reset}${ansi.cursorHome}${ansi.eraseScreen}`;
+import { makeConnectionGate } from './make-connection-gate';
+import { waitForAdmission } from './wait-for-admission';
 
 export class ImpHarness implements HarnessHandle {
   private readonly port: ImpPort;
@@ -75,21 +39,16 @@ export class ImpHarness implements HarnessHandle {
   // sends it again, since there is no process to attach to.
   private readonly start: ImpSessionRequest;
 
-  // Whether the open connection started, whether the start went out, how
-  // the next connection meets the screen, whether a kill waits, whether the
-  // harness ended, and how its start settled.
-  private readonly state = createActor(IMP_HARNESS_MACHINE).start();
+  private readonly state = new ImpHarnessState();
 
   // The admission of the open connection's request, while it has one.
   private connectionTicket: LaunchTicket | null = null;
 
-  private readonly dataListeners = new Set<(data: string) => void>();
+  private readonly events = new ImpHarnessEvents();
 
-  private readonly exitListeners = new Set<(exit: HarnessExit) => void>();
-
-  private readonly attachmentListeners = new Set<(attachment: HarnessAttachment) => void>();
-
-  private decoder = new TextDecoder();
+  private readonly output = new ImpHarnessOutput((text) => {
+    this.events.emitData(text);
+  });
 
   private connection: ImpSessionConnection | null = null;
 
@@ -99,38 +58,13 @@ export class ImpHarness implements HarnessHandle {
 
   private rows: number;
 
-  // The boot and generation the daemon's output came from, while impd
-  // carries offsets for the session.
-  private cursor: { readonly bootId: string; readonly generation: string } | null = null;
-
-  // The offset after the last byte the daemon has, the offset the current
-  // connection's next byte sits at, and the mode bytes still owed before
-  // it, which have no offset.
-  private highWater = 0;
-
-  private nextOffset = 0;
-
-  private preludeLeft = 0;
-
   private failures = 0;
 
   // Connections in a row that a handler of ours ended. A start never clears
   // it, since the next start can fail the same way.
   private localErrors = 0;
 
-  // The waits on whether the process exited, until the harness stops being
-  // followed.
-  private readonly exitWaiters = new Set<{
-    readonly waited: PromiseWithResolvers<boolean>;
-    readonly timer: ReturnType<typeof setTimeout>;
-  }>();
-
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-
-  // The waits on how the harness's start settles: started once a connection
-  // first starts the process or attaches to it, or the refusal it ended
-  // with before that.
-  private readonly startWaiters = new Set<PromiseWithResolvers<HarnessStart>>();
 
   // Whether the first start impd answered made the process, or attached to
   // one it still ran; null until a start is answered.
@@ -159,42 +93,18 @@ export class ImpHarness implements HarnessHandle {
     }
   }
 
-  readonly onData = (listener: (data: string) => void) => {
-    this.dataListeners.add(listener);
+  readonly onData = this.events.onData;
 
-    return {
-      dispose: () => {
-        this.dataListeners.delete(listener);
-      },
-    };
-  };
+  readonly onExit = this.events.onExit;
 
-  readonly onExit = (listener: (exit: HarnessExit) => void) => {
-    this.exitListeners.add(listener);
-
-    return {
-      dispose: () => {
-        this.exitListeners.delete(listener);
-      },
-    };
-  };
-
-  readonly onAttachment = (listener: (attachment: HarnessAttachment) => void) => {
-    this.attachmentListeners.add(listener);
-
-    return {
-      dispose: () => {
-        this.attachmentListeners.delete(listener);
-      },
-    };
-  };
+  readonly onAttachment = this.events.onAttachment;
 
   readonly write = (data: string): void => {
     const bytes = new TextEncoder().encode(data);
 
-    if (this.isStarted() && this.connection !== null) {
+    if (this.state.isStarted() && this.connection !== null) {
       this.connection.write(bytes);
-    } else if (!this.isDone()) {
+    } else if (!this.state.isDone()) {
       this.pending.push(bytes);
     }
   };
@@ -207,7 +117,7 @@ export class ImpHarness implements HarnessHandle {
 
   // A kill between connections goes out once the next one starts.
   readonly kill = (): void => {
-    if (this.isStarted() && this.connection !== null) {
+    if (this.state.isStarted() && this.connection !== null) {
       this.connection.sendSignal('SIGHUP');
     } else {
       this.state.send({ type: 'KILL_REQUESTED' });
@@ -217,29 +127,17 @@ export class ImpHarness implements HarnessHandle {
   // Only an exit impd reports counts: a host that lost the process or went
   // to sleep with it inside confirms nothing.
   readonly waitForExit = (timeoutMs: number): Promise<boolean> => {
-    const confirmed = this.getExitConfirmation();
+    const confirmed = this.state.getExitConfirmation();
 
     if (confirmed !== null) {
       return Promise.resolve(confirmed);
     }
 
-    const waited = Promise.withResolvers<boolean>();
-
-    const waiter = {
-      waited,
-      timer: setTimeout(() => {
-        this.exitWaiters.delete(waiter);
-        waited.resolve(false);
-      }, timeoutMs),
-    };
-
-    this.exitWaiters.add(waiter);
-
-    return waited.promise;
+    return this.events.waitForExit(timeoutMs);
   };
 
   readonly waitForStart = (): Promise<HarnessStart> => {
-    const outcome = this.getStartOutcome();
+    const outcome = this.state.getStartOutcome();
 
     if (outcome === 'started') {
       return Promise.resolve({ created: this.created ?? true });
@@ -249,15 +147,11 @@ export class ImpHarness implements HarnessHandle {
       return Promise.reject(outcome);
     }
 
-    const waited = Promise.withResolvers<HarnessStart>();
-
-    this.startWaiters.add(waited);
-
-    return waited.promise;
+    return this.events.waitForStart();
   };
 
   readonly detach = (): void => {
-    if (this.isDone()) {
+    if (this.state.isDone()) {
       return;
     }
 
@@ -280,7 +174,7 @@ export class ImpHarness implements HarnessHandle {
     try {
       await ready;
     } catch (error) {
-      if (!this.isDone()) {
+      if (!this.state.isDone()) {
         this.emitExit({
           exitCode: 1,
           reason: 'ended',
@@ -292,7 +186,7 @@ export class ImpHarness implements HarnessHandle {
     }
 
     // A resize while the host readied changed the size the start asks for.
-    if (!this.isDone()) {
+    if (!this.state.isDone()) {
       this.openCheckedConnection({ ...start, cols: this.cols, rows: this.rows });
     }
   }
@@ -307,100 +201,21 @@ export class ImpHarness implements HarnessHandle {
       return;
     }
 
-    void this.openRequiredConnection(request);
-  }
-
-  private async openRequiredConnection(request: ImpSessionRequest): Promise<void> {
-    let execRequire: boolean;
-
-    try {
-      const features = await this.port.readFeatures();
-
-      execRequire = features.execRequire;
-    } catch (error) {
-      if (!this.isDone() && !this.host.isSuspending()) {
-        const detail = error instanceof Error ? error.message : String(error);
-
-        this.applyOutcome({ kind: 'unreachable', detail }, false);
-      }
-
-      return;
-    }
-
-    if (this.isDone() || this.host.isSuspending()) {
-      return;
-    }
-
-    if (!execRequire) {
-      this.applyOutcome(
-        {
-          kind: 'failed',
-          code: 'PRECONDITION_FAILED',
-          message: `impd for imp ${this.name} does not honour exec requirements`,
-          data: { reason: 'impd_outdated' },
-        },
-        false,
-      );
-
-      return;
-    }
-
-    const admit = this.host.admit;
-
-    if (admit === undefined) {
-      this.openConnection(request);
-
-      return;
-    }
-
-    try {
-      await admit(request.kind, (ticket) => {
-        if (this.isDone() || this.host.isSuspending()) {
-          ticket.release();
-        } else {
-          this.openConnection(request, ticket);
-        }
-      });
-    } catch (error) {
-      if (!this.isDone()) {
+    void waitForAdmission(request.kind, {
+      port: this.port,
+      host: this.host,
+      name: this.name,
+      isDone: () => this.state.isDone(),
+      applyOutcome: (outcome) => {
+        this.applyOutcome(outcome, false);
+      },
+      openConnection: (ticket) => {
+        this.openConnection(request, ticket);
+      },
+      applyAdmissionRefusal: (error) => {
         this.applyAdmissionRefusal(error);
-      }
-    }
-  }
-
-  // A refusal or a throw closes the connection unsent and ends the harness once
-  // the port has returned to the caller. Only a start that passes counts as sent.
-  private checkTicket(ticket: LaunchTicket, kind: ImpSessionRequest['kind']): boolean {
-    let refusal: DaemonError | null;
-
-    try {
-      refusal = ticket.check();
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-
-      refusal = new DaemonError(
-        'internal',
-        `imp ${this.name}'s harness could not check its admission: ${detail}`,
-      );
-    }
-
-    if (refusal === null) {
-      if (kind === 'start') {
-        this.state.send({ type: 'START_SENT' });
-      }
-
-      return true;
-    }
-
-    queueMicrotask(() => {
-      if (!this.isDone()) {
-        this.connection = null;
-
-        this.applyAdmissionRefusal(refusal);
-      }
+      },
     });
-
-    return false;
   }
 
   // A launch the host's binding no longer admits ends the harness with
@@ -420,7 +235,15 @@ export class ImpHarness implements HarnessHandle {
   // its check passes. The ticket goes back whenever the connection ends or the
   // harness lets go of it.
   private openConnection(request: ImpSessionRequest, ticket?: LaunchTicket): void {
-    const gate = this.makeGate(request, ticket);
+    const gate = makeConnectionGate(request, ticket, {
+      name: this.name,
+      state: this.state,
+      applyTicketRefusal: (refusal) => {
+        this.connection = null;
+
+        this.applyAdmissionRefusal(refusal);
+      },
+    });
 
     const handlers: ImpSessionHandlers = {
       onStarted: (started) => {
@@ -430,7 +253,7 @@ export class ImpHarness implements HarnessHandle {
       },
       onOutput: (data) => {
         if (this.connection === connection) {
-          this.applyOutput(data);
+          this.output.applyOutput(data);
         }
       },
     };
@@ -455,24 +278,6 @@ export class ImpHarness implements HarnessHandle {
     void this.waitForOutcome(connection, ticket ?? null);
   }
 
-  // impd's client can fail a start after the connection opens, as a feature
-  // check that times out does, sending nothing; so only the gate marks it sent.
-  private makeGate(request: ImpSessionRequest, ticket?: LaunchTicket): (() => boolean) | undefined {
-    if (ticket !== undefined) {
-      return () => this.checkTicket(ticket, request.kind);
-    }
-
-    if (request.kind === 'attach') {
-      return undefined;
-    }
-
-    return () => {
-      this.state.send({ type: 'START_SENT' });
-
-      return true;
-    };
-  }
-
   private applyStarted(connection: ImpSessionConnection, started: ImpSessionStarted): void {
     const output = started.output;
     const offsets = this.host.offsets && output.continuity === 'offsets' ? output : null;
@@ -489,31 +294,18 @@ export class ImpHarness implements HarnessHandle {
       return;
     }
 
-    if (offsets === null || offsets.resume === undefined) {
-      if (this.needsFreshScreen()) {
-        this.decoder = new TextDecoder();
+    this.output.applyStart(offsets, this.state.needsFreshScreen());
 
-        this.emitData(SCREEN_RESET);
-      }
-
-      this.highWater = offsets?.offset ?? 0;
-    }
-
-    this.cursor =
-      offsets === null ? null : { bootId: offsets.bootId, generation: offsets.executionGeneration };
-
-    this.nextOffset = offsets?.offset ?? 0;
-    this.preludeLeft = offsets?.prelude ?? 0;
     this.failures = 0;
 
     // A start resumes the screen and takes the waiting kill with it.
-    const hasKill = this.hasPendingKill();
+    const hasKill = this.state.hasPendingKill();
 
     this.created ??= started.created;
 
     this.state.send({ type: 'CONNECTION_STARTED' });
     this.emitStartOutcome();
-    this.emitAttachment('attached');
+    this.events.emitAttachment('attached');
 
     // impd drops a resize that reaches it before the session starts, so the
     // size asked for since the request goes out now.
@@ -532,35 +324,6 @@ export class ImpHarness implements HarnessHandle {
     }
   }
 
-  // The mode bytes ahead of a fresh replay go to the screen uncounted; every
-  // byte after them sits at an offset, and one below the high-water mark is
-  // a repeat the daemon already has.
-  private applyOutput(data: Uint8Array): void {
-    let bytes = data;
-
-    if (this.preludeLeft > 0) {
-      const prelude = bytes.subarray(0, this.preludeLeft);
-
-      this.preludeLeft -= prelude.length;
-
-      this.emitData(this.decoder.decode(prelude, { stream: true }));
-
-      bytes = bytes.subarray(prelude.length);
-    }
-
-    if (this.cursor !== null) {
-      const start = this.nextOffset;
-
-      this.nextOffset += bytes.length;
-      bytes = bytes.subarray(Math.max(0, this.highWater - start));
-      this.highWater = Math.max(this.highWater, this.nextOffset);
-    }
-
-    if (bytes.length > 0) {
-      this.emitData(this.decoder.decode(bytes, { stream: true }));
-    }
-  }
-
   private async waitForOutcome(
     connection: ImpSessionConnection,
     ticket: LaunchTicket | null,
@@ -569,11 +332,11 @@ export class ImpHarness implements HarnessHandle {
 
     ticket?.release();
 
-    if (this.connection !== connection || this.isDone() || this.host.isSuspending()) {
+    if (this.connection !== connection || this.state.isDone() || this.host.isSuspending()) {
       return;
     }
 
-    const wasStarted = this.isStarted();
+    const wasStarted = this.state.isStarted();
 
     this.connection = null;
 
@@ -634,13 +397,11 @@ export class ImpHarness implements HarnessHandle {
     match(outcome.code)
       .with('INVALID_RESUME', () => {
         this.state.send({ type: 'FRESH_REQUESTED' });
-
-        this.cursor = null;
-
+        this.output.resetCursor();
         this.scheduleReconnect(outcome, 0);
       })
       .with('NO_SESSION', () => {
-        this.emitExit(buildLostExit(outcome.data, this.cursor));
+        this.emitExit(buildLostExit(outcome.data, this.output.getCursor()));
       })
       .with('INVALID_STATE', () => {
         this.emitExit(buildStateExit(outcome.data));
@@ -657,36 +418,13 @@ export class ImpHarness implements HarnessHandle {
   // requirements is refused against an impd that would ignore them, by
   // impd's client and the harness both.
   private applyPreconditionRefusal(outcome: Extract<ImpSessionOutcome, { kind: 'failed' }>): void {
-    const data = parsePrecondition(outcome.data);
+    const refused = buildPreconditionRefusal(outcome, this.name);
 
-    match(data.reason)
-      .with('impd_outdated', () => {
-        this.startRefusal = new DaemonError(
-          'auth_impd_too_old',
-          `impd for imp ${this.name} does not honour exec requirements; upgrade it to 0.30.0 or later`,
-          { imp: this.name, execRequire: false },
-        );
+    if (refused.refusal !== null) {
+      this.startRefusal = refused.refusal;
+    }
 
-        this.emitExit({
-          exitCode: 1,
-          reason: 'ended',
-          detail: 'impd too old to require the broker',
-        });
-      })
-      .with('broker_not_ready', () => {
-        const detail = data.detail ?? 'no detail';
-
-        this.startRefusal = new DaemonError(
-          'broker_not_ready',
-          `imp ${this.name} refused to start the harness: its credential broker is not ready (${detail})`,
-          { imp: this.name, detail },
-        );
-
-        this.emitExit({ exitCode: 1, reason: 'ended', detail: `imp broker not ready (${detail})` });
-      })
-      .otherwise(() => {
-        this.emitExit({ exitCode: 1, reason: 'ended', detail: formatOutcome(outcome) });
-      });
+    this.emitExit(refused.exit);
   }
 
   // A delay of null takes the next one from the host's list; running out of
@@ -707,13 +445,13 @@ export class ImpHarness implements HarnessHandle {
       this.failures += 1;
     }
 
-    this.emitAttachment('reattaching');
+    this.events.emitAttachment('reattaching');
 
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
 
-      if (!this.isDone()) {
-        const next = this.hasSentStart()
+      if (!this.state.isDone()) {
+        const next = this.state.hasSentStart()
           ? this.buildAttach()
           : { ...this.start, cols: this.cols, rows: this.rows };
 
@@ -727,7 +465,7 @@ export class ImpHarness implements HarnessHandle {
   // A reconnect never wakes the imp: a sleeping imp answers that it sleeps,
   // and only a revive wakes it.
   private buildAttach(): ImpSessionRequest {
-    const cursor = this.needsFreshScreen() ? null : this.cursor;
+    const cursor = this.state.needsFreshScreen() ? null : this.output.getCursor();
 
     if (cursor === null) {
       this.state.send({ type: 'FRESH_REQUESTED' });
@@ -742,7 +480,12 @@ export class ImpHarness implements HarnessHandle {
       wake: false,
       ...(cursor === null
         ? {}
-        : { resumeFrom: { executionGeneration: cursor.generation, offset: this.highWater } }),
+        : {
+            resumeFrom: {
+              executionGeneration: cursor.generation,
+              offset: this.output.getHighWater(),
+            },
+          }),
     };
   }
 
@@ -765,7 +508,7 @@ export class ImpHarness implements HarnessHandle {
     previous: PreviousGeneration | undefined,
   ): void {
     const exit: HarnessExit =
-      previous !== undefined && previous.executionGeneration === this.cursor?.generation
+      previous !== undefined && previous.executionGeneration === this.output.getCursor()?.generation
         ? { exitCode: previous.exitCode ?? 1, reason: 'exited' }
         : { exitCode: 1, reason: 'ended', detail: 'imp replaced the process' };
 
@@ -775,20 +518,8 @@ export class ImpHarness implements HarnessHandle {
     this.emitExit(exit);
   }
 
-  private emitData(text: string): void {
-    for (const listener of this.dataListeners) {
-      listener(text);
-    }
-  }
-
-  private emitAttachment(attachment: HarnessAttachment): void {
-    for (const listener of this.attachmentListeners) {
-      listener(attachment);
-    }
-  }
-
   private emitExit(exit: HarnessExit): void {
-    const listeners = [...this.exitListeners];
+    const listeners = this.events.getExitListeners();
 
     this.stopFollowing(
       exit.reason === undefined || exit.reason === 'exited',
@@ -828,199 +559,17 @@ export class ImpHarness implements HarnessHandle {
     this.connectionTicket?.release();
     this.connectionTicket = null;
 
-    const exited = this.getExitConfirmation() ?? false;
-
-    for (const waiter of this.exitWaiters) {
-      clearTimeout(waiter.timer);
-
-      waiter.waited.resolve(exited);
-    }
-
-    this.exitWaiters.clear();
-    this.dataListeners.clear();
-    this.exitListeners.clear();
-    this.attachmentListeners.clear();
+    this.events.dispose(this.state.getExitConfirmation() ?? false);
   }
 
   // Each wait on the start settles once the start has settled.
   private emitStartOutcome(): void {
-    const outcome = this.getStartOutcome();
+    const outcome = this.state.getStartOutcome();
 
     if (outcome === null) {
       return;
     }
 
-    for (const waited of this.startWaiters) {
-      if (outcome === 'started') {
-        waited.resolve({ created: this.created ?? true });
-      } else {
-        waited.reject(outcome);
-      }
-    }
-
-    this.startWaiters.clear();
+    this.events.emitStartOutcome(outcome, this.created ?? true);
   }
-
-  private isStarted(): boolean {
-    return this.state.getSnapshot().matches({ run: { following: { connection: 'live' } } });
-  }
-
-  private isDone(): boolean {
-    return this.state.getSnapshot().matches({ run: 'ended' });
-  }
-
-  private hasSentStart(): boolean {
-    return this.state.getSnapshot().matches({ run: { following: { process: 'sent' } } });
-  }
-
-  // Whether the next connection replaces the screen rather than resuming.
-  private needsFreshScreen(): boolean {
-    return this.state.getSnapshot().matches({ run: { following: { screen: 'fresh' } } });
-  }
-
-  private hasPendingKill(): boolean {
-    return this.state.getSnapshot().matches({ run: { following: { kill: 'pending' } } });
-  }
-
-  // Whether the process exited, once the harness stops being followed;
-  // null until then.
-  private getExitConfirmation(): boolean | null {
-    const snapshot = this.state.getSnapshot();
-
-    if (snapshot.matches({ run: { ended: 'exited' } })) {
-      return true;
-    }
-
-    return snapshot.matches({ run: 'ended' }) ? false : null;
-  }
-
-  // How the harness's start settled, or null while it has not.
-  private getStartOutcome(): 'started' | Readonly<DaemonError> | null {
-    const snapshot = this.state.getSnapshot();
-
-    if (snapshot.matches({ start: 'started' })) {
-      return 'started';
-    }
-
-    return snapshot.matches({ start: 'refused' }) ? snapshot.context.refusal : null;
-  }
-}
-
-// What ended a process impd no longer holds: the kept previous generation
-// of the same boot, and impd's cold boots, newest first. Each part is read
-// on its own, and one that does not read is no evidence.
-const LOST_BOOT_SCHEMA = z.object({ bootId: z.string() });
-const LOST_PREVIOUS_SCHEMA = z.object({ previous: z.unknown() });
-const LOST_COLD_BOOTS_SCHEMA = z.object({ coldBoots: z.array(z.unknown()) });
-const GENERATION_SCHEMA = z.object({ executionGeneration: z.string() });
-const EXIT_CODE_SCHEMA = z.object({ exitCode: z.number() });
-
-// A boot whose id is not text still holds its place in the order.
-const COLD_BOOT_SCHEMA = z.object({ bootId: z.unknown().optional() });
-const CAUSE_SCHEMA = z.object({ cause: z.string() });
-
-// In the same boot, the kept previous generation gives the exit. Across a cold
-// boot, the first boot after the daemon's own gives the cause, unknown when
-// impd no longer lists the daemon's boot.
-function buildLostExit(
-  data: unknown,
-  cursor: Readonly<{ bootId: string; generation: string }> | null,
-): HarnessExit {
-  const bootID = LOST_BOOT_SCHEMA.safeParse(data).data?.bootId;
-  const previous = LOST_PREVIOUS_SCHEMA.safeParse(data).data?.previous;
-
-  if (cursor !== null && bootID === cursor.bootId) {
-    const generation = GENERATION_SCHEMA.safeParse(previous);
-    const exitCode = EXIT_CODE_SCHEMA.safeParse(previous);
-    const isOwn = generation.data?.executionGeneration === cursor.generation;
-
-    return isOwn
-      ? { exitCode: exitCode.data?.exitCode ?? 1, reason: 'exited' }
-      : { exitCode: 1, reason: 'ended', detail: 'ended, cause unknown' };
-  }
-
-  const boots = collectColdBoots(LOST_COLD_BOOTS_SCHEMA.safeParse(data).data?.coldBoots ?? []);
-  const own = cursor === null ? -1 : boots.findIndex((boot) => boot.bootId === cursor.bootId);
-  const next = own > 0 ? boots[own - 1] : undefined;
-
-  return next === undefined
-    ? { exitCode: 1, reason: 'ended', detail: 'ended, cause unknown' }
-    : { exitCode: 1, reason: 'ended', detail: `imp rebooted (${next.cause})` };
-}
-
-// impd's cold boots, newest first, as far as each one reads.
-function collectColdBoots(
-  entries: readonly unknown[],
-): { readonly bootId: unknown; readonly cause: string }[] {
-  return entries.flatMap((entry) => {
-    const boot = COLD_BOOT_SCHEMA.safeParse(entry);
-    const cause = CAUSE_SCHEMA.safeParse(entry);
-
-    return boot.success
-      ? [{ bootId: boot.data.bootId, cause: cause.data?.cause ?? 'unknown' }]
-      : [];
-  });
-}
-
-// The state impd gives for an imp that cannot run the session.
-const IMP_STATE_SCHEMA = z.object({ state: z.string() });
-
-// A sleeping imp suspends the session; any other state ends it.
-function buildStateExit(data: unknown): HarnessExit {
-  const parsed = IMP_STATE_SCHEMA.safeParse(data);
-  const state = parsed.success ? parsed.data.state : 'not running';
-
-  return state === 'sleeping'
-    ? { exitCode: 0, reason: 'suspended' }
-    : { exitCode: 1, reason: 'ended', detail: `imp is ${state}` };
-}
-
-// impd's reason for a refused precondition, and its detail, each read on its
-// own so a detail that is not text leaves the reason.
-const PRECONDITION_REASON_SCHEMA = z.object({ reason: z.string() });
-const PRECONDITION_DETAIL_SCHEMA = z.object({ detail: z.string() });
-
-function parsePrecondition(data: unknown): { reason?: string; detail?: string } {
-  const reason = PRECONDITION_REASON_SCHEMA.safeParse(data);
-  const detail = PRECONDITION_DETAIL_SCHEMA.safeParse(data);
-
-  return {
-    ...(reason.success && { reason: reason.data.reason }),
-    ...(detail.success && { detail: detail.data.detail }),
-  };
-}
-
-// Credentials are redacted while line breaks still bound a header's value,
-// then control characters go, so the text cannot redraw a list row.
-function buildSafeDetail(message: string): string {
-  return sanitizeDetail(message)
-    .replaceAll(/[\p{Cc}\p{Cf}]/gu, ' ')
-    .replaceAll(/\s+/gu, ' ')
-    .trim();
-}
-
-// An end other than an exit, as a session's last message.
-function formatOutcome(outcome: Exclude<ImpSessionOutcome, { kind: 'exit' }>): string {
-  return match(outcome)
-    .with({ kind: 'failed' }, (ended) => {
-      const code = ended.code ?? 'error';
-      const detail = buildSafeDetail(ended.message);
-
-      const line =
-        detail === ''
-          ? `imp refused the session (${code})`
-          : `imp refused the session (${code}): ${detail}`;
-
-      return truncateSummary(line);
-    })
-    .with({ kind: 'detached' }, (ended) => `imp detached the session (${ended.reason})`)
-    .with({ kind: 'closed' }, (ended) => `imp connection closed (${ended.reason})`)
-    .with({ kind: 'unreachable' }, () => 'imp unreachable')
-    .with({ kind: 'unauthorized' }, () => 'imp refused the token')
-    .with(
-      { kind: 'local_error' },
-      (ended) => `imp connection failed in the daemon (${ended.detail})`,
-    )
-    .with({ kind: 'bad_message' }, () => 'imp sent a bad message')
-    .exhaustive();
 }

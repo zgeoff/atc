@@ -21,6 +21,8 @@ import type {
   ImpView,
 } from './imp-port';
 import { ImpPortError } from './imp-port-error';
+import { openGatedSocket } from './open-gated-socket';
+import { openRelay } from './open-relay';
 import { toImpFeatures } from './to-imp-features';
 import { toImpIdentity } from './to-imp-identity';
 import { toImpLease } from './to-imp-lease';
@@ -533,109 +535,4 @@ function mergeChunks(chunks: readonly Uint8Array[]): Uint8Array {
 
 async function waitForListening(listening: Promise<unknown>): Promise<void> {
   await listening;
-}
-
-// How the client hands over a guest connection: the daemon accepts it with
-// its handlers and gets the relay back.
-type RelayAccept = (
-  handlers: Readonly<{
-    onData: (data: Uint8Array) => void;
-    onEof: () => void;
-    onClose: (lost: boolean) => void;
-  }>,
-) => Readonly<{
-  send: (data: Uint8Array) => boolean;
-  waitForRoom: () => Promise<void>;
-  close: () => void;
-}>;
-
-// Takes a guest connection at once, handing its bytes and its close to the
-// listeners the relay's owner adds.
-function openRelay(accept: RelayAccept): ImpRelayConnection {
-  const dataListeners: ((data: Uint8Array) => void)[] = [];
-  const closeListeners: (() => void)[] = [];
-  const endListeners: (() => void)[] = [];
-
-  const relay = accept({
-    onData: (data) => {
-      for (const listener of dataListeners) {
-        listener(data);
-      }
-    },
-    onEof: () => {
-      for (const listener of endListeners) {
-        listener();
-      }
-    },
-    onClose: () => {
-      for (const listener of closeListeners) {
-        listener();
-      }
-    },
-  });
-
-  return {
-    onData: (listener) => {
-      dataListeners.push(listener);
-    },
-    onClose: (listener) => {
-      closeListeners.push(listener);
-    },
-    onEnd: (listener) => {
-      endListeners.push(listener);
-    },
-
-    // A send past the relay's window still queues the bytes, so only the
-    // next write waits; a closed relay takes bytes and drops them.
-    write: async (data) => {
-      if (!relay.send(data)) {
-        await relay.waitForRoom();
-      }
-    },
-    close: () => {
-      relay.close();
-    },
-  };
-}
-
-// The client sends the request as the socket's first message and holds every
-// other until then, so the gate runs on that send. A closed or throwing gate
-// closes the socket and drops every later message.
-function openGatedSocket(
-  url: string,
-  headers: Readonly<Record<string, string>>,
-  gate: (() => boolean) | undefined,
-): WebSocket {
-  const socket = new WebSocket(url, { headers });
-
-  if (gate === undefined) {
-    return socket;
-  }
-
-  const send = socket.send.bind(socket);
-  const state: { passed: boolean | null } = { passed: null };
-
-  socket.send = (data) => {
-    if (state.passed === null) {
-      state.passed = tryPassGate(gate);
-
-      if (!state.passed) {
-        socket.close(1000, 'closed before sending');
-      }
-    }
-
-    if (state.passed) {
-      send(data);
-    }
-  };
-
-  return socket;
-}
-
-function tryPassGate(gate: () => boolean): boolean {
-  try {
-    return gate();
-  } catch {
-    return false;
-  }
 }
