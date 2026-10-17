@@ -561,13 +561,15 @@ test('it refuses a spawn on an impd without exec requirements after reads alone'
 
   const listed = await daemon.client.sendRequest('session.list');
 
+  const calls: readonly unknown[] = ctx.port.calls;
+
   expect(spawn).rejects.toMatchObject({ code: 'auth_impd_too_old' });
 
-  expect(ctx.port.calls).toStrictEqual([
+  expect(calls).toStrictEqual([
     'system.info',
     'tokens.whoami',
     'secrets.list',
-    expect.stringMatching(/^imps\.get atc-/),
+    expect.toStartWith('imps.get atc-'),
   ]);
 
   expect(listed).toStrictEqual({ sessions: [] });
