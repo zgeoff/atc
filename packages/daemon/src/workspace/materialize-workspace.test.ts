@@ -15,7 +15,9 @@ import {
 import { $ } from 'bun';
 import { buildStubLocalProvider } from '../testing/build-stub-local-provider';
 import { runLocalCommand } from '../testing/run-local-command';
-import { CLAIM_DIR_SCRIPT, VERIFY_SCRIPT, materializeWorkspace } from './materialize-workspace';
+import { CLAIM_DIR_SCRIPT } from './claim-landing';
+import { materializeWorkspace } from './materialize-workspace';
+import { VERIFY_SCRIPT } from './verify-target-head';
 
 async function setupTest() {
   const tmp = setupTempDir('atc-materialize-');
