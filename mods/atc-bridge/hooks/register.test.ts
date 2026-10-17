@@ -19,7 +19,7 @@ function setupTest({ on }: { readonly on: On }) {
     return {
       value: {
         exitCode: 0,
-        stdout: '',
+        stdout: 'delivered\n',
         stderr: '',
         isStdoutTruncated: false,
         isStderrTruncated: false,
@@ -805,7 +805,7 @@ test('it leaves a message to the final reply when atc does not take its answer',
     return {
       value: {
         exitCode: 0,
-        stdout: '',
+        stdout: 'delivered\n',
         stderr: '',
         isStdoutTruncated: false,
         isStderrTruncated: false,
@@ -869,7 +869,7 @@ test('it leaves a message to the final reply when atc exits nonzero on its answe
     return {
       value: {
         exitCode: e.argv.includes('--message') ? 1 : 0,
-        stdout: '',
+        stdout: 'delivered\n',
         stderr: '',
         isStdoutTruncated: false,
         isStderrTruncated: false,
@@ -921,6 +921,173 @@ test('it leaves a message to the final reply when atc exits nonzero on its answe
   ]);
 });
 
+// The reporter always exits 0, so atc prints undelivered when the answer
+// never reached it, as when the session's socket is gone.
+function setupUndeliveredTest({ on }: { readonly on: On }, undelivered: number) {
+  const clock = mock.clock(on);
+  const ran: string[][] = [];
+  let failures = undelivered;
+
+  on('process.run', ($, e) => {
+    ran.push([...e.argv]);
+
+    const isUndelivered = e.argv.includes('--message') && failures > 0;
+
+    if (isUndelivered) {
+      failures -= 1;
+    }
+
+    return {
+      value: {
+        exitCode: 0,
+        stdout: isUndelivered ? 'undelivered\n' : 'delivered\n',
+        stderr: '',
+        isStdoutTruncated: false,
+        isStderrTruncated: false,
+      },
+    };
+  });
+
+  on('turn.start', ($, e) => ({ turnId: e.turnId }));
+  on('turn.complete', ($, e) => ({ text: e.answer }));
+  on('session.start', ($, e) => ({ cwd: e.cwd }));
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__answer' } }));
+
+  on('process.spawn', async function* () {
+    yield { stream: 'stdout', text: '{"id":"m-1","from":"alice","text":"one"}\n' };
+
+    return { value: { code: 0, signal: null } };
+  });
+
+  return { clock, ran };
+}
+
+test('it keeps a message carried when atc prints undelivered for its answer, so a retry answers it', async (engine, on) => {
+  const ctx = setupUndeliveredTest({ on }, 1);
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  on('prompt.submit', async ($, e) => {
+    await engine.turn.start({ text: e.text, turnId: 't-1' });
+
+    return { text: e.text };
+  });
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await ctx.clock.settle();
+
+  const failed = await engine.tool.call({
+    tool: 'mcp__atc-bridge__answer',
+    message: 'm-1',
+    text: 'for alice',
+  });
+
+  const retried = await engine.tool.call({
+    tool: 'mcp__atc-bridge__answer',
+    message: 'm-1',
+    text: 'for alice',
+  });
+
+  await engine.turn.complete({
+    answer: 'for the terminal',
+    durationMs: 5,
+    isAborted: false,
+    turnId: 't-1',
+    reason: 'answer',
+  });
+
+  await ctx.clock.settle();
+
+  expect(failed.deny).toBe('atc did not take the answer: the answer did not reach atc');
+  expect(retried.result).toBe('Handed to atc as the answer to m-1.');
+
+  expect(ctx.ran).toStrictEqual([
+    ['atc', 'answer', '--message', 'm-1'],
+    ['atc', 'answer', '--message', 'm-1'],
+  ]);
+});
+
+test('it leaves a message to the final reply when atc prints undelivered for its answer', async (engine, on) => {
+  const ctx = setupUndeliveredTest({ on }, 1);
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  on('prompt.submit', async ($, e) => {
+    await engine.turn.start({ text: e.text, turnId: 't-1' });
+
+    return { text: e.text };
+  });
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await ctx.clock.settle();
+
+  const failed = await engine.tool.call({
+    tool: 'mcp__atc-bridge__answer',
+    message: 'm-1',
+    text: 'for alice',
+  });
+
+  await engine.turn.complete({
+    answer: 'for the terminal',
+    durationMs: 5,
+    isAborted: false,
+    turnId: 't-1',
+    reason: 'answer',
+  });
+
+  await ctx.clock.settle();
+
+  expect(failed.deny).toBe('atc did not take the answer: the answer did not reach atc');
+
+  expect(ctx.ran).toStrictEqual([
+    ['atc', 'answer', '--message', 'm-1'],
+    ['atc', 'answer', '--messages', 'm-1', '--turn', 't-1'],
+  ]);
+});
+
+test('it takes an answer from an atc build that prints no delivery result', async (engine, on) => {
+  const clock = mock.clock(on);
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  on('process.run', () => ({
+    value: {
+      exitCode: 0,
+      stdout: '',
+      stderr: '',
+      isStdoutTruncated: false,
+      isStderrTruncated: false,
+    },
+  }));
+
+  on('turn.start', ($, e) => ({ turnId: e.turnId }));
+  on('session.start', ($, e) => ({ cwd: e.cwd }));
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__answer' } }));
+
+  on('process.spawn', async function* () {
+    yield { stream: 'stdout', text: '{"id":"m-1","from":"alice","text":"one"}\n' };
+
+    return { value: { code: 0, signal: null } };
+  });
+
+  on('prompt.submit', async ($, e) => {
+    await engine.turn.start({ text: e.text, turnId: 't-1' });
+
+    return { text: e.text };
+  });
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await clock.settle();
+
+  const answered = await engine.tool.call({
+    tool: 'mcp__atc-bridge__answer',
+    message: 'm-1',
+    text: 'for alice',
+  });
+
+  expect(answered.result).toBe('Handed to atc as the answer to m-1.');
+});
+
 test('it reports a message unanswered when its answer fails after its turn ended', async (engine, on) => {
   const clock = mock.clock(on);
   const ran: string[][] = [];
@@ -946,7 +1113,7 @@ test('it reports a message unanswered when its answer fails after its turn ended
     return {
       value: {
         exitCode: 0,
-        stdout: '',
+        stdout: 'delivered\n',
         stderr: '',
         isStdoutTruncated: false,
         isStderrTruncated: false,
@@ -1086,7 +1253,7 @@ test("it sends a note after the session's working folder is removed", async (eng
     return {
       value: {
         exitCode: 0,
-        stdout: '',
+        stdout: 'delivered\n',
         stderr: '',
         isStdoutTruncated: false,
         isStderrTruncated: false,

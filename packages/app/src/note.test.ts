@@ -25,12 +25,16 @@ test('it forwards an answered envelope with the final text from stdin', async ()
   updateEnv('ATC_SESSION_ID', 's1');
 
   const codes: number[] = [];
+  const printed: string[] = [];
 
   await runNote(
     'answered',
     { message: 'm-1', messages: '', label: '', turn: '' },
     {
       readStdin: () => Promise.resolve('all done'),
+      print: (text) => {
+        printed.push(text);
+      },
       exit: (code) => {
         codes.push(code);
       },
@@ -40,6 +44,7 @@ test('it forwards an answered envelope with the final text from stdin', async ()
   const line = await ctx.reporter.waitForLine();
 
   expect(codes).toStrictEqual([0]);
+  expect(printed).toStrictEqual(['delivered\n']);
 
   expect(JSON.parse(line) as unknown).toStrictEqual({
     atcId: 's1',
@@ -61,6 +66,7 @@ test('it forwards an answered envelope with the turn that carried the message', 
     { message: 'm-1', messages: '', label: '', turn: 't-7' },
     {
       readStdin: () => Promise.resolve('all done'),
+      print: () => {},
       exit: (code) => {
         codes.push(code);
       },
@@ -91,6 +97,7 @@ test('it forwards one answered envelope for every message a turn answered', asyn
     { message: '', messages: 'm-1,m-2', label: '', turn: 't-7' },
     {
       readStdin: () => Promise.resolve('both done'),
+      print: () => {},
       exit: (code) => {
         codes.push(code);
       },
@@ -121,6 +128,7 @@ test('it forwards an unanswered envelope with the messages, reason, and turn', a
     { message: '', messages: 'm-1,m-2', label: '', turn: 't-7', reason: 'interrupted' },
     {
       readStdin: () => Promise.resolve('ignored'),
+      print: () => {},
       exit: (code) => {
         codes.push(code);
       },
@@ -151,6 +159,7 @@ test('it forwards an unanswered envelope without a turn', async () => {
     { message: '', messages: 'm-1', label: '', turn: '', reason: 'not_started' },
     {
       readStdin: () => Promise.resolve('ignored'),
+      print: () => {},
       exit: (code) => {
         codes.push(code);
       },
@@ -181,6 +190,7 @@ test('it sends nothing for an unanswered envelope without messages', async () =>
     { message: '', messages: '', label: '', turn: 't-7', reason: 'error' },
     {
       readStdin: () => Promise.resolve('ignored'),
+      print: () => {},
       exit: (code) => {
         codes.push(code);
       },
@@ -204,6 +214,7 @@ test('it sends nothing for an unanswered envelope without a reason', async () =>
     { message: '', messages: 'm-1', label: '', turn: 't-7', reason: '' },
     {
       readStdin: () => Promise.resolve('ignored'),
+      print: () => {},
       exit: (code) => {
         codes.push(code);
       },
@@ -214,19 +225,23 @@ test('it sends nothing for an unanswered envelope without a reason', async () =>
   expect(ctx.reporter.lines).toStrictEqual([]);
 });
 
-test('it exits 0 when nothing listens at the socket', async () => {
+test('it exits 0 and prints undelivered when nothing listens at the socket', async () => {
   const tmp = setupTempDir('atc-note-');
 
   updateEnv('ATC_SOCKET', join(tmp.dir, 'none.sock'));
   updateEnv('ATC_SESSION_ID', 's1');
 
   const codes: number[] = [];
+  const printed: string[] = [];
 
   await runNote(
     'answered',
     { message: 'm-1', messages: '', label: '', turn: '' },
     {
       readStdin: () => Promise.resolve('all done'),
+      print: (text) => {
+        printed.push(text);
+      },
       exit: (code) => {
         codes.push(code);
       },
@@ -234,6 +249,7 @@ test('it exits 0 when nothing listens at the socket', async () => {
   );
 
   expect(codes).toStrictEqual([0]);
+  expect(printed).toStrictEqual(['undelivered\n']);
 });
 
 test('it exits 0 without a message id', async () => {
@@ -249,6 +265,7 @@ test('it exits 0 without a message id', async () => {
     { message: '', messages: '', label: '', turn: '' },
     {
       readStdin: () => Promise.resolve('all done'),
+      print: () => {},
       exit: (code) => {
         codes.push(code);
       },
@@ -271,6 +288,7 @@ test('it exits 0 for an unknown note kind', async () => {
     { message: 'm-1', messages: '', label: '', turn: '' },
     {
       readStdin: () => Promise.resolve('all done'),
+      print: () => {},
       exit: (code) => {
         codes.push(code);
       },
@@ -293,6 +311,7 @@ test('it forwards a note with its label and the text from stdin', async () => {
     { message: '', messages: '', label: 'blocked', turn: '' },
     {
       readStdin: () => Promise.resolve('need review'),
+      print: () => {},
       exit: (code) => {
         codes.push(code);
       },
@@ -323,6 +342,7 @@ test('it labels a note progress when no label is given', async () => {
     { message: '', messages: '', label: '', turn: '' },
     {
       readStdin: () => Promise.resolve('halfway there'),
+      print: () => {},
       exit: (code) => {
         codes.push(code);
       },
@@ -353,6 +373,7 @@ test('it exits 0 for a note without text', async () => {
     { message: '', messages: '', label: 'blocked', turn: '' },
     {
       readStdin: () => Promise.resolve('  \n'),
+      print: () => {},
       exit: (code) => {
         codes.push(code);
       },
@@ -379,12 +400,16 @@ test('it clears a bridge note from the outbox once the bridge refuses it as forb
   updateEnv('ATC_SESSION_ID', 's1');
 
   const codes: number[] = [];
+  const printed: string[] = [];
 
   await runNote(
     'note',
     { message: '', messages: '', label: '', turn: '' },
     {
       readStdin: () => Promise.resolve('need review'),
+      print: (text) => {
+        printed.push(text);
+      },
       exit: (code) => {
         codes.push(code);
       },
@@ -393,6 +418,7 @@ test('it clears a bridge note from the outbox once the bridge refuses it as forb
 
   expect(codes).toStrictEqual([0]);
   expect(readdirSync(outbox)).toStrictEqual([]);
+  expect(printed).toStrictEqual(['undelivered\n']);
 
   expect(bridge.requests).toStrictEqual([
     {
@@ -420,12 +446,16 @@ test('it keeps a bridge note in the outbox when the bridge closes without answer
   updateEnv('ATC_SESSION_ID', 's1');
 
   const codes: number[] = [];
+  const printed: string[] = [];
 
   await runNote(
     'note',
     { message: '', messages: '', label: '', turn: '' },
     {
       readStdin: () => Promise.resolve('need review'),
+      print: (text) => {
+        printed.push(text);
+      },
       exit: (code) => {
         codes.push(code);
       },
@@ -441,6 +471,7 @@ test('it keeps a bridge note in the outbox when the bridge closes without answer
   expect(name).toMatch(/^[\da-f-]{36}\.json$/u);
   expect(codes).toStrictEqual([0]);
   expect(others).toStrictEqual([]);
+  expect(printed).toStrictEqual(['undelivered\n']);
 
   expect(bridge.requests).toStrictEqual([
     {
@@ -456,4 +487,68 @@ test('it keeps a bridge note in the outbox when the bridge closes without answer
     noteID: name.slice(0, -'.json'.length),
     payload: { kind: 'note', label: 'progress', text: 'need review' },
   });
+});
+
+test('it prints delivered once the bridge takes a note', async () => {
+  const tmp = setupTempDir('atc-note-');
+  const sock = join(tmp.dir, 'bridge.sock');
+  const outbox = join(tmp.dir, 'outbox');
+
+  mkdirSync(outbox);
+  startStubSessionBridge(sock, (request) => [{ id: request['id'], ok: true }]);
+  updateEnv('ATC_BRIDGE', '1');
+  updateEnv('ATC_SOCKET', sock);
+  updateEnv('ATC_OUTBOX', outbox);
+  updateEnv('ATC_SESSION_ID', 's1');
+
+  const printed: string[] = [];
+
+  await runNote(
+    'answered',
+    { message: 'm-1', messages: '', label: '', turn: '' },
+    {
+      readStdin: () => Promise.resolve('all done'),
+      print: (text) => {
+        printed.push(text);
+      },
+      exit: () => {},
+    },
+  );
+
+  expect(printed).toStrictEqual(['delivered\n']);
+  expect(readdirSync(outbox)).toStrictEqual([]);
+});
+
+test('it prints undelivered and keeps a bridge answer in the outbox when the bridge refuses a stale binding', async () => {
+  const tmp = setupTempDir('atc-note-');
+  const sock = join(tmp.dir, 'bridge.sock');
+  const outbox = join(tmp.dir, 'outbox');
+
+  mkdirSync(outbox);
+
+  startStubSessionBridge(sock, (request) => [
+    { id: request['id'], ok: false, code: 'stale_binding' },
+  ]);
+
+  updateEnv('ATC_BRIDGE', '1');
+  updateEnv('ATC_SOCKET', sock);
+  updateEnv('ATC_OUTBOX', outbox);
+  updateEnv('ATC_SESSION_ID', 's1');
+
+  const printed: string[] = [];
+
+  await runNote(
+    'answered',
+    { message: 'm-1', messages: '', label: '', turn: '' },
+    {
+      readStdin: () => Promise.resolve('all done'),
+      print: (text) => {
+        printed.push(text);
+      },
+      exit: () => {},
+    },
+  );
+
+  expect(printed).toStrictEqual(['undelivered\n']);
+  expect(readdirSync(outbox)).toHaveLength(1);
 });
