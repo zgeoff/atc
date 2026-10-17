@@ -7796,6 +7796,10 @@
             ],
             "patterns": [
               {
+                "regex": "^@atc/execution-imp(/|$)",
+                "message": "A module in @atc/execution-imp imports its own package by a relative path, never by name."
+              },
+              {
                 "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
                 "message": "@atc/execution-imp may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
               },
@@ -7896,6 +7900,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
