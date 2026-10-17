@@ -1,5 +1,5 @@
-import { existsSync, realpathSync } from 'node:fs';
-import { basename } from 'node:path';
+import { lstatSync, readlinkSync } from 'node:fs';
+import { basename, dirname, resolve } from 'node:path';
 
 // The file names no SQLite open in this process may reach, lowercased, since
 // a case-insensitive filesystem opens the same file under either case.
@@ -18,13 +18,7 @@ export function registerRefusedSQLiteName(name: string): () => void {
 }
 
 export function requireOpenableSQLitePath(path: string): void {
-  const names = [basename(path)];
-
-  if (existsSync(path)) {
-    names.push(basename(realpathSync(path)));
-  }
-
-  const refused = names.find((name) => refusedNames.has(name.toLowerCase()));
+  const refused = collectLinkNames(path).find((name) => refusedNames.has(name.toLowerCase()));
 
   if (refused !== undefined) {
     throw Object.assign(
@@ -32,4 +26,28 @@ export function requireOpenableSQLitePath(path: string): void {
       { code: 'sqlite_refused' },
     );
   }
+}
+
+// The most symlinks the kernel follows before it fails with ELOOP.
+const MAX_LINK_HOPS = 40;
+
+// The file name of the path and of each symlink target it leads to, a missing
+// target included, since SQLite creates the file a dangling link names.
+function collectLinkNames(path: string): string[] {
+  const names = [basename(path)];
+  let current = path;
+
+  for (let hop = 0; hop < MAX_LINK_HOPS; hop += 1) {
+    const stats = lstatSync(current, { throwIfNoEntry: false });
+
+    if (stats === undefined || !stats.isSymbolicLink()) {
+      break;
+    }
+
+    current = resolve(dirname(current), readlinkSync(current));
+
+    names.push(basename(current));
+  }
+
+  return names;
 }

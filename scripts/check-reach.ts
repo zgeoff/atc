@@ -289,13 +289,13 @@ function checkDaemon(
   return findings;
 }
 
-// The 1-based line of the first token that names mcp-auth.db, or undefined
-// when no token does.
+// The 1-based line of the first token that names mcp-auth.db in any case,
+// which a case-insensitive filesystem opens as the same file, or undefined.
 function findAuthDBName(source: string): number | undefined {
   const token = collectTokens(source).find(
     (candidate) =>
       NAME_TOKEN_KINDS.has(candidate.kind) &&
-      AUTH_DB_NAMES.some((name) => candidate.value.includes(name)),
+      AUTH_DB_NAMES.some((name) => candidate.value.toLowerCase().includes(name.toLowerCase())),
   );
 
   return token === undefined ? undefined : source.slice(0, token.start).split('\n').length;

@@ -977,6 +977,34 @@ test('it fails on a daemon module that names mcp-auth.db inside a template', asy
   });
 });
 
+test('it fails on a daemon test helper that names mcp-auth.db in upper case', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(join(ctx.dir, 'packages/app/src/gateway.ts'), 'console.log(1);\n');
+
+  await Bun.write(
+    join(ctx.dir, 'packages/daemon/src/testing/index.ts'),
+    "export const STUB = '/state/MCP-AUTH.DB';\n",
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-reach.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-reach: 1 files reached, 1 bundled, 1 findings\n',
+    stderr:
+      "named database: packages/daemon/src/testing/index.ts reaches packages/daemon/src/testing/index.ts, which names the gateway's mcp-auth.db at line 1\n",
+  });
+});
+
 test('it fails on a daemon test helper that reads the config path of mcp-auth.db', async () => {
   const ctx = setupTest();
 

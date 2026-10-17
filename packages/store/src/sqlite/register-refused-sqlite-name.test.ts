@@ -50,6 +50,17 @@ test('it refuses a symlink to a file with the registered name', () => {
   }).toThrow(expect.objectContaining({ code: 'sqlite_refused' }));
 });
 
+test('it refuses a symlink to a missing file with the registered name', () => {
+  const ctx = setupTest();
+
+  symlinkSync(join(ctx.dir, 'refused.db'), join(ctx.dir, 'other.db'));
+  onTestFinished(registerRefusedSQLiteName('refused.db'));
+
+  expect(() => {
+    requireOpenableSQLitePath(join(ctx.dir, 'other.db'));
+  }).toThrow(expect.objectContaining({ code: 'sqlite_refused' }));
+});
+
 test('it allows a path with another file name', () => {
   const ctx = setupTest();
 
