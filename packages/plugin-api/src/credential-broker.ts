@@ -1,24 +1,4 @@
-/**
- * A credential broker that a provider's hosts can reach: it holds secrets,
- * grants them to hosts, and adds them to a host's requests on the host's
- * side, so the harness never holds the credential. The daemon's runtime
- * auth decides what to grant and checks the broker's authority; the
- * provider only answers these calls.
- *
- * The daemon relies on three guarantees:
- *
- * - A host's id proves which host atc made. A host made again under the
- *   same name never takes the old id, so a host whose id differs from the
- *   recorded one is another host, which atc never grants to or destroys.
- * - Grant cleanup is idempotent. Removing a grant the host no longer holds
- *   changes nothing and resolves false, so a cleanup that runs twice ends
- *   in the same state as one that runs once.
- * - Destroying a host the broker no longer holds counts as done and
- *   resolves.
- *
- * Every call that the broker refuses or cannot serve rejects with a broker
- * error, which holds an atc code and the broker's own.
- */
+// every call the broker refuses or cannot serve rejects with a broker error.
 export interface CredentialBroker {
   // The literal start of every host name this provider builds. The
   // provider owns a host name when the name starts with it.
@@ -60,26 +40,26 @@ export interface CredentialBroker {
   readonly destroyHost: (hostKey: string) => Promise<void>;
 }
 
-/**
- * The broker features runtime auth depends on: tokens that may grant a
- * list of secrets, grants that a rebound secret drops, starts that wait for
- * the broker, and secrets whose access token the broker renews.
- */
 export interface BrokerFeatures {
+  // tokens that may grant a list of secrets.
   readonly grantableTokens: boolean;
+
+  // grants that a rebound secret drops.
   readonly secretRebind: boolean;
+
+  // starts that wait for the broker.
   readonly execRequire: boolean;
+
+  // secrets whose access token the broker renews.
   readonly oauthSecrets: boolean;
 }
 
-/**
- * Who the provider is to the broker. `hosts` holds host name patterns, each
- * a host name with `*` for any run of characters, or null when the identity
- * reaches every host.
- */
 export interface BrokerIdentity {
   readonly name: string;
   readonly scope: 'read' | 'exec' | 'manage';
+
+  // host name patterns, `*` matching any run of characters; null when the
+  // identity reaches every host.
   readonly hosts: readonly string[] | null;
 
   // The secrets the identity may grant to the hosts it reaches and revoke
@@ -87,14 +67,12 @@ export interface BrokerIdentity {
   readonly grantable: readonly string[];
 }
 
-/**
- * One secret the broker holds. `oauth` holds the sign-in state of a secret
- * of kind `oauth` and is absent for any other kind.
- */
 export interface BrokerSecret {
   readonly name: string;
   readonly kind: BrokerSecretKind;
   readonly rules: readonly BrokerSecretRule[];
+
+  // present only for a secret of kind `oauth`.
   readonly oauth?: BrokerOAuthState;
 }
 
@@ -108,22 +86,17 @@ export interface BrokerSecretRule {
   readonly user?: string;
 }
 
-/**
- * Where an `oauth` secret's sign-in stands: `ready` while the broker holds
- * an access token, `pending` until a refresh first works, and `needs_login`
- * once the token endpoint refused the refresh token for good. `idClaims`
- * holds the payload of the last ID token, or null before the broker has one.
- */
 interface BrokerOAuthState {
+  // `pending` until a refresh first works; `needs_login` once the token
+  // endpoint refused the refresh token for good.
   readonly status: 'pending' | 'ready' | 'needs_login';
+
+  // the payload of the last ID token, or null before the broker has one.
   readonly idClaims: Readonly<Record<string, unknown>> | null;
 }
 
-/**
- * A host as the broker holds it: the id that a host made again under the
- * same name never shares, and its name.
- */
 export interface BrokerHost {
+  // a host made again under the same name never shares this id.
   readonly id: string;
   readonly name: string;
 }

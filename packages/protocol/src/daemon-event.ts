@@ -5,12 +5,6 @@ import { MESSAGE_SENDER_SCHEMA } from './wire/message-sender';
 
 const SESSION_EVENT = z.object({ session: SESSION_DESCRIPTOR_SCHEMA });
 
-/**
- * Every event a daemon sends on a connection, by its `ev` name: session
- * views as they change, terminal output and size for attached clients,
- * permission prompts, inbox and note traffic, and, on a tap connection
- * alone, its inbox.
- */
 export const DAEMON_EVENT_SCHEMA = z.discriminatedUnion('ev', [
   SESSION_EVENT.extend({ ev: z.literal('SessionAdded') }),
   SESSION_EVENT.extend({ ev: z.literal('SessionState') }),

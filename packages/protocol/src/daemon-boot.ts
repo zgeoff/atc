@@ -2,9 +2,6 @@ import type { AgentID } from '@atc/core';
 import type { DaemonFeature } from './daemon-features';
 import type { DaemonClient } from './wire/daemon-client';
 
-/**
- * A handshaken connection to the daemon, as a boot hands it to a front end.
- */
 export interface DaemonBoot {
   readonly client: DaemonClient;
 

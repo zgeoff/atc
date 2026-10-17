@@ -7,10 +7,6 @@ interface SetupConfig {
   readonly reconnect: TransportReconnect;
 }
 
-/**
- * A started actor of the machine for the given reconnect mode, stopped
- * once the test ends.
- */
 function setupTest(config: SetupConfig) {
   const actor = createActor(TRANSPORT_MACHINE, { input: { reconnect: config.reconnect } }).start();
 

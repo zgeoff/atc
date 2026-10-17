@@ -3,10 +3,6 @@ import { z } from 'zod';
 import { SESSION_LIFECYCLE_SCHEMA } from './session-lifecycle';
 import { SESSION_WORKSPACE_SCHEMA } from './session-workspace';
 
-/**
- * The session view: one session as the daemon reports it to clients, in
- * `session.list`, `session.get` and the session events.
- */
 export const SESSION_DESCRIPTOR_SCHEMA = z.object({
   id: z.string().transform((id) => toSessionID(id)),
   name: z.string(),

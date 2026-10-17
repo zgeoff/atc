@@ -4,10 +4,6 @@ export interface TruncateOptions {
   readonly flatten?: boolean;
 }
 
-/**
- * Caps text at `max` characters, ending anything longer with an ellipsis
- * that counts toward the cap.
- */
 export function truncate(text: string, max: number, options?: TruncateOptions): string {
   const flat = options?.flatten === true ? text.replaceAll('\n', ' ') : text;
 

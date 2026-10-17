@@ -1,10 +1,5 @@
 import { LineDecoder } from '../wire/line-decoder';
 
-/**
- * One line-framed connection to a session bridge, from inside a remote
- * session: each line the bridge writes arrives whole, and each line written
- * here goes out in order, across as many socket writes as it takes.
- */
 export interface BridgeSocket {
   readonly writeLine: (value: Readonly<Record<string, unknown>>) => void;
   readonly end: () => void;
@@ -13,10 +8,6 @@ export interface BridgeSocket {
   readonly closed: Promise<void>;
 }
 
-/**
- * Connects to the session bridge at a unix socket path. Rejects when
- * nothing listens there.
- */
 export async function openBridgeSocket(
   path: string,
   onLine: (line: Readonly<Record<string, unknown>>) => void,

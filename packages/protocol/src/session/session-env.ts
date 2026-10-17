@@ -1,7 +1,3 @@
-/**
- * What a session's environment tells a process running inside it. A field
- * is absent when its variable is unset or empty.
- */
 export interface SessionEnv {
   readonly sessionID?: string;
   readonly socket?: string;

@@ -4,11 +4,6 @@ import { DAEMON_CONTRACT } from './daemon-contract';
 import { PROCEDURE_META_SCHEMA } from './procedure-meta';
 import type { ProcedureMeta } from './procedure-meta';
 
-/**
- * The traits of every daemon procedure, keyed by its request method: the
- * procedure's path in the contract joined with dots, such as
- * `session.auth.revoke`. A method the contract does not define has none.
- */
 export const PROCEDURE_TRAITS: ReadonlyMap<string, ProcedureMeta> = new Map(
   collectProcedureTraits(DAEMON_CONTRACT, []),
 );

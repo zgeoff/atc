@@ -1,11 +1,6 @@
 import type { DaemonFeature } from './daemon-features';
 import { DAEMON_FEATURES } from './daemon-features';
 
-/**
- * Reads the features a `daemon.hello` answer announces. A missing or
- * malformed list, which an older daemon sends, is no features, and a name
- * this build does not know is dropped.
- */
 export function parseDaemonFeatures(
   hello: Readonly<Record<string, unknown>>,
 ): ReadonlySet<DaemonFeature> {

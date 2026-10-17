@@ -5,10 +5,6 @@ import { DaemonError } from '../daemon-error';
 import { TRANSPORT_MACHINE } from './transport-machine';
 import type { TransportReconnect } from './transport-machine';
 
-/**
- * The part of an open connection a transport drives: the callback for when
- * the connection ends, and closing it.
- */
 export interface TransportChannel {
   onClose: () => void;
   readonly stop: () => void;
@@ -18,10 +14,6 @@ export interface TransportChannel {
   readonly isClosed?: () => boolean;
 }
 
-/**
- * Where a transport stands: no connection, one opening, one ready, a wait
- * before the next open, or stopped for good.
- */
 export type TransportState = 'idle' | 'connecting' | 'ready' | 'backoff' | 'closed';
 
 interface DaemonTransportOptions<C> {
@@ -55,18 +47,6 @@ interface DaemonTransportOptions<C> {
   readonly clock?: Clock;
 }
 
-/**
- * One connection to a daemon that outlives the connection: a request waits
- * for a ready connection, opening one when none is open, and a connection
- * that ends is replaced, either by the next request (`on-demand`) or at
- * once after a backoff (`always`). The connection's state lives in the
- * transport machine; this class opens connections, follows them, and hands
- * them to the requests that wait.
- *
- * A request reads `isLost` once its send fails, to tell a connection that
- * ended under it from an error the daemon sent. A lost connection that a
- * newer one already replaced leaves the newer one in place.
- */
 export class DaemonTransport<C> {
   private readonly opts: DaemonTransportOptions<C>;
 
@@ -89,12 +69,6 @@ export class DaemonTransport<C> {
     this.actor = createActor(TRANSPORT_MACHINE, { input: { reconnect: opts.reconnect } }).start();
   }
 
-  /**
-   * The ready connection, opening one when none is open. A request made
-   * while a connection opens or a backoff runs waits for it. For an
-   * `on-demand` transport, an open that fails rejects every request that
-   * waited on it; a stopped transport rejects at once.
-   */
   waitForConnection(): Promise<C> {
     const state = this.readState();
 
@@ -121,10 +95,6 @@ export class DaemonTransport<C> {
     return this.actor.getSnapshot().value;
   }
 
-  /**
-   * The connection that opened last, whether or not it is still ready, or
-   * null before the first one opens. A send on a lost one rejects at once.
-   */
   findLatest(): C | null {
     return this.latest;
   }
@@ -135,19 +105,11 @@ export class DaemonTransport<C> {
     return this.lost.has(this.opts.getChannel(connection));
   }
 
-  /**
-   * Takes a connection out of service and closes it, as when a response
-   * never came, so later requests open a fresh one.
-   */
   stopConnection(connection: C): void {
     this.recordLoss(connection);
     this.opts.getChannel(connection).stop();
   }
 
-  /**
-   * Stops the transport for good: the open connection closes, and every
-   * request still waiting rejects.
-   */
   stop(): void {
     const current = this.current;
 

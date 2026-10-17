@@ -1,7 +1,3 @@
-/**
- * One file in an archive: its path relative to the directory it unpacks
- * into, its bytes, and its permission bits.
- */
 interface ArchiveFile {
   readonly path: string;
   readonly content: string | Uint8Array;
@@ -10,12 +6,6 @@ interface ArchiveFile {
 
 const BLOCK = 512;
 
-/**
- * Packs files into a POSIX ustar archive that `tar -x` unpacks, each with
- * its parent directories created on the way. A path longer than 100 bytes
- * splits at a slash into ustar's prefix and name fields, and a path that
- * fits no such split is refused.
- */
 export function buildTarArchive(files: readonly ArchiveFile[]): Uint8Array {
   const encoder = new TextEncoder();
 

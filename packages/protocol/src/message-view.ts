@@ -2,12 +2,6 @@ import { z } from 'zod';
 import { MESSAGE_STATUS_SCHEMA } from './message-status';
 import { MESSAGE_SENDER_SCHEMA } from './wire/message-sender';
 
-/**
- * An inbox message as `message.get` answers it: who sent it to which
- * session, its text, where it stands and when each step happened, the
- * answer or the reason it went unanswered, the turn that settled it, and the
- * messages that answer cites.
- */
 export const MESSAGE_VIEW_SCHEMA = z.object({
   message: z.string(),
   session: z.string(),

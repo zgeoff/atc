@@ -7,14 +7,6 @@ export interface GHRun {
   readonly timedOut: boolean;
 }
 
-/**
- * Runs gh with arguments through the host's command runner until it exits
- * or the signal aborts; the runner kills gh's whole process group on
- * abort, so a wrapper or extension leaves no process behind. gh reads its
- * own config and the host's environment for its token, and is kept from
- * prompting, colouring, or checking for updates. A gh that could not start
- * exits 127.
- */
 export async function runGH(
   run: HostServices['runCommand'],
   bin: string,

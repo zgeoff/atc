@@ -7,15 +7,8 @@ const SPAWN_OPTION_EXAMPLE_SCHEMA = z.object({
   resolvesTo: z.string().nullable(),
 });
 
-/**
- * Whether an agent's CLI takes one spawn option, and which values it does.
- * `values` holds the closed set a value must come from; null takes any
- * well-formed value. `examples` are values worth offering, with the
- * provider model each maps to when the config holds that mapping.
- * `backendEffect` is `applied` when the CLI applies the value itself and
- * `unverified` when the backend behind the CLI may ignore it; null for an
- * option the agent does not take.
- */
+// null `values` takes any well-formed value; `backendEffect` is
+// `unverified` when the backend behind the CLI may ignore the value
 export const SPAWN_OPTION_SPEC_SCHEMA = z.object({
   supported: z.boolean(),
   values: z.array(z.string()).readonly().nullable(),

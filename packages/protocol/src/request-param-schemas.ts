@@ -5,10 +5,7 @@ import { z } from 'zod';
 const EJECT_DEFAULT_PROMPT =
   'Continue the task autonomously. Verify your work as you go and stop when it is complete.';
 
-// The `session` field every wire schema below carries: absent or
-// wrong-typed falls back to an empty string instead of failing the parse.
-// This is the one point where a session id arriving off the wire is typed
-// as the branded atc session id every daemon-side session lookup expects.
+// the one point where a session id arriving off the wire is branded
 const SESSION_DEFAULTED = z.object({
   session: buildDefaultedString('').transform(toSessionID),
 });
@@ -44,18 +41,6 @@ const GIT_REF = z
 
 const GIT_SHA = z.string().regex(COMMIT_ID_PATTERN, 'a git workspace sha is a full commit id');
 
-/**
- * Where a spawn's working directory comes from, materialized as a clean
- * checkout into the spawn's `cwd` on its execution target. A `path` source
- * is a directory on the daemon's host, resolved to its origin URL and
- * pushed HEAD. A tree with uncommitted or untracked changes resolves to
- * HEAD and leaves the changes behind with a warning, unless `allowDirty`
- * is `'refuse'`, which refuses it. A `git`
- * source is a repository URL with a branch or tag `ref`, a full commit
- * `sha`, or both, and an optional `credentialRef` naming the daemon
- * environment variable that holds its token. With both, the sha is the
- * commit checked out and the ref is recorded as what it was resolved from.
- */
 const WORKSPACE_SOURCE = z.discriminatedUnion('kind', [
   z.strictObject({
     kind: z.literal('path'),
@@ -385,10 +370,8 @@ function buildDefaultedString(fallback: string) {
   return z.preprocess((v) => (typeof v === 'string' ? v : undefined), z.string().default(fallback));
 }
 
-// A terminal dimension: absent or not a number takes the fallback, and a
-// number must be a whole number in range, since the terminal emulator and
-// the PTY both assume one and a fractional size throws only after the
-// process starts.
+// a fractional size throws only after the process starts, so the schema
+// refuses it up front
 function buildTerminalSize(fallback: number) {
   return z.preprocess(
     (v) => (typeof v === 'number' ? v : undefined),

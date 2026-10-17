@@ -2,10 +2,6 @@ import { RESET_INPUT_MODES } from './reset-input-modes';
 
 const ESC = '\u001B';
 
-/**
- * The terminal control sequences atc writes: screen switches, clears,
- * cursor moves, and attribute and input-mode resets.
- */
 export const ansi = {
   altScreenOn: `${ESC}[?1049h`,
   altScreenOff: `${ESC}[?1049l`,

@@ -1,10 +1,5 @@
 import { assign, setup } from 'xstate';
 
-/**
- * When a transport opens a connection: `on-demand` opens one only for a
- * request that waits on it, and `always` opens the next one as soon as the
- * last one is lost or failed to open, after a backoff.
- */
 export type TransportReconnect = 'on-demand' | 'always';
 
 type TransportEvent =
@@ -23,19 +18,8 @@ interface TransportContext {
   readonly failures: number;
 }
 
-/**
- * The connection a daemon transport keeps, as one statechart that holds
- * state only: the transport performs every effect and reads its state back
- * from here.
- *
- * `idle` holds no connection and opens one on `CONNECT`. `connecting` waits
- * for an open and its handshake: `OPENED` makes it `ready`, and
- * `OPEN_FAILED` goes back to `idle` for an `on-demand` transport, to
- * `backoff` for an `always` one, and to `closed` when the failure is fatal.
- * A `ready` connection that is `LOST` goes the same way. `backoff` waits
- * until `RETRY` opens the next connection. `STOP` closes the transport from
- * any state, for good.
- */
+// holds state only: the transport performs every effect and reads its
+// state back from here
 export const TRANSPORT_MACHINE = setup({
   types: {
     // oxlint-disable-next-line no-unsafe-type-assertion -- xstate's typed-setup contract: this value is never read, it only carries the context type past the type layer

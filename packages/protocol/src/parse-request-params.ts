@@ -10,11 +10,6 @@ export type ParsedRequestParams<M extends RequestMethod> =
   | { readonly ok: true; readonly data: RequestParams<M> }
   | { readonly ok: false; readonly message: string };
 
-/**
- * Validates and defaults one request's params against its method's schema.
- * A malformed shape folds into a single message the caller reports as
- * bad_args, instead of a thrown ZodError.
- */
 export function parseRequestParams<M extends RequestMethod>(
   method: M,
   rawParams: unknown,

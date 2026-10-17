@@ -48,6 +48,7 @@ An error holds a code from a closed list that grows by addition, a human message
 `data` whose fields the code defines. The rules exist so additive evolution never breaks a peer:
 
 - An unknown method is an `unknown_method` error, never a disconnect.
+- A request whose params fail their method's schema is a `bad_args` error.
 - Every field a peer does not know is ignored, in any message.
 - A peer decodes an error code it does not know as `internal` and keeps the message.
 

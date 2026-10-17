@@ -1,8 +1,3 @@
-/**
- * A lock per key: each call runs after every earlier call with the same key
- * has settled, and calls with different keys run at once. A call that throws
- * still releases the key. A key with nothing queued holds no memory.
- */
 export function makeKeyedLock(): <T>(key: string, run: () => Promise<T>) => Promise<T> {
   const tails = new Map<string, Promise<void>>();
 

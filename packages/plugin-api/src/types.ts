@@ -1,8 +1,4 @@
-/**
- * What a candidate or a typed input resolves to: a directory on the
- * daemon's host, or a git repository URL that a probe pins to a commit
- * before any spawn uses it.
- */
+// a probe pins a git pick to a commit before any spawn uses it.
 type SourcePick =
   | { readonly kind: 'path'; readonly dir: string }
   | { readonly kind: 'git'; readonly url: string };
@@ -31,40 +27,25 @@ interface SourceQuery {
   readonly text?: string;
 }
 
-/**
- * What a source reads typed input as: a scope to list, a pick, or nothing
- * it recognizes.
- */
 export type SourceInterpretation =
   | { readonly kind: 'browse'; readonly scope: string }
   | SourcePick
   | { readonly kind: 'none' };
 
-/**
- * The request a source serves: the execution target the spawn will use,
- * and the daemon's spawn history as the requesting principal may read it.
- */
 export interface SourceRequest {
   readonly target: string;
+
+  // the daemon's spawn history as the requesting principal may read it.
   readonly collectSpawnDirs: () => Promise<string[]>;
 }
 
-/**
- * The request a completion serves: the source request, and the directory
- * the client runs in, a hint that a source reads only when the daemon runs
- * on the client's own machine.
- */
 export interface SourceCompletionRequest extends SourceRequest {
+  // a hint a source reads only when the daemon runs on the client's machine.
   readonly clientCwd?: string;
 }
 
-/**
- * A discovery source for the spawn picker. It lists candidates and reads
- * typed input, and every candidate resolves to a pick of its kind. A source
- * runs on the daemon, the host that materializes the workspace, and gets
- * the services it uses when it is built. A failure throws the error the
- * source defines for it.
- */
+// a source runs on the daemon, the host that materializes the workspace, and
+// a failure throws the error the source defines for it.
 export interface SourceProvider {
   readonly id: string;
   readonly label: string;

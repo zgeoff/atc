@@ -2,11 +2,8 @@ import { PINNED_GROUP_KEY } from './pinned-group-key';
 import { sortSessionViews } from './sort-session-views';
 import type { SortableSessionView } from './sortable-session-view';
 
-// Overlay display order for the grouped view: the flat sort with each
-// repository's sessions pulled together at the position of its best-ranked
-// member, so the renderer's adjacency-based headers appear once per group.
-// Pinned sessions form their own leading group. A sub-session keys by its
-// parent, so a set never splits across groups.
+// each repository's sessions gather at its best-ranked member, because the
+// renderer draws a group header wherever adjacent rows change repository
 export function sortGroupedSessionViews<
   T extends SortableSessionView & { readonly repoRoot: string },
 >(list: readonly T[]): T[] {

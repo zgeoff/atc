@@ -3,10 +3,6 @@ import { isContractProcedure } from '@orpc/contract';
 import { z } from 'zod';
 import { DAEMON_CONTRACT } from './daemon-contract';
 
-/**
- * The output schema of a request method's procedure in the daemon contract,
- * or null for a method the contract does not define.
- */
 export function findAnswerSchema(method: string): z.ZodType | null {
   let node: unknown = DAEMON_CONTRACT;
 

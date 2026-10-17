@@ -1,9 +1,3 @@
-/**
- * Whether a host name matches one of a broker identity's host patterns:
- * each pattern is a host name with `*` for any run of characters,
- * including none, so `dev-*` matches `dev-` and `dev-a1`, and a pattern
- * without `*` matches only its own name.
- */
 export function isHostNameAllowed(patterns: readonly string[], name: string): boolean {
   return patterns.some((pattern) => isPatternMatch(pattern, name));
 }
