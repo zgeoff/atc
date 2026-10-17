@@ -7,9 +7,6 @@
     "es2024": true
   },
   "rules": {
-    // every file that tripped this needed an exemption rather than a change,
-    // so the count was never the thing worth holding down
-    "import/max-dependencies": "off",
     // atc's comments predate these two rules of the shared config; GEO-463
     // adopts them
     "zgeoff/no-jsdoc": "off",
@@ -76,128 +73,6 @@
         ]
       }
     ],
-    "typescript/prefer-readonly-parameter-types": [
-      "error",
-      {
-        "ignoreInferredTypes": true,
-        "allow": [
-          { "from": "lib", "name": "Buffer" },
-          { "from": "package", "name": "Buffer", "package": "@types/node" },
-          // a live PTY process handle: connection and event state, no readonly form
-          { "from": "package", "name": "IPty", "package": "bun-pty" },
-          // mutable by design: sessions are live state, views borrow them
-          { "from": "file", "name": "Session" },
-          { "from": "file", "name": "SessionManager" },
-          // the daemon's per-session bookkeeping: screen, timers, and
-          // headless-run handle, mutated in place by the daemon
-          { "from": "file", "name": "SessionRuntime" },
-          // the stub imp port's own records of each imp, process, and
-          // connection, mutated in place as the stub runs them
-          { "from": "file", "name": "StubImp" },
-          { "from": "file", "name": "StubProcess" },
-          { "from": "file", "name": "StubConnection" },
-          // the imp provider's record of one imp, and a live connection to
-          // an imp session, both changed in place as the imp runs
-          { "from": "file", "name": "ImpHost" },
-          { "from": "file", "name": "ImpSessionConnection" },
-          // a configured execution target: it holds its live provider
-          { "from": "file", "name": "ExecutionTarget" },
-          // a principal's grants, held privately and never mutated
-          { "from": "file", "name": "TargetAccess" },
-          // wraps a live db connection; not meaningfully freezable
-          { "from": "file", "name": "StateStore" },
-          // the runtime auth binder: its per-host call queue changes as
-          // calls arrive and finish
-          { "from": "file", "name": "RuntimeAuthBinder" },
-          // a plugin's definition: its zod config schema has no readonly form
-          { "from": "file", "name": "PluginDefinition" },
-          // wraps a live db connection; not meaningfully freezable
-          { "from": "package", "name": "Database", "package": "bun:sqlite" },
-          // a query builder bound to a live connection; not meaningfully
-          // freezable
-          { "from": "package", "name": "Kysely", "package": "kysely" },
-          // every field is already readonly; the type itself has no
-          // readonly form to wrap it in
-          { "from": "package", "name": "CompiledQuery", "package": "kysely" },
-          { "from": "file", "name": "Config" },
-          { "from": "file", "name": "HookEvent" },
-          { "from": "file", "name": "OverlayView" },
-          { "from": "file", "name": "PickerView" },
-          { "from": "file", "name": "TestContext" },
-          // branded primitives: the tag is a readonly symbol key carrying no
-          // mutable state, so there is nothing for a readonly wrapper to add
-          { "from": "file", "name": "SessionID" },
-          { "from": "file", "name": "AgentSessionID" },
-          { "from": "file", "name": "MessageID" },
-          { "from": "file", "name": "DaemonID" },
-          // already the readonly form; the rule doesn't recognize it as such
-          { "from": "lib", "name": "ReadonlySet" },
-          { "from": "lib", "name": "ReadonlyMap" },
-          // a kysely connection bound to a live driver; not meaningfully freezable
-          { "from": "package", "name": "DatabaseConnection", "package": "kysely" },
-          // a migrator result read once for its error field, never mutated
-          { "from": "package", "name": "MigrationResultSet", "package": "kysely" },
-          // a live HTTP request: its body is a one-shot stream, so it has no
-          // readonly form
-          { "from": "package", "name": "Request", "package": "bun-types" },
-          // read only by the routes; its setters are the only mutable part
-          { "from": "package", "name": "URL", "package": "bun-types" },
-          // wraps a live better-auth instance and its database connection;
-          // not meaningfully freezable
-          { "from": "file", "name": "HTTPServerContext" },
-          // bytes read from or written to a socket, a PTY, a file, or an
-          // archive: like Buffer, a byte array has no readonly form
-          { "from": "lib", "name": "Uint8Array" },
-          // a promise has no state a caller can change; it only settles
-          { "from": "lib", "name": "Promise" },
-          // a date as the imp client returns it; the rule finds no readonly
-          // form of its setters
-          { "from": "lib", "name": "Date" },
-          // a live socket or daemon connection: the holder writes to it and
-          // releases it, so it has no readonly form
-          { "from": "package", "name": "Socket", "package": "bun-types" },
-          { "from": "file", "name": "DaemonConnection" },
-          // the daemon's tap registry: a delivery claims a message or a
-          // notice in it in place
-          { "from": "file", "name": "TapRegistry" },
-          // kysely builders bound to a live connection or query; not
-          // meaningfully freezable
-          { "from": "package", "name": "Transaction", "package": "kysely" },
-          { "from": "package", "name": "ExpressionBuilder", "package": "kysely" },
-          // the dependencies each daemon session module takes: the modules
-          // they hold keep mutable session state
-          { "from": "file", "name": "AuthSetupDeps" },
-          { "from": "file", "name": "HostDirClaimsDeps" },
-          { "from": "file", "name": "SessionAdopterDeps" },
-          { "from": "file", "name": "SessionFleetWriterDeps" },
-          { "from": "file", "name": "SessionHarnessesDeps" },
-          { "from": "file", "name": "SessionKillerDeps" },
-          { "from": "file", "name": "SessionRestorerDeps" },
-          { "from": "file", "name": "SessionSpawnerDeps" },
-          { "from": "file", "name": "SpawnRollbackDeps" },
-          { "from": "file", "name": "SpawnCatalogDeps" },
-          { "from": "file", "name": "SpawnReplayDeps" },
-          { "from": "file", "name": "SpawnServiceDeps" },
-          { "from": "file", "name": "MessageServiceDeps" },
-          { "from": "file", "name": "EventSweepDeps" },
-          { "from": "file", "name": "EventTrailDeps" },
-          { "from": "file", "name": "HookIntakeDeps" },
-          { "from": "file", "name": "MessageBridgesDeps" },
-          { "from": "file", "name": "DescriptorSource" },
-          { "from": "file", "name": "ResumeSource" },
-          { "from": "file", "name": "SessionHandoffDeps" },
-          { "from": "file", "name": "SessionInputDeps" },
-          { "from": "file", "name": "SessionOutputDeps" },
-          { "from": "file", "name": "SessionReadsDeps" },
-          { "from": "file", "name": "PermissionPromptsDeps" },
-          { "from": "file", "name": "ScreenDetectionDeps" },
-          { "from": "file", "name": "ConfirmTokensDeps" },
-          { "from": "file", "name": "SessionForgetterDeps" },
-          { "from": "file", "name": "FleetRestorerDeps" },
-          { "from": "file", "name": "EndedFleetMessagesDeps" }
-        ]
-      }
-    ],
     // Bun's synchronous spawn can lose a child's exit and spin its caller
     // forever (oven-sh/bun#34069); an async spawn keeps the caller's event
     // loop and its timeouts alive. The property rule catches access and
@@ -236,15 +111,10 @@
     // the import rules read import and export statements and import() calls,
     // not require() calls, so a module loads only through the forms they read
     "typescript/no-require-imports": "error",
-    "max-statements": "off",
-    "max-lines-per-function": "off",
+    // GEO-1196 splits the 19 files over the shared 500-line limit
     "max-lines": "off",
+    // GEO-1197 trims the 60 functions over the shared four-parameter limit
     "max-params": "off",
-    "no-inline-comments": "off",
-    "no-continue": "off",
-    "init-declarations": "off",
-    "no-await-in-loop": "off",
-    "promise/avoid-new": "off",
     "require-unicode-regexp": "off"
   },
   "overrides": [

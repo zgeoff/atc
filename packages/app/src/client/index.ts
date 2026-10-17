@@ -627,7 +627,7 @@ function applyOverlayKey(buf: Buffer) {
   const confirm = getConfirm();
 
   if (confirm === 'kill') {
-    if (buf[0] === 0x79 /* y */ && sel !== undefined) {
+    if (buf[0] === KEY.y && sel !== undefined) {
       void sendKill(sel.id);
     }
 
@@ -641,7 +641,7 @@ function applyOverlayKey(buf: Buffer) {
   const destroyID = service.getSnapshot().context.destroyID;
 
   if (confirm === 'destroy' && destroyID !== null) {
-    if (buf[0] === 0x79 /* y */) {
+    if (buf[0] === KEY.y) {
       void sendForget(destroyID);
     }
 

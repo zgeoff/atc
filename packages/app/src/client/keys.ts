@@ -6,6 +6,7 @@ export const KEY = {
   esc: 0x1b,
   enter: 0x0d,
   backspace: 0x7f,
+  y: 0x79,
 } as const;
 
 export function isUp(buf: Buffer): boolean {

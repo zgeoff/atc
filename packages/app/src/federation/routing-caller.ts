@@ -79,7 +79,6 @@ interface KeyedRoute {
 export class RoutingCaller {
   private readonly opts: RoutingCallerOptions;
 
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- the options hold the live daemon pool and binding store
   constructor(opts: RoutingCallerOptions) {
     this.opts = opts;
   }

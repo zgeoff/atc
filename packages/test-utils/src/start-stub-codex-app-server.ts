@@ -138,7 +138,6 @@ export function startStubCodexAppServer(
     emitNotification('item/completed', { threadId: threadID, turnId: turnID, item });
   };
 
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- the stand-in completes the turn in place
   const updateTurnCompleted = (thread: StubThread, turn: StubTurn) => {
     const reply: StubItem = {
       type: 'agentMessage',
@@ -156,7 +155,6 @@ export function startStubCodexAppServer(
     emitNotification('turn/completed', { threadId: thread.id, turn });
   };
 
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- the stand-in adds the turn to the thread in place
   const startTurn = (thread: StubThread, text: string, clientID: string | undefined) => {
     const active = thread.turns.find((t) => t.status === 'inProgress');
     const turn = active ?? { id: mintID('turn'), status: 'inProgress' as const, items: [] };
@@ -191,7 +189,6 @@ export function startStubCodexAppServer(
     return parsed.success ? (threads.get(parsed.data.threadId) ?? null) : null;
   };
 
-  /* oxlint-disable prefer-readonly-parameter-types -- the answer may close the live socket */
   const answerRequest = (
     ws: ServerWebSocket,
     method: string,
@@ -291,8 +288,6 @@ export function startStubCodexAppServer(
     return { error: { code: -32_601, message: `unknown method ${method}` } };
   };
 
-  /* oxlint-enable prefer-readonly-parameter-types */
-
   rmSync(socket, { force: true });
 
   const server = Bun.serve({
@@ -383,7 +378,6 @@ export function startStubCodexAppServer(
   };
 }
 
-// oxlint-disable-next-line prefer-readonly-parameter-types -- the line goes over the live socket
 function sendLine(ws: ServerWebSocket, value: unknown): void {
   ws.send(JSON.stringify(value));
 }

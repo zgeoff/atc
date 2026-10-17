@@ -118,7 +118,6 @@ async function runTapConnection(
   socketPath: string,
   outbox: string,
 
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- the ids the tap printed, which every connection adds to
   seen: Set<string>,
   io: BridgeTapIO,
   notices: boolean,
@@ -302,7 +301,6 @@ function sendOutboxNotes(socket: BridgeSocket, outbox: string): Map<string, stri
   return sent;
 }
 
-// oxlint-disable-next-line prefer-readonly-parameter-types -- the set grows in place
 function updateSeenIDs(seen: Set<string>, id: string): void {
   seen.add(id);
 

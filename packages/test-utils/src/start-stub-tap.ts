@@ -7,7 +7,6 @@ import type { DaemonClient, EventMsg } from '@atc/protocol/wire';
  * the order it arrived and `closed` each InboxClosed. The client's event
  * callback is replaced.
  */
-// oxlint-disable-next-line prefer-readonly-parameter-types -- a client is a live connection the tap drives
 export async function startStubTap(client: DaemonClient, session: string) {
   const messages: EventMsg[] = [];
   const closed: EventMsg[] = [];
