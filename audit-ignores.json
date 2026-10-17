@@ -1,0 +1,12 @@
+{
+  "GHSA-5gmw-xhrv-c9v3": {
+    "package": "tinypool",
+    "reason": "The fix is tinypool 2.1.2, but oxfmt@0.56.0 accepts only 2.1.0.",
+    "expires": "2026-11-16"
+  },
+  "GHSA-85c8-ppgw-ccpr": {
+    "package": "tinypool",
+    "reason": "The fix is tinypool 2.1.2, but oxfmt@0.56.0 accepts only 2.1.0.",
+    "expires": "2026-11-16"
+  }
+}
