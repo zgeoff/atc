@@ -1,5 +1,6 @@
 // Writes .oxlintrc.imports.json, the oxlint overrides that hold each package
-// to the package rules: no package outside its row, no deep import into
+// to the package rules: no import of a package by its own name, no package
+// outside its row, no deep import into
 // another package's src/, no subpath of a package that its exports map does
 // not list, no node: or bun: import in core, no test helper or testing entry
 // in production code, no confined package outside its owners and files, and
@@ -237,7 +238,13 @@ function buildPackageOptions(
     });
   }
 
-  const patterns: RestrictedPattern[] = [];
+  // a module reaches its own package through a relative path
+  const patterns: RestrictedPattern[] = [
+    {
+      regex: `^@atc/${rule.name}(/|$)`,
+      message: `A module in @atc/${rule.name} imports its own package by a relative path, never by name.`,
+    },
+  ];
 
   if (bannedPackages.length > 0) {
     patterns.push({
