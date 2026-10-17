@@ -5,11 +5,6 @@ import { buildHeartbeatEvent } from './build-heartbeat-event';
 import { buildPromptSubmittedEvent } from './build-prompt-submitted-event';
 import { buildTurnDoneEvent } from './build-turn-done-event';
 
-/**
- * What one hook event of a Claude-shaped harness means: its session
- * started, it waits on a person, it finished a turn, a person submitted a
- * prompt, or its session ended.
- */
 export type ClaudeStyleHook =
   | 'SessionStart'
   | 'NeedsInput'
@@ -17,22 +12,12 @@ export type ClaudeStyleHook =
   | 'UserPromptSubmit'
   | 'SessionEnd';
 
-/**
- * The payload fields every Claude-shaped harness's hook lines hold, each
- * absent when the line held none of its type.
- */
 export interface ClaudeStyleHookPayload {
   readonly session_id?: string | undefined;
   readonly prompt?: string | undefined;
   readonly last_assistant_message?: string | undefined;
 }
 
-/**
- * How one Claude-shaped harness differs from the rest: the hook events it
- * registers, each with what it means, how it reads a payload, what its
- * needs-input event holds, and where its session's name and transcript
- * come from.
- */
 export interface ClaudeStyleHookRules<P extends ClaudeStyleHookPayload> {
   readonly hooks: Readonly<Record<string, ClaudeStyleHook>>;
 
@@ -43,13 +28,6 @@ export interface ClaudeStyleHookRules<P extends ClaudeStyleHookPayload> {
   readonly buildSources: (payload: P) => Pick<AdapterEvent, 'nameSource' | 'transcriptSource'>;
 }
 
-/**
- * The event one hook line of a Claude-shaped harness means for its
- * session. A line whose event the harness does not register is a
- * heartbeat. The session start, a finished turn and a submitted prompt
- * carry the session's name and transcript sources; the rest carry only
- * the agent's session id.
- */
 export function buildClaudeStyleHookEvent<P extends ClaudeStyleHookPayload>(
   e: HookEvent,
   rules: ClaudeStyleHookRules<P>,

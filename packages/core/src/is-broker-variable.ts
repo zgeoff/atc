@@ -1,10 +1,6 @@
-/**
- * Whether a variable is one impd sets in a brokered exec to route requests
- * through the broker and trust its CA. impd lets a variable the caller
- * sets win, so a caller's own value would route around the broker or mask
- * a failed CA install. Some clients read proxy and CA variables in either
- * case, so the check ignores case.
- */
+// impd lets a variable the caller sets win, so a caller's own value would route
+// around the broker or mask a failed CA install. Some clients read proxy and
+// CA variables in either case.
 export function isBrokerVariable(key: string): boolean {
   return BROKER_VARIABLES.has(key.toUpperCase());
 }

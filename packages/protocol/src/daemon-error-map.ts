@@ -7,10 +7,6 @@ const ERROR_DATA_SCHEMA = z.record(z.string(), z.unknown()).optional();
 
 type DaemonErrorMap = Readonly<Record<ErrorCode, { readonly data: typeof ERROR_DATA_SCHEMA }>>;
 
-/**
- * Every error a daemon procedure can answer with, keyed by its code. A
- * request whose params fail their schema answers `bad_args`.
- */
 export const DAEMON_ERROR_MAP: DaemonErrorMap = buildErrorMap();
 
 function buildErrorMap(): DaemonErrorMap {

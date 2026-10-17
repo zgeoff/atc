@@ -1,8 +1,5 @@
 import type { SessionState } from './session-state';
 
-/**
- * The fields of a session row that the overlay orders by.
- */
 export interface SortableSessionView {
   readonly id: string;
   readonly parent: string | null;

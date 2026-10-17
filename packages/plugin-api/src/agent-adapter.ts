@@ -19,67 +19,51 @@ export interface SpawnOptions {
   readonly effort?: string;
 }
 
-/**
- * The per-launch choices a spawn asks for. Model and effort are checked
- * against what the agent advertises; workspace trust requires a verified
- * clone; resuming an interrupted turn overrides the daemon's config for the
- * session's whole life.
- */
 export interface SpawnOverrides {
   readonly trustClonedWorkspace?: boolean;
   readonly model?: string;
   readonly effort?: string;
 }
 
-/**
- * A spawn: the binary, its arguments, and the variables the harness
- * process starts with on top of what it inherits.
- */
 export interface SpawnPlan {
   bin: string;
   args: string[];
+
+  // set on top of what the harness process inherits.
   readonly env?: Readonly<Record<string, string>>;
 }
 
-/**
- * Where a session on a remote host finds atc: the atc binary inside the
- * host, null when the host has none, and the folder the session's own
- * files unpack into. `auth` is given when the harness takes its credential
- * from impd's broker: the revision of the host's runtime auth binding it
- * launches under, which keys any settings the agent writes for it, the
- * placeholder variables the harness holds in place of a credential, the
- * variables its auth profiles set, and, when the binding holds a secret of
- * kind `oauth`, the sign-in state impd lists for each such secret, keyed by
- * the secret's name.
- */
 export interface GuestPaths {
+  // the atc binary inside the host, null when the host has none.
   readonly atc: string | null;
+
+  // the folder the session's own files unpack into.
   readonly dir: string;
+
+  // given when the harness takes its credential from impd's broker.
   readonly auth?: {
+    // the revision of the host's runtime auth binding the launch runs under,
+    // which keys any settings the agent writes for it.
     readonly revision: number;
+
+    // the placeholder variables the harness holds in place of a credential.
     readonly env: Readonly<Record<string, string>>;
     readonly profileEnv: Readonly<Record<string, string>>;
+
+    // the sign-in state impd lists for each secret of kind `oauth` in the
+    // binding, keyed by the secret's name.
     readonly oauth?: Readonly<Record<string, GuestOAuthState>>;
   };
 }
 
-/**
- * Where the sign-in of an `oauth` secret stands in impd: `ready` while impd
- * holds an access token for it, and the payload of its last ID token,
- * identifiers and never a credential, or null before impd has one.
- */
 export interface GuestOAuthState {
   readonly status: 'pending' | 'ready' | 'needs_login';
+
+  // the payload of the last ID token, identifiers and never a credential, or
+  // null before impd has one.
   readonly idClaims: Readonly<Record<string, unknown>> | null;
 }
 
-/**
- * The credential an agent takes from impd's broker instead of holding it:
- * its gateway's endpoint and auth selection, and the auth profiles that
- * selection resolves against. `brokerRequired` is true for an agent that
- * starts only behind the broker; false lets it start on a target that
- * reaches no broker under the sign-in that target's host holds.
- */
 export interface AuthSelection {
   readonly gateway: {
     readonly id: AgentID;
@@ -87,42 +71,36 @@ export interface AuthSelection {
     readonly auth: GatewayAuth;
   };
   readonly profiles: ReadonlyMap<string, AuthProfile>;
+
+  // false lets the agent start on a target that reaches no broker, under the
+  // sign-in that target's host holds.
   readonly brokerRequired: boolean;
 }
 
-/**
- * One file a guest plan ships: its text, its bytes, or its bytes with the
- * permission bits it unpacks with.
- */
 export type GuestFile =
   | string
   | Uint8Array
   | { readonly content: Uint8Array; readonly mode: number };
 
-/**
- * A spawn on a remote host, with the files the harness reads there, keyed
- * by their path inside the session's guest folder, and the variables the
- * harness process starts with, which no variable the harness inherits
- * overrides.
- */
 export interface GuestSpawnPlan extends SpawnPlan {
+  // keyed by path inside the session's guest folder.
   readonly files: Readonly<Record<string, GuestFile>>;
+
+  // no variable the harness inherits overrides these.
   readonly env?: Readonly<Record<string, string>>;
 }
 
-/**
- * The project settings files the agent applies on top of what atc passes
- * it, and the refusal for a file whose content would override or route
- * around a sign-in through impd's broker, or null when it holds nothing
- * that would. `files` are relative to the directory a harness starts in;
- * `rootFiles` are relative to that directory, each directory above it, and
- * the main checkout of the git worktree it lies in, since the agent reads
- * them at a repository's root. `findRefusal` takes the file's absolute path
- * on the host.
- */
 export interface ProjectSettingsCheck {
+  // relative to the directory the harness starts in.
   readonly files: readonly string[];
+
+  // relative to that directory, each directory above it, and the main
+  // checkout of its git worktree, since the agent reads them at a
+  // repository's root.
   readonly rootFiles: readonly string[];
+
+  // takes the file's absolute path on the host; null when the content would
+  // not override or route around a sign-in through impd's broker.
   readonly findRefusal: (path: string, content: string) => DaemonError | null;
 }
 
@@ -133,12 +111,9 @@ export interface NameUpdate {
 
 type AttentionJudgment = 'needs-input' | 'working';
 
-/**
- * The universal attention fallback for agents without a hook system: judges
- * the current serialized screen once output quiesces. null means no opinion
- * and the session's state stands.
- */
 interface ScreenDetector {
+  // runs on the serialized screen once output quiesces; null means no
+  // opinion, and the session's state stands.
   readonly detectAttention: (screen: string) => AttentionJudgment | null;
 }
 
@@ -190,10 +165,6 @@ export type HeadlessRunner = (
   events: HeadlessRunEvents,
 ) => HeadlessRunHandle;
 
-/**
- * How `agents.list` describes an agent. It holds no secret: never an
- * environment value, a credential, a helper command, or a base URL.
- */
 export interface AgentProfile {
   readonly label: string;
 
@@ -216,20 +187,12 @@ export interface SpawnOptionSpecs {
   readonly effort: SpawnOptionSpec;
 }
 
-/**
- * The input modes the agent's TUI has switched on, as the session's screen
- * model last saw them.
- */
 export interface TerminalInputModes {
   // Whether the TUI asked for pasted text to arrive between bracketed paste
   // markers (DEC mode 2004).
   readonly bracketedPaste: boolean;
 }
 
-/**
- * A menu the agent's TUI shows on its screen: the text above the options,
- * the options in screen order, and which option the cursor is on.
- */
 export interface ScreenMenu {
   // The menu's lines above its options, without the dialog's border.
   readonly text: string;
@@ -238,17 +201,16 @@ export interface ScreenMenu {
   // The index into `options` of the option the cursor is on.
   readonly highlighted: number;
 
-  // Present when the screen shows only part of a longer list, or may:
-  // whether a mark beside the rows shows options above them, and options
-  // below them. The list is the options with a box when any option has one,
-  // and the items without a box after them stay on the screen as the list
-  // scrolls. A list hides its mark on the row the cursor is on, so both
-  // false means the list fills its window with the cursor on a row that
-  // could hide a mark. Absent: the whole list is on the screen.
+  // present when the screen shows only part of a longer list, or may. The
+  // list is the boxed options when any has a box; unboxed items after them
+  // stay on the screen as it scrolls. Absent: the whole list is on screen.
   readonly scroll?: ScreenMenuScroll;
 }
 
 export interface ScreenMenuScroll {
+  // whether a mark beside the rows shows options above them, and below. A
+  // list hides its mark on the cursor's row, so both false means the list
+  // fills its window with the cursor on a row that could hide a mark.
   readonly above: boolean;
   readonly below: boolean;
 }
@@ -260,31 +222,17 @@ export interface ScreenMenuOption {
   readonly checked: boolean | null;
 }
 
-/**
- * One step of typing a line into a session: bytes to write to its PTY, or a
- * pause in milliseconds before the next write. The session takes no other
- * input until the line's last step is done.
- */
+// the session takes no other input until the line's last step is done.
 export type LineInputStep = string | { readonly pauseMs: number };
 
-/**
- * What one hook line means for its session: the events the session takes,
- * in order, and the state the adapter keeps for the session's next line.
- * The state belongs to the adapter and is opaque to the daemon, which
- * holds it per session and passes it back on that session's next line
- * only, so an adapter keeps no state across sessions. Absent `next` keeps
- * none.
- */
 export interface HookPlan {
   readonly events: readonly AdapterEvent[];
+
+  // opaque to the daemon, which passes it back with this session's next line
+  // only. Absent keeps no state.
   readonly next?: unknown;
 }
 
-/**
- * Everything specific to one agent CLI: how to spawn it, how to read its
- * hook payloads, where its session names come from, and how to resume a
- * session outside atc. The session core never sees past this interface.
- */
 export interface AgentAdapter {
   // What the registry is keyed by, and what a session records. Unique across
   // registered adapters.
@@ -305,10 +253,9 @@ export interface AgentAdapter {
   // false refuses every message as unsupported.
   readonly takesMessages: boolean;
 
-  // Starts the bridge in the daemon that takes the session's messages on a
-  // launch on the daemon's machine, and resolves once the terminal can
-  // start against it. Absent: the session takes its messages through a tap
-  // its own processes open, if at all.
+  // Starts the daemon-side bridge for a local launch's messages, and resolves
+  // once the terminal can start against it. Absent: the session takes its
+  // messages through a tap its own processes open, if at all.
   readonly startMessageBridge?: (request: MessageBridgeRequest) => Promise<MessageBridge>;
 
   // Absent on a stand-in adapter, which `agents.list` reports as not installed.
@@ -320,20 +267,17 @@ export interface AgentAdapter {
   readonly planSpawn: (opts: SpawnOptions, session?: SessionID) => SpawnPlan;
 
   // Plans a spawn on a remote host; null when this agent cannot run there,
-  // such as one whose instrumentation needs atc on a host without it.
+  // or cannot launch behind the broker for a guest whose `auth` is given.
   // Absent: the agent runs there as a local spawn plans it, with no files.
-  // A plan for a guest whose `auth` is given that cannot launch behind the
-  // broker is null.
   readonly planGuestSpawn?: (opts: SpawnOptions, guest: GuestPaths) => GuestSpawnPlan | null;
 
   // Guest-relative seed files for the exact root of a verified clone.
   // Absent or null means the adapter cannot accept workspace trust.
   readonly planGuestWorkspaceTrust?: (root: string) => Readonly<Record<string, string>> | null;
 
-  // Accepts folder trust for the exact root of a verified clone on the
-  // daemon's machine, in the agent's own config, and resolves to a function
-  // that takes it back for a launch that fails before the agent starts.
-  // Absent means the adapter cannot accept workspace trust there.
+  // Accepts folder trust for a verified clone's exact root in the agent's own
+  // config, resolving to a function that takes it back for a launch that fails
+  // before the agent starts. Absent: the adapter cannot accept trust locally.
   readonly updateLocalWorkspaceTrust?: (root: string) => Promise<() => Promise<void>>;
 
   // The credential this agent takes from impd's broker, or null when it
@@ -377,14 +321,8 @@ export interface AgentAdapter {
   // the line and a trailing newline go as one write.
   readonly planLineInput?: (text: string, modes: TerminalInputModes) => readonly LineInputStep[];
 
-  // The menu the agent's TUI waits on, read from the session's screen as
-  // plain text, or null when the screen shows none. The up and down arrow
-  // keys move its cursor one option, Enter picks the option under it, and
-  // Escape dismisses it. In a list that scrolls, the screen shows one row
-  // more only as the cursor moves past its edge, and the down arrow on the
-  // last option moves the cursor to an item after the list or back to the
-  // first option. `rows` is the terminal's height, which the screen text
-  // does not show once its trailing blank rows are trimmed. Absent: atc
-  // cannot read this agent's menus.
+  // The menu the TUI waits on, read from the screen text, or null when it
+  // shows none. `rows` is the terminal's height, which the trimmed screen
+  // text does not show. Absent: atc cannot read this agent's menus.
   readonly findMenu?: (screen: string, rows?: number) => ScreenMenu | null;
 }

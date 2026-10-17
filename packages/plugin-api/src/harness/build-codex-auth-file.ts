@@ -1,17 +1,5 @@
 import { BROKER_PLACEHOLDER } from '@atc/core';
 
-/**
- * The `auth.json` a Codex session on a remote host signs in with, which
- * holds no credential: impd's broker sets the real access token on each
- * request to chatgpt.com. Codex reads a ChatGPT sign-in from it with no
- * sign-in step when the access token is opaque, so it never refreshes the
- * token at start, and the last refresh lies far ahead, so it never
- * refreshes on age. The ID token carries the email and the OpenAI auth
- * claims of impd's ID token and nothing else, under an unsigned header,
- * since Codex reads its claims and never checks a signature. The account
- * id must be the real one: Codex sends it with every request and checks
- * it against the account's workspaces before each session.
- */
 export function buildCodexAuthFile(
   idClaims: Readonly<Record<string, unknown>>,
   accountID: string,
@@ -20,9 +8,16 @@ export function buildCodexAuthFile(
     auth_mode: 'chatgpt',
     OPENAI_API_KEY: null,
     tokens: {
+      // Codex reads the claims and never checks a signature.
       id_token: buildUnsignedIDToken(idClaims),
+
+      // impd's broker sets the real token on each request to chatgpt.com. An
+      // opaque token takes Codex past its sign-in step and refresh at start.
       access_token: BROKER_PLACEHOLDER,
       refresh_token: BROKER_PLACEHOLDER,
+
+      // must be the real one: Codex sends it with every request and checks it
+      // against the account's workspaces before each session.
       account_id: accountID,
     },
     last_refresh: LAST_REFRESH,

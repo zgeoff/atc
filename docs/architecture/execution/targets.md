@@ -29,6 +29,12 @@ before it calls the provider:
 | `suspend`  | pause the host and resume it later with its state intact |
 | `destroy`  | delete the host and everything on it                     |
 
+A provider operation that fails after its effect began, and cannot confirm that it took the effect
+back, throws an effect-remains error with the refusal as its cause. The daemon's
+[idempotency ledger](../protocol/idempotency.md) then keeps the request's key as an unknown outcome
+and never runs the effect again under it. Any other failure means the effect did not happen, so the
+daemon releases the key for a retry.
+
 ### Local harnesses under a systemd service
 
 When a systemd user service runs the daemon, the `local-pty` provider starts each harness in a

@@ -4,10 +4,6 @@ import type { AdapterEvent } from '@atc/protocol';
 // The longest stretch of a prompt that a prompt-submitted event previews.
 const PROMPT_PREVIEW_LENGTH = 80;
 
-/**
- * A person submitted a prompt: the event on top of `base`, previewing the
- * prompt's start when the line held a non-empty prompt.
- */
 export function buildPromptSubmittedEvent(
   base: Readonly<AdapterEvent>,
   prompt: string | undefined,

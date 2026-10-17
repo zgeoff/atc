@@ -1,9 +1,3 @@
-/**
- * The record atc publishes for one session: what atc vouches for about it,
- * in the format the session record doc defines as atc's contract. A reader
- * ignores the keys it does not know, so a field added within a version
- * breaks none.
- */
 export interface PublishedRecord {
   readonly format: 'atc.session-record';
   readonly version: 1;
@@ -26,12 +20,6 @@ export interface RecordedScope {
   readonly pullRequests: readonly RecordedPullRequest[];
 }
 
-/**
- * The directory the session runs in and its branch, null for a detached
- * checkout or a directory outside git. The repository URL and the commit
- * are those of a materialized workspace, null for a directory that runs as
- * it stands.
- */
 interface RecordedWorkspace {
   readonly path: string;
   readonly branch: string | null;

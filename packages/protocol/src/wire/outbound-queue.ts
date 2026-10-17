@@ -5,14 +5,8 @@ export interface SocketWriter {
 
 const encoder = new TextEncoder();
 
-/**
- * Bounded outbound buffer for one socket. `socket.write()` returns bytes
- * accepted and silently drops the rest, so every short write parks the
- * remainder here and the socket's drain callback flushes it. A payload is
- * never cut mid-line: once its first byte is on the wire, the rest is
- * queued even past capacity, and only whole not-yet-started payloads are
- * refused on overflow.
- */
+// `socket.write()` drops whatever it does not accept, so a short write parks
+// the rest here; a payload once started is never cut, even past capacity
 export class OutboundQueue {
   private readonly socket: SocketWriter;
 

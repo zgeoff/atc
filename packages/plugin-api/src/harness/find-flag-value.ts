@@ -1,8 +1,4 @@
-/**
- * The value a CLI flag takes in an argument list, written either as the flag
- * followed by its value or as `--flag=value`. The last occurrence wins, as it
- * does for the CLIs atc runs; null when the list never sets the flag.
- */
+// the last occurrence wins, as it does for the CLIs atc runs.
 export function findFlagValue(args: readonly string[], names: readonly string[]): string | null {
   let value: string | null = null;
 

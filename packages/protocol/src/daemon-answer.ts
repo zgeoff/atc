@@ -2,10 +2,6 @@ import type { z } from 'zod';
 import type { DAEMON_CONTRACT } from './daemon-contract';
 import type { RequestMethod } from './parse-request-params';
 
-/**
- * The answer the daemon sends for a request method, as its contract output
- * schema takes it before parsing.
- */
 export type DaemonAnswer<M extends RequestMethod> =
   FindProcedure<typeof DAEMON_CONTRACT, M> extends {
     readonly '~orpc': { readonly outputSchema?: infer Output };

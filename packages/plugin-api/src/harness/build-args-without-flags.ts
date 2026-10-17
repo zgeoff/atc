@@ -1,8 +1,3 @@
-/**
- * An argument list with every occurrence of the named flags removed, each
- * with its value: the flag followed by its value, or `--flag=value`. Every
- * other argument keeps its place.
- */
 export function buildArgsWithoutFlags(args: readonly string[], names: readonly string[]): string[] {
   const kept: string[] = [];
 

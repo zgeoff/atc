@@ -1,11 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { openBridgeSocket } from './open-bridge-socket';
 
-/**
- * Sends one request to the session bridge at a unix socket path and
- * returns its answer line, or null when nothing listens there, the
- * connection closes first, or no answer arrives in time. Never throws.
- */
+// never throws: nothing listening, an early close, or no answer in time
+// resolves null
 export async function sendBridgeRequest(
   path: string,
   op: string,

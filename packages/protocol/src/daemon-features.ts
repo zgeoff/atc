@@ -1,8 +1,3 @@
-/**
- * The request features a daemon announces in its `daemon.hello` answer. A
- * daemon from before the list existed announces none, so a client that
- * outlives an upgrade sees exactly what the running daemon serves.
- */
 export const DAEMON_FEATURES = [
   // `agents.list` exists.
   'agents.list',
@@ -123,16 +118,14 @@ export const DAEMON_FEATURES = [
   // events, and `notice.ack` exists.
   'message.notice',
 
-  // `session.message` labels its message with a sender the daemon builds from
-  // the caller and ignores `from`, a request takes `asName` beside `as`, and
-  // `message.get` and the `SessionMessage` and `InboxMessage` events return
-  // `sender`.
+  // `session.message` labels a sender the daemon builds and ignores `from`, a
+  // request takes `asName` beside `as`, and `message.get` and the
+  // `SessionMessage` and `InboxMessage` events return `sender`.
   'message.sender',
 
-  // `session.message` labels a local caller outside every session whose
-  // handshake gives no atc build `local`, named by the `from` it gives or
-  // else its handshake's client, and takes `notice: false`, which queues no
-  // answer notice for the sending session.
+  // `session.message` labels a caller outside every session with no atc build
+  // `local`, named by its `from` or else its handshake's client, and takes
+  // `notice: false`, which queues no answer notice for the sending session.
   'message.local',
 
   // `session.menu` and `session.choose` exist: a client reads the menu a

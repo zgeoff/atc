@@ -26,10 +26,6 @@ const SCOPE_SCHEMA = z.object({
   pullRequests: z.array(PULL_REQUEST_SCOPE_SCHEMA),
 });
 
-/**
- * The published record of one session as it crosses the wire, which a
- * reader parses with its unknown keys dropped.
- */
 export const PUBLISHED_RECORD_SCHEMA: z.ZodType<PublishedRecord, PublishedRecord> = z.object({
   format: z.literal('atc.session-record'),
   version: z.literal(1),

@@ -1,12 +1,8 @@
 import type { Clock } from '@atc/core';
 
-/**
- * What atc's host gives every plugin it creates, built once by the
- * process that loads the plugins. A plugin reaches the running atc, the
- * machine's commands, time, and the log only through these, so a plugin
- * holds no path to atc's own source and starts no process of its own
- * choosing.
- */
+// a plugin reaches the running atc, the machine's commands, time, and the log
+// only through these, so it holds no path to atc's own source and starts no
+// process of its own choosing.
 export interface HostServices {
   // The argv that runs this atc's CLI: the compiled binary alone, or the
   // runtime with the CLI entry.
@@ -31,22 +27,18 @@ export interface HostServices {
   readonly log: (line: string) => void;
 }
 
-/**
- * How a command runs: the variables it gets over the daemon's own
- * environment, and a signal whose abort kills the command's whole process
- * group, so nothing the command started outlives it.
- */
 export interface HostCommandOptions {
+  // set over the daemon's own environment.
   readonly env?: Readonly<Record<string, string>>;
+
+  // an abort kills the command's whole process group, so nothing the command
+  // started outlives it.
   readonly signal?: Readonly<AbortSignal>;
 }
 
-/**
- * How a command ended: its exit code, which is 127 for a command that
- * could not start, and its output, each trimmed. An aborted command has
- * exit code -1 and no output.
- */
+// output is trimmed. An aborted command has exit code -1 and no output.
 export interface HostCommandResult {
+  // 127 for a command that could not start.
   readonly code: number;
   readonly stdout: string;
   readonly stderr: string;

@@ -12,10 +12,6 @@ import {
 import { DaemonClient } from './daemon-client';
 import { PROTOCOL_V } from './protocol';
 
-/**
- * A daemon socket in a fresh temp directory whose listener closes every
- * connection as soon as it opens.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-daemon-client-');
   const socketPath = join(tmp.dir, 'daemon.sock');

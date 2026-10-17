@@ -13,14 +13,6 @@ interface DestinationParts {
   readonly sha: string | null;
 }
 
-/**
- * The default directory a git workspace lands in: `<repo>-<ref>-<short
- * sha>` under the root, with the ref left out for a bare commit and the
- * short sha for a ref alone. The repo is the URL's last path segment
- * without `.git`, and each part keeps only `[A-Za-z0-9._-]`, with `/`
- * turned into `-`, so the name is one path segment on any target; a name
- * with nothing left is `workspace`.
- */
 export function buildWorkspaceDestination(parts: DestinationParts): string {
   const repo =
     parts.url

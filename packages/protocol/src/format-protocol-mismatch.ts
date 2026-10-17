@@ -14,10 +14,6 @@ export interface ProtocolMismatch {
   readonly daemonMessage: string;
 }
 
-/**
- * Describes a daemon on another protocol version: both builds and both
- * versions, that it was left running, and how to restart it on purpose.
- */
 export function formatProtocolMismatch(mismatch: ProtocolMismatch): string {
   const pid = mismatch.daemonPID === null ? 'pid unknown' : `pid ${mismatch.daemonPID}`;
 

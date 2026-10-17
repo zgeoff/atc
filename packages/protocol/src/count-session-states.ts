@@ -1,8 +1,5 @@
 import type { SessionState } from './session-state';
 
-/**
- * How many of the sessions are in each state.
- */
 export function countSessionStates(
   list: readonly { readonly state: SessionState }[],
 ): Record<SessionState, number> {

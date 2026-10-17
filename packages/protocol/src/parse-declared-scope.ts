@@ -1,9 +1,5 @@
 import { z } from 'zod';
 
-/**
- * The scope a caller declares for a session, before atc checks any entry
- * against the session's host.
- */
 export interface DeclaredScope {
   readonly worktrees: readonly { readonly path: string }[];
   readonly branches: readonly { readonly name: string; readonly repo?: string }[];
@@ -84,11 +80,6 @@ const SCOPE = z.strictObject(
   },
 );
 
-/**
- * Reads a declared scope off the wire. Every object is closed, so a key the
- * format does not define refuses the scope, and a refusal holds the entry
- * at fault, such as `scope.branches[1]`.
- */
 export function parseDeclaredScope(raw: unknown): ParsedDeclaredScope {
   const result = SCOPE.safeParse(raw);
 

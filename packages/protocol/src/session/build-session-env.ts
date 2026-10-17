@@ -1,10 +1,6 @@
 import type { SessionEnv } from './session-env';
 import { SESSION_ENV_NAMES } from './session-env-names';
 
-/**
- * The variables that give a harness its session environment, holding only
- * the fields that are set.
- */
 export function buildSessionEnv(values: SessionEnv): Record<string, string> {
   const env: Record<string, string> = {};
 

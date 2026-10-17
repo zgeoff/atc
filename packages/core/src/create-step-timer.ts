@@ -1,7 +1,3 @@
-/**
- * Times the named steps of one launch, such as a spawn or a wake on a
- * remote host.
- */
 export interface StepTimer {
   // Runs the step and adds its time under its name, a step that throws
   // included; a step that runs more than once counts its runs.

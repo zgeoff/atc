@@ -1,10 +1,5 @@
 import { isRecord } from '@atc/core';
 
-/**
- * The daemon/client wire dialect: NDJSON over a unix socket, one JSON object
- * per line. Three message kinds, distinguished by which fields are present —
- * request (id + m), response (id + ok or err), event (ev).
- */
 export const PROTOCOL_V = 4;
 
 // Control lines are capped before buffering; PTY output is split into chunks
@@ -132,13 +127,6 @@ export type DecodedMsg =
   | { readonly kind: 'event'; readonly msg: EventMsg }
   | { readonly kind: 'malformed'; readonly reason: string };
 
-/**
- * Classifies one NDJSON line. Unknown fields pass through untouched so
- * additive evolution never breaks a peer; a line that parses but fits no
- * message kind is malformed, and the caller closes the connection. An error
- * code this build does not know decodes as `internal` with its message
- * kept, so a peer that adds a code never breaks one that predates it.
- */
 export function decodeMessage(line: string): DecodedMsg {
   let parsed: unknown;
 

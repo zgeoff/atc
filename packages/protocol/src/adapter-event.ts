@@ -1,9 +1,5 @@
 import type { AgentSessionID } from '@atc/core';
 
-/**
- * What an adapter makes of one hook event: the agent-neutral kind and the
- * fields the daemon and the store act on.
- */
 export interface AdapterEvent {
   kind: 'started' | 'needs-input' | 'turn-done' | 'prompt-submitted' | 'ended' | 'heartbeat';
   agentSessionID?: AgentSessionID;

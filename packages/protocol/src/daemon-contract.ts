@@ -40,12 +40,8 @@ const OWNER: ProcedureMeta = { access: 'owner', readOnly: false, keyed: false };
 const base = oc.$meta<ProcedureMeta>(ACT).errors(DAEMON_ERROR_MAP);
 const P = REQUEST_PARAM_SCHEMAS;
 
-/**
- * The daemon's procedures: each one's params, its answer, its traits, and
- * the errors it can answer with. A procedure's path joined with dots is its
- * request method, such as `session.auth.revoke`. No request method
- * dispatches `sources.complete` or `events.subscribe`.
- */
+// a procedure's path joined with dots is its request method;
+// `sources.complete` and `events.subscribe` have no request method
 export const DAEMON_CONTRACT = {
   daemon: {
     hello: base.meta(READ).input(P['daemon.hello']).output(HELLO_RESULT_SCHEMA),
@@ -158,10 +154,8 @@ export const DAEMON_CONTRACT = {
       .input(P['session.menu'])
       .output(z.object({ menu: MENU_VIEW_SCHEMA.nullable() })),
 
-    // pressed holds the key the daemon pressed last, and menu the menu the
-    // screen shows once it settles after that key, or null. partial is true
-    // when the daemon could not read the whole of that menu, so menu holds
-    // only the part the screen shows.
+    // menu is what the screen settles on after the last key pressed; partial
+    // means the daemon could read only the part of it the screen shows
     choose: base.input(P['session.choose']).output(
       z.object({
         pressed: z.string(),

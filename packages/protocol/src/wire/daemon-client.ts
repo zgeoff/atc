@@ -12,11 +12,6 @@ interface Pending {
   readonly reject: (err: Readonly<DaemonError>) => void;
 }
 
-/**
- * A protocol connection to the daemon: correlated request/response plus an
- * event callback. `open` connects the socket; `sendHello` completes the
- * handshake and must come first.
- */
 export class DaemonClient implements DaemonChannel {
   onEvent: (event: EventMsg) => void = () => {};
 
@@ -81,11 +76,8 @@ export class DaemonClient implements DaemonChannel {
     return client;
   }
 
-  // A handshake with a token presents it as a bearer token, which a TCP
-  // listener requires, and one with a principal makes the connection act as
-  // that principal, which the listener's config must list. A client started inside an atc session gives that
-  // session, so the daemon never takes a change to the session's own record
-  // from it.
+  // a client inside an atc session gives that session, so the daemon never
+  // takes a change to the session's own record from it
   sendHello(build: string, options: HelloOptions = {}): Promise<Readonly<Record<string, unknown>>> {
     return this.sendRequest('daemon.hello', {
       client: build,
@@ -98,12 +90,8 @@ export class DaemonClient implements DaemonChannel {
     });
   }
 
-  // A request with a principal acts as that principal, within what the
-  // connection may reach, and a name given beside it goes out as `asName`.
-  // A request that gives none acts as the client's own principal, when it
-  // has one. A request the full outbound queue refuses never reaches the wire, so it
-  // rejects at once and the connection stays open for the requests already
-  // queued.
+  // a request the full outbound queue refuses never reaches the wire, so it
+  // rejects at once and the connection stays open for those already queued
   sendRequest(
     m: string,
     p?: Readonly<Record<string, unknown>>,

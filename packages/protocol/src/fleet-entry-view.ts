@@ -1,10 +1,6 @@
 import { z } from 'zod';
 import { SESSION_WORKSPACE_SCHEMA } from './session-workspace';
 
-/**
- * One stored fleet row as `fleet.list` answers it: what a restart restores
- * a session from. An absent field has no stored value.
- */
 export const FLEET_ENTRY_VIEW_SCHEMA = z.object({
   sessionID: z.string(),
   name: z.string(),

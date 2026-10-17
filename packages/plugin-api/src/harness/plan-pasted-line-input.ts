@@ -2,20 +2,11 @@ import type { TerminalInputModes } from '../agent-adapter';
 import { buildUnmarkedText } from './build-unmarked-text';
 import { PASTE_MARKERS } from './paste-markers';
 
-/**
- * Pastes a line into a TUI that tells a paste from typing, then submits it
- * with a carriage return as its own write. Such a TUI takes a newline inside
- * a burst of input as part of the text, so a line typed with its newline
- * stays unsent in the composer. Between bracketed paste markers the whole
- * text is one paste event, newlines included, and the carriage return after
- * the closing marker is a separate Enter key event however the two writes
- * arrive. Paste markers inside the text are dropped, so the text can neither
- * end the paste early nor start one of its own. A TUI that has not turned
- * bracketed paste on gets the text unmarked, and may still read both writes
- * as one burst. Empty text is the carriage return alone, which submits what
- * the composer holds and adds nothing to it.
- */
+// a TUI that tells a paste from typing takes a newline inside a burst as text,
+// so the line goes as a paste and a carriage return as its own write, which
+// after a closing paste marker is a separate Enter however the writes arrive.
 export function planPastedLineInput(text: string, modes: TerminalInputModes): readonly string[] {
+  // the carriage return alone submits what the composer holds.
   if (text === '') {
     return ['\r'];
   }

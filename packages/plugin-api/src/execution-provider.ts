@@ -2,22 +2,6 @@ import type { StepTimer } from '@atc/core';
 import type { DaemonError } from '@atc/protocol/wire';
 import type { CredentialBroker } from './credential-broker';
 
-/**
- * The host a session's harness runs on: it starts a process in a
- * pseudo-terminal and, as its capabilities declare, unpacks files into its
- * filesystem and runs commands there. The daemon starts every session
- * terminal through this interface, so a new host is a provider, not a
- * change to the session code. The daemon checks a capability before it
- * calls the operation behind it, and a request needing one the provider
- * lacks fails with `unsupported_operation`.
- *
- * An operation that fails after its effect began, and cannot confirm it
- * took the effect back, throws an effect-remains error carrying the
- * refusal as its cause. The daemon's idempotency ledger then keeps the
- * request's key as an unknown outcome and never runs the effect again
- * under it. Any other failure means the effect did not happen, and the
- * key is released for a retry.
- */
 export interface ExecutionProvider {
   // The provider kind a target's config selects, such as `local-pty`.
   readonly kind: string;
@@ -43,12 +27,9 @@ export interface ExecutionProvider {
   // the current selection instead of refusing. Absent refuses.
   readonly rebindChangedAuth?: boolean;
 
-  // Readies the host a harness is about to start on: a remote host is
-  // created when missing, woken when asleep, and held awake while its
-  // harnesses run. Rejects with the refusal before any harness starts. A
-  // readying that fails after it created something, and cannot take that
-  // back, rejects with an effect-remains error instead of the refusal, so a
-  // retry under the same idempotency key never creates a second host.
+  // Creates a missing remote host, wakes a sleeping one, and holds it awake while its harnesses
+  // run. A failure after it created something it cannot take back rejects with an effect-remains
+  // error instead of the refusal, so a retry under the same key never creates a second host.
   readonly prepareHost: (request: HostRequest) => Promise<void>;
 
   // Checks that an existing host is reachable with this provider's current
@@ -67,25 +48,18 @@ export interface ExecutionProvider {
   // Runs a command to completion and returns what it printed.
   readonly runCommand: (spec: CommandSpec) => Promise<CommandResult>;
 
-  // Writes a file on a host that its processes see read-only, root
-  // included, replacing any file at the path in one step. Resolves to the
-  // file's path on the host, or null when this host has no such place,
-  // as on an older host. The path is relative and plain: segments of
-  // letters, digits, `.`, `_`, and `-`, none starting with a dot. Absent on
-  // a provider with no such place anywhere.
+  // Replaces in one step a file the host's processes see read-only, root included, and resolves
+  // to its path on the host, or null on a host with no such place. The path is relative, its
+  // segments of letters, digits, `.`, `_`, and `-`, none starting with a dot.
   readonly writeReadOnlyFile?: (
     host: string,
     path: string,
     content: string,
   ) => Promise<string | null>;
 
-  // Puts a host to sleep with every harness on it kept inside, so a revive
-  // finds each one as it was. Rejects with `host_leased` when another owner
-  // keeps the host awake, and leaves the host as it was then. A sleep runs
-  // after any readying of the host before it, and a readying waits for it.
-  // isIdle makes it a sleep of an idle host only: it is checked when the
-  // sleep starts and again just before the host sleeps, and a host that a
-  // harness or a readying keeps busy stays awake with `host_unavailable`.
+  // Sleeps a host with its harnesses inside, after any readying before it; a later readying waits.
+  // Rejects with `host_leased`, leaving the host as it was, when another owner keeps it awake.
+  // isIdle, checked at start and just before sleep, keeps a busy host awake (`host_unavailable`).
   readonly suspendHost: (host: string, isIdle?: () => boolean) => Promise<void>;
 
   // Deletes a host and everything on it, harnesses included. Nothing brings
@@ -98,13 +72,11 @@ export interface ExecutionProvider {
   readonly dispose: () => void | Promise<void>;
 }
 
-/**
- * The host a harness is about to start on, and the daemon that holds it:
- * a remote host is held per daemon, so two daemons never release each
- * other's hold.
- */
 export interface HostRequest {
   readonly host: string;
+
+  // a remote host is held per daemon, so two daemons never release each
+  // other's hold.
   readonly daemonID: string;
 
   // Whether the harness about to start needs atc inside the host, which a
@@ -129,11 +101,6 @@ export interface GuestLayout {
   readonly atc: string | null;
 }
 
-/**
- * What a provider can do. The terminal capabilities split so a host that can
- * show output but not take input, or not resize, says so; `suspend` and
- * `destroy` cover the lifecycle of a host that outlives its process.
- */
 export interface ExecutionCapabilities {
   // Start a harness in a pseudo-terminal.
   readonly spawn: boolean;
@@ -198,9 +165,8 @@ export interface HarnessSpec {
   readonly requireBroker?: boolean;
 
   // Admits each start or attach of a harness that requires the broker by
-  // calling send, which hands the request to the host, or rejects with the
-  // refusal that ends the harness instead, sending nothing. send gets the
-  // admission's ticket.
+  // calling send with the admission's ticket, which hands the request to the
+  // host, or rejects with the refusal that ends the harness, sending nothing.
   readonly admit?: (
     kind: 'start' | 'attach',
     send: (ticket: LaunchTicket) => void,
@@ -212,25 +178,18 @@ export interface HarnessSpec {
   readonly onRelay?: (relay: HarnessRelay) => void;
 }
 
-/**
- * One admitted request of a harness behind the broker. check runs just
- * before the request goes out and returns the refusal that stops it
- * unsent, or null to let it go; release gives the admission up once its
- * connection ends without the request going out. Each runs at most once
- * to any effect.
- */
+// each of check and release runs at most once to any effect.
 export interface LaunchTicket {
+  // runs just before the request goes out; the refusal stops it unsent.
   readonly check: () => DaemonError | null;
+
+  // gives the admission up once its connection ends without the request
+  // going out.
   readonly release: () => void;
 }
 
-/**
- * One connection from a process inside a harness's host to the daemon, in
- * lines: each line the process writes arrives whole, and each line the
- * daemon writes reaches the process in order. A host can hold the
- * connection open after the process stops writing, until the daemon closes
- * it too, and can cap how many it holds open at once.
- */
+// each line arrives whole and in order, both ways. A host can hold the connection open after the
+// process stops writing, until the daemon closes it too, and can cap how many it holds open.
 export interface HarnessRelay {
   readonly onLine: (listener: (line: string) => void) => void;
   readonly onClose: (listener: () => void) => void;
@@ -244,10 +203,6 @@ export interface HarnessRelay {
   readonly close: () => void;
 }
 
-/**
- * A running harness. Output and exit arrive through listeners, each
- * subscription detachable on its own.
- */
 export interface HarnessHandle {
   // The pid of the harness's process on the daemon's own machine, which the
   // daemon matches a local client's process against; absent on a provider
@@ -273,10 +228,9 @@ export interface HarnessHandle {
   // a provider that can send one; absent on a provider that cannot.
   readonly killForced?: () => void;
 
-  // Resolves once the harness's process has started, or a running one was
-  // attached, with whether the start made the process, and rejects with the
-  // refusal when the host ends the harness or the daemon lets go of it
-  // first. Absent on a provider whose harness starts at once.
+  // Resolves once the harness's process has started or a running one was attached, and rejects
+  // with the refusal when the host ends the harness or the daemon lets go of it first. Absent on a
+  // provider whose harness starts at once.
   readonly waitForStart?: () => Promise<HarnessStart>;
 
   // Resolves true once the harness's process has exited, and false when the
@@ -292,11 +246,9 @@ export interface HarnessHandle {
 
 export type HarnessAttachment = 'attached' | 'reattaching';
 
-/**
- * How a harness's start settled: whether it made a new process, or attached
- * to one its host still ran, which keeps the settings it launched with.
- */
 export interface HarnessStart {
+  // false when the start attached to a process its host still ran, which
+  // keeps the settings it launched with.
   readonly created: boolean;
 }
 

@@ -91,12 +91,6 @@ const TARGET_CONFIG_ERROR_SCHEMA = z.union([
   }),
 ]);
 
-/**
- * The `agents.list` answer: the host the daemon runs on, each agent, each
- * execution target, what a spawn without either runs with, a digest of the
- * target config, the target config problems the daemon started with, and
- * the sources the spawn picker offers, in order.
- */
 export const AGENT_LIST_SCHEMA = z.object({
   daemon: z.object({
     hostname: z.string(),

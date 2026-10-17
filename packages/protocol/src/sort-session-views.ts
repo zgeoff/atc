@@ -1,12 +1,8 @@
 import type { SessionState } from './session-state';
 import type { SortableSessionView } from './sortable-session-view';
 
-// Overlay order: pinned sessions first in most-recently-attached order, then
-// everyone else by urgency — who needs you, finished turns, busy, dead —
-// with most-recently-attached breaking ties inside each state. A
-// sub-session sits directly under its parent, ranked among its siblings
-// alone, so its attention never moves the parent's row; a sub-session whose
-// parent is not listed ranks as a top-level row.
+// a sub-session ranks among its siblings alone, so its attention never moves
+// its parent's row
 export function sortSessionViews<T extends SortableSessionView>(list: readonly T[]): T[] {
   const rank: Record<SessionState, number> = {
     needs_you: 0,
