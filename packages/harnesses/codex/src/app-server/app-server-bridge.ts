@@ -67,6 +67,10 @@ const NOTICE_PREFIX = 'notice:';
 // later.
 const OVERLOADED_CODE = -32_001;
 
+// The JSON-RPC error code a Codex App Server answers a history read with
+// when the thread has no history it can read.
+const INVALID_REQUEST_CODE = -32_600;
+
 // each connection settles every unsettled message from the thread's stored turns before it
 // delivers, since the server keeps no record of which client message ids it took
 export class AppServerBridge {
@@ -375,8 +379,8 @@ export class AppServerBridge {
     }
   }
 
-  // A left thread whose history the server refuses to read strands its
-  // messages, since it may have taken them; any other failure rejects.
+  // A left thread with no readable history strands its messages, since it
+  // may have taken them; any other failure rejects, and recovery retries.
   private async collectLeftThreads(
     conn: AppServerConnection,
     unsettled: readonly UnsettledMessage[],
@@ -399,7 +403,7 @@ export class AppServerBridge {
       try {
         turns = await this.collectTurns(conn, thread, messages);
       } catch (error) {
-        if (!isRefusal(error) || isOverload(error)) {
+        if (!(error instanceof AppServerError) || error.code !== INVALID_REQUEST_CODE) {
           throw error;
         }
 

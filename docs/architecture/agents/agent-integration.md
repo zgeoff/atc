@@ -161,7 +161,8 @@ later. A send whose connection drops before its answer stays tied to the thread 
 the terminal can move before the next connection recovers. Recovery then reads that thread's turns
 as well: a message that a turn of the old thread holds settles there or becomes unanswered with the
 reason `thread_switched`, and only a message that the old thread never took goes to the new one. A
-message stays off the new thread when the server refuses to read the old thread's history, because
-the old thread may have taken it. Notifications that arrive during recovery wait until it ends, and
-the bridge's tap attaches only then, so a turn that completes while the connection is set up cannot
-cause a resend.
+message stays off the new thread when the server finds no readable history for the old thread,
+because the old thread may have taken it. Any other failed read of the old thread fails the
+recovery, which changes no message. Notifications that arrive during recovery wait until it ends,
+and the bridge's tap attaches only then, so a turn that completes while the connection is set up
+cannot cause a resend.
