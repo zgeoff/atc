@@ -1,63 +1,31 @@
 import { unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import type { HooksConfig, InvalidGitTransports, TargetConfigError } from '@atc/config';
-import {
-  DEFAULT_GIT_TRANSPORTS,
-  LOCAL_TARGET,
-  loadListenerTokens,
-  parseRestoreBootTimeoutMs,
-} from '@atc/config';
-import type { AgentID, Clock, SessionID } from '@atc/core';
+import { DEFAULT_GIT_TRANSPORTS, LOCAL_TARGET, loadListenerTokens } from '@atc/config';
+import type { SessionID } from '@atc/core';
 import { systemClock } from '@atc/core';
 import { claimDaemonLock, findDaemonRecord, writeDaemonRecord } from '@atc/lifecycle';
-import type { AgentAdapter, SourceProvider } from '@atc/plugin-api';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import { StateStore } from '@atc/store';
 import { getLogger } from '@logtape/logtape';
-import { buildTargetAccess } from './auth/build-target-access';
-import { isTreeInReach } from './auth/is-tree-in-reach';
-import { RuntimeAuthBinder } from './auth/runtime-auth-binder';
-import { tryReconcileAuthBindings } from './auth/try-reconcile-auth-bindings';
-import type { DaemonContext, TapClient } from './daemon-context';
-import type { ExecutionTarget } from './fleet/build-execution-targets';
-import { FleetRestorer } from './fleet/fleet-restorer';
-import type { RestoreSettled } from './fleet/restore-fleet';
+import { buildDaemonContext } from './build-daemon-context';
+import type { TapClient } from './daemon-context';
+import type { DaemonOptions } from './daemon-options';
 import { updateEndedFleetMessages } from './fleet/update-ended-fleet-messages';
 import { buildSessionEvent } from './sessions/build-session-event';
-import { ConfirmTokens } from './sessions/confirm-tokens';
 import { emitInboxClosed } from './sessions/emit-inbox-closed';
-import { HookIntake } from './sessions/hook-intake';
-import { startHookServer } from './sessions/hooks';
 import { makeHookRunner } from './sessions/make-hook-runner';
 import type { HookScope } from './sessions/make-hook-runner';
-import { MENU_TIMING } from './sessions/menu-terminal';
-import type { MenuTiming } from './sessions/menu-terminal';
-import { MessageBridges } from './sessions/message-bridges';
-import { MessageService } from './sessions/message-service';
 import { PermissionPrompts } from './sessions/permission-prompts';
-import { PublishedRecords } from './sessions/published-records';
-import type { SettleScheduler } from './sessions/run-eject-handoff';
-import { ScreenDetection } from './sessions/screen-detection';
 import { ScreenModel } from './sessions/screen-model';
-import { SessionForgetter } from './sessions/session-forgetter';
-import { SessionHandoff } from './sessions/session-handoff';
-import { SessionInput } from './sessions/session-input';
-import { SessionOutput } from './sessions/session-output';
-import { SessionReads } from './sessions/session-reads';
 import { SessionRuntime } from './sessions/session-runtime';
 import { SessionManager } from './sessions/sessions';
-import { SpawnService } from './sessions/spawn-service';
-import { startHeadlessTurn } from './sessions/start-headless-turn';
 import { TapRegistry } from './sessions/tap-registry';
-import { SpawnCatalog } from './sources/spawn-catalog';
+import { startSessionServices } from './start-session-services';
 import { buildBindRefusal } from './transport/build-bind-refusal';
 import { DaemonConnection } from './transport/daemon-connection';
 import { EventSignal } from './transport/event-signal';
-import { EventTrail } from './transport/event-trail';
 import { findPeerSession } from './transport/find-peer-session';
-import { IdempotencyLedger } from './transport/idempotency-ledger';
-import type { ListenOptions } from './transport/listen-options';
 import { readPeerPID } from './transport/read-peer-pid';
 import { requireListenTokens } from './transport/require-listen-tokens';
 import { startEventSweep } from './transport/start-event-sweep';
@@ -66,169 +34,6 @@ import { startTCPListener } from './transport/start-tcp-listener';
 import type { TCPListener } from './transport/start-tcp-listener';
 import { tryRemoveExpiredIdempotencyKeys } from './transport/try-remove-expired-idempotency-keys';
 import { withOwnerOnlySocket } from './transport/with-owner-only-socket';
-
-export interface DaemonOptions {
-  readonly socketPath: string;
-  readonly reporterSocketPath: string;
-
-  // Build string sent in the handshake and in mismatch errors, e.g. "atc/0.1.0".
-  readonly build: string;
-  readonly adapter?: AgentAdapter | null;
-
-  // Adapters registered over and above the default one, each keyed by the id
-  // it declares. Lookup never falls back across ids: a grok session with no
-  // grok adapter is unsupported, not a Claude spawn.
-  readonly adapters?: readonly AgentAdapter[];
-
-  // The agent a spawn without one runs, reported in `agents.list`'s spawn
-  // defaults; `claude` when unset.
-  readonly defaultAgent?: AgentID;
-
-  // Where sessions run, in config order. A spawn without a target runs on
-  // the default one: `local` when unset and the targets hold it, and none
-  // otherwise, which refuses such a spawn.
-  readonly targets: readonly ExecutionTarget[];
-  readonly defaultTarget?: string | null;
-
-  // The target config problems the daemon started with. A target they cover
-  // refuses every session, and `agents.list` returns them.
-  readonly targetErrors?: readonly TargetConfigError[];
-
-  // The targets each principal may use; unset or null when the config has
-  // no principals, which leaves every principal the implicit local target.
-  readonly principals?: ReadonlyMap<string, readonly string[]> | null;
-
-  // SQLite path for daemon state; a fleet.json at legacyFleetPath seeds the
-  // fleet table once so upgrading keeps the restorable fleet.
-  readonly dbPath: string;
-  readonly legacyFleetPath?: string;
-
-  // When set, the daemon's pid is written here and removed on stop.
-  readonly pidPath?: string;
-
-  // When set, a read-only events socket listens here and streams every
-  // broadcast event as NDJSON to any subscriber, no handshake required.
-  readonly eventsSocketPath?: string;
-
-  // User-configured hooks, keyed by wire-event name; each broadcast event
-  // fires its matching commands, observational and fire-and-forget.
-  readonly hooks?: HooksConfig;
-
-  // Where the statusline contract file is written; defaults to the real one.
-  readonly statusPath?: string;
-
-  // Outbound queue capacity per client; small values force desync in tests.
-  readonly queueBytes?: number;
-
-  // How long an eject waits for the dying terminal to report SessionEnd
-  // before starting the headless run anyway.
-  readonly ejectSettleMs?: number;
-
-  // Starts the eject settle timer; the daemon's clock when unset.
-  readonly scheduleEjectSettle?: SettleScheduler;
-
-  // How long a failed spawn's rollback waits for the killed process to
-  // exit, once after its kill and once more after a forced kill; 2 s when
-  // unset.
-  readonly failedSpawnExitWaitMs?: number;
-
-  // A fleet-wide restore revives one session at a time and waits for each to report it booted;
-  // this caps that wait, so a session that never reports cannot stall the rest. Unset reads the
-  // restart's wait for the restored fleet; zero waits forever, which only tests ask for.
-  readonly restoreBootTimeoutMs?: number;
-
-  // The waits before each further try at a restored session whose host
-  // refused for now, such as an imp that cannot take a lease yet; the
-  // restore's own delays when unset.
-  readonly restoreRetryDelaysMs?: readonly number[];
-  readonly tapGraceMs?: number;
-
-  // The clock behind every time the daemon stamps, waits on or stores, from hook events and
-  // timeouts to the restore's boot cap and the listener's refusal windows; the wall clock when
-  // unset.
-  readonly clock?: Clock;
-
-  // How long a menu choice waits on a session's screen; tests shorten it.
-  readonly menuTiming?: MenuTiming;
-
-  // Whether the daemon restores the stored fleet by itself once it is
-  // listening, when that fleet holds sessions; off when unset.
-  readonly restoreFleetOnRestart?: boolean;
-
-  // Called once each fleet restore has ended its staggered terminal
-  // adoption, with how many sessions it registered and how it ended; a
-  // restore that threw before registering any reports none and failed.
-  readonly onRestoreSettled?: (settled: RestoreSettled) => void;
-
-  // Called when a start declines to restore the stored fleet by itself:
-  // the option is off, or the stored fleet holds no sessions.
-  readonly onRestoreSkipped?: (reason: 'disabled' | 'empty') => void;
-
-  // Called when a Note line changes nothing: a note from a session the
-  // fleet does not list, or an answer or unanswered report that matches no
-  // unsettled message the reporting session owns.
-  readonly onNoteIgnored?: (sessionID: string, kind: 'note' | 'answered' | 'unanswered') => void;
-
-  // How long a confirm token from `session.forget` stays usable.
-  readonly forgetConfirmMs?: number;
-
-  // The clock confirm tokens from `session.forget` are minted and checked
-  // against, in epoch milliseconds; the daemon's clock when unset.
-  readonly forgetClock?: () => number;
-
-  // The clock the event trail's sweep is scheduled on; its cutoff still
-  // comes from the daemon's clock. The wall clock when unset.
-  readonly eventSweepClock?: Clock;
-
-  // Called with a session's id when it reports its start and the daemon
-  // leaves the last-used agent as it is, because no spawn is waiting on
-  // that start.
-  readonly onLastUsedUnchanged?: (sessionID: SessionID) => void;
-
-  // When set, a TCP listener serves the client protocol on this address to
-  // peers whose handshake presents a token from the token file.
-  readonly listen?: ListenOptions;
-
-  // Called after a client-requested quit has stopped the daemon; the real
-  // entrypoint exits the process, tests leave it unset.
-  readonly onQuit?: () => void;
-
-  // Where background failures and the TCP listener's lines are reported,
-  // one line at a time. When unset, failures go to stderr and the
-  // listener's lines to LogTape's `atc tcp` logger.
-  readonly log?: (line: string) => void;
-
-  // Called each time the daemon leaves a session's new output unjudged
-  // because no screen detector covers it: no agent in the fleet has one,
-  // the session's own agent has none, or the session is no longer listed.
-  readonly onDetectSkipped?: (sessionID: SessionID) => void;
-
-  // The sources the spawn picker offers, in order, each built with the
-  // services it uses; none when unset.
-  readonly sources?: readonly SourceProvider[];
-
-  // The gh executable that checks a pull request a session's scope
-  // declares; `gh` on PATH when unset.
-  readonly ghBin?: string;
-
-  // The transports a git workspace source may use and git may fetch over,
-  // or the invalid list the config holds, which refuses every git
-  // operation; https and ssh when unset.
-  readonly gitTransports?: readonly string[] | InvalidGitTransports;
-
-  // The root a git workspace without a directory lands under on any target
-  // without its own, and each target's own root, by target id; the default
-  // root under the target user's home when unset.
-  readonly workspaceRoots?: Readonly<{
-    root: string | null;
-    targetRoots: ReadonlyMap<string, string>;
-  }>;
-
-  // The home a git workspace without a directory lands under on a target
-  // on the daemon's own machine when no root applies; the daemon user's
-  // home when unset.
-  readonly homeDir?: string;
-}
 
 export interface DaemonHandle {
   // A second stop, or a disposal after one, waits on the first and stops
@@ -251,16 +56,6 @@ export interface DaemonHandle {
   // every token and closes every TCP connection until a load succeeds.
   readonly refreshTokens: () => void;
 }
-
-// How long a started Claude session may go without a tap before a message to
-// it is refused.
-const TAP_GRACE_MS = 15_000;
-
-// How long a confirm token from a forget that destroys a host stays usable.
-const FORGET_CONFIRM_MS = 60_000;
-
-// The principal every request on the local socket acts as.
-const LOCAL_PRINCIPAL = 'local';
 
 // A completed idempotency key is kept this long after it completed, and the
 // sweep that drops older ones runs this often.
@@ -285,10 +80,6 @@ const MAX_REFUSAL_WINDOWS = 1024;
 // How long startup waits for a daemon that is shutting down to release the
 // state lock before refusing to start.
 const LOCK_WAIT_MS = 2000;
-
-// How long a client-requested quit waits before it stops the daemon, so the
-// ok response to the quit request flushes before the sockets close under it.
-const QUIT_FLUSH_DELAY_MS = 80;
 
 // The first request on a connection must be `daemon.hello`. An unknown method is an error, never
 // a disconnect; a malformed or oversized line disconnects, because the transport guarantees byte
@@ -526,279 +317,46 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     mgr.failedSpawnExitWaitMs = opts.failedSpawnExitWaitMs;
   }
 
-  const records = new PublishedRecords({
-    store,
-    daemonID: store.daemonID,
-    localDir: join(stateDir, 'records'),
-    ghBin: opts.ghBin ?? 'gh',
-    now: () => clock.now(),
-  });
-
-  mgr.records = records;
-
-  const authBinder = new RuntimeAuthBinder(store, () => clock.now());
-
-  mgr.authBinder = authBinder;
-
-  // Settled in the background, since it reaches impd: each binding a
-  // stopped daemon left mid-change stays blocked until it is settled.
-  void tryReconcileAuthBindings(authBinder, store, targetsByID, mgr.log);
-
-  const ledger = new IdempotencyLedger(
-    store,
-    LOCAL_PRINCIPAL,
-    (line) => {
-      mgr.log(line);
-    },
-    clock,
-  );
-
-  const messages = new MessageService({
+  const services = startSessionServices({
+    opts,
     mgr,
     store,
     clock,
-    ledger,
-    taps,
-    findRuntime,
-    eventSignal,
-    emitEvent,
-    findHookScope,
-    isProcessEnded: (sessionID) => endedProcesses.has(sessionID),
-    tapGraceMs: opts.tapGraceMs ?? TAP_GRACE_MS,
-  });
-
-  const hooks = new HookIntake({
-    mgr,
-    store,
-    clock,
-    messages,
-    taps,
-    findRuntime,
-    eventSignal,
-    emitEvent,
-    findHookScope,
-    updateBridgeThread: (sessionID, agentSessionID) => {
-      bridges.updateThread(sessionID, agentSessionID);
-    },
-    ...(opts.onNoteIgnored === undefined ? {} : { onNoteIgnored: opts.onNoteIgnored }),
-    ...(opts.onLastUsedUnchanged === undefined
-      ? {}
-      : { onLastUsedUnchanged: opts.onLastUsedUnchanged }),
-  });
-
-  const bridges = new MessageBridges({
-    mgr,
-    store,
-    clock,
-    messages,
-    taps,
-    applyNote: (e) => hooks.applyNote(e),
     stateDir,
-  });
-
-  const trail = new EventTrail({ mgr, store, clock, eventSignal });
-
-  const detection = new ScreenDetection({
-    mgr,
-    clock,
+    targets,
+    targetsByID,
+    targetErrors,
+    gitTransports,
+    defaultTarget,
+    taps,
     findRuntime,
-    onDetectSkipped: opts.onDetectSkipped,
-  });
-
-  const output = new SessionOutput({
-    mgr,
-    clock,
-    findRuntime,
+    eventSignal,
     emitEvent,
     findHookScope,
-    scheduleDetect: (sessionID) => {
-      detection.scheduleDetect(sessionID);
-    },
-  });
-
-  const startTurn = (sessionID: SessionID, prompt: string) =>
-    startHeadlessTurn(
-      mgr,
-      findRuntime,
-      sessionID,
-      prompt,
-      (turnSessionID, ev) => {
-        hooks.recordHeadlessTurnEvent(turnSessionID, ev);
-      },
-      opts.reporterSocketPath,
-    );
-
-  const input = new SessionInput({
-    mgr,
-    clock,
-    findRuntime,
-    menuTiming: opts.menuTiming ?? MENU_TIMING,
-    startHeadlessTurn: startTurn,
-  });
-
-  const handoff = new SessionHandoff({
-    mgr,
-    findRuntime,
-    ejectSettleMs: opts.ejectSettleMs ?? 4000,
-    scheduleEjectSettle: opts.scheduleEjectSettle ?? clock.schedule,
-    startHeadlessTurn: startTurn,
-    scheduleResize: (sessionID) => {
-      output.scheduleResize(sessionID);
-    },
-  });
-
-  const reads = new SessionReads({ mgr, store, records });
-
-  const reporter = startHookServer((e) => {
-    hooks.applyHookEvent(e);
-  }, opts.reporterSocketPath);
-
-  const spawns = new SpawnService({
-    mgr,
-    store,
-    clock,
-    ledger,
-    findRuntime,
-    gitTransports,
-    defaultTarget,
-    ...(opts.workspaceRoots === undefined ? {} : { workspaceRoots: opts.workspaceRoots }),
-    ...(opts.homeDir === undefined ? {} : { homeDir: opts.homeDir }),
-  });
-
-  const forgetter = new SessionForgetter({
-    mgr,
-    findRuntime,
-    tokens: new ConfirmTokens({
-      now: opts.forgetClock ?? (() => clock.now()),
-      lifetimeMs: opts.forgetConfirmMs ?? FORGET_CONFIRM_MS,
-    }),
-  });
-
-  const catalog = new SpawnCatalog({
-    mgr,
-    store,
-    build: opts.build,
-    targets,
-    defaultTarget,
-    targetErrors,
-    ...(opts.defaultAgent === undefined ? {} : { defaultAgent: opts.defaultAgent }),
-    sources: opts.sources ?? [],
-    gitTransports,
-  });
-
-  const restorer = new FleetRestorer({
-    mgr,
-    store,
-    clock,
-    findRuntime,
-    capMs: opts.restoreBootTimeoutMs ?? parseRestoreBootTimeoutMs(process.env),
-    retryDelaysMs: opts.restoreRetryDelaysMs,
+    endedProcesses,
     isStopped: () => released,
-    onRestoreSettled: opts.onRestoreSettled,
-    onRestoreSkipped: opts.onRestoreSkipped,
   });
 
-  const ctx: DaemonContext = {
-    build: opts.build,
-    daemonID: store.daemonID,
+  const messages = services.messages;
+  const hooks = services.hooks;
+  const bridges = services.bridges;
+  const output = services.output;
+  const reporter = services.reporter;
+  const restorer = services.restorer;
+
+  const ctx = buildDaemonContext({
+    opts,
+    store,
+    mgr,
+    clock,
+    targets,
+    targetsByID,
+    principals,
+    permissions,
+    services,
     idempotencyRetentionMs: IDEMPOTENCY_TTL_MS,
-    collectSessions: () => mgr.collectDescriptors(),
-    collectSpawnDirs: (access) => catalog.collectSpawnDirs(access),
-    collectAgents: () => catalog.collectAgents(),
-    collectFleet: () => store.loadFleet(),
-    loadLastUsedAgent: () => store.loadLastUsedAgent(),
-    findAdapter: (kind) => mgr.findAdapter(kind),
-    buildTargetAccess: (principal) => buildTargetAccess(principals, targetsByID, principal),
-    hasListedPrincipal: (principal) => principals?.has(principal) ?? false,
-    findSessionGrant: (id) => {
-      const s = mgr.sessions.find((x) => x.id === id);
-
-      return s === undefined ? null : { target: s.target, targetIdentity: s.targetIdentity };
-    },
-    findTargetIdentity: (target) => targets.find((x) => x.id === target)?.identity ?? null,
-    canSeeSession: (id, access) => isTreeInReach(mgr.sessions, id, access),
-    isSessionVisible: () => true,
-    findPermissionSession: (request) => permissions.findSessionID(request),
-    resolveSpawnParent: (id) => spawns.resolveSpawnParent(id),
-    resolveSpawnTarget: (requested) => spawns.resolveSpawnTarget(requested),
-    requireWorkspaceTarget: (target) => {
-      spawns.requireWorkspaceTarget(target);
-    },
-    buildDefaultWorkspaceDir: (target, source) => spawns.buildDefaultWorkspaceDir(target, source),
-    requireAgentTarget: (agent, target) => {
-      spawns.requireAgentTarget(agent, target);
-    },
-    findSource: (id) => catalog.findSource(id),
-    collectAlternateGitURLs: (url) => catalog.collectAlternateGitURLs(url),
-    checkRepositoryAccess: (request) => catalog.checkRepositoryAccess(request),
-    spawnSession: (plan, keyed, access) => spawns.spawnSession(plan, keyed, access),
-    updateSession: (id, changes) => mgr.updateSession(id, changes),
-    updateSessionScope: (id, scope) => mgr.updateScope(id, scope),
-    isCallerTree: (id, caller) => mgr.isCallerTree(id, caller),
-    quitDaemon: () => {
-      clock.schedule(() => {
-        void (async () => {
-          await stopDaemon?.();
-
-          opts.onQuit?.();
-        })();
-      }, QUIT_FLUSH_DELAY_MS);
-    },
-    killSession: (id, stopOnly) => forgetter.killSession(id, stopOnly),
-    forgetSession: (id, confirmToken, refuse, caller) =>
-      forgetter.forgetSession(id, confirmToken, refuse, caller),
-    revokeSessionAuth: (id) => mgr.revokeAuth(id),
-    updateSessionAuth: (id) => mgr.updateAuth(id),
-    ejectSession: (id, prompt) => handoff.yankSession(id, prompt),
-    adoptSession: (id, cols, rows, access) => handoff.adoptSession(id, cols, rows, access),
-    ackSession: (id) => {
-      if (!mgr.sessions.some((s) => s.id === id)) {
-        return false;
-      }
-
-      mgr.ack(id);
-
-      return true;
-    },
-    buildResumeCommand: (id) => mgr.buildResumeCommand(id),
-
-    readSessionScreen: (id) => input.readSessionScreen(id),
-    readSessionMenu: (id) => input.readSessionMenu(id),
-    applySessionMenuChoice: (id, choice) => input.applySessionMenuChoice(id, choice),
-    answerPermission: (request, decision) => permissions.answer(request, decision),
-    attachSession: (client, sessionID, dims) => output.attachSession(client, sessionID, dims),
-    detachSession: (client, sessionID) => {
-      output.detachSession(client, sessionID);
-    },
-    detachClient: (client) => {
-      output.detachClient(client);
-    },
-    writeSessionInput: (sessionID, data) => input.writeSessionInput(sessionID, data),
-    writeSessionLine: (sessionID, text) => input.writeSessionLine(sessionID, text),
-    resizeSession: (client, sessionID, dims) => output.updateSessionDims(client, sessionID, dims),
-    resyncClient: (sessionID, client) => output.sendReplay(sessionID, client),
-    ...(opts.queueBytes === undefined ? {} : { queueBytes: opts.queueBytes }),
-    getEffectiveDims: (sessionID) => output.getEffectiveDims(sessionID),
-    restoreFleet: (cols, rows) => restorer.runFleetRestore(cols, rows),
-    writeStateBackup: (path) => store.writeBackup(path),
-    readSessionRecord: (id, access) => reads.readSessionRecord(id, access),
-    loadSessionTranscript: (id, from, limit) => reads.loadSessionTranscript(id, from, limit),
-    readEvents: (afterID, limit, waitMs, sessionID, access) =>
-      trail.readEvents(afterID, limit, waitMs, sessionID, access),
-    readNote: (id, access) => trail.readNote(id, access),
-    readAnswer: (id, access) => trail.readAnswer(id, access),
-    writeSessionMessage: (sessionID, caller, text, keyed, access, callerSession) =>
-      messages.writeSessionMessage(sessionID, caller, text, keyed, access, callerSession),
-    attachTap: (client, sessionID, access, notices) =>
-      messages.attachTap(client, sessionID, access, notices),
-    detachTap: (client, sessionID) => {
-      messages.detachTap(client, sessionID);
-    },
-    readMessage: (messageID, waitMs) => messages.readMessage(messageID, waitMs),
-    ackMessage: (client, sessionID, messageID, access) =>
-      messages.ackMessage(client, sessionID, messageID, access),
-    ackNotice: (client, sessionID, messageID) => messages.ackNotice(client, sessionID, messageID),
-  };
+    stopDaemon: () => stopDaemon?.(),
+  });
 
   // Releases everything the daemon holds except its listeners, on a stop
   // and on a start that fails once it holds the lock.

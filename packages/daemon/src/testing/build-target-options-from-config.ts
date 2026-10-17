@@ -1,7 +1,7 @@
 import { collectTargets } from '@atc/config';
 import type { ExecutionProvider } from '@atc/plugin-api';
 import { buildTargetIdentity } from '@atc/store';
-import type { DaemonOptions } from '../daemon';
+import type { DaemonOptions } from '../daemon-options';
 
 interface RawTargetConfig {
   // The raw `targets` key of a config file.
