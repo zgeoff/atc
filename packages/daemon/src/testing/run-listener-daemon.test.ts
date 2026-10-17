@@ -51,7 +51,7 @@ test('it prints the loopback port its TCP listener bound', async () => {
 
   registerTestCleanup(() => socket.end());
 
-  expect(ctx.printed).toMatch(/^[1-9]\d*\n$/);
+  expect(ctx.printed).toMatch(/^[1-9]\d*\n$/u);
   expect(socket.remotePort).toBe(Number(ctx.printed.trim()));
 });
 

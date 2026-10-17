@@ -124,7 +124,7 @@ test('it refuses a streaming query', async () => {
 
   expect(() => ctx.connection.streamQuery(CompiledQuery.raw('SELECT 1'), 1)).toThrowWithMessage(
     Error,
-    /does not support streaming queries/,
+    /does not support streaming queries/u,
   );
 });
 

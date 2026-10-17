@@ -36,7 +36,7 @@ export async function answerMCPRequest(
   }
 
   const metadataURL = `${ctx.origin}/.well-known/oauth-protected-resource/mcp`;
-  const token = /^Bearer (?<token>\S+)$/i.exec(request.authorization ?? '')?.groups?.['token'];
+  const token = /^Bearer (?<token>\S+)$/iu.exec(request.authorization ?? '')?.groups?.['token'];
 
   if (token === undefined) {
     return new Response(null, {

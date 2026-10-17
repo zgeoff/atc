@@ -81,7 +81,7 @@ test('it rejects a client with the daemon stderr when the daemon exits before it
 
   expect(opening).rejects.toThrowWithMessage(
     Error,
-    /^the daemon exited \(1\) before it listened:\n.*--listen and --token-file go together/s,
+    /^the daemon exited \(1\) before it listened:\n.*--listen and --token-file go together/su,
   );
 });
 
@@ -98,7 +98,7 @@ test('it rejects a client at once with the daemon stderr when the daemon exited 
 
   expect(daemon.openClient()).rejects.toThrowWithMessage(
     Error,
-    /^the daemon exited \(1\) before it listened:\n.*--listen and --token-file go together/s,
+    /^the daemon exited \(1\) before it listened:\n.*--listen and --token-file go together/su,
   );
 });
 

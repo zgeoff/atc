@@ -14,5 +14,5 @@ test('it hashes a session filter apart from no filter', () => {
 });
 
 test('it hashes into 22 base64url characters', () => {
-  expect(buildEventsFilterHash('cloud.0f6c2a8e.s1', ['state'])).toMatch(/^[\w-]{22}$/);
+  expect(buildEventsFilterHash('cloud.0f6c2a8e.s1', ['state'])).toMatch(/^[\w-]{22}$/u);
 });

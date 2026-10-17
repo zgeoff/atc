@@ -103,7 +103,7 @@ test('it throws when the authorization stops short of the login page', async () 
 
   expect(authorizing).rejects.toThrowWithMessage(
     Error,
-    /^authorization did not reach the login page: https:\/\/dots\.example\/cb\?error=invalid_scope&/,
+    /^authorization did not reach the login page: https:\/\/dots\.example\/cb\?error=invalid_scope&/u,
   );
 });
 

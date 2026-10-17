@@ -38,7 +38,7 @@ test('it creates a claude that prints its pid, then echoes each line it reads', 
     stdin: Buffer.from('hello\n'),
   });
 
-  expect(result.stdout).toMatch(/^UP:\d+\nGOT:hello\n$/);
+  expect(result.stdout).toMatch(/^UP:\d+\nGOT:hello\n$/u);
 });
 
 test('it makes both tools executable', () => {

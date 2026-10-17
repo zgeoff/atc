@@ -48,7 +48,7 @@ test('it rejects an entry without a Linear issue ID', () => {
     JSON.stringify([{ file: 'e2e/tui-garden.test.ts', test: 'it waters the tulips' }]),
   );
 
-  expect(() => loadTestSkips(path)).toThrowWithMessage(Error, /issue/);
+  expect(() => loadTestSkips(path)).toThrowWithMessage(Error, /issue/u);
 });
 
 test('it rejects an issue that is not a Linear issue ID', () => {
@@ -62,7 +62,7 @@ test('it rejects an issue that is not a Linear issue ID', () => {
     ]),
   );
 
-  expect(() => loadTestSkips(path)).toThrowWithMessage(Error, /must be a Linear issue ID/);
+  expect(() => loadTestSkips(path)).toThrowWithMessage(Error, /must be a Linear issue ID/u);
 });
 
 test('it rejects a file that is not a test file', () => {
@@ -74,7 +74,7 @@ test('it rejects a file that is not a test file', () => {
     JSON.stringify([{ file: 'src/hedge.ts', test: 'it trims the hedge', issue: 'GEO-18' }]),
   );
 
-  expect(() => loadTestSkips(path)).toThrowWithMessage(Error, /must be a \.test\.ts path/);
+  expect(() => loadTestSkips(path)).toThrowWithMessage(Error, /must be a \.test\.ts path/u);
 });
 
 test('it rejects an empty test name', () => {
@@ -83,7 +83,7 @@ test('it rejects an empty test name', () => {
 
   writeFileSync(path, JSON.stringify([{ file: 'src/hedge.test.ts', test: '', issue: 'GEO-18' }]));
 
-  expect(() => loadTestSkips(path)).toThrowWithMessage(Error, /test/);
+  expect(() => loadTestSkips(path)).toThrowWithMessage(Error, /test/u);
 });
 
 test('it rejects an entry with an unknown key', () => {
@@ -97,7 +97,7 @@ test('it rejects an entry with an unknown key', () => {
     ]),
   );
 
-  expect(() => loadTestSkips(path)).toThrowWithMessage(Error, /until/);
+  expect(() => loadTestSkips(path)).toThrowWithMessage(Error, /until/u);
 });
 
 test('it rejects the same test listed twice', () => {
@@ -114,7 +114,7 @@ test('it rejects the same test listed twice', () => {
 
   expect(() => loadTestSkips(path)).toThrowWithMessage(
     Error,
-    /"it trims the hedge" in src\/hedge\.test\.ts is listed twice/,
+    /"it trims the hedge" in src\/hedge\.test\.ts is listed twice/u,
   );
 });
 

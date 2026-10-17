@@ -362,7 +362,7 @@ function buildSpecifier(
   }
 
   // an import of a folder's index names the folder
-  const module = original.endsWith('.ts') ? imported : imported.replace(/(?:\/index)?\.ts$/, '');
+  const module = original.endsWith('.ts') ? imported : imported.replace(/(?:\/index)?\.ts$/u, '');
   const dir = dirname(file);
   const path = relative(dir, module);
 

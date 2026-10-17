@@ -19,12 +19,12 @@ const ROWS_PER_OPTION = [1, 2, 3];
 const TALL_ROWS = DIALOG_CHROME_ROWS + LIST_WINDOW * 3;
 
 // A dialog's top border, or the rule above and below the prompt box.
-const RULE = /^\s*[─━═╌]{8,}\s*$/;
-const NUMBERED = /^\d+\.\s+(?<label>.*)$/;
-const BOX = /^\[(?<box>.)\]\s+(?<label>.*)$/;
+const RULE = /^\s*[─━═╌]{8,}\s*$/u;
+const NUMBERED = /^\d+\.\s+(?<label>.*)$/u;
+const BOX = /^\[(?<box>.)\]\s+(?<label>.*)$/u;
 
 // The mark a picker puts beside the value already in effect.
-const CURRENT_MARK = /^✔\s+/;
+const CURRENT_MARK = /^✔\s+/u;
 
 // The most lines above the options a menu's text takes, so a screen with no
 // border above the menu never makes the text the whole screen.

@@ -68,7 +68,7 @@ test.each([
     const screen = await waitFor(async () => {
       const read = await client.sendRequest('session.screen', { session: id });
 
-      expect(read['text']).toMatch(/FAKE_CLAUDE_TERM:\[.*\]/);
+      expect(read['text']).toMatch(/FAKE_CLAUDE_TERM:\[.*\]/u);
 
       return read;
     });
@@ -104,7 +104,7 @@ test('it starts a session without a parent-session variable the daemon started w
   const screen = await waitFor(async () => {
     const read = await client.sendRequest('session.screen', { session: id });
 
-    expect(read['text']).toMatch(/FAKE_CLAUDE_PARENT:\[.*\]/);
+    expect(read['text']).toMatch(/FAKE_CLAUDE_PARENT:\[.*\]/u);
 
     return read;
   });
@@ -141,7 +141,7 @@ test('it starts a native program whose path holds an equals sign with the DYLD_ 
   const screen = await waitFor(async () => {
     const read = await client.sendRequest('session.screen', { session: id });
 
-    expect(read['text']).toMatch(/FAKE_NATIVE_DYLD:\[.*\]/);
+    expect(read['text']).toMatch(/FAKE_NATIVE_DYLD:\[.*\]/u);
 
     return read;
   });

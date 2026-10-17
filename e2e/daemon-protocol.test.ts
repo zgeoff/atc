@@ -56,7 +56,7 @@ test('it answers daemon.hello with the build, limits, and features', async () =>
 
   expect(ok).toStrictEqual({
     daemon: ctx.build,
-    daemonID: expect.stringMatching(/^[\da-f-]{36}$/),
+    daemonID: expect.stringMatching(/^[\da-f-]{36}$/u),
     limits: { maxLine: 1_048_576, maxChunk: 65_536 },
     features: [
       'agents.list',

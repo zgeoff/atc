@@ -97,7 +97,7 @@ test('it reads the text and options of the menu a session waits on', async () =>
       },
       { option: 3, label: 'No', checked: null, highlighted: false },
     ],
-    menuToken: expect.stringMatching(/^[0-9a-f]{16}$/),
+    menuToken: expect.stringMatching(/^[0-9a-f]{16}$/u),
   });
 });
 

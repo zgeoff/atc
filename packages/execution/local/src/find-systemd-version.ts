@@ -16,7 +16,7 @@ export function findSystemdVersion(path: string): number | null {
     return null;
   }
 
-  const release = /libsystemd-shared-(?<release>\d+)/.exec(bytes)?.groups?.['release'];
+  const release = /libsystemd-shared-(?<release>\d+)/u.exec(bytes)?.groups?.['release'];
 
   return release === undefined ? null : Number(release);
 }

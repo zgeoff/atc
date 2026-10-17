@@ -63,7 +63,7 @@ test('it rejects an archive tar cannot read', () => {
     join(tmp.dir, 'dest'),
   );
 
-  expect(transfer).rejects.toThrow(/tar exited/);
+  expect(transfer).rejects.toThrow(/tar exited/u);
 });
 
 test('it applies the config on top of the defaults', async () => {

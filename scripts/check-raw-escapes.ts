@@ -36,7 +36,7 @@ function collectRawEscapes(source: string): string[] {
   return source
     .split('\n')
     .flatMap((line, index) =>
-      [...line.matchAll(new RegExp(ESC, 'g'))].map((match) => `${index + 1}:${match.index + 1}`),
+      [...line.matchAll(new RegExp(ESC, 'gu'))].map((match) => `${index + 1}:${match.index + 1}`),
     );
 }
 

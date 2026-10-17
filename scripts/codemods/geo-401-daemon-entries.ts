@@ -10,7 +10,7 @@ import { join } from 'node:path';
 
 const ROOT = join(import.meta.dir, '..', '..');
 const PACKAGE_DIR = 'packages/daemon';
-const DEEP_IMPORT = /(?<quote>['"])@atc\/daemon\/(?<module>(?!testing\k<quote>)[^'"]+)\k<quote>/g;
+const DEEP_IMPORT = /(?<quote>['"])@atc\/daemon\/(?<module>(?!testing\k<quote>)[^'"]+)\k<quote>/gu;
 
 function main(): void {
   const root = { '.': new Set<string>(), testing: new Set<string>() };

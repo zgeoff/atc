@@ -46,16 +46,16 @@ export function collectAuthProfiles(raw: unknown): AuthProfiles {
 
 // impd's secret name rule: an imp name's form, so a secret name is never a
 // path or a flag.
-const SECRET_NAME = /^[a-z][a-z0-9-]{0,30}$/;
+const SECRET_NAME = /^[a-z][a-z0-9-]{0,30}$/u;
 
 // impd's broker host rule: a lowercase hostname as a CONNECT carries it, with
 // no port and no wildcard, whose last label starts with a letter so an IP
 // address never matches.
-const BROKER_HOST = /^(?:[a-z0-9][a-z0-9-]{0,62}\.)+[a-z][a-z0-9-]{0,62}$/;
+const BROKER_HOST = /^(?:[a-z0-9][a-z0-9-]{0,62}\.)+[a-z][a-z0-9-]{0,62}$/u;
 const BROKER_HOST_MAX = 253;
 
 // impd's header name rule.
-const HEADER_NAME = /^[a-z0-9-]{1,64}$/;
+const HEADER_NAME = /^[a-z0-9-]{1,64}$/u;
 
 // The profile an entry holds, or the first rule it breaks.
 function parseAuthProfile(name: string, entry: unknown): AuthProfile | string {
@@ -133,7 +133,7 @@ function parseAuthProfile(name: string, entry: unknown): AuthProfile | string {
   };
 }
 
-const ENV_NAME = /^[A-Z_][A-Z0-9_]*$/;
+const ENV_NAME = /^[A-Z_][A-Z0-9_]*$/u;
 const RESERVED_ENV_PREFIXES = ['ANTHROPIC_', 'CLAUDE_', 'ATC_', 'CODEX_', 'OPENAI_'];
 
 const RESERVED_ENV_NAMES: ReadonlySet<string> = new Set(['PATH', 'HOME']);

@@ -101,7 +101,7 @@ async function planReplacement(pid: number | null, host: LifecycleHost): Promise
 
   const shown = await host.runSystemctl(['show', '-p', 'ExecStart', '--value', unit]);
 
-  const execPath = /path=(?<path>[^\s;]+)/.exec(shown.stdout)?.groups?.['path'];
+  const execPath = /path=(?<path>[^\s;]+)/u.exec(shown.stdout)?.groups?.['path'];
 
   return {
     kind: 'unit',

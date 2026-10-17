@@ -6,9 +6,9 @@ import { z } from 'zod';
 
 const testSkipSchema = z
   .object({
-    file: z.string().regex(/\.test\.ts$/, 'must be a .test.ts path'),
+    file: z.string().regex(/\.test\.ts$/u, 'must be a .test.ts path'),
     test: z.string().min(1),
-    issue: z.string().regex(/^GEO-\d+$/, 'must be a Linear issue ID such as GEO-123'),
+    issue: z.string().regex(/^GEO-\d+$/u, 'must be a Linear issue ID such as GEO-123'),
   })
   .strict();
 

@@ -1884,7 +1884,7 @@ test('it refuses to take back an attempt through a target whose imp prefix chang
 
   expect(removed).rejects.toThrowWithMessage(
     EffectRemainsError,
-    /^atc could not take back the runtime auth of host s1 \(/,
+    /^atc could not take back the runtime auth of host s1 \(/u,
   );
 
   const imps = ctx.host.collectHostNames().toSorted();

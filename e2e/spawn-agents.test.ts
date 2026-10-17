@@ -222,7 +222,7 @@ test('it lists each registered agent with what it can do and the host it runs on
       },
     ],
     spawnDefaults: { agent: 'claude', target: 'local' },
-    configRevision: expect.stringMatching(/^[\da-f]{16}$/),
+    configRevision: expect.stringMatching(/^[\da-f]{16}$/u),
     targetErrors: [],
     sources: [],
   });

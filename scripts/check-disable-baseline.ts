@@ -58,7 +58,7 @@ const IMPORT_RULES: ReadonlySet<string> = new Set([
 ]);
 
 const DIRECTIVE =
-  /^(?:\/\/|\/\*)\s*(?:oxlint|eslint)-disable(?:-next-line|-line)?(?<rules>(?:\s[\s\S]*|\*\/)?)$/;
+  /^(?:\/\/|\/\*)\s*(?:oxlint|eslint)-disable(?:-next-line|-line)?(?<rules>(?:\s[\s\S]*|\*\/)?)$/u;
 
 /**
  * The line of each directive in the source that switches off an import
@@ -86,7 +86,7 @@ function collectDirectives(source: string): number[] {
   );
 }
 
-const COMMENT = /\/\/[^\n\r]*|\/\*[\s\S]*?\*\//g;
+const COMMENT = /\/\/[^\n\r]*|\/\*[\s\S]*?\*\//gu;
 
 function isImportRuleDirective(comment: string): boolean {
   const match = DIRECTIVE.exec(comment);
@@ -96,9 +96,9 @@ function isImportRuleDirective(comment: string): boolean {
   }
 
   const rules = (match.groups?.['rules'] ?? '')
-    .replace(/\*\/$/, '')
+    .replace(/\*\/$/u, '')
     .split('--')[0]
-    ?.split(/[\s,*]+/)
+    ?.split(/[\s,*]+/u)
     .filter((rule) => rule !== '')
     .map((rule) => rule.slice(rule.lastIndexOf('/') + 1));
 

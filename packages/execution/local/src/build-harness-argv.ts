@@ -58,7 +58,7 @@ function toAssignment([name, value]: readonly [string, string]): string {
 
 // A name the shell's `export` refuses, which would end the shell before it
 // runs the program, stays an assignment word for `env` instead.
-const SHELL_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const SHELL_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/u;
 
 // The shell's `$0` is the program path, and the values sit in `$1` onward,
 // in the order of the names, ahead of the program's own arguments. Each

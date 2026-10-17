@@ -57,6 +57,6 @@ test('it throws for a session the manager does not hold', async () => {
 
   expect(() => getDescriptor(ctx.mgr, toSessionID('s-gone'))).toThrowWithMessage(
     Error,
-    /descriptor for unknown session s-gone/,
+    /descriptor for unknown session s-gone/u,
   );
 });

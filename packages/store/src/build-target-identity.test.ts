@@ -8,7 +8,7 @@ test('it builds the identity a stored session holds for the same options', () =>
 });
 
 test('it builds a versioned imp identity with a sixteen-digit hex digest', () => {
-  expect(buildTargetIdentity('imp', { image: 'dev' })).toMatch(/^imp:reach-v1:[\da-f]{16}$/);
+  expect(buildTargetIdentity('imp', { image: 'dev' })).toMatch(/^imp:reach-v1:[\da-f]{16}$/u);
 });
 
 test('it builds the same identity whatever order the options list their keys in', () => {

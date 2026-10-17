@@ -277,7 +277,7 @@ test('it has a rule for every id in a session.resumeCommand answer', async () =>
     session: getRecord(spawned, 'session')['id'],
   });
 
-  expect(command['command']).toMatch(/[\da-f]{8}-/);
+  expect(command['command']).toMatch(/[\da-f]{8}-/u);
 
   expect(
     collectUnruledIDPaths(command, ID_RULES['session.resumeCommand'] ?? new Map()),

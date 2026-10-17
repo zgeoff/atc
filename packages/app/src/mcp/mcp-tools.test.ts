@@ -268,7 +268,7 @@ test('it gives each tool the scope the MCP architecture doc lists for it', async
     join(import.meta.dir, '../../../../docs/architecture/remote/mcp.md'),
   ).text();
 
-  const rows = doc.matchAll(/^\| `(?<tool>atc_[a-z_]+)` +\| `(?<scope>[a-z]+)` +\|$/gm);
+  const rows = doc.matchAll(/^\| `(?<tool>atc_[a-z_]+)` +\| `(?<scope>[a-z]+)` +\|$/gmu);
 
   expect(
     Object.fromEntries(
@@ -286,7 +286,7 @@ test('it names only tools that exist wherever a description refers to a tool', (
 
   const text = JSON.stringify(MCP_TOOLS.map((tool) => [tool.description, tool.inputSchema]));
 
-  const referred = new Set(text.match(/atc_[a-z]+(?:_[a-z]+)+/g));
+  const referred = new Set(text.match(/atc_[a-z]+(?:_[a-z]+)+/gu));
 
   expect([...referred].filter((name) => !names.has(name))).toStrictEqual([]);
 });

@@ -40,7 +40,7 @@ test('it refuses a token a claim already took', () => {
 
   expect(() => {
     ctx.tokens.claimToken(toSessionID('s-1'), minted.confirmToken);
-  }).toThrowWithMessage(DaemonError, /^confirm token for session s-1 is used;/);
+  }).toThrowWithMessage(DaemonError, /^confirm token for session s-1 is used;/u);
 });
 
 test('it refuses a token past its lifetime as expired', () => {
@@ -51,7 +51,7 @@ test('it refuses a token past its lifetime as expired', () => {
 
   expect(() => {
     ctx.tokens.claimToken(toSessionID('s-1'), minted.confirmToken);
-  }).toThrowWithMessage(DaemonError, /^confirm token for session s-1 is expired;/);
+  }).toThrowWithMessage(DaemonError, /^confirm token for session s-1 is expired;/u);
 });
 
 test('it forgets a token one lifetime after it expired', () => {
@@ -62,7 +62,7 @@ test('it forgets a token one lifetime after it expired', () => {
 
   expect(() => {
     ctx.tokens.claimToken(toSessionID('s-1'), minted.confirmToken);
-  }).toThrowWithMessage(DaemonError, /^confirm token for session s-1 is unknown;/);
+  }).toThrowWithMessage(DaemonError, /^confirm token for session s-1 is unknown;/u);
 });
 
 test('it refuses a token minted for another session', () => {
@@ -71,7 +71,7 @@ test('it refuses a token minted for another session', () => {
 
   expect(() => {
     ctx.tokens.claimToken(toSessionID('s-2'), minted.confirmToken);
-  }).toThrowWithMessage(DaemonError, /^confirm token for session s-2 is unknown;/);
+  }).toThrowWithMessage(DaemonError, /^confirm token for session s-2 is unknown;/u);
 });
 
 test('it refuses a token it never minted', () => {
@@ -79,5 +79,5 @@ test('it refuses a token it never minted', () => {
 
   expect(() => {
     ctx.tokens.claimToken(toSessionID('s-1'), 'made-up-token');
-  }).toThrowWithMessage(DaemonError, /^confirm token for session s-1 is unknown;/);
+  }).toThrowWithMessage(DaemonError, /^confirm token for session s-1 is unknown;/u);
 });

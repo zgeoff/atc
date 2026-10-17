@@ -10,17 +10,17 @@ test('it passes an event its contract parses unchanged', () => {
 test('it throws for an event its contract refuses', () => {
   expect(() => {
     assertContractEvent({ v: 4, ev: 'SessionResized', s: 's-1', cols: 80 });
-  }).toThrowWithMessage(Error, /^SessionResized event outside its contract/);
+  }).toThrowWithMessage(Error, /^SessionResized event outside its contract/u);
 });
 
 test('it throws for an event holding a field its contract drops', () => {
   expect(() => {
     assertContractEvent({ v: 4, ev: 'SessionResized', s: 's-1', cols: 80, rows: 24, dpi: 2 });
-  }).toThrowWithMessage(Error, /^SessionResized event has fields its contract drops/);
+  }).toThrowWithMessage(Error, /^SessionResized event has fields its contract drops/u);
 });
 
 test('it throws for an event name the contract does not define', () => {
   expect(() => {
     assertContractEvent({ v: 4, ev: 'SessionExploded', s: 's-1' });
-  }).toThrowWithMessage(Error, /^SessionExploded event outside its contract/);
+  }).toThrowWithMessage(Error, /^SessionExploded event outside its contract/u);
 });

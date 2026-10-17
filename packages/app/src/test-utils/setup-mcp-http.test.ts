@@ -21,7 +21,7 @@ test('it collects a request line for each request the server answers', async () 
   await fetch(`${server.url}/.well-known/oauth-protected-resource/mcp`);
 
   expect(server.requests).toIncludeSameMembers([
-    expect.stringMatching(/^GET \/\.well-known\/oauth-protected-resource\/mcp 200 \d+ms$/),
+    expect.stringMatching(/^GET \/\.well-known\/oauth-protected-resource\/mcp 200 \d+ms$/u),
   ]);
 });
 

@@ -386,7 +386,7 @@ const RESERVED_CODES = new Set([0x09, 0x0d, 0x1b]);
  * client.
  */
 function decodeLeader(name: string): LeaderKey | null {
-  const m = /^ctrl-(?<key>.+)$/i.exec(name.trim().toLowerCase());
+  const m = /^ctrl-(?<key>.+)$/iu.exec(name.trim().toLowerCase());
   const key = m?.groups?.['key'];
 
   if (key === undefined) {
@@ -400,7 +400,7 @@ function decodeLeader(name: string): LeaderKey | null {
   let code: number | null = null;
   const cp = key.codePointAt(0);
 
-  if (/^[a-z]$/.test(key) && cp !== undefined) {
+  if (/^[a-z]$/u.test(key) && cp !== undefined) {
     code = cp - 96;
   } else if (key === '[') {
     code = 0x1b;

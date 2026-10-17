@@ -12,6 +12,6 @@ test('it refuses a request whose feature the daemon lacks with a restart hint', 
     requireDaemonFeatures(new Set(), ['events.session']);
   }).toThrowWithMessage(
     Error,
-    /^daemon_outdated: .*atc_events_read's session filter\. Restart the daemon/,
+    /^daemon_outdated: .*atc_events_read's session filter\. Restart the daemon/u,
   );
 });

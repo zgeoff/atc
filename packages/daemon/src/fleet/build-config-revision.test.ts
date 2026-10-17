@@ -32,7 +32,7 @@ test('it builds a sixteen-digit hex revision', () => {
       'local',
       [],
     ),
-  ).toMatch(/^[\da-f]{16}$/);
+  ).toMatch(/^[\da-f]{16}$/u);
 });
 
 test('it builds the same revision for the same targets, default, and errors', () => {

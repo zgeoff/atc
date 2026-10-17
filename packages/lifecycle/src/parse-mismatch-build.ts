@@ -9,7 +9,7 @@ interface MismatchBuild {
  * not match that wording.
  */
 export function parseMismatchBuild(text: string): MismatchBuild | null {
-  const match = /\bdaemon (?<build>\S+) speaks v(?<protocol>\d+)/.exec(text);
+  const match = /\bdaemon (?<build>\S+) speaks v(?<protocol>\d+)/u.exec(text);
 
   if (match === null) {
     return null;

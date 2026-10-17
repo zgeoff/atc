@@ -83,5 +83,5 @@ test('it throws when the passkey does not enroll', async () => {
       buildStubAuthenticator().create(options, { origin: 'https://elsewhere.example' }),
   });
 
-  expect(enrolling).rejects.toThrowWithMessage(Error, /^the passkey did not enroll: 400 /);
+  expect(enrolling).rejects.toThrowWithMessage(Error, /^the passkey did not enroll: 400 /u);
 });

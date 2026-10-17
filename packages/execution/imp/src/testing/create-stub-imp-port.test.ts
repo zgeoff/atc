@@ -227,7 +227,7 @@ test('it streams a started session with offsets and delivers its exit with the e
       output: {
         continuity: 'offsets',
         bootId: ctx.port.getBootID('imp-a'),
-        executionGeneration: expect.toSatisfy((value: string) => /^[0-9a-f]{32}$/.test(value)),
+        executionGeneration: expect.toSatisfy((value: string) => /^[0-9a-f]{32}$/u.test(value)),
         bufferStart: 0,
         end: 0,
         offset: 0,
@@ -4044,7 +4044,7 @@ test('it detaches a live connection as lost and stops its process when the imp s
   );
 
   await waitFor(() => {
-    expect(Buffer.concat(chunks).toString()).toMatch(/^\d+\r\n$/);
+    expect(Buffer.concat(chunks).toString()).toMatch(/^\d+\r\n$/u);
   });
 
   const pid = Buffer.concat(chunks).toString().trim();
@@ -4090,7 +4090,7 @@ test('it continues a stopped process under the same generation when the imp wake
   );
 
   await waitFor(() => {
-    expect(Buffer.concat(chunks).toString()).toMatch(/^\d+\r\n$/);
+    expect(Buffer.concat(chunks).toString()).toMatch(/^\d+\r\n$/u);
   });
 
   const pid = Buffer.concat(chunks).toString().trim();
@@ -4176,7 +4176,7 @@ test('it closes a live connection and kills its process when the imp is destroye
   );
 
   await waitFor(() => {
-    expect(Buffer.concat(chunks).toString()).toMatch(/^\d+\r\n$/);
+    expect(Buffer.concat(chunks).toString()).toMatch(/^\d+\r\n$/u);
   });
 
   const pid = Buffer.concat(chunks).toString().trim();

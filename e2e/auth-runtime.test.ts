@@ -2547,8 +2547,8 @@ test('it provisions concurrent spawns each in an imp of its own with only its ow
   const bindings = await store.collectAuthBindings();
 
   expect<readonly unknown[]>(imps).toStrictEqual([
-    expect.stringMatching(/^atc-[\da-f]{20}$/),
-    expect.stringMatching(/^atc-[\da-f]{20}$/),
+    expect.stringMatching(/^atc-[\da-f]{20}$/u),
+    expect.stringMatching(/^atc-[\da-f]{20}$/u),
   ]);
 
   expect(grants).toStrictEqual([['glm'], ['glm']]);

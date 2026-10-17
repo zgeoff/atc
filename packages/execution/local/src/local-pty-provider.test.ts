@@ -85,7 +85,7 @@ test('it gives the pid of the harness process the pseudo-terminal runs', async (
   });
 
   await waitFor(() => {
-    expect(output.join('')).toMatch(/PID:\d+\r?\n/);
+    expect(output.join('')).toMatch(/PID:\d+\r?\n/u);
   });
 
   expect(output.join('')).toInclude(`PID:${String(harness.pid)}`);
@@ -329,10 +329,10 @@ test('it reports no exit for a killed harness whose process ignores the kill', a
   });
 
   await waitFor(() => {
-    expect(output.join('')).toMatch(/PID:\d+:/);
+    expect(output.join('')).toMatch(/PID:\d+:/u);
   });
 
-  const printed = /PID:(?<pid>\d+):/.exec(output.join(''))?.groups?.['pid'];
+  const printed = /PID:(?<pid>\d+):/u.exec(output.join(''))?.groups?.['pid'];
 
   invariant(printed !== undefined, 'the harness printed no pid');
 
@@ -463,7 +463,7 @@ test('it rejects an archive tar cannot read', () => {
     join(ctx.dir, 'dest'),
   );
 
-  expect(transfer).rejects.toThrow(/tar exited/);
+  expect(transfer).rejects.toThrow(/tar exited/u);
 });
 
 test('it runs a command in a directory and returns its exit code and output', async () => {
@@ -561,7 +561,7 @@ test('it fails the spawn of a program the harness PATH does not hold', () => {
       cols: 80,
       rows: 24,
     }),
-  ).toThrowWithMessage(Error, /PTY spawn failed/);
+  ).toThrowWithMessage(Error, /PTY spawn failed/u);
 });
 
 test('it runs a harness whose program path holds an equals sign', async () => {
@@ -642,7 +642,7 @@ test('it starts a harness in a scope of its own bound to the daemon service', as
 
   // One call per line, so the anchored pattern matches exactly one call.
   expect(systemd.readSystemdRunCalls().join('\n')).toMatch(
-    /^--user --scope --quiet --collect --expand-environment=no --unit=atc-daemon-session-0a1b2c3d-s1-[\da-f]{8}\.scope --description=atc session s1 --property=BindsTo=atc-daemon\.service -- \/usr\/bin\/env [^\n]* \/usr\/bin\/bash -c echo READY; sleep 30$/,
+    /^--user --scope --quiet --collect --expand-environment=no --unit=atc-daemon-session-0a1b2c3d-s1-[\da-f]{8}\.scope --description=atc session s1 --property=BindsTo=atc-daemon\.service -- \/usr\/bin\/env [^\n]* \/usr\/bin\/bash -c echo READY; sleep 30$/u,
   );
 });
 
@@ -679,7 +679,7 @@ test('it stops the scope of each harness it started as it is disposed', async ()
     expect(systemd.readSystemdRunCalls()).toHaveLength(1);
   });
 
-  const scope = systemd.readSystemdRunCalls()[0]?.match(/--unit=(?<unit>\S+)/)?.groups?.['unit'];
+  const scope = systemd.readSystemdRunCalls()[0]?.match(/--unit=(?<unit>\S+)/u)?.groups?.['unit'];
 
   await provider.dispose();
 

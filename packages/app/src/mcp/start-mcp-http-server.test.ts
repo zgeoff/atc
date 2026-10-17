@@ -660,7 +660,7 @@ test('it denies the request when the operator allows nothing', async () => {
     iss: ctx.origin,
   });
 
-  expect(consented.headers.get('set-cookie')).toMatch(/session_token=; Max-Age=0;/);
+  expect(consented.headers.get('set-cookie')).toMatch(/session_token=; Max-Age=0;/u);
 });
 
 test('it shows the consent page on every authorization of a client', async () => {
@@ -1861,7 +1861,7 @@ test.each([
     printSecurity: () => {},
   });
 
-  expect(started).rejects.toThrow(/needs an https public URL/);
+  expect(started).rejects.toThrow(/needs an https public URL/u);
 });
 
 test('it listens beyond loopback behind an https public URL', async () => {
@@ -1889,7 +1889,7 @@ test('it listens beyond loopback behind an https public URL', async () => {
   registerTestCleanup(() => listening.stop());
 
   expect(listening.origin).toBe('https://mcp.example.com');
-  expect(listening.listening).toMatch(/^http:\/\/0\.0\.0\.0:\d+$/);
+  expect(listening.listening).toMatch(/^http:\/\/0\.0\.0\.0:\d+$/u);
 });
 
 test('it refuses a consent answer for a request no passkey signed in for', async () => {
@@ -2563,7 +2563,7 @@ test('it prints one line per request with its method, path, tool, status, time, 
   expect(ctx.requests).toHaveLength(1);
 
   expect(ctx.requests[0]).toMatch(
-    /^POST \/mcp 401 \d+ms rpc=tools\/call tool=atc_sessions_list mcp-protocol-version=2025-06-18$/,
+    /^POST \/mcp 401 \d+ms rpc=tools\/call tool=atc_sessions_list mcp-protocol-version=2025-06-18$/u,
   );
 });
 
@@ -2613,9 +2613,9 @@ test('it prints a request line without the query, the token, or the requester ad
   );
 
   expect(ctx.requests).toIncludeAllMembers([
-    expect.stringMatching(/^GET \/oauth2\/authorize 302 \d+ms$/),
-    expect.stringMatching(/^POST \/oauth2\/token 200 \d+ms$/),
-    expect.stringMatching(/^POST \/mcp 200 \d+ms rpc=ping$/),
+    expect.stringMatching(/^GET \/oauth2\/authorize 302 \d+ms$/u),
+    expect.stringMatching(/^POST \/oauth2\/token 200 \d+ms$/u),
+    expect.stringMatching(/^POST \/mcp 200 \d+ms rpc=ping$/u),
   ]);
 });
 
@@ -2630,7 +2630,7 @@ test('it prints a refused MCP request without reading its JSON-RPC method', asyn
 
   expect(refused.status).toBe(403);
   expect(ctx.requests).toHaveLength(1);
-  expect(ctx.requests[0]).toMatch(/^POST \/mcp 403 \d+ms$/);
+  expect(ctx.requests[0]).toMatch(/^POST \/mcp 403 \d+ms$/u);
 });
 
 test('it writes an accepted start, an owner sign-in, and an allowed consent as security events', async () => {

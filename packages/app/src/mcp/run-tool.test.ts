@@ -754,7 +754,7 @@ test('it derives a top-level fallback key within the daemon cap from the longest
 
   expect(relay.requests.map((request) => request.p?.['idempotencyKey'])).toStrictEqual([
     'k'.repeat(180),
-    expect.stringMatching(/^top-level:[0-9a-f]{64}$/),
+    expect.stringMatching(/^top-level:[0-9a-f]{64}$/u),
   ]);
 });
 
@@ -784,7 +784,7 @@ test('it derives the same top-level fallback key when the call is retried', asyn
 
   expect(keys).toStrictEqual([
     'k'.repeat(180),
-    expect.stringMatching(/^top-level:[0-9a-f]{64}$/),
+    expect.stringMatching(/^top-level:[0-9a-f]{64}$/u),
     'k'.repeat(180),
     keys[1],
   ]);
@@ -857,7 +857,7 @@ test('it refuses a spawn on a target unsent when the daemon predates targets', (
     { callerSessionID: null },
   );
 
-  expect(spawn).rejects.toThrow(/^daemon_outdated: .*atc_session_spawn's target/);
+  expect(spawn).rejects.toThrow(/^daemon_outdated: .*atc_session_spawn's target/u);
   expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
 });
 
@@ -953,7 +953,7 @@ test('it refuses a git workspace without a cwd unsent when the daemon predates p
   );
 
   expect(spawn).rejects.toThrow(
-    /^daemon_outdated: .*atc_session_spawn's git workspace without a cwd/,
+    /^daemon_outdated: .*atc_session_spawn's git workspace without a cwd/u,
   );
 
   expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
@@ -994,7 +994,7 @@ test('it refuses a spawn with a workspace unsent when the daemon predates worksp
     { callerSessionID: null },
   );
 
-  expect(spawn).rejects.toThrow(/^daemon_outdated: .*atc_session_spawn's workspace/);
+  expect(spawn).rejects.toThrow(/^daemon_outdated: .*atc_session_spawn's workspace/u);
   expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
 });
 
@@ -1033,7 +1033,7 @@ test('it refuses a session input line unsent when the daemon predates line submi
     { callerSessionID: null },
   );
 
-  expect(input).rejects.toThrow(/^daemon_outdated: .*atc_terminal_type/);
+  expect(input).rejects.toThrow(/^daemon_outdated: .*atc_terminal_type/u);
   expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
 });
 
@@ -1177,7 +1177,7 @@ test('it refuses a full events read unsent when the daemon predates answer reads
 
   const read = runTool(caller, 'atc_events_read', {}, { callerSessionID: null });
 
-  expect(read).rejects.toThrow(/^daemon_outdated: .*atc_events_read's full answers/);
+  expect(read).rejects.toThrow(/^daemon_outdated: .*atc_events_read's full answers/u);
   expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
 });
 
@@ -1215,7 +1215,7 @@ test('it refuses a menu read unsent when the daemon predates menus', () => {
 
   const read = runTool(caller, 'atc_terminal_choose', { session: 's1' }, { callerSessionID: null });
 
-  expect(read).rejects.toThrow(/^daemon_outdated: .*atc_terminal_choose/);
+  expect(read).rejects.toThrow(/^daemon_outdated: .*atc_terminal_choose/u);
   expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
 });
 
@@ -1268,7 +1268,7 @@ test('it refuses a stop unsent when the daemon predates stop-only kills', () => 
 
   const stop = runTool(caller, 'atc_session_stop', { session: 's1' }, { callerSessionID: null });
 
-  expect(stop).rejects.toThrow(/^daemon_outdated: .*atc_session_stop/);
+  expect(stop).rejects.toThrow(/^daemon_outdated: .*atc_session_stop/u);
   expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
 });
 
@@ -1349,7 +1349,7 @@ test('it refuses a rename unsent when the daemon predates a reported skipped ren
   );
 
   expect(update).rejects.toThrow(
-    /^daemon_outdated: .*atc_session_update's report of a skipped rename/,
+    /^daemon_outdated: .*atc_session_update's report of a skipped rename/u,
   );
 
   expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
@@ -1375,7 +1375,7 @@ test('it refuses a detach unsent when the daemon predates a null parent on updat
     { callerSessionID: null },
   );
 
-  expect(update).rejects.toThrow(/^daemon_outdated: .*atc_session_update's parent/);
+  expect(update).rejects.toThrow(/^daemon_outdated: .*atc_session_update's parent/u);
   expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
 });
 
@@ -1450,7 +1450,7 @@ test('it refuses an explicit trust decision unsent when the daemon predates clon
     { callerSessionID: null },
   );
 
-  expect(spawn).rejects.toThrow(/^daemon_outdated: .*atc_session_spawn's trustClonedWorkspace/);
+  expect(spawn).rejects.toThrow(/^daemon_outdated: .*atc_session_spawn's trustClonedWorkspace/u);
   expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
 });
 
@@ -1475,7 +1475,7 @@ test.each([
     callerSessionID: null,
   });
 
-  expect(call).rejects.toThrow(/^daemon_outdated: .*note and queued words/);
+  expect(call).rejects.toThrow(/^daemon_outdated: .*note and queued words/u);
   expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
 });
 
@@ -1926,7 +1926,7 @@ test('it refuses a live session without stop and leaves it running', async () =>
     { callerSessionID: null },
   );
 
-  expect(refused).rejects.toThrowWithMessage(Error, /^session_live: .*stop: true/);
+  expect(refused).rejects.toThrowWithMessage(Error, /^session_live: .*stop: true/u);
 
   expect(ctx.caller.sendRequest('session.list')).resolves.toMatchObject({
     sessions: [expect.objectContaining({ id, alive: true })],
@@ -1953,7 +1953,7 @@ test('it refuses a pinned session and leaves it listed', async () => {
     { callerSessionID: null },
   );
 
-  expect(refused).rejects.toThrowWithMessage(Error, /^session_pinned: .*atc_session_update/);
+  expect(refused).rejects.toThrowWithMessage(Error, /^session_pinned: .*atc_session_update/u);
 
   expect(ctx.caller.sendRequest('session.list')).resolves.toMatchObject({
     sessions: [expect.objectContaining({ id, pinned: true, alive: true })],
@@ -1989,7 +1989,7 @@ test('it refuses a sub-session of a pinned session and leaves both listed', asyn
     { callerSessionID: null },
   );
 
-  expect(refused).rejects.toThrowWithMessage(Error, /^session_pinned: /);
+  expect(refused).rejects.toThrowWithMessage(Error, /^session_pinned: /u);
 
   expect(ctx.caller.sendRequest('session.list')).resolves.toMatchObject({
     sessions: [expect.objectContaining({ id: parent }), expect.objectContaining({ id: child })],
@@ -2024,7 +2024,7 @@ test('it refuses a session a pin reaches just before the forget does', async () 
     { callerSessionID: null },
   );
 
-  expect(refused).rejects.toThrowWithMessage(Error, /^session_pinned: .*atc_session_update/);
+  expect(refused).rejects.toThrowWithMessage(Error, /^session_pinned: .*atc_session_update/u);
 
   expect(ctx.caller.sendRequest('session.list')).resolves.toMatchObject({
     sessions: [expect.objectContaining({ id, pinned: true, alive: true })],
@@ -2158,7 +2158,7 @@ test('it falls back to its own check when a gateway routes the forget to a daemo
     { callerSessionID: null },
   );
 
-  expect(refused).rejects.toThrowWithMessage(Error, /^session_pinned: .*atc_session_update/);
+  expect(refused).rejects.toThrowWithMessage(Error, /^session_pinned: .*atc_session_update/u);
   expect(old.requests.map((request) => request.m)).toStrictEqual(['daemon.hello', 'session.get']);
 });
 

@@ -50,7 +50,7 @@ export class SessionScopes {
 
   constructor(config: SessionScopesConfig) {
     this.config = config;
-    this.prefix = `${config.unit.replace(/\.service$/, '')}-session-`;
+    this.prefix = `${config.unit.replace(/\.service$/u, '')}-session-`;
     this.runPrefix = `${this.prefix}${config.run}-`;
   }
 
@@ -66,7 +66,7 @@ export class SessionScopes {
     session: string,
     argv: readonly string[],
   ): Readonly<{ file: string; args: string[] }> {
-    const name = `${this.runPrefix}${session.replaceAll(/[^\w.-]/g, '_')}-${randomUUID().slice(0, 8)}.scope`;
+    const name = `${this.runPrefix}${session.replaceAll(/[^\w.-]/gu, '_')}-${randomUUID().slice(0, 8)}.scope`;
 
     this.started.add(name);
 
@@ -120,7 +120,7 @@ export class SessionScopes {
     }
 
     const names = stdout
-      .split(/\s+/)
+      .split(/\s+/u)
       .filter(
         (name) =>
           name.startsWith(this.prefix) &&

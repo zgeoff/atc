@@ -889,7 +889,7 @@ test('it logs a later session whose revive fails and leaves it without a termina
   expect(restored.restored).toBe(2);
 
   expect<readonly unknown[]>(ctx.logged).toStrictEqual([
-    expect.stringMatching(/^atc: wake of session s-first on target 'box' took /),
+    expect.stringMatching(/^atc: wake of session s-first on target 'box' took /u),
     'atc could not revive session s-second (no plan for s-second)',
   ]);
 
@@ -961,7 +961,7 @@ test('it logs a first session whose revive fails with a plain error and still re
 
   expect<readonly unknown[]>(ctx.logged).toStrictEqual([
     'atc could not revive session s-first (no plan for s-first)',
-    expect.stringMatching(/^atc: wake of session s-second on target 'box' took /),
+    expect.stringMatching(/^atc: wake of session s-second on target 'box' took /u),
   ]);
 });
 
@@ -1060,7 +1060,7 @@ test('it revives a session on a later try once its imp stops refusing it', async
 
   expect<readonly unknown[]>(ctx.logged).toStrictEqual([
     `atc could not revive session s-busy (imp ${ctx.impProvider.getImpName('s-busy')} cannot be used: impd refused the lease (UNAVAILABLE)); trying again`,
-    expect.stringMatching(/^atc: wake of session s-busy on target 'box' took /),
+    expect.stringMatching(/^atc: wake of session s-busy on target 'box' took /u),
   ]);
 });
 

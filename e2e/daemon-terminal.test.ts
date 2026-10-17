@@ -385,12 +385,12 @@ test.each([['codex'], ['grok']])(
         .map((e) => String(e['d']))
         .join('');
 
-      expect(output).toMatch(/SUBMIT:.*\r/);
+      expect(output).toMatch(/SUBMIT:.*\r/u);
 
       return output;
     });
 
-    expect(submitted.match(/SUBMIT:.*/g)).toStrictEqual(['SUBMIT:"hello"']);
+    expect(submitted.match(/SUBMIT:.*/gu)).toStrictEqual(['SUBMIT:"hello"']);
   },
 );
 
@@ -444,12 +444,12 @@ test('it submits a multi-line text to a codex session as one submission', async 
       .map((e) => String(e['d']))
       .join('');
 
-    expect(output).toMatch(/SUBMIT:.*\r/);
+    expect(output).toMatch(/SUBMIT:.*\r/u);
 
     return output;
   });
 
-  expect(submitted.match(/SUBMIT:.*/g)).toStrictEqual([String.raw`SUBMIT:"first\nsecond"`]);
+  expect(submitted.match(/SUBMIT:.*/gu)).toStrictEqual([String.raw`SUBMIT:"first\nsecond"`]);
 });
 
 test('it submits a line to a claude session as one line', async () => {
@@ -493,12 +493,12 @@ test('it submits a line to a claude session as one line', async () => {
       .map((e) => String(e['d']))
       .join('');
 
-    expect(output).toMatch(/GOT:.*\r/);
+    expect(output).toMatch(/GOT:.*\r/u);
 
     return output;
   });
 
-  expect(got.match(/GOT:.*/g)).toStrictEqual(['GOT:hello']);
+  expect(got.match(/GOT:.*/gu)).toStrictEqual(['GOT:hello']);
 });
 
 test('it submits a long line to a claude session as one submission', async () => {
@@ -550,12 +550,12 @@ test('it submits a long line to a claude session as one submission', async () =>
       .map((e) => String(e['d']))
       .join('');
 
-    expect(output).toMatch(/SUBMIT:.*\r/);
+    expect(output).toMatch(/SUBMIT:.*\r/u);
 
     return output;
   });
 
-  expect(submitted.match(/SUBMIT:.*/g)).toStrictEqual([`SUBMIT:"${'a'.repeat(1600)}"`]);
+  expect(submitted.match(/SUBMIT:.*/gu)).toStrictEqual([`SUBMIT:"${'a'.repeat(1600)}"`]);
 });
 
 test('it types a slash command name to a claude session and pastes its long argument', async () => {
@@ -610,16 +610,16 @@ test('it types a slash command name to a claude session and pastes its long argu
       .map((e) => String(e['d']))
       .join('');
 
-    expect(output).toMatch(/SUBMIT:.*\r/);
+    expect(output).toMatch(/SUBMIT:.*\r/u);
 
     return output;
   });
 
-  expect(submitted.match(/RECEIVED:.*/g)?.at(-1)).toBe(
+  expect(submitted.match(/RECEIVED:.*/gu)?.at(-1)).toBe(
     `RECEIVED:${JSON.stringify(`/goal ${KEYS.pasteOpen}${'a'.repeat(1994)}${KEYS.pasteClose}${KEYS.enter}`)}`,
   );
 
-  expect(submitted.match(/SUBMIT:.*/g)).toStrictEqual([`SUBMIT:"/goal ${'a'.repeat(1994)}"`]);
+  expect(submitted.match(/SUBMIT:.*/gu)).toStrictEqual([`SUBMIT:"/goal ${'a'.repeat(1994)}"`]);
 });
 
 test('it pastes a slash command line to a grok session whole', async () => {
@@ -674,16 +674,16 @@ test('it pastes a slash command line to a grok session whole', async () => {
       .map((e) => String(e['d']))
       .join('');
 
-    expect(output).toMatch(/SUBMIT:.*\r/);
+    expect(output).toMatch(/SUBMIT:.*\r/u);
 
     return output;
   });
 
-  expect(submitted.match(/RECEIVED:.*/g)?.at(-1)).toBe(
+  expect(submitted.match(/RECEIVED:.*/gu)?.at(-1)).toBe(
     `RECEIVED:${JSON.stringify(`${KEYS.pasteOpen}/goal finish it${KEYS.pasteClose}${KEYS.enter}`)}`,
   );
 
-  expect(submitted.match(/SUBMIT:.*/g)).toStrictEqual(['SUBMIT:"/goal finish it"']);
+  expect(submitted.match(/SUBMIT:.*/gu)).toStrictEqual(['SUBMIT:"/goal finish it"']);
 });
 
 test('it pastes a slash command name to a codex session on its own before its long argument', async () => {
@@ -741,22 +741,22 @@ test('it pastes a slash command name to a codex session on its own before its lo
       .map((e) => String(e['d']))
       .join('');
 
-    expect(output).toMatch(/SUBMIT:.*\r/);
+    expect(output).toMatch(/SUBMIT:.*\r/u);
 
     return output;
   });
 
-  expect(submitted.match(/RECEIVED:.*/g)?.at(0)).toBe(
+  expect(submitted.match(/RECEIVED:.*/gu)?.at(0)).toBe(
     `RECEIVED:${JSON.stringify(`${KEYS.pasteOpen}/goal ${KEYS.pasteClose}`)}`,
   );
 
-  expect(submitted.match(/RECEIVED:.*/g)?.at(-1)).toBe(
+  expect(submitted.match(/RECEIVED:.*/gu)?.at(-1)).toBe(
     `RECEIVED:${JSON.stringify(
       `${KEYS.pasteOpen}/goal ${KEYS.pasteClose}${KEYS.pasteOpen}${'a'.repeat(1994)}${KEYS.pasteClose}${KEYS.enter}`,
     )}`,
   );
 
-  expect(submitted.match(/SUBMIT:.*/g)).toStrictEqual([`SUBMIT:"/goal ${'a'.repeat(1994)}"`]);
+  expect(submitted.match(/SUBMIT:.*/gu)).toStrictEqual([`SUBMIT:"/goal ${'a'.repeat(1994)}"`]);
 });
 
 test('it holds input sent while a codex slash command line pauses until the line is submitted', async () => {
@@ -824,7 +824,7 @@ test('it holds input sent while a codex slash command line pauses until the line
 
   expect(lineWhenInputAnswered).toBe('pending');
 
-  expect(received.match(/RECEIVED:.*/g)?.at(-1)).toBe(
+  expect(received.match(/RECEIVED:.*/gu)?.at(-1)).toBe(
     `RECEIVED:${JSON.stringify(
       `${KEYS.pasteOpen}/goal ${KEYS.pasteClose}${KEYS.pasteOpen}finish it${KEYS.pasteClose}${KEYS.enter}x`,
     )}`,
@@ -891,16 +891,16 @@ test('it pastes a long line to a busy claude session as it does to an idle one',
       .map((e) => String(e['d']))
       .join('');
 
-    expect(output).toMatch(/SUBMIT:.*\r/);
+    expect(output).toMatch(/SUBMIT:.*\r/u);
 
     return output;
   });
 
-  expect(submitted.match(/RECEIVED:.*/g)?.at(-1)).toBe(
+  expect(submitted.match(/RECEIVED:.*/gu)?.at(-1)).toBe(
     `RECEIVED:${JSON.stringify(`${KEYS.pasteOpen}${'a'.repeat(1600)}${KEYS.pasteClose}${KEYS.enter}`)}`,
   );
 
-  expect(submitted.match(/SUBMIT:.*/g)).toStrictEqual([`SUBMIT:"${'a'.repeat(1600)}"`]);
+  expect(submitted.match(/SUBMIT:.*/gu)).toStrictEqual([`SUBMIT:"${'a'.repeat(1600)}"`]);
 });
 
 test('it submits a claude composer draft on an empty line without adding a line to it', async () => {
@@ -954,12 +954,12 @@ test('it submits a claude composer draft on an empty line without adding a line 
       .map((e) => String(e['d']))
       .join('');
 
-    expect(output).toMatch(/SUBMIT:.*\r/);
+    expect(output).toMatch(/SUBMIT:.*\r/u);
 
     return output;
   });
 
-  expect(submitted.match(/SUBMIT:.*/g)).toStrictEqual(['SUBMIT:"draft"']);
+  expect(submitted.match(/SUBMIT:.*/gu)).toStrictEqual(['SUBMIT:"draft"']);
 });
 
 test('it writes raw input to a codex session byte for byte', async () => {
@@ -1008,10 +1008,10 @@ test('it writes raw input to a codex session byte for byte', async () => {
       .map((e) => String(e['d']))
       .join('');
 
-    expect(output).toMatch(/RECEIVED:.*\\r"\r/);
+    expect(output).toMatch(/RECEIVED:.*\\r"\r/u);
 
     return output;
   });
 
-  expect(received.match(/RECEIVED:.*/g)?.at(-1)).toBe(String.raw`RECEIVED:"abc\u001b[Ax\r"`);
+  expect(received.match(/RECEIVED:.*/gu)?.at(-1)).toBe(String.raw`RECEIVED:"abc\u001b[Ax\r"`);
 });

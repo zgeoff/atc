@@ -65,7 +65,7 @@ test('it kills a child the command left holding its output when the test finishe
   const run = runCommand(['bash', '-c', `sleep 30 & echo $! > '${pidPath}'; exit 0`]);
 
   await waitFor(() => {
-    expect(readFileSync(pidPath, 'utf8')).toMatch(/^\d+\n$/);
+    expect(readFileSync(pidPath, 'utf8')).toMatch(/^\d+\n$/u);
   });
 
   const child = Number(readFileSync(pidPath, 'utf8'));
