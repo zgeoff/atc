@@ -128,6 +128,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -237,6 +257,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -367,6 +407,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -476,6 +536,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -606,6 +686,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -715,6 +815,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -845,6 +965,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -954,6 +1094,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -1076,6 +1236,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -1185,6 +1365,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -1315,6 +1515,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -1424,6 +1644,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -1554,6 +1794,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -1684,6 +1944,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               },
               {
                 "regex": "^\\.\\./sources(/|$)",
@@ -1818,6 +2098,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               },
               {
                 "regex": "^\\.\\./auth(/|$)",
@@ -1970,6 +2270,26 @@
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               },
               {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
+              },
+              {
                 "regex": "^\\.\\./sources(/|$)",
                 "message": "The sessions folder of @atc/daemon may import only auth, fleet, transport, workspace, the files at the root of src/."
               }
@@ -2104,6 +2424,26 @@
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               },
               {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
+              },
+              {
                 "regex": "^\\.\\./transport(/|$)",
                 "message": "The sources folder of @atc/daemon may import only auth, fleet, sessions, workspace, the files at the root of src/."
               }
@@ -2236,6 +2576,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               },
               {
                 "regex": "^\\.\\./sources(/|$)",
@@ -2376,6 +2736,26 @@
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               },
               {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
+              },
+              {
                 "regex": "^\\.\\./auth(/|$)",
                 "message": "The workspace folder of @atc/daemon may import only its own modules."
               },
@@ -2507,6 +2887,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -2637,6 +3037,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -2746,6 +3166,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -2876,6 +3316,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -2985,6 +3445,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -3115,6 +3595,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -3224,6 +3724,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -3354,6 +3874,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -3463,6 +4003,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -3593,6 +4153,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -3702,6 +4282,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -3832,6 +4432,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -3941,6 +4561,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -4071,6 +4711,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -4180,6 +4840,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -4310,6 +4990,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -4419,6 +5119,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -4549,6 +5269,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -4662,6 +5402,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -4784,6 +5544,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -4897,6 +5677,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -5027,6 +5827,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -5140,6 +5960,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -5270,6 +6110,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -5383,6 +6243,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -5489,6 +6369,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -5598,6 +6498,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -5708,6 +6628,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -5814,6 +6754,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -5940,6 +6900,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -6042,6 +7022,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -6144,6 +7144,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -6246,6 +7266,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -6348,6 +7388,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -6474,6 +7534,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -6600,6 +7680,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -6726,6 +7826,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -6852,6 +7972,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -6954,6 +8094,26 @@
               {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",
                 "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -7056,6 +8216,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }
@@ -7105,6 +8285,26 @@
               {
                 "regex": "^proper-lockfile(/|$)",
                 "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^vitest(/|$)",
+                "message": "No file imports vitest."
+              },
+              {
+                "regex": "^jest(/|$)",
+                "message": "No file imports jest."
+              },
+              {
+                "regex": "^@jest(/|$)",
+                "message": "No file imports @jest."
+              },
+              {
+                "regex": "^ts-node(/|$)",
+                "message": "No file imports ts-node."
+              },
+              {
+                "regex": "^node-pty(/|$)",
+                "message": "No file imports node-pty."
               }
             ]
           }

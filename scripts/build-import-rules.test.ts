@@ -242,6 +242,22 @@ test.each([
     'proper-lockfile',
     'proper-lockfile belongs to the files that scripts/package-confinement.ts lists.',
   ],
+  ['vitest in a test', 'packages/core/src/a.test.ts', 'vitest', 'No file imports vitest.'],
+  ['jest in an e2e journey', 'e2e/a.test.ts', 'jest', 'No file imports jest.'],
+  [
+    'the jest globals in a test helper',
+    'packages/test-utils/src/a.ts',
+    '@jest/globals',
+    'No file imports @jest.',
+  ],
+  ['ts-node in a script', 'scripts/a.ts', 'ts-node/register', 'No file imports ts-node.'],
+  [
+    'node-pty in the local provider',
+    'packages/execution/local/src/local-pty-provider.ts',
+    'node-pty',
+    'No file imports node-pty.',
+  ],
+  ['node-pty in a mod', 'mods/atc-bridge/a.ts', 'node-pty', 'No file imports node-pty.'],
   [
     'a daemon folder its folder rule leaves out',
     'packages/daemon/src/fleet/a.ts',
