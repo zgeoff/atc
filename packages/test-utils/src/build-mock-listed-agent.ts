@@ -11,7 +11,6 @@ type ListedAgentOverrides = MockOverrides<AgentEntry, keyof AgentEntry>;
  * spawn options. The id and label are arbitrary. Overrides merge into fresh
  * defaults at every depth.
  */
-// oxlint-disable-next-line prefer-readonly-parameter-types -- the schema's output type holds mutable arrays, which the merge only reads
 export function buildMockListedAgent(overrides: ListedAgentOverrides = {}): AgentEntry {
   return mergeDeep<AgentEntry, keyof AgentEntry>(
     {

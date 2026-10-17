@@ -4,7 +4,6 @@
  * read so far, so a test can wait on output from a process that never
  * exits.
  */
-// oxlint-disable-next-line prefer-readonly-parameter-types -- reading a stream locks and drains it
 export function startOutputCapture(stream: ReadableStream<Uint8Array>) {
   let text = '';
 

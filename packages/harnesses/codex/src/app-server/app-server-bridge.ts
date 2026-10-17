@@ -388,7 +388,6 @@ export class AppServerBridge {
 
   // Pages back through the thread's turns until every unsettled message
   // has its turn or the history ends. A failed page rejects the whole read.
-  /* oxlint-disable prefer-readonly-parameter-types -- the read goes over the live connection */
   private async collectTurns(
     conn: AppServerConnection,
     unsettled: readonly UnsettledMessage[],
@@ -425,8 +424,6 @@ export class AppServerBridge {
 
     return turns;
   }
-
-  /* oxlint-enable prefer-readonly-parameter-types */
 
   private applyNotification(notification: AppServerNotification): void {
     if (!this.ready) {
@@ -722,7 +719,6 @@ export class AppServerBridge {
   // A dropped connection, a stop or a thread move ends the wait with false,
   // and the item stays queued for the next connection's tap. A move that
   // is already pending skips the wait.
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- the wait belongs to the live connection
   private async waitOutOverload(conn: AppServerConnection): Promise<boolean> {
     if (this.pendingThread !== null) {
       return false;
@@ -753,7 +749,6 @@ export class AppServerBridge {
 
   // Serves a call to one of the bridge's own tools on its thread; every
   // other server request, approvals among them, is left to the terminal.
-  /* oxlint-disable prefer-readonly-parameter-types -- the answer goes over the live connection */
   private async answerToolCall(
     conn: AppServerConnection,
     request: AppServerRequest,
@@ -829,8 +824,6 @@ export class AppServerBridge {
       contentItems: [{ type: 'inputText', text: `Handed to atc as the answer to ${message}.` }],
     });
   }
-
-  /* oxlint-enable prefer-readonly-parameter-types */
 
   // Closes the connection and detaches the tap, so nothing is delivered
   // until a new connection recovers.

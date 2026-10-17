@@ -54,7 +54,6 @@ export class AppServerConnection {
 
   private closed = false;
 
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- the connection owns the live socket
   private constructor(ws: WebSocket) {
     this.ws = ws;
 

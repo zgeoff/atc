@@ -31,7 +31,6 @@ interface StubTargetsConfig {
 export function buildStubTargets(
   targets: readonly TargetConfig[],
 
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- the stand-in appends to the caller's spawn list
   config: StubTargetsConfig,
 ): ExecutionTarget[] {
   const hosts: Readonly<Record<string, HostOverride>> = { ...config.hosts };

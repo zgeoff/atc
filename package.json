@@ -36,7 +36,7 @@
       "@xterm/headless": "6.0.0",
       "@zgeoff/bun-test-extended": "0.0.4",
       "@zgeoff/format-codemod": "0.1.0",
-      "@zgeoff/oxlint-config": "0.2.0",
+      "@zgeoff/oxlint-config": "0.2.2",
       "better-auth": "1.7.6",
       "bun-pty": "0.4.10",
       "citty": "0.2.2",

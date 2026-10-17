@@ -18,7 +18,6 @@ export function spawnATCDetached(
   atcArgv: readonly string[],
   args: readonly string[],
 
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- the stdio option takes a mutable array
   options: SpawnATCDetachedOptions = {},
 ): ChildProcess {
   const [bin = process.execPath, ...rest] = buildATCCommand(atcArgv, args);
