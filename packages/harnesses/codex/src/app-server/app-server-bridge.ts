@@ -16,6 +16,8 @@ import { buildThreadStartParams } from './build-thread-start-params';
 import { NOTE_LABELS } from './note-labels';
 import { parseAppServerTurn } from './parse-app-server-turn';
 import type { AppServerTurn } from './parse-app-server-turn';
+import { planLeftThreadRecovery } from './plan-left-thread-recovery';
+import type { LeftThreadRecovery } from './plan-left-thread-recovery';
 import { planThreadRecovery } from './plan-thread-recovery';
 import { planTurnSettlement } from './plan-turn-settlement';
 import type { TurnSettlement } from './plan-turn-settlement';
@@ -65,6 +67,10 @@ const NOTICE_PREFIX = 'notice:';
 // later.
 const OVERLOADED_CODE = -32_001;
 
+// The JSON-RPC error code a Codex App Server answers a history read with
+// when the thread has no history it can read.
+const INVALID_REQUEST_CODE = -32_600;
+
 // each connection settles every unsettled message from the thread's stored turns before it
 // delivers, since the server keeps no record of which client message ids it took
 export class AppServerBridge {
@@ -93,6 +99,11 @@ export class AppServerBridge {
   private readonly replies = new Map<string, string>();
 
   private readonly settledTurns = new Set<string>();
+
+  // The thread each message went to when its connection dropped before the
+  // answer to its send, until a recovery reads that thread. The server may
+  // have taken the message, and only that thread's turns show whether it did.
+  private readonly unconfirmed = new Map<string, string>();
 
   private sending: Promise<void> = Promise.resolve();
 
@@ -267,13 +278,20 @@ export class AppServerBridge {
       return;
     }
 
+    const unconfirmed = [...this.unconfirmed.keys()];
     let unsettled: readonly UnsettledMessage[];
+    let left: LeftThreadRecovery[];
     let turns: readonly AppServerTurn[];
 
     try {
-      unsettled = await this.config.host.collectUnsettledMessages();
+      const all = await this.config.host.collectUnsettledMessages();
 
-      turns = unsettled.length === 0 ? [] : await this.collectTurns(conn, unsettled);
+      left = await this.collectLeftThreads(conn, all);
+
+      // A message a left thread holds belongs to that thread alone, so the
+      // thread the bridge serves never sends it again.
+      unsettled = [...left.flatMap((l) => l.kept), ...all.filter((m) => !this.isLeft(m.id))];
+      turns = unsettled.length === 0 ? [] : await this.collectTurns(conn, this.threadID, unsettled);
     } catch (error) {
       this.config.host.log(
         `codex app server: recovery of session ${this.config.session} stopped, every message kept as it was (${String(error)})`,
@@ -289,6 +307,28 @@ export class AppServerBridge {
 
     if (conn !== this.conn) {
       return;
+    }
+
+    for (const recovery of left) {
+      for (const id of recovery.acks) {
+        await this.config.host.ackMessage(id);
+      }
+
+      for (const settlement of recovery.settlements) {
+        await this.applySettlement(settlement);
+      }
+
+      if (recovery.stranded.length > 0) {
+        await this.config.host.applyNote({
+          kind: 'unanswered',
+          messages: recovery.stranded,
+          reason: 'thread_switched',
+        });
+      }
+    }
+
+    for (const id of unconfirmed) {
+      this.unconfirmed.delete(id);
     }
 
     const recovery = planThreadRecovery(unsettled, turns);
@@ -339,10 +379,60 @@ export class AppServerBridge {
     }
   }
 
+  // A left thread with no readable history strands its messages, since it
+  // may have taken them; any other failure rejects, and recovery retries.
+  private async collectLeftThreads(
+    conn: AppServerConnection,
+    unsettled: readonly UnsettledMessage[],
+  ): Promise<LeftThreadRecovery[]> {
+    const byThread = new Map<string, UnsettledMessage[]>();
+
+    for (const message of unsettled) {
+      const thread = this.unconfirmed.get(message.id);
+
+      if (thread !== undefined && this.isLeft(message.id)) {
+        byThread.set(thread, [...(byThread.get(thread) ?? []), message]);
+      }
+    }
+
+    const left: LeftThreadRecovery[] = [];
+
+    for (const [thread, messages] of byThread) {
+      let turns: AppServerTurn[] | null;
+
+      try {
+        turns = await this.collectTurns(conn, thread, messages);
+      } catch (error) {
+        if (!(error instanceof AppServerError) || error.code !== INVALID_REQUEST_CODE) {
+          throw error;
+        }
+
+        this.config.host.log(
+          `codex app server: the history of left thread ${thread} did not read (${String(error)})`,
+        );
+
+        turns = null;
+      }
+
+      left.push(planLeftThreadRecovery(messages, turns));
+    }
+
+    return left;
+  }
+
+  // Whether the message went unconfirmed to a thread other than the one the
+  // bridge serves.
+  private isLeft(message: string): boolean {
+    const thread = this.unconfirmed.get(message);
+
+    return thread !== undefined && thread !== this.threadID;
+  }
+
   // Pages back through the thread's turns until every unsettled message
   // has its turn or the history ends. A failed page rejects the whole read.
   private async collectTurns(
     conn: AppServerConnection,
+    thread: string | null,
     unsettled: readonly UnsettledMessage[],
   ): Promise<AppServerTurn[]> {
     const open = new Set(unsettled.map((m) => m.id));
@@ -352,7 +442,7 @@ export class AppServerBridge {
 
     do {
       const result = await conn.sendRequest('thread/turns/list', {
-        threadId: this.threadID,
+        threadId: thread,
         limit: 20,
         itemsView: 'full',
         cursor,
@@ -532,8 +622,9 @@ export class AppServerBridge {
   // the next one recovers before the tap hands the message over again.
   private async sendMessage(message: BridgedMessage): Promise<void> {
     const conn = this.conn;
+    const thread = this.threadID;
 
-    if (conn === null || !this.ready || this.pendingThread !== null) {
+    if (conn === null || thread === null || !this.ready || this.pendingThread !== null) {
       return;
     }
 
@@ -541,7 +632,7 @@ export class AppServerBridge {
 
     try {
       const result = await conn.sendRequest('turn/start', {
-        threadId: this.threadID,
+        threadId: thread,
         input: [{ type: 'text', text: renderAtcEnvelope(message), text_elements: [] }],
         clientUserMessageId: message.id,
         ...this.buildModelParams(),
@@ -584,6 +675,8 @@ export class AppServerBridge {
       this.config.host.log(
         `codex app server: message ${message.id} stayed queued (${String(error)})`,
       );
+
+      this.unconfirmed.set(message.id, thread);
 
       if (conn === this.conn) {
         this.detachConnection();

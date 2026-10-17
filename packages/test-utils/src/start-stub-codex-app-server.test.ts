@@ -321,6 +321,182 @@ test('it closes the connection in place of the answer to the turn start the scen
   await expect(closed).toResolve();
 });
 
+test('it takes the turn start the scenario names but sends the dropped connection no notification of it', async () => {
+  const ctx = setupTest();
+  const server = startStubCodexAppServer(ctx.socket, { holdTurns: true, dropOnTurnStart: 1 });
+
+  onTestFinished(() => server.stop());
+
+  const ws = new WebSocket(`ws+unix://${ctx.socket}`);
+
+  const received: unknown[] = [];
+
+  ws.addEventListener('message', (e) => {
+    received.push(JSON.parse(String(e.data)));
+  });
+
+  const closed = new Promise((resolve) => {
+    ws.addEventListener('close', resolve, { once: true });
+  });
+
+  await new Promise((resolve) => {
+    ws.addEventListener('open', resolve, { once: true });
+  });
+
+  ws.send(JSON.stringify({ id: 1, method: 'thread/start', params: {} }));
+
+  ws.send(
+    JSON.stringify({
+      id: 2,
+      method: 'turn/start',
+      params: {
+        threadId: 'thread-1',
+        input: [{ type: 'text', text: 'one' }],
+        clientUserMessageId: 'm-1',
+      },
+    }),
+  );
+
+  await closed;
+
+  const reader = new WebSocket(`ws+unix://${ctx.socket}`);
+
+  const read: unknown[] = [];
+
+  onTestFinished(() => {
+    reader.close();
+  });
+
+  reader.addEventListener('message', (e) => {
+    read.push(JSON.parse(String(e.data)));
+  });
+
+  await new Promise((resolve) => {
+    reader.addEventListener('open', resolve, { once: true });
+  });
+
+  reader.send(
+    JSON.stringify({ id: 3, method: 'thread/turns/list', params: { threadId: 'thread-1' } }),
+  );
+
+  await waitFor(() => {
+    expect(read).toPartiallyContain({ id: 3 });
+  });
+
+  expect(received).toStrictEqual([
+    { method: 'thread/started', params: { thread: { id: 'thread-1' } } },
+    { id: 1, result: { thread: { id: 'thread-1', status: { type: 'idle' } } } },
+  ]);
+
+  expect(read).toPartiallyContain({
+    id: 3,
+    result: {
+      data: [
+        {
+          id: 'turn-2',
+          status: 'inProgress',
+          items: [{ type: 'userMessage', id: 'item-3', text: 'one', clientId: 'm-1' }],
+        },
+      ],
+      nextCursor: null,
+    },
+  });
+});
+
+test('it closes the connection before it takes the turn start the scenario names', async () => {
+  const ctx = setupTest();
+  const server = startStubCodexAppServer(ctx.socket, { holdTurns: true, dropBeforeTurnStart: 1 });
+
+  onTestFinished(() => server.stop());
+
+  const ws = new WebSocket(`ws+unix://${ctx.socket}`);
+
+  const closed = new Promise((resolve) => {
+    ws.addEventListener('close', resolve, { once: true });
+  });
+
+  await new Promise((resolve) => {
+    ws.addEventListener('open', resolve, { once: true });
+  });
+
+  ws.send(JSON.stringify({ id: 1, method: 'thread/start', params: {} }));
+
+  ws.send(
+    JSON.stringify({
+      id: 2,
+      method: 'turn/start',
+      params: { threadId: 'thread-1', input: [{ type: 'text', text: 'one' }] },
+    }),
+  );
+
+  await closed;
+
+  const reader = new WebSocket(`ws+unix://${ctx.socket}`);
+
+  const received: unknown[] = [];
+
+  onTestFinished(() => {
+    reader.close();
+  });
+
+  reader.addEventListener('message', (e) => {
+    received.push(JSON.parse(String(e.data)));
+  });
+
+  await new Promise((resolve) => {
+    reader.addEventListener('open', resolve, { once: true });
+  });
+
+  reader.send(
+    JSON.stringify({ id: 3, method: 'thread/turns/list', params: { threadId: 'thread-1' } }),
+  );
+
+  await waitFor(() => {
+    expect(received).toPartiallyContain({ id: 3 });
+  });
+
+  expect(received).toPartiallyContain({ id: 3, result: { data: [], nextCursor: null } });
+});
+
+test('it refuses a history read of a thread the scenario names', async () => {
+  const ctx = setupTest();
+  const server = startStubCodexAppServer(ctx.socket, { refuseTurnsListOf: ['thread-1'] });
+
+  onTestFinished(() => server.stop());
+
+  const ws = new WebSocket(`ws+unix://${ctx.socket}`);
+
+  const received: unknown[] = [];
+
+  onTestFinished(() => {
+    ws.close();
+  });
+
+  ws.addEventListener('message', (e) => {
+    received.push(JSON.parse(String(e.data)));
+  });
+
+  await new Promise((resolve) => {
+    ws.addEventListener('open', resolve, { once: true });
+  });
+
+  ws.send(JSON.stringify({ id: 1, method: 'thread/start', params: {} }));
+  ws.send(JSON.stringify({ id: 2, method: 'thread/start', params: {} }));
+  ws.send(JSON.stringify({ id: 3, method: 'thread/turns/list', params: { threadId: 'thread-1' } }));
+  ws.send(JSON.stringify({ id: 4, method: 'thread/turns/list', params: { threadId: 'thread-2' } }));
+
+  await waitFor(() => {
+    expect(received).toPartiallyContain({ id: 4 });
+  });
+
+  expect(received).toPartiallyContain({
+    id: 3,
+    error: { code: -32_600, message: 'no rollout found for thread id thread-1' },
+  });
+
+  expect(received).toPartiallyContain({ id: 4, result: { data: [], nextCursor: null } });
+});
+
 test('it records each request and hands it to the listener', async () => {
   const ctx = setupTest();
   const seen: unknown[] = [];

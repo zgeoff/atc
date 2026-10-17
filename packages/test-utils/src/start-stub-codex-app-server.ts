@@ -6,8 +6,10 @@ export const STUB_CODEX_APP_SERVER_SCENARIO_SCHEMA = z.object({
   reply: z.string().optional(),
   holdTurns: z.boolean().optional(),
   dropOnTurnStart: z.number().optional(),
+  dropBeforeTurnStart: z.number().optional(),
   completeHeldTurnsOnResume: z.boolean().optional(),
   failTurnsListFrom: z.number().optional(),
+  refuseTurnsListOf: z.array(z.string()).optional(),
   rejectTurnStarts: z.boolean().optional(),
   overloadTurnStarts: z.number().optional(),
 });
@@ -83,6 +85,7 @@ export function startStubCodexAppServer(
   let opened = 0;
   let counter = 0;
   let turnStarts = 0;
+  let turnStartRequests = 0;
   let overloads = 0;
 
   const mintID = (prefix: string) => {
@@ -210,6 +213,10 @@ export function startStubCodexAppServer(
         return { error: { code: -32_603, message: 'failed to read thread history' } };
       }
 
+      if (scenario.refuseTurnsListOf?.includes(thread.id) === true) {
+        return { error: { code: -32_600, message: `no rollout found for thread id ${thread.id}` } };
+      }
+
       const parsed = TURNS_LIST_PARAMS_SCHEMA.parse(params);
 
       const start =
@@ -238,13 +245,29 @@ export function startStubCodexAppServer(
     }
 
     if (method === 'turn/start') {
+      turnStartRequests += 1;
+
+      if (turnStartRequests === scenario.dropBeforeTurnStart) {
+        ws.close();
+
+        return null;
+      }
+
+      turnStarts += 1;
+
+      // The connection drops before the answer and before any notification
+      // of the turn reaches it.
+      const dropped = turnStarts === scenario.dropOnTurnStart;
+
+      if (dropped) {
+        connections.delete(ws);
+      }
+
       const parsed = TURN_START_PARAMS_SCHEMA.parse(params);
       const text = parsed.input.map((part) => part.text).join('\n');
       const turn = startTurn(thread, text, parsed.clientUserMessageId);
 
-      turnStarts += 1;
-
-      if (turnStarts === scenario.dropOnTurnStart) {
+      if (dropped) {
         ws.close();
 
         return null;
