@@ -18,6 +18,7 @@ function setupTest() {
 
   return {
     socket,
+    unconfirmedFile: join(tmp.dir, 'unconfirmed-sends.json'),
     openConnection: () => AppServerConnection.open(`ws+unix://${socket}`),
   };
 }
@@ -1234,6 +1235,89 @@ test('it sends a message the old thread took nowhere else when the connection dr
   await taken.promise;
 
   bridge.updateThread(moved);
+
+  await waitFor(() => {
+    expect(stub.statuses.get('m-1')).toBe('unanswered');
+  });
+
+  expect(stub.notes).toStrictEqual([
+    { kind: 'unanswered', messages: ['m-1'], reason: 'thread_switched' },
+  ]);
+
+  expect(server.requests.filter((r) => r.method === 'turn/start')).toMatchObject([
+    { params: { threadId: first, clientUserMessageId: 'm-1' } },
+  ]);
+
+  expect(server.requests.filter((r) => r.method === 'thread/turns/list')).toMatchObject([
+    { params: { threadId: first } },
+  ]);
+});
+
+test('it sends a message the old thread took nowhere else when the daemon restarts on the thread the terminal moved to before the reconnect', async () => {
+  const ctx = setupTest();
+  const taken = Promise.withResolvers<undefined>();
+
+  const server = startStubCodexAppServer(
+    ctx.socket,
+    { holdTurns: true, dropOnTurnStart: 1 },
+    (request) => {
+      if (request.method === 'turn/start') {
+        taken.resolve(undefined);
+      }
+    },
+  );
+
+  const stub = buildStubMessageBridgeHost();
+
+  onTestFinished(() => server.stop());
+
+  const before = new AppServerBridge({
+    session: 's-1',
+    cwd: '/work/repo',
+    host: stub.host,
+    openConnection: ctx.openConnection,
+    resumeThread: null,
+    unconfirmedFile: ctx.unconfirmedFile,
+    retryMs: { first: 60_000, max: 60_000 },
+  });
+
+  onTestFinished(() => {
+    before.stop();
+  });
+
+  const first = await before.open();
+
+  before.startDelivery();
+
+  const moved = await startTerminalThread(ctx.socket);
+
+  stub.queueMessage({ id: 'm-1', from: 'planner', text: 'check the build' });
+
+  await taken.promise;
+
+  await waitFor(() => {
+    expect(stub.logs).toContainEqual(expect.toInclude('message m-1 stayed queued'));
+  });
+
+  before.stop();
+
+  const after = new AppServerBridge({
+    session: 's-1',
+    cwd: '/work/repo',
+    host: stub.host,
+    openConnection: ctx.openConnection,
+    resumeThread: moved,
+    unconfirmedFile: ctx.unconfirmedFile,
+    retryMs: { first: 10, max: 50 },
+  });
+
+  onTestFinished(() => {
+    after.stop();
+  });
+
+  await after.open();
+
+  after.startDelivery();
 
   await waitFor(() => {
     expect(stub.statuses.get('m-1')).toBe('unanswered');

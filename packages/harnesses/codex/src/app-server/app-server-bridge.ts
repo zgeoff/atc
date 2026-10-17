@@ -23,6 +23,7 @@ import { planTurnSettlement } from './plan-turn-settlement';
 import type { TurnSettlement } from './plan-turn-settlement';
 import { renderAtcAnswer } from './render-atc-answer';
 import { renderAtcEnvelope } from './render-atc-envelope';
+import { UnconfirmedSends } from './unconfirmed-sends';
 
 export interface AppServerBridgeConfig {
   readonly session: string;
@@ -31,6 +32,10 @@ export interface AppServerBridgeConfig {
   readonly openConnection: () => Promise<AppServerConnection>;
   readonly resumeThread: string | null;
   readonly model?: string;
+
+  // the file that keeps the thread of each unconfirmed send across a daemon restart; without it
+  // the threads live in memory alone
+  readonly unconfirmedFile?: string;
 
   // the waits between reconnects and between overloaded sends, doubling from `first` up to `max`
   readonly retryMs?: { readonly first: number; readonly max: number };
@@ -103,7 +108,7 @@ export class AppServerBridge {
   // The thread each message went to when its connection dropped before the
   // answer to its send, until a recovery reads that thread. The server may
   // have taken the message, and only that thread's turns show whether it did.
-  private readonly unconfirmed = new Map<string, string>();
+  private readonly unconfirmed: UnconfirmedSends;
 
   private sending: Promise<void> = Promise.resolve();
 
@@ -127,6 +132,10 @@ export class AppServerBridge {
     this.threadID = config.resumeThread;
     this.retryDelay = config.retryMs?.first ?? 500;
     this.overloadDelay = config.retryMs?.first ?? 500;
+
+    this.unconfirmed = new UnconfirmedSends(config.unconfirmedFile ?? null, (line) => {
+      config.host.log(line);
+    });
 
     this.tap = {
       takeMessage: (message) => {
@@ -278,7 +287,7 @@ export class AppServerBridge {
       return;
     }
 
-    const unconfirmed = [...this.unconfirmed.keys()];
+    const unconfirmed = this.unconfirmed.collectMessages();
     let unsettled: readonly UnsettledMessage[];
     let left: LeftThreadRecovery[];
     let turns: readonly AppServerTurn[];
@@ -327,9 +336,7 @@ export class AppServerBridge {
       }
     }
 
-    for (const id of unconfirmed) {
-      this.unconfirmed.delete(id);
-    }
+    this.unconfirmed.removeMessages(unconfirmed);
 
     const recovery = planThreadRecovery(unsettled, turns);
 
@@ -388,7 +395,7 @@ export class AppServerBridge {
     const byThread = new Map<string, UnsettledMessage[]>();
 
     for (const message of unsettled) {
-      const thread = this.unconfirmed.get(message.id);
+      const thread = this.unconfirmed.findThread(message.id);
 
       if (thread !== undefined && this.isLeft(message.id)) {
         byThread.set(thread, [...(byThread.get(thread) ?? []), message]);
@@ -423,7 +430,7 @@ export class AppServerBridge {
   // Whether the message went unconfirmed to a thread other than the one the
   // bridge serves.
   private isLeft(message: string): boolean {
-    const thread = this.unconfirmed.get(message);
+    const thread = this.unconfirmed.findThread(message);
 
     return thread !== undefined && thread !== this.threadID;
   }
@@ -676,7 +683,7 @@ export class AppServerBridge {
         `codex app server: message ${message.id} stayed queued (${String(error)})`,
       );
 
-      this.unconfirmed.set(message.id, thread);
+      this.unconfirmed.setThread(message.id, thread);
 
       if (conn === this.conn) {
         this.detachConnection();

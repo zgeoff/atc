@@ -85,6 +85,7 @@ export async function startCodexAppServerBridge(
     host: request.host,
     openConnection,
     resumeThread,
+    unconfirmedFile: join(request.dir, 'unconfirmed-sends.json'),
     ...(request.options.model === undefined ? {} : { model: request.options.model }),
     ...(launch.retryMs === undefined ? {} : { retryMs: launch.retryMs }),
   });
