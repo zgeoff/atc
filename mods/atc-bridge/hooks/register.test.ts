@@ -1493,14 +1493,14 @@ test('it submits an answer notice that arrives mid-turn when the session refuses
   expect(ctx.ran).toStrictEqual([]);
 });
 
-test('it appends a message sent during a server tool call only after the call has its result', async (engine, on) => {
+test('it delivers a message sent during a server tool call only after the call has its result', async (engine, on) => {
   const ctx = setupTest({ on });
 
   mock.env(on, { ATC_SESSION_ID: 's-1' });
 
   const tapLine = Promise.withResolvers<void>();
   const advice = Promise.withResolvers<void>();
-  const rowsAtResult: number[] = [];
+  const submittedAtResult: number[] = [];
 
   on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
 
@@ -1512,7 +1512,17 @@ test('it appends a message sent during a server tool call only after the call ha
     return { value: { code: 0, signal: null } };
   });
 
-  const session = mock.session(on);
+  const submitted: string[] = [];
+
+  // A refused append sends the message as a prompt at once, so the prompt
+  // shows when the mod tried the append.
+  on('session.append', () => ({ deny: 'not now' }));
+
+  on('prompt.submit', ($, e) => {
+    submitted.push(e.text);
+
+    return { text: e.text };
+  });
 
   // The model writes the advisor call, and the API runs it before the response
   // goes on with the call's result.
@@ -1521,7 +1531,7 @@ test('it appends a message sent during a server tool call only after the call ha
 
     await advice.promise;
 
-    rowsAtResult.push(session.appended().length);
+    submittedAtResult.push(submitted.length);
 
     return {
       turnId: e.turnId,
@@ -1555,11 +1565,8 @@ test('it appends a message sent during a server tool call only after the call ha
   await stream.next();
   await ctx.clock.settle();
 
-  expect(rowsAtResult).toStrictEqual([0]);
-
-  expect(session.appended().map((row) => row.message.content)).toStrictEqual([
-    [{ type: 'text', text: '<atc-message id="m-1" from="alice">\nhi\n</atc-message>' }],
-  ]);
+  expect(submittedAtResult).toStrictEqual([0]);
+  expect(submitted).toStrictEqual(['<atc-message id="m-1" from="alice">\nhi\n</atc-message>']);
 });
 
 test('it holds a message across a paused response until its server tool call has its result', async (engine, on) => {
@@ -1568,7 +1575,7 @@ test('it holds a message across a paused response until its server tool call has
   mock.env(on, { ATC_SESSION_ID: 's-1' });
 
   const tapLine = Promise.withResolvers<void>();
-  const rowsAtResult: number[] = [];
+  const submittedAtResult: number[] = [];
 
   on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
 
@@ -1580,13 +1587,23 @@ test('it holds a message across a paused response until its server tool call has
     return { value: { code: 0, signal: null } };
   });
 
-  const session = mock.session(on);
+  const submitted: string[] = [];
+
+  // A refused append sends the message as a prompt at once, so the prompt
+  // shows when the mod tried the append.
+  on('session.append', () => ({ deny: 'not now' }));
+
+  on('prompt.submit', ($, e) => {
+    submitted.push(e.text);
+
+    return { text: e.text };
+  });
 
   // The API pauses the response before the advisor's result, and the next
   // step goes on with it.
   on('turn.step', async function* ($, e) {
     yield { kind: 'text', index: 0, text: 'asking the advisor' };
-    rowsAtResult.push(session.appended().length);
+    submittedAtResult.push(submitted.length);
 
     return {
       turnId: e.turnId,
@@ -1631,21 +1648,18 @@ test('it holds a message across a paused response until its server tool call has
   await resumed.next();
   await ctx.clock.settle();
 
-  expect(rowsAtResult).toStrictEqual([0, 0]);
-
-  expect(session.appended().map((row) => row.message.content)).toStrictEqual([
-    [{ type: 'text', text: '<atc-message id="m-1" from="alice">\nhi\n</atc-message>' }],
-  ]);
+  expect(submittedAtResult).toStrictEqual([0, 0]);
+  expect(submitted).toStrictEqual(['<atc-message id="m-1" from="alice">\nhi\n</atc-message>']);
 });
 
-test('it appends an answer notice sent during a server tool call only after the call has its result', async (engine, on) => {
+test('it delivers an answer notice sent during a server tool call only after the call has its result', async (engine, on) => {
   const ctx = setupTest({ on });
 
   mock.env(on, { ATC_SESSION_ID: 's-1' });
 
   const tapLine = Promise.withResolvers<void>();
   const advice = Promise.withResolvers<void>();
-  const rowsAtResult: number[] = [];
+  const submittedAtResult: number[] = [];
 
   on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
 
@@ -1660,14 +1674,24 @@ test('it appends an answer notice sent during a server tool call only after the 
     return { value: { code: 0, signal: null } };
   });
 
-  const session = mock.session(on);
+  const submitted: string[] = [];
+
+  // A refused append sends the message as a prompt at once, so the prompt
+  // shows when the mod tried the append.
+  on('session.append', () => ({ deny: 'not now' }));
+
+  on('prompt.submit', ($, e) => {
+    submitted.push(e.text);
+
+    return { text: e.text };
+  });
 
   on('turn.step', async function* ($, e) {
     yield { kind: 'text', index: 0, text: 'asking the advisor' };
 
     await advice.promise;
 
-    rowsAtResult.push(session.appended().length);
+    submittedAtResult.push(submitted.length);
 
     return {
       turnId: e.turnId,
@@ -1701,25 +1725,19 @@ test('it appends an answer notice sent during a server tool call only after the 
   await stream.next();
   await ctx.clock.settle();
 
-  expect(rowsAtResult).toStrictEqual([0]);
+  expect(submittedAtResult).toStrictEqual([0]);
 
-  expect(session.appended().map((row) => row.message.content)).toStrictEqual([
-    [
-      {
-        type: 'text',
-        text: '<atc-answer id="m-1" from="s-2" status="answered">\ndone\n</atc-answer>',
-      },
-    ],
+  expect(submitted).toStrictEqual([
+    '<atc-answer id="m-1" from="s-2" status="answered">\ndone\n</atc-answer>',
   ]);
 });
 
-test('it appends a message at once while the turn runs a tool between steps', async (engine, on) => {
+test('it delivers a message at once while the turn runs a tool between steps', async (engine, on) => {
   const ctx = setupTest({ on });
 
   mock.env(on, { ATC_SESSION_ID: 's-1' });
 
   const tapLine = Promise.withResolvers<void>();
-  const submitted: string[] = [];
 
   on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
 
@@ -1731,7 +1749,11 @@ test('it appends a message at once while the turn runs a tool between steps', as
     return { value: { code: 0, signal: null } };
   });
 
-  const session = mock.session(on);
+  const submitted: string[] = [];
+
+  // A refused append sends the message as a prompt at once, so the prompt
+  // shows when the mod tried the append.
+  on('session.append', () => ({ deny: 'not now' }));
 
   on('prompt.submit', ($, e) => {
     submitted.push(e.text);
@@ -1769,9 +1791,5 @@ test('it appends a message at once while the turn runs a tool between steps', as
 
   await ctx.clock.settle();
 
-  expect(session.appended().map((row) => row.message.content)).toStrictEqual([
-    [{ type: 'text', text: '<atc-message id="m-1" from="alice">\nhi\n</atc-message>' }],
-  ]);
-
-  expect(submitted).toStrictEqual([]);
+  expect(submitted).toStrictEqual(['<atc-message id="m-1" from="alice">\nhi\n</atc-message>']);
 });
