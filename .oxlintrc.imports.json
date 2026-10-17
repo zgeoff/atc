@@ -20,6 +20,10 @@
             ],
             "patterns": [
               {
+                "regex": "^@atc/core(/|$)",
+                "message": "A module in @atc/core imports its own package by a relative path, never by name."
+              },
+              {
                 "regex": "^@atc/(protocol|plugin-api|config|store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
                 "message": "@atc/core may depend only on external packages."
               },
@@ -177,6 +181,10 @@
             ],
             "patterns": [
               {
+                "regex": "^@atc/core(/|$)",
+                "message": "A module in @atc/core imports its own package by a relative path, never by name."
+              },
+              {
                 "regex": "^@atc/(protocol|plugin-api|config|store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
                 "message": "@atc/core may depend only on external packages."
               },
@@ -302,6 +310,10 @@
               }
             ],
             "patterns": [
+              {
+                "regex": "^@atc/protocol(/|$)",
+                "message": "A module in @atc/protocol imports its own package by a relative path, never by name."
+              },
               {
                 "regex": "^@atc/(plugin-api|config|store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
                 "message": "@atc/protocol may depend only on @atc/core."
@@ -456,6 +468,10 @@
             ],
             "patterns": [
               {
+                "regex": "^@atc/protocol(/|$)",
+                "message": "A module in @atc/protocol imports its own package by a relative path, never by name."
+              },
+              {
                 "regex": "^@atc/(plugin-api|config|store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
                 "message": "@atc/protocol may depend only on @atc/core."
               },
@@ -581,6 +597,10 @@
               }
             ],
             "patterns": [
+              {
+                "regex": "^@atc/plugin-api(/|$)",
+                "message": "A module in @atc/plugin-api imports its own package by a relative path, never by name."
+              },
               {
                 "regex": "^@atc/(config|store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
                 "message": "@atc/plugin-api may depend only on @atc/core, @atc/protocol."
@@ -735,6 +755,10 @@
             ],
             "patterns": [
               {
+                "regex": "^@atc/plugin-api(/|$)",
+                "message": "A module in @atc/plugin-api imports its own package by a relative path, never by name."
+              },
+              {
                 "regex": "^@atc/(config|store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
                 "message": "@atc/plugin-api may depend only on @atc/core, @atc/protocol."
               },
@@ -860,6 +884,10 @@
               }
             ],
             "patterns": [
+              {
+                "regex": "^@atc/config(/|$)",
+                "message": "A module in @atc/config imports its own package by a relative path, never by name."
+              },
               {
                 "regex": "^@atc/(protocol|store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
                 "message": "@atc/config may depend only on @atc/core, @atc/plugin-api."
@@ -1014,6 +1042,10 @@
             ],
             "patterns": [
               {
+                "regex": "^@atc/config(/|$)",
+                "message": "A module in @atc/config imports its own package by a relative path, never by name."
+              },
+              {
                 "regex": "^@atc/(protocol|store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
                 "message": "@atc/config may depend only on @atc/core, @atc/plugin-api."
               },
@@ -1139,6 +1171,10 @@
               }
             ],
             "patterns": [
+              {
+                "regex": "^@atc/store(/|$)",
+                "message": "A module in @atc/store imports its own package by a relative path, never by name."
+              },
               {
                 "regex": "^@atc/(plugin-api|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
                 "message": "@atc/store may depend only on @atc/core, @atc/protocol, @atc/config."
@@ -1285,6 +1321,10 @@
             ],
             "patterns": [
               {
+                "regex": "^@atc/store(/|$)",
+                "message": "A module in @atc/store imports its own package by a relative path, never by name."
+              },
+              {
                 "regex": "^@atc/(plugin-api|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
                 "message": "@atc/store may depend only on @atc/core, @atc/protocol, @atc/config."
               },
@@ -1410,6 +1450,10 @@
               }
             ],
             "patterns": [
+              {
+                "regex": "^@atc/lifecycle(/|$)",
+                "message": "A module in @atc/lifecycle imports its own package by a relative path, never by name."
+              },
               {
                 "regex": "^@atc/(plugin-api|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
                 "message": "@atc/lifecycle may depend only on @atc/core, @atc/protocol, @atc/config, @atc/store."
@@ -1564,6 +1608,10 @@
             ],
             "patterns": [
               {
+                "regex": "^@atc/lifecycle(/|$)",
+                "message": "A module in @atc/lifecycle imports its own package by a relative path, never by name."
+              },
+              {
                 "regex": "^@atc/(plugin-api|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
                 "message": "@atc/lifecycle may depend only on @atc/core, @atc/protocol, @atc/config, @atc/store."
               },
@@ -1689,6 +1737,10 @@
               }
             ],
             "patterns": [
+              {
+                "regex": "^@atc/daemon(/|$)",
+                "message": "A module in @atc/daemon imports its own package by a relative path, never by name."
+              },
               {
                 "regex": "^@atc/(harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
                 "message": "@atc/daemon may depend only on @atc/core, @atc/protocol, @atc/plugin-api, @atc/config, @atc/store, @atc/lifecycle."
@@ -1839,6 +1891,10 @@
               }
             ],
             "patterns": [
+              {
+                "regex": "^@atc/daemon(/|$)",
+                "message": "A module in @atc/daemon imports its own package by a relative path, never by name."
+              },
               {
                 "regex": "^@atc/(harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
                 "message": "@atc/daemon may depend only on @atc/core, @atc/protocol, @atc/plugin-api, @atc/config, @atc/store, @atc/lifecycle."
@@ -1993,6 +2049,10 @@
               }
             ],
             "patterns": [
+              {
+                "regex": "^@atc/daemon(/|$)",
+                "message": "A module in @atc/daemon imports its own package by a relative path, never by name."
+              },
               {
                 "regex": "^@atc/(harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
                 "message": "@atc/daemon may depend only on @atc/core, @atc/protocol, @atc/plugin-api, @atc/config, @atc/store, @atc/lifecycle."
@@ -2164,6 +2224,10 @@
             ],
             "patterns": [
               {
+                "regex": "^@atc/daemon(/|$)",
+                "message": "A module in @atc/daemon imports its own package by a relative path, never by name."
+              },
+              {
                 "regex": "^@atc/(harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
                 "message": "@atc/daemon may depend only on @atc/core, @atc/protocol, @atc/plugin-api, @atc/config, @atc/store, @atc/lifecycle."
               },
@@ -2318,6 +2382,10 @@
             ],
             "patterns": [
               {
+                "regex": "^@atc/daemon(/|$)",
+                "message": "A module in @atc/daemon imports its own package by a relative path, never by name."
+              },
+              {
                 "regex": "^@atc/(harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
                 "message": "@atc/daemon may depend only on @atc/core, @atc/protocol, @atc/plugin-api, @atc/config, @atc/store, @atc/lifecycle."
               },
@@ -2471,6 +2539,10 @@
               }
             ],
             "patterns": [
+              {
+                "regex": "^@atc/daemon(/|$)",
+                "message": "A module in @atc/daemon imports its own package by a relative path, never by name."
+              },
               {
                 "regex": "^@atc/(harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
                 "message": "@atc/daemon may depend only on @atc/core, @atc/protocol, @atc/plugin-api, @atc/config, @atc/store, @atc/lifecycle."
@@ -2629,6 +2701,10 @@
               }
             ],
             "patterns": [
+              {
+                "regex": "^@atc/daemon(/|$)",
+                "message": "A module in @atc/daemon imports its own package by a relative path, never by name."
+              },
               {
                 "regex": "^@atc/(harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
                 "message": "@atc/daemon may depend only on @atc/core, @atc/protocol, @atc/plugin-api, @atc/config, @atc/store, @atc/lifecycle."
@@ -2807,6 +2883,10 @@
             ],
             "patterns": [
               {
+                "regex": "^@atc/daemon(/|$)",
+                "message": "A module in @atc/daemon imports its own package by a relative path, never by name."
+              },
+              {
                 "regex": "^@atc/(harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
                 "message": "@atc/daemon may depend only on @atc/core, @atc/protocol, @atc/plugin-api, @atc/config, @atc/store, @atc/lifecycle."
               },
@@ -2932,6 +3012,10 @@
               }
             ],
             "patterns": [
+              {
+                "regex": "^@atc/harness-claude(/|$)",
+                "message": "A module in @atc/harness-claude imports its own package by a relative path, never by name."
+              },
               {
                 "regex": "^@atc/(store|lifecycle|daemon|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
                 "message": "@atc/harness-claude may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
@@ -3086,6 +3170,10 @@
             ],
             "patterns": [
               {
+                "regex": "^@atc/harness-claude(/|$)",
+                "message": "A module in @atc/harness-claude imports its own package by a relative path, never by name."
+              },
+              {
                 "regex": "^@atc/(store|lifecycle|daemon|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
                 "message": "@atc/harness-claude may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
               },
@@ -3211,6 +3299,10 @@
               }
             ],
             "patterns": [
+              {
+                "regex": "^@atc/harness-codex(/|$)",
+                "message": "A module in @atc/harness-codex imports its own package by a relative path, never by name."
+              },
               {
                 "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
                 "message": "@atc/harness-codex may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
@@ -3365,6 +3457,10 @@
             ],
             "patterns": [
               {
+                "regex": "^@atc/harness-codex(/|$)",
+                "message": "A module in @atc/harness-codex imports its own package by a relative path, never by name."
+              },
+              {
                 "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
                 "message": "@atc/harness-codex may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
               },
@@ -3490,6 +3586,10 @@
               }
             ],
             "patterns": [
+              {
+                "regex": "^@atc/harness-grok(/|$)",
+                "message": "A module in @atc/harness-grok imports its own package by a relative path, never by name."
+              },
               {
                 "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
                 "message": "@atc/harness-grok may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
@@ -3644,6 +3744,10 @@
             ],
             "patterns": [
               {
+                "regex": "^@atc/harness-grok(/|$)",
+                "message": "A module in @atc/harness-grok imports its own package by a relative path, never by name."
+              },
+              {
                 "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
                 "message": "@atc/harness-grok may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
               },
@@ -3769,6 +3873,10 @@
               }
             ],
             "patterns": [
+              {
+                "regex": "^@atc/execution-local(/|$)",
+                "message": "A module in @atc/execution-local imports its own package by a relative path, never by name."
+              },
               {
                 "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
                 "message": "@atc/execution-local may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
@@ -3923,6 +4031,10 @@
             ],
             "patterns": [
               {
+                "regex": "^@atc/execution-local(/|$)",
+                "message": "A module in @atc/execution-local imports its own package by a relative path, never by name."
+              },
+              {
                 "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
                 "message": "@atc/execution-local may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
               },
@@ -4048,6 +4160,10 @@
               }
             ],
             "patterns": [
+              {
+                "regex": "^@atc/execution-imp(/|$)",
+                "message": "A module in @atc/execution-imp imports its own package by a relative path, never by name."
+              },
               {
                 "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
                 "message": "@atc/execution-imp may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
@@ -4202,6 +4318,10 @@
             ],
             "patterns": [
               {
+                "regex": "^@atc/execution-imp(/|$)",
+                "message": "A module in @atc/execution-imp imports its own package by a relative path, never by name."
+              },
+              {
                 "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
                 "message": "@atc/execution-imp may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
               },
@@ -4327,6 +4447,10 @@
               }
             ],
             "patterns": [
+              {
+                "regex": "^@atc/source-dirs(/|$)",
+                "message": "A module in @atc/source-dirs imports its own package by a relative path, never by name."
+              },
               {
                 "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
                 "message": "@atc/source-dirs may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
@@ -4481,6 +4605,10 @@
             ],
             "patterns": [
               {
+                "regex": "^@atc/source-dirs(/|$)",
+                "message": "A module in @atc/source-dirs imports its own package by a relative path, never by name."
+              },
+              {
                 "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
                 "message": "@atc/source-dirs may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
               },
@@ -4606,6 +4734,10 @@
               }
             ],
             "patterns": [
+              {
+                "regex": "^@atc/source-github(/|$)",
+                "message": "A module in @atc/source-github imports its own package by a relative path, never by name."
+              },
               {
                 "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
                 "message": "@atc/source-github may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
@@ -4760,6 +4892,10 @@
             ],
             "patterns": [
               {
+                "regex": "^@atc/source-github(/|$)",
+                "message": "A module in @atc/source-github imports its own package by a relative path, never by name."
+              },
+              {
                 "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-git|tui|mcp|gateway|reporters|app)(/|$)",
                 "message": "@atc/source-github may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
               },
@@ -4885,6 +5021,10 @@
               }
             ],
             "patterns": [
+              {
+                "regex": "^@atc/source-git(/|$)",
+                "message": "A module in @atc/source-git imports its own package by a relative path, never by name."
+              },
               {
                 "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
                 "message": "@atc/source-git may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
@@ -5039,6 +5179,10 @@
             ],
             "patterns": [
               {
+                "regex": "^@atc/source-git(/|$)",
+                "message": "A module in @atc/source-git imports its own package by a relative path, never by name."
+              },
+              {
                 "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|tui|mcp|gateway|reporters|app)(/|$)",
                 "message": "@atc/source-git may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
               },
@@ -5164,6 +5308,10 @@
               }
             ],
             "patterns": [
+              {
+                "regex": "^@atc/tui(/|$)",
+                "message": "A module in @atc/tui imports its own package by a relative path, never by name."
+              },
               {
                 "regex": "^@atc/(plugin-api|store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|mcp|gateway|reporters|test-utils|app)(/|$)",
                 "message": "@atc/tui may depend only on @atc/core, @atc/protocol, @atc/config."
@@ -5322,6 +5470,10 @@
             ],
             "patterns": [
               {
+                "regex": "^@atc/tui(/|$)",
+                "message": "A module in @atc/tui imports its own package by a relative path, never by name."
+              },
+              {
                 "regex": "^@atc/(plugin-api|store|lifecycle|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|mcp|gateway|reporters|app)(/|$)",
                 "message": "@atc/tui may depend only on @atc/core, @atc/protocol, @atc/config."
               },
@@ -5447,6 +5599,10 @@
               }
             ],
             "patterns": [
+              {
+                "regex": "^@atc/mcp(/|$)",
+                "message": "A module in @atc/mcp imports its own package by a relative path, never by name."
+              },
               {
                 "regex": "^@atc/(plugin-api|store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|gateway|reporters|test-utils|app)(/|$)",
                 "message": "@atc/mcp may depend only on @atc/core, @atc/protocol, @atc/config."
@@ -5597,6 +5753,10 @@
             ],
             "patterns": [
               {
+                "regex": "^@atc/mcp(/|$)",
+                "message": "A module in @atc/mcp imports its own package by a relative path, never by name."
+              },
+              {
                 "regex": "^@atc/(plugin-api|store|lifecycle|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|gateway|reporters|app)(/|$)",
                 "message": "@atc/mcp may depend only on @atc/core, @atc/protocol, @atc/config."
               },
@@ -5722,6 +5882,10 @@
               }
             ],
             "patterns": [
+              {
+                "regex": "^@atc/gateway(/|$)",
+                "message": "A module in @atc/gateway imports its own package by a relative path, never by name."
+              },
               {
                 "regex": "^@atc/(plugin-api|store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|reporters|test-utils|app)(/|$)",
                 "message": "@atc/gateway may depend only on @atc/core, @atc/protocol, @atc/config."
@@ -5880,6 +6044,10 @@
             ],
             "patterns": [
               {
+                "regex": "^@atc/gateway(/|$)",
+                "message": "A module in @atc/gateway imports its own package by a relative path, never by name."
+              },
+              {
                 "regex": "^@atc/(plugin-api|store|lifecycle|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|reporters|app)(/|$)",
                 "message": "@atc/gateway may depend only on @atc/core, @atc/protocol, @atc/config."
               },
@@ -6005,6 +6173,10 @@
               }
             ],
             "patterns": [
+              {
+                "regex": "^@atc/reporters(/|$)",
+                "message": "A module in @atc/reporters imports its own package by a relative path, never by name."
+              },
               {
                 "regex": "^@atc/(plugin-api|store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|test-utils|app)(/|$)",
                 "message": "@atc/reporters may depend only on @atc/core, @atc/protocol, @atc/config."
@@ -6163,6 +6335,10 @@
             ],
             "patterns": [
               {
+                "regex": "^@atc/reporters(/|$)",
+                "message": "A module in @atc/reporters imports its own package by a relative path, never by name."
+              },
+              {
                 "regex": "^@atc/(plugin-api|store|lifecycle|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|app)(/|$)",
                 "message": "@atc/reporters may depend only on @atc/core, @atc/protocol, @atc/config."
               },
@@ -6288,6 +6464,10 @@
               }
             ],
             "patterns": [
+              {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "A module in @atc/test-utils imports its own package by a relative path, never by name."
+              },
               {
                 "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
                 "message": "@atc/test-utils may depend only on @atc/core, @atc/protocol, @atc/config, @atc/plugin-api."
@@ -6418,6 +6598,10 @@
             ],
             "patterns": [
               {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "A module in @atc/test-utils imports its own package by a relative path, never by name."
+              },
+              {
                 "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
                 "message": "@atc/test-utils may depend only on @atc/core, @atc/protocol, @atc/config, @atc/plugin-api."
               },
@@ -6543,6 +6727,10 @@
               }
             ],
             "patterns": [
+              {
+                "regex": "^@atc/app(/|$)",
+                "message": "A module in @atc/app imports its own package by a relative path, never by name."
+              },
               {
                 "regex": "^@atc/[^/]+/src(/|$)",
                 "message": "Import a package through its entry points, never its src/ files."
@@ -6678,6 +6866,10 @@
             ],
             "patterns": [
               {
+                "regex": "^@atc/app(/|$)",
+                "message": "A module in @atc/app imports its own package by a relative path, never by name."
+              },
+              {
                 "regex": "^@atc/[^/]+/src(/|$)",
                 "message": "Import a package through its entry points, never its src/ files."
               },
@@ -6799,6 +6991,10 @@
               }
             ],
             "patterns": [
+              {
+                "regex": "^@atc/execution-local(/|$)",
+                "message": "A module in @atc/execution-local imports its own package by a relative path, never by name."
+              },
               {
                 "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
                 "message": "@atc/execution-local may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
@@ -6946,6 +7142,10 @@
             ],
             "patterns": [
               {
+                "regex": "^@atc/execution-imp(/|$)",
+                "message": "A module in @atc/execution-imp imports its own package by a relative path, never by name."
+              },
+              {
                 "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
                 "message": "@atc/execution-imp may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
               },
@@ -7067,6 +7267,10 @@
               }
             ],
             "patterns": [
+              {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "A module in @atc/test-utils imports its own package by a relative path, never by name."
+              },
               {
                 "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
                 "message": "@atc/test-utils may depend only on @atc/core, @atc/protocol, @atc/config, @atc/plugin-api."
@@ -7190,6 +7394,10 @@
             ],
             "patterns": [
               {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "A module in @atc/test-utils imports its own package by a relative path, never by name."
+              },
+              {
                 "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
                 "message": "@atc/test-utils may depend only on @atc/core, @atc/protocol, @atc/config, @atc/plugin-api."
               },
@@ -7312,6 +7520,10 @@
             ],
             "patterns": [
               {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "A module in @atc/test-utils imports its own package by a relative path, never by name."
+              },
+              {
                 "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
                 "message": "@atc/test-utils may depend only on @atc/core, @atc/protocol, @atc/config, @atc/plugin-api."
               },
@@ -7433,6 +7645,10 @@
               }
             ],
             "patterns": [
+              {
+                "regex": "^@atc/execution-imp(/|$)",
+                "message": "A module in @atc/execution-imp imports its own package by a relative path, never by name."
+              },
               {
                 "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
                 "message": "@atc/execution-imp may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
@@ -7580,6 +7796,10 @@
             ],
             "patterns": [
               {
+                "regex": "^@atc/harness-claude(/|$)",
+                "message": "A module in @atc/harness-claude imports its own package by a relative path, never by name."
+              },
+              {
                 "regex": "^@atc/(store|lifecycle|daemon|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
                 "message": "@atc/harness-claude may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
               },
@@ -7725,6 +7945,10 @@
               }
             ],
             "patterns": [
+              {
+                "regex": "^@atc/harness-claude(/|$)",
+                "message": "A module in @atc/harness-claude imports its own package by a relative path, never by name."
+              },
               {
                 "regex": "^@atc/(store|lifecycle|daemon|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
                 "message": "@atc/harness-claude may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
@@ -7872,6 +8096,10 @@
             ],
             "patterns": [
               {
+                "regex": "^@atc/harness-claude(/|$)",
+                "message": "A module in @atc/harness-claude imports its own package by a relative path, never by name."
+              },
+              {
                 "regex": "^@atc/(store|lifecycle|daemon|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
                 "message": "@atc/harness-claude may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
               },
@@ -8017,6 +8245,10 @@
               }
             ],
             "patterns": [
+              {
+                "regex": "^@atc/harness-claude(/|$)",
+                "message": "A module in @atc/harness-claude imports its own package by a relative path, never by name."
+              },
               {
                 "regex": "^@atc/(store|lifecycle|daemon|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
                 "message": "@atc/harness-claude may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
