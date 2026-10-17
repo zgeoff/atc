@@ -13,10 +13,6 @@ import { findDaemonRecord } from '../find-daemon-record';
 import { isProcessAlive } from '../is-process-alive';
 import { startDaemonProcess } from './start-daemon-process';
 
-/**
- * A fresh home for one daemon process; a daemon that finds no config there
- * writes its own on first run.
- */
 function setupTest() {
   const tmp = setupTempDir('atc-daemon-process-');
 

@@ -17,18 +17,8 @@ const O_RDWR = 2;
 const O_CLOEXEC = process.platform === 'darwin' ? 0x01_00_00_00 : 0o200_0000;
 const RETRY_MS = 50;
 
-/**
- * Takes the exclusive daemon lock on the file at `lockPath`, waiting up to
- * `waitMs` for a daemon that is shutting down to let go, and resolves null
- * while another daemon holds it.
- *
- * The lock is a kernel `flock` on an open file description: two daemons
- * racing at the same instant cannot both win, and the kernel drops it when
- * the holding process dies, so a crashed daemon never blocks the next one.
- * The file is never removed: removing it would let a newcomer lock a fresh
- * inode while an older daemon still holds the unlinked one. The wait reads
- * its deadline from `clock` and waits out each retry through it.
- */
+// the file is never removed: removing it would let a newcomer lock a fresh
+// inode while an older daemon still holds the unlinked one.
 export async function claimDaemonLock(
   lockPath: string,
   waitMs: number,

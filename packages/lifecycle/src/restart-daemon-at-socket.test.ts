@@ -6,11 +6,6 @@ import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { restartDaemonAtSocket } from './restart-daemon-at-socket';
 import { buildMockLifecycleHost } from './testing/build-mock-lifecycle-host';
 
-/**
- * A home whose runtime directory is the home itself, an empty directory
- * that stands in for `/proc`, and a stand-in daemon that sleeps until it is
- * stopped.
- */
 function setupTest() {
   const dir = setupTempDir('restart-daemon-at-socket-').dir;
   const paths = resolvePaths({ HOME: dir, XDG_RUNTIME_DIR: dir });

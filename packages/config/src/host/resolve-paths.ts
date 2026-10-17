@@ -2,17 +2,6 @@ import { join } from 'node:path';
 import { resolveHomeDir } from './resolve-home-dir';
 import { resolveStateDir } from './resolve-state-dir';
 
-/**
- * Every file and socket atc keeps outside a checkout. `stateDir` holds the
- * database, the status file, and the restart records; the sockets and the
- * daemon's pid file sit in `XDG_RUNTIME_DIR` when it is set, else in
- * `stateDir`. `daemonRecordFile` is written by the running daemon: its pid
- * and the socket paths it listens on, for a client whose environment
- * computes other socket paths. `restartsDir` holds the run logs of
- * `atc daemon restart` and the record of the last finished restart, and
- * `restartLockFile` admits one restart at a time. `listingCacheFile` holds
- * the source listings a TUI client keeps between runs.
- */
 export interface Paths {
   readonly configFile: string;
   readonly stateDir: string;
@@ -30,10 +19,6 @@ export interface Paths {
   readonly listingCacheFile: string;
 }
 
-/**
- * The paths an environment gives: the home from `HOME` and the runtime
- * folder from `XDG_RUNTIME_DIR`. It reads nothing else and touches no file.
- */
 export function resolvePaths(env: Readonly<Record<string, string | undefined>>): Paths {
   const home = resolveHomeDir(env);
   const stateDir = resolveStateDir(home);

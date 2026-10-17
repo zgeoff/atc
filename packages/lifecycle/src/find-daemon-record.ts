@@ -19,14 +19,8 @@ const RECORD_SCHEMA = z.object({
   listenPort: z.number().int().min(1).max(65_535).nullable().default(null),
 });
 
-/**
- * Reads the record a running daemon keeps in its state directory: its pid,
- * the socket paths it listens on, which a client whose environment
- * computes other socket paths uses to find it, and the port its TCP
- * listener bound. A missing, torn, or
- * malformed record reads as null; a record left by a crashed daemon still
- * parses, so a caller proves liveness by connecting.
- */
+// a record left by a crashed daemon still parses, so a caller proves
+// liveness by connecting.
 export function findDaemonRecord(recordPath: string): DaemonRecord | null {
   let raw: unknown;
 

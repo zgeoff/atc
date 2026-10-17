@@ -1,11 +1,6 @@
 import { isGitURL } from '@atc/core';
 import type { SourceInterpretation, SourceProvider } from '@atc/plugin-api';
 
-/**
- * A git repository at a typed URL, which needs nothing installed beyond
- * git. It lists nothing; typed input is a repository when it is a URL git
- * reads.
- */
 export function buildGitSource(): SourceProvider {
   return {
     id: 'git',

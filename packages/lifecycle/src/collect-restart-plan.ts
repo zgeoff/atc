@@ -14,14 +14,6 @@ import type { DaemonProbe } from './try-open-daemon';
 // How long the handshake and the session list may take together.
 const PROBE_DEADLINE_MS = 3000;
 
-/**
- * Finds the daemon a restart would stop and the replacement it would start,
- * without changing either. The daemon answers on the socket this
- * environment computes or the one its record in the state directory holds,
- * and a handshake that its protocol refuses still identifies it. The probe's
- * time limit runs on the host's clock, and the probe and a plain
- * replacement take this build's stamp and argv from the host's invocation.
- */
 export async function collectRestartPlan(
   host: LifecycleHost,
   callerSession: string | null,

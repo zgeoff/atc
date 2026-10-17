@@ -1,9 +1,5 @@
 import type { AuthProfile } from '@atc/plugin-api';
 
-/**
- * How impd applies one secret to requests for one host. Only a basic rule
- * holds a user.
- */
 interface AuthRule {
   readonly host: string;
   readonly header: string;
@@ -11,23 +7,12 @@ interface AuthRule {
   readonly user?: string;
 }
 
-/**
- * One secret and the complete set of rules a selection needs impd to hold
- * for it, one per host, sorted by host.
- */
 export interface ResolvedAuthSecret {
   readonly secret: string;
   readonly kind: AuthProfile['kind'];
   readonly rules: readonly AuthRule[];
 }
 
-/**
- * A selection with its dependencies expanded: every profile it reaches,
- * every host those profiles send a credential to, the variables they set
- * in the guest with the profile each came from, and the rules grouped by
- * secret, each list sorted so two selections of the same profiles resolve
- * the same.
- */
 interface ResolvedAuthProfiles {
   readonly profiles: readonly string[];
   readonly hosts: readonly string[];
@@ -36,16 +21,6 @@ interface ResolvedAuthProfiles {
   readonly envOwners: Readonly<Record<string, string>>;
 }
 
-/**
- * Why a selection cannot be bound:
- *
- * - `auth_profile_unknown`: it reaches a profile that is missing or that
- *   the config refused.
- * - `auth_dependency_cycle`: the dependencies loop back on themselves.
- * - `auth_collision`: two profiles send different credentials or rules to
- *   one host, which impd could not tell apart, or set one variable to
- *   different values.
- */
 export interface AuthProfileProblem {
   readonly code: 'auth_profile_unknown' | 'auth_dependency_cycle' | 'auth_collision';
   readonly message: string;
@@ -61,13 +36,8 @@ interface ProfileRule {
   readonly rule: AuthRule;
 }
 
-/**
- * Expands the selected profiles through their dependencies, then checks
- * the whole expanded set: each host must get exactly one rule, so a
- * credential is never picked by order, and each secret one kind. Two
- * profiles holding the identical secret and rule for a host merge into one
- * rule.
- */
+// each host must get exactly one rule, so a credential is never picked by
+// order.
 export function resolveAuthProfiles(
   profiles: ReadonlyMap<string, AuthProfile>,
   selected: readonly string[],
@@ -149,12 +119,9 @@ export function resolveAuthProfiles(
   };
 }
 
-// Depth-first over the dependencies from one name: returns `reached` plus
-// every profile this name reaches, each added once its own dependencies are
-// done. A profile already reached is not walked again, so a shared
-// dependency costs one visit.
-// `path` holds the names on the way here, so a name already on it closes a
-// cycle.
+// depth-first: a profile is added once its dependencies are done, and one
+// already reached is not walked again; `path` holds the names on the way
+// here, so a name already on it closes a cycle.
 function collectReached(
   profiles: ReadonlyMap<string, AuthProfile>,
   name: string,

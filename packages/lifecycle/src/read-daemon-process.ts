@@ -6,15 +6,10 @@ import type { DaemonProcess } from './daemon-process';
 import { parseDaemonFlags } from './parse-daemon-flags';
 import { readProcProcess } from './read-proc-process';
 
-/**
- * Reads what a running daemon was started with from its entry under
- * `procRoot`: its environment, its working directory, and the listener
- * flags on its command line. Where the entry cannot be read, as on macOS,
- * the environment is this process's own and the flags are empty.
- */
 export function readDaemonProcess(pid: number, procRoot: string): DaemonProcess {
   const proc = readProcProcess(procRoot, pid);
 
+  // an unreadable entry, as on macOS, falls back to this process's own start.
   if (proc === null) {
     return buildOwnDaemonProcess();
   }

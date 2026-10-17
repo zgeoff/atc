@@ -15,25 +15,6 @@ import type { LifecycleHost } from './lifecycle-host';
 import { restartDaemonProcess } from './restart-daemon-process';
 import { spawnATCDetached } from './spawn-atc-detached';
 
-/**
- * Opens a handshaken client to the daemon, booting the daemon first when
- * neither the computed socket nor the one in the daemon's record answers,
- * or waiting for one when a daemon user unit is installed or the caller
- * set `waitForDaemonMs`.
- * Overlapping calls in one process share a single boot. A daemon from an
- * older build stays in service, since stopping it would end every hosted
- * session, and is reported as stale so the caller can offer a deliberate
- * restart. A daemon on another protocol version stays in service too: the
- * boot rejects with `protocol_mismatch` and a message holding both builds,
- * both versions, and the way to restart it, unless the caller's
- * `onProtocolMismatch` confirms a restart, which takes the refusing daemon
- * out of service the way `atc daemon restart` does. The expected build is
- * read through the host's invocation on every attempt: a long-lived caller
- * holding a build string from its own boot would otherwise flag daemons
- * that are already current. A daemon the boot starts runs through the
- * invocation's argv, and the boot runs on the host's paths and clock unless
- * the options give their own.
- */
 export async function bootDaemonClient(
   host: LifecycleHost,
   options: DaemonBootOptions = {},
@@ -68,6 +49,8 @@ export async function bootDaemonClient(
         };
 
   for (let attempt = 0; attempt < 2; ) {
+    // read on every attempt: a build held since this process booted would flag
+    // daemons that are already current as stale.
     const build = host.invocation.readBuild();
 
     const opened =
@@ -88,6 +71,9 @@ export async function bootDaemonClient(
 
       return {
         client,
+
+        // an older daemon stays in service, since stopping it would end every
+        // hosted session; the caller can offer a deliberate restart.
         stale: hello['daemon'] !== build,
         lastUsedAgent: toAgentID(hello['lastUsedAgent']),
         features: parseDaemonFeatures(hello),
@@ -155,11 +141,6 @@ interface OpenedDaemon {
   readonly socketPath: string;
 }
 
-/**
- * Opens the daemon at the known paths, starting one first when none
- * answers and the boot may start one. A boot that may not start one, since
- * a daemon it started would listen elsewhere, rejects instead.
- */
 async function openOrBootDaemon(
   paths: DaemonPaths,
   canStart: boolean,
@@ -199,10 +180,6 @@ interface DaemonWait {
   readonly onWait: () => void;
 }
 
-/**
- * Polls the known sockets until a daemon answers, and never starts one.
- * Each miss reports that the wait goes on.
- */
 async function waitForDaemon(wait: DaemonWait): Promise<OpenedDaemon> {
   for (;;) {
     const opened = await tryOpenKnownDaemon(wait.paths);
@@ -225,11 +202,8 @@ async function waitForDaemon(wait: DaemonWait): Promise<OpenedDaemon> {
   }
 }
 
-/**
- * Sends the handshake and rejects once the wait's deadline passes, so a
- * daemon that takes the connection but never answers cannot hold the wait
- * open.
- */
+// the deadline rejects so a daemon that takes the connection but never
+// answers cannot hold the wait open.
 async function waitForHello(
   sendHello: () => Promise<Readonly<Record<string, unknown>>>,
   wait: DaemonWait,
@@ -276,10 +250,6 @@ const BOOT_DEADLINE_MS = 8000;
 // process on that clock for that socket shares.
 const bootFlights = new WeakMap<Clock, Map<string, () => Promise<void>>>();
 
-/**
- * Starts a daemon and waits on the clock until one answers at the paths,
- * sharing a boot already in flight on the same clock for the same socket.
- */
 function bootDaemonOnce(
   paths: DaemonPaths,
   clock: Clock,

@@ -3,11 +3,8 @@ import { SESSION_ENV_NAMES } from '@atc/protocol/session';
 // The variables atc sets for the harness of a session it hosts.
 const SESSION_VARIABLES: ReadonlySet<string> = new Set(Object.values(SESSION_ENV_NAMES));
 
-/**
- * Copies an environment without the session environment of whoever runs
- * the restart, so the daemon it starts never mistakes itself for a hosted
- * session. Entries with no value drop out.
- */
+// the caller's session variables are dropped so the daemon it starts never
+// mistakes itself for a hosted session.
 export function collectRestartEnv(
   env: Readonly<Record<string, string | undefined>>,
 ): Record<string, string> {

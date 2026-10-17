@@ -1,14 +1,6 @@
-/**
- * The process environment with any enclosing Claude, Codex, or Grok
- * session scrubbed out. A child that inherits those variables behaves as part of
- * the parent session — Claude transcripts nest, and Grok joins the
- * parent's in-process dashboard — which breaks resume and isolation.
- *
- * Variables named in `withheld` are left out of what the child inherits,
- * such as a workspace credential that only the daemon's own git commands
- * may see. The extras the caller sets explicitly are added after, so one
- * of them is kept even when it shares a withheld name.
- */
+// a child that inherits a parent session's variables behaves as part of it:
+// Claude transcripts nest and Grok joins the parent's in-process dashboard,
+// which breaks resume and isolation.
 export function collectCleanEnv(
   extra: Readonly<Record<string, string>> = {},
   withheld: readonly string[] = [],
@@ -25,6 +17,7 @@ export function collectCleanEnv(
     env[key] = value;
   }
 
+  // the extras go last, so one is kept even when it shares a withheld name.
   return { ...env, ...extra };
 }
 

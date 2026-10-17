@@ -9,15 +9,6 @@ interface CollectedAgents {
   readonly errors: string[];
 }
 
-/**
- * Reads the `agents` map into registry order, each entry through the
- * harness plugin its kind selects. An entry that is not an object, selects
- * no plugin, or fails its plugin's schema is left out with every problem
- * that refused it, and the other entries load. A problem the plugin reports
- * beside an entry it loads, such as an MCP server it left out, is an error
- * and the entry loads. A value that is not an object leaves the registry
- * empty.
- */
 export function collectAgents(
   raw: unknown,
   authProfiles: ReadonlyMap<string, AuthProfile>,

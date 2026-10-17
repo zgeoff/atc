@@ -1,10 +1,5 @@
 import type { RestartResult } from './parse-restart-result';
 
-/**
- * Renders a finished restart as the lines the run prints: the daemon now
- * serving, how much of the fleet came back, each row that did not, and the
- * sessions the restart interrupted.
- */
 export function formatRestartReport(result: RestartResult): string[] {
   const lines: string[] = [];
 

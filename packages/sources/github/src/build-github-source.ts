@@ -32,15 +32,6 @@ const OWNER_INPUT_PATTERN = /^(?:github:)?(?<owner>[A-Za-z\d][A-Za-z\d-]{0,38})\
 const REPO_INPUT_PATTERN =
   /^(?:github:)?(?<owner>[A-Za-z\d][A-Za-z\d-]{0,38})\/(?<repo>[\w-][\w.-]*?)(?:\.git)?$/u;
 
-/**
- * The GitHub repositories gh on the daemon's host can see. A listing's
- * scope is the owner to list. Typed `owner/` lists that owner, and typed
- * `owner/repo` is that repository at the clone URL the gh config prefers;
- * either takes an optional `github:` in front.
- * A GitHub URL the host cannot read has the other URL form as its
- * alternate.
- * A listing gh cannot give throws `github_unavailable` with the problem.
- */
 export function buildGitHubSource(options: GitHubSourceOptions): SourceProvider {
   const timeoutMs = options.timeoutMs ?? GH_TIMEOUT_MS;
 

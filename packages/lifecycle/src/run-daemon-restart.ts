@@ -34,15 +34,8 @@ const LOG_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 // gives up on a worker that never started.
 const WORKER_START_WAIT_MS = 30_000;
 
-/**
- * Runs `atc daemon restart` in the caller: a dry run prints the preflight
- * and stops, and a restart hands the work to a detached worker, because the
- * restart can end the process that asked for it. The worker writes a run
- * log, which this follows line by line until the worker's result record
- * ends it. Resolves the exit code: the worker's, or 1 when the worker
- * vanishes without a result. The follower and the probe run on the host's
- * clock, and the worker runs through the host's invocation.
- */
+// a restart hands the work to a detached worker because the restart can
+// end the process that asked for it.
 export async function runDaemonRestart(
   host: LifecycleHost,
   options: DaemonRestartOptions,
@@ -116,11 +109,9 @@ function buildWorkerArgs(
   ];
 }
 
-// A restart through a unit stops the unit's whole cgroup, which holds a
-// hosted caller and its children, so the worker starts as a transient unit
-// of its own. It gets HOME, XDG_RUNTIME_DIR, PATH and every ATC_ variable
-// explicitly, since a transient unit otherwise inherits the user manager's
-// environment and with it the real state directory.
+// a unit restart stops the unit's whole cgroup, which holds a hosted caller,
+// so the worker runs as its own transient unit, with its environment set
+// explicitly, since the user manager's points at the real state directory.
 function startWorkerInUnit(
   runID: string,
   logPath: string,

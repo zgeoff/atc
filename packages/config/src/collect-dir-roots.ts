@@ -2,12 +2,6 @@ import { isRecord } from '@atc/core';
 import { resolveHomeDir } from './host/resolve-home-dir';
 import { normalizeConfigDir } from './normalize-config-dir';
 
-/**
- * Reads `dirs.roots`: the directories whose children the spawn picker
- * lists. A non-string entry is dropped, a leading `~` expands to the home
- * directory, and trailing slashes are trimmed so a root compares equal to
- * the paths under it. `home` is the directory a `~` expands to.
- */
 export function collectDirRoots(raw: unknown, home: string = resolveHomeDir()): readonly string[] {
   if (!isRecord(raw) || !Array.isArray(raw['roots'])) {
     return [];

@@ -1,10 +1,6 @@
 import { runGH } from '@atc/plugin-api';
 import type { HostServices } from '@atc/plugin-api';
 
-/**
- * The clone protocol the gh config on this host prefers: `ssh` when it says
- * so, else `https`, which a gh that fails or takes too long also gives.
- */
 export async function readGitProtocol(
   run: HostServices['runCommand'],
   bin: string,

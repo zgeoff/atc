@@ -4,11 +4,6 @@ import type { RestartPlan } from './restart-plan';
 const INTERRUPTION_POLICY =
   'Stopping the daemon ends every agent process it hosts. A session that is mid-turn loses that turn; the restore resumes each session from its transcript, and the interrupted turn does not continue.';
 
-/**
- * Renders what a restart is about to do: the daemon it stops, the sessions
- * that are mid-turn, the replacement it starts, and the interruption
- * policy.
- */
 export function formatRestartPreflight(plan: RestartPlan): string[] {
   return [...formatTarget(plan), ...formatReplacement(plan), INTERRUPTION_POLICY];
 }

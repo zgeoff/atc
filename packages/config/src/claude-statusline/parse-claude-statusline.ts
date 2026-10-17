@@ -1,23 +1,12 @@
 import { isRecord } from '@atc/core';
 
-/**
- * The part of a person's Claude settings that atc's own statusline
- * chains: the statusline command Claude runs, and the padding Claude puts
- * around its output. Either is absent when the settings set none.
- */
 export interface ClaudeStatusLine {
   readonly command?: string;
   readonly padding?: number;
 }
 
-/**
- * Reads the statusline of a Claude settings file's text. Text that is not
- * a settings object reads as no statusline, so a broken settings file never
- * breaks the session atc instruments. Only the two fields atc reads come
- * back, and a field of another type is left out. The statusline reporter
- * loads this module at start-up, so it reads the fields by hand rather than
- * through a Zod schema.
- */
+// the statusline reporter loads this module at start-up, so it reads the
+// fields by hand rather than through a schema.
 export function parseClaudeStatusLine(text: string): ClaudeStatusLine {
   let json: unknown;
 

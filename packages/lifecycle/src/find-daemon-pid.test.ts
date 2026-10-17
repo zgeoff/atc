@@ -4,11 +4,6 @@ import { join } from 'node:path';
 import { setupTempDir } from '@atc/test-utils';
 import { findDaemonPID } from './find-daemon-pid';
 
-/**
- * A directory for the daemon's files, its state directory, and a directory
- * that stands in for `/proc`, where this test process reads as `atc daemon`
- * on that state directory.
- */
 function setupTest() {
   const dir = setupTempDir('find-daemon-pid-').dir;
   const procRoot = join(dir, 'proc');

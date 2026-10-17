@@ -7,12 +7,6 @@ interface PrincipalsConfig {
   readonly errors: readonly string[];
 }
 
-/**
- * Reads the `principals` map: each principal's id to the names of the
- * targets it may use. No `principals` key is null. Otherwise the config
- * fails closed: a malformed map grants nothing to anyone, and a malformed
- * entry grants nothing to its principal. Each problem is an error.
- */
 export function collectPrincipals(raw: unknown): PrincipalsConfig {
   if (raw === undefined) {
     return { principals: null, errors: [] };

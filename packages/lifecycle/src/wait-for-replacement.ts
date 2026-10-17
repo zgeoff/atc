@@ -15,13 +15,6 @@ type ReplacementOutcome =
     }
   | { readonly ok: false; readonly reason: string };
 
-/**
- * Waits up to `waitMs` on the host's clock for a daemon to answer whose pid
- * differs from the one that was stopped and whose record in the state
- * directory matches it. With `expectedBuild`, the answering daemon must run
- * that build: another client that won the start with a different build is a
- * failure.
- */
 export async function waitForReplacement(
   host: LifecycleHost,
   oldPID: number | null,

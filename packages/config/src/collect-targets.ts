@@ -2,21 +2,12 @@ import { isRecord } from '@atc/core';
 import { formatJSONKind } from './format-json-kind';
 import { LOCAL_TARGET } from './local-target';
 
-/**
- * A named place sessions run: the execution provider kind that serves it,
- * and the options that kind takes.
- */
 export interface TargetConfig {
   readonly id: string;
   readonly provider: string;
   readonly options: Readonly<Record<string, unknown>>;
 }
 
-/**
- * A config problem that leaves a target, or every target, unusable: the
- * config file as a whole, the `targets` map, one entry of it, or
- * `defaultTarget`.
- */
 export type TargetConfigError = TargetSectionError | ConfigFileError;
 
 interface TargetSectionError {
@@ -27,13 +18,6 @@ interface TargetSectionError {
   readonly problem: string;
 }
 
-/**
- * A config file that exists but cannot be used, so no target in it can be
- * trusted: `config_malformed` when its text is not JSON or its root is not
- * an object, `config_unreadable` when reading it fails for any reason but
- * its absence. `detail` holds the parse message, the root's kind, or the
- * read's error code.
- */
 interface ConfigFileError {
   readonly scope: 'config';
   readonly problem: 'config_malformed' | 'config_unreadable';
@@ -51,16 +35,6 @@ interface TargetsConfig {
   readonly errors: readonly TargetConfigError[];
 }
 
-/**
- * Reads the `targets` map and `defaultTarget`. No `targets` key holds the
- * one implicit `local` target as the default. Otherwise the config fails
- * closed: a malformed map holds no targets, a malformed entry is left out,
- * and a `defaultTarget` that is not a string or matches no well-formed
- * entry leaves no default. Each problem is an error, so a spawn that
- * resolves through it fails with that error instead of running on `local`.
- * Without `defaultTarget`, the default is the `local` entry when the map
- * holds a well-formed one, and none otherwise.
- */
 export function collectTargets(rawTargets: unknown, rawDefault: unknown): TargetsConfig {
   if (rawTargets === undefined && rawDefault === undefined) {
     return { targets: [LOCAL_TARGET], defaultTarget: LOCAL_TARGET.id, errors: [] };
