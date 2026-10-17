@@ -19,8 +19,11 @@ import { CredentialBrokerError, isHostNameAllowed } from '@atc/plugin-api';
  * with `not_found`, each with impd's code as the broker code. A rebound or
  * removed secret takes every grant of it with it, a host made again gets a
  * new id, and a destroy of a missing host resolves. `calls` holds every
- * contract call in order, and a test prepares the broker through the
- * setters as an operator prepares impd.
+ * contract call in the order the calls arrive, and a test prepares the
+ * broker through the setters as an operator prepares impd. While a test
+ * holds the calls, each call is recorded as it arrives and takes effect
+ * and answers only on a release, so the calls held at one time are the
+ * calls in flight together.
  */
 export interface StubBinderBroker extends CredentialBroker {
   readonly calls: string[];
@@ -43,6 +46,18 @@ export interface StubBinderBroker extends CredentialBroker {
 
   // The same broker as a provider with another host prefix reaches it.
   readonly buildRenamedBroker: (hostPrefix: string) => CredentialBroker;
+
+  // Holds every call from now until the next release.
+  readonly holdCalls: () => void;
+
+  // The calls held since the last release, in the order they arrived.
+  readonly collectHeldCalls: () => string[];
+
+  // Resolves to the held calls once at least the count of them are held.
+  readonly waitForHeldCalls: (count: number) => Promise<readonly string[]>;
+
+  // Answers every held call in the order they arrived, and holds no more.
+  readonly releaseCalls: () => void;
 }
 
 interface StubHost {
@@ -71,6 +86,23 @@ export function buildStubBinderBroker(hostPrefix = 'atc-'): StubBinderBroker {
     scope: 'manage',
     hosts: [`${hostPrefix}*`],
     grantable: [],
+  };
+
+  const held: { readonly call: string; readonly answer: () => void }[] = [];
+
+  const heldWaits: {
+    readonly count: number;
+    readonly resolve: (calls: readonly string[]) => void;
+  }[] = [];
+
+  let holding = false;
+  const collectHeldCalls = () => held.map((entry) => entry.call);
+
+  const emitHeldCalls = (): void => {
+    for (const wait of heldWaits.filter((entry) => held.length >= entry.count)) {
+      heldWaits.splice(heldWaits.indexOf(wait), 1);
+      wait.resolve(collectHeldCalls());
+    }
   };
 
   let removalFailure: string | null = null;
@@ -122,34 +154,35 @@ export function buildStubBinderBroker(hostPrefix = 'atc-'): StubBinderBroker {
     staleGrantable.add(name);
   };
 
+  // A call's result as the broker answers it: resolved, or rejected with
+  // what the call threw, at once or on the release that answers it.
+  const answerCall = <T>(call: string, read: () => T): Promise<T> => {
+    calls.push(call);
+
+    const answered = Promise.withResolvers<void>();
+
+    if (holding) {
+      held.push({ call, answer: answered.resolve });
+
+      emitHeldCalls();
+    } else {
+      answered.resolve();
+    }
+
+    return answered.promise.then(read);
+  };
+
   const buildBroker = (prefix: string): CredentialBroker => {
     const getHostName = (hostKey: string): string => `${prefix}${hostKey}`;
 
     return {
       hostPrefix: prefix,
       getHostName,
-      readFeatures: () =>
-        answerCall(() => {
-          calls.push('readFeatures');
-
-          return features;
-        }),
-      readIdentity: () =>
-        answerCall(() => {
-          calls.push('readIdentity');
-
-          return identity;
-        }),
-      readSecrets: () =>
-        answerCall(() => {
-          calls.push('readSecrets');
-
-          return [...secrets.values()];
-        }),
+      readFeatures: () => answerCall('readFeatures', () => features),
+      readIdentity: () => answerCall('readIdentity', () => identity),
+      readSecrets: () => answerCall('readSecrets', () => [...secrets.values()]),
       readGrants: (hostName) =>
-        answerCall(() => {
-          calls.push(`readGrants ${hostName}`);
-
+        answerCall(`readGrants ${hostName}`, () => {
           const host = hosts.get(hostName);
 
           if (host === undefined) {
@@ -159,9 +192,7 @@ export function buildStubBinderBroker(hostPrefix = 'atc-'): StubBinderBroker {
           return [...host.grants];
         }),
       createGrant: (hostName, secret) =>
-        answerCall(() => {
-          calls.push(`createGrant ${hostName} ${secret}`);
-
+        answerCall(`createGrant ${hostName} ${secret}`, () => {
           const refusal = findGrantRefusal(hostName, secret);
 
           if (refusal !== null) {
@@ -171,9 +202,7 @@ export function buildStubBinderBroker(hostPrefix = 'atc-'): StubBinderBroker {
           hosts.get(hostName)?.grants.add(secret);
         }),
       removeGrant: (hostName, secret) =>
-        answerCall(() => {
-          calls.push(`removeGrant ${hostName} ${secret}`);
-
+        answerCall(`removeGrant ${hostName} ${secret}`, () => {
           if (removalFailure !== null) {
             throw new CredentialBrokerError(
               toBrokerCode(removalFailure),
@@ -191,18 +220,14 @@ export function buildStubBinderBroker(hostPrefix = 'atc-'): StubBinderBroker {
           return hosts.get(hostName)?.grants.delete(secret) ?? false;
         }),
       readHost: (hostName) =>
-        answerCall((): BrokerHost | null => {
-          calls.push(`readHost ${hostName}`);
-
+        answerCall(`readHost ${hostName}`, (): BrokerHost | null => {
           const host = hosts.get(hostName);
 
           return host === undefined ? null : { id: host.id, name: hostName };
         }),
       createHost: (hostKey) =>
-        answerCall(() => {
+        answerCall(`createHost ${getHostName(hostKey)}`, () => {
           const name = getHostName(hostKey);
-
-          calls.push(`createHost ${name}`);
 
           if (hosts.has(name)) {
             throw new CredentialBrokerError('refused', `host ${name} already exists`, {
@@ -220,11 +245,8 @@ export function buildStubBinderBroker(hostPrefix = 'atc-'): StubBinderBroker {
           return { id: host.id, name };
         }),
       destroyHost: (hostKey) =>
-        answerCall(() => {
-          const name = getHostName(hostKey);
-
-          calls.push(`destroyHost ${name}`);
-          hosts.delete(name);
+        answerCall(`destroyHost ${getHostName(hostKey)}`, () => {
+          hosts.delete(getHostName(hostKey));
         }),
     };
   };
@@ -232,6 +254,23 @@ export function buildStubBinderBroker(hostPrefix = 'atc-'): StubBinderBroker {
   return {
     ...buildBroker(hostPrefix),
     calls,
+    holdCalls: () => {
+      holding = true;
+    },
+    collectHeldCalls,
+    waitForHeldCalls: (count) =>
+      new Promise((resolve) => {
+        heldWaits.push({ count, resolve });
+
+        emitHeldCalls();
+      }),
+    releaseCalls: () => {
+      holding = false;
+
+      for (const entry of held.splice(0)) {
+        entry.answer();
+      }
+    },
     setFeatures: (next) => {
       features = { ...features, ...next };
     },
@@ -293,12 +332,4 @@ function toBrokerCode(code: string): CredentialBrokerError['code'] {
       return 'refused';
     }
   }
-}
-
-// A call's result as the broker answers it: resolved, or rejected with
-// what the call threw.
-function answerCall<T>(read: () => T): Promise<T> {
-  return new Promise((resolve) => {
-    resolve(read());
-  });
 }

@@ -250,8 +250,18 @@ export class ImpClientPort implements ImpPort {
     return written.path;
   };
 
-  readonly runCommand = (name: string, command: ImpCommand): Promise<ImpCommandResult> =>
-    this.tryCall((client) => runCommandInChunks(client, name, command));
+  // A command's exec WebSocket carries the token in its headers, as a
+  // session connection's does, so the command needs no exec ticket from
+  // impd before it opens.
+  readonly runCommand = (name: string, command: ImpCommand): Promise<ImpCommandResult> => {
+    const token = this.tryReadToken();
+
+    if (token instanceof ImpPortError) {
+      return Promise.reject(token);
+    }
+
+    return runCommandInChunks(this.url, token, name, command);
+  };
 
   readonly openReverseForward = (
     name: string,
@@ -459,44 +469,111 @@ async function waitForSessionOutcome(outcome: Promise<ExecOutcome>): Promise<Imp
 // when one arrives, so a command's input goes over in pieces well below it.
 const STDIN_CHUNK_BYTES = 1024 * 1024;
 
-// Runs a command with its input sent a piece at a time. A command that ends
-// before it takes all its input answers with its own exit, or with the
-// failure that ended it, never with the refused write.
+// Runs a command with its input sent a piece at a time, once impd starts
+// it. A command that ends before it takes all its input answers with its
+// own exit, and an exec that ends any other way rejects with impd's code
+// or the transport's.
 async function runCommandInChunks(
-  client: ImpClient,
+  url: string,
+  token: string | null,
   name: string,
-
   command: ImpCommand,
 ): Promise<ImpCommandResult> {
-  const options = command.cwd === undefined ? {} : { cwd: command.cwd };
+  const stdout: Uint8Array[] = [];
+  const stderr: Uint8Array[] = [];
+  const started = Promise.withResolvers<void>();
 
-  const handle = await client.openExec(name, command.argv, options);
+  const session = openExecSession({
+    baseUrl: url,
+    token,
+    start: {
+      name,
+      argv: command.argv,
+      tty: false,
+      ...(command.cwd === undefined ? {} : { cwd: command.cwd }),
+    },
+    onStarted: () => {
+      started.resolve();
+    },
+    onOutput: (channel, data) => {
+      (channel === 'stderr' ? stderr : stdout).push(data);
+    },
+    connect: (socketURL, headers) => new WebSocket(socketURL, { headers }),
+  });
 
-  const output = Promise.all([
-    new Response(handle.stdout).bytes(),
-    new Response(handle.stderr).bytes(),
-  ]);
+  const state = { ended: false };
 
-  try {
-    const stdin = command.stdin ?? new Uint8Array(0);
+  const outcome = (async () => {
+    const ended = await session.outcome;
 
-    for (let at = 0; at < stdin.byteLength; at += STDIN_CHUNK_BYTES) {
-      await handle.write(stdin.subarray(at, at + STDIN_CHUNK_BYTES));
+    state.ended = true;
+
+    return ended;
+  })();
+
+  await Promise.race([started.promise, outcome]);
+
+  const stdin = command.stdin ?? new Uint8Array(0);
+
+  for (let at = 0; at < stdin.byteLength && !state.ended; at += STDIN_CHUNK_BYTES) {
+    if (!session.sendStdin(stdin.subarray(at, at + STDIN_CHUNK_BYTES))) {
+      await session.waitForDrain();
     }
-
-    await handle.closeStdin();
-  } catch {
-    // A write fails once the exec has ended, and the exit holds why: the
-    // command's own exit, or the failure that ended it, which rethrows
-    // here. Closing first ends an exec the failed write left running.
-    handle.close();
-
-    await handle.exit;
   }
 
-  const [exit, [stdout, stderr]] = await Promise.all([handle.exit, output]);
+  session.closeStdin();
 
-  return { code: exit.code, stdout, stderr };
+  const ended = await outcome;
+
+  if (ended.kind !== 'exit') {
+    throw toCommandError(ended);
+  }
+
+  return { code: ended.code, stdout: mergeChunks(stdout), stderr: mergeChunks(stderr) };
+}
+
+// An exec that ended without an exit, under the code impd's client gives
+// the same ending.
+function toCommandError(ended: Exclude<ExecOutcome, { kind: 'exit' }>): ImpPortError {
+  return match(ended)
+    .returnType<ImpPortError>()
+    .with(
+      { kind: 'failed' },
+      (failed) => new ImpPortError(failed.code ?? 'EXEC_ERROR', failed.message, failed.data),
+    )
+    .with(
+      { kind: 'unauthorized' },
+      () => new ImpPortError('UNAUTHORIZED', 'impd rejected the token'),
+    )
+    .with(
+      { kind: 'unreachable' },
+      (failed) => new ImpPortError('UNREACHABLE', `cannot reach impd (${failed.detail})`),
+    )
+    .with(
+      { kind: 'detached' },
+      (failed) => new ImpPortError('DETACHED', `detached from the session (${failed.reason})`),
+    )
+    .with(
+      { kind: 'closed', closeCode: 1012 },
+      () => new ImpPortError('RESTARTING', 'impd is restarting'),
+    )
+    .with(
+      { kind: 'closed' },
+      (failed) =>
+        new ImpPortError('CONNECTION_CLOSED', `exec connection closed (${failed.reason})`),
+    )
+    .with(
+      { kind: 'bad_message' },
+      (failed) => new ImpPortError('BAD_MESSAGE', `bad message from impd: ${failed.detail}`),
+    )
+    .with({ kind: 'local_error' }, () => new ImpPortError('LOCAL_ERROR', 'an output handler threw'))
+    .exhaustive();
+}
+
+function mergeChunks(chunks: readonly Uint8Array[]): Uint8Array {
+  const merged = Buffer.concat(chunks);
+
+  return new Uint8Array(merged.buffer, merged.byteOffset, merged.byteLength);
 }
 
 async function waitForListening(listening: Promise<unknown>): Promise<void> {

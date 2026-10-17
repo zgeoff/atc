@@ -40,10 +40,13 @@ and no grant behind:
    grant every bound secret.
 3. Each secret's kind and rules in impd must match the binding exactly.
 
-The spawn then records the binding, creates a new imp, and adds each grant. An imp that already
-exists under the name refuses the spawn, so a spawn never inherits another session's grants. A spawn
-that fails after this point takes back the imp it created, and a take-back it cannot confirm answers
-`outcome_unknown` under an idempotency key.
+The daemon sends every read these checks need, and the read of the imp's name, to impd at once, so
+the checks cost one round trip, and it still refuses in the order of the list. The spawn then
+records the binding, creates a new imp, and adds the grants at once. Every grant settles before a
+failed one refuses the spawn, so a take-back never runs beside a grant still in flight. An imp that
+already exists under the name refuses the spawn, so a spawn never inherits another session's grants.
+A spawn that fails after this point takes back the imp it created, and a take-back it cannot confirm
+answers `outcome_unknown` under an idempotency key.
 
 A launch whose binding holds an OAuth secret reads that secret's sign-in from impd before it touches
 the imp, and refuses with `auth_signin_needed` when the sign-in is pending or incomplete.
@@ -52,9 +55,10 @@ the imp, and refuses with `auth_signin_needed` when the sign-in is pending or in
 
 A revive, a restore, and a sub-session that joins its parent's imp check the binding again before
 they touch the host or resolve a workspace: the binding must be ready, the auth profiles in use must
-hash as recorded, the imp must be the one recorded, and impd must hold exactly the bound grants. atc
-never adds a missing grant back, since a missing grant means someone withdrew it. A sub-session
-joins only a host bound to the same binding as its own.
+hash as recorded, the imp must be the one recorded, and impd must hold exactly the bound grants. The
+daemon sends the reads for these checks to impd at once. atc never adds a missing grant back, since
+a missing grant means someone withdrew it. A sub-session joins only a host bound to the same binding
+as its own.
 
 On an imp target that sets `rebindChangedAuth`, a revive or a restore whose auth profiles no longer
 hash as recorded moves the host to the current selection instead of refusing. The owner writes both

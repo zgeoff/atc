@@ -1,3 +1,4 @@
+import { getSettledValue } from '@atc/core';
 import type { CredentialBroker } from '@atc/plugin-api';
 import { BrokerAuthorityError } from './broker-authority-error';
 import { verifyTokenImpAuthority } from './verify-token-imp-authority';
@@ -15,8 +16,8 @@ interface BrokerActivation {
 
 /**
  * The gate before atc grants or relies on a brokered credential. It reads
- * impd's features, then the token's identity, and writes nothing, so a
- * refusal leaves impd as it was. It rejects unless impd has grantable
+ * impd's features and the token's identity at once, checks them in that
+ * order, and writes nothing, so a refusal leaves impd as it was. It rejects unless impd has grantable
  * tokens, secret rebinds and exec requirements, so a start can refuse to
  * run without a ready broker, and oauth secrets when the binding holds one,
  * the token may manage each imp and reaches no
@@ -28,7 +29,12 @@ export async function verifyBrokerAuthority(
   broker: Pick<CredentialBroker, 'hostPrefix' | 'readFeatures' | 'readIdentity'>,
   activation: BrokerActivation,
 ): Promise<void> {
-  const features = await broker.readFeatures();
+  const [featuresRead, identityRead] = await Promise.allSettled([
+    broker.readFeatures(),
+    broker.readIdentity(),
+  ]);
+
+  const features = getSettledValue(featuresRead);
 
   if (!features.grantableTokens || !features.secretRebind || !features.execRequire) {
     throw new BrokerAuthorityError(
@@ -52,7 +58,7 @@ export async function verifyBrokerAuthority(
     );
   }
 
-  const identity = await broker.readIdentity();
+  const identity = getSettledValue(identityRead);
 
   verifyTokenImpAuthority(identity, activation.impNames, broker.hostPrefix);
 

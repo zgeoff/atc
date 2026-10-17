@@ -350,6 +350,39 @@ test('it returns the exit of a command that ends before it reads its stdin', asy
   expect(result.code).toBe(2);
 });
 
+test('it runs a command over an exec socket that carries the token, with no exec ticket call', async () => {
+  const ctx = setupTest();
+
+  ctx.impd.exec.reply = 'exit-early';
+
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'socket-token' });
+
+  await port.runCommand('imp-a', { argv: ['true'], cwd: '/srv' });
+
+  expect(ctx.impd.calls).toStrictEqual([]);
+  expect(ctx.impd.authorizations).toStrictEqual(['Bearer socket-token']);
+
+  expect(ctx.impd.execOpens).toStrictEqual([
+    { type: 'start', name: 'imp-a', argv: ['true'], tty: false, cwd: '/srv' },
+  ]);
+});
+
+test('it rejects a command as unauthorized without reaching impd when the token file is empty', () => {
+  const ctx = setupTest();
+  const tmp = setupTempDir('atc-imp-client-port-');
+  const file = join(tmp.dir, 'token');
+
+  writeFileSync(file, '');
+
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => readImpToken(file) });
+
+  expect(port.runCommand('imp-a', { argv: ['true'] })).rejects.toMatchObject({
+    code: 'UNAUTHORIZED',
+  });
+
+  expect(ctx.impd.authorizations).toStrictEqual([]);
+});
+
 test('it rejects a command whose start impd refuses with the refusal', () => {
   const ctx = setupTest();
   const tmp = setupTempDir('atc-imp-client-port-');

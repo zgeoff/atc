@@ -110,7 +110,81 @@ test('it provisions a host through the gate, a new imp and each grant, in that o
   ]);
 });
 
-test('it refuses an impd without exec requirements after reading only its features and records nothing', async () => {
+test('it provisions a host with two secrets in four round trips to impd', async () => {
+  const ctx = await setupTest();
+
+  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
+  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
+  // and `judge` for judge.example, both custom bearer secrets.
+  ctx.host.setIdentity({
+    name: 'atc-runtime',
+    scope: 'manage',
+    hosts: ['atc-*'],
+    grantable: ['glm', 'judge'],
+  });
+
+  ctx.host.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  ctx.host.createSecret('judge', 'custom', [
+    { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  ctx.host.holdCalls();
+
+  const created = ctx.binder.createBinding(ctx.host, {
+    hostKey: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'imp:test',
+    binding: buildMockAuthBinding({
+      profiles: ['glm', 'judge'],
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+        {
+          secret: 'judge',
+          kind: 'custom',
+          rules: [{ host: 'judge.example', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      hash: 'h1',
+    }),
+  });
+
+  const gateRound = await ctx.host.waitForHeldCalls(4);
+
+  ctx.host.releaseCalls();
+  ctx.host.holdCalls();
+
+  const createRound = await ctx.host.waitForHeldCalls(1);
+
+  ctx.host.releaseCalls();
+  ctx.host.holdCalls();
+
+  const grantsReadRound = await ctx.host.waitForHeldCalls(1);
+
+  ctx.host.releaseCalls();
+  ctx.host.holdCalls();
+
+  const grantRound = await ctx.host.waitForHeldCalls(2);
+
+  ctx.host.releaseCalls();
+
+  await created;
+
+  expect([gateRound, createRound, grantsReadRound, grantRound]).toStrictEqual([
+    ['readFeatures', 'readIdentity', 'readSecrets', 'readHost atc-s1'],
+    ['createHost atc-s1'],
+    ['readGrants atc-s1'],
+    ['createGrant atc-s1 glm', 'createGrant atc-s1 judge'],
+  ]);
+});
+
+test('it refuses an impd without exec requirements and records nothing', async () => {
   const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
@@ -159,7 +233,7 @@ test('it refuses an impd without exec requirements after reading only its featur
 
   const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
 
-  expect(calls).toStrictEqual(['readFeatures']);
+  expect(calls).toStrictEqual(['readFeatures', 'readIdentity', 'readSecrets', 'readHost atc-s1']);
   expect(binding).toBeNull();
 });
 
@@ -197,7 +271,7 @@ test('it refuses a token that reaches every imp and records nothing', async () =
 
   const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
 
-  expect(calls).toStrictEqual(['readFeatures', 'readIdentity']);
+  expect(calls).toStrictEqual(['readFeatures', 'readIdentity', 'readSecrets', 'readHost atc-s1']);
   expect(binding).toBeNull();
 });
 
@@ -247,7 +321,7 @@ test('it refuses a secret whose rules differ from the binding and creates no imp
 
   const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
 
-  expect(calls).toStrictEqual(['readFeatures', 'readIdentity', 'readSecrets']);
+  expect(calls).toStrictEqual(['readFeatures', 'readIdentity', 'readSecrets', 'readHost atc-s1']);
   expect(binding).toBeNull();
 });
 
@@ -439,6 +513,75 @@ test('it verifies a bound host without granting anything again', async () => {
   expect(verified.state).toBe('ready');
 
   expect(ctx.host.calls).toStrictEqual([
+    'readFeatures',
+    'readIdentity',
+    'readSecrets',
+    'readHost atc-s1',
+    'readGrants atc-s1',
+  ]);
+});
+
+test('it verifies a bound host in one round trip to impd', async () => {
+  const ctx = await setupTest();
+
+  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
+  // imps and may grant `glm`, and impd holds `glm` for api.z.ai as a custom
+  // bearer secret.
+  ctx.host.setIdentity({
+    name: 'atc-runtime',
+    scope: 'manage',
+    hosts: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.host.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const attemptID = await ctx.binder.createBinding(ctx.host, {
+    hostKey: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'imp:test',
+    binding: buildMockAuthBinding({
+      profiles: ['glm'],
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      hash: 'h1',
+    }),
+  });
+
+  await ctx.binder.updateReady(toSessionID('s1'), attemptID);
+
+  ctx.host.holdCalls();
+
+  const verified = ctx.binder.verifyBinding(
+    ctx.host,
+    toSessionID('s1'),
+    buildMockAuthBinding({
+      profiles: ['glm'],
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      hash: 'h1',
+    }),
+  );
+
+  const round = await ctx.host.waitForHeldCalls(5);
+
+  ctx.host.releaseCalls();
+
+  await verified;
+
+  expect(round).toStrictEqual([
     'readFeatures',
     'readIdentity',
     'readSecrets',
