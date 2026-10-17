@@ -202,7 +202,7 @@ test('it exits 1 when a flag takes the state directory flag as its value', async
   );
 
   expect(io.printError).toHaveBeenCalledExactlyOnceWith(
-    'atc-gateway: --redirect-uri needs a value; write --redirect-uri=<value>',
+    "Optional argument '--redirect-uri' requires a value",
   );
 
   expect(io.exit).toHaveBeenCalledExactlyOnceWith(1);
@@ -232,10 +232,7 @@ test('it exits 1 on a flag it does not know at the root', async () => {
     io,
   );
 
-  expect(io.printError).toHaveBeenCalledExactlyOnceWith(
-    "atc-gateway: unknown flag '--stat-dir=flagged'",
-  );
-
+  expect(io.printError).toHaveBeenCalledExactlyOnceWith('Unknown option: --stat-dir');
   expect(io.exit).toHaveBeenCalledExactlyOnceWith(1);
   expect(io.runClients).not.toHaveBeenCalled();
 });
@@ -266,10 +263,7 @@ test('it exits 1 on a port it cannot parse', async () => {
     io,
   );
 
-  expect(io.printError).toHaveBeenCalledExactlyOnceWith(
-    "atc-gateway: --port takes a port from 0 to 65535, not 'abc'",
-  );
-
+  expect(io.printError).toHaveBeenCalledExactlyOnceWith("Expected an integer, got 'abc'");
   expect(io.exit).toHaveBeenCalledExactlyOnceWith(1);
   expect(io.runGateway).not.toHaveBeenCalled();
 });
@@ -349,7 +343,7 @@ test('it prints the usage of the command --help follows and exits 0', async () =
   await runGatewayCLI(['--state-dir', 'flagged', 'clients', 'add', '--help'], {}, io);
 
   expect(io.print).toHaveBeenCalledExactlyOnceWith(
-    expect.toInclude('Add a client and print its client ID (clients add)'),
+    expect.toInclude('atc-gateway clients add <OPTIONS> <name>'),
   );
 
   expect(io.exit).toHaveBeenCalledExactlyOnceWith(0);
@@ -368,11 +362,12 @@ test('it prints the usage and the reason and exits 1 on a missing required flag'
 
   await runGatewayCLI(['--state-dir', 'flagged', 'serve', '--registry', 'registry.json'], {}, io);
 
-  expect(io.print).toHaveBeenCalledExactlyOnceWith(
-    expect.toInclude('Serve MCP over HTTP behind OAuth (atc-gateway serve'),
+  expect(io.print).toHaveBeenCalledExactlyOnceWith(expect.toInclude('atc-gateway serve <OPTIONS>'));
+
+  expect(io.printError).toHaveBeenCalledExactlyOnceWith(
+    "Optional argument '--public-url' is required",
   );
 
-  expect(io.printError).toHaveBeenCalledExactlyOnceWith('Missing required argument: --public-url');
   expect(io.exit).toHaveBeenCalledExactlyOnceWith(1);
   expect(io.runGateway).not.toHaveBeenCalled();
 });
@@ -399,6 +394,117 @@ test.each([
     dbPath: join('flagged', 'mcp-auth.db'),
     command: 'atc-gateway passkeys',
   });
+});
+
+test('it adds a client with every redirect URI, in order, in either flag form', async () => {
+  const io = {
+    runGateway: mock(),
+    runClients: mock(),
+    runPasskeys: mock(),
+    print: mock(),
+    printError: mock(),
+    exit: mock(),
+  };
+
+  await runGatewayCLI(
+    [
+      'clients',
+      'add',
+      'Claude',
+      '--redirect-uri',
+      'https://claude.ai/api/mcp/auth_callback',
+      '--redirect-uri=https://claude.com/api/mcp/auth_callback',
+      '--state-dir',
+      'flagged',
+    ],
+    {},
+    io,
+  );
+
+  expect(io.runClients).toHaveBeenCalledExactlyOnceWith(
+    {
+      kind: 'add',
+      name: 'Claude',
+      redirectURIs: [
+        'https://claude.ai/api/mcp/auth_callback',
+        'https://claude.com/api/mcp/auth_callback',
+      ],
+    },
+    { dbPath: join('flagged', 'mcp-auth.db'), command: 'atc-gateway clients' },
+  );
+});
+
+test('it exits 1 on an empty state directory flag', async () => {
+  const io = {
+    runGateway: mock(),
+    runClients: mock(),
+    runPasskeys: mock(),
+    print: mock(),
+    printError: mock(),
+    exit: mock(),
+  };
+
+  await runGatewayCLI(['clients', '--state-dir='], { ATC_GATEWAY_STATE_DIR: 'from-env' }, io);
+
+  expect(io.printError).toHaveBeenCalledExactlyOnceWith(
+    'atc-gateway: --state-dir needs a value; write --state-dir=<value>',
+  );
+
+  expect(io.exit).toHaveBeenCalledExactlyOnceWith(1);
+  expect(io.runClients).not.toHaveBeenCalled();
+});
+
+test.each([{ args: [] }, { args: ['--state-dir', 'flagged'] }])(
+  'it prints the usage and exits 1 on $args, which names no command',
+  async (row) => {
+    const io = {
+      runGateway: mock(),
+      runClients: mock(),
+      runPasskeys: mock(),
+      print: mock(),
+      printError: mock(),
+      exit: mock(),
+    };
+
+    await runGatewayCLI(row.args, {}, io);
+
+    expect(io.print).toHaveBeenCalledExactlyOnceWith(expect.toInclude('atc-gateway [COMMANDS]'));
+    expect(io.printError).toHaveBeenCalledExactlyOnceWith('No command specified.');
+    expect(io.exit).toHaveBeenCalledExactlyOnceWith(1);
+  },
+);
+
+test('it exits 1 on a command it does not know', async () => {
+  const io = {
+    runGateway: mock(),
+    runClients: mock(),
+    runPasskeys: mock(),
+    print: mock(),
+    printError: mock(),
+    exit: mock(),
+  };
+
+  await runGatewayCLI(['clients', 'rename', '--state-dir', 'flagged'], {}, io);
+
+  expect(io.printError).toHaveBeenCalledExactlyOnceWith('Command not found: rename');
+  expect(io.exit).toHaveBeenCalledExactlyOnceWith(1);
+  expect(io.runClients).not.toHaveBeenCalled();
+});
+
+test('it prints the version and exits 0 on --version', async () => {
+  const io = {
+    runGateway: mock(),
+    runClients: mock(),
+    runPasskeys: mock(),
+    print: mock(),
+    printError: mock(),
+    exit: mock(),
+  };
+
+  await runGatewayCLI(['--version'], {}, io);
+
+  expect(io.print).toHaveBeenCalledExactlyOnceWith(pkg.version);
+  expect(io.exit).toHaveBeenCalledExactlyOnceWith(0);
 });
 
 test('it exits 1 when it enrolls a passkey with no state directory', async () => {

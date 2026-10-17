@@ -18,7 +18,7 @@ export function buildHookSettings(
 ): Record<string, unknown> {
   // the agent id on the command line keeps a nested harness's reports, which inherit the env
   // but not the command line, from passing as the session's own
-  const command = buildHookCommand(`hook-report --agent ${toShellArg(profile.id)}`, cliArgv);
+  const command = buildHookCommand(`hook-report --agent=${toShellArg(profile.id)}`, cliArgv);
   const entry = [buildHookEntry(command, 5)];
 
   const own = {
@@ -32,7 +32,7 @@ export function buildHookSettings(
     // padding.
     statusLine: {
       type: 'command',
-      command: buildHookCommand(`statusline --agent ${toShellArg(profile.id)}`, cliArgv),
+      command: buildHookCommand(`statusline --agent=${toShellArg(profile.id)}`, cliArgv),
       padding: statuslinePadding,
     },
 

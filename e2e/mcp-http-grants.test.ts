@@ -20,7 +20,7 @@ async function setupTest() {
 
 // The grant id starts with a dash, with an underscore after it, the shape an
 // argument parser reads as a group of short flags.
-test('it revokes a grant whose id starts with a dash with --revoke <id> so its access token stops working', async () => {
+test('it revokes a grant whose id starts with a dash with --revoke=<id> so its access token stops working', async () => {
   const ctx = await setupTest();
 
   const clientID = await ctx.server.createClient('Claude', [
@@ -68,7 +68,7 @@ test('it revokes a grant whose id starts with a dash with --revoke <id> so its a
     .execute();
 
   const revoked = await runCommand(
-    [...ctx.atc, 'grants', '--revoke', '-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc'],
+    [...ctx.atc, 'grants', '--revoke=-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc'],
     { env: ctx.env },
   );
 

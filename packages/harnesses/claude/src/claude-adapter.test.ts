@@ -333,7 +333,7 @@ test('it restores an unbrokered remote session in the mode its settings set', ()
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
               timeout: 5,
             },
           ],
@@ -344,7 +344,7 @@ test('it restores an unbrokered remote session in the mode its settings set', ()
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
               timeout: 5,
             },
           ],
@@ -355,7 +355,7 @@ test('it restores an unbrokered remote session in the mode its settings set', ()
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
               timeout: 5,
             },
           ],
@@ -366,7 +366,7 @@ test('it restores an unbrokered remote session in the mode its settings set', ()
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
               timeout: 5,
             },
           ],
@@ -377,7 +377,7 @@ test('it restores an unbrokered remote session in the mode its settings set', ()
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
               timeout: 5,
             },
           ],
@@ -386,7 +386,7 @@ test('it restores an unbrokered remote session in the mode its settings set', ()
     },
     statusLine: {
       type: 'command',
-      command: '"/opt/atc/bin/atc" statusline --agent \'claude\'',
+      command: '"/opt/atc/bin/atc" statusline --agent=\'claude\'',
       padding: 0,
     },
   });
@@ -447,7 +447,7 @@ test('it plans a remote spawn in the permission mode its configured arguments se
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
               timeout: 5,
             },
           ],
@@ -458,7 +458,7 @@ test('it plans a remote spawn in the permission mode its configured arguments se
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
               timeout: 5,
             },
           ],
@@ -469,7 +469,7 @@ test('it plans a remote spawn in the permission mode its configured arguments se
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
               timeout: 5,
             },
           ],
@@ -480,7 +480,7 @@ test('it plans a remote spawn in the permission mode its configured arguments se
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
               timeout: 5,
             },
           ],
@@ -491,7 +491,7 @@ test('it plans a remote spawn in the permission mode its configured arguments se
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
               timeout: 5,
             },
           ],
@@ -500,7 +500,7 @@ test('it plans a remote spawn in the permission mode its configured arguments se
     },
     statusLine: {
       type: 'command',
-      command: '"/opt/atc/bin/atc" statusline --agent \'claude\'',
+      command: '"/opt/atc/bin/atc" statusline --agent=\'claude\'',
       padding: 0,
     },
   });
@@ -554,7 +554,7 @@ test('it carries the settings file in the resume command of an entry with its ow
           hooks: [
             {
               type: 'command',
-              command: `"/opt/atc/bin/atc" hook-report --agent 'claude'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent='claude'`,
               timeout: 5,
             },
           ],
@@ -565,7 +565,7 @@ test('it carries the settings file in the resume command of an entry with its ow
           hooks: [
             {
               type: 'command',
-              command: `"/opt/atc/bin/atc" hook-report --agent 'claude'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent='claude'`,
               timeout: 5,
             },
           ],
@@ -576,7 +576,7 @@ test('it carries the settings file in the resume command of an entry with its ow
           hooks: [
             {
               type: 'command',
-              command: `"/opt/atc/bin/atc" hook-report --agent 'claude'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent='claude'`,
               timeout: 5,
             },
           ],
@@ -587,7 +587,7 @@ test('it carries the settings file in the resume command of an entry with its ow
           hooks: [
             {
               type: 'command',
-              command: `"/opt/atc/bin/atc" hook-report --agent 'claude'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent='claude'`,
               timeout: 5,
             },
           ],
@@ -598,7 +598,7 @@ test('it carries the settings file in the resume command of an entry with its ow
           hooks: [
             {
               type: 'command',
-              command: `"/opt/atc/bin/atc" hook-report --agent 'claude'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent='claude'`,
               timeout: 5,
             },
           ],
@@ -607,7 +607,7 @@ test('it carries the settings file in the resume command of an entry with its ow
     },
     statusLine: {
       type: 'command',
-      command: `"/opt/atc/bin/atc" statusline --agent 'claude'`,
+      command: `"/opt/atc/bin/atc" statusline --agent='claude'`,
       padding: 0,
     },
   });
@@ -855,7 +855,7 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
               timeout: 5,
             },
           ],
@@ -866,7 +866,7 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
               timeout: 5,
             },
           ],
@@ -877,7 +877,7 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
               timeout: 5,
             },
           ],
@@ -888,7 +888,7 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
               timeout: 5,
             },
           ],
@@ -899,7 +899,7 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
               timeout: 5,
             },
           ],
@@ -908,7 +908,7 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
     },
     statusLine: {
       type: 'command',
-      command: '"/opt/atc/bin/atc" statusline --agent \'claude\'',
+      command: '"/opt/atc/bin/atc" statusline --agent=\'claude\'',
       padding: 0,
     },
     env: {
@@ -1015,7 +1015,7 @@ test("it ships the host's Claude config as the session's user settings and keeps
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
               timeout: 5,
             },
           ],
@@ -1026,7 +1026,7 @@ test("it ships the host's Claude config as the session's user settings and keeps
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
               timeout: 5,
             },
           ],
@@ -1037,7 +1037,7 @@ test("it ships the host's Claude config as the session's user settings and keeps
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
               timeout: 5,
             },
           ],
@@ -1048,7 +1048,7 @@ test("it ships the host's Claude config as the session's user settings and keeps
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
               timeout: 5,
             },
           ],
@@ -1059,7 +1059,7 @@ test("it ships the host's Claude config as the session's user settings and keeps
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
               timeout: 5,
             },
           ],
@@ -1068,7 +1068,7 @@ test("it ships the host's Claude config as the session's user settings and keeps
     },
     statusLine: {
       type: 'command',
-      command: '"/opt/atc/bin/atc" statusline --agent \'claude\'',
+      command: '"/opt/atc/bin/atc" statusline --agent=\'claude\'',
       padding: 2,
     },
     env: {
@@ -1241,7 +1241,7 @@ test('it plans a guest spawn without a broker binding in the config of the host 
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
               timeout: 5,
             },
           ],
@@ -1252,7 +1252,7 @@ test('it plans a guest spawn without a broker binding in the config of the host 
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
               timeout: 5,
             },
           ],
@@ -1263,7 +1263,7 @@ test('it plans a guest spawn without a broker binding in the config of the host 
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
               timeout: 5,
             },
           ],
@@ -1274,7 +1274,7 @@ test('it plans a guest spawn without a broker binding in the config of the host 
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
               timeout: 5,
             },
           ],
@@ -1285,7 +1285,7 @@ test('it plans a guest spawn without a broker binding in the config of the host 
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
               timeout: 5,
             },
           ],
@@ -1294,7 +1294,7 @@ test('it plans a guest spawn without a broker binding in the config of the host 
     },
     statusLine: {
       type: 'command',
-      command: '"/opt/atc/bin/atc" statusline --agent \'claude\'',
+      command: '"/opt/atc/bin/atc" statusline --agent=\'claude\'',
       padding: 0,
     },
   });
@@ -1697,7 +1697,7 @@ test("it sets a profile's variables in a subscription guest's settings env and s
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
               timeout: 5,
             },
           ],
@@ -1708,7 +1708,7 @@ test("it sets a profile's variables in a subscription guest's settings env and s
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
               timeout: 5,
             },
           ],
@@ -1719,7 +1719,7 @@ test("it sets a profile's variables in a subscription guest's settings env and s
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
               timeout: 5,
             },
           ],
@@ -1730,7 +1730,7 @@ test("it sets a profile's variables in a subscription guest's settings env and s
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
               timeout: 5,
             },
           ],
@@ -1741,7 +1741,7 @@ test("it sets a profile's variables in a subscription guest's settings env and s
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
               timeout: 5,
             },
           ],
@@ -1750,7 +1750,7 @@ test("it sets a profile's variables in a subscription guest's settings env and s
     },
     statusLine: {
       type: 'command',
-      command: '"/opt/atc/bin/atc" statusline --agent \'claude\'',
+      command: '"/opt/atc/bin/atc" statusline --agent=\'claude\'',
       padding: 0,
     },
     env: {
@@ -1821,7 +1821,7 @@ test("it leaves a profile's variables out of the local plan of an entry with a p
           hooks: [
             {
               type: 'command',
-              command: `"/opt/atc/bin/atc" hook-report --agent 'claude'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent='claude'`,
               timeout: 5,
             },
           ],
@@ -1832,7 +1832,7 @@ test("it leaves a profile's variables out of the local plan of an entry with a p
           hooks: [
             {
               type: 'command',
-              command: `"/opt/atc/bin/atc" hook-report --agent 'claude'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent='claude'`,
               timeout: 5,
             },
           ],
@@ -1843,7 +1843,7 @@ test("it leaves a profile's variables out of the local plan of an entry with a p
           hooks: [
             {
               type: 'command',
-              command: `"/opt/atc/bin/atc" hook-report --agent 'claude'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent='claude'`,
               timeout: 5,
             },
           ],
@@ -1854,7 +1854,7 @@ test("it leaves a profile's variables out of the local plan of an entry with a p
           hooks: [
             {
               type: 'command',
-              command: `"/opt/atc/bin/atc" hook-report --agent 'claude'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent='claude'`,
               timeout: 5,
             },
           ],
@@ -1865,7 +1865,7 @@ test("it leaves a profile's variables out of the local plan of an entry with a p
           hooks: [
             {
               type: 'command',
-              command: `"/opt/atc/bin/atc" hook-report --agent 'claude'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent='claude'`,
               timeout: 5,
             },
           ],
@@ -1874,7 +1874,7 @@ test("it leaves a profile's variables out of the local plan of an entry with a p
     },
     statusLine: {
       type: 'command',
-      command: `"/opt/atc/bin/atc" statusline --agent 'claude'`,
+      command: `"/opt/atc/bin/atc" statusline --agent='claude'`,
       padding: 0,
     },
   });

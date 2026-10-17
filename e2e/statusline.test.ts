@@ -36,6 +36,28 @@ test('it chains the user statusline and appends the fleet segment', async () => 
   );
 });
 
+test.each([
+  { command: "echo SHOULD-NOT-RUN statusline --agent='claude'" },
+  { command: "echo SHOULD-NOT-RUN statusline --agent 'claude'" },
+  { command: 'echo SHOULD-NOT-RUN statusline' },
+])('it never chains $command, which is its own injected command', async (row) => {
+  const ctx = setupTest();
+
+  mkdirSync(join(ctx.dir, '.claude'), { recursive: true });
+
+  writeFileSync(
+    join(ctx.dir, '.claude', 'settings.json'),
+    JSON.stringify({ statusLine: { type: 'command', command: row.command } }),
+  );
+
+  const proc = await runCommand([process.execPath, getSourceEntry('atc'), 'statusline'], {
+    stdin: JSON.stringify({ session_id: 'sl-1' }),
+    env: { ...process.env, HOME: ctx.dir, PATH: '/usr/sbin:/usr/bin:/bin' },
+  });
+
+  expect(proc.stdout).not.toInclude('SHOULD-NOT-RUN');
+});
+
 test('it chains the user statusline from the Claude config folder CLAUDE_CONFIG_DIR sets', async () => {
   const ctx = setupTest();
 

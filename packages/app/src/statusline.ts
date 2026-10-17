@@ -120,7 +120,7 @@ async function readOwnSegment(sock: string): Promise<string> {
 
 // A user statusline that is atc's own injected command would chain into
 // itself; the injected command ends with the bare subcommand, or with the
-// subcommand and its agent flag.
+// subcommand and its agent flag, its value after a space or an `=`.
 function isSelfCommand(cmd: string): boolean {
-  return cmd.includes('statusline.ts') || /\sstatusline(?:\s+--agent\s.*)?$/u.test(cmd);
+  return cmd.includes('statusline.ts') || /\sstatusline(?:\s+--agent[\s=].*)?$/u.test(cmd);
 }

@@ -371,7 +371,7 @@ test("it runs a headless turn with the gateway's settings file, its permission h
           hooks: [
             {
               type: 'command',
-              command: `"/opt/atc/bin/atc" hook-report --agent 'manual-hook'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent='manual-hook'`,
               timeout: 5,
             },
           ],
@@ -382,7 +382,7 @@ test("it runs a headless turn with the gateway's settings file, its permission h
           hooks: [
             {
               type: 'command',
-              command: `"/opt/atc/bin/atc" hook-report --agent 'manual-hook'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent='manual-hook'`,
               timeout: 5,
             },
           ],
@@ -393,7 +393,7 @@ test("it runs a headless turn with the gateway's settings file, its permission h
           hooks: [
             {
               type: 'command',
-              command: `"/opt/atc/bin/atc" hook-report --agent 'manual-hook'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent='manual-hook'`,
               timeout: 5,
             },
           ],
@@ -404,7 +404,7 @@ test("it runs a headless turn with the gateway's settings file, its permission h
           hooks: [
             {
               type: 'command',
-              command: `"/opt/atc/bin/atc" hook-report --agent 'manual-hook'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent='manual-hook'`,
               timeout: 5,
             },
           ],
@@ -415,7 +415,7 @@ test("it runs a headless turn with the gateway's settings file, its permission h
           hooks: [
             {
               type: 'command',
-              command: `"/opt/atc/bin/atc" hook-report --agent 'manual-hook'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent='manual-hook'`,
               timeout: 5,
             },
           ],
@@ -425,7 +425,7 @@ test("it runs a headless turn with the gateway's settings file, its permission h
     },
     statusLine: {
       type: 'command',
-      command: `"/opt/atc/bin/atc" statusline --agent 'manual-hook'`,
+      command: `"/opt/atc/bin/atc" statusline --agent='manual-hook'`,
       padding: 0,
     },
     env: { ANTHROPIC_BASE_URL: 'https://gateway.example/anthropic' },
@@ -648,7 +648,7 @@ test("it starts a gateway with auth and a credential helper on the daemon's mach
           hooks: [
             {
               type: 'command',
-              command: `"/opt/atc/bin/atc" hook-report --agent 'glm-local'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent='glm-local'`,
               timeout: 5,
             },
           ],
@@ -659,7 +659,7 @@ test("it starts a gateway with auth and a credential helper on the daemon's mach
           hooks: [
             {
               type: 'command',
-              command: `"/opt/atc/bin/atc" hook-report --agent 'glm-local'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent='glm-local'`,
               timeout: 5,
             },
           ],
@@ -670,7 +670,7 @@ test("it starts a gateway with auth and a credential helper on the daemon's mach
           hooks: [
             {
               type: 'command',
-              command: `"/opt/atc/bin/atc" hook-report --agent 'glm-local'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent='glm-local'`,
               timeout: 5,
             },
           ],
@@ -681,7 +681,7 @@ test("it starts a gateway with auth and a credential helper on the daemon's mach
           hooks: [
             {
               type: 'command',
-              command: `"/opt/atc/bin/atc" hook-report --agent 'glm-local'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent='glm-local'`,
               timeout: 5,
             },
           ],
@@ -692,7 +692,7 @@ test("it starts a gateway with auth and a credential helper on the daemon's mach
           hooks: [
             {
               type: 'command',
-              command: `"/opt/atc/bin/atc" hook-report --agent 'glm-local'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent='glm-local'`,
               timeout: 5,
             },
           ],
@@ -701,7 +701,7 @@ test("it starts a gateway with auth and a credential helper on the daemon's mach
     },
     statusLine: {
       type: 'command',
-      command: `"/opt/atc/bin/atc" statusline --agent 'glm-local'`,
+      command: `"/opt/atc/bin/atc" statusline --agent='glm-local'`,
       padding: 0,
     },
     env: { ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic' },
@@ -984,7 +984,7 @@ test('it plans a brokered guest spawn with its own settings file, Claude config 
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'glm\'',
               timeout: 5,
             },
           ],
@@ -995,7 +995,7 @@ test('it plans a brokered guest spawn with its own settings file, Claude config 
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'glm\'',
               timeout: 5,
             },
           ],
@@ -1006,7 +1006,7 @@ test('it plans a brokered guest spawn with its own settings file, Claude config 
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'glm\'',
               timeout: 5,
             },
           ],
@@ -1017,7 +1017,7 @@ test('it plans a brokered guest spawn with its own settings file, Claude config 
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'glm\'',
               timeout: 5,
             },
           ],
@@ -1028,7 +1028,7 @@ test('it plans a brokered guest spawn with its own settings file, Claude config 
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'glm\'',
               timeout: 5,
             },
           ],
@@ -1037,7 +1037,7 @@ test('it plans a brokered guest spawn with its own settings file, Claude config 
     },
     statusLine: {
       type: 'command',
-      command: '"/opt/atc/bin/atc" statusline --agent \'glm\'',
+      command: '"/opt/atc/bin/atc" statusline --agent=\'glm\'',
       padding: 0,
     },
     env: {
@@ -1142,7 +1142,7 @@ test("it keeps the gateway's permission hook and mode in a brokered guest's sett
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'glm\'',
               timeout: 5,
             },
           ],
@@ -1153,7 +1153,7 @@ test("it keeps the gateway's permission hook and mode in a brokered guest's sett
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'glm\'',
               timeout: 5,
             },
           ],
@@ -1164,7 +1164,7 @@ test("it keeps the gateway's permission hook and mode in a brokered guest's sett
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'glm\'',
               timeout: 5,
             },
           ],
@@ -1175,7 +1175,7 @@ test("it keeps the gateway's permission hook and mode in a brokered guest's sett
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'glm\'',
               timeout: 5,
             },
           ],
@@ -1186,7 +1186,7 @@ test("it keeps the gateway's permission hook and mode in a brokered guest's sett
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'glm\'',
               timeout: 5,
             },
           ],
@@ -1196,7 +1196,7 @@ test("it keeps the gateway's permission hook and mode in a brokered guest's sett
     },
     statusLine: {
       type: 'command',
-      command: '"/opt/atc/bin/atc" statusline --agent \'glm\'',
+      command: '"/opt/atc/bin/atc" statusline --agent=\'glm\'',
       padding: 0,
     },
     env: {
@@ -1373,7 +1373,7 @@ test('it carries an extra placeholder variable and the gateway args into a broke
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'glm\'',
               timeout: 5,
             },
           ],
@@ -1384,7 +1384,7 @@ test('it carries an extra placeholder variable and the gateway args into a broke
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'glm\'',
               timeout: 5,
             },
           ],
@@ -1395,7 +1395,7 @@ test('it carries an extra placeholder variable and the gateway args into a broke
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'glm\'',
               timeout: 5,
             },
           ],
@@ -1406,7 +1406,7 @@ test('it carries an extra placeholder variable and the gateway args into a broke
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'glm\'',
               timeout: 5,
             },
           ],
@@ -1417,7 +1417,7 @@ test('it carries an extra placeholder variable and the gateway args into a broke
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'glm\'',
               timeout: 5,
             },
           ],
@@ -1426,7 +1426,7 @@ test('it carries an extra placeholder variable and the gateway args into a broke
     },
     statusLine: {
       type: 'command',
-      command: '"/opt/atc/bin/atc" statusline --agent \'glm\'',
+      command: '"/opt/atc/bin/atc" statusline --agent=\'glm\'',
       padding: 0,
     },
     env: {
@@ -2301,7 +2301,7 @@ test("it sets a profile's variables in a brokered guest's settings env and spawn
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'glm\'',
               timeout: 5,
             },
           ],
@@ -2312,7 +2312,7 @@ test("it sets a profile's variables in a brokered guest's settings env and spawn
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'glm\'',
               timeout: 5,
             },
           ],
@@ -2323,7 +2323,7 @@ test("it sets a profile's variables in a brokered guest's settings env and spawn
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'glm\'',
               timeout: 5,
             },
           ],
@@ -2334,7 +2334,7 @@ test("it sets a profile's variables in a brokered guest's settings env and spawn
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'glm\'',
               timeout: 5,
             },
           ],
@@ -2345,7 +2345,7 @@ test("it sets a profile's variables in a brokered guest's settings env and spawn
           hooks: [
             {
               type: 'command',
-              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'glm\'',
               timeout: 5,
             },
           ],
@@ -2354,7 +2354,7 @@ test("it sets a profile's variables in a brokered guest's settings env and spawn
     },
     statusLine: {
       type: 'command',
-      command: '"/opt/atc/bin/atc" statusline --agent \'glm\'',
+      command: '"/opt/atc/bin/atc" statusline --agent=\'glm\'',
       padding: 0,
     },
     env: {

@@ -1,0 +1,553 @@
+import { define, lazy } from 'gunshi';
+import { integer } from 'gunshi/combinators';
+import pkg from '../package.json';
+import type { runClients } from './clients';
+import type { runNote } from './note';
+import type { runPasskeys } from './passkeys';
+import { makeMissingCommandRun, runCommandLine } from './run-command-line';
+import type { CommandLineIO } from './run-command-line';
+
+// The `atc mcp` flags, parsed.
+interface MCPFlags {
+  readonly http: boolean;
+  readonly host: string | null;
+  readonly port: number | null;
+  readonly publicURL: string | null;
+  readonly waitForDaemon: boolean;
+}
+
+// The flags `atc daemon restart` and its worker share, parsed only as far as
+// the parser checks them.
+interface RestartFlags {
+  readonly listen: string | null;
+  readonly tokenFile: string | null;
+  readonly timeout: string | null;
+}
+
+export interface ATCCLIIO extends CommandLineIO {
+  readonly runTUI: (daemon: string | null) => Promise<void>;
+  readonly runMCP: (flags: MCPFlags) => Promise<void>;
+  readonly runClients: (action: Parameters<typeof runClients>[0]) => Promise<void>;
+  readonly runPasskeys: (action: Parameters<typeof runPasskeys>[0]) => Promise<void>;
+  readonly runSession: (action: 'rebind' | 'adopt', id: string) => Promise<void>;
+  readonly runGrants: (revoke: string | null) => Promise<void>;
+  readonly runConfigMigrate: (file: string | null, write: boolean) => Promise<void>;
+  readonly runDaemon: (listen: string | null, tokenFile: string | null) => Promise<void>;
+  readonly runDaemonID: () => Promise<void>;
+  readonly runDaemonRestart: (flags: RestartFlags & { readonly dryRun: boolean }) => Promise<void>;
+  readonly runDaemonRestartWorker: (
+    flags: RestartFlags & { readonly runID: string; readonly session: string | null },
+  ) => Promise<void>;
+  readonly runBackup: (path: string) => Promise<void>;
+  readonly runEvents: () => Promise<void>;
+  readonly printCodexHooks: () => Promise<void>;
+  readonly printGrokHooks: () => Promise<void>;
+  readonly runHookReport: (agent: string) => Promise<void>;
+  readonly runTap: (session: string, notices: boolean) => Promise<void>;
+  readonly runNote: (...args: Readonly<Parameters<typeof runNote>>) => Promise<void>;
+  readonly runStatusline: (agent: string) => Promise<void>;
+}
+
+// The `atc daemon` flags as the parser gives them.
+interface DaemonValues {
+  readonly listen?: string | undefined;
+  readonly 'token-file'?: string | undefined;
+}
+
+export async function runATCCLI(argv: readonly string[], io: ATCCLIIO): Promise<void> {
+  const runDaemonServe = async (values: DaemonValues): Promise<void> => {
+    await io.runDaemon(values.listen ?? null, values['token-file'] ?? null);
+  };
+
+  const entry = define({
+    name: 'atc',
+    description: ATC_DESCRIPTION,
+    args: TUI_ARGS,
+    run: async (ctx) => {
+      await io.runTUI(ctx.values.daemon ?? null);
+    },
+  });
+
+  const tui = lazy(
+    () => async (ctx) => {
+      await io.runTUI(ctx.values.daemon ?? null);
+    },
+    { name: 'tui', description: 'Open the session list client', internal: true, args: TUI_ARGS },
+  );
+
+  const mcp = lazy(
+    () => async (ctx) => {
+      await io.runMCP({
+        http: ctx.values.http,
+        host: ctx.values.host ?? null,
+        port: ctx.values.port ?? null,
+        publicURL: ctx.values['public-url'] ?? null,
+        waitForDaemon: ctx.values['wait-for-daemon'],
+      });
+    },
+    {
+      name: 'mcp',
+      description:
+        'Run an MCP server exposing the fleet as tools: over stdio, or with --http behind OAuth',
+      args: {
+        http: { type: 'boolean', default: false, description: 'Serve MCP over HTTP behind OAuth' },
+        host: { type: 'string', description: 'Address to bind with --http (default 127.0.0.1)' },
+        port: integer({
+          min: 0,
+          max: 65_535,
+          description: 'Port to listen on with --http, or 0 for a free one (default 8414)',
+        }),
+        'public-url': {
+          type: 'string',
+          description: 'Origin clients reach the --http server at, such as https://mcp.example.com',
+        },
+        'wait-for-daemon': {
+          type: 'boolean',
+          default: false,
+          description:
+            'With --http, wait for a running daemon instead of starting one, for a managed daemon',
+        },
+      },
+    },
+  );
+
+  const clients = define({
+    name: 'clients',
+    description: 'List, add, or remove the clients that may connect to atc mcp --http',
+    subCommands: {
+      list: lazy(
+        () => async () => {
+          await io.runClients({ kind: 'list' });
+        },
+        { name: 'list', description: 'List the clients', internal: true },
+      ),
+      add: lazy(
+        () => async (ctx) => {
+          await io.runClients({
+            kind: 'add',
+            name: ctx.values.name,
+            redirectURIs: ctx.values['redirect-uri'],
+          });
+        },
+        {
+          name: 'add',
+          description: 'Add a client and print its client ID',
+          args: {
+            name: { type: 'positional', description: 'The client name' },
+            'redirect-uri': {
+              type: 'string',
+              multiple: true,
+              required: true,
+              description: 'A redirect URI the client returns to; repeat for more',
+            },
+          },
+        },
+      ),
+      remove: lazy(
+        () => async (ctx) => {
+          await io.runClients({ kind: 'remove', clientID: ctx.values.id });
+        },
+        {
+          name: 'remove',
+          description: 'Remove a client and revoke every grant it holds',
+          args: { id: { type: 'positional', description: 'The client ID' } },
+        },
+      ),
+    },
+    run: async () => {
+      await io.runClients({ kind: 'list' });
+    },
+  });
+
+  const passkeys = define({
+    name: 'passkeys',
+    description: 'List, enroll, or remove the passkeys the owner signs in to atc mcp --http with',
+    subCommands: {
+      list: lazy(
+        () => async () => {
+          await io.runPasskeys({ kind: 'list' });
+        },
+        { name: 'list', description: 'List the enrolled passkeys', internal: true },
+      ),
+      enroll: lazy(
+        () => async (ctx) => {
+          await io.runPasskeys({ kind: 'enroll', reset: ctx.values.reset === true });
+        },
+        {
+          name: 'enroll',
+          description:
+            'Print a one-time token that enrolls a passkey; --reset first removes every passkey',
+          args: {
+            reset: {
+              type: 'boolean',
+              description: 'Remove every passkey and browser sign-in first, after losing them',
+            },
+          },
+        },
+      ),
+      remove: lazy(
+        () => async (ctx) => {
+          await io.runPasskeys({ kind: 'remove', id: ctx.values.id });
+        },
+        {
+          name: 'remove',
+          description: 'Remove a passkey, such as a lost one',
+          args: { id: { type: 'positional', description: 'The passkey ID' } },
+        },
+      ),
+    },
+    run: async () => {
+      await io.runPasskeys({ kind: 'list' });
+    },
+  });
+
+  const session = define({
+    name: 'session',
+    description: "Rebind a session's host or start its terminal, as the daemon's owner",
+    subCommands: {
+      rebind: lazy(
+        () => async (ctx) => {
+          await io.runSession('rebind', ctx.values.id);
+        },
+        {
+          name: 'rebind',
+          description: "Bind a session's host to its agent's current auth profiles; then adopt it",
+          args: SESSION_ID_ARG,
+        },
+      ),
+      adopt: lazy(
+        () => async (ctx) => {
+          await io.runSession('adopt', ctx.values.id);
+        },
+        {
+          name: 'adopt',
+          description: 'Start a terminal for a session that has none, resuming its agent',
+          args: SESSION_ID_ARG,
+        },
+      ),
+    },
+    run: makeMissingCommandRun(io),
+  });
+
+  const grants = lazy(
+    () => async (ctx) => {
+      await io.runGrants(ctx.values.revoke ?? null);
+    },
+    {
+      name: 'grants',
+      description: 'List the grants atc mcp --http clients hold, or revoke one with --revoke=<id>',
+      args: { revoke: { type: 'string', description: 'The ID of a grant to revoke' } },
+    },
+  );
+
+  const config = define({
+    name: 'config',
+    description: "Work on atc's config.json",
+    subCommands: {
+      migrate: lazy(
+        () => async (ctx) => {
+          await io.runConfigMigrate(ctx.values.file ?? null, ctx.values.write);
+        },
+        {
+          name: 'migrate',
+          description:
+            'Move the old agent keys of config.json into agents: print the result, or rewrite the file with --write',
+          args: {
+            write: {
+              type: 'boolean',
+              default: false,
+              description: 'Back the file up beside itself, then rewrite it in place',
+            },
+            file: {
+              type: 'string',
+              description: 'The config file to migrate (default ~/.config/atc/config.json)',
+            },
+          },
+        },
+      ),
+    },
+    run: makeMissingCommandRun(io),
+  });
+
+  const daemon = define({
+    name: 'daemon',
+    description: 'Run the atc daemon in the foreground',
+    args: DAEMON_ARGS,
+    subCommands: {
+      serve: lazy(
+        () => async (ctx) => {
+          await runDaemonServe(ctx.values);
+        },
+        {
+          name: 'serve',
+          description: 'Run the atc daemon in the foreground',
+          internal: true,
+          args: DAEMON_ARGS,
+        },
+      ),
+      id: lazy(
+        () => async () => {
+          await io.runDaemonID();
+        },
+        { name: 'id', description: "Print the running daemon's daemonID" },
+      ),
+      restart: lazy(
+        () => async (ctx) => {
+          await io.runDaemonRestart({
+            listen: ctx.values.listen ?? null,
+            tokenFile: ctx.values['token-file'] ?? null,
+            timeout: ctx.values.timeout ?? null,
+            dryRun: ctx.values['dry-run'],
+          });
+        },
+        {
+          name: 'restart',
+          description: 'Restart the running daemon and restore its fleet',
+          args: {
+            ...DAEMON_ARGS,
+            timeout: {
+              type: 'string',
+              description: 'Seconds to wait for the restored fleet to come alive',
+            },
+            'dry-run': {
+              type: 'boolean',
+              default: false,
+              description: 'Print what the restart would do and stop',
+            },
+          },
+        },
+      ),
+      'restart-worker': lazy(
+        () => async (ctx) => {
+          await io.runDaemonRestartWorker({
+            listen: ctx.values.listen ?? null,
+            tokenFile: ctx.values['token-file'] ?? null,
+            timeout: ctx.values.timeout ?? null,
+            runID: ctx.values.runID,
+            session: ctx.values.session ?? null,
+          });
+        },
+        {
+          name: 'restart-worker',
+          description: 'Run one daemon restart for atc daemon restart',
+          internal: true,
+          args: {
+            ...DAEMON_ARGS,
+            runID: { type: 'positional', description: 'The run id' },
+            session: { type: 'string', description: 'The session that asked for the restart' },
+            timeout: { type: 'string', description: 'Seconds to wait for the restored fleet' },
+          },
+        },
+      ),
+    },
+    run: async (ctx) => {
+      await runDaemonServe(ctx.values);
+    },
+  });
+
+  const backup = lazy(
+    () => async (ctx) => {
+      await io.runBackup(ctx.values.path);
+    },
+    {
+      name: 'backup',
+      description: "Write a consistent copy of the running daemon's state database to a file",
+      args: {
+        path: { type: 'positional', description: 'The file to write, replacing any file there' },
+      },
+    },
+  );
+
+  const events = lazy(
+    () => async () => {
+      await io.runEvents();
+    },
+    { name: 'events', description: 'Stream daemon wire events to stdout as NDJSON' },
+  );
+
+  const codexHooks = lazy(
+    () => async () => {
+      await io.printCodexHooks();
+    },
+    {
+      name: 'codex-hooks',
+      description:
+        'Print the Codex hook entries to merge into $CODEX_HOME/hooks.json (trust them once in the Codex TUI)',
+    },
+  );
+
+  const grokHooks = lazy(
+    () => async () => {
+      await io.printGrokHooks();
+    },
+    {
+      name: 'grok-hooks',
+      description: 'Print the Grok hook file to install at $GROK_HOME/hooks/atc-reporter.json',
+    },
+  );
+
+  const hookReport = lazy(
+    () => async (ctx) => {
+      await io.runHookReport(ctx.values.agent);
+    },
+    {
+      name: 'hook-report',
+      description: 'Forward a hook event from a wrangled session to the atc socket',
+      internal: true,
+      args: { agent: { type: 'string', default: '' } },
+    },
+  );
+
+  const tap = lazy(
+    () => async (ctx) => {
+      await io.runTap(ctx.values.session, ctx.values.notices);
+    },
+    {
+      name: 'tap',
+      description: "Stream a session's inbox to stdout as NDJSON, acking each message",
+      args: {
+        session: { type: 'string', required: true, description: 'The atc session id to tap' },
+        notices: {
+          type: 'boolean',
+          default: false,
+          description: 'Also stream the answer notices of the messages the session sent',
+        },
+      },
+    },
+  );
+
+  const note = lazy(
+    () => async (ctx) => {
+      await io.runNote('note', { message: '', messages: '', label: ctx.values.label, turn: '' });
+    },
+    {
+      name: 'note',
+      description: 'Send a note from a wrangled session to the atc socket',
+      internal: true,
+      args: { label: { type: 'string', default: '' } },
+    },
+  );
+
+  const answer = lazy(
+    () => async (ctx) => {
+      await io.runNote('answered', {
+        message: ctx.values.message,
+        messages: ctx.values.messages,
+        label: '',
+        turn: ctx.values.turn,
+      });
+    },
+    {
+      name: 'answer',
+      description: 'Record the answer of a turn for the messages it answered',
+      internal: true,
+      args: {
+        message: { type: 'string', default: '' },
+        messages: { type: 'string', default: '' },
+        turn: { type: 'string', default: '' },
+      },
+    },
+  );
+
+  const unanswered = lazy(
+    () => async (ctx) => {
+      await io.runNote('unanswered', {
+        message: '',
+        messages: ctx.values.messages,
+        label: '',
+        turn: ctx.values.turn,
+        reason: ctx.values.reason,
+      });
+    },
+    {
+      name: 'unanswered',
+      description: 'Record that the turn carrying some messages ended without an answer',
+      internal: true,
+      args: {
+        messages: { type: 'string', default: '' },
+        turn: { type: 'string', default: '' },
+        reason: { type: 'string', default: '' },
+      },
+    },
+  );
+
+  const statusline = lazy(
+    () => async (ctx) => {
+      await io.runStatusline(ctx.values.agent);
+    },
+    {
+      name: 'statusline',
+      description: 'Render the chained statusline for a wrangled session',
+      internal: true,
+      args: { agent: { type: 'string', default: '' } },
+    },
+  );
+
+  await runCommandLine(
+    argv,
+    entry,
+    {
+      name: 'atc',
+      version: pkg.version,
+      description: ATC_DESCRIPTION,
+      subCommands: {
+        tui,
+        mcp,
+        clients,
+        passkeys,
+        session,
+        grants,
+        config,
+        daemon,
+        backup,
+        events,
+        'codex-hooks': codexHooks,
+        'grok-hooks': grokHooks,
+        'hook-report': hookReport,
+        tap,
+        note,
+        answer,
+        unanswered,
+        statusline,
+      },
+      lenient: REPORTER_COMMANDS,
+    },
+    io,
+  );
+}
+
+const ATC_DESCRIPTION = 'Terminal control tower for coding-agent sessions';
+
+const TUI_ARGS = {
+  daemon: {
+    type: 'string',
+    description: "Connect to this daemon from the config's daemons map instead of the local daemon",
+  },
+} as const;
+
+const SESSION_ID_ARG = {
+  id: { type: 'positional', description: 'The atc session id' },
+} as const;
+
+// The flags `atc daemon` takes, on its own and on each command that starts
+// a daemon.
+const DAEMON_ARGS = {
+  listen: {
+    type: 'string',
+    description: 'Serve the client protocol on <host>:<port> too, a loopback or tailnet address',
+  },
+  'token-file': {
+    type: 'string',
+    description: 'File holding the one or two bearer tokens a --listen handshake must present',
+  },
+} as const;
+
+// The commands a wrangled session runs, which must exit 0 whatever their
+// command line holds.
+const REPORTER_COMMANDS: ReadonlySet<string> = new Set([
+  'hook-report',
+  'statusline',
+  'note',
+  'answer',
+  'unanswered',
+]);

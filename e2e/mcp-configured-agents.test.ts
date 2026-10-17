@@ -162,7 +162,7 @@ test('it writes a backend settings file that carries the base URL and no credent
           hooks: [
             {
               type: 'command',
-              command: expect.toEndWith(" hook-report --agent 'zai'"),
+              command: expect.toEndWith(" hook-report --agent='zai'"),
               timeout: 5,
             },
           ],
@@ -173,7 +173,7 @@ test('it writes a backend settings file that carries the base URL and no credent
           hooks: [
             {
               type: 'command',
-              command: expect.toEndWith(" hook-report --agent 'zai'"),
+              command: expect.toEndWith(" hook-report --agent='zai'"),
               timeout: 5,
             },
           ],
@@ -184,7 +184,7 @@ test('it writes a backend settings file that carries the base URL and no credent
           hooks: [
             {
               type: 'command',
-              command: expect.toEndWith(" hook-report --agent 'zai'"),
+              command: expect.toEndWith(" hook-report --agent='zai'"),
               timeout: 5,
             },
           ],
@@ -195,7 +195,7 @@ test('it writes a backend settings file that carries the base URL and no credent
           hooks: [
             {
               type: 'command',
-              command: expect.toEndWith(" hook-report --agent 'zai'"),
+              command: expect.toEndWith(" hook-report --agent='zai'"),
               timeout: 5,
             },
           ],
@@ -206,7 +206,7 @@ test('it writes a backend settings file that carries the base URL and no credent
           hooks: [
             {
               type: 'command',
-              command: expect.toEndWith(" hook-report --agent 'zai'"),
+              command: expect.toEndWith(" hook-report --agent='zai'"),
               timeout: 5,
             },
           ],
@@ -215,7 +215,7 @@ test('it writes a backend settings file that carries the base URL and no credent
     },
     statusLine: {
       type: 'command',
-      command: expect.toEndWith(" statusline --agent 'zai'"),
+      command: expect.toEndWith(" statusline --agent='zai'"),
       padding: 0,
     },
   });
