@@ -43,12 +43,15 @@ and no grant behind:
 3. Each secret's kind and rules in impd must match the binding exactly.
 
 The daemon sends every read these checks need, and the read of the imp's name, to impd at once, so
-the checks cost one round trip, and it still refuses in the order of the list. The spawn then
-records the binding, creates a new imp, and adds the grants at once. Every grant settles before a
-failed one refuses the spawn, so a take-back never runs beside a grant still in flight. An imp that
-already exists under the name refuses the spawn, so a spawn never inherits another session's grants.
-A spawn that fails after this point takes back the imp it created, and a take-back it cannot confirm
-answers `outcome_unknown` under an idempotency key.
+the checks cost one round trip, and it still refuses in the order of the list. impd builds its
+features into a full status report that takes it far longer than any other read, so the target's
+client answers a features read from the one before it for a short time. An impd replaced by an older
+one within that time is still taken to have the newer one's features. The spawn then records the
+binding, creates a new imp, and adds the grants at once. Every grant settles before a failed one
+refuses the spawn, so a take-back never runs beside a grant still in flight. An imp that already
+exists under the name refuses the spawn, so a spawn never inherits another session's grants. A spawn
+that fails after this point takes back the imp it created, and a take-back it cannot confirm answers
+`outcome_unknown` under an idempotency key.
 
 A launch whose binding holds an OAuth secret reads that secret's sign-in from impd before it touches
 the imp, and refuses with `auth_signin_needed` when the sign-in is pending or incomplete.
