@@ -1,6 +1,6 @@
 import { toSessionID } from '@atc/core';
 import { faker } from '@faker-js/faker';
-import type { StoredEvent } from '../state-store';
+import type { StoredEvent } from '../stored-event';
 
 export function buildMockStoredEvent(overrides: Partial<StoredEvent> = {}): StoredEvent {
   return {

@@ -1,51 +1,24 @@
 import type { Database } from 'bun:sqlite';
 import { randomUUID } from 'node:crypto';
-import {
-  chmodSync,
-  closeSync,
-  existsSync,
-  fsyncSync,
-  mkdtempSync,
-  openSync,
-  readFileSync,
-  realpathSync,
-  renameSync,
-  rmSync,
-  statSync,
-} from 'node:fs';
-import { basename, dirname, join as joinPath } from 'node:path';
-import { LOCAL_TARGET } from '@atc/config';
+import { existsSync, readFileSync } from 'node:fs';
 import type { AgentID, AgentSessionID, DaemonID, MessageID, SessionID } from '@atc/core';
-import {
-  parseJSONStrings,
-  systemClock,
-  toAgentID,
-  toAgentSessionID,
-  toDaemonID,
-  toMessageID,
-  toSessionID,
-} from '@atc/core';
-import type { AdapterEvent, PublishedRecord, SessionWorkspace } from '@atc/protocol';
+import { systemClock, toAgentID, toDaemonID, toSessionID } from '@atc/core';
+import type { AdapterEvent, PublishedRecord } from '@atc/protocol';
 import type { HookEvent } from '@atc/protocol/session';
-import { DaemonError, MESSAGE_SENDER_SCHEMA } from '@atc/protocol/wire';
-import type { MessageSender } from '@atc/protocol/wire';
-import { Kysely, sql } from 'kysely';
-import type {
-  CompiledQuery,
-  Expression,
-  ExpressionBuilder,
-  LogEvent,
-  RawBuilder,
-  SqlBool,
-  Transaction,
-} from 'kysely';
-import { buildTargetIdentity } from './build-target-identity';
+import { Kysely } from 'kysely';
+import type { CompiledQuery, LogEvent } from 'kysely';
+import { AuthBindingStore } from './auth-binding-store';
+import { EventTrailStore } from './event-trail-store';
 import { parseFleetEntry } from './fleet-entry';
 import type { FleetEntry, FleetEntryUpdate, LegacyFleetEntry } from './fleet-entry';
+import { FleetStore } from './fleet-store';
 import type { EffectTarget, IdempotencyClaim, IdempotencyRecord } from './idempotency-record';
+import { IdempotencyStore } from './idempotency-store';
+import { MaterializationStore } from './materialization-store';
 import type { MessageOwner } from './message-owner';
-import type { MessageRecord } from './message-record';
-import { parsePublishedRecord } from './parse-published-record';
+import type { MessageRecord, TurnSibling } from './message-record';
+import { MessageStore } from './message-store';
+import { PublishedRecordStore } from './published-record-store';
 import type {
   RuntimeAuthBinding,
   RuntimeAuthBindingUpdate,
@@ -54,40 +27,11 @@ import type {
 import { buildSQLiteDialect } from './sqlite/build-sqlite-dialect';
 import { openSQLite } from './sqlite/open-sqlite';
 import { runMigrations } from './sqlite/run-migrations';
-import type { StateStoreSchema } from './sqlite/run-migrations';
-import { StaleOwnershipError } from './stale-ownership-error';
+import type { StateStoreSchema } from './sqlite/state-store-schema';
+import type { EventScope, StoredAnswer, StoredEvent, StoredNote } from './stored-event';
 import type { TrailEntry } from './trail-entry';
 import type { MaterializationUpdate, WorkspaceMaterialization } from './workspace-materialization';
-
-// Spelled as the partial index's predicate so SQLite can match them.
-const TRAIL_FILTER = sql<boolean>`kind IS NOT NULL AND kind != 'heartbeat'`;
-
-export interface EventScope {
-  readonly atcIDs: readonly SessionID[];
-
-  // A row written before atc session ids stayed stable across restores
-  // carries an earlier atc id, so the scope matches agent session ids too.
-  readonly agentSessionIDs: readonly AgentSessionID[];
-}
-
-export interface StoredEvent {
-  readonly id: number;
-
-  // Epoch ms of ts.
-  readonly at: number;
-  readonly atcID: SessionID;
-  readonly agentSessionID: AgentSessionID | null;
-  readonly kind: string;
-
-  // The event's detail, else the hook's message.
-  readonly detail: string | null;
-
-  // The message id on a message status event.
-  readonly message?: MessageID;
-
-  // The note label on a note event.
-  readonly label?: string;
-}
+import { writeBackup } from './write-backup';
 
 // The target a spawn ran on: its name and the identity the spawned session
 // was bound to there.
@@ -100,41 +44,6 @@ interface SpawnTarget {
 export interface SpawnDir {
   readonly cwd: string;
   readonly grant: SpawnTarget;
-}
-
-export interface TurnSibling {
-  readonly id: MessageID;
-  readonly atcID: SessionID;
-}
-
-export interface StoredNote {
-  readonly id: number;
-
-  // Epoch ms the note arrived.
-  readonly at: number;
-  readonly atcID: SessionID;
-  readonly agentSessionID: AgentSessionID | null;
-  readonly label: string;
-  readonly text: string;
-
-  // False for a note recorded before the trail kept whole texts, whose text
-  // is its preview.
-  readonly complete: boolean;
-}
-
-export interface StoredAnswer {
-  readonly id: number;
-
-  // Epoch ms the message was answered.
-  readonly at: number;
-  readonly atcID: SessionID;
-  readonly agentSessionID: AgentSessionID | null;
-  readonly message: MessageID;
-  readonly text: string;
-
-  // False for an answer recorded before the trail kept whole answers, whose
-  // text is its preview.
-  readonly complete: boolean;
 }
 
 export class StateStore {
@@ -152,6 +61,20 @@ export class StateStore {
   // The database file this store opened, which a backup must never replace.
   private readonly dbPath: string;
 
+  private readonly fleet: FleetStore;
+
+  private readonly trail: EventTrailStore;
+
+  private readonly messages: MessageStore;
+
+  private readonly idempotency: IdempotencyStore;
+
+  private readonly materializations: MaterializationStore;
+
+  private readonly publishedRecords: PublishedRecordStore;
+
+  private readonly authBindings: AuthBindingStore;
+
   private constructor(
     sqlite: Database,
     db: Kysely<StateStoreSchema>,
@@ -162,6 +85,14 @@ export class StateStore {
     this.dbPath = dbPath;
     this.db = db;
     this.daemonID = daemonID;
+
+    this.fleet = new FleetStore(db, daemonID);
+    this.trail = new EventTrailStore(db);
+    this.messages = new MessageStore(db);
+    this.idempotency = new IdempotencyStore(db);
+    this.materializations = new MaterializationStore(db);
+    this.publishedRecords = new PublishedRecordStore(db);
+    this.authBindings = new AuthBindingStore(db);
   }
 
   // Migrations run statements that cannot happen inside a constructor, so
@@ -204,464 +135,63 @@ export class StateStore {
     return store;
   }
 
-  // Only the rows this daemon owns: another daemon's sessions are its own
-  // to restore.
-  async loadFleet(): Promise<FleetEntry[]> {
-    const rows = await this.db
-      .selectFrom('fleet')
-
-      // A session's ready workspace comes back with its row.
-      .leftJoin('workspace_materialization as workspace', (join) =>
-        join
-          .onRef('workspace.session_id', '=', 'fleet.session_id')
-          .on('workspace.phase', '=', 'ready'),
-      )
-      .where('fleet.session_id', 'in', (eb) =>
-        eb.selectFrom('session_owner').select('session_id').where('daemon_id', '=', this.daemonID),
-      )
-
-      // Stored order, which a restore keeps for sessions with no recency.
-      .orderBy(sql`fleet.rowid`)
-      .select([
-        'fleet.session_id',
-        'fleet.agent_session_id',
-        'fleet.name',
-        'fleet.cwd',
-        'fleet.pinned',
-        'fleet.last_attached',
-        'fleet.agent',
-        'fleet.exited',
-        'fleet.parent_session_id',
-        'fleet.prompt',
-        'fleet.result',
-        'fleet.transcript_path',
-        'fleet.model',
-        'fleet.effort',
-        'fleet.target',
-        'fleet.target_identity',
-        'workspace.repo_url',
-        'workspace.sha',
-        'workspace.ref',
-        'workspace.materialized_at',
-        'workspace.withheld_env',
-        'fleet.desired',
-        'fleet.host_key',
-        'fleet.auth_revision',
-        'fleet.suspended',
-      ])
-      .execute();
-
-    const entries: FleetEntry[] = [];
-
-    for (const row of rows) {
-      const withheldEnv = parseWithheldEnv(row.withheld_env);
-
-      // A session whose withheld variables cannot be read stays out of the
-      // fleet, so its agent never starts with the variables it withheld; its
-      // row stays stored, since a fleet write keeps rows it never loaded.
-      if (withheldEnv === null) {
-        continue;
-      }
-
-      entries.push({
-        sessionID: toSessionID(row.session_id),
-        name: row.name,
-        cwd: row.cwd,
-        ...(row.agent_session_id === null
-          ? {}
-          : { agentSessionID: toAgentSessionID(row.agent_session_id) }),
-        agent: toAgentID(row.agent),
-        ...(row.pinned === 0 ? {} : { pinned: true }),
-        ...(row.last_attached === null ? {} : { lastAttachedAt: row.last_attached }),
-        ...(row.exited === 0 ? {} : { exited: true }),
-        ...(row.parent_session_id === null ? {} : { parent: toSessionID(row.parent_session_id) }),
-        ...(row.prompt === null ? {} : { prompt: row.prompt }),
-        ...(row.result === null ? {} : { result: row.result }),
-        ...(row.transcript_path === null ? {} : { transcriptPath: row.transcript_path }),
-        ...(row.model === null ? {} : { model: row.model }),
-        ...(row.effort === null ? {} : { effort: row.effort }),
-        ...(row.target === null ? {} : { target: row.target }),
-        ...(row.target_identity === null ? {} : { targetIdentity: row.target_identity }),
-        ...buildWorkspaceField(row),
-        ...(withheldEnv.length === 0 ? {} : { withheldEnv }),
-        ...(row.desired === 'sleep' || row.desired === 'stop' ? { desired: row.desired } : {}),
-        ...(row.host_key === null ? {} : { hostKey: toSessionID(row.host_key) }),
-        ...(row.auth_revision === null ? {} : { authRevision: row.auth_revision }),
-        ...(row.suspended === 1 ? { suspended: true } : {}),
-      });
-    }
-
-    return entries;
+  loadFleet(): Promise<FleetEntry[]> {
+    return this.fleet.loadFleet();
   }
 
-  // The latest hook-event timestamp per agent session id, from the event
-  // trail. Sessions that never reported an event are absent.
-  async collectFleetRecency(): Promise<Map<AgentSessionID, string>> {
-    const rows = await this.db
-      .selectFrom('events')
-      .select(['session_id', sql<string>`MAX(ts)`.as('ts')])
-      .where('session_id', 'is not', null)
-      .groupBy('session_id')
-      .execute();
-
-    const recency = new Map<AgentSessionID, string>();
-
-    for (const row of rows) {
-      if (row.session_id === null) {
-        continue;
-      }
-
-      recency.set(toAgentSessionID(row.session_id), row.ts);
-    }
-
-    return recency;
+  collectFleetRecency(): Promise<Map<AgentSessionID, string>> {
+    return this.trail.collectFleetRecency();
   }
 
-  // A row the daemon never loaded stays as it stands, so it survives a write.
-  // A session another daemon owns, or one whose stored ownership epoch has
-  // moved past this daemon's, rejects the whole write as stale.
-  async writeFleet(
-    entries: readonly FleetEntry[],
-    removed: readonly SessionID[] = [],
-  ): Promise<void> {
-    const kept = buildFleetWithoutReplacedRows(entries);
-    const sessionIDs = [...entries.map((entry) => entry.sessionID), ...removed];
-
-    const agentSessionIDs = entries.flatMap((entry) =>
-      entry.agentSessionID === undefined ? [] : [entry.agentSessionID],
-    );
-
-    const writtenIndex = new Map(entries.map((entry, index) => [entry.sessionID, index]));
-    const keptByID = new Map(kept.map((entry) => [entry.sessionID, entry]));
-
-    await this.db.transaction().execute(async (trx) => {
-      await requireCurrentOwnership(
-        trx,
-        this.daemonID,
-        entries.map((entry) => entry.sessionID),
-      );
-
-      const candidates =
-        agentSessionIDs.length === 0
-          ? []
-          : await trx
-              .selectFrom('fleet')
-              .select(['session_id', 'agent_session_id', 'exited', 'target', 'target_identity'])
-              .where('agent_session_id', 'in', agentSessionIDs)
-              .execute();
-
-      // A stored row is replaced by the rule its entry follows in this write,
-      // or as a row written before every entry when the write does not
-      // cover it.
-      const replaced = candidates.flatMap((row) => {
-        const index = writtenIndex.get(toSessionID(row.session_id));
-        const written = index === undefined ? undefined : entries[index];
-
-        const replacement =
-          index === undefined || written === undefined
-            ? findReplacement(
-                {
-                  ...(row.agent_session_id === null
-                    ? {}
-                    : { agentSessionID: toAgentSessionID(row.agent_session_id) }),
-                  exited: row.exited === 1,
-                  ...(row.target === null ? {} : { target: row.target }),
-                  ...(row.target_identity === null ? {} : { targetIdentity: row.target_identity }),
-                },
-                entries,
-                0,
-              )
-            : findReplacement(written, entries, index + 1);
-
-        const survivor =
-          replacement === undefined ? undefined : keptByID.get(replacement.sessionID);
-
-        return survivor === undefined ? [] : [{ sessionID: row.session_id, survivor }];
-      });
-
-      const dropped = [...new Set([...sessionIDs, ...replaced.map((row) => row.sessionID)])];
-
-      if (dropped.length > 0) {
-        await trx
-          .deleteFrom('fleet')
-          .where('session_id', 'in', dropped)
-          .where('session_id', 'in', (eb) =>
-            eb
-              .selectFrom('session_owner')
-              .select('session_id')
-              .where('daemon_id', '=', this.daemonID),
-          )
-          .execute();
-
-        await trx
-          .deleteFrom('session_owner')
-          .where('daemon_id', '=', this.daemonID)
-          .where('session_id', 'in', dropped)
-          .execute();
-      }
-
-      const updatedAt = systemClock.now();
-
-      for (const entry of kept) {
-        await trx
-          .insertInto('fleet')
-          .values({
-            session_id: entry.sessionID,
-            agent_session_id: entry.agentSessionID ?? null,
-            name: entry.name,
-            cwd: entry.cwd,
-            pinned: entry.pinned === true ? 1 : 0,
-            last_attached: entry.lastAttachedAt ?? null,
-            agent: entry.agent,
-            exited: entry.exited === true ? 1 : 0,
-            parent_session_id: entry.parent ?? null,
-            prompt: entry.prompt ?? null,
-            result: entry.result ?? null,
-            transcript_path: entry.transcriptPath ?? null,
-            model: entry.model ?? null,
-            effort: entry.effort ?? null,
-            target: entry.target ?? null,
-            target_identity: entry.targetIdentity ?? null,
-            desired: entry.desired ?? null,
-            host_key: entry.hostKey ?? null,
-            auth_revision: entry.authRevision ?? null,
-            suspended: entry.suspended === true ? 1 : 0,
-          })
-          .execute();
-
-        await trx
-          .insertInto('session_owner')
-          .values({
-            session_id: entry.sessionID,
-            daemon_id: this.daemonID,
-            owner_epoch: OWNER_EPOCH,
-            updated_at: updatedAt,
-          })
-          .execute();
-      }
-
-      // A stored row this write leaves in place follows its replaced parent
-      // to the session that replaced it, or to that session's own parent
-      // when the replacement is itself a sub-session.
-      for (const row of replaced) {
-        await trx
-          .updateTable('fleet')
-          .set({ parent_session_id: row.survivor.parent ?? row.survivor.sessionID })
-          .where('parent_session_id', '=', row.sessionID)
-          .where('session_id', 'in', (eb) =>
-            eb
-              .selectFrom('session_owner')
-              .select('session_id')
-              .where('daemon_id', '=', this.daemonID),
-          )
-          .execute();
-      }
-    });
+  writeFleet(entries: readonly FleetEntry[], removed: readonly SessionID[] = []): Promise<void> {
+    return this.fleet.writeFleet(entries, removed);
   }
 
-  // Rewrites fields on one existing row and leaves every other row as it
-  // stands. A session without a row yet is a no-op: the next fleet write
-  // inserts it with these fields.
-  async updateFleetEntry(sessionID: SessionID, fields: FleetEntryUpdate): Promise<void> {
-    const values = {
-      ...(fields.result === undefined ? {} : { result: fields.result }),
-      ...(fields.transcriptPath === undefined ? {} : { transcript_path: fields.transcriptPath }),
-    };
-
-    if (Object.keys(values).length === 0) {
-      return;
-    }
-
-    await this.db.transaction().execute(async (trx) => {
-      await requireCurrentOwnership(trx, this.daemonID, [sessionID]);
-
-      await trx.updateTable('fleet').set(values).where('session_id', '=', sessionID).execute();
-    });
+  updateFleetEntry(sessionID: SessionID, fields: FleetEntryUpdate): Promise<void> {
+    return this.fleet.updateFleetEntry(sessionID, fields);
   }
 
-  // Records a hook event in the trail, stamped with the given time in epoch
-  // milliseconds, or the system clock's when absent.
-  async recordEvent(
+  recordEvent(
     e: HookEvent,
     ev: Readonly<AdapterEvent> | null = null,
     at: number = systemClock.now(),
   ): Promise<void> {
-    const rawMessage = e.payload['message'];
-    const rawSessionID = e.payload['session_id'] ?? e.payload['sessionId'];
-    const message = typeof rawMessage === 'string' ? rawMessage : null;
-    const sessionID = typeof rawSessionID === 'string' ? rawSessionID : null;
-    const atcID: string = e.atcId;
-
-    await this.db
-      .insertInto('events')
-      .values({
-        ts: new Date(at).toISOString(),
-        atc_id: atcID,
-        event: e.event,
-        message,
-        session_id: sessionID,
-        kind: ev === null ? null : ev.kind,
-        detail: ev?.detail ?? null,
-      })
-      .execute();
+    return this.trail.recordEvent(e, ev, at);
   }
 
-  // Returns whether the entry was written: a note whose id the trail
-  // already holds is left out.
-  async recordTrailEntry(entry: TrailEntry): Promise<boolean> {
-    const result = await this.db
-      .insertInto('events')
-      .values({
-        ts: new Date(entry.at).toISOString(),
-        atc_id: entry.atcID,
-        event: entry.kind === 'note' ? 'SessionNote' : 'SessionMessage',
-
-        // The message column holds the message id or the note label; the reads hand it back by kind.
-        message: entry.kind === 'note' ? entry.label : entry.message,
-        session_id: entry.agentSessionID,
-        kind: entry.kind,
-        detail: entry.detail,
-        note_id: entry.kind === 'note' ? (entry.noteID ?? null) : null,
-        note_text: entry.kind === 'note' ? entry.text : null,
-        answer_text: entry.kind === 'message-answered' ? entry.text : null,
-      })
-      .onConflict((oc) => oc.column('note_id').doNothing())
-      .executeTakeFirst();
-
-    return result.numInsertedOrUpdatedRows !== 0n;
+  recordTrailEntry(entry: TrailEntry): Promise<boolean> {
+    return this.trail.recordTrailEntry(entry);
   }
 
-  async collectEventsAfter(
+  collectEventsAfter(
     afterID: number,
     limit: number,
     scope: EventScope | null = null,
   ): Promise<StoredEvent[]> {
-    const rows = await this.db
-      .selectFrom('events')
-      .select(['id', 'ts', 'atc_id', 'session_id', 'kind', 'detail', 'message'])
-      .where('id', '>', afterID)
-      .where(TRAIL_FILTER)
-      .where((eb) => buildScopeMatch(eb, scope))
-      .orderBy('id', 'asc')
-      .limit(limit)
-      .execute();
-
-    return buildStoredEvents(rows);
+    return this.trail.collectEventsAfter(afterID, limit, scope);
   }
 
-  // A row that is not a note, or that lies outside the scope, misses as a
-  // row the trail never held does.
-  async findNote(id: number, scope: EventScope | null = null): Promise<StoredNote | null> {
-    const row = await this.db
-      .selectFrom('events')
-      .select(['id', 'ts', 'atc_id', 'session_id', 'message', 'detail', 'note_text'])
-      .where('id', '=', id)
-      .where('kind', '=', 'note')
-      .where((eb) => buildScopeMatch(eb, scope))
-      .executeTakeFirst();
-
-    if (row === undefined) {
-      return null;
-    }
-
-    return {
-      id: row.id,
-      at: Date.parse(row.ts),
-      atcID: toSessionID(row.atc_id),
-      agentSessionID: row.session_id === null ? null : toAgentSessionID(row.session_id),
-      label: row.message ?? '',
-      text: row.note_text ?? row.detail ?? '',
-      complete: row.note_text !== null,
-    };
+  findNote(id: number, scope: EventScope | null = null): Promise<StoredNote | null> {
+    return this.trail.findNote(id, scope);
   }
 
-  // A row that is not an answered message, or that lies outside the scope,
-  // misses as a row the trail never held does.
-  async findAnswer(id: number, scope: EventScope | null = null): Promise<StoredAnswer | null> {
-    const row = await this.db
-      .selectFrom('events')
-      .select(['id', 'ts', 'atc_id', 'session_id', 'message', 'detail', 'answer_text'])
-      .where('id', '=', id)
-      .where('kind', '=', 'message-answered')
-      .where((eb) => buildScopeMatch(eb, scope))
-      .executeTakeFirst();
-
-    if (row === undefined || row.message === null) {
-      return null;
-    }
-
-    return {
-      id: row.id,
-      at: Date.parse(row.ts),
-      atcID: toSessionID(row.atc_id),
-      agentSessionID: row.session_id === null ? null : toAgentSessionID(row.session_id),
-      message: toMessageID(row.message),
-      text: row.answer_text ?? row.detail ?? '',
-      complete: row.answer_text !== null,
-    };
+  findAnswer(id: number, scope: EventScope | null = null): Promise<StoredAnswer | null> {
+    return this.trail.findAnswer(id, scope);
   }
 
-  async collectLatestEvents(
-    limit: number,
-    scope: EventScope | null = null,
-  ): Promise<StoredEvent[]> {
-    const rows = await this.db
-      .selectFrom('events')
-      .select(['id', 'ts', 'atc_id', 'session_id', 'kind', 'detail', 'message'])
-      .where(TRAIL_FILTER)
-      .where((eb) => buildScopeMatch(eb, scope))
-      .orderBy('id', 'desc')
-      .limit(limit)
-      .execute();
-
-    return buildStoredEvents(rows).toReversed();
+  collectLatestEvents(limit: number, scope: EventScope | null = null): Promise<StoredEvent[]> {
+    return this.trail.collectLatestEvents(limit, scope);
   }
 
-  // Matches the session by either id, since rows written before atc session
-  // ids stayed stable across restores carry an earlier atc id.
-  async loadLastActivityAt(
+  loadLastActivityAt(
     atcID: SessionID,
     agentSessionID: AgentSessionID | undefined,
   ): Promise<number | null> {
-    const row = await this.db
-      .selectFrom('events')
-      .select(sql<string | null>`MAX(ts)`.as('ts'))
-      .where((eb) =>
-        eb.or([
-          eb('atc_id', '=', atcID),
-          ...(agentSessionID === undefined ? [] : [eb('session_id', '=', agentSessionID)]),
-        ]),
-      )
-      .executeTakeFirst();
-
-    return row?.ts === null || row?.ts === undefined ? null : Date.parse(row.ts);
+    return this.trail.loadLastActivityAt(atcID, agentSessionID);
   }
 
-  // The newest row under each atc id and each agent session id stays, so a
-  // session's last activity and restore order survive; past the cutoff it
-  // stays only while a fleet row holds either id.
-  async removeExpiredEvents(before: number): Promise<void> {
-    const cutoff = new Date(before).toISOString();
-
-    await this.db
-      .deleteFrom('events')
-      .where(
-        sql<boolean>`(ts < ${cutoff} OR NOT (${TRAIL_FILTER})) AND (
-          (ts < ${cutoff} AND NOT EXISTS (
-            SELECT 1 FROM fleet
-            WHERE fleet.session_id = events.atc_id
-              OR (events.session_id IS NOT NULL AND fleet.agent_session_id = events.session_id)
-          ))
-          OR (
-            ts < (SELECT MAX(newer.ts) FROM events AS newer WHERE newer.atc_id = events.atc_id)
-            AND (
-              events.session_id IS NULL
-              OR ts < (SELECT MAX(newer.ts) FROM events AS newer WHERE newer.session_id = events.session_id)
-            )
-          )
-        )`,
-      )
-      .execute();
+  removeExpiredEvents(before: number): Promise<void> {
+    return this.trail.removeExpiredEvents(before);
   }
 
   async recordSpawnDir(cwd: string, grant: SpawnTarget, at: number): Promise<void> {
@@ -714,548 +244,169 @@ export class StateStore {
       .execute();
   }
 
-  async writeMessage(record: MessageRecord): Promise<void> {
-    await this.db
-      .insertInto('messages')
-      .values({
-        id: record.id,
-        atc_id: record.atcID,
-        agent_session_id: record.agentSessionID ?? null,
-        sender: record.from,
-        sender_kind: record.sender?.kind ?? null,
-        sender_id: findSenderID(record.sender),
-        text: record.text,
-        status: record.status,
-        sent_at: record.sentAt,
-        delivered_at: record.deliveredAt ?? null,
-        answered_at: record.answeredAt ?? null,
-        answer: record.answer ?? null,
-        unanswered_at: record.unansweredAt ?? null,
-        unanswered_reason: record.unansweredReason ?? null,
-        sender_session: record.senderSession ?? null,
-        notice_queued_at: record.noticeQueuedAt ?? null,
-        notice_delivered_at: record.noticeDeliveredAt ?? null,
-      })
-      .execute();
+  writeMessage(record: MessageRecord): Promise<void> {
+    return this.messages.writeMessage(record);
   }
 
-  async collectPendingMessages(owner: MessageOwner): Promise<MessageRecord[]> {
-    const rows = await this.db
-      .selectFrom('messages')
-      .selectAll()
-      .where('status', '=', 'queued')
-      .where((eb) => buildOwnerFilter(eb, owner))
-      .orderBy('sent_at', 'asc')
-      .orderBy(sql`rowid`, 'asc')
-      .execute();
-
-    return rows.map((row) => toMessageRecord(row));
+  collectPendingMessages(owner: MessageOwner): Promise<MessageRecord[]> {
+    return this.messages.collectPendingMessages(owner);
   }
 
-  // The messages the owner holds queued or delivered, which no turn has
-  // settled yet, oldest first.
-  async collectUnsettledMessages(owner: MessageOwner): Promise<MessageRecord[]> {
-    const rows = await this.db
-      .selectFrom('messages')
-      .selectAll()
-      .where('status', 'in', ['queued', 'delivered'])
-      .where((eb) => buildOwnerFilter(eb, owner))
-      .orderBy('sent_at', 'asc')
-      .orderBy(sql`rowid`, 'asc')
-      .execute();
-
-    return rows.map((row) => toMessageRecord(row));
+  collectUnsettledMessages(owner: MessageOwner): Promise<MessageRecord[]> {
+    return this.messages.collectUnsettledMessages(owner);
   }
 
-  async findMessage(id: MessageID, owner: MessageOwner): Promise<MessageRecord | null> {
-    const row = await this.db
-      .selectFrom('messages')
-      .selectAll()
-      .where('id', '=', id)
-      .where((eb) => buildOwnerFilter(eb, owner))
-      .executeTakeFirst();
-
-    return row === undefined ? null : toMessageRecord(row);
+  findMessage(id: MessageID, owner: MessageOwner): Promise<MessageRecord | null> {
+    return this.messages.findMessage(id, owner);
   }
 
-  async findMessageByID(id: MessageID): Promise<MessageRecord | null> {
-    const row = await this.db
-      .selectFrom('messages')
-      .selectAll()
-      .where('id', '=', id)
-      .executeTakeFirst();
-
-    return row === undefined ? null : toMessageRecord(row);
+  findMessageByID(id: MessageID): Promise<MessageRecord | null> {
+    return this.messages.findMessageByID(id);
   }
 
-  // The other messages of the same session the given message's turn
-  // answered, oldest first; none when the message has no turn or no answer.
-  // A message left unanswered keeps its turn but shares no answer.
-  async collectTurnSiblings(record: MessageRecord): Promise<TurnSibling[]> {
-    if (record.turn === undefined || record.status !== 'answered') {
-      return [];
-    }
-
-    const owner: MessageOwner =
-      record.agentSessionID === undefined
-        ? { atcID: record.atcID }
-        : { atcID: record.atcID, agentSessionID: record.agentSessionID };
-
-    const rows = await this.db
-      .selectFrom('messages')
-      .select(['id', 'atc_id'])
-      .where('turn_id', '=', record.turn)
-      .where('status', '=', 'answered')
-      .where('id', '!=', record.id)
-      .where((eb) => buildOwnerFilter(eb, owner))
-      .orderBy('sent_at', 'asc')
-      .orderBy(sql`rowid`, 'asc')
-      .execute();
-
-    return rows.map((row) => ({ id: toMessageID(row.id), atcID: toSessionID(row.atc_id) }));
+  collectTurnSiblings(record: MessageRecord): Promise<TurnSibling[]> {
+    return this.messages.collectTurnSiblings(record);
   }
 
-  async updateMessageDelivered(
+  updateMessageDelivered(
     id: MessageID,
     owner: MessageOwner,
     at: number,
   ): Promise<MessageRecord | null> {
-    const row = await this.db
-      .updateTable('messages')
-      .set({ status: 'delivered', delivered_at: at })
-      .where('id', '=', id)
-      .where('status', '=', 'queued')
-      .where((eb) => buildOwnerFilter(eb, owner))
-      .returningAll()
-      .executeTakeFirst();
-
-    return row === undefined ? null : toMessageRecord(row);
+    return this.messages.updateMessageDelivered(id, owner, at);
   }
 
-  // One statement, so a reader sees all of one turn's messages answered or
-  // none, and it queues the answer notice of each message with a sender
-  // session too, so a stop after it never loses a notice.
-  async updateMessagesAnswered(
+  updateMessagesAnswered(
     ids: readonly MessageID[],
     owner: MessageOwner,
     answer: string,
     at: number,
     turn: string | null = null,
   ): Promise<MessageRecord[]> {
-    if (ids.length === 0) {
-      return [];
-    }
-
-    const rows = await this.db
-      .updateTable('messages')
-      .set({
-        status: 'answered',
-        answered_at: at,
-        answer,
-        turn_id: turn,
-        notice_queued_at: buildNoticeQueuedAt(at),
-      })
-      .where('id', 'in', ids)
-      .where('status', 'in', ['queued', 'delivered'])
-      .where((eb) => buildOwnerFilter(eb, owner))
-      .returningAll()
-      .execute();
-
-    return rows.map((row) => toMessageRecord(row)).toSorted((a, b) => a.sentAt - b.sentAt);
+    return this.messages.updateMessagesAnswered(ids, owner, answer, at, turn);
   }
 
-  // One statement, so a reader sees all of one turn's messages settled or
-  // none, and it queues the answer notice of each message with a sender
-  // session too. A message already settled is left as it is.
-  async updateMessagesUnanswered(
+  updateMessagesUnanswered(
     ids: readonly MessageID[],
     owner: MessageOwner,
     reason: string,
     at: number,
     turn: string | null = null,
   ): Promise<MessageRecord[]> {
-    if (ids.length === 0) {
-      return [];
-    }
-
-    const rows = await this.db
-      .updateTable('messages')
-      .set({
-        status: 'unanswered',
-        unanswered_at: at,
-        unanswered_reason: reason,
-        turn_id: turn,
-        notice_queued_at: buildNoticeQueuedAt(at),
-      })
-      .where('id', 'in', ids)
-      .where('status', 'in', ['queued', 'delivered'])
-      .where((eb) => buildOwnerFilter(eb, owner))
-      .returningAll()
-      .execute();
-
-    return rows.map((row) => toMessageRecord(row)).toSorted((a, b) => a.sentAt - b.sentAt);
+    return this.messages.updateMessagesUnanswered(ids, owner, reason, at, turn);
   }
 
-  // For a session whose process ended, so no turn is left to settle its
-  // delivered messages; a queued message waits for the next process. One
-  // statement also queues the answer notice of each with a sender session.
-  async updateDeliveredMessagesUnanswered(
+  updateDeliveredMessagesUnanswered(
     owner: MessageOwner,
     reason: string,
     at: number,
   ): Promise<MessageRecord[]> {
-    const rows = await this.db
-      .updateTable('messages')
-      .set({
-        status: 'unanswered',
-        unanswered_at: at,
-        unanswered_reason: reason,
-        notice_queued_at: buildNoticeQueuedAt(at),
-      })
-      .where('status', '=', 'delivered')
-      .where((eb) => buildOwnerFilter(eb, owner))
-      .returningAll()
-      .execute();
-
-    return rows.map((row) => toMessageRecord(row)).toSorted((a, b) => a.sentAt - b.sentAt);
+    return this.messages.updateDeliveredMessagesUnanswered(owner, reason, at);
   }
 
-  // The answer notices queued for the sender session and not yet taken by
-  // its tap, oldest first.
-  async collectPendingNotices(senderSession: SessionID): Promise<MessageRecord[]> {
-    const rows = await this.db
-      .selectFrom('messages')
-      .selectAll()
-      .where('sender_session', '=', senderSession)
-      .where('notice_queued_at', 'is not', null)
-      .where('notice_delivered_at', 'is', null)
-      .orderBy('notice_queued_at', 'asc')
-      .orderBy(sql`rowid`, 'asc')
-      .execute();
-
-    return rows.map((row) => toMessageRecord(row));
+  collectPendingNotices(senderSession: SessionID): Promise<MessageRecord[]> {
+    return this.messages.collectPendingNotices(senderSession);
   }
 
-  // Marks the answer notice the sender session's tap took. Returns the
-  // message when this call marked it, else null: the notice was already
-  // taken, was never queued, or belongs to another sender.
-  async updateNoticeDelivered(
+  updateNoticeDelivered(
     id: MessageID,
     senderSession: SessionID,
     at: number,
   ): Promise<MessageRecord | null> {
-    const row = await this.db
-      .updateTable('messages')
-      .set({ notice_delivered_at: at })
-      .where('id', '=', id)
-      .where('sender_session', '=', senderSession)
-      .where('notice_queued_at', 'is not', null)
-      .where('notice_delivered_at', 'is', null)
-      .returningAll()
-      .executeTakeFirst();
-
-    return row === undefined ? null : toMessageRecord(row);
+    return this.messages.updateNoticeDelivered(id, senderSession, at);
   }
 
-  // Messages sent before the agent reported its session id carry no agent
-  // session id; this stamps them once it is known, and moves every message
-  // from a previous agent session id to a changed one.
-  async updateMessageOwner(
+  updateMessageOwner(
     atcID: SessionID,
     previous: AgentSessionID | undefined,
     next: AgentSessionID,
   ): Promise<void> {
-    await this.db
-      .updateTable('messages')
-      .set({ agent_session_id: next })
-      .where((eb) => {
-        const unstamped = eb.and([eb('atc_id', '=', atcID), eb('agent_session_id', 'is', null)]);
-
-        return previous === undefined
-          ? unstamped
-          : eb.or([unstamped, eb('agent_session_id', '=', previous)]);
-      })
-      .execute();
+    return this.messages.updateMessageOwner(atcID, previous, next);
   }
 
-  // Trail entries written before the agent reported its session id carry
-  // none; this stamps them once it is known, so they follow the session
-  // across a restore.
-  async updateTrailOwner(atcID: SessionID, next: AgentSessionID): Promise<void> {
-    await this.db
-      .updateTable('events')
-      .set({ session_id: next })
-      .where('atc_id', '=', atcID)
-      .where('session_id', 'is', null)
-      .where('kind', 'in', [
-        'message-queued',
-        'message-delivered',
-        'message-answered',
-        'message-unanswered',
-        'notice-queued',
-        'notice-delivered',
-        'note',
-      ])
-      .execute();
+  updateTrailOwner(atcID: SessionID, next: AgentSessionID): Promise<void> {
+    return this.trail.updateTrailOwner(atcID, next);
   }
 
-  // Records a key in progress unless one is already held under the same
-  // principal and operation. Returns null when this call claimed the key,
-  // else the record the key already holds.
-  async claimIdempotencyKey(claim: IdempotencyClaim): Promise<IdempotencyRecord | null> {
-    const inserted = await this.db
-      .insertInto('idempotency')
-      .values({
-        principal: claim.principal,
-        operation: claim.operation,
-        key: claim.key,
-        payload_hash: claim.payloadHash,
-        state: 'in_progress',
-        effect_ref: claim.effectRef,
-        result: null,
-        created_at: claim.at,
-        updated_at: claim.at,
-        effect_target: null,
-        effect_target_identity: null,
-      })
-      .onConflict((oc) => oc.columns(['principal', 'operation', 'key']).doNothing())
-      .returning('key')
-      .executeTakeFirst();
-
-    if (inserted !== undefined) {
-      return null;
-    }
-
-    const row = await this.db
-      .selectFrom('idempotency')
-      .selectAll()
-      .where('principal', '=', claim.principal)
-      .where('operation', '=', claim.operation)
-      .where('key', '=', claim.key)
-      .executeTakeFirstOrThrow();
-
-    return toIdempotencyRecord(row);
+  claimIdempotencyKey(claim: IdempotencyClaim): Promise<IdempotencyRecord | null> {
+    return this.idempotency.claimIdempotencyKey(claim);
   }
 
-  // The record a key holds under its principal and operation, or null when
-  // the ledger holds none.
-  async findIdempotencyKey(
+  findIdempotencyKey(
     id: Pick<IdempotencyRecord, 'principal' | 'operation' | 'key'>,
   ): Promise<IdempotencyRecord | null> {
-    const row = await this.db
-      .selectFrom('idempotency')
-      .selectAll()
-      .where('principal', '=', id.principal)
-      .where('operation', '=', id.operation)
-      .where('key', '=', id.key)
-      .executeTakeFirst();
-
-    return row === undefined ? null : toIdempotencyRecord(row);
+    return this.idempotency.findIdempotencyKey(id);
   }
 
-  async updateIdempotencyCompleted(
+  updateIdempotencyCompleted(
     record: Pick<IdempotencyRecord, 'principal' | 'operation' | 'key'>,
     result: string,
     at: number,
     effectTarget: EffectTarget | null = null,
   ): Promise<void> {
-    await this.db
-      .updateTable('idempotency')
-      .set({
-        state: 'completed',
-        result,
-        updated_at: at,
-        effect_target: effectTarget?.target ?? null,
-        effect_target_identity: effectTarget?.targetIdentity ?? null,
-      })
-      .where('principal', '=', record.principal)
-      .where('operation', '=', record.operation)
-      .where('key', '=', record.key)
-      .execute();
+    return this.idempotency.updateIdempotencyCompleted(record, result, at, effectTarget);
   }
 
-  // Keeps a claim whose effect may still stand as outcome_unknown, so a
-  // retry answers from it and never runs the effect again.
-  async updateIdempotencyOutcomeUnknown(
+  updateIdempotencyOutcomeUnknown(
     record: Pick<IdempotencyRecord, 'principal' | 'operation' | 'key'>,
     at: number,
   ): Promise<void> {
-    await this.db
-      .updateTable('idempotency')
-      .set({ state: 'outcome_unknown', updated_at: at })
-      .where('principal', '=', record.principal)
-      .where('operation', '=', record.operation)
-      .where('key', '=', record.key)
-      .execute();
+    return this.idempotency.updateIdempotencyOutcomeUnknown(record, at);
   }
 
-  // Drops a claim whose effect never started, so a retry runs it fresh.
-  async removeIdempotencyKey(
+  removeIdempotencyKey(
     record: Pick<IdempotencyRecord, 'principal' | 'operation' | 'key'>,
   ): Promise<void> {
-    await this.db
-      .deleteFrom('idempotency')
-      .where('principal', '=', record.principal)
-      .where('operation', '=', record.operation)
-      .where('key', '=', record.key)
-      .execute();
+    return this.idempotency.removeIdempotencyKey(record);
   }
 
-  // Runs as a daemon starts, before it serves a request: a key still in
-  // progress belonged to a daemon that stopped mid-effect. One whose effect
-  // left its row behind completes; one that left no trace stays unknown.
-  async reconcileIdempotencyKeys(at: number): Promise<void> {
-    await this.db.transaction().execute(async (trx) => {
-      await trx
-        .updateTable('idempotency')
-        .set({ state: 'outcome_unknown', updated_at: at })
-        .where('state', '=', 'in_progress')
-        .execute();
-
-      // A spawn that completes here records the target its fleet row holds,
-      // as a spawn that completes as it runs does.
-      await trx
-        .updateTable('idempotency')
-        .set((eb) => ({
-          state: 'completed',
-          updated_at: at,
-          effect_target: eb
-            .selectFrom('fleet')
-            .select('fleet.target')
-            .whereRef('fleet.session_id', '=', 'idempotency.effect_ref'),
-          effect_target_identity: eb
-            .selectFrom('fleet')
-            .select('fleet.target_identity')
-            .whereRef('fleet.session_id', '=', 'idempotency.effect_ref'),
-        }))
-        .where('state', '=', 'outcome_unknown')
-        .where('operation', '=', 'session.spawn')
-        .where('effect_ref', 'in', (eb) => eb.selectFrom('fleet').select('session_id'))
-        .execute();
-
-      await trx
-        .updateTable('idempotency')
-        .set({ state: 'completed', updated_at: at })
-        .where('state', '=', 'outcome_unknown')
-        .where('operation', '=', 'session.message')
-        .where('effect_ref', 'in', (eb) => eb.selectFrom('messages').select('id'))
-        .execute();
-    });
+  reconcileIdempotencyKeys(at: number): Promise<void> {
+    return this.idempotency.reconcileIdempotencyKeys(at);
   }
 
-  // Only completed keys expire: a key whose outcome is unknown stays, so a
-  // retry of it keeps answering outcome_unknown instead of running anew.
-  async removeExpiredIdempotencyKeys(before: number): Promise<void> {
-    await this.db
-      .deleteFrom('idempotency')
-      .where('state', '=', 'completed')
-      .where('updated_at', '<', before)
-      .execute();
+  removeExpiredIdempotencyKeys(before: number): Promise<void> {
+    return this.idempotency.removeExpiredIdempotencyKeys(before);
   }
 
-  // Records a materialization as it starts, in the resolving phase.
-  async createMaterialization(
+  createMaterialization(
     row: Pick<
       WorkspaceMaterialization,
       'sessionID' | 'target' | 'dir' | 'sourceKind' | 'withheldEnv'
     >,
     at: number,
   ): Promise<void> {
-    await this.db
-      .insertInto('workspace_materialization')
-      .values({
-        session_id: row.sessionID,
-        target: row.target,
-        dir: row.dir,
-        source_kind: row.sourceKind,
-        phase: 'resolving',
-        repo_url: null,
-        sha: null,
-        ref: null,
-        error_code: null,
-        started_at: at,
-        updated_at: at,
-        materialized_at: null,
-        withheld_env: JSON.stringify(row.withheldEnv),
-      })
-      .execute();
+    return this.materializations.createMaterialization(row, at);
   }
 
-  async updateMaterialization(
+  updateMaterialization(
     sessionID: SessionID,
     fields: MaterializationUpdate,
     at: number,
   ): Promise<void> {
-    await this.db
-      .updateTable('workspace_materialization')
-      .set({
-        phase: fields.phase,
-        ...(fields.dir === undefined ? {} : { dir: fields.dir }),
-        ...(fields.repoURL === undefined ? {} : { repo_url: fields.repoURL }),
-        ...(fields.sha === undefined ? {} : { sha: fields.sha }),
-        ...(fields.ref === undefined ? {} : { ref: fields.ref }),
-        ...(fields.errorCode === undefined ? {} : { error_code: fields.errorCode }),
-        ...(fields.materializedAt === undefined ? {} : { materialized_at: fields.materializedAt }),
-        updated_at: at,
-      })
-      .where('session_id', '=', sessionID)
-      .execute();
+    return this.materializations.updateMaterialization(sessionID, fields, at);
   }
 
-  async findMaterialization(sessionID: SessionID): Promise<WorkspaceMaterialization | null> {
-    const row = await this.db
-      .selectFrom('workspace_materialization')
-      .selectAll()
-      .where('session_id', '=', sessionID)
-      .executeTakeFirst();
-
-    return row === undefined ? null : toWorkspaceMaterialization(row);
+  findMaterialization(sessionID: SessionID): Promise<WorkspaceMaterialization | null> {
+    return this.materializations.findMaterialization(sessionID);
   }
 
-  // Runs as a daemon starts, before it serves a request: a materialization
-  // short of ready or failed was cut off by a stopped daemon before its
-  // workspace was verified.
-  async reconcileMaterializations(at: number): Promise<void> {
-    await this.db
-      .updateTable('workspace_materialization')
-      .set({ phase: 'failed', error_code: 'workspace_interrupted', updated_at: at })
-      .where('phase', 'not in', ['ready', 'failed'])
-      .execute();
+  reconcileMaterializations(at: number): Promise<void> {
+    return this.materializations.reconcileMaterializations(at);
   }
 
-  // A row whose JSON no longer reads as a record counts as no record, so
-  // the next delivery records the session afresh.
-  async findPublishedRecord(sessionID: SessionID): Promise<PublishedRecord | null> {
-    const row = await this.db
-      .selectFrom('published_record')
-      .select('record')
-      .where('session_id', '=', sessionID)
-      .executeTakeFirst();
-
-    return row === undefined ? null : parsePublishedRecord(row.record);
+  findPublishedRecord(sessionID: SessionID): Promise<PublishedRecord | null> {
+    return this.publishedRecords.findPublishedRecord(sessionID);
   }
 
-  async writePublishedRecord(record: PublishedRecord): Promise<void> {
-    const values = {
-      record: JSON.stringify(record),
-      revision: record.revision,
-      updated_at: Date.parse(record.updatedAt),
-    };
-
-    await this.db
-      .insertInto('published_record')
-      .values({ session_id: record.session, ...values })
-      .onConflict((oc) => oc.column('session_id').doUpdateSet(values))
-      .execute();
+  writePublishedRecord(record: PublishedRecord): Promise<void> {
+    return this.publishedRecords.writePublishedRecord(record);
   }
 
-  async removePublishedRecord(sessionID: SessionID): Promise<void> {
-    await this.db.deleteFrom('published_record').where('session_id', '=', sessionID).execute();
+  removePublishedRecord(sessionID: SessionID): Promise<void> {
+    return this.publishedRecords.removePublishedRecord(sessionID);
   }
 
-  // Records a host's binding as its first attempt starts provisioning it,
-  // at the first revision, before the imp exists.
-  async createAuthBinding(
+  createAuthBinding(
     row: Pick<
       RuntimeAuthBinding,
       | 'hostKey'
@@ -1268,204 +419,43 @@ export class StateStore {
     >,
     at: number,
   ): Promise<void> {
-    await this.db
-      .insertInto('runtime_auth_binding')
-      .values({
-        host_key: row.hostKey,
-        target: row.target,
-        target_identity: row.targetIdentity,
-        imp_name: row.impName,
-        imp_id: null,
-        revision: 1,
-        binding_hash: row.bindingHash,
-        binding_json: row.bindingJSON,
-        state: 'provisioning',
-        attempt_id: row.attemptID,
-        imp_created_by_attempt: 0,
-        rebind_revision: null,
-        rebind_binding_hash: null,
-        rebind_binding_json: null,
-        rebind_attempt_id: null,
-        created_at: at,
-        updated_at: at,
-        revoked_at: null,
-      })
-      .execute();
+    return this.authBindings.createAuthBinding(row, at);
   }
 
-  async updateAuthBinding(
+  updateAuthBinding(
     hostKey: SessionID,
     fields: RuntimeAuthBindingUpdate,
     at: number,
   ): Promise<void> {
-    await this.db
-      .updateTable('runtime_auth_binding')
-      .set({
-        ...(fields.state === undefined ? {} : { state: fields.state }),
-        ...(fields.impID === undefined ? {} : { imp_id: fields.impID }),
-        ...(fields.impCreatedByAttempt === undefined
-          ? {}
-          : { imp_created_by_attempt: fields.impCreatedByAttempt ? 1 : 0 }),
-        ...(fields.revision === undefined ? {} : { revision: fields.revision }),
-        ...(fields.bindingHash === undefined ? {} : { binding_hash: fields.bindingHash }),
-        ...(fields.bindingJSON === undefined ? {} : { binding_json: fields.bindingJSON }),
-        ...(fields.attemptID === undefined ? {} : { attempt_id: fields.attemptID }),
-        ...(fields.rebind === undefined
-          ? {}
-          : {
-              rebind_revision: fields.rebind?.revision ?? null,
-              rebind_binding_hash: fields.rebind?.bindingHash ?? null,
-              rebind_binding_json: fields.rebind?.bindingJSON ?? null,
-              rebind_attempt_id: fields.rebind?.attemptID ?? null,
-            }),
-        ...(fields.revokedAt === undefined ? {} : { revoked_at: fields.revokedAt }),
-        updated_at: at,
-      })
-      .where('host_key', '=', hostKey)
-      .execute();
+    return this.authBindings.updateAuthBinding(hostKey, fields, at);
   }
 
-  async findAuthBinding(hostKey: SessionID): Promise<RuntimeAuthBinding | null> {
-    const row = await this.db
-      .selectFrom('runtime_auth_binding')
-      .selectAll()
-      .where('host_key', '=', hostKey)
-      .executeTakeFirst();
-
-    return row === undefined ? null : toRuntimeAuthBinding(row);
+  findAuthBinding(hostKey: SessionID): Promise<RuntimeAuthBinding | null> {
+    return this.authBindings.findAuthBinding(hostKey);
   }
 
-  // Every host's binding, by host key.
-  async collectAuthBindings(): Promise<RuntimeAuthBinding[]> {
-    const rows = await this.db
-      .selectFrom('runtime_auth_binding')
-      .selectAll()
-      .orderBy('host_key')
-      .execute();
-
-    return rows.map((row) => toRuntimeAuthBinding(row));
+  collectAuthBindings(): Promise<RuntimeAuthBinding[]> {
+    return this.authBindings.collectAuthBindings();
   }
 
-  // Writes one secret's grant row for a host, or moves the existing one to
-  // the given phase, revision and attempt.
-  async upsertAuthGrant(grant: Omit<RuntimeAuthGrant, 'updatedAt'>, at: number): Promise<void> {
-    await this.db
-      .insertInto('runtime_auth_grant')
-      .values({
-        host_key: grant.hostKey,
-        secret: grant.secret,
-        revision: grant.revision,
-        attempt_id: grant.attemptID,
-        preexisting: grant.preexisting ? 1 : 0,
-        phase: grant.phase,
-        updated_at: at,
-      })
-      .onConflict((oc) =>
-        oc.columns(['host_key', 'secret']).doUpdateSet((eb) => ({
-          revision: eb.ref('excluded.revision'),
-          attempt_id: eb.ref('excluded.attempt_id'),
-          preexisting: eb.ref('excluded.preexisting'),
-          phase: eb.ref('excluded.phase'),
-          updated_at: eb.ref('excluded.updated_at'),
-        })),
-      )
-      .execute();
+  upsertAuthGrant(grant: Omit<RuntimeAuthGrant, 'updatedAt'>, at: number): Promise<void> {
+    return this.authBindings.upsertAuthGrant(grant, at);
   }
 
-  // A host's grant rows, by secret name.
-  async collectAuthGrants(hostKey: SessionID): Promise<RuntimeAuthGrant[]> {
-    const rows = await this.db
-      .selectFrom('runtime_auth_grant')
-      .selectAll()
-      .where('host_key', '=', hostKey)
-      .orderBy('secret')
-      .execute();
-
-    return rows.map((row) => ({
-      hostKey: toSessionID(row.host_key),
-      secret: row.secret,
-      revision: row.revision,
-      attemptID: row.attempt_id,
-      preexisting: row.preexisting === 1,
-      phase: row.phase,
-      updatedAt: row.updated_at,
-    }));
+  collectAuthGrants(hostKey: SessionID): Promise<RuntimeAuthGrant[]> {
+    return this.authBindings.collectAuthGrants(hostKey);
   }
 
-  // Drops a host's binding and every grant row it holds together, once
-  // impd confirms the imp and its grants gone.
-  async removeAuthBinding(hostKey: SessionID): Promise<void> {
-    await this.db.transaction().execute(async (trx) => {
-      await trx.deleteFrom('runtime_auth_grant').where('host_key', '=', hostKey).execute();
-      await trx.deleteFrom('runtime_auth_binding').where('host_key', '=', hostKey).execute();
-    });
+  removeAuthBinding(hostKey: SessionID): Promise<void> {
+    return this.authBindings.removeAuthBinding(hostKey);
   }
 
-  // Runs once as a daemon starts, before it serves a request: a grant still
-  // granting belonged to a daemon that stopped before impd answered, so
-  // whether impd holds it is uncertain until its grant list is read.
-  async reconcileAuthBindings(at: number): Promise<void> {
-    await this.db
-      .updateTable('runtime_auth_grant')
-      .set({ phase: 'uncertain', updated_at: at })
-      .where('phase', '=', 'granting')
-      .execute();
+  reconcileAuthBindings(at: number): Promise<void> {
+    return this.authBindings.reconcileAuthBindings(at);
   }
 
-  // VACUUM INTO reads in one transaction, so the copy never holds half of a
-  // write; the flushed copy is renamed over the path, which then holds its
-  // old content or a whole copy. Resolves to the copy's size in bytes.
-  async writeBackup(path: string): Promise<number> {
-    // The database file resolves in full, since SQLite opens the file a
-    // link points to and names its log files after that path.
-    const live = realpathSync(this.dbPath);
-
-    if (
-      [live, `${live}-wal`, `${live}-shm`, `${live}-journal`].includes(resolveRealFilePath(path))
-    ) {
-      // Replacing a file SQLite holds open loses every later write.
-      throw new DaemonError(
-        'bad_args',
-        `${path} is the daemon's own database or one of its log files; back up to another path`,
-      );
-    }
-
-    // A fresh directory beside `path` that only this user can enter, so the
-    // copy never exists where another user can read it, and SQLite writes it
-    // to a path that does not exist yet.
-    const stagingDir = mkdtempSync(joinPath(dirname(path), `.${basename(path)}.partial-`));
-    const staging = joinPath(stagingDir, 'backup.db');
-
-    try {
-      await sql`VACUUM INTO ${staging}`.execute(this.db);
-
-      chmodSync(staging, 0o600);
-
-      const fd = openSync(staging, 'r');
-
-      try {
-        fsyncSync(fd);
-      } finally {
-        closeSync(fd);
-      }
-
-      renameSync(staging, path);
-
-      // The rename lives in the directory, so the directory is flushed too:
-      // without it, a power loss can drop the new entry after the command
-      // reported success.
-      const dirFD = openSync(dirname(path), 'r');
-
-      try {
-        fsyncSync(dirFD);
-      } finally {
-        closeSync(dirFD);
-      }
-    } finally {
-      rmSync(stagingDir, { recursive: true, force: true });
-    }
-
-    return statSync(path).size;
+  writeBackup(path: string): Promise<number> {
+    return writeBackup(this.db, this.dbPath, path);
   }
 
   // A second close, or a disposal after one, waits on the first and closes
@@ -1526,209 +516,6 @@ export class StateStore {
   }
 }
 
-// A fleet row's ready workspace as its entry field, or nothing for a row
-// that ran without one.
-function buildWorkspaceField(
-  row: Readonly<{
-    repo_url: string | null;
-    sha: string | null;
-    ref: string | null;
-    materialized_at: number | null;
-  }>,
-): { readonly workspace?: SessionWorkspace } {
-  if (row.repo_url === null || row.sha === null || row.materialized_at === null) {
-    return {};
-  }
-
-  return {
-    workspace: {
-      repoURL: row.repo_url,
-      sha: row.sha,
-      ...(row.ref === null ? {} : { ref: row.ref }),
-      materializedAt: row.materialized_at,
-    },
-  };
-}
-
-// The variable names a workspace withholds, none for a row without a ready
-// workspace, or null when the stored list is malformed.
-function parseWithheldEnv(stored: string | null): string[] | null {
-  return stored === null ? [] : parseJSONStrings(stored);
-}
-
-// A row without a target restores on the `local` target, and a row without
-// an identity restores under the identity of the `local` target.
-const LOCAL_TARGET_IDENTITY = buildTargetIdentity(LOCAL_TARGET.provider, LOCAL_TARGET.options);
-
-type ReplaceableRow = Pick<FleetEntry, 'agentSessionID' | 'exited' | 'target' | 'targetIdentity'>;
-
-// Whether a later row that holds the same agent session id takes this row's
-// place. A live row on another target stays: that target may still run its
-// session, and atc must not forget it.
-function isReplaceableBy(row: ReplaceableRow, later: ReplaceableRow): boolean {
-  return (
-    row.agentSessionID !== undefined &&
-    row.agentSessionID === later.agentSessionID &&
-    (row.exited === true ||
-      ((row.target ?? LOCAL_TARGET.id) === (later.target ?? LOCAL_TARGET.id) &&
-        (row.targetIdentity ?? LOCAL_TARGET_IDENTITY) ===
-          (later.targetIdentity ?? LOCAL_TARGET_IDENTITY)))
-  );
-}
-
-// The entry that takes the place of a row written before entries[from], or
-// undefined when the row stays. Replacement chains to the last later entry,
-// so the result is always an entry the fleet keeps.
-function findReplacement(
-  row: ReplaceableRow,
-  entries: readonly FleetEntry[],
-  from: number,
-): FleetEntry | undefined {
-  for (let index = entries.length - 1; index >= from; index--) {
-    const entry = entries[index];
-
-    if (entry !== undefined && isReplaceableBy(row, entry)) {
-      return findReplacement(entry, entries, index + 1) ?? entry;
-    }
-  }
-
-  return undefined;
-}
-
-// One row per agent session id and target, the entry written last, plus every
-// live row on another target, relinked one level deep. Every walk takes at most
-// one step per entry, so it ends on any input.
-function buildFleetWithoutReplacedRows(entries: readonly FleetEntry[]): FleetEntry[] {
-  const replaced = new Map<SessionID, SessionID>();
-
-  for (const [index, entry] of entries.entries()) {
-    const replacement = findReplacement(entry, entries, index + 1);
-
-    if (replacement !== undefined) {
-      replaced.set(entry.sessionID, replacement.sessionID);
-    }
-  }
-
-  const kept = entries.filter((entry) => !replaced.has(entry.sessionID));
-
-  const order = new Map(kept.map((entry, index) => [entry.sessionID, index]));
-  const links = new Map(entries.map((entry) => [entry.sessionID, entry.parent]));
-
-  const bound = entries.length;
-
-  // The surviving row an entry's parent link resolves to, or undefined when
-  // it resolves to no row the fleet keeps. A row that replaced its own parent
-  // follows that parent's link instead.
-  const findSurvivingParent = (entry: FleetEntry): SessionID | undefined => {
-    let link = entry.parent;
-
-    for (let step = 0; step < bound && link !== undefined; step++) {
-      const target = replaced.get(link) ?? link;
-
-      if (target !== entry.sessionID) {
-        return order.has(target) ? target : undefined;
-      }
-
-      link = links.get(link);
-    }
-
-    return undefined;
-  };
-
-  const linked = new Map(kept.map((entry) => [entry.sessionID, findSurvivingParent(entry)]));
-
-  // The row written first in the cycle a walk up from this row enters, or
-  // undefined when the walk reaches a top-level row.
-  const findCycleStart = (sessionID: SessionID): SessionID | undefined => {
-    const seen: SessionID[] = [];
-    let current: SessionID | undefined = sessionID;
-
-    for (let step = 0; step <= bound && current !== undefined; step++) {
-      const at = seen.indexOf(current);
-
-      if (at !== -1) {
-        return seen.slice(at).toSorted((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0))[0];
-      }
-
-      seen.push(current);
-
-      current = linked.get(current);
-    }
-
-    return undefined;
-  };
-
-  for (const entry of kept) {
-    const cycleStart = findCycleStart(entry.sessionID);
-
-    if (cycleStart !== undefined) {
-      linked.set(cycleStart, undefined);
-    }
-  }
-
-  // The top-level row a walk up from this row reaches.
-  const findTopLevel = (sessionID: SessionID): SessionID => {
-    let current = sessionID;
-
-    for (let step = 0; step < bound; step++) {
-      const parent = linked.get(current);
-
-      if (parent === undefined) {
-        return current;
-      }
-
-      current = parent;
-    }
-
-    return current;
-  };
-
-  const relinked: FleetEntry[] = [];
-
-  for (const entry of kept) {
-    const { parent: _parent, ...rest } = entry;
-    const top = findTopLevel(entry.sessionID);
-    const row = top === entry.sessionID ? rest : { ...rest, parent: top };
-
-    relinked.push(row);
-  }
-
-  return relinked;
-}
-
-// The ownership epoch this daemon writes under. Nothing moves a session to
-// a later epoch yet, so every row this daemon owns holds this one.
-const OWNER_EPOCH = 1;
-
-// Rejects a write that touches a session another daemon owns, or one whose
-// stored epoch has moved past this daemon's: the write is stale.
-async function requireCurrentOwnership(
-  trx: Transaction<StateStoreSchema>,
-  daemonID: DaemonID,
-  sessionIDs: readonly SessionID[],
-): Promise<void> {
-  if (sessionIDs.length === 0) {
-    return;
-  }
-
-  const stale = await trx
-    .selectFrom('session_owner')
-    .select(['session_id', 'daemon_id', 'owner_epoch'])
-    .where('session_id', 'in', sessionIDs)
-    .where((eb) => eb.or([eb('daemon_id', '!=', daemonID), eb('owner_epoch', '!=', OWNER_EPOCH)]))
-    .executeTakeFirst();
-
-  if (stale !== undefined) {
-    throw new StaleOwnershipError({
-      sessionID: toSessionID(stale.session_id),
-      ownerDaemonID: toDaemonID(stale.daemon_id),
-      ownerEpoch: stale.owner_epoch,
-      writerDaemonID: daemonID,
-      writerEpoch: OWNER_EPOCH,
-    });
-  }
-}
-
 // Mints each legacy entry an atc session id, then moves each sub-session
 // link from the parent's agent session id to the parent's minted id.
 function buildFleetFromLegacy(legacy: readonly LegacyFleetEntry[]): FleetEntry[] {
@@ -1744,243 +531,4 @@ function buildFleetFromLegacy(legacy: readonly LegacyFleetEntry[]): FleetEntry[]
       ...(parentID === undefined ? {} : { parent: parentID }),
     };
   });
-}
-
-function buildScopeMatch(
-  eb: ExpressionBuilder<StateStoreSchema, 'events'>,
-  scope: EventScope | null,
-): Expression<SqlBool> {
-  if (scope === null) {
-    return eb.lit(true);
-  }
-
-  if (scope.atcIDs.length === 0 && scope.agentSessionIDs.length === 0) {
-    return eb.lit(false);
-  }
-
-  return eb.or([
-    ...(scope.atcIDs.length === 0 ? [] : [eb('atc_id', 'in', scope.atcIDs)]),
-    ...(scope.agentSessionIDs.length === 0 ? [] : [eb('session_id', 'in', scope.agentSessionIDs)]),
-  ]);
-}
-
-interface EventRow {
-  readonly id: number;
-  readonly ts: string;
-  readonly atc_id: string;
-  readonly session_id: string | null;
-  readonly kind: string | null;
-  readonly detail: string | null;
-  readonly message: string | null;
-}
-
-function buildStoredEvents(rows: readonly EventRow[]): StoredEvent[] {
-  const events: StoredEvent[] = [];
-
-  for (const row of rows) {
-    if (row.kind === null) {
-      continue;
-    }
-
-    events.push({
-      id: row.id,
-      at: Date.parse(row.ts),
-      atcID: toSessionID(row.atc_id),
-      agentSessionID: row.session_id === null ? null : toAgentSessionID(row.session_id),
-      kind: row.kind,
-      ...buildTrailFields(row.kind, row.detail, row.message),
-    });
-  }
-
-  return events;
-}
-
-const MESSAGE_TRAIL_KINDS: ReadonlySet<string> = new Set([
-  'message-queued',
-  'message-delivered',
-  'message-answered',
-  'message-unanswered',
-  'notice-queued',
-  'notice-delivered',
-]);
-
-// Message and note rows keep their message id or label where hook rows keep
-// the hook's message, so only hook rows fall back to it for a detail.
-function buildTrailFields(
-  kind: string,
-  detail: string | null,
-  message: string | null,
-): Pick<StoredEvent, 'detail' | 'message' | 'label'> {
-  if (MESSAGE_TRAIL_KINDS.has(kind)) {
-    return { detail, ...(message === null ? {} : { message: toMessageID(message) }) };
-  }
-
-  if (kind === 'note') {
-    return { detail, ...(message === null ? {} : { label: message }) };
-  }
-
-  return { detail: detail ?? message };
-}
-
-function buildOwnerFilter(
-  eb: ExpressionBuilder<StateStoreSchema, 'messages'>,
-  owner: MessageOwner,
-): Expression<SqlBool> {
-  const byAtcID = eb('atc_id', '=', owner.atcID);
-
-  return owner.agentSessionID === undefined
-    ? byAtcID
-    : eb.or([byAtcID, eb('agent_session_id', '=', owner.agentSessionID)]);
-}
-
-// The time a settling statement queues a message's answer notice at: the
-// settle time for a message that has a sender session, else none, since
-// no session waits on its outcome.
-function buildNoticeQueuedAt(at: number): RawBuilder<number | null> {
-  return sql<number | null>`case when ${sql.ref('sender_session')} is not null then ${at} end`;
-}
-
-function toIdempotencyRecord(row: Readonly<StateStoreSchema['idempotency']>): IdempotencyRecord {
-  return {
-    principal: row.principal,
-    operation: row.operation,
-    key: row.key,
-    payloadHash: row.payload_hash,
-    state: row.state,
-    effectRef: row.effect_ref,
-    result: row.result,
-    effectTarget:
-      row.effect_target === null || row.effect_target_identity === null
-        ? null
-        : { target: row.effect_target, targetIdentity: row.effect_target_identity },
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
-
-function toMessageRecord(row: Readonly<StateStoreSchema['messages']>): MessageRecord {
-  return {
-    id: toMessageID(row.id),
-    atcID: toSessionID(row.atc_id),
-    ...(row.agent_session_id === null
-      ? {}
-      : { agentSessionID: toAgentSessionID(row.agent_session_id) }),
-    from: row.sender,
-    ...buildMessageSender(row),
-    text: row.text,
-    status: row.status,
-    sentAt: row.sent_at,
-    ...(row.delivered_at === null ? {} : { deliveredAt: row.delivered_at }),
-    ...(row.answered_at === null ? {} : { answeredAt: row.answered_at }),
-    ...(row.answer === null ? {} : { answer: row.answer }),
-    ...(row.unanswered_at === null ? {} : { unansweredAt: row.unanswered_at }),
-    ...(row.unanswered_reason === null ? {} : { unansweredReason: row.unanswered_reason }),
-    ...(row.turn_id === null ? {} : { turn: row.turn_id }),
-    ...(row.sender_session === null ? {} : { senderSession: toSessionID(row.sender_session) }),
-    ...(row.notice_queued_at === null ? {} : { noticeQueuedAt: row.notice_queued_at }),
-    ...(row.notice_delivered_at === null ? {} : { noticeDeliveredAt: row.notice_delivered_at }),
-  };
-}
-
-// The client id of a connector or the atc id of a session, which the row
-// keeps in one column; null for a local program, the owner, and a message
-// with no sender.
-function findSenderID(sender: MessageSender | undefined): string | null {
-  if (sender?.kind === 'connector') {
-    return sender.client;
-  }
-
-  return sender?.kind === 'session' ? sender.session : null;
-}
-
-// A row the daemon wrote with a typed sender reads back with it; a row from
-// before, or one whose kind or id this build cannot read, holds only the
-// sender's name.
-function buildMessageSender(
-  row: Readonly<StateStoreSchema['messages']>,
-): { readonly sender: MessageSender } | Record<string, never> {
-  const id = row.sender_id ?? undefined;
-
-  const parsed = MESSAGE_SENDER_SCHEMA.safeParse({
-    kind: row.sender_kind,
-    name: row.sender,
-    ...(row.sender_kind === 'connector' ? { client: id } : {}),
-    ...(row.sender_kind === 'session' ? { session: id } : {}),
-  });
-
-  return parsed.success ? { sender: parsed.data } : {};
-}
-
-function toWorkspaceMaterialization(
-  row: Readonly<StateStoreSchema['workspace_materialization']>,
-): WorkspaceMaterialization {
-  const withheldEnv = parseWithheldEnv(row.withheld_env);
-
-  // Reading the workspace as withholding nothing would start its agent with
-  // the variables it withheld.
-  if (withheldEnv === null) {
-    throw new Error(
-      `the workspace of session '${row.session_id}' holds a malformed list of withheld variables`,
-    );
-  }
-
-  return {
-    sessionID: toSessionID(row.session_id),
-    target: row.target,
-    dir: row.dir,
-    sourceKind: row.source_kind,
-    phase: row.phase,
-    repoURL: row.repo_url,
-    sha: row.sha,
-    ref: row.ref,
-    errorCode: row.error_code,
-    startedAt: row.started_at,
-    updatedAt: row.updated_at,
-    materializedAt: row.materialized_at,
-    withheldEnv,
-  };
-}
-
-function toRuntimeAuthBinding(
-  row: Readonly<StateStoreSchema['runtime_auth_binding']>,
-): RuntimeAuthBinding {
-  return {
-    hostKey: toSessionID(row.host_key),
-    target: row.target,
-    targetIdentity: row.target_identity,
-    impName: row.imp_name,
-    impID: row.imp_id,
-    revision: row.revision,
-    bindingHash: row.binding_hash,
-    bindingJSON: row.binding_json,
-    state: row.state,
-    attemptID: row.attempt_id,
-    impCreatedByAttempt: row.imp_created_by_attempt === 1,
-    rebind:
-      row.rebind_revision === null ||
-      row.rebind_binding_hash === null ||
-      row.rebind_binding_json === null ||
-      row.rebind_attempt_id === null
-        ? null
-        : {
-            revision: row.rebind_revision,
-            bindingHash: row.rebind_binding_hash,
-            bindingJSON: row.rebind_binding_json,
-            attemptID: row.rebind_attempt_id,
-          },
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    revokedAt: row.revoked_at,
-  };
-}
-
-// The path of a file with its directory's symlinks resolved, so two spellings
-// of one location compare equal. A directory that does not exist keeps the
-// path as given.
-function resolveRealFilePath(path: string): string {
-  try {
-    return joinPath(realpathSync(dirname(path)), basename(path));
-  } catch {
-    return path;
-  }
 }
