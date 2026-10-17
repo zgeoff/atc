@@ -1,16 +1,44 @@
 ---
 name: code-style
 description:
-  Load before writing, reviewing, or renaming any TypeScript in this repo — every function name must
-  start with a verb from the taxonomy here, and the lint rule enforcing it reads the same list.
-  Covers module layout and file naming, the function-verb taxonomy with atc's own verbs, the exempt
-  names, and comments.
+  Code style for zgeoff TypeScript repos — module layout and file naming, acronyms, state
+  lifecycles, and the closed function-verb taxonomy that the function-verb lint rule enforces. Load
+  before writing, reviewing, or renaming any TypeScript, with the repo's project-code-style skill
+  beside it.
 ---
 
 # Code style
 
 Mechanically enforced rules (oxfmt, oxlint, format-codemod) aren't repeated here — this skill covers
 what tooling can't check.
+
+## Key rules
+
+Each line links the section that explains it.
+
+- [Files and modules](#files-and-modules): one primary export per file, named for it, with private
+  helpers after it.
+- [Acronyms](#acronyms): acronyms stay uppercase in identifiers, `ID` included, unless one starts a
+  name.
+- [State lifecycles](#state-lifecycles): persisted state moves through one declared transition
+  table, and an in-process actor is an xstate machine.
+- [Function naming](#function-naming): every function name starts with a verb from the closed list,
+  and the banned verbs never appear.
+
+## Loading the skill
+
+This skill is the shared base that repo-sync delivers from zgeoff/tools; edit it there, never in a
+downstream repo. When the repo has a `project-code-style` skill, load it too. It holds the repo's
+own verbs, exempt names, and rules, and it never relaxes a rule here.
+
+A `project-code-style` skill lists each of the repo's verbs as a bullet or a table row that starts
+with the backticked verb under `## Project verbs`, and each exempt name the same way under
+`## Exempt names`, so an agent sees every verb it may use when the skill loads.
+`check-project-verbs.sh`, beside this skill, fails when those lists differ from the `verbs` and
+`exemptNames` options of `zgeoff/function-verb` in [`.oxlintrc.json`](../../../.oxlintrc.json), and
+docs-writing's `check-length.sh` runs it.
+
+## Files and modules
 
 - One primary export per file, and the file name kebab-cases that export (`with-jest-context.ts`
   exports `withJestContext`). Exceptions: `index.ts` entrypoints, `types.ts` for a package's shared
@@ -19,11 +47,14 @@ what tooling can't check.
   — never helpers first. Supporting declarations (consts, interfaces, type aliases) sit directly
   above their first use, never below it and never leading the file; types for the primary export's
   signature may sit just above it.
-- Acronyms stay uppercase in identifiers (`runCLI`, `parseCLIArgs`, `ASTNode`, `pkgURL`,
-  `isPackageJSON`) — except when one starts a camelCase name, where it lowercases whole (`cliPath`,
-  `astNode`). ID counts as an acronym: `userID`, `sessionID` — never `userId` — and `idToken` when
-  it starts a name. File names are unaffected: kebab-case lowercases everything (`parse-cli-args.ts`
-  exports `parseCLIArgs`).
+
+## Acronyms
+
+Acronyms stay uppercase in identifiers (`runCLI`, `parseCLIArgs`, `ASTNode`, `pkgURL`,
+`isPackageJSON`) — except when one starts a camelCase name, where it lowercases whole (`cliPath`,
+`astNode`). ID counts as an acronym: `userID`, `sessionID` — never `userId` — and `idToken` when it
+starts a name. File names are unaffected: kebab-case lowercases everything (`parse-cli-args.ts`
+exports `parseCLIArgs`).
 
 ## State lifecycles
 
@@ -38,9 +69,12 @@ modules the split creates share one copy of the rule instead of each keeping its
 
 ## Function naming
 
-Every function name starts with a prefix from the closed list below: pick from it, or extend this
-skill in the same PR that introduces the new verb. The prefix is a contract — a reader should know
-the function's shape without opening it.
+Every function name starts with a prefix from the closed list below. The prefix is a contract — a
+reader should know the function's shape without opening it. A verb that any repo could use extends
+this list and the lint rule's list in zgeoff/tools in one PR, and a test there fails when the two
+differ. A verb that only one repo needs goes in that repo's
+[`.oxlintrc.json`](../../../.oxlintrc.json), under the `verbs` option of `zgeoff/function-verb`, and
+in its `project-code-style` skill.
 
 **Predicates** — return boolean, no side effects:
 
@@ -139,66 +173,3 @@ it does), `execute` (→ `run`), `compute` (→ `build`), `fetch` (→ `read`), 
 
 Algorithm-native vocabulary (`walk`, `backtrack`, `slideDiagonal`) is allowed inside the module
 implementing that algorithm — forcing list verbs onto textbook terms hides the algorithm.
-
-### Project verbs
-
-Project additions to the shared taxonomy (keep in sync with `zgeoff/function-verb` in
-`.oxlintrc.json`): `ack`, `acquire`, `adopt`, `advance`, `answer`, `attach`, `boot`, `copy`,
-`destroy`, `detach`, `dispose`, `draw`, `forget`, `jiggle`, `kill`, `log`, `materialize`, `mint`,
-`open`, `quit`, `reconcile`, `record`, `refresh`, `release`, `renew`, `restart`, `restore`,
-`revoke`, `sanitize`, `schedule`, `spawn`, `suspend`, `transfer`, `truncate`, `yank`.
-
-`advance` moves an injected clock forward by a duration and runs what falls due on the way
-(`advanceClock`), as opposed to `update`, which makes no promise about what runs.
-
-`acquire`, `renew`, and `release` take, extend, and give back a lease that keeps a remote host awake
-(`acquireLease`), as opposed to `claim`, which takes exclusive ownership.
-
-`destroy` deletes an execution host and everything on it, which nothing brings back (`destroyHost`),
-as opposed to `remove`, which deletes one record or file.
-
-`dispose` releases every resource an object holds in one call (`SessionRuntime.dispose`), and is
-safe to call more than once.
-
-`materialize` builds a resource on an execution target from a source held elsewhere, through the
-target's provider operations, and checks the result before it counts as ready
-(`materializeWorkspace`).
-
-`forget` drops a session from the fleet for good (`forgetSession`), destroying its host where its
-target can, as opposed to `remove`, which deletes one record without touching what it describes.
-
-`mint` generates a new id that atc itself is the sole authority for (`mintSessionID`), as opposed to
-`to<Brand>`, which trusts an id that arrived from outside atc.
-
-`reconcile` settles stored state that a stopped daemon left mid-change against the evidence the
-change leaves behind (`reconcileIdempotencyKeys`).
-
-`revoke` withdraws a credential atc issued so it no longer authorizes anything (`revokeGrant`), as
-opposed to `remove`, which deletes a resource outright.
-
-`sanitize` strips a resource of credentials and executable configuration in place and checks that
-none remain (`sanitizeWorkspaceClone`), as opposed to `update`, which makes no promise about what is
-left.
-
-`suspend` puts an execution host to sleep with its processes kept inside it, so a later wake finds
-them as they were (`suspendHost`), as opposed to `kill`, which ends a process.
-
-`transfer` moves content into an execution provider's host (`transferArchive`), as opposed to
-`write`, which persists to the daemon's own filesystem.
-
-### Exempt names
-
-Exempt names (tiny geometry/row helpers and script entrypoints): `cols`, `rows`, `ptyRows`, `out`,
-`main`, `boxTop`, `boxDivider`, `boxBottom`, `boxRow`, `dimRow`.
-
-`init`, `acquireConnection`, `beginTransaction`, `commitTransaction`, `rollbackTransaction`, and
-`releaseConnection` are also exempt: kysely's `Driver` interface fixes these method names, so the
-state store's driver implements them under the names the library requires.
-
-## Comments
-
-- JSDoc is always multi-line, never single-line `/** … */`.
-- No history or project state in comments — a comment describes the code as it is, never how it got
-  that way or what is planned.
-- Comments never name other declarations: renames strand the reference. Describe the behavior
-  instead.
