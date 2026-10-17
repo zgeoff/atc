@@ -37,8 +37,8 @@ function main(): void {
 const WRAPPER = 'scripts/with-test-home.sh';
 
 interface SourceEntry {
-  name: string;
-  path: string;
+  readonly name: string;
+  readonly path: string;
 }
 
 /**
@@ -75,7 +75,10 @@ interface HardCodedEntry {
  * path or as a string of its own, so `'cli.ts'` in a `join` counts as well
  * as a whole path, with the entry it matches. Lines are 1-based.
  */
-function collectHardCodedEntries(source: string, entries: SourceEntry[]): HardCodedEntry[] {
+function collectHardCodedEntries(
+  source: string,
+  entries: readonly SourceEntry[],
+): HardCodedEntry[] {
   const patterns = entries.map((entry) => ({
     entry,
     pattern: new RegExp(`(?:^|[/'"\`])${RegExp.escape(basename(entry.path))}(?![\\w.-])`),
