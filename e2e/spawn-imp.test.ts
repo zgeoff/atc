@@ -330,7 +330,7 @@ test('it restores a cloud session that was mid-turn at a daemon restart and deli
   await turnTap.sendRequest('session.tap', { session: id });
   await turnTap.sendRequest('message.ack', { session: id, message: turn['message'] });
 
-  ctx.port.setAcquireFailure(0, 'UNAVAILABLE');
+  ctx.port.setAcquireFailure(0, 'SERVICE_UNAVAILABLE');
 
   await ctx.restart();
 
@@ -354,7 +354,7 @@ test('it restores a cloud session that was mid-turn at a daemon restart and deli
   expect(acked).toStrictEqual({ message: wake['message'], status: 'delivered' });
 
   expect(ctx.logs).toContain(
-    `atc could not revive session ${String(id)} (imp ${ctx.port.collectImpNames()[0]} cannot be used: impd refused the lease (UNAVAILABLE)); trying again`,
+    `atc could not revive session ${String(id)} (imp ${ctx.port.collectImpNames()[0]} cannot be used: impd refused the lease (SERVICE_UNAVAILABLE)); trying again`,
   );
 });
 
@@ -987,7 +987,7 @@ test('it revives a session that woke its imp even when a sibling on that imp can
 
   await ctx.client.sendRequest('session.kill', { session: parentID });
 
-  ctx.port.setAcquireFailure(1, 'UNAVAILABLE');
+  ctx.port.setAcquireFailure(1, 'SERVICE_UNAVAILABLE');
 
   await ctx.client.sendRequest('session.adopt', { session: parentID, cols: 80, rows: 24 });
 

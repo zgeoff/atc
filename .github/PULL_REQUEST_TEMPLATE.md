@@ -1,9 +1,16 @@
-## Description
-
 <!--
-If this PR resolves an issue, start with a `Closes #n` line so the
-issue auto-closes on merge. Omit if there's no issue.
+Issues live in Linear. When the PR works on one, scope the title with
+its ID in lower case, `feat(geo-123): add the retry budget`, and start
+the body with one line that states the relationship:
+
+Fixes GEO-123          merging completes the issue
+Contributes to GEO-123 the PR delivers part of it; work remains
+Related to GEO-123     context only
+
+Omit the line when the PR has no issue.
 -->
+
+## Description
 
 <!--
 Lead paragraph: ≤2 sentences, what changed and why. Then bullets:

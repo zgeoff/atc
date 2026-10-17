@@ -196,7 +196,7 @@ test('it fails on a mod that loads a module through a template literal', async (
 
   await Bun.write(
     join(ctx.dir, 'mods/bridge/hooks/register.ts'),
-    'export const CLIENT: unknown = await import(`@zgeoff/imp-client`);\n',
+    'export const CLIENT: unknown = await import(`@impz/client`);\n',
   );
 
   const checked = await runCommand([
@@ -467,7 +467,7 @@ test('it fails on a root catalog entry or root devDependency that is not exact',
         packages: ['packages/*'],
         catalog: {
           '@types/bun': '1.4.2',
-          '@zgeoff/imp-client': '0.3.0-beta.1',
+          '@impz/client': '0.3.0-beta.1',
           citty: '*',
           knip: '^6.24.0',
           kysely: '>=0.29.5',

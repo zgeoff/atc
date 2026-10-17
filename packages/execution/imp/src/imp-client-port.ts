@@ -1,12 +1,11 @@
-import { createImpClient, openExecSession, openReverseForward } from '@zgeoff/imp-client';
-import type { ExecOutcome, ExecSessionOptions, ImpClient } from '@zgeoff/imp-client';
+import { createImpClient, openExecSession, openReverseForward } from '@impz/client';
+import type { ExecOutcome, ExecSessionOptions, ImpClient } from '@impz/client';
 import { match } from 'ts-pattern';
 import { z } from 'zod';
 import type {
   ImpCommand,
   ImpCommandResult,
   ImpCreateSpec,
-  ImpExecRequirement,
   ImpFeatures,
   ImpIdentity,
   ImpLease,
@@ -21,6 +20,11 @@ import type {
   ImpView,
 } from './imp-port';
 import { ImpPortError } from './imp-port-error';
+import { toImpFeatures } from './to-imp-features';
+import { toImpIdentity } from './to-imp-identity';
+import { toImpLease } from './to-imp-lease';
+import { toImpSecret } from './to-imp-secret';
+import { toImpView } from './to-imp-view';
 
 /**
  * Where impd listens, and how the daemon reads the token it calls impd
@@ -35,7 +39,7 @@ interface ImpClientPortOptions {
 }
 
 /**
- * The imp port over `@zgeoff/imp-client`: RPC calls for imps and leases,
+ * The imp port over `@impz/client`: RPC calls for imps and leases,
  * one exec WebSocket per session connection, and one reverse forward per
  * guest socket. Every refusal impd sends becomes an `ImpPortError` with its
  * code and data, and a call that never reaches impd carries `UNREACHABLE`.
@@ -53,36 +57,16 @@ export class ImpClientPort implements ImpPort {
     this.readToken = options.readToken;
   }
 
-  // A flag counts only as a literal true: an impd from before a flag has
-  // it false, and so does one that sends anything else in its place.
   readonly readFeatures = async (): Promise<ImpFeatures> => {
     const info = await this.tryCall((client) => client.system.info());
 
-    const features: Readonly<Record<string, unknown>> | undefined = info.features;
-
-    return {
-      sessionOffsets: features?.['sessionOffsets'] === true,
-      leases: features?.['leases'] === true,
-      grantableTokens: features?.['grantableTokens'] === true,
-      secretRebind: features?.['secretRebind'] === true,
-      execRequire: features?.['execRequire'] === true,
-      oauthSecrets: features?.['oauthSecrets'] === true,
-      readOnlyFiles: features?.['readOnlyFiles'] === true,
-      execDropSysAdmin: features?.['execDropSysAdmin'] === true,
-    };
+    return toImpFeatures(info);
   };
 
-  // An impd from before grantable lists sends none, which grants nothing.
   readonly readIdentity = async (): Promise<ImpIdentity> => {
     const identity = await this.tryCall((client) => client.tokens.whoami());
 
-    return {
-      kind: identity.kind,
-      name: identity.name,
-      scope: identity.scope,
-      imps: identity.imps === null ? null : [...identity.imps],
-      grantable: [...(identity.grantable ?? [])],
-    };
+    return toImpIdentity(identity);
   };
 
   readonly readSecrets = async (): Promise<readonly ImpSecret[]> => {
@@ -125,13 +109,7 @@ export class ImpClientPort implements ImpPort {
     try {
       const imp = await this.tryCall((client) => client.imps.get({ name }));
 
-      return {
-        id: imp.id,
-        name: imp.name,
-        state: imp.state,
-        leases: (imp.leases?.leases ?? []).map((lease) => toLease(lease)),
-        otherLeaseCount: imp.leases?.otherCount ?? 0,
-      };
+      return toImpView(imp);
     } catch (error) {
       if (error instanceof ImpPortError && error.code === 'NOT_FOUND') {
         return null;
@@ -150,7 +128,7 @@ export class ImpClientPort implements ImpPort {
       }),
     );
 
-    return { id: imp.id, name: imp.name, state: imp.state, leases: [], otherLeaseCount: 0 };
+    return toImpView(imp);
   };
 
   readonly acquireLease = async (
@@ -162,7 +140,7 @@ export class ImpClientPort implements ImpPort {
       client.leases.acquire({ name, label, ttlSeconds }),
     );
 
-    return toLease(lease);
+    return toImpLease(lease);
   };
 
   readonly renewLease = async (
@@ -172,7 +150,7 @@ export class ImpClientPort implements ImpPort {
   ): Promise<ImpLease> => {
     const lease = await this.tryCall((client) => client.leases.renew({ name, label, ttlSeconds }));
 
-    return toLease(lease);
+    return toImpLease(lease);
   };
 
   readonly releaseLease = async (name: string, label: string): Promise<boolean> => {
@@ -352,50 +330,6 @@ function isMissingGrant(data: unknown): boolean {
   return MISSING_GRANT_SCHEMA.safeParse(data).success;
 }
 
-// A secret as the client lists it.
-type ClientSecret = Awaited<ReturnType<ImpClient['secrets']['list']>>[number];
-
-// A secret in the port's terms, with an oauth secret's sign-in status and
-// ID token claims and none of its other state.
-function toImpSecret(secret: ClientSecret): ImpSecret {
-  const listed: ImpSecret = {
-    name: secret.name,
-    kind: secret.kind,
-    rules: secret.rules.map((rule) => ({
-      host: rule.host,
-      header: rule.header,
-      scheme: rule.scheme,
-      ...(rule.user === undefined ? {} : { user: rule.user }),
-    })),
-    imps: [...secret.imps],
-  };
-
-  const oauth = secret.oauth;
-
-  return oauth === undefined
-    ? listed
-    : { ...listed, oauth: { status: oauth.status, idClaims: oauth.idClaims } };
-}
-
-// A lease as the client returns it.
-interface ClientLease {
-  readonly name: string;
-  readonly owner: Readonly<{ principal: string; display: string; label: string }>;
-  readonly until: Date | null;
-}
-
-function toLease(lease: ClientLease): ImpLease {
-  return {
-    name: lease.name,
-    owner: {
-      principal: lease.owner.principal,
-      display: lease.owner.display,
-      label: lease.owner.label,
-    },
-    until: lease.until?.getTime() ?? null,
-  };
-}
-
 function toPortError(error: unknown): ImpPortError {
   if (error instanceof ImpPortError) {
     return error;
@@ -413,18 +347,10 @@ function toPortError(error: unknown): ImpPortError {
   return new ImpPortError('UNREACHABLE', message);
 }
 
-// A start or an attach as the client takes it, with the requirements impd
-// checks before the command runs or the attach joins it, and a start's drop
-// of CAP_SYS_ADMIN.
-type ExecStartWithRequire = ExecSessionOptions['start'] & {
-  readonly require?: readonly ImpExecRequirement[];
-  readonly dropSysAdmin?: boolean;
-};
-
-// The client sends every field of a start or an attach as it is, so a list
-// of requirements and the drop reach impd though the client's types lack
-// them.
-function buildExecStart(request: ImpSessionRequest): ExecStartWithRequire {
+// A start or an attach as impd's exec protocol takes it: an attach carries
+// no requirements, and a start carries its requirements and its drop of
+// CAP_SYS_ADMIN.
+function buildExecStart(request: ImpSessionRequest): ExecSessionOptions['start'] {
   if (request.kind === 'attach') {
     return {
       name: request.name,
@@ -433,7 +359,6 @@ function buildExecStart(request: ImpSessionRequest): ExecStartWithRequire {
       rows: request.rows,
       wake: request.wake,
       ...(request.resumeFrom === undefined ? {} : { resumeFrom: request.resumeFrom }),
-      ...(request.require === undefined ? {} : { require: request.require }),
     };
   }
 
@@ -643,9 +568,11 @@ function openRelay(accept: RelayAccept): ImpRelayConnection {
   };
 }
 
-// The client sends its request from the socket's open listener. The gate
-// listens first, so a closed gate, or one that throws, stops that
-// listener and closes the socket before anything goes out.
+// The client sends its request as the socket's first message, once the
+// socket opens and any feature check it makes first passes, and holds
+// every other message until then. The gate runs on that first send, so a
+// check that fails never runs it, and a closed gate, or one that throws,
+// closes the socket and drops that message and every later one.
 function openGatedSocket(
   url: string,
   headers: Readonly<Record<string, string>>,
@@ -653,14 +580,26 @@ function openGatedSocket(
 ): WebSocket {
   const socket = new WebSocket(url, { headers });
 
-  if (gate !== undefined) {
-    socket.addEventListener('open', (event) => {
-      if (!tryPassGate(gate)) {
-        event.stopImmediatePropagation();
+  if (gate === undefined) {
+    return socket;
+  }
+
+  const send = socket.send.bind(socket);
+  const state: { passed: boolean | null } = { passed: null };
+
+  socket.send = (data) => {
+    if (state.passed === null) {
+      state.passed = tryPassGate(gate);
+
+      if (!state.passed) {
         socket.close(1000, 'closed before sending');
       }
-    });
-  }
+    }
+
+    if (state.passed) {
+      send(data);
+    }
+  };
 
   return socket;
 }

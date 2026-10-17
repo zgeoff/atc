@@ -1622,7 +1622,7 @@ test('it answers tokens.whoami with the identity a test set', async () => {
 
   const identity = await ctx.port.readIdentity();
 
-  expect(identity).toBe(set);
+  expect(identity).toStrictEqual(set);
   expect(ctx.port.calls).toStrictEqual(['tokens.whoami']);
 });
 
@@ -1862,10 +1862,10 @@ test('it fails every grant removal with the code it is given while removals fail
   await ctx.port.createImp({ name: 'atc-s1' });
   await ctx.port.createGrant('atc-s1', 'glm');
 
-  ctx.port.setGrantRemovalFailure('UNAVAILABLE');
+  ctx.port.setGrantRemovalFailure('SERVICE_UNAVAILABLE');
 
   expect(ctx.port.removeGrant('atc-s1', 'glm')).rejects.toMatchObject({
-    code: 'UNAVAILABLE',
+    code: 'SERVICE_UNAVAILABLE',
     message: 'impd did not remove the grant',
   });
 });
@@ -1882,7 +1882,7 @@ test('it removes grants again once the removal failure is cleared', async () => 
   await ctx.port.createImp({ name: 'atc-s1' });
   await ctx.port.createGrant('atc-s1', 'glm');
 
-  ctx.port.setGrantRemovalFailure('UNAVAILABLE');
+  ctx.port.setGrantRemovalFailure('SERVICE_UNAVAILABLE');
 
   const failedRemoval = ctx.port.removeGrant('atc-s1', 'glm');
 
@@ -1893,7 +1893,7 @@ test('it removes grants again once the removal failure is cleared', async () => 
   const removed = await ctx.port.removeGrant('atc-s1', 'glm');
 
   expect(failedRemoval).rejects.toMatchObject({
-    code: 'UNAVAILABLE',
+    code: 'SERVICE_UNAVAILABLE',
     message: 'impd did not remove the grant',
   });
 
@@ -2209,7 +2209,7 @@ test('it refuses a start that requires the broker and sets a broker variable, wi
   expect(ran).toBe(false);
 });
 
-test('it lets an attach that requires the broker join a session that started with it required', async () => {
+test('it lets a start that requires the broker join a session that started with it required', async () => {
   const ctx = setupTest();
 
   ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
@@ -2249,12 +2249,14 @@ test('it lets an attach that requires the broker join a session that started wit
 
   ctx.port.openSession(
     {
-      kind: 'attach',
+      kind: 'start',
       name: 'atc-s1',
       session: 's1',
+      argv: ['sleep', '30'],
+      env: {},
+      cwd: ctx.dir,
       cols: 80,
       rows: 24,
-      wake: false,
       require: ['broker'],
     },
     {
@@ -2288,7 +2290,7 @@ test('it lets an attach that requires the broker join a session that started wit
   ]);
 });
 
-test('it refuses an attach that requires the broker to a session that started without it required', async () => {
+test('it refuses a start that requires the broker and would join a session that started without it required', async () => {
   const ctx = setupTest();
 
   ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
@@ -2325,12 +2327,14 @@ test('it refuses an attach that requires the broker to a session that started wi
 
   const connection = ctx.port.openSession(
     {
-      kind: 'attach',
+      kind: 'start',
       name: 'atc-s1',
       session: 's1',
+      argv: ['sleep', '30'],
+      env: {},
+      cwd: ctx.dir,
       cols: 80,
       rows: 24,
-      wake: false,
       require: ['broker'],
     },
     { onStarted: () => {}, onOutput: () => {} },
@@ -2432,13 +2436,13 @@ test('it fails a lease acquisition with the code it is given once the skipped on
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  ctx.port.setAcquireFailure(1, 'UNAVAILABLE');
+  ctx.port.setAcquireFailure(1, 'SERVICE_UNAVAILABLE');
 
   await ctx.port.acquireLease('imp-a', 'atc-d1', 60);
 
   expect(ctx.port.acquireLease('imp-a', 'atc-d2', 60)).rejects.toMatchObject({
-    code: 'UNAVAILABLE',
-    message: 'impd refused the lease (UNAVAILABLE)',
+    code: 'SERVICE_UNAVAILABLE',
+    message: 'impd refused the lease (SERVICE_UNAVAILABLE)',
   });
 });
 
@@ -2447,7 +2451,7 @@ test('it lets lease acquisitions through again after the one failure', async () 
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  ctx.port.setAcquireFailure(0, 'UNAVAILABLE');
+  ctx.port.setAcquireFailure(0, 'SERVICE_UNAVAILABLE');
 
   const failedAcquire = ctx.port.acquireLease('imp-a', 'atc-d1', 60);
 
@@ -2456,8 +2460,8 @@ test('it lets lease acquisitions through again after the one failure', async () 
   const lease = await ctx.port.acquireLease('imp-a', 'atc-d1', 60);
 
   expect(failedAcquire).rejects.toMatchObject({
-    code: 'UNAVAILABLE',
-    message: 'impd refused the lease (UNAVAILABLE)',
+    code: 'SERVICE_UNAVAILABLE',
+    message: 'impd refused the lease (SERVICE_UNAVAILABLE)',
   });
 
   expect(lease.owner.label).toBe('atc-d1');
@@ -2633,11 +2637,11 @@ test('it fails a held imp destroy with the destroy failure set while it was held
     expect(ctx.port.countHeldDestroys()).toBe(1);
   });
 
-  ctx.port.setDestroyFailure('UNAVAILABLE');
+  ctx.port.setDestroyFailure('SERVICE_UNAVAILABLE');
   ctx.port.stopDestroyHold();
 
   expect(destroying).rejects.toMatchObject({
-    code: 'UNAVAILABLE',
+    code: 'SERVICE_UNAVAILABLE',
     message: 'impd could not destroy imp-a',
   });
 });
@@ -2647,10 +2651,10 @@ test('it fails every imp destroy with the code it is given while destroys fail',
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  ctx.port.setDestroyFailure('UNAVAILABLE');
+  ctx.port.setDestroyFailure('SERVICE_UNAVAILABLE');
 
   expect(ctx.port.destroyImp('imp-a')).rejects.toMatchObject({
-    code: 'UNAVAILABLE',
+    code: 'SERVICE_UNAVAILABLE',
     message: 'impd could not destroy imp-a',
   });
 });
@@ -2660,7 +2664,7 @@ test('it keeps the imp a failed destroy left', async () => {
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  ctx.port.setDestroyFailure('UNAVAILABLE');
+  ctx.port.setDestroyFailure('SERVICE_UNAVAILABLE');
 
   await Promise.allSettled([ctx.port.destroyImp('imp-a')]);
 
@@ -2672,7 +2676,7 @@ test('it destroys imps again once the destroy failure is cleared', async () => {
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  ctx.port.setDestroyFailure('UNAVAILABLE');
+  ctx.port.setDestroyFailure('SERVICE_UNAVAILABLE');
 
   const failedDestroy = ctx.port.destroyImp('imp-a');
 
@@ -2683,7 +2687,7 @@ test('it destroys imps again once the destroy failure is cleared', async () => {
   await ctx.port.destroyImp('imp-a');
 
   expect(failedDestroy).rejects.toMatchObject({
-    code: 'UNAVAILABLE',
+    code: 'SERVICE_UNAVAILABLE',
     message: 'impd could not destroy imp-a',
   });
 
@@ -2943,7 +2947,7 @@ test('it refuses the next session request with the code and data it is given', a
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  ctx.port.setNextSessionFailure('FORBIDDEN', { reason: 'scope' });
+  ctx.port.setNextSessionFailure({ code: 'FORBIDDEN', data: { reason: 'scope' } });
 
   const connection = ctx.port.openSession(
     { kind: 'attach', name: 'imp-a', session: 's1', cols: 80, rows: 24, wake: true },
@@ -2965,7 +2969,7 @@ test('it refuses the next session request with the message it is given', async (
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  ctx.port.setNextSessionFailure(null, null, 'the socket closed mid-answer');
+  ctx.port.setNextSessionFailure({ code: null, data: null }, 'the socket closed mid-answer');
 
   const connection = ctx.port.openSession(
     { kind: 'attach', name: 'imp-a', session: 's1', cols: 80, rows: 24, wake: true },
@@ -3013,6 +3017,100 @@ test('it ends the next session connections unreachable without sending their req
 
   expect(outcome).toStrictEqual({ kind: 'unreachable', detail: 'the upgrade failed' });
   expect(ctx.port.sessionRequests).toStrictEqual([]);
+});
+
+test('it ends a start that drops CAP_SYS_ADMIN unreachable when its capability check times out, never running its gate', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  ctx.port.setExecCheckFailures(1);
+
+  const gates: string[] = [];
+
+  const connection = ctx.port.openSession(
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: ['sleep', '30'],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+      dropSysAdmin: true,
+    },
+    { onStarted: () => {}, onOutput: () => {} },
+    () => {
+      gates.push('checked');
+
+      return true;
+    },
+  );
+
+  const outcome = await connection.outcome;
+
+  expect(outcome).toStrictEqual({
+    kind: 'unreachable',
+    detail: 'system.info: The operation timed out.',
+  });
+
+  expect(gates).toStrictEqual([]);
+  expect(ctx.port.sessionRequests).toStrictEqual([]);
+  expect(ctx.port.countFailedExecChecks()).toBe(1);
+});
+
+test('it ends a start that requires the broker unreachable when its capability check times out, sending nothing', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  ctx.port.setExecCheckFailures(1);
+
+  const connection = ctx.port.openSession(
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: ['sleep', '30'],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+      require: ['broker'],
+    },
+    { onStarted: () => {}, onOutput: () => {} },
+  );
+
+  const outcome = await connection.outcome;
+
+  expect(outcome).toStrictEqual({
+    kind: 'unreachable',
+    detail: 'system.info: The operation timed out.',
+  });
+
+  expect(ctx.port.sessionRequests).toStrictEqual([]);
+});
+
+test('it sends an attach while a capability check failure waits, keeping that failure for a start', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  ctx.port.setExecCheckFailures(1);
+
+  const connection = ctx.port.openSession(
+    { kind: 'attach', name: 'imp-a', session: 's1', cols: 80, rows: 24, wake: true },
+    { onStarted: () => {}, onOutput: () => {} },
+  );
+
+  await connection.outcome;
+
+  expect(ctx.port.sessionRequests).toStrictEqual([
+    { kind: 'attach', name: 'imp-a', session: 's1', cols: 80, rows: 24, wake: true },
+  ]);
+
+  expect(ctx.port.countFailedExecChecks()).toBe(0);
 });
 
 test('it holds a session connection open without sending its request while upgrades are held', async () => {

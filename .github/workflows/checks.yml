@@ -53,6 +53,9 @@ jobs:
       - name: Raw Escape Bytes
         run: bun run check:raw-escapes
 
+      - name: Test Helper Source Entries
+        run: bun run check:source-entries
+
       - name: Format
         run: bun run format:check
 
