@@ -740,7 +740,7 @@ test.each<['needs_login' | 'pending']>([['needs_login'], ['pending']])(
     expect(plan).toThrow(
       expect.objectContaining({
         code: 'auth_signin_needed',
-        message: `agent 'codex' signs in through codex-chatgpt, whose sign-in in impd is ${status}; sign Codex in again and run imp secret add codex-chatgpt --kind oauth ... --replace with the new refresh token`,
+        message: `agent 'codex' signs in through codex-chatgpt, whose sign-in in impd is ${status}; sign Codex in again and run impz secret add codex-chatgpt --kind oauth ... --replace with the new refresh token`,
         data: { agent: 'codex', secret: 'codex-chatgpt', status },
       }),
     );
@@ -778,7 +778,7 @@ test('it refuses a spawn whose sign-in impd does not list', () => {
     expect.objectContaining({
       code: 'auth_signin_needed',
       message:
-        "agent 'codex' signs in through codex-chatgpt, whose sign-in in impd is not listed; sign Codex in again and run imp secret add codex-chatgpt --kind oauth ... --replace with the new refresh token",
+        "agent 'codex' signs in through codex-chatgpt, whose sign-in in impd is not listed; sign Codex in again and run impz secret add codex-chatgpt --kind oauth ... --replace with the new refresh token",
       data: { agent: 'codex', secret: 'codex-chatgpt', status: null },
     }),
   );
@@ -824,7 +824,7 @@ test.each([
     expect.objectContaining({
       code: 'auth_signin_needed',
       message:
-        "agent 'codex' signs in through codex-chatgpt, whose ID token in impd holds no ChatGPT account id; sign Codex in again and run imp secret add codex-chatgpt --kind oauth ... --replace with the new refresh token",
+        "agent 'codex' signs in through codex-chatgpt, whose ID token in impd holds no ChatGPT account id; sign Codex in again and run impz secret add codex-chatgpt --kind oauth ... --replace with the new refresh token",
       data: { agent: 'codex', secret: 'codex-chatgpt', status: 'ready' },
     }),
   );

@@ -257,7 +257,7 @@ export class CodexAdapter implements AgentAdapter {
     const secret = this.findChatGPTSecret();
     const state = secret === null ? undefined : states[secret];
     const name = secret ?? 'the oauth secret';
-    const renew = `sign Codex in again and run imp secret add ${name} --kind oauth ... --replace with the new refresh token`;
+    const renew = `sign Codex in again and run impz secret add ${name} --kind oauth ... --replace with the new refresh token`;
 
     if (state?.status !== 'ready') {
       throw new DaemonError(
