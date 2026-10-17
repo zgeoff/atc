@@ -508,7 +508,7 @@ test('it refuses a brokered spawn whose guest plan sets a proxy variable before 
   expect(listed).toStrictEqual({ sessions: [] });
 });
 
-test('it refuses a spawn on an impd without exec requirements after reading only its features', async () => {
+test('it refuses a spawn on an impd without exec requirements after reads alone', async () => {
   const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
@@ -562,7 +562,14 @@ test('it refuses a spawn on an impd without exec requirements after reading only
   const listed = await daemon.client.sendRequest('session.list');
 
   expect(spawn).rejects.toMatchObject({ code: 'auth_impd_too_old' });
-  expect(ctx.port.calls).toStrictEqual(['system.info']);
+
+  expect(ctx.port.calls).toStrictEqual([
+    'system.info',
+    'tokens.whoami',
+    'secrets.list',
+    expect.stringMatching(/^imps\.get atc-/),
+  ]);
+
   expect(listed).toStrictEqual({ sessions: [] });
 });
 
