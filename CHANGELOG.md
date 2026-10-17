@@ -1,5 +1,37 @@
 # Changelog
 
+## [4.13.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.12.0...@zgeoff/atc@4.13.0) (2026-10-17)
+
+### Features
+
+- **geo-1171:** pilot the renovate preset and audit-fix workflow
+  ([#696](https://github.com/zgeoff/atc/issues/696))
+  ([5fea433](https://github.com/zgeoff/atc/commit/5fea43328bedeea1eade894f44cdfb8b3d4a8899))
+
+### Bug Fixes
+
+- **geo-1136:** shorten check-reach's daemon comment so lint:full passes
+  ([#712](https://github.com/zgeoff/atc/issues/712))
+  ([86cd055](https://github.com/zgeoff/atc/commit/86cd0553b56ff0c3bf65bdec595b4e73e74ab59a))
+- **geo-1210:** name impz in the codex adapter's oauth secret error
+  ([#707](https://github.com/zgeoff/atc/issues/707))
+  ([b077179](https://github.com/zgeoff/atc/commit/b0771790b2735c20e877d0b67d3d90f33e6aea32))
+- **geo-1221:** keep each unconfirmed send's thread over a daemon restart
+  ([#721](https://github.com/zgeoff/atc/issues/721))
+  ([0fb980c](https://github.com/zgeoff/atc/commit/0fb980c7f523759a14b315b4c832b931d0aae582))
+- **geo-909:** keep a message answerable when atc misses its answer
+  ([#713](https://github.com/zgeoff/atc/issues/713))
+  ([644f297](https://github.com/zgeoff/atc/commit/644f2978107baa6bb915f12eb028fc78ab3635fb))
+- **geo-947:** read the old thread for a send its connection dropped
+  ([#714](https://github.com/zgeoff/atc/issues/714))
+  ([c3988d9](https://github.com/zgeoff/atc/commit/c3988d9e555f20535daeb43c7f69f040249a061c))
+
+### Performance Improvements
+
+- **geo-201:** reuse impd's features and a known guest atc version
+  ([#716](https://github.com/zgeoff/atc/issues/716))
+  ([6b269f0](https://github.com/zgeoff/atc/commit/6b269f0adab2b18eda18c07117ec347396dff385))
+
 ## [4.12.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.11.0...@zgeoff/atc@4.12.0) (2026-10-17)
 
 ### Features
