@@ -132,13 +132,9 @@ export interface DaemonOptions {
   // unset.
   readonly failedSpawnExitWaitMs?: number;
 
-  // A fleet-wide restore revives one session at a time, waiting for each to
-  // report it has booted before starting the next so the machine is not
-  // buried under a dozen simultaneous agent boots. This caps how long a
-  // single revive waits for that signal before moving on regardless, so a
-  // session that never reports cannot stall the rest. Unset reads the same
-  // setting that a restart's wait for the restored fleet reads; zero waits
-  // forever, which only tests ask for.
+  // A fleet-wide restore revives one session at a time and waits for each to report it booted;
+  // this caps that wait, so a session that never reports cannot stall the rest. Unset reads the
+  // restart's wait for the restored fleet; zero waits forever, which only tests ask for.
   readonly restoreBootTimeoutMs?: number;
 
   // The waits before each further try at a restored session whose host
@@ -147,11 +143,8 @@ export interface DaemonOptions {
   readonly restoreRetryDelaysMs?: readonly number[];
   readonly tapGraceMs?: number;
 
-  // The clock the event trail stamps each hook event with, and the clock
-  // behind the tap grace window, the held-read waits, the time a note is
-  // reported at, the permission request timeouts, the restore's per-session
-  // boot cap and retry delays, the TCP listener's failure times, delays, and refusal
-  // windows, and every other time the daemon stores; the wall clock when
+  // The clock behind every time the daemon stamps, waits on or stores, from hook events and
+  // timeouts to the restore's boot cap and the listener's refusal windows; the wall clock when
   // unset.
   readonly clock?: Clock;
 
@@ -297,15 +290,9 @@ const LOCK_WAIT_MS = 2000;
 // ok response to the quit request flushes before the sockets close under it.
 const QUIT_FLUSH_DELAY_MS = 80;
 
-/**
- * The daemon: owns the sessions, the client-protocol listener, and the
- * reporter listener. Protocol requests are NDJSON lines, one response per
- * request, and state changes broadcast to every connected client. The first
- * request on a connection must be `daemon.hello`; an unknown method is an
- * error, never a disconnect; a malformed or oversized line is a disconnect,
- * because transports guarantee byte integrity and such a line means a buggy
- * or hostile peer.
- */
+// The first request on a connection must be `daemon.hello`. An unknown method is an error, never
+// a disconnect; a malformed or oversized line disconnects, because the transport guarantees byte
+// integrity and such a line means a buggy or hostile peer.
 export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   let stopDaemon: (() => Promise<void>) | null = null;
   const clock = opts.clock ?? systemClock;
@@ -377,10 +364,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   const runHooks = makeHookRunner(opts.hooks ?? {}, { clock });
 
-  // The session the process at the other end of a local socket runs in,
-  // from the pid the kernel holds for it and the harness processes of the
-  // sessions that hold a live one; null outside every session, and where
-  // the kernel cannot be asked.
+  // From the pid the kernel holds for the socket's peer and the live harness processes of the
+  // sessions; null outside every session and where the kernel cannot be asked.
   const findSocketSession = (socket: object): SessionID | null => {
     const pid = readPeerPID(socket);
 
@@ -434,11 +419,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   const permissions = new PermissionPrompts({ clock, emitEvent, findHookScope });
   const eventSignal = new EventSignal(clock);
 
-  // One runtime per live session: its screen model, output sequence
-  // counter, PTY dims, its resize/detect/boot timers, its live headless
-  // run, and its pending eject and boot waiters. Created when the session
-  // manager announces the session and disposed the moment it is removed, so
-  // removal is always a single lookup plus dispose.
+  // One runtime per live session, created when the session manager announces it and disposed the
+  // moment it is removed, so removal is a single lookup plus dispose.
   const runtimes = new Map<SessionID, SessionRuntime>();
 
   const findRuntime = (sessionID: SessionID) => runtimes.get(sessionID);

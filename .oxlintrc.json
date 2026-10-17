@@ -7,10 +7,6 @@
     "es2024": true
   },
   "rules": {
-    // atc's comments predate these two rules of the shared config; GEO-463
-    // adopts them
-    "zgeoff/no-jsdoc": "off",
-    "zgeoff/max-consecutive-line-comments": "off",
     "zgeoff/function-verb": [
       "error",
       {
@@ -18,7 +14,6 @@
           "ack",
           "acquire",
           "adopt",
-          "advance",
           "answer",
           "attach",
           "boot",
@@ -33,19 +28,10 @@
           "log",
           "materialize",
           "mint",
-          "open",
           "quit",
           "reconcile",
-          "record",
-          "refresh",
-          "release",
           "renew",
-          "restart",
-          "restore",
-          "revoke",
           "sanitize",
-          "schedule",
-          "spawn",
           "suspend",
           "transfer",
           "truncate",

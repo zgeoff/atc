@@ -4,11 +4,7 @@ import { join } from 'node:path';
 import { setupTempDir } from '@atc/test-utils';
 import { createStderrSink } from './create-stderr-sink';
 
-/**
- * A sink over a file in a fresh directory, which `outputPath` holds, with
- * LogTape's timers faked, so a test decides when the sink reports the
- * records it dropped.
- */
+// Faked timers let a test decide when the sink reports the records it dropped.
 function setupTest() {
   const tmp = setupTempDir('atc-stderr-sink-');
   const outputPath = join(tmp.dir, 'stderr');

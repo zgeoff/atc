@@ -3,10 +3,6 @@ import { configure, getLogger, reset } from '@logtape/logtape';
 import type { LogRecord } from '@logtape/logtape';
 import { formatLogLine } from './format-log-line';
 
-/**
- * LogTape configured for the test alone, with every `atc` record kept in
- * `records`, so a test formats records a real logger built.
- */
 async function setupTest() {
   const records: LogRecord[] = [];
 
