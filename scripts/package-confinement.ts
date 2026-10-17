@@ -62,4 +62,13 @@ export const PACKAGE_CONFINEMENT: readonly Confinement[] = [
     files: ['packages/harnesses/claude/src/local-trust/with-claude-config-lock.test.ts'],
     inTests: true,
   },
+
+  // atc runs on Bun alone: bun test, never vitest or jest, and bun <file>,
+  // never ts-node. PTYs come from bun-pty, because node-pty delivers no data
+  // events under Bun
+  { specifier: 'vitest', owners: [], files: [], inTests: true },
+  { specifier: 'jest', owners: [], files: [], inTests: true },
+  { specifier: '@jest', owners: [], files: [], inTests: true },
+  { specifier: 'ts-node', owners: [], files: [], inTests: true },
+  { specifier: 'node-pty', owners: [], files: [], inTests: true },
 ];
