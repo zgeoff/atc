@@ -4,12 +4,6 @@ import type { MessageOwner, MessageRecord } from '@atc/store';
 import type { TapClient } from '../daemon-context';
 import type { TapGeneration, TapRegistry } from './tap-registry';
 
-/**
- * What a drain reads from: the taps, the owner a linked tap reads messages
- * under (the session's atc id and agent session id, or null for a session
- * the daemon does not hold), the store's pending messages for an owner, and
- * the store's queued answer notices for a sender session.
- */
 export interface InboxSource {
   readonly taps: TapRegistry<TapClient>;
   readonly findLinkedOwner: (sessionID: SessionID) => MessageOwner | null;
@@ -17,18 +11,10 @@ export interface InboxSource {
   readonly collectPendingNotices: (senderSession: SessionID) => Promise<MessageRecord[]>;
 }
 
-/**
- * Hands the session's tap the oldest pending message it has not taken, or,
- * with none left and a tap that takes notices, the oldest queued answer
- * notice of a message the session sent. The backlog is read before
- * anything is sent, so a tap's ok response is always queued ahead of its
- * first message, and one item goes per call: the tap's ack calls it again,
- * so the backlog never outgrows the connection's outbound queue. The drain
- * is bound to the tap it found before the read: a tap another attach made
- * while the read waited gets nothing from it.
- */
 export async function drainInbox(sessionID: SessionID, source: InboxSource): Promise<void> {
   const linkedOwner = source.findLinkedOwner(sessionID);
+
+  // bound to the tap found before the read: a tap another attach makes meanwhile gets nothing
   const tap = source.taps.findTap(sessionID);
 
   if (linkedOwner === null || tap === null) {
@@ -41,6 +27,8 @@ export async function drainInbox(sessionID: SessionID, source: InboxSource): Pro
   const owner = tap.linked ? linkedOwner : { atcID: linkedOwner.atcID };
 
   try {
+    // one item per call, and the tap's ack drains again, so the backlog never outgrows the
+    // connection's outbound queue; nothing is sent before this read, so the tap's ok goes first
     const pending = await source.collectPendingMessages(owner);
 
     for (const record of pending) {
@@ -63,10 +51,7 @@ export async function drainInbox(sessionID: SessionID, source: InboxSource): Pro
   } catch {}
 }
 
-// Hands one pending message to the tap the drain was made for, once, and
-// reports whether it did. An unlinked tap takes only a message sent to the
-// session's own atc id. The event goes to the tap connection alone: it never
-// reaches other clients, the events socket, or hooks.
+// the event goes to the tap connection alone: never other clients, the events socket, or hooks
 function sendInboxMessage(
   sessionID: SessionID,
   record: MessageRecord,

@@ -26,27 +26,9 @@ interface GuestCloneRequest {
 // line of error.
 type GuestClone = { readonly ok: true } | { readonly ok: false; readonly reason: string };
 
-/**
- * Builds a workspace checkout inside an execution host with one command run
- * there: a blobless clone of the URL, with the pinned commit checked out as
- * its branch or detached, isolated from the host's system and global git
- * config so no filter, hook, or credential helper configured there runs. The
- * host's own network fetches the repository, so no repository bytes cross
- * the daemon's link; a host whose broker holds a GitHub grant reads private
- * repositories through it.
- *
- * The checkout must be the whole workspace, as a clone on the daemon's host
- * must: one that uses submodules is refused as `has_submodules` and one that
- * tracks paths through Git LFS as `lfs_unsupported`. It is then sanitized
- * in place: the origin is set to the URL, hooks, reflogs, and any
- * `.git-credentials` or `.netrc` file are removed, and a repository config
- * that still holds a credential is refused as `sanitize_failed`.
- *
- * A clone or checkout that fails, as one of a repository the host cannot
- * read does, empties the directory and resolves to the reason, so the
- * caller can build the workspace another way. Every other failure throws a
- * refusal with its own code.
- */
+// isolated from the host's system and global git config, so no filter, hook, or credential
+// helper configured there runs; the host's own network fetches, so no repository bytes cross
+// the daemon's link
 export async function createGuestClone(
   provider: Pick<ExecutionProvider, 'runCommand'>,
   request: GuestCloneRequest,
@@ -124,10 +106,9 @@ const LFS_EXIT = 83;
 const SANITIZE_EXIT = 84;
 const LFS_PATHS_SHOWN = 5;
 
-// Arguments: the directory, the URL, the commit, the branch or empty for a
-// detached checkout, and the transports git may fetch over, joined by `:`.
-// On success it prints the repository config as `git config --list -z`
-// does; on an LFS refusal, every LFS path, each ended by a NUL.
+// arguments: the directory, the URL, the commit, the branch or empty for a detached checkout,
+// and the transports joined by `:`; on success it prints the repository config as
+// `git config --list -z` does, and on an LFS refusal every LFS path, each ended by a NUL
 export const GUEST_CLONE_SCRIPT = String.raw`dir=$1 url=$2 sha=$3 branch=$4
 export GIT_CONFIG_NOSYSTEM=1 GIT_ATTR_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_TERMINAL_PROMPT=0 LC_ALL=C GIT_ALLOW_PROTOCOL="$5"
 iso() { git -c core.attributesFile=/dev/null -c core.hooksPath=/dev/null -c filter.lfs.smudge= -c filter.lfs.process= -c filter.lfs.required=false "$@"; }

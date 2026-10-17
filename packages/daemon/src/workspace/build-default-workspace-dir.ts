@@ -22,15 +22,6 @@ interface DefaultDirTarget {
 // home.
 const DEFAULT_ROOT = '~/.local/share/atc/workspaces';
 
-/**
- * The directory a git workspace lands in when the spawn gives none:
- * `<root>/<repo>-<ref>-<short sha>`, with the root the config sets, else
- * `~/.local/share/atc/workspaces`. A root under `~` resolves on the
- * target: against the daemon user's home on the daemon's own machine, and
- * on a remote target as a path relative to the target user's home, which
- * the host resolves, since only that host knows its home. Any other root
- * must be absolute.
- */
 export function buildDefaultWorkspaceDir(
   source: GitWorkspaceSource,
   target: DefaultDirTarget,
@@ -64,6 +55,7 @@ export function buildDefaultWorkspaceDir(
     );
   }
 
+  // a remote target resolves the home-relative path itself, since only that host knows its home
   return target.remote
     ? buildWorkspaceDestination({ root: underHome, ...parts })
     : buildWorkspaceDestination({ root: posix.join(target.home, underHome), ...parts });

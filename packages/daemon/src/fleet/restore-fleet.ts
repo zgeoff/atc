@@ -67,13 +67,6 @@ interface RestoreFleetResult {
   readonly settled: Promise<RestoreOutcome>;
 }
 
-/**
- * Restores the fleet: dedupes stored entries against live sessions, orders
- * the rest by recency, registers every one as a terminal-less session so
- * the whole fleet lists at once, then adopts terminals one at a time,
- * waiting for each session to report it has booted before starting the
- * next.
- */
 export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreFleetResult> {
   const mgr = params.mgr;
   const store = params.store;
@@ -85,11 +78,9 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
   const retryDelaysMs = params.retryDelaysMs ?? RESTORE_RETRY_DELAYS_MS;
   const isStopped = () => params.isStopped?.() === true;
 
-  // A session an earlier restore registered and could not start a
-  // terminal for is not live until a headless turn starts for it, so this
-  // restore tries it again. A live session that resumed the entry's agent
-  // session on another target leaves the entry to restore, because the fleet
-  // keeps a live row on each target.
+  // a session an earlier restore could not start a terminal for is not live until a
+  // headless turn starts for it; a live session that resumed the entry's agent session
+  // on another target leaves the entry to restore, as the fleet keeps a row per target
   const hasLiveSession = (entry: FleetEntry) =>
     mgr.sessions.some(
       (s) =>
@@ -107,11 +98,9 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
   const recency = await store.collectFleetRecency();
   const stored = await store.loadFleet();
 
-  // Most recently active sessions revive first, so the ones the user was
-  // just working in come back before long-idle ones; entries that never
-  // reported an event keep their stored order at the end. Exited entries
-  // dedupe against every listed session, so repeated restores never double
-  // up the killed archive.
+  // the most recently active sessions revive first, and entries that never reported an
+  // event keep their stored order at the end; exited entries dedupe against every
+  // listed session, so repeated restores never double up the killed archive
   const kept = stored
     .filter((entry) => (entry.exited === true ? !hasAnySession(entry) : !hasLiveSession(entry)))
     .toSorted((a, b) => findRecency(b).localeCompare(findRecency(a)));
@@ -124,14 +113,9 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     ...kept.filter((entry) => entry.parent !== undefined),
   ];
 
-  // The whole fleet registers as terminal-less sessions up front, so the
-  // list shows every incoming session immediately instead of revealing them
-  // one boot at a time. Exited entries only register — they stay killed
-  // until revived by hand, so no terminal is adopted for them. An entry
-  // whose session is still listed, dead, revives that session in place
-  // rather than listing a second session under the same id.
-  // A row that cannot be registered is logged and skipped, so one bad row
-  // never keeps the rest of the fleet down.
+  // the whole fleet registers terminal-less up front, so the list shows every incoming
+  // session at once; a row that cannot register is skipped, so one bad row never keeps
+  // the rest of the fleet down
   const registered: { session: Session; revive: boolean }[] = [];
 
   for (const entry of entries) {
@@ -154,6 +138,7 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
         mgr.updateRestoredIdentity(listed, resolved.targetIdentity);
       }
 
+      // a session still listed, though dead, revives in place rather than listing twice
       const row =
         listed === undefined
           ? { session: mgr.restore(resolved), revive: false }
@@ -167,6 +152,7 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     }
   }
 
+  // exited entries only register: they stay killed until revived by hand
   const queued = registered
     .filter((r) => r.revive || r.session.state !== 'exited')
     .map((r) => r.session);
@@ -214,17 +200,9 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     return { restored: registered.length, settled: Promise.resolve('finished') };
   }
 
-  // The first terminal attaches before the restore answers so a caller can
-  // attach at once; each later one waits for the previous session to report it has
-  // booted, so a heavy fleet comes up one process at a time instead of all
-  // at once. A per-session cap keeps a session that never reports from
-  // stalling the rest.
-  // A session whose revive fails or is refused is logged and listed under
-  // the reason, without a terminal, and the restore moves on: one host's
-  // failure never keeps the sessions on other hosts down, and a later one's
-  // runs where nothing awaits it. A refusal its host can lift by itself,
-  // such as an imp that cannot take a lease yet, queues the session for
-  // another try once the next retry delay has passed.
+  // a failed or refused revive lists its reason without a terminal and the restore moves
+  // on, so one host's failure never keeps other hosts' sessions down; a refusal the host
+  // can lift by itself queues the session for another try after the next retry delay
   let failed = false;
   let retrying: Session[] = [];
 
@@ -232,10 +210,9 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
   // skips a session that something else has changed since.
   const refusals = new Map<Session, string>();
 
-  // A session a caller stopped, revived, or forgot while the try ran keeps
-  // what the caller left, and gets no further try. A refusal no later try
-  // lifts lists with its code, so a reader knows that only an action of
-  // its own brings the session back.
+  // a session a caller stopped, revived, or forgot while the try ran keeps what the
+  // caller left and gets no further try; a refusal no later try lifts lists with its
+  // code, so a reader knows only an action of its own brings the session back
   const recordRefusal = (
     s: Session,
     reason: string,
@@ -302,10 +279,9 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     return adopted.session !== null;
   };
 
-  // A daemon that stopped before a terminal started, or while one started
-  // or the previous session booted, starts no more terminals. A round that
-  // ends returns the session it started last, so the next round waits for
-  // that session to boot before it starts another.
+  // a daemon that stopped before a terminal started, while one started, or while the
+  // previous session booted starts no more; a round returns the session it started
+  // last, so the next round waits for it to boot before starting another
   const adoptEach = async (
     sessions: readonly Session[],
     previous: Session | null,
@@ -315,6 +291,8 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     let prev = previous;
 
     for (const s of sessions) {
+      // a heavy fleet comes up one process at a time; the per-session cap keeps a
+      // session that never reports its boot from stalling the rest
       if (prev !== null) {
         await waitForBoot(prev.id);
       }
@@ -354,10 +332,9 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     return !isStopped();
   };
 
-  // Each round tries again only the sessions still listed under the
-  // refusal of their last try, checked before each try and while its host
-  // readies, so one a caller revived, killed, or forgot meanwhile is left
-  // as it is.
+  // a retry round tries only sessions still listed under their last refusal, checked
+  // before each try and while the host readies, so one a caller revived, killed, or
+  // forgot meanwhile is left as it is
   const isStillRefused = (s: Session) =>
     s.pty === null && mgr.sessions.includes(s) && s.lastMsg === refusals.get(s);
 
@@ -395,6 +372,7 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     return { restored: registered.length, settled: Promise.resolve('stopped') };
   }
 
+  // the first terminal attaches before the restore answers, so a caller can attach at once
   const firstAdopted = await tryAdoptQueued(first, retryDelaysMs.length > 0, () => true);
 
   if (isStopped()) {
@@ -437,10 +415,9 @@ function isOnEntryTarget(s: Session, entry: FleetEntry): boolean {
   );
 }
 
-// The refusals that leave one session without a terminal: its target is
-// misconfigured, gone from the config, changed, has no provider here, or
-// cannot start a terminal, or its agent refuses every start, or its
-// host's runtime auth binding refuses the launch, its broker included.
+// the refusals that leave one session without a terminal: its target is misconfigured,
+// gone, changed, without a provider here, or unable to start one, its agent refuses
+// every start, or its host's runtime auth binding, broker included, refuses the launch
 const REFUSED_ADOPT_CODES: ReadonlySet<string> = new Set([
   'unsupported_operation',
   'unknown_target',

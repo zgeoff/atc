@@ -9,13 +9,6 @@ interface HeadlessRunHandle {
   readonly stop: () => void;
 }
 
-/**
- * Everything the daemon tracks for one session: its screen model, output
- * sequence counter, PTY dims, the queue its input writes run through, its
- * resize/detect/boot timers, its live headless run, its adapter's hook
- * state, and its pending eject and boot waiters. `dispose` releases all of it in one call, and is safe to
- * call more than once.
- */
 export class SessionRuntime {
   screen: ScreenModel | null = null;
 
@@ -70,11 +63,8 @@ export class SessionRuntime {
   // starts with none.
   harnessState: unknown = undefined;
 
-  // Returns the boot-scoped state to how a fresh terminal starts, at the
-  // dims it boots with: no SessionStart yet, no tap since, and no whole
-  // menu read through a scrolled list. Every path
-  // that boots a new terminal for an existing session runs it, so a revived
-  // session never inherits its previous process's message gate.
+  // every path that boots a new terminal for an existing session runs this,
+  // so a revived session never inherits its previous process's message gate
   resetBoot(dims: Dims): void {
     this.dims = dims;
     this.startedAt = null;

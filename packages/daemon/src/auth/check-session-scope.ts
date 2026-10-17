@@ -12,15 +12,12 @@ import { z } from 'zod';
 import { findHostBranch } from '../sessions/find-host-branch';
 import { runHostGit } from '../workspace/run-host-git';
 
-/**
- * Where a declared scope is checked: the session's host and directory,
- * and the repository URL of its materialized workspace, null for a
- * directory that runs as it stands.
- */
 interface ScopeCheckRequest {
   readonly provider: ExecutionProvider;
   readonly host: string;
   readonly dir: string;
+
+  // null for a directory that runs as it stands, with no materialized workspace
   readonly repoURL: string | null;
   readonly declared: DeclaredScope;
 }
@@ -34,13 +31,6 @@ export interface CheckedScope {
 // How long one gh call may take before the entry it checks is refused.
 const GH_TIMEOUT_MS = 20_000;
 
-/**
- * Checks each declared entry against the session's host and returns what
- * the record holds for it: a worktree's branch as git reads it there, a
- * branch with the repository it exists in, and a pull request as GitHub
- * holds it. The first entry that fails refuses the whole scope with
- * `scope_invalid`, the entry in its message and `data.entry`.
- */
 export async function checkSessionScope(
   request: ScopeCheckRequest,
   ghBin: string,

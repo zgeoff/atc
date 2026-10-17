@@ -6,12 +6,6 @@ import type { PublishedRecords } from './published-records';
 import type { Session } from './session';
 import type { SessionEventKind } from './session-event-kind';
 
-/**
- * A launch on the daemon's machine whose agent may take its messages
- * through a bridge in the daemon: the agent, the session, the folder its
- * terminal starts in, the variables it starts with on top of the daemon's
- * own and the names it goes without, and the spawn's choices.
- */
 export interface MessageBridgeLaunch {
   readonly adapter: AgentAdapter;
   readonly session: SessionID;
@@ -21,13 +15,6 @@ export interface MessageBridgeLaunch {
   readonly options: SpawnOptions;
 }
 
-/**
- * What the session modules call back into the daemon through: the events
- * a session raises, which the daemon gives when the modules are built, where
- * a background failure is logged, and the daemon-wide settings each module
- * reads at the moment it acts, since the daemon sets them after the modules
- * are built.
- */
 export interface SessionCallbacks {
   readonly onOutput: (s: Session, data: string) => void;
   readonly onChange: () => void;
@@ -60,7 +47,8 @@ export interface SessionCallbacks {
   // The clock each remote launch's step timing reads, in milliseconds.
   readonly now: () => number;
 
-  // The clock a session's creation and last attach are stamped with.
+  // the getters are read when a module acts, since the daemon sets these
+  // after the modules are built; this clock stamps creation and last attach
   readonly getClock: () => Clock;
 
   // The binder of each host's runtime auth, or null when the daemon has

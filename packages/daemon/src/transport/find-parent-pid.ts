@@ -1,9 +1,5 @@
 import { readFileSync } from 'node:fs';
 
-/**
- * The parent pid of a process, read from `/proc/<pid>/stat` on Linux; null
- * when the process is gone or the file cannot be read or parsed.
- */
 export function findParentPID(pid: number, procDir = '/proc'): number | null {
   let stat: string;
 

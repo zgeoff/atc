@@ -17,9 +17,6 @@ import { planRebindStart } from './plan-rebind-start';
 import { verifyBrokerAuthority } from './verify-broker-authority';
 import { verifyCleanupAuthority } from './verify-cleanup-authority';
 
-/**
- * The store calls the binder makes: a host's binding and its grant rows.
- */
 type RuntimeAuthStore = Pick<
   StateStore,
   | 'createAuthBinding'
@@ -55,24 +52,6 @@ interface LaunchAdmission {
   readonly attemptID: string | null;
 }
 
-/**
- * Binds a host's runtime auth through impd's credential broker and keeps
- * the binding's record in the store, one host at a time: every call on a
- * host waits for the one before it on that host.
- *
- * A spawn creates the binding: the full gate, then the record, then a new
- * imp, then each grant, each step recorded before the next. A resume, a
- * restore, and a sub-session joining the host verify it: the full gate,
- * the imp's identity, and the exact grant set, and nothing is granted
- * again, unless the launch's target rebinds a changed selection. A rebind
- * moves the binding to a new revision. A revoke and a
- * forget first record the block that stops every launch, then check only
- * that the token may manage the recorded imp and that the imp is still
- * the one recorded, never a secret's rules or a complete grant set.
- * Every harness start and attach is admitted under the same lock, so a
- * block recorded before the admission refuses it. Nothing here falls back
- * to a broader token or to a local launch.
- */
 export class RuntimeAuthBinder {
   private readonly store: RuntimeAuthStore;
 
@@ -95,14 +74,7 @@ export class RuntimeAuthBinder {
     return this.store.findAuthBinding(hostKey);
   }
 
-  /**
-   * Provisions a fresh host for a spawn and returns the attempt's id. It
-   * writes nothing until the gate passes, refuses an imp that already
-   * holds the name or any grant, and records the imp's id as soon as impd
-   * creates it. A refusal after the record exists takes back what this
-   * attempt made before it rejects, and a take-back that cannot be
-   * confirmed rejects with an effect that remains.
-   */
+  // a take-back that cannot be confirmed rejects with an effect that remains
   createBinding(host: CredentialBroker, request: BindingRequest): Promise<string> {
     return this.withHostLock(request.hostKey, async () => {
       const impName = host.getHostName(request.hostKey);
@@ -148,10 +120,6 @@ export class RuntimeAuthBinder {
     });
   }
 
-  /**
-   * Records a provisioned host ready once its harness started, unless a
-   * revoke or another attempt has moved the binding on since.
-   */
   async updateReady(hostKey: SessionID, attemptID: string): Promise<void> {
     await this.withHostLock(hostKey, async () => {
       const row = await this.store.findAuthBinding(hostKey);
@@ -162,22 +130,7 @@ export class RuntimeAuthBinder {
     });
   }
 
-  /**
-   * Checks a host's binding before a harness launches on it again. Every
-   * check reads, so a refusal changes nothing: the binding must be ready,
-   * the current binding must hash as the one recorded, the gate must pass,
-   * each secret must hold exactly the bound rules, the imp under the name
-   * must be the one recorded, and impd must hold exactly the bound grants.
-   * Resolves to the binding.
-   *
-   * Given a rebind, a binding whose hash alone differs from the current
-   * one moves to it instead of refusing: the imp must still be the one
-   * recorded and hold exactly the grants both bindings keep, and then the
-   * rebind's own steps run, which cancel no admission of another harness
-   * on the host. A failed rebind refuses and leaves the binding blocked as
-   * one, and the next launch given a rebind tries it again. Each rebind
-   * logs one line with the revisions and the profiles it adds and drops.
-   */
+  // every check only reads, so a refusal changes nothing
   verifyBinding(
     host: CredentialBroker,
     hostKey: SessionID,
@@ -267,12 +220,6 @@ export class RuntimeAuthBinder {
     });
   }
 
-  // Moves a binding whose selection changed to the current one, under the
-  // host's lock: the imp's identity and the grants both bindings keep are
-  // checked first, so a grant lost outside atc still refuses rather than
-  // being granted again. A failed rebind first takes back the grants its
-  // attempt added, as a daemon start does, so one whose removal failed
-  // before does not read as a grant the binding never made.
   private async updateChangedBinding(
     host: CredentialBroker,
     row: RuntimeAuthBinding,
@@ -289,6 +236,8 @@ export class RuntimeAuthBinder {
       );
     }
 
+    // a failed rebind's added grants go first, so one whose removal failed does not read as a
+    // grant the binding never made
     if (row.state === 'rebind_failed' && row.rebind !== null) {
       await this.removeRebindGrants(host, row.hostKey, row.impName, row.rebind.attemptID);
     }
@@ -331,20 +280,6 @@ export class RuntimeAuthBinder {
     return this.requireBinding(row.hostKey);
   }
 
-  /**
-   * Admits one start or attach of a harness on a host, by calling send,
-   * which hands the request to impd's client, under the host's lock and
-   * only while the binding is still launchable: ready, or still being
-   * provisioned by the attempt that launches. A start also needs the
-   * revision and hash its launch was planned under. send gets a ticket
-   * whose check the client runs once its connection to impd opens, just
-   * before the request goes out: null lets it go, and the refusal of a
-   * revoke, a rebind or a forget that came first stops it unsent. A
-   * connection that ends before it opens releases the ticket. A revoke, a rebind
-   * or a forget therefore either refuses the admission or cancels it, or
-   * comes after the request went out. The lock is held only for one read
-   * and the handoff, never across the network.
-   */
   withLaunchAdmission(
     hostKey: SessionID,
     admission: LaunchAdmission,
@@ -387,6 +322,8 @@ export class RuntimeAuthBinder {
         }
       };
 
+      // the client checks the ticket just before the request goes out, so a revoke, a rebind or
+      // a forget that came first stops it unsent; the lock never spans the network
       send({
         check: () => {
           release();
@@ -419,14 +356,8 @@ export class RuntimeAuthBinder {
     }
   }
 
-  /**
-   * Takes back what one spawn attempt made: the imp, with every grant on
-   * it, but only an imp this attempt created whose id impd still shows
-   * under the name, and then the record. An imp atc cannot tell apart from
-   * one it did not make is left alone, and so is any attempt but the one
-   * given. Rejects with an effect that remains when it cannot confirm the
-   * imp gone, leaving the binding pending its take-back.
-   */
+  // rejects with an effect that remains when it cannot confirm the imp gone, leaving the
+  // binding pending its take-back
   async removeAttempt(
     host: CredentialBroker,
     hostKey: SessionID,
@@ -435,13 +366,6 @@ export class RuntimeAuthBinder {
     await this.withHostLock(hostKey, () => this.removeAttemptLocked(host, hostKey, attemptID));
   }
 
-  /**
-   * Withdraws every grant of a host's binding. The block that stops every
-   * launch is written first, even when impd cannot be reached; a grant impd
-   * no longer holds counts as revoked; a running harness keeps running and
-   * impd fails its later requests. Rejects with `auth_revocation_pending`
-   * when any grant cannot be confirmed gone.
-   */
   async revokeBinding(host: CredentialBroker | null, hostKey: SessionID): Promise<void> {
     await this.withHostLock(hostKey, async () => {
       this.revokeAdmissions(hostKey, 'revocation_pending');
@@ -462,15 +386,6 @@ export class RuntimeAuthBinder {
     });
   }
 
-  /**
-   * Moves a host's binding to the current binding at the next revision:
-   * the full gate on the new binding and the imp's identity first, then
-   * each newly bound grant, then the removal of each grant the new binding
-   * drops. A failure after the attempt starts removes only the grants this
-   * attempt added, restores nothing, never destroys the imp, and leaves the
-   * binding at its old revision, blocked as a failed rebind until a retry.
-   * Resolves to the new revision.
-   */
   updateBinding(host: CredentialBroker, hostKey: SessionID, binding: AuthBinding): Promise<number> {
     return this.withHostLock(hostKey, async () => {
       this.revokeAdmissions(hostKey, 'provisioning');
@@ -560,13 +475,8 @@ export class RuntimeAuthBinder {
     return revision;
   }
 
-  /**
-   * Destroys a bound host's imp for a forget and drops its record, and
-   * resolves false when the host has no binding, which leaves the destroy
-   * to the caller. The block is written first; only an imp impd still
-   * shows under the recorded id is destroyed, and the record goes once
-   * impd shows no imp under the name. Never deletes a secret.
-   */
+  // resolves false for a host with no binding, leaving the destroy to the caller; never
+  // deletes a secret
   forgetBinding(host: CredentialBroker | null, hostKey: SessionID): Promise<boolean> {
     return this.withHostLock(hostKey, async () => {
       this.revokeAdmissions(hostKey, 'revocation_pending');
@@ -616,15 +526,6 @@ export class RuntimeAuthBinder {
     });
   }
 
-  /**
-   * Settles, as a daemon starts, the bindings a stopped daemon left
-   * mid-change. A provisioning binding with no fleet entry on its host
-   * was a spawn that never listed, and its attempt is taken back; a
-   * rebind in flight becomes a failed rebind, whose added grants are
-   * removed. Each host is reached through its target's broker, or left as
-   * it is, still blocked, when its target has none here. Failures are
-   * reported and leave the binding blocked for the next start.
-   */
   async reconcileBindings(
     findHost: (target: string) => CredentialBroker | null,
     listedHostKeys: ReadonlySet<SessionID>,
@@ -656,11 +557,6 @@ export class RuntimeAuthBinder {
     }
   }
 
-  // The imp, given the read of its name, then its id on the record, then
-  // the check that impd holds no grant on it, then the grants at once, each
-  // one recorded as granting before impd is asked and as granted after.
-  // Every grant settles before a failed one rejects, so a take-back never
-  // runs beside a grant still in flight.
   private async createImpAndGrants(
     host: CredentialBroker,
     hostKey: SessionID,
@@ -728,6 +624,8 @@ export class RuntimeAuthBinder {
       }),
     );
 
+    // every grant settles before a failed one rejects, so a take-back never runs beside a grant
+    // still in flight
     for (const result of granted) {
       getSettledValue(result);
     }
@@ -959,11 +857,8 @@ export class RuntimeAuthBinder {
     }
   }
 
-  // A rebind a stopped daemon left in flight failed: it is blocked first,
-  // and the grants its attempt added are removed only from the imp it was
-  // recorded against. A failed rebind whose removal never finished is
-  // tried again on each start. Nothing changes unless the binding still
-  // holds the same imp, revision, and rebind attempt under the host's lock.
+  // a failed rebind whose grant removal never finished stays blocked and is tried again on
+  // each start
   private async reconcileRebind(
     host: CredentialBroker | null,
     row: RuntimeAuthBinding,

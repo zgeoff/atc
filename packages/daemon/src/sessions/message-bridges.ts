@@ -38,13 +38,7 @@ interface MessageBridgesDeps {
   readonly stateDir: string;
 }
 
-/**
- * The bridges in the daemon that take local sessions' messages, one per
- * session whose agent has one, from the launch that starts it until the
- * session's process ends. A bridge's tap takes the inbox as an `atc tap`
- * does, and its acks and notes land as the tap's and the reporter's do,
- * for its session alone.
- */
+// a bridge's tap, acks, and notes act for its own session alone
 export class MessageBridges {
   private readonly mgr: MessageBridgesDeps['mgr'];
 

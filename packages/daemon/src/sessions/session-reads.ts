@@ -17,11 +17,6 @@ interface SessionReadsDeps {
   readonly records: Pick<PublishedRecords, 'findRecord'>;
 }
 
-/**
- * Reads what a session holds beyond its descriptor: its record, with the
- * time of its last activity and the record atc published for it, and its
- * agent's transcript a page at a time.
- */
 export class SessionReads {
   private readonly mgr: SessionReadsDeps['mgr'];
 
@@ -55,10 +50,9 @@ export class SessionReads {
     const result = s.result ?? null;
     const createdAt = s.createdAt;
 
-    // The agent session id links rows from before atc ids stayed stable,
-    // unless a session on another target resumed the same agent session,
-    // whose rows it would match too. Under an access it links nothing: a
-    // session that shared it may be gone, its rows still in the trail.
+    // the agent session id links rows from before atc ids stayed stable,
+    // unless another target resumed it too; under an access it links nothing,
+    // since a session that shared it may be gone with its rows still in the trail
     const shared = this.mgr.sessions.some(
       (x) =>
         x.agentSessionID === s.agentSessionID &&

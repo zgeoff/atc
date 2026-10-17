@@ -12,10 +12,6 @@ import { sendMenuKey } from './send-menu-key';
 import { waitForMenuPoll } from './wait-for-menu-poll';
 import { waitForMenuQuiet } from './wait-for-menu-quiet';
 
-/**
- * The menu a choice answers, through its token, and either the option it
- * picks with the label it expects there, or the Escape key.
- */
 export type MenuChoice =
   | { readonly menuToken: string; readonly option: number; readonly label: string }
   | { readonly menuToken: string; readonly key: 'escape' };
@@ -26,22 +22,8 @@ export interface MenuChoiceResult {
   readonly partial?: true;
 }
 
-/**
- * Picks one option of the menu the session's screen shows, or presses
- * Escape on it. It reads the whole menu, scrolling a list longer than the
- * screen with the arrow keys, and numbers each option by its place in the
- * whole list. It first waits for the agent to stop printing, so a menu
- * that has just opened takes keys and keeps its cursor. It then checks the
- * menu's token and the option's label against the screen before it writes
- * anything, moves the cursor one arrow key at a time and reads the screen
- * after each, and presses Enter only once the cursor sits on the option. A
- * changed menu, a wrong label, or a cursor that never reaches the option
- * throws before Enter, so nothing is picked. Resolves with the key it
- * pressed last and the menu the screen shows once it settles, or null when
- * it shows none. When the whole read of that menu fails, it resolves with
- * the menu as the screen shows it after the read's arrow keys, and with
- * `partial` set.
- */
+// throws before Enter when the menu changed, the label differs, or the cursor never reaches the
+// option, so nothing is picked; options are numbered by their place in the whole scrolled list
 export async function applyMenuChoice(
   terminal: MenuTerminal,
   choice: MenuChoice,
@@ -56,6 +38,7 @@ export async function applyMenuChoice(
 
   requireMatchingMenu(first, choice);
 
+  // a menu that has just opened takes keys and keeps its cursor only once the agent stops printing
   await waitForMenuQuiet(terminal, waits);
 
   const quiet = await readCheckedMenu(terminal, choice);
@@ -95,13 +78,6 @@ export async function applyMenuChoice(
   return { pressed: 'enter', ...(await readSettledWholeMenu(terminal, settled, waits)) };
 }
 
-// The menu a choice answers with: once the screen has settled on a menu, the
-// whole of it, so a new list that scrolls past the screen returns the token
-// that the next choice on it carries. The key has already gone through, so a
-// whole read that fails answers with the menu as the screen shows it, marked
-// partial, instead of a refusal. That read can fail after its arrow keys
-// moved the cursor, so the screen is read again rather than trusting the
-// settled menu.
 async function readSettledWholeMenu(
   terminal: MenuTerminal,
   settled: MenuView | null,
@@ -112,11 +88,14 @@ async function readSettledWholeMenu(
   }
 
   try {
+    // the whole list, so a list longer than the screen returns the token the next choice carries
     const whole = await readWholeMenuView(terminal, waits);
 
     return { menu: whole };
   } catch (error) {
     if (error instanceof DaemonError) {
+      // the key has gone through, so this answers rather than refuses; the failed read may have
+      // moved the cursor with its arrow keys, so the screen is read again
       return { menu: await readMenuView(terminal), partial: true };
     }
 
@@ -144,10 +123,8 @@ async function readMenuView(terminal: MenuTerminal): Promise<MenuView | null> {
   return menu === null ? null : buildMenuView(menu);
 }
 
-// One read of the screen, checked against the choice: the menu as a client
-// reads it, through the kept whole menu, and the same screen read alone,
-// which measures the response to the key that follows. One read serves both,
-// so the key reaches the screen the check passed.
+// one screen read gives both the checked menu and the baseline the next key's response is
+// measured against, so the key reaches the screen the check passed
 async function readCheckedMenu(
   terminal: MenuTerminal,
   choice: MenuChoice,

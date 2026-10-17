@@ -17,13 +17,6 @@ type CompletenessFinding =
 
 const LFS_PATHS_SHOWN = 5;
 
-/**
- * Checks that a checked-out commit is the whole workspace, so a checkout is
- * never handed on with holes in it. The commit's own tree must hold no
- * gitlink and no `.gitmodules`, since submodules are never initialized, and
- * no tracked path may carry the `lfs` filter, since its content would be a
- * pointer file rather than the object it points at.
- */
 export async function checkWorkspaceCompleteness(
   dir: string,
   sha: string,
@@ -40,6 +33,7 @@ export async function checkWorkspaceCompleteness(
 
   const entries = tree.stdout.split('\n');
 
+  // submodules are never initialized, so either would leave a hole in the checkout
   if (entries.some((line) => line.startsWith('160000 ') || line.endsWith('\t.gitmodules'))) {
     return { ok: false, code: 'has_submodules', message: `${sha} uses submodules` };
   }
@@ -62,6 +56,7 @@ export async function checkWorkspaceCompleteness(
 
   const lfsPaths = collectLFSPaths(attributes.stdout);
 
+  // an LFS path's content would be a pointer file rather than the object it points at
   if (lfsPaths.length > 0) {
     return {
       ok: false,

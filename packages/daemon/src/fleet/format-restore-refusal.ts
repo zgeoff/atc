@@ -7,22 +7,14 @@ interface Refusal {
   readonly data: Readonly<Record<string, unknown>> | undefined;
 }
 
-/**
- * The reason a session lists after its restore was refused: the refusal's
- * own message, followed by the commands and MCP tools that clear it when
- * the refusal is one a rebind or a later adopt clears. Any other refusal
- * keeps its message alone.
- */
 export function formatRestoreRefusal(id: SessionID, refusal: Refusal): string {
   const hint = pickRefusalHint(id, refusal);
 
   return hint === null ? refusal.message : `${refusal.message}. ${hint}`;
 }
 
-// A host whose auth selection changed, or whose binding a revoke or a
-// failed rebind blocked, launches again after a rebind; a host whose agent
-// dropped its auth block launches again once the block is back; a launch
-// that a rebind overtook runs again as it is.
+// a changed auth selection or a blocked binding clears with a rebind, a dropped
+// auth block once the block is back, and a launch a rebind overtook as it is
 function pickRefusalHint(id: SessionID, refusal: Refusal): string | null {
   const problem = refusal.data?.['problem'];
   const state = refusal.data?.['state'];

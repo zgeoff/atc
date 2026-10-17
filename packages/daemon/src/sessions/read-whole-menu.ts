@@ -14,22 +14,13 @@ import { waitForMenuQuiet } from './wait-for-menu-quiet';
 // session's input.
 const MAX_STEPS = 400;
 
-/**
- * Reads the whole menu the session's screen shows, or null when it shows
- * none. A menu that fits on the screen, or one the whole menu atc read
- * before holds, takes no key. A list that scrolls past the screen is read
- * with the arrow keys: atc waits for the agent to go quiet, moves the
- * cursor up to the first option, then down one option at a time until the
- * list ends, and moves it back to the option it started on. It presses
- * neither Enter nor Escape, and keeps the whole menu for the next read.
- * A session with no live process reads as its screen shows it.
- */
 export async function readWholeMenu(
   terminal: MenuTerminal,
   waits: MenuWaits,
 ): Promise<ScreenMenu | null> {
   const shown = await readKnownMenu(terminal);
 
+  // a menu that fits, or one the kept whole menu holds, takes no key
   if (shown?.scroll === undefined || !terminal.isLive()) {
     return shown;
   }

@@ -3,11 +3,6 @@ import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import type { SentNote } from './parse-note';
 
-/**
- * The `SessionNote` event for a note an agent sent mid-turn, addressed by
- * the atc session that sent it. The note's label travels as the event's
- * `kind`.
- */
 export function buildSessionNoteEvent(
   sessionID: SessionID,
   note: SentNote,

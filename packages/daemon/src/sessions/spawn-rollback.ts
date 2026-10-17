@@ -22,11 +22,6 @@ interface SpawnRollbackDeps {
   readonly callbacks: Pick<SessionCallbacks, 'log' | 'getAuthBinder'>;
 }
 
-/**
- * Takes back a spawn that failed: what it readied on its host before or
- * after its session listed, and the harness it started, which no revive
- * runs again until its exit is confirmed.
- */
 export class SpawnRollback {
   // How long a failed spawn's rollback waits for the killed process to
   // exit, in milliseconds, once after its kill and once more after a forced
@@ -58,11 +53,6 @@ export class SpawnRollback {
     this.callbacks = deps.callbacks;
   }
 
-  // Takes back the host a spawn readied when the spawn fails before its
-  // session lists: an attempt that provisioned the host takes back its imp
-  // and binding, and a host of the spawn's own without one is destroyed. A
-  // parent's host stays as it is. A take-back that fails throws, and a
-  // destroy that fails throws that the host may still stand.
   async destroyFailedSpawnHost(
     provider: ExecutionProvider,
     id: SessionID,
@@ -106,10 +96,6 @@ export class SpawnRollback {
     }
   }
 
-  // Whether taking back a failed spawn's host takes the whole host: an
-  // attempt that provisioned the host takes back its imp and binding, and a
-  // host the spawn destroys goes with everything on it. A host that stays,
-  // such as a parent's, keeps everything but what the spawn itself made.
   shouldTakeHost(
     provider: ExecutionProvider,
     id: SessionID,
@@ -136,10 +122,6 @@ export class SpawnRollback {
     return hostKey === id && provider.capabilities.destroy && !isHostInUse;
   }
 
-  // Takes back the workspace directory a failed spawn created on a host
-  // that stays. A directory it cannot confirm gone stays reserved, is logged
-  // for an operator to remove, and throws. A shared host stays awake for the
-  // removal, then goes back to sleep when nothing else runs there.
   async removeSpawnWorkspace(
     provider: ExecutionProvider,
     id: SessionID,
@@ -187,6 +169,8 @@ export class SpawnRollback {
 
     const options = failure === null ? undefined : { cause: failure.cause };
 
+    // the directory stays reserved, so no other workspace lands in or
+    // around it
     this.callbacks.log(
       `atc: left ${root} on target '${target}' after the spawn of session ${id} failed to start, since ${reason}; remove it by hand`,
     );
@@ -211,15 +195,6 @@ export class SpawnRollback {
     await binder.removeAttempt(host, hostKey, attemptID);
   }
 
-  // Takes back a listed spawn's harness: the process dies, and the session
-  // leaves the list and the fleet. It resolves only once the process has
-  // exited and the fleet without the session is durable, and throws when
-  // either cannot be confirmed. A session whose exit is not confirmed stays
-  // listed, so the spawn's caller can still find it, and no revive starts
-  // it until its process is found gone. The session counts as rolling back
-  // from here until the spawn's caller ends the rollback. A directory the
-  // spawn made on a shared host stays held once the session leaves the
-  // list, so no other workspace lands in or around it before it goes.
   async removeListedSpawn(id: SessionID, root: string | null): Promise<void> {
     const s = this.registry.sessions.find((x) => x.id === id);
 
@@ -230,8 +205,13 @@ export class SpawnRollback {
     const pty = s.pty;
 
     this.harnesses.startingSpawns.delete(id);
+
+    // the session counts as rolling back until the spawn's caller ends the
+    // rollback
     this.rollingBack.add(id);
 
+    // an unconfirmed exit keeps the session listed, so the spawn's caller
+    // can still find it
     if (pty !== null && !(await this.killHarness(id, pty))) {
       throw new Error(`session ${id} did not exit after its kill`);
     }
@@ -243,6 +223,8 @@ export class SpawnRollback {
 
     s.pty = null;
 
+    // the directory stays held once the session leaves the list, so no
+    // other workspace lands in or around it before it goes
     if (root !== null && s.hostKey !== id) {
       this.claims.reservations.set(id, {
         hostKey: s.hostKey,
@@ -259,13 +241,9 @@ export class SpawnRollback {
     await this.fleet.writeFleet();
   }
 
-  /**
-   * Kills a session's harness and waits for its exit, and returns whether
-   * the exit was confirmed. An exit it cannot confirm leaves the harness
-   * recorded as possibly running, which blocks revives of the session until
-   * a later check finds it gone.
-   */
   async killHarness(id: SessionID, pty: HarnessHandle): Promise<boolean> {
+    // stays recorded as possibly running, blocking revives, until a check
+    // finds the process gone
     this.unconfirmedKills.set(id, pty);
     pty.kill();
 
@@ -296,10 +274,6 @@ export class SpawnRollback {
     return pty.waitForExit(this.failedSpawnExitWaitMs);
   }
 
-  // Whether a failed spawn's rollback leaves the session free to revive:
-  // none is running, and any process it killed is gone now. A session whose
-  // killed process may still run stays blocked until a later check finds it
-  // gone.
   async isRollbackSettled(id: SessionID): Promise<boolean> {
     if (this.rollingBack.has(id)) {
       return false;

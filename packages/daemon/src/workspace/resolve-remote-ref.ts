@@ -22,15 +22,8 @@ interface RefRefusal {
   readonly message: string;
 }
 
-/**
- * Pins a ref to a commit before cloning, so the checkout is exactly the
- * commit the ref pointed at when asked, whatever lands on the branch meanwhile.
- * A branch wins over a same-named tag, and an annotated tag resolves to the
- * commit it points at. A source already pinned to a commit keeps it, and
- * its ref only decides whether the checkout is on a branch: a ref that
- * names a branch upstream checks the commit out as that branch. `env` and
- * `args` carry the askpass helper of a credential to `git ls-remote`.
- */
+// pins the ref before cloning, so the checkout is the commit the ref named when asked,
+// whatever lands on the branch meanwhile
 export async function resolveRemoteRef(
   request: RemoteRefRequest,
   env: Readonly<Record<string, string>>,
@@ -66,6 +59,8 @@ export async function resolveRemoteRef(
 
   const match = findRemoteRef(refs, source.ref);
 
+  // a source already pinned keeps its commit; its ref only decides whether the checkout is on
+  // a branch
   if (pinned !== undefined) {
     return { ok: true, sha: pinned, branch: match?.branch ?? null };
   }

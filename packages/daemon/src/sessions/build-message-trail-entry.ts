@@ -2,13 +2,6 @@ import type { AgentSessionID, SessionID } from '@atc/core';
 import { truncateDetail } from '@atc/core';
 import type { MessageRecord, MessageStatus, TrailEntry } from '@atc/store';
 
-/**
- * The trail entry for one message status change, addressed like its SessionMessage
- * broadcast. It is stamped with the status's own time and the owning session's agent
- * session id, falling back to the one the message carries, and the detail previews
- * the answer once there is one, else the text. An answered entry also holds the
- * whole answer.
- */
 export function buildMessageTrailEntry(
   sessionID: SessionID,
   agentSessionID: AgentSessionID | undefined,

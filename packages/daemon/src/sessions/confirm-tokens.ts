@@ -18,12 +18,6 @@ interface ConfirmToken {
   readonly used: boolean;
 }
 
-/**
- * The confirm tokens a forget on a host-destroying target hands out, by
- * token. A token is taken once, for its own session, before it expires. It
- * stays known for one more lifetime after it expires, so a late forget
- * learns that it expired rather than that it never existed.
- */
 export class ConfirmTokens {
   private readonly now: () => number;
 
@@ -50,6 +44,7 @@ export class ConfirmTokens {
   claimToken(session: SessionID, token: string): void {
     const now = this.now();
 
+    // an expired token stays known for one more lifetime, so a late forget learns it expired
     for (const [held, entry] of this.tokens) {
       if (entry.expiresAt + this.lifetimeMs < now) {
         this.tokens.delete(held);

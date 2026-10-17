@@ -43,23 +43,8 @@ interface IdempotentCall<T> {
   readonly findEffectTarget?: (result: T) => EffectTarget | null;
 }
 
-/**
- * Runs keyed effects at most once per key for each principal: the
- * request's own, else the ledger's. The first
- * request claims the key with its payload's hash and the pre-minted effect
- * id, runs the effect, and completes the key with its answer once the
- * effect is durable. A retry with the same payload replays the completed
- * answer; one with a different payload is `idempotency_conflict`; one whose
- * effect a stopped daemon may or may not have run is `outcome_unknown` with
- * the effect id in `data.effectRef`, and never starts the effect again.
- * A replay-only request never claims: it answers a held key as a retry
- * does, and refuses a key the ledger does not hold, never held or since
- * swept, with `idempotency_key_unknown`, running nothing.
- * An effect that may still stand once its request fails is answered with
- * `outcome_unknown` and its effect id even when recording that outcome
- * fails: the claim stays held either way, and the failed write goes to the
- * log.
- */
+// a retry whose effect a stopped daemon may or may not have run answers outcome_unknown with
+// the effect id and never starts the effect again
 export class IdempotencyLedger {
   private readonly store: StateStore;
 

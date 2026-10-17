@@ -1,12 +1,6 @@
 import type { RecordedScope } from '@atc/protocol';
 import type { CheckedScope } from './check-session-scope';
 
-/**
- * Adds each checked entry the recorded scope lacks, keeping the order the
- * entries arrived in. A worktree matches by path, a branch by name and
- * repository, and a pull request by repository and number. Returns the
- * recorded scope itself when every entry is already there.
- */
 export function mergeRecordedScope(recorded: RecordedScope, added: CheckedScope): RecordedScope {
   const worktrees = mergeEntries(recorded.worktrees, added.worktrees, (w) => w.path);
   const branches = mergeEntries(recorded.branches, added.branches, (b) => `${b.repo}\n${b.name}`);

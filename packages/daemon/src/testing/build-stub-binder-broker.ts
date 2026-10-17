@@ -9,22 +9,8 @@ import type {
 } from '@atc/plugin-api';
 import { CredentialBrokerError, isHostNameAllowed } from '@atc/plugin-api';
 
-/**
- * An in-memory credential broker that refuses grants as impd does behind
- * the imp provider, for the runtime auth binder's tests. A grant or revoke
- * needs a `manage` identity, a host inside the identity's patterns, and,
- * under patterns, a secret the identity lists as grantable; a secret
- * rebound or removed since the identity was set is no longer grantable.
- * Each refusal rejects with `forbidden`, then a missing host or secret
- * with `not_found`, each with impd's code as the broker code. A rebound or
- * removed secret takes every grant of it with it, a host made again gets a
- * new id, and a destroy of a missing host resolves. `calls` holds every
- * contract call in the order the calls arrive, and a test prepares the
- * broker through the setters as an operator prepares impd. While a test
- * holds the calls, each call is recorded as it arrives and takes effect
- * and answers only on a release, so the calls held at one time are the
- * calls in flight together.
- */
+// refuses grants as impd does behind the imp provider; while calls are held,
+// each is recorded as it arrives but takes effect and answers only on a release
 export interface StubBinderBroker extends CredentialBroker {
   readonly calls: string[];
   readonly setFeatures: (features: Partial<BrokerFeatures>) => void;

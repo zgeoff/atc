@@ -35,14 +35,6 @@ case "$1" in
 esac
 `;
 
-/**
- * Selects how network git commands authenticate. Without a credential they
- * authenticate through the host's own git config, and the result adds
- * nothing. An env credential is read from the named variable and handed to
- * git only through a private askpass helper, never through the command line
- * or the URL, with the host's credential helpers switched off so none of
- * them stores the token. Disposing the result deletes the helper.
- */
 export async function createGitAskpass(
   credential: GitCredential | undefined,
 ): Promise<GitAskpass | MissingCredential> {
@@ -73,6 +65,8 @@ export async function createGitAskpass(
     throw error;
   }
 
+  // the token reaches git only through the helper, never the command line or the URL, and
+  // the host's credential helpers are off so none of them stores it
   return {
     ok: true,
     env: { GIT_ASKPASS: helper, [ASKPASS_SECRET_VAR]: secret },

@@ -8,13 +8,6 @@ interface ReconcileFacts {
   readonly hasHost: boolean;
 }
 
-/**
- * What a starting daemon does with a binding a stopped daemon may have
- * left mid-change: a rebind in flight, or one that failed, is settled as a
- * failed rebind; a spawn attempt no fleet entry lists, still provisioning
- * or pending its rollback, is taken back through its target's broker. Any
- * other binding is kept as it is.
- */
 export function planBindingReconcile(
   row: Readonly<RuntimeAuthBinding>,
   facts: ReconcileFacts,

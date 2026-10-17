@@ -53,15 +53,7 @@ export interface TCPListener {
   readonly stop: () => void;
 }
 
-/**
- * Starts the TCP listener for the client protocol. Every connection must
- * open with a `daemon.hello` that carries a bearer token from the token
- * file, and acts only as the principals its requests give, never as the
- * daemon's owner. A delayed handshake ends early, refused, once its socket
- * closes, and a handshake that would wait while the cap of delayed
- * handshakes is full is refused at once and counted as a failure, so a
- * flood across many sockets holds at most the cap of waits.
- */
+// a connection acts only as the principals its requests give, never as the daemon's owner
 export function startTCPListener(opts: TCPListenerOptions): TCPListener {
   let tokens: readonly string[] | null = opts.tokens;
 
@@ -94,6 +86,8 @@ export function startTCPListener(opts: TCPListenerOptions): TCPListener {
           verifyHandshake: async (presented) => {
             const delay = throttle.getDelay(address, opts.clock.now());
 
+            // refused at once and counted as a failure, so a flood across many sockets holds at
+            // most the cap of waits
             if (delay > 0 && delayed >= opts.maxDelayedHandshakes) {
               throttle.recordFailure(address, opts.clock.now());
 

@@ -11,12 +11,6 @@ interface RawTargetConfig {
   readonly defaultTarget?: unknown;
 }
 
-/**
- * Turns the raw target keys of a config file into daemon options through
- * the real parse. Each parsed target takes the provider that the factory
- * for its kind builds for its id, or no provider when no factory serves its
- * kind, and every parse error passes through as a target config error.
- */
 export function buildTargetOptionsFromConfig(
   raw: RawTargetConfig,
   factories: ReadonlyMap<string, (id: string) => ExecutionProvider>,

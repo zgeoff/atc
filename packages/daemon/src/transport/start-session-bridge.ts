@@ -10,10 +10,6 @@ import type { BridgeBinding } from '../auth/is-binding-current';
 import type { TapClient } from '../daemon-context';
 import { parseHookLine } from './parse-hook-line';
 
-/**
- * The fields of a live session the bridge checks its binding against and
- * reads the status from.
- */
 export interface BridgeSession {
   readonly id: SessionID;
   readonly target: string;
@@ -24,10 +20,6 @@ export interface BridgeSession {
   readonly lastMsg: string;
 }
 
-/**
- * What the bridge needs from the daemon. Each operation acts on the one
- * session the caller names, which is always the bridge's own.
- */
 export interface BridgeContext {
   readonly findSession: (sessionID: SessionID) => BridgeSession | undefined;
   readonly applyHookEvent: (e: HookEvent) => void;
@@ -69,29 +61,9 @@ const TAP_OPEN_SCHEMA = z.looseObject({ notices: z.boolean().optional() });
 
 type BridgeRefusal = 'forbidden' | 'stale_binding' | 'not_tapping' | 'unknown_message';
 
-/**
- * Serves one connection a remote harness's processes opened to the daemon:
- * the session bridge. A line without an `op` is a hook line, as the local
- * reporter socket takes it. A request line `{ v: 1, id, op }` gets one
- * answer line `{ id, ok }`, and the bridge's own inbox events go out as
- * protocol event lines.
- *
- * The bridge takes hooks, notes, its session's tap and acks of messages
- * and answer notices, and its session's own status, for the one session it
- * was bound to and nothing else: an unknown op, a malformed request, or a note or hook for any
- * other session answers `forbidden` and closes the connection. Every line
- * checks the binding against the live session first, and one that no
- * longer matches answers `stale_binding` and closes. Once the guest has
- * written its last line, the bridge answers what came before it and
- * closes.
- *
- * Trust: the binding holds no secret. A host serves the bridge's socket
- * inside itself alone, so reaching the socket is the proof of being inside
- * that host. One host is one trust domain: a sub-session in its parent's
- * host runs as the same user and can reach the parent's socket too. The
- * per-session socket and binding stop processes in the host from crossing
- * sessions by accident, never a hostile process inside the same host.
- */
+// the binding holds no secret: reaching the host's socket proves being inside that host, so
+// the per-session socket and binding stop processes crossing sessions by accident, never a
+// hostile process inside the same host
 export function startSessionBridge(
   relay: HarnessRelay,
   binding: Readonly<BridgeBinding>,
@@ -304,10 +276,9 @@ export function startSessionBridge(
     })();
   });
 
-  // A guest that has written its last line gets the answers to the lines
-  // before it, then the bridge closes: a host can hold the connection open
-  // until the daemon closes it, and stops taking new connections once it
-  // holds its most.
+  // A guest that has written its last line gets the answers to the lines before it, then the
+  // bridge closes: a host can hold the connection open until the daemon closes it, and takes
+  // no new connections once it holds its most.
   relay.onEnd(() => {
     void (async () => {
       await applying;

@@ -86,11 +86,9 @@ export class DaemonConnection {
 
   private access: TargetAccess | null = null;
 
-  // The atc session the client runs inside; null for the owner. On the
-  // local socket the kernel's answer binds it, and a handshake can give it
-  // only for a process the kernel finds in no session. A session never
-  // changes its own record or that of a session it is a sub-session of
-  // through it, and every message it sends is from it.
+  // The atc session the client runs inside; null for the owner. The kernel's answer binds it
+  // on the local socket, and a handshake gives it only for a process in no session. A session
+  // never changes its own or an ancestor's record through it, and sends every message as it.
   private callerSession: SessionID | null = null;
 
   // The session the kernel found the connecting process in, by the pid it
@@ -137,17 +135,11 @@ export class DaemonConnection {
     }
   }
 
-  /**
-   * The fingerprint of the token this connection's TCP handshake presented,
-   * or null for a connection that has not passed one.
-   */
   get tokenFingerprint(): string | null {
     return this.fingerprint;
   }
 
-  /**
-   * Ends the connection. Safe to call more than once.
-   */
+  // safe to call more than once
   dispose(): void {
     this.peer.end();
   }
@@ -180,10 +172,9 @@ export class DaemonConnection {
     }
   }
 
-  // Output is droppable: an overflow discards this session's backlog for
-  // this client and resynchronizes with a repaint once the queue drains. An
-  // intermediate chunk is never dropped without that resync, because a byte
-  // stream cut mid-escape corrupts the client's terminal state.
+  // An overflow drops this session's backlog for this client and resynchronizes with a repaint
+  // once the queue drains. A chunk is never dropped without that resync, because a byte stream
+  // cut mid-escape corrupts the client's terminal state.
   sendOutput(sessionID: SessionID, event: EventMsg, byteLength: number): void {
     if (!this.hasPassedHello() || !this.canSeeOutput(sessionID)) {
       return;
@@ -321,13 +312,8 @@ export class DaemonConnection {
     return true;
   }
 
-  // Whether a line ends this TCP connection before any answer to it. Until
-  // its token checks out, a connection gets nothing but the answer to one
-  // handshake: any other line, or a line while that handshake is still
-  // checked, counts as a failed handshake and closes it without a reply,
-  // so a peer learns nothing and floods nothing past the delay. Once in,
-  // a second handshake, which could change the principal under kept
-  // attachments, gets `unauthorized` and closes it.
+  // Until its token checks out, a TCP connection gets nothing but the answer to one handshake,
+  // so a peer learns nothing and floods nothing past the delay.
   private findTCPLineRefusal(line: string): 'close' | null {
     if (this.isUnauthenticatedTCP()) {
       const decoded = decodeMessage(line);
@@ -346,6 +332,7 @@ export class DaemonConnection {
 
     const decoded = decodeMessage(line);
 
+    // a second handshake could change the principal under kept attachments
     if (decoded.kind === 'request' && decoded.msg.m === 'daemon.hello') {
       this.sendErr(decoded.msg.id, 'unauthorized', 'a TCP connection takes one handshake');
 
@@ -398,12 +385,8 @@ export class DaemonConnection {
     await this.applyRequest(req, buildScopedContext(this.ctx, scope.access, scope.keyNamespace));
   }
 
-  // The targets a request may use and the namespace its idempotency keys
-  // live in: the request's own principal, limited to what the connection's
-  // may use, else the connection's. Null is the daemon's owner. The owner
-  // may act as any principal, that principal's keys included; a connection
-  // that acts as a principal always keeps its own keys, whatever principal
-  // a request acts as.
+  // Null is the daemon's owner. A connection that acts as a principal always keeps its own
+  // idempotency keys, whatever principal a request acts as.
   private findRequestScope(req: RequestMsg): RequestScope | null {
     if (req.as === undefined) {
       return this.principal === null || this.access === null
@@ -1047,10 +1030,9 @@ export class DaemonConnection {
     const sessionID = toSessionID(spawned.session.id);
     const grant = ctx.findSessionGrant(sessionID);
 
-    // A live session whose tree left the view before the answer goes out
-    // gets the refusal a replay out of reach gets, holding no part of it.
-    // A replayed session no longer live was checked against its fleet row
-    // by the replay itself.
+    // A live session whose tree left the view before the answer goes out gets the refusal a
+    // replay out of reach gets; a replayed session no longer live was checked against its
+    // fleet row by the replay itself.
     if (grant !== null && !ctx.isSessionVisible(sessionID)) {
       throw buildTargetForbiddenError(grant.target);
     }
@@ -1248,10 +1230,9 @@ export class DaemonConnection {
       return;
     }
 
-    // A read that scrolls a long list with arrow keys rejects with a
-    // DaemonError when the menu changes or ignores a key. The session can
-    // leave the caller's view while the read runs, so its view is checked
-    // again before the menu goes out.
+    // A read rejects with a DaemonError when the menu changes or ignores a key. The session
+    // can leave the caller's view while the read runs, so its view is checked again before
+    // the menu goes out.
     this.answerAsync(req.id, async () => {
       const menu = await ctx.readSessionMenu(id);
 
@@ -1637,13 +1618,8 @@ export class DaemonConnection {
     this.sendOk(req.id, 'session.message', result);
   }
 
-  // Who a message the request sends is from. The kernel's session wins over
-  // any principal a request gives, then the principal the request or the
-  // whole connection acts as, then the session the handshake gave. Of the
-  // rest, only a client whose handshake gives an atc build is the owner;
-  // any other is a local program, named by the name its request gives or
-  // else its handshake's client. A local name is the only part of the
-  // request's params that labels it, and never changes the kind.
+  // The kernel's session wins over any principal a request gives. A local name is the only
+  // part of the request's params that labels the message, and never changes the kind.
   private findMessageCaller(req: RequestMsg, localName: string | undefined): MessageCaller {
     if (this.peerSession !== null) {
       return { kind: 'session', session: this.peerSession };
@@ -1907,11 +1883,7 @@ export class DaemonConnection {
     return true;
   }
 
-  // A TCP handshake must carry a bearer token the listener holds, checked
-  // before anything else in it, so a peer without one learns nothing about
-  // the daemon. A wrong or missing token, or a principal the config does
-  // not list, gets `unauthorized` and the connection closes. Requests that
-  // arrive while the check runs wait behind it.
+  // Requests that arrive while the check runs wait behind it.
   private applyTCPHello(req: RequestMsg, tcp: TCPPeer): boolean {
     this.helloed = true;
 
@@ -2034,8 +2006,6 @@ function requireDeclaredScope(raw: unknown): DeclaredScope | null {
   return parsed.scope;
 }
 
-// The idempotency claim a keyed request carries, or null for a request that
-// gave no idempotency key.
 // The client name every atc client gives in its handshake: the atc build,
 // `atc/` and its version.
 const ATC_CLIENT_PREFIX = 'atc/';

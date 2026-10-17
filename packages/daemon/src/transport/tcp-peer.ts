@@ -1,8 +1,3 @@
-/**
- * What a connection accepted over TCP needs from its listener: the check of
- * the bearer token its handshake presents, which answers with the matched
- * token's fingerprint, or null for a missing or wrong token.
- */
 export interface TCPPeer {
   readonly verifyHandshake: (presented: string | null) => Promise<string | null>;
 

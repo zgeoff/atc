@@ -5,12 +5,6 @@ export interface Dims {
   readonly rows: number;
 }
 
-/**
- * Which clients are subscribed to which session's output, and the dims each
- * reported. A session's effective size is the smallest reported width and
- * height across its attached clients, so every attached terminal can render
- * the whole screen.
- */
 export class AttachRegistry<TClient> {
   private readonly bySession = new Map<SessionID, Map<TClient, Dims>>();
 
@@ -82,6 +76,7 @@ export class AttachRegistry<TClient> {
     let cols = Number.POSITIVE_INFINITY;
     let rows = Number.POSITIVE_INFINITY;
 
+    // the smallest across clients, so every attached terminal can render the whole screen
     for (const dims of clients.values()) {
       cols = Math.min(cols, dims.cols);
       rows = Math.min(rows, dims.rows);

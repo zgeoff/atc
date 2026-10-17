@@ -3,19 +3,13 @@ import { buildTargetIdentity } from '@atc/store';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { TargetAccess } from './target-access';
 
-/**
- * The targets a principal may use. With no principals in the config, every
- * principal gets the implicit `local` target alone: the name `local` with
- * the identity of a `local-pty` target without options, so a `local` that
- * now holds another provider or other options is outside it. With
- * principals, a principal gets each target its entry lists that the config
- * holds, at that target's identity now, and an unknown principal gets none.
- */
 export function buildTargetAccess(
   principals: ReadonlyMap<string, readonly string[]> | null,
   targets: ReadonlyMap<string, ExecutionTarget>,
   principal: string,
 ): TargetAccess {
+  // the implicit grant pins the identity of a `local-pty` target without
+  // options, so a `local` configured with another provider or options is out
   if (principals === null) {
     return new TargetAccess([
       {

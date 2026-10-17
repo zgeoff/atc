@@ -5,14 +5,8 @@ import { findParentPID } from './find-parent-pid';
 // could form never loops forever.
 const MAX_DEPTH = 1024;
 
-/**
- * The session whose harness process is the peer process or one of its
- * ancestors, found by walking the peer's parent chain up to a harness
- * process the daemon started; null for a process outside every session.
- * The nearest harness wins, so a process inside a sub-session is that
- * sub-session's. A process that leaves the chain, such as one that forks
- * twice and lets its parent exit, is found in no session.
- */
+// a process that leaves the parent chain, such as one that forks twice and lets its parent
+// exit, is found in no session
 export function findPeerSession(
   pid: number,
   harnesses: ReadonlyMap<number, SessionID>,

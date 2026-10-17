@@ -34,16 +34,6 @@ interface PathSourceRefusal {
   readonly message: string;
 }
 
-/**
- * Turns a local checkout into the repository URL and commit another host
- * can clone, so a workspace never carries files that exist only here. The
- * commit is HEAD, and it must already be on origin: a remote-tracking ref
- * under origin contains it, or origin advertises it as a ref tip. A tree
- * with uncommitted or untracked changes resolves to HEAD and leaves those
- * changes behind, with a warning that counts them; `allowDirty: 'refuse'`
- * refuses it instead. The changes are never copied.
- * Submodules are refused. The URL is origin's, with any credential stripped.
- */
 export async function resolvePathSource(
   path: string,
   options: PathSourceOptions,
@@ -146,30 +136,18 @@ export async function resolvePathSource(
   };
 }
 
-/**
- * Whether a recursive tree listing holds a gitlink or a `.gitmodules` file at
- * its root. A workspace clone never initializes submodules, so either would
- * ship an incomplete tree.
- */
+// a workspace clone never initializes submodules, so either would ship an incomplete tree
 function hasSubmodules(listing: string): boolean {
   return listing
     .split('\n')
     .some((line) => line.startsWith('160000 ') || line.endsWith('\t.gitmodules'));
 }
 
-/**
- * How many paths a porcelain status listing holds. Only the count leaves
- * this module: a path's name can itself be sensitive.
- */
+// only the count leaves this module: a path's name can itself be sensitive
 function countChangedPaths(porcelain: string): number {
   return porcelain.split('\n').filter((line) => line.trim() !== '').length;
 }
 
-/**
- * Whether origin already has the commit. A local remote-tracking ref proves
- * it without network access; failing that, origin's advertised ref tips are
- * checked, which catches a push whose tracking ref was never fetched.
- */
 async function isOnOrigin(
   root: string,
   sha: string,

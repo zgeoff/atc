@@ -8,15 +8,7 @@ import type {
 } from '@atc/plugin-api';
 import { CredentialBrokerError } from '@atc/plugin-api';
 
-/**
- * An in-memory credential broker that keeps the broker contract's
- * guarantees: each host it creates gets an id no later host shares, a
- * grant removal the host no longer holds resolves false, and a destroy of
- * a missing host resolves. It enforces no authority itself, so the
- * caller's own checks decide what may run. A test prepares it as an
- * operator prepares a broker, through the setters, and reads `calls` for
- * every contract call in order.
- */
+// enforces no authority itself, so the caller's own checks decide what may run
 interface StubCredentialBroker extends CredentialBroker {
   readonly calls: string[];
   readonly setFeatures: (features: Partial<BrokerFeatures>) => void;

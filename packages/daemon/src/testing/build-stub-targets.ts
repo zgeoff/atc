@@ -18,16 +18,6 @@ interface StubTargetsConfig {
   readonly hosts?: Readonly<Record<string, HostOverride>>;
 }
 
-/**
- * The daemon's execution targets for configured target entries, as the
- * config load or the targets section parse gives them, in their order:
- * each `local-pty` entry runs its harnesses in memory through the
- * in-memory provider under the `local-pty` kind, which appends the entry's
- * id to `spawned` on every spawn and takes the host operations `hosts`
- * gives it, and an entry of any other kind has no provider, as a provider
- * this daemon lacks leaves it. Each target's identity is the real one for
- * its kind and options.
- */
 export function buildStubTargets(
   targets: readonly TargetConfig[],
 

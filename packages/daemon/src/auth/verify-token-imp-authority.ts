@@ -2,17 +2,6 @@ import type { BrokerIdentity } from '@atc/plugin-api';
 import { isHostNameAllowed } from '@atc/plugin-api';
 import { BrokerAuthorityError } from './broker-authority-error';
 
-/**
- * Rejects unless the token may manage every named imp and reaches no imp
- * outside atc's namespace: scope `manage`, imp patterns rather than none,
- * and each pattern contained in the namespace prefix, so the literal text
- * before its first `*`, or the whole pattern when it has none, starts with
- * the prefix. A token with any pattern beyond the prefix is refused
- * outright, however few names that pattern reaches, never used in place of
- * a contained one. Each name must then match a pattern. The prefix is the
- * literal start of every imp name the target's runtime namespace builds,
- * and the names are the imps the call touches under those built names.
- */
 export function verifyTokenImpAuthority(
   identity: BrokerIdentity,
   impNames: readonly string[],
@@ -33,6 +22,8 @@ export function verifyTokenImpAuthority(
 
   const patterns = identity.hosts;
 
+  // any pattern beyond the prefix refuses the token outright, however few names
+  // it reaches; a contained pattern never stands in for it
   if (patterns === null || !patterns.every((pattern) => isPatternContained(pattern, impPrefix))) {
     throw new BrokerAuthorityError(
       'auth_token_too_broad',

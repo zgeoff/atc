@@ -5,14 +5,6 @@ interface RemoteRefMatch {
   readonly branch: string | null;
 }
 
-/**
- * Finds the commit a ref points at among the refs an upstream lists, keyed
- * by full ref name with each annotated tag's peeled `^{}` entry beside it.
- * A bare name matches a branch before a same-named tag, a `refs/heads/` or
- * `refs/tags/` name matches only that kind, and an annotated tag resolves
- * to the commit it points at. Null when the upstream has no such branch or
- * tag.
- */
 export function findRemoteRef(
   refs: ReadonlyMap<string, string>,
   ref: string,

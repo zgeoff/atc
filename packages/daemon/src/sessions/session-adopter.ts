@@ -61,11 +61,6 @@ interface HarnessRestart {
   readonly settled: Promise<void>;
 }
 
-/**
- * Revives a session into a terminal: a fresh harness resumes the same
- * agent session, and on a remote host the host wakes first, attaching a
- * harness it still runs and reviving every session left asleep beside it.
- */
 export class SessionAdopter {
   // Sessions whose revive waits on their host waking, so a second revive
   // of the same session does not start a second harness.
@@ -97,13 +92,8 @@ export class SessionAdopter {
     this.callbacks = deps.callbacks;
   }
 
-  /**
-   * Stops a session whose outdated harness waits on its kill before a
-   * restart, so the restart starts no fresh harness, and waits until the
-   * session is left stopped and written to the fleet. The session shows
-   * it stops meanwhile. Returns whether such a restart was waiting; a
-   * session with none is left as it is.
-   */
+  // resolves once the waiting restart leaves the session stopped and written
+  // to the fleet; false, touching nothing, when no restart waits
   async stopRestart(id: SessionID): Promise<boolean> {
     const restart = this.restarts.get(id);
 
@@ -141,12 +131,9 @@ export class SessionAdopter {
     }
   }
 
-  // Adopts a headless session back into a terminal: a fresh PTY resumes the
-  // same agent session id. On a remote host the host wakes first, and a
-  // harness still running inside it is attached rather than started again;
-  // every other session left asleep on that host comes back with it. The
-  // caller's check runs again after each await, and a failed check leaves
-  // the session as it was.
+  // a remote host wakes first, attaching a harness it still runs and
+  // reviving every session asleep beside it; the caller's check runs again
+  // after each await, and a failed check leaves the session as it was
   async adoptTerminal(
     id: SessionID,
     cols: number,
@@ -258,10 +245,9 @@ export class SessionAdopter {
         return null;
       }
 
-      // A local agent that takes its messages through a bridge in the
-      // daemon starts the bridge first, on the thread the session resumes,
-      // and its terminal starts against it. A change that lands while the
-      // bridge starts stops it again.
+      // the bridge starts first, on the thread the session resumes, so the
+      // terminal starts against it; a change that lands while it starts
+      // stops it again
       if (!provider.remote) {
         const bridged = await this.callbacks.startMessageBridge({
           adapter,
@@ -413,11 +399,9 @@ export class SessionAdopter {
     return pty;
   }
 
-  // Ends a harness the host still ran from before a rebind, since it keeps
-  // the guest settings of the revision it launched under, and starts a
-  // fresh one that resumes the same agent session under the plan's
-  // revision. The host counts as readying throughout, so it is never idle
-  // between the two, and no other revive of the session starts meanwhile.
+  // a harness from before a rebind keeps the guest settings it launched
+  // under; the host counts as readying throughout, so it is never idle
+  // between the two harnesses and no other revive of the session starts
   private async restartOutdatedHarness(
     s: Session,
     outdated: HarnessHandle,
@@ -435,10 +419,9 @@ export class SessionAdopter {
     }
   }
 
-  // A kill whose exit atc cannot confirm blocks the session's revives
-  // until the process is gone. A kill, a stop, a rollback, or a change that
-  // takes the session out of the caller's reach while the kill waits starts
-  // nothing.
+  // a kill whose exit atc cannot confirm blocks revives until the process
+  // is gone; a stop, a rollback, or a change out of the caller's reach
+  // while the kill waits starts nothing
   private async restartHarnessOnHost(
     s: Session,
     outdated: HarnessHandle,
@@ -470,10 +453,9 @@ export class SessionAdopter {
         return this.startHarness(s, launch);
       }
     } finally {
-      // Every path that starts no harness, a kill that throws included,
-      // leaves the session stopped, as a deliberate kill does, and writes
-      // that to the fleet before the adopt answers, so a restore after a
-      // daemon restart does not revive it.
+      // every path that starts no harness, a throwing kill included, writes
+      // the session stopped to the fleet before the adopt answers, so a
+      // restore after a daemon restart does not revive it
       try {
         if (s.pty === null) {
           s.state = 'exited';
@@ -506,10 +488,8 @@ export class SessionAdopter {
   }
 }
 
-// Whether the process a revive attached to launched under an older runtime
-// auth revision than the one the revive launches under: the revision the
-// session recorded at its latest launch, or else the one its host held
-// before the revive.
+// the held revision is the host's from before the revive, used when the
+// session recorded none at its latest launch
 function isLaunchOutdated(s: Session, revision: number, heldRevision: number | null): boolean {
   return (s.authRevision ?? heldRevision ?? revision) < revision;
 }

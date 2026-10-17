@@ -1,10 +1,5 @@
 import type { ListenOptions } from './listen-options';
 
-/**
- * The refused start for a TCP listener whose bind failed, holding the
- * address and the bind error's code, such as EADDRINUSE for a port another
- * socket holds.
- */
 export function buildBindRefusal(
   listen: Pick<ListenOptions, 'host' | 'port'>,
   error: unknown,

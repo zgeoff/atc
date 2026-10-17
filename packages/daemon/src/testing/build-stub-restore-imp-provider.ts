@@ -35,16 +35,6 @@ export interface StubRestoreImpProvider extends StubMemoryProvider {
   readonly stopPrepareHold: () => void;
 }
 
-/**
- * An in-memory provider that answers the daemon as the imp provider does
- * across a restore: kind `imp`, remote, with the imp's capabilities and
- * guest layout. A host check resolves whether the host key's imp exists. A
- * prepare waits out a hold, then rejects with the imp provider's own
- * `host_unavailable` refusal when a lease refusal is due, and otherwise
- * creates the host key's imp when none exists and resolves. A refused
- * prepare leaves no imp behind, as the imp provider destroys an imp its
- * failed prepare created.
- */
 export function buildStubRestoreImpProvider(
   config: StubRestoreImpProviderConfig = {},
 ): StubRestoreImpProvider {
@@ -75,6 +65,9 @@ export function buildStubRestoreImpProvider(
 
       if (code !== null) {
         refusal = null;
+
+        // a refused prepare leaves no imp behind, as the imp provider destroys an imp
+        // its failed prepare created
 
         throw new DaemonError(
           'host_unavailable',

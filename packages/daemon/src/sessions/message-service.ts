@@ -70,13 +70,8 @@ interface MessageServiceDeps {
 
 type MessageView = NonNullable<Awaited<ReturnType<DaemonContext['readMessage']>>>;
 
-/**
- * The messages sessions send one another: writes them, hands each to its
- * session's inbox tap, notes every status change in the trail before it is
- * broadcast, and hands the sender session the answer notice once the
- * message settles. A keyed send writes at most once per key, and a retry
- * answers with the message's current status.
- */
+// every status change lands in the trail before it is broadcast; a keyed send writes at most
+// once per key, and a retry answers with the message's current status
 export class MessageService {
   private readonly mgr: MessageServiceDeps['mgr'];
 
@@ -177,12 +172,8 @@ export class MessageService {
     );
   }
 
-  // Notes the answer notice that the statement settling a message queued,
-  // and hands it to the sender session's tap when one takes notices. The
-  // store queues each message's notice once, in the settling statement, so
-  // a stop after that statement keeps the notice queued and a repeated
-  // report queues nothing more. A sender with no tap keeps the notice
-  // queued until its next tap attaches.
+  // the store queues each notice once, in the settling statement, so a stop after it keeps the
+  // notice queued and a repeated report queues nothing; a sender with no tap gets it on attach
   async recordAnswerNotice(record: MessageRecord): Promise<void> {
     if (record.senderSession === undefined || record.noticeQueuedAt === undefined) {
       return;
@@ -234,10 +225,8 @@ export class MessageService {
     }
   }
 
-  // Under an access, a session whose tree leaves the access before the
-  // message is written refuses it as an unknown session does. A refusal
-  // in a keyed send's start throws, so the claim drops and a retry runs
-  // fresh.
+  // under an access, a session whose tree leaves it before the write refuses as an unknown one
+  // does; a refusal in a keyed send's start throws, so the claim drops and a retry runs fresh
   async writeSessionMessage(
     sessionID: SessionID,
     caller: MessageCaller,
@@ -314,10 +303,8 @@ export class MessageService {
     }
   }
 
-  // Every message status change writes a trail entry and wakes the signal,
-  // so a wake reads the message again and returns once its status moved
-  // from the status at call time. An answered or unanswered message has no
-  // further status to wait for.
+  // every status change wakes the signal, so a wake rereads the message and returns once its
+  // status moved from the one at call time; answered and unanswered are final
   async readMessage(messageID: MessageID, waitMs: number): Promise<MessageView | null> {
     const deadline = this.clock.now() + waitMs;
     let initialStatus: MessageStatus | null = null;
@@ -413,11 +400,9 @@ export class MessageService {
     if (delivered !== null) {
       await this.recordMessageStatus(sessionID, delivered);
 
-      // A tap can outlive its process for a moment, so an ack can land
-      // after the process ended and after its end marked the messages it
-      // held. A process is surely gone when its exit was seen, or when a
-      // local session has no terminal; a remote host that lost the
-      // connection or went to sleep may still run it.
+      // a tap can outlive its process, so an ack can land after the end marked its messages; a
+      // process is surely gone once its exit was seen or a local session has no terminal, while a
+      // remote host that lost the connection or went to sleep may still run it
       const live = s.pty !== null || (s.kind === 'headless' && s.state !== 'exited');
 
       if (!live && (this.isProcessEnded(s.id) || this.mgr.isLocalTarget(s.target))) {
@@ -496,10 +481,8 @@ export class MessageService {
     return null;
   }
 
-  // The session that takes a message's answer notice: the session the
-  // caller runs inside, when it takes messages and, under an access, its
-  // whole tree is in reach. Any other caller gets no notice and reads the
-  // answer with message.get.
+  // a caller outside a session that takes messages, or whose tree is out of reach, gets no
+  // notice and reads the answer with message.get
   private findNoticeSender(
     callerSession: SessionID | null,
     access: TargetAccess | null,
@@ -521,12 +504,8 @@ export class MessageService {
     return s.id;
   }
 
-  // Writes the message under the id given, notes it in the trail, and hands
-  // it to the session's tap when one is attached. Only the write itself can
-  // reject: every later step swallows its own failure, so a rejection means
-  // no message was written. The caller's check runs again once the writes
-  // ahead of this one land, before anything is written; a failed check
-  // writes nothing.
+  // only the write itself can reject: every later step swallows its own failure, so a rejection
+  // means nothing was written; the caller's check runs again once earlier writes land
   private async writeQueuedMessage(
     sessionID: SessionID,
     caller: MessageCaller,

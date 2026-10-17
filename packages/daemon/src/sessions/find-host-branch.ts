@@ -1,11 +1,6 @@
 import type { ExecutionProvider } from '@atc/plugin-api';
 import { runHostGit } from '../workspace/run-host-git';
 
-/**
- * The branch a directory on a session's host has checked out; null for a
- * detached checkout, a directory outside git, or a remote host that runs
- * no commands.
- */
 export async function findHostBranch(
   provider: ExecutionProvider,
   host: string,

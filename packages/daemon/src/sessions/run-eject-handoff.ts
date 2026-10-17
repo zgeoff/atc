@@ -2,10 +2,6 @@ import { systemClock } from '@atc/core';
 import type { SessionID } from '@atc/core';
 import type { SessionRuntime } from './session-runtime';
 
-/**
- * Starts a timer that runs `onTimeout` after `ms` milliseconds, returning
- * what cancels it.
- */
 export type SettleScheduler = (onTimeout: () => void, ms: number) => () => void;
 
 interface EjectHandoffParams {
@@ -19,12 +15,6 @@ interface EjectHandoffParams {
   readonly scheduleSettle?: SettleScheduler | undefined;
 }
 
-/**
- * Waits for the ejected terminal's final report (or a settle timeout,
- * whichever comes first) before starting the headless turn — resuming an
- * agent session while its old process is still shutting down corrupts the
- * handoff.
- */
 export function runEjectHandoff(params: EjectHandoffParams): void {
   const settled = Promise.withResolvers<void>();
   const scheduleSettle = params.scheduleSettle ?? systemClock.schedule;
@@ -33,6 +23,8 @@ export function runEjectHandoff(params: EjectHandoffParams): void {
   params.runtime.pendingEject = settled.resolve;
 
   void (async () => {
+    // resuming an agent session while its old process still shuts down corrupts the handoff, so
+    // the turn waits for the final report or the settle timeout
     await settled.promise;
 
     cancelSettle();

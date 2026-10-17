@@ -19,11 +19,6 @@ const INBOX_NOTICE_SCHEMA = z.looseObject({
   reason: z.string().optional(),
 });
 
-/**
- * The tap client that hands a bridge in the daemon its session's inbox
- * events: each InboxMessage as a message, each InboxNotice as a notice, and
- * InboxClosed as the close of the tap. Any other event is dropped.
- */
 export function buildBridgeTapClient(tap: MessageBridgeTap): TapClient {
   return {
     sendEvent: (event: EventMsg) => {

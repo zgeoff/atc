@@ -8,17 +8,6 @@ interface RecordedImp {
   readonly id: string;
 }
 
-/**
- * The check before atc destroys a session's imp or revokes its grants.
- * It asks that the token may manage the recorded imp, under imp patterns
- * that stay inside the namespace whose imp names start with the prefix,
- * and that the imp under that
- * name is still the one recorded. It never asks that a secret's rules
- * still match or that every grant is still in place, so a rotated, rebound
- * or deleted secret never stops atc removing access. Resolves to the imp,
- * or to null when impd confirms no imp holds the name, which needs no
- * cleanup; an imp with another id rejects.
- */
 export async function verifyCleanupAuthority(
   broker: Pick<CredentialBroker, 'hostPrefix' | 'readIdentity' | 'readHost'>,
   recorded: RecordedImp,

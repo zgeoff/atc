@@ -1,11 +1,6 @@
 import type { SessionID } from '@atc/core';
 import { EffectRemainsError } from '@atc/plugin-api';
 
-/**
- * The steps of a spawn, in the order a spawn runs them. A spawn skips the
- * steps it does not need, such as `workspace` for a directory that runs as
- * it stands.
- */
 export type SpawnStepName =
   | 'claim'
   | 'host'
@@ -21,21 +16,17 @@ export type SpawnStepName =
   | 'auth-ready'
   | 'answer';
 
-/**
- * Runs one step of a spawn and resolves with what it returned. The undo,
- * when given, takes back what the step did; it gets the step's result and
- * the failure that ended the spawn. A step that fails takes back its own
- * partial work before it throws, so only the steps before it are undone.
- * `runNow` runs a synchronous step in the caller's turn and returns its
- * result, so steps that must not let a microtask in between, such as
- * starting a harness and booting its session, follow one another at once.
- */
+// a step that fails takes back its own partial work before it throws: only
+// the steps before it are undone
 export interface SpawnSteps {
   readonly run: <T>(
     name: SpawnStepName,
     run: () => Promise<T> | T,
     undo?: (result: T, failure: unknown) => Promise<void> | void,
   ) => Promise<T>;
+
+  // runs in the caller's turn, so steps that must not let a microtask in
+  // between (starting a harness and booting its session) follow at once
   readonly runNow: <T>(
     name: SpawnStepName,
     run: () => T,
@@ -43,23 +34,11 @@ export interface SpawnSteps {
   ) => T;
 }
 
-/**
- * Runs a spawn's body over its steps; the spawner takes the runner as a
- * dependency, so a test can fail any step.
- */
 export type SpawnStepRunner = <T>(
   id: SessionID,
   body: (steps: SpawnSteps) => Promise<T>,
 ) => Promise<T>;
 
-/**
- * Runs a spawn as a list of steps, each with its undo. When the body
- * throws, the undo of each step that finished runs, last step first, and
- * the body's failure is thrown again. An undo that throws stops the unwind
- * there, so what the steps before it did stays, and throws an
- * `EffectRemainsError` with the undo's failure as its cause: the spawn's
- * effects may still stand.
- */
 export async function runSpawnSteps<T>(
   id: SessionID,
   body: (steps: SpawnSteps) => Promise<T>,

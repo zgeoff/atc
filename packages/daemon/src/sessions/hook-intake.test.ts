@@ -31,10 +31,6 @@ interface SetupTestConfig {
   readonly hooks: Readonly<Record<string, readonly Readonly<AdapterEvent>[]>>;
 }
 
-// A session manager on one `local` target over the in-memory provider with
-// the stub harness as its one agent, a real state store, the message
-// service, and the intake over them; each session the manager announces
-// gets the runtime the daemon gives it.
 async function setupTest(config: SetupTestConfig) {
   const tmp = setupTempDir('atc-hook-intake-');
   const dbPath = join(tmp.dir, 'state.db');

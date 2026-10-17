@@ -14,13 +14,6 @@ interface PermissionPromptsDeps {
   readonly findHookScope: (sessionID: SessionID) => HookScope | null;
 }
 
-/**
- * Opens a permission request each time a session enters `needs_you`, and
- * dismisses what is pending when the session leaves it, answered in its
- * terminal or ended, or is removed. Each open and each answer goes out as
- * an event. The previous state of each session is kept only to see that
- * transition.
- */
 export class PermissionPrompts {
   private readonly registry: PermissionRegistry;
 

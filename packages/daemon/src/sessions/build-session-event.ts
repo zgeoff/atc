@@ -6,12 +6,6 @@ import type { Session } from './session';
 import type { SessionEventKind } from './session-event-kind';
 import type { SessionManager } from './sessions';
 
-/**
- * Builds the wire event for a session-manager notification, or null when the
- * notification carries no descriptor to send: `added` and `state` fold in
- * the current descriptor and skip emitting if the session is gone by the
- * time the descriptor is collected.
- */
 export function buildSessionEvent(
   mgr: SessionManager,
   kind: SessionEventKind,

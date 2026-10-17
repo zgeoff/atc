@@ -1,10 +1,6 @@
 import { formatLogField } from '../format-log-field';
 
-// Why the TCP listener refused a handshake: a missing token, a wrong one, a
-// handshake that would wait while the cap of delayed handshakes is full, a
-// socket that closed while its handshake waited, a line other than one
-// handshake before the handshake passed, or a line over the size cap
-// before it passed.
+// Why the TCP listener refused a handshake, each before the handshake passed.
 type HandshakeRefusalReason =
   | 'missing_token'
   | 'unauthorized'
@@ -47,18 +43,8 @@ interface RefusalWindow {
 // The line of the window that counts refusals past the cap of windows.
 const OVERFLOW_LINE = 'atc tcp event=refused peer=overflow';
 
-/**
- * Logs TCP listener refusals as `key=value` lines, at most one per window
- * for each peer and kind of refusal: a handshake refusal per reason, and a
- * principal refusal, which never holds the principal it gave. The first
- * refusal of a window logs at once with `count=1`; later ones in the window
- * are counted, and a line with their `count` follows once the window ends,
- * so the counts of every line sum to every refusal. While the cap of
- * windows is full, a refusal that would start a new window counts toward
- * one overflow window with `peer=overflow` instead, so a flood across many
- * peers logs no more lines than the cap allows. Ended windows are logged on
- * the next refusal from any peer and on a drain.
- */
+// one line per peer and kind of refusal per window, so a flood across many peers logs no
+// more lines than the cap of windows allows; the counts of every line sum to every refusal
 export class RefusalLog {
   private readonly opts: RefusalLogOptions;
 
@@ -95,9 +81,6 @@ export class RefusalLog {
     this.opts.log(`${line} count=1`);
   }
 
-  /**
-   * Logs the pending count of every window and forgets them all.
-   */
   drain(): void {
     for (const [line, window] of this.windows) {
       this.logPending(line, window);

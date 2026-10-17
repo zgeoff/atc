@@ -29,17 +29,12 @@ interface RefusedTCPHello {
   readonly message: string;
 }
 
-/**
- * Checks a TCP handshake in order: the bearer token the listener holds
- * first, so a peer without one learns nothing about the daemon, then the
- * handshake's fields, a principal the config lists, and the protocol
- * version. A refused principal is recorded with the listener; the
- * principal itself is never logged.
- */
 export async function checkTCPHello(
   req: RequestMsg,
   checks: TCPHelloChecks,
 ): Promise<AcceptedTCPHello | RefusedTCPHello> {
+  // the token is checked before anything else, so a peer without one learns nothing about
+  // the daemon
   const fingerprint = await checks.tcp.verifyHandshake(findBearerToken(req.p));
 
   if (fingerprint === null) {

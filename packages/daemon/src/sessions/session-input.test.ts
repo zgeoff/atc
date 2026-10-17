@@ -21,10 +21,6 @@ interface SetupTestConfig {
   readonly adapter: AgentAdapter;
 }
 
-// A session manager on one `local` target over the in-memory provider, a
-// real state store, and the input module over them; each session the
-// manager announces gets the runtime the daemon gives it, and a screen
-// that takes its output once its terminal boots.
 async function setupTest(config: SetupTestConfig) {
   const tmp = setupTempDir('atc-session-input-');
   const dbPath = join(tmp.dir, 'state.db');

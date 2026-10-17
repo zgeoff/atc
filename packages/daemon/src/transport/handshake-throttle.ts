@@ -3,12 +3,8 @@
 const FAILURE_WINDOW_MS = 60_000;
 const FAILURE_LIMIT = 5;
 
-/**
- * Failed TCP handshakes per source address. Once an address has failed
- * five times within a minute, its next handshake waits the configured
- * delay before the daemon checks it, which slows a token guesser without
- * locking out a peer that recovers.
- */
+// a delay rather than a lockout slows a token guesser without locking out a peer that
+// recovers
 export class HandshakeThrottle {
   private readonly delayMs: number;
 
@@ -26,9 +22,6 @@ export class HandshakeThrottle {
     this.failures.set(address, recent);
   }
 
-  /**
-   * How long the next handshake from the address waits, in milliseconds.
-   */
   getDelay(address: string, now: number): number {
     const recent = this.collectRecent(address, now);
 

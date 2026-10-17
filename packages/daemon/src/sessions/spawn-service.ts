@@ -58,13 +58,6 @@ interface SpawnServiceDeps {
   readonly homeDir?: string;
 }
 
-/**
- * Spawns the sessions clients ask for. A spawn with a workspace source
- * materializes it once every refusal has passed and its host is ready, and
- * the session registers only once its workspace is ready, so no session
- * ever lists over a half-built checkout. A keyed spawn runs at most once
- * per key, and a retry answers as the first spawn did.
- */
 export class SpawnService {
   private readonly mgr: SpawnServiceDeps['mgr'];
 
@@ -100,10 +93,6 @@ export class SpawnService {
     this.replay = new SpawnReplay({ mgr: deps.mgr, store: deps.store });
   }
 
-  // Runs the plan, which throws the refusal for a spawn it refuses, then
-  // spawns. Under an access, a spawn under a parent whose tree leaves the
-  // access before the harness starts is refused as a spawn under an
-  // unknown parent.
   spawnSession(
     plan: () => SpawnParams,
     keyed: KeyedRequest | null,
@@ -276,10 +265,8 @@ export class SpawnService {
     );
   }
 
-  // The answer is built as the spawn's last step, so a failure there takes
-  // the spawn back like any other step's. A spawned session writes the
-  // last-used agent once it reports its start, and its directory joins the
-  // spawn history at once.
+  // the answer is built as the spawn's last step, so a failure there takes
+  // the spawn back like any other step's
   private async startSpawnedSession(
     p: SpawnParams,
     id: SessionID,

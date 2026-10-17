@@ -14,14 +14,6 @@ interface ViewUpdate {
 
 type ViewContext = Pick<DaemonContext, 'findSessionGrant' | 'canSeeSession' | 'collectSessions'>;
 
-/**
- * What a connection limited to an access sees of the fleet: the sessions in
- * its view, the sessions the daemon holds that the view leaves out, and
- * the permission requests it was shown, so the events that end them reach
- * it after the session is gone. A session whose tree moves out of reach
- * leaves the view as a removed session does, and one whose tree comes back
- * into reach joins it as an added session does.
- */
 export class ConnectionView {
   private readonly ctx: ViewContext;
 
@@ -47,10 +39,8 @@ export class ConnectionView {
     }
   }
 
-  // Brings the view up to date for an event and returns what the
-  // connection is sent for it, and the sessions that left the view. The
-  // event itself reaches the connection when its session is in the view,
-  // or is gone from the daemon after the connection was shown it.
+  // The event itself reaches the connection when its session is in the view, or is gone
+  // from the daemon after the connection was shown it.
   updateView(event: EventMsg, access: TargetAccess): ViewUpdate {
     const sessionID = findEventSession(event);
     const request = typeof event['request'] === 'string' ? event['request'] : null;

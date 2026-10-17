@@ -24,10 +24,6 @@ interface SetupTestConfig {
   readonly takesMessages: boolean;
 }
 
-// A session manager on one `local` target over the in-memory provider with
-// the stub harness as its one agent, a real state store, a stub clock, and
-// the service over them; each session the manager announces gets the
-// runtime the daemon gives it.
 async function setupTest(config: SetupTestConfig) {
   const tmp = setupTempDir('atc-message-service-');
   const dbPath = join(tmp.dir, 'state.db');

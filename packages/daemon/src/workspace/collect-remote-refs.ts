@@ -34,16 +34,7 @@ interface RemoteRefRefusal {
 // waiting on it no longer than this.
 const REMOTE_TIMEOUT_MS = 20_000;
 
-/**
- * Lists an upstream's branches and tags and the branch its HEAD points at,
- * through one `git ls-remote` that authenticates exactly as a clone of the
- * same URL does: through the host's git config, or through a private
- * askpass helper for an env credential. git never prompts. A listing git
- * cannot read is refused as `clone_failed` with git's own message, and so
- * is one that takes longer than the time limit, 20 s unless given. git
- * fetches only over `transports`. `onSpawn` is called with the pid of the
- * listing's git as it starts.
- */
+// authenticates exactly as a clone of the same URL does
 export async function collectRemoteRefs(
   url: string,
   credential: GitCredential | undefined,

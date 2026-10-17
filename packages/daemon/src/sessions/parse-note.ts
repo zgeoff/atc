@@ -66,10 +66,6 @@ const REPORT_SCHEMA = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('note'), label: z.string().min(1).max(64), text: z.string().min(1) }),
 ]);
 
-/**
- * Parses a Note envelope's payload into the note its kind discriminates,
- * or null when it matches no known kind.
- */
 export function parseNote(payload: Readonly<Record<string, unknown>>): Note | null {
   const parsed = REPORT_SCHEMA.safeParse(payload);
 

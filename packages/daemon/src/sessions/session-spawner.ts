@@ -29,18 +29,15 @@ interface MaterializedSpawn {
   readonly withheldEnv: readonly string[];
 }
 
-// Builds a spawn's workspace on a target bound to an identity, calling
-// readyHost for the host it lands on once its source resolves and asking
-// canRemoveClaim before a failure removes the directory it claimed, or
-// resolves to null for a directory that runs as it stands. readyHost takes
-// the attempt the directory is for: the first is the spawn's directory, and
-// attempt n is that directory with `-n` appended.
+// resolves to null for a directory that runs as it stands
 export type SpawnMaterializer = (
   host: SpawnHostAccess,
   targetIdentity: string,
 ) => Promise<MaterializedSpawn | null>;
 
 export interface SpawnHostAccess {
+  // called once the source resolves; attempt 1 is the spawn's directory, and
+  // attempt n is that directory with `-n` appended
   readonly readyHost: (
     attempt: number,
   ) => Promise<{ readonly host: SessionID; readonly dir: string }>;
@@ -149,13 +146,6 @@ interface SpawnWorkspaceState {
   readonly isChecked: () => boolean;
 }
 
-/**
- * Starts a new session: it checks every refusal before anything starts,
- * then runs the spawn as a list of steps, each with its undo: it claims the
- * session's directory on its host, readies the host and builds the
- * workspace there, publishes the session's record, and starts the harness.
- * A step that fails unwinds the steps before it, last step first.
- */
 export class SessionSpawner {
   private readonly registry: SessionSpawnerDeps['registry'];
 
@@ -184,17 +174,9 @@ export class SessionSpawner {
     this.runSteps = deps.runSteps ?? runSpawnSteps;
   }
 
-  // resume: true opens the agent's own session picker; an agent session id
-  // resumes that specific session (fleet restore). parent makes the new
-  // session a sub-session of that one. overrides hold the model and effort
-  // the new process runs with, and the session keeps them for every revive.
-  // id is minted here unless the caller minted it ahead of the spawn. target
-  // is the execution target the harness runs on; one this daemon cannot use
-  // refuses the spawn before anything starts. materialize builds cwd on the
-  // host once every refusal has passed and the host is ready, and returns
-  // what cwd was materialized from, when it was, and the variables the
-  // session's harnesses go without; a failure there takes back the host the
-  // spawn readied, unless it is a parent's.
+  // resume: true opens the agent's session picker, an id resumes that session;
+  // the session keeps overrides for every revive; a materialize failure takes
+  // back the host the spawn readied, unless it is a parent's
   async spawn(
     cwd: string,
     name: string,
@@ -300,11 +282,6 @@ export class SessionSpawner {
     }
   }
 
-  // The spawn's steps, in order: claim the directory, ready the host, build
-  // the workspace and check and trust it, publish the record, start the
-  // message bridge and the harness, list the session, wait for the harness
-  // to start, and build the caller's answer. Each step that leaves
-  // something behind gives its undo.
   private async runSpawn(steps: SpawnSteps, spawn: Readonly<SpawnRequest>): Promise<Session> {
     const adapter = spawn.adapter;
     const provider = spawn.provider;
@@ -325,10 +302,9 @@ export class SessionSpawner {
             targetIdentity: spawn.execution.identity,
           };
 
-    // A directory the daemon picked is checked and reserved on the host
-    // once per attempt, so a held one moves the spawn to the next attempt
-    // instead of refusing it. A failure whose effects may still stand keeps
-    // the reservation, so no other workspace lands in or around them.
+    // a directory the daemon picked is reserved once per attempt, so a held
+    // one moves the spawn to the next attempt; a failure whose effects may
+    // still stand keeps the reservation, so no workspace lands around them
     await steps.run(
       'claim',
       () => {
@@ -501,10 +477,8 @@ export class SessionSpawner {
       }),
     };
 
-    // The caller's check runs again once the host is ready, before the
-    // harness starts. A local agent that takes its messages through a bridge
-    // in the daemon starts the bridge first, and its terminal starts
-    // against it.
+    // the caller's check runs again once the host is ready, before the
+    // harness starts
     await steps.run('reach', spawn.requireInReach);
 
     const bridged = await steps.run(
@@ -533,11 +507,9 @@ export class SessionSpawner {
       initialMsg = spawn.resume === false ? 'started' : 'adopting…';
     }
 
-    // The session registers as soon as its harness starts, so the undo
-    // kills the harness and takes the session out of the list and the
-    // fleet. The session lists and boots in the same turn, since the
-    // harness's first output can arrive in the next microtask and is kept
-    // only once the session has booted.
+    // the session lists and boots in the same turn as the harness starts,
+    // since the harness's first output can arrive in the next microtask and
+    // is kept only once the session has booted
     const session = steps.runNow(
       'harness',
       () => {
@@ -607,10 +579,9 @@ export class SessionSpawner {
       this.callbacks.onBoot(session, spawn.cols, spawn.rows);
     });
 
-    // A start impd refuses throws here, after the session listed, and the
-    // unwind takes the session back with its binding. A shared host that
-    // nothing else runs on goes back to sleep first; a host of its own goes
-    // with the take-back.
+    // a start impd refuses throws here, after the session listed, and the
+    // unwind takes the session back; a shared host nothing else runs on
+    // sleeps first, and a host of its own goes with the take-back
     await steps.run('harness-start', () =>
       timer.withStep('harness-start', async () => {
         if (auth !== null && hostKey === id) {
@@ -650,12 +621,6 @@ export class SessionSpawner {
     return session;
   }
 
-  // Builds the spawn's workspace, setting its host up once the source
-  // resolves, and returns the directory it created, null for one that runs
-  // as it stands. The workspace's undo removes that directory. When the
-  // host's own undo takes the host back, the directory goes with it: the
-  // undo skips a workspace that passed its checks, and removes one that
-  // failed them without stopping the unwind when the removal fails.
   private async buildSpawnWorkspace(
     steps: SpawnSteps,
     spawn: Readonly<SpawnRequest>,
@@ -725,6 +690,9 @@ export class SessionSpawner {
           state.findAttemptID(),
         );
 
+        // when the host's undo takes the host back, the directory goes with
+        // it: a checked workspace is skipped, and a failed removal of an
+        // unchecked one does not stop the unwind
         if (built === null || root === null || (takesHost && state.isChecked())) {
           return;
         }
@@ -780,11 +748,8 @@ export class SessionSpawner {
     return null;
   }
 
-  // A sub-session runs on its parent's host when its resolved target, name
-  // and identity both, is the one its parent is bound to and that target's
-  // hosts have a lifecycle, so one host serves a top-level session and
-  // every sub-session beside it there; any other session has a host of its
-  // own.
+  // one host serves a top-level session and every sub-session bound to the
+  // same target name and identity, when that target's hosts have a lifecycle
   private pickHostKey(
     id: SessionID,
     parent: SessionID | null,

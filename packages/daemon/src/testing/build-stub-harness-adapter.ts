@@ -15,10 +15,6 @@ interface StubHarnessAdapterConfig {
   readonly takesMessages?: boolean;
 }
 
-/**
- * One hook line the adapter read: the line, and the state the daemon passed
- * back with it.
- */
 interface StubHookRead {
   readonly hook: HookEvent;
   readonly prev: unknown;
@@ -32,17 +28,6 @@ export interface StubHarnessAdapter extends AgentAdapter {
   readonly hookReads: StubHookRead[];
 }
 
-/**
- * An agent adapter for daemon tests on the in-memory provider: every spawn
- * plans the `stub-harness` binary with no arguments, which only an
- * in-memory host starts, and is recorded with its session. Each hook line
- * is recorded with the state the daemon passed back, and means the events
- * the config's table holds for its event name. The state it returns is the
- * count of lines the session's harness has reported since it booted, so a
- * test reads from `hookReads` which state the daemon kept for which
- * session. No name, no resume command, no headless runner, no screen
- * detector, and every optional member absent.
- */
 export function buildStubHarnessAdapter(config: StubHarnessAdapterConfig = {}): StubHarnessAdapter {
   const spawns: { opts: SpawnOptions; session?: SessionID }[] = [];
   const hookReads: StubHookRead[] = [];
@@ -60,6 +45,7 @@ export function buildStubHarnessAdapter(config: StubHarnessAdapterConfig = {}): 
 
       spawns.push(spawn);
 
+      // only an in-memory host starts this binary
       return { bin: 'stub-harness', args: [] };
     },
     planHookEvents: (hook, prev) => {
@@ -67,6 +53,9 @@ export function buildStubHarnessAdapter(config: StubHarnessAdapterConfig = {}): 
 
       return {
         events: hooks[hook.event] ?? [{ kind: 'heartbeat' }],
+
+        // the state counts the lines the harness reported since it booted, so a test
+        // can tell which state the daemon kept for which session
         next: (typeof prev === 'number' ? prev : 0) + 1,
       };
     },

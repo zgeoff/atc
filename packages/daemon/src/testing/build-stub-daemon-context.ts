@@ -2,16 +2,6 @@ import { toDaemonID } from '@atc/core';
 import { TargetAccess } from '../auth/target-access';
 import type { DaemonContext } from '../daemon-context';
 
-/**
- * The daemon a connection serves, for tests that drive one connection
- * without a daemon behind it: build `atc/test`, daemon id `d-1`, a 64 KiB
- * outbound queue, a day's idempotency retention, no sessions, `claude` as
- * the last agent used, an empty fleet, a principal that reaches no target,
- * every session bound to the `local` target and visible, and resyncs and
- * detaches that do nothing. Every other
- * member throws when called, naming itself, so a test that reaches one it
- * did not wire fails loudly. An override replaces the member it names.
- */
 export function buildStubDaemonContext(overrides: Partial<DaemonContext> = {}): DaemonContext {
   return {
     build: 'atc/test',

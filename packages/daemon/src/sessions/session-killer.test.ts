@@ -18,11 +18,8 @@ interface SetupConfig {
   readonly restarting?: readonly SessionID[];
 }
 
-// A killer over a real registry of the targets the test gives and a real
-// fleet writer on a migrated state store, with the daemon's callbacks as
-// recorders. The revives the config lists wait on the kill of an outdated
-// harness, and every stop of a revive is recorded. The daemon has no
-// runtime auth binder, so a forget destroys a host through its provider.
+// the revives the config lists wait on the kill of an outdated harness; with
+// no runtime auth binder, a forget destroys a host through its provider
 async function setupTest(config: SetupConfig) {
   const tmp = setupTempDir('atc-session-killer-');
   const dbPath = join(tmp.dir, 'state.db');

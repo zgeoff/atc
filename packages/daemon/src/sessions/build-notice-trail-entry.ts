@@ -2,13 +2,6 @@ import type { AgentSessionID, SessionID } from '@atc/core';
 import { truncateDetail } from '@atc/core';
 import type { MessageRecord, TrailEntry } from '@atc/store';
 
-/**
- * The trail entry for one change of a message's answer notice: queued for
- * the sender session, or taken by its tap. It is addressed to the sender
- * session and its agent session id, so the sender's own feed holds it, and
- * stamped with the change's own time. The detail previews the answer, else
- * the reason the message went unanswered.
- */
 export function buildNoticeTrailEntry(
   senderSession: SessionID,
   agentSessionID: AgentSessionID | undefined,
@@ -22,6 +15,8 @@ export function buildNoticeTrailEntry(
 
   return {
     at,
+
+    // addressed to the sender, so the sender's own feed holds it
     atcID: senderSession,
     agentSessionID: agentSessionID ?? null,
     kind,

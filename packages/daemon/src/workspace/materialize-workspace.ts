@@ -118,29 +118,6 @@ interface MaterializationProgress {
 // Moves a materialization's progress along as each step completes.
 type ProgressTracker = (update: Readonly<Partial<MaterializationProgress>>) => void;
 
-/**
- * Builds a spawn's working directory on its execution target as a clean
- * checkout of a pushed commit, through the target provider's generic
- * operations alone. The source resolves to a repository URL and a commit,
- * and the target directory is claimed with a `mkdir` that fails if it
- * exists. On a target that clones in its hosts, a git source is pinned to a
- * commit on the daemon and cloned, checked, and sanitized inside the host,
- * so no repository bytes cross the daemon's link; a clone the host cannot
- * make is logged and built the other way once. Otherwise the daemon clones
- * and sanitizes the commit on its own host and tars it, and the provider
- * unpacks the archive into the directory. Either way, a `git rev-parse
- * HEAD` the provider runs there must print the pinned commit. Each provider
- * call passes the execution gate first.
- *
- * Every phase is recorded before it starts, so a daemon that stops partway
- * leaves a row the next start fails as interrupted. A refusal fails the
- * row, removes a directory this call claimed, and throws a `DaemonError`
- * whose message and data never hold the credential.
- *
- * A path source on the daemon's own host that lies outside any git work
- * tree is not materialized: the session runs in it as it stands, and the
- * spawn's directory must be that path.
- */
 export async function materializeWorkspace(
   request: MaterializeRequest,
   deps: MaterializeDeps,
@@ -170,6 +147,8 @@ export async function materializeWorkspace(
     Object.assign(progress, update);
   };
 
+  // every phase is recorded before it starts, so a daemon that stops partway leaves a row the
+  // next start fails as interrupted
   await deps.store.createMaterialization(
     {
       sessionID: request.sessionID,
@@ -221,10 +200,9 @@ export async function materializeWorkspace(
   }
 }
 
-// The variables only the clone's git commands may see: a git source's
-// credential variable, and the askpass helper and secret variables the clone
-// hands its network commands. A harness inherits the daemon's environment,
-// so the session withholds these from every harness it starts.
+// a harness inherits the daemon's environment, so the session withholds from every harness
+// it starts the git source's credential variable and the askpass variables the clone hands
+// its network commands
 const ASKPASS_ENV = ['GIT_ASKPASS', 'ATC_GIT_ASKPASS_SECRET'];
 
 function buildWithheldEnv(source: SpawnWorkspaceSource): string[] {
@@ -233,10 +211,9 @@ function buildWithheldEnv(source: SpawnWorkspaceSource): string[] {
     : [...ASKPASS_ENV];
 }
 
-// Whether a path is a directory that no git work tree holds. Only git's own
-// answer that no repository holds it proves that: any other failure to
-// inspect the path, such as a broken config or a repository git does not
-// trust, refuses the spawn rather than run it in place unchecked.
+// only git's own answer that no repository holds the path proves it is outside one: any other
+// failure, such as a broken config or an untrusted repository, refuses the spawn rather than
+// run it in place unchecked
 async function isOutsideWorkTree(path: string): Promise<boolean> {
   const inside = await runGit(['rev-parse', '--is-inside-work-tree'], { cwd: path }).catch(
     requireStartFailure,
@@ -360,11 +337,6 @@ interface PinnedSource {
   readonly warnings: readonly string[];
 }
 
-/**
- * Turns a source into what the clone needs, refusing a source that is
- * not a pushed, complete, credential-free repository. A path source pins
- * its pushed HEAD; a git source keeps its ref, which the clone pins.
- */
 async function resolveSource(
   source: SpawnWorkspaceSource,
   staging: string,
@@ -425,12 +397,8 @@ async function resolveSource(
   };
 }
 
-/**
- * Refuses a checkout whose configured origin a rewrite expands into a URL
- * with a credential. A credential the origin itself holds is stripped when
- * the source resolves, so only the rewrite is checked here. A checkout with
- * no readable origin is left to resolution to refuse.
- */
+// a credential the origin itself holds is stripped when the source resolves, so only a
+// rewrite is checked here; a checkout with no readable origin is left to resolution to refuse
 async function requireNoOriginRewriteCredentials(path: string): Promise<void> {
   const origin = await runGit(['config', '--get', 'remote.origin.url'], { cwd: path }).catch(
     requireStartFailure,
@@ -455,19 +423,14 @@ async function requireNoURLCredentials(url: string, cwd: string): Promise<void> 
 // before it refuses.
 const AUTO_DIR_ATTEMPTS = 100;
 
-/**
- * Readies the host and claims the directory the workspace lands in. A
- * directory the daemon picked moves to the next attempt while the one
- * before exists or another workspace holds it, so repeated and concurrent
- * spawns of one repository land side by side; a directory the caller gave
- * is claimed once.
- */
 async function claimLanding(
   request: MaterializeRequest,
   deps: MaterializeDeps,
   updateProgress: ProgressTracker,
   timer: StepTimer,
 ): Promise<Landing> {
+  // a picked directory moves to the next attempt while it exists or another workspace holds
+  // it, so repeated and concurrent spawns of one repository land side by side
   const attempts = request.autoDir === true ? AUTO_DIR_ATTEMPTS : 1;
 
   for (let attempt = 1; ; attempt += 1) {
@@ -493,10 +456,8 @@ async function claimLanding(
   }
 }
 
-// Creates the parent, then the directory itself. A parent it cannot create
-// exits with the parent status; a directory it cannot create because
-// anything, a dangling symlink included, stands at its path exits with the
-// present status; any other failure exits 5.
+// exits with the parent status when the parent cannot be created, with the present status
+// when anything, a dangling symlink included, stands at the directory's path, and 5 otherwise
 const PARENT_FAILED_EXIT = 3;
 const DIR_PRESENT_EXIT = 4;
 
@@ -505,12 +466,8 @@ mkdir -- "$2" && exit 0
 if [ -e "$2" ] || [ -L "$2" ]; then exit ${DIR_PRESENT_EXIT}; fi
 exit 5`;
 
-/**
- * Creates the target directory as the claim on it: `mkdir` without `-p`
- * fails when the directory exists, so a materialization never unpacks over
- * files it did not put there. The parent is created first, in the same
- * command.
- */
+// `mkdir` without `-p` fails when the directory exists, so a materialization never unpacks
+// over files it did not put there
 async function claimTargetDir(
   request: MaterializeRequest,
   deps: MaterializeDeps,
@@ -614,15 +571,6 @@ async function createCheckout(
   );
 }
 
-/**
- * Builds the workspace inside its host when the target clones there and
- * the source is a git URL: the daemon pins the ref to a commit, and the host
- * clones that commit itself. Resolves to the source to upload instead
- * when the host does not clone it: a source whose credential stays on the
- * daemon's host, or a clone the host could not make, which is logged with
- * its reason and uploads the commit the daemon pinned for it. The host
- * holds no ssh key, so it fetches over every allowed transport but ssh.
- */
 async function tryCreateCloneOnTarget(
   request: MaterializeRequest,
   deps: MaterializeDeps,
@@ -674,6 +622,8 @@ async function tryCreateCloneOnTarget(
         url: pinned.cloneURL,
         sha: target.sha,
         branch: target.branch,
+
+        // the host holds no ssh key
         transports: transports.filter((transport) => transport !== 'ssh'),
       }),
     )
@@ -692,10 +642,6 @@ async function tryCreateCloneOnTarget(
   return { kind: 'cloned', checkout: { sha: target.sha, branch: target.branch } };
 }
 
-/**
- * Clones the source on the daemon's host and unpacks it into the landing
- * directory through the provider's transfer.
- */
 async function transferCleanClone(
   request: MaterializeRequest,
   deps: MaterializeDeps,
@@ -730,10 +676,6 @@ interface CleanClone {
   readonly archive: Uint8Array;
 }
 
-/**
- * Clones the pinned source into a staging directory on the daemon's host,
- * sanitizes it, and reads it back as a tar archive.
- */
 async function createCleanClone(
   pinned: PinnedSource,
   dir: string,
@@ -835,10 +777,9 @@ async function writeGitIdentity(
 // The provider runs commands in its own environment, so the verify unsets
 // every variable that could point git at another repository first.
 
-// Prints the commit HEAD resolves to and a NUL, then lists every tracked
-// file whose content differs from HEAD, so a file the unpack left out or
-// changed refuses the checkout whatever tar did there. A HEAD that resolves
-// to no commit exits at once, before the NUL.
+// prints the commit HEAD resolves to and a NUL, then every tracked file whose content differs
+// from HEAD, so a file the unpack left out or changed refuses the checkout whatever tar did;
+// a HEAD that resolves to no commit exits at once, before the NUL
 export const VERIFY_SCRIPT = String.raw`git rev-parse --verify 'HEAD^{commit}' || exit 1; printf '\0'; exec git -c core.fsmonitor=false status --porcelain --untracked-files=no`;
 
 async function verifyTargetHead(
@@ -908,14 +849,8 @@ function toRedacted(text: string, secret: string): string {
   return text.replaceAll(secret, '[credential]');
 }
 
-/**
- * Removes the target directory after a failure, when this call created it,
- * so a failed materialization leaves no partial checkout behind. Resolves
- * to the directory when it stays, logged with the reason: one another
- * session's directory lies inside, one that no longer resolves to itself,
- * or one whose removal failed. It then blocks the next materialization
- * into it with `workspace_exists` until an operator removes it.
- */
+// a directory left behind blocks the next materialization into it with `workspace_exists`
+// until an operator removes it
 async function tryRemoveClaimedDir(
   request: MaterializeRequest,
   deps: MaterializeDeps,

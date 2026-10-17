@@ -1,7 +1,3 @@
-/**
- * The TCP listener's address and the file holding the tokens a handshake
- * may present, with the limits on its handshakes and its refusal log.
- */
 export interface ListenOptions {
   readonly host: string;
   readonly port: number;

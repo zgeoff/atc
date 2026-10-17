@@ -17,13 +17,6 @@ interface ScreenDetectionDeps {
   readonly onDetectSkipped?: ((sessionID: SessionID) => void) | undefined;
 }
 
-/**
- * The screen tier of the attention detectors: once a session's output has
- * gone quiet, its agent's screen detector judges the serialized screen,
- * and the session moves to `needs_you` at a prompt or back to `running`
- * while it works. A session whose agent has no screen detector is never
- * judged from its screen.
- */
 export class ScreenDetection {
   private readonly mgr: ScreenDetectionDeps['mgr'];
 

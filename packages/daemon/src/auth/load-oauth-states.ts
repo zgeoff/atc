@@ -4,14 +4,6 @@ import { DaemonError } from '@atc/protocol/wire';
 import type { AuthBinding } from './build-auth-binding';
 import { collectSecretRuleMismatches } from './collect-secret-rule-mismatches';
 
-/**
- * The sign-in state impd lists for each secret a binding holds as kind
- * `oauth`, keyed by the secret's name, or undefined for a binding that
- * holds none, which reads nothing from impd. It reads impd's features and
- * then its secrets once, and refuses an impd without oauth secrets, and a
- * bound oauth secret that impd lacks or holds with another kind or rules,
- * with the codes the binding's own gate would give.
- */
 export async function loadOAuthStates(
   host: CredentialBroker,
   binding: AuthBinding,

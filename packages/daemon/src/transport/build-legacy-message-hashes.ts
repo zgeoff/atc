@@ -3,15 +3,9 @@ import { buildPayloadHash } from './build-payload-hash';
 // The from a daemon that read one stored for a request that gave none.
 const DEFAULT_FROM = 'unknown';
 
-/**
- * The hashes a `session.message` payload had under a daemon that read a
- * caller-given `from` and hashed it with the payload, one for each sender
- * name an older client could have sent for this caller: the `from` the
- * request holds, else the default that daemon filled in, and each name
- * given. A key stored under one of them replays as under the current hash,
- * so a retry across an upgrade answers instead of conflicting. The names
- * only match a stored hash; none of them labels a message.
- */
+// a key an older daemon stored hashed a caller-given `from` with the payload; matching any
+// of these hashes lets a retry across an upgrade replay instead of conflicting. The names
+// only match a stored hash and never label a message.
 export function buildLegacyMessageHashes(
   params: Readonly<Record<string, unknown>>,
   rawFrom: unknown,

@@ -33,11 +33,6 @@ interface SpawnCatalogDeps {
 
 type AgentList = ReturnType<DaemonContext['collectAgents']>;
 
-/**
- * What the spawn picker offers before a spawn: the agents, the targets and
- * the spawn defaults, the directories spawned before, and the sources with
- * the checks they run against a git workspace source.
- */
 export class SpawnCatalog {
   private readonly mgr: SpawnCatalogDeps['mgr'];
 

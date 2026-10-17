@@ -7,10 +7,6 @@ import { buildMockSession } from '../testing/build-mock-session';
 import { buildSessionEvent } from './build-session-event';
 import { SessionManager } from './sessions';
 
-/**
- * A session manager over a real state store in a temp directory, holding
- * no sessions.
- */
 async function setupTest() {
   const tmp = setupTempDir('atc-daemon-events-');
 
