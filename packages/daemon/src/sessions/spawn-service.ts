@@ -14,8 +14,8 @@ import { materializeWorkspace } from '../workspace/materialize-workspace';
 import { readHostGitIdentity } from '../workspace/read-host-git-identity';
 import { mintSessionID } from './mint-session-id';
 import type { SessionRuntime } from './session-runtime';
-import type { SpawnHostAccess, SpawnMaterializer } from './session-spawner';
 import type { SessionManager } from './sessions';
+import type { SpawnHostAccess, SpawnMaterializer } from './spawn-materializer';
 import { SpawnReplay } from './spawn-replay';
 
 interface SpawnServiceDeps {

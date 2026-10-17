@@ -12,17 +12,14 @@ import type {
   SpawnPlan,
 } from '@atc/plugin-api';
 import type {
-  AdapterEvent,
   DeclaredScope,
   PublishedRecord,
   SessionDescriptor,
-  SessionLifecycle,
   SessionState,
 } from '@atc/protocol';
 import type { HookEvent } from '@atc/protocol/session';
-import { DaemonError } from '@atc/protocol/wire';
+import type { DaemonError } from '@atc/protocol/wire';
 import type { FleetEntry, FleetStore } from '@atc/store';
-import { match } from 'ts-pattern';
 import { AuthSetup } from '../auth/auth-setup';
 import type { AuthRebound } from '../auth/auth-setup';
 import type { BridgeBinding } from '../auth/is-binding-current';
@@ -30,10 +27,11 @@ import type { RuntimeAuthBinder } from '../auth/runtime-auth-binder';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { SessionFleetWriter } from '../fleet/session-fleet-writer';
 import { SessionRestorer } from '../fleet/session-restorer';
-import { buildSessionLifecycle } from './build-session-lifecycle';
+import { buildResumeCommand } from './build-resume-command';
+import type { ResumeCommand } from './build-resume-command';
+import { collectSessionDescriptors } from './collect-session-descriptors';
 import { HostDirClaims } from './host-dir-claims';
 import { mintSessionID } from './mint-session-id';
-import { pickSessionState } from './pick-session-state';
 import type { PublishedRecords } from './published-records';
 import type { Session } from './session';
 import { SessionAdopter } from './session-adopter';
@@ -41,19 +39,15 @@ import type { MessageBridgeLaunch, SessionCallbacks } from './session-callbacks'
 import type { SessionChanges } from './session-changes';
 import type { SessionEventKind } from './session-event-kind';
 import { SessionHarnesses } from './session-harnesses';
+import { SessionHookApplier } from './session-hook-applier';
 import { SessionKiller } from './session-killer';
 import { SessionRegistry } from './session-registry';
 import type { TargetBinding } from './session-registry';
 import { SessionSpawner } from './session-spawner';
-import type { SpawnMaterializer } from './session-spawner';
+import type { SpawnMaterializer } from './spawn-materializer';
 import { SpawnRollback } from './spawn-rollback';
-
-// The command that resumes a session outside atc, or why there is none: no
-// such session, or a session that cannot resume outside atc.
-export type ResumeCommand =
-  | { readonly command: string }
-  | { readonly refusal: 'missing' }
-  | { readonly refusal: 'unsupported'; readonly reason: string };
+import { updateSession } from './update-session';
+import { updateSessionScope } from './update-session-scope';
 
 type SessionManagerEvents = Partial<
   Pick<
@@ -130,6 +124,8 @@ export class SessionManager {
   private readonly adopter: SessionAdopter;
 
   private readonly spawner: SessionSpawner;
+
+  private readonly hooks: SessionHookApplier;
 
   private readonly store: FleetStore;
 
@@ -211,6 +207,8 @@ export class SessionManager {
       auth,
       callbacks,
     });
+
+    this.hooks = new SessionHookApplier({ registry, fleet, callbacks });
   }
 
   get sessions(): Session[] {
@@ -420,91 +418,16 @@ export class SessionManager {
     return s;
   }
 
-  async updateScope(id: SessionID, scope: DeclaredScope): Promise<PublishedRecord | 'missing'> {
-    const s = this.registry.sessions.find((x) => x.id === id);
-
-    if (s === undefined) {
-      return 'missing';
-    }
-
-    if (this.records === null) {
-      throw new DaemonError('unsupported', 'this daemon publishes no session records');
-    }
-
-    const provider = this.registry.requireExecution(s, 'spawn').provider;
-
-    // the scope checks run on the session's host
-    if (provider.remote && s.vm !== 'awake') {
-      throw new DaemonError(
-        'host_unavailable',
-        `the host of session ${id} is not awake; revive the session before adding to its scope`,
-        { provider: provider.kind, problem: 'host_asleep', host: s.hostKey },
-      );
-    }
-
-    const subject = {
-      session: s.id,
-      target: s.target,
-      provider,
-      host: s.hostKey,
-      dir: s.cwd,
-      workspace: s.workspace ?? null,
-    };
-
-    const record = await this.records.updateScope(subject, scope);
-
-    return record;
+  updateScope(id: SessionID, scope: DeclaredScope): Promise<PublishedRecord | 'missing'> {
+    return updateSessionScope({ registry: this.registry, records: this.records }, id, scope);
   }
 
   updateSession(id: SessionID, changes: SessionChanges): boolean | 'shared_host' | 'agent_named' {
-    const s = this.registry.sessions.find((x) => x.id === id);
-
-    if (s === undefined) {
-      return false;
-    }
-
-    // the host owner's kill and forget would still end a sub-session in its
-    // host, so it gets no detach or pin of its own
-    if (
-      s.parent !== null &&
-      s.hostKey !== s.id &&
-      (changes.parent === null || changes.pinned === true)
-    ) {
-      return 'shared_host';
-    }
-
-    // detach before any pin applies, so the pin, kill, and forget no longer
-    // follow the former parent
-    if (changes.parent === null && s.parent !== null) {
-      s.parent = null;
-
-      this.onEvent('state', s);
-    }
-
-    const renameSkipped =
-      changes.name !== undefined && changes.name !== '' && s.namedBy === 'agent';
-
-    if (changes.name !== undefined && changes.name !== '' && !renameSkipped) {
-      s.name = changes.name;
-
-      // auto-summaries stop overwriting a user-strength name, while an
-      // in-session rename still wins
-      s.namedBy = 'user';
-
-      this.onEvent('renamed', s);
-    }
-
-    if (changes.pinned !== undefined && changes.pinned !== s.pinned) {
-      s.pinned = changes.pinned;
-
-      this.onEvent('state', s);
-    }
-
-    void this.fleet.tryWriteFleet(s.id);
-    this.fleet.writeStatus();
-    this.fleet.emitChange();
-
-    return renameSkipped ? 'agent_named' : true;
+    return updateSession(
+      { registry: this.registry, fleet: this.fleet, callbacks: { onEvent: this.onEvent } },
+      id,
+      changes,
+    );
   }
 
   // A result, when given, becomes the session's latest result the way a
@@ -559,239 +482,15 @@ export class SessionManager {
   }
 
   collectDescriptors(): SessionDescriptor[] {
-    return this.registry.sessions.map((s) => ({
-      id: s.id,
-      name: s.name,
-      cwd: s.cwd,
-      state: pickSessionState(buildLifecycle(s), s.state),
-      unread: s.unread,
-      lastMsg: s.lastMsg,
-      ...(s.lastDetail === undefined ? {} : { lastDetail: s.lastDetail }),
-      ...(s.pty === null && s.restoreRefusal?.message === s.lastMsg
-        ? { restoreRefusal: s.restoreRefusal.code }
-        : {}),
-      ...(s.agentSessionID === undefined ? {} : { agentSessionID: s.agentSessionID }),
-      agent: s.agent,
-      pinned: s.pinned,
-      lastAttachedAt: s.lastAttachedAt,
-      repoRoot: s.repoRoot,
-      namedBy: s.namedBy,
-      createdAt: s.createdAt,
-      kind: s.kind,
-      alive: s.pty !== null || (s.kind === 'headless' && s.state !== 'exited'),
-      canEject: (this.registry.findAdapter(s.agent)?.headlessRunner ?? null) !== null,
-      ...(s.parent === null ? {} : { parent: s.parent }),
-      locator: { daemonID: this.store.daemonID, targetID: s.target },
-      ...(s.workspace === undefined ? {} : { workspace: s.workspace }),
-      lifecycle: buildLifecycle(s),
-      ...(s.model === undefined ? {} : { model: s.model }),
-    }));
+    return collectSessionDescriptors(this.registry, this.store);
   }
 
-  // the adapter plans from the state it returned for the previous line; the
-  // plan goes back so the caller can key its bookkeeping and trail on its
-  // events and keep the next state
   applyHook(e: HookEvent, prev?: unknown): HookPlan | null {
-    const s = this.registry.sessions.find((x) => x.id === e.atcId);
-
-    if (!s) {
-      return null;
-    }
-
-    const adapter = this.registry.findAdapter(s.agent);
-
-    if (adapter === null) {
-      return null;
-    }
-
-    const plan = adapter.planHookEvents(e, prev);
-
-    for (const ev of plan.events) {
-      this.applyAdapterEvent(s, ev);
-    }
-
-    return plan;
-  }
-
-  private applyAdapterEvent(s: Session, ev: Readonly<AdapterEvent>): void {
-    // Reporters belong to the terminal process; once a session is headless,
-    // late reports from the dying terminal must not clobber its state.
-    if (s.kind === 'headless') {
-      return;
-    }
-
-    const focused = this.registry.focusedId === s.id;
-    let dirty = false;
-    let persist = false;
-    const rowUpdate: { result?: string; transcriptPath?: string } = {};
-
-    if (ev.transcriptSource !== undefined) {
-      s.transcriptSource = ev.transcriptSource;
-
-      if (s.transcriptPath !== ev.transcriptSource) {
-        s.transcriptPath = ev.transcriptSource;
-        rowUpdate.transcriptPath = ev.transcriptSource;
-      }
-    }
-
-    if (ev.agentSessionID !== undefined && s.agentSessionID !== ev.agentSessionID) {
-      s.agentSessionID = ev.agentSessionID;
-      persist = true;
-      dirty = true;
-    }
-
-    if (ev.detail !== undefined) {
-      s.lastDetail = ev.detail;
-    }
-
-    if (ev.nameSource !== undefined) {
-      void this.refreshName(s, ev.nameSource);
-    }
-
-    // A permission prompt stays pending until an event shows it closed: a
-    // prompt, a finished turn, a start, an end, or an idle notice. A heartbeat
-    // or a notice that says nothing about the prompt leaves it pending.
-    if (ev.kind === 'needs-input') {
-      s.permissionPending = ev.permissionPending ?? s.permissionPending === true;
-    } else if (ev.kind !== 'heartbeat') {
-      s.permissionPending = false;
-    }
-
-    // Each event kind returns whether it changed what the session lists.
-    const changed = match(ev.kind)
-      .with('started', () => {
-        // Clearing or resuming inside a live terminal ends the old agent
-        // session and starts a new one in the same process, so the start
-        // supersedes the end's message. A gone terminal keeps it.
-        if (s.lastMsg === 'adopting…') {
-          s.lastMsg = 'adopted';
-
-          return true;
-        }
-
-        if (s.lastMsg === 'session ended' && s.pty !== null) {
-          s.lastMsg = 'started';
-
-          return true;
-        }
-
-        return false;
-      })
-      .with('needs-input', () => {
-        s.state = 'needs_you';
-        s.unread = !focused;
-        s.lastMsg = ev.message ?? 'needs input';
-
-        return true;
-      })
-      .with('turn-done', () => {
-        s.state = 'done';
-        s.unread = !focused;
-        s.lastMsg = 'turn done';
-
-        if (ev.result !== undefined) {
-          // A runaway final message cannot bloat the fleet row.
-          s.result = truncateToBytes(ev.result, 16_384);
-          rowUpdate.result = s.result;
-        }
-
-        return true;
-      })
-      .with('prompt-submitted', () => {
-        s.state = 'running';
-        s.unread = false;
-        s.lastMsg = ev.message ?? 'working';
-
-        return true;
-      })
-
-      // A live terminal can report an end without dying — resuming claude
-      // closes the superseded session while its process stays interactive.
-      // Exited is reserved for a gone terminal; onExit owns that transition.
-      .with('ended', () => {
-        if (s.pty === null) {
-          s.state = 'exited';
-        }
-
-        s.unread = false;
-        s.lastMsg = 'session ended';
-
-        return true;
-      })
-
-      // Heartbeats only matter for the agent-session-id capture above.
-      .with('heartbeat', () => false)
-      .exhaustive();
-
-    dirty ||= changed;
-
-    // A fleet rewrite marks every session without a PTY as exited, so only a
-    // new agent session id takes it. Anything else touches this session's
-    // own row.
-    if (persist) {
-      void this.fleet.tryWriteFleet(s.id);
-    } else {
-      void this.fleet.tryUpdateFleetEntry(s.id, rowUpdate);
-    }
-
-    if (dirty) {
-      this.onEvent('state', s);
-      this.fleet.emitChange();
-    }
-  }
-
-  private async refreshName(s: Session, source: string) {
-    const adapter = this.registry.findAdapter(s.agent);
-
-    if (adapter === null) {
-      return;
-    }
-
-    const update = await adapter.loadName(source, s.namedBy);
-
-    if (update === null || update.name === '' || update.name === s.name) {
-      return;
-    }
-
-    s.name = update.name;
-
-    if (update.namedBy !== undefined) {
-      s.namedBy = update.namedBy;
-    }
-
-    void this.fleet.tryWriteFleet(s.id);
-    this.onEvent('renamed', s);
-    this.fleet.emitChange();
+    return this.hooks.applyHook(e, prev);
   }
 
   buildResumeCommand(id: SessionID): ResumeCommand {
-    const s = this.registry.sessions.find((x) => x.id === id);
-
-    if (!s) {
-      return { refusal: 'missing' };
-    }
-
-    // its folder, and any settings file the command would pass, sit on a
-    // different machine than the one the command would run on
-    if (!this.registry.isLocalTarget(s.target)) {
-      return {
-        refusal: 'unsupported',
-        reason: `session '${id}' runs on target '${s.target}', so it cannot resume outside atc on this machine`,
-      };
-    }
-
-    const command =
-      this.registry.findAdapter(s.agent)?.buildResumeCommand(s.cwd, s.agentSessionID) ?? null;
-
-    // e.g. a gateway that signs in through impd's broker alone
-    if (command === null) {
-      return {
-        refusal: 'unsupported',
-        reason: `agent '${s.agent}' of session '${id}' cannot resume outside atc`,
-      };
-    }
-
-    return { command };
+    return buildResumeCommand(this.registry, id);
   }
 
   attach(id: SessionID) {
@@ -842,16 +541,4 @@ export class SessionManager {
   [Symbol.dispose]() {
     this.detachAll();
   }
-}
-
-function buildLifecycle(s: Session): SessionLifecycle {
-  return buildSessionLifecycle({
-    desired: s.desired,
-    vm: s.vm,
-    attachment: s.attachment,
-    suspended: s.suspended,
-    hasHarness: s.pty !== null,
-    kind: s.kind,
-    state: s.state,
-  });
 }
