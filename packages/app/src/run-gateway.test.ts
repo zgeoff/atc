@@ -36,6 +36,7 @@ test('it answers the liveness probe for the host of its public URL', async () =>
       host: '127.0.0.1',
       port: 0,
       publicURL: 'https://atc.example.com',
+      trustForwardedFrom: [],
       registryPath: join(ctx.dir, 'registry.json'),
       stateDir: join(ctx.dir, 'state'),
     },
@@ -69,6 +70,158 @@ test('it answers the liveness probe for the host of its public URL', async () =>
   expect(health.status).toBe(200);
 });
 
+test('it trusts the forwarded address from a proxy its flags list', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(
+    join(ctx.dir, 'registry.json'),
+    JSON.stringify({
+      daemons: {
+        cloud: { address: '127.0.0.1:9', daemonID: '0123abcd-0000-4000-8000-000000000000' },
+      },
+      defaultDaemon: 'cloud',
+    }),
+  );
+
+  const printed: string[] = [];
+  const errors: string[] = [];
+
+  const signals = new Map<string, () => Promise<void>>();
+
+  await runGateway(
+    'atc-gateway/test',
+    {
+      host: '127.0.0.1',
+      port: 0,
+      publicURL: 'https://atc.example.com',
+      trustForwardedFrom: ['127.0.0.1'],
+      registryPath: join(ctx.dir, 'registry.json'),
+      stateDir: join(ctx.dir, 'state'),
+    },
+    {
+      env: { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
+      print: (line) => {
+        printed.push(line);
+      },
+      printError: (line) => {
+        errors.push(line);
+      },
+      exit: () => {},
+      registerSignal: (signal, listener) => {
+        signals.set(signal, listener);
+      },
+    },
+  );
+
+  const stop = signals.get('SIGTERM');
+
+  invariant(stop, 'the gateway registered no SIGTERM handler');
+  registerTestCleanup(() => stop());
+
+  const port = /listening on http:\/\/127\.0\.0\.1:(?<port>\d+)$/u.exec(printed.join('\n'))
+    ?.groups?.['port'];
+
+  invariant(port !== undefined, `no port in: ${printed.join('\n')}`);
+
+  // A probe for a host the gateway does not serve writes a bad_host event.
+  await fetch(`http://127.0.0.1:${port}/healthz`, {
+    headers: { host: 'other.example', 'cf-connecting-ip': '198.51.100.23' },
+  });
+
+  expect(
+    JSON.parse(
+      `[${errors
+        .filter((line) => line.startsWith('atc security '))
+        .map((line) => line.slice('atc security '.length))
+        .join(',')}]`,
+    ),
+  ).toMatchObject([
+    {
+      kind: 'authorize_invalid',
+      reason: 'bad_host',
+      forwarded: { address: '198.51.100.23', header: 'cf-connecting-ip', provenance: 'trusted' },
+    },
+  ]);
+});
+
+test('it leaves the forwarded address unverified from a peer its flags do not list', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(
+    join(ctx.dir, 'registry.json'),
+    JSON.stringify({
+      daemons: {
+        cloud: { address: '127.0.0.1:9', daemonID: '0123abcd-0000-4000-8000-000000000000' },
+      },
+      defaultDaemon: 'cloud',
+    }),
+  );
+
+  const printed: string[] = [];
+  const errors: string[] = [];
+
+  const signals = new Map<string, () => Promise<void>>();
+
+  await runGateway(
+    'atc-gateway/test',
+    {
+      host: '127.0.0.1',
+      port: 0,
+      publicURL: 'https://atc.example.com',
+      trustForwardedFrom: ['192.0.2.1'],
+      registryPath: join(ctx.dir, 'registry.json'),
+      stateDir: join(ctx.dir, 'state'),
+    },
+    {
+      env: { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
+      print: (line) => {
+        printed.push(line);
+      },
+      printError: (line) => {
+        errors.push(line);
+      },
+      exit: () => {},
+      registerSignal: (signal, listener) => {
+        signals.set(signal, listener);
+      },
+    },
+  );
+
+  const stop = signals.get('SIGTERM');
+
+  invariant(stop, 'the gateway registered no SIGTERM handler');
+  registerTestCleanup(() => stop());
+
+  const port = /listening on http:\/\/127\.0\.0\.1:(?<port>\d+)$/u.exec(printed.join('\n'))
+    ?.groups?.['port'];
+
+  invariant(port !== undefined, `no port in: ${printed.join('\n')}`);
+
+  // A probe for a host the gateway does not serve writes a bad_host event.
+  await fetch(`http://127.0.0.1:${port}/healthz`, {
+    headers: { host: 'other.example', 'cf-connecting-ip': '198.51.100.23' },
+  });
+
+  expect(
+    JSON.parse(
+      `[${errors
+        .filter((line) => line.startsWith('atc security '))
+        .map((line) => line.slice('atc security '.length))
+        .join(',')}]`,
+    ),
+  ).toMatchObject([
+    {
+      kind: 'authorize_invalid',
+      reason: 'bad_host',
+      forwarded: {
+        address: '198.51.100.23',
+        header: 'cf-connecting-ip',
+        provenance: 'unverified',
+      },
+    },
+  ]);
+});
+
 test('it prints nothing to stdout once it serves and each sign-in security event to stderr', async () => {
   const ctx = setupTest();
 
@@ -93,6 +246,7 @@ test('it prints nothing to stdout once it serves and each sign-in security event
       host: '127.0.0.1',
       port: 0,
       publicURL: 'https://atc.example.com',
+      trustForwardedFrom: [],
       registryPath: join(ctx.dir, 'registry.json'),
       stateDir: join(ctx.dir, 'state'),
     },
@@ -190,6 +344,7 @@ test('it writes a probe from a Host it does not serve as a bad_host security eve
       host: '127.0.0.1',
       port: 0,
       publicURL: 'https://atc.example.com',
+      trustForwardedFrom: [],
       registryPath: join(ctx.dir, 'registry.json'),
       stateDir: join(ctx.dir, 'state'),
     },
@@ -254,6 +409,7 @@ test('it answers the readiness probe for the host of its public URL', async () =
       host: '127.0.0.1',
       port: 0,
       publicURL: 'https://atc.example.com',
+      trustForwardedFrom: [],
       registryPath: join(ctx.dir, 'registry.json'),
       stateDir: join(ctx.dir, 'state'),
     },
@@ -310,6 +466,7 @@ test('it refuses a probe from a foreign host', async () => {
       host: '127.0.0.1',
       port: 0,
       publicURL: 'https://atc.example.com',
+      trustForwardedFrom: [],
       registryPath: join(ctx.dir, 'registry.json'),
       stateDir: join(ctx.dir, 'state'),
     },
@@ -364,6 +521,7 @@ test('it keeps both databases in the state directory and writes nowhere else', a
       host: '127.0.0.1',
       port: 0,
       publicURL: 'https://atc.example.com',
+      trustForwardedFrom: [],
       registryPath: join(ctx.dir, 'registry.json'),
       stateDir: join(ctx.dir, 'state'),
     },
@@ -409,6 +567,7 @@ test('it exits 1 naming the token variable a daemon lacks', async () => {
       host: '127.0.0.1',
       port: 0,
       publicURL: 'https://atc.example.com',
+      trustForwardedFrom: [],
       registryPath: join(ctx.dir, 'registry.json'),
       stateDir: join(ctx.dir, 'state'),
     },
@@ -447,6 +606,7 @@ test('it exits 1 on a registry that is not JSON', async () => {
       host: '127.0.0.1',
       port: 0,
       publicURL: 'https://atc.example.com',
+      trustForwardedFrom: [],
       registryPath: join(ctx.dir, 'bad.json'),
       stateDir: join(ctx.dir, 'state'),
     },
@@ -495,6 +655,7 @@ test('it stops serving and exits 0 on SIGTERM', async () => {
       host: '127.0.0.1',
       port: 0,
       publicURL: 'https://atc.example.com',
+      trustForwardedFrom: [],
       registryPath: join(ctx.dir, 'registry.json'),
       stateDir: join(ctx.dir, 'state'),
     },

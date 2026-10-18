@@ -10,11 +10,20 @@ export interface MCPHTTPConfig {
 
   // Further Host header values to accept, for a proxy that rewrites Host.
   readonly allowedHosts: readonly string[];
+
+  // The proxy addresses whose forwarded client address atc trusts.
+  readonly trustForwardedFrom: readonly string[];
 }
 
 export function collectMCPHTTPConfig(raw: unknown): MCPHTTPConfig {
   if (!isRecord(raw)) {
-    return { publicURL: null, host: '127.0.0.1', port: 8414, allowedHosts: [] };
+    return {
+      publicURL: null,
+      host: '127.0.0.1',
+      port: 8414,
+      allowedHosts: [],
+      trustForwardedFrom: [],
+    };
   }
 
   const publicURL = raw['publicURL'];
@@ -29,6 +38,7 @@ export function collectMCPHTTPConfig(raw: unknown): MCPHTTPConfig {
         ? port
         : 8414,
     allowedHosts: collectStrings(raw['allowedHosts']),
+    trustForwardedFrom: collectStrings(raw['trustForwardedFrom']),
   };
 }
 

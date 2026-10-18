@@ -123,6 +123,7 @@ test.each([
     host: '127.0.0.1',
     port: 8414,
     publicURL: 'https://atc.example.com',
+    trustForwardedFrom: [],
     registryPath: 'registry.json',
     stateDir: 'flagged',
   });
@@ -298,6 +299,45 @@ test('it serves on port 0 for the kernel to pick a free port', async () => {
     host: '127.0.0.1',
     port: 0,
     publicURL: 'https://atc.example.com',
+    trustForwardedFrom: [],
+    registryPath: 'registry.json',
+    stateDir: 'flagged',
+  });
+});
+
+test('it serves trusting every proxy address that --trust-forwarded-from repeats', async () => {
+  const io = {
+    runGateway: mock(),
+    runClients: mock(),
+    runPasskeys: mock(),
+    print: mock(),
+    printError: mock(),
+    exit: mock(),
+  };
+
+  await runGatewayCLI(
+    [
+      'serve',
+      '--public-url',
+      'https://atc.example.com',
+      '--registry',
+      'registry.json',
+      '--state-dir',
+      'flagged',
+      '--trust-forwarded-from',
+      '127.0.0.1',
+      '--trust-forwarded-from',
+      '::1',
+    ],
+    {},
+    io,
+  );
+
+  expect(io.runGateway).toHaveBeenCalledExactlyOnceWith(`atc-gateway/${pkg.version}`, {
+    host: '127.0.0.1',
+    port: 8414,
+    publicURL: 'https://atc.example.com',
+    trustForwardedFrom: ['127.0.0.1', '::1'],
     registryPath: 'registry.json',
     stateDir: 'flagged',
   });

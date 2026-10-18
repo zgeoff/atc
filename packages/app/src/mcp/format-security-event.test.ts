@@ -10,7 +10,7 @@ test('it formats an event with every field as one prefixed JSON line', () => {
       path: '/login',
       requester: {
         socketAddress: '10.0.0.7',
-        connectingIP: '203.0.113.9',
+        connectingIP: { address: '203.0.113.9', provenance: 'unverified' },
         userAgent: 'Mozilla/5.0',
       },
       client: { id: 'client-1', name: 'Claude' },
@@ -23,6 +23,26 @@ test('it formats an event with every field as one prefixed JSON line', () => {
   expect(line).toMatchInlineSnapshot(
     `"atc security {"v":1,"ts":"2026-10-14T12:00:00.000Z","kind":"owner_auth","outcome":"failed","reason":"assertion_failed","method":"passkey","route":"/login","client":{"id":"client-1","name":"Claude"},"redirectHost":"claude.ai","correlationID":"6f1c2a4e-0000-4000-8000-000000000000","peer":{"address":"10.0.0.7","provenance":"socket"},"forwarded":{"address":"203.0.113.9","header":"cf-connecting-ip","provenance":"unverified"},"userAgent":{"summary":"Mozilla/5.0","provenance":"client"}}"`,
   );
+});
+
+test('it labels a forwarded address from a listed proxy as trusted', () => {
+  const line = formatSecurityEvent(
+    {
+      kind: 'consent',
+      outcome: 'allowed',
+      path: '/consent',
+      requester: {
+        socketAddress: '10.0.0.7',
+        connectingIP: { address: '203.0.113.9', provenance: 'trusted' },
+        userAgent: null,
+      },
+    },
+    0,
+  );
+
+  expect(JSON.parse(line.slice('atc security '.length))).toMatchObject({
+    forwarded: { address: '203.0.113.9', header: 'cf-connecting-ip', provenance: 'trusted' },
+  });
 });
 
 test('it formats an event with no optional field and no request headers', () => {
@@ -79,7 +99,7 @@ test('it drops control and format characters from client strings and cuts their 
       path: '/oauth2/authorize',
       requester: {
         socketAddress: `\u001B[31m${'1'.repeat(60)}`,
-        connectingIP: '203.0.113.9\nforged',
+        connectingIP: { address: '203.0.113.9\nforged', provenance: 'unverified' },
         userAgent: `ua‮${'x'.repeat(100)}`,
       },
       client: { id: `id\u0007${'i'.repeat(100)}`, name: `name‍${'n'.repeat(150)}` },

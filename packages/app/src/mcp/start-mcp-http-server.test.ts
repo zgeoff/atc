@@ -48,7 +48,7 @@ async function setupTest() {
   // inside one minute however long the test runs.
   const clock = buildStubClock(Date.now());
 
-  const startServer = (port: number) =>
+  const startServer = (port: number, trustForwardedFrom: readonly string[] = []) =>
     startMCPHTTPServer({
       caller,
       build: 'atc/test-build',
@@ -56,6 +56,7 @@ async function setupTest() {
       port,
       publicURL: null,
       allowedHosts: [],
+      trustForwardedFrom,
       dbPath,
       openAuthDatabase: openMCPAuthDatabase,
       printRequest: (line) => {
@@ -99,13 +100,14 @@ async function setupTest() {
     store,
 
     // Stops the server and starts a fresh process's worth of it on the same
-    // port and database, as an operator's restart does.
-    async restartServer(): Promise<void> {
+    // port and database, as an operator's restart does, trusting the
+    // forwarded address from the proxies given.
+    async restartServer(trustForwardedFrom: readonly string[] = []): Promise<void> {
       const port = Number(new URL(server.url).port);
 
       await server.stop();
 
-      server = await startServer(port);
+      server = await startServer(port, trustForwardedFrom);
     },
   };
 }
@@ -324,6 +326,7 @@ test('it shows a remote MCP client the sessions of the targets the principals gr
     port: 0,
     publicURL: null,
     allowedHosts: [],
+    trustForwardedFrom: [],
     dbPath,
     openAuthDatabase: openMCPAuthDatabase,
     printRequest: () => {},
@@ -422,6 +425,7 @@ test('it shows a remote MCP client no sessions when the principals grant the tar
     port: 0,
     publicURL: null,
     allowedHosts: [],
+    trustForwardedFrom: [],
     dbPath,
     openAuthDatabase: openMCPAuthDatabase,
     printRequest: () => {},
@@ -1459,6 +1463,7 @@ test('it serves a request whose Host header is a configured allowed host', async
     port: 0,
     publicURL: null,
     allowedHosts: ['pc.tailnet.example'],
+    trustForwardedFrom: [],
     dbPath: join(ctx.dir, 'allowing-mcp-auth.db'),
     openAuthDatabase: openMCPAuthDatabase,
     printRequest: () => {},
@@ -1812,6 +1817,7 @@ test('it refuses a token bound to the resource of an earlier public URL', async 
     port: 0,
     publicURL: 'http://localhost:9',
     allowedHosts: [],
+    trustForwardedFrom: [],
     dbPath: ctx.dbPath,
     openAuthDatabase: openMCPAuthDatabase,
     printRequest: () => {},
@@ -1849,6 +1855,7 @@ test.each([
     port: 0,
     publicURL,
     allowedHosts: [],
+    trustForwardedFrom: [],
     dbPath: join(tmp.dir, 'mcp-auth.db'),
     openAuthDatabase: openMCPAuthDatabase,
     printRequest: () => {},
@@ -1874,6 +1881,7 @@ test('it listens beyond loopback behind an https public URL', async () => {
     port: 0,
     publicURL: 'https://mcp.example.com',
     allowedHosts: [],
+    trustForwardedFrom: [],
     dbPath: join(tmp.dir, 'mcp-auth.db'),
     openAuthDatabase: openMCPAuthDatabase,
     printRequest: () => {},
@@ -2835,6 +2843,52 @@ test('it writes an authorization for an unknown client as invalid_client without
       route: '/oauth2/authorize',
       peer: { address: '127.0.0.1', provenance: 'socket' },
       userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
+    },
+  ]);
+});
+
+test('it marks the forwarded address trusted when the socket peer is a listed proxy', async () => {
+  const ctx = await setupTest();
+
+  await ctx.restartServer(['127.0.0.1']);
+
+  await fetch(`${ctx.url}/oauth2/authorize?client_id=no-such-client`, {
+    headers: { 'cf-connecting-ip': '198.51.100.23' },
+    redirect: 'manual',
+  });
+
+  expect(
+    JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
+  ).toMatchObject([
+    {
+      kind: 'authorize_invalid',
+      peer: { address: '127.0.0.1', provenance: 'socket' },
+      forwarded: { address: '198.51.100.23', header: 'cf-connecting-ip', provenance: 'trusted' },
+    },
+  ]);
+});
+
+test('it marks the forwarded address unverified when the socket peer is not a listed proxy', async () => {
+  const ctx = await setupTest();
+
+  await ctx.restartServer(['192.0.2.1']);
+
+  await fetch(`${ctx.url}/oauth2/authorize?client_id=no-such-client`, {
+    headers: { 'cf-connecting-ip': '198.51.100.23' },
+    redirect: 'manual',
+  });
+
+  expect(
+    JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
+  ).toMatchObject([
+    {
+      kind: 'authorize_invalid',
+      peer: { address: '127.0.0.1', provenance: 'socket' },
+      forwarded: {
+        address: '198.51.100.23',
+        header: 'cf-connecting-ip',
+        provenance: 'unverified',
+      },
     },
   ]);
 });

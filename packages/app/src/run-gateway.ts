@@ -11,6 +11,9 @@ interface GatewayFlags {
   readonly host: string;
   readonly port: number;
   readonly publicURL: string;
+
+  // The proxy addresses whose forwarded client address the gateway trusts.
+  readonly trustForwardedFrom: readonly string[];
   readonly registryPath: string;
   readonly stateDir: string;
 }
@@ -80,6 +83,7 @@ export async function runGateway(
       port: flags.port,
       publicURL: flags.publicURL,
       allowedHosts: [],
+      trustForwardedFrom: flags.trustForwardedFrom,
       dbPath: join(flags.stateDir, 'mcp-auth.db'),
       openAuthDatabase: openMCPAuthDatabase,
       probes: true,

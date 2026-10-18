@@ -46,9 +46,9 @@ export function formatSecurityEvent(
       ? {}
       : {
           forwarded: {
-            address: toEventText(requester.connectingIP, 45),
+            address: toEventText(requester.connectingIP.address, 45),
             header: 'cf-connecting-ip',
-            provenance: 'unverified',
+            provenance: requester.connectingIP.provenance,
           },
         }),
     ...(requester.userAgent === null

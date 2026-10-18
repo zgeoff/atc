@@ -71,6 +71,7 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
     port: 0,
     publicURL: null,
     allowedHosts: options.allowedHosts ?? [],
+    trustForwardedFrom: [],
     dbPath,
     openAuthDatabase: openMCPAuthDatabase,
     printRequest: (line) => {

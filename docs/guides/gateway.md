@@ -73,13 +73,14 @@ that client may use ([configuration](./configuration/principals.md)).
 atc-gateway serve --host 0.0.0.0 --port 8414 --public-url https://atc.example.com --registry /etc/atc-gateway/registry.json --state-dir /var/lib/atc-gateway
 ```
 
-| Flag           | Value                                                    | Default                  |
-| -------------- | -------------------------------------------------------- | ------------------------ |
-| `--host`       | the address to bind                                      | `127.0.0.1`              |
-| `--port`       | the port to listen on; `0` for a free port               | `8414`                   |
-| `--public-url` | the origin clients reach; the resource is `<origin>/mcp` | required                 |
-| `--registry`   | the registry file                                        | required                 |
-| `--state-dir`  | the directory for `gateway.db` and `mcp-auth.db`         | `$ATC_GATEWAY_STATE_DIR` |
+| Flag                     | Value                                                                                           | Default                  |
+| ------------------------ | ----------------------------------------------------------------------------------------------- | ------------------------ |
+| `--host`                 | the address to bind                                                                             | `127.0.0.1`              |
+| `--port`                 | the port to listen on; `0` for a free port                                                      | `8414`                   |
+| `--public-url`           | the origin clients reach; the resource is `<origin>/mcp`                                        | required                 |
+| `--registry`             | the registry file                                                                               | required                 |
+| `--state-dir`            | the directory for `gateway.db` and `mcp-auth.db`                                                | `$ATC_GATEWAY_STATE_DIR` |
+| `--trust-forwarded-from` | a proxy address whose `CF-Connecting-IP` header security events mark `trusted`; repeat for more | none                     |
 
 The gateway speaks plain HTTP: `--public-url` names the https origin clients use and enables no TLS.
 A host other than loopback, as in this example, needs an https public URL and a TLS-terminating

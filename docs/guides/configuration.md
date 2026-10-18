@@ -123,17 +123,19 @@ over it: `--host` over `host`, `--port` over `port`, `--public-url` over `public
     "publicURL": "https://mcp.example.com",
     "host": "127.0.0.1",
     "port": 8414,
-    "allowedHosts": []
+    "allowedHosts": [],
+    "trustForwardedFrom": []
   }
 }
 ```
 
-| Field          | Default     | Meaning                                                                                                                                      |
-| -------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `publicURL`    | none        | the origin clients reach the server at; https unless the host is loopback, with no path. Without it, the origin is `http://127.0.0.1:<port>` |
-| `host`         | `127.0.0.1` | the address the server binds; an address beyond loopback needs an https `publicURL`, since atc does not terminate TLS                        |
-| `port`         | `8414`      | the port the server binds, from 1 to 65535                                                                                                   |
-| `allowedHosts` | `[]`        | further `Host` header values to accept, for a proxy that rewrites `Host`                                                                     |
+| Field                | Default     | Meaning                                                                                                                                                                                                                     |
+| -------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `publicURL`          | none        | the origin clients reach the server at; https unless the host is loopback, with no path. Without it, the origin is `http://127.0.0.1:<port>`                                                                                |
+| `host`               | `127.0.0.1` | the address the server binds; an address beyond loopback needs an https `publicURL`, since atc does not terminate TLS                                                                                                       |
+| `port`               | `8414`      | the port the server binds, from 1 to 65535                                                                                                                                                                                  |
+| `allowedHosts`       | `[]`        | further `Host` header values to accept, for a proxy that rewrites `Host`                                                                                                                                                    |
+| `trustForwardedFrom` | `[]`        | the proxy addresses whose `CF-Connecting-IP` header security events mark `trusted`, each written as the socket reports the proxy's address ([the forwarded address](../architecture/remote/oauth.md#the-forwarded-address)) |
 
 Clients are not config: add each one with `atc clients add`, which prints the client ID the
 connector needs, and the [principals](./configuration/principals.md) key matches. ChatGPT returns to
