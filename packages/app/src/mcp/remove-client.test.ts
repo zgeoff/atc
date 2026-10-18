@@ -38,6 +38,7 @@ async function setupTest() {
     port: 0,
     publicURL: null,
     allowedHosts: [],
+    trustForwardedFrom: [],
     dbPath,
     openAuthDatabase: openMCPAuthDatabase,
     printRequest: () => {},

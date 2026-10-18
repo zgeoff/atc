@@ -32,6 +32,10 @@ interface MCPHTTPServerOptions {
   // Further Host header values to accept, for a proxy that rewrites Host.
   readonly allowedHosts: readonly string[];
 
+  // The socket peers whose `CF-Connecting-IP` header a security event
+  // labels `trusted`, each exactly as the socket reports its address.
+  readonly trustForwardedFrom: readonly string[];
+
   // The authorization server's SQLite database, and the opener the entry
   // wires in for it.
   readonly dbPath: string;
@@ -86,6 +90,7 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
   }
 
   const security = new SecurityEventLog({ print: options.printSecurity, clock });
+  const trustedProxies: ReadonlySet<string> = new Set(options.trustForwardedFrom);
 
   const holder: { ready: ServerState | null; hosts: ReadonlySet<string> } = {
     ready: null,
@@ -108,10 +113,22 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
       const path = new URL(request.url).pathname;
 
       // The socket's peer is the requester, or the proxy or tunnel in front
-      // of atc.
+      // of atc. Only a listed peer vouches for the forwarded address.
+      const socketAddress = bunServer.requestIP(request)?.address ?? null;
+      const connectingIP = request.headers.get('cf-connecting-ip');
+
       const requester: Requester = {
-        socketAddress: bunServer.requestIP(request)?.address ?? null,
-        connectingIP: request.headers.get('cf-connecting-ip'),
+        socketAddress,
+        connectingIP:
+          connectingIP === null
+            ? null
+            : {
+                address: connectingIP,
+                provenance:
+                  socketAddress !== null && trustedProxies.has(socketAddress)
+                    ? 'trusted'
+                    : 'unverified',
+              },
         userAgent: request.headers.get('user-agent'),
       };
 

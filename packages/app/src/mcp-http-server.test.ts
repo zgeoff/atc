@@ -52,7 +52,13 @@ test('it serves MCP through the daemon it boots and says no client can connect a
       openAuthDatabase: openMCPAuthDatabase,
     },
     {
-      loadConfig: () => ({ publicURL: null, host: '127.0.0.1', port: 8414, allowedHosts: [] }),
+      loadConfig: () => ({
+        publicURL: null,
+        host: '127.0.0.1',
+        port: 8414,
+        allowedHosts: [],
+        trustForwardedFrom: [],
+      }),
       dbPath: ctx.dbPath,
       daemonPaths: ctx.daemonPaths,
       print: (line) => {
@@ -116,7 +122,13 @@ test('it prints no hint to add a client once one can connect', async () => {
       openAuthDatabase: openMCPAuthDatabase,
     },
     {
-      loadConfig: () => ({ publicURL: null, host: '127.0.0.1', port: 8414, allowedHosts: [] }),
+      loadConfig: () => ({
+        publicURL: null,
+        host: '127.0.0.1',
+        port: 8414,
+        allowedHosts: [],
+        trustForwardedFrom: [],
+      }),
       dbPath: ctx.dbPath,
       daemonPaths: ctx.daemonPaths,
       print: (line) => {
@@ -175,7 +187,13 @@ test('it prints no hint to enroll a passkey once one is enrolled', async () => {
       openAuthDatabase: openMCPAuthDatabase,
     },
     {
-      loadConfig: () => ({ publicURL: null, host: '127.0.0.1', port: 8414, allowedHosts: [] }),
+      loadConfig: () => ({
+        publicURL: null,
+        host: '127.0.0.1',
+        port: 8414,
+        allowedHosts: [],
+        trustForwardedFrom: [],
+      }),
       dbPath: ctx.dbPath,
       daemonPaths: ctx.daemonPaths,
       print: (line) => {
@@ -227,7 +245,13 @@ test('it prints nothing to stdout once it serves and each sign-in security event
       openAuthDatabase: openMCPAuthDatabase,
     },
     {
-      loadConfig: () => ({ publicURL: null, host: '127.0.0.1', port: 8414, allowedHosts: [] }),
+      loadConfig: () => ({
+        publicURL: null,
+        host: '127.0.0.1',
+        port: 8414,
+        allowedHosts: [],
+        trustForwardedFrom: [],
+      }),
       dbPath: ctx.dbPath,
       daemonPaths: ctx.daemonPaths,
       print: (line) => {
@@ -299,7 +323,13 @@ test('it registers its SIGINT and SIGTERM handlers before it prints the serving 
       openAuthDatabase: openMCPAuthDatabase,
     },
     {
-      loadConfig: () => ({ publicURL: null, host: '127.0.0.1', port: 8414, allowedHosts: [] }),
+      loadConfig: () => ({
+        publicURL: null,
+        host: '127.0.0.1',
+        port: 8414,
+        allowedHosts: [],
+        trustForwardedFrom: [],
+      }),
       dbPath: ctx.dbPath,
       daemonPaths: ctx.daemonPaths,
       print: (line) => {
@@ -342,7 +372,13 @@ test('it stops serving and exits 0 on SIGTERM', async () => {
       openAuthDatabase: openMCPAuthDatabase,
     },
     {
-      loadConfig: () => ({ publicURL: null, host: '127.0.0.1', port: 8414, allowedHosts: [] }),
+      loadConfig: () => ({
+        publicURL: null,
+        host: '127.0.0.1',
+        port: 8414,
+        allowedHosts: [],
+        trustForwardedFrom: [],
+      }),
       dbPath: ctx.dbPath,
       daemonPaths: ctx.daemonPaths,
       print: (line) => {
@@ -387,7 +423,13 @@ test('it exits 1 with the reason when no daemon answers at its daemon paths', as
       openAuthDatabase: openMCPAuthDatabase,
     },
     {
-      loadConfig: () => ({ publicURL: null, host: '127.0.0.1', port: 8414, allowedHosts: [] }),
+      loadConfig: () => ({
+        publicURL: null,
+        host: '127.0.0.1',
+        port: 8414,
+        allowedHosts: [],
+        trustForwardedFrom: [],
+      }),
       dbPath: join(tmp.dir, 'mcp-auth.db'),
       daemonPaths: {
         socketPath: join(tmp.dir, 'atc-daemon.sock'),

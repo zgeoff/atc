@@ -74,6 +74,7 @@ export async function runGatewayCLI(
           host: ctx.values.host ?? '127.0.0.1',
           port: ctx.values.port ?? 8414,
           publicURL: ctx.values['public-url'],
+          trustForwardedFrom: ctx.values['trust-forwarded-from'] ?? [],
           registryPath: ctx.values.registry,
           stateDir,
         }),
@@ -93,6 +94,12 @@ export async function runGatewayCLI(
           type: 'string',
           required: true,
           description: 'Origin clients reach the gateway at, such as https://mcp.example.com',
+        },
+        'trust-forwarded-from': {
+          type: 'string',
+          multiple: true,
+          description:
+            'A proxy address whose CF-Connecting-IP header security events trust; repeat for more',
         },
         registry: { type: 'string', required: true, description: 'The registry JSON file' },
         ...STATE_DIR_ARG,

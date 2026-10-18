@@ -31,8 +31,12 @@ export interface ToolContext {
 export interface Requester {
   readonly socketAddress: string | null;
 
-  // the `CF-Connecting-IP` header, which anyone can send.
-  readonly connectingIP: string | null;
+  // the `CF-Connecting-IP` header. Anyone can send it, so it is `trusted`
+  // only when the socket's peer is a proxy the owner listed.
+  readonly connectingIP: {
+    readonly address: string;
+    readonly provenance: 'trusted' | 'unverified';
+  } | null;
   readonly userAgent: string | null;
 }
 

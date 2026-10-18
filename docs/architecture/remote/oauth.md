@@ -164,7 +164,8 @@ name, so a value added to an event never reaches the line by accident:
 - `client` with its id and name, only for a client atc holds, and `redirectHost` only once
   better-auth validated the redirect URI.
 - `peer`, the socket's address with provenance `socket`, and `forwarded`, the `CF-Connecting-IP`
-  header with provenance `unverified`, since anyone can send that header.
+  header with provenance `trusted` or `unverified`, as
+  [the forwarded address](#the-forwarded-address) describes.
 - `userAgent`, cut short, with provenance `client`.
 
 Every string from the client loses its control and format characters and is cut to a bound. No line
@@ -176,3 +177,21 @@ A burst cap bounds each kind per window, so a flood of bad requests cannot flood
 the cap the log drops events and counts them, and when the window ends it writes one `suppressed`
 event with the count. The window's end is scheduled when its first event drops, so the count arrives
 even when no further request comes, and stopping the server writes any count still pending.
+
+### The forwarded address
+
+The trust boundary sits at the socket. atc learns the socket's peer from the connection itself, but
+the peer writes every request header, `CF-Connecting-IP` included. A proxy or tunnel that sets the
+header replaces any value the client sent, so the header holds the client's address only when such a
+proxy delivered the request.
+
+atc labels `forwarded` as `trusted` only when the socket's peer is an address the owner listed, in
+the `mcpHTTP.trustForwardedFrom` config for `atc mcp --http` or with `--trust-forwarded-from` for
+the gateway. The list is empty by default, so every forwarded address reads as `unverified` until
+the owner names a proxy. A listed address matches the peer exactly as the socket reports it, with no
+range and no name lookup. atc never checks the header's value, and the label changes only what the
+event says: the header decides no request.
+
+Listing an address trusts every request that arrives from it. When a client can also connect from
+that address, as any local program can over loopback, that client can send any header and still get
+`trusted`. List only an address from which nothing but the proxy connects.

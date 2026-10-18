@@ -8,12 +8,14 @@ test('it reads every mcpHTTP setting', () => {
       host: '0.0.0.0',
       port: 9000,
       allowedHosts: ['pc.tailnet.ts.net'],
+      trustForwardedFrom: ['127.0.0.1'],
     }),
   ).toStrictEqual({
     publicURL: 'https://mcp.example.com',
     host: '0.0.0.0',
     port: 9000,
     allowedHosts: ['pc.tailnet.ts.net'],
+    trustForwardedFrom: ['127.0.0.1'],
   });
 });
 
@@ -23,13 +25,36 @@ test('it falls back to the defaults for an absent section', () => {
     host: '127.0.0.1',
     port: 8414,
     allowedHosts: [],
+    trustForwardedFrom: [],
   });
 });
 
 test('it drops wrong-typed settings and entries', () => {
   expect(
-    collectMCPHTTPConfig({ publicURL: 7, host: 1, port: 'x', allowedHosts: ['a', 3] }),
-  ).toStrictEqual({ publicURL: null, host: '127.0.0.1', port: 8414, allowedHosts: ['a'] });
+    collectMCPHTTPConfig({
+      publicURL: 7,
+      host: 1,
+      port: 'x',
+      allowedHosts: ['a', 3],
+      trustForwardedFrom: ['127.0.0.1', 4, ''],
+    }),
+  ).toStrictEqual({
+    publicURL: null,
+    host: '127.0.0.1',
+    port: 8414,
+    allowedHosts: ['a'],
+    trustForwardedFrom: ['127.0.0.1'],
+  });
+});
+
+test('it trusts no proxy when trustForwardedFrom is not a list', () => {
+  expect(collectMCPHTTPConfig({ trustForwardedFrom: '127.0.0.1' })).toStrictEqual({
+    publicURL: null,
+    host: '127.0.0.1',
+    port: 8414,
+    allowedHosts: [],
+    trustForwardedFrom: [],
+  });
 });
 
 test.each([0, 65_536, 80.5])('it falls back to port 8414 for a configured port of %p', (port) => {
@@ -38,5 +63,6 @@ test.each([0, 65_536, 80.5])('it falls back to port 8414 for a configured port o
     host: '127.0.0.1',
     port: 8414,
     allowedHosts: [],
+    trustForwardedFrom: [],
   });
 });
