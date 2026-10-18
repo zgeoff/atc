@@ -138,7 +138,7 @@
     "proxy-addr": "2.0.8",
     "qs": "6.16.0",
     "smol-toml": "1.9.0",
-    "tinypool": "2.1.2"
+    "tinypool": "2.2.0"
   },
   "packageManager": "bun@1.4.3",
   "patchedDependencies": {
