@@ -47,8 +47,8 @@ async function readErrorCode(response: Response): Promise<string | null> {
   }
 }
 
-// The better-auth error codes a `token_exchange` event may hold; any other
-// code becomes `other`.
+// A fixed list keeps the reason a value a log rule can match, whatever text
+// a future better-auth puts in its error field.
 const TOKEN_EXCHANGE_ERRORS: ReadonlySet<string> = new Set([
   'invalid_request',
   'invalid_client',

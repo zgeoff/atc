@@ -29,6 +29,41 @@ async function setupTest() {
   return { store, security, lines, clock };
 }
 
+test.each([
+  ['invalid_request', 'invalid_request'],
+  ['invalid_client', 'invalid_client'],
+  ['invalid_grant', 'invalid_grant'],
+  ['unauthorized_client', 'unauthorized_client'],
+  ['unsupported_grant_type', 'unsupported_grant_type'],
+  ['invalid_scope', 'invalid_scope'],
+  ['invalid_target', 'invalid_target'],
+  ['server_error', 'other'],
+])('it records the error code %p as the reason %p', async (code, reason) => {
+  const ctx = await setupTest();
+
+  await recordRefusedExchange(ctx, {
+    contentType: null,
+    body: '',
+    response: Response.json({ error: code }, { status: 400 }),
+    path: '/oauth2/token',
+    requester: { socketAddress: '127.0.0.1', connectingIP: null, userAgent: null },
+  });
+
+  expect(
+    JSON.parse(`[${ctx.lines.map((line) => line.slice('atc security '.length)).join(',')}]`),
+  ).toStrictEqual([
+    {
+      v: 1,
+      ts: new Date(ctx.clock.now()).toISOString(),
+      kind: 'token_exchange',
+      outcome: 'rejected',
+      reason,
+      route: '/oauth2/token',
+      peer: { address: '127.0.0.1', provenance: 'socket' },
+    },
+  ]);
+});
+
 test('it records an error code outside the fixed list as other and keeps the code out of the event', async () => {
   const ctx = await setupTest();
 
