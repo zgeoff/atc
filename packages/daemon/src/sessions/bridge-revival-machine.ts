@@ -72,6 +72,8 @@ export const BRIDGE_REVIVAL_MACHINE = setup({
       entry: 'writeBridge',
       on: {
         WRITE_ENDED: [{ guard: 'isLostAgain', target: 'waiting' }, { target: 'tapped' }],
+
+        // a loss during the write starts its wait once the write ends
         TAP_LEFT: { actions: assign({ isLostAgain: true }) },
       },
     },

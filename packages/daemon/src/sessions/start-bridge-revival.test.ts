@@ -436,6 +436,39 @@ test('it doubles the wait after each write for a session that keeps losing its t
   expect(ctx.clock.collectDelays()).toStrictEqual([30_000, 60_000, 120_000]);
 });
 
+test('it writes again after the doubled wait for a tap lost while a write was under way', async () => {
+  const transfer = Promise.withResolvers<void>();
+  const ctx = setupTest({ remote: true, transferArchive: () => transfer.promise });
+  const id = toSessionID('s-bridge');
+
+  const pty = ctx.provider.spawnHarness({
+    session: id,
+    host: id,
+    bin: 'claude',
+    args: [],
+    cwd: '/work',
+    env: {},
+    cols: 80,
+    rows: 24,
+  });
+
+  ctx.sessions.push(buildMockSession({ id, pty, state: 'running' }));
+  ctx.taps.attach(id, ctx.client);
+  ctx.taps.removeSession(id);
+  ctx.clock.advance(30_000);
+  ctx.taps.attach(id, ctx.client);
+  ctx.taps.removeSession(id);
+  transfer.resolve();
+
+  await waitFor(() => {
+    expect(ctx.notes).toHaveLength(1);
+  });
+
+  ctx.clock.advance(60_000);
+
+  expect(ctx.provider.transfers).toHaveLength(2);
+});
+
 test('it makes one write per tap loss however long the tap stays gone', async () => {
   const ctx = setupTest({ remote: true });
   const id = toSessionID('s-bridge');

@@ -69,13 +69,8 @@ export function startBridgeRevival(deps: BridgeRevivalDeps): BridgeRevival {
 
   const findSession = (sessionID: SessionID) => deps.mgr.sessions.find((x) => x.id === sessionID);
 
-  const findActor = (sessionID: SessionID) => {
-    const existing = actors.get(sessionID);
-
-    if (existing !== undefined) {
-      return existing;
-    }
-
+  // Creates, stores and starts the machine of a session that has none.
+  const startSessionActor = (sessionID: SessionID) => {
     const machine = BRIDGE_REVIVAL_MACHINE.provide({
       guards: {
         isGone: () => {
@@ -184,7 +179,9 @@ export function startBridgeRevival(deps: BridgeRevivalDeps): BridgeRevival {
   };
 
   const unsubscribe = deps.taps.subscribeToDetach((sessionID) => {
-    findActor(sessionID).send({ type: 'TAP_LEFT' });
+    const actor = actors.get(sessionID) ?? startSessionActor(sessionID);
+
+    actor.send({ type: 'TAP_LEFT' });
   });
 
   return {
