@@ -304,6 +304,18 @@ export class StateStore {
     return this.messages.updateDeliveredMessagesUnanswered(owner, reason, at);
   }
 
+  updateUnsettledMessagesUnanswered(
+    owner: MessageOwner,
+    reason: string,
+    at: number,
+  ): Promise<MessageRecord[]> {
+    return this.messages.updateUnsettledMessagesUnanswered(owner, reason, at);
+  }
+
+  updateDeliveredMessagesQueued(owner: MessageOwner): Promise<MessageRecord[]> {
+    return this.messages.updateDeliveredMessagesQueued(owner);
+  }
+
   collectPendingNotices(senderSession: SessionID): Promise<MessageRecord[]> {
     return this.messages.collectPendingNotices(senderSession);
   }

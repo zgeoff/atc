@@ -13,7 +13,10 @@ import {
 } from '@atc/test-utils';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
-async function setupTest(planSpawn = mock(() => ({ bin: 'sleep', args: ['30'] }))) {
+async function setupTest(
+  planSpawn = mock(() => ({ bin: 'sleep', args: ['30'] })),
+  options: { readonly restoreFleetOnRestart?: boolean } = {},
+) {
   const claude = new ClaudeAdapter(
     buildMockAgentEntry({ id: 'claude' }),
     { authProfiles: new Map() },
@@ -32,6 +35,11 @@ async function setupTest(planSpawn = mock(() => ({ bin: 'sleep', args: ['30'] })
         planHookEvents: (hook) => claude.planHookEvents(hook),
       }),
       onNoteIgnored: noteIgnored,
+      restoreFleetOnRestart: options.restoreFleetOnRestart === true,
+
+      // The stand-in never reports its boot, so a short cap keeps the
+      // restore from holding each session up.
+      restoreBootTimeoutMs: 10,
     }),
   });
 
@@ -371,6 +379,94 @@ test('it hands no second answer notice when the answer is reported again after a
 
   expect(replay.notices).toStrictEqual([]);
   expect(tap.notices).toHaveLength(1);
+});
+
+test('it hands a message delivered before a restart to the revived recipient and one answer notice to its sender', async () => {
+  const ctx = await setupTest(undefined, { restoreFleetOnRestart: true });
+
+  // An agent session id makes each session revivable after the restart.
+  await ctx.daemon.sendHookLines(
+    { atcId: ctx.sender, event: 'SessionStart', payload: { session_id: 'agent-sender' } },
+    { atcId: ctx.recipient, event: 'SessionStart', payload: { session_id: 'agent-recipient' } },
+  );
+
+  await waitFor(async () => {
+    const listed = await ctx.daemon.client.sendRequest('session.list');
+
+    expect(listed['sessions']).toIncludeAllPartialMembers([
+      { id: ctx.sender, agentSessionID: 'agent-sender' },
+      { id: ctx.recipient, agentSessionID: 'agent-recipient' },
+    ]);
+  });
+
+  const sent = await ctx.inside.sendRequest('session.message', {
+    session: ctx.recipient,
+    text: 'rotate the staging keys',
+  });
+
+  const before = await startNoticeTap(ctx.daemon, ctx.recipient, false);
+
+  await waitFor(async () => {
+    const read = await ctx.daemon.client.sendRequest('message.get', { message: sent['message'] });
+
+    expect(read['status']).toBe('delivered');
+  });
+
+  await ctx.daemon.restart();
+
+  await waitFor(async () => {
+    const listed = await ctx.daemon.client.sendRequest('session.list');
+
+    expect(listed['sessions']).toPartiallyContain({ id: ctx.recipient, alive: true });
+    expect(listed['sessions']).toPartiallyContain({ id: ctx.sender, alive: true });
+  });
+
+  const after = await startNoticeTap(ctx.daemon, ctx.recipient, false);
+
+  await waitFor(() => {
+    expect(after.messages).toStrictEqual([
+      {
+        v: 4,
+        ev: 'InboxMessage',
+        s: ctx.recipient,
+        message: sent['message'],
+        from: 'sender',
+        sender: { kind: 'session', session: ctx.sender, name: 'sender' },
+        text: 'rotate the staging keys',
+        sentAt: expect.any(Number),
+      },
+    ]);
+  });
+
+  await ctx.daemon.sendHookLines({
+    atcId: ctx.recipient,
+    event: 'Note',
+    payload: { kind: 'answered', message: sent['message'], answer: 'the keys are rotated' },
+  });
+
+  const tap = await startNoticeTap(ctx.daemon, ctx.sender, true);
+
+  await waitFor(() => {
+    expect(tap.notices).toStrictEqual([
+      {
+        v: 4,
+        ev: 'InboxNotice',
+        s: ctx.sender,
+        message: sent['message'],
+        from: ctx.recipient,
+        status: 'answered',
+        answer: 'the keys are rotated',
+        at: expect.any(Number),
+      },
+    ]);
+  });
+
+  // A second tap replays nothing the first one took.
+  const replay = await startNoticeTap(ctx.daemon, ctx.sender, true);
+
+  expect(replay.notices).toStrictEqual([]);
+  expect(tap.notices).toHaveLength(1);
+  expect(before.messages).toHaveLength(1);
 });
 
 test('it keeps the answer notice of an exited sender queued and hands it over once the sender revives', async () => {

@@ -223,6 +223,45 @@ export class MessageStore {
     return rows.map((row) => toMessageRecord(row)).toSorted((a, b) => a.sentAt - b.sentAt);
   }
 
+  // For a session that is gone for good, so no process will take its
+  // messages, queued or delivered. One statement also queues the answer
+  // notice of each with a sender session.
+  async updateUnsettledMessagesUnanswered(
+    owner: MessageOwner,
+    reason: string,
+    at: number,
+  ): Promise<MessageRecord[]> {
+    const rows = await this.db
+      .updateTable('messages')
+      .set({
+        status: 'unanswered',
+        unanswered_at: at,
+        unanswered_reason: reason,
+        notice_queued_at: buildNoticeQueuedAt(at),
+      })
+      .where('status', 'in', ['queued', 'delivered'])
+      .where((eb) => buildOwnerFilter(eb, owner))
+      .returningAll()
+      .execute();
+
+    return rows.map((row) => toMessageRecord(row)).toSorted((a, b) => a.sentAt - b.sentAt);
+  }
+
+  // For a session whose process ended with the daemon and that a restore
+  // revives: each message it held delivered goes back to queued, so the
+  // revived process takes it again.
+  async updateDeliveredMessagesQueued(owner: MessageOwner): Promise<MessageRecord[]> {
+    const rows = await this.db
+      .updateTable('messages')
+      .set({ status: 'queued', delivered_at: null })
+      .where('status', '=', 'delivered')
+      .where((eb) => buildOwnerFilter(eb, owner))
+      .returningAll()
+      .execute();
+
+    return rows.map((row) => toMessageRecord(row)).toSorted((a, b) => a.sentAt - b.sentAt);
+  }
+
   // The answer notices queued for the sender session and not yet taken by
   // its tap, oldest first.
   async collectPendingNotices(senderSession: SessionID): Promise<MessageRecord[]> {

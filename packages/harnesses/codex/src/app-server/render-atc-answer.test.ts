@@ -14,3 +14,11 @@ test('it renders an unanswered message with its reason', () => {
     '<atc-answer id="m-1" from="s-2" status="unanswered" reason="interrupted">\n\n</atc-answer>',
   );
 });
+
+test('it tells the sender to send again a message whose session ended before it answered', () => {
+  expect(
+    renderAtcAnswer({ id: 'm-1', from: 's-2', status: 'unanswered', reason: 'session_ended' }),
+  ).toBe(
+    '<atc-answer id="m-1" from="s-2" status="unanswered" reason="session_ended">\nThis message has no answer, because its session ended before it answered. Send it again if you still need the answer.\n</atc-answer>',
+  );
+});

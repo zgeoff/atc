@@ -56,6 +56,9 @@ interface BridgeState {
   // The answer notices appended to each running turn that no step of the turn
   // has shown the model yet; a step empties the list.
   readonly unseenNotices: Map<string, TapNotice[]>;
+  // The ids of the answer notices already in the conversation, so a notice the tap prints again
+  // never shows twice.
+  readonly shownNotices: Set<string>;
 }
 
 const GUIDE_SECTION = {
@@ -99,6 +102,7 @@ export const register: Register = (on) => {
     carried: new Map(),
     unseen: new Set(),
     unseenNotices: new Map(),
+    shownNotices: new Set(),
   };
 
   on('session.start', async ($, e, next) => {
@@ -591,25 +595,35 @@ function scheduleNoticeDelivery($: EngineInterface, state: BridgeState, notice: 
 }
 
 // A notice never waits for a turn to start and never joins one's carried
-// messages, so no turn reports an answer for it.
+// messages, so no turn reports an answer for it. An appended notice stays in
+// the conversation, so it is never sent again; a turn that ends before a step
+// shows it leaves a reminder that names it instead.
 async function sendNotice(
   $: EngineInterface,
   state: BridgeState,
   notice: TapNotice,
 ): Promise<void> {
+  if (state.shownNotices.has(notice.id)) {
+    return;
+  }
+
   await waitForStepEnd(state);
 
   const turnID = state.runningTurnID;
   const text = renderAnswerNotice(notice);
 
   if (turnID !== null && (await tryUpdateConversation($, notice.id, text))) {
+    state.shownNotices.add(notice.id);
+
     const unseen = state.unseenNotices.get(turnID);
 
     if (unseen !== undefined && state.runningTurnID === turnID) {
       unseen.push(notice);
-
-      return;
+    } else {
+      scheduleNoticeReminder($, state, [notice.id]);
     }
+
+    return;
   }
 
   const submitted = await $.prompt.submit({ text });
@@ -618,7 +632,47 @@ async function sendNotice(
     $.ui.log(`atc-bridge: a hook dropped the answer notice for ${notice.id} (${submitted.drop})`, {
       to: 'debug',
     });
+
+    return;
   }
+
+  state.shownNotices.add(notice.id);
+}
+
+// A prompt that wakes the model for notices already in its conversation,
+// which names them without repeating them.
+function scheduleNoticeReminder(
+  $: EngineInterface,
+  state: BridgeState,
+  messageIDs: readonly string[],
+): void {
+  const text = renderNoticeReminder(messageIDs);
+
+  state.delivering = state.delivering
+    .then(async () => {
+      const submitted = await $.prompt.submit({ text });
+
+      if ('drop' in submitted && submitted.drop !== undefined) {
+        $.ui.log(`atc-bridge: a hook dropped the reminder for ${messageIDs.join(', ')}`, {
+          to: 'debug',
+        });
+      }
+    })
+    .catch((error: unknown) => {
+      $.ui.log(
+        `atc-bridge: reminding of the answer notices for ${messageIDs.join(', ')} failed (${String(error)})`,
+        { to: 'debug' },
+      );
+    });
+}
+
+function renderNoticeReminder(messageIDs: readonly string[]): string {
+  const subject =
+    messageIDs.length === 1
+      ? `the answer notice for ${messageIDs.join('')}`
+      : `the answer notices for ${messageIDs.join(', ')}`;
+
+  return `atc added ${subject} to this conversation after your last reply. Read ${messageIDs.length === 1 ? 'it' : 'them'} above; atc does not send ${messageIDs.length === 1 ? 'it' : 'them'} again.`;
 }
 
 function renderAnswerNotice(notice: TapNotice): string {
@@ -627,9 +681,20 @@ function renderAnswerNotice(notice: TapNotice): string {
       ? ` reason="${encodeAttribute(notice.reason)}"`
       : '';
 
-  const body = (notice.answer ?? '').replaceAll('</atc-answer>', '&lt;/atc-answer&gt;');
+  const body = (notice.answer ?? renderNoticeAdvice(notice)).replaceAll(
+    '</atc-answer>',
+    '&lt;/atc-answer&gt;',
+  );
 
   return `<atc-answer id="${encodeAttribute(notice.id)}" from="${encodeAttribute(notice.from)}" status="${encodeAttribute(notice.status)}"${reason}>\n${body}\n</atc-answer>`;
+}
+
+// A message whose session ended before it answered reaches no one unless
+// its sender sends it again, so the notice says so.
+function renderNoticeAdvice(notice: TapNotice): string {
+  return notice.status === 'unanswered' && notice.reason === 'session_ended'
+    ? 'This message has no answer, because its session ended before it answered. Send it again if you still need the answer.'
+    : '';
 }
 
 const ENVELOPE_ID = /<atc-message id="(?<id>[^"]+)"/gu;
@@ -663,8 +728,14 @@ function updateTurnCompleted(
 
   state.carried.delete(turnID);
 
-  for (const notice of state.unseenNotices.get(turnID) ?? []) {
-    scheduleNoticeDelivery($, state, notice);
+  const unseenNotices = state.unseenNotices.get(turnID) ?? [];
+
+  if (unseenNotices.length > 0) {
+    scheduleNoticeReminder(
+      $,
+      state,
+      unseenNotices.map((notice) => notice.id),
+    );
   }
 
   state.unseenNotices.delete(turnID);

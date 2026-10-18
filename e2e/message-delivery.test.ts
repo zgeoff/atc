@@ -3006,7 +3006,7 @@ test('it marks a delivered message unanswered as session_ended when the session 
   expect(got['unansweredReason']).toBe('session_ended');
 });
 
-test('it marks a delivered message unanswered as session_ended when the daemon restarts', async () => {
+test('it marks a delivered message unanswered as session_ended when the daemon restarts without a restore', async () => {
   const daemon = await startTestDaemon({
     options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
   });
@@ -3022,6 +3022,31 @@ test('it marks a delivered message unanswered as session_ended when the daemon r
   const read = await daemon.client.sendRequest('message.get', { message: sent['message'] });
 
   expect(read).toMatchObject({ status: 'unanswered', unansweredReason: 'session_ended' });
+});
+
+test('it marks a queued message unanswered as session_ended when the session is removed', async () => {
+  const daemon = await startTestDaemon({
+    options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
+  });
+
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
+
+  // The first kill leaves an exited entry, whose next process could still
+  // take the message; the second removes it.
+  await daemon.client.sendRequest('session.kill', { session: id });
+
+  const stopped = await daemon.client.sendRequest('message.get', { message: sent['message'] });
+
+  expect(stopped['status']).toBe('queued');
+
+  await daemon.client.sendRequest('session.kill', { session: id });
+
+  await waitFor(async () => {
+    const read = await daemon.client.sendRequest('message.get', { message: sent['message'] });
+
+    expect(read).toMatchObject({ status: 'unanswered', unansweredReason: 'session_ended' });
+  });
 });
 
 test('it keeps a delivered message delivered when another session of the same agent session ends', async () => {

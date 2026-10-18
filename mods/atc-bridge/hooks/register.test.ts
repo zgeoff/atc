@@ -1960,3 +1960,136 @@ test('it delivers a message at once while the turn runs a tool between steps', a
 
   expect(submitted).toStrictEqual(['<atc-message id="m-1" from="alice">\nhi\n</atc-message>']);
 });
+
+// Every row the conversation holds, whether appended to a running turn or
+// submitted as a prompt; an append lands once its gate opens.
+function setupConversationTest(
+  { on }: { readonly on: On },
+  tapLines: Promise<string[]>,
+  appendGate: Promise<void> = Promise.resolve(),
+) {
+  const ctx = setupTest({ on });
+  const conversation: string[] = [];
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
+
+  on('process.spawn', async function* () {
+    for (const text of await tapLines) {
+      yield { stream: 'stdout', text };
+    }
+
+    return { value: { code: 0, signal: null } };
+  });
+
+  on('session.append', async ($, e, next) => {
+    await appendGate;
+
+    const [block] = e.message.content;
+
+    conversation.push(block?.type === 'text' ? block.text : '');
+
+    return next(e);
+  });
+
+  on('prompt.submit', ($, e) => {
+    conversation.push(e.text);
+
+    return { text: e.text };
+  });
+
+  return { ...ctx, conversation };
+}
+
+test('it shows an answer notice once when the turn it joined ends before another step', async (engine, on) => {
+  const tapLines = Promise.withResolvers<string[]>();
+  const ctx = setupConversationTest({ on }, tapLines.promise);
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await engine.turn.start({ text: 'typed by the user', turnId: 't-1' });
+
+  tapLines.resolve([
+    '{"kind":"answer","id":"m-1","from":"s-2","status":"answered","answer":"the build is green"}\n',
+  ]);
+
+  await ctx.clock.settle();
+
+  await engine.turn.complete({
+    answer: 'done here',
+    durationMs: 5,
+    isAborted: false,
+    turnId: 't-1',
+    reason: 'answer',
+  });
+
+  await ctx.clock.settle();
+
+  expect(ctx.conversation).toStrictEqual([
+    '<atc-answer id="m-1" from="s-2" status="answered">\nthe build is green\n</atc-answer>',
+    'atc added the answer notice for m-1 to this conversation after your last reply. Read it above; atc does not send it again.',
+  ]);
+});
+
+test('it shows an answer notice once when the tap prints it twice', async (engine, on) => {
+  const line =
+    '{"kind":"answer","id":"m-1","from":"s-2","status":"answered","answer":"the build is green"}\n';
+
+  const ctx = setupConversationTest({ on }, Promise.resolve([line, line]));
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await ctx.clock.settle();
+
+  expect(ctx.conversation).toStrictEqual([
+    '<atc-answer id="m-1" from="s-2" status="answered">\nthe build is green\n</atc-answer>',
+  ]);
+});
+
+test('it tells the sender to send again a message whose session ended before it answered', async (engine, on) => {
+  const ctx = setupConversationTest(
+    { on },
+    Promise.resolve([
+      '{"kind":"answer","id":"m-1","from":"s-2","status":"unanswered","reason":"session_ended"}\n',
+    ]),
+  );
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await ctx.clock.settle();
+
+  expect(ctx.conversation).toStrictEqual([
+    '<atc-answer id="m-1" from="s-2" status="unanswered" reason="session_ended">\nThis message has no answer, because its session ended before it answered. Send it again if you still need the answer.\n</atc-answer>',
+  ]);
+});
+
+test('it shows an answer notice once when its append resolves after the turn ended', async (engine, on) => {
+  const tapLines = Promise.withResolvers<string[]>();
+  const appended = Promise.withResolvers<void>();
+  // The row lands only once the turn has ended.
+  const ctx = setupConversationTest({ on }, tapLines.promise, appended.promise);
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await engine.turn.start({ text: 'typed by the user', turnId: 't-1' });
+
+  tapLines.resolve([
+    '{"kind":"answer","id":"m-1","from":"s-2","status":"answered","answer":"the build is green"}\n',
+  ]);
+
+  await ctx.clock.settle();
+
+  await engine.turn.complete({
+    answer: 'done here',
+    durationMs: 5,
+    isAborted: false,
+    turnId: 't-1',
+    reason: 'answer',
+  });
+
+  appended.resolve();
+
+  await ctx.clock.settle();
+
+  expect(ctx.conversation).toStrictEqual([
+    '<atc-answer id="m-1" from="s-2" status="answered">\nthe build is green\n</atc-answer>',
+    'atc added the answer notice for m-1 to this conversation after your last reply. Read it above; atc does not send it again.',
+  ]);
+});

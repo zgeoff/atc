@@ -126,18 +126,27 @@ session gets it pushed as well, as [delivering answers](#delivering-answers) des
 
 ### The end of a process
 
-When a session's process exits, or a person kills or removes the session, the daemon marks each
-message the session holds delivered `unanswered` with the reason `session_ended`. The mod's state
-died with the process, so no report about those messages can arrive. The daemon marks them rather
-than delivering them again when the session revives, because nothing promises a revive, and the
-ended turn may have done part of the work that a second delivery would repeat. A message still
-queued stays queued for the session's next process.
+When a session's process exits, or a person kills the session, the daemon marks each message the
+session holds delivered `unanswered` with the reason `session_ended`. The mod's state died with the
+process, so no report about those messages can arrive, and nothing promises a revive. A message
+still queued stays queued for the session's next process. When a person removes the session, it is
+gone for good, so the daemon marks its queued messages `unanswered` too.
 
-Every local process ends with the daemon that started it, so a daemon that starts marks the
-delivered messages of every fleet session on its own machine the same way. A session whose agent
-session id a live fleet row on a remote target holds marks only the messages sent to it, because
-that row's session may still run there and hold its own. Three ends mark nothing, because the
-process may still run:
+Every local process ends with the daemon that started it. A daemon that restores the fleet as it
+starts puts each message a revived session held delivered back to queued, before the restore runs.
+The revived process's tap then takes the message again under the same id, and its sender gets one
+answer. The revived agent may already hold the message in its conversation, so a second delivery can
+repeat work the ended turn started, but a lost message leaves its sender waiting on an answer that
+never comes.
+
+A daemon that does not restore the fleet marks the delivered messages of each fleet session on its
+own machine `unanswered` with the reason `session_ended`, and so does a restore for a session whose
+fleet entry is exited. The mod writes the answer notice of a message marked `session_ended` with a
+body that asks its sender to send the message again. When a live fleet row on a remote target holds
+the same agent session id, the daemon touches only the messages sent to the local session's own atc
+id, because that row's session may still run there and hold its own.
+
+Three ends mark nothing, because the process may still run:
 
 - A host that goes to sleep with the process inside, which a wake resumes.
 - A connection to a remote host that is lost for good, since a revive can attach to the same
@@ -179,8 +188,10 @@ answering session, the status and, for an unanswered message, the reason. The an
 escaped the way a message envelope escapes its text. An idle sender takes the notice as a new turn,
 and a busy one takes it inside the running turn. A notice is never a message: the mod never counts
 it among a turn's messages, so the turn that reads it reports no answer, and two sessions cannot
-send answers back and forth. A notice the model never saw, one added to a running turn that ended
-before its next step, is delivered again, as an unseen message is.
+send answers back and forth. The mod hands each notice to the conversation once, and drops a notice
+the tap prints again. A notice added to a running turn that ended before its next step stays in the
+conversation, so the mod never sends it again: it submits a short prompt that holds the notice's
+message id and wakes the model to read it.
 
 ## Progress notes
 

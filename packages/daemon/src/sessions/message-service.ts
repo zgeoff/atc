@@ -48,6 +48,8 @@ interface MessageServiceDeps {
     | 'updateMessageDelivered'
     | 'updateNoticeDelivered'
     | 'updateDeliveredMessagesUnanswered'
+    | 'updateUnsettledMessagesUnanswered'
+    | 'updateDeliveredMessagesQueued'
   >;
   readonly clock: Clock;
   readonly ledger: Pick<IdempotencyLedger, 'run'>;
@@ -192,14 +194,19 @@ export class MessageService {
   }
 
   // A session whose process ended leaves no turn to report on the messages
-  // it was given, so each one it holds delivered becomes unanswered.
-  async updateEndedMessages(sessionID: SessionID, owner: MessageOwner): Promise<void> {
+  // it was given, so each one it holds delivered becomes unanswered; a
+  // session gone for good also leaves each one it holds queued.
+  async updateEndedMessages(
+    sessionID: SessionID,
+    owner: MessageOwner,
+    gone = false,
+  ): Promise<void> {
     try {
-      const unanswered = await this.store.updateDeliveredMessagesUnanswered(
-        owner,
-        'session_ended',
-        this.clock.now(),
-      );
+      const at = this.clock.now();
+
+      const unanswered = gone
+        ? await this.store.updateUnsettledMessagesUnanswered(owner, 'session_ended', at)
+        : await this.store.updateDeliveredMessagesUnanswered(owner, 'session_ended', at);
 
       for (const record of unanswered) {
         await this.recordMessageStatus(sessionID, record);
@@ -208,9 +215,21 @@ export class MessageService {
     } catch {}
   }
 
+  // A session that a restore revives takes again each message its ended
+  // process held delivered, once the revived process's tap attaches.
+  async updateRevivedMessages(sessionID: SessionID, owner: MessageOwner): Promise<void> {
+    try {
+      const queued = await this.store.updateDeliveredMessagesQueued(owner);
+
+      for (const record of queued) {
+        await this.recordMessageStatus(sessionID, record);
+      }
+    } catch {}
+  }
+
   // While another live session resumes the same agent session, the store
   // cannot tell which process holds a message, so none is marked.
-  async updateEndedSessionMessages(s: Session): Promise<void> {
+  async updateEndedSessionMessages(s: Session, gone = false): Promise<void> {
     const shared =
       s.agentSessionID !== undefined &&
       this.mgr.sessions.some(
@@ -221,7 +240,7 @@ export class MessageService {
       );
 
     if (!shared) {
-      await this.updateEndedMessages(s.id, buildMessageOwner(s));
+      await this.updateEndedMessages(s.id, buildMessageOwner(s), gone);
     }
   }
 

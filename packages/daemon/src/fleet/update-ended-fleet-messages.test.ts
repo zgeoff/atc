@@ -9,8 +9,8 @@ import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { updateEndedFleetMessages } from './update-ended-fleet-messages';
 
 // A real state store, a manager whose `local` target alone runs on the
-// daemon's machine, and a recorder of the messages it marks.
-async function setupTest() {
+// daemon's machine, and recorders of the messages it marks and requeues.
+async function setupTest(isRestoring = false) {
   const tmp = setupTempDir('atc-ended-fleet-messages-');
   const dbPath = join(tmp.dir, 'state.db');
 
@@ -26,7 +26,18 @@ async function setupTest() {
     () => Promise.resolve(),
   );
 
-  return { store, mgr, messages: { updateEndedMessages }, updateEndedMessages };
+  const updateRevivedMessages = mock<(sessionID: SessionID, owner: MessageOwner) => Promise<void>>(
+    () => Promise.resolve(),
+  );
+
+  return {
+    store,
+    mgr,
+    isRestoring,
+    messages: { updateEndedMessages, updateRevivedMessages },
+    updateEndedMessages,
+    updateRevivedMessages,
+  };
 }
 
 test('it marks the messages of each local session in the stored fleet', async () => {
@@ -92,4 +103,48 @@ test('it leaves every message when the stored fleet cannot be read', async () =>
   await updateEndedFleetMessages(ctx);
 
   expect(ctx.updateEndedMessages).not.toHaveBeenCalled();
+});
+
+test('it requeues the messages of each local session the restore revives', async () => {
+  const ctx = await setupTest(true);
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-1'),
+      target: 'local',
+      agentSessionID: toAgentSessionID('a-1'),
+      exited: false,
+    }),
+  ]);
+
+  await updateEndedFleetMessages(ctx);
+
+  expect(ctx.updateRevivedMessages).toHaveBeenCalledExactlyOnceWith(toSessionID('s-1'), {
+    atcID: toSessionID('s-1'),
+    agentSessionID: toAgentSessionID('a-1'),
+  });
+
+  expect(ctx.updateEndedMessages).not.toHaveBeenCalled();
+});
+
+test('it marks the messages of an exited local session while the restore runs', async () => {
+  const ctx = await setupTest(true);
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-1'),
+      target: 'local',
+      agentSessionID: toAgentSessionID('a-1'),
+      exited: true,
+    }),
+  ]);
+
+  await updateEndedFleetMessages(ctx);
+
+  expect(ctx.updateEndedMessages).toHaveBeenCalledExactlyOnceWith(toSessionID('s-1'), {
+    atcID: toSessionID('s-1'),
+    agentSessionID: toAgentSessionID('a-1'),
+  });
+
+  expect(ctx.updateRevivedMessages).not.toHaveBeenCalled();
 });
