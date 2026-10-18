@@ -217,7 +217,7 @@ export class MessageService {
 
   // A session that a restore revives takes again each message its ended
   // process held delivered, once the revived process's tap attaches. Rejects
-  // when the store kept the messages delivered.
+  // when the store refuses the requeue, so the caller can close them instead.
   async updateRevivedMessages(sessionID: SessionID, owner: MessageOwner): Promise<void> {
     const queued = await this.store.updateDeliveredMessagesQueued(owner);
 
