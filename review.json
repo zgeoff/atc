@@ -1,21 +1,7 @@
 {
+  "extends": "github:zgeoff/noslop-config",
   "rules": [
-    {
-      "path": ".claude/skills/code-style/SKILL.md",
-      "skip": ["Key rules", "Loading the skill"]
-    },
-    {
-      "path": ".claude/skills/testing/SKILL.md",
-      "skip": ["Key rules", "References", "Loading the skill", "Languages and runners"]
-    },
-    {
-      "path": ".claude/skills/docs-writing/SKILL.md",
-      "skip": ["Key rules", "References", "Loading the skill"]
-    },
-    {
-      "path": ".claude/skills/project-code-style/SKILL.md",
-      "skip": ["Key rules", "Project verbs", "Exempt names"]
-    },
+    ".claude/skills/project-code-style/SKILL.md",
     ".claude/skills/project-testing/SKILL.md"
   ],
   "synced": [
