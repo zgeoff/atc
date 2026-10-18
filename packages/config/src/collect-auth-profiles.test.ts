@@ -265,11 +265,11 @@ test('it keeps the variables of a custom profile set to the placeholder or its o
     collectAuthProfiles({
       op: {
         secret: 'op-connect',
-        host: 'op-connect.geoff.cloud',
+        host: 'op-connect.example.com',
         header: 'authorization',
         scheme: 'bearer',
         env: {
-          OP_CONNECT_HOST: 'https://op-connect.geoff.cloud',
+          OP_CONNECT_HOST: 'https://op-connect.example.com',
           OP_CONNECT_TOKEN: 'imp-broker-placeholder',
         },
       },
@@ -282,11 +282,11 @@ test('it keeps the variables of a custom profile set to the placeholder or its o
           name: 'op',
           secret: 'op-connect',
           kind: 'custom',
-          host: 'op-connect.geoff.cloud',
+          host: 'op-connect.example.com',
           header: 'authorization',
           scheme: 'bearer',
           env: {
-            OP_CONNECT_HOST: 'https://op-connect.geoff.cloud',
+            OP_CONNECT_HOST: 'https://op-connect.example.com',
             OP_CONNECT_TOKEN: 'imp-broker-placeholder',
           },
           dependencies: [],
@@ -302,7 +302,7 @@ test('it gives a profile that sets no variables an empty env', () => {
     collectAuthProfiles({
       op: {
         secret: 'op-connect',
-        host: 'op-connect.geoff.cloud',
+        host: 'op-connect.example.com',
         header: 'authorization',
         scheme: 'bearer',
       },
@@ -315,7 +315,7 @@ test('it gives a profile that sets no variables an empty env', () => {
           name: 'op',
           secret: 'op-connect',
           kind: 'custom',
-          host: 'op-connect.geoff.cloud',
+          host: 'op-connect.example.com',
           header: 'authorization',
           scheme: 'bearer',
           env: {},
@@ -330,25 +330,25 @@ test('it gives a profile that sets no variables an empty env', () => {
 test.each([
   [
     { X_URL: 'https://other.example.com' },
-    'env.X_URL must be imp-broker-placeholder or https://op-connect.geoff.cloud',
+    'env.X_URL must be imp-broker-placeholder or https://op-connect.example.com',
   ],
   [
-    { X_URL: 'https://op-connect.geoff.cloud/v1' },
-    'env.X_URL must be imp-broker-placeholder or https://op-connect.geoff.cloud',
+    { X_URL: 'https://op-connect.example.com/v1' },
+    'env.X_URL must be imp-broker-placeholder or https://op-connect.example.com',
   ],
   [
-    { X_URL: 'https://op-connect.geoff.cloud:8443' },
-    'env.X_URL must be imp-broker-placeholder or https://op-connect.geoff.cloud',
+    { X_URL: 'https://op-connect.example.com:8443' },
+    'env.X_URL must be imp-broker-placeholder or https://op-connect.example.com',
   ],
   [
-    { X_URL: 'http://op-connect.geoff.cloud' },
-    'env.X_URL must be imp-broker-placeholder or https://op-connect.geoff.cloud',
+    { X_URL: 'http://op-connect.example.com' },
+    'env.X_URL must be imp-broker-placeholder or https://op-connect.example.com',
   ],
   [
     { X_TOKEN: 'a-real-looking-token' },
-    'env.X_TOKEN must be imp-broker-placeholder or https://op-connect.geoff.cloud',
+    'env.X_TOKEN must be imp-broker-placeholder or https://op-connect.example.com',
   ],
-  [{ X_TOKEN: 7 }, 'env.X_TOKEN must be imp-broker-placeholder or https://op-connect.geoff.cloud'],
+  [{ X_TOKEN: 7 }, 'env.X_TOKEN must be imp-broker-placeholder or https://op-connect.example.com'],
   [
     { lower: 'imp-broker-placeholder' },
     'env.lower is not a variable name: use capital letters, digits and underscores',
@@ -363,7 +363,7 @@ test.each([
     collectAuthProfiles({
       op: {
         secret: 'op-connect',
-        host: 'op-connect.geoff.cloud',
+        host: 'op-connect.example.com',
         header: 'authorization',
         scheme: 'bearer',
         env,
@@ -396,7 +396,7 @@ test.each([
     collectAuthProfiles({
       op: {
         secret: 'op-connect',
-        host: 'op-connect.geoff.cloud',
+        host: 'op-connect.example.com',
         header: 'authorization',
         scheme: 'bearer',
         env: { [name]: 'imp-broker-placeholder' },

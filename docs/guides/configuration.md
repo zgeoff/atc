@@ -92,7 +92,7 @@ keyed by a name of a lowercase letter followed by lowercase letters, digits, or 
     "lab": {
       "address": "lab.example.ts.net:8415",
       "principal": "laptop",
-      "tokenCommand": ["op", "read", "op://atc/lab-daemon/token"]
+      "tokenCommand": ["op", "read", "op://example/lab-daemon/token"]
     }
   }
 }

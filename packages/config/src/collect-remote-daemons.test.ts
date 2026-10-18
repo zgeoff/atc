@@ -44,7 +44,7 @@ test('it reads a daemon whose token comes from a command on a bracketed IPv6 add
         'lab-2': {
           address: '[fd7a:115c:a1e0::9]:7420',
           principal: 'laptop',
-          tokenCommand: ['op', 'read', 'op://lab/atc-lab-2/token'],
+          tokenCommand: ['op', 'read', 'op://example/atc-lab-2/token'],
         },
       },
       '/home/a',
@@ -57,7 +57,7 @@ test('it reads a daemon whose token comes from a command on a bracketed IPv6 add
           name: 'lab-2',
           host: 'fd7a:115c:a1e0::9',
           port: 7420,
-          token: { kind: 'command', argv: ['op', 'read', 'op://lab/atc-lab-2/token'] },
+          token: { kind: 'command', argv: ['op', 'read', 'op://example/atc-lab-2/token'] },
           principal: 'laptop',
         },
       ],

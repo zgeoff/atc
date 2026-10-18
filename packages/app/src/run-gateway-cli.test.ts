@@ -114,7 +114,7 @@ test.each([
   };
 
   await runGatewayCLI(
-    [...row.args, '--public-url', 'https://atc.geoff.cloud', '--registry', 'registry.json'],
+    [...row.args, '--public-url', 'https://atc.example.com', '--registry', 'registry.json'],
     { ATC_GATEWAY_STATE_DIR: 'from-env' },
     io,
   );
@@ -122,7 +122,7 @@ test.each([
   expect(io.runGateway).toHaveBeenCalledExactlyOnceWith(`atc-gateway/${pkg.version}`, {
     host: '127.0.0.1',
     port: 8414,
-    publicURL: 'https://atc.geoff.cloud',
+    publicURL: 'https://atc.example.com',
     registryPath: 'registry.json',
     stateDir: 'flagged',
   });
@@ -139,7 +139,7 @@ test('it exits 1 when it serves with no state directory', async () => {
   };
 
   await runGatewayCLI(
-    ['serve', '--public-url', 'https://atc.geoff.cloud', '--registry', 'registry.json'],
+    ['serve', '--public-url', 'https://atc.example.com', '--registry', 'registry.json'],
     {},
     io,
   );
@@ -253,7 +253,7 @@ test('it exits 1 on a port it cannot parse', async () => {
       '--port',
       'abc',
       '--public-url',
-      'https://atc.geoff.cloud',
+      'https://atc.example.com',
       '--registry',
       'registry.json',
       '--state-dir',
@@ -284,7 +284,7 @@ test('it serves on port 0 for the kernel to pick a free port', async () => {
       '--port',
       '0',
       '--public-url',
-      'https://atc.geoff.cloud',
+      'https://atc.example.com',
       '--registry',
       'registry.json',
       '--state-dir',
@@ -297,7 +297,7 @@ test('it serves on port 0 for the kernel to pick a free port', async () => {
   expect(io.runGateway).toHaveBeenCalledExactlyOnceWith(`atc-gateway/${pkg.version}`, {
     host: '127.0.0.1',
     port: 0,
-    publicURL: 'https://atc.geoff.cloud',
+    publicURL: 'https://atc.example.com',
     registryPath: 'registry.json',
     stateDir: 'flagged',
   });

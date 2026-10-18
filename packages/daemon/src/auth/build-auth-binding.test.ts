@@ -187,7 +187,7 @@ test('it hashes the secrets alone when the profiles set no variables', () => {
   const planned = buildAuthBinding(
     {
       id: 'glm',
-      baseURL: 'https://op-connect.geoff.cloud/x',
+      baseURL: 'https://op-connect.example.com/x',
       auth: { profiles: ['op'], placeholderEnv: {} },
     },
     new Map([
@@ -197,7 +197,7 @@ test('it hashes the secrets alone when the profiles set no variables', () => {
           name: 'op',
           secret: 'op-connect',
           kind: 'custom',
-          host: 'op-connect.geoff.cloud',
+          host: 'op-connect.example.com',
           header: 'authorization',
           scheme: 'bearer',
           env: {},
@@ -210,19 +210,19 @@ test('it hashes the secrets alone when the profiles set no variables', () => {
   invariant('binding' in planned, 'expected the selection to resolve');
 
   expect(planned.binding.hash).toMatchInlineSnapshot(
-    `"ea1419dcafb7cf04a0a5b311faa3d32d7ed336ece08f75ba2cdc627b0d27bf4c"`,
+    `"b069b6bfe1d9eab31b295a52237ca9172b0dad2afddd6687cd5c4f534e9aaa14"`,
   );
 
   expect(planned).toStrictEqual({
     binding: {
       agent: 'glm',
-      baseURL: 'https://op-connect.geoff.cloud/x',
+      baseURL: 'https://op-connect.example.com/x',
       profiles: ['op'],
       secrets: [
         {
           secret: 'op-connect',
           kind: 'custom',
-          rules: [{ host: 'op-connect.geoff.cloud', header: 'authorization', scheme: 'bearer' }],
+          rules: [{ host: 'op-connect.example.com', header: 'authorization', scheme: 'bearer' }],
         },
       ],
       placeholderEnv: {},
@@ -234,10 +234,10 @@ test('it hashes the secrets alone when the profiles set no variables', () => {
 
 test.each([
   [{}, { OP_CONNECT_TOKEN: 'imp-broker-placeholder' }],
-  [{}, { OP_CONNECT_HOST: 'https://op-connect.geoff.cloud' }],
+  [{}, { OP_CONNECT_HOST: 'https://op-connect.example.com' }],
   [
     { OP_CONNECT_TOKEN: 'imp-broker-placeholder' },
-    { OP_CONNECT_HOST: 'https://op-connect.geoff.cloud' },
+    { OP_CONNECT_HOST: 'https://op-connect.example.com' },
   ],
   [{ OP_CONNECT_TOKEN: 'imp-broker-placeholder' }, { OP_CONNECT_TOKEN: 'another-placeholder' }],
 ])('it moves the hash when the profile variables change from %o to %o', (before, after) => {
@@ -246,7 +246,7 @@ test.each([
   const first = buildAuthBinding(
     {
       id: 'glm',
-      baseURL: 'https://op-connect.geoff.cloud/x',
+      baseURL: 'https://op-connect.example.com/x',
       auth: { profiles: ['op'], placeholderEnv: {} },
     },
     new Map([['op', { ...op, env: before }]]),
@@ -255,7 +255,7 @@ test.each([
   const second = buildAuthBinding(
     {
       id: 'glm',
-      baseURL: 'https://op-connect.geoff.cloud/x',
+      baseURL: 'https://op-connect.example.com/x',
       auth: { profiles: ['op'], placeholderEnv: {} },
     },
     new Map([['op', { ...op, env: after }]]),
@@ -270,7 +270,7 @@ test('it carries the merged profile variables in the binding', () => {
   const planned = buildAuthBinding(
     {
       id: 'glm',
-      baseURL: 'https://op-connect.geoff.cloud/x',
+      baseURL: 'https://op-connect.example.com/x',
       auth: { profiles: ['op'], placeholderEnv: {} },
     },
     new Map([
@@ -280,7 +280,7 @@ test('it carries the merged profile variables in the binding', () => {
           name: 'op',
           secret: 'op-connect',
           kind: 'custom',
-          host: 'op-connect.geoff.cloud',
+          host: 'op-connect.example.com',
           header: 'authorization',
           scheme: 'bearer',
           env: { OP_CONNECT_TOKEN: 'imp-broker-placeholder' },
@@ -293,19 +293,19 @@ test('it carries the merged profile variables in the binding', () => {
   invariant('binding' in planned, 'expected the selection to resolve');
 
   expect(planned.binding.hash).toMatchInlineSnapshot(
-    `"f45088069e3f7be8d9f4e9d7eab1b6a6c0ed9fb84084a4fa8296a15649397cb8"`,
+    `"af4458764454478f6dff733aa62c3808a236544c04a3291e08dde6083ab28fb7"`,
   );
 
   expect(planned).toStrictEqual({
     binding: {
       agent: 'glm',
-      baseURL: 'https://op-connect.geoff.cloud/x',
+      baseURL: 'https://op-connect.example.com/x',
       profiles: ['op'],
       secrets: [
         {
           secret: 'op-connect',
           kind: 'custom',
-          rules: [{ host: 'op-connect.geoff.cloud', header: 'authorization', scheme: 'bearer' }],
+          rules: [{ host: 'op-connect.example.com', header: 'authorization', scheme: 'bearer' }],
         },
       ],
       placeholderEnv: {},

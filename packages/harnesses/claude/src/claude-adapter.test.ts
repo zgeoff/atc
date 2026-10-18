@@ -1638,11 +1638,11 @@ test("it sets a profile's variables in a subscription guest's settings env and s
       },
       op: {
         secret: 'op-connect',
-        host: 'op-connect.geoff.cloud',
+        host: 'op-connect.example.com',
         header: 'authorization',
         scheme: 'bearer',
         env: {
-          OP_CONNECT_HOST: 'https://op-connect.geoff.cloud',
+          OP_CONNECT_HOST: 'https://op-connect.example.com',
           OP_CONNECT_TOKEN: 'imp-broker-placeholder',
         },
       },
@@ -1666,7 +1666,7 @@ test("it sets a profile's variables in a subscription guest's settings env and s
         revision: 2,
         env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
         profileEnv: {
-          OP_CONNECT_HOST: 'https://op-connect.geoff.cloud',
+          OP_CONNECT_HOST: 'https://op-connect.example.com',
           OP_CONNECT_TOKEN: 'imp-broker-placeholder',
         },
       },
@@ -1685,7 +1685,7 @@ test("it sets a profile's variables in a subscription guest's settings env and s
   expect(plan.env).toStrictEqual({
     CLAUDE_CONFIG_DIR: '/tmp/atc/sessions/s1/claude-config',
     TMPDIR: '/tmp/atc/sessions/s1/scratch',
-    OP_CONNECT_HOST: 'https://op-connect.geoff.cloud',
+    OP_CONNECT_HOST: 'https://op-connect.example.com',
     OP_CONNECT_TOKEN: 'imp-broker-placeholder',
     CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
   });
@@ -1754,7 +1754,7 @@ test("it sets a profile's variables in a subscription guest's settings env and s
       padding: 0,
     },
     env: {
-      OP_CONNECT_HOST: 'https://op-connect.geoff.cloud',
+      OP_CONNECT_HOST: 'https://op-connect.example.com',
       OP_CONNECT_TOKEN: 'imp-broker-placeholder',
       CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
@@ -1775,11 +1775,11 @@ test("it leaves a profile's variables out of the local plan of an entry with a p
       },
       op: {
         secret: 'op-connect',
-        host: 'op-connect.geoff.cloud',
+        host: 'op-connect.example.com',
         header: 'authorization',
         scheme: 'bearer',
         env: {
-          OP_CONNECT_HOST: 'https://op-connect.geoff.cloud',
+          OP_CONNECT_HOST: 'https://op-connect.example.com',
           OP_CONNECT_TOKEN: 'imp-broker-placeholder',
         },
       },

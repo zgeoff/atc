@@ -35,7 +35,7 @@ test('it answers the liveness probe for the host of its public URL', async () =>
     {
       host: '127.0.0.1',
       port: 0,
-      publicURL: 'https://atc.geoff.cloud',
+      publicURL: 'https://atc.example.com',
       registryPath: join(ctx.dir, 'registry.json'),
       stateDir: join(ctx.dir, 'state'),
     },
@@ -63,7 +63,7 @@ test('it answers the liveness probe for the host of its public URL', async () =>
   invariant(port !== undefined, `no port in: ${printed.join('\n')}`);
 
   const health = await fetch(`http://127.0.0.1:${port}/healthz`, {
-    headers: { host: 'atc.geoff.cloud' },
+    headers: { host: 'atc.example.com' },
   });
 
   expect(health.status).toBe(200);
@@ -92,7 +92,7 @@ test('it prints nothing to stdout once it serves and each sign-in security event
     {
       host: '127.0.0.1',
       port: 0,
-      publicURL: 'https://atc.geoff.cloud',
+      publicURL: 'https://atc.example.com',
       registryPath: join(ctx.dir, 'registry.json'),
       stateDir: join(ctx.dir, 'state'),
     },
@@ -147,7 +147,7 @@ test('it prints nothing to stdout once it serves and each sign-in security event
     code_challenge_method: 'S256',
   }).toString();
 
-  await fetch(authorize, { redirect: 'manual', headers: { host: 'atc.geoff.cloud' } });
+  await fetch(authorize, { redirect: 'manual', headers: { host: 'atc.example.com' } });
 
   await fetch(`http://127.0.0.1:${port}/mcp`, {
     method: 'POST',
@@ -189,7 +189,7 @@ test('it writes a probe from a Host it does not serve as a bad_host security eve
     {
       host: '127.0.0.1',
       port: 0,
-      publicURL: 'https://atc.geoff.cloud',
+      publicURL: 'https://atc.example.com',
       registryPath: join(ctx.dir, 'registry.json'),
       stateDir: join(ctx.dir, 'state'),
     },
@@ -253,7 +253,7 @@ test('it answers the readiness probe for the host of its public URL', async () =
     {
       host: '127.0.0.1',
       port: 0,
-      publicURL: 'https://atc.geoff.cloud',
+      publicURL: 'https://atc.example.com',
       registryPath: join(ctx.dir, 'registry.json'),
       stateDir: join(ctx.dir, 'state'),
     },
@@ -281,7 +281,7 @@ test('it answers the readiness probe for the host of its public URL', async () =
   invariant(port !== undefined, `no port in: ${printed.join('\n')}`);
 
   const ready = await fetch(`http://127.0.0.1:${port}/readyz`, {
-    headers: { host: 'atc.geoff.cloud' },
+    headers: { host: 'atc.example.com' },
   });
 
   expect(ready.status).toBe(200);
@@ -309,7 +309,7 @@ test('it refuses a probe from a foreign host', async () => {
     {
       host: '127.0.0.1',
       port: 0,
-      publicURL: 'https://atc.geoff.cloud',
+      publicURL: 'https://atc.example.com',
       registryPath: join(ctx.dir, 'registry.json'),
       stateDir: join(ctx.dir, 'state'),
     },
@@ -363,7 +363,7 @@ test('it keeps both databases in the state directory and writes nowhere else', a
     {
       host: '127.0.0.1',
       port: 0,
-      publicURL: 'https://atc.geoff.cloud',
+      publicURL: 'https://atc.example.com',
       registryPath: join(ctx.dir, 'registry.json'),
       stateDir: join(ctx.dir, 'state'),
     },
@@ -408,7 +408,7 @@ test('it exits 1 naming the token variable a daemon lacks', async () => {
     {
       host: '127.0.0.1',
       port: 0,
-      publicURL: 'https://atc.geoff.cloud',
+      publicURL: 'https://atc.example.com',
       registryPath: join(ctx.dir, 'registry.json'),
       stateDir: join(ctx.dir, 'state'),
     },
@@ -446,7 +446,7 @@ test('it exits 1 on a registry that is not JSON', async () => {
     {
       host: '127.0.0.1',
       port: 0,
-      publicURL: 'https://atc.geoff.cloud',
+      publicURL: 'https://atc.example.com',
       registryPath: join(ctx.dir, 'bad.json'),
       stateDir: join(ctx.dir, 'state'),
     },
@@ -494,7 +494,7 @@ test('it stops serving and exits 0 on SIGTERM', async () => {
     {
       host: '127.0.0.1',
       port: 0,
-      publicURL: 'https://atc.geoff.cloud',
+      publicURL: 'https://atc.example.com',
       registryPath: join(ctx.dir, 'registry.json'),
       stateDir: join(ctx.dir, 'state'),
     },
@@ -529,6 +529,6 @@ test('it stops serving and exits 0 on SIGTERM', async () => {
   expect(exits).toStrictEqual([0]);
 
   expect(
-    fetch(`http://127.0.0.1:${port}/healthz`, { headers: { host: 'atc.geoff.cloud' } }),
+    fetch(`http://127.0.0.1:${port}/healthz`, { headers: { host: 'atc.example.com' } }),
   ).rejects.toThrow();
 });

@@ -19,7 +19,7 @@ test('it picks the pid file beside the refusing socket when the record lists ano
       socketPath: '/run/user/1000/atc-daemon.sock',
       record: buildMockDaemonRecord({
         pid: 200,
-        socketPath: '/home/geoff/.local/state/atc/atc-daemon.sock',
+        socketPath: '/home/me/.local/state/atc/atc-daemon.sock',
       }),
       pidFileSocketPath: '/run/user/1000/atc-daemon.sock',
       pidFilePID: 100,
@@ -33,9 +33,9 @@ test('it picks no pid when neither the record nor the pid file belongs to the re
       socketPath: '/run/user/1000/atc-daemon.sock',
       record: buildMockDaemonRecord({
         pid: 200,
-        socketPath: '/home/geoff/.local/state/atc/atc-daemon.sock',
+        socketPath: '/home/me/.local/state/atc/atc-daemon.sock',
       }),
-      pidFileSocketPath: '/home/geoff/.local/state/atc/atc-daemon.sock',
+      pidFileSocketPath: '/home/me/.local/state/atc/atc-daemon.sock',
       pidFilePID: 100,
     }),
   ).toBeNull();
