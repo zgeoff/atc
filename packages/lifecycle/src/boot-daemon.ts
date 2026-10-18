@@ -48,7 +48,7 @@ export async function bootDaemonClient(
           },
         };
 
-  for (let attempt = 0; attempt < 2; ) {
+  for (let attempt = 0; attempt < 2;) {
     // read on every attempt: a build held since this process booted would flag
     // daemons that are already current as stale.
     const build = host.invocation.readBuild();
