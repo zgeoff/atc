@@ -84,6 +84,9 @@ prints its own reason, and the rules live where each bullet points.
   `scripts/check-bundle.ts`.
 - `bun run check:disable-baseline`: the count of directives that switch off an import rule, against
   `scripts/disable-baseline.json`.
+- `bun run check:owner-names`: the owner's own domain, home path, or vault name in a tracked file,
+  in `scripts/check-owner-names.ts`. The domain and the login sit in
+  `scripts/owner-name-hashes.json` only as hashes, each from `printf %s <name> | sha256sum`.
 - `bun run check:raw-escapes`: a raw ESC byte in source, which the TUI writes as a `\u001B` escape.
 - `bun run check:source-entries`: a test helper that hard-codes a source entry that
   `scripts/with-test-home.sh` exports.
