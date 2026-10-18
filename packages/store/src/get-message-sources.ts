@@ -16,9 +16,9 @@ export function getMessageSources(
   to: MessageStatus,
   within?: readonly MessageStatus[],
 ): MessageStatus[] {
-  const sources = (Object.keys(MESSAGE_TRANSITIONS) as MessageStatus[]).filter((from) =>
-    MESSAGE_TRANSITIONS[from].includes(to),
-  );
+  const sources = Object.keys(MESSAGE_TRANSITIONS)
+    .filter((from) => isMessageStatus(from))
+    .filter((from) => MESSAGE_TRANSITIONS[from].includes(to));
 
   if (within === undefined) {
     return sources;
@@ -31,4 +31,8 @@ export function getMessageSources(
   }
 
   return [...within];
+}
+
+function isMessageStatus(value: string): value is MessageStatus {
+  return Object.hasOwn(MESSAGE_TRANSITIONS, value);
 }
