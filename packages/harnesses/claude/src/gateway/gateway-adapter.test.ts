@@ -74,6 +74,22 @@ test('it takes inbox messages', () => {
   expect(adapter.takesMessages).toBeTrue();
 });
 
+test('it plans the guest bridge files a remote session launches with', () => {
+  const adapter = new GatewayAdapter(
+    buildMockGatewayConfig(),
+    parseConfig([CLAUDE_PLUGIN], {}),
+    buildMockHostServices(),
+  );
+
+  expect(adapter.planGuestBridgeFiles('/opt/atc/bin/atc')).toStrictEqual({
+    'atc-bridge/.claude-plugin/plugin.json': ATC_BRIDGE_FILES['.claude-plugin/plugin.json'],
+    'atc-bridge/hooks/hooks.json': ATC_BRIDGE_FILES['hooks/hooks.json'],
+    'atc-bridge/hooks/register.ts': ATC_BRIDGE_FILES['hooks/register.ts'],
+    'atc-bridge/hooks/atc-cli.ts':
+      'export const ATC_CLI: readonly string[] = ["/opt/atc/bin/atc"];\n',
+  });
+});
+
 test("it runs a headless turn through the gateway's binary and settings file under the auto permission mode with the atc-bridge mod", () => {
   const ctx = setupTest();
   const runner = buildStubClaudeHeadlessRun();

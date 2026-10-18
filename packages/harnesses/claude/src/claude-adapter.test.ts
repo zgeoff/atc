@@ -275,6 +275,24 @@ test('it gives a local session a scratch folder of its own as a working director
   expect(existsSync(join(ctx.dir, 'state', 'sessions', 's1', 'scratch'))).toBeTrue();
 });
 
+test('it plans the guest bridge files a remote session launches with', () => {
+  const config = parseConfig([CLAUDE_PLUGIN], {});
+
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+  );
+
+  expect(adapter.planGuestBridgeFiles('/opt/atc/bin/atc')).toStrictEqual({
+    'atc-bridge/.claude-plugin/plugin.json': ATC_BRIDGE_FILES['.claude-plugin/plugin.json'],
+    'atc-bridge/hooks/hooks.json': ATC_BRIDGE_FILES['hooks/hooks.json'],
+    'atc-bridge/hooks/register.ts': ATC_BRIDGE_FILES['hooks/register.ts'],
+    'atc-bridge/hooks/atc-cli.ts':
+      'export const ATC_CLI: readonly string[] = ["/opt/atc/bin/atc"];\n',
+  });
+});
+
 test('it restores an unbrokered remote session in the mode its settings set', () => {
   const config = parseConfig([CLAUDE_PLUGIN], {
     agents: { claude: { settings: { permissions: { defaultMode: 'plan' } } } },

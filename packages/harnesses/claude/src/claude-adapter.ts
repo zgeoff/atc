@@ -217,6 +217,10 @@ export class ClaudeAdapter implements AgentAdapter {
     };
   }
 
+  planGuestBridgeFiles(atc: string): Readonly<Record<string, string>> {
+    return buildGuestBridgeFiles([atc]);
+  }
+
   // Seeds the config folder of a session that signs in through impd's
   // broker with trust for the clone; any other remote session reads the
   // config of the host's image, which atc never writes.

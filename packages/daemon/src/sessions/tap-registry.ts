@@ -31,6 +31,8 @@ export class TapRegistry<TClient> {
 
   private nextGeneration = 0;
 
+  private readonly detachListeners = new Set<(sessionID: SessionID) => void>();
+
   attach(sessionID: SessionID, client: TClient, linked = true, notices = false): TClient | null {
     const previous = this.bySession.get(sessionID)?.client ?? null;
 
@@ -51,6 +53,7 @@ export class TapRegistry<TClient> {
     for (const [sessionID, entry] of this.bySession) {
       if (entry.client === client) {
         this.bySession.delete(sessionID);
+        this.emitDetached(sessionID);
       }
     }
   }
@@ -60,7 +63,21 @@ export class TapRegistry<TClient> {
 
     this.bySession.delete(sessionID);
 
+    if (previous !== null) {
+      this.emitDetached(sessionID);
+    }
+
     return previous;
+  }
+
+  // Hears each session whose tap leaves, with no tap in its place; a tap
+  // that another replaces is no departure.
+  subscribeToDetach(listener: (sessionID: SessionID) => void): () => void {
+    this.detachListeners.add(listener);
+
+    return () => {
+      this.detachListeners.delete(listener);
+    };
   }
 
   findTap(sessionID: SessionID): TapGeneration | null {
@@ -98,5 +115,11 @@ export class TapRegistry<TClient> {
     entry.claimed.add(key);
 
     return entry.client;
+  }
+
+  private emitDetached(sessionID: SessionID): void {
+    for (const listener of this.detachListeners) {
+      listener(sessionID);
+    }
   }
 }

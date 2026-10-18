@@ -91,6 +91,14 @@ answers a message. The `answer` tool takes the id of a message the running turn 
 of its answer, and refuses a message that already has one. The mods API is early access, so CI
 validates and tests the mod against one pinned Claude Code version.
 
+Claude Code turns every mod off for the rest of a session when its hooks worker misses its heartbeat
+three times and no mod is to blame, as a host that stalls can make it do. The `note` and `answer`
+tools then disappear, and the mod's tap ends. A later write of the mod's files makes Claude Code
+load the mod again. So when a remote session's tap leaves and no tap takes its place for a while,
+the daemon writes that session's bridge files again and records a note in the session's events. It
+writes only while the session's agent process runs and its host is awake, once per tap loss, and it
+doubles the wait after each write.
+
 ## Grok and Codex
 
 Grok takes its hooks from a file in its own hooks folder, which `atc grok-hooks` prints. The

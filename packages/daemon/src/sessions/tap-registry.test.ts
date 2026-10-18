@@ -12,6 +12,71 @@ test('it counts a session as tapped once a client attaches', () => {
   expect(taps.hasTap(toSessionID('s2'))).toBeFalse();
 });
 
+test('it tells a detach listener about each session whose client leaves', () => {
+  const taps = new TapRegistry<{ name: string }>();
+
+  const detached: string[] = [];
+  const client = { name: 'a' };
+
+  taps.subscribeToDetach((sessionID) => {
+    detached.push(sessionID);
+  });
+
+  taps.attach(toSessionID('s1'), client);
+  taps.attach(toSessionID('s2'), client);
+  taps.detachAll(client);
+
+  expect(detached).toStrictEqual(['s1', 's2']);
+});
+
+test('it tells a detach listener about a session whose tap is removed', () => {
+  const taps = new TapRegistry<{ name: string }>();
+
+  const detached: string[] = [];
+
+  taps.subscribeToDetach((sessionID) => {
+    detached.push(sessionID);
+  });
+
+  taps.attach(toSessionID('s1'), { name: 'a' });
+  taps.removeSession(toSessionID('s1'));
+
+  expect(detached).toStrictEqual(['s1']);
+});
+
+test('it tells no detach listener when a new tap replaces the old one', () => {
+  const taps = new TapRegistry<{ name: string }>();
+
+  const detached: string[] = [];
+
+  taps.subscribeToDetach((sessionID) => {
+    detached.push(sessionID);
+  });
+
+  taps.attach(toSessionID('s1'), { name: 'a' });
+  taps.attach(toSessionID('s1'), { name: 'b' });
+  taps.removeSession(toSessionID('s2'));
+
+  expect(detached).toStrictEqual([]);
+});
+
+test('it tells a listener nothing once it unsubscribes', () => {
+  const taps = new TapRegistry<{ name: string }>();
+
+  const detached: string[] = [];
+
+  const unsubscribe = taps.subscribeToDetach((sessionID) => {
+    detached.push(sessionID);
+  });
+
+  unsubscribe();
+
+  taps.attach(toSessionID('s1'), { name: 'a' });
+  taps.removeSession(toSessionID('s1'));
+
+  expect(detached).toStrictEqual([]);
+});
+
 test('it hands a message to the tap', () => {
   const taps = new TapRegistry<{ name: string }>();
 

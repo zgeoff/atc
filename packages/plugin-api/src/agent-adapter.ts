@@ -271,6 +271,11 @@ export interface AgentAdapter {
   // Absent: the agent runs there as a local spawn plans it, with no files.
   readonly planGuestSpawn?: (opts: SpawnOptions, guest: GuestPaths) => GuestSpawnPlan | null;
 
+  // The guest-relative files of a remote session's message mod, given the
+  // atc inside its host, written again when a running agent drops the mod.
+  // Absent: the agent has no such mod.
+  readonly planGuestBridgeFiles?: (atc: string) => Readonly<Record<string, string>>;
+
   // Guest-relative seed files for the exact root of a verified clone.
   // Absent or null means the adapter cannot accept workspace trust.
   readonly planGuestWorkspaceTrust?: (root: string) => Readonly<Record<string, string>> | null;

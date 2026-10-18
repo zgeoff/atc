@@ -265,6 +265,10 @@ export class GatewayAdapter implements AgentAdapter {
     };
   }
 
+  planGuestBridgeFiles(atc: string): Readonly<Record<string, string>> {
+    return buildGuestBridgeFiles([atc]);
+  }
+
   planGuestWorkspaceTrust(root: string): Readonly<Record<string, string>> | null {
     if (this.gateway.auth === undefined) {
       return null;
