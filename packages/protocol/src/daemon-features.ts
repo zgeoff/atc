@@ -8,6 +8,9 @@ export const DAEMON_FEATURES = [
   // `events.read` takes a `session` filter.
   'events.session',
 
+  // `events.read` takes `from: 'start'`, which reads from the oldest retained event.
+  'events.start',
+
   // `message.get` returns `turn` and `answeredWith`.
   'message.turn',
 

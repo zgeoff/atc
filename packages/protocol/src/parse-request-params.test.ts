@@ -32,6 +32,7 @@ test.each([
   ['session.get', { session: 's1' }],
   ['session.read', { session: 's1', cursor: 'c', limit: 10 }],
   ['events.read', { cursor: 'c', limit: 10, waitMs: 500 }],
+  ['events.read', { from: 'start', limit: 10, waitMs: 500 }],
   ['sources.list', { source: 'github', target: 'box', scope: 'zgeoff' }],
   ['sources.list', { source: 'dirs' }],
   ['sources.interpret', { source: 'github', input: 'zgeoff/', target: 'box' }],
@@ -280,6 +281,21 @@ test('it reads an empty events.read session filter as the whole fleet', () => {
   const parsed = parseRequestParams('events.read', { session: '' });
 
   expect(parsed).toStrictEqual({ ok: true, data: { limit: 50, waitMs: 0, session: undefined } });
+});
+
+test('it rejects events.read with both a cursor and from', () => {
+  const parsed = parseRequestParams('events.read', { cursor: 'c', from: 'start' });
+
+  expect(parsed).toStrictEqual({
+    ok: false,
+    message: 'events.read takes a cursor or from, not both',
+  });
+});
+
+test('it rejects events.read with a from other than start', () => {
+  const parsed = parseRequestParams('events.read', { from: 'end' });
+
+  expect(parsed).toStrictEqual({ ok: false, message: "events.read takes from only as 'start'" });
 });
 
 test('it clamps session.read limit to 200', () => {

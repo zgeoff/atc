@@ -117,6 +117,105 @@ test('it reads nothing past the cursor of the last event through events.read', a
   expect(next).toStrictEqual({ events: [], cursor, more: false });
 });
 
+test('it reads the oldest retained event first through events.read from the start', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', {
+    cwd: ctx.home,
+    name: 'oldest',
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getString(getRecord(ok, 'session'), 'id');
+
+  await waitFor(async () => {
+    const read = await client.sendRequest('events.read', {});
+
+    expect(getRecords(read, 'events')).toHaveLength(2);
+  });
+
+  const first = await client.sendRequest('events.read', { from: 'start', limit: 1 });
+
+  expect(first).toStrictEqual({
+    events: [
+      {
+        cursor: expect.toBeString(),
+        at: expect.toBeNumber(),
+        session: id,
+        name: 'oldest',
+        kind: 'started',
+        detail: null,
+      },
+    ],
+    cursor: expect.toBeString(),
+    more: true,
+  });
+});
+
+test('it continues a read from the start from the cursor it returned', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', {
+    cwd: ctx.home,
+    name: 'continued',
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getString(getRecord(ok, 'session'), 'id');
+
+  await waitFor(async () => {
+    const read = await client.sendRequest('events.read', {});
+
+    expect(getRecords(read, 'events')).toHaveLength(2);
+  });
+
+  const first = await client.sendRequest('events.read', { from: 'start', limit: 1 });
+  const next = await client.sendRequest('events.read', { cursor: first['cursor'], limit: 1 });
+
+  expect(next).toStrictEqual({
+    events: [
+      {
+        cursor: expect.toBeString(),
+        at: expect.toBeNumber(),
+        session: id,
+        name: 'continued',
+        kind: 'needs-input',
+        detail: 'needs permission',
+      },
+    ],
+    cursor: expect.toBeString(),
+    more: false,
+  });
+});
+
 test('it holds events.read open until the next event arrives', async () => {
   const ctx = setupTest();
 
