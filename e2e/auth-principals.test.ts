@@ -362,11 +362,11 @@ test('it lists an agent as unable to spawn to a principal granted none of its sp
                 note: null,
               },
               effort: {
-                supported: false,
-                values: null,
+                supported: true,
+                values: ['low', 'high'],
                 examples: [],
                 default: null,
-                backendEffect: null,
+                backendEffect: 'applied',
                 note: null,
               },
             },
@@ -387,7 +387,10 @@ test('it lists an agent as unable to spawn to a principal granted none of its sp
       id: 'claude',
       spawnTargets: [],
       capabilities: { spawn: false },
-      spawnOptions: { model: { supported: true, available: false } },
+      spawnOptions: {
+        model: { supported: true, available: false },
+        effort: { supported: true, available: false },
+      },
     },
   ]);
 });
