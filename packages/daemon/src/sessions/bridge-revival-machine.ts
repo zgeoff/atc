@@ -5,6 +5,9 @@ type BridgeRevivalEvent = { readonly type: 'TAP_LEFT' } | { readonly type: 'WRIT
 interface BridgeRevivalContext {
   // How long the session waits without a tap before its next check.
   readonly delayMs: number;
+
+  // Whether the tap left again while a write was under way.
+  readonly isLostAgain: boolean;
 }
 
 const FIRST_DELAY_MS = 30_000;
@@ -22,6 +25,7 @@ export const BRIDGE_REVIVAL_MACHINE = setup({
     events: {} as BridgeRevivalEvent,
   },
   guards: {
+    isLostAgain: (args) => args.context.isLostAgain,
     isGone: () => false,
     hasTap: () => false,
     isAsleep: () => false,
@@ -36,7 +40,7 @@ export const BRIDGE_REVIVAL_MACHINE = setup({
 }).createMachine({
   id: 'bridge-revival',
   initial: 'tapped',
-  context: { delayMs: FIRST_DELAY_MS },
+  context: { delayMs: FIRST_DELAY_MS, isLostAgain: false },
   states: {
     tapped: {
       on: { TAP_LEFT: 'waiting' },
@@ -46,16 +50,18 @@ export const BRIDGE_REVIVAL_MACHINE = setup({
       on: { TAP_LEFT: { target: 'waiting', reenter: true } },
       after: {
         revivalDelay: [
-          { guard: 'isGone', target: 'gone' },
           { guard: 'hasTap', target: 'tapped' },
 
-          // the loss stays pending while the host sleeps, so a wake finds it
+          // a sleeping host has no terminal, and its loss stays pending so a
+          // wake finds it
           { guard: 'isAsleep', target: 'waiting', reenter: true },
+          { guard: 'isGone', target: 'gone' },
           {
             guard: 'canWrite',
             target: 'writing',
             actions: assign({
               delayMs: (args) => Math.min(args.context.delayMs * 2, MAX_DELAY_MS),
+              isLostAgain: false,
             }),
           },
           { target: 'tapped' },
@@ -64,7 +70,10 @@ export const BRIDGE_REVIVAL_MACHINE = setup({
     },
     writing: {
       entry: 'writeBridge',
-      on: { WRITE_ENDED: 'tapped', TAP_LEFT: 'waiting' },
+      on: {
+        WRITE_ENDED: [{ guard: 'isLostAgain', target: 'waiting' }, { target: 'tapped' }],
+        TAP_LEFT: { actions: assign({ isLostAgain: true }) },
+      },
     },
     gone: {
       type: 'final',

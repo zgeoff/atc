@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { toSessionID } from '@atc/core';
+import type { ExecutionProvider } from '@atc/plugin-api';
 import type { HookEvent } from '@atc/protocol/session';
 import { buildStubClock, registerTestCleanup, waitFor } from '@atc/test-utils';
 import type { TapClient } from '../daemon-context';
@@ -13,6 +14,9 @@ import { TapRegistry } from './tap-registry';
 interface SetupTestConfig {
   // Whether the session's host is another machine.
   readonly remote: boolean;
+
+  // How the host answers a transfer; it takes every transfer when absent.
+  readonly transferArchive?: ExecutionProvider['transferArchive'];
 }
 
 function setupTest(config: SetupTestConfig) {
@@ -31,6 +35,7 @@ function setupTest(config: SetupTestConfig) {
     kind: 'imp',
     remote: config.remote,
     guest: { dir: '/tmp/atc', atc: '/tmp/atc/bin/atc' },
+    transferArchive: config.transferArchive ?? (() => Promise.resolve()),
   });
 
   const adapter = {
@@ -207,15 +212,56 @@ test('it writes the mod once a session that slept through the wait wakes', () =>
   ctx.taps.attach(id, ctx.client);
   ctx.taps.removeSession(id);
 
+  // a suspend drops the terminal with the host's sleep
+  s.pty = null;
   s.suspended = true;
 
   ctx.clock.advance(30_000);
 
+  s.pty = pty;
   s.suspended = false;
 
   ctx.clock.advance(30_000);
 
   expect(ctx.provider.transfers).toHaveLength(1);
+});
+
+test('it logs a failed write, notes nothing, and writes again after a later tap loss', async () => {
+  const ctx = setupTest({
+    remote: true,
+    transferArchive: () => Promise.reject(new Error('imp refused the transfer')),
+  });
+
+  const id = toSessionID('s-bridge');
+
+  const pty = ctx.provider.spawnHarness({
+    session: id,
+    host: id,
+    bin: 'claude',
+    args: [],
+    cwd: '/work',
+    env: {},
+    cols: 80,
+    rows: 24,
+  });
+
+  ctx.sessions.push(buildMockSession({ id, pty, state: 'running' }));
+  ctx.taps.attach(id, ctx.client);
+  ctx.taps.removeSession(id);
+  ctx.clock.advance(30_000);
+
+  await waitFor(() => {
+    expect(ctx.logs).toStrictEqual([
+      'session s-bridge: writing its atc-bridge mod again failed: Error: imp refused the transfer',
+    ]);
+  });
+
+  ctx.taps.attach(id, ctx.client);
+  ctx.taps.removeSession(id);
+  ctx.clock.advance(60_000);
+
+  expect(ctx.provider.transfers).toHaveLength(2);
+  expect(ctx.notes).toStrictEqual([]);
 });
 
 test('it writes nothing for a session on the daemon machine', () => {
@@ -242,7 +288,7 @@ test('it writes nothing for a session on the daemon machine', () => {
   expect(ctx.notes).toStrictEqual([]);
 });
 
-test('it waits at most 30 min between writes', () => {
+test('it waits at most 30 min between writes', async () => {
   const ctx = setupTest({ remote: true });
   const id = toSessionID('s-bridge');
 
@@ -259,10 +305,15 @@ test('it waits at most 30 min between writes', () => {
 
   ctx.sessions.push(buildMockSession({ id, pty, state: 'running' }));
 
-  for (let i = 0; i < 8; i += 1) {
+  for (let i = 1; i <= 8; i += 1) {
     ctx.taps.attach(id, ctx.client);
     ctx.taps.removeSession(id);
     ctx.clock.advance(30 * 60_000);
+
+    // each write settles before the next loss
+    await waitFor(() => {
+      expect(ctx.notes).toHaveLength(i);
+    });
   }
 
   ctx.taps.attach(id, ctx.client);
@@ -334,30 +385,20 @@ test('it writes nothing for a session without a terminal', () => {
   expect(ctx.provider.transfers).toStrictEqual([]);
 });
 
-test('it writes nothing for a session whose host sleeps', () => {
+test('it writes nothing and keeps waiting while the host sleeps', () => {
   const ctx = setupTest({ remote: true });
   const id = toSessionID('s-bridge');
 
-  const pty = ctx.provider.spawnHarness({
-    session: id,
-    host: id,
-    bin: 'claude',
-    args: [],
-    cwd: '/work',
-    env: {},
-    cols: 80,
-    rows: 24,
-  });
-
-  ctx.sessions.push(buildMockSession({ id, pty, state: 'running', suspended: true }));
+  ctx.sessions.push(buildMockSession({ id, pty: null, state: 'running', suspended: true }));
   ctx.taps.attach(id, ctx.client);
   ctx.taps.removeSession(id);
   ctx.clock.advance(30_000);
 
   expect(ctx.provider.transfers).toStrictEqual([]);
+  expect(ctx.clock.collectPending()).toStrictEqual([30_000]);
 });
 
-test('it doubles the wait after each write for a session that keeps losing its tap', () => {
+test('it doubles the wait after each write for a session that keeps losing its tap', async () => {
   const ctx = setupTest({ remote: true });
   const id = toSessionID('s-bridge');
 
@@ -376,16 +417,26 @@ test('it doubles the wait after each write for a session that keeps losing its t
   ctx.taps.attach(id, ctx.client);
   ctx.taps.removeSession(id);
   ctx.clock.advance(30_000);
+
+  await waitFor(() => {
+    expect(ctx.notes).toHaveLength(1);
+  });
+
   ctx.taps.attach(id, ctx.client);
   ctx.taps.removeSession(id);
   ctx.clock.advance(60_000);
+
+  await waitFor(() => {
+    expect(ctx.notes).toHaveLength(2);
+  });
+
   ctx.taps.attach(id, ctx.client);
   ctx.taps.removeSession(id);
 
   expect(ctx.clock.collectDelays()).toStrictEqual([30_000, 60_000, 120_000]);
 });
 
-test('it makes one write per tap loss however long the tap stays gone', () => {
+test('it makes one write per tap loss however long the tap stays gone', async () => {
   const ctx = setupTest({ remote: true });
   const id = toSessionID('s-bridge');
 
@@ -403,6 +454,12 @@ test('it makes one write per tap loss however long the tap stays gone', () => {
   ctx.sessions.push(buildMockSession({ id, pty, state: 'running' }));
   ctx.taps.attach(id, ctx.client);
   ctx.taps.removeSession(id);
+  ctx.clock.advance(30_000);
+
+  await waitFor(() => {
+    expect(ctx.notes).toHaveLength(1);
+  });
+
   ctx.clock.advance(60 * 60_000);
 
   expect(ctx.provider.transfers).toHaveLength(1);

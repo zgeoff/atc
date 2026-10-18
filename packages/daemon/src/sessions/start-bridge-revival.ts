@@ -81,7 +81,10 @@ export function startBridgeRevival(deps: BridgeRevivalDeps): BridgeRevival {
         isGone: () => {
           const s = findSession(sessionID);
 
-          return s === undefined || s.pty === null || deps.isProcessEnded(sessionID);
+          // a sleeping host has no terminal, yet its session is not gone
+          return (
+            s === undefined || deps.isProcessEnded(sessionID) || (s.pty === null && !s.suspended)
+          );
         },
         hasTap: () => deps.taps.hasTap(sessionID),
         isAsleep: () => findSession(sessionID)?.suspended === true,
