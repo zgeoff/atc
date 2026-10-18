@@ -59,7 +59,13 @@ export type SecurityOutcome =
       readonly reason?: OwnerAuthFailure;
     }
   | { readonly kind: 'consent'; readonly outcome: 'allowed' }
-  | { readonly kind: 'consent'; readonly outcome: 'denied'; readonly reason?: 'none_ticked' };
+  | { readonly kind: 'consent'; readonly outcome: 'denied'; readonly reason?: 'none_ticked' }
+  | {
+      readonly kind: 'token_exchange';
+      readonly outcome: 'rejected';
+      readonly reason: TokenExchangeReason;
+    }
+  | { readonly kind: 'bearer'; readonly outcome: 'rejected'; readonly reason: BearerReason };
 
 export type OwnerAuthFailure =
   | 'assertion_failed'
@@ -80,6 +86,18 @@ export type AuthorizeInvalidReason =
   | 'bad_host'
   | 'bad_origin'
   | 'other';
+
+export type TokenExchangeReason =
+  | 'invalid_request'
+  | 'invalid_client'
+  | 'invalid_grant'
+  | 'unauthorized_client'
+  | 'unsupported_grant_type'
+  | 'invalid_scope'
+  | 'invalid_target'
+  | 'other';
+
+export type BearerReason = 'malformed' | 'invalid_token';
 
 export type SecurityEvent = SecurityOutcome & {
   readonly path: string;
@@ -107,7 +125,7 @@ export interface HTTPServerContext {
   readonly approvals: ApprovalState;
   readonly enrollments: EnrollmentState;
 
-  // Receives each sign-in outcome as a security event.
+  // Receives each sign-in outcome and each refused token as a security event.
   readonly security: { readonly record: (event: SecurityEvent) => void };
 
   // The time the routes stamp and check expiries against.

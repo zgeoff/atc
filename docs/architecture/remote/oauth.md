@@ -131,10 +131,11 @@ the owner sets cannot turn it on.
 
 ## Security events
 
-Each sign-in outcome writes one line to stderr: `atc security ` followed by a JSON object. A log
-shipper matches that prefix. No line the server writes, on stdout or stderr, holds a value that
-signs in. The events come from the shared server code, so `atc mcp --http` and `atc-gateway serve`
-write the same lines, and atc holds no delivery credential: sign-in never waits on an alert.
+Each sign-in outcome and each refused token writes one line to stderr: `atc security ` followed by a
+JSON object. A log shipper matches that prefix. No line the server writes, on stdout or stderr,
+holds a value that signs in. The events come from the shared server code, so `atc mcp --http` and
+`atc-gateway serve` write the same lines, and atc holds no delivery credential: sign-in never waits
+on an alert.
 
 | `kind`              | `outcome`              | `reason`                                                                        |
 | ------------------- | ---------------------- | ------------------------------------------------------------------------------- |
@@ -142,6 +143,8 @@ write the same lines, and atc holds no delivery credential: sign-in never waits 
 | `authorize_invalid` | `rejected`             | better-auth's error code from a fixed list, `bad_host`, `bad_origin` or `other` |
 | `owner_auth`        | `succeeded`, `failed`  | `assertion_failed`, `locked`, `expired`, `not_enrolled` or `invalid_token`      |
 | `consent`           | `allowed`, `denied`    | `none_ticked` when allow came with no scope ticked                              |
+| `token_exchange`    | `rejected`             | better-auth's error code from a fixed list, or `other`                          |
+| `bearer`            | `rejected`             | `malformed` or `invalid_token`                                                  |
 | `suppressed`        | none                   | the kind the burst cap dropped, with the dropped `count`                        |
 
 A consent is `allowed` only when the answer issued an authorization code. The Host and origin checks
@@ -149,6 +152,12 @@ under [request checks](#request-checks) write `authorize_invalid` for every rout
 an `owner_auth` event comes only from a posted sign-in or enrollment, never from showing a page. An
 enrollment writes `owner_auth` with route `/enroll`: `succeeded` once the passkey is stored, and
 `invalid_token` for a token the database does not hold unexpired.
+
+A `token_exchange` event comes from a code exchange or a refresh that better-auth refused, such as a
+replayed refresh token, and a token request that issues tokens writes none. A `bearer` event comes
+from an MCP request whose `Authorization` header holds no bearer token (`malformed`) or a token that
+does not verify for the resource (`invalid_token`). An MCP request with no `Authorization` header
+writes no event, because every client sends one to discover the authorization server.
 
 An accepted start mints a random correlation id with its pending approval. The passkey sign-in
 carries it to the owner session it starts, and the consent event repeats it, so one authorization's

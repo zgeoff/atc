@@ -92,9 +92,9 @@ separate value is missing or starts with `-`; write such a value as `--<flag>=<v
 
 `/healthz` and `/readyz` return 200 for a request whose `Host` header is the public URL's host, and
 403 for any other host, so an orchestrator's probe sets that header. Request lines and
-`atc security` sign-in events go to stderr, and a log shipper matches the events by their prefix
-([security events](../architecture/remote/oauth.md#security-events)). No line holds a value that
-signs in. SIGTERM stops the gateway and exits 0.
+`atc security` events for sign-ins and refused tokens go to stderr, and a log shipper matches the
+events by their prefix ([security events](../architecture/remote/oauth.md#security-events)). No line
+holds a value that signs in. SIGTERM stops the gateway and exits 0.
 
 ## Clients
 

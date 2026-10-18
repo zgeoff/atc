@@ -9,12 +9,16 @@ import { buildRPCError } from './build-rpc-error';
 import { deriveTokenHash } from './derive-token-hash';
 import { findClientName } from './find-client-name';
 import { isSupportedProtocolVersion } from './is-supported-protocol-version';
-import type { HTTPServerContext } from './types';
+import type { BearerReason, HTTPServerContext, Requester } from './types';
 
 interface MCPHTTPRequest {
   readonly authorization: string | null;
   readonly protocolVersion: string | null;
   readonly body: string;
+
+  // The request's path and where it came from, for its security events.
+  readonly path: string;
+  readonly requester: Requester;
 }
 
 export async function answerMCPRequest(
@@ -29,6 +33,13 @@ export async function answerMCPRequest(
   const token = /^Bearer (?<token>\S+)$/iu.exec(request.authorization ?? '')?.groups?.['token'];
 
   if (token === undefined) {
+    // a request with no header at all is a client discovering the
+    // authorization server, so only a header that holds no bearer token is
+    // recorded.
+    if (request.authorization !== null) {
+      recordRefusedBearer(ctx, request, 'malformed');
+    }
+
     return new Response(null, {
       status: 401,
       headers: { 'www-authenticate': `Bearer resource_metadata="${metadataURL}"` },
@@ -38,6 +49,8 @@ export async function answerMCPRequest(
   const access = await verifyAccessToken(ctx, token);
 
   if (access === null) {
+    recordRefusedBearer(ctx, request, 'invalid_token');
+
     return new Response(null, {
       status: 401,
       headers: {
@@ -92,6 +105,21 @@ export async function answerMCPRequest(
   }
 
   return Response.json(buildRPCError(null, -32_600, 'invalid request'), { status: 400 });
+}
+
+// The event holds neither the header nor the token.
+function recordRefusedBearer(
+  ctx: HTTPServerContext,
+  request: MCPHTTPRequest,
+  reason: BearerReason,
+): void {
+  ctx.security.record({
+    kind: 'bearer',
+    outcome: 'rejected',
+    reason,
+    path: request.path,
+    requester: request.requester,
+  });
 }
 
 interface VerifiedAccess {
