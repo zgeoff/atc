@@ -11,9 +11,9 @@ import type {
 // impd's RPC procedures as the client holds them, one namespace each,
 // without the client's own helpers.
 type ImpdRouter = {
-  readonly [N in keyof ImpClient as ImpClient[N] extends (...args: never) => unknown
-    ? never
-    : N]: ImpClient[N];
+  readonly [
+    N in keyof ImpClient as ImpClient[N] extends (...args: never) => unknown ? never : N
+  ]: ImpClient[N];
 };
 
 export type ImpdProcedure = {

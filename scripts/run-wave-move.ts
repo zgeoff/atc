@@ -66,7 +66,7 @@ function collectReadyMoves(
 ): Map<string, string> {
   const ready = new Map(planned);
 
-  for (let changed = true; changed; ) {
+  for (let changed = true; changed;) {
     changed = false;
 
     for (const [file, target] of ready) {

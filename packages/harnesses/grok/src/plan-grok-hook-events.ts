@@ -140,13 +140,10 @@ function buildNotificationEvent(
 ): AdapterEvent {
   return match(payload.notificationType)
     .with('permission_prompt', () => buildNeedsInputEvent(base, payload.message))
-    .with(
-      'idle_prompt',
-      (): AdapterEvent => ({
-        ...named,
-        kind: state?.lastKind === 'needs-input' ? 'heartbeat' : 'turn-done',
-      }),
-    )
+    .with('idle_prompt', (): AdapterEvent => ({
+      ...named,
+      kind: state?.lastKind === 'needs-input' ? 'heartbeat' : 'turn-done',
+    }))
     .otherwise(() => ({ ...base }));
 }
 

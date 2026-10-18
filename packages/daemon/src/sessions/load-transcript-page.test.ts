@@ -261,9 +261,12 @@ test('it returns when the file shrinks while it is being read', async () => {
   writeFileSync(path, 'a row\n'.repeat(200_000));
 
   // The first line parsed empties the file; every later line parses as is.
-  const parseLine = mock(
-    (line: string): TranscriptRow => ({ role: 'user', text: line, tools: [], at: null }),
-  ).mockImplementationOnce((line) => {
+  const parseLine = mock((line: string): TranscriptRow => ({
+    role: 'user',
+    text: line,
+    tools: [],
+    at: null,
+  })).mockImplementationOnce((line) => {
     writeFileSync(path, '');
 
     return { role: 'user', text: line, tools: [], at: null };
