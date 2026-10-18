@@ -40,19 +40,16 @@ test('#findFuzzyScore scores word-start and consecutive hits above scattered one
 
 test('#pickMatches ranks basename matches above path-only matches', () => {
   const picked = pickMatches(
-    ['/home/geoff/projects/vers/packages/api', '/home/geoff/projects/vers'],
+    ['/home/me/projects/vers/packages/api', '/home/me/projects/vers'],
     'vers',
   );
 
-  expect(picked).toStrictEqual([
-    '/home/geoff/projects/vers',
-    '/home/geoff/projects/vers/packages/api',
-  ]);
+  expect(picked).toStrictEqual(['/home/me/projects/vers', '/home/me/projects/vers/packages/api']);
 });
 
 test('#pickMatches drops candidates the filter cannot fuzzy-match', () => {
-  expect(pickMatches(['/home/geoff/projects/atc', '/home/geoff/music'], 'atc')).toStrictEqual([
-    '/home/geoff/projects/atc',
+  expect(pickMatches(['/home/me/projects/atc', '/home/me/music'], 'atc')).toStrictEqual([
+    '/home/me/projects/atc',
   ]);
 });
 

@@ -2248,11 +2248,11 @@ test("it sets a profile's variables in a brokered guest's settings env and spawn
         glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         op: {
           secret: 'op-connect',
-          host: 'op-connect.geoff.cloud',
+          host: 'op-connect.example.com',
           header: 'authorization',
           scheme: 'bearer',
           env: {
-            OP_CONNECT_HOST: 'https://op-connect.geoff.cloud',
+            OP_CONNECT_HOST: 'https://op-connect.example.com',
             OP_CONNECT_TOKEN: 'imp-broker-placeholder',
           },
         },
@@ -2270,7 +2270,7 @@ test("it sets a profile's variables in a brokered guest's settings env and spawn
         revision: 3,
         env: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
         profileEnv: {
-          OP_CONNECT_HOST: 'https://op-connect.geoff.cloud',
+          OP_CONNECT_HOST: 'https://op-connect.example.com',
           OP_CONNECT_TOKEN: 'imp-broker-placeholder',
         },
       },
@@ -2289,7 +2289,7 @@ test("it sets a profile's variables in a brokered guest's settings env and spawn
   expect(plan.env).toStrictEqual({
     CLAUDE_CONFIG_DIR: '/tmp/atc/sessions/s1/claude-config',
     TMPDIR: '/tmp/atc/sessions/s1/scratch',
-    OP_CONNECT_HOST: 'https://op-connect.geoff.cloud',
+    OP_CONNECT_HOST: 'https://op-connect.example.com',
     OP_CONNECT_TOKEN: 'imp-broker-placeholder',
     ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
   });
@@ -2359,7 +2359,7 @@ test("it sets a profile's variables in a brokered guest's settings env and spawn
     },
     env: {
       ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic',
-      OP_CONNECT_HOST: 'https://op-connect.geoff.cloud',
+      OP_CONNECT_HOST: 'https://op-connect.example.com',
       OP_CONNECT_TOKEN: 'imp-broker-placeholder',
       ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
@@ -2383,11 +2383,11 @@ test('it refuses a local plan of a gateway whose profile sets variables', () => 
         glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         op: {
           secret: 'op-connect',
-          host: 'op-connect.geoff.cloud',
+          host: 'op-connect.example.com',
           header: 'authorization',
           scheme: 'bearer',
           env: {
-            OP_CONNECT_HOST: 'https://op-connect.geoff.cloud',
+            OP_CONNECT_HOST: 'https://op-connect.example.com',
             OP_CONNECT_TOKEN: 'imp-broker-placeholder',
           },
         },

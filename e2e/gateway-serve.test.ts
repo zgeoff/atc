@@ -42,7 +42,7 @@ test('it serves from the state directory given before its subcommand over the en
       'flagged',
       'serve',
       '--public-url',
-      'https://atc.geoff.cloud',
+      'https://atc.example.com',
       '--registry',
       'registry.json',
       '--port',
@@ -92,7 +92,7 @@ test('it serves from the state directory given before its subcommand over the en
   const exitCode = await gateway.exited;
 
   expect(serving).toBe(
-    `atc-gateway: serving https://atc.geoff.cloud/mcp, listening on http://127.0.0.1:${port}\n`,
+    `atc-gateway: serving https://atc.example.com/mcp, listening on http://127.0.0.1:${port}\n`,
   );
 
   expect(Number(port)).toBeGreaterThan(0);
