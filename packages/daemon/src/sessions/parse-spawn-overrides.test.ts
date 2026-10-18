@@ -97,7 +97,7 @@ test('it accepts every model and effort value agents.list advertises as availabl
       }),
     ],
     () => true,
-    false,
+    [{ id: 'local', remote: false, brokerAuth: false }],
   );
 
   const advertised = agents.flatMap((agent) =>
@@ -189,7 +189,7 @@ test('it refuses as unsupported every option agents.list does not advertise as a
       }),
     ],
     () => true,
-    false,
+    [{ id: 'local', remote: false, brokerAuth: false }],
   );
 
   const refused = agents.flatMap((agent) =>
@@ -246,7 +246,7 @@ test('it refuses a model for a registered agent that is not installed', () => {
       }),
     ],
     () => false,
-    false,
+    [{ id: 'local', remote: false, brokerAuth: false }],
   );
 
   invariant(claude !== undefined, 'the agent list holds no claude entry');
@@ -290,7 +290,7 @@ test('it passes a full model name through as given', () => {
       }),
     ],
     () => true,
-    false,
+    [{ id: 'local', remote: false, brokerAuth: false }],
   );
 
   invariant(claude !== undefined, 'the agent list holds no claude entry');
@@ -342,7 +342,7 @@ test.each([
       }),
     ],
     () => true,
-    false,
+    [{ id: 'local', remote: false, brokerAuth: false }],
   );
 
   invariant(claude !== undefined, 'the agent list holds no claude entry');
@@ -391,7 +391,7 @@ test.each([
       }),
     ],
     () => true,
-    false,
+    [{ id: 'local', remote: false, brokerAuth: false }],
   );
 
   invariant(claude !== undefined, 'the agent list holds no claude entry');
@@ -435,7 +435,7 @@ test('it refuses an effort for an agent that takes none', () => {
       }),
     ],
     () => true,
-    false,
+    [{ id: 'local', remote: false, brokerAuth: false }],
   );
 
   invariant(codex !== undefined, 'the agent list holds no codex entry');
@@ -479,7 +479,7 @@ test('it accepts any model for an agent whose model option has no closed set', (
       }),
     ],
     () => true,
-    false,
+    [{ id: 'local', remote: false, brokerAuth: false }],
   );
 
   invariant(codex !== undefined, 'the agent list holds no codex entry');

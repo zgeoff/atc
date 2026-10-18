@@ -45,6 +45,7 @@ test('it lists an agent atc has no code for with the kind and label its adapter 
       installed: true,
       brokerAuth: false,
       brokerRequired: false,
+      spawnTargets: ['local'],
       capabilities: {
         spawn: true,
         readTranscript: false,
@@ -95,6 +96,7 @@ test('it lists an adapter without a profile under its own id as its kind', async
       installed: false,
       brokerAuth: false,
       brokerRequired: false,
+      spawnTargets: [],
       capabilities: {
         spawn: false,
         readTranscript: false,

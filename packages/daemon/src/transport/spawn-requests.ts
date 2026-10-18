@@ -71,8 +71,13 @@ export class SpawnRequests {
       }
 
       // A stand-in adapter declares no binary to check, so only a profiled
-      // agent's missing binary refuses the spawn.
-      if (adapter.profile !== undefined && !entry.installed) {
+      // agent's missing binary refuses the spawn, and only on a target whose
+      // provider runs the agent on the daemon's machine.
+      const remote = ctx
+        .collectAgents()
+        .targets.some((candidate) => candidate.id === target && candidate.remote);
+
+      if (adapter.profile !== undefined && !entry.installed && !remote) {
         throw new DaemonError(
           'unsupported',
           `agent '${agent}' is registered but not installed on this host`,

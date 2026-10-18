@@ -47,10 +47,13 @@ The target step follows the same rule: it lists only the targets that can run th
 takes the only one without a picker ([targets](../execution/targets.md)).
 
 The agent listing holds what a caller needs to know about each agent: its kind, whether its binary
-is installed, whether it takes its credential from impd's broker, and one flag each for spawning,
-transcript reads, messages, attaching, screen reads and input. The kind is an open string, so a
-caller accepts a kind it has not seen. The listing never holds an environment value, a credential, a
-helper command or a base URL.
+is installed, whether it takes its credential from impd's broker, the targets a spawn of it can
+start on, and one flag each for spawning, transcript reads, messages, attaching, screen reads and
+input. Only a target whose provider runs sessions on the daemon's machine needs the binary on that
+machine. A remote target, such as an imp, runs the agent inside its guest, so the daemon accepts a
+spawn there whether or not the binary resolves on the daemon's machine. The kind is an open string,
+so a caller accepts a kind it has not seen. The listing never holds an environment value, a
+credential, a helper command or a base URL.
 
 ## Spawn options
 

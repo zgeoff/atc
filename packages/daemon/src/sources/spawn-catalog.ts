@@ -68,7 +68,9 @@ export class SpawnCatalog {
     this.configRevision = buildConfigRevision(deps.targets, deps.defaultTarget, deps.targetErrors);
   }
 
-  // An agent counts as installed when its binary is on the daemon's PATH.
+  // An agent counts as installed when its binary is on the daemon's PATH,
+  // which only a target whose provider runs the agent here needs. A target
+  // without a provider starts nothing.
   collectAgents(): AgentList {
     return {
       daemon: {
@@ -80,7 +82,17 @@ export class SpawnCatalog {
       agents: buildAgentList(
         this.mgr.collectAdapters(),
         (bin) => Bun.which(bin) !== null,
-        this.targets.some((target) => target.provider?.brokerAuth !== undefined),
+        this.targets.flatMap((target) =>
+          target.provider === null
+            ? []
+            : [
+                {
+                  id: target.id,
+                  remote: target.provider.remote,
+                  brokerAuth: target.provider.brokerAuth !== undefined,
+                },
+              ],
+        ),
       ),
       targets: buildTargetList(this.targets, this.defaultTarget),
       spawnDefaults: { agent: this.defaultAgent, target: this.defaultTarget },
