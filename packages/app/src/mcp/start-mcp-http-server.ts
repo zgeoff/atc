@@ -15,6 +15,7 @@ import type { MCPAuthDatabase } from './mcp-auth-database';
 import { normalizePublicURL } from './normalize-public-url';
 import { openMCPAuth } from './open-mcp-auth';
 import { pickErrorMessage } from './pick-error-message';
+import { recordRefusedExchange } from './record-refused-exchange';
 import { SecurityEventLog } from './security-event-log';
 import type { FleetCaller, HTTPServerContext, Requester } from './types';
 
@@ -44,7 +45,7 @@ interface MCPHTTPServerOptions {
   // Receives one line per request the server answers.
   readonly printRequest: (line: string) => void;
 
-  // Receives one `atc security {json}` line per sign-in outcome.
+  // Receives one `atc security {json}` line per sign-in outcome or refused token.
   readonly printSecurity: (line: string) => void;
 
   // How long a rotated refresh token still answers with its successor.
@@ -383,7 +384,7 @@ async function answerHTTPRequest(
   }
 
   if (route === 'POST /oauth2/token') {
-    return answerTokenRequest(ctx, request, url);
+    return answerTokenRequest(ctx, request, url, requester);
   }
 
   if (route === 'GET /error') {
@@ -449,6 +450,8 @@ async function answerHTTPRequest(
       authorization: request.headers.get('authorization'),
       protocolVersion: request.headers.get('mcp-protocol-version'),
       body,
+      path: url.pathname,
+      requester,
     });
   }
 
@@ -499,48 +502,64 @@ async function answerTokenRequest(
   ctx: HTTPServerContext,
   request: Request,
   url: URL,
+  requester: Requester,
 ): Promise<Response> {
-  const response = await ctx.store.auth.handler(toPublicRequest(ctx, request, url));
+  // the body is read once here, so the refusal's event can name its client.
+  const body = await request.text();
 
-  if (response.ok) {
-    const attached = await ctx.store.db
-      .selectFrom('oauthAccessToken')
-      .select('sessionId')
-      .where('sessionId', 'is not', null)
-      .union(
-        ctx.store.db
-          .selectFrom('oauthRefreshToken')
-          .select('sessionId')
-          .where('sessionId', 'is not', null),
-      )
-      .execute();
+  const sent = new Request(request.url, { method: request.method, headers: request.headers, body });
 
-    const sessionIDs = attached.flatMap((row) => (row.sessionId === null ? [] : [row.sessionId]));
+  const response = await ctx.store.auth.handler(toPublicRequest(ctx, sent, url));
 
-    // detached tokens outlive their session, so a session's end never ends a grant.
-    await ctx.store.db
-      .updateTable('oauthAccessToken')
-      .set({ sessionId: null })
-      .where('sessionId', 'is not', null)
-      .execute();
+  if (!response.ok) {
+    await recordRefusedExchange(ctx, {
+      contentType: request.headers.get('content-type'),
+      body,
+      response,
+      path: url.pathname,
+      requester,
+    });
 
-    await ctx.store.db
-      .updateTable('oauthRefreshToken')
-      .set({ sessionId: null })
-      .where('sessionId', 'is not', null)
-      .execute();
-
-    // the session's one authorization is done.
-    await ctx.store.db
-      .deleteFrom('session')
-      .where((eb) =>
-        eb.or([
-          eb('expiresAt', '<', new Date().toISOString()),
-          ...(sessionIDs.length === 0 ? [] : [eb('id', 'in', sessionIDs)]),
-        ]),
-      )
-      .execute();
+    return response;
   }
+
+  const attached = await ctx.store.db
+    .selectFrom('oauthAccessToken')
+    .select('sessionId')
+    .where('sessionId', 'is not', null)
+    .union(
+      ctx.store.db
+        .selectFrom('oauthRefreshToken')
+        .select('sessionId')
+        .where('sessionId', 'is not', null),
+    )
+    .execute();
+
+  const sessionIDs = attached.flatMap((row) => (row.sessionId === null ? [] : [row.sessionId]));
+
+  // detached tokens outlive their session, so a session's end never ends a grant.
+  await ctx.store.db
+    .updateTable('oauthAccessToken')
+    .set({ sessionId: null })
+    .where('sessionId', 'is not', null)
+    .execute();
+
+  await ctx.store.db
+    .updateTable('oauthRefreshToken')
+    .set({ sessionId: null })
+    .where('sessionId', 'is not', null)
+    .execute();
+
+  // the session's one authorization is done.
+  await ctx.store.db
+    .deleteFrom('session')
+    .where((eb) =>
+      eb.or([
+        eb('expiresAt', '<', new Date().toISOString()),
+        ...(sessionIDs.length === 0 ? [] : [eb('id', 'in', sessionIDs)]),
+      ]),
+    )
+    .execute();
 
   return response;
 }

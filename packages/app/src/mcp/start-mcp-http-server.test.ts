@@ -2847,6 +2847,266 @@ test('it writes an authorization for an unknown client as invalid_client without
   ]);
 });
 
+test('it writes a code exchange better-auth refuses as token_exchange with its error code', async () => {
+  const ctx = await setupTest();
+
+  const created = await ctx.store.auth.api.createFixedClient({
+    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+  });
+
+  const clientID = created.clientID;
+
+  await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: 'code-atc-never-issued-4f2a',
+      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+      client_id: clientID,
+      code_verifier: 'verifier-0123456789-abcdefghijklmnopqrstuvwxyz',
+    }),
+  });
+
+  expect(
+    JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
+  ).toStrictEqual([
+    {
+      v: 1,
+      ts: new Date(ctx.clock.now()).toISOString(),
+      kind: 'token_exchange',
+      outcome: 'rejected',
+      reason: 'invalid_grant',
+      route: '/oauth2/token',
+      client: { id: clientID, name: 'Claude' },
+      peer: { address: '127.0.0.1', provenance: 'socket' },
+      userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
+    },
+  ]);
+});
+
+test('it writes a token exchange for an unknown client without the client', async () => {
+  const ctx = await setupTest();
+
+  await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: 'refresh-atc-never-issued-9d3e',
+      client_id: 'no-such-client',
+    }),
+  });
+
+  expect(
+    JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
+  ).toStrictEqual([
+    {
+      v: 1,
+      ts: new Date(ctx.clock.now()).toISOString(),
+      kind: 'token_exchange',
+      outcome: 'rejected',
+      reason: 'invalid_grant',
+      route: '/oauth2/token',
+      peer: { address: '127.0.0.1', provenance: 'socket' },
+      userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
+    },
+  ]);
+});
+
+test('it writes a token exchange with a grant type atc does not offer as unsupported_grant_type', async () => {
+  const ctx = await setupTest();
+
+  await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({ grant_type: 'password', username: 'owner', password: 'pw-7e1c' }),
+  });
+
+  expect(
+    JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
+  ).toStrictEqual([
+    {
+      v: 1,
+      ts: new Date(ctx.clock.now()).toISOString(),
+      kind: 'token_exchange',
+      outcome: 'rejected',
+      reason: 'unsupported_grant_type',
+      route: '/oauth2/token',
+      peer: { address: '127.0.0.1', provenance: 'socket' },
+      userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
+    },
+  ]);
+});
+
+test('it writes no security event for a token exchange that issues tokens', async () => {
+  const ctx = await setupTest();
+
+  const created = await ctx.store.auth.api.createFixedClient({
+    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+  });
+
+  const clientID = created.clientID;
+
+  const authorized = await runMCPAuthorization(ctx, {
+    clientID,
+    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    ticked: ['read'],
+  });
+
+  ctx.security.length = 0;
+
+  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authorized.code,
+      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+      client_id: clientID,
+      code_verifier: authorized.verifier,
+    }),
+  });
+
+  expect(exchanged.status).toBe(200);
+  expect(ctx.security).toStrictEqual([]);
+});
+
+test('it writes an MCP request with a bearer token atc never issued as invalid_token', async () => {
+  const ctx = await setupTest();
+
+  await fetch(`${ctx.url}/mcp`, {
+    method: 'POST',
+    headers: { authorization: 'Bearer token-atc-never-issued-61b0' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+  });
+
+  expect(
+    JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
+  ).toStrictEqual([
+    {
+      v: 1,
+      ts: new Date(ctx.clock.now()).toISOString(),
+      kind: 'bearer',
+      outcome: 'rejected',
+      reason: 'invalid_token',
+      route: '/mcp',
+      peer: { address: '127.0.0.1', provenance: 'socket' },
+      userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
+    },
+  ]);
+});
+
+test('it writes an MCP request whose Authorization header is not a bearer token as malformed', async () => {
+  const ctx = await setupTest();
+
+  await fetch(`${ctx.url}/mcp`, {
+    method: 'POST',
+    headers: { authorization: 'Basic b3duZXI6cHctN2UxYw==' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+  });
+
+  expect(
+    JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
+  ).toStrictEqual([
+    {
+      v: 1,
+      ts: new Date(ctx.clock.now()).toISOString(),
+      kind: 'bearer',
+      outcome: 'rejected',
+      reason: 'malformed',
+      route: '/mcp',
+      peer: { address: '127.0.0.1', provenance: 'socket' },
+      userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
+    },
+  ]);
+});
+
+test('it writes no security event for an MCP request with no Authorization header', async () => {
+  const ctx = await setupTest();
+
+  await fetch(`${ctx.url}/mcp`, {
+    method: 'POST',
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+  });
+
+  expect(ctx.security).toStrictEqual([]);
+});
+
+test('it writes a token bound to the resource of an earlier public URL as invalid_token', async () => {
+  const ctx = await setupTest();
+
+  const created = await ctx.store.auth.api.createFixedClient({
+    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+  });
+
+  const clientID = created.clientID;
+
+  const authorized = await runMCPAuthorization(ctx, {
+    clientID,
+    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    ticked: ['read'],
+  });
+
+  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authorized.code,
+      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+      client_id: clientID,
+      code_verifier: authorized.verifier,
+    }),
+  });
+
+  const tokens = await readJSONRecord(exchanged);
+
+  const caller = new TransportCaller(ctx.socketPath, 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
+
+  registerTestCleanup(() => caller.stop());
+
+  const security: string[] = [];
+
+  const moved = await startMCPHTTPServer({
+    caller,
+    build: 'atc/test-build',
+    host: '127.0.0.1',
+    port: 0,
+    publicURL: 'http://localhost:9',
+    allowedHosts: [],
+    trustForwardedFrom: [],
+    dbPath: ctx.dbPath,
+    openAuthDatabase: openMCPAuthDatabase,
+    printRequest: () => {},
+    printSecurity: (line) => {
+      security.push(line);
+    },
+  });
+
+  registerTestCleanup(() => moved.stop());
+
+  await fetch(`${moved.url}/mcp`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${String(tokens['access_token'])}` },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+  });
+
+  expect(
+    JSON.parse(`[${security.map((line) => line.slice('atc security '.length)).join(',')}]`),
+  ).toStrictEqual([
+    {
+      v: 1,
+      ts: expect.toBeString(),
+      kind: 'bearer',
+      outcome: 'rejected',
+      reason: 'invalid_token',
+      route: '/mcp',
+      peer: { address: '127.0.0.1', provenance: 'socket' },
+      userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
+    },
+  ]);
+});
+
 test('it marks the forwarded address trusted when the socket peer is a listed proxy', async () => {
   const ctx = await setupTest();
 
@@ -3135,7 +3395,7 @@ test('it writes one suppressed event with the dropped count once a burst past th
   });
 });
 
-test('it marks every forwarded address unverified and keeps every secret of a full sign-in out of its events and request lines', async () => {
+test('it marks every forwarded address unverified and keeps every secret of a full sign-in and its refused tokens out of its events and request lines', async () => {
   const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
@@ -3302,6 +3562,49 @@ test('it marks every forwarded address unverified and keeps every secret of a fu
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
   });
 
+  // The refused token requests carry the spent code and refresh token with no
+  // Authorization header, which better-auth reads as client authentication,
+  // then the canary bearer token and a header that is no bearer token.
+  await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    headers: { 'cf-connecting-ip': sent['cf-connecting-ip'], cookie: sent.cookie },
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+      client_id: clientID,
+      code_verifier: verifier,
+      resource: `${ctx.origin}/mcp`,
+    }),
+  });
+
+  await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    headers: { 'cf-connecting-ip': sent['cf-connecting-ip'], cookie: sent.cookie },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+      client_id: clientID,
+      resource: `${ctx.origin}/mcp`,
+    }),
+  });
+
+  await fetch(`${ctx.url}/mcp`, {
+    method: 'POST',
+    headers: { ...sent, 'content-type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+  });
+
+  await fetch(`${ctx.url}/mcp`, {
+    method: 'POST',
+    headers: {
+      ...sent,
+      authorization: 'Basic canary-basic-value-2d8e',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+  });
+
   // The refusals carry the same secrets: an authorization for another
   // resource, a request to a Host atc does not serve, and a consent form
   // from another origin.
@@ -3334,6 +3637,7 @@ test('it marks every forwarded address unverified and keeps every secret of a fu
     sent.cookie,
     'canary-cookie-value-5e1d',
     'canary-bearer-value-77ab',
+    'canary-basic-value-2d8e',
     verifier,
     challenge,
     'canary-state-value-3c9f',
@@ -3371,6 +3675,10 @@ test('it marks every forwarded address unverified and keeps every secret of a fu
     { kind: 'owner_auth', forwarded },
     { kind: 'owner_auth', forwarded },
     { kind: 'consent', forwarded },
+    { kind: 'token_exchange', reason: 'invalid_grant', forwarded },
+    { kind: 'token_exchange', reason: 'invalid_grant', forwarded },
+    { kind: 'bearer', reason: 'invalid_token', forwarded },
+    { kind: 'bearer', reason: 'malformed', forwarded },
     { kind: 'authorize_invalid', forwarded },
     { kind: 'authorize_invalid', forwarded },
     { kind: 'authorize_invalid', forwarded },
