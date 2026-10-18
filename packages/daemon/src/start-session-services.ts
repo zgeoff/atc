@@ -180,6 +180,8 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
     stateDir,
   });
 
+  // The revival notes each write through the hook intake, so the note lands
+  // in the session's events like one the session sent.
   const revival = startBridgeRevival({
     mgr,
     taps,
