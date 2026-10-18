@@ -16,7 +16,7 @@ interface RefusedExchange {
 // client's id and name only for a client atc holds. It never holds the
 // code, the verifier, or a token the request carried.
 export async function recordRefusedExchange(
-  ctx: HTTPServerContext,
+  ctx: Pick<HTTPServerContext, 'store' | 'security'>,
   exchange: RefusedExchange,
 ): Promise<void> {
   const code = await readErrorCode(exchange.response);
