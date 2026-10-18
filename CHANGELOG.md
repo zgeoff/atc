@@ -1,5 +1,18 @@
 # Changelog
 
+## [4.14.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.13.2...@zgeoff/atc@4.14.0) (2026-10-18)
+
+
+### Features
+
+* **geo-444:** trust a forwarded address only from a listed proxy ([#767](https://github.com/zgeoff/atc/issues/767)) ([f961dc7](https://github.com/zgeoff/atc/commit/f961dc7be77d4f280d8e07997cf9161fa4929d17))
+
+
+### Bug Fixes
+
+* **geo-1240:** revive an outdated harness that ended while its imp slept ([#759](https://github.com/zgeoff/atc/issues/759)) ([3a63410](https://github.com/zgeoff/atc/commit/3a634105eaeea7475f61e490c2b019777e32f193))
+* **geo-1329:** rewrite the bridge mod of a session whose tap is gone ([#766](https://github.com/zgeoff/atc/issues/766)) ([bd9bf2b](https://github.com/zgeoff/atc/commit/bd9bf2bdda549ff4da563f06a8c44e185347cdaf))
+
 ## [4.13.2](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.13.1...@zgeoff/atc@4.13.2) (2026-10-18)
 
 ### Bug Fixes
