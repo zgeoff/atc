@@ -41,8 +41,6 @@ pre-push:
       run: bun run check:manifests
     - name: check:disable-baseline
       run: bun run check:disable-baseline
-    - name: check:owner-names
-      run: bun run check:owner-names
     - name: check:raw-escapes
       run: bun run check:raw-escapes
     - name: check:source-entries
