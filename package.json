@@ -1,6 +1,6 @@
 {
   "name": "@zgeoff/atc",
-  "version": "4.13.1",
+  "version": "4.13.2",
   "private": true,
   "description": "Terminal control tower for coding-agent sessions",
   "homepage": "https://github.com/zgeoff/atc#readme",
