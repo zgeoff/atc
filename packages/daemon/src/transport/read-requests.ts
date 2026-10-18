@@ -111,6 +111,11 @@ export class ReadRequests {
       afterID = decoded.id;
     }
 
+    // Row ids start at 1, so a read after 0 starts at the oldest retained event.
+    if (parsed.data.from === 'start') {
+      afterID = 0;
+    }
+
     const page = await ctx.readEvents(
       afterID,
       parsed.data.limit,

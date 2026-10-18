@@ -73,6 +73,7 @@ test('it answers a hello on the daemon socket in its test directory', async () =
       'agents.list',
       'events.more',
       'events.session',
+      'events.start',
       'message.turn',
       'message.wait',
       'spawn.options',

@@ -301,17 +301,24 @@ export const REQUEST_PARAM_SCHEMAS = {
     cursor: buildOptionalCursor(),
     limit: buildDefaultedNumber(50).transform((v) => Math.min(Math.max(Math.trunc(v), 1), 200)),
   }),
-  'events.read': z.object({
-    cursor: buildOptionalCursor(),
-    limit: buildDefaultedNumber(50).transform((v) => Math.min(Math.max(Math.trunc(v), 1), 200)),
-    waitMs: buildDefaultedWait(),
+  'events.read': z
+    .object({
+      cursor: buildOptionalCursor(),
 
-    // Limits the read to one session's events; absent or empty reads the whole fleet.
-    session: z.preprocess(
-      (v) => (typeof v === 'string' && v !== '' ? v : undefined),
-      z.string().transform(toSessionID).optional(),
-    ),
-  }),
+      // `start` reads from the oldest retained event, where no cursor reads the newest.
+      from: z.literal('start', { error: "events.read takes from only as 'start'" }).optional(),
+      limit: buildDefaultedNumber(50).transform((v) => Math.min(Math.max(Math.trunc(v), 1), 200)),
+      waitMs: buildDefaultedWait(),
+
+      // Limits the read to one session's events; absent or empty reads the whole fleet.
+      session: z.preprocess(
+        (v) => (typeof v === 'string' && v !== '' ? v : undefined),
+        z.string().transform(toSessionID).optional(),
+      ),
+    })
+    .refine((v) => v.cursor === undefined || v.from === undefined, {
+      message: 'events.read takes a cursor or from, not both',
+    }),
 
   // The sender is never a param: the daemon builds it from the caller, so a
   // `from` an older client sends is dropped with any other unknown key.

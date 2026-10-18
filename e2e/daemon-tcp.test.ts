@@ -126,6 +126,7 @@ test('it accepts a TCP handshake with a token a SIGHUP reload kept', async () =>
       'agents.list',
       'events.more',
       'events.session',
+      'events.start',
       'message.turn',
       'message.wait',
       'spawn.options',

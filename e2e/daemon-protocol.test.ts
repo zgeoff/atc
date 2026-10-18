@@ -57,6 +57,7 @@ test('it answers daemon.hello with the build, limits, and features', async () =>
       'agents.list',
       'events.more',
       'events.session',
+      'events.start',
       'message.turn',
       'message.wait',
       'spawn.options',

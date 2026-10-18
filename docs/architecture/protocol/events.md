@@ -47,10 +47,12 @@ cursor that points at a dropped event still reads every later event, and a note 
 note finds nothing.
 
 A caller reads the trail from a cursor, an opaque string it passes back and never builds. A read
-without a cursor returns the newest events. A read can hold open until an event arrives or a wait
-ends, and its answer says whether more events lie past the page, so a caller drains a backlog by
-reading again at once and waits only when it is caught up. The daemon records which wake it last saw
-before it queries, so an event that lands between the query and the wait still ends the wait.
+without a cursor returns the newest events. A read with `from: 'start'` returns the oldest event the
+trail holds after its last sweep, and the cursor it returns continues the read. A daemon that takes
+`from` lists `events.start` in its hello reply. A read can hold open until an event arrives or a
+wait ends, and its answer says whether more events lie past the page, so a caller drains a backlog
+by reading again at once and waits only when it is caught up. The daemon records which wake it last
+saw before it queries, so an event that lands between the query and the wait still ends the wait.
 
 A read can narrow to one session. The filter matches the rows under that atc session id and, for a
 live session, the rows under its agent session id, because rows written under another atc session
