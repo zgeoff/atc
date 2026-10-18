@@ -38,7 +38,7 @@ jobs:
   # the one status the main ruleset requires: it runs even when a job it needs
   # failed or was skipped, and passes only when every one of them succeeded
   checks:
-    needs: [ci, binaries, atc-bridge]
+    needs: [ci, binaries, atc-bridge, codex-bridge]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -86,3 +86,35 @@ jobs:
 
       - name: Test Mod
         run: bun run test:atc-bridge
+
+  codex-bridge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      LEFTHOOK: 0
+      # the App Server API is experimental and changes between Codex releases,
+      # so the bridge is tested against one exact build, and the tests report a
+      # different installed one
+      CODEX_VERSION: 0.163.0
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Install Codex
+        run: |
+          npm install --global "@openai/codex@${CODEX_VERSION}"
+          codex --version
+
+      - name: Test Codex Bridge
+        run:
+          bun run test packages/harnesses/codex/src/app-server/start-codex-app-server-bridge.test.ts
