@@ -27,7 +27,7 @@ interface DaemonTestConfig {
 }
 
 function setupTest(config: DaemonTestConfig): ReturnType<typeof startTestDaemon<DaemonTestConfig>>;
-function setupTest(): ReturnType<typeof startTestDaemon<Record<never, never>>>;
+function setupTest(): ReturnType<typeof startTestDaemon<{ readonly prefix: string }>>;
 
 function setupTest(config?: DaemonTestConfig) {
   return startTestDaemon({
