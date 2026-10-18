@@ -142,6 +142,6 @@
   },
   "packageManager": "bun@1.4.3",
   "patchedDependencies": {
-    "knip@6.24.0": "patches/knip@6.24.0.patch"
+    "knip@6.41.0": "patches/knip@6.41.0.patch"
   }
 }

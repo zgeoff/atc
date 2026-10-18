@@ -308,6 +308,9 @@
       },
     },
   },
+  "patchedDependencies": {
+    "knip@6.41.0": "patches/knip@6.41.0.patch",
+  },
   "overrides": {
     "brace-expansion": "5.0.12",
     "fast-uri": "3.1.8",
