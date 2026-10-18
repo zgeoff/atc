@@ -1,4 +1,4 @@
-import { expect, mock, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { toSessionID } from '@atc/core';
 import type { HookEvent } from '@atc/protocol/session';
 import { buildStubClock, registerTestCleanup, waitFor } from '@atc/test-utils';
@@ -20,7 +20,7 @@ function setupTest() {
   const ended = new Set<string>();
 
   const notes: HookEvent[] = [];
-  const log = mock();
+  const logs: string[] = [];
 
   const provider = buildStubMemoryProvider({
     kind: 'imp',
@@ -40,7 +40,9 @@ function setupTest() {
       sessions,
       findAdapter: () => adapter,
       requireExecution: () => ({ provider, identity: 'imp:test' }),
-      log,
+      log: (line) => {
+        logs.push(line);
+      },
     },
     taps,
     clock,
@@ -58,7 +60,7 @@ function setupTest() {
 
   const client: TapClient = { sendEvent: () => {} };
 
-  return { clock, taps, sessions, ended, notes, log, provider, client };
+  return { clock, taps, sessions, ended, notes, logs, provider, client };
 }
 
 test('it writes the bridge mod of a running remote session whose tap stays gone for 30 s', () => {
@@ -150,6 +152,33 @@ test('it writes nothing when a tap attaches again before the wait ends', () => {
   ctx.clock.advance(20_000);
 
   expect(ctx.provider.transfers).toStrictEqual([]);
+});
+
+test('it logs each write in the daemon log', async () => {
+  const ctx = setupTest();
+  const id = toSessionID('s-bridge');
+
+  const pty = ctx.provider.spawnHarness({
+    session: id,
+    host: id,
+    bin: 'claude',
+    args: [],
+    cwd: '/work',
+    env: {},
+    cols: 80,
+    rows: 24,
+  });
+
+  ctx.sessions.push(buildMockSession({ id, pty, state: 'running' }));
+  ctx.taps.attach(id, ctx.client);
+  ctx.taps.removeSession(id);
+  ctx.clock.advance(30_000);
+
+  await waitFor(() => {
+    expect(ctx.logs).toStrictEqual([
+      'session s-bridge: its atc-bridge tap was gone, so atc wrote the mod again',
+    ]);
+  });
 });
 
 test('it waits 30 s from the latest tap loss', () => {
