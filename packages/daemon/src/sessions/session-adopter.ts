@@ -306,13 +306,15 @@ export class SessionAdopter {
         : this.harnesses.waitForAuthStart(s, provider, pty),
     );
 
-    if (
+    const outdated =
       plan.admission !== null &&
       start?.created === false &&
       wasAsleep &&
-      s.pty === pty &&
-      isLaunchOutdated(s, plan.admission.revision, plan.heldRevision)
-    ) {
+      isLaunchOutdated(s, plan.admission.revision, plan.heldRevision);
+
+    const restartable = outdated ? await this.isHarnessRestartable(s, pty) : false;
+
+    if (restartable) {
       pty = await this.restartOutdatedHarness(s, pty, launch, canProceed);
 
       start = await timer.withStep('harness-restart', () =>
@@ -397,6 +399,30 @@ export class SessionAdopter {
     this.fleet.emitChange();
 
     return pty;
+  }
+
+  // the harness is still the session's terminal, or ended on its own with
+  // an exit its host reported, as one that ended while its host slept does;
+  // a stop, a sleep, or another revive that took the session leaves it
+  private async isHarnessRestartable(s: Session, pty: HarnessHandle): Promise<boolean> {
+    if (s.pty === pty) {
+      return true;
+    }
+
+    if (s.pty !== null) {
+      return false;
+    }
+
+    const exited = await pty.waitForExit(0);
+
+    return (
+      exited &&
+      s.pty === null &&
+      s.desired === 'run' &&
+      !s.suspended &&
+      !this.adopting.has(s.id) &&
+      this.registry.sessions.includes(s)
+    );
   }
 
   // a harness from before a rebind keeps the guest settings it launched

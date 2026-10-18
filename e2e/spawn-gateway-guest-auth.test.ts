@@ -212,6 +212,93 @@ test('it revives a suspended session after a rebind as a fresh guest process und
   expect(running).not.toContain(join(session, 'auth-r1', 'settings.json'));
 });
 
+test('it revives a suspended session after a rebind as a fresh guest process when the outdated one ended while its imp slept', async () => {
+  const ctx = setupTest();
+
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const daemon = await startTestDaemon({
+    options: () => ({
+      adapters: buildAgentAdapters(
+        parseConfig(SHIPPED_HARNESS_PLUGINS, {
+          authProfiles: {
+            glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+          },
+          agents: {
+            glm: {
+              kind: 'claude',
+              bin: ctx.fakeClaude,
+              baseURL: 'https://api.z.ai/api/anthropic',
+              auth: {
+                profiles: ['glm'],
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+              },
+            },
+          },
+        }),
+        buildMockHostServices(),
+      ),
+      targets: ctx.targets,
+      defaultTarget: 'box',
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    agent: 'glm',
+    target: 'box',
+    resume: 'a1',
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+  const session = join(ctx.dir, 'g', 'sessions', id);
+
+  await daemon.client.sendRequest('session.kill', { session: id });
+
+  const [first] = ctx.port.sessionRequests;
+
+  invariant(first !== undefined, 'expected the first harness start');
+
+  // The process ends inside the sleeping imp, so the revive attaches an
+  // exit nobody has received yet.
+  ctx.port.killProcess(first.name, first.session);
+
+  await waitFor(() => {
+    expect(ctx.port.findUndeliveredExit(first.name, first.session)).not.toBeNull();
+  });
+
+  await daemon.client.sendRequest('session.auth.revoke', { session: id });
+  await daemon.client.sendRequest('session.auth.rebind', { session: id });
+  await daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+
+  // The adopt attaches the ended harness and starts a fresh one in its place.
+  await waitFor(() => {
+    expect(ctx.port.sessionRequests).toHaveLength(3);
+  });
+
+  const revived = ctx.port.sessionRequests.at(2);
+
+  invariant(revived?.kind === 'start', 'expected the revived harness start');
+
+  const running = ctx.port.getProcessArgv(revived.name, revived.session);
+
+  const listed = await daemon.client.sendRequest('session.list');
+
+  expect(running).toContain(join(session, 'auth-r2', 'settings.json'));
+  expect(running).not.toContain(join(session, 'auth-r1', 'settings.json'));
+  expect(listed).toMatchObject({ sessions: [{ id, state: 'running' }] });
+});
+
 test('it refuses to revive a revoked session and starts no harness under its old settings', async () => {
   const ctx = setupTest();
 
