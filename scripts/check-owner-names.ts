@@ -79,8 +79,10 @@ const ALLOWED_VAULTS = new Set(['example', 'vault']);
 
 const PLACEHOLDER_STARTS = ['<', '$', '{'];
 const HOST = /(?:[a-z0-9-]+\.)+[a-z][a-z0-9-]*/giu;
-const HOME = /\/(?:home|Users)\/(?<login>[^/\s'"`]+)/gu;
-const VAULT = /op:\/\/(?<vault>[^/\s'"`]+)\//gu;
+
+// Closing prose punctuation after a home path is not part of its login.
+const HOME = /\/(?:home|Users)\/(?<login>[^/\s'"`]+?)(?=[.,;:!?)\]]*(?:[/\s'"`]|$))/gu;
+const VAULT = /op:\/\/(?<vault>[^/\s'"`]*)\//gu;
 
 function collectOwnerNames(source: string, hashes: OwnerNameHashes): OwnerName[] {
   return source.split('\n').flatMap((text, index) => {
@@ -93,7 +95,7 @@ function collectOwnerNames(source: string, hashes: OwnerNameHashes): OwnerName[]
 
     if (
       [...text.matchAll(HOME)].some((match) =>
-        hashes.logins.has(buildDigest(match.groups?.['login'] ?? '')),
+        hashes.logins.has(buildDigest((match.groups?.['login'] ?? '').toLowerCase())),
       )
     ) {
       names.push({ kind: 'owner home path', line });
