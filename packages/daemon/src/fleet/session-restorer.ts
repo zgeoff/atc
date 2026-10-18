@@ -205,7 +205,6 @@ export class SessionRestorer {
     this.callbacks.onEvent('state', s);
   }
 
-  // Why this daemon cannot use the entry's target, or null when it can.
   private findTargetRefusal(entry: FleetEntry): string | null {
     const target = entry.target ?? LOCAL_TARGET.id;
     const targetIdentity = entry.targetIdentity ?? LOCAL_TARGET_IDENTITY;
