@@ -4,6 +4,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { z } from 'zod';
 
 async function main(): Promise<void> {
   const root = resolve(process.argv[2] ?? join(import.meta.dir, '..'));
@@ -33,8 +34,10 @@ interface OwnerNameHashes {
   logins: Set<string>;
 }
 
+const HASHES_SCHEMA = z.object({ domains: z.array(z.string()), logins: z.array(z.string()) });
+
 function loadHashes(file: string): OwnerNameHashes {
-  const parsed = JSON.parse(readFileSync(file, 'utf8')) as { domains: string[]; logins: string[] };
+  const parsed = HASHES_SCHEMA.parse(JSON.parse(readFileSync(file, 'utf8')));
 
   return { domains: new Set(parsed.domains), logins: new Set(parsed.logins) };
 }
