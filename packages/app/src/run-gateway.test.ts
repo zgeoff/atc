@@ -70,6 +70,77 @@ test('it answers the liveness probe for the host of its public URL', async () =>
   expect(health.status).toBe(200);
 });
 
+test('it trusts the forwarded address from a proxy its flags list', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(
+    join(ctx.dir, 'registry.json'),
+    JSON.stringify({
+      daemons: {
+        cloud: { address: '127.0.0.1:9', daemonID: '0123abcd-0000-4000-8000-000000000000' },
+      },
+      defaultDaemon: 'cloud',
+    }),
+  );
+
+  const printed: string[] = [];
+  const errors: string[] = [];
+
+  const signals = new Map<string, () => Promise<void>>();
+
+  await runGateway(
+    'atc-gateway/test',
+    {
+      host: '127.0.0.1',
+      port: 0,
+      publicURL: 'https://atc.example.com',
+      trustForwardedFrom: ['127.0.0.1'],
+      registryPath: join(ctx.dir, 'registry.json'),
+      stateDir: join(ctx.dir, 'state'),
+    },
+    {
+      env: { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
+      print: (line) => {
+        printed.push(line);
+      },
+      printError: (line) => {
+        errors.push(line);
+      },
+      exit: () => {},
+      registerSignal: (signal, listener) => {
+        signals.set(signal, listener);
+      },
+    },
+  );
+
+  const stop = signals.get('SIGTERM');
+
+  invariant(stop, 'the gateway registered no SIGTERM handler');
+  registerTestCleanup(() => stop());
+
+  const port = /listening on http:\/\/127\.0\.0\.1:(?<port>\d+)$/u.exec(printed.join('\n'))
+    ?.groups?.['port'];
+
+  invariant(port !== undefined, `no port in: ${printed.join('\n')}`);
+
+  // A probe for a host the gateway does not serve writes a bad_host event.
+  await fetch(`http://127.0.0.1:${port}/healthz`, {
+    headers: { host: 'other.example', 'cf-connecting-ip': '198.51.100.23' },
+  });
+
+  expect(
+    errors
+      .filter((line) => line.startsWith('atc security '))
+      .map((line) => JSON.parse(line.slice('atc security '.length))),
+  ).toMatchObject([
+    {
+      kind: 'authorize_invalid',
+      reason: 'bad_host',
+      forwarded: { address: '198.51.100.23', header: 'cf-connecting-ip', provenance: 'trusted' },
+    },
+  ]);
+});
+
 test('it prints nothing to stdout once it serves and each sign-in security event to stderr', async () => {
   const ctx = setupTest();
 

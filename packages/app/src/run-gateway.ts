@@ -83,6 +83,8 @@ export async function runGateway(
       port: flags.port,
       publicURL: flags.publicURL,
       allowedHosts: [],
+
+      // The proxies whose forwarded client address the security events trust.
       trustForwardedFrom: flags.trustForwardedFrom,
       dbPath: join(flags.stateDir, 'mcp-auth.db'),
       openAuthDatabase: openMCPAuthDatabase,

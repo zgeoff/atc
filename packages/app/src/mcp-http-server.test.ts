@@ -95,6 +95,70 @@ test('it serves MCP through the daemon it boots and says no client can connect a
   expect(requests.join('\n')).toMatch(/^POST \/mcp 401 \d+ms$/u);
 });
 
+test('it trusts the forwarded address from a proxy the config lists', async () => {
+  const ctx = await setupTest();
+
+  const printed: string[] = [];
+  const errors: string[] = [];
+
+  const signals = new Map<string, () => Promise<void>>();
+
+  await runMCPHTTPServer(
+    'atc/test-build',
+    { host: '127.0.0.1', port: 0, publicURL: null, waitForDaemon: false },
+    {
+      bootDaemon: (options) => bootDaemonClient(buildMockLifecycleHost(), options),
+      openAuthDatabase: openMCPAuthDatabase,
+    },
+    {
+      loadConfig: () => ({
+        publicURL: null,
+        host: '127.0.0.1',
+        port: 8414,
+        allowedHosts: [],
+        trustForwardedFrom: ['127.0.0.1'],
+      }),
+      dbPath: ctx.dbPath,
+      daemonPaths: ctx.daemonPaths,
+      print: (line) => {
+        printed.push(line);
+      },
+      printError: (line) => {
+        errors.push(line);
+      },
+      exit: () => {},
+      registerSignal: (signal, listener) => {
+        signals.set(signal, listener);
+      },
+    },
+  );
+
+  const stopServing = signals.get('SIGTERM');
+
+  invariant(stopServing, 'the server registered no SIGTERM handler');
+  registerTestCleanup(stopServing);
+
+  const port = /:(?<port>\d+)\/mcp,/u.exec(printed.join('\n'))?.groups?.['port'];
+
+  invariant(port !== undefined, `no port in: ${printed.join('\n')}`);
+
+  await fetch(`http://127.0.0.1:${port}/oauth2/authorize?client_id=no-such-client`, {
+    headers: { 'cf-connecting-ip': '198.51.100.23' },
+    redirect: 'manual',
+  });
+
+  expect(
+    errors
+      .filter((line) => line.startsWith('atc security '))
+      .map((line) => JSON.parse(line.slice('atc security '.length))),
+  ).toMatchObject([
+    {
+      kind: 'authorize_invalid',
+      forwarded: { address: '198.51.100.23', header: 'cf-connecting-ip', provenance: 'trusted' },
+    },
+  ]);
+});
+
 test('it prints no hint to add a client once one can connect', async () => {
   const ctx = await setupTest();
 

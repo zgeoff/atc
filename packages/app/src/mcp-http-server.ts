@@ -115,6 +115,8 @@ export async function runMCPHTTPServer(
     port: flags.port ?? config.port,
     publicURL: flags.publicURL ?? config.publicURL,
     allowedHosts: config.allowedHosts,
+
+    // The proxies whose forwarded client address the security events trust.
     trustForwardedFrom: config.trustForwardedFrom,
     dbPath: io.dbPath,
     openAuthDatabase: host.openAuthDatabase,
