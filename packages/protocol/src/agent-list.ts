@@ -3,8 +3,8 @@ import { SOURCE_ENTRY_SCHEMA } from './source-entry';
 import { SPAWN_OPTION_SPEC_SCHEMA } from './spawn-option-spec';
 
 // A spawn option as `agents.list` shows it: the agent's own spec, plus
-// whether a spawn on this host can pass it now. Only an installed agent's
-// supported option is available.
+// whether a spawn can pass it now. Only the supported option of an agent
+// some target can start is available.
 const SPAWN_OPTION_ENTRY_SCHEMA = SPAWN_OPTION_SPEC_SCHEMA.extend({ available: z.boolean() });
 
 const AGENT_ENTRY_SCHEMA = z.object({
@@ -22,10 +22,13 @@ const AGENT_ENTRY_SCHEMA = z.object({
   // whether it starts only there; false for an agent that starts on any
   // other target under the sign-in that target's host holds
   brokerRequired: z.boolean(),
+
+  // the targets a spawn of the agent can start on: none when its starts are
+  // all refused, only those that reach impd's broker when it starts only
+  // there, and only a remote target when its binary is missing here
+  spawnTargets: z.array(z.string()).readonly(),
   capabilities: z.object({
-    // only an installed agent whose starts are not all refused can start a
-    // session, and one that starts only behind impd's broker only where
-    // some target reaches the broker
+    // whether some target can start a session of the agent
     spawn: z.boolean(),
     readTranscript: z.boolean(),
 
@@ -67,6 +70,9 @@ const TARGET_ENTRY_SCHEMA = z.object({
 
   // whether this daemon has a provider of that kind, so a spawn can run there
   available: z.boolean(),
+
+  // whether its provider runs a session on a machine other than the daemon's
+  remote: z.boolean(),
   default: z.boolean(),
   capabilities: EXECUTION_CAPABILITIES_SCHEMA,
 

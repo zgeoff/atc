@@ -22,6 +22,7 @@ test('it lists an imp target as reaching the broker', () => {
       provider: 'imp',
       identity: 'imp:test',
       available: true,
+      remote: true,
       default: false,
       capabilities: {
         spawn: true,
@@ -63,6 +64,7 @@ test('it lists the local target and a target without a provider as reaching no b
       provider: 'local-pty',
       identity: 'local-pty:test',
       available: true,
+      remote: false,
       default: true,
       capabilities: {
         spawn: true,
@@ -83,6 +85,7 @@ test('it lists the local target and a target without a provider as reaching no b
       provider: 'imp',
       identity: 'imp:gone',
       available: false,
+      remote: false,
       default: false,
       capabilities: {
         spawn: false,

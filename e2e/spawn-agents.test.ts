@@ -48,6 +48,7 @@ test('it lists each registered agent with what it can do and the host it runs on
         installed: true,
         brokerAuth: false,
         brokerRequired: false,
+        spawnTargets: ['local'],
         capabilities: {
           spawn: true,
           readTranscript: true,
@@ -94,6 +95,7 @@ test('it lists each registered agent with what it can do and the host it runs on
         installed: true,
         brokerAuth: false,
         brokerRequired: false,
+        spawnTargets: ['local'],
         capabilities: {
           spawn: true,
           readTranscript: false,
@@ -131,6 +133,7 @@ test('it lists each registered agent with what it can do and the host it runs on
         installed: false,
         brokerAuth: false,
         brokerRequired: false,
+        spawnTargets: [],
         capabilities: {
           spawn: false,
           readTranscript: false,
@@ -168,6 +171,7 @@ test('it lists each registered agent with what it can do and the host it runs on
         installed: true,
         brokerAuth: false,
         brokerRequired: false,
+        spawnTargets: ['local'],
         capabilities: {
           spawn: true,
           readTranscript: true,
@@ -205,6 +209,7 @@ test('it lists each registered agent with what it can do and the host it runs on
         provider: 'local-pty',
         identity: 'local-pty:44136fa355b3678a',
         available: true,
+        remote: false,
         default: true,
         capabilities: {
           spawn: true,

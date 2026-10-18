@@ -2,9 +2,7 @@ import type { AgentAdapter } from '@atc/plugin-api';
 import type { SpawnOptionSpec } from '@atc/protocol';
 
 interface AgentCapabilities {
-  // Only an installed agent whose starts are not all refused can start a
-  // session, and one that starts only behind impd's broker only where some
-  // target reaches the broker.
+  // Whether some target can start a session of the agent.
   readonly spawn: boolean;
   readonly readTranscript: boolean;
 
@@ -30,16 +28,33 @@ export interface AgentEntry {
   // Whether it starts only there. False for an agent that starts on any
   // other target under the sign-in that target's host holds.
   readonly brokerRequired: boolean;
+
+  // The targets a spawn of the agent can start on: none when its starts are
+  // all refused, only those that reach impd's broker when it starts only
+  // there, and only a remote target when its binary is missing here.
+  readonly spawnTargets: readonly string[];
   readonly capabilities: AgentCapabilities;
   readonly models: Readonly<Record<string, string>> | null;
   readonly spawnOptions: SpawnOptionEntries;
 }
 
 // A spawn option as `agents.list` shows it: the agent's own spec, plus
-// whether a spawn on this host can pass it now. Only an installed agent's
-// supported option is available.
+// whether a spawn can pass it now. Only the supported option of an agent
+// some target can start is available.
 export interface SpawnOptionEntry extends SpawnOptionSpec {
   readonly available: boolean;
+}
+
+// A target as the agent list weighs it.
+export interface AgentListTarget {
+  readonly id: string;
+
+  // Whether its provider runs the agent on a machine other than the
+  // daemon's, so the agent's binary need not resolve here.
+  readonly remote: boolean;
+
+  // Whether its provider reaches impd's credential broker.
+  readonly brokerAuth: boolean;
 }
 
 interface SpawnOptionEntries {
@@ -50,18 +65,23 @@ interface SpawnOptionEntries {
 export function buildAgentList(
   adapters: readonly AgentAdapter[],
   isInstalled: (bin: string) => boolean,
-  hasBrokerTarget: boolean,
+  targets: readonly AgentListTarget[],
 ): AgentEntry[] {
   return adapters.map((adapter) => {
     const profile = adapter.profile;
     const installed = profile === undefined ? false : isInstalled(profile.bin);
     const selection = adapter.findAuthSelection?.() ?? null;
     const brokerRequired = selection?.brokerRequired ?? false;
+    const refused = (adapter.findSpawnRefusal?.() ?? null) !== null;
 
-    const spawnable =
-      installed &&
-      (adapter.findSpawnRefusal?.() ?? null) === null &&
-      (!brokerRequired || hasBrokerTarget);
+    const spawnTargets = refused
+      ? []
+      : targets
+          .filter((target) => installed || target.remote)
+          .filter((target) => !brokerRequired || target.brokerAuth)
+          .map((target) => target.id);
+
+    const spawnable = spawnTargets.length > 0;
 
     // only the profile and what the interface offers: no environment value, credential,
     // helper command, or base URL may reach a client
@@ -72,6 +92,7 @@ export function buildAgentList(
       installed,
       brokerAuth: selection !== null,
       brokerRequired,
+      spawnTargets,
       capabilities: {
         spawn: spawnable,
         readTranscript: adapter.parseTranscriptLine !== undefined,

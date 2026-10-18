@@ -188,6 +188,7 @@ test('it admits agents.list from a principal connection', async () => {
         installed: false,
         brokerAuth: false,
         brokerRequired: false,
+        spawnTargets: [],
         capabilities: {
           spawn: false,
           readTranscript: false,
@@ -225,6 +226,7 @@ test('it admits agents.list from a principal connection', async () => {
         provider: 'local-pty',
         identity: expect.toStartWith('local-pty:'),
         available: true,
+        remote: false,
         default: true,
         capabilities: {
           spawn: true,
@@ -371,6 +373,7 @@ test('it admits agents.list over TCP from a principal', async () => {
         installed: false,
         brokerAuth: false,
         brokerRequired: false,
+        spawnTargets: [],
         capabilities: {
           spawn: false,
           readTranscript: false,
@@ -408,6 +411,7 @@ test('it admits agents.list over TCP from a principal', async () => {
         provider: 'local-pty',
         identity: expect.toStartWith('local-pty:'),
         available: true,
+        remote: false,
         default: true,
         capabilities: {
           spawn: true,

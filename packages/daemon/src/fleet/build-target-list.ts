@@ -12,6 +12,9 @@ export interface TargetEntry {
 
   // Whether this daemon has a provider of that kind, so a spawn can run there.
   readonly available: boolean;
+
+  // Whether its provider runs a session on a machine other than the daemon's.
+  readonly remote: boolean;
   readonly default: boolean;
   readonly capabilities: ExecutionCapabilities;
 
@@ -44,6 +47,7 @@ export function buildTargetList(
     provider: target.kind,
     identity: target.identity,
     available: target.provider !== null,
+    remote: target.provider?.remote ?? false,
     default: target.id === defaultTarget,
     capabilities: target.provider?.capabilities ?? NO_CAPABILITIES,
     brokerAuth: target.provider?.brokerAuth !== undefined,

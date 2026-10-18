@@ -80,6 +80,29 @@ export function buildScopedContext(
 
       return {
         ...list,
+
+        // An agent can spawn only on the targets the principal may use, so
+        // its spawn flags follow those targets alone.
+        agents: list.agents.map((agent) => {
+          const spawnTargets = agent.spawnTargets.filter(canUseTarget);
+          const spawn = spawnTargets.length > 0;
+
+          return {
+            ...agent,
+            spawnTargets,
+            capabilities: { ...agent.capabilities, spawn },
+            spawnOptions: {
+              model: {
+                ...agent.spawnOptions.model,
+                available: spawn && agent.spawnOptions.model.supported,
+              },
+              effort: {
+                ...agent.spawnOptions.effort,
+                available: spawn && agent.spawnOptions.effort.supported,
+              },
+            },
+          };
+        }),
         targets: list.targets.filter((target) => canUseTarget(target.id)),
         spawnDefaults: {
           ...list.spawnDefaults,

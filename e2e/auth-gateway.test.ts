@@ -259,6 +259,7 @@ test('it lists a gateway with auth as able to spawn, since a target with a broke
       installed: true,
       brokerAuth: false,
       brokerRequired: false,
+      spawnTargets: ['local', 'box'],
       capabilities: {
         spawn: true,
         readTranscript: true,
@@ -305,6 +306,7 @@ test('it lists a gateway with auth as able to spawn, since a target with a broke
       installed: true,
       brokerAuth: true,
       brokerRequired: true,
+      spawnTargets: ['box'],
       capabilities: {
         spawn: true,
         readTranscript: true,
@@ -342,6 +344,7 @@ test('it lists a gateway with auth as able to spawn, since a target with a broke
       installed: true,
       brokerAuth: false,
       brokerRequired: false,
+      spawnTargets: ['local', 'box'],
       capabilities: {
         spawn: true,
         readTranscript: true,

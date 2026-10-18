@@ -328,6 +328,7 @@ test('it lists each target and each config error', async () => {
         // The kind, then the first 16 hex digits of sha256('{}').
         identity: 'local-pty:44136fa355b3678a',
         available: true,
+        remote: false,
         default: false,
         capabilities: {
           spawn: true,
@@ -348,6 +349,7 @@ test('it lists each target and each config error', async () => {
         provider: 'imp',
         identity: 'imp:reach-v1:44136fa355b3678a',
         available: false,
+        remote: false,
         default: true,
         capabilities: {
           spawn: false,
