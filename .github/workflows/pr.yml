@@ -61,7 +61,7 @@ jobs:
       LEFTHOOK: 0
       # the mods API is early access and changes between Claude Code releases,
       # so the mod is validated and tested against one exact build
-      CLAUDE_CODE_VERSION: 2.1.287
+      CLAUDE_CODE_VERSION: 2.1.294
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

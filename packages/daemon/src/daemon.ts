@@ -253,7 +253,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     if (kind === 'removed') {
       endedProcesses.delete(s.id);
       void bridges.stopBridge(s.id);
-      void messages.updateEndedSessionMessages(s);
+      void messages.updateEndedSessionMessages(s, true);
     }
 
     if (kind === 'added') {
@@ -538,7 +538,12 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     listenPort: tcpListener?.port ?? null,
   });
 
-  await updateEndedFleetMessages({ mgr, store, messages });
+  await updateEndedFleetMessages({
+    mgr,
+    store,
+    messages,
+    isRestoring: opts.restoreFleetOnRestart === true,
+  });
 
   await restorer.startBootRestore(opts.restoreFleetOnRestart === true);
 

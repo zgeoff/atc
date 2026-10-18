@@ -1,14 +1,16 @@
+import { Database } from 'bun:sqlite';
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
-import { toMessageID, toSessionID } from '@atc/core';
+import { toAgentSessionID, toMessageID, toSessionID } from '@atc/core';
 import type { SessionID } from '@atc/core';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import { StateStore } from '@atc/store';
-import { createMigratedStateDB } from '@atc/store/testing';
+import { buildMockFleetEntry, createMigratedStateDB } from '@atc/store/testing';
 import { buildStubClock, registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import type { TapClient } from '../daemon-context';
+import { updateEndedFleetMessages } from '../fleet/update-ended-fleet-messages';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
@@ -339,4 +341,68 @@ test('it reads a message under the live session it was sent to', async () => {
     record: { id: answer.message, status: 'queued' },
     answeredWith: [],
   });
+});
+
+test('it marks a delivered message unanswered for its sender when the store refuses its requeue at boot', async () => {
+  const ctx = await setupTest({ takesMessages: true });
+  const sender = await ctx.mgr.spawn(ctx.dir, 'sender', '', 80, 24);
+  const recipient = await ctx.mgr.spawn(ctx.dir, 'recipient', '', 80, 24);
+
+  const tap = { sendEvent: mock<TapClient['sendEvent']>() };
+
+  ctx.messages.attachTap(tap, recipient.id, null, false);
+
+  const answer = await ctx.messages.writeSessionMessage(
+    recipient.id,
+    { kind: 'session', session: sender.id },
+    'prune the stale branches',
+    null,
+    null,
+    sender.id,
+  );
+
+  invariant(typeof answer === 'object');
+
+  await ctx.messages.ackMessage(tap, recipient.id, toMessageID(answer.message), null);
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({
+      sessionID: recipient.id,
+      agentSessionID: toAgentSessionID('agent-recipient'),
+      agent: 'claude',
+      target: 'local',
+      targetIdentity: 'local-pty:test',
+    }),
+  ]);
+
+  // The store's own database refuses the move back to queued, as a failed
+  // write would.
+  const db = new Database(join(ctx.dir, 'state.db'));
+
+  db.run(
+    "CREATE TRIGGER refuse_requeue BEFORE UPDATE OF status ON messages WHEN OLD.status = 'delivered' AND NEW.status = 'queued' BEGIN SELECT RAISE(ABORT, 'requeue refused'); END",
+  );
+
+  db.close();
+
+  const log = mock<(line: string) => void>();
+
+  ctx.mgr.log = log;
+
+  await updateEndedFleetMessages({
+    mgr: ctx.mgr,
+    store: ctx.store,
+    messages: ctx.messages,
+    isRestoring: true,
+  });
+
+  const stored = await ctx.store.findMessageByID(toMessageID(answer.message));
+  const notices = await ctx.store.collectPendingNotices(sender.id);
+
+  expect(log).toHaveBeenCalledExactlyOnceWith(
+    `atc could not requeue the messages of session ${recipient.id} for its revive (requeue refused); it marks them unanswered`,
+  );
+
+  expect(stored).toMatchObject({ status: 'unanswered', unansweredReason: 'session_ended' });
+  expect(notices.map((record) => record.id)).toStrictEqual([toMessageID(answer.message)]);
 });

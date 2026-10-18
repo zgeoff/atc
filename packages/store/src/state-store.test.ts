@@ -2257,6 +2257,57 @@ test('it marks every delivered message of a session unanswered with the given re
   ]);
 });
 
+test('it puts every delivered message of a session back to queued', async () => {
+  const ctx = await setupTest();
+
+  const delivered = buildMockMessageRecord({ id: toMessageID('m-1'), atcID: toSessionID('s1') });
+  const answered = buildMockMessageRecord({ id: toMessageID('m-2'), atcID: toSessionID('s1') });
+
+  await ctx.store.writeMessage(delivered);
+  await ctx.store.writeMessage(answered);
+  await ctx.store.updateMessageDelivered(delivered.id, { atcID: toSessionID('s1') }, 2000);
+  await ctx.store.updateMessagesAnswered([answered.id], { atcID: toSessionID('s1') }, 'done', 2500);
+
+  const queued = await ctx.store.updateDeliveredMessagesQueued({ atcID: toSessionID('s1') });
+  const pending = await ctx.store.collectPendingMessages({ atcID: toSessionID('s1') });
+
+  expect(queued).toStrictEqual([delivered]);
+  expect(pending).toStrictEqual([delivered]);
+});
+
+test('it marks every queued and delivered message of a session unanswered', async () => {
+  const ctx = await setupTest();
+
+  const queued = buildMockMessageRecord({ id: toMessageID('m-1'), atcID: toSessionID('s1') });
+
+  const delivered = buildMockMessageRecord({
+    id: toMessageID('m-2'),
+    atcID: toSessionID('s1'),
+    sentAt: queued.sentAt + 1,
+  });
+
+  await ctx.store.writeMessage(queued);
+  await ctx.store.writeMessage(delivered);
+  await ctx.store.updateMessageDelivered(delivered.id, { atcID: toSessionID('s1') }, 2000);
+
+  const marked = await ctx.store.updateUnsettledMessagesUnanswered(
+    { atcID: toSessionID('s1') },
+    'session_ended',
+    3000,
+  );
+
+  expect(marked).toStrictEqual([
+    { ...queued, status: 'unanswered', unansweredAt: 3000, unansweredReason: 'session_ended' },
+    {
+      ...delivered,
+      status: 'unanswered',
+      deliveredAt: 2000,
+      unansweredAt: 3000,
+      unansweredReason: 'session_ended',
+    },
+  ]);
+});
+
 test('it stores the sender session of a message', async () => {
   const ctx = await setupTest();
 

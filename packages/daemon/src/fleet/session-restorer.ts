@@ -69,15 +69,23 @@ export class SessionRestorer {
       : { ...entry, targetIdentity };
   }
 
+  // Whether a restore registers the entry running with an agent that can
+  // start it, so the restore revives it.
+  isRevivable(entry: FleetEntry): boolean {
+    return (
+      entry.exited !== true &&
+      entry.agentSessionID !== undefined &&
+      this.findTargetRefusal(entry) === null &&
+      this.registry.findAdapter(entry.agent) !== null
+    );
+  }
+
   // Registers a fleet entry without a terminal, so the fleet lists before
   // adoption. Exited entries stay exited until revived by hand.
   restore(entry: FleetEntry): Session {
     const target = entry.target ?? LOCAL_TARGET.id;
     const targetIdentity = entry.targetIdentity ?? LOCAL_TARGET_IDENTITY;
-    const refusal = this.registry.findExecutionRefusal({ target, targetIdentity }, 'spawn');
-
-    const targetRefusal =
-      refusal === null ? null : formatTargetRefusal(refusal.code, target, targetIdentity);
+    const targetRefusal = this.findTargetRefusal(entry);
 
     // A session whose target this daemon cannot use comes back exited, so
     // nothing runs it anywhere else: neither a terminal nor a headless turn.
@@ -195,6 +203,14 @@ export class SessionRestorer {
     s.lastMsg = 'waiting to restore';
 
     this.callbacks.onEvent('state', s);
+  }
+
+  private findTargetRefusal(entry: FleetEntry): string | null {
+    const target = entry.target ?? LOCAL_TARGET.id;
+    const targetIdentity = entry.targetIdentity ?? LOCAL_TARGET_IDENTITY;
+    const refusal = this.registry.findExecutionRefusal({ target, targetIdentity }, 'spawn');
+
+    return refusal === null ? null : formatTargetRefusal(refusal.code, target, targetIdentity);
   }
 
   // The host state a restored session lists with: asleep when the harness
