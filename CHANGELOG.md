@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.13.2](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.13.1...@zgeoff/atc@4.13.2) (2026-10-18)
+
+
+### Bug Fixes
+
+* **geo-1289:** keep messages across a restart and notices to one copy ([#755](https://github.com/zgeoff/atc/issues/755)) ([fa8037c](https://github.com/zgeoff/atc/commit/fa8037ce3535d0ab53f9710e204b1bac38ca2ef2))
+
 ## [4.13.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.13.0...@zgeoff/atc@4.13.1) (2026-10-18)
 
 ### Bug Fixes
