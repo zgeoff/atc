@@ -9,6 +9,7 @@ import { encodeCursor } from '@atc/protocol';
 import { DaemonClient, DaemonError, PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import {
+  buildMockAgentAdapter,
   buildStubAttentionAdapter,
   buildStubClock,
   buildStubHostHold,
@@ -278,6 +279,117 @@ test.each([
 
   expect(listed).toStrictEqual({ sessions: [] });
   expect(agents).toMatchObject({ targets: [], spawnDefaults: { target: null } });
+});
+
+test.each([
+  ['a principal granted only local', 'narrow', ['local']],
+  ['a principal granted both targets', 'wide', ['local', 'box']],
+])('it lists %s only the spawn targets it may use', async (_label, principal, expected) => {
+  const daemon = await startTestDaemon({
+    options: () => {
+      const targets = collectTargets(
+        { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
+        undefined,
+      );
+
+      return {
+        adapter: buildMockAgentAdapter({
+          profile: {
+            label: 'Claude',
+            kind: 'claude',
+            bin: 'sh',
+            models: null,
+            spawnOptions: {
+              model: {
+                supported: false,
+                values: null,
+                examples: [],
+                default: null,
+                backendEffect: null,
+                note: null,
+              },
+              effort: {
+                supported: false,
+                values: null,
+                examples: [],
+                default: null,
+                backendEffect: null,
+                note: null,
+              },
+            },
+          },
+        }),
+        targets: buildStubTargets(targets.targets, { spawned: [] }),
+        defaultTarget: targets.defaultTarget,
+        targetErrors: targets.errors,
+        principals: collectPrincipals({
+          narrow: { targets: ['local'] },
+          wide: { targets: ['local', 'box'] },
+        }).principals,
+      };
+    },
+  });
+
+  const agents = await daemon.client.sendRequest('agents.list', {}, principal);
+
+  expect(agents['agents']).toMatchObject([
+    { id: 'claude', spawnTargets: expected, capabilities: { spawn: true } },
+  ]);
+});
+
+test('it lists an agent as unable to spawn to a principal granted none of its spawn targets', async () => {
+  const daemon = await startTestDaemon({
+    options: () => {
+      const targets = collectTargets(
+        { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
+        undefined,
+      );
+
+      return {
+        adapter: buildMockAgentAdapter({
+          profile: {
+            label: 'Claude',
+            kind: 'claude',
+            bin: 'sh',
+            models: null,
+            spawnOptions: {
+              model: {
+                supported: true,
+                values: null,
+                examples: [],
+                default: null,
+                backendEffect: 'applied',
+                note: null,
+              },
+              effort: {
+                supported: false,
+                values: null,
+                examples: [],
+                default: null,
+                backendEffect: null,
+                note: null,
+              },
+            },
+          },
+        }),
+        targets: buildStubTargets(targets.targets, { spawned: [] }),
+        defaultTarget: targets.defaultTarget,
+        targetErrors: targets.errors,
+        principals: collectPrincipals({ empty: { targets: [] } }).principals,
+      };
+    },
+  });
+
+  const agents = await daemon.client.sendRequest('agents.list', {}, 'empty');
+
+  expect(agents['agents']).toMatchObject([
+    {
+      id: 'claude',
+      spawnTargets: [],
+      capabilities: { spawn: false },
+      spawnOptions: { model: { supported: true, available: false } },
+    },
+  ]);
 });
 
 test.each([
