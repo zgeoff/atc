@@ -367,6 +367,7 @@ test('it lists the agents to a caller holding only the read scope', async () => 
               installed: false,
               brokerAuth: false,
               brokerRequired: false,
+              spawnTargets: [],
               capabilities: {
                 spawn: false,
                 readTranscript: false,
@@ -404,6 +405,7 @@ test('it lists the agents to a caller holding only the read scope', async () => 
               provider: 'local-pty',
               identity: expect.toStartWith('local-pty:'),
               available: true,
+              remote: false,
               default: true,
               capabilities: {
                 spawn: true,

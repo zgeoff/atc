@@ -180,6 +180,7 @@ test('it lists the imp target as reaching the broker and the local target as rea
       provider: 'local-pty',
       identity: 'local-pty:test',
       available: true,
+      remote: false,
       default: false,
       capabilities: {
         spawn: true,
@@ -200,6 +201,7 @@ test('it lists the imp target as reaching the broker and the local target as rea
       provider: 'imp',
       identity: 'imp:test',
       available: true,
+      remote: true,
       default: true,
       capabilities: {
         spawn: true,
@@ -277,6 +279,7 @@ test('it lists an agent that takes the broker credential as spawnable on a daemo
       installed: true,
       brokerAuth: true,
       brokerRequired: true,
+      spawnTargets: ['box'],
       capabilities: {
         spawn: true,
         readTranscript: false,
@@ -314,8 +317,9 @@ test('it lists an agent that takes the broker credential as spawnable on a daemo
       installed: false,
       brokerAuth: false,
       brokerRequired: false,
+      spawnTargets: ['box'],
       capabilities: {
-        spawn: false,
+        spawn: true,
         readTranscript: false,
         message: false,
         attach: true,
@@ -351,6 +355,7 @@ test('it lists an agent that takes the broker credential as spawnable on a daemo
       installed: true,
       brokerAuth: true,
       brokerRequired: false,
+      spawnTargets: ['local', 'box'],
       capabilities: {
         spawn: true,
         readTranscript: false,
