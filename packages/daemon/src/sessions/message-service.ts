@@ -216,15 +216,14 @@ export class MessageService {
   }
 
   // A session that a restore revives takes again each message its ended
-  // process held delivered, once the revived process's tap attaches.
+  // process held delivered, once the revived process's tap attaches. Rejects
+  // when the store kept the messages delivered.
   async updateRevivedMessages(sessionID: SessionID, owner: MessageOwner): Promise<void> {
-    try {
-      const queued = await this.store.updateDeliveredMessagesQueued(owner);
+    const queued = await this.store.updateDeliveredMessagesQueued(owner);
 
-      for (const record of queued) {
-        await this.recordMessageStatus(sessionID, record);
-      }
-    } catch {}
+    for (const record of queued) {
+      await this.recordMessageStatus(sessionID, record);
+    }
   }
 
   // While another live session resumes the same agent session, the store

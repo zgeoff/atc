@@ -204,6 +204,42 @@ test('it hands the sending session an unanswered notice when the recipient sessi
   });
 });
 
+test('it hands the sending session one unanswered notice when the recipient of a queued message is removed', async () => {
+  const ctx = await setupTest();
+  const tap = await startNoticeTap(ctx.daemon, ctx.sender, true);
+
+  const sent = await ctx.inside.sendRequest('session.message', {
+    session: ctx.recipient,
+    text: 'archive the old logs',
+  });
+
+  // The first kill leaves an exited entry, whose next process could still
+  // take the message; the second removes it.
+  await ctx.daemon.client.sendRequest('session.kill', { session: ctx.recipient });
+  await ctx.daemon.client.sendRequest('session.kill', { session: ctx.recipient });
+
+  await waitFor(() => {
+    expect(tap.notices).toStrictEqual([
+      {
+        v: 4,
+        ev: 'InboxNotice',
+        s: ctx.sender,
+        message: sent['message'],
+        from: ctx.recipient,
+        status: 'unanswered',
+        reason: 'session_ended',
+        at: expect.any(Number),
+      },
+    ]);
+  });
+
+  // A second tap replays nothing the first one took.
+  const replay = await startNoticeTap(ctx.daemon, ctx.sender, true);
+
+  expect(replay.notices).toStrictEqual([]);
+  expect(tap.notices).toHaveLength(1);
+});
+
 test('it hands one answer notice for a message whose answer is reported twice', async () => {
   const ctx = await setupTest();
   const tap = await startNoticeTap(ctx.daemon, ctx.sender, true);

@@ -444,3 +444,48 @@ test('it binds a session to a changed identity and resets its message to the res
   expect(session.lastMsg).toBe('waiting to restore');
   expect(ctx.callbacks.onEvent).toHaveBeenCalledExactlyOnceWith('state', session);
 });
+
+test.each([
+  [
+    'a running entry with an agent session id',
+    { agentSessionID: toAgentSessionID('c-1'), agent: 'claude', target: 'local' },
+    true,
+  ],
+  [
+    'an exited entry',
+    { agentSessionID: toAgentSessionID('c-1'), agent: 'claude', target: 'local', exited: true },
+    false,
+  ],
+  ['an entry with no agent session id', { agent: 'claude', target: 'local' }, false],
+  [
+    'an entry on a target this daemon lacks',
+    {
+      agentSessionID: toAgentSessionID('c-1'),
+      agent: 'claude',
+      target: 'box',
+      targetIdentity: 'imp-like:test',
+    },
+    false,
+  ],
+  [
+    'an entry whose agent is unregistered',
+    { agentSessionID: toAgentSessionID('c-1'), agent: 'zai', target: 'local' },
+    false,
+  ],
+] as const)('it counts %s as revivable: %p', (_entry, fields, revivable) => {
+  const ctx = setupTest({
+    adapters: [buildMockAgentAdapter()],
+    targets: [
+      buildMockExecutionTarget({
+        id: 'local',
+        kind: 'local-pty',
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: buildStubMemoryProvider(),
+      }),
+    ],
+  });
+
+  const entry = { sessionID: toSessionID('s-c-1'), name: 'work', cwd: '/work/proj', ...fields };
+
+  expect(ctx.restorer.isRevivable(entry)).toBe(revivable);
+});

@@ -1,5 +1,6 @@
 import type { On } from 'claude-code';
 import { expect, mock, test } from 'claude-code/testing';
+import { buildStubConversation } from './testing/build-stub-conversation';
 
 function setupTest({ on }: { readonly on: On }) {
   const clock = mock.clock(on);
@@ -1961,15 +1962,14 @@ test('it delivers a message at once while the turn runs a tool between steps', a
   expect(submitted).toStrictEqual(['<atc-message id="m-1" from="alice">\nhi\n</atc-message>']);
 });
 
-// Every row the conversation holds, whether appended to a running turn or
-// submitted as a prompt; an append lands once its gate opens.
+// A tapped session whose tap prints the given lines once they resolve, and
+// whose conversation keeps every row the mod appends or submits.
 function setupConversationTest(
   { on }: { readonly on: On },
   tapLines: Promise<string[]>,
-  appendGate: Promise<void> = Promise.resolve(),
+  appendGate?: Promise<void>,
 ) {
   const ctx = setupTest({ on });
-  const conversation: string[] = [];
 
   mock.env(on, { ATC_SESSION_ID: 's-1' });
 
@@ -1983,23 +1983,9 @@ function setupConversationTest(
     return { value: { code: 0, signal: null } };
   });
 
-  on('session.append', async ($, e, next) => {
-    await appendGate;
+  const conversation = buildStubConversation(on, appendGate);
 
-    const [block] = e.message.content;
-
-    conversation.push(block?.type === 'text' ? block.text : '');
-
-    return next(e);
-  });
-
-  on('prompt.submit', ($, e) => {
-    conversation.push(e.text);
-
-    return { text: e.text };
-  });
-
-  return { ...ctx, conversation };
+  return { ...ctx, conversation: conversation.rows };
 }
 
 test('it shows an answer notice once when the turn it joined ends before another step', async (engine, on) => {

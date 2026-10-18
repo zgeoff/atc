@@ -4,6 +4,7 @@ import { MESSAGE_SENDER_SCHEMA } from '@atc/protocol/wire';
 import type { MessageSender } from '@atc/protocol/wire';
 import { sql } from 'kysely';
 import type { Expression, ExpressionBuilder, Kysely, RawBuilder, SqlBool } from 'kysely';
+import { getMessageSources } from './get-message-sources';
 import type { MessageOwner } from './message-owner';
 import type { MessageRecord, TurnSibling } from './message-record';
 import type { StateStoreSchema } from './sqlite/state-store-schema';
@@ -127,7 +128,7 @@ export class MessageStore {
       .updateTable('messages')
       .set({ status: 'delivered', delivered_at: at })
       .where('id', '=', id)
-      .where('status', '=', 'queued')
+      .where('status', 'in', getMessageSources('delivered'))
       .where((eb) => buildOwnerFilter(eb, owner))
       .returningAll()
       .executeTakeFirst();
@@ -159,7 +160,7 @@ export class MessageStore {
         notice_queued_at: buildNoticeQueuedAt(at),
       })
       .where('id', 'in', ids)
-      .where('status', 'in', ['queued', 'delivered'])
+      .where('status', 'in', getMessageSources('answered'))
       .where((eb) => buildOwnerFilter(eb, owner))
       .returningAll()
       .execute();
@@ -191,7 +192,7 @@ export class MessageStore {
         notice_queued_at: buildNoticeQueuedAt(at),
       })
       .where('id', 'in', ids)
-      .where('status', 'in', ['queued', 'delivered'])
+      .where('status', 'in', getMessageSources('unanswered'))
       .where((eb) => buildOwnerFilter(eb, owner))
       .returningAll()
       .execute();
@@ -215,7 +216,7 @@ export class MessageStore {
         unanswered_reason: reason,
         notice_queued_at: buildNoticeQueuedAt(at),
       })
-      .where('status', '=', 'delivered')
+      .where('status', 'in', getMessageSources('unanswered', ['delivered']))
       .where((eb) => buildOwnerFilter(eb, owner))
       .returningAll()
       .execute();
@@ -239,7 +240,7 @@ export class MessageStore {
         unanswered_reason: reason,
         notice_queued_at: buildNoticeQueuedAt(at),
       })
-      .where('status', 'in', ['queued', 'delivered'])
+      .where('status', 'in', getMessageSources('unanswered'))
       .where((eb) => buildOwnerFilter(eb, owner))
       .returningAll()
       .execute();
@@ -254,7 +255,7 @@ export class MessageStore {
     const rows = await this.db
       .updateTable('messages')
       .set({ status: 'queued', delivered_at: null })
-      .where('status', '=', 'delivered')
+      .where('status', 'in', getMessageSources('queued'))
       .where((eb) => buildOwnerFilter(eb, owner))
       .returningAll()
       .execute();

@@ -140,11 +140,13 @@ repeat work the ended turn started, but a lost message leaves its sender waiting
 never comes.
 
 A daemon that does not restore the fleet marks the delivered messages of each fleet session on its
-own machine `unanswered` with the reason `session_ended`, and so does a restore for a session whose
-fleet entry is exited. The mod writes the answer notice of a message marked `session_ended` with a
-body that asks its sender to send the message again. When a live fleet row on a remote target holds
-the same agent session id, the daemon touches only the messages sent to the local session's own atc
-id, because that row's session may still run there and hold its own.
+own machine `unanswered` with the reason `session_ended`, and so does a restore for a session it
+cannot revive: an exited entry, an entry with no agent session id to resume, or one whose target or
+agent this daemon lacks. The daemon marks them the same way when it fails to put them back to
+queued, and logs the failure. The mod writes the answer notice of a message marked `session_ended`
+with a body that asks its sender to send the message again. When a live fleet row on a remote target
+holds the same agent session id, the daemon touches only the messages sent to the local session's
+own atc id, because that row's session may still run there and hold its own.
 
 Three ends mark nothing, because the process may still run:
 
