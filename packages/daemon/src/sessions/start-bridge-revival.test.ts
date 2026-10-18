@@ -10,7 +10,12 @@ import type { Session } from './session';
 import { startBridgeRevival } from './start-bridge-revival';
 import { TapRegistry } from './tap-registry';
 
-function setupTest() {
+interface SetupTestConfig {
+  // Whether the session's host is another machine.
+  readonly remote: boolean;
+}
+
+function setupTest(config: SetupTestConfig) {
   const clock = buildStubClock(100_000);
 
   const taps = new TapRegistry<TapClient>();
@@ -24,7 +29,7 @@ function setupTest() {
 
   const provider = buildStubMemoryProvider({
     kind: 'imp',
-    remote: true,
+    remote: config.remote,
     guest: { dir: '/tmp/atc', atc: '/tmp/atc/bin/atc' },
   });
 
@@ -64,7 +69,7 @@ function setupTest() {
 }
 
 test('it writes the bridge mod of a running remote session whose tap stays gone for 30 s', () => {
-  const ctx = setupTest();
+  const ctx = setupTest({ remote: true });
   const id = toSessionID('s-bridge');
 
   const pty = ctx.provider.spawnHarness({
@@ -93,7 +98,7 @@ test('it writes the bridge mod of a running remote session whose tap stays gone 
 });
 
 test('it records a note in the session events when it writes the mod again', async () => {
-  const ctx = setupTest();
+  const ctx = setupTest({ remote: true });
   const id = toSessionID('s-bridge');
 
   const pty = ctx.provider.spawnHarness({
@@ -130,7 +135,7 @@ test('it records a note in the session events when it writes the mod again', asy
 });
 
 test('it writes nothing when a tap attaches again before the wait ends', () => {
-  const ctx = setupTest();
+  const ctx = setupTest({ remote: true });
   const id = toSessionID('s-bridge');
 
   const pty = ctx.provider.spawnHarness({
@@ -155,7 +160,7 @@ test('it writes nothing when a tap attaches again before the wait ends', () => {
 });
 
 test('it logs each write in the daemon log', async () => {
-  const ctx = setupTest();
+  const ctx = setupTest({ remote: true });
   const id = toSessionID('s-bridge');
 
   const pty = ctx.provider.spawnHarness({
@@ -181,8 +186,93 @@ test('it logs each write in the daemon log', async () => {
   });
 });
 
+test('it writes the mod once a session that slept through the wait wakes', () => {
+  const ctx = setupTest({ remote: true });
+  const id = toSessionID('s-bridge');
+
+  const pty = ctx.provider.spawnHarness({
+    session: id,
+    host: id,
+    bin: 'claude',
+    args: [],
+    cwd: '/work',
+    env: {},
+    cols: 80,
+    rows: 24,
+  });
+
+  const s = buildMockSession({ id, pty, state: 'running' });
+
+  ctx.sessions.push(s);
+  ctx.taps.attach(id, ctx.client);
+  ctx.taps.removeSession(id);
+
+  s.suspended = true;
+
+  ctx.clock.advance(30_000);
+
+  s.suspended = false;
+
+  ctx.clock.advance(30_000);
+
+  expect(ctx.provider.transfers).toHaveLength(1);
+});
+
+test('it writes nothing for a session on the daemon machine', () => {
+  const ctx = setupTest({ remote: false });
+  const id = toSessionID('s-bridge');
+
+  const pty = ctx.provider.spawnHarness({
+    session: id,
+    host: id,
+    bin: 'claude',
+    args: [],
+    cwd: '/work',
+    env: {},
+    cols: 80,
+    rows: 24,
+  });
+
+  ctx.sessions.push(buildMockSession({ id, pty, state: 'running' }));
+  ctx.taps.attach(id, ctx.client);
+  ctx.taps.removeSession(id);
+  ctx.clock.advance(30_000);
+
+  expect(ctx.provider.transfers).toStrictEqual([]);
+  expect(ctx.notes).toStrictEqual([]);
+});
+
+test('it waits at most 30 min between writes', () => {
+  const ctx = setupTest({ remote: true });
+  const id = toSessionID('s-bridge');
+
+  const pty = ctx.provider.spawnHarness({
+    session: id,
+    host: id,
+    bin: 'claude',
+    args: [],
+    cwd: '/work',
+    env: {},
+    cols: 80,
+    rows: 24,
+  });
+
+  ctx.sessions.push(buildMockSession({ id, pty, state: 'running' }));
+
+  for (let i = 0; i < 8; i += 1) {
+    ctx.taps.attach(id, ctx.client);
+    ctx.taps.removeSession(id);
+    ctx.clock.advance(30 * 60_000);
+  }
+
+  ctx.taps.attach(id, ctx.client);
+  ctx.taps.removeSession(id);
+
+  expect(ctx.clock.collectPending()).toStrictEqual([30 * 60_000]);
+});
+
 test('it waits 30 s from the latest tap loss', () => {
-  const ctx = setupTest();
+  const ctx = setupTest({ remote: true });
   const id = toSessionID('s-bridge');
 
   const pty = ctx.provider.spawnHarness({
@@ -209,7 +299,7 @@ test('it waits 30 s from the latest tap loss', () => {
 });
 
 test('it writes nothing for a session whose agent process ended', () => {
-  const ctx = setupTest();
+  const ctx = setupTest({ remote: true });
   const id = toSessionID('s-bridge');
 
   const pty = ctx.provider.spawnHarness({
@@ -233,7 +323,7 @@ test('it writes nothing for a session whose agent process ended', () => {
 });
 
 test('it writes nothing for a session without a terminal', () => {
-  const ctx = setupTest();
+  const ctx = setupTest({ remote: true });
   const id = toSessionID('s-bridge');
 
   ctx.sessions.push(buildMockSession({ id, pty: null, state: 'exited' }));
@@ -245,7 +335,7 @@ test('it writes nothing for a session without a terminal', () => {
 });
 
 test('it writes nothing for a session whose host sleeps', () => {
-  const ctx = setupTest();
+  const ctx = setupTest({ remote: true });
   const id = toSessionID('s-bridge');
 
   const pty = ctx.provider.spawnHarness({
@@ -268,7 +358,7 @@ test('it writes nothing for a session whose host sleeps', () => {
 });
 
 test('it doubles the wait after each write for a session that keeps losing its tap', () => {
-  const ctx = setupTest();
+  const ctx = setupTest({ remote: true });
   const id = toSessionID('s-bridge');
 
   const pty = ctx.provider.spawnHarness({
@@ -296,7 +386,7 @@ test('it doubles the wait after each write for a session that keeps losing its t
 });
 
 test('it makes one write per tap loss however long the tap stays gone', () => {
-  const ctx = setupTest();
+  const ctx = setupTest({ remote: true });
   const id = toSessionID('s-bridge');
 
   const pty = ctx.provider.spawnHarness({

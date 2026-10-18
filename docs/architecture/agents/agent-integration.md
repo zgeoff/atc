@@ -96,8 +96,9 @@ three times and no mod is to blame, as a host that stalls can make it do. The `n
 tools then disappear, and the mod's tap ends. A later write of the mod's files makes Claude Code
 load the mod again. So when a remote session's tap leaves and no tap takes its place for a while,
 the daemon writes that session's bridge files again and records a note in the session's events. It
-writes only while the session's agent process runs and its host is awake, once per tap loss, and it
-doubles the wait after each write.
+writes only while the session's agent process runs, once per tap loss, and it doubles the wait after
+each write. A loss that finds the host asleep stays pending, so the daemon writes the files once the
+host wakes.
 
 ## Grok and Codex
 
