@@ -19,6 +19,7 @@
     "@xterm/headless": "catalog:",
     "lru-cache": "catalog:",
     "ts-pattern": "catalog:",
+    "xstate": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

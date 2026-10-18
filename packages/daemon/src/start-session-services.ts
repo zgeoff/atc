@@ -27,6 +27,8 @@ import { SessionReads } from './sessions/session-reads';
 import type { SessionRuntime } from './sessions/session-runtime';
 import type { SessionManager } from './sessions/sessions';
 import { SpawnService } from './sessions/spawn-service';
+import { startBridgeRevival } from './sessions/start-bridge-revival';
+import type { BridgeRevival } from './sessions/start-bridge-revival';
 import { startHeadlessTurn } from './sessions/start-headless-turn';
 import type { TapRegistry } from './sessions/tap-registry';
 import { SpawnCatalog } from './sources/spawn-catalog';
@@ -70,6 +72,7 @@ export interface SessionServices {
   readonly handoff: SessionHandoff;
   readonly reads: SessionReads;
   readonly reporter: ReturnType<typeof startHookServer>;
+  readonly revival: BridgeRevival;
   readonly spawns: SpawnService;
   readonly forgetter: SessionForgetter;
   readonly catalog: SpawnCatalog;
@@ -175,6 +178,16 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
     taps,
     applyNote: (e) => hooks.applyNote(e),
     stateDir,
+  });
+
+  // The revival notes each write through the hook intake, so the note lands
+  // in the session's events like one the session sent.
+  const revival = startBridgeRevival({
+    mgr,
+    taps,
+    clock,
+    isProcessEnded: (sessionID) => endedProcesses.has(sessionID),
+    applyNote: (e) => hooks.applyNote(e),
   });
 
   const trail = new EventTrail({ mgr, store, clock, eventSignal });
@@ -293,6 +306,7 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
     handoff,
     reads,
     reporter,
+    revival,
     spawns,
     forgetter,
     catalog,

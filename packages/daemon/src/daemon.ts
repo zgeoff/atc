@@ -342,6 +342,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   const bridges = services.bridges;
   const output = services.output;
   const reporter = services.reporter;
+  const revival = services.revival;
   const restorer = services.restorer;
 
   const ctx = buildDaemonContext({
@@ -367,6 +368,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     stopEventSweep();
     eventsServer?.stop();
     reporter.stop(true);
+    revival.stop();
     mgr.detachAll();
 
     await Promise.all(
