@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.13.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.13.0...@zgeoff/atc@4.13.1) (2026-10-18)
+
+
+### Bug Fixes
+
+* **geo-1264:** spawn on a remote target without a host agent binary ([#740](https://github.com/zgeoff/atc/issues/740)) ([31bbf48](https://github.com/zgeoff/atc/commit/31bbf485f7427fa6c7dd9745d74a0afd130066a2))
+
 ## [4.13.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.12.0...@zgeoff/atc@4.13.0) (2026-10-17)
 
 ### Features
