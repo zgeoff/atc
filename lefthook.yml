@@ -54,8 +54,11 @@ pre-push:
     - name: typecheck
       run: bun run typecheck
     # leaves out the tests in scripts/pre-push-test-skips.json, which fail on
-    # a developer host and pass in CI; CI runs them all
+    # a developer host and pass in CI; CI runs them all. bun test ignores
+    # mods/, whose tests run through test:atc-bridge, so they stay out too
     - name: test
       files: bun run --silent files:branch
       glob: '*.ts'
+      exclude:
+        - 'mods/**'
       run: bun run test:related {files}

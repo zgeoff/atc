@@ -2079,3 +2079,159 @@ test('it shows an answer notice once when its append resolves after the turn end
     'atc added the answer notice for m-1 to this conversation after your last reply. Read it above; atc does not send it again.',
   ]);
 });
+
+test('it answers a message appended to a running turn with the final reply of that turn', async (engine, on) => {
+  const tapLines = Promise.withResolvers<string[]>();
+  const ctx = setupConversationTest({ on }, tapLines.promise);
+
+  on('turn.step', async function* ($, e) {
+    yield { kind: 'text', index: 0, text: 'the lamp is lit' };
+
+    return {
+      turnId: e.turnId,
+      index: e.index,
+      answer: 'the lamp is lit',
+      toolUses: [],
+      stopReason: 'end_turn',
+      usage: null,
+    };
+  });
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await engine.turn.start({ text: 'typed by the user', turnId: 't-1' });
+
+  tapLines.resolve(['{"id":"m-1","from":"alice","text":"is the lamp lit?"}\n']);
+
+  await ctx.clock.settle();
+
+  const stream = engine.turn.step({
+    turnId: 't-1',
+    index: 1,
+    model: 'claude-opus-5-5',
+    messageCount: 2,
+  });
+
+  await stream.next();
+  await stream.next();
+
+  await engine.turn.complete({
+    answer: 'the lamp is lit',
+    durationMs: 5,
+    isAborted: false,
+    turnId: 't-1',
+    reason: 'answer',
+  });
+
+  await ctx.clock.settle();
+
+  expect(ctx.conversation).toStrictEqual([
+    '<atc-message id="m-1" from="alice">\nis the lamp lit?\n</atc-message>',
+  ]);
+
+  expect(ctx.ran).toStrictEqual([
+    { argv: ['atc', 'answer', '--messages', 'm-1', '--turn', 't-1'], stdin: 'the lamp is lit' },
+  ]);
+});
+
+test('it takes an answer tool call for a message appended to a running turn', async (engine, on) => {
+  const tapLines = Promise.withResolvers<string[]>();
+  const ctx = setupConversationTest({ on }, tapLines.promise);
+
+  on('turn.step', async function* ($, e) {
+    yield { kind: 'text', index: 0, text: 'answering alice' };
+
+    return {
+      turnId: e.turnId,
+      index: e.index,
+      answer: 'answering alice',
+      toolUses: [],
+      stopReason: 'end_turn',
+      usage: null,
+    };
+  });
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await engine.turn.start({ text: 'typed by the user', turnId: 't-1' });
+
+  tapLines.resolve(['{"id":"m-1","from":"alice","text":"is the lamp lit?"}\n']);
+
+  await ctx.clock.settle();
+
+  const stream = engine.turn.step({
+    turnId: 't-1',
+    index: 1,
+    model: 'claude-opus-5-5',
+    messageCount: 2,
+  });
+
+  await stream.next();
+  await stream.next();
+
+  const answered = await engine.tool.call({
+    tool: 'mcp__atc-bridge__answer',
+    message: 'm-1',
+    text: 'the lamp is lit',
+  });
+
+  await engine.turn.complete({
+    answer: 'for the terminal',
+    durationMs: 5,
+    isAborted: false,
+    turnId: 't-1',
+    reason: 'answer',
+  });
+
+  await ctx.clock.settle();
+
+  expect(answered.result).toBe('Handed to atc as the answer to m-1.');
+
+  expect(ctx.ran).toStrictEqual([
+    { argv: ['atc', 'answer', '--message', 'm-1'], stdin: 'the lamp is lit' },
+  ]);
+});
+
+test('it answers a message appended to a turn that ends before another step from the turn that carries it again', async (engine, on) => {
+  const tapLines = Promise.withResolvers<string[]>();
+  const ctx = setupConversationTest({ on }, tapLines.promise);
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await engine.turn.start({ text: 'typed by the user', turnId: 't-1' });
+
+  tapLines.resolve(['{"id":"m-1","from":"alice","text":"is the lamp lit?"}\n']);
+
+  await ctx.clock.settle();
+
+  await engine.turn.complete({
+    answer: 'done here',
+    durationMs: 5,
+    isAborted: false,
+    turnId: 't-1',
+    reason: 'answer',
+  });
+
+  await ctx.clock.settle();
+
+  await engine.turn.start({
+    text: '<atc-message id="m-1" from="alice">\nis the lamp lit?\n</atc-message>',
+    turnId: 't-2',
+  });
+
+  await engine.turn.complete({
+    answer: 'the lamp is lit',
+    durationMs: 5,
+    isAborted: false,
+    turnId: 't-2',
+    reason: 'answer',
+  });
+
+  await ctx.clock.settle();
+
+  expect(ctx.conversation).toStrictEqual([
+    '<atc-message id="m-1" from="alice">\nis the lamp lit?\n</atc-message>',
+    '<atc-message id="m-1" from="alice">\nis the lamp lit?\n</atc-message>',
+  ]);
+
+  expect(ctx.ran).toStrictEqual([
+    { argv: ['atc', 'answer', '--messages', 'm-1', '--turn', 't-2'], stdin: 'the lamp is lit' },
+  ]);
+});
