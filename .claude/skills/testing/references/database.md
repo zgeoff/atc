@@ -53,8 +53,8 @@ and every test both call. Tests inject only the database. A test never copies th
 configuration into its own setup, because a copy drifts from production.
 
 `setupTest()` builds the database handle and boots the service through that factory. It creates no
-record, as the [testing skill](../SKILL.md#setuptest) states. A service that refuses to start until
-such a record exists boots in the test body, after the test creates the record.
+data, as the [testing skill](../SKILL.md#setuptest) states. A service that refuses to start until
+its data exists boots in the test body, after the test creates that data.
 
 ## Persisted test data
 
