@@ -1,12 +1,12 @@
-import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolveHomeDir } from '@atc/config/host';
 
-// resolved as the Claude CLI resolves it
+// Claude's global config at its current location: `.claude.json` in the
+// config folder the environment sets, or else in the home directory. A
+// config left at Claude's older `.config.json` location is never read.
 export function resolveClaudeGlobalConfigPath(homeDir: string = resolveHomeDir()): string {
   const configDir = process.env['CLAUDE_CONFIG_DIR'];
-  const custom = configDir !== undefined && configDir !== '' ? configDir : null;
-  const legacy = join(custom ?? join(homeDir, '.claude'), '.config.json');
+  const dir = configDir !== undefined && configDir !== '' ? configDir : homeDir;
 
-  return existsSync(legacy) ? legacy : join(custom ?? homeDir, '.claude.json');
+  return join(dir, '.claude.json');
 }
