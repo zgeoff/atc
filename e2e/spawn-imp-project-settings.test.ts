@@ -124,7 +124,7 @@ test.each([
           baseURL: 'https://api.z.ai/api/anthropic',
           auth: {
             profiles: ['glm'],
-            placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+            placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
           },
         },
       },
@@ -223,7 +223,7 @@ test('it refuses an untrusted subscription clone whose settings set apiKeyHelper
         baseURL: 'https://api.z.ai/api/anthropic',
         auth: {
           profiles: ['glm'],
-          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
         },
       },
     },
@@ -317,7 +317,7 @@ test.each(['{"env": {', '[]', '[{"env":{"ANTHROPIC_API_KEY":"x"}}]'])(
           baseURL: 'https://api.z.ai/api/anthropic',
           auth: {
             profiles: ['glm'],
-            placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+            placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
           },
         },
       },
@@ -411,7 +411,7 @@ test('it refuses a subscription clone whose settings file is a dangling symlink'
         baseURL: 'https://api.z.ai/api/anthropic',
         auth: {
           profiles: ['glm'],
-          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
         },
       },
     },
@@ -503,7 +503,7 @@ test('it starts a trusted subscription clone whose settings set neither a creden
         baseURL: 'https://api.z.ai/api/anthropic',
         auth: {
           profiles: ['glm'],
-          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
         },
       },
     },
@@ -589,7 +589,7 @@ test('it starts a trusted subscription clone with no project settings files', as
         baseURL: 'https://api.z.ai/api/anthropic',
         auth: {
           profiles: ['glm'],
-          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
         },
       },
     },
@@ -664,7 +664,7 @@ test('it refuses a subscription launch in an existing folder whose local setting
         baseURL: 'https://api.z.ai/api/anthropic',
         auth: {
           profiles: ['glm'],
-          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
         },
       },
     },
@@ -756,7 +756,7 @@ test('it refuses a trusted gateway clone whose settings set apiKeyHelper', async
         baseURL: 'https://api.z.ai/api/anthropic',
         auth: {
           profiles: ['glm'],
-          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
         },
       },
     },
@@ -849,7 +849,7 @@ test('it refuses a subscription clone whose settings file is a symlink to an end
         baseURL: 'https://api.z.ai/api/anthropic',
         auth: {
           profiles: ['glm'],
-          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
         },
       },
     },
@@ -941,7 +941,7 @@ test('it refuses a subscription launch in a subfolder whose repository root hold
         baseURL: 'https://api.z.ai/api/anthropic',
         auth: {
           profiles: ['glm'],
-          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
         },
       },
     },
@@ -1029,7 +1029,7 @@ test('it refuses a subscription launch in a worktree whose main checkout holds l
         baseURL: 'https://api.z.ai/api/anthropic',
         auth: {
           profiles: ['glm'],
-          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
         },
       },
     },
@@ -1124,7 +1124,7 @@ test('it refuses a launch path whose symlink and parent step resolve to a folder
         baseURL: 'https://api.z.ai/api/anthropic',
         auth: {
           profiles: ['glm'],
-          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
         },
       },
     },

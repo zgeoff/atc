@@ -3,13 +3,14 @@ import type { AuthProfile } from '@atc/plugin-api';
 interface AuthRule {
   readonly host: string;
   readonly header: string;
-  readonly scheme: 'basic' | 'bearer' | 'raw';
-  readonly user?: string;
+  readonly scheme: 'bearer' | 'raw';
 }
 
 export interface ResolvedAuthSecret {
   readonly secret: string;
   readonly kind: AuthProfile['kind'];
+
+  // empty for a github secret, whose rules the broker holds.
   readonly rules: readonly AuthRule[];
 }
 
@@ -112,7 +113,7 @@ export function resolveAuthProfiles(
     resolved: {
       profiles: ordered.map((profile) => profile.name),
       hosts: [...byHost.keys()].toSorted(),
-      secrets: buildSecrets([...byHost.values()]),
+      secrets: buildSecrets(ordered, [...byHost.values()]),
       env,
       envOwners,
     },
@@ -173,19 +174,11 @@ function isAuthProfileProblem(
   return 'code' in value;
 }
 
-// The rules impd's github kind applies: git over HTTPS on github.com takes
-// Basic auth for x-access-token, and the REST and upload APIs take a bearer
-// token.
-const GITHUB_RULES: readonly AuthRule[] = [
-  { host: 'api.github.com', header: 'authorization', scheme: 'bearer' },
-  { host: 'github.com', header: 'authorization', scheme: 'basic', user: 'x-access-token' },
-  { host: 'uploads.github.com', header: 'authorization', scheme: 'bearer' },
-];
-
-// The rules impd holds for a profile's secret on the hosts it covers.
+// The rules atc holds for a profile's secret on the hosts it covers. A
+// github profile holds none: the broker's github secret brings its own.
 function getProfileRules(profile: AuthProfile): readonly AuthRule[] {
   if (profile.kind === 'github') {
-    return GITHUB_RULES;
+    return [];
   }
 
   return [{ host: profile.host, header: profile.header, scheme: profile.scheme }];
@@ -196,20 +189,23 @@ function hasSameRule(left: ProfileRule, right: ProfileRule): boolean {
     left.profile.secret === right.profile.secret &&
     left.profile.kind === right.profile.kind &&
     left.rule.header === right.rule.header &&
-    left.rule.scheme === right.rule.scheme &&
-    left.rule.user === right.rule.user
+    left.rule.scheme === right.rule.scheme
   );
 }
 
 // One entry per secret, sorted by secret, each with its rules sorted by host.
-function buildSecrets(entries: readonly ProfileRule[]): ResolvedAuthSecret[] {
-  const bySecret = new Map<string, { kind: AuthProfile['kind']; rules: AuthRule[] }>();
+// A secret whose profiles hold no rule, as a github secret's do, has an
+// entry with none.
+function buildSecrets(
+  profiles: readonly AuthProfile[],
+  entries: readonly ProfileRule[],
+): ResolvedAuthSecret[] {
+  const bySecret = new Map<string, { kind: AuthProfile['kind']; rules: AuthRule[] }>(
+    profiles.map((profile) => [profile.secret, { kind: profile.kind, rules: [] }]),
+  );
 
   for (const item of entries) {
-    const entry = bySecret.get(item.profile.secret) ?? { kind: item.profile.kind, rules: [] };
-
-    entry.rules.push(item.rule);
-    bySecret.set(item.profile.secret, entry);
+    bySecret.get(item.profile.secret)?.rules.push(item.rule);
   }
 
   return [...bySecret.entries()]

@@ -56,6 +56,7 @@ test('#parseConfig leaves every target unusable, local included, and grants no p
     daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
+    deprecations: [],
   });
 });
 
@@ -115,6 +116,7 @@ test('#parseConfig falls back field by field when a field is wrong-typed instead
     daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
+    deprecations: [],
   });
 });
 
@@ -187,6 +189,7 @@ test('#parseConfig leaves every target unusable and names the migrate command fo
     daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
+    deprecations: [],
   });
 });
 
@@ -293,6 +296,7 @@ test('#parseConfig reads the targets and default target a config sets', () => {
     daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
+    deprecations: [],
   });
 });
 
@@ -339,6 +343,7 @@ test('#parseConfig reads the principals a config sets', () => {
     daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
+    deprecations: [],
   });
 });
 
@@ -422,6 +427,7 @@ test('#parseConfig holds no targets and an error instead of throwing for a malfo
     daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
+    deprecations: [],
   });
 });
 
@@ -464,6 +470,7 @@ test('#parseConfig reads the config a first run writes back as the defaults, wit
     daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
+    deprecations: [],
   });
 });
 
@@ -508,6 +515,7 @@ test('#parseConfig gives a file with no agent keys at all the three built-in age
     daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
+    deprecations: [],
   });
 });
 
@@ -553,6 +561,7 @@ test('#parseConfig loads exactly the agents an agents map holds and records no o
     daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
+    deprecations: [],
   });
 });
 
@@ -591,6 +600,7 @@ test('#parseConfig keeps reporting claude as the default agent for an empty regi
     daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
+    deprecations: [],
   });
 });
 
@@ -623,6 +633,7 @@ test('#parseConfig leaves the registry empty with one error when agents is not a
     daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
+    deprecations: [],
   });
 });
 
@@ -673,6 +684,7 @@ test('#parseConfig refuses a config that sets agents beside an old agent key', (
     daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
+    deprecations: [],
   });
 });
 
@@ -735,6 +747,7 @@ test('#parseConfig restores the fleet on restart by default', () => {
     daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
+    deprecations: [],
   });
 });
 
@@ -742,6 +755,51 @@ test('#parseConfig reads restoreFleetOnRestart set to false', () => {
   expect(
     parseConfig(buildStubHarnessPlugins(), { restoreFleetOnRestart: false }).restoreFleetOnRestart,
   ).toBe(false);
+});
+
+test('#parseConfig loads a config that holds the old placeholder with one deprecation warning', () => {
+  const config = parseConfig(buildStubHarnessPlugins(), {
+    authProfiles: {
+      vault: {
+        secret: 'vault-token',
+        host: 'vault.example.com',
+        header: 'authorization',
+        scheme: 'bearer',
+        env: { VAULT_TOKEN: 'imp-broker-placeholder', VAULT_SECRET: 'imp-broker-placeholder' },
+      },
+    },
+  });
+
+  expect(config.authProfileErrors).toStrictEqual([]);
+
+  expect(config.authProfiles.get('vault')?.env).toStrictEqual({
+    VAULT_TOKEN: 'broker-placeholder',
+    VAULT_SECRET: 'broker-placeholder',
+  });
+
+  expect(config.deprecations).toStrictEqual([
+    'config.json holds the placeholder imp-broker-placeholder, which atc reads as broker-placeholder; write broker-placeholder instead, since a later release stops reading the old value',
+  ]);
+});
+
+test('#parseConfig records no deprecation for a config that holds the current placeholder', () => {
+  const config = parseConfig(buildStubHarnessPlugins(), {
+    authProfiles: {
+      vault: {
+        secret: 'vault-token',
+        host: 'vault.example.com',
+        header: 'authorization',
+        scheme: 'bearer',
+        env: { VAULT_TOKEN: 'broker-placeholder' },
+      },
+    },
+  });
+
+  expect(config.authProfiles.get('vault')?.env).toStrictEqual({
+    VAULT_TOKEN: 'broker-placeholder',
+  });
+
+  expect(config.deprecations).toStrictEqual([]);
 });
 
 test('#parseConfig loads a config that still sets resumeInterruptedTurns and reports the key without its value', () => {
@@ -788,6 +846,7 @@ test('#parseConfig loads a config that still sets resumeInterruptedTurns and rep
     daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: ['resumeInterruptedTurns'],
+    deprecations: [],
   });
 });
 
@@ -889,6 +948,7 @@ test('#loadConfig returns the defaults when the file is missing', () => {
     daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
+    deprecations: [],
   });
 });
 
@@ -939,6 +999,7 @@ test('#loadConfig reads an existing file against the home it is given', () => {
     daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
+    deprecations: [],
   });
 });
 
@@ -1005,6 +1066,7 @@ test('#loadConfig leaves every target unusable when the file cannot be read', ()
     daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
+    deprecations: [],
   });
 });
 
@@ -1059,5 +1121,6 @@ test('#loadConfig leaves every target unusable when the file is not valid JSON',
     daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
+    deprecations: [],
   });
 });

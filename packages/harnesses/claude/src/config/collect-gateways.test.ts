@@ -275,7 +275,7 @@ test('it keeps a gateway whose auth selects profiles that cover its base URL hos
           baseURL: 'https://api.z.ai/api/anthropic',
           auth: {
             profiles: ['glm'],
-            placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+            placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
           },
           env: { ANTHROPIC_DEFAULT_SONNET_MODEL: 'glm-4.6' },
         },
@@ -296,7 +296,7 @@ test('it keeps a gateway whose auth selects profiles that cover its base URL hos
         env: { ANTHROPIC_DEFAULT_SONNET_MODEL: 'glm-4.6' },
         auth: {
           profiles: ['glm'],
-          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
         },
       },
     ],
@@ -317,7 +317,7 @@ test('it keeps a gateway that holds a credential helper beside its auth', () => 
           apiKeyHelper: '~/.local/bin/glm-key',
           auth: {
             profiles: ['glm'],
-            placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+            placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
           },
         },
       },
@@ -338,7 +338,7 @@ test('it keeps a gateway that holds a credential helper beside its auth', () => 
         env: {},
         auth: {
           profiles: ['glm'],
-          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
         },
       },
     ],
@@ -359,7 +359,7 @@ test('it keeps a gateway whose auth selects a github profile beside the profile 
           baseURL: 'https://api.z.ai/api/anthropic',
           auth: {
             profiles: ['glm', 'github'],
-            placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+            placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
           },
         },
       },
@@ -379,7 +379,7 @@ test('it keeps a gateway whose auth selects a github profile beside the profile 
         env: {},
         auth: {
           profiles: ['glm', 'github'],
-          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
         },
       },
     ],
@@ -476,7 +476,7 @@ test.each([
           baseURL: 'https://api.z.ai/api/anthropic',
           auth: {
             profiles: ['glm'],
-            placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+            placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
           },
           ...override,
         },
@@ -521,14 +521,14 @@ test.each([
   ],
   [
     { profiles: ['glm'], placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'sk-real' } },
-    'gateways.glm: placeholderEnv.ANTHROPIC_AUTH_TOKEN must be imp-broker-placeholder',
+    'gateways.glm: placeholderEnv.ANTHROPIC_AUTH_TOKEN must be broker-placeholder',
   ],
   [
-    { profiles: ['glm'], placeholderEnv: { HTTPS_PROXY: 'imp-broker-placeholder' } },
+    { profiles: ['glm'], placeholderEnv: { HTTPS_PROXY: 'broker-placeholder' } },
     'gateways.glm: placeholderEnv must not set HTTPS_PROXY',
   ],
   [
-    { profiles: ['glm'], placeholderEnv: { ANTHROPIC_BASE_URL: 'imp-broker-placeholder' } },
+    { profiles: ['glm'], placeholderEnv: { ANTHROPIC_BASE_URL: 'broker-placeholder' } },
     'gateways.glm: placeholderEnv must not set ANTHROPIC_BASE_URL',
   ],
   [
@@ -564,7 +564,7 @@ test('it refuses a placeholder variable that the gateway env also sets, since th
       {
         glm: {
           baseURL: 'https://api.z.ai/api/anthropic',
-          auth: { profiles: ['glm'], placeholderEnv: { GLM_TOKEN: 'imp-broker-placeholder' } },
+          auth: { profiles: ['glm'], placeholderEnv: { GLM_TOKEN: 'broker-placeholder' } },
           settings: { env: { GLM_TOKEN: 'sk-real' } },
         },
       },

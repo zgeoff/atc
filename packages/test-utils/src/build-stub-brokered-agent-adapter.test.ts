@@ -15,7 +15,7 @@ test('it plans a guest spawn under a binding that prints the revision behind its
       dir: '/guest/sessions/s1',
       auth: {
         revision: 3,
-        env: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
         profileEnv: {},
       },
     },
@@ -26,7 +26,7 @@ test('it plans a guest spawn under a binding that prints the revision behind its
     args: ['-c', 'echo "revision 3"; exec sleep 30'],
     files: {},
     env: {
-      ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
+      ANTHROPIC_AUTH_TOKEN: 'broker-placeholder',
       CLAUDE_CONFIG_DIR: '/guest/sessions/s1/claude-config',
     },
   });
@@ -47,7 +47,7 @@ test('it plans a guest spawn under a binding that ignores the hangup signal whil
       dir: '/guest/sessions/s1',
       auth: {
         revision: 3,
-        env: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
         profileEnv: {},
       },
     },
@@ -85,7 +85,7 @@ test('it selects the glm gateway credential with the broker requirement it is gi
       baseURL: 'https://api.z.ai/api/anthropic',
       auth: {
         profiles: ['glm'],
-        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
       },
     },
     profiles: new Map([
@@ -121,7 +121,7 @@ test('it selects the judge profile beside glm while the judge selection is on', 
       baseURL: 'https://api.z.ai/api/anthropic',
       auth: {
         profiles: ['glm', 'judge'],
-        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
       },
     },
     profiles: new Map([

@@ -11,7 +11,7 @@ export function buildCodexAuthFile(
       // Codex reads the claims and never checks a signature.
       id_token: buildUnsignedIDToken(idClaims),
 
-      // impd's broker sets the real token on each request to chatgpt.com. An
+      // The broker sets the real token on each request to chatgpt.com. An
       // opaque token takes Codex past its sign-in step and refresh at start.
       access_token: BROKER_PLACEHOLDER,
       refresh_token: BROKER_PLACEHOLDER,
@@ -29,7 +29,7 @@ export function buildCodexAuthFile(
 // A last refresh Codex never counts as stale.
 const LAST_REFRESH = '2099-01-01T00:00:00Z';
 
-// The claims of impd's ID token that Codex reads: the account's email and
+// The claims of OpenAI's ID token that Codex reads: the account's email and
 // the object that holds its plan and account ids.
 const KEPT_CLAIMS = ['email', 'https://api.openai.com/auth'] as const;
 

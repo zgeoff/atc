@@ -124,7 +124,7 @@ test('it parses the migrated config into the entries the old keys gave', () => {
         apiKeyHelper: 'op read glm',
         auth: {
           profiles: ['glm'],
-          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
           args: ['--plugin-dir', '/opt/auto-mode/mods/auto-mode'],
         },
       },

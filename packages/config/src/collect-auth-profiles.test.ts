@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { collectAuthProfiles } from './collect-auth-profiles';
 
-test('it reads a profile into its secret reference and the rule impd applies for its host', () => {
+test('it reads a profile into its secret reference and the rule the broker applies for its host', () => {
   expect(
     collectAuthProfiles({
       glm: {
@@ -52,16 +52,16 @@ test('it reads a profile into its secret reference and the rule impd applies for
   });
 });
 
-test('it reads a github profile into its secret reference alone, since impd fixes its rules', () => {
+test("it reads a github profile into its secret reference alone, since the broker's github secret holds its rules", () => {
   expect(
     collectAuthProfiles({
-      github: { secret: 'github-imp-agents', kind: 'github' },
+      github: { secret: 'github-agents', kind: 'github' },
     }),
   ).toStrictEqual({
     profiles: new Map([
       [
         'github',
-        { name: 'github', secret: 'github-imp-agents', kind: 'github', env: {}, dependencies: [] },
+        { name: 'github', secret: 'github-agents', kind: 'github', env: {}, dependencies: [] },
       ],
     ]),
     errors: [],
@@ -130,10 +130,7 @@ test.each([
     'authProfiles.p: host must be a lowercase hostname such as api.example.com',
   ],
   [{ scheme: 'basic' }, 'authProfiles.p: scheme must be bearer or raw, the schemes atc binds'],
-  [
-    { header: 'Authorization' },
-    'authProfiles.p: header must be a lowercase header name such as authorization',
-  ],
+  [{ header: '' }, 'authProfiles.p: header must be a header name such as authorization'],
 ])('it refuses an oauth profile with %p', (override, error) => {
   expect(
     collectAuthProfiles({
@@ -152,25 +149,50 @@ test.each([
 test.each([
   [
     { host: 'github.com' },
-    "authProfiles.p: host cannot be set on a github profile, whose hosts and headers impd's github kind fixes",
+    "authProfiles.p: host cannot be set on a github profile, whose hosts and headers the broker's github secret fixes",
   ],
   [
     { header: 'authorization' },
-    "authProfiles.p: header cannot be set on a github profile, whose hosts and headers impd's github kind fixes",
+    "authProfiles.p: header cannot be set on a github profile, whose hosts and headers the broker's github secret fixes",
   ],
   [
     { scheme: 'basic' },
-    "authProfiles.p: scheme cannot be set on a github profile, whose hosts and headers impd's github kind fixes",
+    "authProfiles.p: scheme cannot be set on a github profile, whose hosts and headers the broker's github secret fixes",
   ],
   [
     { user: 'x-access-token' },
-    "authProfiles.p: user cannot be set on a github profile, whose hosts and headers impd's github kind fixes",
+    "authProfiles.p: user cannot be set on a github profile, whose hosts and headers the broker's github secret fixes",
   ],
   [{ dependencies: 'glm' }, 'authProfiles.p: dependencies must be an array of profile names'],
 ])('it refuses a github profile with %p', (override, error) => {
   expect(
-    collectAuthProfiles({ p: { secret: 'github-imp-agents', kind: 'github', ...override } }),
+    collectAuthProfiles({ p: { secret: 'github-agents', kind: 'github', ...override } }),
   ).toStrictEqual({ profiles: new Map(), errors: [error] });
+});
+
+test('it reads a profile whose secret and header names only a broker may refuse', () => {
+  expect(
+    collectAuthProfiles({
+      p: { secret: 'GLM_Key', host: 'api.z.ai', header: 'Authorization', scheme: 'bearer' },
+    }),
+  ).toStrictEqual({
+    profiles: new Map([
+      [
+        'p',
+        {
+          name: 'p',
+          secret: 'GLM_Key',
+          kind: 'custom',
+          host: 'api.z.ai',
+          header: 'Authorization',
+          scheme: 'bearer',
+          env: {},
+          dependencies: [],
+        },
+      ],
+    ]),
+    errors: [],
+  });
 });
 
 test('it holds no profiles and no errors when the config sets none', () => {
@@ -194,10 +216,8 @@ test.each([
     { user: 'me' },
     'authProfiles.p: user pairs only with the basic scheme, which atc does not bind',
   ],
-  [
-    { secret: 'GLM' },
-    'authProfiles.p: secret must be a lowercase letter followed by up to 30 lowercase letters, digits or hyphens',
-  ],
+  [{ secret: '' }, 'authProfiles.p: secret must be the name of a broker secret'],
+  [{ secret: 7 }, 'authProfiles.p: secret must be the name of a broker secret'],
   [
     { host: 'API.z.ai' },
     'authProfiles.p: host must be a lowercase hostname such as api.example.com',
@@ -211,10 +231,7 @@ test.each([
     { host: 'api.z.ai:443' },
     'authProfiles.p: host must be a lowercase hostname such as api.example.com',
   ],
-  [
-    { header: 'Authorization' },
-    'authProfiles.p: header must be a lowercase header name such as authorization',
-  ],
+  [{ header: '' }, 'authProfiles.p: header must be a header name such as authorization'],
   [{ dependencies: 'judge' }, 'authProfiles.p: dependencies must be an array of profile names'],
   [
     { dependencies: ['judge', 3] },
@@ -270,7 +287,7 @@ test('it keeps the variables of a custom profile set to the placeholder or its o
         scheme: 'bearer',
         env: {
           OP_CONNECT_HOST: 'https://op-connect.example.com',
-          OP_CONNECT_TOKEN: 'imp-broker-placeholder',
+          OP_CONNECT_TOKEN: 'broker-placeholder',
         },
       },
     }),
@@ -287,7 +304,7 @@ test('it keeps the variables of a custom profile set to the placeholder or its o
           scheme: 'bearer',
           env: {
             OP_CONNECT_HOST: 'https://op-connect.example.com',
-            OP_CONNECT_TOKEN: 'imp-broker-placeholder',
+            OP_CONNECT_TOKEN: 'broker-placeholder',
           },
           dependencies: [],
         },
@@ -330,31 +347,31 @@ test('it gives a profile that sets no variables an empty env', () => {
 test.each([
   [
     { X_URL: 'https://other.example.com' },
-    'env.X_URL must be imp-broker-placeholder or https://op-connect.example.com',
+    'env.X_URL must be broker-placeholder or https://op-connect.example.com',
   ],
   [
     { X_URL: 'https://op-connect.example.com/v1' },
-    'env.X_URL must be imp-broker-placeholder or https://op-connect.example.com',
+    'env.X_URL must be broker-placeholder or https://op-connect.example.com',
   ],
   [
     { X_URL: 'https://op-connect.example.com:8443' },
-    'env.X_URL must be imp-broker-placeholder or https://op-connect.example.com',
+    'env.X_URL must be broker-placeholder or https://op-connect.example.com',
   ],
   [
     { X_URL: 'http://op-connect.example.com' },
-    'env.X_URL must be imp-broker-placeholder or https://op-connect.example.com',
+    'env.X_URL must be broker-placeholder or https://op-connect.example.com',
   ],
   [
     { X_TOKEN: 'a-real-looking-token' },
-    'env.X_TOKEN must be imp-broker-placeholder or https://op-connect.example.com',
+    'env.X_TOKEN must be broker-placeholder or https://op-connect.example.com',
   ],
-  [{ X_TOKEN: 7 }, 'env.X_TOKEN must be imp-broker-placeholder or https://op-connect.example.com'],
+  [{ X_TOKEN: 7 }, 'env.X_TOKEN must be broker-placeholder or https://op-connect.example.com'],
   [
-    { lower: 'imp-broker-placeholder' },
+    { lower: 'broker-placeholder' },
     'env.lower is not a variable name: use capital letters, digits and underscores',
   ],
   [
-    { '1X': 'imp-broker-placeholder' },
+    { '1X': 'broker-placeholder' },
     'env.1X is not a variable name: use capital letters, digits and underscores',
   ],
   ['x', 'env must be an object of variable names'],
@@ -399,24 +416,24 @@ test.each([
         host: 'op-connect.example.com',
         header: 'authorization',
         scheme: 'bearer',
-        env: { [name]: 'imp-broker-placeholder' },
+        env: { [name]: 'broker-placeholder' },
       },
     }),
   ).toStrictEqual({
     profiles: new Map(),
-    errors: [`authProfiles.op: env.${name} cannot be set: atc or impd sets or reserves it`],
+    errors: [`authProfiles.op: env.${name} cannot be set: atc or the broker sets or reserves it`],
   });
 });
 
 test('it refuses env on a github profile', () => {
   expect(
     collectAuthProfiles({
-      p: { secret: 'github-imp-agents', kind: 'github', env: { X: 'imp-broker-placeholder' } },
+      p: { secret: 'github-agents', kind: 'github', env: { X: 'broker-placeholder' } },
     }),
   ).toStrictEqual({
     profiles: new Map(),
     errors: [
-      "authProfiles.p: env cannot be set on a github profile, whose placeholders impd's github kind sets",
+      "authProfiles.p: env cannot be set on a github profile, whose placeholders the broker's github secret sets",
     ],
   });
 });

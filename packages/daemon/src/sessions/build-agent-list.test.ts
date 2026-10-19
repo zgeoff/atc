@@ -489,7 +489,7 @@ test('it lists an agent that takes the broker credential only where a broker is 
         baseURL: 'https://api.anthropic.com',
         auth: {
           profiles: ['claude'],
-          placeholderEnv: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
+          placeholderEnv: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
         },
       },
       profiles: new Map(),
