@@ -224,17 +224,13 @@ as that flag when it restores a session, and in the resume command it builds.
 
 ## Migrating from the old keys
 
-atc 3.0.0 marks the move to the `agents` map as a breaking change. The old keys still load, but a
-later major release can drop them, so migrate any config that still uses them.
-
 Before the `agents` map, config.json held one key per harness (`claudeBin`, `claudeArgs`, `grokBin`,
-`grokArgs`, `codexBin`, `codexArgs`), `claudeAuth`, and a `gateways` map. A file with none of the
-keys of `agents` and any of those loads with its old meaning: `claude`, `grok`, and `codex` entries
-in that order, then each gateway the old parser accepted, in file order. The daemon prints one line
-when it starts:
+`grokArgs`, `codexBin`, `codexArgs`), `claudeAuth`, and a `gateways` map. atc does not load those
+keys. A file that sets any of them is unusable: every spawn fails, local ones included, and the
+daemon prints the problem when it starts:
 
 ```text
-atc daemon: config: config.json uses the old agent keys (claudeBin, gateways); run 'atc config migrate' to move them into agents
+atc daemon: config: /home/you/.config/atc/config.json cannot be used (config_malformed: config.json uses the old agent keys (claudeBin, gateways); run 'atc config migrate' to move them into agents); every spawn is refused, local ones included, until it is fixed
 ```
 
 `atc config migrate` prints the file rewritten around `agents`, with the old keys removed and
