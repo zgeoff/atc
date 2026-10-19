@@ -689,7 +689,17 @@ test('it fails on a production dependency that an edge of the zones table refuse
   });
 });
 
-test('it fails on a zones table whose options the rule refuses', async () => {
+test.each([
+  [
+    'a key the rule does not know',
+    { name: 'package-deps', from: ['tui'], allow: ['tui'], allowAlways: true },
+  ],
+  ['neither to nor allow', { name: 'package-deps', from: ['tui'] }],
+  [
+    'an option of the wrong type',
+    { name: 'package-deps', from: ['tui'], allow: ['tui'], allowWithin: 3 },
+  ],
+])('it fails on a zones table with an edge that holds %s', async (_label, edge) => {
   const ctx = setupTest();
 
   await Bun.write(
@@ -705,7 +715,7 @@ test('it fails on a zones table whose options the rule refuses', async () => {
           'error',
           {
             zones: { tui: ['packages/tui{,/**}'] },
-            edges: [{ name: 'package-deps', from: ['tui'], allow: ['tui'], allowWithin: 3 }],
+            edges: [edge],
           },
         ],
       },

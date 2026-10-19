@@ -329,9 +329,8 @@ function resolveModule(root: string, dir: string, specifier: string): string | u
   );
 }
 
-const IMPORT_ZONES_SCHEMA = z.fromJSONSchema(importZonesSchema);
+const IMPORT_ZONES_SCHEMA = z.fromJSONSchema(buildBranchedSchema(importZonesSchema));
 
-// The options of zgeoff/import-zones, checked against the rule's own schema
 const ZONE_OPTIONS_SCHEMA = z.custom<ImportZonesOptions>(
   (value) => IMPORT_ZONES_SCHEMA.safeParse(value).success,
 );
@@ -374,6 +373,50 @@ function checkDependencyZones(root: string, packages: readonly WorkspacePackage[
             ];
       }),
     );
+}
+
+// z.fromJSONSchema drops `additionalProperties` and the required keys of an
+// object that also holds an `anyOf`, as an edge entry does, so each branch
+// becomes a whole object that requires its own keys.
+function buildBranchedSchema(schema: Readonly<Record<string, unknown>>): Record<string, unknown> {
+  return buildBranchedNode(schema);
+}
+
+function buildBranchedNode(node: Readonly<Record<string, unknown>>): Record<string, unknown> {
+  const { anyOf, ...object } = Object.fromEntries(
+    Object.entries(node).map(([key, value]) => [key, buildBranchedValue(value)]),
+  );
+
+  if (!Array.isArray(anyOf) || object['properties'] === undefined) {
+    return anyOf === undefined ? object : { ...object, anyOf };
+  }
+
+  const required: unknown[] = Array.isArray(object['required']) ? object['required'] : [];
+
+  return { anyOf: anyOf.map((branch: unknown) => buildBranch(object, required, branch)) };
+}
+
+function buildBranch(
+  object: Readonly<Record<string, unknown>>,
+  required: readonly unknown[],
+  branch: unknown,
+): Record<string, unknown> {
+  const branchRequired =
+    isSchemaObject(branch) && Array.isArray(branch['required']) ? branch['required'] : [];
+
+  return { ...object, required: [...required, ...branchRequired] };
+}
+
+function buildBranchedValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item: unknown) => buildBranchedValue(item));
+  }
+
+  return isSchemaObject(value) ? buildBranchedNode(value) : value;
+}
+
+function isSchemaObject(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 // oxlint's import rules read only quoted specifiers, so they never apply the
