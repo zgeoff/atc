@@ -45,6 +45,7 @@ export * from './collect-process-tree';
 export * from './create-git-fixture';
 export * from './create-stub-app-server-codex';
 export * from './create-stub-bin';
+export * from './create-stub-brokered-claude';
 export * from './create-stub-claude';
 export * from './create-stub-codex';
 export * from './create-stub-composer';

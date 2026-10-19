@@ -2,19 +2,17 @@ import { expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
-import { isRecord } from '@atc/core';
 import { ImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/testing';
 import {
   buildMockHostServices,
   createStubBin,
-  createStubRecordingClaude,
+  createStubBrokeredClaude,
   getRecord,
   registerTestCleanup,
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
-import invariant from 'tiny-invariant';
 import { buildAgentAdapters } from '../packages/app/src/agents/build-agent-adapters';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
@@ -30,14 +28,19 @@ const isBrokered = await fetch('https://api.github.com/user', {
 );
 
 function setupTest() {
-  const tmp = setupTempDir('atc-brokered-placeholder-');
+  const temporaryDirectory = setupTempDir('atc-brokered-placeholder-');
   const port = createStubImpPort();
-  const fakeClaude = createStubRecordingClaude(tmp.dir);
-  const guestATC = createStubBin(tmp.dir, 'atc', '#!/bin/sh\necho 1.0.0\n');
+
+  const fakeClaude = createStubBrokeredClaude(
+    temporaryDirectory.dir,
+    'https://api.github.com/user',
+  );
+
+  const guestATC = createStubBin(temporaryDirectory.dir, 'atc', '#!/bin/sh\necho 1.0.0\n');
 
   const provider = new ImpProvider(
     port,
-    { guestDir: join(tmp.dir, 'g'), guestATC },
+    { guestDir: join(temporaryDirectory.dir, 'g'), guestATC },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -46,7 +49,7 @@ function setupTest() {
   });
 
   return {
-    dir: tmp.dir,
+    dir: temporaryDirectory.dir,
     port,
     fakeClaude,
     targets: [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider }],
@@ -54,7 +57,7 @@ function setupTest() {
 }
 
 test.skipIf(!isBrokered)(
-  'it gives a session on an imp the placeholder a brokered host accepts in place of the credential',
+  'it gives a session on an imp a placeholder that the session sends to a brokered host, which accepts it',
   async () => {
     const ctx = setupTest();
 
@@ -108,24 +111,15 @@ test.skipIf(!isBrokered)(
     });
 
     const id = String(getRecord(spawned, 'session')['id']);
+    const settingsFile = join(ctx.dir, 'g', 'sessions', id, 'auth-r1', 'settings.json');
 
     await waitFor(() => {
-      expect(existsSync(join(ctx.dir, 'claude-starts.log'))).toBeTrue();
+      expect(existsSync(join(ctx.dir, 'brokered-status'))).toBeTrue();
     });
 
-    const settingsFile = join(ctx.dir, 'g', 'sessions', id, 'auth-r1', 'settings.json');
-    const written: unknown = JSON.parse(readFileSync(settingsFile, 'utf8'));
+    const settings: unknown = JSON.parse(readFileSync(settingsFile, 'utf8'));
 
-    invariant(isRecord(written), 'expected the settings file to hold an object');
-
-    const token = String(getRecord(written, 'env')['ANTHROPIC_AUTH_TOKEN']);
-
-    const response = await fetch('https://api.github.com/user', {
-      headers: { authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(10_000),
-    });
-
-    expect(token).toBe('broker-placeholder');
-    expect(response.status).toBe(200);
+    expect(settings).toHaveProperty('env.ANTHROPIC_AUTH_TOKEN', 'broker-placeholder');
+    expect(readFileSync(join(ctx.dir, 'brokered-status'), 'utf8')).toBe('200');
   },
 );

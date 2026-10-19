@@ -782,6 +782,22 @@ test('#parseConfig loads a config that holds the old placeholder with one deprec
   ]);
 });
 
+test('#parseConfig keeps a secret name equal to the deprecated placeholder as written', () => {
+  const config = parseConfig(buildStubHarnessPlugins(), {
+    authProfiles: { github: { secret: 'imp-broker-placeholder', kind: 'github' } },
+  });
+
+  expect(config.authProfiles.get('github')).toStrictEqual({
+    name: 'github',
+    secret: 'imp-broker-placeholder',
+    kind: 'github',
+    env: {},
+    dependencies: [],
+  });
+
+  expect(config.deprecations).toStrictEqual([]);
+});
+
 test('#parseConfig records no deprecation for a config that holds the current placeholder', () => {
   const config = parseConfig(buildStubHarnessPlugins(), {
     authProfiles: {
