@@ -20,7 +20,7 @@ export * from './harness/build-needs-input-event';
 export * from './harness/build-prompt-submitted-event';
 export * from './harness/build-turn-done-event';
 export * from './harness/build-unmarked-text';
-export * from './harness/can-resume-from-transcript';
+export * from './harness/probe-transcript-resumable';
 export * from './harness/find-codex-sign-in';
 export * from './harness/find-flag-value';
 export * from './harness/find-slash-command';

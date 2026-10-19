@@ -10,9 +10,9 @@ import {
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { openMCPAuthDatabase } from '../open-mcp-auth-database';
-import { collectGrants } from './collect-grants';
 import { createEnrollmentToken } from './create-enrollment-token';
 import { openMCPAuth } from './open-mcp-auth';
+import { readGrantViews } from './read-grant-views';
 import { revokeGrant } from './revoke-grant';
 import { startMCPHTTPServer } from './start-mcp-http-server';
 import { TransportCaller } from './transport-caller';
@@ -86,13 +86,13 @@ test("it forgets the consent its client held along with the grant's tokens", asy
     }),
   });
 
-  const [grant] = await collectGrants(ctx.store.db);
+  const [grant] = await readGrantViews(ctx.store.db);
 
   invariant(grant !== undefined, 'the exchange left no grant');
 
   const revoked = await revokeGrant(ctx.store.db, grant.grantID);
   const consents = await ctx.store.db.selectFrom('oauthConsent').select('id').execute();
-  const grants = await collectGrants(ctx.store.db);
+  const grants = await readGrantViews(ctx.store.db);
 
   expect(revoked).toBeTrue();
   expect(consents).toStrictEqual([]);
@@ -139,7 +139,7 @@ test("it never removes another grant's tokens or another client's consent", asyn
     });
   }
 
-  const grants = await collectGrants(ctx.store.db);
+  const grants = await readGrantViews(ctx.store.db);
 
   const revokedGrant = grants.find((grant) => grant.clientID === revoked.clientID);
   const keptGrant = grants.find((grant) => grant.clientID === kept.clientID);

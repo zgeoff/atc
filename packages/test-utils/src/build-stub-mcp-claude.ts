@@ -1,7 +1,5 @@
-import { getSourceEntry } from './get-source-entry';
-
-export function buildStubMCPClaude(): string {
-  const cli = `"${process.execPath}" "${getSourceEntry('atc')}"`;
+export function buildStubMCPClaude(cliEntry: string): string {
+  const cli = `"${process.execPath}" "${cliEntry}"`;
 
   return `#!/usr/bin/env bash
 echo $$ >> "$HOME/stub-pids"

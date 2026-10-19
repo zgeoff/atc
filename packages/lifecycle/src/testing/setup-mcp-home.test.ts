@@ -4,7 +4,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
-import { isProcessAlive } from '../is-process-alive';
+import { probeProcessAlive } from '../probe-process-alive';
 import { setupMCPHome } from './setup-mcp-home';
 
 test('it writes a config that registers the stand-in agents', async () => {
@@ -75,7 +75,7 @@ test('it stops the daemon its pid file holds before removing the home', async ()
   await mcpHome.teardown();
 
   expect(readFileSync(seen, 'utf8')).toBe('0\n');
-  expect(isProcessAlive(daemon.pid)).toBe(false);
+  expect(probeProcessAlive(daemon.pid)).toBe(false);
   expect(existsSync(mcpHome.home)).toBe(false);
 });
 
@@ -119,7 +119,7 @@ test('it never kills a process outside the recorded process groups', async () =>
 
   await mcpHome.teardown();
 
-  expect(isProcessAlive(bystander.pid)).toBeTrue();
+  expect(probeProcessAlive(bystander.pid)).toBeTrue();
 });
 
 test('it removes a home that holds no daemon pid', async () => {

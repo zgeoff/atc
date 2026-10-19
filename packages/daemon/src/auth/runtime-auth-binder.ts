@@ -70,8 +70,8 @@ export class RuntimeAuthBinder {
     this.ledger = { store, now };
   }
 
-  findBinding(hostKey: SessionID): Promise<RuntimeAuthBinding | null> {
-    return this.store.findAuthBinding(hostKey);
+  readBinding(hostKey: SessionID): Promise<RuntimeAuthBinding | null> {
+    return this.store.readAuthBinding(hostKey);
   }
 
   // a take-back that cannot be confirmed rejects with an effect that remains
@@ -128,7 +128,7 @@ export class RuntimeAuthBinder {
 
   async updateReady(hostKey: SessionID, attemptID: string): Promise<void> {
     await this.withHostLock(hostKey, async () => {
-      const row = await this.store.findAuthBinding(hostKey);
+      const row = await this.store.readAuthBinding(hostKey);
 
       if (planReadyUpdate(row, attemptID) === 'ready') {
         await this.store.updateAuthBinding(hostKey, { state: 'ready' }, this.now());
@@ -144,7 +144,7 @@ export class RuntimeAuthBinder {
     rebind: ChangedAuthRebind | null = null,
   ): Promise<RuntimeAuthBinding> {
     return this.withHostLock(hostKey, async () => {
-      const row = await this.store.findAuthBinding(hostKey);
+      const row = await this.store.readAuthBinding(hostKey);
 
       if (row === null) {
         throw new DaemonError(
@@ -311,7 +311,7 @@ export class RuntimeAuthBinder {
     send: (ticket: LaunchTicket) => void,
   ): Promise<void> {
     return this.withHostLock(hostKey, async () => {
-      const row = await this.store.findAuthBinding(hostKey);
+      const row = await this.store.readAuthBinding(hostKey);
 
       if (row === null || planLaunchAdmission(row, admission.attemptID) === 'blocked') {
         throw new DaemonError(
@@ -391,7 +391,7 @@ export class RuntimeAuthBinder {
     return this.withHostLock(hostKey, async () => {
       this.admissions.revokeAdmissions(hostKey, 'revocation_pending');
 
-      const row = await this.store.findAuthBinding(hostKey);
+      const row = await this.store.readAuthBinding(hostKey);
 
       if (row === null) {
         return false;
@@ -441,7 +441,7 @@ export class RuntimeAuthBinder {
     listedHostKeys: ReadonlySet<SessionID>,
     log: (line: string) => void,
   ): Promise<void> {
-    const rows = await this.store.collectAuthBindings();
+    const rows = await this.store.readAuthBindings();
 
     for (const row of rows) {
       const host = findHost(row.target);
@@ -468,7 +468,7 @@ export class RuntimeAuthBinder {
   }
 
   private async requireBinding(hostKey: SessionID): Promise<RuntimeAuthBinding> {
-    const row = await this.store.findAuthBinding(hostKey);
+    const row = await this.store.readAuthBinding(hostKey);
 
     if (row === null) {
       throw new DaemonError(
@@ -495,7 +495,7 @@ export class RuntimeAuthBinder {
     }
 
     await this.withHostLock(row.hostKey, async () => {
-      const current = await this.store.findAuthBinding(row.hostKey);
+      const current = await this.store.readAuthBinding(row.hostKey);
 
       if (
         current === null ||

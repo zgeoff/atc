@@ -1,14 +1,14 @@
 import { buildHostDaemonPaths } from './build-host-daemon-paths';
-import { findDaemonPID } from './find-daemon-pid';
-import { findRestartUnit } from './find-restart-unit';
 import type { LifecycleHost } from './lifecycle-host';
+import { readDaemonPID } from './read-daemon-pid';
+import { readRestartUnit } from './read-restart-unit';
 import { restartDaemonProcess } from './restart-daemon-process';
 
 export async function restartDaemonAtSocket(
   host: LifecycleHost,
   socketPath: string,
 ): Promise<boolean> {
-  const pid = findDaemonPID(socketPath, {
+  const pid = readDaemonPID(socketPath, {
     paths: buildHostDaemonPaths(host),
     stateDir: host.paths.stateDir,
     procRoot: host.procRoot,
@@ -18,7 +18,7 @@ export async function restartDaemonAtSocket(
     return false;
   }
 
-  const unit = await findRestartUnit(pid, host);
+  const unit = await readRestartUnit(pid, host);
 
   await restartDaemonProcess({ pid, unit }, host);
 

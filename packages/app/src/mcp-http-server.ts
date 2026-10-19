@@ -4,10 +4,10 @@ import type { MCPHTTPConfig } from '@atc/config';
 import { loadMCPHTTPConfig, mcpAuthDBFile } from '@atc/config';
 import type { DaemonBoot, DaemonBootOptions, DaemonPaths } from '@atc/protocol';
 import { openDaemonClient } from '@atc/protocol/client';
-import { collectClients } from './mcp/collect-clients';
-import { collectPasskeys } from './mcp/collect-passkeys';
 import type { MCPAuthDatabase } from './mcp/mcp-auth-database';
 import { openMCPAuth } from './mcp/open-mcp-auth';
+import { readClientViews } from './mcp/read-client-views';
+import { readPasskeyViews } from './mcp/read-passkey-views';
 import { startMCPHTTPServer } from './mcp/start-mcp-http-server';
 import { TransportCaller } from './mcp/transport-caller';
 
@@ -149,8 +149,8 @@ export async function runMCPHTTPServer(
     origin: null,
   });
 
-  const clients = await collectClients(admin.db);
-  const passkeys = await collectPasskeys(admin.db);
+  const clients = await readClientViews(admin.db);
+  const passkeys = await readPasskeyViews(admin.db);
 
   await admin.close();
 

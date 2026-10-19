@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { DEFAULT_GIT_TRANSPORTS, LOCAL_TARGET, loadListenerTokens } from '@atc/config';
 import type { SessionID } from '@atc/core';
 import { systemClock } from '@atc/core';
-import { claimDaemonLock, findDaemonRecord, writeDaemonRecord } from '@atc/lifecycle';
+import { claimDaemonLock, readDaemonRecord, writeDaemonRecord } from '@atc/lifecycle';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import { StateStore } from '@atc/store';
@@ -25,8 +25,8 @@ import { startSessionServices } from './start-session-services';
 import { buildBindRefusal } from './transport/build-bind-refusal';
 import { DaemonConnection } from './transport/daemon-connection';
 import { EventSignal } from './transport/event-signal';
-import { findPeerSession } from './transport/find-peer-session';
 import { readPeerPID } from './transport/read-peer-pid';
+import { readPeerSession } from './transport/read-peer-session';
 import { requireListenTokens } from './transport/require-listen-tokens';
 import { startEventSweep } from './transport/start-event-sweep';
 import { startEventsServer } from './transport/start-events-server';
@@ -103,7 +103,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   const lock = await claimDaemonLock(join(stateDir, 'daemon.lock'), LOCK_WAIT_MS);
 
   if (lock === null) {
-    const holder = findDaemonRecord(recordPath);
+    const holder = readDaemonRecord(recordPath);
     const where = holder === null ? '' : ` (pid ${holder.pid}, socket ${holder.socketPath})`;
 
     throw Object.assign(
@@ -157,7 +157,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   // From the pid the kernel holds for the socket's peer and the live harness processes of the
   // sessions; null outside every session and where the kernel cannot be asked.
-  const findSocketSession = (socket: object): SessionID | null => {
+  const readSocketSession = (socket: object): SessionID | null => {
     const pid = readPeerPID(socket);
 
     if (pid === null) {
@@ -172,7 +172,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       }
     }
 
-    return findPeerSession(pid, harnesses);
+    return readPeerSession(pid, harnesses);
   };
 
   // Any local process reads the events socket, a process inside a session
@@ -462,7 +462,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       unix: opts.socketPath,
       socket: {
         open(socket) {
-          socket.data = new DaemonConnection(socket, ctx, null, findSocketSession(socket));
+          socket.data = new DaemonConnection(socket, ctx, null, readSocketSession(socket));
 
           clients.add(socket.data);
         },

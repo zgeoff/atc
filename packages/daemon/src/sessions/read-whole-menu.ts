@@ -33,7 +33,7 @@ export async function readWholeMenu(
     return start;
   }
 
-  const whole = await collectScrolledMenu(terminal, start, waits);
+  const whole = await readScrolledMenu(terminal, start, waits);
 
   terminal.recordWholeMenu(whole);
 
@@ -42,7 +42,7 @@ export async function readWholeMenu(
 
 // Moves the cursor up to the first option, down to the end of the list,
 // and back to where it started, gathering the list's rows on the way down.
-async function collectScrolledMenu(
+async function readScrolledMenu(
   terminal: MenuTerminal,
   start: ScreenMenu,
   waits: MenuWaits,

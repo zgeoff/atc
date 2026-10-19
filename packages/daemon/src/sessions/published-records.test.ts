@@ -97,7 +97,7 @@ test('it holds the record it publishes in the state store', async () => {
     null,
   );
 
-  const stored = await ctx.store.findPublishedRecord(session);
+  const stored = await ctx.store.readPublishedRecord(session);
   const text = await Bun.file(path).text();
 
   expect(stored).toStrictEqual(parsePublishedRecord(text));
@@ -212,7 +212,7 @@ test('it refuses a spawn whose declared scope fails its check and records nothin
 
   await Promise.allSettled([created]);
 
-  const stored = await ctx.store.findPublishedRecord(session);
+  const stored = await ctx.store.readPublishedRecord(session);
 
   expect(created).rejects.toMatchObject({
     code: 'scope_invalid',
@@ -361,7 +361,7 @@ test('it leaves the record as it was when an added entry fails its check', async
   };
 
   const path = await ctx.records.createRecord(subject, null);
-  const before = await ctx.store.findPublishedRecord(session);
+  const before = await ctx.store.readPublishedRecord(session);
   const beforeText = await Bun.file(path).text();
 
   const updated = ctx.records.updateScope(subject, {
@@ -373,7 +373,7 @@ test('it leaves the record as it was when an added entry fails its check', async
   await Promise.allSettled([updated]);
 
   const text = await Bun.file(path).text();
-  const stored = await ctx.store.findPublishedRecord(session);
+  const stored = await ctx.store.readPublishedRecord(session);
 
   expect(updated).rejects.toMatchObject({
     code: 'scope_invalid',
@@ -414,7 +414,7 @@ test('it applies two additions to one record one after the other', async () => {
     }),
   ]);
 
-  const stored = await ctx.store.findPublishedRecord(session);
+  const stored = await ctx.store.readPublishedRecord(session);
 
   expect(stored?.revision).toBe(3);
 
@@ -445,7 +445,7 @@ test('it removes the record and its local copy', async () => {
 
   expect(existsSync(path)).toBe(false);
 
-  const stored = await ctx.store.findPublishedRecord(session);
+  const stored = await ctx.store.readPublishedRecord(session);
 
   expect(stored).toBeNull();
 });

@@ -195,8 +195,8 @@ test('it sends no message to the sessions it restores after a restart', async ()
 
   registerTestCleanup(() => store.stop());
 
-  const pendingA = await store.collectPendingMessages({ atcID: toSessionID('s-a') });
-  const pendingB = await store.collectPendingMessages({ atcID: toSessionID('s-b') });
+  const pendingA = await store.readPendingMessages({ atcID: toSessionID('s-a') });
+  const pendingB = await store.readPendingMessages({ atcID: toSessionID('s-b') });
 
   expect(pendingA).toStrictEqual([]);
   expect(pendingB).toStrictEqual([]);

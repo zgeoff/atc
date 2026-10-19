@@ -31,8 +31,8 @@ import type {
 import {
   buildArgsWithoutFlags,
   buildAuthRevisionFolder,
-  canResumeFromTranscript,
   findFlagValue,
+  probeTranscriptResumable,
 } from '@atc/plugin-api';
 import type { HookEvent } from '@atc/protocol/session';
 import { DaemonError } from '@atc/protocol/wire';
@@ -93,7 +93,7 @@ export class ClaudeAdapter implements AgentAdapter {
     namedBy: 'user' | 'auto' | 'agent',
   ) => Promise<NameUpdate | null> = loadClaudeName;
 
-  readonly canResume: (session: ResumeCheck) => boolean = canResumeFromTranscript;
+  readonly canResume: (session: ResumeCheck) => boolean = probeTranscriptResumable;
 
   readonly profile: AgentProfile;
 
@@ -261,7 +261,7 @@ export class ClaudeAdapter implements AgentAdapter {
 
   // the generated settings file sits on the daemon's machine, so it travels only for an entry
   // that sets its own settings or environment
-  buildResumeCommand(
+  planResumeCommand(
     cwd: string,
     agentSessionID: AgentSessionID | undefined,
     pluginDirs: readonly string[],
@@ -391,7 +391,7 @@ export class ClaudeAdapter implements AgentAdapter {
     const sources: readonly (readonly [string, readonly string[]])[] = [
       ['env', Object.keys(this.entry.env)],
       ['settings.env', isRecord(settingsEnv) ? Object.keys(settingsEnv) : []],
-      ['args in --settings', findInlineSettingsKeys(this.entry.args)],
+      ['args in --settings', collectInlineSettingsKeys(this.entry.args)],
     ];
 
     for (const [source, keys] of sources) {
@@ -437,7 +437,7 @@ const ANTHROPIC_API_URL = 'https://api.anthropic.com';
 const INLINE_SETTINGS_SCHEMA = z.object({ env: z.record(z.string(), z.unknown()) });
 
 // The variables an inline `--settings` argument sets in its env block.
-function findInlineSettingsKeys(args: readonly string[]): string[] {
+function collectInlineSettingsKeys(args: readonly string[]): string[] {
   const inline = findFlagValue(args, ['--settings']);
 
   if (inline === null) {

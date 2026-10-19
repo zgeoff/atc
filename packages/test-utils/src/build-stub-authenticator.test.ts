@@ -39,7 +39,7 @@ test('it signs an assertion that verifies against the registered key', async () 
 
   invariant(registered.verified, 'the registration did not verify');
 
-  const assertion = await authenticator.get(
+  const assertion = await authenticator.signAssertion(
     { challenge: 'Y2hhbGxlbmdlLXR3bw', rpId: 'passkeys.example' },
     { origin: 'https://passkeys.example' },
   );
@@ -64,7 +64,7 @@ test('it writes the ceremony it is given into the assertion', async () => {
     { origin: 'https://passkeys.example' },
   );
 
-  const assertion = await authenticator.get(
+  const assertion = await authenticator.signAssertion(
     { challenge: 'Y2hhbGxlbmdlLXR3bw', rpId: 'passkeys.example' },
     { origin: 'https://elsewhere.example', rpID: 'elsewhere.example', userVerified: false },
   );
@@ -91,7 +91,7 @@ test('it refuses to sign before it holds a credential', () => {
   const authenticator = buildStubAuthenticator();
 
   expect(
-    authenticator.get(
+    authenticator.signAssertion(
       { challenge: 'Y2hhbGxlbmdlLXR3bw', rpId: 'passkeys.example' },
       { origin: 'https://passkeys.example' },
     ),

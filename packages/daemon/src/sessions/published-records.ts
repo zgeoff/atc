@@ -13,10 +13,10 @@ import type {
 import { checkSessionScope } from '../auth/check-session-scope';
 import type { CheckedScope } from '../auth/check-session-scope';
 import { mergeRecordedScope } from '../auth/merge-recorded-scope';
-import { findHostBranch } from './find-host-branch';
+import { readHostBranch } from './read-host-branch';
 
 interface PublishedRecordStore {
-  readonly findPublishedRecord: (sessionID: SessionID) => Promise<PublishedRecord | null>;
+  readonly readPublishedRecord: (sessionID: SessionID) => Promise<PublishedRecord | null>;
   readonly writePublishedRecord: (record: PublishedRecord) => Promise<void>;
   readonly removePublishedRecord: (sessionID: SessionID) => Promise<void>;
 }
@@ -82,7 +82,7 @@ export class PublishedRecords {
   async createRecord(subject: RecordSubject, declared: DeclaredScope | null): Promise<string> {
     const checked = declared === null ? EMPTY_SCOPE : await this.checkScope(subject, declared);
 
-    const workspace = await this.buildWorkspace(subject);
+    const workspace = await this.readWorkspace(subject);
 
     const record = this.buildRecord(subject, { workspace, ...checked }, 1);
 
@@ -94,7 +94,7 @@ export class PublishedRecords {
   // Places the stored copy again before a harness starts on a revived or
   // restored session, recording a fresh one for a session without one.
   async restoreCopy(subject: RecordSubject): Promise<string> {
-    const stored = await this.options.store.findPublishedRecord(subject.session);
+    const stored = await this.options.store.readPublishedRecord(subject.session);
 
     if (stored === null) {
       return this.createRecord(subject, null);
@@ -110,8 +110,8 @@ export class PublishedRecords {
     return this.withSessionTurn(subject.session, () => this.writeScope(subject, declared));
   }
 
-  findRecord(sessionID: SessionID): Promise<PublishedRecord | null> {
-    return this.options.store.findPublishedRecord(sessionID);
+  readRecord(sessionID: SessionID): Promise<PublishedRecord | null> {
+    return this.options.store.readPublishedRecord(sessionID);
   }
 
   // Where the copy of a session on the daemon's own machine lies, the only
@@ -133,11 +133,11 @@ export class PublishedRecords {
     subject: RecordSubject,
     declared: DeclaredScope,
   ): Promise<PublishedRecord> {
-    const stored = await this.options.store.findPublishedRecord(subject.session);
+    const stored = await this.options.store.readPublishedRecord(subject.session);
 
     let current = stored;
 
-    current ??= await this.buildFirstRecord(subject);
+    current ??= await this.readFirstRecord(subject);
 
     const checked = await this.checkScope(subject, declared);
 
@@ -161,8 +161,8 @@ export class PublishedRecords {
 
   // The record a session without one starts from, at revision 0 so its
   // first change records revision 1.
-  private async buildFirstRecord(subject: RecordSubject): Promise<PublishedRecord> {
-    const workspace = await this.buildWorkspace(subject);
+  private async readFirstRecord(subject: RecordSubject): Promise<PublishedRecord> {
+    const workspace = await this.readWorkspace(subject);
 
     return this.buildRecord(subject, { workspace, ...EMPTY_SCOPE }, 0);
   }
@@ -180,8 +180,8 @@ export class PublishedRecords {
     );
   }
 
-  private async buildWorkspace(subject: RecordSubject): Promise<RecordedScope['workspace']> {
-    const branch = await this.findBranch(subject);
+  private async readWorkspace(subject: RecordSubject): Promise<RecordedScope['workspace']> {
+    const branch = await this.readBranch(subject);
 
     return {
       path: subject.dir,
@@ -193,14 +193,14 @@ export class PublishedRecords {
 
   // a remote directory atc did not materialize records no branch, so a spawn there runs no
   // command on the host before its harness starts
-  private findBranch(subject: RecordSubject): Promise<string | null> {
+  private readBranch(subject: RecordSubject): Promise<string | null> {
     if (subject.branch !== undefined) {
       return Promise.resolve(subject.branch);
     }
 
     return subject.provider.remote
       ? Promise.resolve(null)
-      : findHostBranch(subject.provider, subject.host, subject.dir);
+      : readHostBranch(subject.provider, subject.host, subject.dir);
   }
 
   private buildRecord(

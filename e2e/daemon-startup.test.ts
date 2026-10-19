@@ -1,7 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { findDaemonRecord } from '@atc/lifecycle';
+import { readDaemonRecord } from '@atc/lifecycle';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
 import { getString, resolveATCCommand, runATC, setupTempDir, waitFor } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
@@ -40,7 +40,7 @@ test('it lets exactly one of two daemons started at once serve a state directory
   expect(loser.proc.exitCode).toBe(1);
   expect(Bun.peek.status(winner.proc.exited)).toBe('pending');
 
-  expect(findDaemonRecord(join(first.stateDir, 'daemon.json'))).toStrictEqual({
+  expect(readDaemonRecord(join(first.stateDir, 'daemon.json'))).toStrictEqual({
     pid: winner.proc.pid,
     socketPath: first.socketPath,
     reporterSocketPath: first.reporterSocketPath,

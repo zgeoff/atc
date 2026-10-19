@@ -18,7 +18,7 @@ export function registerRefusedSQLiteName(name: string): () => void {
 }
 
 export function requireOpenableSQLitePath(path: string): void {
-  const refused = collectLinkNames(path).find((name) => refusedNames.has(name.toLowerCase()));
+  const refused = readLinkNames(path).find((name) => refusedNames.has(name.toLowerCase()));
 
   if (refused !== undefined) {
     throw Object.assign(
@@ -33,12 +33,12 @@ const MAX_LINK_HOPS = 40;
 
 // The file name of the path and of each symlink target it leads to, a missing
 // target included, since SQLite creates the file a dangling link names.
-function collectLinkNames(path: string): string[] {
+function readLinkNames(path: string): string[] {
   const names = [basename(path)];
   let current = path;
 
   for (let hop = 0; hop < MAX_LINK_HOPS; hop += 1) {
-    const target = findLinkTarget(current);
+    const target = readLinkTarget(current);
 
     if (target === undefined) {
       break;
@@ -54,7 +54,7 @@ function collectLinkNames(path: string): string[] {
 
 // Undefined for a path that is no symlink, and for one this process cannot
 // read, which the SQLite open then fails to reach as well.
-function findLinkTarget(path: string): string | undefined {
+function readLinkTarget(path: string): string | undefined {
   try {
     const stats = lstatSync(path, { throwIfNoEntry: false });
 

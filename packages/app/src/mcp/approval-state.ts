@@ -65,7 +65,7 @@ export class ApprovalState {
   createPending(request: ApprovalRequest): PendingApproval | null {
     const now = this.now();
 
-    this.removeExpired(now);
+    this.dropExpired(now);
 
     this.startedAt = this.startedAt.filter((at) => now - at < MINUTE_MS);
 
@@ -104,7 +104,7 @@ export class ApprovalState {
   }
 
   findPending(key: string): PendingApproval | null {
-    this.removeExpired(this.now());
+    this.dropExpired(this.now());
 
     return this.pending.get(key) ?? null;
   }
@@ -176,7 +176,7 @@ export class ApprovalState {
 
   // What an owner session approved, or null once it expired or went.
   findApproved(sessionID: string): ApprovedRequest | null {
-    this.removeExpired(this.now());
+    this.dropExpired(this.now());
 
     return this.approved.get(sessionID) ?? null;
   }
@@ -185,7 +185,7 @@ export class ApprovalState {
     this.approved.delete(sessionID);
   }
 
-  private removeExpired(now: number): void {
+  private dropExpired(now: number): void {
     for (const [key, approval] of this.pending) {
       if (approval.expiresAt <= now) {
         this.pending.delete(key);

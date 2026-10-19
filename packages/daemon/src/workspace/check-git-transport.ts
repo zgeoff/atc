@@ -21,7 +21,7 @@ export function checkGitTransport(url: string, transports: readonly string[]): T
     return { ok: false, code: 'invalid_git_url', message: 'a git URL must not start with -' };
   }
 
-  const transport = findTransport(url);
+  const transport = getTransport(url);
 
   if (transports.includes(transport)) {
     return { ok: true };
@@ -39,7 +39,7 @@ export function checkGitTransport(url: string, transports: readonly string[]): T
   };
 }
 
-function findTransport(url: string): string {
+function getTransport(url: string): string {
   const helper = HELPER_PATTERN.exec(url)?.groups?.['name'];
 
   if (helper !== undefined) {

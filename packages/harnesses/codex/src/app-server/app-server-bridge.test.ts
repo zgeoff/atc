@@ -419,10 +419,10 @@ test('it answers an atc.answer that a resumed thread calls before its recovery e
     cwd: '/work/repo',
     host: {
       ...stub.host,
-      collectUnsettledMessages: async () => {
+      readUnsettledMessages: async () => {
         await recovery.promise;
 
-        return stub.host.collectUnsettledMessages();
+        return stub.host.readUnsettledMessages();
       },
     },
     openConnection: ctx.openConnection,
@@ -1097,6 +1097,7 @@ test('it sends a message the old thread took nowhere else when the terminal move
       let onNotification = conn.onNotification;
 
       Object.defineProperty(conn, 'onNotification', {
+        // oxlint-disable-next-line zgeoff/verb-contract -- a property descriptor names its accessor get
         get: () => (notification: AppServerNotification) => {
           void (async () => {
             if (held) {

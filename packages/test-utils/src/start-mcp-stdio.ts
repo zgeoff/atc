@@ -1,5 +1,5 @@
 import { isRecord } from '@atc/core';
-import { getSourceEntry } from './get-source-entry';
+import { readSourceEntry } from './read-source-entry';
 import { registerTestCleanup } from './register-test-cleanup';
 
 interface MCPStdioOptions {
@@ -23,7 +23,7 @@ interface MCPToolResult {
 
 export async function startMCPStdio(options: MCPStdioOptions) {
   const proc = Bun.spawn(
-    [...(options.command ?? [process.execPath, getSourceEntry('atc'), 'mcp'])],
+    [...(options.command ?? [process.execPath, readSourceEntry('atc'), 'mcp'])],
     {
       env: {
         ...process.env,

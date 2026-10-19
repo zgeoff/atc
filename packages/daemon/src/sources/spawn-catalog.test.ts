@@ -102,7 +102,7 @@ test('it lists each spawned directory once', async () => {
   await ctx.store.recordSpawnDir('/work/app', { target: 'local', targetIdentity: 'l:1' }, 1);
   await ctx.store.recordSpawnDir('/work/app', { target: 'box', targetIdentity: 'b:1' }, 2);
 
-  const dirs = await ctx.catalog.collectSpawnDirs(null);
+  const dirs = await ctx.catalog.readSpawnDirs(null);
 
   expect(dirs).toStrictEqual(['/work/app']);
 });
@@ -113,7 +113,7 @@ test('it lists a principal only the directories spawned on targets it may use', 
   await ctx.store.recordSpawnDir('/work/app', { target: 'local', targetIdentity: 'l:1' }, 1);
   await ctx.store.recordSpawnDir('/work/ops', { target: 'box', targetIdentity: 'b:1' }, 2);
 
-  const dirs = await ctx.catalog.collectSpawnDirs(
+  const dirs = await ctx.catalog.readSpawnDirs(
     new TargetAccess([{ target: 'box', targetIdentity: 'b:1' }]),
   );
 

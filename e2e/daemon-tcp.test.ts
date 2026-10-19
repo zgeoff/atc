@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { findDaemonRecord } from '@atc/lifecycle';
+import { readDaemonRecord } from '@atc/lifecycle';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
 import { openDaemonClient } from '@atc/protocol/client';
 import { registerTestCleanup, resolveATCCommand, setupTempDir } from '@atc/test-utils';
@@ -37,7 +37,7 @@ test('it closes a TCP connection whose token a SIGHUP reload removed', async () 
   const port = z
     .number()
     .int()
-    .parse(findDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.listenPort);
+    .parse(readDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.listenPort);
 
   const tcp = await openDaemonClient({ hostname: '127.0.0.1', port });
 
@@ -86,7 +86,7 @@ test('it accepts a TCP handshake with a token a SIGHUP reload kept', async () =>
   const port = z
     .number()
     .int()
-    .parse(findDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.listenPort);
+    .parse(readDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.listenPort);
 
   const removed = await openDaemonClient({ hostname: '127.0.0.1', port });
 

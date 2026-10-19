@@ -13,7 +13,7 @@ interface SessionFleetWriterDeps {
   >;
   readonly store: FleetStore;
   readonly statusPath: string;
-  readonly callbacks: Pick<SessionCallbacks, 'onChange' | 'log' | 'getRecords'>;
+  readonly callbacks: Pick<SessionCallbacks, 'onChange' | 'log' | 'findRecords'>;
 }
 
 export class SessionFleetWriter {
@@ -100,7 +100,7 @@ export class SessionFleetWriter {
     for (const id of removed) {
       this.registry.removedIDs.delete(id);
 
-      await this.callbacks.getRecords()?.remove(id);
+      await this.callbacks.findRecords()?.remove(id);
     }
   }
 

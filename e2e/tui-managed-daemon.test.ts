@@ -9,7 +9,7 @@ import {
   startTUIHarness,
   waitFor,
 } from '@atc/test-utils';
-import { buildHostServices } from '../packages/app/src/build-host-services';
+import { createHostServices } from '../packages/app/src/create-host-services';
 import { buildLocalTarget } from '../packages/app/src/test-utils/build-local-target';
 
 function setupTest() {
@@ -35,7 +35,7 @@ test('it waits for a managed daemon instead of starting one while the unit is do
     reporterSocketPath: join(ctx.home, 'atc.sock'),
     dbPath: join(ctx.home, '.local', 'state', 'atc', 'atc.db'),
     statusPath: join(ctx.home, '.local', 'state', 'atc', 'status.json'),
-    build: buildHostServices().build,
+    build: createHostServices().build,
     targets: [buildLocalTarget()],
     adapter: buildMockAgentAdapter(),
   });
@@ -62,7 +62,7 @@ test('it reconnects a client after a managed daemon restarts without starting a 
     reporterSocketPath: join(ctx.home, 'atc.sock'),
     dbPath: join(ctx.home, '.local', 'state', 'atc', 'atc.db'),
     statusPath: join(ctx.home, '.local', 'state', 'atc', 'status.json'),
-    build: buildHostServices().build,
+    build: createHostServices().build,
     targets: [buildLocalTarget()],
     adapter: buildMockAgentAdapter(),
   };
@@ -123,7 +123,7 @@ test('it reconnects again when a replacement closes during the fleet refresh', a
     reporterSocketPath: join(ctx.home, 'atc.sock'),
     dbPath: join(ctx.home, '.local', 'state', 'atc', 'atc.db'),
     statusPath: join(ctx.home, '.local', 'state', 'atc', 'status.json'),
-    build: buildHostServices().build,
+    build: createHostServices().build,
     targets: [buildLocalTarget()],
     adapter: buildMockAgentAdapter(),
   };
@@ -176,7 +176,7 @@ test('it keeps help open when a managed daemon returns', async () => {
     reporterSocketPath: join(ctx.home, 'atc.sock'),
     dbPath: join(ctx.home, '.local', 'state', 'atc', 'atc.db'),
     statusPath: join(ctx.home, '.local', 'state', 'atc', 'status.json'),
-    build: buildHostServices().build,
+    build: createHostServices().build,
     targets: [buildLocalTarget()],
     adapter: buildMockAgentAdapter(),
   };

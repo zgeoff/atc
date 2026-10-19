@@ -248,7 +248,7 @@ export class SpawnRequests {
 
     // The spawn history is read through the request's own view, so a
     // principal lists only directories spawned on targets it may use.
-    return { source, request: { target, collectSpawnDirs: () => ctx.collectSpawnDirs(null) } };
+    return { source, request: { target, readSpawnDirs: () => ctx.readSpawnDirs(null) } };
   }
 
   // Probes a git workspace source for a spawn to the request's target, so

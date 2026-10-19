@@ -12,7 +12,7 @@ import {
 import { join } from 'node:path';
 import { isRecord, systemClock, waitUntil } from '@atc/core';
 import type { Clock } from '@atc/core';
-import { isProcessAlive } from '@atc/lifecycle';
+import { probeProcessAlive } from '@atc/lifecycle';
 
 interface CachedListing {
   readonly candidates: readonly unknown[];
@@ -23,7 +23,7 @@ interface CachedListing {
 }
 
 export interface ListingCache {
-  readonly findListing: (key: string, now: number) => CachedListing | null;
+  readonly readListing: (key: string, now: number) => CachedListing | null;
 
   // resolves once the listing is kept or given up on, and never rejects.
   readonly writeListing: (key: string, listing: CachedListing) => Promise<void>;
@@ -50,7 +50,7 @@ export function openListingCache(file: string, options: ListingCacheOptions = {}
   const lockPath = `${file}.lock`;
 
   return {
-    findListing(key, now) {
+    readListing(key, now) {
       // each read opens the file again, so clients that share it see each other's listings.
       const listing = loadListings(file).get(key);
 
@@ -123,7 +123,7 @@ function removeStaleLock(lockPath: string): void {
     for (const name of readdirSync(lockPath)) {
       const pid = Number(name.split('-')[0]);
 
-      if (!(Number.isInteger(pid) && pid > 0 && isProcessAlive(pid))) {
+      if (!(Number.isInteger(pid) && pid > 0 && probeProcessAlive(pid))) {
         unlinkSync(join(lockPath, name));
       }
     }

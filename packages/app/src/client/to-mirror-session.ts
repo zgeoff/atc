@@ -79,15 +79,15 @@ export function toMirrorSession(value: unknown): MirrorSession | null {
     canEject: record['canEject'] === true,
     agent: toAgentID(record['agent']),
     parent: typeof record['parent'] === 'string' ? record['parent'] : null,
-    target: readTargetID(record['locator']),
+    target: getTargetID(record['locator']),
     model: typeof record['model'] === 'string' ? record['model'] : null,
-    harness: readHarnessLifecycle(record['lifecycle'], record.alive),
+    harness: parseHarnessLifecycle(record['lifecycle'], record.alive),
   };
 }
 
 // The locator's target id, with 'local' for a descriptor that carries no
 // locator at all.
-function readTargetID(locator: unknown): string {
+function getTargetID(locator: unknown): string {
   if (isRecord(locator) && typeof locator['targetID'] === 'string') {
     return locator['targetID'];
   }
@@ -97,7 +97,7 @@ function readTargetID(locator: unknown): string {
 
 // The harness layer of a descriptor's lifecycle, falling back to what the
 // alive flag says when the lifecycle is missing.
-function readHarnessLifecycle(lifecycle: unknown, alive: boolean): HarnessLifecycle {
+function parseHarnessLifecycle(lifecycle: unknown, alive: boolean): HarnessLifecycle {
   if (isRecord(lifecycle)) {
     const harness = lifecycle['harness'];
 

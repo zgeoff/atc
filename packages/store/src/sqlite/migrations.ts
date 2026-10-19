@@ -1,9 +1,9 @@
 import { sql } from 'kysely';
 import type { Kysely } from 'kysely';
 import type { Migration } from 'kysely/migration';
-import { collectFleetColumns } from './collect-fleet-columns';
-import type { ColumnInfoRow } from './collect-fleet-columns';
 import { createSessionOwners } from './create-session-owners';
+import { readFleetColumns } from './read-fleet-columns';
+import type { ColumnInfoRow } from './read-fleet-columns';
 import type { StateStoreSchema } from './state-store-schema';
 import { updateFleetAgentSessionIDToShared } from './update-fleet-agent-session-id-to-shared';
 import { updateFleetKeyToSessionID } from './update-fleet-key-to-session-id';
@@ -181,7 +181,7 @@ export const MIGRATIONS: Record<string, Migration> = {
     async up(db: Kysely<StateStoreSchema>) {
       // The ledger records this step only after it returns, so a crash in
       // between leaves a rebuilt table behind a ledger that still lacks it.
-      const columns = await collectFleetColumns(db);
+      const columns = await readFleetColumns(db);
 
       if (columns.has('session_id')) {
         return;
@@ -457,7 +457,7 @@ export const MIGRATIONS: Record<string, Migration> = {
     async up(db: Kysely<StateStoreSchema>) {
       // Nothing reads the column. The drop runs only while it is there, so
       // the step can run again after a crash.
-      const columns = await collectFleetColumns(db);
+      const columns = await readFleetColumns(db);
 
       if (columns.has('resume_interrupted_turns')) {
         await db.schema.alterTable('fleet').dropColumn('resume_interrupted_turns').execute();

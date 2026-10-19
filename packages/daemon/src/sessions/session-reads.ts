@@ -14,7 +14,7 @@ const TRANSCRIPT_PAGE_MAX_BYTES = 262_144;
 interface SessionReadsDeps {
   readonly mgr: Pick<SessionManager, 'sessions' | 'collectDescriptors' | 'findAdapter'>;
   readonly store: Pick<StateStore, 'loadLastActivityAt'>;
-  readonly records: Pick<PublishedRecords, 'findRecord'>;
+  readonly records: Pick<PublishedRecords, 'readRecord'>;
 }
 
 export class SessionReads {
@@ -62,7 +62,7 @@ export class SessionReads {
     const linked = access !== null || shared ? undefined : s.agentSessionID;
 
     const lastEventAt = await this.store.loadLastActivityAt(s.id, linked);
-    const sessionRecord = await this.records.findRecord(s.id);
+    const sessionRecord = await this.records.readRecord(s.id);
 
     return {
       session,

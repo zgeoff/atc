@@ -7,7 +7,7 @@ export function buildStubAttentionAdapter(overrides: Partial<AgentAdapter> = {})
     planHookEvents: (hook) => ({
       events: [{ kind: hook.event === 'Notification' ? 'needs-input' : 'prompt-submitted' }],
     }),
-    buildResumeCommand: () => 'claude --resume',
+    planResumeCommand: () => 'claude --resume',
     ...overrides,
   });
 }

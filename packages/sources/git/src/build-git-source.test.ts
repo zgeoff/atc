@@ -6,7 +6,7 @@ test('it lists nothing', async () => {
 
   const listed = await source.list(
     {},
-    { target: 'local', collectSpawnDirs: () => Promise.resolve([]) },
+    { target: 'local', readSpawnDirs: () => Promise.resolve([]) },
   );
 
   expect(listed).toStrictEqual({ candidates: [], scope: null });
@@ -21,7 +21,7 @@ test.each([
 
   const interpretation = await source.interpret(input, {
     target: 'local',
-    collectSpawnDirs: () => Promise.resolve([]),
+    readSpawnDirs: () => Promise.resolve([]),
   });
 
   expect(interpretation).toStrictEqual(expected);

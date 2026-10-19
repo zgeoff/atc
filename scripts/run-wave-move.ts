@@ -6,10 +6,10 @@ import { dirname, join, normalize, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { SyntaxKind } from 'typescript/unstable/ast';
 import { z } from 'zod';
-import { collectSourceFiles } from './collect-source-files';
 import type { Token } from './collect-tokens';
 import { collectTokens } from './collect-tokens';
 import { loadWorkspacePackages } from './load-workspace-packages';
+import { readSourceFiles } from './read-source-files';
 
 function main(): void {
   const args = parseArgs({
@@ -27,13 +27,13 @@ function main(): void {
   }
 
   const packageDirs = loadPackageDirs(root, args.values.package);
-  const files = SOURCE_DIRS.flatMap((dir) => collectSourceFiles(root, dir));
-  const planned = collectMoves(root, wave, packageDirs);
+  const files = SOURCE_DIRS.flatMap((dir) => readSourceFiles(root, dir));
+  const planned = readMoves(root, wave, packageDirs);
 
   const known = new Set([...files, ...planned.keys()]);
 
-  const moves = collectReadyMoves(root, planned, known);
-  const entries = collectEntries(root);
+  const moves = readReadyMoves(root, planned, known);
+  const entries = readEntries(root);
   let rewritten = 0;
 
   for (const file of files) {
@@ -67,7 +67,7 @@ const APP_DIR = 'packages/app/';
 
 // A file that would leave the app while one of its imports stays there waits,
 // and so do its importers, so this repeats until a pass holds nothing more
-function collectReadyMoves(
+function readReadyMoves(
   root: string,
   planned: ReadonlyMap<string, string>,
   known: ReadonlySet<string>,
@@ -141,7 +141,7 @@ const MAP_TABLES = [
   ['package-testmap.tsv', 'test'],
 ] as const;
 
-function collectMoves(
+function readMoves(
   root: string,
   wave: number,
   packageDirs: readonly string[],
@@ -203,7 +203,7 @@ const MANIFEST_SCHEMA = z.object({
   exports: z.record(z.string(), z.string()).optional(),
 });
 
-function collectEntries(root: string): PackageEntry[] {
+function readEntries(root: string): PackageEntry[] {
   const entries: PackageEntry[] = [];
 
   for (const path of new Bun.Glob('packages/**/package.json').scanSync({ cwd: root })) {

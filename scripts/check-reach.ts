@@ -7,15 +7,15 @@ import { dirname, join, normalize, resolve } from 'node:path';
 import { SyntaxKind } from 'typescript/unstable/ast';
 import { z } from 'zod';
 import { collectImports } from './collect-imports';
-import { collectSourceFiles } from './collect-source-files';
 import { collectTokens } from './collect-tokens';
+import { readSourceFiles } from './read-source-files';
 
 async function main(): Promise<void> {
   const root = resolve(process.argv[2] ?? join(import.meta.dir, '..'));
 
-  const known = new Set(collectSourceFiles(root, 'packages'));
+  const known = new Set(readSourceFiles(root, 'packages'));
 
-  const exports = collectExports(root);
+  const exports = readExports(root);
 
   const reached = collectReached(
     known,
@@ -24,7 +24,7 @@ async function main(): Promise<void> {
     (file) => collectImports(readFileSync(join(root, file), 'utf8')).specifiers,
   );
 
-  const bundled = await collectBundled(root, ENTRY);
+  const bundled = await readBundled(root, ENTRY);
 
   const findings = [
     ...[...reached.files].toSorted().flatMap((file) => checkFile('reaches', file)),
@@ -405,7 +405,7 @@ const PACKAGE_MANIFEST_SCHEMA = z.object({
   exports: z.record(z.string(), z.string()).optional(),
 });
 
-function collectExports(root: string): Map<string, string> {
+function readExports(root: string): Map<string, string> {
   const exports = new Map<string, string>();
 
   for (const path of new Bun.Glob('packages/**/package.json').scanSync({ cwd: root })) {
@@ -430,7 +430,7 @@ function collectExports(root: string): Map<string, string> {
 }
 
 // The bundle catches a reach that the source walk cannot read
-async function collectBundled(root: string, entry: string): Promise<string[]> {
+async function readBundled(root: string, entry: string): Promise<string[]> {
   const out = mkdtempSync(join(tmpdir(), 'check-reach-'));
 
   try {

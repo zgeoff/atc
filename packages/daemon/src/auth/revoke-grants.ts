@@ -12,7 +12,7 @@ export async function revokeGrants(
   host: CredentialBroker | null,
   row: RuntimeAuthBinding,
 ): Promise<string[]> {
-  const grants = await ledger.store.collectAuthGrants(row.hostKey);
+  const grants = await ledger.store.readAuthGrants(row.hostKey);
 
   const secrets = collectBindingSecrets(row, grants);
 

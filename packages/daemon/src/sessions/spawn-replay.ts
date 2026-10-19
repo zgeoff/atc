@@ -72,7 +72,7 @@ export class SpawnReplay {
     // nothing a key without a recorded target holds shows where its
     // session ran
     if (bound === null) {
-      throw buildTargetForbiddenError(findReplayTarget(record));
+      throw buildTargetForbiddenError(getReplayTarget(record));
     }
 
     const sessions = this.mgr.sessions;
@@ -111,14 +111,14 @@ export class SpawnReplay {
 
     // a session with no fleet row has no tree left to check
     if (own !== undefined && !isTreeInReach(members, own.id, access)) {
-      throw buildTargetForbiddenError(record.effectTarget?.target ?? findReplayTarget(record));
+      throw buildTargetForbiddenError(record.effectTarget?.target ?? getReplayTarget(record));
     }
   }
 }
 
 // The target a held spawn key's stored answer holds its session on, for a
 // refusal of its replay; the answer holds no other target to name.
-function findReplayTarget(record: IdempotencyRecord): string {
+function getReplayTarget(record: IdempotencyRecord): string {
   const stored: unknown = record.result === null ? null : JSON.parse(record.result);
   const session = isRecord(stored) ? stored['session'] : null;
   const locator = isRecord(session) ? session['locator'] : null;

@@ -8,7 +8,7 @@ interface SignInServer {
   readonly origin: string;
 
   // The authenticator that holds the owner's passkey.
-  readonly authenticator: Pick<ReturnType<typeof buildStubAuthenticator>, 'get'>;
+  readonly authenticator: Pick<ReturnType<typeof buildStubAuthenticator>, 'signAssertion'>;
 }
 
 // What the browser and the authenticator put in the assertion in place of
@@ -33,7 +33,7 @@ export async function runPasskeySignIn(
     throw new Error('the login page asked to enroll a passkey');
   }
 
-  const assertion = await server.authenticator.get(parsed.options, {
+  const assertion = await server.authenticator.signAssertion(parsed.options, {
     origin: server.origin,
     ...ceremony,
   });

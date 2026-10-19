@@ -24,7 +24,7 @@ export function buildAgentEntrySchema(
   context: PluginConfigContext,
 ): z.ZodType<ParsedAgentEntry> {
   return z.unknown().transform((raw, ctx) => {
-    const read = readAgentEntry(raw, spec, context);
+    const read = parseAgentEntryFields(raw, spec, context);
 
     if ('problems' in read) {
       for (const message of read.problems) {
@@ -41,7 +41,7 @@ export function buildAgentEntrySchema(
 // The fields every kind takes.
 const COMMON_FIELDS: ReadonlySet<string> = new Set(['kind', 'label', 'mark', 'bin', 'args']);
 
-function readAgentEntry(
+function parseAgentEntryFields(
   raw: unknown,
   spec: AgentEntrySpec,
   context: PluginConfigContext,

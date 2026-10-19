@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { parseSystemdUnit } from '@atc/core';
-import { findSystemdVersion } from './find-systemd-version';
+import { readSystemdVersion } from './read-systemd-version';
 import { SessionScopes } from './session-scopes';
 
 // The first systemd release whose `systemd-run` takes
@@ -39,7 +39,7 @@ export function startSessionScopes(
     invocation === '' ||
     systemctl === null ||
     systemdRun === null ||
-    (findSystemdVersion(systemdRun) ?? 0) < EXPAND_ENVIRONMENT_RELEASE
+    (readSystemdVersion(systemdRun) ?? 0) < EXPAND_ENVIRONMENT_RELEASE
   ) {
     return null;
   }

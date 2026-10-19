@@ -1,9 +1,9 @@
 import { existsSync } from 'node:fs';
 import { formatHomePath } from '@atc/core';
 import type { SourceInterpretation, SourceProvider } from '@atc/plugin-api';
-import { collectRootDirs } from './collect-root-dirs';
-import { collectPathCompletions } from './complete/collect-path-completions';
+import { readPathCompletions } from './complete/read-path-completions';
 import { resolvePathInput } from './complete/resolve-path-input';
+import { readRootDirs } from './read-root-dirs';
 
 // What the source reads besides the spawn history a request brings.
 interface DirsSourceServices {
@@ -12,7 +12,7 @@ interface DirsSourceServices {
   readonly roots: readonly string[];
 
   // zoxide's frecency list on the daemon's host, most visited first.
-  readonly collectZoxideDirs: () => Promise<string[]>;
+  readonly readZoxideDirs: () => Promise<string[]>;
 
   // The daemon user's home directory, which a leading `~` stands for.
   readonly homeDir: string;
@@ -27,9 +27,9 @@ export function buildDirsSource(services: DirsSourceServices): SourceProvider {
       const seen = new Set<string>();
 
       for (const dir of [
-        ...(await request.collectSpawnDirs()),
-        ...collectRootDirs(services.roots),
-        ...(await services.collectZoxideDirs()),
+        ...(await request.readSpawnDirs()),
+        ...readRootDirs(services.roots),
+        ...(await services.readZoxideDirs()),
       ]) {
         if (!seen.has(dir) && existsSync(dir)) {
           seen.add(dir);
@@ -56,7 +56,7 @@ export function buildDirsSource(services: DirsSourceServices): SourceProvider {
     complete(input, request) {
       // a caller sends its cwd only when the daemon runs on the client's machine,
       // so a relative path resolves under the home otherwise.
-      const dirs = collectPathCompletions(
+      const dirs = readPathCompletions(
         input,
         request.clientCwd ?? services.homeDir,
         services.homeDir,

@@ -111,7 +111,7 @@ export function buildStubAuthenticator() {
         authenticatorAttachment: 'platform',
       };
     },
-    async get(options: RequestOptions, ceremony: Ceremony): Promise<StubAssertion> {
+    async signAssertion(options: RequestOptions, ceremony: Ceremony): Promise<StubAssertion> {
       if (userHandle === null) {
         throw new Error('the stub authenticator holds no credential yet');
       }

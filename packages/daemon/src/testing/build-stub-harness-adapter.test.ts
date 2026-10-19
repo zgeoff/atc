@@ -14,7 +14,7 @@ test('it builds an adapter with no optional members by default', () => {
     planHookEvents: expect.toBeFunction(),
     loadName: expect.toBeFunction(),
     canResume: expect.toBeFunction(),
-    buildResumeCommand: expect.toBeFunction(),
+    planResumeCommand: expect.toBeFunction(),
   });
 });
 
@@ -96,5 +96,5 @@ test('it resumes any session and gives no resume command', () => {
   const adapter = buildStubHarnessAdapter();
 
   expect(adapter.canResume({ agentSessionID: toAgentSessionID('c-1') })).toBeTrue();
-  expect(adapter.buildResumeCommand('/work', toAgentSessionID('c-1'), [])).toBeNull();
+  expect(adapter.planResumeCommand('/work', toAgentSessionID('c-1'), [])).toBeNull();
 });

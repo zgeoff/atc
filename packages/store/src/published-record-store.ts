@@ -14,7 +14,7 @@ export class PublishedRecordStore {
 
   // A row whose JSON no longer reads as a record counts as no record, so
   // the next delivery records the session afresh.
-  async findPublishedRecord(sessionID: SessionID): Promise<PublishedRecord | null> {
+  async readPublishedRecord(sessionID: SessionID): Promise<PublishedRecord | null> {
     const row = await this.db
       .selectFrom('published_record')
       .select('record')

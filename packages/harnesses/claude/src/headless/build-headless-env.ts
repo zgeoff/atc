@@ -1,4 +1,4 @@
-import { collectCleanEnv } from '@atc/config';
+import { readCleanEnv } from '@atc/config';
 import type { SessionID } from '@atc/core';
 import { buildSessionEnv } from '@atc/protocol/session';
 
@@ -15,7 +15,7 @@ interface HeadlessEnvParams {
 }
 
 export function buildHeadlessEnv(params: HeadlessEnvParams): Record<string, string> {
-  return collectCleanEnv(
+  return readCleanEnv(
     {
       ...(params.pluginDir === undefined ? {} : { CLAUDE_CODE_PLUGIN_DIRS: params.pluginDir }),
       ...buildSessionEnv({

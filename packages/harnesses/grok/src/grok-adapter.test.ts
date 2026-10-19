@@ -64,7 +64,7 @@ test('it drops a user --leader from the configured arguments and still appends -
 test('it yanks a captured id as grok --resume', () => {
   const adapter = new GrokAdapter(getAgentEntry(parseConfig([GROK_PLUGIN], {}), 'grok'));
 
-  expect(adapter.buildResumeCommand("/tmp/o'reilly", toAgentSessionID('sess-9'))).toBe(
+  expect(adapter.planResumeCommand("/tmp/o'reilly", toAgentSessionID('sess-9'))).toBe(
     String.raw`cd '/tmp/o'\''reilly' && grok --resume sess-9`,
   );
 });
@@ -72,7 +72,7 @@ test('it yanks a captured id as grok --resume', () => {
 test('it yanks an uncaptured session as plain grok', () => {
   const adapter = new GrokAdapter(getAgentEntry(parseConfig([GROK_PLUGIN], {}), 'grok'));
 
-  expect(adapter.buildResumeCommand('/tmp/proj', undefined)).toBe("cd '/tmp/proj' && grok");
+  expect(adapter.planResumeCommand('/tmp/proj', undefined)).toBe("cd '/tmp/proj' && grok");
 });
 
 test('it plans hook events from the state the previous line left, naming sessions in its own home', () => {

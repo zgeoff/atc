@@ -88,7 +88,7 @@ export class IdempotencyLedger {
     };
 
     if (call.keyed.replayOnly === true) {
-      const found = await this.store.findIdempotencyKey(id);
+      const found = await this.store.readIdempotencyKey(id);
 
       if (found === null) {
         throw new DaemonError(

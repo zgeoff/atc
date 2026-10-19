@@ -13,12 +13,12 @@ import { waitUntil } from '@atc/core';
 import { readSessionEnv } from '@atc/protocol/session';
 import { buildATCCommand } from './build-atc-command';
 import { collectRestartEnv } from './collect-restart-env';
-import { collectRestartPlan } from './collect-restart-plan';
 import { formatRestartPreflight } from './format-restart-preflight';
-import { isProcessAlive } from './is-process-alive';
 import type { LifecycleHost } from './lifecycle-host';
 import { parseRestartResult } from './parse-restart-result';
 import { parseWorkerPID } from './parse-worker-pid';
+import { probeProcessAlive } from './probe-process-alive';
+import { readRestartPlan } from './read-restart-plan';
 import { spawnATCDetached } from './spawn-atc-detached';
 
 interface DaemonRestartOptions {
@@ -45,7 +45,7 @@ export async function runDaemonRestart(
   const invocation = host.invocation;
   const callerSession = readSessionEnv(process.env).sessionID ?? null;
 
-  const plan = await collectRestartPlan(host, callerSession);
+  const plan = await readRestartPlan(host, callerSession);
 
   if (options.dryRun) {
     for (const line of formatRestartPreflight(plan)) {
@@ -199,7 +199,7 @@ async function printRunLog(
       // One more read after the worker is gone, in case its last lines
       // landed between the read above and its exit.
       vanished =
-        (workerPID !== null && !isProcessAlive(workerPID)) ||
+        (workerPID !== null && !probeProcessAlive(workerPID)) ||
         (workerPID === null && clock.now() - startedAt > WORKER_START_WAIT_MS);
 
       return false;

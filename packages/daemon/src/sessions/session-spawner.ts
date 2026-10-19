@@ -74,7 +74,7 @@ interface SessionSpawnerDeps {
     | 'log'
     | 'now'
     | 'getClock'
-    | 'getRecords'
+    | 'findRecords'
     | 'startMessageBridge'
     | 'stopMessageBridge'
   >;

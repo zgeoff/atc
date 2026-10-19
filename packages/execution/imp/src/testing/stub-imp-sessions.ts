@@ -104,7 +104,7 @@ export class StubImpSessions {
     // client checks the features a start needs and the gate lets it go; a
     // check that times out or a closed gate sends nothing.
     const sendToImpd = () => {
-      if (this.execCheckFailures > 0 && needsExecCheck(request)) {
+      if (this.execCheckFailures > 0 && shouldCheckExec(request)) {
         this.execCheckFailures -= 1;
         this.failedExecChecks += 1;
 
@@ -258,7 +258,7 @@ export class StubImpSessions {
 
 // impd's client reads impd's features before a start that requires the
 // broker or drops CAP_SYS_ADMIN, and before nothing else.
-function needsExecCheck(request: ImpSessionRequest): boolean {
+function shouldCheckExec(request: ImpSessionRequest): boolean {
   return (
     request.kind === 'start' &&
     ((request.require !== undefined && request.require.length > 0) || request.dropSysAdmin === true)

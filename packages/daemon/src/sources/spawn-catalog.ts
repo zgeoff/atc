@@ -15,7 +15,7 @@ import { requireGitTransports } from '../workspace/require-git-transports';
 
 interface SpawnCatalogDeps {
   readonly mgr: Pick<SessionManager, 'collectAdapters'>;
-  readonly store: Pick<StateStore, 'collectSpawnDirs'>;
+  readonly store: Pick<StateStore, 'readSpawnDirs'>;
 
   // The build string the daemon answers its handshake with.
   readonly build: string;
@@ -108,8 +108,8 @@ export class SpawnCatalog {
 
   // Each directory once, under an access only those spawned on targets it
   // may use.
-  async collectSpawnDirs(access: TargetAccess | null): Promise<string[]> {
-    const dirs = await this.store.collectSpawnDirs();
+  async readSpawnDirs(access: TargetAccess | null): Promise<string[]> {
+    const dirs = await this.store.readSpawnDirs();
 
     const reached = dirs.filter((dir) => access === null || access.canUse(dir.grant));
 

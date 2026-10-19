@@ -18,7 +18,7 @@ export interface OverlayKeyDeps {
   readonly getConfirm: () => OverlayConfirm;
   readonly getBoot: () => DaemonBoot;
   readonly isLeaderKey: (buf: Buffer) => boolean;
-  readonly toBase: () => void;
+  readonly showBase: () => void;
   readonly attach: (sessionID: string) => Promise<void>;
   readonly sendQuiet: (m: string, p?: Readonly<Record<string, unknown>>) => Promise<void>;
   readonly restartDaemonOnce: () => Promise<void>;
@@ -70,7 +70,7 @@ export function applyOverlayKey(buf: Buffer, deps: OverlayKeyDeps) {
   }
 
   if (deps.isLeaderKey(buf) || (buf[0] === KEY.esc && buf.length === 1)) {
-    deps.toBase();
+    deps.showBase();
 
     return;
   }

@@ -42,7 +42,7 @@ test('it lists the directories zoxide returns through the host command runner', 
 
   const listed = await source.list(
     {},
-    { target: 'local', collectSpawnDirs: () => Promise.resolve([]) },
+    { target: 'local', readSpawnDirs: () => Promise.resolve([]) },
   );
 
   expect(listed).toStrictEqual({

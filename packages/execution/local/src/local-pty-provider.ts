@@ -1,5 +1,5 @@
 import { mkdir } from 'node:fs/promises';
-import { collectCleanEnv } from '@atc/config';
+import { readCleanEnv } from '@atc/config';
 import { systemClock, waitUntil } from '@atc/core';
 import type { Clock } from '@atc/core';
 import type {
@@ -207,7 +207,7 @@ const USABLE_TERM = 'xterm-256color';
 // starts with an empty or dumb TERM, which leaves an agent CLI drawing with no
 // colour.
 function buildPTYEnv(spec: HarnessSpec): Record<string, string> {
-  const env = collectCleanEnv(spec.env, spec.withheldEnv);
+  const env = readCleanEnv(spec.env, spec.withheldEnv);
   const term = env['TERM'];
 
   return {

@@ -40,11 +40,11 @@ interface MessageServiceDeps {
     StateStore,
     | 'recordTrailEntry'
     | 'writeMessage'
-    | 'findMessage'
-    | 'findMessageByID'
-    | 'collectTurnSiblings'
-    | 'collectPendingMessages'
-    | 'collectPendingNotices'
+    | 'readMessage'
+    | 'readMessageByID'
+    | 'readTurnSiblings'
+    | 'readPendingMessages'
+    | 'readPendingNotices'
     | 'updateMessageDelivered'
     | 'updateNoticeDelivered'
     | 'updateDeliveredMessagesUnanswered'
@@ -123,8 +123,8 @@ export class MessageService {
 
         return s === undefined ? null : buildMessageOwner(s);
       },
-      collectPendingMessages: (owner) => this.store.collectPendingMessages(owner),
-      collectPendingNotices: (senderSession) => this.store.collectPendingNotices(senderSession),
+      readPendingMessages: (owner) => this.store.readPendingMessages(owner),
+      readPendingNotices: (senderSession) => this.store.readPendingNotices(senderSession),
     };
   }
 
@@ -426,7 +426,7 @@ export class MessageService {
       if (!live && (this.isProcessEnded(s.id) || this.mgr.isLocalTarget(s.target))) {
         await this.updateEndedSessionMessages(s);
 
-        const settled = await this.store.findMessage(messageID, owner);
+        const settled = await this.store.readMessage(messageID, owner);
 
         return settled ?? delivered;
       }
@@ -434,7 +434,7 @@ export class MessageService {
       return delivered;
     }
 
-    const current = await this.store.findMessage(messageID, owner);
+    const current = await this.store.readMessage(messageID, owner);
 
     return current ?? 'unknown';
   }
@@ -462,7 +462,7 @@ export class MessageService {
       return delivered;
     }
 
-    const current = await this.store.findMessageByID(messageID);
+    const current = await this.store.readMessageByID(messageID);
 
     return current?.senderSession === sessionID && current.noticeQueuedAt !== undefined
       ? current
@@ -577,7 +577,7 @@ export class MessageService {
   private async loadMessageReplay(
     record: IdempotencyRecord,
   ): Promise<DaemonAnswer<'session.message'>> {
-    const current = await this.store.findMessageByID(toMessageID(record.effectRef));
+    const current = await this.store.readMessageByID(toMessageID(record.effectRef));
 
     if (current !== null) {
       return { message: current.id, status: current.status };
@@ -600,7 +600,7 @@ export class MessageService {
   // A message belongs to the live session holding its atc id, else to the
   // one holding its agent session id, else to the atc id it was sent to.
   private async readMessageView(messageID: MessageID): Promise<MessageView | null> {
-    const record = await this.store.findMessageByID(messageID);
+    const record = await this.store.readMessageByID(messageID);
 
     if (record === null) {
       return null;
@@ -615,7 +615,7 @@ export class MessageService {
     return {
       session: owner?.id ?? record.atcID,
       record,
-      answeredWith: await this.store.collectTurnSiblings(record),
+      answeredWith: await this.store.readTurnSiblings(record),
     };
   }
 }

@@ -17,9 +17,9 @@ import {
 import invariant from 'tiny-invariant';
 import { openMCPAuthDatabase } from '../open-mcp-auth-database';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { collectGrants } from './collect-grants';
 import { createEnrollmentToken } from './create-enrollment-token';
 import { openMCPAuth } from './open-mcp-auth';
+import { readGrantViews } from './read-grant-views';
 import { removeClient } from './remove-client';
 import { resetPasskeys } from './reset-passkeys';
 import { revokeGrant } from './revoke-grant';
@@ -827,7 +827,7 @@ test('it refuses an access token once its grant is revoked', async () => {
   });
 
   const tokens = await readJSONRecord(exchanged);
-  const [grant] = await collectGrants(ctx.store.db);
+  const [grant] = await readGrantViews(ctx.store.db);
 
   invariant(grant !== undefined, 'the exchange left no grant');
 
@@ -878,7 +878,7 @@ test('it refuses to refresh a token once its grant is revoked', async () => {
   });
 
   const tokens = await readJSONRecord(exchanged);
-  const [grant] = await collectGrants(ctx.store.db);
+  const [grant] = await readGrantViews(ctx.store.db);
 
   invariant(grant !== undefined, 'the exchange left no grant');
 
@@ -931,7 +931,7 @@ test('it shows the consent page again to a client whose grant was revoked', asyn
     }),
   });
 
-  const [grant] = await collectGrants(ctx.store.db);
+  const [grant] = await readGrantViews(ctx.store.db);
 
   invariant(grant !== undefined, 'the exchange left no grant');
 
@@ -3443,7 +3443,7 @@ test('it marks every forwarded address unverified and keeps every secret of a fu
 
   invariant(firstCeremony.mode === 'get', 'the login page asked to enroll');
 
-  const wrong = await ctx.authenticator.get(firstCeremony.options, {
+  const wrong = await ctx.authenticator.signAssertion(firstCeremony.options, {
     origin: 'https://canary-wrong-origin.example',
   });
 
@@ -3467,7 +3467,9 @@ test('it marks every forwarded address unverified and keeps every secret of a fu
 
   invariant(secondCeremony.mode === 'get', 'the login page asked to enroll');
 
-  const right = await ctx.authenticator.get(secondCeremony.options, { origin: ctx.origin });
+  const right = await ctx.authenticator.signAssertion(secondCeremony.options, {
+    origin: ctx.origin,
+  });
 
   const signedIn = await fetch(`${ctx.url}/login`, {
     method: 'POST',
@@ -3802,7 +3804,7 @@ test('it refuses the refresh token of a grant revoked before a restart', async (
   });
 
   const tokens = await readJSONRecord(exchanged);
-  const [grant] = await collectGrants(ctx.store.db);
+  const [grant] = await readGrantViews(ctx.store.db);
 
   invariant(grant !== undefined, 'the exchange left no grant');
 
@@ -3909,7 +3911,7 @@ test('it refuses a login page opened before a restart', async () => {
 
   invariant(ceremony.mode === 'get', 'the login page asked to enroll');
 
-  const assertion = await ctx.authenticator.get(ceremony.options, { origin: ctx.origin });
+  const assertion = await ctx.authenticator.signAssertion(ceremony.options, { origin: ctx.origin });
 
   await ctx.restartServer();
 
@@ -4048,7 +4050,7 @@ test('it refuses a sign-in abandoned at the passkey prompt once its approval exp
 
   invariant(ceremony.mode === 'get', 'the login page asked to enroll');
 
-  const assertion = await ctx.authenticator.get(ceremony.options, { origin: ctx.origin });
+  const assertion = await ctx.authenticator.signAssertion(ceremony.options, { origin: ctx.origin });
 
   ctx.clock.advance(600_000);
 

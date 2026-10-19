@@ -4,10 +4,10 @@ export type RuntimeAuthStore = Pick<
   StateStore,
   | 'createAuthBinding'
   | 'updateAuthBinding'
-  | 'findAuthBinding'
-  | 'collectAuthBindings'
+  | 'readAuthBinding'
+  | 'readAuthBindings'
   | 'upsertAuthGrant'
-  | 'collectAuthGrants'
+  | 'readAuthGrants'
   | 'removeAuthBinding'
 >;
 

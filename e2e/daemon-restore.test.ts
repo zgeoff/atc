@@ -3,7 +3,7 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { toAgentSessionID, toSessionID } from '@atc/core';
-import { findDaemonRecord } from '@atc/lifecycle';
+import { readDaemonRecord } from '@atc/lifecycle';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
 import type { DaemonEvent } from '@atc/protocol';
 import { StateStore } from '@atc/store';
@@ -122,7 +122,7 @@ test('it starts a daemon on the state directory of one killed with SIGKILL', asy
 
   expect(Bun.peek.status(daemon.proc.exited)).toBe('pending');
 
-  expect(findDaemonRecord(join(daemon.stateDir, 'daemon.json'))).toStrictEqual({
+  expect(readDaemonRecord(join(daemon.stateDir, 'daemon.json'))).toStrictEqual({
     pid: daemon.proc.pid,
     socketPath: daemon.socketPath,
     reporterSocketPath: daemon.reporterSocketPath,

@@ -14,7 +14,7 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
-import { buildHostServices } from '../packages/app/src/build-host-services';
+import { createHostServices } from '../packages/app/src/create-host-services';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
@@ -53,7 +53,7 @@ test('it refuses a remote Claude spawn when the host has no atc and the daemon h
             {
               reconnectDelaysMs: [0, 0, 0],
               atcBinary: null,
-              version: buildHostServices().version,
+              version: createHostServices().version,
             },
           ),
         },
@@ -101,7 +101,7 @@ test('it gives a remote Claude session settings, a statusline, and a mod that re
             {
               reconnectDelaysMs: [0, 0, 0],
               atcBinary: null,
-              version: buildHostServices().version,
+              version: createHostServices().version,
             },
           ),
         },
@@ -176,7 +176,7 @@ test("it takes a remote session's hook reports from a socket that serves that se
             {
               reconnectDelaysMs: [0, 0, 0],
               atcBinary: null,
-              version: buildHostServices().version,
+              version: createHostServices().version,
             },
           ),
         },
@@ -244,7 +244,7 @@ test('it keeps a nested harness inside a remote session from rebinding that sess
             {
               reconnectDelaysMs: [0, 0, 0],
               atcBinary: null,
-              version: buildHostServices().version,
+              version: createHostServices().version,
             },
           ),
         },
@@ -313,7 +313,7 @@ test('it copies its own atc binary into an imp that has none', async () => {
             {
               reconnectDelaysMs: [0, 0, 0],
               atcBinary: ctx.clis.atc,
-              version: buildHostServices().version,
+              version: createHostServices().version,
             },
           ),
         },
@@ -354,7 +354,7 @@ test('it refuses a remote spawn whose agent is not signed in on the host, before
             {
               reconnectDelaysMs: [0, 0, 0],
               atcBinary: null,
-              version: buildHostServices().version,
+              version: createHostServices().version,
             },
           ),
         },
@@ -401,7 +401,7 @@ test('it destroys the host of its own that a remote spawn readied when its agent
             {
               reconnectDelaysMs: [0, 0, 0],
               atcBinary: null,
-              version: buildHostServices().version,
+              version: createHostServices().version,
             },
           ),
         },
@@ -454,7 +454,7 @@ test('it answers outcome_unknown for a spawn whose agent is not signed in on a h
             {
               reconnectDelaysMs: [0, 0, 0],
               atcBinary: null,
-              version: buildHostServices().version,
+              version: createHostServices().version,
             },
           ),
         },
@@ -499,7 +499,7 @@ test('it keeps the key of a spawn whose agent is not signed in on a host it cann
             {
               reconnectDelaysMs: [0, 0, 0],
               atcBinary: null,
-              version: buildHostServices().version,
+              version: createHostServices().version,
             },
           ),
         },
@@ -550,7 +550,7 @@ test('it revives a slept remote session whose transcript only its imp holds', as
             {
               reconnectDelaysMs: [0, 0, 0],
               atcBinary: null,
-              version: buildHostServices().version,
+              version: createHostServices().version,
             },
           ),
         },
@@ -611,7 +611,7 @@ test('it refuses a remote Claude spawn when the atc the target names is missing 
             {
               reconnectDelaysMs: [0, 0, 0],
               atcBinary: null,
-              version: buildHostServices().version,
+              version: createHostServices().version,
             },
           ),
         },
@@ -661,7 +661,7 @@ test('it refuses a remote spawn of an agent that never runs remotely, without bl
             {
               reconnectDelaysMs: [0, 0, 0],
               atcBinary: null,
-              version: buildHostServices().version,
+              version: createHostServices().version,
             },
           ),
         },

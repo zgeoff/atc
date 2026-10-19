@@ -3,7 +3,7 @@
 // literal path is left behind when a package move changes the entry.
 import { readFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
-import { collectSourceFiles } from './collect-source-files';
+import { readSourceFiles } from './read-source-files';
 
 function main(): void {
   const root = resolve(process.argv[2] ?? join(import.meta.dir, '..'));
@@ -14,7 +14,7 @@ function main(): void {
     process.exit(1);
   }
 
-  const found = collectHelperFiles(root).flatMap((file) =>
+  const found = readHelperFiles(root).flatMap((file) =>
     collectHardCodedEntries(readFileSync(join(root, file), 'utf8'), entries).map(
       (hit) => `${file}:${hit.line} holds ${hit.entry.path}; read it from ${hit.entry.name}`,
     ),
@@ -44,13 +44,13 @@ function parseSourceEntries(script: string): SourceEntry[] {
   ].map((match) => ({ name: match.groups?.['name'] ?? '', path: match.groups?.['path'] ?? '' }));
 }
 
-function collectHelperFiles(root: string): string[] {
+function readHelperFiles(root: string): string[] {
   // A helper's unit test stays out, since an entry path there is fixture data
-  const helpers = collectSourceFiles(root, 'packages').filter(
+  const helpers = readSourceFiles(root, 'packages').filter(
     (file) => /\/(?:test-utils|testing)\//u.test(file) && !/\.test\.[cm]?[jt]sx?$/u.test(file),
   );
 
-  return [...collectSourceFiles(root, 'e2e'), ...helpers];
+  return [...readSourceFiles(root, 'e2e'), ...helpers];
 }
 
 interface HardCodedEntry {

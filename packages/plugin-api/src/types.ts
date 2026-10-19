@@ -36,7 +36,7 @@ export interface SourceRequest {
   readonly target: string;
 
   // the daemon's spawn history as the requesting principal may read it.
-  readonly collectSpawnDirs: () => Promise<string[]>;
+  readonly readSpawnDirs: () => Promise<string[]>;
 }
 
 export interface SourceCompletionRequest extends SourceRequest {

@@ -95,7 +95,7 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
   const findRecency = (entry: FleetEntry) =>
     entry.agentSessionID === undefined ? '' : (recency.get(entry.agentSessionID) ?? '');
 
-  const recency = await store.collectFleetRecency();
+  const recency = await store.readFleetRecency();
   const stored = await store.loadFleet();
 
   // the most recently active sessions revive first, and entries that never reported an

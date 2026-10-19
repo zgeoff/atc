@@ -14,7 +14,7 @@ test('it builds a default agent adapter', () => {
     planHookEvents: expect.toBeFunction(),
     loadName: expect.toBeFunction(),
     canResume: expect.toBeFunction(),
-    buildResumeCommand: expect.toBeFunction(),
+    planResumeCommand: expect.toBeFunction(),
   });
 });
 
@@ -28,7 +28,7 @@ test('it applies overrides on top of the defaults', () => {
     planHookEvents: expect.toBeFunction(),
     loadName: expect.toBeFunction(),
     canResume: expect.toBeFunction(),
-    buildResumeCommand: expect.toBeFunction(),
+    planResumeCommand: expect.toBeFunction(),
   });
 });
 
@@ -42,7 +42,7 @@ test('it sets exactly the members the adapter interface requires', () => {
     planHookEvents: true,
     loadName: true,
     canResume: true,
-    buildResumeCommand: true,
+    planResumeCommand: true,
   };
 
   expect(Object.keys(buildMockAgentAdapter())).toIncludeSameMembers(Object.keys(required));
@@ -80,6 +80,6 @@ test('it resumes any session', () => {
 
 test('it gives no resume command', () => {
   expect(
-    buildMockAgentAdapter().buildResumeCommand('/nonexistent', toAgentSessionID('c-1'), []),
+    buildMockAgentAdapter().planResumeCommand('/nonexistent', toAgentSessionID('c-1'), []),
   ).toBeNull();
 });

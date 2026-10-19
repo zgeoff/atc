@@ -637,22 +637,22 @@ test('it refuses a spawn whose session leaves the view before the answer as a re
 
 test('it leaves out of fleet.list a session that leaves the view during the read', async () => {
   const entered = Promise.withResolvers<void>();
-  const fleet = Promise.withResolvers<Awaited<ReturnType<DaemonContext['collectFleet']>>>();
+  const fleet = Promise.withResolvers<Awaited<ReturnType<DaemonContext['readFleet']>>>();
   const canSeeSession = mock<DaemonContext['canSeeSession']>(() => true);
 
-  const collectFleet = mock<DaemonContext['collectFleet']>(() => {
+  const readFleet = mock<DaemonContext['readFleet']>(() => {
     entered.resolve();
 
     return fleet.promise;
   });
 
-  collectFleet.mockImplementationOnce(() => Promise.resolve([]));
+  readFleet.mockImplementationOnce(() => Promise.resolve([]));
 
   const peer = buildStubPeerSocket();
 
   const conn = new DaemonConnection(
     peer.socket,
-    buildStubDaemonContext({ canSeeSession, collectFleet }),
+    buildStubDaemonContext({ canSeeSession, readFleet }),
   );
 
   // The connection acts as a principal, the caller whose reach the daemon

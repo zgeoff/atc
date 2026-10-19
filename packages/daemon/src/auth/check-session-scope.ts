@@ -9,7 +9,7 @@ import type {
 } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
 import { z } from 'zod';
-import { findHostBranch } from '../sessions/find-host-branch';
+import { readHostBranch } from '../sessions/read-host-branch';
 import { runHostGit } from '../workspace/run-host-git';
 
 interface ScopeCheckRequest {
@@ -68,7 +68,7 @@ export async function checkSessionScope(
     const entry = `scope.pullRequests[${index}]`;
     let repo = pr.repo;
 
-    repo ??= await findGitHubRepo(request, entry);
+    repo ??= await readGitHubRepo(request, entry);
 
     const checked = await checkPullRequest(entry, repo, pr.number, ghBin);
 
@@ -99,7 +99,7 @@ async function checkWorktree(
     );
   }
 
-  return { path, branch: await findHostBranch(request.provider, request.host, path) };
+  return { path, branch: await readHostBranch(request.provider, request.host, path) };
 }
 
 async function checkBranch(
@@ -137,7 +137,7 @@ async function checkBranch(
 
 // The GitHub repository a pull request defaults to: that of the workspace's
 // origin.
-async function findGitHubRepo(request: ScopeCheckRequest, entry: string): Promise<string> {
+async function readGitHubRepo(request: ScopeCheckRequest, entry: string): Promise<string> {
   let url = request.repoURL;
 
   if (url === null && (!request.provider.remote || request.provider.capabilities.run)) {

@@ -30,7 +30,7 @@ interface SessionAdopterDeps {
   >;
   readonly rollback: Pick<
     SpawnRollback,
-    'rollingBack' | 'unconfirmedKills' | 'isRollbackSettled' | 'killHarness'
+    'rollingBack' | 'unconfirmedKills' | 'probeRollbackSettled' | 'killHarness'
   >;
   readonly auth: Pick<AuthSetup, 'buildBrokerSpec' | 'resolveHarnessAuth' | 'setupHarnessOnHost'>;
   readonly callbacks: Pick<
@@ -40,7 +40,7 @@ interface SessionAdopterDeps {
     | 'onRelay'
     | 'log'
     | 'now'
-    | 'getRecords'
+    | 'findRecords'
     | 'startMessageBridge'
     | 'stopMessageBridge'
   >;
@@ -152,7 +152,7 @@ export class SessionAdopter {
     // finds after a daemon restart, may be inside a turn a restart ends.
     const wasAsleep = s.suspended;
 
-    const settled = await this.rollback.isRollbackSettled(id);
+    const settled = await this.rollback.probeRollbackSettled(id);
 
     if (!settled || !canProceed()) {
       return null;
@@ -210,7 +210,7 @@ export class SessionAdopter {
           timer,
         );
 
-        const records = this.callbacks.getRecords();
+        const records = this.callbacks.findRecords();
 
         const path =
           records === null
@@ -324,7 +324,7 @@ export class SessionAdopter {
       wasAsleep &&
       isLaunchOutdated(s, plan.admission.revision, plan.heldRevision);
 
-    const restartable = outdated ? await this.isHarnessRestartable(s, pty) : false;
+    const restartable = outdated ? await this.probeHarnessRestartable(s, pty) : false;
 
     if (restartable) {
       pty = await this.restartOutdatedHarness(s, pty, launch, canProceed);
@@ -416,7 +416,7 @@ export class SessionAdopter {
   // the harness is still the session's terminal, or ended on its own with
   // an exit its host reported, as one that ended while its host slept does;
   // a stop, a sleep, or another revive that took the session leaves it
-  private async isHarnessRestartable(s: Session, pty: HarnessHandle): Promise<boolean> {
+  private async probeHarnessRestartable(s: Session, pty: HarnessHandle): Promise<boolean> {
     if (s.pty === pty) {
       return true;
     }

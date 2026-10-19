@@ -184,7 +184,7 @@ function findLoadParen(tokens: readonly Token[], i: number): number | null {
   }
 
   if (token.kind === SyntaxKind.NewKeyword && hasTexts(tokens, i + 1, ['URL', '('])) {
-    const close = findCloseParen(tokens, i + 2);
+    const close = getCloseParen(tokens, i + 2);
 
     for (let j = i + 3; j < close; j += 1) {
       if (hasTexts(tokens, j, ['import', '.', 'meta', '.', 'url'])) {
@@ -200,7 +200,7 @@ function hasTexts(tokens: readonly Token[], start: number, texts: readonly strin
   return texts.every((text, offset) => tokens[start + offset]?.text === text);
 }
 
-function findCloseParen(tokens: readonly Token[], open: number): number {
+function getCloseParen(tokens: readonly Token[], open: number): number {
   let depth = 0;
 
   for (let j = open; j < tokens.length; j += 1) {

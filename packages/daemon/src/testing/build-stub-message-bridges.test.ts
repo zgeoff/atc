@@ -19,7 +19,7 @@ test('it records each start and answers with a bridge on the stub binary', async
       ackMessage: mock<MessageBridgeHost['ackMessage']>(),
       ackNotice: mock<MessageBridgeHost['ackNotice']>(),
       applyNote: mock<MessageBridgeHost['applyNote']>(),
-      collectUnsettledMessages: mock<MessageBridgeHost['collectUnsettledMessages']>(),
+      readUnsettledMessages: mock<MessageBridgeHost['readUnsettledMessages']>(),
       log: mock<MessageBridgeHost['log']>(),
     },
   };
@@ -47,7 +47,7 @@ test('it records what the daemon asks of a bridge', async () => {
       ackMessage: mock<MessageBridgeHost['ackMessage']>(),
       ackNotice: mock<MessageBridgeHost['ackNotice']>(),
       applyNote: mock<MessageBridgeHost['applyNote']>(),
-      collectUnsettledMessages: mock<MessageBridgeHost['collectUnsettledMessages']>(),
+      readUnsettledMessages: mock<MessageBridgeHost['readUnsettledMessages']>(),
       log: mock<MessageBridgeHost['log']>(),
     },
   });

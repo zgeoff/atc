@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isRecord, toAgentID, toSessionID } from '@atc/core';
-import { findDaemonRecord } from '@atc/lifecycle';
+import { readDaemonRecord } from '@atc/lifecycle';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
 import { StateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
@@ -109,7 +109,7 @@ test('it restarts the daemon in place and restores a saved fleet of two live ses
   );
 
   const build = getString(hello, 'daemon');
-  const record = findDaemonRecord(join(daemon.stateDir, 'daemon.json'));
+  const record = readDaemonRecord(join(daemon.stateDir, 'daemon.json'));
 
   invariant(record !== null, 'the state directory records no daemon');
 
@@ -242,7 +242,7 @@ test('it leaves the daemon running when the token file for the replacement canno
 
   expect(restart.exitCode).toBe(1);
   expect(restart.stdout).toInclude('the daemon was left running');
-  expect(findDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.pid).toBe(oldPID);
+  expect(readDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.pid).toBe(oldPID);
   expect(() => process.kill(oldPID, 0)).not.toThrow();
 }, 60_000);
 
@@ -308,7 +308,7 @@ test('it joins a restart already in flight and reports its result without a seco
     }),
   ]);
 
-  const finalPID = findDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.pid;
+  const finalPID = readDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.pid;
 
   const replacement = await daemon.openClient();
 
@@ -408,7 +408,7 @@ test('it completes a restart run from inside a hosted session after the session 
     { timeoutMs: 20_000 },
   );
 
-  const record = findDaemonRecord(join(daemon.stateDir, 'daemon.json'));
+  const record = readDaemonRecord(join(daemon.stateDir, 'daemon.json'));
 
   invariant(record !== null, 'the state directory records no daemon');
 
@@ -493,7 +493,7 @@ test('it restarts through the unit when the daemon is the unit main process, han
   );
 
   const runs = ctx.fake.readSystemdRunCalls();
-  const record = findDaemonRecord(join(daemon.stateDir, 'daemon.json'));
+  const record = readDaemonRecord(join(daemon.stateDir, 'daemon.json'));
 
   invariant(record !== null, 'the state directory records no daemon');
 
@@ -564,7 +564,7 @@ test('it replaces a daemon on another protocol version and prints its refusal', 
   });
 
   await waitFor(() => {
-    expect(findDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.pid).toBe(legacy.pid);
+    expect(readDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.pid).toBe(legacy.pid);
   });
 
   const restart = await runATC({
@@ -577,7 +577,7 @@ test('it replaces a daemon on another protocol version and prints its refusal', 
   const replacement = await daemon.openClient();
   const hello = await replacement.sendHello('atc/test');
 
-  const record = findDaemonRecord(join(daemon.stateDir, 'daemon.json'));
+  const record = readDaemonRecord(join(daemon.stateDir, 'daemon.json'));
 
   invariant(record !== null, 'the state directory records no daemon');
 
@@ -627,7 +627,7 @@ test('it prints the preflight and stops the daemon nowhere on a dry run', async 
   expect(restart.exitCode).toBe(0);
   expect(restart.stdout).toInclude(`daemon: pid ${oldPID}`);
   expect(restart.stdout).toInclude('the interrupted turn does not continue');
-  expect(findDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.pid).toBe(oldPID);
+  expect(readDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.pid).toBe(oldPID);
   expect(Bun.peek.status(daemon.proc.exited)).toBe('pending');
 });
 
@@ -672,6 +672,6 @@ test('it refuses a --listen without a token file before it stops the daemon', as
     '--listen and --token-file go together; the daemon was left running',
   );
 
-  expect(findDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.pid).toBe(oldPID);
+  expect(readDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.pid).toBe(oldPID);
   expect(Bun.peek.status(daemon.proc.exited)).toBe('pending');
 });

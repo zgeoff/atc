@@ -18,7 +18,7 @@ async function main() {
     adapter: buildMockAgentAdapter({
       takesMessages: true,
       planHookEvents: () => ({ events: [{ kind: 'prompt-submitted' }] }),
-      buildResumeCommand: () => 'claude --resume',
+      planResumeCommand: () => 'claude --resume',
     }),
     dbPath: join(dir, 'state.db'),
     statusPath: join(dir, 'status.json'),

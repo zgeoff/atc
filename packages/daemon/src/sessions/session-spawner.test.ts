@@ -80,8 +80,8 @@ async function setupTest(config: SetupTestConfig) {
     log: mock<() => void>(),
     now: () => 0,
     getClock: () => systemClock,
-    getAuthBinder: () => authBinder,
-    getRecords: () => records,
+    findAuthBinder: () => authBinder,
+    findRecords: () => records,
   };
 
   const registry = new SessionRegistry({
@@ -371,7 +371,7 @@ test('it drops the stored record of a spawn whose record copy fails to land', as
 
   await spawned.catch(() => null);
 
-  const stored = await ctx.store.findPublishedRecord(toSessionID('s-copy'));
+  const stored = await ctx.store.readPublishedRecord(toSessionID('s-copy'));
 
   expect(spawned).rejects.toThrow();
   expect(stored).toBeNull();

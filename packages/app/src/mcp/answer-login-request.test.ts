@@ -254,7 +254,7 @@ test('it refuses an assertion posted a second time once it signed in', async () 
 
   invariant(ceremony.mode === 'get', 'the login page asked to enroll');
 
-  const assertion = await ctx.authenticator.get(ceremony.options, { origin: ctx.origin });
+  const assertion = await ctx.authenticator.signAssertion(ceremony.options, { origin: ctx.origin });
 
   const sendAssertion = () =>
     fetch(`${ctx.url}/login`, {
@@ -300,7 +300,7 @@ test('it refuses an assertion whose challenge a failed sign-in already took', as
 
   invariant(ceremony.mode === 'get', 'the login page asked to enroll');
 
-  const assertion = await ctx.authenticator.get(ceremony.options, { origin: ctx.origin });
+  const assertion = await ctx.authenticator.signAssertion(ceremony.options, { origin: ctx.origin });
 
   await fetch(`${ctx.url}/login`, {
     method: 'POST',
@@ -348,7 +348,7 @@ test('it refuses an assertion signed more than five minutes after its page as ex
 
   invariant(ceremony.mode === 'get', 'the login page asked to enroll');
 
-  const assertion = await ctx.authenticator.get(ceremony.options, { origin: ctx.origin });
+  const assertion = await ctx.authenticator.signAssertion(ceremony.options, { origin: ctx.origin });
 
   ctx.clock.advance(300_000);
 
@@ -436,7 +436,9 @@ test("it refuses an assertion signed for one request's page when posted for anot
 
   invariant(firstCeremony.mode === 'get', 'the login page asked to enroll');
 
-  const assertion = await ctx.authenticator.get(firstCeremony.options, { origin: ctx.origin });
+  const assertion = await ctx.authenticator.signAssertion(firstCeremony.options, {
+    origin: ctx.origin,
+  });
 
   const crossed = await fetch(`${ctx.url}/login`, {
     method: 'POST',
@@ -479,7 +481,7 @@ test('it refuses the assertion of an earlier tab once a later tab opened the sam
 
   invariant(earlier.mode === 'get', 'the login page asked to enroll');
 
-  const assertion = await ctx.authenticator.get(earlier.options, { origin: ctx.origin });
+  const assertion = await ctx.authenticator.signAssertion(earlier.options, { origin: ctx.origin });
 
   const signedIn = await fetch(`${ctx.url}/login`, {
     method: 'POST',
@@ -564,7 +566,7 @@ test('it refuses the enrolled passkey once five failed sign-ins ended the reques
 
   invariant(ceremony.mode === 'get', 'the login page asked to enroll');
 
-  const assertion = await ctx.authenticator.get(ceremony.options, { origin: ctx.origin });
+  const assertion = await ctx.authenticator.signAssertion(ceremony.options, { origin: ctx.origin });
 
   for (const attempt of [1, 2, 3, 4, 5]) {
     await fetch(`${ctx.url}/login`, {

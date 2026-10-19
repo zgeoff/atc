@@ -1,8 +1,8 @@
 import { isRecord } from '@atc/core';
 import { buildConsentBinding } from './build-consent-binding';
 import { buildPageResponse } from './build-page-response';
-import { findOwnerSessionID } from './find-owner-session-id';
 import { PASSKEY_SCRIPT } from './passkey-script';
+import { readOwnerSessionID } from './read-owner-session-id';
 import { renderLoginPage } from './render-login-page';
 import type { HTTPServerContext, OwnerAuthFailure, Requester } from './types';
 import { verifyPasskeyAssertion } from './verify-passkey-assertion';
@@ -42,7 +42,7 @@ export async function answerLoginRequest(
     redirectURI: approval.redirectURI,
   };
 
-  const enrolled = await hasPasskey(ctx);
+  const enrolled = await probePasskey(ctx);
 
   if (method === 'GET') {
     return enrolled
@@ -133,7 +133,7 @@ export async function answerLoginRequest(
 
   const setCookies = signedIn.headers.getSetCookie();
 
-  const sessionID = await findOwnerSessionID(
+  const sessionID = await readOwnerSessionID(
     ctx,
     setCookies.map((line) => line.split(';')[0]).join('; '),
   );
@@ -194,7 +194,7 @@ function verifyAssertion(
   });
 }
 
-async function hasPasskey(ctx: HTTPServerContext): Promise<boolean> {
+async function probePasskey(ctx: HTTPServerContext): Promise<boolean> {
   const row = await ctx.store.db.selectFrom('atc_passkey').select('id').limit(1).executeTakeFirst();
 
   return row !== undefined;

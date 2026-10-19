@@ -1,7 +1,7 @@
 import { definePlugin } from '@atc/plugin-api';
 import { z } from 'zod';
 import { buildDirsSource } from './build-dirs-source';
-import { collectZoxideDirs } from './collect-zoxide-dirs';
+import { readZoxideDirs } from './read-zoxide-dirs';
 
 export const DIRS_SOURCE_PLUGIN = definePlugin({
   kind: 'source',
@@ -12,6 +12,6 @@ export const DIRS_SOURCE_PLUGIN = definePlugin({
     buildDirsSource({
       roots: config.roots,
       homeDir: config.homeDir,
-      collectZoxideDirs: () => collectZoxideDirs(host.runCommand),
+      readZoxideDirs: () => readZoxideDirs(host.runCommand),
     }),
 });

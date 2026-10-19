@@ -147,14 +147,14 @@ async function readDaemonPart(
   }
 
   const page = await sendEventsRead(read, daemon, { limit: read.limit });
-  const olderUnread = await hasOlderEvents(read, daemon, page.events);
+  const olderUnread = await probeOlderEvents(read, daemon, page.events);
 
   return { daemon, before: { cursor: null }, page, unstarted: { olderUnread } };
 }
 
 // Whether the daemon holds an event older than the first of a page of its
 // latest events, read as the first event after the start of its trail.
-async function hasOlderEvents(
+async function probeOlderEvents(
   read: DaemonRead,
   daemon: RegistryDaemon,
   events: readonly Readonly<Record<string, unknown>>[],

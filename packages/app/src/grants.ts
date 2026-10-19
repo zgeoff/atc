@@ -1,8 +1,8 @@
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { mcpAuthDBFile } from '@atc/config';
-import { collectGrants } from './mcp/collect-grants';
 import { openMCPAuth } from './mcp/open-mcp-auth';
+import { readGrantViews } from './mcp/read-grant-views';
 import { revokeGrant } from './mcp/revoke-grant';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
 
@@ -51,7 +51,7 @@ export async function runGrants(
       return;
     }
 
-    const grants = await collectGrants(store.db);
+    const grants = await readGrantViews(store.db);
 
     if (grants.length === 0) {
       io.print('No grants.');

@@ -2,8 +2,8 @@ import type { SpawnWorkspaceSource } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
 import { checkURLCredentials } from './check-url-credentials';
 import { expandGitShorthand } from './expand-git-shorthand';
-import { findCredentialSecret } from './find-credential-secret';
 import { normalizeGitURL } from './normalize-git-url';
+import { readCredentialSecret } from './read-credential-secret';
 import { requireStartFailure } from './require-start-failure';
 import { resolveGitURL } from './resolve-git-url';
 import { resolvePathSource } from './resolve-path-source';
@@ -57,7 +57,7 @@ export async function resolveSource(
 
   // A credential the clone would refuse is refused here, before any host
   // is readied for it.
-  if (source.credentialRef !== undefined && findCredentialSecret(source) === null) {
+  if (source.credentialRef !== undefined && readCredentialSecret(source) === null) {
     throw new DaemonError(
       'credential_missing',
       'the credential environment variable is unset or empty',

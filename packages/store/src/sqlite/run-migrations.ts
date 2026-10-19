@@ -13,8 +13,8 @@ const PROVIDER: MigrationProvider = {
 // A database without a migration ledger is new when it holds no fleet table,
 // and is refused when it holds one, since no step can tell its shape.
 export async function runMigrations(db: Kysely<StateStoreSchema>): Promise<void> {
-  const hasLedger = await hasTable(db, DEFAULT_MIGRATION_TABLE);
-  const hasFleet = await hasTable(db, 'fleet');
+  const hasLedger = await probeTable(db, DEFAULT_MIGRATION_TABLE);
+  const hasFleet = await probeTable(db, 'fleet');
 
   if (!hasLedger && hasFleet) {
     throw new PreLadderDatabaseError();
@@ -29,7 +29,7 @@ export async function runMigrations(db: Kysely<StateStoreSchema>): Promise<void>
   requireMigrated(latest);
 }
 
-async function hasTable(db: Kysely<StateStoreSchema>, name: string): Promise<boolean> {
+async function probeTable(db: Kysely<StateStoreSchema>, name: string): Promise<boolean> {
   const result = await sql<{
     name: string;
   }>`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ${name}`.execute(db);

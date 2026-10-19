@@ -22,7 +22,7 @@ export class EventTrailStore {
 
   // The latest hook-event timestamp per agent session id, from the event
   // trail. Sessions that never reported an event are absent.
-  async collectFleetRecency(): Promise<Map<AgentSessionID, string>> {
+  async readFleetRecency(): Promise<Map<AgentSessionID, string>> {
     const rows = await this.db
       .selectFrom('events')
       .select(['session_id', sql<string>`MAX(ts)`.as('ts')])
@@ -91,7 +91,7 @@ export class EventTrailStore {
     return result.numInsertedOrUpdatedRows !== 0n;
   }
 
-  async collectEventsAfter(
+  async readEventsAfter(
     afterID: number,
     limit: number,
     scope: EventScope | null,
@@ -111,7 +111,7 @@ export class EventTrailStore {
 
   // A row that is not a note, or that lies outside the scope, misses as a
   // row the trail never held does.
-  async findNote(id: number, scope: EventScope | null): Promise<StoredNote | null> {
+  async readNote(id: number, scope: EventScope | null): Promise<StoredNote | null> {
     const row = await this.db
       .selectFrom('events')
       .select(['id', 'ts', 'atc_id', 'session_id', 'message', 'detail', 'note_text'])
@@ -137,7 +137,7 @@ export class EventTrailStore {
 
   // A row that is not an answered message, or that lies outside the scope,
   // misses as a row the trail never held does.
-  async findAnswer(id: number, scope: EventScope | null): Promise<StoredAnswer | null> {
+  async readAnswer(id: number, scope: EventScope | null): Promise<StoredAnswer | null> {
     const row = await this.db
       .selectFrom('events')
       .select(['id', 'ts', 'atc_id', 'session_id', 'message', 'detail', 'answer_text'])
@@ -161,7 +161,7 @@ export class EventTrailStore {
     };
   }
 
-  async collectLatestEvents(limit: number, scope: EventScope | null): Promise<StoredEvent[]> {
+  async readLatestEvents(limit: number, scope: EventScope | null): Promise<StoredEvent[]> {
     const rows = await this.db
       .selectFrom('events')
       .select(['id', 'ts', 'atc_id', 'session_id', 'kind', 'detail', 'message'])

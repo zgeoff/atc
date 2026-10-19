@@ -21,7 +21,7 @@ export function loadGrokName(
 ): Promise<NameUpdate | null> {
   // grok files a session under the directory it started in, so a gone `source` falls back to the
   // same session id under any directory in `home`
-  const summary = readSummary(source) ?? readSummary(findGrokSummary(home, source));
+  const summary = readSummary(source) ?? readSummary(readGrokSummary(home, source));
   const update = summary === null ? null : buildNameUpdate(summary, namedBy);
 
   return Promise.resolve(update);
@@ -64,7 +64,7 @@ function readSummary(source: string | null): GrokSummary | null {
   }
 }
 
-function findGrokSummary(home: string, source: string): string | null {
+function readGrokSummary(home: string, source: string): string | null {
   const sessionID = source.split('/').at(-2);
 
   if (sessionID === undefined || sessionID === '') {

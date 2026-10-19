@@ -1,7 +1,5 @@
-import { getSourceEntry } from './get-source-entry';
-
-export function buildStubMCPGrok(): string {
-  const cliPath = getSourceEntry('atc');
+export function buildStubMCPGrok(cliEntry: string): string {
+  const cliPath = cliEntry;
 
   return `#!/usr/bin/env bash
 echo $$ >> "$HOME/stub-pids"

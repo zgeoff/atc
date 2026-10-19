@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { openDaemonClient } from '@atc/protocol/client';
-import { collectPasskeys } from '../../app/src/mcp/collect-passkeys';
 import { createEnrollmentToken } from '../../app/src/mcp/create-enrollment-token';
 import { openMCPAuth } from '../../app/src/mcp/open-mcp-auth';
+import { readPasskeyViews } from '../../app/src/mcp/read-passkey-views';
 import { startMCPHTTPServer } from '../../app/src/mcp/start-mcp-http-server';
 import { TransportCaller } from '../../app/src/mcp/transport-caller';
 import { openMCPAuthDatabase } from '../../app/src/open-mcp-auth-database';
@@ -57,7 +57,7 @@ test("it enrolls the authenticator's passkey with the token", async () => {
 
   await runPasskeyEnrollment(ctx, enrollment.token, authenticator);
 
-  const passkeys = await collectPasskeys(ctx.store.db);
+  const passkeys = await readPasskeyViews(ctx.store.db);
 
   expect(passkeys).toStrictEqual([
     { id: authenticator.credentialID, createdAt: expect.toBeString(), lastUsedAt: null },

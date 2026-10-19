@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { unlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { findDaemonRecord } from '@atc/lifecycle';
+import { readDaemonRecord } from '@atc/lifecycle';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { startStubLegacyDaemonProcess, startTUIHarness } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
@@ -16,7 +16,7 @@ async function setupTest() {
 
   await harness.waitFor('idle');
 
-  const first = findDaemonRecord(join(stateDir, 'daemon.json'));
+  const first = readDaemonRecord(join(stateDir, 'daemon.json'));
 
   invariant(first !== null, 'the first daemon wrote no record');
 
