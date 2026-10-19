@@ -17,14 +17,14 @@ export class AuthBindingStore {
   }
 
   // Records a host's binding as its first attempt starts provisioning it,
-  // at the first revision, before the imp exists.
+  // at the first revision, before the host exists.
   async createAuthBinding(
     row: Pick<
       RuntimeAuthBinding,
       | 'hostKey'
       | 'target'
       | 'targetIdentity'
-      | 'impName'
+      | 'hostName'
       | 'bindingHash'
       | 'bindingJSON'
       | 'attemptID'
@@ -37,14 +37,14 @@ export class AuthBindingStore {
         host_key: row.hostKey,
         target: row.target,
         target_identity: row.targetIdentity,
-        imp_name: row.impName,
-        imp_id: null,
+        host_name: row.hostName,
+        host_id: null,
         revision: 1,
         binding_hash: row.bindingHash,
         binding_json: row.bindingJSON,
         state: 'provisioning',
         attempt_id: row.attemptID,
-        imp_created_by_attempt: 0,
+        host_created_by_attempt: 0,
         rebind_revision: null,
         rebind_binding_hash: null,
         rebind_binding_json: null,
@@ -65,10 +65,10 @@ export class AuthBindingStore {
       .updateTable('runtime_auth_binding')
       .set({
         ...(fields.state === undefined ? {} : { state: fields.state }),
-        ...(fields.impID === undefined ? {} : { imp_id: fields.impID }),
-        ...(fields.impCreatedByAttempt === undefined
+        ...(fields.hostID === undefined ? {} : { host_id: fields.hostID }),
+        ...(fields.hostCreatedByAttempt === undefined
           ? {}
-          : { imp_created_by_attempt: fields.impCreatedByAttempt ? 1 : 0 }),
+          : { host_created_by_attempt: fields.hostCreatedByAttempt ? 1 : 0 }),
         ...(fields.revision === undefined ? {} : { revision: fields.revision }),
         ...(fields.bindingHash === undefined ? {} : { binding_hash: fields.bindingHash }),
         ...(fields.bindingJSON === undefined ? {} : { binding_json: fields.bindingJSON }),
@@ -156,7 +156,7 @@ export class AuthBindingStore {
   }
 
   // Drops a host's binding and every grant row it holds together, once
-  // impd confirms the imp and its grants gone.
+  // the broker confirms the host and its grants gone.
   async removeAuthBinding(hostKey: SessionID): Promise<void> {
     await this.db.transaction().execute(async (trx) => {
       await trx.deleteFrom('runtime_auth_grant').where('host_key', '=', hostKey).execute();
@@ -165,8 +165,8 @@ export class AuthBindingStore {
   }
 
   // Runs once as a daemon starts, before it serves a request: a grant still
-  // granting belonged to a daemon that stopped before impd answered, so
-  // whether impd holds it is uncertain until its grant list is read.
+  // granting belonged to a daemon that stopped before the broker answered, so
+  // whether the broker holds it is uncertain until its grant list is read.
   async reconcileAuthBindings(at: number): Promise<void> {
     await this.db
       .updateTable('runtime_auth_grant')
@@ -183,14 +183,14 @@ function toRuntimeAuthBinding(
     hostKey: toSessionID(row.host_key),
     target: row.target,
     targetIdentity: row.target_identity,
-    impName: row.imp_name,
-    impID: row.imp_id,
+    hostName: row.host_name,
+    hostID: row.host_id,
     revision: row.revision,
     bindingHash: row.binding_hash,
     bindingJSON: row.binding_json,
     state: row.state,
     attemptID: row.attempt_id,
-    impCreatedByAttempt: row.imp_created_by_attempt === 1,
+    hostCreatedByAttempt: row.host_created_by_attempt === 1,
     rebind:
       row.rebind_revision === null ||
       row.rebind_binding_hash === null ||

@@ -109,7 +109,7 @@ test('it keeps a stored live row on another target whose agent session id a writ
   const remote = buildMockFleetEntry({
     agentSessionID: toAgentSessionID('c-shared'),
     target: 'box',
-    targetIdentity: 'imp:box',
+    targetIdentity: 'remote:box',
   });
 
   const local = buildMockFleetEntry({
@@ -132,7 +132,7 @@ test('it keeps a live entry on another target beside a later entry that holds it
   const remote = buildMockFleetEntry({
     agentSessionID: toAgentSessionID('c-shared'),
     target: 'box',
-    targetIdentity: 'imp:box',
+    targetIdentity: 'remote:box',
   });
 
   const local = buildMockFleetEntry({
@@ -166,7 +166,7 @@ test('it keeps the later of two live entries on one target when a live entry on 
   const remote = buildMockFleetEntry({
     agentSessionID: toAgentSessionID('c-shared'),
     target: 'box',
-    targetIdentity: 'imp:box',
+    targetIdentity: 'remote:box',
   });
 
   await ctx.store.writeFleet([first, second, remote]);
@@ -194,7 +194,7 @@ test('it drops a stored live row on the target of a written entry when a live en
   const remote = buildMockFleetEntry({
     agentSessionID: toAgentSessionID('c-shared'),
     target: 'box',
-    targetIdentity: 'imp:box',
+    targetIdentity: 'remote:box',
   });
 
   await ctx.store.writeFleet([first]);
@@ -211,7 +211,7 @@ test('it drops a stored exited row on another target whose agent session id a wr
   const remote = buildMockFleetEntry({
     agentSessionID: toAgentSessionID('c-shared'),
     target: 'box',
-    targetIdentity: 'imp:box',
+    targetIdentity: 'remote:box',
     exited: true,
   });
 
@@ -504,14 +504,14 @@ test('it lists a spawn directory once for each target it was spawned on', async 
   const ctx = await setupTest();
 
   await ctx.store.recordSpawnDir('/a', { target: 'local', targetIdentity: 'local-pty:x' }, 1000);
-  await ctx.store.recordSpawnDir('/a', { target: 'box', targetIdentity: 'imp:y' }, 2000);
-  await ctx.store.recordSpawnDir('/a', { target: 'box', targetIdentity: 'imp:z' }, 3000);
+  await ctx.store.recordSpawnDir('/a', { target: 'box', targetIdentity: 'remote:y' }, 2000);
+  await ctx.store.recordSpawnDir('/a', { target: 'box', targetIdentity: 'remote:z' }, 3000);
 
   const dirs = await ctx.store.collectSpawnDirs();
 
   expect(dirs).toStrictEqual([
-    { cwd: '/a', grant: { target: 'box', targetIdentity: 'imp:z' } },
-    { cwd: '/a', grant: { target: 'box', targetIdentity: 'imp:y' } },
+    { cwd: '/a', grant: { target: 'box', targetIdentity: 'remote:z' } },
+    { cwd: '/a', grant: { target: 'box', targetIdentity: 'remote:y' } },
     { cwd: '/a', grant: { target: 'local', targetIdentity: 'local-pty:x' } },
   ]);
 });
@@ -688,7 +688,7 @@ test('it round-trips a fleet row whose harness is kept inside a sleeping host', 
 test('it round-trips a fleet row with its execution target and identity', async () => {
   const ctx = await setupTest();
 
-  const remote = buildMockFleetEntry({ target: 'box', targetIdentity: 'imp:0123456789abcdef' });
+  const remote = buildMockFleetEntry({ target: 'box', targetIdentity: 'remote:0123456789abcdef' });
   const untargeted = buildMockFleetEntry();
 
   await ctx.store.writeFleet([remote, untargeted]);
@@ -1053,6 +1053,7 @@ test('it runs every migration once on the first open of a fresh database', async
     '035_add_fleet_suspended',
     '036_add_fleet_plugin_dirs',
     '037_drop_fleet_resume_interrupted_turns',
+    '038_rename_runtime_auth_binding_host_columns',
   ]);
 });
 
@@ -1150,6 +1151,103 @@ test('it records the resume column drop and keeps the fleet when a crash left th
   expect(rows).toStrictEqual([{ session_id: 's-1', name: 'nightly-build' }]);
 });
 
+test('it reads a runtime auth binding bound before the host column rename as the same binding after it', async () => {
+  const tmp = setupTempDir('atc-store-');
+  const dbPath = join(tmp.dir, 'state.db');
+
+  const older = new Database(dbPath);
+
+  registerTestCleanup(() => {
+    older.close();
+  });
+
+  const db = new Kysely<StateStoreSchema>({ dialect: buildSQLiteDialect(older) });
+
+  await new Migrator({
+    db,
+    provider: { getMigrations: () => Promise.resolve(MIGRATIONS) },
+  }).migrateTo('037_drop_fleet_resume_interrupted_turns');
+
+  older.run(
+    `INSERT INTO runtime_auth_binding (host_key, target, target_identity, imp_name, imp_id, revision, binding_hash, binding_json, state, attempt_id, imp_created_by_attempt, rebind_revision, rebind_binding_hash, rebind_binding_json, rebind_attempt_id, created_at, updated_at, revoked_at) VALUES ('s1', 'box', 'remote:0123456789abcdef', 'atc-s1', 'host-id-1', 2, '${'a'.repeat(64)}', '{"secrets":["glm"]}', 'ready', 'attempt-2', 1, NULL, NULL, NULL, NULL, 1000, 2000, NULL)`,
+  );
+
+  older.close();
+
+  const upgraded = await StateStore.open(dbPath);
+
+  registerTestCleanup(() => upgraded.stop());
+
+  const binding = await upgraded.findAuthBinding(toSessionID('s1'));
+
+  expect(binding).toStrictEqual({
+    hostKey: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'remote:0123456789abcdef',
+    hostName: 'atc-s1',
+    hostID: 'host-id-1',
+    revision: 2,
+    bindingHash: 'a'.repeat(64),
+    bindingJSON: '{"secrets":["glm"]}',
+    state: 'ready',
+    attemptID: 'attempt-2',
+    hostCreatedByAttempt: true,
+    rebind: null,
+    createdAt: 1000,
+    updatedAt: 2000,
+    revokedAt: null,
+  });
+});
+
+test('it finishes the host column rename and keeps the binding when a crash left one column renamed but the step unrecorded', async () => {
+  const tmp = setupTempDir('atc-store-');
+  const dbPath = join(tmp.dir, 'state.db');
+
+  const older = new Database(dbPath);
+
+  registerTestCleanup(() => {
+    older.close();
+  });
+
+  const db = new Kysely<StateStoreSchema>({ dialect: buildSQLiteDialect(older) });
+
+  await new Migrator({
+    db,
+    provider: { getMigrations: () => Promise.resolve(MIGRATIONS) },
+  }).migrateTo('037_drop_fleet_resume_interrupted_turns');
+
+  older.run(
+    `INSERT INTO runtime_auth_binding (host_key, target, target_identity, imp_name, imp_id, revision, binding_hash, binding_json, state, attempt_id, imp_created_by_attempt, created_at, updated_at) VALUES ('s1', 'box', 'remote:0123456789abcdef', 'atc-s1', NULL, 1, '${'a'.repeat(64)}', '{"secrets":[]}', 'provisioning', 'attempt-1', 0, 1000, 1000)`,
+  );
+
+  older.run('ALTER TABLE runtime_auth_binding RENAME COLUMN imp_name TO host_name');
+  older.close();
+
+  const upgraded = await StateStore.open(dbPath);
+
+  registerTestCleanup(() => upgraded.stop());
+
+  const binding = await upgraded.findAuthBinding(toSessionID('s1'));
+
+  expect(binding).toStrictEqual({
+    hostKey: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'remote:0123456789abcdef',
+    hostName: 'atc-s1',
+    hostID: null,
+    revision: 1,
+    bindingHash: 'a'.repeat(64),
+    bindingJSON: '{"secrets":[]}',
+    state: 'provisioning',
+    attemptID: 'attempt-1',
+    hostCreatedByAttempt: false,
+    rebind: null,
+    createdAt: 1000,
+    updatedAt: 1000,
+    revokedAt: null,
+  });
+});
+
 test('it re-runs no migration when it reopens a migrated database', async () => {
   const tmp = setupTempDir('atc-store-');
   const dbPath = join(tmp.dir, 'state.db');
@@ -1179,7 +1277,7 @@ test('it re-runs no migration when it reopens a migrated database', async () => 
     .all()
     .map((row) => row.timestamp);
 
-  expect(stamps).toStrictEqual(Array.from({ length: 37 }, () => 'sentinel'));
+  expect(stamps).toStrictEqual(Array.from({ length: 38 }, () => 'sentinel'));
 });
 
 test('it keeps the fleet of a migrated database across a reopen', async () => {
@@ -4437,14 +4535,14 @@ test('it upgrades a database from before runtime auth and keeps every existing r
   const entry = buildMockFleetEntry({
     sessionID: toSessionID('s1'),
     target: 'box',
-    targetIdentity: 'imp:0123456789abcdef',
+    targetIdentity: 'remote:0123456789abcdef',
   });
 
   await ctx.store.writeFleet([entry]);
 
   await ctx.store.recordSpawnDir(
     '/x',
-    { target: 'box', targetIdentity: 'imp:0123456789abcdef' },
+    { target: 'box', targetIdentity: 'remote:0123456789abcdef' },
     1000,
   );
 
@@ -4475,7 +4573,7 @@ test('it upgrades a database from before runtime auth and keeps every existing r
     .query<{ name: string }, []>('SELECT name FROM kysely_migration ORDER BY name')
     .all()
     .map((row) => row.name)
-    .slice(-13, -10);
+    .slice(-14, -11);
 
   const fleet = await upgraded.loadFleet();
   const dirs = await upgraded.collectSpawnDirs();
@@ -4484,7 +4582,7 @@ test('it upgrades a database from before runtime auth and keeps every existing r
   expect(fleet).toStrictEqual([entry]);
 
   expect(dirs).toStrictEqual([
-    { cwd: '/x', grant: { target: 'box', targetIdentity: 'imp:0123456789abcdef' } },
+    { cwd: '/x', grant: { target: 'box', targetIdentity: 'remote:0123456789abcdef' } },
   ]);
 
   expect(binding).toBeNull();
@@ -4509,7 +4607,7 @@ test('it carries every fleet row and column across the rebuild that lets two row
     model: 'opus',
     effort: 'high',
     target: 'box',
-    targetIdentity: 'imp:0123456789abcdef',
+    targetIdentity: 'remote:0123456789abcdef',
     desired: 'sleep',
     hostKey: toSessionID('s-host'),
     authRevision: 2,
@@ -4547,8 +4645,8 @@ test('it records a runtime auth binding as provisioning at its first revision', 
     {
       hostKey: toSessionID('s1'),
       target: 'box',
-      targetIdentity: 'imp:0123456789abcdef',
-      impName: 'harness-s1',
+      targetIdentity: 'remote:0123456789abcdef',
+      hostName: 'harness-s1',
       bindingHash: 'a'.repeat(64),
       bindingJSON: '{"secrets":[]}',
       attemptID: 'attempt-1',
@@ -4561,15 +4659,15 @@ test('it records a runtime auth binding as provisioning at its first revision', 
   expect(binding).toStrictEqual({
     hostKey: toSessionID('s1'),
     target: 'box',
-    targetIdentity: 'imp:0123456789abcdef',
-    impName: 'harness-s1',
-    impID: null,
+    targetIdentity: 'remote:0123456789abcdef',
+    hostName: 'harness-s1',
+    hostID: null,
     revision: 1,
     bindingHash: 'a'.repeat(64),
     bindingJSON: '{"secrets":[]}',
     state: 'provisioning',
     attemptID: 'attempt-1',
-    impCreatedByAttempt: false,
+    hostCreatedByAttempt: false,
     rebind: null,
     createdAt: 1000,
     updatedAt: 1000,
@@ -4584,8 +4682,8 @@ test('it keeps the old revision of a binding whose rebind failed beside the fail
     {
       hostKey: toSessionID('s1'),
       target: 'box',
-      targetIdentity: 'imp:0123456789abcdef',
-      impName: 'atc-s1',
+      targetIdentity: 'remote:0123456789abcdef',
+      hostName: 'atc-s1',
       bindingHash: 'a'.repeat(64),
       bindingJSON: '{"secrets":[]}',
       attemptID: 'attempt-1',
@@ -4595,7 +4693,7 @@ test('it keeps the old revision of a binding whose rebind failed beside the fail
 
   await ctx.store.updateAuthBinding(
     toSessionID('s1'),
-    { state: 'ready', impID: 'imp-id-1', impCreatedByAttempt: true },
+    { state: 'ready', hostID: 'host-id-1', hostCreatedByAttempt: true },
     2000,
   );
 
@@ -4618,15 +4716,15 @@ test('it keeps the old revision of a binding whose rebind failed beside the fail
   expect(binding).toStrictEqual({
     hostKey: toSessionID('s1'),
     target: 'box',
-    targetIdentity: 'imp:0123456789abcdef',
-    impName: 'atc-s1',
-    impID: 'imp-id-1',
+    targetIdentity: 'remote:0123456789abcdef',
+    hostName: 'atc-s1',
+    hostID: 'host-id-1',
     revision: 1,
     bindingHash: 'a'.repeat(64),
     bindingJSON: '{"secrets":[]}',
     state: 'rebind_failed',
     attemptID: 'attempt-1',
-    impCreatedByAttempt: true,
+    hostCreatedByAttempt: true,
     rebind: {
       revision: 2,
       bindingHash: 'b'.repeat(64),
@@ -4646,8 +4744,8 @@ test('it marks a binding revoked with the time of the revocation', async () => {
     {
       hostKey: toSessionID('s1'),
       target: 'box',
-      targetIdentity: 'imp:0123456789abcdef',
-      impName: 'atc-s1',
+      targetIdentity: 'remote:0123456789abcdef',
+      hostName: 'atc-s1',
       bindingHash: 'a'.repeat(64),
       bindingJSON: '{"secrets":[]}',
       attemptID: 'attempt-1',
@@ -4666,15 +4764,15 @@ test('it marks a binding revoked with the time of the revocation', async () => {
   expect(binding).toStrictEqual({
     hostKey: toSessionID('s1'),
     target: 'box',
-    targetIdentity: 'imp:0123456789abcdef',
-    impName: 'atc-s1',
-    impID: null,
+    targetIdentity: 'remote:0123456789abcdef',
+    hostName: 'atc-s1',
+    hostID: null,
     revision: 1,
     bindingHash: 'a'.repeat(64),
     bindingJSON: '{"secrets":[]}',
     state: 'revocation_pending',
     attemptID: 'attempt-1',
-    impCreatedByAttempt: false,
+    hostCreatedByAttempt: false,
     rebind: null,
     createdAt: 1000,
     updatedAt: 2000,
@@ -4752,8 +4850,8 @@ test('it removes a binding and its grants and leaves another host untouched', as
     {
       hostKey: toSessionID('s1'),
       target: 'box',
-      targetIdentity: 'imp:0123456789abcdef',
-      impName: 'atc-s1',
+      targetIdentity: 'remote:0123456789abcdef',
+      hostName: 'atc-s1',
       bindingHash: 'a'.repeat(64),
       bindingJSON: '{"secrets":[]}',
       attemptID: 'attempt-1',
@@ -4765,8 +4863,8 @@ test('it removes a binding and its grants and leaves another host untouched', as
     {
       hostKey: toSessionID('s2'),
       target: 'box',
-      targetIdentity: 'imp:0123456789abcdef',
-      impName: 'atc-s2',
+      targetIdentity: 'remote:0123456789abcdef',
+      hostName: 'atc-s2',
       bindingHash: 'a'.repeat(64),
       bindingJSON: '{"secrets":[]}',
       attemptID: 'attempt-2',
@@ -4811,15 +4909,15 @@ test('it removes a binding and its grants and leaves another host untouched', as
   expect(kept).toStrictEqual({
     hostKey: toSessionID('s2'),
     target: 'box',
-    targetIdentity: 'imp:0123456789abcdef',
-    impName: 'atc-s2',
-    impID: null,
+    targetIdentity: 'remote:0123456789abcdef',
+    hostName: 'atc-s2',
+    hostID: null,
     revision: 1,
     bindingHash: 'a'.repeat(64),
     bindingJSON: '{"secrets":[]}',
     state: 'provisioning',
     attemptID: 'attempt-2',
-    impCreatedByAttempt: false,
+    hostCreatedByAttempt: false,
     rebind: null,
     createdAt: 1000,
     updatedAt: 1000,
@@ -4909,8 +5007,8 @@ test('it collects every host binding by host key', async () => {
     {
       hostKey: toSessionID('s2'),
       target: 'box',
-      targetIdentity: 'imp:0123456789abcdef',
-      impName: 'harness-s2',
+      targetIdentity: 'remote:0123456789abcdef',
+      hostName: 'harness-s2',
       bindingHash: 'a'.repeat(64),
       bindingJSON: '{"secrets":[]}',
       attemptID: 'attempt-s2',
@@ -4922,8 +5020,8 @@ test('it collects every host binding by host key', async () => {
     {
       hostKey: toSessionID('s1'),
       target: 'box',
-      targetIdentity: 'imp:0123456789abcdef',
-      impName: 'harness-s1',
+      targetIdentity: 'remote:0123456789abcdef',
+      hostName: 'harness-s1',
       bindingHash: 'a'.repeat(64),
       bindingJSON: '{"secrets":[]}',
       attemptID: 'attempt-s1',
@@ -4937,15 +5035,15 @@ test('it collects every host binding by host key', async () => {
     {
       hostKey: toSessionID('s1'),
       target: 'box',
-      targetIdentity: 'imp:0123456789abcdef',
-      impName: 'harness-s1',
-      impID: null,
+      targetIdentity: 'remote:0123456789abcdef',
+      hostName: 'harness-s1',
+      hostID: null,
       revision: 1,
       bindingHash: 'a'.repeat(64),
       bindingJSON: '{"secrets":[]}',
       state: 'provisioning',
       attemptID: 'attempt-s1',
-      impCreatedByAttempt: false,
+      hostCreatedByAttempt: false,
       rebind: null,
       createdAt: 1000,
       updatedAt: 1000,
@@ -4954,15 +5052,15 @@ test('it collects every host binding by host key', async () => {
     {
       hostKey: toSessionID('s2'),
       target: 'box',
-      targetIdentity: 'imp:0123456789abcdef',
-      impName: 'harness-s2',
-      impID: null,
+      targetIdentity: 'remote:0123456789abcdef',
+      hostName: 'harness-s2',
+      hostID: null,
       revision: 1,
       bindingHash: 'a'.repeat(64),
       bindingJSON: '{"secrets":[]}',
       state: 'provisioning',
       attemptID: 'attempt-s2',
-      impCreatedByAttempt: false,
+      hostCreatedByAttempt: false,
       rebind: null,
       createdAt: 1000,
       updatedAt: 1000,

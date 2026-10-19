@@ -418,7 +418,7 @@ export class StateStore {
       | 'hostKey'
       | 'target'
       | 'targetIdentity'
-      | 'impName'
+      | 'hostName'
       | 'bindingHash'
       | 'bindingJSON'
       | 'attemptID'

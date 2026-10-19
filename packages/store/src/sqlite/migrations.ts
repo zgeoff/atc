@@ -464,4 +464,27 @@ export const MIGRATIONS: Record<string, Migration> = {
       }
     },
   },
+  '038_rename_runtime_auth_binding_host_columns': {
+    async up(db: Kysely<StateStoreSchema>) {
+      // A column renames only while it still carries the old name, so the
+      // step can run again after a crash.
+      const columns = await sql<ColumnInfoRow>`PRAGMA table_info(runtime_auth_binding)`.execute(db);
+
+      const names = new Set(columns.rows.map((column) => column.name));
+
+      if (names.has('imp_name')) {
+        await sql`ALTER TABLE runtime_auth_binding RENAME COLUMN imp_name TO host_name`.execute(db);
+      }
+
+      if (names.has('imp_id')) {
+        await sql`ALTER TABLE runtime_auth_binding RENAME COLUMN imp_id TO host_id`.execute(db);
+      }
+
+      if (names.has('imp_created_by_attempt')) {
+        await sql`ALTER TABLE runtime_auth_binding RENAME COLUMN imp_created_by_attempt TO host_created_by_attempt`.execute(
+          db,
+        );
+      }
+    },
+  },
 };

@@ -6,7 +6,7 @@ import { tryRevokeGrant } from './try-revoke-grant';
 import { verifyCleanupAuthority } from './verify-cleanup-authority';
 
 // Revokes each bound or recorded grant and returns the secrets it could
-// not confirm gone. An imp impd shows gone took every grant with it.
+// not confirm gone. A host the broker shows gone took every grant with it.
 export async function revokeGrants(
   ledger: RuntimeAuthLedger,
   host: CredentialBroker | null,
@@ -16,24 +16,24 @@ export async function revokeGrants(
 
   const secrets = collectBindingSecrets(row, grants);
 
-  if (host === null || row.impID === null) {
+  if (host === null || row.hostID === null) {
     await updateGrantPhases(ledger, { row, grants, secrets, phase: 'revocation_pending' });
 
     return secrets;
   }
 
-  const recorded = { name: row.impName, id: row.impID };
-  let imp: BrokerHost | null;
+  const recorded = { name: row.hostName, id: row.hostID };
+  let found: BrokerHost | null;
 
   try {
-    imp = await verifyCleanupAuthority(host, recorded);
+    found = await verifyCleanupAuthority(host, recorded);
   } catch {
     await updateGrantPhases(ledger, { row, grants, secrets, phase: 'revocation_pending' });
 
     return secrets;
   }
 
-  if (imp === null) {
+  if (found === null) {
     await updateGrantPhases(ledger, { row, grants, secrets, phase: 'revoked' });
 
     return [];
@@ -44,7 +44,7 @@ export async function revokeGrants(
   for (const secret of secrets) {
     await updateGrantPhases(ledger, { row, grants, secrets: [secret], phase: 'revoking' });
 
-    const revoked = await tryRevokeGrant(host, row.impName, secret);
+    const revoked = await tryRevokeGrant(host, row.hostName, secret);
 
     const phase = revoked ? 'revoked' : 'revocation_pending';
 

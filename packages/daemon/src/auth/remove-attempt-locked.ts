@@ -1,13 +1,13 @@
 import type { SessionID } from '@atc/core';
 import type { CredentialBroker } from '@atc/plugin-api';
 import { EffectRemainsError } from '@atc/plugin-api';
-import { assertRecordedImpName } from './assert-recorded-imp-name';
+import { assertRecordedHostName } from './assert-recorded-host-name';
 import { formatError } from './format-error';
 import type { RuntimeAuthLedger } from './runtime-auth-ledger';
-import { tryReadImp } from './try-read-imp';
+import { tryReadHost } from './try-read-host';
 import { verifyCleanupAuthority } from './verify-cleanup-authority';
 
-// Takes back a spawn attempt's imp and binding under the host's lock, which
+// Takes back a spawn attempt's host and binding under the host's lock, which
 // the caller holds.
 export async function removeAttemptLocked(
   ledger: RuntimeAuthLedger,
@@ -22,25 +22,25 @@ export async function removeAttemptLocked(
   }
 
   try {
-    if (row.impID === null || !row.impCreatedByAttempt) {
+    if (row.hostID === null || !row.hostCreatedByAttempt) {
       // Nothing this attempt made carries an id, so only an empty name
       // lets the record go.
-      if ((await tryReadImp(host, row.impName)) !== null) {
+      if ((await tryReadHost(host, row.hostName)) !== null) {
         throw new Error(
-          `imp ${row.impName} exists, and nothing shows this attempt created it; reconcile it by hand`,
+          `host ${row.hostName} exists, and nothing shows this attempt created it; reconcile it by hand`,
         );
       }
     } else {
-      assertRecordedImpName(host, row);
+      assertRecordedHostName(host, row);
 
-      const imp = await verifyCleanupAuthority(host, { name: row.impName, id: row.impID });
+      const created = await verifyCleanupAuthority(host, { name: row.hostName, id: row.hostID });
 
-      if (imp !== null) {
+      if (created !== null) {
         await host.destroyHost(hostKey);
       }
 
-      if ((await tryReadImp(host, row.impName)) !== null) {
-        throw new Error(`imp ${row.impName} is still listed after its destroy`);
+      if ((await tryReadHost(host, row.hostName)) !== null) {
+        throw new Error(`host ${row.hostName} is still listed after its destroy`);
       }
     }
   } catch (error) {

@@ -1,14 +1,14 @@
 import { getSettledValue } from '@atc/core';
 import type { CredentialBroker } from '@atc/plugin-api';
 import { BrokerAuthorityError } from './broker-authority-error';
-import { verifyTokenImpAuthority } from './verify-token-imp-authority';
+import { verifyTokenHostAuthority } from './verify-token-host-authority';
 
 interface BrokerActivation {
-  readonly impNames: readonly string[];
+  readonly hostNames: readonly string[];
   readonly secrets: readonly string[];
 }
 
-// reads only, so a refusal leaves impd as it was; whether each secret's rules
+// reads only, so a refusal leaves the broker as it was; whether each secret's rules
 // match the binding is a separate comparison
 export async function verifyBrokerAuthority(
   broker: Pick<CredentialBroker, 'hostPrefix' | 'verifyVersion' | 'readIdentity'>,
@@ -23,14 +23,14 @@ export async function verifyBrokerAuthority(
 
   const identity = getSettledValue(identityRead);
 
-  verifyTokenImpAuthority(identity, activation.impNames, broker.hostPrefix);
+  verifyTokenHostAuthority(identity, activation.hostNames, broker.hostPrefix);
 
   const missing = activation.secrets.filter((secret) => !identity.grantable.includes(secret));
 
   if (missing.length > 0) {
     throw new BrokerAuthorityError(
       'auth_secret_not_grantable',
-      `impd token ${identity.name} cannot grant ${missing.join(', ')}`,
+      `broker token ${identity.name} cannot grant ${missing.join(', ')}`,
       { token: identity.name, grantable: identity.grantable, missing },
     );
   }

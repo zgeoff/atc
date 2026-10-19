@@ -14,7 +14,7 @@ interface RebindAttempt {
   readonly attemptID: string;
 }
 
-// Grants each secret of the new binding the imp lacks, recording one it
+// Grants each secret of the new binding the host lacks, recording one it
 // already holds as preexisting, then revokes each held grant the new
 // binding drops.
 export async function applyRebindGrants(
@@ -27,7 +27,7 @@ export async function applyRebindGrants(
   const revision = attempt.revision;
   const attemptID = attempt.attemptID;
 
-  const held = await host.readGrants(row.impName);
+  const held = await host.readGrants(row.hostName);
 
   const bound = binding.secrets.map((secret) => secret.secret);
 
@@ -45,7 +45,7 @@ export async function applyRebindGrants(
         ledger.now(),
       );
 
-      await host.createGrant(row.impName, secret);
+      await host.createGrant(row.hostName, secret);
 
       await ledger.store.upsertAuthGrant(
         { ...grant, preexisting: false, phase: 'granted' },
@@ -65,12 +65,12 @@ export async function applyRebindGrants(
 
     await ledger.store.upsertAuthGrant({ ...grant, phase: 'revoking' }, ledger.now());
 
-    if (!(await tryRevokeGrant(host, row.impName, secret))) {
+    if (!(await tryRevokeGrant(host, row.hostName, secret))) {
       await ledger.store.upsertAuthGrant({ ...grant, phase: 'revocation_pending' }, ledger.now());
 
       throw new DaemonError(
         'auth_revocation_pending',
-        `imp ${row.impName} may still hold ${secret}, which the new binding drops`,
+        `host ${row.hostName} may still hold ${secret}, which the new binding drops`,
         { host: row.hostKey, pending: [secret] },
       );
     }

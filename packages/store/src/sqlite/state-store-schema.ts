@@ -36,7 +36,7 @@ interface FleetTable {
   host_key: string | null;
 
   // The runtime auth revision the session's latest harness launched under.
-  // Null for a harness that takes no credential from impd's broker, and for
+  // Null for a harness that takes no credential from the broker, and for
   // a row from before launch revisions were recorded.
   auth_revision: number | null;
 
@@ -132,21 +132,21 @@ interface WorkspaceMaterializationTable {
   withheld_env: string | null;
 }
 
-// One host's runtime auth binding, keyed by the session that owns the imp.
+// One host's runtime auth binding, keyed by the session that owns the host.
 // The rebind columns hold a rebind in flight or the one that failed, all
 // null otherwise.
 interface RuntimeAuthBindingTable {
   host_key: string;
   target: string;
   target_identity: string;
-  imp_name: string;
-  imp_id: string | null;
+  host_name: string;
+  host_id: string | null;
   revision: number;
   binding_hash: string;
   binding_json: string;
   state: RuntimeAuthBindingState;
   attempt_id: string;
-  imp_created_by_attempt: number;
+  host_created_by_attempt: number;
   rebind_revision: number | null;
   rebind_binding_hash: string | null;
   rebind_binding_json: string | null;
@@ -156,7 +156,7 @@ interface RuntimeAuthBindingTable {
   revoked_at: number | null;
 }
 
-// One secret's grant to a host's imp, keyed by the host and the secret.
+// One secret's grant to a host, keyed by the host and the secret.
 interface RuntimeAuthGrantTable {
   host_key: string;
   secret: string;

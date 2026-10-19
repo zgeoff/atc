@@ -13,7 +13,7 @@ test('it lets a scoped identity that may grant every bound secret activate the b
     grantable: ['glm', 'judge'],
   });
 
-  await verifyBrokerAuthority(broker, { impNames: ['atc-s1'], secrets: ['glm'] });
+  await verifyBrokerAuthority(broker, { hostNames: ['atc-s1'], secrets: ['glm'] });
 
   expect(broker.calls).toStrictEqual(['verifyVersion', 'readIdentity']);
 });
@@ -30,7 +30,7 @@ test('it refuses an outdated broker with its version refusal before it checks th
     grantable: ['glm'],
   });
 
-  const refusal = verifyBrokerAuthority(broker, { impNames: ['atc-s1'], secrets: ['glm'] });
+  const refusal = verifyBrokerAuthority(broker, { hostNames: ['atc-s1'], secrets: ['glm'] });
 
   expect(refusal).rejects.toMatchObject({ code: 'refused', brokerCode: 'IMPD_OUTDATED' });
   expect(broker.calls).toStrictEqual(['verifyVersion', 'readIdentity']);
@@ -46,7 +46,7 @@ test('it refuses an identity below manage scope', () => {
     grantable: [],
   });
 
-  const refusal = verifyBrokerAuthority(broker, { impNames: ['atc-s1'], secrets: ['glm'] });
+  const refusal = verifyBrokerAuthority(broker, { hostNames: ['atc-s1'], secrets: ['glm'] });
 
   expect(refusal).rejects.toMatchObject({ code: 'auth_token_scope', data: { scope: 'exec' } });
   expect(broker.calls).toStrictEqual(['verifyVersion', 'readIdentity']);
@@ -62,9 +62,9 @@ test('it refuses an identity that reaches every host', () => {
     grantable: [],
   });
 
-  const refusal = verifyBrokerAuthority(broker, { impNames: ['atc-s1'], secrets: ['glm'] });
+  const refusal = verifyBrokerAuthority(broker, { hostNames: ['atc-s1'], secrets: ['glm'] });
 
-  expect(refusal).rejects.toMatchObject({ code: 'auth_token_too_broad', data: { imps: null } });
+  expect(refusal).rejects.toMatchObject({ code: 'auth_token_too_broad', data: { hosts: null } });
   expect(broker.calls).toStrictEqual(['verifyVersion', 'readIdentity']);
 });
 
@@ -145,11 +145,11 @@ test.each([
       grantable: ['glm'],
     });
 
-    const refusal = verifyBrokerAuthority(broker, { impNames: ['atc-s1'], secrets: ['glm'] });
+    const refusal = verifyBrokerAuthority(broker, { hostNames: ['atc-s1'], secrets: ['glm'] });
 
     expect(refusal).rejects.toMatchObject({
       code: 'auth_token_too_broad',
-      data: { token: 'wide', imps: hosts, offending },
+      data: { token: 'wide', hosts, offending },
     });
 
     expect(broker.calls).toStrictEqual(['verifyVersion', 'readIdentity']);
@@ -166,7 +166,7 @@ test('it lets an identity whose literal host names sit inside the namespace acti
     grantable: ['glm'],
   });
 
-  await verifyBrokerAuthority(broker, { impNames: ['atc-s1'], secrets: ['glm'] });
+  await verifyBrokerAuthority(broker, { hostNames: ['atc-s1'], secrets: ['glm'] });
 
   expect(broker.calls).toStrictEqual(['verifyVersion', 'readIdentity']);
 });
@@ -181,11 +181,11 @@ test('it rejects an empty namespace prefix as a broken invariant', () => {
     grantable: ['glm'],
   });
 
-  const refusal = verifyBrokerAuthority(broker, { impNames: ['atc-s1'], secrets: ['glm'] });
+  const refusal = verifyBrokerAuthority(broker, { hostNames: ['atc-s1'], secrets: ['glm'] });
 
   expect(refusal).rejects.toThrowWithMessage(
     Error,
-    'the imp name prefix of a runtime namespace must not be empty',
+    'the host name prefix of a runtime namespace must not be empty',
   );
 
   expect(refusal).rejects.not.toBeInstanceOf(BrokerAuthorityError);
@@ -201,10 +201,10 @@ test('it refuses an identity whose patterns do not cover the host the call touch
     grantable: ['glm'],
   });
 
-  const refusal = verifyBrokerAuthority(broker, { impNames: ['atc-s1'], secrets: ['glm'] });
+  const refusal = verifyBrokerAuthority(broker, { hostNames: ['atc-s1'], secrets: ['glm'] });
 
   expect(refusal).rejects.toMatchObject({
-    code: 'auth_imp_out_of_scope',
+    code: 'auth_host_out_of_scope',
     data: { outside: ['atc-s1'] },
   });
 
@@ -221,7 +221,7 @@ test('it checks the host names of the target namespace rather than a fixed prefi
     grantable: ['glm'],
   });
 
-  await verifyBrokerAuthority(broker, { impNames: ['harness-s1'], secrets: ['glm'] });
+  await verifyBrokerAuthority(broker, { hostNames: ['harness-s1'], secrets: ['glm'] });
 
   expect(broker.calls).toStrictEqual(['verifyVersion', 'readIdentity']);
 });
@@ -237,12 +237,12 @@ test('it refuses when any one of the hosts the call touches is outside the patte
   });
 
   const refusal = verifyBrokerAuthority(broker, {
-    impNames: ['atc-s1', 'prod-db'],
+    hostNames: ['atc-s1', 'prod-db'],
     secrets: ['glm'],
   });
 
   expect(refusal).rejects.toMatchObject({
-    code: 'auth_imp_out_of_scope',
+    code: 'auth_host_out_of_scope',
     data: { outside: ['prod-db'] },
   });
 });
@@ -258,7 +258,7 @@ test('it refuses an identity that may not grant every bound secret', () => {
   });
 
   const refusal = verifyBrokerAuthority(broker, {
-    impNames: ['atc-s1'],
+    hostNames: ['atc-s1'],
     secrets: ['glm', 'judge'],
   });
 

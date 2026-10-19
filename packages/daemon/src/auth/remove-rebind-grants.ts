@@ -3,11 +3,11 @@ import type { CredentialBroker } from '@atc/plugin-api';
 import type { RuntimeAuthLedger } from './runtime-auth-ledger';
 import { tryRevokeGrant } from './try-revoke-grant';
 
-// The rebind attempt whose added grants go: the host, its imp, and the
+// The rebind attempt whose added grants go: the host, its name on the broker, and the
 // attempt that added them.
 interface RebindGrantsRemoval {
   readonly hostKey: SessionID;
-  readonly impName: string;
+  readonly hostName: string;
   readonly attemptID: string;
 }
 
@@ -19,7 +19,7 @@ export async function removeRebindGrants(
   removal: RebindGrantsRemoval,
 ): Promise<void> {
   const hostKey = removal.hostKey;
-  const impName = removal.impName;
+  const hostName = removal.hostName;
   const attemptID = removal.attemptID;
 
   const grants = await ledger.store.collectAuthGrants(hostKey);
@@ -35,7 +35,7 @@ export async function removeRebindGrants(
   );
 
   for (const grant of added) {
-    const revoked = host === null ? false : await tryRevokeGrant(host, impName, grant.secret);
+    const revoked = host === null ? false : await tryRevokeGrant(host, hostName, grant.secret);
 
     await ledger.store.upsertAuthGrant(
       { ...grant, phase: revoked ? 'revoked' : 'revocation_pending' },

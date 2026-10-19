@@ -88,13 +88,13 @@ test('it provisions a host through the gate, a new imp and each grant, in that o
   invariant(imp);
 
   expect(binding).toMatchObject({
-    impName: 'atc-s1',
-    impID: imp.id,
+    hostName: 'atc-s1',
+    hostID: imp.id,
     revision: 1,
     bindingHash: 'h1',
     state: 'provisioning',
     attemptID,
-    impCreatedByAttempt: true,
+    hostCreatedByAttempt: true,
   });
 
   expect(grants).toMatchObject([
@@ -1806,7 +1806,7 @@ test('it refuses to rebind a host whose spawn is still provisioning before it cr
       hostKey: toSessionID('s1'),
       target: 'box',
       targetIdentity: 'imp:test',
-      impName: 'atc-s1',
+      hostName: 'atc-s1',
       bindingHash: 'h1',
       bindingJSON: '{"secrets":[]}',
       attemptID: 'attempt-1',
@@ -2453,7 +2453,7 @@ test('it refuses to rebind a host revoked before its spawn recorded the imp', as
       hostKey: toSessionID('s1'),
       target: 'box',
       targetIdentity: 'imp:test',
-      impName: 'atc-s1',
+      hostName: 'atc-s1',
       bindingHash: 'h1',
       bindingJSON: '{"secrets":[]}',
       attemptID: 'attempt-1',
@@ -2481,7 +2481,7 @@ test('it refuses to rebind a host revoked before its spawn recorded the imp', as
 
   expect(rebound).rejects.toMatchObject({
     code: 'auth_runtime_mismatch',
-    data: { host: 's1', imp: 'atc-s1', recordedID: null, actualID: null },
+    data: { host: 's1', hostName: 'atc-s1', recordedID: null, actualID: null },
   });
 });
 
