@@ -111,6 +111,41 @@ test('it answers a handshake on the current protocol as an older build when told
   expect(client.sendHello('atc/test-build')).resolves.toMatchObject({ daemon: 'atc/legacy-build' });
 });
 
+test('it answers in the line protocol, which the client refuses as a protocol mismatch, when told to speak it', async () => {
+  const ctx = setupTest();
+  const socketPath = join(ctx.dir, 'line.sock');
+
+  const line = Bun.spawn(
+    [
+      process.execPath,
+      join(import.meta.dir, 'run-stub-legacy-daemon.ts'),
+      socketPath,
+      ctx.dir,
+      'line',
+    ],
+    { stdout: 'pipe', stderr: 'ignore' },
+  );
+
+  registerTestCleanup(async () => {
+    line.kill();
+
+    await line.exited;
+  });
+
+  await line.stdout.getReader().read();
+
+  const client = await openDaemonClient(socketPath);
+
+  registerTestCleanup(() => {
+    client.stop();
+  });
+
+  expect(client.sendHello('atc/test-build')).rejects.toMatchObject({
+    code: 'protocol_mismatch',
+    message: 'the daemon speaks an older protocol; restart the daemon so both run the same build',
+  });
+});
+
 test('it stops with a usage error when given no socket path and state directory', async () => {
   const run = await runCommand([
     process.execPath,

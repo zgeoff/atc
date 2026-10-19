@@ -105,6 +105,37 @@ test('it leaves a daemon on another protocol running and rejects when the caller
   expect(() => process.kill(sessionPID, 0)).not.toThrow();
 });
 
+test('it asks to restart a daemon that speaks the line protocol while it waits for one, instead of polling it again', async () => {
+  const ctx = setupTest();
+
+  const line = Bun.spawn([process.execPath, ctx.legacyDaemon, ctx.sockPath, ctx.stateDir, 'line'], {
+    stdout: 'pipe',
+    stderr: 'inherit',
+  });
+
+  registerTestCleanup(async () => {
+    line.kill('SIGTERM');
+
+    await line.exited;
+  });
+
+  await line.stdout.getReader().read();
+
+  const asked: (number | null)[] = [];
+
+  const booting = bootDaemonClient(buildMockLifecycleHost({ paths: ctx.paths }), {
+    waitForDaemonMs: 60_000,
+    onProtocolMismatch: (mismatch) => {
+      asked.push(mismatch.daemonPID);
+
+      return Promise.resolve(false);
+    },
+  });
+
+  expect(booting).rejects.toMatchObject({ code: 'protocol_mismatch' });
+  expect(asked).toStrictEqual([line.pid]);
+});
+
 test('it never asks to restart a daemon on another protocol whose pid it cannot find', async () => {
   const ctx = setupTest();
 

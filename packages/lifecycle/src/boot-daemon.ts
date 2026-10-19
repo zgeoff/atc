@@ -83,10 +83,13 @@ export async function bootDaemonClient(
       };
     } catch (error) {
       const closed = client.isClosed();
+      const isMismatch = error instanceof DaemonError && error.code === 'protocol_mismatch';
 
       client.stop();
 
-      if (wait !== null && closed && clock.now() < wait.deadline) {
+      // A daemon on another protocol closes the connection as it refuses
+      // the handshake, so its refusal ends the wait instead of a new poll.
+      if (wait !== null && closed && !isMismatch && clock.now() < wait.deadline) {
         wait.onWait();
 
         const polled = Promise.withResolvers<void>();
@@ -98,7 +101,7 @@ export async function bootDaemonClient(
         continue;
       }
 
-      if (attempt > 0 || !(error instanceof DaemonError) || error.code !== 'protocol_mismatch') {
+      if (attempt > 0 || !isMismatch) {
         throw error;
       }
 
