@@ -401,7 +401,7 @@ function buildBranch(
   required: readonly unknown[],
   branch: unknown,
 ): Record<string, unknown> {
-  const branchRequired =
+  const branchRequired: readonly unknown[] =
     isSchemaObject(branch) && Array.isArray(branch['required']) ? branch['required'] : [];
 
   return { ...object, required: [...required, ...branchRequired] };
