@@ -11,15 +11,13 @@ function setupTest() {
   const temporaryDirectory = setupTempDir('atc-stub-brokered-claude-');
   const received: string[] = [];
 
-  const server = Bun.serve({
-    hostname: '127.0.0.1',
-    port: 0,
-    fetch: (request) => {
-      received.push(request.headers.get('authorization') ?? '');
+  const answerRequest = (request: Request) => {
+    received.push(request.headers.get('authorization') ?? '');
 
-      return new Response('{}', { status: 200 });
-    },
-  });
+    return new Response('{}', { status: 200 });
+  };
+
+  const server = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: answerRequest });
 
   onTestFinished(async () => {
     await server.stop(true);
