@@ -1,5 +1,4 @@
 import { join } from 'node:path';
-import invariant from 'tiny-invariant';
 import { createStubBin } from './create-stub-bin';
 
 // The variables that route a request through a broker's proxy and trust its
@@ -17,11 +16,9 @@ const PROXY_VARIABLES = [
 // a bearer token to the URL, with the proxy variables of the process that
 // creates it, and writes the HTTP status to `brokered-status` in the dir.
 export function createStubBrokeredClaude(dir: string, url: string): string {
-  const curl = Bun.which('curl');
-  const sed = Bun.which('sed');
-
-  invariant(curl !== null && sed !== null, 'expected curl and sed on the PATH');
-
+  // the guest's PATH may lack the tools the test process finds
+  const curl = Bun.which('curl') ?? 'curl';
+  const sed = Bun.which('sed') ?? 'sed';
   const status = join(dir, 'brokered-status');
 
   const exports = PROXY_VARIABLES.flatMap((name) => {
