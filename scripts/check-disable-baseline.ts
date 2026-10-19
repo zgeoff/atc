@@ -43,6 +43,7 @@ const SOURCE_DIRS = ['packages', 'e2e', 'scripts', 'mods'];
 
 // the require ban keeps every module load in a form the import rules read
 const IMPORT_RULES: ReadonlySet<string> = new Set([
+  'import-zones',
   'no-restricted-imports',
   'no-cycle',
   'no-dynamic-require',

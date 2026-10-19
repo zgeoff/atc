@@ -9,7 +9,6 @@ import { z } from 'zod';
 import { collectImports } from './collect-imports';
 import { collectSourceFiles } from './collect-source-files';
 import { collectTokens } from './collect-tokens';
-import { PACKAGE_RULES } from './package-rules';
 
 async function main(): Promise<void> {
   const root = resolve(process.argv[2] ?? join(import.meta.dir, '..'));
@@ -84,9 +83,7 @@ function checkFile(verb: string, file: string): string[] {
   const owner = findPackage(file);
 
   if (owner === undefined) {
-    return [
-      `unowned module: ${ENTRY} ${verb} ${file}, which sits in no package directory that scripts/package-rules.ts lists`,
-    ];
+    return [`unowned module: ${ENTRY} ${verb} ${file}, which sits in no package's src/ folder`];
   }
 
   const allowed =
@@ -103,14 +100,15 @@ interface Owner {
   readonly path: string;
 }
 
+// A package's directory under packages/ is the part of a path before its
+// src/ folder, and its name here is that directory without the packages/
+// prefix, such as `core` or `harnesses/claude`.
 function findPackage(file: string): Owner | undefined {
-  const rule = PACKAGE_RULES.find((candidate) => file.startsWith(`${candidate.dir}/`));
+  const match = /^packages\/(?<name>.+?)\/(?<path>src\/.+)$/u.exec(file);
+  const name = match?.groups?.['name'];
+  const path = match?.groups?.['path'];
 
-  if (rule === undefined) {
-    return undefined;
-  }
-
-  return { name: rule.name, path: file.slice(rule.dir.length + 1) };
+  return name === undefined || path === undefined ? undefined : { name, path };
 }
 
 function isWithin(path: string, module: string): boolean {

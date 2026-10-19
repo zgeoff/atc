@@ -8,7 +8,6 @@ import { z } from 'zod';
 import type { ImportList } from './collect-imports';
 import { collectImports } from './collect-imports';
 import { collectSourceFiles } from './collect-source-files';
-import { PACKAGE_RULES } from './package-rules';
 
 function main(): void {
   const root = resolve(process.argv[2] ?? join(import.meta.dir, '..'));
@@ -43,7 +42,7 @@ function main(): void {
     }
   }
 
-  findings.push(...checkPreloads(root, packages));
+  findings.push(...checkPreloads(root, packages), ...checkDependencyZones(root, packages));
 
   // the mods belong to no workspace package, but the confinement rules that
   // lint:mods applies read only quoted specifiers too
@@ -162,15 +161,9 @@ function checkManifest(pkg: WorkspacePackage): string[] {
     return findings;
   }
 
-  const rule = PACKAGE_RULES.find((candidate) => candidate.dir === pkg.dir);
-
-  if (rule === undefined) {
-    return [...findings, `unknown package: ${pkg.dir} has no row in the package rules`];
-  }
-
-  if (pkg.manifest.name !== `@atc/${rule.name}`) {
+  if (pkg.manifest.name?.startsWith('@atc/') !== true) {
     findings.push(
-      `package name: ${manifestPath} is named ${pkg.manifest.name}, not @atc/${rule.name}`,
+      `package name: ${manifestPath} is named ${pkg.manifest.name ?? '(none)'}, outside the @atc/ scope`,
     );
   }
 
@@ -184,14 +177,6 @@ function checkManifest(pkg: WorkspacePackage): string[] {
     findings.push(
       `wildcard entry: ${manifestPath} exports ${entry}, which makes every matching file public; list each entry point`,
     );
-  }
-
-  for (const name of Object.keys(pkg.manifest.dependencies ?? {})) {
-    if (name.startsWith('@atc/') && !rule.deps.includes(name.slice('@atc/'.length))) {
-      findings.push(
-        `package rule: ${manifestPath} depends on ${name}, outside @atc/${rule.name}'s row`,
-      );
-    }
   }
 
   return findings;
@@ -338,6 +323,134 @@ function resolveModule(root: string, dir: string, specifier: string): string | u
     (path) =>
       SOURCE_FILE.test(path) && existsSync(join(root, path)) && statSync(join(root, path)).isFile(),
   );
+}
+
+const NAMES_SCHEMA = z.array(z.string());
+
+// The edge options that zgeoff/import-zones takes, which its package keeps
+// private; a strict object fails the check when the rule gains an option this
+// reading does not apply
+const EDGE_SCHEMA = z.strictObject({
+  name: z.string(),
+  from: NAMES_SCHEMA,
+  ignore: NAMES_SCHEMA.optional(),
+  reason: z.string().optional(),
+  to: NAMES_SCHEMA.optional(),
+  allow: NAMES_SCHEMA.optional(),
+  allowTypeOnly: z.union([z.boolean(), NAMES_SCHEMA]).optional(),
+  allowWithin: z.string().optional(),
+});
+
+const ZONE_OPTIONS_SCHEMA = z.object({
+  zones: z.record(z.string(), NAMES_SCHEMA),
+  edges: z.array(EDGE_SCHEMA),
+});
+
+const ZONE_RULE_SCHEMA = z.tuple([z.string(), ZONE_OPTIONS_SCHEMA]);
+
+const ZONES_CONFIG_SCHEMA = z.object({
+  rules: z.object({ 'zgeoff/import-zones': ZONE_RULE_SCHEMA }),
+});
+
+type ZoneOptions = z.infer<typeof ZONE_OPTIONS_SCHEMA>;
+
+type Edge = z.infer<typeof EDGE_SCHEMA>;
+
+interface EdgePaths {
+  readonly importer: string;
+  readonly target: string;
+}
+
+// The lint rule judges only the imports a file holds, so a production
+// dependency that no file imports yet would pass it. Each one must pass every
+// edge that an import of the dependency's root from the package's src/ meets.
+function checkDependencyZones(root: string, packages: readonly WorkspacePackage[]): string[] {
+  const configPath = join(root, '.oxlintrc.zones.json');
+
+  if (!existsSync(configPath)) {
+    return [];
+  }
+
+  const config = ZONES_CONFIG_SCHEMA.parse(Bun.JSONC.parse(readFileSync(configPath, 'utf8')));
+  const [, options] = config.rules['zgeoff/import-zones'];
+
+  const dirs = new Map(packages.map((pkg) => [pkg.manifest.name, pkg.dir]));
+
+  return packages
+    .filter((pkg) => pkg.dir !== '.')
+    .flatMap((pkg) =>
+      Object.keys(pkg.manifest.dependencies ?? {}).flatMap((name) => {
+        const target = dirs.get(name);
+        const importer = `${pkg.dir}/src/index.ts`;
+
+        const refusing =
+          target === undefined
+            ? undefined
+            : options.edges.find((edge) => isRefusedByEdge(options, edge, { importer, target }));
+
+        return refusing === undefined
+          ? []
+          : [
+              `package rule: ${pkg.dir}/package.json depends on ${name}, which the ${refusing.name} edge in .oxlintrc.zones.json refuses`,
+            ];
+      }),
+    );
+}
+
+// The lint rule's reading of an edge, with `to` and `allow` as its README
+// gives them; a production dependency loads at runtime, so `allowTypeOnly`
+// exempts none
+function isRefusedByEdge(options: ZoneOptions, edge: Edge, paths: EdgePaths): boolean {
+  const importerZones = collectZones(options, paths.importer);
+  const targetZones = collectZones(options, paths.target);
+  const applies = edge.from.some((zone) => importerZones.has(zone));
+  const ignored = edge.ignore?.some((glob) => isGlobMatch(glob, paths.importer)) ?? false;
+  const allowed = edge.allow?.some((zone) => targetZones.has(zone)) ?? false;
+
+  const within =
+    edge.allowWithin !== undefined && isWithin(edge.allowWithin, paths.importer, paths.target);
+
+  if (!applies || ignored || allowed || within) {
+    return false;
+  }
+
+  return edge.to === undefined
+    ? edge.allow !== undefined
+    : edge.to.some((zone) => targetZones.has(zone));
+}
+
+// `allowWithin: "packages/*"` exempts a target that shares the importer's
+// leading path segments, one per glob segment, when they match the glob
+function isWithin(glob: string, importer: string, target: string): boolean {
+  const depth = glob.split('/').length;
+  const prefix = importer.split('/').slice(0, depth).join('/');
+
+  return isGlobMatch(glob, prefix) && target.split('/').slice(0, depth).join('/') === prefix;
+}
+
+function collectZones(options: ZoneOptions, path: string): Set<string> {
+  return new Set(
+    Object.entries(options.zones)
+      .filter(([, globs]) => globs.some((glob) => isGlobMatch(glob, path)))
+      .map(([zone]) => zone),
+  );
+}
+
+// Bun.Glob matches `packages/tui{,/**}` only against `packages/tui`, since it
+// reads no slash inside braces, so each brace alternative is matched alone
+function isGlobMatch(glob: string, path: string): boolean {
+  const braces = /\{(?<alternatives>[^{}]*)\}/u.exec(glob);
+
+  if (braces?.groups === undefined) {
+    return new Bun.Glob(glob).match(path);
+  }
+
+  const before = glob.slice(0, braces.index);
+  const after = glob.slice(braces.index + braces[0].length);
+
+  return (braces.groups['alternatives'] ?? '')
+    .split(',')
+    .some((alternative) => isGlobMatch(`${before}${alternative}${after}`, path));
 }
 
 // oxlint's import rules read only quoted specifiers, so they never apply the

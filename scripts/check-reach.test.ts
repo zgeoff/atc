@@ -214,17 +214,14 @@ test('it fails on a type-only reach that the bundle drops', async () => {
   });
 });
 
-test('it fails on a reached module in no listed package directory', async () => {
+test('it fails on a reached module outside every package src/ folder', async () => {
   const ctx = setupTest();
 
-  await Bun.write(
-    join(ctx.dir, 'packages/unlisted/src/new-helper.ts'),
-    'export const HELPER = 1;\n',
-  );
+  await Bun.write(join(ctx.dir, 'packages/unlisted/new-helper.ts'), 'export const HELPER = 1;\n');
 
   await Bun.write(
     join(ctx.dir, 'packages/app/src/gateway.ts'),
-    "import { HELPER } from '../../unlisted/src/new-helper';\n\nconsole.log(HELPER);\n",
+    "import { HELPER } from '../../unlisted/new-helper';\n\nconsole.log(HELPER);\n",
   );
 
   const checked = await runCommand([
@@ -241,7 +238,38 @@ test('it fails on a reached module in no listed package directory', async () => 
     exitCode: 1,
     stdout: 'check-reach: 2 files reached, 2 bundled, 2 findings\n',
     stderr:
-      'unowned module: packages/app/src/gateway.ts reaches packages/unlisted/src/new-helper.ts, which sits in no package directory that scripts/package-rules.ts lists\nunowned module: packages/app/src/gateway.ts bundles packages/unlisted/src/new-helper.ts, which sits in no package directory that scripts/package-rules.ts lists\n',
+      "unowned module: packages/app/src/gateway.ts reaches packages/unlisted/new-helper.ts, which sits in no package's src/ folder\nunowned module: packages/app/src/gateway.ts bundles packages/unlisted/new-helper.ts, which sits in no package's src/ folder\n",
+  });
+});
+
+test('it fails on a reached module in a package outside the allowance', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'packages/harnesses/claude/src/new-helper.ts'),
+    'export const HELPER = 1;\n',
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/gateway.ts'),
+    "import { HELPER } from '../../harnesses/claude/src/new-helper';\n\nconsole.log(HELPER);\n",
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-reach.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-reach: 2 files reached, 2 bundled, 2 findings\n',
+    stderr:
+      'unreachable module: packages/app/src/gateway.ts reaches packages/harnesses/claude/src/new-helper.ts (harnesses/claude)\nunreachable module: packages/app/src/gateway.ts bundles packages/harnesses/claude/src/new-helper.ts (harnesses/claude)\n',
   });
 });
 

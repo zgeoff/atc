@@ -1,18 +1,11 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  // the generated package import rules (bun run build:import-rules)
-  "extends": ["./node_modules/@zgeoff/oxlint-config/oxlintrc.json", "./.oxlintrc.imports.json"],
+  "extends": ["./node_modules/@zgeoff/oxlint-config/oxlintrc.json", "./.oxlintrc.zones.json"],
   "env": {
     "node": true,
     "es2024": true
   },
   "rules": {
-    // oxlint 1.87 reaches one-var and sort-vars through the shared style
-    // category; these are the values @zgeoff/oxlint-config 0.2.6 settles on,
-    // so drop them when that version lands
-    "one-var": ["error", "never"],
-    "sort-vars": "off",
-
     "zgeoff/function-verb": [
       "error",
       {
@@ -100,13 +93,17 @@
         ]
       }
     ],
-    // the import rules read import and export statements and import() calls,
-    // not require() calls, so a module loads only through the forms they read
+    // atc is ES modules throughout, so a module loads through an import
     "typescript/no-require-imports": "error",
     // GEO-1196 splits the 19 files over the shared 500-line limit
     "max-lines": "off",
     // GEO-1197 trims the 60 functions over the shared four-parameter limit
-    "max-params": "off"
+    "max-params": "off",
+    // the source holds short and abbreviated value names, such as i and dir
+    "id-length": "off",
+    "zgeoff/no-abbreviated-names": "off",
+    // the source branches on unions with switch statements
+    "zgeoff/no-switch": "off"
   },
   "overrides": [
     {

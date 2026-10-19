@@ -500,42 +500,7 @@ test('it fails on a root catalog entry or root devDependency that is not exact',
   });
 });
 
-test('it fails on a dependency outside the package row', async () => {
-  const ctx = setupTest();
-
-  await Bun.write(
-    join(ctx.dir, 'package.json'),
-    JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
-  );
-
-  await Bun.write(
-    join(ctx.dir, 'packages/tui/package.json'),
-    JSON.stringify({
-      name: '@atc/tui',
-      exports: { '.': './src/index.ts' },
-      dependencies: { '@atc/lifecycle': 'workspace:*' },
-    }),
-  );
-
-  const checked = await runCommand([
-    process.execPath,
-    join(import.meta.dir, 'check-manifests.ts'),
-    ctx.dir,
-  ]);
-
-  expect({
-    exitCode: checked.exitCode,
-    stdout: checked.stdout,
-    stderr: checked.stderr,
-  }).toStrictEqual({
-    exitCode: 1,
-    stdout: 'check-manifests: 2 packages, 0 files, 1 findings\n',
-    stderr:
-      "package rule: packages/tui/package.json depends on @atc/lifecycle, outside @atc/tui's row\n",
-  });
-});
-
-test('it fails on a package with no row or a name its row does not give', async () => {
+test('it fails on a package named outside the @atc/ scope', async () => {
   const ctx = setupTest();
 
   await Bun.write(
@@ -545,7 +510,7 @@ test('it fails on a package with no row or a name its row does not give', async 
 
   await Bun.write(
     join(ctx.dir, 'packages/extras/package.json'),
-    JSON.stringify({ name: '@atc/extras', exports: { '.': './src/index.ts' } }),
+    JSON.stringify({ name: 'extras', exports: { '.': './src/index.ts' } }),
   );
 
   await Bun.write(
@@ -565,9 +530,160 @@ test('it fails on a package with no row or a name its row does not give', async 
     stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
-    stdout: 'check-manifests: 3 packages, 0 files, 2 findings\n',
+    stdout: 'check-manifests: 3 packages, 0 files, 1 findings\n',
+    stderr: 'package name: packages/extras/package.json is named extras, outside the @atc/ scope\n',
+  });
+});
+
+test('it reads the committed zones table and refuses a dependency outside a package row', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'package.json'),
+    JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*', 'packages/*/*'] } }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, '.oxlintrc.zones.json'),
+    Bun.file(join(import.meta.dir, '../.oxlintrc.zones.json')),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/core/package.json'),
+    JSON.stringify({
+      name: '@atc/core',
+      exports: { '.': './src/index.ts' },
+      dependencies: { '@atc/protocol': 'workspace:*' },
+    }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/protocol/package.json'),
+    JSON.stringify({
+      name: '@atc/protocol',
+      exports: { '.': './src/index.ts' },
+      dependencies: { '@atc/core': 'workspace:*' },
+    }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/harnesses/codex/package.json'),
+    JSON.stringify({ name: '@atc/harness-codex', exports: { '.': './src/index.ts' } }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/harnesses/grok/package.json'),
+    JSON.stringify({
+      name: '@atc/harness-grok',
+      exports: { '.': './src/index.ts' },
+      dependencies: { '@atc/core': 'workspace:*', '@atc/harness-codex': 'workspace:*' },
+    }),
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-manifests.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-manifests: 5 packages, 0 files, 2 findings\n',
     stderr:
-      'unknown package: packages/extras has no row in the package rules\npackage name: packages/tui/package.json is named @atc/terminal, not @atc/tui\n',
+      'package rule: packages/core/package.json depends on @atc/protocol, which the package-deps edge in .oxlintrc.zones.json refuses\npackage rule: packages/harnesses/grok/package.json depends on @atc/harness-codex, which the package-deps edge in .oxlintrc.zones.json refuses\n',
+  });
+});
+
+test('it fails on a production dependency that an edge of the zones table refuses', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'package.json'),
+    JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, '.oxlintrc.zones.json'),
+    `{
+  // the package boundaries
+  "rules": {
+    "zgeoff/import-zones": [
+      "error",
+      {
+        "zones": {
+          "packages": ["packages/**"],
+          "core": ["packages/core{,/**}"],
+          "lifecycle": ["packages/lifecycle{,/**}"],
+          "tui": ["packages/tui{,/**}"],
+          "test-utils": ["packages/test-utils{,/**}"]
+        },
+        "edges": [
+          { "name": "package-deps", "from": ["tui"], "allow": ["core", "test-utils"] },
+          {
+            "name": "test-helpers",
+            "from": ["packages"],
+            "to": ["test-utils"],
+            "ignore": ["**/*.test.ts"]
+          }
+        ]
+      }
+    ]
+  }
+}
+`,
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/core/package.json'),
+    JSON.stringify({
+      name: '@atc/core',
+      exports: { '.': './src/index.ts' },
+      devDependencies: { '@atc/test-utils': 'workspace:*' },
+    }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/lifecycle/package.json'),
+    JSON.stringify({ name: '@atc/lifecycle', exports: { '.': './src/index.ts' } }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/test-utils/package.json'),
+    JSON.stringify({ name: '@atc/test-utils', exports: { '.': './src/index.ts' } }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/tui/package.json'),
+    JSON.stringify({
+      name: '@atc/tui',
+      exports: { '.': './src/index.ts' },
+      dependencies: {
+        '@atc/core': 'workspace:*',
+        '@atc/lifecycle': 'workspace:*',
+        '@atc/test-utils': 'workspace:*',
+      },
+    }),
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-manifests.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-manifests: 5 packages, 0 files, 2 findings\n',
+    stderr:
+      'package rule: packages/tui/package.json depends on @atc/lifecycle, which the package-deps edge in .oxlintrc.zones.json refuses\npackage rule: packages/tui/package.json depends on @atc/test-utils, which the test-helpers edge in .oxlintrc.zones.json refuses\n',
   });
 });
 

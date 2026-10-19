@@ -2,7 +2,7 @@
 # Points every reference to impd's client at its published name,
 # `@impz/client`, which replaces the deprecated `@zgeoff/imp-client`, and
 # pins the catalog to the client version atc supports. Run once from the
-# repo root, then run `bun install` and `bun run build:import-rules`.
+# repo root, then run `bun install`.
 set -euo pipefail
 
 mapfile -t files < <(git grep -l -F '@zgeoff/imp-client' -- packages scripts bunfig.toml package.json ':!scripts/codemods')

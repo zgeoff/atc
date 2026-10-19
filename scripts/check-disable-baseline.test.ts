@@ -92,6 +92,37 @@ test('it fails on more import rule directives than the baseline', async () => {
   });
 });
 
+test('it counts a directive that switches off the package boundaries', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'scripts/disable-baseline.json'),
+    JSON.stringify({ importRuleDisables: 0 }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/core/src/a.ts'),
+    "// oxlint-disable-next-line zgeoff/import-zones -- the clock reads the host\nimport { hrtime } from 'node:process';\n\nexport const NOW = hrtime;\n",
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-disable-baseline.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-disable-baseline: 1 directives, baseline 0\n',
+    stderr:
+      'import rule disabled: packages/core/src/a.ts:1\ncheck-disable-baseline: 1 more than the baseline in scripts/disable-baseline.json\n',
+  });
+});
+
 test('it counts a directive that switches off the require ban, in a mod too', async () => {
   const ctx = setupTest();
 
