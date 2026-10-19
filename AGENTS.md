@@ -47,8 +47,9 @@ docs/
 
 ## Packages
 
-- Every workspace package is private and named `@atc/<name>`. `scripts/package-rules.ts` lists each
-  package, the internal packages it may depend on, and the folder rules inside the daemon.
+- Every workspace package is private and named `@atc/<name>`. The `zgeoff/import-zones` rule in
+  `.oxlintrc.zones.json` gives each package a zone, the internal packages it may depend on, the
+  folder rules inside the daemon, and the files that may import each confined external package.
 - Give a package a second entry point only for a reason, never one per file. The usual reason is
   start-up time: a hook or statusline reporter starts once per event, so it imports a light entry
   that skips the Zod schemas, the protocol contract, and the store.
@@ -59,8 +60,6 @@ docs/
   `bun run test:related <files>` runs the tests beside the files you pass.
 - `bun run lint:full` adds the type-aware pass and the type check. It runs in CI only, so never run
   it locally.
-- `bun run build:import-rules` regenerates `.oxlintrc.imports.json` after a change to
-  `scripts/package-rules.ts` or `scripts/package-confinement.ts`.
 - `bun run build:atc-bridge` regenerates the mod's embedded copy after a change to
   `mods/atc-bridge/`.
 - lefthook runs the light checks before a commit and a push. Leave the larger checks to CI, because
@@ -73,8 +72,8 @@ prints its own reason, and the rules live where each bullet points.
 
 - `bun run check:imports`: the import graph inside the app's `src/`, with the directory rows in
   `scripts/check-imports.ts`.
-- `bun run lint`: the per-import package rules in `.oxlintrc.imports.json`, generated from
-  `scripts/package-rules.ts` and `scripts/package-confinement.ts`, plus `.oxlintrc.json`.
+- `bun run lint`: `.oxlintrc.json`, which takes the package boundaries from `.oxlintrc.zones.json`.
+  `e2e/import-zones.test.ts` lints a probe import against each boundary.
 - `bun run lint:mods`: the rules for `mods/`, in `.oxlintrc.mods.json`.
 - `bun run check:manifests`: each package's manifest, `exports` map, and import specifiers, in
   `scripts/check-manifests.ts`.
@@ -96,8 +95,8 @@ prints its own reason, and the rules live where each bullet points.
   newest version that passes, and add no exclusion for convenience.
 - A dependency knip cannot see gets its `knip.json` ignore in the PR that adds it, with the reason
   in the PR description. `knip.json` takes no comments, so the reasons for its ignores live here:
-  - `@zgeoff/oxlint-config`: `.oxlintrc.json` extends it through a `node_modules` path.
-  - `@stylistic/eslint-plugin`: that config loads it by name as a JS plugin.
+  - `@stylistic/eslint-plugin`: `@zgeoff/oxlint-config`, which `.oxlintrc.json` extends, loads it by
+    name as a JS plugin.
   - `better-auth` in `packages/test-utils`: the telemetry collector's test loads it inside a spawned
     `bun -e` script.
 

@@ -2,8 +2,8 @@ import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:f
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
-import { PACKAGE_RULES } from './package-rules';
-import type { PackageRule } from './package-rules';
+import type { WorkspacePackage } from './collect-workspace-packages';
+import { collectWorkspacePackages } from './collect-workspace-packages';
 
 // Tests one plugin package in a workspace holding only it, the packages its
 // rule reaches and the test helpers, so a plugin that reaches past its rule
@@ -32,8 +32,9 @@ const TOOLING = new Set([
 async function main(): Promise<void> {
   const name = process.argv.at(2);
   const keep = process.argv.includes('--keep');
-  const plugins = PACKAGE_RULES.filter((rule) => isPlugin(rule));
-  const plugin = plugins.find((rule) => rule.name === name);
+  const workspace = collectWorkspacePackages(repo);
+  const plugins = workspace.filter((pkg) => isPlugin(pkg));
+  const plugin = plugins.find((pkg) => pkg.name === name);
 
   if (plugin === undefined) {
     printUsage(plugins);
@@ -41,7 +42,7 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
-  const packages = collectPackageClosure(plugin);
+  const packages = collectPackageClosure(workspace, plugin);
   const dir = mkdtempSync(join(tmpdir(), `atc-test-plugin-${plugin.name}-`));
 
   try {
@@ -80,26 +81,29 @@ async function main(): Promise<void> {
   }
 }
 
-function isPlugin(rule: PackageRule): boolean {
+function isPlugin(rule: WorkspacePackage): boolean {
   return ['harness-', 'execution-', 'source-'].some((prefix) => rule.name.startsWith(prefix));
 }
 
-function printUsage(plugins: readonly PackageRule[]): void {
+function printUsage(plugins: readonly WorkspacePackage[]): void {
   console.error(
     `usage: bun run test:plugin <plugin>, where <plugin> is one of: ${plugins.map((rule) => rule.name).join(', ')}`,
   );
 }
 
-// The plugin, every package its rule reaches, and the shared test helpers
-// with every package theirs reaches.
-function collectPackageClosure(plugin: PackageRule): PackageRule[] {
-  const found = new Map<string, PackageRule>();
+// The plugin, every package its manifest depends on, and the shared test
+// helpers with every package theirs depends on.
+function collectPackageClosure(
+  workspace: readonly WorkspacePackage[],
+  plugin: WorkspacePackage,
+): WorkspacePackage[] {
+  const found = new Map<string, WorkspacePackage>();
 
   const pending = [plugin.name, 'test-utils'];
 
   while (pending.length > 0) {
     const name = pending.pop();
-    const rule = PACKAGE_RULES.find((candidate) => candidate.name === name);
+    const rule = workspace.find((candidate) => candidate.name === name);
 
     if (rule !== undefined && !found.has(rule.name)) {
       found.set(rule.name, rule);
@@ -115,8 +119,8 @@ function collectPackageClosure(plugin: PackageRule): PackageRule[] {
 // app, which the workspace leaves out.
 function createPluginWorkspace(
   dir: string,
-  plugin: PackageRule,
-  packages: readonly PackageRule[],
+  plugin: WorkspacePackage,
+  packages: readonly WorkspacePackage[],
 ): void {
   for (const rule of packages) {
     cpSync(join(repo, rule.dir), join(dir, rule.dir), {
@@ -151,7 +155,7 @@ function createPluginWorkspace(
 // The root manifest without the scripts, the commit and lint tooling, the
 // patches that only that tooling needs, and the internal packages the
 // workspace leaves out.
-function writeWorkspaceManifest(dir: string, packages: readonly PackageRule[]): void {
+function writeWorkspaceManifest(dir: string, packages: readonly WorkspacePackage[]): void {
   const text = readFileSync(join(repo, 'package.json'), 'utf8');
   const manifest = z.record(z.string(), z.unknown()).parse(JSON.parse(text));
 

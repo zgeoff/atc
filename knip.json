@@ -31,5 +31,5 @@
     }
   },
   "ignore": ["mods/**"],
-  "ignoreDependencies": ["@stylistic/eslint-plugin", "@zgeoff/oxlint-config"]
+  "ignoreDependencies": ["@stylistic/eslint-plugin"]
 }

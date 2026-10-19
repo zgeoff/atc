@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { collectSourceFiles } from './collect-source-files';
 import type { Token } from './collect-tokens';
 import { collectTokens } from './collect-tokens';
-import { PACKAGE_RULES } from './package-rules';
+import { collectWorkspacePackages } from './collect-workspace-packages';
 
 function main(): void {
   const args = parseArgs(process.argv.slice(2));
@@ -119,18 +119,21 @@ function parseArgs(argv: readonly string[]): WaveMoveArgs {
   const positionals: string[] = [];
   const packageDirs: string[] = [];
 
+  // the package names come from this checkout's workspace, whatever root the move rewrites
+  const packages = collectWorkspacePackages(join(import.meta.dir, '..'));
+
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i] ?? '';
 
     if (arg === '--package') {
       const name = argv[i + 1];
-      const rule = PACKAGE_RULES.find((candidate) => candidate.name === name);
+      const pkg = packages.find((candidate) => candidate.name === name);
 
-      if (rule === undefined) {
+      if (pkg === undefined) {
         throw new Error(`unknown package: ${name ?? '(none)'}; ${USAGE}`);
       }
 
-      packageDirs.push(rule.dir);
+      packageDirs.push(pkg.dir);
 
       i += 1;
     } else {

@@ -8,7 +8,6 @@ import { z } from 'zod';
 import type { ImportList } from './collect-imports';
 import { collectImports } from './collect-imports';
 import { collectSourceFiles } from './collect-source-files';
-import { PACKAGE_RULES } from './package-rules';
 
 function main(): void {
   const root = resolve(process.argv[2] ?? join(import.meta.dir, '..'));
@@ -162,15 +161,9 @@ function checkManifest(pkg: WorkspacePackage): string[] {
     return findings;
   }
 
-  const rule = PACKAGE_RULES.find((candidate) => candidate.dir === pkg.dir);
-
-  if (rule === undefined) {
-    return [...findings, `unknown package: ${pkg.dir} has no row in the package rules`];
-  }
-
-  if (pkg.manifest.name !== `@atc/${rule.name}`) {
+  if (pkg.manifest.name?.startsWith('@atc/') !== true) {
     findings.push(
-      `package name: ${manifestPath} is named ${pkg.manifest.name}, not @atc/${rule.name}`,
+      `package name: ${manifestPath} is named ${pkg.manifest.name ?? '(none)'}, outside the @atc/ scope`,
     );
   }
 
@@ -184,14 +177,6 @@ function checkManifest(pkg: WorkspacePackage): string[] {
     findings.push(
       `wildcard entry: ${manifestPath} exports ${entry}, which makes every matching file public; list each entry point`,
     );
-  }
-
-  for (const name of Object.keys(pkg.manifest.dependencies ?? {})) {
-    if (name.startsWith('@atc/') && !rule.deps.includes(name.slice('@atc/'.length))) {
-      findings.push(
-        `package rule: ${manifestPath} depends on ${name}, outside @atc/${rule.name}'s row`,
-      );
-    }
   }
 
   return findings;

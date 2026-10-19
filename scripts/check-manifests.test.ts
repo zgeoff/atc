@@ -500,42 +500,7 @@ test('it fails on a root catalog entry or root devDependency that is not exact',
   });
 });
 
-test('it fails on a dependency outside the package row', async () => {
-  const ctx = setupTest();
-
-  await Bun.write(
-    join(ctx.dir, 'package.json'),
-    JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
-  );
-
-  await Bun.write(
-    join(ctx.dir, 'packages/tui/package.json'),
-    JSON.stringify({
-      name: '@atc/tui',
-      exports: { '.': './src/index.ts' },
-      dependencies: { '@atc/lifecycle': 'workspace:*' },
-    }),
-  );
-
-  const checked = await runCommand([
-    process.execPath,
-    join(import.meta.dir, 'check-manifests.ts'),
-    ctx.dir,
-  ]);
-
-  expect({
-    exitCode: checked.exitCode,
-    stdout: checked.stdout,
-    stderr: checked.stderr,
-  }).toStrictEqual({
-    exitCode: 1,
-    stdout: 'check-manifests: 2 packages, 0 files, 1 findings\n',
-    stderr:
-      "package rule: packages/tui/package.json depends on @atc/lifecycle, outside @atc/tui's row\n",
-  });
-});
-
-test('it fails on a package with no row or a name its row does not give', async () => {
+test('it fails on a package named outside the @atc/ scope', async () => {
   const ctx = setupTest();
 
   await Bun.write(
@@ -545,7 +510,7 @@ test('it fails on a package with no row or a name its row does not give', async 
 
   await Bun.write(
     join(ctx.dir, 'packages/extras/package.json'),
-    JSON.stringify({ name: '@atc/extras', exports: { '.': './src/index.ts' } }),
+    JSON.stringify({ name: 'extras', exports: { '.': './src/index.ts' } }),
   );
 
   await Bun.write(
@@ -565,9 +530,8 @@ test('it fails on a package with no row or a name its row does not give', async 
     stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
-    stdout: 'check-manifests: 3 packages, 0 files, 2 findings\n',
-    stderr:
-      'unknown package: packages/extras has no row in the package rules\npackage name: packages/tui/package.json is named @atc/terminal, not @atc/tui\n',
+    stdout: 'check-manifests: 3 packages, 0 files, 1 findings\n',
+    stderr: 'package name: packages/extras/package.json is named extras, outside the @atc/ scope\n',
   });
 });
 

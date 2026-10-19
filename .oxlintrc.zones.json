@@ -1,0 +1,290 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "jsPlugins": ["@zgeoff/oxlint-config/plugin"],
+  "rules": {
+    // Package boundaries. Each workspace package is a zone. An import of a
+    // package name is judged as its folder joined with the subpath, such as
+    // packages/store/testing, so each zone covers its folder path itself.
+    "zgeoff/import-zones": [
+      "error",
+      {
+        "workspaces": ["packages/*", "packages/*/*"],
+        "zones": {
+          "packages": ["packages/**"],
+          "core": ["packages/core{,/**}"],
+          "protocol": ["packages/protocol{,/**}"],
+          "plugin-api": ["packages/plugin-api{,/**}"],
+          "config": ["packages/config{,/**}"],
+          "store": ["packages/store{,/**}"],
+          "lifecycle": ["packages/lifecycle{,/**}"],
+          "daemon": ["packages/daemon{,/**}"],
+          "plugins": ["packages/{harnesses,execution,sources}/*{,/**}"],
+          // the front ends: a front end's tests may use the daemon's testing
+          // entry, which its production code may not reach
+          "front-ends": ["packages/{tui,mcp,gateway,reporters}{,/**}"],
+          "mcp": ["packages/mcp{,/**}"],
+          "test-utils": ["packages/test-utils{,/**}"],
+          "app": ["packages/app{,/**}"],
+
+          // sessions, auth, transport and fleet import one another, so the
+          // folder edges keep each one from the folders it does not use
+          "daemon-root": ["packages/daemon/src/*"],
+          "daemon-auth": ["packages/daemon/src/auth/**"],
+          "daemon-fleet": ["packages/daemon/src/fleet/**"],
+          "daemon-sessions": ["packages/daemon/src/sessions/**"],
+          "daemon-sources": ["packages/daemon/src/sources/**"],
+          "daemon-transport": ["packages/daemon/src/transport/**"],
+          "daemon-workspace": ["packages/daemon/src/workspace/**"],
+          "daemon-testing": ["packages/daemon/src/testing/**", "packages/daemon/testing"],
+
+          // every test helper, a package's testing folder among them
+          "testing": ["packages/**/testing{,/**}"],
+          "tests": [
+            "**/*.test.{ts,tsx,js,mjs}",
+            "packages/**/testing/**",
+            "packages/test-utils/**",
+            "packages/app/src/test-utils/**",
+            "e2e/**",
+            "scripts/**"
+          ],
+
+          // sessions, the fake impd's guests and the TUI harness's client run
+          // in real PTYs, and the stub composer's and stub menu's raw-mode
+          // reads need a real terminal
+          "pty-files": [
+            "packages/execution/local/src/local-pty-provider.ts",
+            "packages/execution/imp/src/testing/{answer-stub-session,stub-imp,try-kill}.ts",
+            "packages/test-utils/src/start-tui-harness.ts",
+            "packages/test-utils/src/{create-stub-composer,run-stub-menu-claude}.test.ts"
+          ],
+          // the real port calls impd through the client, and the contract
+          // types the impd stand-in is checked against come from its declarations
+          "imp-client-files": ["packages/execution/imp/src/{imp-client-port,impd-contract}.ts"],
+          "claude-sdk-files": [
+            "packages/harnesses/claude/src/headless/{build-claude-query-options,render-sdk-message,start-claude-headless-run}.ts"
+          ],
+          // the lock library the Claude config lock is checked against
+          "config-lock-check": [
+            "packages/harnesses/claude/src/local-trust/with-claude-config-lock.test.ts"
+          ],
+          "e2e": ["e2e/**"],
+          "scripts": ["scripts/**"],
+          "mods": ["mods/**"]
+        },
+        "unzoned": [
+          {
+            "name": "package-zones",
+            "from": ["packages"],
+            "zones": [
+              "core",
+              "protocol",
+              "plugin-api",
+              "config",
+              "store",
+              "lifecycle",
+              "daemon",
+              "plugins",
+              "front-ends",
+              "test-utils",
+              "app"
+            ]
+          }
+        ],
+        // a package name with no entry for the subpath, a deep import into a
+        // package's src/, and a computed specifier all fail here
+        "unresolved": [{ "name": "entry-points", "from": ["packages", "e2e", "scripts"] }],
+        "selfImports": [
+          {
+            "name": "self-import",
+            "from": ["packages"],
+            "reason": "a module reaches its own package by a relative path"
+          }
+        ],
+        // each package's row: the packages it may depend on. allowWithin
+        // exempts a package's own files, and a test may use the shared test
+        // helpers, which the next two edges keep from production code
+        "edges": [
+          {
+            "name": "package-deps",
+            "from": ["core"],
+            "allow": ["test-utils"],
+            "allowWithin": "packages/*",
+            "reason": "@atc/core depends on no workspace package"
+          },
+          {
+            "name": "package-deps",
+            "from": ["protocol"],
+            "allow": ["core", "test-utils"],
+            "allowWithin": "packages/*"
+          },
+          {
+            "name": "package-deps",
+            "from": ["plugin-api"],
+            "allow": ["core", "protocol", "test-utils"],
+            "allowWithin": "packages/*"
+          },
+          {
+            "name": "package-deps",
+            "from": ["config"],
+            "allow": ["core", "plugin-api", "test-utils"],
+            "allowWithin": "packages/*"
+          },
+          {
+            "name": "package-deps",
+            "from": ["store"],
+            "allow": ["core", "protocol", "config", "test-utils"],
+            "allowWithin": "packages/*"
+          },
+          {
+            "name": "package-deps",
+            "from": ["lifecycle"],
+            "allow": ["core", "protocol", "config", "store", "test-utils"],
+            "allowWithin": "packages/*"
+          },
+          {
+            "name": "package-deps",
+            "from": ["daemon"],
+            "allow": [
+              "core",
+              "protocol",
+              "plugin-api",
+              "config",
+              "store",
+              "lifecycle",
+              "test-utils"
+            ],
+            "allowWithin": "packages/*"
+          },
+          {
+            "name": "package-deps",
+            "from": ["plugins"],
+            "allow": ["core", "protocol", "plugin-api", "config", "test-utils"],
+            "allowWithin": "packages/*/*"
+          },
+          {
+            "name": "package-deps",
+            "from": ["front-ends"],
+            "allow": ["core", "protocol", "config", "test-utils", "daemon-testing"],
+            "allowWithin": "packages/*"
+          },
+          // check-manifests limits the test helpers that reach into the app by path
+          {
+            "name": "package-deps",
+            "from": ["test-utils"],
+            "allow": ["core", "protocol", "plugin-api", "config", "app"],
+            "allowWithin": "packages/*"
+          },
+          {
+            "name": "test-helpers",
+            "from": ["packages"],
+            "to": ["test-utils"],
+            "ignore": [
+              "**/*.test.{ts,tsx,js,mjs}",
+              "packages/**/testing/**",
+              "packages/test-utils/**",
+              "packages/app/src/test-utils/**"
+            ],
+            "reason": "production code never imports the shared test helpers"
+          },
+          {
+            "name": "testing-entries",
+            "from": ["packages"],
+            "to": ["testing"],
+            "ignore": [
+              "**/*.test.{ts,tsx,js,mjs}",
+              "packages/**/testing/**",
+              "packages/test-utils/**",
+              "packages/app/src/test-utils/**"
+            ],
+            "reason": "production code never imports a testing entry or a testing/ folder"
+          },
+          {
+            "name": "daemon-folders",
+            "from": [
+              "daemon-auth",
+              "daemon-fleet",
+              "daemon-sessions",
+              "daemon-transport",
+              "daemon-workspace"
+            ],
+            "to": ["daemon-sources"],
+            "ignore": ["**/*.test.{ts,tsx,js,mjs}"],
+            "reason": "only the files at the root of src/ reach the sources folder"
+          },
+          {
+            "name": "daemon-folders",
+            "from": ["daemon-fleet"],
+            "to": ["daemon-root", "daemon-auth", "daemon-transport", "daemon-workspace"],
+            "ignore": ["**/*.test.{ts,tsx,js,mjs}"],
+            "reason": "the fleet folder imports only the sessions folder"
+          },
+          {
+            "name": "daemon-folders",
+            "from": ["daemon-sources"],
+            "to": ["daemon-transport"],
+            "ignore": ["**/*.test.{ts,tsx,js,mjs}"]
+          },
+          {
+            "name": "daemon-folders",
+            "from": ["daemon-transport"],
+            "to": ["daemon-workspace"],
+            "ignore": ["**/*.test.{ts,tsx,js,mjs}"]
+          },
+          {
+            "name": "daemon-folders",
+            "from": ["daemon-workspace"],
+            "to": [
+              "daemon-root",
+              "daemon-auth",
+              "daemon-fleet",
+              "daemon-sessions",
+              "daemon-sources",
+              "daemon-transport"
+            ],
+            "ignore": ["**/*.test.{ts,tsx,js,mjs}"],
+            "reason": "the workspace folder imports only its own modules"
+          }
+        ],
+        "modules": [
+          {
+            "name": "any-runtime",
+            "modules": ["node:*", "bun:*"],
+            "from": ["core"],
+            "allow": [],
+            "ignore": ["**/*.test.{ts,tsx,js,mjs}", "packages/core/src/testing/**"],
+            "reason": "@atc/core runs on any runtime"
+          },
+          { "name": "confinement", "modules": ["bun-pty"], "allow": ["pty-files"] },
+          { "name": "confinement", "modules": ["@impz/client"], "allow": ["imp-client-files"] },
+          {
+            "name": "confinement",
+            "modules": ["@anthropic-ai/claude-agent-sdk"],
+            "allow": ["claude-sdk-files"]
+          },
+          // tests and e2e journeys open a state database to check what a run wrote
+          {
+            "name": "confinement",
+            "modules": ["bun:sqlite", "kysely"],
+            "allow": ["store", "app", "tests"]
+          },
+          {
+            "name": "confinement",
+            "modules": ["better-auth", "@better-auth"],
+            "allow": ["mcp", "app", "tests"]
+          },
+          { "name": "confinement", "modules": ["proper-lockfile"], "allow": ["config-lock-check"] },
+          // the Claude SDK's peer, which only the SDK itself loads
+          { "name": "confinement", "modules": ["@modelcontextprotocol/sdk"], "allow": [] },
+          // atc runs on Bun alone: bun test, never vitest or jest, and bun
+          // <file>, never ts-node. PTYs come from bun-pty, because node-pty
+          // delivers no data events under Bun
+          {
+            "name": "bun-only",
+            "modules": ["vitest", "jest", "@jest", "ts-node", "node-pty"],
+            "allow": []
+          }
+        ]
+      }
+    ]
+  }
+}
