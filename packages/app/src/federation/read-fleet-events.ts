@@ -1,12 +1,11 @@
 import { isRecord } from '@atc/core';
 import type { Clock } from '@atc/core';
-import type { DaemonFeature, Principal } from '@atc/protocol';
+import type { Principal } from '@atc/protocol';
 import { decodeCursor, encodeCursor } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
 import { buildEventsFilterHash } from './build-events-filter-hash';
 import { buildGatewayError } from './build-gateway-error';
 import type { GatewayDaemonCaller } from './gateway-daemon-caller';
-import { GatewayError } from './gateway-error';
 import { mergeEventPages } from './merge-event-pages';
 import type { MergeSource } from './merge-event-pages';
 import { parseGatewayID } from './parse-gateway-id';
@@ -34,7 +33,6 @@ const MAX_WAIT_MS = 30_000;
 export async function readFleetEvents(
   deps: FleetEventsDeps,
   params: Readonly<Record<string, unknown>>,
-  required: readonly DaemonFeature[],
   principal: Principal,
 ): Promise<Readonly<Record<string, unknown>>> {
   const rawSession = params['session'];
@@ -56,7 +54,6 @@ export async function readFleetEvents(
 
   const read: DaemonRead = {
     deps,
-    required,
     principal,
     limit,
     sessionID: owner?.id ?? null,
@@ -81,7 +78,6 @@ export async function readFleetEvents(
 // What every daemon read of one call shares.
 interface DaemonRead {
   readonly deps: FleetEventsDeps;
-  readonly required: readonly DaemonFeature[];
   readonly principal: Principal;
   readonly limit: number;
 
@@ -101,8 +97,8 @@ function getDaemon(registry: GatewayRegistry, name: string): RegistryDaemon {
 }
 
 // One daemon's part of the merge, from where the plan starts it. Only a
-// filtered read's daemon fails the call, and only with its own refusal or
-// a missing feature; any other failure is a daemon that is unavailable.
+// filtered read's daemon fails the call, and only with its own refusal;
+// any other failure is a daemon that is unavailable.
 async function readDaemonSource(
   read: DaemonRead,
   daemon: RegistryDaemon,
@@ -122,14 +118,6 @@ async function readDaemonSource(
 
   if (read.sessionID !== null && error instanceof DaemonError) {
     throw buildGatewayError(error, daemon, read.requestIDs);
-  }
-
-  if (
-    read.sessionID !== null &&
-    error instanceof GatewayError &&
-    error.code === 'daemon_outdated'
-  ) {
-    throw error;
   }
 
   const before = start.kind === 'after' ? { cursor: start.cursor } : null;
@@ -214,7 +202,6 @@ async function sendEventsRead(
       'events.read',
       { ...params, ...(read.sessionID === null ? {} : { session: read.sessionID }) },
       read.principal,
-      read.required,
     );
 
   const rawEvents: unknown = answer['events'];

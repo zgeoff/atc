@@ -42,7 +42,7 @@ test('it keeps the daemon state in the home and records the daemon process there
     reporterSocketPath: join(ctx.dir, 'atc.sock'),
     eventsSocketPath: join(ctx.dir, 'atc-events.sock'),
     listenPort: null,
-    protocol: 5,
+    protocol: 6,
   });
 });
 
@@ -153,7 +153,7 @@ test('it lays the config variables over the environment of the daemon', async ()
     reporterSocketPath: join(ctx.dir, 'atc.sock'),
     eventsSocketPath: join(ctx.dir, 'atc-events.sock'),
     listenPort: null,
-    protocol: 5,
+    protocol: 6,
   });
 });
 
@@ -182,7 +182,7 @@ test('it removes a variable the config sets to undefined from the environment of
     reporterSocketPath: join(ctx.dir, '.local', 'state', 'atc', 'atc.sock'),
     eventsSocketPath: join(ctx.dir, '.local', 'state', 'atc', 'atc-events.sock'),
     listenPort: null,
-    protocol: 5,
+    protocol: 6,
   });
 });
 

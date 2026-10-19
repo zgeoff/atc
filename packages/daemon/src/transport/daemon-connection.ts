@@ -1,5 +1,4 @@
 import type { SessionID } from '@atc/core';
-import { DAEMON_FEATURES } from '@atc/protocol';
 import type { DaemonAnswer, RequestParams } from '@atc/protocol';
 import {
   DEFAULT_QUEUE_BYTES,
@@ -380,7 +379,6 @@ export class DaemonConnection {
       daemon: this.ctx.build,
       daemonID: this.ctx.daemonID,
       limits: { maxLine: MAX_LINE, maxChunk: MAX_CHUNK },
-      features: DAEMON_FEATURES,
       idempotency: { completedRetentionMs: this.ctx.idempotencyRetentionMs },
       lastUsedAgent: await this.ctx.loadLastUsedAgent(),
     };

@@ -1,19 +1,16 @@
 import type { Clock } from '@atc/core';
-import type { DaemonFeature, Principal } from '@atc/protocol';
+import type { Principal } from '@atc/protocol';
 import type { ApprovalState } from './approval-state';
 import type { EnrollmentState } from './enrollment-state';
 import type { openMCPAuth } from './open-mcp-auth';
 
 // `fleet.daemons` is announced only by a caller that routes across named daemons.
-export type FleetFeature = DaemonFeature | 'fleet.daemons';
+export type FleetFeature = 'fleet.daemons';
 
-// a request that lists required features is checked against the connection it is
-// about to ride, every time it is sent, and refused unsent when that daemon lacks one.
 export interface FleetCaller {
   readonly sendRequest: (
     m: string,
     p?: Readonly<Record<string, unknown>>,
-    required?: readonly DaemonFeature[],
     principal?: Principal,
   ) => Promise<Readonly<Record<string, unknown>>>;
   readonly readFeatures: () => Promise<ReadonlySet<FleetFeature>>;

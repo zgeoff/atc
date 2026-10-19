@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { systemClock } from '@atc/core';
 import type { Clock } from '@atc/core';
-import type { DaemonFeature, Principal } from '@atc/protocol';
+import type { Principal } from '@atc/protocol';
 import { PROCEDURE_TRAITS } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
 import { match } from 'ts-pattern';
@@ -14,7 +14,6 @@ import { GatewayError } from './gateway-error';
 import type { GatewayStore } from './gateway-store';
 import { pickDaemonState } from './pick-daemon-state';
 import { readFleetEvents } from './read-fleet-events';
-import { requireServingDaemon } from './require-serving-daemon';
 import { resolveDaemonRequest } from './resolve-daemon-request';
 import type { GatewayFeature, GatewayRegistry, ParamsPreparer, RegistryDaemon } from './types';
 import { waitForOutcome } from './wait-for-outcome';
@@ -42,7 +41,6 @@ interface RoutedSend {
   readonly m: string;
   readonly route: ReturnType<typeof resolveDaemonRequest>;
   readonly daemon: RegistryDaemon;
-  readonly required: readonly DaemonFeature[];
   readonly principal: Principal;
   readonly key: string | null;
 
@@ -58,7 +56,6 @@ interface KeyedRoute {
   readonly key: string;
   readonly picked: RegistryDaemon;
   readonly named: RegistryDaemon | null;
-  readonly required: readonly DaemonFeature[];
   readonly principal: Principal;
 }
 
@@ -72,7 +69,6 @@ export class RoutingCaller {
   sendRequest(
     m: string,
     p: Readonly<Record<string, unknown>> = {},
-    required: readonly DaemonFeature[] = [],
     principal?: Principal,
   ): Promise<Readonly<Record<string, unknown>>> {
     if (principal === undefined) {
@@ -85,7 +81,7 @@ export class RoutingCaller {
 
     return match(m)
       .with('daemons.list', () => this.readDaemonStates())
-      .with('session.list', 'agents.list', (fanned) => this.sendFanOut(fanned, required, principal))
+      .with('session.list', 'agents.list', (fanned) => this.sendFanOut(fanned, principal))
       .with('events.read', () =>
         readFleetEvents(
           {
@@ -95,36 +91,14 @@ export class RoutingCaller {
             clock: this.getClock(),
           },
           params,
-          required,
           principal,
         ),
       )
-      .otherwise(() => this.sendRouted(m, params, named, required, principal));
+      .otherwise(() => this.sendRouted(m, params, named, principal));
   }
 
-  // every feature any up daemon announces, so the tool list offers an option one daemon serves
-  async readFeatures(): Promise<ReadonlySet<GatewayFeature>> {
-    const outcomes = await Promise.all(
-      [...this.opts.registry.daemons.values()].map((daemon) =>
-        waitForOutcome(
-          this.opts.pool.getCaller(daemon.name).readHello(),
-          this.getTimeout(),
-          this.getClock(),
-        ),
-      ),
-    );
-
-    const features = new Set<GatewayFeature>(['fleet.daemons']);
-
-    for (const outcome of outcomes) {
-      if (outcome.kind === 'answered') {
-        for (const feature of outcome.value.features) {
-          features.add(feature);
-        }
-      }
-    }
-
-    return features;
+  readFeatures(): Promise<ReadonlySet<GatewayFeature>> {
+    return Promise.resolve(new Set<GatewayFeature>(['fleet.daemons']));
   }
 
   private readonly getCaller = (name: string): GatewayDaemonCaller =>
@@ -169,7 +143,6 @@ export class RoutingCaller {
     m: string,
     params: Readonly<Record<string, unknown>>,
     rawNamed: unknown,
-    required: readonly DaemonFeature[],
     principal: Principal,
   ): Promise<Readonly<Record<string, unknown>>> {
     const named = this.findNamedDaemon(rawNamed);
@@ -189,10 +162,10 @@ export class RoutingCaller {
       typeof rawKey === 'string' && PROCEDURE_TRAITS.get(m)?.keyed === true ? rawKey : null;
 
     if (key === null) {
-      return this.sendToRoute({ m, route, daemon: picked, required, principal, key: null });
+      return this.sendToRoute({ m, route, daemon: picked, principal, key: null });
     }
 
-    const keyed: KeyedRoute = { m, params: route.params, key, picked, named, required, principal };
+    const keyed: KeyedRoute = { m, params: route.params, key, picked, named, principal };
 
     return this.sendKeyed(keyed, route);
   }
@@ -208,7 +181,6 @@ export class RoutingCaller {
         m: keyed.m,
         route,
         daemon: claimed.daemon,
-        required: keyed.required,
         principal: keyed.principal,
         key: keyed.key,
 
@@ -234,16 +206,15 @@ export class RoutingCaller {
     }
   }
 
-  // Sends one routed request to its daemon on a connection whose handshake
-  // announces every feature the request relies on, and records a keyed
-  // request's outcome on its binding.
+  // Sends one routed request to its daemon, and records a keyed request's
+  // outcome on its binding.
   private async sendToRoute(send: RoutedSend): Promise<Readonly<Record<string, unknown>>> {
     const store = this.opts.store;
 
     try {
       const ok = await this.opts.pool
         .getCaller(send.daemon.name)
-        .sendRequest(send.m, send.route.params, send.principal, send.required, send.prepareParams);
+        .sendRequest(send.m, send.route.params, send.principal, send.prepareParams);
 
       if (send.key !== null) {
         store.updateOutcome(
@@ -325,7 +296,7 @@ export class RoutingCaller {
 
     const daemon = bound ?? route.picked;
 
-    const hello = await requireServingDaemon(this.getCaller, daemon, route.required);
+    const hello = await this.getCaller(daemon.name).readHello();
 
     const claimID = randomUUID();
 
@@ -355,18 +326,13 @@ export class RoutingCaller {
 
   private async sendFanOut(
     m: 'session.list' | 'agents.list',
-    required: readonly DaemonFeature[],
     principal: Principal,
   ): Promise<Readonly<Record<string, unknown>>> {
     const daemons = [...this.opts.registry.daemons.values()];
 
     const outcomes = await Promise.all(
       daemons.map((daemon) =>
-        waitForOutcome(
-          this.sendToDaemon(m, daemon, required, principal),
-          this.getTimeout(),
-          this.getClock(),
-        ),
+        waitForOutcome(this.sendToDaemon(m, daemon, principal), this.getTimeout(), this.getClock()),
       ),
     );
 
@@ -402,17 +368,15 @@ export class RoutingCaller {
   private async sendToDaemon(
     m: string,
     daemon: RegistryDaemon,
-    required: readonly DaemonFeature[],
     principal: Principal,
   ): Promise<Readonly<Record<string, unknown>>> {
-    const ok = await this.opts.pool.getCaller(daemon.name).sendRequest(m, {}, principal, required);
+    const ok = await this.opts.pool.getCaller(daemon.name).sendRequest(m, {}, principal);
 
     return buildGatewayResult(m, ok, daemon);
   }
 
-  // Each daemon's name, state, build, pinned state identity, and features,
-  // read from its handshake, and the default daemon. Never an address or a
-  // token.
+  // Each daemon's name, state, build, and pinned state identity, read from
+  // its handshake, and the default daemon. Never an address or a token.
   private async readDaemonStates(): Promise<Readonly<Record<string, unknown>>> {
     const daemons = [...this.opts.registry.daemons.values()];
 
@@ -436,7 +400,6 @@ export class RoutingCaller {
           state: pickDaemonState(outcome),
           build: hello?.build ?? null,
           daemonID: daemon.daemonID,
-          features: hello === null ? [] : [...hello.features].toSorted(),
         };
       }),
       defaultDaemon: this.opts.registry.defaultDaemon,

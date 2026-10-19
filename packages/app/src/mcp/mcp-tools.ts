@@ -737,7 +737,7 @@ const SESSIONS_LIST_OUTPUT: Readonly<Record<string, unknown>> = {
           state: {
             type: 'string',
             description:
-              'up, down, unauthorized, changed, outdated (older than this gateway) or refused (it answered with an error); a later daemon may add a value',
+              'up, down, unauthorized, changed or refused (it answered with an error); a later daemon may add a value',
           },
         },
         required: ['name', 'state'],
@@ -840,11 +840,6 @@ const DAEMONS_OUTPUT: Readonly<Record<string, unknown>> = {
           daemonID: {
             type: 'string',
             description: 'the daemon identity the gateway expects at that address',
-          },
-          features: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'the features the daemon announced; empty unless the daemon is up',
           },
         },
         required: ['name', 'state'],
@@ -956,12 +951,11 @@ interface MCPToolDefinition {
   readonly outputSchema?: Readonly<Record<string, unknown>>;
   readonly annotations: MCPToolAnnotations;
 
-  // what the daemon must announce for the tool to be listed, its output schema
-  // declared, and each input offered; an older daemon gets the tool without them.
-  // `outputUnless` drops the output schema when the caller announces that feature.
+  // what the caller must announce for the tool to be listed and each input
+  // offered. `outputUnless` drops the output schema when the caller announces
+  // that feature.
   readonly requires?: {
     readonly tool?: FleetFeature;
-    readonly output?: FleetFeature;
     readonly outputUnless?: FleetFeature;
     readonly inputs?: Readonly<Record<string, FleetFeature>>;
   };
@@ -1017,19 +1011,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     description: buildSpawnDescriptions(null).tool,
     inputSchema: SPAWN_INPUT,
     outputSchema: SPAWN_OUTPUT,
-    requires: {
-      inputs: {
-        daemon: 'fleet.daemons',
-        model: 'spawn.options',
-        effort: 'spawn.options',
-        pluginDirs: 'spawn.pluginDirs',
-        idempotencyKey: 'spawn.idempotency',
-        target: 'spawn.target',
-        workspace: 'spawn.workspace',
-        trustClonedWorkspace: 'spawn.workspace.trust',
-        scope: 'session.record',
-      },
-    },
+    requires: { inputs: { daemon: 'fleet.daemons' } },
   },
   {
     name: 'atc_terminal_type',
@@ -1086,7 +1068,6 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
       additionalProperties: false,
     },
     outputSchema: TERMINAL_CHOOSE_OUTPUT,
-    requires: { tool: 'session.menu' },
   },
   {
     name: 'atc_terminal_read',
@@ -1104,7 +1085,6 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
       "Add worktrees, branches or pull requests to the scope a session's record holds. Returns { record }, the record as it stands after; a call that adds nothing returns it unchanged. atc checks every entry, held ones included, as the scope field states, and the first invalid one refuses the whole call with scope_invalid. Nothing is ever removed. A session on a sleeping imp is refused with host_unavailable. Through atc mcp from inside a session, a session cannot add to its own scope or its parent's; a call through atc mcp --http or the gateway carries no caller session, so atc does not check it.",
     inputSchema: SCOPE_ADD_INPUT,
     outputSchema: SCOPE_ADD_OUTPUT,
-    requires: { tool: 'session.record' },
   },
   {
     name: 'atc_session_update',
@@ -1126,9 +1106,6 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
       },
       required: ['session'],
       additionalProperties: false,
-    },
-    requires: {
-      inputs: { parent: 'session.update.parent', name: 'session.update.renameSkipped' },
     },
   },
   {
@@ -1164,7 +1141,6 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
       additionalProperties: false,
     },
     outputSchema: SESSION_FORGET_OUTPUT,
-    requires: { tool: 'session.forget' },
   },
   {
     name: 'atc_session_adopt',
@@ -1183,7 +1159,6 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
       "Bind the runtime auth of a session's host to the auth profiles its agent selects now, at the next revision. Use it when atc_session_adopt or a restore is refused with auth_rebind_required because the agent's auth profiles changed, or with auth_blocked after a revoke or a failed rebind; then start the session with atc_session_adopt, since a rebind starts nothing. The host gains every grant the agent's auth profiles now select and loses every grant they no longer select, for every session on that host. A harness keeps the settings it launched with until its next launch, and a rebind restarts none: restart a running session with atc_session_stop then atc_session_adopt. Returns { revision, restartPending }: the new revision, and the sessions on the host whose harness still holds an older revision's settings. Open to the daemon's owner only: a remote client is refused with unauthorized. Refused with unsupported_operation for a host with no auth binding, or for an agent that takes no credential from impd's broker, such as one whose auth block was dropped from the config: put the block back, or forget the session. Refused with auth_blocked while the binding is in another state, such as a revoke still pending. Launches on the host are refused with auth_blocked while a rebind runs. A rebind whose grant step fails leaves the host blocked at its old revision until a rebind succeeds; one refused before that step leaves the binding as it was. Each call that succeeds moves the binding to a new revision, a retry included.",
     inputSchema: SESSION_INPUT,
     outputSchema: SESSION_AUTH_REBIND_OUTPUT,
-    requires: { tool: 'session.auth' },
   },
   {
     name: 'atc_session_mark_read',
@@ -1207,7 +1182,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     annotations: READ_ONLY,
     scope: 'read',
     description:
-      "List the daemons this gateway routes to: name, state (up, down, unauthorized or changed), build, daemonID and features, plus defaultDaemon, where a spawn without daemon goes. It reads each daemon's handshake only, so a daemon too old for a tool still reads up here; a daemon that is not up has build null and no features. Session and message ids start with the daemon's name and incarnation, so an id shows which daemon holds it.",
+      "List the daemons this gateway routes to: name, state (up, down, unauthorized or changed), build, and daemonID, plus defaultDaemon, where a spawn without daemon goes. It reads each daemon's handshake only; a daemon that is not up has build null. Session and message ids start with the daemon's name and incarnation, so an id shows which daemon holds it.",
     inputSchema: NO_INPUT,
     outputSchema: DAEMONS_OUTPUT,
     requires: { tool: 'fleet.daemons' },
@@ -1220,7 +1195,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
       'Read what atc_session_spawn accepts on this daemon: each agent (pass its id as agent) with whether it is installed, its capabilities, the model and effort values it takes, and whether it takes plugin folders; each execution target (pass its id as target) with whether it is available; and spawnDefaults. A spawn that would fail says so in advance: an agent with installed false or capabilities.spawn false, a target with available false, or an entry in targetErrors, with their meanings in the output schema. available true does not show that the host of the target is up. A remote client sees only the targets it reaches, and no config-wide targetErrors. Under the gateway it returns daemons, an object keyed by daemon name that holds the state of each daemon and, for a daemon that is up, the object a single daemon returns. It never holds credentials, environment values or endpoints.',
     inputSchema: NO_INPUT,
     outputSchema: AGENTS_OUTPUT,
-    requires: { tool: 'agents.list', output: 'spawn.options', outputUnless: 'fleet.daemons' },
+    requires: { outputUnless: 'fleet.daemons' },
   },
   {
     name: 'atc_session_get',
@@ -1248,10 +1223,6 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
       "Read the fleet's event feed: the one call to catch up on session state changes, the notes sessions send, and the progress of messages you sent, oldest first. To wait on one message, use atc_message_get; for a session's conversation itself, use atc_transcript_read. It holds session events (started, prompt-submitted, needs-input, turn-done, ended), message events (message-queued, message-delivered, message-answered with the full answer, cut at 64 KiB, message-unanswered, each with the message id), answer notice events under the sending session (notice-queued, notice-delivered, with the message id) and notes (note, with its label and full text, cut at 64 KiB). Pass the returned cursor on the next call; more true means the page stopped early, so read again at once. Without a cursor it returns the latest events, and more never counts the older ones. waitMs holds the call until an event arrives, up to 30000; use it instead of polling. session limits the read to one session; previewOnly true returns 600-character previews of notes and answers instead. atc deletes events older than 30 days, except the newest event of each session. A partial read says so: complete false or textError on a note or an answer, and, under the gateway, unavailable, started or truncated, with their meanings in the output schema.",
     inputSchema: EVENTS_READ_INPUT,
     outputSchema: EVENTS_OUTPUT,
-    requires: {
-      output: 'events.more',
-      inputs: { session: 'events.session' },
-    },
   },
   {
     name: 'atc_message_send',
@@ -1270,7 +1241,6 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
       additionalProperties: false,
     },
     outputSchema: MESSAGE_SENT_OUTPUT,
-    requires: { inputs: { idempotencyKey: 'message.idempotency' } },
   },
   {
     name: 'atc_message_get',
@@ -1280,6 +1250,5 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
       'Read one message sent with atc_message_send. A sender inside an atc session that takes messages gets the outcome as an <atc-answer> notice. Every other caller has no inbox, so this read is how it learns the outcome: a caller outside a session, a remote client, or a session whose agent takes no messages (capabilities.message false in atc_spawn_options_get). A caller may also use it to wait on one message. It returns the message with its status (queued, delivered, answered or unanswered), the answer once answered and unansweredReason once unanswered; the output schema holds the meaning of each field. unanswered means the turn that carried the message ended without an answer, or the process of its session ended while the message was delivered (unansweredReason session_ended), and is final: atc never delivers the message again, so send it again to retry. The answer is the text the session sent with the answer tool or, if none, the final reply of the turn that carried the message; messages that one final reply answered share it, and answeredWith lists the others. Pass waitMs, up to 30000, to hold the call until the status changes; an answered or unanswered message returns at once. Ids and statuses persist, so call again after a timeout. An unknown id, or one whose session the caller cannot see, is refused with bad_args.',
     inputSchema: MESSAGE_GET_INPUT,
     outputSchema: MESSAGE_OUTPUT,
-    requires: { output: 'message.turn', inputs: { waitMs: 'message.wait' } },
   },
 ];

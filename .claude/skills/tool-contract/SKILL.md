@@ -175,13 +175,9 @@ atc's code holds it.
 
 A tool rename is a breaking change with no alias in code. The old name is refused: `unknown tool` on
 stdio, or a missing-scope refusal for a remote client without the `kill` scope, since a name atc
-does not know needs the strictest scope. A tool that depends on a daemon feature refuses a daemon
-without it, and never translates an old daemon's words.
-[`require-daemon-features.ts`](../../../packages/app/src/mcp/require-daemon-features.ts) throws that
-refusal, which reads for the `vocabulary.note` feature:
-
-> daemon_outdated: the running atc daemon is older than this atc and does not support the note and
-> queued words in the results of atc_events_read, atc_message_send, and atc_message_get. …
+does not know needs the strictest scope. No tool translates an old daemon's words, because a daemon
+on another protocol version refuses the handshake with `protocol_mismatch` before any tool call
+reaches it ([the protocol](../../../docs/architecture/protocol/protocol.md#versions)).
 
 ### 10. Use one word per concept everywhere
 

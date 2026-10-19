@@ -1,10 +1,9 @@
 import { systemClock } from '@atc/core';
 import type { Clock } from '@atc/core';
-import type { DaemonFeature, Principal } from '@atc/protocol';
-import { KEYED_METHOD_FEATURES, PROCEDURE_TRAITS, parseDaemonFeatures } from '@atc/protocol';
+import type { Principal } from '@atc/protocol';
+import { PROCEDURE_TRAITS } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
 import { DaemonTransport } from '@atc/protocol/wire/transport';
-import { buildDaemonOutdatedError } from './build-daemon-outdated-error';
 import { GatewayError } from './gateway-error';
 import type { DaemonHello, GatewayChannel, ParamsPreparer, RegistryDaemon } from './types';
 
@@ -55,32 +54,19 @@ export class GatewayDaemonCaller {
     m: string,
     p: Readonly<Record<string, unknown>> = {},
     as?: Principal,
-    required: readonly DaemonFeature[] = [],
     prepareParams: ParamsPreparer = (params) => params,
   ): Promise<Readonly<Record<string, unknown>>> {
-    // A request that acts as a principal relies on the daemon honouring it,
-    // and on the daemon labelling a message with the principal's name.
-    const needed: readonly DaemonFeature[] =
-      as === undefined ? required : [...required, 'request.principal', 'message.sender'];
-
     const opened = await this.transport.waitForConnection();
-
-    const unserved = needed.find((feature) => !opened.hello.features.has(feature));
-
-    if (unserved !== undefined) {
-      throw buildDaemonOutdatedError(this.opts.daemon.name, unserved);
-    }
-
     const first = await this.trySend(opened, m, p, as, prepareParams);
 
     if (first.kind === 'answered') {
       return first.ok;
     }
 
-    const keyFeature =
-      typeof p['idempotencyKey'] === 'string' ? KEYED_METHOD_FEATURES.get(m) : undefined;
+    const keyed =
+      typeof p['idempotencyKey'] === 'string' && PROCEDURE_TRAITS.get(m)?.keyed === true;
 
-    const repeatable = PROCEDURE_TRAITS.get(m)?.readOnly === true || keyFeature !== undefined;
+    const repeatable = PROCEDURE_TRAITS.get(m)?.readOnly === true || keyed;
 
     if (!repeatable) {
       throw this.buildOutcomeUnknown(m);
@@ -94,26 +80,10 @@ export class GatewayDaemonCaller {
       throw this.buildOutcomeUnknown(m);
     }
 
-    // a keyed retry only ever replays, and only to a daemon that announces the key and
-    // replay-only requests, so a daemon whose first send never arrived, or that has dropped
-    // the key since, runs nothing a second time
-    const replays =
-      keyFeature !== undefined &&
-      fresh.hello.features.has(keyFeature) &&
-      fresh.hello.features.has('idempotency.replayOnly');
-
-    if (keyFeature !== undefined && !replays) {
-      throw this.buildOutcomeUnknown(m);
-    }
-
-    // Nor does a retry reach a connection whose daemon would ignore what
-    // the request relies on, such as the principal it acts as.
-    if (needed.some((feature) => !fresh.hello.features.has(feature))) {
-      throw this.buildOutcomeUnknown(m);
-    }
-
+    // a keyed retry only ever replays, so a daemon whose first send never arrived, or that
+    // has dropped the key since, runs nothing a second time
     const second = await this.trySend(fresh, m, p, as, (params) =>
-      replays ? { ...prepareParams(params), replayOnly: true } : prepareParams(params),
+      keyed ? { ...prepareParams(params), replayOnly: true } : prepareParams(params),
     );
 
     if (second.kind === 'answered') {
@@ -150,11 +120,6 @@ export class GatewayDaemonCaller {
     // request leaves.
     const channel = connection.channel;
     const sent = prepareParams(p);
-
-    if (sent['replayOnly'] === true && !connection.hello.features.has('idempotency.replayOnly')) {
-      throw this.buildOutcomeUnknown(m);
-    }
-
     const timeout = Promise.withResolvers<'timeout'>();
 
     // A request that waits for a change on the daemon, such as a long poll,
@@ -336,7 +301,6 @@ function buildDaemonHello(
   return {
     build: typeof answer['daemon'] === 'string' ? answer['daemon'] : 'unknown',
     daemonID,
-    features: parseDaemonFeatures(answer),
     retentionMs: typeof retention === 'number' && retention > 0 ? retention : null,
   };
 }

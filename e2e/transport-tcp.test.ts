@@ -52,7 +52,6 @@ test('it answers a TCP handshake that carries a token from the token file', asyn
 
   expect(hello).toMatchObject({
     daemon: 'atc/test-build',
-    features: expect.toIncludeAllMembers(['transport.tcp']),
     idempotency: { completedRetentionMs: 86_400_000 },
   });
 });

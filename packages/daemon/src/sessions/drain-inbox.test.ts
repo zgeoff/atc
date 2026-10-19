@@ -97,7 +97,7 @@ test("it sends an unlinked tap no message sent to another session's atc id", asy
   await drain;
 
   expect(tap.sendEvent).toHaveBeenCalledExactlyOnceWith({
-    v: 5,
+    v: 6,
     ev: 'InboxMessage',
     s: 's-shown',
     message: 'm-own',

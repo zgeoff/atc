@@ -32,12 +32,12 @@ test('it drops a connection on the selected request after answering the handshak
   expect(client.sendRequest('session.list')).rejects.toThrowWithMessage(Error, 'connection closed');
 
   expect(daemon.requests).toStrictEqual([
-    { m: 'daemon.hello', p: { client: 'atc/test-build', protocol: 5, auth: { scheme: 'none' } } },
+    { m: 'daemon.hello', p: { client: 'atc/test-build', protocol: 6, auth: { scheme: 'none' } } },
     { m: 'session.list', p: {} },
   ]);
 });
 
-test('it answers the handshake without a feature list when given none', async () => {
+test('it answers the handshake with its build', async () => {
   const ctx = setupTest();
 
   startStubLegacyDaemon(ctx.socketPath);
@@ -54,29 +54,6 @@ test('it answers the handshake without a feature list when given none', async ()
     daemon: 'atc/legacy-build',
     limits: { maxLine: 1_048_576, maxChunk: 65_536 },
     lastUsedAgent: 'claude',
-  });
-});
-
-test('it announces the features it was given in the handshake', async () => {
-  const ctx = setupTest();
-
-  startStubLegacyDaemon(ctx.socketPath, {
-    features: ['agents.list', 'message.wait'],
-  });
-
-  const client = await openDaemonClient(ctx.socketPath);
-
-  registerTestCleanup(() => {
-    client.stop();
-  });
-
-  const hello = await client.sendHello('atc/test-build');
-
-  expect(hello).toStrictEqual({
-    daemon: 'atc/legacy-build',
-    limits: { maxLine: 1_048_576, maxChunk: 65_536 },
-    lastUsedAgent: 'claude',
-    features: ['agents.list', 'message.wait'],
   });
 });
 
@@ -100,7 +77,7 @@ test('it answers a method with the reply it was given and records the request', 
   expect(got).toStrictEqual({ message: 'm-1', status: 'queued' });
 
   expect(daemon.requests).toStrictEqual([
-    { m: 'daemon.hello', p: { client: 'atc/test-build', protocol: 5, auth: { scheme: 'none' } } },
+    { m: 'daemon.hello', p: { client: 'atc/test-build', protocol: 6, auth: { scheme: 'none' } } },
     { m: 'message.get', p: { message: 'm-1', waitMs: 5000 } },
   ]);
 });
@@ -108,7 +85,7 @@ test('it answers a method with the reply it was given and records the request', 
 test('it refuses a method it was given no reply for', async () => {
   const ctx = setupTest();
 
-  startStubLegacyDaemon(ctx.socketPath, { features: ['agents.list'] });
+  startStubLegacyDaemon(ctx.socketPath);
 
   const client = await openDaemonClient(ctx.socketPath);
 
@@ -155,7 +132,7 @@ test('it refuses a hello on another protocol version with protocol_mismatch', as
   expect(client.sendHello('atc/test-build')).rejects.toMatchObject({
     code: 'protocol_mismatch',
     message:
-      'atc/test-build speaks protocol v5, daemon atc/legacy-build speaks v3; restart the daemon so both run the same build',
+      'atc/test-build speaks protocol v6, daemon atc/legacy-build speaks v3; restart the daemon so both run the same build',
   });
 });
 

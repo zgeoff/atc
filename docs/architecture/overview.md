@@ -123,9 +123,8 @@ on disk is the durable copy of a session.
 - **Sessions are data, not processes.** A daemon that stops takes its local sessions with it, and
   the next daemon resumes each one from the agent's transcript under the same atc session id
   ([fleet and restore](./daemon/fleet-and-restore.md)).
-- **Additive evolution.** Client and daemon must speak the same protocol version. Within one
-  version, the daemon lists the features it serves, so a client that outlives an upgrade asks only
-  for what the running daemon honours ([protocol](./protocol/protocol.md#versions-and-features)).
+- **One protocol version.** Client and daemon must speak the same protocol version, and a daemon
+  refuses the handshake of a client on another one ([protocol](./protocol/protocol.md#versions)).
 - **Principals.** A request on the owner's unix socket acts as the owner. A request can act as a
   named principal, which narrows it to the targets that principal may use, and every request on the
   TCP listener must ([principals](./protocol/principals.md)).

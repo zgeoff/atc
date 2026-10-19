@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
 import { isRecord } from '@atc/core';
-import type { DaemonFeature } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
 import { match } from 'ts-pattern';
 import { parseIdempotencyKey } from './parse-idempotency-key';
@@ -60,50 +59,10 @@ export function runTool(
         rows: 30,
       };
 
-      // A model, effort, plugin folder, key, target, or workspace needs a daemon that takes
-      // them; the check runs on every connection the spawn rides.
-      const optionFeatures: readonly DaemonFeature[] =
-        args['model'] === undefined && args['effort'] === undefined ? [] : ['spawn.options'];
-
-      const pluginDirsFeatures: readonly DaemonFeature[] =
-        args['pluginDirs'] === undefined ? [] : ['spawn.pluginDirs'];
-
-      const keyFeatures: readonly DaemonFeature[] = key === undefined ? [] : ['spawn.idempotency'];
-
-      const targetFeatures: readonly DaemonFeature[] =
-        args['target'] === undefined ? [] : ['spawn.target'];
-
-      const workspaceFeatures: readonly DaemonFeature[] =
-        args['workspace'] === undefined ? [] : ['spawn.workspace'];
-
-      const trustFeatures: readonly DaemonFeature[] =
-        args['trustClonedWorkspace'] === undefined ? [] : ['spawn.workspace.trust'];
-
-      // Only a daemon that picks a git workspace's directory takes one
-      // without a cwd.
-      const autoDirFeatures: readonly DaemonFeature[] =
-        args['cwd'] === undefined && args['workspace'] !== undefined
-          ? ['spawn.workspace.autoDir']
-          : [];
-
-      const scopeFeatures: readonly DaemonFeature[] =
-        args['scope'] === undefined ? [] : ['session.record'];
-
-      const required = [
-        ...optionFeatures,
-        ...pluginDirsFeatures,
-        ...keyFeatures,
-        ...targetFeatures,
-        ...workspaceFeatures,
-        ...trustFeatures,
-        ...autoDirFeatures,
-        ...scopeFeatures,
-      ];
-
       const ok =
         nested && ctx.callerSessionID !== null
-          ? await sendNestedSpawn(caller, params, ctx.callerSessionID, required)
-          : await caller.sendRequest('session.spawn', params, required);
+          ? await sendNestedSpawn(caller, params, ctx.callerSessionID)
+          : await caller.sendRequest('session.spawn', params);
 
       // A spawn whose workspace left changes behind returns its warnings
       // beside the session's own fields.
@@ -117,16 +76,10 @@ export function runTool(
       return buildObjectResult(session);
     })
     .with('atc_terminal_type', async () => {
-      // An older daemon would take the line as raw input, which some agents
-      // never submit.
-      await caller.sendRequest(
-        'session.submit',
-        {
-          session: args['session'],
-          text: typeof args['text'] === 'string' ? args['text'] : '',
-        },
-        ['session.submit'],
-      );
+      await caller.sendRequest('session.submit', {
+        session: args['session'],
+        text: typeof args['text'] === 'string' ? args['text'] : '',
+      });
 
       return buildObjectResult({ written: true });
     })
@@ -144,24 +97,18 @@ export function runTool(
       }
 
       if (args['menuToken'] === undefined) {
-        const ok = await caller.sendRequest('session.menu', { session: args['session'] }, [
-          'session.menu',
-        ]);
+        const ok = await caller.sendRequest('session.menu', { session: args['session'] });
 
         return buildObjectResult({ menu: ok['menu'] });
       }
 
-      const ok = await caller.sendRequest(
-        'session.choose',
-        {
-          session: args['session'],
-          menuToken: args['menuToken'],
-          ...(args['option'] === undefined ? {} : { option: args['option'] }),
-          ...(args['label'] === undefined ? {} : { label: args['label'] }),
-          ...(args['key'] === undefined ? {} : { key: args['key'] }),
-        },
-        ['session.menu'],
-      );
+      const ok = await caller.sendRequest('session.choose', {
+        session: args['session'],
+        menuToken: args['menuToken'],
+        ...(args['option'] === undefined ? {} : { option: args['option'] }),
+        ...(args['label'] === undefined ? {} : { label: args['label'] }),
+        ...(args['key'] === undefined ? {} : { key: args['key'] }),
+      });
 
       return buildObjectResult({
         pressed: ok['pressed'],
@@ -178,23 +125,12 @@ export function runTool(
       };
     })
     .with('atc_session_update', async () => {
-      // An older daemon would drop the parent and answer as if it had
-      // made the session top-level, and would skip a rename without saying.
-      const required: readonly DaemonFeature[] = [
-        ...(args['parent'] === null ? (['session.update.parent'] as const) : []),
-        ...(typeof args['name'] === 'string' ? (['session.update.renameSkipped'] as const) : []),
-      ];
-
-      const ok = await caller.sendRequest(
-        'session.update',
-        {
-          session: args['session'],
-          ...(typeof args['name'] === 'string' ? { name: args['name'] } : {}),
-          ...(typeof args['pinned'] === 'boolean' ? { pinned: args['pinned'] } : {}),
-          ...(args['parent'] === null ? { parent: null } : {}),
-        },
-        required,
-      );
+      const ok = await caller.sendRequest('session.update', {
+        session: args['session'],
+        ...(typeof args['name'] === 'string' ? { name: args['name'] } : {}),
+        ...(typeof args['pinned'] === 'boolean' ? { pinned: args['pinned'] } : {}),
+        ...(args['parent'] === null ? { parent: null } : {}),
+      });
 
       if (ok['renameSkipped'] === 'agent_named') {
         return {
@@ -206,22 +142,20 @@ export function runTool(
       return { text: 'updated', structured: null };
     })
     .with('atc_session_scope_add', async () => {
-      const ok = await caller.sendRequest(
-        'session.scope.add',
-        { session: args['session'], scope: args['scope'] },
-        ['session.record'],
-      );
+      const ok = await caller.sendRequest('session.scope.add', {
+        session: args['session'],
+        scope: args['scope'],
+      });
 
       return { text: JSON.stringify(ok), structured: ok };
     })
     .with('atc_session_stop', async () => {
       // A stop never removes a session, so an exited one stays listed until
       // a forget removes it.
-      const ok = await caller.sendRequest(
-        'session.kill',
-        { session: args['session'], stopOnly: true },
-        ['session.kill.stopOnly'],
-      );
+      const ok = await caller.sendRequest('session.kill', {
+        session: args['session'],
+        stopOnly: true,
+      });
 
       return buildObjectResult({ stopped: ok['stopped'] === true });
     })
@@ -231,9 +165,7 @@ export function runTool(
       return buildObjectResult({ adopted: true });
     })
     .with('atc_session_auth_rebind', async () => {
-      const ok = await caller.sendRequest('session.auth.rebind', { session: args['session'] }, [
-        'session.auth',
-      ]);
+      const ok = await caller.sendRequest('session.auth.rebind', { session: args['session'] });
 
       return buildObjectResult({
         revision: ok['revision'],
@@ -246,21 +178,7 @@ export function runTool(
         ...(typeof args['confirmToken'] === 'string' ? { confirmToken: args['confirmToken'] } : {}),
       };
 
-      const stops = args['stop'] === true;
-
-      const features = await caller.readFeatures();
-
-      if (features.has('session.forget.preconditions')) {
-        const ok = await trySendGuardedForget(caller, params, stops);
-
-        if (ok !== null) {
-          return buildObjectResult(ok);
-        }
-      }
-
-      await requireForgettable(caller, args['session'], stops);
-
-      const ok = await caller.sendRequest('session.forget', params, ['session.forget']);
+      const ok = await sendGuardedForget(caller, params, args['stop'] === true);
 
       return buildObjectResult(ok);
     })
@@ -282,7 +200,7 @@ export function runTool(
       return buildObjectResult(ok);
     })
     .with('atc_spawn_options_get', async () => {
-      const ok = await caller.sendRequest('agents.list', {}, ['agents.list']);
+      const ok = await caller.sendRequest('agents.list');
 
       return buildObjectResult(ok);
     })
@@ -301,28 +219,14 @@ export function runTool(
       return buildObjectResult(ok);
     })
     .with('atc_events_read', async () => {
-      const filtered = typeof args['session'] === 'string' && args['session'] !== '';
       const previewOnly = args['previewOnly'] === true;
 
-      const required: DaemonFeature[] = [
-        'vocabulary.note',
-        ...(filtered ? (['events.session'] as const) : []),
-
-        // A daemon without a text read would hand back previews and move
-        // the cursor past them, so a full read refuses it instead.
-        ...(previewOnly ? [] : (['note.get', 'answer.get'] as const)),
-      ];
-
-      const ok = await caller.sendRequest(
-        'events.read',
-        {
-          ...(typeof args['cursor'] === 'string' ? { cursor: args['cursor'] } : {}),
-          ...(typeof args['limit'] === 'number' ? { limit: args['limit'] } : {}),
-          ...(typeof args['waitMs'] === 'number' ? { waitMs: args['waitMs'] } : {}),
-          ...(typeof args['session'] === 'string' ? { session: args['session'] } : {}),
-        },
-        required,
-      );
+      const ok = await caller.sendRequest('events.read', {
+        ...(typeof args['cursor'] === 'string' ? { cursor: args['cursor'] } : {}),
+        ...(typeof args['limit'] === 'number' ? { limit: args['limit'] } : {}),
+        ...(typeof args['waitMs'] === 'number' ? { waitMs: args['waitMs'] } : {}),
+        ...(typeof args['session'] === 'string' ? { session: args['session'] } : {}),
+      });
 
       // Each note's whole text and each message's whole answer ride the
       // same call, so a reader catches up without one read per event.
@@ -332,56 +236,27 @@ export function runTool(
     })
     .with('atc_message_send', async () => {
       const key = parseIdempotencyKey(args['idempotencyKey']);
-
-      const required: DaemonFeature[] = [
-        'vocabulary.note',
-        'message.unanswered',
-
-        // the daemon labels the message with who called, so one that would take a
-        // caller-given name refuses the send.
-        'message.sender',
-        ...(key === undefined ? [] : (['message.idempotency'] as const)),
-
-        // a caller inside a session is told its answers arrive as notices, so a daemon
-        // that queues none refuses the send instead of leaving the caller waiting.
-        ...(ctx.callerSessionID === null ? [] : (['message.notice'] as const)),
-      ];
-
       const legacyFrom = args['from'];
 
-      const ok = await caller.sendRequest(
-        'session.message',
-        {
-          session: args['session'],
-          text: args['text'],
-          ...(key === undefined ? {} : { idempotencyKey: key }),
-          ...(key !== undefined &&
-          ctx.passesLegacyFrom === true &&
-          typeof legacyFrom === 'string' &&
-          legacyFrom !== ''
-            ? { from: legacyFrom }
-            : {}),
-        },
-        required,
-      );
+      const ok = await caller.sendRequest('session.message', {
+        session: args['session'],
+        text: args['text'],
+        ...(key === undefined ? {} : { idempotencyKey: key }),
+        ...(key !== undefined &&
+        ctx.passesLegacyFrom === true &&
+        typeof legacyFrom === 'string' &&
+        legacyFrom !== ''
+          ? { from: legacyFrom }
+          : {}),
+      });
 
       return buildObjectResult(ok);
     })
     .with('atc_message_get', async () => {
-      const waits = typeof args['waitMs'] === 'number' && args['waitMs'] > 0;
-
-      const required: DaemonFeature[] = waits
-        ? ['vocabulary.note', 'message.unanswered', 'message.wait']
-        : ['vocabulary.note', 'message.unanswered'];
-
-      const ok = await caller.sendRequest(
-        'message.get',
-        {
-          message: args['message'],
-          ...(typeof args['waitMs'] === 'number' ? { waitMs: args['waitMs'] } : {}),
-        },
-        required,
-      );
+      const ok = await caller.sendRequest('message.get', {
+        message: args['message'],
+        ...(typeof args['waitMs'] === 'number' ? { waitMs: args['waitMs'] } : {}),
+      });
 
       return buildObjectResult(ok);
     })
@@ -429,31 +304,20 @@ const SESSION_LIVE_REFUSAL =
 
 // the daemon checks pinned and live in the same step that forgets, so a pin or
 // revive that lands just before the forget still refuses it.
-async function trySendGuardedForget(
+async function sendGuardedForget(
   caller: FleetCaller,
   params: Readonly<Record<string, unknown>>,
   stops: boolean,
-): Promise<Readonly<Record<string, unknown>> | null> {
+): Promise<Readonly<Record<string, unknown>>> {
   try {
-    return await caller.sendRequest(
-      'session.forget',
-      { ...params, refusePinned: true, refuseLive: !stops },
-      ['session.forget', 'session.forget.preconditions'],
-    );
+    return await caller.sendRequest('session.forget', {
+      ...params,
+      refusePinned: true,
+      refuseLive: !stops,
+    });
   } catch (error) {
     if (!(error instanceof Error) || !('code' in error)) {
       throw error;
-    }
-
-    if (
-      error.code === 'daemon_outdated' &&
-      'data' in error &&
-      isRecord(error.data) &&
-      error.data['feature'] === 'session.forget.preconditions'
-    ) {
-      // the daemon a gateway routes the forget to lacks the checks, so the caller
-      // checks the session itself.
-      return null;
     }
 
     if (error.code === 'session_pinned') {
@@ -468,45 +332,15 @@ async function trySendGuardedForget(
   }
 }
 
-// A forget is for good, so it reads the session first: an unseen or unknown
-// session fails here before the daemon mints a token, and a pinned or live
-// session is refused with the step that unblocks it.
-async function requireForgettable(
-  caller: FleetCaller,
-  session: unknown,
-  stops: boolean,
-): Promise<void> {
-  const got = await caller.sendRequest('session.get', { session });
-
-  const descriptor = isRecord(got['session']) ? got['session'] : {};
-  const parent = descriptor['parent'];
-  let pinned = descriptor['pinned'] === true;
-
-  if (!pinned && typeof parent === 'string') {
-    const owner = await caller.sendRequest('session.get', { session: parent });
-
-    pinned = isRecord(owner['session']) && owner['session']['pinned'] === true;
-  }
-
-  if (pinned) {
-    throw new Error(SESSION_PINNED_REFUSAL);
-  }
-
-  if (descriptor['alive'] === true && !stops) {
-    throw new Error(SESSION_LIVE_REFUSAL);
-  }
-}
-
 // the inherited id can point at a session another daemon hosts, or one this
 // daemon no longer lists; the spawn then lands top-level instead of failing.
 async function sendNestedSpawn(
   caller: FleetCaller,
   params: Readonly<Record<string, unknown>>,
   parent: string,
-  required: readonly DaemonFeature[],
 ): Promise<Readonly<Record<string, unknown>>> {
   try {
-    return await caller.sendRequest('session.spawn', { ...params, parent }, required);
+    return await caller.sendRequest('session.spawn', { ...params, parent });
   } catch (error) {
     // an answer that holds an effect id is a keyed spawn that already ran, which a
     // top-level spawn would only duplicate.
@@ -515,7 +349,7 @@ async function sendNestedSpawn(
       error.code === 'no_such_session' &&
       error.data?.['effectRef'] === undefined
     ) {
-      return caller.sendRequest('session.spawn', buildTopLevelParams(params), required);
+      return caller.sendRequest('session.spawn', buildTopLevelParams(params));
     }
 
     throw error;

@@ -1,4 +1,3 @@
-import type { DaemonFeature } from '@atc/protocol';
 import { MAX_CHUNK, MAX_LINE, PROTOCOL_V } from '@atc/protocol/wire';
 import { startStubPeerDaemon } from './start-stub-peer-daemon';
 import type { StubPeerAnswer, StubPeerRequest } from './start-stub-peer-daemon';
@@ -16,8 +15,6 @@ interface StubLegacyDaemonTCPAddress {
 }
 
 interface StubLegacyDaemonOptions {
-  readonly features?: readonly DaemonFeature[];
-
   // The protocol version the daemon speaks; a hello on any other version is
   // refused with `protocol_mismatch`, as a real daemon refuses it.
   readonly protocol?: number;
@@ -44,10 +41,6 @@ export function startStubLegacyDaemon(
       daemon: 'atc/legacy-build',
       limits: { maxLine: MAX_LINE, maxChunk: MAX_CHUNK },
       lastUsedAgent: 'claude',
-
-      // Without the list, the hello announces no features, as a daemon from before
-      // features did.
-      ...(options.features === undefined ? {} : { features: options.features }),
     },
     'daemon.ping': {},
     ...options.replies,

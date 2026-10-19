@@ -436,7 +436,7 @@ test('it answers daemon_unauthorized for a daemon that refuses the gateway token
   });
 });
 
-test('it lists each daemon with its state, build, pinned id, and features but no address or token', async () => {
+test('it lists each daemon with its state, build, and pinned id but no address or token', async () => {
   const ctx = await setupTest();
 
   const listed = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
@@ -451,14 +451,12 @@ test('it lists each daemon with its state, build, pinned id, and features but no
         state: 'up',
         build: ctx.cloud.build,
         daemonID: ctx.cloudID,
-        features: expect.toIncludeAllMembers(['transport.tcp', 'spawn.idempotency']),
       },
       {
         name: 'pc',
         state: 'up',
         build: ctx.pc.build,
         daemonID: ctx.pcID,
-        features: expect.toIncludeAllMembers(['transport.tcp', 'spawn.idempotency']),
       },
     ],
     defaultDaemon: 'cloud',

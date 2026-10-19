@@ -39,7 +39,7 @@ function setupTest(config?: DaemonTestConfig) {
   });
 }
 
-test('it answers daemon.hello with the build, limits, and features', async () => {
+test('it answers daemon.hello with the build and limits', async () => {
   const ctx = await setupTest({ mainClient: false });
   const client = await openDaemonClient(ctx.socketPath);
 
@@ -53,47 +53,6 @@ test('it answers daemon.hello with the build, limits, and features', async () =>
     daemon: ctx.build,
     daemonID: expect.stringMatching(/^[\da-f-]{36}$/u),
     limits: { maxLine: 1_048_576, maxChunk: 65_536 },
-    features: [
-      'agents.list',
-      'events.more',
-      'events.session',
-      'events.start',
-      'message.turn',
-      'message.wait',
-      'spawn.options',
-      'spawn.pluginDirs',
-      'daemon.id',
-      'session.locator',
-      'spawn.idempotency',
-      'message.idempotency',
-      'spawn.target',
-      'request.principal',
-      'spawn.workspace',
-      'spawn.workspace.trust',
-      'spawn.workspace.autoDir',
-      'session.forget',
-      'session.forget.preconditions',
-      'session.submit',
-      'note.get',
-      'answer.get',
-      'sources',
-      'sources.complete',
-      'git.probe',
-      'transport.tcp',
-      'idempotency.replayOnly',
-      'session.auth',
-      'session.record',
-      'vocabulary.note',
-      'session.kill.stopOnly',
-      'message.unanswered',
-      'session.update.parent',
-      'session.update.renameSkipped',
-      'message.notice',
-      'message.sender',
-      'message.local',
-      'session.menu',
-      'daemon.backup',
-    ],
     idempotency: { completedRetentionMs: 86_400_000 },
     lastUsedAgent: 'claude',
   });
@@ -123,12 +82,12 @@ test('it rejects a protocol version mismatch naming both builds and closes the c
     client.stop();
   });
 
-  const refused = client.sendRequest('daemon.hello', { client: 'atc/newer-build', protocol: 6 });
+  const refused = client.sendRequest('daemon.hello', { client: 'atc/newer-build', protocol: 7 });
 
   expect(refused).rejects.toMatchObject({
     code: 'protocol_mismatch',
     message:
-      'atc/newer-build speaks protocol v6, daemon atc/test-build speaks v5; restart the daemon so both run the same build',
+      'atc/newer-build speaks protocol v7, daemon atc/test-build speaks v6; restart the daemon so both run the same build',
   });
 
   await Promise.allSettled([refused]);
@@ -753,7 +712,7 @@ test('it runs a configured hook with the same event JSON a watching client recei
   // The hook reads the wire form, which carries the protocol version the
   // client drops.
   expect({ payload: parsed, eventName, rest }).toStrictEqual({
-    payload: { v: 5, ...event },
+    payload: { v: 6, ...event },
     eventName: 'SessionAttached',
     rest: '',
   });

@@ -3,7 +3,7 @@ import { resolveHomeDir } from '@atc/config/host';
 import type { AgentID } from '@atc/core';
 import { ansi, makeSingleFlight, systemClock } from '@atc/core';
 import { countSessionStates, sortSessionViews } from '@atc/protocol';
-import type { DaemonBoot, DaemonFeature } from '@atc/protocol';
+import type { DaemonBoot } from '@atc/protocol';
 import type { DaemonClient } from '@atc/protocol/client';
 import { createActor } from 'xstate';
 import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
@@ -160,7 +160,6 @@ const picker = new SpawnPicker<MirrorSession>({
   upsertMirror: (d) => {
     mirror.upsert(d);
   },
-  hasDaemonFeature,
 
   // The restart prompt keeps the screen until it has its key.
   write: (chunk) => {
@@ -183,10 +182,6 @@ const picker = new SpawnPicker<MirrorSession>({
 
 function openPicker(resume: boolean) {
   picker.open(resume);
-}
-
-function hasDaemonFeature(feature: DaemonFeature): boolean {
-  return getBoot().features.has(feature);
 }
 
 function sendRequest(m: string, p?: Readonly<Record<string, unknown>>) {

@@ -3,8 +3,7 @@
 Every atc client talks to the daemon in one dialect: oRPC peer messages, one JSON message per line,
 in UTF-8, over the daemon's unix socket or its TCP listener. A connection opens with a handshake,
 then carries requests, one response per request, and the event stream the client subscribes to.
-Client and daemon ship from one repo and must speak the same protocol version, and inside one
-version the daemon lists the features it serves, so the protocol grows by addition and a peer never
+Client and daemon ship from one repo and must speak the same protocol version, and a peer never
 breaks on a field it does not know.
 
 [Principals](./principals.md) covers who a request acts as, [idempotency](./idempotency.md) covers
@@ -69,11 +68,11 @@ On the unix socket the daemon reads the caller's session from the kernel instead
 allows it, and refuses a hello whose session differs
 ([session record](../execution/session-record.md#who-may-change-the-record)).
 
-The answer holds the daemon's build, its feature list, its line limits, how long it keeps a
-completed idempotency key, the last agent the owner spawned, and the daemon id. The daemon mints
-that id into its store the first time it opens it, so the id stays the same across restarts, and
-every session descriptor holds a locator of the daemon id and the session's target, which tells a
-client routing across several daemons where a session lives.
+The answer holds the daemon's build, its line limits, how long it keeps a completed idempotency key,
+the last agent the owner spawned, and the daemon id. The daemon mints that id into its store the
+first time it opens it, so the id stays the same across restarts, and every session descriptor holds
+a locator of the daemon id and the session's target, which tells a client routing across several
+daemons where a session lives.
 
 A connection takes one handshake, because a second could change the principal under the connection's
 attachments. A second hello gets `unauthorized`, and the connection stays open with the identity the
@@ -115,7 +114,7 @@ from a connection closing, and a dropped connection means only that the daemon d
 connection's attachments and its message tap. A client whose connection drops rejects every request
 still waiting for a response, and decides for itself whether to resend it.
 
-## Versions and features
+## Versions
 
 The protocol version is one integer compared for equality. The daemon records it in `daemon.json`
 beside its socket paths, and a client sends its own in the hello. A daemon on another version
@@ -123,13 +122,10 @@ refuses the handshake with `protocol_mismatch`, and the error holds both version
 so the failure says what to do. [The daemon](../daemon/daemon.md#builds-and-protocol-versions)
 covers how each client handles it.
 
-Inside one version, the daemon's feature list names each request feature it serves beyond the
-version's base: a procedure that exists, an input field it takes, a field its answer holds. A client
-that outlives a daemon upgrade, such as an MCP server, reads the list rather than the build string
-to learn what the running daemon honours. The MCP servers hide a tool or an input that the connected
-daemon lacks, and refuse a call that needs one with `daemon_outdated` without sending it on. A
-daemon ignores an input field it does not know, so a client that sends one to an older daemon gets
-the old behaviour, never an error.
+Any change to a procedure, an input field, or an answer field raises the version. A client and a
+daemon that pass the handshake therefore serve the same procedures and fields, so a client offers
+every tool and input without asking the daemon what it serves. A peer ignores a field it does not
+know, in a request or in an answer.
 
 ## Events
 

@@ -11,7 +11,6 @@ import {
   startStubLegacyDaemon,
   waitFor,
 } from '@atc/test-utils';
-import invariant from 'tiny-invariant';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { TransportCaller } from './transport-caller';
 
@@ -99,30 +98,9 @@ test('it closes its connection and refuses later requests once stopped', async (
   expect(ctx.caller.sendRequest('session.list')).rejects.toThrow('the daemon transport is stopped');
 });
 
-test('it refuses a filtered read unsent when an older daemon replaced the one it handshook with', async () => {
-  const ctx = await setupTest();
-  const features = await ctx.caller.readFeatures();
-
-  invariant(
-    features.has('events.session'),
-    'the first daemon does not announce the session filter',
-  );
-
-  await ctx.daemon.stop();
-
-  const legacy = startStubLegacyDaemon(ctx.socketPath);
-  const read = ctx.caller.sendRequest('events.read', { session: 's-1' }, ['events.session']);
-
-  expect(read).rejects.toThrow(/^daemon_outdated: /u);
-  expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
-});
-
 test('it retries a spawn on a fresh connection under the key it minted when the connection drops', async () => {
   const tmp = setupTempDir('atc-reconnecting-caller-');
-
-  const dropping = startStubDroppingDaemon(join(tmp.dir, 'daemon.sock'), {
-    features: ['spawn.idempotency'],
-  });
+  const dropping = startStubDroppingDaemon(join(tmp.dir, 'daemon.sock'));
 
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     openDaemonClient(path),
@@ -138,10 +116,7 @@ test('it retries a spawn on a fresh connection under the key it minted when the 
 
 test('it retries a message on a fresh connection under the key its caller passed', async () => {
   const tmp = setupTempDir('atc-reconnecting-caller-');
-
-  const dropping = startStubDroppingDaemon(join(tmp.dir, 'daemon.sock'), {
-    features: ['message.idempotency'],
-  });
+  const dropping = startStubDroppingDaemon(join(tmp.dir, 'daemon.sock'));
 
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     openDaemonClient(path),
@@ -160,10 +135,7 @@ test('it retries a message on a fresh connection under the key its caller passed
 
 test('it resends a keyed spawn unchanged, never as replay-only, so a daemon that never got it runs it', async () => {
   const tmp = setupTempDir('atc-reconnecting-caller-');
-
-  const dropping = startStubDroppingDaemon(join(tmp.dir, 'daemon.sock'), {
-    features: ['spawn.idempotency', 'idempotency.replayOnly'],
-  });
+  const dropping = startStubDroppingDaemon(join(tmp.dir, 'daemon.sock'));
 
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     openDaemonClient(path),
@@ -184,13 +156,9 @@ test('it resends a keyed spawn unchanged, never as replay-only, so a daemon that
   ]);
 });
 
-test('it refuses to retry a keyed spawn unsent when the daemon behind the socket stopped taking keys', () => {
+test('it fails a request that is neither keyed nor read-only when its connection drops', () => {
   const tmp = setupTempDir('atc-reconnecting-caller-');
-
-  const dropping = startStubDroppingDaemon(join(tmp.dir, 'daemon.sock'), {
-    features: ['spawn.idempotency'],
-    retryFeatures: [],
-  });
+  const dropping = startStubDroppingDaemon(join(tmp.dir, 'daemon.sock'));
 
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     openDaemonClient(path),
@@ -198,25 +166,9 @@ test('it refuses to retry a keyed spawn unsent when the daemon behind the socket
 
   registerTestCleanup(() => caller.stop());
 
-  const spawn = caller.sendRequest('session.spawn', { cwd: '/tmp' });
+  const kill = caller.sendRequest('session.kill', { session: 's-1' });
 
-  expect(spawn).rejects.toThrow(/^daemon_outdated: /u);
-  expect(dropping.keys).toHaveLength(1);
-});
-
-test('it fails a spawn whose connection drops when the daemon takes no keys', () => {
-  const tmp = setupTempDir('atc-reconnecting-caller-');
-  const dropping = startStubDroppingDaemon(join(tmp.dir, 'daemon.sock'), { features: [] });
-
-  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    openDaemonClient(path),
-  );
-
-  registerTestCleanup(() => caller.stop());
-
-  const spawn = caller.sendRequest('session.spawn', { cwd: '/tmp' });
-
-  expect(spawn).rejects.toMatchObject({ code: 'internal', message: 'connection closed' });
+  expect(kill).rejects.toMatchObject({ code: 'internal', message: 'connection closed' });
   expect(dropping.keys).toStrictEqual([undefined]);
 });
 
@@ -274,7 +226,6 @@ test("it sends a principal's name beside it, which labels the message the reques
   const sent = await caller.sendRequest(
     'session.message',
     { session, text: 'check the tide tables', from: 'impostor' },
-    [],
     { id: 'client-7', name: 'Lantern Notes' },
   );
 

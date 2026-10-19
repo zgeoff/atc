@@ -45,13 +45,13 @@ method that has no rule, so a new daemon method never passes through with its id
 A call goes to the daemon its ids name, then to the daemon its params name, then to the default
 daemon. A call whose ids and params name two different daemons is refused with `bad_args`. A call
 never fails over to another daemon. Listings of sessions and agents fan out to every daemon and
-report each daemon's state beside the merged answer: up, down, unauthorized, refused, outdated, or
-changed when its identity no longer matches the registry. An event read merges every daemon's trail
-under one gateway cursor that keeps each daemon's place, so a daemon that did not answer resumes
-from where it stopped on the next call. The page lists a daemon that did not answer under
-`unavailable`, one the read started at its newest or latest events under `started`, and one whose
-older events went unread under `truncated`. A read that waits first reads every daemon without
-waiting, and only when none has an event does each wait, returning as soon as one has.
+report each daemon's state beside the merged answer: up, down, unauthorized, refused, or changed
+when its identity no longer matches the registry. An event read merges every daemon's trail under
+one gateway cursor that keeps each daemon's place, so a daemon that did not answer resumes from
+where it stopped on the next call. The page lists a daemon that did not answer under `unavailable`,
+one the read started at its newest or latest events under `started`, and one whose older events went
+unread under `truncated`. A read that waits first reads every daemon without waiting, and only when
+none has an event does each wait, returning as soon as one has.
 
 The gateway carries no terminal stream. It serves a screen read, a transcript read and a submitted
 line, and no attach or raw input, because an MCP tool call has nowhere to put a live stream.
@@ -64,10 +64,10 @@ answer is lost, because the connection closed or timed out, ends that connection
 that cannot double its effect is retried once on a fresh one:
 
 - A read-only request is retried.
-- A keyed spawn or message is resent as replay-only, and only when the fresh daemon announces both
-  the key's feature and replay-only resends
-  ([idempotency](../protocol/idempotency.md#replay-only-resends)). Anything else ends as
-  `outcome_unknown`.
+- A keyed spawn or message is resent as replay-only
+  ([idempotency](../protocol/idempotency.md#replay-only-resends)).
+
+Anything else ends as `outcome_unknown`.
 
 The gateway binds each keyed request to its daemon in its own database before it sends it, and marks
 the binding sent just before each write. A retry after a gateway restart of a request marked sent

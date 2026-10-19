@@ -118,7 +118,7 @@ export class DaemonConnection {
   }
 
   // The boot of the latest connection: the daemon's socket, which a restart
-  // takes it out of service by, its build, and its features.
+  // takes it out of service by, and its build.
   getBoot(): DaemonBoot {
     const link = this.transport.findLatest();
 

@@ -34,7 +34,7 @@ How atc is built: the parts, what each one owns, and what holds whatever a calle
 ### Protocol
 
 - [The client protocol](architecture/protocol/protocol.md) — JSON lines, errors, the handshake,
-  versions and features, events and the connection lifecycle
+  versions, events and the connection lifecycle
 - [Principals](architecture/protocol/principals.md) — acting as a principal, reach, and the TCP
   listener with its bearer tokens
 - [Idempotent requests](architecture/protocol/idempotency.md) — keys, unknown outcomes, recovery

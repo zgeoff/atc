@@ -2,7 +2,6 @@ import type { RemoteDaemon } from '@atc/config';
 import { systemClock, toAgentID } from '@atc/core';
 import type { Clock } from '@atc/core';
 import type { DaemonBoot, DaemonBootOptions } from '@atc/protocol';
-import { parseDaemonFeatures } from '@atc/protocol';
 import { openDaemonClient } from '@atc/protocol/client';
 import type { DaemonClient } from '@atc/protocol/client';
 import { DaemonError, PROTOCOL_V } from '@atc/protocol/wire';
@@ -150,7 +149,6 @@ async function openRemoteDaemon(
       // never stale, since this client cannot restart a daemon on another host
       stale: false,
       lastUsedAgent: toAgentID(answered.hello['lastUsedAgent']),
-      features: parseDaemonFeatures(answered.hello),
       socketPath: formatRemoteAddress(daemon),
     };
   } catch (error) {

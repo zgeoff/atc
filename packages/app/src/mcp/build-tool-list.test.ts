@@ -1,18 +1,17 @@
 import { expect, test } from 'bun:test';
-import { DAEMON_FEATURES } from '@atc/protocol';
 import { getRecord } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { buildToolList } from './build-tool-list';
 import { MCP_TOOLS } from './mcp-tools';
 
 test('it lists one entry per defined tool in definition order', () => {
-  expect(
-    buildToolList(new Set([...DAEMON_FEATURES, 'fleet.daemons']), null).map((tool) => tool.name),
-  ).toStrictEqual(MCP_TOOLS.map((tool) => tool.name));
+  expect(buildToolList(new Set(['fleet.daemons']), null).map((tool) => tool.name)).toStrictEqual(
+    MCP_TOOLS.map((tool) => tool.name),
+  );
 });
 
 test('it leaves out the daemons tool and every daemon input for a caller of one daemon', () => {
-  const tools = buildToolList(new Set(DAEMON_FEATURES), null);
+  const tools = buildToolList(new Set(), null);
   const spawn = tools.find((tool) => tool.name === 'atc_session_spawn');
   const dirs = tools.find((tool) => tool.name === 'atc_recent_dirs_list');
 
@@ -24,7 +23,7 @@ test('it leaves out the daemons tool and every daemon input for a caller of one 
 });
 
 test('it lists the agents tool without its output schema for a caller across named daemons', () => {
-  const agents = buildToolList(new Set([...DAEMON_FEATURES, 'fleet.daemons']), null).find(
+  const agents = buildToolList(new Set(['fleet.daemons']), null).find(
     (tool) => tool.name === 'atc_spawn_options_get',
   );
 
@@ -35,9 +34,7 @@ test('it lists the agents tool without its output schema for a caller across nam
 
 test('it lists each tool with only its name, description, schemas, and annotations', () => {
   expect(
-    buildToolList(new Set(DAEMON_FEATURES), null).map((tool) =>
-      Object.keys(tool).toSorted().join(','),
-    ),
+    buildToolList(new Set(), null).map((tool) => Object.keys(tool).toSorted().join(',')),
   ).toSatisfyAll(
     (keys) =>
       keys === 'annotations,description,inputSchema,name' ||
@@ -47,7 +44,7 @@ test('it lists each tool with only its name, description, schemas, and annotatio
 
 test('it lists an output schema for every tool whose result is data', () => {
   expect(
-    buildToolList(new Set(DAEMON_FEATURES), null)
+    buildToolList(new Set(), null)
       .filter((tool) => tool.outputSchema !== undefined)
       .map((tool) => tool.name),
   ).toStrictEqual([
@@ -70,16 +67,8 @@ test('it lists an output schema for every tool whose result is data', () => {
   ]);
 });
 
-test('it leaves out the agents tool for a daemon that announces no features', () => {
-  expect(buildToolList(new Set(), null).map((tool) => tool.name)).not.toContain(
-    'atc_spawn_options_get',
-  );
-});
-
 test('it offers the preview switch and no note text input on the events tool', () => {
-  const eventsRead = buildToolList(new Set(DAEMON_FEATURES), null).find(
-    (tool) => tool.name === 'atc_events_read',
-  );
+  const eventsRead = buildToolList(new Set(), null).find((tool) => tool.name === 'atc_events_read');
 
   invariant(eventsRead !== undefined, 'event tool missing');
 
@@ -88,33 +77,14 @@ test('it offers the preview switch and no note text input on the events tool', (
 });
 
 test('it lists no tool that reads one note or resumes a session outside atc', () => {
-  const names = buildToolList(new Set(DAEMON_FEATURES), null).map((tool) => tool.name);
+  const names = buildToolList(new Set(), null).map((tool) => tool.name);
 
   expect(names).not.toContain('atc_report_get');
   expect(names).not.toContain('atc_resume_command');
 });
 
-test('it lists the message and event tools in their older form for a daemon that announces no features', () => {
-  const tools = buildToolList(new Set(), null);
-  const messageGet = tools.find((tool) => tool.name === 'atc_message_get');
-  const eventsRead = tools.find((tool) => tool.name === 'atc_events_read');
-
-  invariant(messageGet !== undefined && eventsRead !== undefined, 'message or event tool missing');
-
-  expect(messageGet.outputSchema).toBeUndefined();
-  expect(eventsRead.outputSchema).toBeUndefined();
-  expect(messageGet.inputSchema['properties']).toContainAllKeys(['message']);
-
-  expect(eventsRead.inputSchema['properties']).toContainAllKeys([
-    'cursor',
-    'limit',
-    'waitMs',
-    'previewOnly',
-  ]);
-});
-
 test('it mentions no agent id the host has not registered in any description', () => {
-  const tools = buildToolList(new Set(DAEMON_FEATURES), [
+  const tools = buildToolList(new Set(), [
     { id: 'claude', installed: true },
     { id: 'zai', installed: false },
   ]);
@@ -128,8 +98,8 @@ test('it mentions no agent id the host has not registered in any description', (
 });
 
 test('it builds the same schemas whichever agents the host registers', () => {
-  const unnamed = buildToolList(new Set(DAEMON_FEATURES), null);
-  const named = buildToolList(new Set(DAEMON_FEATURES), [{ id: 'claude', installed: true }]);
+  const unnamed = buildToolList(new Set(), null);
+  const named = buildToolList(new Set(), [{ id: 'claude', installed: true }]);
 
   const stripped = [unnamed, named].map((tools) =>
     JSON.stringify(tools, (key, value: unknown) => (key === 'description' ? undefined : value)),
@@ -138,30 +108,8 @@ test('it builds the same schemas whichever agents the host registers', () => {
   expect(stripped[0]).toBe(stripped[1]);
 });
 
-test('it lists the spawn tool without model and effort for a daemon that announces no features', () => {
-  const spawn = buildToolList(new Set(), null).find((tool) => tool.name === 'atc_session_spawn');
-
-  invariant(spawn !== undefined, 'spawn tool missing');
-
-  expect(spawn.inputSchema['properties']).toContainAllKeys([
-    'cwd',
-    'name',
-    'prompt',
-    'agent',
-    'detached',
-  ]);
-});
-
-test('it lists the message tool without an idempotency key for a daemon that announces no features', () => {
-  const message = buildToolList(new Set(), null).find((tool) => tool.name === 'atc_message_send');
-
-  invariant(message !== undefined, 'message tool missing');
-
-  expect(message.inputSchema['properties']).toContainAllKeys(['session', 'text']);
-});
-
-test('it lists the spawn and message tools with an idempotency key for a daemon that takes keys', () => {
-  const tools = buildToolList(new Set(DAEMON_FEATURES), null);
+test('it lists the spawn and message tools with an idempotency key', () => {
+  const tools = buildToolList(new Set(), null);
 
   const keyed = tools
     .filter((tool) => JSON.stringify(tool.inputSchema).includes('"idempotencyKey"'))
@@ -170,101 +118,30 @@ test('it lists the spawn and message tools with an idempotency key for a daemon 
   expect(keyed).toStrictEqual(['atc_session_spawn', 'atc_message_send']);
 });
 
-test('it lists the spawn tool with a target for a daemon that takes targets', () => {
-  const spawn = buildToolList(new Set(DAEMON_FEATURES), null).find(
-    (tool) => tool.name === 'atc_session_spawn',
-  );
+test('it lists the spawn tool with every option a spawn takes', () => {
+  const spawn = buildToolList(new Set(), null).find((tool) => tool.name === 'atc_session_spawn');
 
   invariant(spawn !== undefined, 'spawn tool missing');
 
-  expect(spawn.inputSchema['properties']).toContainKey('target');
+  expect(getRecord(spawn.inputSchema, 'properties')).toContainKeys([
+    'model',
+    'effort',
+    'pluginDirs',
+    'target',
+    'workspace',
+    'trustClonedWorkspace',
+    'scope',
+  ]);
 });
 
-test('it lists the spawn tool without a target for a daemon that predates targets', () => {
-  const spawn = buildToolList(
-    new Set(DAEMON_FEATURES.filter((feature) => feature !== 'spawn.target')),
-    null,
-  ).find((tool) => tool.name === 'atc_session_spawn');
-
-  invariant(spawn !== undefined, 'spawn tool missing');
-
-  expect(getRecord(spawn.inputSchema, 'properties')).not.toContainKey('target');
-});
-
-test('it lists the spawn tool with plugin folders for a daemon that takes them', () => {
-  const spawn = buildToolList(new Set(DAEMON_FEATURES), null).find(
-    (tool) => tool.name === 'atc_session_spawn',
-  );
-
-  invariant(spawn !== undefined, 'spawn tool missing');
-
-  expect(getRecord(spawn.inputSchema, 'properties')).toContainKey('pluginDirs');
-});
-
-test('it lists the spawn tool without plugin folders for a daemon that predates them', () => {
-  const spawn = buildToolList(
-    new Set(DAEMON_FEATURES.filter((feature) => feature !== 'spawn.pluginDirs')),
-    null,
-  ).find((tool) => tool.name === 'atc_session_spawn');
-
-  invariant(spawn !== undefined, 'spawn tool missing');
-
-  expect(getRecord(spawn.inputSchema, 'properties')).not.toContainKey('pluginDirs');
-  expect(getRecord(spawn.inputSchema, 'properties')).toContainKey('model');
-});
-
-test('it lists the spawn tool with a workspace for a daemon that takes workspaces', () => {
-  const spawn = buildToolList(new Set(DAEMON_FEATURES), null).find(
-    (tool) => tool.name === 'atc_session_spawn',
-  );
-
-  invariant(spawn !== undefined, 'spawn tool missing');
-
-  expect(spawn.inputSchema['properties']).toContainKey('workspace');
-});
-
-test('it lists the spawn tool without a workspace for a daemon that predates workspaces', () => {
-  const spawn = buildToolList(
-    new Set(DAEMON_FEATURES.filter((feature) => feature !== 'spawn.workspace')),
-    null,
-  ).find((tool) => tool.name === 'atc_session_spawn');
-
-  invariant(spawn !== undefined, 'spawn tool missing');
-
-  expect(getRecord(spawn.inputSchema, 'properties')).not.toContainKey('workspace');
-});
-
-test('it lists the update tool with a name for a daemon that reports a skipped rename', () => {
-  const update = buildToolList(new Set(DAEMON_FEATURES), null).find(
-    (tool) => tool.name === 'atc_session_update',
-  );
+test('it lists the update tool with a name and a parent', () => {
+  const update = buildToolList(new Set(), null).find((tool) => tool.name === 'atc_session_update');
 
   invariant(update !== undefined, 'update tool missing');
 
-  expect(update.inputSchema['properties']).toContainKey('name');
+  expect(getRecord(update.inputSchema, 'properties')).toContainKeys(['name', 'parent']);
 });
 
-test('it lists the update tool without a name for a daemon that predates a reported skipped rename', () => {
-  const update = buildToolList(
-    new Set(DAEMON_FEATURES.filter((feature) => feature !== 'session.update.renameSkipped')),
-    null,
-  ).find((tool) => tool.name === 'atc_session_update');
-
-  invariant(update !== undefined, 'update tool missing');
-
-  expect(getRecord(update.inputSchema, 'properties')).not.toContainKey('name');
-});
-
-test('it leaves out the forget tool for a daemon that does not announce session forgets', () => {
-  const features = new Set(DAEMON_FEATURES.filter((feature) => feature !== 'session.forget'));
-
-  expect(buildToolList(features, null).map((tool) => tool.name)).not.toContain(
-    'atc_session_forget',
-  );
-});
-
-test('it lists the forget tool for a daemon that announces session forgets', () => {
-  expect(buildToolList(new Set(DAEMON_FEATURES), null).map((tool) => tool.name)).toContain(
-    'atc_session_forget',
-  );
+test('it lists the forget tool', () => {
+  expect(buildToolList(new Set(), null).map((tool) => tool.name)).toContain('atc_session_forget');
 });

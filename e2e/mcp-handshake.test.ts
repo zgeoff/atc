@@ -158,7 +158,7 @@ test('it lists the fleet tools', async () => {
                         "type": "string",
                       },
                       "state": {
-                        "description": "up, down, unauthorized, changed, outdated (older than this gateway) or refused (it answered with an error); a later daemon may add a value",
+                        "description": "up, down, unauthorized, changed or refused (it answered with an error); a later daemon may add a value",
                         "type": "string",
                       },
                     },
