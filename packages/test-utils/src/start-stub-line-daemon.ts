@@ -37,10 +37,11 @@ export function startStubLineDaemon(socketPath: string, options: StubLineDaemonO
     },
   });
 
-  const stop =
-    options.owner === 'caller'
-      ? () => server.stop(true)
-      : registerTestCleanup(() => server.stop(true));
+  const stopServer = () => {
+    server.stop(true);
+  };
+
+  const stop = options.owner === 'caller' ? stopServer : registerTestCleanup(stopServer);
 
   return { lines, stop };
 }

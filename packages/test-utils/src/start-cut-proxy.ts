@@ -1,3 +1,4 @@
+import { isRecord } from '@atc/core';
 import {
   MessageType,
   deserializeRequestMessage,
@@ -210,12 +211,17 @@ function applyCut(client: Socket<ProxyLink>, options: CutProxyOptions): void {
 }
 
 // A peer request line's message id and method, the dotted path of its
-// procedure; null for any other line. A line that is no peer message
-// throws as it decodes.
+// procedure; null for any other line. A payload the decoder cannot read
+// throws.
 function findPeerRequest(line: string): { readonly id: string; readonly method: string } | null {
+  const message = parsePeerMessage(line);
+
+  if (message === null) {
+    return null;
+  }
+
   try {
-    const parsed: unknown = JSON.parse(line);
-    const [id, type, payload] = deserializeRequestMessage(parsed as BaseMessageFormat);
+    const [id, type, payload] = deserializeRequestMessage(message);
 
     return type === MessageType.REQUEST
       ? { id, method: payload.url.pathname.slice(1).replaceAll('/', '.') }
@@ -226,11 +232,47 @@ function findPeerRequest(line: string): { readonly id: string; readonly method: 
 }
 
 function findResponseID(line: string): string | null {
-  try {
-    const parsed: unknown = JSON.parse(line);
+  const message = parsePeerMessage(line);
 
-    return deserializeResponseMessage(parsed as BaseMessageFormat)[0];
+  if (message === null) {
+    return null;
+  }
+
+  try {
+    return deserializeResponseMessage(message)[0];
   } catch {
     return null;
   }
+}
+
+const MESSAGE_TYPES: readonly MessageType[] = [
+  MessageType.REQUEST,
+  MessageType.RESPONSE,
+  MessageType.EVENT_ITERATOR,
+  MessageType.ABORT_SIGNAL,
+];
+
+// A line in the shape of an oRPC peer message: a string id, a payload, and
+// a known message type when it gives one.
+function parsePeerMessage(line: string): BaseMessageFormat | null {
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(line);
+  } catch {
+    return null;
+  }
+
+  if (!isRecord(parsed) || typeof parsed['i'] !== 'string') {
+    return null;
+  }
+
+  const given = parsed['t'];
+  const type = MESSAGE_TYPES.find((known) => known === given);
+
+  if (given !== undefined && type === undefined) {
+    return null;
+  }
+
+  return { i: parsed['i'], p: parsed['p'], ...(type === undefined ? {} : { t: type }) };
 }
