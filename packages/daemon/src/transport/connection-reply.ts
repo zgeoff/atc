@@ -1,4 +1,3 @@
-import type { DaemonAnswer, RequestMethod } from '@atc/protocol';
 import { DaemonError, PROTOCOL_V, encodeMessage } from '@atc/protocol/wire';
 import type { ErrorCode, OutboundQueue } from '@atc/protocol/wire';
 
@@ -42,15 +41,10 @@ export class ConnectionReply {
   // An answer the full queue refuses ends the connection, as an event does,
   // so the client sees its request fail rather than wait for an answer
   // that never comes.
-  sendOk<M extends RequestMethod>(id: number, _method: M, ok: DaemonAnswer<M>): void {
+  sendAnswer(id: number, ok: Readonly<Record<string, unknown>>): void {
     if (!this.queue.send(encodeMessage({ v: PROTOCOL_V, id, ok }))) {
       this.peer.end();
     }
-  }
-
-  // A resume or adopt of a session whose agent saved no transcript yet.
-  sendNoTranscript(id: number): void {
-    this.sendErr(id, 'session_dead', 'nothing to resume yet — the session has no saved transcript');
   }
 
   sendErr(

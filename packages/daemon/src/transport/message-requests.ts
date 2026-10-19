@@ -1,117 +1,97 @@
-import { parseRequestParams } from '@atc/protocol';
-import type { RequestMsg } from '@atc/protocol/wire';
+import type { DaemonAnswer, RequestParams } from '@atc/protocol';
+import { DaemonError } from '@atc/protocol/wire';
 import type { DaemonContext, TapClient } from '../daemon-context';
 import type { MessageCaller } from '../sessions/message-caller';
 import { buildKeyedRequest } from './build-keyed-request';
 import { buildLegacyMessageHashes } from './build-legacy-message-hashes';
-import type { ConnectionReply } from './connection-reply';
-import type { ConnectionIdentity, RequestDeps } from './request-deps';
+import type { ConnectionIdentity, RequestDeps, RequestPrincipal } from './request-deps';
 
 // The requests that send messages between sessions and take them from a
 // session's inbox.
 export class MessageRequests {
   private readonly client: TapClient;
 
-  private readonly reply: ConnectionReply;
-
   private readonly identity: ConnectionIdentity;
 
   constructor(deps: RequestDeps) {
     this.client = deps.client;
-    this.reply = deps.reply;
     this.identity = deps.identity;
   }
 
-  async applySessionMessage(req: RequestMsg, ctx: DaemonContext): Promise<void> {
-    const parsed = parseRequestParams('session.message', req.p);
+  async applySessionMessage(
+    data: RequestParams<'session.message'>,
+    ctx: DaemonContext,
+    as: RequestPrincipal | null,
+  ): Promise<DaemonAnswer<'session.message'>> {
+    const sessionID = data.session;
 
-    if (!parsed.ok) {
-      this.reply.sendErr(req.id, 'bad_args', parsed.message);
-
-      return;
-    }
-
-    const sessionID = parsed.data.session;
-
-    if (parsed.data.replayOnly === true && parsed.data.idempotencyKey === undefined) {
-      this.reply.sendErr(req.id, 'bad_args', 'replayOnly needs an idempotencyKey');
-
-      return;
+    if (data.replayOnly === true && data.idempotencyKey === undefined) {
+      throw new DaemonError('bad_args', 'replayOnly needs an idempotencyKey');
     }
 
     // The hash leaves out a local caller's name, as a daemon that ignored it
     // stored it, so a retry across an upgrade replays.
-    const { from: localName, ...hashed } = parsed.data;
+    const { from: localName, ...hashed } = data;
     const keyed = buildKeyedRequest(hashed);
 
     // An older client's default sender names, so a key an older daemon
     // stored with one still replays.
-    const legacyNames = ['mcp', req.asName, this.identity.callerSession];
+    const legacyNames = ['mcp', as?.name, this.identity.callerSession];
 
     const legacyKeyed =
       keyed === null
         ? null
         : {
             ...keyed,
-            legacyPayloadHashes: buildLegacyMessageHashes(hashed, req.p?.['from'], legacyNames),
+            legacyPayloadHashes: buildLegacyMessageHashes(hashed, localName, legacyNames),
           };
 
     // A send that needs no answer leaves no session to notify.
-    const noticeSession = parsed.data.notice === false ? null : this.identity.callerSession;
+    const noticeSession = data.notice === false ? null : this.identity.callerSession;
 
     const result = await ctx.writeSessionMessage(
       sessionID,
-      this.findMessageCaller(req, localName),
-      parsed.data.text,
+      this.findMessageCaller(as, localName),
+      data.text,
       legacyKeyed,
       null,
       noticeSession,
     );
 
     if (result === 'missing' || !ctx.isSessionVisible(sessionID)) {
-      this.reply.sendErr(req.id, 'no_such_session', `no session '${sessionID}'`);
-
-      return;
+      throw new DaemonError('no_such_session', `no session '${sessionID}'`);
     }
 
     if (result === 'dead') {
-      this.reply.sendErr(req.id, 'session_dead', `session '${sessionID}' has no live process`);
-
-      return;
+      throw new DaemonError('session_dead', `session '${sessionID}' has no live process`);
     }
 
     if (result === 'unsupported') {
-      this.reply.sendErr(
-        req.id,
+      throw new DaemonError(
         'unsupported',
         `session '${sessionID}' cannot take messages: its agent has no message tap`,
       );
-
-      return;
     }
 
     if (result === 'no_tap') {
-      this.reply.sendErr(
-        req.id,
-        'unsupported',
-        `session '${sessionID}' never attached a message tap`,
-      );
-
-      return;
+      throw new DaemonError('unsupported', `session '${sessionID}' never attached a message tap`);
     }
 
-    this.reply.sendOk(req.id, 'session.message', result);
+    return result;
   }
 
   // The kernel's session wins over any principal a request gives. A local name is the only
   // part of the request's params that labels the message, and never changes the kind.
-  private findMessageCaller(req: RequestMsg, localName: string | undefined): MessageCaller {
+  private findMessageCaller(
+    as: RequestPrincipal | null,
+    localName: string | undefined,
+  ): MessageCaller {
     if (this.identity.peerSession !== null) {
       return { kind: 'session', session: this.identity.peerSession };
     }
 
-    if (req.as !== undefined) {
-      return { kind: 'connector', client: req.as, name: req.asName ?? req.as };
+    if (as !== null) {
+      return { kind: 'connector', client: as.principal, name: as.name ?? as.principal };
     }
 
     if (this.identity.principal !== null) {
@@ -129,50 +109,31 @@ export class MessageRequests {
     return { kind: 'local', name: localName ?? this.identity.helloClient };
   }
 
-  applyTap(req: RequestMsg, ctx: DaemonContext): void {
-    const parsed = parseRequestParams('session.tap', req.p);
-
-    if (!parsed.ok) {
-      this.reply.sendErr(req.id, 'bad_args', parsed.message);
-
-      return;
-    }
-
-    const sessionID = parsed.data.session;
-    const result = ctx.attachTap(this.client, sessionID, null, parsed.data.notices);
+  applyTap(data: RequestParams<'session.tap'>, ctx: DaemonContext): DaemonAnswer<'session.tap'> {
+    const sessionID = data.session;
+    const result = ctx.attachTap(this.client, sessionID, null, data.notices);
 
     if (result === 'missing') {
-      this.reply.sendErr(req.id, 'no_such_session', `no session '${sessionID}'`);
-
-      return;
+      throw new DaemonError('no_such_session', `no session '${sessionID}'`);
     }
 
     if (result === 'unsupported') {
-      this.reply.sendErr(req.id, 'unsupported', `session '${sessionID}' cannot take messages`);
-
-      return;
+      throw new DaemonError('unsupported', `session '${sessionID}' cannot take messages`);
     }
 
-    this.reply.sendOk(req.id, 'session.tap', {});
+    return {};
   }
 
-  async applyMessageGet(req: RequestMsg, ctx: DaemonContext): Promise<void> {
-    const parsed = parseRequestParams('message.get', req.p);
+  async applyMessageGet(
+    data: RequestParams<'message.get'>,
+    ctx: DaemonContext,
+  ): Promise<DaemonAnswer<'message.get'>> {
+    const messageID = data.message;
 
-    if (!parsed.ok) {
-      this.reply.sendErr(req.id, 'bad_args', parsed.message);
-
-      return;
-    }
-
-    const messageID = parsed.data.message;
-
-    const view = await ctx.readMessage(messageID, parsed.data.waitMs);
+    const view = await ctx.readMessage(messageID, data.waitMs);
 
     if (view === null || !ctx.isSessionVisible(view.session)) {
-      this.reply.sendErr(req.id, 'bad_args', `no message '${messageID}'`);
-
-      return;
+      throw new DaemonError('bad_args', `no message '${messageID}'`);
     }
 
     const record = view.record;
@@ -183,7 +144,7 @@ export class MessageRequests {
       .filter((sibling) => ctx.isSessionVisible(sibling.atcID))
       .map((sibling) => sibling.id);
 
-    this.reply.sendOk(req.id, 'message.get', {
+    return {
       message: record.id,
       session: view.session,
       from: record.from,
@@ -200,81 +161,50 @@ export class MessageRequests {
         : { unansweredReason: record.unansweredReason }),
       turn: record.turn ?? null,
       answeredWith,
-    });
+    };
   }
 
-  async applyMessageAck(req: RequestMsg, ctx: DaemonContext): Promise<void> {
-    const parsed = parseRequestParams('message.ack', req.p);
-
-    if (!parsed.ok) {
-      this.reply.sendErr(req.id, 'bad_args', parsed.message);
-
-      return;
-    }
-
-    const sessionID = parsed.data.session;
-    const messageID = parsed.data.message;
+  async applyMessageAck(
+    data: RequestParams<'message.ack'>,
+    ctx: DaemonContext,
+  ): Promise<DaemonAnswer<'message.ack'>> {
+    const sessionID = data.session;
+    const messageID = data.message;
 
     const result = await ctx.ackMessage(this.client, sessionID, messageID, null);
 
     if (result === 'not_tapping') {
-      this.reply.sendErr(
-        req.id,
-        'bad_args',
-        `this connection is not tapping session '${sessionID}'`,
-      );
-
-      return;
+      throw new DaemonError('bad_args', `this connection is not tapping session '${sessionID}'`);
     }
 
     if (result === 'unknown' || !ctx.isSessionVisible(sessionID)) {
-      this.reply.sendErr(
-        req.id,
-        'bad_args',
-        `no message '${messageID}' for session '${sessionID}'`,
-      );
-
-      return;
+      throw new DaemonError('bad_args', `no message '${messageID}' for session '${sessionID}'`);
     }
 
-    this.reply.sendOk(req.id, 'message.ack', { message: result.id, status: result.status });
+    return { message: result.id, status: result.status };
   }
 
-  async applyNoticeAck(req: RequestMsg, ctx: DaemonContext): Promise<void> {
-    const parsed = parseRequestParams('notice.ack', req.p);
-
-    if (!parsed.ok) {
-      this.reply.sendErr(req.id, 'bad_args', parsed.message);
-
-      return;
-    }
-
-    const sessionID = parsed.data.session;
-    const messageID = parsed.data.message;
+  async applyNoticeAck(
+    data: RequestParams<'notice.ack'>,
+    ctx: DaemonContext,
+  ): Promise<DaemonAnswer<'notice.ack'>> {
+    const sessionID = data.session;
+    const messageID = data.message;
 
     const result = await ctx.ackNotice(this.client, sessionID, messageID);
 
     if (result === 'not_tapping') {
-      this.reply.sendErr(
-        req.id,
-        'bad_args',
-        `this connection is not tapping session '${sessionID}'`,
-      );
-
-      return;
+      throw new DaemonError('bad_args', `this connection is not tapping session '${sessionID}'`);
     }
 
     if (result === 'unknown' || !ctx.isSessionVisible(sessionID)) {
-      this.reply.sendErr(
-        req.id,
+      throw new DaemonError(
         'bad_args',
         `no answer notice of message '${messageID}' for session '${sessionID}'`,
       );
-
-      return;
     }
 
-    this.reply.sendOk(req.id, 'notice.ack', { message: result.id, status: result.status });
+    return { message: result.id, status: result.status };
   }
 }
 

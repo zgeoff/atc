@@ -1,5 +1,6 @@
 import type { SessionID } from '@atc/core';
 import { DAEMON_FEATURES, parseRequestParams } from '@atc/protocol';
+import type { DaemonAnswer } from '@atc/protocol';
 import {
   DaemonError,
   LineDecoder,
@@ -15,11 +16,13 @@ import { buildScopedContext } from '../auth/build-scoped-context';
 import { isOwnerOnlyMethod } from '../auth/is-owner-only-method';
 import { TargetAccess } from '../auth/target-access';
 import type { DaemonContext } from '../daemon-context';
+import { buildConnectionRequests } from './build-connection-requests';
+import type { ConnectionRequests } from './build-connection-requests';
 import { checkTCPHello } from './check-tcp-hello';
 import { ConnectionReply } from './connection-reply';
 import { ConnectionView } from './connection-view';
 import type { ConnectionIdentity } from './request-deps';
-import { RequestRouter } from './request-router';
+import { runDaemonProcedure } from './run-daemon-procedure';
 import type { TCPPeer } from './tcp-peer';
 
 // The targets a request may use and the namespace of its idempotency keys.
@@ -62,7 +65,7 @@ export class DaemonConnection {
 
   private readonly reply: ConnectionReply;
 
-  private readonly router: RequestRouter;
+  private readonly requests: ConnectionRequests;
 
   // The listener of a connection accepted over TCP, null on the local
   // socket.
@@ -96,12 +99,7 @@ export class DaemonConnection {
     this.queue = new OutboundQueue(peer, ctx.queueBytes);
     this.reply = new ConnectionReply(this.queue, peer);
 
-    this.router = new RequestRouter({
-      client: this,
-      ctx,
-      reply: this.reply,
-      identity: this.identity,
-    });
+    this.requests = buildConnectionRequests({ client: this, ctx, identity: this.identity });
 
     // A TCP connection acts only as the principals its requests give, so
     // the events pushed to it are limited from the first byte.
@@ -390,7 +388,13 @@ export class DaemonConnection {
   private async applyRequest(req: RequestMsg, ctx: DaemonContext): Promise<void> {
     await this.helloAnswered;
 
-    await this.router.applyRequest(req, ctx);
+    const answer = await runDaemonProcedure(req.m, req.p, {
+      ctx,
+      requests: this.requests,
+      as: req.as === undefined ? null : { principal: req.as, name: req.asName },
+    });
+
+    this.reply.sendAnswer(req.id, answer);
   }
 
   private applyHello(req: RequestMsg): boolean {
@@ -499,13 +503,15 @@ export class DaemonConnection {
   }
 
   private async sendHelloOk(id: number): Promise<void> {
-    this.reply.sendOk(id, 'daemon.hello', {
+    const hello: DaemonAnswer<'daemon.hello'> = {
       daemon: this.ctx.build,
       daemonID: this.ctx.daemonID,
       limits: { maxLine: MAX_LINE, maxChunk: MAX_CHUNK },
       features: DAEMON_FEATURES,
       idempotency: { completedRetentionMs: this.ctx.idempotencyRetentionMs },
       lastUsedAgent: await this.ctx.loadLastUsedAgent(),
-    });
+    };
+
+    this.reply.sendAnswer(id, hello);
   }
 }

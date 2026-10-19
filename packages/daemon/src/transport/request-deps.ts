@@ -1,6 +1,5 @@
 import type { SessionID } from '@atc/core';
 import type { DaemonContext, OutputClient, TapClient } from '../daemon-context';
-import type { ConnectionReply } from './connection-reply';
 
 // Who one connection acts as, which its handshake settles and its requests
 // read.
@@ -24,12 +23,18 @@ export interface ConnectionIdentity {
   helloClient: string;
 }
 
+// The principal one request acts as, which narrows what the connection may
+// reach for that request alone, and the name it labels a message with.
+export interface RequestPrincipal {
+  readonly principal: string;
+  readonly name: string | undefined;
+}
+
 // What a connection's request handlers share: the connection as the client
-// the fleet attaches, the daemon's own unscoped context, the connection's
-// answers, and who it acts as.
+// the fleet attaches, the daemon's own unscoped context, and who the
+// connection acts as.
 export interface RequestDeps {
   readonly client: OutputClient & TapClient;
   readonly ctx: DaemonContext;
-  readonly reply: ConnectionReply;
   readonly identity: ConnectionIdentity;
 }

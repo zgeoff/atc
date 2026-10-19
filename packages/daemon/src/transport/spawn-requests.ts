@@ -2,15 +2,13 @@ import { basename, isAbsolute } from 'node:path';
 import type { AgentID, SessionID } from '@atc/core';
 import { toSessionID } from '@atc/core';
 import type { SourceProvider, SourceRequest } from '@atc/plugin-api';
-import { CONTROL_CHARACTER, parseDeclaredScope, parseRequestParams } from '@atc/protocol';
-import type { DeclaredScope } from '@atc/protocol';
+import { CONTROL_CHARACTER, parseDeclaredScope } from '@atc/protocol';
+import type { DaemonAnswer, DeclaredScope, RequestParams } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
-import type { RequestMsg } from '@atc/protocol/wire';
 import { buildTargetForbiddenError } from '../auth/build-target-forbidden-error';
 import type { DaemonContext, SpawnParams } from '../daemon-context';
 import { parseSpawnOverrides } from '../sessions/parse-spawn-overrides';
 import { buildKeyedRequest } from './build-keyed-request';
-import type { ConnectionReply } from './connection-reply';
 import type { RequestDeps } from './request-deps';
 
 // What a source request holds: the source's id and the target it is for.
@@ -30,29 +28,18 @@ interface ResolvedSourceRequest {
 export class SpawnRequests {
   private readonly ctx: DaemonContext;
 
-  private readonly reply: ConnectionReply;
-
   constructor(deps: RequestDeps) {
     this.ctx = deps.ctx;
-    this.reply = deps.reply;
   }
 
-  async applySpawn(req: RequestMsg, ctx: DaemonContext): Promise<void> {
-    const parsed = parseRequestParams('session.spawn', req.p);
-
-    if (!parsed.ok) {
-      this.reply.sendErr(req.id, 'bad_args', parsed.message);
-
-      return;
-    }
-
-    const data = parsed.data;
+  async applySpawn(
+    data: RequestParams<'session.spawn'>,
+    ctx: DaemonContext,
+  ): Promise<DaemonAnswer<'session.spawn'>> {
     const cwd = data.cwd;
 
     if (cwd === undefined && data.workspace?.kind !== 'git') {
-      this.reply.sendErr(req.id, 'bad_args', 'session.spawn requires a cwd');
-
-      return;
+      throw new DaemonError('bad_args', 'session.spawn requires a cwd');
     }
 
     // Every refusal is thrown from the plan, which runs only once a key is
@@ -180,9 +167,7 @@ export class SpawnRequests {
     };
 
     if (data.replayOnly === true && data.idempotencyKey === undefined) {
-      this.reply.sendErr(req.id, 'bad_args', 'replayOnly needs an idempotencyKey');
-
-      return;
+      throw new DaemonError('bad_args', 'replayOnly needs an idempotencyKey');
     }
 
     const keyed = buildKeyedRequest(data);
@@ -199,71 +184,50 @@ export class SpawnRequests {
       throw buildTargetForbiddenError(grant.target);
     }
 
-    this.reply.sendOk(req.id, 'session.spawn', spawned);
+    return spawned;
   }
 
   // Lists one source's candidates for a spawn to the request's target.
-  async applySourcesList(req: RequestMsg, ctx: DaemonContext): Promise<void> {
-    const parsed = parseRequestParams('sources.list', req.p);
-
-    if (!parsed.ok) {
-      this.reply.sendErr(req.id, 'bad_args', parsed.message);
-
-      return;
-    }
-
-    const resolved = this.resolveSourceRequest(parsed.data, ctx);
+  async applySourcesList(
+    data: RequestParams<'sources.list'>,
+    ctx: DaemonContext,
+  ): Promise<DaemonAnswer<'sources.list'>> {
+    const resolved = this.resolveSourceRequest(data, ctx);
     const source = resolved.source;
 
     const listed = await source.list(
       {
-        ...(parsed.data.scope === undefined ? {} : { scope: parsed.data.scope }),
-        ...(parsed.data.text === undefined ? {} : { text: parsed.data.text }),
+        ...(data.scope === undefined ? {} : { scope: data.scope }),
+        ...(data.text === undefined ? {} : { text: data.text }),
       },
       resolved.request,
     );
 
-    this.reply.sendOk(req.id, 'sources.list', {
-      source: source.id,
-      scope: listed.scope,
-      candidates: listed.candidates,
-    });
+    return { source: source.id, scope: listed.scope, candidates: listed.candidates };
   }
 
   // Reads typed input through one source for a spawn to the request's
   // target.
-  async applySourcesInterpret(req: RequestMsg, ctx: DaemonContext): Promise<void> {
-    const parsed = parseRequestParams('sources.interpret', req.p);
+  async applySourcesInterpret(
+    data: RequestParams<'sources.interpret'>,
+    ctx: DaemonContext,
+  ): Promise<DaemonAnswer<'sources.interpret'>> {
+    const resolved = this.resolveSourceRequest(data, ctx);
 
-    if (!parsed.ok) {
-      this.reply.sendErr(req.id, 'bad_args', parsed.message);
-
-      return;
-    }
-
-    const resolved = this.resolveSourceRequest(parsed.data, ctx);
-
-    const interpretation = await resolved.source.interpret(parsed.data.input, resolved.request);
-
-    this.reply.sendOk(req.id, 'sources.interpret', { ...interpretation });
+    return { ...(await resolved.source.interpret(data.input, resolved.request)) };
   }
 
   // Completes typed input through one source for a spawn to the request's
   // target.
-  async applySourcesComplete(req: RequestMsg, ctx: DaemonContext): Promise<void> {
-    const parsed = parseRequestParams('sources.complete', req.p);
+  async applySourcesComplete(
+    data: RequestParams<'sources.complete'>,
+    ctx: DaemonContext,
+  ): Promise<DaemonAnswer<'sources.complete'>> {
+    const resolved = this.resolveSourceRequest(data, ctx);
 
-    if (!parsed.ok) {
-      this.reply.sendErr(req.id, 'bad_args', parsed.message);
+    const completions = await resolved.source.complete?.(data.input, resolved.request);
 
-      return;
-    }
-
-    const resolved = this.resolveSourceRequest(parsed.data, ctx);
-
-    const completions = await resolved.source.complete?.(parsed.data.input, resolved.request);
-
-    this.reply.sendOk(req.id, 'sources.complete', { completions: completions ?? [] });
+    return { completions: completions ?? [] };
   }
 
   // The source a request asks for and the request it serves, so a principal
@@ -290,17 +254,10 @@ export class SpawnRequests {
   // Probes a git workspace source for a spawn to the request's target, so
   // a principal probes only for a target it may spawn a workspace on. A
   // refusal holds the repository's other URLs that the offered sources know.
-  async applyGitProbe(req: RequestMsg, ctx: DaemonContext): Promise<void> {
-    const parsed = parseRequestParams('git.probe', req.p);
-
-    if (!parsed.ok) {
-      this.reply.sendErr(req.id, 'bad_args', parsed.message);
-
-      return;
-    }
-
-    const data = parsed.data;
-
+  async applyGitProbe(
+    data: RequestParams<'git.probe'>,
+    ctx: DaemonContext,
+  ): Promise<DaemonAnswer<'git.probe'>> {
     this.ctx.requireWorkspaceTarget(ctx.resolveSpawnTarget(data.target));
 
     const access = await ctx.checkRepositoryAccess({
@@ -317,12 +274,7 @@ export class SpawnRequests {
       throw new DaemonError(access.code, access.message, detail);
     }
 
-    this.reply.sendOk(req.id, 'git.probe', {
-      url: access.url,
-      head: access.head,
-      refs: access.refs,
-      resolved: access.resolved,
-    });
+    return { url: access.url, head: access.head, refs: access.refs, resolved: access.resolved };
   }
 }
 
