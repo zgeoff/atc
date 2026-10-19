@@ -5,7 +5,6 @@ import type { DaemonClient } from '@atc/protocol/client';
 import { readSessionEnv } from '@atc/protocol/session';
 import { DaemonError } from '@atc/protocol/wire';
 
-// The fields of the handshake answer a probe reads.
 const HELLO_FIELDS = HELLO_RESULT_SCHEMA.pick({ daemon: true, daemonID: true });
 
 // The daemon's answer to the handshake: its build and its stable id.
