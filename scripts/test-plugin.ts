@@ -1,6 +1,6 @@
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { z } from 'zod';
 import { collectPackageClosure } from './collect-package-closure';
 import type { WorkspacePackage } from './load-workspace-packages';
@@ -8,9 +8,7 @@ import { loadWorkspacePackages } from './load-workspace-packages';
 
 // Tests one plugin package in a workspace holding only it, the packages its
 // rule reaches and the test helpers, so a plugin that reaches past its rule
-// fails. Usage: bun scripts/test-plugin.ts <plugin> [--keep], such as harness-claude
-
-const repo = join(import.meta.dir, '..');
+// fails. Usage: bun scripts/test-plugin.ts <plugin> [root] [--keep], such as harness-claude
 
 // The root files the test setup reads: the install and test config, the
 // compiler config, the script that gives each run its own home, and the
@@ -31,7 +29,9 @@ const TOOLING = new Set([
 ]);
 
 async function main(): Promise<void> {
-  const name = process.argv.at(2);
+  const positionals = process.argv.slice(2).filter((arg) => arg !== '--keep');
+  const [name, root] = positionals;
+  const repo = resolve(root ?? join(import.meta.dir, '..'));
   const keep = process.argv.includes('--keep');
   const workspace = loadWorkspacePackages(repo);
   const plugins = workspace.filter((pkg) => isPlugin(pkg));
@@ -48,7 +48,7 @@ async function main(): Promise<void> {
   const dir = mkdtempSync(join(tmpdir(), `atc-test-plugin-${plugin.name}-`));
 
   try {
-    createPluginWorkspace(dir, plugin, packages);
+    createPluginWorkspace(repo, dir, plugin, packages);
 
     const steps: readonly (readonly string[])[] = [
       ['bun', 'install'],
@@ -97,6 +97,7 @@ function printUsage(plugins: readonly WorkspacePackage[]): void {
 // the packages it reaches. The other packages' own tests may import the
 // app, which the workspace leaves out.
 function createPluginWorkspace(
+  repo: string,
   dir: string,
   plugin: WorkspacePackage,
   packages: readonly WorkspacePackage[],
@@ -112,7 +113,7 @@ function createPluginWorkspace(
     cpSync(join(repo, path), join(dir, path), { recursive: true });
   }
 
-  writeWorkspaceManifest(dir, packages);
+  writeWorkspaceManifest(repo, dir, packages);
 
   writeFileSync(
     join(dir, 'tsconfig.json'),
@@ -134,7 +135,11 @@ function createPluginWorkspace(
 // The root manifest without the scripts, the commit and lint tooling, the
 // patches that only that tooling needs, and the internal packages the
 // workspace leaves out.
-function writeWorkspaceManifest(dir: string, packages: readonly WorkspacePackage[]): void {
+function writeWorkspaceManifest(
+  repo: string,
+  dir: string,
+  packages: readonly WorkspacePackage[],
+): void {
   const text = readFileSync(join(repo, 'package.json'), 'utf8');
   const manifest = z.record(z.string(), z.unknown()).parse(JSON.parse(text));
 

@@ -12,7 +12,7 @@ export interface WorkspacePackage {
 
 // The packages that the root manifest's workspace globs match, sorted by directory.
 export function loadWorkspacePackages(root: string): WorkspacePackage[] {
-  const manifest = ROOT_MANIFEST_SCHEMA.parse(readJSON(join(root, 'package.json')));
+  const manifest = ROOT_MANIFEST_SCHEMA.parse(loadJSON(join(root, 'package.json')));
 
   const dirs = new Set<string>();
 
@@ -23,7 +23,7 @@ export function loadWorkspacePackages(root: string): WorkspacePackage[] {
   }
 
   return [...dirs].toSorted().map((dir) => {
-    const pkg = PACKAGE_MANIFEST_SCHEMA.parse(readJSON(join(root, dir, 'package.json')));
+    const pkg = PACKAGE_MANIFEST_SCHEMA.parse(loadJSON(join(root, dir, 'package.json')));
     const deps = Object.keys(pkg.dependencies ?? {}).filter((name) => name.startsWith(SCOPE));
 
     return {
@@ -34,7 +34,7 @@ export function loadWorkspacePackages(root: string): WorkspacePackage[] {
   });
 }
 
-function readJSON(path: string): unknown {
+function loadJSON(path: string): unknown {
   return JSON.parse(readFileSync(path, 'utf8'));
 }
 
