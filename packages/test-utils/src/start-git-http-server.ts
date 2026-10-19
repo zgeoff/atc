@@ -28,54 +28,56 @@ export function startGitHTTPServer(
   const wait = options.wait ?? Bun.sleep;
   const authorizations: string[] = [];
 
+  const answerRequest = async (request: Request) => {
+    const authorization = request.headers.get('authorization');
+
+    if (authorization === null) {
+      return new Response('auth required', {
+        status: 401,
+        headers: { 'www-authenticate': 'Basic realm="atc"' },
+      });
+    }
+
+    authorizations.push(authorization);
+
+    if (options.delayMs !== undefined) {
+      await wait(options.delayMs);
+    }
+
+    await options.onRequest?.();
+
+    const url = new URL(request.url);
+
+    const body = await request.arrayBuffer();
+
+    const backend = Bun.spawn(['git', 'http-backend'], {
+      env: {
+        ...env,
+        GIT_PROJECT_ROOT: root,
+        GIT_HTTP_EXPORT_ALL: '1',
+        REQUEST_METHOD: request.method,
+        PATH_INFO: url.pathname,
+        QUERY_STRING: url.search.slice(1),
+        CONTENT_TYPE: request.headers.get('content-type') ?? '',
+        HTTP_CONTENT_ENCODING: request.headers.get('content-encoding') ?? '',
+        HTTP_GIT_PROTOCOL: request.headers.get('git-protocol') ?? '',
+        REMOTE_USER: 'atc',
+        REMOTE_ADDR: '127.0.0.1',
+      },
+      stdin: new Uint8Array(body),
+      stdout: 'pipe',
+      stderr: 'ignore',
+    });
+
+    const raw = await new Response(backend.stdout).arrayBuffer();
+
+    return toCGIResponse(Buffer.from(raw));
+  };
+
   const server = Bun.serve({
     port: 0,
     hostname: '127.0.0.1',
-    async fetch(request) {
-      const authorization = request.headers.get('authorization');
-
-      if (authorization === null) {
-        return new Response('auth required', {
-          status: 401,
-          headers: { 'www-authenticate': 'Basic realm="atc"' },
-        });
-      }
-
-      authorizations.push(authorization);
-
-      if (options.delayMs !== undefined) {
-        await wait(options.delayMs);
-      }
-
-      await options.onRequest?.();
-
-      const url = new URL(request.url);
-
-      const body = await request.arrayBuffer();
-
-      const backend = Bun.spawn(['git', 'http-backend'], {
-        env: {
-          ...env,
-          GIT_PROJECT_ROOT: root,
-          GIT_HTTP_EXPORT_ALL: '1',
-          REQUEST_METHOD: request.method,
-          PATH_INFO: url.pathname,
-          QUERY_STRING: url.search.slice(1),
-          CONTENT_TYPE: request.headers.get('content-type') ?? '',
-          HTTP_CONTENT_ENCODING: request.headers.get('content-encoding') ?? '',
-          HTTP_GIT_PROTOCOL: request.headers.get('git-protocol') ?? '',
-          REMOTE_USER: 'atc',
-          REMOTE_ADDR: '127.0.0.1',
-        },
-        stdin: new Uint8Array(body),
-        stdout: 'pipe',
-        stderr: 'ignore',
-      });
-
-      const raw = await new Response(backend.stdout).arrayBuffer();
-
-      return toCGIResponse(Buffer.from(raw));
-    },
+    fetch: answerRequest,
   });
 
   const stop = registerTestCleanup(() => server.stop(true));
