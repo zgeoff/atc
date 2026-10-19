@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
+import { isRecord } from '@atc/core';
 import { ImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/testing';
 import {
@@ -13,6 +14,7 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
+import invariant from 'tiny-invariant';
 import { buildAgentAdapters } from '../packages/app/src/agents/build-agent-adapters';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
@@ -112,8 +114,11 @@ test.skipIf(!isBrokered)(
     });
 
     const settingsFile = join(ctx.dir, 'g', 'sessions', id, 'auth-r1', 'settings.json');
-    const settings = getRecord(JSON.parse(readFileSync(settingsFile, 'utf8')), 'env');
-    const token = String(settings['ANTHROPIC_AUTH_TOKEN']);
+    const written: unknown = JSON.parse(readFileSync(settingsFile, 'utf8'));
+
+    invariant(isRecord(written), 'expected the settings file to hold an object');
+
+    const token = String(getRecord(written, 'env')['ANTHROPIC_AUTH_TOKEN']);
 
     const response = await fetch('https://api.github.com/user', {
       headers: { authorization: `Bearer ${token}` },
