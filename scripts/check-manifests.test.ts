@@ -535,6 +535,69 @@ test('it fails on a package named outside the @atc/ scope', async () => {
   });
 });
 
+test('it reads the committed zones table and refuses a dependency outside a package row', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'package.json'),
+    JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*', 'packages/*/*'] } }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, '.oxlintrc.zones.json'),
+    Bun.file(join(import.meta.dir, '../.oxlintrc.zones.json')),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/core/package.json'),
+    JSON.stringify({
+      name: '@atc/core',
+      exports: { '.': './src/index.ts' },
+      dependencies: { '@atc/protocol': 'workspace:*' },
+    }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/protocol/package.json'),
+    JSON.stringify({
+      name: '@atc/protocol',
+      exports: { '.': './src/index.ts' },
+      dependencies: { '@atc/core': 'workspace:*' },
+    }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/harnesses/codex/package.json'),
+    JSON.stringify({ name: '@atc/harness-codex', exports: { '.': './src/index.ts' } }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/harnesses/grok/package.json'),
+    JSON.stringify({
+      name: '@atc/harness-grok',
+      exports: { '.': './src/index.ts' },
+      dependencies: { '@atc/core': 'workspace:*', '@atc/harness-codex': 'workspace:*' },
+    }),
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-manifests.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-manifests: 5 packages, 0 files, 2 findings\n',
+    stderr:
+      'package rule: packages/core/package.json depends on @atc/protocol, which the package-deps edge in .oxlintrc.zones.json refuses\npackage rule: packages/harnesses/grok/package.json depends on @atc/harness-codex, which the package-deps edge in .oxlintrc.zones.json refuses\n',
+  });
+});
+
 test('it fails on a production dependency that an edge of the zones table refuses', async () => {
   const ctx = setupTest();
 

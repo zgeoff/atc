@@ -3,32 +3,32 @@
 // nothing. Usage: bun scripts/run-wave-move.ts <wave> [root] [--package <name>]...
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname, join, normalize, relative, resolve } from 'node:path';
+import { parseArgs } from 'node:util';
 import { SyntaxKind } from 'typescript/unstable/ast';
 import { z } from 'zod';
 import { collectSourceFiles } from './collect-source-files';
 import type { Token } from './collect-tokens';
 import { collectTokens } from './collect-tokens';
-import type { WorkspacePackage } from './load-workspace-packages';
 import { loadWorkspacePackages } from './load-workspace-packages';
 
 function main(): void {
-  const argv = process.argv.slice(2);
+  const args = parseArgs({
+    args: process.argv.slice(2),
+    options: { package: { type: 'string', multiple: true, default: [] } },
+    allowPositionals: true,
+  });
 
-  // the package names come from this checkout's workspace, whatever root the move rewrites
-  const packages = argv.includes('--package')
-    ? loadWorkspacePackages(join(import.meta.dir, '..'))
-    : [];
-
-  const args = parseArgs(argv, packages);
-  const wave = Number(args.positionals[0]);
-  const root = resolve(args.positionals[1] ?? join(import.meta.dir, '..'));
+  const [waveArg, rootArg] = args.positionals;
+  const wave = Number(waveArg);
+  const root = resolve(rootArg ?? join(import.meta.dir, '..'));
 
   if (!Number.isInteger(wave) || wave < 1) {
     throw new Error(USAGE);
   }
 
+  const packageDirs = resolvePackageDirs(root, args.values.package);
   const files = SOURCE_DIRS.flatMap((dir) => collectSourceFiles(root, dir));
-  const planned = collectMoves(root, wave, args.packageDirs);
+  const planned = collectMoves(root, wave, packageDirs);
 
   const known = new Set([...files, ...planned.keys()]);
 
@@ -115,38 +115,20 @@ function collectRelativeImports(
 
 const USAGE = 'usage: run-wave-move.ts <wave> [root] [--package <name>]...';
 
-interface WaveMoveArgs {
-  readonly positionals: readonly string[];
+// The directories of the named packages in the root's workspace, which the
+// move is limited to; no name moves every package, and reads no manifest.
+function resolvePackageDirs(root: string, names: readonly string[]): string[] {
+  const packages = names.length === 0 ? [] : loadWorkspacePackages(root);
 
-  // the directories of the packages the move is limited to; empty moves
-  // every package
-  readonly packageDirs: readonly string[];
-}
+  return names.map((name) => {
+    const pkg = packages.find((candidate) => candidate.name === name);
 
-function parseArgs(argv: readonly string[], packages: readonly WorkspacePackage[]): WaveMoveArgs {
-  const positionals: string[] = [];
-  const packageDirs: string[] = [];
-
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i] ?? '';
-
-    if (arg === '--package') {
-      const name = argv[i + 1];
-      const pkg = packages.find((candidate) => candidate.name === name);
-
-      if (pkg === undefined) {
-        throw new Error(`unknown package: ${name ?? '(none)'}; ${USAGE}`);
-      }
-
-      packageDirs.push(pkg.dir);
-
-      i += 1;
-    } else {
-      positionals.push(arg);
+    if (pkg === undefined) {
+      throw new Error(`unknown package: ${name}; ${USAGE}`);
     }
-  }
 
-  return { positionals, packageDirs };
+    return pkg.dir;
+  });
 }
 
 // src/ holds the sources that wave 1 moves into packages/app

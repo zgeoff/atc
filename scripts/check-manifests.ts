@@ -327,12 +327,18 @@ function resolveModule(root: string, dir: string, specifier: string): string | u
 
 const NAMES_SCHEMA = z.array(z.string());
 
-const EDGE_SCHEMA = z.object({
+// The edge options that zgeoff/import-zones takes, which its package keeps
+// private; a strict object fails the check when the rule gains an option this
+// reading does not apply
+const EDGE_SCHEMA = z.strictObject({
   name: z.string(),
-  from: NAMES_SCHEMA.optional(),
+  from: NAMES_SCHEMA,
+  ignore: NAMES_SCHEMA.optional(),
+  reason: z.string().optional(),
   to: NAMES_SCHEMA.optional(),
   allow: NAMES_SCHEMA.optional(),
-  ignore: NAMES_SCHEMA.optional(),
+  allowTypeOnly: z.union([z.boolean(), NAMES_SCHEMA]).optional(),
+  allowWithin: z.string().optional(),
 });
 
 const ZONE_OPTIONS_SCHEMA = z.object({
@@ -391,23 +397,35 @@ function checkDependencyZones(root: string, packages: readonly WorkspacePackage[
     );
 }
 
-// The lint rule's reading of an edge: a target in a `to` zone fails unless an
-// `allow` zone holds it, and with `allow` alone, a target outside every
-// `allow` zone fails
+// The lint rule's reading of an edge, with `to` and `allow` as its README
+// gives them; a production dependency loads at runtime, so `allowTypeOnly`
+// exempts none
 function isRefusedByEdge(options: ZoneOptions, edge: Edge, paths: EdgePaths): boolean {
   const importerZones = collectZones(options, paths.importer);
   const targetZones = collectZones(options, paths.target);
-  const applies = edge.from?.some((zone) => importerZones.has(zone)) ?? true;
+  const applies = edge.from.some((zone) => importerZones.has(zone));
   const ignored = edge.ignore?.some((glob) => isGlobMatch(glob, paths.importer)) ?? false;
   const allowed = edge.allow?.some((zone) => targetZones.has(zone)) ?? false;
 
-  if (!applies || ignored || allowed) {
+  const within =
+    edge.allowWithin !== undefined && isWithin(edge.allowWithin, paths.importer, paths.target);
+
+  if (!applies || ignored || allowed || within) {
     return false;
   }
 
   return edge.to === undefined
     ? edge.allow !== undefined
     : edge.to.some((zone) => targetZones.has(zone));
+}
+
+// `allowWithin: "packages/*"` exempts a target that shares the importer's
+// leading path segments, one per glob segment, when they match the glob
+function isWithin(glob: string, importer: string, target: string): boolean {
+  const depth = glob.split('/').length;
+  const prefix = importer.split('/').slice(0, depth).join('/');
+
+  return isGlobMatch(glob, prefix) && target.split('/').slice(0, depth).join('/') === prefix;
 }
 
 function collectZones(options: ZoneOptions, path: string): Set<string> {

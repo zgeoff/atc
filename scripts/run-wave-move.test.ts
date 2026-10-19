@@ -168,17 +168,32 @@ test('it moves the sources that wave 1 takes from src', async () => {
   );
 });
 
-test('it moves only the files that land in a package the run names', async () => {
+test('it moves only the files that land in a workspace package the run names', async () => {
   const ctx = setupTest();
 
   await Bun.write(
+    join(ctx.dir, 'package.json'),
+    JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/extras/package.json'),
+    JSON.stringify({ name: '@atc/extras', exports: { '.': './src/index.ts' } }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/config/package.json'),
+    JSON.stringify({ name: '@atc/config', exports: { '.': './src/index.ts' } }),
+  );
+
+  await Bun.write(
     join(ctx.dir, 'scripts/package-map/package-stagemap.tsv'),
-    'source\tfinal\tpath_wave2\tpath_wave3\nsrc/shared/session-id.ts\tcore\tpackages/app/src/shared/session-id.ts\tpackages/core/src/session-id.ts\nsrc/shared/config.ts\tconfig\tpackages/app/src/shared/config.ts\tpackages/config/src/config.ts\n',
+    'source\tfinal\tpath_wave2\tpath_wave3\nsrc/shared/session-id.ts\textras\tpackages/app/src/shared/session-id.ts\tpackages/extras/src/session-id.ts\nsrc/shared/config.ts\tconfig\tpackages/app/src/shared/config.ts\tpackages/config/src/config.ts\n',
   );
 
   await Bun.write(
     join(ctx.dir, 'scripts/package-map/package-testmap.tsv'),
-    'test\tpath_wave2\tpath_wave3\nsrc/shared/session-id.test.ts\tpackages/app/src/shared/session-id.test.ts\tpackages/core/src/session-id.test.ts\n',
+    'test\tpath_wave2\tpath_wave3\nsrc/shared/session-id.test.ts\tpackages/app/src/shared/session-id.test.ts\tpackages/extras/src/session-id.test.ts\n',
   );
 
   await Bun.write(join(ctx.dir, 'packages/app/src/shared/session-id.ts'), 'export const ID = 1;\n');
@@ -191,7 +206,7 @@ test('it moves only the files that land in a package the run names', async () =>
     '3',
     ctx.dir,
     '--package',
-    'core',
+    'extras',
   ]);
 
   expect({ exitCode: moved.exitCode, stdout: moved.stdout, stderr: moved.stderr }).toStrictEqual({
@@ -200,8 +215,10 @@ test('it moves only the files that land in a package the run names', async () =>
     stderr: '',
   });
 
-  expect(existsSync(join(ctx.dir, 'packages/core/src/session-id.test.ts'))).toBe(true);
+  expect(existsSync(join(ctx.dir, 'packages/extras/src/session-id.ts'))).toBe(true);
+  expect(existsSync(join(ctx.dir, 'packages/extras/src/session-id.test.ts'))).toBe(true);
   expect(existsSync(join(ctx.dir, 'packages/app/src/shared/config.ts'))).toBe(true);
+  expect(existsSync(join(ctx.dir, 'packages/config/src/config.ts'))).toBe(false);
 });
 
 test('it holds a file that imports a module staying in the app, and each file importing it', async () => {
@@ -252,8 +269,18 @@ test('it holds a file that imports a module staying in the app, and each file im
   expect(existsSync(join(ctx.dir, 'packages/app/src/test-utils/get-entry.ts'))).toBe(true);
 });
 
-test('it refuses a package name the package rules do not hold', async () => {
+test('it refuses a package name the workspace does not hold', async () => {
   const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'package.json'),
+    JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/core/package.json'),
+    JSON.stringify({ name: '@atc/core', exports: { '.': './src/index.ts' } }),
+  );
 
   const moved = await runCommand([
     process.execPath,
