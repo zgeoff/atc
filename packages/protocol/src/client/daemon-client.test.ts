@@ -72,7 +72,7 @@ test('it sends the principal a request acts as, and its name, as headers', async
   await waitFor(() => {
     expect(ctx.received.map((line): unknown => JSON.parse(line))).toStrictEqual([
       {
-        i: expect.any(String),
+        i: expect.any(String) as unknown,
         p: {
           u: '/session/list',
           b: { json: {} },
