@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
 import { toAgentSessionID, toSessionID } from '@atc/core';
@@ -664,6 +664,96 @@ test('it stops the headless run of a session whose adopt is refused while its te
   expect(adopted).rejects.toMatchObject({ code: 'unsupported_operation' });
   expect(headless.runs.map((run) => run.stopped)).toStrictEqual([true]);
   expect(listed['sessions']).toMatchObject([{ id: sessionID, kind: 'headless' }]);
+});
+
+test('it keeps the headless run of a session whose adopt is refused for a plugin folder that is gone', async () => {
+  const headless = buildStubHeadlessRunner();
+  const scheduler = buildStubTimeoutScheduler();
+  const home = setupTempDir('atc-headless-home-');
+
+  mkdirSync(join(home.dir, 'plugins', 'band'), { recursive: true });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-headless-',
+    options: () => ({
+      adapter: buildMockAgentAdapter({
+        headlessRunner: headless.runner,
+        profile: {
+          label: 'Claude',
+          kind: 'claude',
+          bin: 'sh',
+          models: null,
+          spawnOptions: {
+            model: {
+              supported: false,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: null,
+              note: null,
+            },
+            effort: {
+              supported: false,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: null,
+              note: null,
+            },
+            pluginDirs: {
+              supported: true,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: 'applied',
+              note: null,
+            },
+          },
+        },
+      }),
+      homeDir: home.dir,
+      scheduleEjectSettle: scheduler.schedule,
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    resume: 'sess-123',
+    pluginDirs: ['~/plugins/band'],
+    cols: 80,
+    rows: 24,
+  });
+
+  const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
+
+  await daemon.client.sendRequest('session.eject', { session: sessionID, prompt: 'keep going' });
+
+  scheduler.runTimer(4000);
+
+  await headless.waitForRun(0);
+
+  rmSync(join(home.dir, 'plugins', 'band'), { recursive: true });
+
+  const adopted = daemon.client.sendRequest('session.adopt', {
+    session: sessionID,
+    cols: 80,
+    rows: 24,
+  });
+
+  await adopted.catch(() => null);
+
+  const listed = await daemon.client.sendRequest('session.list');
+
+  expect(adopted).rejects.toMatchObject({
+    code: 'bad_args',
+    message: `plugin folder '${join(home.dir, 'plugins', 'band')}' does not exist`,
+  });
+
+  expect(headless.runs.map((run) => run.stopped)).toStrictEqual([false]);
+
+  expect(listed['sessions']).toMatchObject([
+    { id: sessionID, kind: 'headless', alive: true, state: 'running' },
+  ]);
 });
 
 test('it refuses to eject a session that never reported an agent session id', async () => {

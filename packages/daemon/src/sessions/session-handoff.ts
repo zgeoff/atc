@@ -2,6 +2,7 @@ import type { SessionID } from '@atc/core';
 import { isTreeInReach } from '../auth/is-tree-in-reach';
 import type { TargetAccess } from '../auth/target-access';
 import { hasResumableTranscript } from './has-resumable-transcript';
+import { requirePluginDirsOnTarget } from './require-plugin-dirs-on-target';
 import { runEjectHandoff } from './run-eject-handoff';
 import type { SettleScheduler } from './run-eject-handoff';
 import type { SessionRuntime } from './session-runtime';
@@ -116,6 +117,15 @@ export class SessionHandoff {
     // it was.
     if (listed !== undefined) {
       this.mgr.requireAgentTarget(listed.agent, listed.target);
+
+      requirePluginDirsOnTarget(
+        [
+          ...(this.mgr.findAdapter(listed.agent)?.profile?.pluginDirs ?? []),
+          ...(listed.pluginDirs ?? []),
+        ],
+        listed.target,
+        this.mgr.requireExecution(listed, 'spawn').provider.remote,
+      );
     }
 
     this.findRuntime(id)?.stopHeadlessRun();

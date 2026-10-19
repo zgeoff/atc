@@ -489,3 +489,113 @@ test('it accepts any model for an agent whose model option has no closed set', (
     overrides: { model: 'gpt-5.1-codex' },
   });
 });
+
+test.each([
+  ['an empty path', ''],
+  ['a path with a newline', '/opt/plugins/band\n'],
+  ['a path with an escape byte', '/opt/plugins/band\u001B[2J'],
+  ['a path of 4097 characters', `/${'p'.repeat(4096)}`],
+])('it refuses %s in pluginDirs as bad_args', (_label, dir) => {
+  const [claude] = buildAgentList(
+    [
+      buildMockAgentAdapter({
+        id: 'claude',
+        profile: {
+          label: 'Claude',
+          kind: 'claude',
+          bin: 'claude',
+          models: null,
+          spawnOptions: {
+            model: {
+              supported: true,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: 'applied',
+              note: null,
+            },
+            effort: {
+              supported: true,
+              values: ['low', 'medium', 'high', 'xhigh', 'max'],
+              examples: [],
+              default: null,
+              backendEffect: 'applied',
+              note: null,
+            },
+            pluginDirs: {
+              supported: true,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: 'applied',
+              note: null,
+            },
+          },
+        },
+      }),
+    ],
+    () => true,
+    [{ id: 'local', remote: false, brokerAuth: false }],
+  );
+
+  invariant(claude !== undefined, 'the agent list holds no claude entry');
+
+  expect(parseSpawnOverrides(claude, { pluginDirs: ['/opt/plugins/ok', dir] })).toStrictEqual({
+    ok: false,
+    code: 'bad_args',
+    message: 'each pluginDirs entry must be 1 to 4096 characters without control characters',
+  });
+});
+
+test('it accepts a 4096-character absolute path in pluginDirs', () => {
+  const [claude] = buildAgentList(
+    [
+      buildMockAgentAdapter({
+        id: 'claude',
+        profile: {
+          label: 'Claude',
+          kind: 'claude',
+          bin: 'claude',
+          models: null,
+          spawnOptions: {
+            model: {
+              supported: true,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: 'applied',
+              note: null,
+            },
+            effort: {
+              supported: true,
+              values: ['low', 'medium', 'high', 'xhigh', 'max'],
+              examples: [],
+              default: null,
+              backendEffect: 'applied',
+              note: null,
+            },
+            pluginDirs: {
+              supported: true,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: 'applied',
+              note: null,
+            },
+          },
+        },
+      }),
+    ],
+    () => true,
+    [{ id: 'local', remote: false, brokerAuth: false }],
+  );
+
+  invariant(claude !== undefined, 'the agent list holds no claude entry');
+
+  const dir = `/${'p'.repeat(4095)}`;
+
+  expect(parseSpawnOverrides(claude, { pluginDirs: [dir] })).toStrictEqual({
+    ok: true,
+    overrides: { pluginDirs: [dir] },
+  });
+});
