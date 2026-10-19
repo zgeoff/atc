@@ -19,14 +19,14 @@ test('it resolves the config in the home directory when no config folder is set'
   expect(resolveClaudeGlobalConfigPath(ctx.dir)).toBe(join(ctx.dir, '.claude.json'));
 });
 
-test('it resolves the legacy config in the home config folder when it holds one', () => {
+test('it resolves the config in the home directory when the home config folder holds a legacy config', () => {
   const ctx = setupTest();
 
   updateEnv('CLAUDE_CONFIG_DIR', undefined);
   mkdirSync(join(ctx.dir, '.claude'));
   writeFileSync(join(ctx.dir, '.claude', '.config.json'), '{}');
 
-  expect(resolveClaudeGlobalConfigPath(ctx.dir)).toBe(join(ctx.dir, '.claude', '.config.json'));
+  expect(resolveClaudeGlobalConfigPath(ctx.dir)).toBe(join(ctx.dir, '.claude.json'));
 });
 
 test('it resolves the config inside the config folder the environment sets', () => {
@@ -39,11 +39,11 @@ test('it resolves the config inside the config folder the environment sets', () 
   );
 });
 
-test('it resolves the legacy config when the config folder holds one', () => {
+test('it resolves the config inside the config folder the environment sets when that folder holds a legacy config', () => {
   const ctx = setupTest();
 
   updateEnv('CLAUDE_CONFIG_DIR', ctx.dir);
   writeFileSync(join(ctx.dir, '.config.json'), '{}');
 
-  expect(resolveClaudeGlobalConfigPath(join(ctx.dir, 'home'))).toBe(join(ctx.dir, '.config.json'));
+  expect(resolveClaudeGlobalConfigPath(join(ctx.dir, 'home'))).toBe(join(ctx.dir, '.claude.json'));
 });
