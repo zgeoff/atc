@@ -37,6 +37,8 @@ Each line links the section that explains it.
   link to its file; no inventories, no narrations, and no stale quotes.
 - [Answering a review of a skill](#answering-a-review-of-a-skill): decline a finding that asks for a
   copy of the code.
+- [Examples in a shared skill](#examples-in-a-shared-skill): made up, and naming no repo, file, or
+  line.
 - [Keeping a skill true](#keeping-a-skill-true): rules, not incidents, and a script where a check
   can replace prose.
 - [Checking a skill](#checking-a-skill): `check-length.sh`, `check-links.sh`, and `check-skill.sh`.
@@ -170,9 +172,9 @@ of a workflow the skill tells the agent to call, is no inventory: the agent need
 at the call.
 
 When agents need to browse a list, generate the reference from the code with a script, and have CI
-fail when the reference drifts. When most loads of the skill need the list itself, such as the verbs
-a repo's function names may start with, keep the list in the skill and add a check that fails when
-it differs from the code, as `check-project-verbs.sh` does for the code-style skill.
+fail when the reference drifts. When most loads of the skill need the list itself, such as a table
+of names that a lint rule also holds, keep the list in the skill and add a test that fails when it
+differs from the code.
 
 ### A narration
 
@@ -212,6 +214,15 @@ Review bots and review agents ask for precision: the exact path, every member of
 script takes. In a skill, a finding that asks for a copy of the code is declined under "Point at the
 code, never copy it", and the reply names that rule. A finding that shows a sentence is wrong is
 fixed, by correcting the fact or by replacing the copy with a pointer.
+
+## Examples in a shared skill
+
+A shared skill is one that a sync copies into several repos. Every example in it is made up, and
+names no repo, and no file, line, issue, or identifier from one repo. A reader in another repo can't
+open that file, and the example goes stale when its repo changes. Invent names that keep the
+example's point, as the widget examples in this guide do. An upstream project's issue, such as
+`turborepo#11007`, and a tool's or library's own name are fine, because every repo sees the same
+thing.
 
 ## Keeping a skill true
 
