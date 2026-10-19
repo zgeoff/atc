@@ -1341,6 +1341,70 @@ test('it offers every target to an agent whose broker credential is optional', a
   ]);
 });
 
+test('it offers every target to an agent that takes the broker credential without brokerRequired', async () => {
+  const ctx = setupTest();
+
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
+  );
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [{ id: 'claude', brokerAuth: true }],
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+      {
+        id: 'box',
+        provider: 'imp',
+        available: true,
+        default: false,
+        capabilities: { transfer: true, run: true },
+        brokerAuth: true,
+      },
+    ],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  expect(ctx.daemon.collectSent('session.spawn')).toStrictEqual([
+    {
+      cwd: ctx.cwd,
+      name: '',
+      prompt: '',
+      cols: expect.any(Number),
+      rows: 24,
+      agent: 'claude',
+      target: 'local',
+    },
+  ]);
+});
+
 test('it lists a scope read from typed text once, on the target chosen after it', async () => {
   const ctx = setupTest();
 
