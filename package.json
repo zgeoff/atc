@@ -41,7 +41,7 @@
       "@xterm/headless": "6.0.0",
       "@zgeoff/bun-test-extended": "0.2.0",
       "@zgeoff/format-codemod": "0.3.0",
-      "@zgeoff/oxlint-config": "0.2.12",
+      "@zgeoff/oxlint-config": "0.5.2",
       "@zgeoff/oxlint-config-next": "npm:@zgeoff/oxlint-config@0.5.2",
       "@zgeoff/skill-gate": "0.1.0",
       "better-auth": "1.7.7",
