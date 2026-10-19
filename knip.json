@@ -31,5 +31,5 @@
     }
   },
   "ignore": ["mods/**"],
-  "ignoreDependencies": ["@stylistic/eslint-plugin"]
+  "ignoreDependencies": ["@stylistic/eslint-plugin", "@zgeoff/skill-gate"]
 }
