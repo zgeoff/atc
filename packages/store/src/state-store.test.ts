@@ -1213,6 +1213,54 @@ test('it drops the resume column from a database that stopped at the step that a
   expect(rows).toStrictEqual([{ session_id: 's-1', name: 'nightly-build' }]);
 });
 
+test('it records the resume column drop and keeps the fleet when a crash left the column dropped but the step unrecorded', async () => {
+  const tmp = setupTempDir('atc-store-');
+  const dbPath = join(tmp.dir, 'state.db');
+
+  const older = new Database(dbPath);
+
+  registerTestCleanup(() => {
+    older.close();
+  });
+
+  const db = new Kysely<StateStoreSchema>({ dialect: buildSQLiteDialect(older) });
+
+  await new Migrator({
+    db,
+    provider: { getMigrations: () => Promise.resolve(MIGRATIONS) },
+  }).migrateTo('036_add_fleet_plugin_dirs');
+
+  older.run(
+    "INSERT INTO fleet (session_id, name, cwd, pinned, agent, exited) VALUES ('s-1', 'nightly-build', '/work/app', 0, 'claude', 0)",
+  );
+
+  older.run('ALTER TABLE fleet DROP COLUMN resume_interrupted_turns');
+  older.close();
+
+  const upgraded = await StateStore.open(dbPath);
+
+  registerTestCleanup(() => upgraded.stop());
+
+  const reader = new Database(dbPath, { readonly: true });
+
+  registerTestCleanup(() => {
+    reader.close();
+  });
+
+  const steps = reader
+    .query<{ name: string }, []>(
+      "SELECT name FROM kysely_migration WHERE name = '037_drop_fleet_resume_interrupted_turns'",
+    )
+    .all();
+
+  const rows = reader
+    .query<{ session_id: string; name: string }, []>('SELECT session_id, name FROM fleet')
+    .all();
+
+  expect(steps).toStrictEqual([{ name: '037_drop_fleet_resume_interrupted_turns' }]);
+  expect(rows).toStrictEqual([{ session_id: 's-1', name: 'nightly-build' }]);
+});
+
 test('it re-runs no migration when it reopens a migrated database', async () => {
   const tmp = setupTempDir('atc-store-');
   const dbPath = join(tmp.dir, 'state.db');
