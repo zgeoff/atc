@@ -1,8 +1,6 @@
 import { ImpPortError } from './imp-port-error';
 import { MIN_IMPD_VERSION } from './min-impd-version';
 
-// An impd older than the minimum, or one whose version does not parse, is
-// refused with `IMPD_OUTDATED`.
 export function requireImpdVersion(version: string): void {
   let order: -1 | 0 | 1;
 

@@ -59,7 +59,6 @@ class StubImpPort implements ImpPort {
   // The spec of every imp create the port received, in order.
   readonly createSpecs: ImpCreateSpec[] = [];
 
-  // The version impd reports.
   version: string = MIN_IMPD_VERSION;
 
   // Where the port keeps each imp's read-only files, one folder per imp
