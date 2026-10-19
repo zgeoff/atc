@@ -26,7 +26,7 @@ export async function runMCPServer(
     callerSessionID,
   );
 
-  const toolContext: ToolContext = { callerSessionID, passesLegacyFrom: true };
+  const toolContext: ToolContext = { callerSessionID };
 
   const decoder = new LineDecoder();
 

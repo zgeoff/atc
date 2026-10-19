@@ -619,7 +619,7 @@ test('it spawns nothing for a binding a gateway restart left sent but unanswered
   expect(ctx.cloud.client.sendRequest('session.list')).resolves.toStrictEqual({ sessions: [] });
 });
 
-test("it replays a keyed message an older gateway sent with the client's name as its from", async () => {
+test("it refuses a keyed message as idempotency_conflict when the key's first send gave the client's name as its from", async () => {
   const ctx = await setupTest();
 
   const spawned = await ctx.router.sendRequest(
@@ -630,20 +630,19 @@ test("it replays a keyed message an older gateway sent with the client's name as
 
   const session = getRecord(spawned, 'session')['id'];
 
-  // An older gateway's message tool gave the client's name as from.
-  const first = await ctx.router.sendRequest(
+  await ctx.router.sendRequest(
     'session.message',
     { session, text: 'check the tide tables', from: GW.name, idempotencyKey: 'message-upgrade' },
     GW,
   );
 
-  const replayed = await ctx.router.sendRequest(
+  const retried = ctx.router.sendRequest(
     'session.message',
     { session, text: 'check the tide tables', idempotencyKey: 'message-upgrade' },
     GW,
   );
 
-  expect(replayed).toStrictEqual(first);
+  expect(retried).rejects.toMatchObject({ code: 'idempotency_conflict' });
 });
 
 test('it replays a keyed spawn sent before a gateway restart from the key the daemon holds, with no idempotency_conflict', async () => {

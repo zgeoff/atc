@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { systemClock } from '@atc/core';
 import { PROTOCOL_V } from '@atc/protocol/wire';
@@ -44,20 +44,28 @@ test('it returns the hello and what the read returns from the daemon that answer
   });
 });
 
-test('it reads an unknown build and no id from a hello that holds neither', async () => {
+test('it refuses a daemon whose hello holds no build or id, and reads nothing from it', async () => {
   const ctx = setupTest();
 
   startStubLegacyDaemon(join(ctx.dir, 'atc-daemon.sock'), {
     replies: { 'daemon.hello': {} },
   });
 
+  const read = mock(() => Promise.resolve(null));
+
   const probe = await tryOpenDaemon(
     [join(ctx.dir, 'atc-daemon.sock')],
     { build: 'atc/test-build', deadline: systemClock.now() + 3000, clock: systemClock },
-    () => Promise.resolve(null),
+    read,
   );
 
-  expect(probe).toMatchObject({ kind: 'ok', hello: { build: 'unknown', daemonID: null } });
+  expect(probe).toStrictEqual({
+    kind: 'refused',
+    socketPath: join(ctx.dir, 'atc-daemon.sock'),
+    message: 'the daemon answered the handshake without its build and id',
+  });
+
+  expect(read).not.toHaveBeenCalled();
 });
 
 test('it returns the refusal of a daemon on another protocol', async () => {

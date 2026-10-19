@@ -50,34 +50,6 @@ test('#claimBinding keeps the first binding of a key and returns it to a later c
   });
 });
 
-test('#claimBinding matches a binding an older gateway made under one of the legacy hashes it is given', () => {
-  const ctx = setupTest();
-  const legacy = buildBindingPayloadHash({ session: 's1', text: 'hi', from: 'Lantern Notes' });
-
-  const first = ctx.store.claimBinding(
-    buildMockKeyBindingClaim({
-      principal: 'c1',
-      operation: 'session.message',
-      key: 'k',
-      payloadHash: legacy,
-    }),
-    0,
-  );
-
-  const claim = buildMockKeyBindingClaim({
-    principal: 'c1',
-    operation: 'session.message',
-    key: 'k',
-    payloadHash: buildBindingPayloadHash({ session: 's1', text: 'hi' }),
-  });
-
-  expect(ctx.store.claimBinding(claim, 10, [legacy])).toStrictEqual(first);
-
-  expect(() => ctx.store.claimBinding(claim, 10)).toThrow(
-    expect.objectContaining({ code: 'idempotency_conflict' }),
-  );
-});
-
 test('#claimBinding refuses a key reused with another payload as idempotency_conflict before any daemon call', () => {
   const ctx = setupTest();
 

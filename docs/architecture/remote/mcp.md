@@ -106,9 +106,9 @@ start. A call in flight at that moment is retried once on the fresh connection o
 cannot double its effect:
 
 - A read-only call is retried.
-- A spawn or a message is retried when the fresh daemon supports idempotency keys. The server sends
-  the call under a key, the one the caller passed or one it mints, and resends it unchanged under
-  the same key ([idempotency](../protocol/idempotency.md)).
+- A spawn or a message is retried. The server sends the call under a key, the one the caller passed
+  or one it mints, and resends it unchanged under the same key
+  ([idempotency](../protocol/idempotency.md)).
 - Any other call fails, because it must not run twice.
 
 The resend goes out unchanged, not as replay-only, because the socket leads to a daemon on the same

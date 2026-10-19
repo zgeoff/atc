@@ -19,7 +19,7 @@ export async function runDaemonID(host: LifecycleHost): Promise<void> {
     () => Promise.resolve(null),
   );
 
-  if (probe?.kind === 'ok' && probe.hello.daemonID !== null) {
+  if (probe?.kind === 'ok') {
     console.log(probe.hello.daemonID);
 
     return;

@@ -42,9 +42,7 @@ const AGENT_ENTRY_SCHEMA = z.object({
   spawnOptions: z.object({
     model: SPAWN_OPTION_ENTRY_SCHEMA,
     effort: SPAWN_OPTION_ENTRY_SCHEMA,
-
-    // absent from a daemon that takes no plugin folders on a spawn
-    pluginDirs: SPAWN_OPTION_ENTRY_SCHEMA.optional(),
+    pluginDirs: SPAWN_OPTION_ENTRY_SCHEMA,
   }),
 });
 

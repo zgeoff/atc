@@ -74,7 +74,6 @@ export class GatewayStore {
   claimBinding(
     binding: Omit<KeyBinding, 'outcome' | 'outcomeAt' | 'sentAt' | 'effectRef'>,
     now: number,
-    legacyPayloadHashes: readonly string[] = [],
   ): KeyBinding {
     this.db
       .query(
@@ -102,10 +101,7 @@ export class GatewayStore {
     }
 
     // a reused key never reaches a daemon that may have dropped it already
-    if (
-      held.payloadHash !== binding.payloadHash &&
-      !legacyPayloadHashes.includes(held.payloadHash)
-    ) {
+    if (held.payloadHash !== binding.payloadHash) {
       throw new DaemonError(
         'idempotency_conflict',
         `idempotency key '${binding.key}' was first used with a different ${binding.operation} payload`,

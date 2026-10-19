@@ -52,6 +52,7 @@ test('it answers the handshake with its build', async () => {
 
   expect(hello).toStrictEqual({
     daemon: 'atc/legacy-build',
+    daemonID: 'd-legacy',
     limits: { maxLine: 1_048_576, maxChunk: 65_536 },
     lastUsedAgent: 'claude',
   });
@@ -194,6 +195,7 @@ test('it answers the handshake on the TCP port it bound when given a TCP address
 
   expect(hello).toStrictEqual({
     daemon: 'atc/legacy-build',
+    daemonID: 'd-legacy',
     limits: { maxLine: 1_048_576, maxChunk: 65_536 },
     lastUsedAgent: 'claude',
   });

@@ -236,18 +236,11 @@ export function runTool(
     })
     .with('atc_message_send', async () => {
       const key = parseIdempotencyKey(args['idempotencyKey']);
-      const legacyFrom = args['from'];
 
       const ok = await caller.sendRequest('session.message', {
         session: args['session'],
         text: args['text'],
         ...(key === undefined ? {} : { idempotencyKey: key }),
-        ...(key !== undefined &&
-        ctx.passesLegacyFrom === true &&
-        typeof legacyFrom === 'string' &&
-        legacyFrom !== ''
-          ? { from: legacyFrom }
-          : {}),
       });
 
       return buildObjectResult(ok);

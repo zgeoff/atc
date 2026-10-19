@@ -1700,64 +1700,7 @@ test('it refuses a replay-only spawn without an idempotency key as bad_args and 
   expect(list['sessions']).toStrictEqual([]);
 });
 
-test.each([
-  ['an older client that gave a from, retried unchanged', 'release-bot', { from: 'release-bot' }],
-  ['an older client that gave none, retried by this one', 'unknown', {}],
-  ["an older atc mcp's default from, retried by this one", 'mcp', {}],
-] as const)(
-  'it replays a message key stored with the from of %s',
-  async (_case, storedFrom, retried) => {
-    const daemon = await startTestDaemon({
-      prefix: 'atc-idempotency-',
-      options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
-    });
-
-    const spawned = await daemon.client.sendRequest('session.spawn', {
-      cwd: daemon.dir,
-      cols: 80,
-      rows: 24,
-    });
-
-    const session = getRecord(spawned, 'session')['id'];
-
-    await daemon.stop();
-
-    const seed = await StateStore.open(daemon.dbPath);
-
-    const stopSeed = registerTestCleanup(() => seed.stop());
-    const id = { principal: 'local', operation: 'session.message', key: 'm-key' };
-
-    // The hash a daemon that read a caller-given from stored for the key.
-    await seed.claimIdempotencyKey({
-      ...id,
-      payloadHash: buildPayloadHash({ session, text: 'hello', from: storedFrom }),
-      effectRef: 'm-stored',
-      at: Date.now(),
-    });
-
-    await seed.updateIdempotencyCompleted(
-      id,
-      JSON.stringify({ message: 'm-stored', status: 'queued' }),
-      Date.now(),
-      null,
-    );
-
-    await stopSeed();
-
-    await daemon.restart();
-
-    const replayed = await daemon.client.sendRequest('session.message', {
-      session,
-      text: 'hello',
-      idempotencyKey: 'm-key',
-      ...retried,
-    });
-
-    expect(replayed).toStrictEqual({ message: 'm-stored', status: 'queued' });
-  },
-);
-
-test("it replays a message key an older gateway stored with the client's name as its from", async () => {
+test('it refuses a message key whose stored hash covers a from as idempotency_conflict', async () => {
   const daemon = await startTestDaemon({
     prefix: 'atc-idempotency-',
     options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
@@ -1776,11 +1719,11 @@ test("it replays a message key an older gateway stored with the client's name as
   const seed = await StateStore.open(daemon.dbPath);
 
   const stopSeed = registerTestCleanup(() => seed.stop());
-  const id = { principal: 'client:client-7', operation: 'session.message', key: 'm-key' };
+  const id = { principal: 'local', operation: 'session.message', key: 'm-key' };
 
   await seed.claimIdempotencyKey({
     ...id,
-    payloadHash: buildPayloadHash({ session, text: 'hello', from: 'Lantern Notes' }),
+    payloadHash: buildPayloadHash({ session, text: 'hello', from: 'release-bot' }),
     effectRef: 'm-stored',
     at: Date.now(),
   });
@@ -1794,12 +1737,12 @@ test("it replays a message key an older gateway stored with the client's name as
 
   await stopSeed();
 
-  const replayed = await daemon.client.sendRequest(
-    'session.message',
-    { session, text: 'hello', idempotencyKey: 'm-key' },
-    'client-7',
-    'Lantern Notes',
-  );
+  const retried = daemon.client.sendRequest('session.message', {
+    session,
+    text: 'hello',
+    idempotencyKey: 'm-key',
+    from: 'release-bot',
+  });
 
-  expect(replayed).toStrictEqual({ message: 'm-stored', status: 'queued' });
+  expect(retried).rejects.toMatchObject({ code: 'idempotency_conflict' });
 });

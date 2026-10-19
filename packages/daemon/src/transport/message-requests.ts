@@ -3,7 +3,6 @@ import { DaemonError } from '@atc/protocol/wire';
 import type { DaemonContext, TapClient } from '../daemon-context';
 import type { MessageCaller } from '../sessions/message-caller';
 import { buildKeyedRequest } from './build-keyed-request';
-import { buildLegacyMessageHashes } from './build-legacy-message-hashes';
 import type { ConnectionIdentity, RequestDeps, RequestPrincipal } from './request-deps';
 
 // The requests that send messages between sessions and take them from a
@@ -22,7 +21,6 @@ export class MessageRequests {
     data: RequestParams<'session.message'>,
     ctx: DaemonContext,
     as: RequestPrincipal | null,
-    sentFrom: unknown,
   ): Promise<DaemonAnswer<'session.message'>> {
     const sessionID = data.session;
 
@@ -30,23 +28,10 @@ export class MessageRequests {
       throw new DaemonError('bad_args', 'replayOnly needs an idempotencyKey');
     }
 
-    // The hash leaves out a local caller's name, as a daemon that ignored it
-    // stored it, so a retry across an upgrade replays.
+    // The hash leaves out a local caller's name, which only labels the
+    // message, so a retry under another name replays the same send.
     const { from: localName, ...hashed } = data;
     const keyed = buildKeyedRequest(hashed);
-
-    // An older client's default sender names, so a key an older daemon
-    // stored with one still replays. The sender name the request gave is
-    // hashed as it was sent, untrimmed, as that daemon hashed it.
-    const legacyNames = ['mcp', as?.name, this.identity.callerSession];
-
-    const legacyKeyed =
-      keyed === null
-        ? null
-        : {
-            ...keyed,
-            legacyPayloadHashes: buildLegacyMessageHashes(hashed, sentFrom, legacyNames),
-          };
 
     // A send that needs no answer leaves no session to notify.
     const noticeSession = data.notice === false ? null : this.identity.callerSession;
@@ -55,7 +40,7 @@ export class MessageRequests {
       sessionID,
       this.findMessageCaller(as, localName),
       data.text,
-      legacyKeyed,
+      keyed,
       null,
       noticeSession,
     );

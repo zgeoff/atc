@@ -4,12 +4,11 @@ import { buildConnectionRequests } from '../transport/build-connection-requests'
 import { buildMockProcedureContext } from './build-mock-procedure-context';
 import { buildStubDaemonContext } from './build-stub-daemon-context';
 
-test('it builds a context for the daemon owner that gives no principal and sent no params', () => {
+test('it builds a context for the daemon owner that gives no principal', () => {
   const context = buildMockProcedureContext();
 
   expect(context.ctx.build).toBe('atc/test');
   expect(context.as).toBeNull();
-  expect(context.sentParams).toStrictEqual({});
 });
 
 test('it builds handlers that act as no principal and no caller session', () => {

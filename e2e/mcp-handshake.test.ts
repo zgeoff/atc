@@ -252,6 +252,14 @@ test('it lists the fleet tools', async () => {
                       "cwd",
                       "agent",
                       "state",
+                      "unread",
+                      "pinned",
+                      "alive",
+                      "kind",
+                      "lastMsg",
+                      "createdAt",
+                      "locator",
+                      "lifecycle",
                     ],
                     "type": "object",
                   },
@@ -559,6 +567,14 @@ test('it lists the fleet tools', async () => {
                 "cwd",
                 "agent",
                 "state",
+                "unread",
+                "pinned",
+                "alive",
+                "kind",
+                "lastMsg",
+                "createdAt",
+                "locator",
+                "lifecycle",
               ],
               "type": "object",
             },
@@ -1203,7 +1219,7 @@ test('it lists the fleet tools', async () => {
                         ],
                       },
                       "spawnOptions": {
-                        "description": "the model, effort and plugin folder options a spawn takes, present when the daemon supports them",
+                        "description": "the model, effort and plugin folder options a spawn takes",
                         "properties": {
                           "effort": {
                             "properties": {
@@ -1360,7 +1376,7 @@ test('it lists the fleet tools', async () => {
                             "type": "object",
                           },
                           "pluginDirs": {
-                            "description": "the plugin folders a spawn can add for its session alone; available true when the agent can start on a target on the daemon's machine. Absent from a daemon that takes none",
+                            "description": "the plugin folders a spawn can add for its session alone; available true when the agent can start on a target on the daemon's machine",
                             "properties": {
                               "available": {
                                 "description": "whether a spawn on this host can pass the option now",
@@ -1441,6 +1457,7 @@ test('it lists the fleet tools', async () => {
                         "required": [
                           "model",
                           "effort",
+                          "pluginDirs",
                         ],
                         "type": "object",
                       },
@@ -1450,6 +1467,8 @@ test('it lists the fleet tools', async () => {
                       "label",
                       "kind",
                       "installed",
+                      "brokerAuth",
+                      "brokerRequired",
                       "capabilities",
                       "models",
                       "spawnOptions",
@@ -1571,7 +1590,7 @@ test('it lists the fleet tools', async () => {
                   "type": "array",
                 },
                 "targets": {
-                  "description": "the execution targets, present when the daemon supports targets",
+                  "description": "the execution targets",
                   "items": {
                     "properties": {
                       "available": {
@@ -1613,6 +1632,7 @@ test('it lists the fleet tools', async () => {
                       "available",
                       "default",
                       "capabilities",
+                      "brokerAuth",
                     ],
                     "type": "object",
                   },
@@ -1622,6 +1642,11 @@ test('it lists the fleet tools', async () => {
               "required": [
                 "daemon",
                 "agents",
+                "targets",
+                "spawnDefaults",
+                "configRevision",
+                "targetErrors",
+                "sources",
               ],
               "type": "object",
             },
@@ -1761,6 +1786,14 @@ test('it lists the fleet tools', async () => {
                     "cwd",
                     "agent",
                     "state",
+                    "unread",
+                    "pinned",
+                    "alive",
+                    "kind",
+                    "lastMsg",
+                    "createdAt",
+                    "locator",
+                    "lifecycle",
                   ],
                   "type": "object",
                 },

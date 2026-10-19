@@ -334,8 +334,7 @@ export const REQUEST_PARAM_SCHEMAS = {
       message: 'events.read takes a cursor or from, not both',
     }),
 
-  // The sender is never a param: the daemon builds it from the caller, so a
-  // `from` an older client sends is dropped with any other unknown key.
+  // The sender is never a param: the daemon builds it from the caller.
   'session.message': SESSION_DEFAULTED.extend({
     text: buildDefaultedString(''),
 

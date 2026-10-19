@@ -11,10 +11,6 @@ export interface ProcedureContext {
   readonly requests: ConnectionRequests;
   readonly as: RequestPrincipal | null;
 
-  // The params as the request sent them, before the procedure's schema
-  // parsed them, for a hash an older daemon computed over the raw values.
-  readonly sentParams: unknown;
-
   // Settles who the connection acts as and answers its handshake.
   readonly answerHello: (
     input: RequestParams<'daemon.hello'>,

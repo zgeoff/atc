@@ -18,11 +18,6 @@ export interface FleetCaller {
 
 export interface ToolContext {
   readonly callerSessionID: string | null;
-
-  // whether a send passes on its call's `from`. A key the ledger holds can cover that
-  // `from`, so the daemon matches it to replay the message but never labels with it.
-  // Only local stdio passes it on; a gateway hashes every param, so no remote caller does.
-  readonly passesLegacyFrom?: boolean;
 }
 
 export interface Requester {

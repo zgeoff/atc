@@ -458,131 +458,21 @@ test('it sends a message under the key the call gives', async () => {
   ]);
 });
 
-test("it passes a keyed send's from on to the daemon from local atc mcp, for legacy key matches alone", async () => {
-  const caller = buildStubFleetCaller({ answer: () => ({ message: 'm1' }) });
-
-  await runTool(
-    caller,
-    'atc_message_send',
-    { session: 's1', text: 'hello', from: 'release-bot', idempotencyKey: 'k-1' },
-    { callerSessionID: null, passesLegacyFrom: true },
-  );
-
-  expect(caller.requests).toStrictEqual([
-    {
-      m: 'session.message',
-      p: { session: 's1', text: 'hello', idempotencyKey: 'k-1', from: 'release-bot' },
-    },
-  ]);
-});
-
 test.each([
-  ['an unkeyed send from local atc mcp', { callerSessionID: null, passesLegacyFrom: true }, {}],
-  ['a keyed send from a remote caller', { callerSessionID: null }, { idempotencyKey: 'k-1' }],
-] as const)('it passes no from on to the daemon for %s', async (_case, ctx, keyed) => {
+  ['an unkeyed send', {}],
+  ['a keyed send', { idempotencyKey: 'k-1' }],
+] as const)('it passes no from on to the daemon for %s that gives one', async (_case, keyed) => {
   const caller = buildStubFleetCaller({ answer: () => ({ message: 'm1' }) });
 
   await runTool(
     caller,
     'atc_message_send',
     { session: 's1', text: 'hello', from: 'release-bot', ...keyed },
-    ctx,
+    { callerSessionID: null },
   );
 
   expect(caller.requests.map((request) => request.p)).toStrictEqual([
     { session: 's1', text: 'hello', ...keyed },
-  ]);
-});
-
-test('it replays a message key an older atc mcp stored with a given from, and labels each message by its caller', async () => {
-  const daemon = await startTestDaemon({
-    prefix: 'atc-run-tool-',
-    options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
-  });
-
-  const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
-    openDaemonClient(path),
-  );
-
-  registerTestCleanup(() => caller.stop());
-
-  const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
-    cols: 80,
-    rows: 24,
-  });
-
-  const session = getRecord(spawned, 'session')['id'];
-  const local = { callerSessionID: null, passesLegacyFrom: true };
-
-  const first = await runTool(
-    caller,
-    'atc_message_send',
-    { session, text: 'check the tide tables', idempotencyKey: 'k-first' },
-    local,
-  );
-
-  const message = first.structured?.['message'];
-
-  // The key an older atc mcp left for the same send with from release-bot.
-  // The daemon reads the ledger from the database on each keyed request, so
-  // a key written beside the running daemon is one it holds.
-  const seed = await StateStore.open(daemon.dbPath);
-
-  const stopSeed = registerTestCleanup(() => seed.stop());
-  const id = { principal: 'local', operation: 'session.message', key: 'k-tide' };
-
-  await seed.claimIdempotencyKey({
-    ...id,
-    payloadHash: buildPayloadHash({ session, text: 'check the tide tables', from: 'release-bot' }),
-    effectRef: String(message),
-    at: Date.now(),
-  });
-
-  await seed.updateIdempotencyCompleted(
-    id,
-    JSON.stringify({ message, status: 'queued' }),
-    Date.now(),
-    null,
-  );
-
-  await stopSeed();
-
-  const retry = {
-    session,
-    text: 'check the tide tables',
-    from: 'release-bot',
-    idempotencyKey: 'k-tide',
-  };
-
-  const remote = runTool(caller, 'atc_message_send', retry, { callerSessionID: null });
-
-  await Promise.allSettled([remote]);
-
-  const replayed = await runTool(caller, 'atc_message_send', retry, local);
-
-  const fresh = await runTool(
-    caller,
-    'atc_message_send',
-    { ...retry, idempotencyKey: 'k-fresh' },
-    local,
-  );
-
-  const senders = await Promise.all(
-    [message, fresh.structured?.['message']].map(async (sent) => {
-      const got = await runTool(caller, 'atc_message_get', { message: sent }, local);
-
-      return [got.structured?.['from'], got.structured?.['sender']];
-    }),
-  );
-
-  expect(remote).rejects.toMatchObject({ code: 'idempotency_conflict' });
-  expect(replayed.structured).toStrictEqual({ message, status: 'queued' });
-  expect(fresh.structured?.['message']).not.toBe(message);
-
-  expect(senders).toStrictEqual([
-    ['owner', { kind: 'owner', name: 'owner' }],
-    ['owner', { kind: 'owner', name: 'owner' }],
   ]);
 });
 
