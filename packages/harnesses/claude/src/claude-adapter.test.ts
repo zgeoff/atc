@@ -209,7 +209,7 @@ test('it keeps the permission mode its configured arguments set in the command t
     buildMockHostServices(),
   );
 
-  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'))).toBe(
+  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'), [])).toBe(
     "cd '/work/repo' && claude --permission-mode 'plan' --resume sess-1",
   );
 });
@@ -691,7 +691,7 @@ test('it quotes a configured binary path with spaces in the resume command', () 
     buildMockHostServices(),
   );
 
-  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'))).toBe(
+  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'), [])).toBe(
     "cd '/work/repo' && '/opt/Claude Code/claude' --resume sess-1",
   );
 });
@@ -710,7 +710,7 @@ test('it carries the settings file in the resume command of an entry with its ow
     { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
   );
 
-  const command = adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'));
+  const command = adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'), []);
 
   const settings: unknown = JSON.parse(
     readFileSync(join(ctx.dir, 'state', 'hook-settings-claude.json'), 'utf8'),
@@ -823,8 +823,26 @@ test('it resumes a stock session outside atc without a permission-mode argument'
     buildMockHostServices(),
   );
 
-  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'))).toBe(
+  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'), [])).toBe(
     "cd '/work/repo' && claude --resume sess-1",
+  );
+});
+
+test("it keeps the config's plugin folders and the session's own in the command that resumes it outside atc", () => {
+  const config = parseConfig([CLAUDE_PLUGIN], {
+    agents: { claude: { pluginDirs: ['/opt/plugins/shared'] } },
+  });
+
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+  );
+
+  expect(
+    adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'), ['/srv/plugins/band']),
+  ).toBe(
+    "cd '/work/repo' && claude --plugin-dir '/opt/plugins/shared' --plugin-dir '/srv/plugins/band' --resume sess-1",
   );
 });
 

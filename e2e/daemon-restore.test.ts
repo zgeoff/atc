@@ -1,6 +1,6 @@
 import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { toAgentSessionID, toSessionID } from '@atc/core';
 import { findDaemonRecord } from '@atc/lifecycle';
@@ -748,6 +748,60 @@ test("it revives a restored session with the config's plugin folders and the spa
   expect(screen['text']).toInclude(
     `--plugin-dir ${join(ctx.home, 'plugins', 'shared')} --plugin-dir ${join(ctx.home, 'plugins', 'band')} --resume fake-1`,
   );
+});
+
+test('it lists a restored session whose plugin folder is gone as refused, naming the path', async () => {
+  const ctx = setupTest();
+
+  mkdirSync(join(ctx.home, 'plugins', 'band'), { recursive: true });
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
+
+      // A restarted daemon restores only when the test asks it to.
+      restoreFleetOnRestart: false,
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', {
+    cwd: ctx.home,
+    pluginDirs: ['~/plugins/band'],
+    cols: 400,
+    rows: 24,
+  });
+
+  const id = getString(getRecord(ok, 'session'), 'id');
+
+  await waitFor(async () => {
+    const listed = await client.sendRequest('fleet.list');
+
+    expect(listed).toMatchObject({ fleet: [{ agentSessionID: 'fake-1' }] });
+  });
+
+  await daemon.restart('SIGKILL');
+
+  rmSync(join(ctx.home, 'plugins', 'band'), { recursive: true });
+
+  const revived = await daemon.openClient();
+
+  await revived.sendHello('atc/test');
+  await revived.sendRequest('fleet.restore', { cols: 400, rows: 24 });
+
+  const missing = `plugin folder '${join(ctx.home, 'plugins', 'band')}' does not exist`;
+
+  await waitFor(async () => {
+    const record = await revived.sendRequest('session.get', { session: id });
+
+    expect(getString(getRecord(record, 'session'), 'lastMsg')).toInclude(missing);
+  });
 });
 
 test('it revives a restored session that has no model or effort without either flag', async () => {

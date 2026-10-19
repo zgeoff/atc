@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { LOCAL_TARGET, parseConfig } from '@atc/config';
 import { ImpProvider } from '@atc/execution-imp';
@@ -247,6 +247,43 @@ test("it refuses a spawn when a plugin folder the agent's config sets does not e
   });
 });
 
+test('it refuses to start a session again once its plugin folder is gone, naming the path', async () => {
+  const ctx = setupTest();
+
+  mkdirSync(join(ctx.home, 'plugins', 'band'), { recursive: true });
+
+  const daemon = await startTestDaemon({
+    options: () => ({
+      adapters: buildAgentAdapters(
+        parseConfig(SHIPPED_HARNESS_PLUGINS, { agents: { claude: { bin: ctx.fakeClaude } } }),
+        buildMockHostServices(),
+        null,
+        { homeDir: ctx.home },
+      ),
+      homeDir: ctx.home,
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    resume: 'sess-123',
+    pluginDirs: ['~/plugins/band'],
+  });
+
+  const session = getRecord(spawned, 'session')['id'];
+
+  await daemon.client.sendRequest('session.kill', { session, stopOnly: true });
+
+  rmSync(join(ctx.home, 'plugins', 'band'), { recursive: true });
+
+  const adopt = daemon.client.sendRequest('session.adopt', { session, cols: 80, rows: 24 });
+
+  expect(adopt).rejects.toMatchObject({
+    code: 'bad_args',
+    message: `plugin folder '${join(ctx.home, 'plugins', 'band')}' does not exist`,
+  });
+});
+
 test('it refuses a relative plugin folder before spawning anything', async () => {
   const ctx = setupTest();
 
@@ -371,6 +408,40 @@ test('it shows the plugin folders a session was spawned with in its record', asy
   expect(getRecord(record, 'session')['pluginDirs']).toStrictEqual([
     join(ctx.home, 'plugins', 'band'),
   ]);
+});
+
+test("it keeps the config's plugin folders and the session's own in the command that resumes it outside atc", async () => {
+  const ctx = setupTest();
+
+  mkdirSync(join(ctx.home, 'plugins', 'shared'), { recursive: true });
+  mkdirSync(join(ctx.home, 'plugins', 'band'), { recursive: true });
+
+  const daemon = await startTestDaemon({
+    options: () => ({
+      adapters: buildAgentAdapters(
+        parseConfig(SHIPPED_HARNESS_PLUGINS, {
+          agents: { claude: { bin: ctx.fakeClaude, pluginDirs: ['~/plugins/shared'] } },
+        }),
+        buildMockHostServices(),
+        null,
+        { homeDir: ctx.home },
+      ),
+      homeDir: ctx.home,
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    pluginDirs: ['~/plugins/band'],
+  });
+
+  const answer = await daemon.client.sendRequest('session.resumeCommand', {
+    session: getRecord(spawned, 'session')['id'],
+  });
+
+  expect(answer['command']).toInclude(
+    ` --plugin-dir '${join(ctx.home, 'plugins', 'shared')}' --plugin-dir '${join(ctx.home, 'plugins', 'band')}' --resume`,
+  );
 });
 
 test('it lists plugin folders as a spawn option of claude and not of grok', async () => {

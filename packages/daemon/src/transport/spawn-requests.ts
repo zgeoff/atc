@@ -103,7 +103,7 @@ export class SpawnRequests {
         throw new DaemonError(overrides.code, overrides.message);
       }
 
-      const pluginDirs = ctx.resolvePluginDirs(
+      const pluginDirs = ctx.requirePluginDirs(
         target,
         adapter.profile?.pluginDirs ?? [],
         overrides.overrides.pluginDirs ?? [],

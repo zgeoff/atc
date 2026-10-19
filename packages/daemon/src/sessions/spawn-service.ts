@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import type { InvalidGitTransports } from '@atc/config';
 import { resolveHomeDir } from '@atc/config/host';
@@ -15,6 +14,7 @@ import { buildDefaultWorkspaceDir } from '../workspace/build-default-workspace-d
 import { materializeWorkspace } from '../workspace/materialize-workspace';
 import { readHostGitIdentity } from '../workspace/read-host-git-identity';
 import { mintSessionID } from './mint-session-id';
+import { requirePluginDirsOnTarget } from './require-plugin-dirs-on-target';
 import type { SessionRuntime } from './session-runtime';
 import type { SessionManager } from './sessions';
 import type { SpawnHostAccess, SpawnMaterializer } from './spawn-materializer';
@@ -184,38 +184,27 @@ export class SpawnService {
     this.mgr.requireAgentTarget(agent, target);
   }
 
-  // A remote target's folders are out of the daemon's sight, so any folder
-  // there refuses the spawn, as does a configured or requested path that
-  // does not exist.
-  resolvePluginDirs(
+  // returns the requested folders with a leading ~ expanded to the daemon
+  // user's home
+  requirePluginDirs(
     target: string,
     configured: readonly string[],
     requested: readonly string[],
   ): string[] {
     const home = this.homeDir ?? resolveHomeDir();
-    const resolved = requested.map((dir) => expandHome(dir, home));
+    const expanded = requested.map((dir) => expandHome(dir, home));
+    const dirs = [...configured, ...expanded];
 
-    if (configured.length === 0 && resolved.length === 0) {
-      return resolved;
+    if (dirs.length > 0) {
+      const provider = this.mgr.requireExecution(
+        { target, targetIdentity: null },
+        'spawn',
+      ).provider;
+
+      requirePluginDirsOnTarget(dirs, target, provider.remote);
     }
 
-    const remote = this.mgr.requireExecution({ target, targetIdentity: null }, 'spawn').provider
-      .remote;
-
-    if (remote) {
-      throw new DaemonError(
-        'unsupported',
-        `target '${target}' runs the agent on another machine, so it takes no pluginDirs; the agent's config or the spawn sets them`,
-      );
-    }
-
-    const missing = [...configured, ...resolved].find((dir) => !existsSync(dir));
-
-    if (missing !== undefined) {
-      throw new DaemonError('bad_args', `plugin folder '${missing}' does not exist`);
-    }
-
-    return resolved;
+    return expanded;
   }
 
   // A spawn that fails unwinds its own steps before it throws, so a failed

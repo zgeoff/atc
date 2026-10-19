@@ -74,6 +74,9 @@ alone through one `--plugin-dir` each, after atc's own mod and after the folders
 sets. A spawn's folders add to the config's folders and never replace them. The daemon expands a
 leading `~` to its user's home and refuses the spawn, naming the path, when any folder of either
 list does not exist on its machine. It refuses any plugin folder on a target that runs the agent on
-another machine, because it cannot see that machine's paths. The fleet row stores the spawn's own
-expanded folders, and the adapter adds the config's folders at each launch, so a restore loads the
-folders the config holds at that time.
+another machine, because it cannot see that machine's paths, so the agent listing leaves remote
+targets out of the spawn targets of an agent whose config sets folders. The fleet row stores the
+spawn's own expanded folders, and the adapter adds the config's folders at each launch and to the
+command that resumes the session outside atc. A restore or an adopt checks both lists again, so it
+lists a session whose folder has gone as refused, naming the path, rather than starting it without
+the plugin.

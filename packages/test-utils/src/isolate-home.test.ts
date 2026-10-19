@@ -278,7 +278,7 @@ test('it writes the settings file under the home', () => {
     { atcArgv: ['atc'] },
   );
 
-  adapter.buildResumeCommand('${ctx.dir}', undefined);
+  adapter.buildResumeCommand('${ctx.dir}', undefined, []);
 
   expect(realpathSync(join(stateDir, 'hook-settings-isolation-probe.json'))).toStartWith(
     realpathSync(join(process.env['ATC_TEST_HOME'] ?? '', 'home')) + sep,

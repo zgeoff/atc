@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
 import { toAgentSessionID, toSessionID } from '@atc/core';
@@ -11,6 +12,7 @@ import {
   createGitFixture,
   getAgentEntry,
   getRecord,
+  setupTempDir,
   updateEnv,
   waitFor,
 } from '@atc/test-utils';
@@ -86,6 +88,76 @@ test('it ejects a terminal session into a headless run with its agent id', async
       },
     ]);
   });
+});
+
+test("it ejects a session into a headless run with the spawn's plugin folders, ~ expanded", async () => {
+  const headless = buildStubHeadlessRunner();
+  const scheduler = buildStubTimeoutScheduler();
+  const home = setupTempDir('atc-headless-home-');
+
+  mkdirSync(join(home.dir, 'plugins', 'band'), { recursive: true });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-headless-',
+    options: () => ({
+      adapter: buildMockAgentAdapter({
+        headlessRunner: headless.runner,
+        profile: {
+          label: 'Claude',
+          kind: 'claude',
+          bin: 'sh',
+          models: null,
+          spawnOptions: {
+            model: {
+              supported: false,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: null,
+              note: null,
+            },
+            effort: {
+              supported: false,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: null,
+              note: null,
+            },
+            pluginDirs: {
+              supported: true,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: 'applied',
+              note: null,
+            },
+          },
+        },
+      }),
+      homeDir: home.dir,
+      scheduleEjectSettle: scheduler.schedule,
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    resume: 'sess-123',
+    pluginDirs: ['~/plugins/band'],
+    cols: 80,
+    rows: 24,
+  });
+
+  await daemon.client.sendRequest('session.eject', {
+    session: getRecord(spawned, 'session')['id'],
+    prompt: 'keep going',
+  });
+
+  scheduler.runTimer(4000);
+
+  const run = await headless.waitForRun(0);
+
+  expect(run.request.pluginDirs).toStrictEqual([join(home.dir, 'plugins', 'band')]);
 });
 
 test('it lists an ejected session as a running headless session', async () => {

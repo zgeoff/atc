@@ -325,9 +325,12 @@ export interface AgentAdapter {
     namedBy: 'user' | 'auto' | 'agent',
   ) => Promise<NameUpdate | null>;
   readonly canResume: (session: ResumeCheck) => boolean;
+
+  // pluginDirs holds the plugin folders the session's spawn asked for.
   readonly buildResumeCommand: (
     cwd: string,
     agentSessionID: AgentSessionID | undefined,
+    pluginDirs: readonly string[],
   ) => string | null;
 
   // Turns one line of the agent's transcript file into a conversation row,

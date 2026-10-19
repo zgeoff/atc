@@ -6,6 +6,7 @@ import { buildSessionEnv } from '@atc/protocol/session';
 import { DaemonError } from '@atc/protocol/wire';
 import type { AuthSetup, HarnessAuthSetup, HarnessPlan } from '../auth/auth-setup';
 import type { SessionFleetWriter } from '../fleet/session-fleet-writer';
+import { requirePluginDirsOnTarget } from './require-plugin-dirs-on-target';
 import { resolveRepoRoot } from './resolve-repo-root';
 import type { Session } from './session';
 import type { SessionCallbacks } from './session-callbacks';
@@ -164,6 +165,15 @@ export class SessionAdopter {
     }
 
     const provider = this.registry.requireExecution(s, 'spawn').provider;
+
+    // the config's folders may have changed since the spawn, so a revive
+    // checks them again rather than starting the session without them
+    requirePluginDirsOnTarget(
+      [...(adapter.profile?.pluginDirs ?? []), ...(s.pluginDirs ?? [])],
+      s.target,
+      provider.remote,
+    );
+
     const auth = this.auth.resolveHarnessAuth(adapter, provider, s.target);
     const timer = createStepTimer(this.callbacks.now);
 

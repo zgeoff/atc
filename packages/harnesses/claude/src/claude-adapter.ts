@@ -51,6 +51,7 @@ import { ClaudeLaunchFiles } from './claude-launch-files';
 import { createLocalScratchDir } from './create-local-scratch-dir';
 import { findClaudeMenu } from './find-claude-menu';
 import { findClaudePermissionMode } from './find-claude-permission-mode';
+import { formatPluginDirArgs } from './format-plugin-dir-args';
 import { buildClaudeConfigSeed } from './guest/build-claude-config-seed';
 import { buildClaudeCredentialsFile } from './guest/build-claude-credentials-file';
 import { buildClaudeGuestLaunch } from './guest/build-claude-guest-launch';
@@ -260,7 +261,11 @@ export class ClaudeAdapter implements AgentAdapter {
 
   // the generated settings file sits on the daemon's machine, so it travels only for an entry
   // that sets its own settings or environment
-  buildResumeCommand(cwd: string, agentSessionID: AgentSessionID | undefined): string | null {
+  buildResumeCommand(
+    cwd: string,
+    agentSessionID: AgentSessionID | undefined,
+    pluginDirs: readonly string[],
+  ): string | null {
     const configured = findClaudePermissionMode(this.entry.args, this.entry.settings);
     const mode = configured === null ? '' : ` --permission-mode ${toShellArg(configured)}`;
     const resume = agentSessionID === undefined ? '' : ` ${agentSessionID}`;
@@ -270,7 +275,9 @@ export class ClaudeAdapter implements AgentAdapter {
         ? ''
         : ` --settings ${toShellArg(this.files.writeSettings())}`;
 
-    return `cd ${toShellArg(cwd)} && ${formatShellWord(this.entry.bin)}${mode}${settings} --resume${resume}`;
+    const plugins = formatPluginDirArgs([...this.pluginDirs, ...pluginDirs]);
+
+    return `cd ${toShellArg(cwd)} && ${formatShellWord(this.entry.bin)}${mode}${settings}${plugins} --resume${resume}`;
   }
 
   // A resumed session restores the permission mode the configured

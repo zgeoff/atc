@@ -219,7 +219,7 @@ export interface DaemonContext {
   // The spawn's own plugin folders with a leading ~ expanded. Throws the
   // refusal for any folder on a remote target, and for a configured or
   // requested folder that does not exist on the daemon's machine.
-  readonly resolvePluginDirs: (
+  readonly requirePluginDirs: (
     target: string,
     configured: readonly string[],
     requested: readonly string[],

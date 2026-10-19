@@ -40,6 +40,7 @@ import type { GatewayConfig } from '../config/collect-gateways';
 import { createLocalScratchDir } from '../create-local-scratch-dir';
 import { findClaudeMenu } from '../find-claude-menu';
 import { findClaudePermissionMode } from '../find-claude-permission-mode';
+import { formatPluginDirArgs } from '../format-plugin-dir-args';
 import { buildClaudeConfigSeed } from '../guest/build-claude-config-seed';
 import { buildClaudeGuestLaunch } from '../guest/build-claude-guest-launch';
 import { buildClaudeProjectSettingsCheck } from '../guest/build-claude-project-settings-check';
@@ -294,7 +295,11 @@ export class GatewayAdapter implements AgentAdapter {
     return { events: [buildClaudeHookEvent(e)] };
   }
 
-  buildResumeCommand(cwd: string, agentSessionID: AgentSessionID | undefined): string | null {
+  buildResumeCommand(
+    cwd: string,
+    agentSessionID: AgentSessionID | undefined,
+    pluginDirs: readonly string[],
+  ): string | null {
     // outside atc the broker never reaches the session
     if (isBrokerOnlyGateway(this.gateway)) {
       return null;
@@ -310,8 +315,9 @@ export class GatewayAdapter implements AgentAdapter {
     // without the settings file the CLI would resume against the default backend
     const settings = toShellArg(this.files.writeSettings());
     const resume = agentSessionID === undefined ? '' : ` ${agentSessionID}`;
+    const plugins = formatPluginDirArgs([...this.pluginDirs, ...pluginDirs]);
 
-    return `cd ${toShellArg(cwd)} && ${this.gateway.bin}${args} --settings ${settings} --resume${resume}`;
+    return `cd ${toShellArg(cwd)} && ${this.gateway.bin}${args} --settings ${settings}${plugins} --resume${resume}`;
   }
 
   // a brokered session's Claude config is fresh, so without an explicit mode the CLI's own

@@ -851,6 +851,30 @@ test('it refuses a spawn on a target unsent when the daemon predates targets', (
   expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
 });
 
+test('it refuses a spawn with plugin folders unsent when the daemon predates them', () => {
+  const tmp = setupTempDir('atc-run-tool-');
+
+  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
+    features: ['agents.list', 'spawn.options', 'spawn.target'],
+  });
+
+  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
+
+  registerTestCleanup(() => caller.stop());
+
+  const spawn = runTool(
+    caller,
+    'atc_session_spawn',
+    { cwd: '/tmp', pluginDirs: ['/opt/plugins/band'] },
+    { callerSessionID: null },
+  );
+
+  expect(spawn).rejects.toThrow(/^daemon_outdated: .*atc_session_spawn's pluginDirs/u);
+  expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
+});
+
 test('it spawns with the workspace the call gives and needs a daemon that takes workspaces', async () => {
   const workspace = { kind: 'git', url: 'https://example.com/r.git', ref: 'main' };
   const caller = buildStubFleetCaller({ answer: () => ({ session: { id: 's-1' } }) });

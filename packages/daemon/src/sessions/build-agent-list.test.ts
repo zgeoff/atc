@@ -55,6 +55,57 @@ test.each([
   });
 });
 
+test.each([
+  [
+    'a target on the daemon machine and a remote one',
+    [
+      { id: 'local', remote: false, brokerAuth: false },
+      { id: 'box', remote: true, brokerAuth: false },
+    ],
+    ['local'],
+  ],
+  ['only a remote target', [{ id: 'box', remote: true, brokerAuth: false }], []],
+])(
+  'it lists an agent whose config loads plugin folders as spawnable on no remote target, with %s',
+  (_label, targets, spawnTargets) => {
+    const adapter = buildMockAgentAdapter({
+      id: 'claude',
+      profile: {
+        label: 'Claude',
+        kind: 'claude',
+        bin: 'claude',
+        models: null,
+        spawnOptions: {
+          model: {
+            supported: false,
+            values: null,
+            examples: [],
+            default: null,
+            backendEffect: null,
+            note: null,
+          },
+          effort: {
+            supported: false,
+            values: null,
+            examples: [],
+            default: null,
+            backendEffect: null,
+            note: null,
+          },
+        },
+        pluginDirs: ['/opt/plugins/shared'],
+      },
+    });
+
+    const [listed] = buildAgentList([adapter], () => true, targets);
+
+    expect(listed).toMatchObject({
+      spawnTargets,
+      capabilities: { spawn: spawnTargets.length > 0 },
+    });
+  },
+);
+
 test('it lists an agent whose binary is missing as spawnable only on a remote target', () => {
   const adapter = buildMockAgentAdapter({
     id: 'claude',

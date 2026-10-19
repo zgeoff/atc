@@ -26,7 +26,7 @@ export function buildStubDaemonContext(overrides: Partial<DaemonContext> = {}): 
     requireWorkspaceTarget: makeUnreached('requireWorkspaceTarget'),
     buildDefaultWorkspaceDir: makeUnreached('buildDefaultWorkspaceDir'),
     requireAgentTarget: makeUnreached('requireAgentTarget'),
-    resolvePluginDirs: makeUnreached('resolvePluginDirs'),
+    requirePluginDirs: makeUnreached('requirePluginDirs'),
     findSource: makeUnreached('findSource'),
     collectAlternateGitURLs: makeUnreached('collectAlternateGitURLs'),
     checkRepositoryAccess: makeUnreached('checkRepositoryAccess'),

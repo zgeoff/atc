@@ -1,8 +1,5 @@
 import type { SpawnOptionSpec } from '@atc/protocol';
 
-// What a Claude spawn takes as its own plugin folders: any number of paths on
-// the daemon's machine, each loaded with --plugin-dir after the ones the
-// config sets.
 export function buildPluginDirsOption(): SpawnOptionSpec {
   return {
     supported: true,
