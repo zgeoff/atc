@@ -20,9 +20,6 @@ only the targets both may use. The daemon refuses a request whose `x-atc-as` hea
 repeated with `bad_args` rather than ignore the value, because ignoring it would leave the request
 with the connection's full reach.
 
-A daemon that predates principals ignores both fields, so a client that acts for a principal checks
-the daemon's features and sends such a daemon nothing.
-
 ## Who a caller is
 
 The daemon tells four callers apart, and labels each message with the one that sent it
@@ -51,9 +48,7 @@ token, or the owner's local socket. A connection whose handshake gives a princip
 it, so its messages carry the principal for a name. The kernel's session binding wins over
 `x-atc-as`, because a process inside a session that sends a principal and a name would otherwise
 label its message as any connector. The daemon refuses a request whose `x-atc-as-name` comes without
-`x-atc-as` or is empty or repeated. A client that sends a name checks first that the daemon
-announces typed senders, because a daemon from before them labels a message with the free text its
-request gives.
+`x-atc-as` or is empty or repeated.
 
 ## Reach
 

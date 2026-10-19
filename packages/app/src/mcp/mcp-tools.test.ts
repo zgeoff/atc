@@ -420,7 +420,7 @@ test('it accepts a daemon list whose down daemon has no build', () => {
   invariant(schema !== undefined, 'the daemon list declares no output schema');
 
   const result = {
-    daemons: [{ name: 'harbor', state: 'down', build: null, daemonID: 'd-harbor', features: [] }],
+    daemons: [{ name: 'harbor', state: 'down', build: null, daemonID: 'd-harbor' }],
     defaultDaemon: 'harbor',
   };
 

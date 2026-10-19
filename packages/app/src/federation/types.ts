@@ -1,5 +1,3 @@
-import type { DaemonFeature } from '@atc/protocol';
-
 export interface RegistryDaemon {
   readonly name: string;
   readonly address: { readonly host: string; readonly port: number };
@@ -17,7 +15,7 @@ export interface GatewayRegistry {
 
 // `fleet.daemons` marks a caller that routes across named daemons and offers the inputs
 // that pick one
-export type GatewayFeature = DaemonFeature | 'fleet.daemons';
+export type GatewayFeature = 'fleet.daemons';
 
 export interface GatewayChannel {
   // a request that rejects after this fired got no response
@@ -34,7 +32,6 @@ export interface GatewayChannel {
 export interface DaemonHello {
   readonly build: string;
   readonly daemonID: string;
-  readonly features: ReadonlySet<DaemonFeature>;
   readonly retentionMs: number | null;
 }
 

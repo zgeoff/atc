@@ -4,7 +4,6 @@ export const HELLO_RESULT_SCHEMA = z.object({
   daemon: z.string(),
   daemonID: z.string(),
   limits: z.object({ maxLine: z.number(), maxChunk: z.number() }),
-  features: z.array(z.string()).readonly(),
   idempotency: z.object({ completedRetentionMs: z.number() }),
   lastUsedAgent: z.string(),
 });

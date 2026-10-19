@@ -117,9 +117,7 @@ async function readEventText(
   const handle = typeof raw === 'string' ? raw : event['cursor'];
 
   try {
-    const read = await caller.sendRequest(source.method, { [source.param]: handle }, [
-      source.method,
-    ]);
+    const read = await caller.sendRequest(source.method, { [source.param]: handle });
 
     return { text: read['text'], complete: read['complete'] };
   } catch (error) {

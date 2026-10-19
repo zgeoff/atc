@@ -11,7 +11,6 @@ import {
   getRecord,
   registerTestCleanup,
   startCutProxy,
-  startStubLegacyDaemon,
   startStubUnansweringListener,
   waitFor,
 } from '@atc/test-utils';
@@ -77,7 +76,7 @@ test('it answers a request through a daemon whose handshake returns the pinned i
   expect(listed).toStrictEqual({ sessions: [] });
 });
 
-test('it reads the build, features, and key retention from the handshake', async () => {
+test('it reads the build and key retention from the handshake', async () => {
   const ctx = await setupTest();
 
   const caller = new GatewayDaemonCaller({
@@ -98,7 +97,6 @@ test('it reads the build, features, and key retention from the handshake', async
   expect(hello).toStrictEqual({
     build: ctx.daemon.build,
     daemonID: ctx.daemonID,
-    features: expect.toSatisfy((features: ReadonlySet<string>) => features.has('transport.tcp')),
     retentionMs: 86_400_000,
   });
 });
@@ -390,56 +388,6 @@ test('it refuses a daemon that never answers the handshake as daemon_unavailable
   });
 });
 
-test('it answers outcome_unknown instead of retrying a keyed spawn on a reconnect that no longer takes keys', async () => {
-  const ctx = await setupTest();
-
-  const proxy = startCutProxy({
-    target: { hostname: '127.0.0.1', port: ctx.port },
-    method: 'session.spawn',
-    cuts: 1,
-    mode: 'close',
-  });
-
-  const legacy = startStubLegacyDaemon(join(ctx.daemon.dir, 'legacy.sock'), {
-    features: ['transport.tcp', 'request.principal'],
-    replies: {
-      'daemon.hello': {
-        daemon: 'atc/legacy-build',
-        daemonID: ctx.daemonID,
-        features: ['transport.tcp'],
-      },
-    },
-  });
-
-  const opener = buildStubChannelOpener([
-    (address: RegistryDaemon['address']) =>
-      openDaemonClient({ hostname: address.host, port: address.port }),
-    () => openDaemonClient(join(ctx.daemon.dir, 'legacy.sock')),
-  ]);
-
-  const caller = new GatewayDaemonCaller({
-    daemon: buildMockRegistryDaemon({
-      name: 'cloud',
-      address: { host: '127.0.0.1', port: proxy.port },
-      daemonID: ctx.daemonID,
-      token: 'a'.repeat(32),
-    }),
-    build: 'atc-gateway/test',
-    openChannel: opener.open,
-  });
-
-  registerTestCleanup(() => caller.stop());
-
-  const spawned = caller.sendRequest(
-    'session.spawn',
-    { cwd: ctx.daemon.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-4' },
-    GW,
-  );
-
-  expect(spawned).rejects.toMatchObject({ code: 'outcome_unknown', data: { daemon: 'cloud' } });
-  expect(legacy.requests.map((request) => request.m)).toStrictEqual(['daemon.hello']);
-});
-
 test('it resends a keyed spawn replay-only, so a resend after the daemon swept the key spawns nothing and answers outcome_unknown', async () => {
   const ctx = await setupTest();
 
@@ -582,44 +530,6 @@ test('it gives a long poll its own waitMs on top of the response time on the sam
 
   expect(clock.collectDelays()).toStrictEqual([10_000, 500, 500, 2000, 500]);
   expect(opener.countOpened()).toBe(1);
-});
-
-test('it refuses a principal request to a daemon that would not label its messages as daemon_outdated and sends it nothing', async () => {
-  const ctx = await setupTest();
-
-  const legacy = startStubLegacyDaemon(join(ctx.daemon.dir, 'legacy.sock'), {
-    replies: {
-      'daemon.hello': {
-        daemon: 'atc/legacy-build',
-        daemonID: ctx.daemonID,
-        features: ['transport.tcp', 'daemon.id', 'request.principal'],
-      },
-    },
-  });
-
-  const caller = new GatewayDaemonCaller({
-    daemon: buildMockRegistryDaemon({
-      name: 'cloud',
-      address: { host: '127.0.0.1', port: ctx.port },
-      daemonID: ctx.daemonID,
-      token: 'a'.repeat(32),
-    }),
-    build: 'atc-gateway/test',
-    openChannel: () => openDaemonClient(join(ctx.daemon.dir, 'legacy.sock')),
-  });
-
-  registerTestCleanup(() => caller.stop());
-
-  expect(
-    caller.sendRequest('session.message', { session: 's-1', text: 'check the tide tables' }, GW),
-  ).rejects.toMatchObject({
-    code: 'daemon_outdated',
-    data: { daemon: 'cloud', feature: 'message.sender' },
-  });
-
-  await waitFor(() => {
-    expect(legacy.requests.map((request) => request.m)).toStrictEqual(['daemon.hello']);
-  });
 });
 
 test('it sends the name of the principal beside it', async () => {

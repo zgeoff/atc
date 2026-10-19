@@ -1,5 +1,4 @@
 import { expect, test } from 'bun:test';
-import { DAEMON_FEATURES } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
 import { buildStubFleetCaller } from './build-stub-fleet-caller';
 
@@ -9,16 +8,16 @@ test('it answers every request with an empty record by default', () => {
   expect(caller.sendRequest('session.list')).resolves.toStrictEqual({});
 });
 
-test('it reports every feature a current daemon announces by default', () => {
+test('it reports no features by default', () => {
   const caller = buildStubFleetCaller();
 
-  expect(caller.readFeatures()).resolves.toStrictEqual(new Set(DAEMON_FEATURES));
+  expect(caller.readFeatures()).resolves.toStrictEqual(new Set());
 });
 
 test('it reports the features the config gives', () => {
-  const caller = buildStubFleetCaller({ features: ['note.get', 'fleet.daemons'] });
+  const caller = buildStubFleetCaller({ features: ['fleet.daemons'] });
 
-  expect(caller.readFeatures()).resolves.toStrictEqual(new Set(['note.get', 'fleet.daemons']));
+  expect(caller.readFeatures()).resolves.toStrictEqual(new Set(['fleet.daemons']));
 });
 
 test('it records each request with the arguments the sender passed, in order', async () => {
@@ -26,17 +25,17 @@ test('it records each request with the arguments the sender passed, in order', a
 
   await caller.sendRequest('session.list');
 
-  await caller.sendRequest('session.spawn', { cwd: '/tmp' }, ['spawn.target'], {
-    id: 'client-a',
-    name: 'Lantern Notes',
-  });
+  await caller.sendRequest(
+    'session.spawn',
+    { cwd: '/tmp' },
+    { id: 'client-a', name: 'Lantern Notes' },
+  );
 
   expect(caller.requests).toStrictEqual([
     { m: 'session.list' },
     {
       m: 'session.spawn',
       p: { cwd: '/tmp' },
-      required: ['spawn.target'],
       principal: { id: 'client-a', name: 'Lantern Notes' },
     },
   ]);

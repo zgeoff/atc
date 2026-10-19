@@ -26,9 +26,9 @@ content with an output schema. The servers speak each MCP protocol revision atc 
 leave out the one revision that requires JSON-RPC batching, which atc does not implement. The
 `tool-contract` skill holds the rules for naming and describing a tool.
 
-The tool listing follows the daemon the server is connected to: a server hides a tool or an input
-whose daemon feature is missing, and refuses a call that needs one with `daemon_outdated` without
-sending the daemon anything ([the protocol](../protocol/protocol.md#versions-and-features)).
+A server lists every tool and every input, because the daemon it reaches passed a handshake on the
+same protocol version ([the protocol](../protocol/protocol.md#versions)). Only the gateway adds the
+daemons tool and the inputs that name a daemon.
 
 ## Scopes
 
@@ -96,9 +96,7 @@ Every daemon request a remote call makes acts as the OAuth client's id, so the d
 the targets the config's `principals` key grants that client
 ([principals](../protocol/principals.md)), and carries the client's name beside the id, so the
 daemon labels a message from the client with that name and the kind `connector`
-([messages](../protocol/messages.md#who-a-message-is-from)). The server refuses to talk to a daemon
-that predates principals or typed senders, because such a daemon would ignore the principal or take
-the sender from the call's free text.
+([messages](../protocol/messages.md#who-a-message-is-from)).
 
 ## Reconnecting
 

@@ -17,13 +17,10 @@ function setupTest() {
   return { socketPath: join(tmp.dir, 'daemon.sock') };
 }
 
-test('it announces the first features on the first handshake', async () => {
+test('it answers the handshake with its build', async () => {
   const ctx = setupTest();
 
-  startStubDroppingDaemon(ctx.socketPath, {
-    features: ['spawn.idempotency'],
-    retryFeatures: [],
-  });
+  startStubDroppingDaemon(ctx.socketPath);
 
   const client = await openDaemonClient(ctx.socketPath);
 
@@ -35,71 +32,13 @@ test('it announces the first features on the first handshake', async () => {
     daemon: 'atc/dropping-build',
     limits: { maxLine: 1_048_576, maxChunk: 65_536 },
     lastUsedAgent: 'claude',
-    features: ['spawn.idempotency'],
-  });
-});
-
-test('it announces the retry features on a later handshake', async () => {
-  const ctx = setupTest();
-
-  startStubDroppingDaemon(ctx.socketPath, {
-    features: ['spawn.idempotency'],
-    retryFeatures: [],
-  });
-
-  const first = await openDaemonClient(ctx.socketPath);
-
-  registerTestCleanup(() => {
-    first.stop();
-  });
-
-  await first.sendHello('atc/test-build');
-
-  const second = await openDaemonClient(ctx.socketPath);
-
-  registerTestCleanup(() => {
-    second.stop();
-  });
-
-  expect(second.sendHello('atc/test-build')).resolves.toStrictEqual({
-    daemon: 'atc/dropping-build',
-    limits: { maxLine: 1_048_576, maxChunk: 65_536 },
-    lastUsedAgent: 'claude',
-    features: [],
-  });
-});
-
-test('it announces the first features on a later handshake when given no retry features', async () => {
-  const ctx = setupTest();
-
-  startStubDroppingDaemon(ctx.socketPath, { features: ['spawn.idempotency'] });
-
-  const first = await openDaemonClient(ctx.socketPath);
-
-  registerTestCleanup(() => {
-    first.stop();
-  });
-
-  await first.sendHello('atc/test-build');
-
-  const second = await openDaemonClient(ctx.socketPath);
-
-  registerTestCleanup(() => {
-    second.stop();
-  });
-
-  expect(second.sendHello('atc/test-build')).resolves.toStrictEqual({
-    daemon: 'atc/dropping-build',
-    limits: { maxLine: 1_048_576, maxChunk: 65_536 },
-    lastUsedAgent: 'claude',
-    features: ['spawn.idempotency'],
   });
 });
 
 test('it drops the connection of the first request without answering it', async () => {
   const ctx = setupTest();
 
-  startStubDroppingDaemon(ctx.socketPath, { features: [] });
+  startStubDroppingDaemon(ctx.socketPath);
 
   const client = await openDaemonClient(ctx.socketPath);
 
@@ -117,7 +56,7 @@ test('it drops the connection of the first request without answering it', async 
 
 test('it answers a later request with a session and records each request key', async () => {
   const ctx = setupTest();
-  const daemon = startStubDroppingDaemon(ctx.socketPath, { features: [] });
+  const daemon = startStubDroppingDaemon(ctx.socketPath);
 
   const first = await openDaemonClient(ctx.socketPath);
 
@@ -144,7 +83,7 @@ test('it answers a later request with a session and records each request key', a
 
 test('it records the params of each request as they arrived', async () => {
   const ctx = setupTest();
-  const daemon = startStubDroppingDaemon(ctx.socketPath, { features: [] });
+  const daemon = startStubDroppingDaemon(ctx.socketPath);
 
   const first = await openDaemonClient(ctx.socketPath);
 
@@ -172,7 +111,7 @@ test('it records the params of each request as they arrived', async () => {
 
 test('it stops listening when stopped', () => {
   const ctx = setupTest();
-  const daemon = startStubDroppingDaemon(ctx.socketPath, { features: [] });
+  const daemon = startStubDroppingDaemon(ctx.socketPath);
 
   daemon.stop();
 
@@ -181,7 +120,7 @@ test('it stops listening when stopped', () => {
 
 test('it counts each read it takes from a connection', async () => {
   const ctx = setupTest();
-  const daemon = startStubDroppingDaemon(ctx.socketPath, { features: [] });
+  const daemon = startStubDroppingDaemon(ctx.socketPath);
 
   const raw = await Bun.connect({ unix: ctx.socketPath, socket: { data() {} } });
 
@@ -198,7 +137,7 @@ test('it counts each read it takes from a connection', async () => {
 
 test('it reads a request split across two writes as one request', async () => {
   const ctx = setupTest();
-  const daemon = startStubDroppingDaemon(ctx.socketPath, { features: [] });
+  const daemon = startStubDroppingDaemon(ctx.socketPath);
   const closed = Promise.withResolvers<void>();
 
   const raw = await Bun.connect({
@@ -242,7 +181,7 @@ test('it stops listening once the test finishes without a stop', () => {
     rmSync(path, { force: true });
   });
 
-  startStubDroppingDaemon(path, { features: [] });
+  startStubDroppingDaemon(path);
 
   onTestFinished(() => {
     expect(left).toBeFalse();

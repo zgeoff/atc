@@ -1,11 +1,9 @@
-import type { DaemonFeature, Principal } from '@atc/protocol';
-import { DAEMON_FEATURES } from '@atc/protocol';
+import type { Principal } from '@atc/protocol';
 import type { FleetCaller, FleetFeature } from '../mcp/types';
 
 interface StubFleetRequest {
   readonly m: string;
   readonly p?: Readonly<Record<string, unknown>>;
-  readonly required?: readonly DaemonFeature[];
   readonly principal?: Principal;
 }
 
@@ -18,7 +16,7 @@ interface StubFleetCallerConfig {
   // the caller turns into a rejection, as a daemon refusal arrives.
   readonly answer?: StubFleetAnswer;
 
-  // The features the caller reports its daemon announced.
+  // The features the caller reports; none, as a single daemon reports, by default.
   readonly features?: readonly FleetFeature[];
 }
 
@@ -26,19 +24,15 @@ export function buildStubFleetCaller(
   config: StubFleetCallerConfig = {},
 ): FleetCaller & { readonly requests: readonly StubFleetRequest[] } {
   const answer: StubFleetAnswer = config.answer ?? (() => ({}));
-  const features: readonly FleetFeature[] = config.features ?? DAEMON_FEATURES;
+  const features: readonly FleetFeature[] = config.features ?? [];
   const requests: StubFleetRequest[] = [];
 
   return {
     requests,
-
-    // required features are never checked against the reported ones, so a test
-    // of that refusal needs a real connection.
-    sendRequest: (m, p, required, principal) => {
+    sendRequest: (m, p, principal) => {
       const request: StubFleetRequest = {
         m,
         ...(p === undefined ? {} : { p }),
-        ...(required === undefined ? {} : { required }),
         ...(principal === undefined ? {} : { principal }),
       };
 

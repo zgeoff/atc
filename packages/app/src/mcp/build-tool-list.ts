@@ -36,7 +36,6 @@ export function buildToolList(
 
     return [
       tool.outputSchema === undefined ||
-      (requires.output !== undefined && !features.has(requires.output)) ||
       (requires.outputUnless !== undefined && features.has(requires.outputUnless))
         ? {
             name: tool.name,

@@ -2,7 +2,7 @@ import type { ChildProcess } from 'node:child_process';
 import { makeSingleFlight, toAgentID, waitUntil } from '@atc/core';
 import type { Clock } from '@atc/core';
 import type { DaemonBoot, DaemonBootOptions, DaemonPaths, ProtocolMismatch } from '@atc/protocol';
-import { formatProtocolMismatch, parseDaemonFeatures } from '@atc/protocol';
+import { formatProtocolMismatch } from '@atc/protocol';
 import { openDaemonClient } from '@atc/protocol/client';
 import type { DaemonClient } from '@atc/protocol/client';
 import { readSessionEnv } from '@atc/protocol/session';
@@ -78,7 +78,6 @@ export async function bootDaemonClient(
         // hosted session; the caller can offer a deliberate restart.
         stale: hello['daemon'] !== build,
         lastUsedAgent: toAgentID(hello['lastUsedAgent']),
-        features: parseDaemonFeatures(hello),
         socketPath: opened.socketPath,
       };
     } catch (error) {

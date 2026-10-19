@@ -37,7 +37,7 @@ test('it drops a connection on the selected request after answering the handshak
   ]);
 });
 
-test('it answers the handshake without a feature list when given none', async () => {
+test('it answers the handshake with its build', async () => {
   const ctx = setupTest();
 
   startStubLegacyDaemon(ctx.socketPath);
@@ -54,29 +54,6 @@ test('it answers the handshake without a feature list when given none', async ()
     daemon: 'atc/legacy-build',
     limits: { maxLine: 1_048_576, maxChunk: 65_536 },
     lastUsedAgent: 'claude',
-  });
-});
-
-test('it announces the features it was given in the handshake', async () => {
-  const ctx = setupTest();
-
-  startStubLegacyDaemon(ctx.socketPath, {
-    features: ['agents.list', 'message.wait'],
-  });
-
-  const client = await openDaemonClient(ctx.socketPath);
-
-  registerTestCleanup(() => {
-    client.stop();
-  });
-
-  const hello = await client.sendHello('atc/test-build');
-
-  expect(hello).toStrictEqual({
-    daemon: 'atc/legacy-build',
-    limits: { maxLine: 1_048_576, maxChunk: 65_536 },
-    lastUsedAgent: 'claude',
-    features: ['agents.list', 'message.wait'],
   });
 });
 
@@ -108,7 +85,7 @@ test('it answers a method with the reply it was given and records the request', 
 test('it refuses a method it was given no reply for', async () => {
   const ctx = setupTest();
 
-  startStubLegacyDaemon(ctx.socketPath, { features: ['agents.list'] });
+  startStubLegacyDaemon(ctx.socketPath);
 
   const client = await openDaemonClient(ctx.socketPath);
 

@@ -94,8 +94,8 @@ test('it adds the whole text of each note to its event and passes the rest of th
   });
 
   expect(caller.requests).toStrictEqual([
-    { m: 'note.get', p: { note: 'c1' }, required: ['note.get'] },
-    { m: 'note.get', p: { note: 'pc.0a1b2c3d.c3' }, required: ['note.get'] },
+    { m: 'note.get', p: { note: 'c1' } },
+    { m: 'note.get', p: { note: 'pc.0a1b2c3d.c3' } },
   ]);
 });
 
@@ -153,9 +153,9 @@ test('it stops the page before the first note whose text would carry it past 64 
   });
 
   expect(caller.requests).toStrictEqual([
-    { m: 'note.get', p: { note: 'c1' }, required: ['note.get'] },
-    { m: 'note.get', p: { note: 'c2' }, required: ['note.get'] },
-    { m: 'note.get', p: { note: 'c4' }, required: ['note.get'] },
+    { m: 'note.get', p: { note: 'c1' } },
+    { m: 'note.get', p: { note: 'c2' } },
+    { m: 'note.get', p: { note: 'c4' } },
   ]);
 });
 
@@ -244,8 +244,8 @@ test('it adds the whole answer of each message-answered event, read by its handl
   });
 
   expect(caller.requests).toStrictEqual([
-    { m: 'answer.get', p: { answer: 'c1' }, required: ['answer.get'] },
-    { m: 'answer.get', p: { answer: 'pc.0a1b2c3d.c3' }, required: ['answer.get'] },
+    { m: 'answer.get', p: { answer: 'c1' } },
+    { m: 'answer.get', p: { answer: 'pc.0a1b2c3d.c3' } },
   ]);
 });
 
@@ -452,9 +452,7 @@ test('it gives a note whose text read outlasts the deadline a timeout and stops 
 
   const page = await reading;
 
-  expect(caller.requests).toStrictEqual([
-    { m: 'note.get', p: { note: 'c1' }, required: ['note.get'] },
-  ]);
+  expect(caller.requests).toStrictEqual([{ m: 'note.get', p: { note: 'c1' } }]);
 
   expect(page).toStrictEqual({
     events: [

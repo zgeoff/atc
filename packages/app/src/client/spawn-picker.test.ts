@@ -61,7 +61,6 @@ test('it drops the target and source answer that arrives after esc leaves the ag
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -107,7 +106,6 @@ test('it refuses a spawn on a daemon that offers no sources', async () => {
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -153,7 +151,6 @@ test('it refuses an adopt on a daemon that offers no source of directories', asy
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -199,7 +196,6 @@ test('it leaves the flow on esc from the refusal of a daemon that offers no sour
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -240,7 +236,6 @@ test('it drops a git listing that arrives after the leader leaves the flow', asy
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -291,7 +286,6 @@ test('it drops a directory listing that arrives after the leader leaves the flow
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -342,7 +336,6 @@ test('it drops a reading that arrives after the leader leaves the flow', async (
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -397,7 +390,6 @@ test('it drops a probe answer that arrives after esc cancels it and the leader l
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -454,7 +446,6 @@ test('it neither attaches nor draws a spawn that answers after esc stops waiting
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -507,7 +498,6 @@ test('it materializes a directory on the one target when that target is remote',
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -563,7 +553,6 @@ test("it shows the daemon's pick for the destination of a repository on a remote
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -620,7 +609,6 @@ test('it spawns a repository on a remote target with no destination typed and le
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -691,7 +679,6 @@ test('it sends the directory of a directory spawn after a flow left a repository
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -770,126 +757,12 @@ test('it sends the directory of a directory spawn after a flow left a repository
   ]);
 });
 
-test('it shows the refusal of a remote target without a workspace root when the daemon cannot pick the directory', async () => {
-  const ctx = setupTest();
-
-  // A daemon that serves every feature but picking the directory itself.
-  const picker = new SpawnPicker({
-    ...ctx.deps,
-    ptyRows: () => 24,
-    hasDaemonFeature: (feature) => feature !== 'spawn.workspace.autoDir',
-    getLastUsedAgent: () => 'claude',
-  });
-
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
-  picker.open();
-
-  await ctx.daemon.answer('agents.list', {
-    targets: [
-      {
-        id: 'box',
-        provider: 'imp',
-        available: true,
-        default: false,
-        capabilities: { transfer: true, run: true },
-      },
-    ],
-    sources: [{ id: 'fake', label: 'fake repository', kind: 'git' }],
-  });
-
-  await ctx.daemon.answer('sources.list', { source: 'fake', scope: null, candidates: [] });
-
-  picker.applyKey(Buffer.from('https://example.com/app.git'));
-  picker.applyKey(Buffer.from(KEYS.enter));
-
-  await ctx.daemon.answer('git.probe', {
-    url: 'https://example.com/app.git',
-    head: 'main',
-    refs: [{ name: 'main', kind: 'branch', sha: 'a'.repeat(40) }],
-    resolved: null,
-  });
-
-  const mark = ctx.terminal.countChunks();
-
-  picker.applyKey(Buffer.from(KEYS.enter));
-
-  expect(ctx.terminal.getTextSince(mark)).toInclude('set workspaces.targets.box in config.json');
-});
-
-test('it sends no spawn to a remote target without a workspace root when the daemon cannot pick the directory', async () => {
-  const ctx = setupTest();
-
-  // A daemon that serves every feature but picking the directory itself.
-  const picker = new SpawnPicker({
-    ...ctx.deps,
-    ptyRows: () => 24,
-    hasDaemonFeature: (feature) => feature !== 'spawn.workspace.autoDir',
-    getLastUsedAgent: () => 'claude',
-  });
-
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
-  picker.open();
-
-  await ctx.daemon.answer('agents.list', {
-    targets: [
-      {
-        id: 'box',
-        provider: 'imp',
-        available: true,
-        default: false,
-        capabilities: { transfer: true, run: true },
-      },
-    ],
-    sources: [{ id: 'fake', label: 'fake repository', kind: 'git' }],
-  });
-
-  await ctx.daemon.answer('sources.list', { source: 'fake', scope: null, candidates: [] });
-
-  picker.applyKey(Buffer.from('https://example.com/app.git'));
-  picker.applyKey(Buffer.from(KEYS.enter));
-
-  await ctx.daemon.answer('git.probe', {
-    url: 'https://example.com/app.git',
-    head: 'main',
-    refs: [{ name: 'main', kind: 'branch', sha: 'a'.repeat(40) }],
-    resolved: null,
-  });
-
-  picker.applyKey(Buffer.from(KEYS.enter));
-  picker.applyKey(Buffer.from(KEYS.enter));
-  picker.applyKey(Buffer.from(KEYS.enter));
-  picker.applyKey(Buffer.from(KEYS.enter));
-
-  expect(ctx.daemon.collectSent('session.spawn')).toStrictEqual([]);
-});
-
 test('it holds a session whose workspace left changes behind instead of attaching it', async () => {
   const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -942,7 +815,6 @@ test('it attaches a held session whose workspace left changes behind on enter', 
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -997,7 +869,6 @@ test('it shows the whole note of a workspace that left changes behind, wrapped t
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -1055,7 +926,6 @@ test('it leaves a session whose workspace left changes behind running when esc r
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -1124,7 +994,6 @@ test('it attaches a session spawned without warnings at once', async () => {
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -1171,7 +1040,6 @@ test('it runs a directory in place on the one target when that target is local',
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -1226,7 +1094,6 @@ test('it adopts in place on the one local target it offers', async () => {
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -1288,7 +1155,6 @@ test('it offers an agent that takes the broker credential only the targets that 
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -1353,7 +1219,6 @@ test('it offers an agent that takes no broker credential every target', async ()
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -1418,7 +1283,6 @@ test('it offers every target to an agent whose broker credential is optional', a
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -1483,7 +1347,6 @@ test('it lists a scope read from typed text once, on the target chosen after it'
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -1546,7 +1409,6 @@ test('it starts a new flow on the default target, not the one the last flow chos
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -1651,7 +1513,6 @@ test('it lists a git source again when the flow left it before its listing answe
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -1703,7 +1564,6 @@ test('it reads the targets and sources at once when one agent is installed', () 
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -1729,7 +1589,6 @@ test('it waits on the agent choice when more than one agent is installed', () =>
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -1755,7 +1614,6 @@ test('it shows how to install an agent when none is installed', () => {
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -1782,7 +1640,6 @@ test('it reads the targets and sources once when enter repeats on the agent step
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -1811,7 +1668,6 @@ test('it returns esc from the directory step to the agent step when more than on
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -1858,7 +1714,6 @@ test('it leaves the flow on esc from the directory step when one agent is instal
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -1901,7 +1756,6 @@ test('it opens the name step after the directory when one agent and one target l
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -1949,7 +1803,6 @@ test('it returns esc from the name step to the directory step when one target le
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -1997,7 +1850,6 @@ test('it lists a git source for the one target without a key when one agent and 
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -2038,7 +1890,6 @@ test('it leaves the flow on esc from a git source when one agent and one target 
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -2081,7 +1932,6 @@ test('it takes the one available target for a directory when the other is unavai
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -2143,7 +1993,6 @@ test('it takes the one target that takes a workspace for a repository', async ()
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -2183,7 +2032,6 @@ test('it offers both targets for a directory when only one takes a workspace', a
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -2229,7 +2077,6 @@ test('it shows why no target can run a directory when the one target is unavaila
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -2277,7 +2124,6 @@ test('it shows why no target can run a repository when none takes a workspace', 
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -2311,7 +2157,6 @@ test('it shows why no target can run an agent whose broker no target reaches', a
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -2361,7 +2206,6 @@ test('it shows why no target can adopt when none runs on the daemon host', async
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -2407,7 +2251,6 @@ test('it returns esc from a target step with no usable target to the directory s
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -2455,7 +2298,6 @@ test('it drops the target and source answer of a flow that was left and opened a
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -2501,7 +2343,6 @@ test('it returns esc from a git source to the agent step when one target left no
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -2564,7 +2405,6 @@ test('it shows the listing an earlier client kept at once, marked with its age, 
   const earlier = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
     listingCache: openListingCache(cacheFile),
     getDaemonSocketPath: () => '/run/atc/atc.sock',
@@ -2598,7 +2438,6 @@ test('it shows the listing an earlier client kept at once, marked with its age, 
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
     listingCache: openListingCache(cacheFile),
     getDaemonSocketPath: () => '/run/atc/atc.sock',
@@ -2640,7 +2479,6 @@ test('it swaps the fresh listing in for the cached one when it answers, keeping 
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
     listingCache: openListingCache(join(ctx.cwd, 'listing-cache.json')),
     getDaemonSocketPath: () => '/run/atc/atc.sock',
@@ -2731,7 +2569,6 @@ test('it lists again on ctrl-r and shows a repository created since the last lis
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
     listingCache: openListingCache(join(ctx.cwd, 'listing-cache.json')),
     getDaemonSocketPath: () => '/run/atc/atc.sock',
@@ -2795,7 +2632,6 @@ test('it waits on the listing when the kept one is older than a day', async () =
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
     listingCache: openListingCache(join(ctx.cwd, 'listing-cache.json')),
     getDaemonSocketPath: () => '/run/atc/atc.sock',
@@ -2866,7 +2702,6 @@ test('it keeps the cached listing with the failure in its hint when listing agai
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
     listingCache: openListingCache(join(ctx.cwd, 'listing-cache.json')),
     getDaemonSocketPath: () => '/run/atc/atc.sock',
@@ -2938,7 +2773,6 @@ test('it leaves the source step on esc while it refreshes a cached listing', asy
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
     listingCache: openListingCache(join(ctx.cwd, 'listing-cache.json')),
     getDaemonSocketPath: () => '/run/atc/atc.sock',
@@ -3005,7 +2839,6 @@ test('it shows nothing from the cache on the next open once a listing answers em
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
     listingCache: openListingCache(join(ctx.cwd, 'listing-cache.json')),
     getDaemonSocketPath: () => '/run/atc/atc.sock',
@@ -3077,7 +2910,6 @@ test('it shows the listing asked for last on the next open when an earlier one a
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
     listingCache: openListingCache(join(ctx.cwd, 'listing-cache.json')),
     getDaemonSocketPath: () => '/run/atc/atc.sock',
@@ -3156,7 +2988,6 @@ test('it shows the cached listing of an owner typed on the source step at once, 
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
     listingCache: openListingCache(join(ctx.cwd, 'listing-cache.json')),
     getDaemonSocketPath: () => '/run/atc/atc.sock',
@@ -3245,7 +3076,6 @@ test('it reads typed github:owner/repo text the cached listing leaves out throug
   const picker = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
     listingCache: openListingCache(join(ctx.cwd, 'listing-cache.json')),
     getDaemonSocketPath: () => '/run/atc/atc.sock',
@@ -3313,7 +3143,6 @@ test("it drops a remote daemon's completion of input typed over since, keeping t
     ...ctx.deps,
     remoteDaemon: true,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -3376,7 +3205,6 @@ test('it keeps the latest completion when an earlier one answers for input typed
     ...ctx.deps,
     remoteDaemon: true,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -3435,7 +3263,6 @@ test('it spawns in the directory a remote daemon completed', async () => {
     ...ctx.deps,
     remoteDaemon: true,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -3490,7 +3317,6 @@ test("it shows a remote daemon's refused completion in place of the hint", async
     ...ctx.deps,
     remoteDaemon: true,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -3543,7 +3369,6 @@ test('it spawns in the directory a remote daemon reads a typed ~ path as when no
     ...ctx.deps,
     remoteDaemon: true,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -3593,57 +3418,6 @@ test('it spawns in the directory a remote daemon reads a typed ~ path as when no
   expect(ctx.daemon.collectSent('session.spawn')).toPartiallyContain({ cwd: '/home/far/work' });
 });
 
-test('it reads a typed ~ path through the daemon when a remote daemon completes no paths', async () => {
-  const ctx = setupTest();
-
-  const picker = new SpawnPicker({
-    ...ctx.deps,
-    remoteDaemon: true,
-    ptyRows: () => 24,
-    hasDaemonFeature: (feature) => feature !== 'sources.complete',
-    getLastUsedAgent: () => 'claude',
-  });
-
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
-  picker.open();
-
-  await ctx.daemon.answer('agents.list', {
-    targets: [
-      {
-        id: 'local',
-        provider: 'local-pty',
-        available: true,
-        default: true,
-        capabilities: { transfer: true, run: true },
-      },
-    ],
-    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
-  });
-
-  await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
-
-  picker.applyKey(Buffer.from('~/work'));
-  picker.applyKey(Buffer.from(KEYS.enter));
-
-  await ctx.daemon.answer('sources.interpret', { kind: 'path', dir: '/home/far/work' });
-
-  picker.applyKey(Buffer.from(`far-one${KEYS.enter}`));
-  picker.applyKey(Buffer.from(KEYS.enter));
-
-  expect(ctx.daemon.collectSent('sources.complete')).toStrictEqual([]);
-  expect(ctx.daemon.collectSent('session.spawn')).toPartiallyContain({ cwd: '/home/far/work' });
-});
-
 test("it shows a remote daemon's refusal to read a typed ~ path", async () => {
   const ctx = setupTest();
 
@@ -3651,7 +3425,6 @@ test("it shows a remote daemon's refusal to read a typed ~ path", async () => {
     ...ctx.deps,
     remoteDaemon: true,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -3708,7 +3481,6 @@ test('it names the one target a remote principal may use in its directory reques
     ...ctx.deps,
     remoteDaemon: true,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 
@@ -3756,7 +3528,6 @@ test("it shows why a remote daemon's directory listing failed", async () => {
     ...ctx.deps,
     remoteDaemon: true,
     ptyRows: () => 24,
-    hasDaemonFeature: () => true,
     getLastUsedAgent: () => 'claude',
   });
 

@@ -16,10 +16,6 @@ another's, and the owner's requests hold their keys under the principal `local`.
 connection may act as any principal, which is how `atc mcp --http` keeps each remote client's keys
 under its client id.
 
-A daemon announces a feature for each method it keys. A caller sends a key, or resends under one,
-only to a daemon that announces that method's feature, because an older daemon ignores the key and
-would run the resend a second time.
-
 The daemon records a key before it checks any param, together with a hash of the params as it parsed
 them, in a canonical form without the key itself, so a default spelled out or a field the daemon
 ignores leaves the hash unchanged. It also records the id it mints for the effect, the new session's
@@ -71,8 +67,7 @@ replay-only resend matches the first send.
 atc-gateway, which resends because the first answer never arrived, sends every resend as
 replay-only, so a resend only ever replays. When the first send never reached the daemon, the resend
 gets `idempotency_key_unknown`, and the request ends as `outcome_unknown`: the caller checks what
-the daemon did instead of sending it again. A daemon that does not announce replay-only resends gets
-no resend from the gateway at all.
+the daemon did instead of sending it again.
 
 The MCP servers resend unchanged instead, without the flag. Each one reaches a daemon on its own
 state directory through a local socket, and that daemon's claim on a key outlives any reconnect, so

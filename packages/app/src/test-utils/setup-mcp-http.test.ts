@@ -106,10 +106,14 @@ test('it restarts the daemon under the principals it is given', async () => {
 
   await server.restartDaemon(new Map([['client-a', []]]));
 
-  const listed = await server.caller.sendRequest('agents.list', {}, [], {
-    id: 'client-a',
-    name: 'Lantern Notes',
-  });
+  const listed = await server.caller.sendRequest(
+    'agents.list',
+    {},
+    {
+      id: 'client-a',
+      name: 'Lantern Notes',
+    },
+  );
 
   expect(listed['targets']).toStrictEqual([]);
 });

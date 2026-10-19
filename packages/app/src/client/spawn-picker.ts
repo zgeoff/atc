@@ -11,13 +11,7 @@ import {
   isRecord,
   systemClock,
 } from '@atc/core';
-import type {
-  DaemonFeature,
-  GitRef,
-  SourceEntry,
-  SourceInterpretation,
-  SourcePick,
-} from '@atc/protocol';
+import type { GitRef, SourceEntry, SourceInterpretation, SourcePick } from '@atc/protocol';
 import {
   GIT_REF_SCHEMA,
   SOURCE_CANDIDATE_SCHEMA,
@@ -77,7 +71,6 @@ export interface SpawnPickerDeps<TMirror> {
   readonly attach: (sessionID: string) => Promise<void>;
   readonly toMirrorSession: (value: unknown) => TMirror | null;
   readonly upsertMirror: (session: Readonly<TMirror>) => void;
-  readonly hasDaemonFeature: (feature: DaemonFeature) => boolean;
 
   // Where the flow draws: every byte of the picker's screen goes through it.
   readonly write: (chunk: string) => void;
@@ -787,7 +780,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     const own = this.findSource();
     const source = own?.kind === 'path' ? own : this.sources.find((s) => s.kind === 'path');
 
-    if (source === undefined || !this.deps.hasDaemonFeature('sources.complete')) {
+    if (source === undefined) {
       return;
     }
 
@@ -1945,16 +1938,13 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.input = this.buildDestination();
   }
 
-  // Whether the daemon picks the destination on a remote target: it must
-  // take a git workspace without a directory, and the target's configured
-  // root, if any, must be one it resolves there, under the home.
+  // Whether the daemon picks the destination on a remote target: the
+  // target's configured root, if any, must be one it resolves there, under
+  // the home.
   private canPickOnTarget(target: string): boolean {
     const configured = this.workspaces.targetRoots.get(target) ?? this.workspaces.root;
 
-    return (
-      this.deps.hasDaemonFeature('spawn.workspace.autoDir') &&
-      (configured === null || isHomeRelative(configured))
-    );
+    return configured === null || isHomeRelative(configured);
   }
 
   // Takes the confirm screen's destination: absolute on its target, with a

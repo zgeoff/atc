@@ -9,7 +9,7 @@ import { createStubImpPort, getOnlyImpName } from '@atc/execution-imp/testing';
 import { LocalPTYProvider } from '@atc/execution-local';
 import { buildStubExecutionProvider } from '@atc/execution-local/testing';
 import type { AgentAdapter } from '@atc/plugin-api';
-import { DAEMON_FEATURES, REQUEST_PARAM_SCHEMAS } from '@atc/protocol';
+import { REQUEST_PARAM_SCHEMAS } from '@atc/protocol';
 import { openDaemonClient } from '@atc/protocol/client';
 import { StateStore } from '@atc/store';
 import {
@@ -19,7 +19,6 @@ import {
   registerTestCleanup,
   setupTempDir,
   spawnNamedSession,
-  startStubLegacyDaemon,
   waitFor,
 } from '@atc/test-utils';
 import { $ } from 'bun';
@@ -113,26 +112,6 @@ test('it sends no sender of the call to the daemon, which labels the message its
     {
       m: 'session.message',
       p: { session: 's1', text: 'hello' },
-      required: ['vocabulary.note', 'message.unanswered', 'message.sender'],
-    },
-  ]);
-});
-
-test('it requires answer notices from the daemon for a send from inside a session', async () => {
-  const caller = buildStubFleetCaller({ answer: () => ({ message: 'm1' }) });
-
-  await runTool(
-    caller,
-    'atc_message_send',
-    { session: 's1', text: 'hello' },
-    { callerSessionID: 's-sender' },
-  );
-
-  expect(caller.requests).toStrictEqual([
-    {
-      m: 'session.message',
-      p: { session: 's1', text: 'hello' },
-      required: ['vocabulary.note', 'message.unanswered', 'message.sender', 'message.notice'],
     },
   ]);
 });
@@ -151,7 +130,6 @@ test('it forwards a message wait to the daemon', async () => {
     {
       m: 'message.get',
       p: { message: 'm1', waitMs: 20_000 },
-      required: ['vocabulary.note', 'message.unanswered', 'message.wait'],
     },
   ]);
 });
@@ -170,7 +148,6 @@ test('it forwards an events session filter to the daemon', async () => {
     {
       m: 'events.read',
       p: { waitMs: 1000, session: 's1' },
-      required: ['vocabulary.note', 'events.session', 'note.get', 'answer.get'],
     },
   ]);
 });
@@ -201,9 +178,8 @@ test('it reads the whole text of each note of an events page by default', async 
     {
       m: 'events.read',
       p: { cursor: 'c0' },
-      required: ['vocabulary.note', 'note.get', 'answer.get'],
     },
-    { m: 'note.get', p: { note: 'c1' }, required: ['note.get'] },
+    { m: 'note.get', p: { note: 'c1' } },
   ]);
 
   expect(read.structured).toStrictEqual({
@@ -236,9 +212,7 @@ test('it returns the note previews as the events carry them when the call asks f
     { callerSessionID: null },
   );
 
-  expect(caller.requests).toStrictEqual([
-    { m: 'events.read', p: {}, required: ['vocabulary.note'] },
-  ]);
+  expect(caller.requests).toStrictEqual([{ m: 'events.read', p: {} }]);
 
   expect(read.structured).toMatchObject({
     events: [
@@ -313,7 +287,6 @@ test('it reads a note by the handle of its event before stripping it', async () 
   expect(caller.requests.at(-1)).toStrictEqual({
     m: 'note.get',
     p: { note: 'h1' },
-    required: ['note.get'],
   });
 });
 
@@ -446,7 +419,6 @@ test('it reads an answer by the handle of its event and strips the handle', asyn
   expect(caller.requests.at(-1)).toStrictEqual({
     m: 'answer.get',
     p: { answer: 'handle-1' },
-    required: ['answer.get'],
   });
 
   expect(read.structured).toStrictEqual({
@@ -468,7 +440,7 @@ test('it reads an answer by the handle of its event and strips the handle', asyn
   });
 });
 
-test('it sends a message under the key the call gives and needs a daemon that takes keys', async () => {
+test('it sends a message under the key the call gives', async () => {
   const caller = buildStubFleetCaller({ answer: () => ({ message: 'm1' }) });
 
   await runTool(
@@ -482,7 +454,6 @@ test('it sends a message under the key the call gives and needs a daemon that ta
     {
       m: 'session.message',
       p: { session: 's1', text: 'hello', idempotencyKey: 'k-1' },
-      required: ['vocabulary.note', 'message.unanswered', 'message.sender', 'message.idempotency'],
     },
   ]);
 });
@@ -501,7 +472,6 @@ test("it passes a keyed send's from on to the daemon from local atc mcp, for leg
     {
       m: 'session.message',
       p: { session: 's1', text: 'hello', idempotencyKey: 'k-1', from: 'release-bot' },
-      required: ['vocabulary.note', 'message.unanswered', 'message.sender', 'message.idempotency'],
     },
   ]);
 });
@@ -620,8 +590,7 @@ test('it spawns top-level under a key of its own when the calling session is gon
   const ctx = await setupTest();
 
   const relay = buildStubFleetCaller({
-    answer: (request) =>
-      ctx.caller.sendRequest(request.m, request.p, request.required, request.principal),
+    answer: (request) => ctx.caller.sendRequest(request.m, request.p, request.principal),
   });
 
   await runTool(
@@ -635,7 +604,6 @@ test('it spawns top-level under a key of its own when the calling session is gon
     {
       m: 'session.spawn',
       p: { cwd: ctx.dir, idempotencyKey: 'k-1', cols: 100, rows: 30, parent: 'gone' },
-      required: ['spawn.idempotency'],
     },
     {
       m: 'session.spawn',
@@ -646,7 +614,6 @@ test('it spawns top-level under a key of its own when the calling session is gon
         cols: 100,
         rows: 30,
       },
-      required: ['spawn.idempotency'],
     },
   ]);
 });
@@ -702,8 +669,7 @@ test('it spawns nothing top-level when the gone session belongs to a spawn its k
   registerTestCleanup(() => caller.stop());
 
   const relay = buildStubFleetCaller({
-    answer: (request) =>
-      caller.sendRequest(request.m, request.p, request.required, request.principal),
+    answer: (request) => caller.sendRequest(request.m, request.p, request.principal),
   });
 
   const call = runTool(
@@ -722,7 +688,6 @@ test('it spawns nothing top-level when the gone session belongs to a spawn its k
     {
       m: 'session.spawn',
       p: { cwd: daemon.dir, idempotencyKey: 'k-1', cols: 100, rows: 30, parent: 'parent' },
-      required: ['spawn.idempotency'],
     },
   ]);
 });
@@ -731,8 +696,7 @@ test('it derives a top-level fallback key within the daemon cap from the longest
   const ctx = await setupTest();
 
   const relay = buildStubFleetCaller({
-    answer: (request) =>
-      ctx.caller.sendRequest(request.m, request.p, request.required, request.principal),
+    answer: (request) => ctx.caller.sendRequest(request.m, request.p, request.principal),
   });
 
   await runTool(
@@ -752,8 +716,7 @@ test('it derives the same top-level fallback key when the call is retried', asyn
   const ctx = await setupTest();
 
   const relay = buildStubFleetCaller({
-    answer: (request) =>
-      ctx.caller.sendRequest(request.m, request.p, request.required, request.principal),
+    answer: (request) => ctx.caller.sendRequest(request.m, request.p, request.principal),
   });
 
   await runTool(
@@ -808,7 +771,7 @@ test('it refuses a message key longer than 180 characters as bad_args and sends 
   expect(caller.requests).toStrictEqual([]);
 });
 
-test('it spawns on the target the call gives and needs a daemon that takes targets', async () => {
+test('it spawns on the target the call gives', async () => {
   const caller = buildStubFleetCaller({ answer: () => ({ session: { id: 's-1' } }) });
 
   await runTool(
@@ -822,60 +785,11 @@ test('it spawns on the target the call gives and needs a daemon that takes targe
     {
       m: 'session.spawn',
       p: { cwd: '/tmp', target: 'box', cols: 100, rows: 30 },
-      required: ['spawn.target'],
     },
   ]);
 });
 
-test('it refuses a spawn on a target unsent when the daemon predates targets', () => {
-  const tmp = setupTempDir('atc-run-tool-');
-
-  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
-    features: ['agents.list', 'events.more', 'events.session', 'message.turn', 'message.wait'],
-  });
-
-  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    openDaemonClient(path),
-  );
-
-  registerTestCleanup(() => caller.stop());
-
-  const spawn = runTool(
-    caller,
-    'atc_session_spawn',
-    { cwd: '/tmp', target: 'box' },
-    { callerSessionID: null },
-  );
-
-  expect(spawn).rejects.toThrow(/^daemon_outdated: .*atc_session_spawn's target/u);
-  expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
-});
-
-test('it refuses a spawn with plugin folders unsent when the daemon predates them', () => {
-  const tmp = setupTempDir('atc-run-tool-');
-
-  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
-    features: ['agents.list', 'spawn.options', 'spawn.target'],
-  });
-
-  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    openDaemonClient(path),
-  );
-
-  registerTestCleanup(() => caller.stop());
-
-  const spawn = runTool(
-    caller,
-    'atc_session_spawn',
-    { cwd: '/tmp', pluginDirs: ['/opt/plugins/band'] },
-    { callerSessionID: null },
-  );
-
-  expect(spawn).rejects.toThrow(/^daemon_outdated: .*atc_session_spawn's pluginDirs/u);
-  expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
-});
-
-test('it spawns with the workspace the call gives and needs a daemon that takes workspaces', async () => {
+test('it spawns with the workspace the call gives', async () => {
   const workspace = { kind: 'git', url: 'https://example.com/r.git', ref: 'main' };
   const caller = buildStubFleetCaller({ answer: () => ({ session: { id: 's-1' } }) });
 
@@ -890,7 +804,6 @@ test('it spawns with the workspace the call gives and needs a daemon that takes 
     {
       m: 'session.spawn',
       p: { cwd: '/tmp/ws', workspace, cols: 100, rows: 30 },
-      required: ['spawn.workspace'],
     },
   ]);
 });
@@ -946,33 +859,6 @@ test('it spawns a git workspace without a cwd and returns the directory the daem
   expect(existsSync(join(home, '.local/share/atc/workspaces/upstream-main', '.git'))).toBeTrue();
 });
 
-test('it refuses a git workspace without a cwd unsent when the daemon predates picking its directory', () => {
-  const tmp = setupTempDir('atc-run-tool-');
-
-  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
-    features: DAEMON_FEATURES.filter((feature) => feature !== 'spawn.workspace.autoDir'),
-  });
-
-  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    openDaemonClient(path),
-  );
-
-  registerTestCleanup(() => caller.stop());
-
-  const spawn = runTool(
-    caller,
-    'atc_session_spawn',
-    { workspace: { kind: 'git', url: 'https://example.com/r.git', ref: 'main' } },
-    { callerSessionID: null },
-  );
-
-  expect(spawn).rejects.toThrow(
-    /^daemon_outdated: .*atc_session_spawn's git workspace without a cwd/u,
-  );
-
-  expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
-});
-
 test('it returns the warnings a workspace spawn left with the session', async () => {
   const caller = buildStubFleetCaller({
     answer: () => ({ session: { id: 's-1' }, warnings: ['changes stay behind'] }),
@@ -988,31 +874,7 @@ test('it returns the warnings a workspace spawn left with the session', async ()
   expect(result.structured).toStrictEqual({ id: 's-1', warnings: ['changes stay behind'] });
 });
 
-test('it refuses a spawn with a workspace unsent when the daemon predates workspaces', () => {
-  const tmp = setupTempDir('atc-run-tool-');
-
-  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
-    features: ['agents.list', 'events.more', 'events.session', 'message.turn', 'message.wait'],
-  });
-
-  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    openDaemonClient(path),
-  );
-
-  registerTestCleanup(() => caller.stop());
-
-  const spawn = runTool(
-    caller,
-    'atc_session_spawn',
-    { cwd: '/tmp/ws', workspace: { kind: 'path', path: '/src/repo' } },
-    { callerSessionID: null },
-  );
-
-  expect(spawn).rejects.toThrow(/^daemon_outdated: .*atc_session_spawn's workspace/u);
-  expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
-});
-
-test('it submits a session input line and needs a daemon that submits lines', async () => {
+test('it submits a session input line', async () => {
   const caller = buildStubFleetCaller({ answer: () => ({}) });
 
   await runTool(
@@ -1023,32 +885,8 @@ test('it submits a session input line and needs a daemon that submits lines', as
   );
 
   expect(caller.requests).toStrictEqual([
-    { m: 'session.submit', p: { session: 's1', text: 'hello' }, required: ['session.submit'] },
+    { m: 'session.submit', p: { session: 's1', text: 'hello' } },
   ]);
-});
-
-test('it refuses a session input line unsent when the daemon predates line submission', () => {
-  const tmp = setupTempDir('atc-run-tool-');
-
-  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
-    features: DAEMON_FEATURES.filter((feature) => feature !== 'session.submit'),
-  });
-
-  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    openDaemonClient(path),
-  );
-
-  registerTestCleanup(() => caller.stop());
-
-  const input = runTool(
-    caller,
-    'atc_terminal_type',
-    { session: 's1', text: 'hello' },
-    { callerSessionID: null },
-  );
-
-  expect(input).rejects.toThrow(/^daemon_outdated: .*atc_terminal_type/u);
-  expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
 });
 
 test('it answers a typed line with the written flag', async () => {
@@ -1085,10 +923,7 @@ test('it reads the menu of a session when a choice call holds no menu token', as
   );
 
   expect(result.structured).toStrictEqual({ menu });
-
-  expect(caller.requests).toStrictEqual([
-    { m: 'session.menu', p: { session: 's1' }, required: ['session.menu'] },
-  ]);
+  expect(caller.requests).toStrictEqual([{ m: 'session.menu', p: { session: 's1' } }]);
 });
 
 test('it sends a choice with its option, label and menu token', async () => {
@@ -1107,7 +942,6 @@ test('it sends a choice with its option, label and menu token', async () => {
     {
       m: 'session.choose',
       p: { session: 's1', menuToken: 'menu-of-the-test', option: 2, label: 'No' },
-      required: ['session.menu'],
     },
   ]);
 });
@@ -1157,7 +991,6 @@ test('it sends Escape on a menu with its menu token', async () => {
     {
       m: 'session.choose',
       p: { session: 's1', menuToken: 'menu-of-the-test', key: 'escape' },
-      required: ['session.menu'],
     },
   ]);
 });
@@ -1176,64 +1009,7 @@ test('it refuses a choice without a menu token and sends nothing', () => {
   expect(caller.requests).toStrictEqual([]);
 });
 
-test('it refuses a full events read unsent when the daemon predates answer reads', () => {
-  const tmp = setupTempDir('atc-run-tool-');
-
-  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
-    features: DAEMON_FEATURES.filter((feature) => feature !== 'answer.get'),
-  });
-
-  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    openDaemonClient(path),
-  );
-
-  registerTestCleanup(() => caller.stop());
-
-  const read = runTool(caller, 'atc_events_read', {}, { callerSessionID: null });
-
-  expect(read).rejects.toThrow(/^daemon_outdated: .*atc_events_read's full answers/u);
-  expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
-});
-
-test('it reads previews from a daemon that predates answer reads', async () => {
-  const tmp = setupTempDir('atc-run-tool-');
-
-  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
-    features: DAEMON_FEATURES.filter((feature) => feature !== 'answer.get'),
-    replies: { 'events.read': { events: [], cursor: 'c1', more: false } },
-  });
-
-  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    openDaemonClient(path),
-  );
-
-  registerTestCleanup(() => caller.stop());
-
-  await runTool(caller, 'atc_events_read', { previewOnly: true }, { callerSessionID: null });
-
-  expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello', 'events.read']);
-});
-
-test('it refuses a menu read unsent when the daemon predates menus', () => {
-  const tmp = setupTempDir('atc-run-tool-');
-
-  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
-    features: DAEMON_FEATURES.filter((feature) => feature !== 'session.menu'),
-  });
-
-  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    openDaemonClient(path),
-  );
-
-  registerTestCleanup(() => caller.stop());
-
-  const read = runTool(caller, 'atc_terminal_choose', { session: 's1' }, { callerSessionID: null });
-
-  expect(read).rejects.toThrow(/^daemon_outdated: .*atc_terminal_choose/u);
-  expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
-});
-
-test('it stops a session without ever removing it and needs a daemon that stops only', async () => {
+test('it stops a session without ever removing it', async () => {
   const caller = buildStubFleetCaller({ answer: () => ({ stopped: true }) });
 
   const result = await runTool(
@@ -1247,7 +1023,6 @@ test('it stops a session without ever removing it and needs a daemon that stops 
     {
       m: 'session.kill',
       p: { session: 's1', stopOnly: true },
-      required: ['session.kill.stopOnly'],
     },
   ]);
 
@@ -1267,26 +1042,7 @@ test('it reports a session that had already exited as not stopped', async () => 
   expect(result.structured).toStrictEqual({ stopped: false });
 });
 
-test('it refuses a stop unsent when the daemon predates stop-only kills', () => {
-  const tmp = setupTempDir('atc-run-tool-');
-
-  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
-    features: DAEMON_FEATURES.filter((feature) => feature !== 'session.kill.stopOnly'),
-  });
-
-  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    openDaemonClient(path),
-  );
-
-  registerTestCleanup(() => caller.stop());
-
-  const stop = runTool(caller, 'atc_session_stop', { session: 's1' }, { callerSessionID: null });
-
-  expect(stop).rejects.toThrow(/^daemon_outdated: .*atc_session_stop/u);
-  expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
-});
-
-test('it detaches a session through an update that needs a daemon that takes a null parent', async () => {
+test('it detaches a session through an update with a null parent', async () => {
   const caller = buildStubFleetCaller({ answer: () => ({}) });
 
   await runTool(
@@ -1300,12 +1056,11 @@ test('it detaches a session through an update that needs a daemon that takes a n
     {
       m: 'session.update',
       p: { session: 's1', parent: null },
-      required: ['session.update.parent'],
     },
   ]);
 });
 
-test('it renames a session through an update that needs a daemon that reports a skipped rename', async () => {
+test('it renames a session through an update', async () => {
   const caller = buildStubFleetCaller({ answer: () => ({}) });
 
   const result = await runTool(
@@ -1321,7 +1076,6 @@ test('it renames a session through an update that needs a daemon that reports a 
     {
       m: 'session.update',
       p: { session: 's1', name: 'from-mcp' },
-      required: ['session.update.renameSkipped'],
     },
   ]);
 });
@@ -1340,57 +1094,6 @@ test('it reports a rename the daemon skipped because the agent named the session
     text: 'updated, not renamed: the agent named this session itself with /rename, and a name the agent sets wins over one set here. Any pin or detach in the call applied.',
     structured: null,
   });
-});
-
-test('it refuses a rename unsent when the daemon predates a reported skipped rename', () => {
-  const tmp = setupTempDir('atc-run-tool-');
-
-  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
-    features: DAEMON_FEATURES.filter((feature) => feature !== 'session.update.renameSkipped'),
-  });
-
-  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    openDaemonClient(path),
-  );
-
-  registerTestCleanup(() => caller.stop());
-
-  const update = runTool(
-    caller,
-    'atc_session_update',
-    { session: 's1', name: 'from-mcp' },
-    { callerSessionID: null },
-  );
-
-  expect(update).rejects.toThrow(
-    /^daemon_outdated: .*atc_session_update's report of a skipped rename/u,
-  );
-
-  expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
-});
-
-test('it refuses a detach unsent when the daemon predates a null parent on update', () => {
-  const tmp = setupTempDir('atc-run-tool-');
-
-  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
-    features: DAEMON_FEATURES.filter((feature) => feature !== 'session.update.parent'),
-  });
-
-  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    openDaemonClient(path),
-  );
-
-  registerTestCleanup(() => caller.stop());
-
-  const update = runTool(
-    caller,
-    'atc_session_update',
-    { session: 's1', parent: null },
-    { callerSessionID: null },
-  );
-
-  expect(update).rejects.toThrow(/^daemon_outdated: .*atc_session_update's parent/u);
-  expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
 });
 
 test('it answers a mark-read with the text marked read', async () => {
@@ -1417,7 +1120,7 @@ test.each(['atc_report_get', 'atc_resume_command', 'atc_session_kill'])(
   },
 );
 
-test('it forwards an explicit clone trust decision and requires daemon support', async () => {
+test('it forwards an explicit clone trust decision', async () => {
   const workspace = { kind: 'git', url: 'https://example.com/r.git', ref: 'main' };
   const caller = buildStubFleetCaller({ answer: () => ({ session: { id: 's-1' } }) });
 
@@ -1432,65 +1135,8 @@ test('it forwards an explicit clone trust decision and requires daemon support',
     {
       m: 'session.spawn',
       p: { cwd: '/tmp/ws', workspace, trustClonedWorkspace: true, cols: 100, rows: 30 },
-      required: ['spawn.workspace', 'spawn.workspace.trust'],
     },
   ]);
-});
-
-test('it refuses an explicit trust decision unsent when the daemon predates clone trust', () => {
-  const tmp = setupTempDir('atc-run-tool-');
-
-  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
-    features: [
-      'agents.list',
-      'events.more',
-      'events.session',
-      'message.turn',
-      'message.wait',
-      'spawn.workspace',
-    ],
-  });
-
-  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    openDaemonClient(path),
-  );
-
-  registerTestCleanup(() => caller.stop());
-
-  const spawn = runTool(
-    caller,
-    'atc_session_spawn',
-    { cwd: '/tmp/ws', workspace: { kind: 'path', path: '/src/repo' }, trustClonedWorkspace: true },
-    { callerSessionID: null },
-  );
-
-  expect(spawn).rejects.toThrow(/^daemon_outdated: .*atc_session_spawn's trustClonedWorkspace/u);
-  expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
-});
-
-test.each([
-  ['atc_events_read', {}],
-  ['atc_message_send', { session: 's1', text: 'hello' }],
-  ['atc_message_get', { message: 'm1' }],
-])('it refuses %s unsent when the daemon predates the note and queued words', (name, args) => {
-  const tmp = setupTempDir('atc-run-tool-');
-
-  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
-    features: ['events.more', 'events.session', 'message.wait', 'message.idempotency', 'note.get'],
-  });
-
-  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    openDaemonClient(path),
-  );
-
-  registerTestCleanup(() => caller.stop());
-
-  const call = runTool(caller, name, args, {
-    callerSessionID: null,
-  });
-
-  expect(call).rejects.toThrow(/^daemon_outdated: .*note and queued words/u);
-  expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
 });
 
 test('it starts a stopped local session again with its agent session resumed', async () => {
@@ -2043,7 +1689,7 @@ test('it refuses a session a pin reaches just before the forget does', async () 
     answer: async (request) => {
       await ctx.caller.sendRequest('session.update', { session: id, pinned: true });
 
-      return ctx.caller.sendRequest(request.m, request.p, request.required, request.principal);
+      return ctx.caller.sendRequest(request.m, request.p, request.principal);
     },
   });
 
@@ -2059,141 +1705,6 @@ test('it refuses a session a pin reaches just before the forget does', async () 
   expect(ctx.caller.sendRequest('session.list')).resolves.toMatchObject({
     sessions: [expect.objectContaining({ id, pinned: true, alive: true })],
   });
-});
-
-test('it checks the session itself and sends a plain forget to a daemon without the forget checks', async () => {
-  const ctx = await setupTest();
-
-  const spawned = await ctx.caller.sendRequest('session.spawn', {
-    cwd: ctx.dir,
-    cols: 80,
-    rows: 24,
-  });
-
-  const id = getRecord(spawned, 'session')['id'];
-
-  const older = buildStubFleetCaller({
-    features: DAEMON_FEATURES.filter((feature) => feature !== 'session.forget.preconditions'),
-    answer: (request) =>
-      ctx.caller.sendRequest(request.m, request.p, request.required, request.principal),
-  });
-
-  const forgotten = await runTool(
-    older,
-    'atc_session_forget',
-    { session: id, stop: true },
-    { callerSessionID: null },
-  );
-
-  expect(forgotten.structured).toStrictEqual({ forgotten: true, destroyed: false });
-
-  expect(older.requests).toStrictEqual([
-    { m: 'session.get', p: { session: id } },
-    { m: 'session.forget', p: { session: id }, required: ['session.forget'] },
-  ]);
-});
-
-test('it falls back to its own check when a gateway routes the forget to a daemon without the forget checks', async () => {
-  // A current daemon behind the gateway announces the forget checks, so the
-  // gateway offers them, while the session the forget names lives on an
-  // older daemon that lacks them and holds it pinned.
-  const current = await startTestDaemon({
-    prefix: 'atc-run-tool-forget-',
-    options: (paths) => {
-      writeFileSync(join(paths.dir, 'token'), `${'t'.repeat(32)}\n`);
-
-      return {
-        adapter: buildMockAgentAdapter(),
-        principals: new Map([['gw', ['local']]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'token') },
-      };
-    },
-  });
-
-  // A client of its own, since a connection takes one handshake.
-  const prober = await openDaemonClient(current.socketPath);
-
-  registerTestCleanup(() => {
-    prober.stop();
-  });
-
-  const hello = await prober.sendHello(current.build);
-
-  const currentID = String(hello['daemonID']);
-
-  const old = startStubLegacyDaemon(join(current.dir, 'old.sock'), {
-    replies: {
-      'daemon.hello': {
-        daemon: 'atc/legacy-build',
-        daemonID: 'abcdef0123456789abcdef0123456789',
-        features: [
-          'transport.tcp',
-          'daemon.id',
-          'request.principal',
-          'message.sender',
-          'session.forget',
-        ],
-      },
-      'session.get': { session: { id: 's-1', pinned: true, alive: true } },
-    },
-  });
-
-  const registry = {
-    daemons: new Map([
-      [
-        'current',
-        {
-          name: 'current',
-          address: { host: '127.0.0.1', port: current.daemon.listenPort ?? 0 },
-          daemonID: currentID,
-          incarnation: currentID.slice(0, 8),
-          token: 't'.repeat(32),
-        },
-      ],
-      [
-        'old',
-        {
-          name: 'old',
-          address: { host: 'old.sock', port: 0 },
-          daemonID: 'abcdef0123456789abcdef0123456789',
-          incarnation: 'abcdef01',
-          token: 't'.repeat(32),
-        },
-      ],
-    ]),
-    defaultDaemon: 'current',
-  };
-
-  // The older daemon listens on a unix socket in place of a TCP port.
-  const pool = new DaemonPool({
-    registry,
-    build: 'atc-gateway/test',
-    openChannel: (address) =>
-      address.host === 'old.sock'
-        ? openDaemonClient(join(current.dir, 'old.sock'))
-        : openDaemonClient({ hostname: address.host, port: address.port }),
-  });
-
-  registerTestCleanup(() => pool.stop());
-
-  const store = GatewayStore.open(join(current.dir, 'gateway.db'));
-
-  registerTestCleanup(() => {
-    store.stop();
-  });
-
-  const refused = runTool(
-    buildPrincipalCaller(new RoutingCaller({ registry, pool, store }), {
-      id: 'gw',
-      name: 'Lantern Notes',
-    }),
-    'atc_session_forget',
-    { session: 'old.abcdef01.s-1', stop: true },
-    { callerSessionID: null },
-  );
-
-  expect(refused).rejects.toThrowWithMessage(Error, /^session_pinned: .*atc_session_update/u);
-  expect(old.requests.map((request) => request.m)).toStrictEqual(['daemon.hello', 'session.get']);
 });
 
 test('it refuses an unknown session as no_such_session before any token exists', async () => {
