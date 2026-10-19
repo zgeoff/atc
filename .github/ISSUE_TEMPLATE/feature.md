@@ -1,25 +1,36 @@
 ---
-name: Feature
-about: New capability — user-facing or system
-labels: feature
+name: Feature request
+about: Suggest a new capability or a change to an existing one
+labels: enhancement
 ---
 
-<!-- Lead paragraph: what ships and why, ≤2 sentences. -->
-
-## User story
-
 <!--
-Required when the outcome is user-perceivable (user-visible behavior changes). Second person, present
-tense: what you concretely see or feel once this ships — and what you don't experience (no lost sessions,
-no dead panes, no stale state); absences are part of the story. No implementation nouns: no
-table, field, component, or service names. Close with a one-sentence distillation of the whole
-story. Delete this section only when nothing a user can perceive changes.
+Search the open issues first, in case someone has asked for the same
+thing. Replace each comment like this one with your answer.
 -->
 
-## Scope
+## The problem
 
-- <!-- the behaviors this delivers, one line each -->
+<!--
+What you are trying to do, and what gets in your way. Describe the
+problem before any solution.
+-->
 
-## Notes
+## What would help
 
-<!-- dependencies (#issue links), design-doc links, interactions with other work, non-goals -->
+<!--
+What you would see once this exists, written as "you run X and see Y",
+one line per behavior. Include what you would no longer run into, such
+as an error or a manual step.
+-->
+
+## How it could work
+
+<!--
+A way you think this could work, and what you have not checked about it.
+Delete this section when you have no idea yet.
+-->
+
+## What you do instead
+
+<!-- The workaround you use now, if any. Delete this section when there is none. -->
