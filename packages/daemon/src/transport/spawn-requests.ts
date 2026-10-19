@@ -237,6 +237,24 @@ export class SpawnRequests {
     this.reply.sendOk(req.id, 'sources.interpret', { ...interpretation });
   }
 
+  // Completes typed input through one source for a spawn to the request's
+  // target. A source that completes nothing answers no completions.
+  async applySourcesComplete(req: RequestMsg, ctx: DaemonContext): Promise<void> {
+    const parsed = parseRequestParams('sources.complete', req.p);
+
+    if (!parsed.ok) {
+      this.reply.sendErr(req.id, 'bad_args', parsed.message);
+
+      return;
+    }
+
+    const resolved = this.resolveSourceRequest(parsed.data, ctx);
+
+    const completions = await resolved.source.complete?.(parsed.data.input, resolved.request);
+
+    this.reply.sendOk(req.id, 'sources.complete', { completions: completions ?? [] });
+  }
+
   // The source a request asks for and the request it serves, so a principal
   // reaches a source only for a target it may spawn on, and a git source
   // only for a target it may spawn a workspace on.

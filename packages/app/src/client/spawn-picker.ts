@@ -26,7 +26,12 @@ import {
   SOURCE_INTERPRETATION_SCHEMA,
 } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
-import { collectPathCompletions, collectZoxideDirs, resolvePathInput } from '@atc/source-dirs';
+import {
+  collectPathCompletions,
+  collectZoxideDirs,
+  isPathInput,
+  resolvePathInput,
+} from '@atc/source-dirs';
 import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { collectAgentPicks } from './collect-agent-picks';
 import type { AgentPick } from './collect-agent-picks';
@@ -51,12 +56,13 @@ type PickerStep =
   | 'prompt'
   | 'spawned';
 
-// The kinds of answer the flow can drop: a git source's listing, a
-// directory source's listing, each request a step waits on, the daemon's
-// targets and sources, and the local directory flow's listing.
+// The kinds of answer the flow can drop: each source's listing, each
+// request a step waits on, the daemon's targets and sources, the local
+// directory flow's listing, and a remote daemon's path completions.
 export type DroppedAnswer =
   | 'listing'
   | 'directory listing'
+  | 'path completion'
   | 'interpret'
   | 'probe'
   | 'spawn'
@@ -88,6 +94,11 @@ export interface SpawnPickerDeps<TMirror> {
 
   // The client's home directory, which a typed `~` expands to.
   readonly home: string;
+
+  // Whether the daemon runs on another host, where the flow lists,
+  // completes, and resolves every path through the daemon and reads no
+  // directory on this host.
+  readonly remoteDaemon?: boolean;
 
   // The config file the flow reads its agents, roots, and workspaces from
   // each time it opens.
@@ -189,6 +200,16 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   private dirs: string[] = [];
 
   private dirLabels: ReadonlyMap<string, string> = new Map();
+
+  // A remote daemon's completions of a typed path with the label each
+  // shows, for the input they complete, and the completion request the flow
+  // waits on.
+  private completed: {
+    readonly input: string;
+    readonly labels: ReadonlyMap<string, string>;
+  } | null = null;
+
+  private completionSeq: number | null = null;
 
   // The configured roots and workspace settings, read with the agents each
   // time the menu opens.
@@ -323,6 +344,8 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.listedKey = null;
     this.listingSeq = null;
     this.pathListingSeq = null;
+    this.completed = null;
+    this.completionSeq = null;
     this.alternateURL = null;
     this.destination = '';
     this.destinationEdited = false;
@@ -564,7 +587,15 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   }
 
   private renderDirStep(verb: string) {
-    const items = this.collectDirItems().map((d) => this.dirLabels.get(d) ?? formatDir(d));
+    // This host's home stands for nothing on a remote daemon's host, so a
+    // remote daemon's path shows the label the daemon gave it, or else as it
+    // is.
+    const items = this.collectDirItems().map(
+      (d) =>
+        this.completed?.labels.get(d) ??
+        this.dirLabels.get(d) ??
+        (this.deps.remoteDaemon === true ? d : formatDir(d)),
+    );
 
     this.selected = Math.min(this.selected, Math.max(0, Math.min(items.length, 10) - 1));
 
@@ -755,7 +786,61 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       }
     }
 
+    if (this.step === 'dir' && this.deps.remoteDaemon === true && isPathInput(value)) {
+      void this.loadCompletions(value);
+    }
+
     this.render();
+  }
+
+  // Asks the remote daemon to complete a typed path on its own host, and
+  // draws the completions when they still match the input. An answer for
+  // input the user has since changed, or for an earlier flow, is dropped.
+  private async loadCompletions(input: string) {
+    const own = this.findSource();
+    const source = own?.kind === 'path' ? own : this.sources?.find((s) => s.kind === 'path');
+
+    if (source === undefined || !this.deps.hasDaemonFeature('sources.complete')) {
+      return;
+    }
+
+    const generation = this.generation;
+
+    this.requestSeq += 1;
+
+    const seq = this.requestSeq;
+
+    this.completionSeq = seq;
+
+    let candidates: ListedCandidate[] = [];
+
+    try {
+      const answer = await this.deps.sendRequest('sources.complete', {
+        source: source.id,
+        input,
+      });
+
+      candidates = parseCandidates(answer['completions']);
+    } catch {}
+
+    if (this.isStale(generation) || this.completionSeq !== seq || this.input !== input) {
+      this.deps.onDropAnswer?.('path completion');
+
+      return;
+    }
+
+    const labels = new Map(
+      candidates.flatMap((candidate) =>
+        candidate.pick.kind === 'path' ? [[candidate.pick.dir, candidate.label] as const] : [],
+      ),
+    );
+
+    this.completionSeq = null;
+    this.completed = { input, labels };
+
+    if (this.step === 'dir') {
+      this.render();
+    }
   }
 
   // Stops waiting on the request in flight. Its answer, when it comes, is
@@ -977,13 +1062,16 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   }
 
   // Takes the directory step's choice: a listed or completed directory, a
-  // typed path, or else what the sources read the text as.
+  // typed path, or else what the sources read the text as. A remote daemon
+  // resolves a typed path itself, through its source of directories.
   private async applyDirSubmit() {
     const typed = this.input.trim();
 
     const chosen =
       this.collectDirItems()[this.selected] ??
-      resolvePathInput(typed, this.deps.cwd, this.deps.home);
+      (this.deps.remoteDaemon === true
+        ? null
+        : resolvePathInput(typed, this.deps.cwd, this.deps.home));
 
     if (chosen !== null) {
       this.applyDir(chosen);
@@ -1045,10 +1133,19 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.render();
   }
 
+  // The directory step's rows: the listed directories the input matches, or
+  // the completions of a typed path, which a remote daemon gives from its
+  // own host.
   private collectDirItems(): string[] {
-    return resolvePathInput(this.input, this.deps.cwd, this.deps.home) === null
-      ? pickMatches(this.dirs, this.input)
-      : collectPathCompletions(this.input, this.deps.cwd, this.deps.home);
+    if (!isPathInput(this.input)) {
+      return pickMatches(this.dirs, this.input);
+    }
+
+    if (this.deps.remoteDaemon === true) {
+      return this.completed?.input === this.input ? [...this.completed.labels.keys()] : [];
+    }
+
+    return collectPathCompletions(this.input, this.deps.cwd, this.deps.home);
   }
 
   // The git source step's rows: the other URL form after a failed probe,
@@ -1127,8 +1224,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     }
   }
 
-  // the client's own directory lists first. The flow stays where it is until the listing
-  // answers, and an answer that comes after the flow moved on is dropped.
+  // the client's own directory lists first, unless the daemon runs on another host. The flow
+  // stays where it is until the listing answers, and an answer that comes after the flow
+  // moved on is dropped.
   private async openPathSource(index: number, scope: string | null) {
     const source = this.sources?.[index];
     const generation = this.generation;
@@ -1175,7 +1273,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     this.dirLabels = new Map(listed);
 
-    this.dirs = [...new Set([this.deps.cwd, ...listed.map(([dir]) => dir)])];
+    const own = this.deps.remoteDaemon === true ? [] : [this.deps.cwd];
+
+    this.dirs = [...new Set([...own, ...listed.map(([dir]) => dir)])];
     this.input = '';
     this.selected = 0;
     this.step = 'dir';
@@ -1971,7 +2071,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
   // The local directory flow of a daemon that offers no sources: the
   // client's own directory, the daemon's spawn history, the configured
-  // roots, and zoxide's list on this host.
+  // roots, and zoxide's list on this host; a remote daemon's history alone.
   private async openLocalDirs(generation: number) {
     let recent: string[] = [];
 
@@ -1985,7 +2085,8 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       }
     } catch {}
 
-    const zoxide = await collectZoxideDirs(runCommand);
+    const remote = this.deps.remoteDaemon === true;
+    const zoxide = remote ? [] : await collectZoxideDirs(runCommand);
 
     if (this.isStale(generation)) {
       this.deps.onDropAnswer?.('local directory listing');
@@ -1993,7 +2094,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       return;
     }
 
-    this.dirs = collectDirs({ cwd: this.deps.cwd, recent, roots: this.roots, zoxide });
+    this.dirs = remote
+      ? [...new Set(recent)]
+      : collectDirs({ cwd: this.deps.cwd, recent, roots: this.roots, zoxide });
 
     this.dirLabels = new Map();
 

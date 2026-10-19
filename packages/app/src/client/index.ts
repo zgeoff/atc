@@ -170,6 +170,7 @@ const picker = new SpawnPicker<MirrorSession>({
   },
   cwd: process.cwd(),
   home: resolveHomeDir(),
+  remoteDaemon: remoteDaemonName !== null,
   configPath: configFile,
   onDropAnswer: (kind) => {
     logClientEvent(`dropped ${kind} answer`);

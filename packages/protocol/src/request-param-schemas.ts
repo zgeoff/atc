@@ -125,6 +125,10 @@ export const REQUEST_PARAM_SCHEMAS = {
   // What one source reads typed input as, for a spawn to the target.
   'sources.interpret': z.object({ source: SOURCE_ID, input: SOURCE_TEXT, target: TARGET }),
 
+  // One source's completions of partly typed input, for a spawn to the
+  // target.
+  'sources.complete': z.object({ source: SOURCE_ID, input: SOURCE_TEXT, target: TARGET }),
+
   // Whether the daemon's host can read a git workspace source the way a
   // spawn to the target would, with its refs and the commit a ref or sha
   // selects; at most one of the two.

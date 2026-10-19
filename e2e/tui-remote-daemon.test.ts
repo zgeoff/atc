@@ -1,12 +1,14 @@
 import { expect, test } from 'bun:test';
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PROTOCOL_V } from '@atc/protocol/wire';
+import { buildDirsSource } from '@atc/source-dirs';
 import {
   KEYS,
   buildMockAgentAdapter,
   startStubLegacyDaemon,
   startTUIHarness,
+  waitFor,
 } from '@atc/test-utils';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
@@ -72,6 +74,174 @@ test('it shows the fleet of the remote daemon the flag selects and starts no loc
 
   expect(existsSync(join(ctx.tui.home, 'atc-daemon.pid'))).toBe(false);
 });
+
+test("it lists only the remote daemon's directories and spawns in the first of them", async () => {
+  const ctx = setupTest();
+
+  // The remote daemon's home is its own temp directory, so no path on it
+  // is a path under the client's home.
+  const remote = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([['laptop', ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        sources: [
+          buildDirsSource({
+            roots: [],
+            collectZoxideDirs: () => Promise.resolve([]),
+            homeDir: paths.dir,
+          }),
+        ],
+      };
+    },
+  });
+
+  if (remote.daemon.listenPort === null) {
+    throw new Error('the remote daemon bound no TCP port');
+  }
+
+  mkdirSync(join(remote.dir, 'alpha-box'));
+
+  await remote.client.sendRequest('session.spawn', {
+    cwd: join(remote.dir, 'alpha-box'),
+    agent: 'claude',
+    name: 'earlier',
+    cols: 80,
+    rows: 24,
+  });
+
+  mkdirSync(join(ctx.tui.home, 'projects', 'client-proj'), { recursive: true });
+  writeFileSync(ctx.tokenFile, `${'a'.repeat(32)}\n`);
+
+  ctx.tui.writeConfig({
+    dirs: { roots: [join(ctx.tui.home, 'projects')] },
+    daemons: {
+      box: {
+        address: `127.0.0.1:${remote.daemon.listenPort}`,
+        principal: 'laptop',
+        tokenFile: ctx.tokenFile,
+      },
+    },
+  });
+
+  ctx.tui.boot(['--daemon', 'box']);
+
+  await ctx.tui.waitFor('atc — control tower');
+
+  ctx.tui.write('n');
+
+  await ctx.tui.waitFor('spawn: agent');
+
+  ctx.tui.reset();
+  ctx.tui.write(KEYS.enter);
+
+  await ctx.tui.waitFor('spawn: directory on the daemon host');
+  await ctx.tui.waitFor('~/alpha-box');
+
+  expect(ctx.tui.read()).not.toInclude('client-proj');
+
+  ctx.tui.write(KEYS.enter);
+
+  await ctx.tui.waitFor('spawn: name');
+
+  ctx.tui.write(`far-one${KEYS.enter}`);
+
+  await ctx.tui.waitFor('spawn: initial prompt');
+
+  ctx.tui.write(KEYS.enter);
+
+  // The wait ends once the remote daemon lists the session in the
+  // directory on its own host.
+  const spawned = { name: 'far-one', cwd: join(remote.dir, 'alpha-box') };
+
+  await waitFor(async () => {
+    const listed = await remote.client.sendRequest('session.list');
+
+    expect(listed['sessions']).toPartiallyContain(spawned);
+  });
+}, 20_000);
+
+test("it completes and resolves a typed ~ path on the remote daemon's host", async () => {
+  const ctx = setupTest();
+
+  const remote = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([['laptop', ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        sources: [
+          buildDirsSource({
+            roots: [],
+            collectZoxideDirs: () => Promise.resolve([]),
+            homeDir: paths.dir,
+          }),
+        ],
+      };
+    },
+  });
+
+  if (remote.daemon.listenPort === null) {
+    throw new Error('the remote daemon bound no TCP port');
+  }
+
+  // Only the remote daemon's host holds beta-box, so a completion read on
+  // the client's host finds nothing.
+  mkdirSync(join(remote.dir, 'beta-box'));
+  writeFileSync(ctx.tokenFile, `${'a'.repeat(32)}\n`);
+
+  ctx.tui.writeConfig({
+    daemons: {
+      box: {
+        address: `127.0.0.1:${remote.daemon.listenPort}`,
+        principal: 'laptop',
+        tokenFile: ctx.tokenFile,
+      },
+    },
+  });
+
+  ctx.tui.boot(['--daemon', 'box']);
+
+  await ctx.tui.waitFor('atc — control tower');
+
+  ctx.tui.write('n');
+
+  await ctx.tui.waitFor('spawn: agent');
+
+  ctx.tui.write(KEYS.enter);
+
+  await ctx.tui.waitFor('spawn: directory on the daemon host');
+
+  ctx.tui.reset();
+  ctx.tui.write('~/bet');
+
+  await ctx.tui.waitFor('~/beta-box');
+
+  ctx.tui.write(KEYS.enter);
+
+  await ctx.tui.waitFor('spawn: name');
+
+  ctx.tui.write(`far-two${KEYS.enter}`);
+
+  await ctx.tui.waitFor('spawn: initial prompt');
+
+  ctx.tui.write(KEYS.enter);
+
+  // The wait ends once the remote daemon lists the session in the
+  // directory on its own host.
+  const spawned = { name: 'far-two', cwd: join(remote.dir, 'beta-box') };
+
+  await waitFor(async () => {
+    const listed = await remote.client.sendRequest('session.list');
+
+    expect(listed['sessions']).toPartiallyContain(spawned);
+  });
+}, 20_000);
 
 test('it exits with the refusal when a reconnect to the remote daemon is refused its token', async () => {
   const ctx = setupTest();

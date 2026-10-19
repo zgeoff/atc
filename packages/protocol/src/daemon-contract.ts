@@ -41,7 +41,7 @@ const base = oc.$meta<ProcedureMeta>(ACT).errors(DAEMON_ERROR_MAP);
 const P = REQUEST_PARAM_SCHEMAS;
 
 // a procedure's path joined with dots is its request method;
-// `sources.complete` and `events.subscribe` have no request method
+// `events.subscribe` has no request method
 export const DAEMON_CONTRACT = {
   daemon: {
     hello: base.meta(READ).input(P['daemon.hello']).output(HELLO_RESULT_SCHEMA),
@@ -74,20 +74,12 @@ export const DAEMON_CONTRACT = {
       ),
     interpret: base.meta(READ).input(P['sources.interpret']).output(SOURCE_INTERPRETATION_SCHEMA),
 
-    // Completes a typed path against the daemon host's filesystem, with the
-    // client's working directory as a hint the dirs source uses only when
-    // the daemon is local.
+    // Completes typed input against the daemon host, such as a path against
+    // its filesystem, with a relative path under the daemon user's home.
     complete: base
       .meta(READ)
-      .input(
-        z.object({
-          source: z.string(),
-          input: z.string(),
-          target: z.string().optional(),
-          clientCwd: z.string().optional(),
-        }),
-      )
-      .output(z.object({ completions: STRINGS })),
+      .input(P['sources.complete'])
+      .output(z.object({ completions: z.array(SOURCE_CANDIDATE_SCHEMA).readonly() })),
   },
   git: {
     probe: base.meta(READ).input(P['git.probe']).output(GIT_PROBE_RESULT_SCHEMA),

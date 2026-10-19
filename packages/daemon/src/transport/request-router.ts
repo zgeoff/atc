@@ -84,6 +84,11 @@ export class RequestRouter {
 
         return;
       }
+      case 'sources.complete': {
+        await this.spawn.applySourcesComplete(req, ctx);
+
+        return;
+      }
       case 'git.probe': {
         await this.spawn.applyGitProbe(req, ctx);
 

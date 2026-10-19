@@ -76,6 +76,9 @@ export const DAEMON_FEATURES = [
   // `sources`.
   'sources',
 
+  // `sources.complete` exists.
+  'sources.complete',
+
   // `git.probe` exists, and `session.spawn` takes a git workspace with both
   // `ref` and `sha`.
   'git.probe',

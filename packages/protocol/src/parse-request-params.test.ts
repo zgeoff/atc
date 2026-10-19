@@ -36,6 +36,7 @@ test.each([
   ['sources.list', { source: 'github', target: 'box', scope: 'zgeoff' }],
   ['sources.list', { source: 'dirs' }],
   ['sources.interpret', { source: 'github', input: 'zgeoff/', target: 'box' }],
+  ['sources.complete', { source: 'dirs', input: '~/pro' }],
   ['git.probe', { url: 'zgeoff/atc', ref: 'main', target: 'box' }],
 ] as const)('it parses the valid %s payload %j as it is', (method, payload) => {
   // Each row's expected data is its own payload, which carries plain

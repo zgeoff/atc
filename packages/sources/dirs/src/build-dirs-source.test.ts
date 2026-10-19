@@ -82,7 +82,9 @@ test("it completes a relative path under the client's directory", async () => {
     clientCwd: join(ctx.home, 'work'),
   });
 
-  expect(completions).toStrictEqual([join(ctx.home, 'work', 'alpha')]);
+  expect(completions).toStrictEqual([
+    { label: '~/work/alpha', pick: { kind: 'path', dir: join(ctx.home, 'work', 'alpha') } },
+  ]);
 });
 
 test('it completes a relative path under the home when the request holds no client directory', async () => {
@@ -101,7 +103,9 @@ test('it completes a relative path under the home when the request holds no clie
     collectSpawnDirs: () => Promise.resolve([]),
   });
 
-  expect(completions).toStrictEqual([join(ctx.home, 'alpha')]);
+  expect(completions).toStrictEqual([
+    { label: '~/alpha', pick: { kind: 'path', dir: join(ctx.home, 'alpha') } },
+  ]);
 });
 
 test('it completes input that is not a path to nothing', async () => {

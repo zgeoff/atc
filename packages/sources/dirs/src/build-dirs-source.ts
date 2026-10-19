@@ -57,8 +57,17 @@ export function buildDirsSource(services: DirsSourceServices): SourceProvider {
     complete(input, request) {
       // a caller sends its cwd only when the daemon runs on the client's machine,
       // so a relative path resolves under the home otherwise.
+      const dirs = collectPathCompletions(
+        input,
+        request.clientCwd ?? services.homeDir,
+        services.homeDir,
+      );
+
       return Promise.resolve(
-        collectPathCompletions(input, request.clientCwd ?? services.homeDir, services.homeDir),
+        dirs.map((dir) => ({
+          label: formatHomePath(dir, services.homeDir),
+          pick: { kind: 'path', dir },
+        })),
       );
     },
   };

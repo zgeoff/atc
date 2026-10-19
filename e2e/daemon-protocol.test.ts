@@ -76,6 +76,7 @@ test('it answers daemon.hello with the build, limits, and features', async () =>
       'note.get',
       'answer.get',
       'sources',
+      'sources.complete',
       'git.probe',
       'transport.tcp',
       'idempotency.replayOnly',

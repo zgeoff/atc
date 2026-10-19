@@ -145,6 +145,7 @@ test('it accepts a TCP handshake with a token a SIGHUP reload kept', async () =>
       'note.get',
       'answer.get',
       'sources',
+      'sources.complete',
       'git.probe',
       'transport.tcp',
       'idempotency.replayOnly',

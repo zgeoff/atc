@@ -2,10 +2,9 @@ import { expect, test } from 'bun:test';
 import { PROCEDURE_TRAITS } from './procedure-traits';
 import { REQUEST_PARAM_SCHEMAS } from './request-param-schemas';
 
-test('it holds a procedure for every request method, plus the completion and the subscription', () => {
+test('it holds a procedure for every request method, plus the subscription', () => {
   expect([...PROCEDURE_TRAITS.keys()]).toIncludeSameMembers([
     ...Object.keys(REQUEST_PARAM_SCHEMAS),
-    'sources.complete',
     'events.subscribe',
   ]);
 });

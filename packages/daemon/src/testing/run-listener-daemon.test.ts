@@ -92,6 +92,7 @@ test('it answers a hello on the daemon socket in its test directory', async () =
       'note.get',
       'answer.get',
       'sources',
+      'sources.complete',
       'git.probe',
       'transport.tcp',
       'idempotency.replayOnly',

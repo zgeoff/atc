@@ -561,6 +561,143 @@ test('it reads a leading ~ in directory input as the daemon home', async () => {
   expect(interpreted).toStrictEqual({ kind: 'path', dir: join(daemon.dir, 'work') });
 });
 
+test('it completes a typed ~ path against the daemon home', async () => {
+  const daemon = await startTestDaemon({
+    prefix: 'atc-daemon-sources-',
+    options: (paths) => ({
+      adapter: buildMockAgentAdapter(),
+      principals: null,
+      sources: [
+        buildDirsSource({
+          roots: [],
+          collectZoxideDirs: () => Promise.resolve([]),
+          homeDir: paths.dir,
+        }),
+      ],
+    }),
+  });
+
+  await mkdir(join(daemon.dir, 'alpha-work'));
+  await mkdir(join(daemon.dir, 'beta-work'));
+
+  const completed = await daemon.client.sendRequest('sources.complete', {
+    source: 'dirs',
+    input: '~/al',
+  });
+
+  expect(completed).toStrictEqual({
+    completions: [
+      { label: '~/alpha-work', pick: { kind: 'path', dir: join(daemon.dir, 'alpha-work') } },
+    ],
+  });
+});
+
+test('it completes nothing through a source that does not complete', async () => {
+  const daemon = await startTestDaemon({
+    prefix: 'atc-daemon-sources-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      principals: null,
+      sources: [buildGitSource()],
+    }),
+  });
+
+  const completed = await daemon.client.sendRequest('sources.complete', {
+    source: 'git',
+    input: '/srv/git/a',
+  });
+
+  expect(completed).toStrictEqual({ completions: [] });
+});
+
+test('it refuses a principal a completion for the default target it may not use', async () => {
+  const daemon = await startTestDaemon({
+    prefix: 'atc-daemon-sources-',
+    options: (paths) => ({
+      adapter: buildMockAgentAdapter(),
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        {
+          id: 'box',
+          kind: 'fixture-dir',
+          options: {},
+          identity: 'test:box',
+          provider: buildStubDirProvider(),
+        },
+      ],
+      principals: new Map([['alice', ['box']]]),
+      sources: [
+        buildDirsSource({
+          roots: [],
+          collectZoxideDirs: () => Promise.resolve([]),
+          homeDir: paths.dir,
+        }),
+      ],
+    }),
+  });
+
+  const alice = await daemon.openClient({ principal: 'alice' });
+
+  const completed = alice.sendRequest('sources.complete', { source: 'dirs', input: '~/' });
+
+  expect(completed).rejects.toMatchObject({ code: 'target_forbidden', data: { target: 'local' } });
+});
+
+test('it completes a principal a path for a target it may use', async () => {
+  const daemon = await startTestDaemon({
+    prefix: 'atc-daemon-sources-',
+    options: (paths) => ({
+      adapter: buildMockAgentAdapter(),
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        },
+        {
+          id: 'box',
+          kind: 'fixture-dir',
+          options: {},
+          identity: 'test:box',
+          provider: buildStubDirProvider(),
+        },
+      ],
+      principals: new Map([['alice', ['box']]]),
+      sources: [
+        buildDirsSource({
+          roots: [],
+          collectZoxideDirs: () => Promise.resolve([]),
+          homeDir: paths.dir,
+        }),
+      ],
+    }),
+  });
+
+  await mkdir(join(daemon.dir, 'alpha-work'));
+
+  const alice = await daemon.openClient({ principal: 'alice' });
+
+  const completed = await alice.sendRequest('sources.complete', {
+    source: 'dirs',
+    input: '~/al',
+    target: 'box',
+  });
+
+  expect(completed).toStrictEqual({
+    completions: [
+      { label: '~/alpha-work', pick: { kind: 'path', dir: join(daemon.dir, 'alpha-work') } },
+    ],
+  });
+});
+
 test('it probes a git source for the target a principal may use', async () => {
   const git = await createGitFixture({ prefix: 'atc-daemon-sources-git-' });
 

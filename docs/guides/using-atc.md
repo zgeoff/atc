@@ -157,9 +157,9 @@ a token it no longer holds, exits 1 with the refusal.
 atc cannot restart a daemon on another host, so the TUI never offers `u` there: restart it on its
 own host. A principal may not restore the fleet, so `R` restores nothing on a remote daemon.
 
-The spawn picker reads its directory list, `~`, and typed paths on the host you run `atc` on, not on
-the remote daemon's host. A spawn on a remote daemon therefore lands where its path points on the
-daemon's host, so pick a directory whose path is the same on both hosts.
+On a remote daemon, the spawn picker lists, completes, and resolves directories on the daemon's
+host. It leaves out the directory you ran `atc` from, the roots in your `config.json`, and your
+zoxide list, and a typed `~` stands for the home of the user the daemon runs as.
 
 ## Running the daemon under systemd
 
