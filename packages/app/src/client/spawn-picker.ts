@@ -820,6 +820,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       const answer = await this.deps.sendRequest('sources.complete', {
         source: source.id,
         input,
+        ...this.buildPathTargetParam(),
       });
 
       candidates = parseCandidates(answer['completions']);
@@ -1167,9 +1168,6 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.render();
   }
 
-  // The directory step's rows: the listed directories the input matches, or
-  // the completions of a typed path, which a remote daemon gives from its
-  // own host.
   private collectDirItems(): string[] {
     if (!isPathInput(this.input)) {
       return pickMatches(this.dirs, this.input);
@@ -1272,16 +1270,20 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.pathListingSeq = seq;
 
     let candidates: ListedCandidate[] = [];
+    let failure: string | null = null;
 
     if (source !== undefined) {
       try {
         const answer = await this.deps.sendRequest('sources.list', {
           source: source.id,
           ...(scope === null ? {} : { scope }),
+          ...this.buildPathTargetParam(),
         });
 
         candidates = parseCandidates(answer['candidates']);
-      } catch {}
+      } catch (error) {
+        failure = formatError(error);
+      }
     }
 
     if (this.isStale(generation) || this.pathListingSeq !== seq) {
@@ -1314,8 +1316,29 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.selected = 0;
     this.step = 'dir';
 
+    // A failed listing is no empty one, so the step shows why until the
+    // next key.
+    if (failure !== null) {
+      this.deps.log?.(`directory listing failed: ${failure}`);
+      this.refusal = `cannot list directories: ${failure}`;
+    }
+
     this.deps.write(ansi.clear);
     this.render();
+  }
+
+  // The target a remote daemon checks a directory request against: the
+  // chosen one, else the default the caller may use, else the first, since
+  // a principal may hold no default target. A local request sends none.
+  private buildPathTargetParam(): Readonly<Record<string, string>> {
+    if (this.deps.remoteDaemon !== true) {
+      return {};
+    }
+
+    const eligible = this.collectEligibleTargets();
+    const target = this.target ?? eligible.find((t) => t.isDefault) ?? eligible[0];
+
+    return target === undefined ? {} : { target: target.id };
   }
 
   // the target step comes first when there is one and no repository target is chosen yet,
@@ -1638,7 +1661,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     const answered = await this.sendPending('interpret', `reading ${typed}…`, 'sources.interpret', {
       source: source.id,
       input: typed,
-      ...(source.kind === 'git' ? this.buildTargetParam() : {}),
+      ...(source.kind === 'git' ? this.buildTargetParam() : this.buildPathTargetParam()),
     });
 
     if (answered === null) {

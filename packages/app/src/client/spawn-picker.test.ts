@@ -3277,8 +3277,8 @@ test("it drops a remote daemon's completion of input typed over since, keeping t
   expect(ctx.terminal.getTextSince(mark)).toInclude('spawn: name');
 
   expect(ctx.daemon.collectSent('sources.complete')).toStrictEqual([
-    { source: 'dirs', input: '~/a' },
-    { source: 'dirs', input: '~/ab' },
+    { source: 'dirs', input: '~/a', target: 'local' },
+    { source: 'dirs', input: '~/ab', target: 'local' },
   ]);
 });
 
@@ -3387,6 +3387,160 @@ test("it shows a remote daemon's refused completion in place of the hint", async
 
   expect(ctx.terminal.getTextSince(mark)).toInclude(
     'cannot complete ~/a: target_forbidden: target local is not yours',
+  );
+});
+
+test('it spawns in the directory a remote daemon reads a typed ~ path as when nothing completes it', async () => {
+  const ctx = setupTest();
+
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    remoteDaemon: true,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
+  );
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+
+  picker.applyKey(Buffer.from('~/work'));
+
+  await ctx.daemon.answer('sources.complete', { completions: [] });
+
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  await ctx.daemon.answer('sources.interpret', { kind: 'path', dir: '/home/far/work' });
+
+  picker.applyKey(Buffer.from(`far-one${KEYS.enter}`));
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  expect(ctx.daemon.collectSent('sources.interpret')).toStrictEqual([
+    { source: 'dirs', input: '~/work', target: 'local' },
+  ]);
+
+  expect(ctx.daemon.collectSent('session.spawn')).toPartiallyContain({ cwd: '/home/far/work' });
+});
+
+test('it names the one target a remote principal may use in its directory requests', async () => {
+  const ctx = setupTest();
+
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    remoteDaemon: true,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
+  );
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'box',
+        provider: 'local-pty',
+        available: true,
+        default: false,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+
+  picker.applyKey(Buffer.from('/srv/work'));
+
+  expect(ctx.daemon.collectSent('sources.list')).toStrictEqual([{ source: 'dirs', target: 'box' }]);
+
+  expect(ctx.daemon.collectSent('sources.complete')).toStrictEqual([
+    { source: 'dirs', input: '/srv/work', target: 'box' },
+  ]);
+});
+
+test("it shows why a remote daemon's directory listing failed", async () => {
+  const ctx = setupTest();
+
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    remoteDaemon: true,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
+  );
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  const mark = ctx.terminal.countChunks();
+
+  await ctx.daemon.refuse(
+    'sources.list',
+    new DaemonError('target_forbidden', 'target local is not yours'),
+  );
+
+  expect(ctx.terminal.getTextSince(mark)).toInclude(
+    'cannot list directories: target_forbidden: target local is not yours',
   );
 });
 
