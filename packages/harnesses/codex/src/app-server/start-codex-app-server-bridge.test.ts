@@ -1,7 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { toSessionID } from '@atc/core';
+import { toAgentSessionID, toSessionID } from '@atc/core';
 import {
   buildStubMessageBridgeHost,
   createStubAppServerCodex,
@@ -9,13 +9,20 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
+import invariant from 'tiny-invariant';
 import { z } from 'zod';
 import { startCodexAppServerBridge } from './start-codex-app-server-bridge';
 
 function setupTest() {
   const tmp = setupTempDir('atc-codex-app-server-');
 
-  return { dir: tmp.dir, bridgeDir: join(tmp.dir, 'bridge') };
+  // The real CLI refuses a CODEX_HOME that does not exist, and every file it
+  // writes must stay inside the test's tree.
+  const codexHome = join(tmp.dir, 'codex-home');
+
+  mkdirSync(codexHome, { recursive: true });
+
+  return { dir: tmp.dir, bridgeDir: join(tmp.dir, 'bridge'), codexHome };
 }
 
 test('it stops the App Server and removes its socket when it stops', async () => {
@@ -298,3 +305,117 @@ test('it kills a server that ignores the stop signal once the stop grace ends', 
 
   expect(() => process.kill(pid, 0)).toThrow();
 });
+
+// The real Codex CLI, whose App Server API is experimental and changes between
+// releases; the suite skips these tests on a machine with none on PATH, and
+// the CI job that sets CODEX_VERSION installs the pinned build for them.
+const codexOnPath = Bun.which('codex');
+
+// The Codex version the CI job pins beside the Claude Code pin; unset on a
+// local run, where no pin names the installed build.
+const pinnedCodexVersion = process.env['CODEX_VERSION'];
+
+// A thread id the real App Server hands out.
+const THREAD_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
+
+// Enough time for the real CLI to come up and answer, which a loaded machine
+// takes longer over than the stub ever does.
+const REAL_CODEX_TEST_MS = 30_000;
+
+test.skipIf(codexOnPath === null || pinnedCodexVersion === undefined)(
+  'it matches the installed Codex to the pinned version',
+  async () => {
+    invariant(typeof codexOnPath === 'string', 'no codex on PATH');
+    invariant(typeof pinnedCodexVersion === 'string', 'no pinned Codex version');
+
+    const printed = await new Response(
+      Bun.spawn([codexOnPath, '--version'], { stderr: 'ignore' }).stdout,
+    ).text();
+
+    expect(printed.trim()).toBe(`codex-cli ${pinnedCodexVersion}`);
+  },
+);
+
+test.skipIf(codexOnPath === null)(
+  'it starts a thread on the installed Codex App Server',
+  async () => {
+    const ctx = setupTest();
+
+    invariant(typeof codexOnPath === 'string', 'no codex on PATH');
+
+    const bridge = await startCodexAppServerBridge(
+      {
+        session: toSessionID('s-real'),
+        cwd: ctx.dir,
+        env: { CODEX_HOME: ctx.codexHome },
+        withheldEnv: [],
+        options: { prompt: '', resume: false },
+        dir: ctx.bridgeDir,
+        host: buildStubMessageBridgeHost().host,
+      },
+      {
+        bin: codexOnPath,
+        planTerminal: (remote, thread) => ({ bin: codexOnPath, args: [remote, thread] }),
+      },
+    );
+
+    onTestFinished(() => bridge.stop());
+
+    expect(bridge.plan.args[1]).toMatch(THREAD_ID);
+  },
+  REAL_CODEX_TEST_MS,
+);
+
+test.skipIf(codexOnPath === null)(
+  'it resumes on the installed Codex App Server the thread an earlier bridge started',
+  async () => {
+    const ctx = setupTest();
+
+    invariant(typeof codexOnPath === 'string', 'no codex on PATH');
+
+    const first = await startCodexAppServerBridge(
+      {
+        session: toSessionID('s-real'),
+        cwd: ctx.dir,
+        env: { CODEX_HOME: ctx.codexHome },
+        withheldEnv: [],
+        options: { prompt: '', resume: false },
+        dir: ctx.bridgeDir,
+        host: buildStubMessageBridgeHost().host,
+      },
+      {
+        bin: codexOnPath,
+        planTerminal: (remote, thread) => ({ bin: codexOnPath, args: [remote, thread] }),
+      },
+    );
+
+    onTestFinished(() => first.stop());
+
+    const [, thread] = first.plan.args;
+
+    invariant(typeof thread === 'string');
+
+    await first.stop();
+
+    const second = await startCodexAppServerBridge(
+      {
+        session: toSessionID('s-real'),
+        cwd: ctx.dir,
+        env: { CODEX_HOME: ctx.codexHome },
+        withheldEnv: [],
+        options: { prompt: '', resume: toAgentSessionID(thread) },
+        dir: ctx.bridgeDir,
+        host: buildStubMessageBridgeHost().host,
+      },
+      {
+        bin: codexOnPath,
+        planTerminal: (remote, resuming) => ({ bin: codexOnPath, args: [remote, resuming] }),
+      },
+    );
+
+    onTestFinished(() => second.stop());
+
+    expect(second.plan.args[1]).toBe(thread);
+  },
+  REAL_CODEX_TEST_MS * 2,
+);
