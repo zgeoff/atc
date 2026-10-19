@@ -79,7 +79,7 @@ export function buildStubBrokeredAgentAdapter(
           baseURL: 'https://api.z.ai/api/anthropic',
           auth: {
             profiles: hasJudge ? ['glm', 'judge'] : ['glm'],
-            placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+            placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
           },
         },
         profiles: new Map<string, AuthProfile>([

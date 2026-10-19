@@ -321,7 +321,7 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
   const cfg = config.loadConfig(harnessPlugins.SHIPPED_HARNESS_PLUGINS);
 
   const built = targets.buildExecutionTargets(cfg.targets, (target) =>
-    providers.buildShippedExecutionProvider(target, hostServices, process.env),
+    providers.buildShippedExecutionProvider(target, hostServices, process.env, cfg.authProfiles),
   );
 
   const targetErrors = [...cfg.targetErrors, ...built.errors];
@@ -340,6 +340,7 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
     ...cfg.workspaceErrors,
     ...cfg.authProfileErrors,
     ...cfg.agentErrors,
+    ...cfg.deprecations,
   ]) {
     console.error(`atc daemon: config: ${problem}`);
   }

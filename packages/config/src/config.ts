@@ -6,6 +6,7 @@ import { buildOptionalBoolean, buildOptionalString } from '@atc/core/schema';
 import type { AuthProfile } from '@atc/plugin-api';
 import { z } from 'zod';
 import type { AgentConfigPlugin, AgentEntry } from './agent-entry';
+import { buildCurrentPlaceholderConfig } from './build-current-placeholder-config';
 import { collectAgents } from './collect-agents';
 import { collectAuthProfiles } from './collect-auth-profiles';
 import { collectDirRoots } from './collect-dir-roots';
@@ -78,6 +79,10 @@ export interface Config {
   // The keys the file sets that atc no longer reads, in the order the file
   // holds them. Values are never recorded.
   removedKeys: readonly string[];
+
+  // The values the file holds that atc still reads but a later release
+  // stops reading, one line each.
+  deprecations: readonly string[];
 }
 
 interface DirsConfig {
@@ -114,6 +119,7 @@ const DEFAULTS: Omit<Config, 'agents' | 'agentErrors' | 'defaultAgent'> = {
   daemonErrors: [],
   restoreFleetOnRestart: true,
   removedKeys: [],
+  deprecations: [],
 };
 
 // A user-written config.json's top-level keys. An absent or wrong-typed
@@ -240,6 +246,7 @@ export function renderDefaultConfig(): string {
     daemons: _daemons,
     daemonErrors: _daemonErrors,
     removedKeys: _removedKeys,
+    deprecations: _deprecations,
     workspaces,
     ...written
   } = DEFAULTS;
@@ -276,7 +283,8 @@ export function parseConfig(
     );
   }
 
-  const parsed = CONFIG_SCHEMA.safeParse(raw);
+  const replacement = buildCurrentPlaceholderConfig(raw);
+  const parsed = CONFIG_SCHEMA.safeParse(replacement.config);
 
   if (!parsed.success) {
     return buildUnusableConfig(
@@ -334,6 +342,7 @@ export function parseConfig(
     daemonErrors: daemons.errors,
     restoreFleetOnRestart: parsed.data.restoreFleetOnRestart ?? DEFAULTS.restoreFleetOnRestart,
     removedKeys: REMOVED_CONFIG_KEYS.filter((key) => Object.hasOwn(raw, key)),
+    deprecations: replacement.warning === null ? [] : [replacement.warning],
   };
 }
 

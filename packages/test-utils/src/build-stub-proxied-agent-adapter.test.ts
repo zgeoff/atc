@@ -11,7 +11,7 @@ test('it plans a guest spawn that sets a proxy variable under a binding', () => 
       dir: '/guest/sessions/s1',
       auth: {
         revision: 1,
-        env: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
         profileEnv: {},
       },
     },
@@ -35,7 +35,7 @@ test('it selects the glm gateway credential that requires the broker', () => {
       baseURL: 'https://api.z.ai/api/anthropic',
       auth: {
         profiles: ['glm'],
-        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
       },
     },
     profiles: new Map([

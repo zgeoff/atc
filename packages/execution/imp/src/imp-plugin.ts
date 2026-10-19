@@ -4,6 +4,7 @@ import {
   definePlugin,
 } from '@atc/plugin-api';
 import { buildImpProvider } from './build-imp-provider';
+import { collectAuthProfileProblems } from './collect-auth-profile-problems';
 
 export const IMP_PLUGIN = definePlugin({
   kind: 'execution',
@@ -20,7 +21,15 @@ export const IMP_PLUGIN = definePlugin({
     'rebindChangedAuth',
     'dropSysAdmin',
   ],
-  configSchema: () => EXECUTION_TARGET_CONFIG_SCHEMA,
+
+  // impd refuses a profile whose names break its rules, so a target is
+  // unusable while any profile breaks them.
+  configSchema: (context) =>
+    EXECUTION_TARGET_CONFIG_SCHEMA.superRefine((config, ctx) => {
+      for (const message of collectAuthProfileProblems(config.id, context.authProfiles)) {
+        ctx.addIssue({ code: 'custom', message });
+      }
+    }),
 
   // options that never select an existing imp stay out of its identity
   identity: {

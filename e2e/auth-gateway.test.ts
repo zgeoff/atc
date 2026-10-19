@@ -67,7 +67,7 @@ test('it refuses a local spawn of a gateway with auth and starts no harness', as
               baseURL: 'https://api.z.ai/api/anthropic',
               auth: {
                 profiles: ['glm'],
-                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
               },
             },
             zai: { kind: 'claude', bin: ctx.fakeClaude, baseURL: 'https://api.z.ai/api/anthropic' },
@@ -123,7 +123,7 @@ test('it refuses an imp spawn of a gateway with auth before touching impd', asyn
               baseURL: 'https://api.z.ai/api/anthropic',
               auth: {
                 profiles: ['glm'],
-                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
               },
             },
             zai: { kind: 'claude', bin: ctx.fakeClaude, baseURL: 'https://api.z.ai/api/anthropic' },
@@ -178,7 +178,7 @@ test('it starts the harness of a gateway without auth on a local spawn', async (
               baseURL: 'https://api.z.ai/api/anthropic',
               auth: {
                 profiles: ['glm'],
-                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
               },
             },
             zai: { kind: 'claude', bin: ctx.fakeClaude, baseURL: 'https://api.z.ai/api/anthropic' },
@@ -226,7 +226,7 @@ test('it lists a gateway with auth as able to spawn, since a target with a broke
               baseURL: 'https://api.z.ai/api/anthropic',
               auth: {
                 profiles: ['glm'],
-                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
               },
             },
             zai: { kind: 'claude', bin: ctx.fakeClaude, baseURL: 'https://api.z.ai/api/anthropic' },
@@ -423,7 +423,7 @@ test('it refuses a local spawn that resumes a session of a gateway with auth and
               baseURL: 'https://api.z.ai/api/anthropic',
               auth: {
                 profiles: ['glm'],
-                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
               },
             },
             zai: { kind: 'claude', bin: ctx.fakeClaude, baseURL: 'https://api.z.ai/api/anthropic' },
@@ -480,7 +480,7 @@ test('it refuses to adopt a restored local session of a gateway with auth and st
               baseURL: 'https://api.z.ai/api/anthropic',
               auth: {
                 profiles: ['glm'],
-                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
               },
             },
             zai: { kind: 'claude', bin: ctx.fakeClaude, baseURL: 'https://api.z.ai/api/anthropic' },
@@ -557,7 +557,7 @@ test('it restores a local session of a gateway with auth without starting its ha
               baseURL: 'https://api.z.ai/api/anthropic',
               auth: {
                 profiles: ['glm'],
-                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
               },
             },
             zai: { kind: 'claude', bin: ctx.fakeClaude, baseURL: 'https://api.z.ai/api/anthropic' },

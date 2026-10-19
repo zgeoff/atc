@@ -238,7 +238,7 @@ test('it resolves a 40-profile chain where each profile depends on every profile
   });
 });
 
-test('it expands a github profile into the rules of the github kind beside a custom profile', () => {
+test('it resolves a github profile to a github secret with no rules beside a custom profile', () => {
   const profiles = new Map<string, AuthProfile>([
     [
       'glm',
@@ -258,7 +258,7 @@ test('it expands a github profile into the rules of the github kind beside a cus
       buildMockAuthProfile({
         kind: 'github',
         name: 'github',
-        secret: 'github-imp-agents',
+        secret: 'github-agents',
         env: {},
         dependencies: [],
       }),
@@ -268,22 +268,9 @@ test('it expands a github profile into the rules of the github kind beside a cus
   expect(resolveAuthProfiles(profiles, ['glm', 'github'])).toStrictEqual({
     resolved: {
       profiles: ['github', 'glm'],
-      hosts: ['api.github.com', 'api.z.ai', 'github.com', 'uploads.github.com'],
+      hosts: ['api.z.ai'],
       secrets: [
-        {
-          secret: 'github-imp-agents',
-          kind: 'github',
-          rules: [
-            { host: 'api.github.com', header: 'authorization', scheme: 'bearer' },
-            {
-              host: 'github.com',
-              header: 'authorization',
-              scheme: 'basic',
-              user: 'x-access-token',
-            },
-            { host: 'uploads.github.com', header: 'authorization', scheme: 'bearer' },
-          ],
-        },
+        { secret: 'github-agents', kind: 'github', rules: [] },
         {
           secret: 'glm',
           kind: 'custom',
@@ -296,16 +283,47 @@ test('it expands a github profile into the rules of the github kind beside a cus
   });
 });
 
-test('it refuses a custom profile on a host a github profile covers', () => {
+test('it resolves a custom profile on a github host beside a github profile, whose hosts the broker holds', () => {
   const profiles = new Map<string, AuthProfile>([
-    ['gh-api', buildMockAuthProfile({ name: 'gh-api', host: 'api.github.com' })],
-    ['github', buildMockAuthProfile({ kind: 'github', name: 'github' })],
+    [
+      'gh-api',
+      buildMockAuthProfile({
+        name: 'gh-api',
+        secret: 'gh-api',
+        kind: 'custom',
+        host: 'api.github.com',
+        header: 'authorization',
+        scheme: 'bearer',
+        env: {},
+        dependencies: [],
+      }),
+    ],
+    [
+      'github',
+      buildMockAuthProfile({
+        kind: 'github',
+        name: 'github',
+        secret: 'github-agents',
+        env: {},
+        dependencies: [],
+      }),
+    ],
   ]);
 
   expect(resolveAuthProfiles(profiles, ['github', 'gh-api'])).toStrictEqual({
-    problem: {
-      code: 'auth_collision',
-      message: 'profiles gh-api and github both send a credential to api.github.com',
+    resolved: {
+      profiles: ['gh-api', 'github'],
+      hosts: ['api.github.com'],
+      secrets: [
+        {
+          secret: 'gh-api',
+          kind: 'custom',
+          rules: [{ host: 'api.github.com', header: 'authorization', scheme: 'bearer' }],
+        },
+        { secret: 'github-agents', kind: 'github', rules: [] },
+      ],
+      env: {},
+      envOwners: {},
     },
   });
 });
@@ -325,11 +343,11 @@ test('it refuses two profiles that bind one secret as different kinds', () => {
 });
 
 test('it merges the variables of every reached profile with the profile that sets each', () => {
-  const a = buildMockAuthProfile({ name: 'a', env: { TOKEN: 'imp-broker-placeholder' } });
+  const a = buildMockAuthProfile({ name: 'a', env: { TOKEN: 'broker-placeholder' } });
 
   const b = buildMockAuthProfile({
     name: 'b',
-    env: { TOKEN: 'imp-broker-placeholder', B_HOST: 'https://b.example.com' },
+    env: { TOKEN: 'broker-placeholder', B_HOST: 'https://b.example.com' },
   });
 
   const profiles = new Map([
@@ -353,7 +371,7 @@ test('it merges the variables of every reached profile with the profile that set
           rules: [{ host: b.host, header: b.header, scheme: 'bearer' }],
         },
       ]),
-      env: { TOKEN: 'imp-broker-placeholder', B_HOST: 'https://b.example.com' },
+      env: { TOKEN: 'broker-placeholder', B_HOST: 'https://b.example.com' },
       envOwners: { TOKEN: 'a', B_HOST: 'b' },
     },
   });

@@ -11,7 +11,7 @@ test('it plans a guest spawn under a binding that sleeps behind the binding vari
       dir: '/guest/sessions/s1',
       auth: {
         revision: 3,
-        env: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
         profileEnv: {},
       },
     },
@@ -22,7 +22,7 @@ test('it plans a guest spawn under a binding that sleeps behind the binding vari
     args: ['30'],
     files: {},
     env: {
-      ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
+      ANTHROPIC_AUTH_TOKEN: 'broker-placeholder',
       CLAUDE_CONFIG_DIR: '/guest/sessions/s1/claude-config',
     },
   });
@@ -54,7 +54,7 @@ test('it selects the glm gateway credential and requires the broker', () => {
       baseURL: 'https://api.z.ai/api/anthropic',
       auth: {
         profiles: ['glm'],
-        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
       },
     },
     profiles: new Map([

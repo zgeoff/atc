@@ -62,6 +62,62 @@ test('it writes a gateway that inherited the claude bin and args with them', () 
   });
 });
 
+test('it keeps a gateway and a profile that hold the deprecated placeholder, written with the current one', () => {
+  const result = buildMigratedConfig({
+    authProfiles: {
+      glm: {
+        secret: 'glm',
+        host: 'api.z.ai',
+        header: 'authorization',
+        scheme: 'bearer',
+        env: { GLM_TOKEN: 'imp-broker-placeholder' },
+      },
+    },
+    gateways: {
+      zai: {
+        baseURL: 'https://api.z.ai/api/anthropic',
+        auth: {
+          profiles: ['glm'],
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        },
+      },
+    },
+  });
+
+  expect(result).toStrictEqual({
+    kind: 'migrated',
+    text: `${JSON.stringify(
+      {
+        authProfiles: {
+          glm: {
+            secret: 'glm',
+            host: 'api.z.ai',
+            header: 'authorization',
+            scheme: 'bearer',
+            env: { GLM_TOKEN: 'broker-placeholder' },
+          },
+        },
+        agents: {
+          claude: {},
+          grok: {},
+          codex: {},
+          zai: {
+            kind: 'claude',
+            baseURL: 'https://api.z.ai/api/anthropic',
+            auth: {
+              profiles: ['glm'],
+              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
+            },
+          },
+        },
+      },
+      null,
+      2,
+    )}\n`,
+    notes: [],
+  });
+});
+
 test('it leaves out a dropped gateway and notes the reason without a value', () => {
   const result = buildMigratedConfig({
     authProfiles: {
@@ -124,7 +180,7 @@ test('it parses the migrated config into the entries the old keys gave', () => {
         apiKeyHelper: 'op read glm',
         auth: {
           profiles: ['glm'],
-          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
           args: ['--plugin-dir', '/opt/auto-mode/mods/auto-mode'],
         },
       },

@@ -2,16 +2,15 @@
 
 A stock Claude entry that signs in with a [Claude subscription on imps](./claude-subscription.md)
 can give its sessions tools whose credentials impd holds: MCP servers over HTTP, and API keys for
-the scripts the session runs. The session holds `imp-broker-placeholder` in place of each
-credential, and impd swaps in the credential on requests to the profile's host.
+the scripts the session runs. The session holds `broker-placeholder` in place of each credential,
+and impd sets the credential on requests to the profile's host.
 
 ## MCP servers on imps
 
 `mcpServers` in a stock entry's `auth` gives each subscription session on an imp an MCP server over
-HTTP whose credential impd holds. The session sends `Bearer imp-broker-placeholder` in the header
-that the server's profile sets, and impd swaps in the credential for the server's host, so the
-credential never enters the imp. To give sessions Linear's MCP server with a Linear personal API
-key:
+HTTP whose credential impd holds. The session sends `Bearer broker-placeholder` in the header that
+the server's profile sets, and impd swaps in the credential for the server's host, so the credential
+never enters the imp. To give sessions Linear's MCP server with a Linear personal API key:
 
 1. Add the key to impd as a `custom` secret named `linear-imp-agents` on the host `mcp.linear.app`,
    with a bearer `authorization` header. impz's
@@ -58,9 +57,9 @@ the local target, Claude keeps the MCP servers of your own Claude config.
 ## API keys for a session's own tools
 
 `placeholderEnv` in a stock entry's `auth` gives each subscription session on an imp a variable that
-holds `imp-broker-placeholder` in place of an API key impd holds, for the scripts and tools the
-session runs. impd swaps in the key when a request carries the placeholder to the profile's host, so
-the key never enters the imp. To give a session's eval scripts the Jev key in `TYPESAFE_API_KEY`:
+holds `broker-placeholder` in place of an API key impd holds, for the scripts and tools the session
+runs. impd sets the key on each request to the profile's host, so the key never enters the imp. To
+give a session's eval scripts the Jev key in `TYPESAFE_API_KEY`:
 
 1. Add the key to impd as a `custom` secret named `jev-imp-agents` on the host `api.typesafe.ai`,
    with a bearer `authorization` header, as the credential connectors guide shows.

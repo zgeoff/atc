@@ -44,7 +44,7 @@ On an imp target, each session gets a Codex home of its own, `codex-home` in its
 passed as `CODEX_HOME`. Before each launch, atc copies three files into it:
 
 - `auth.json`, a ChatGPT sign-in that holds no credential. Its access and refresh tokens are
-  `imp-broker-placeholder`, and its ID token is an unsigned copy of the email and the
+  `broker-placeholder`, and its ID token is an unsigned copy of the email and the
   `https://api.openai.com/auth` claims that impd lists for the secret. Codex sends the account id
   from those claims with each request, so it must be the real one.
 - `config.toml`, which keeps the sign-in in that file and turns off the update check. With

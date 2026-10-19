@@ -87,7 +87,7 @@ test('it starts a brokered gateway on an imp under the settings file of its bind
               baseURL: 'https://api.z.ai/api/anthropic',
               auth: {
                 profiles: ['glm'],
-                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
               },
             },
           },
@@ -131,7 +131,7 @@ test('it starts a brokered gateway on an imp under the settings file of its bind
     'default',
   ]);
 
-  expect(settings).toHaveProperty('env.ANTHROPIC_AUTH_TOKEN', 'imp-broker-placeholder');
+  expect(settings).toHaveProperty('env.ANTHROPIC_AUTH_TOKEN', 'broker-placeholder');
   expect(settings).not.toHaveProperty('apiKeyHelper');
 
   expect(seeded).toStrictEqual({
@@ -169,7 +169,7 @@ test('it revives a suspended session after a rebind as a fresh guest process und
               baseURL: 'https://api.z.ai/api/anthropic',
               auth: {
                 profiles: ['glm'],
-                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
               },
             },
           },
@@ -241,7 +241,7 @@ test('it revives a suspended session after a rebind as a fresh guest process whe
               baseURL: 'https://api.z.ai/api/anthropic',
               auth: {
                 profiles: ['glm'],
-                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
               },
             },
           },
@@ -328,7 +328,7 @@ test('it refuses to revive a revoked session and starts no harness under its old
               baseURL: 'https://api.z.ai/api/anthropic',
               auth: {
                 profiles: ['glm'],
-                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
               },
             },
           },
@@ -389,7 +389,7 @@ test('it starts a brokered gateway with the placeholder and its own Claude confi
               baseURL: 'https://api.z.ai/api/anthropic',
               auth: {
                 profiles: ['glm'],
-                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
               },
             },
           },
@@ -431,12 +431,12 @@ test('it starts a brokered gateway with the placeholder and its own Claude confi
     .join('\n');
 
   expect(start.env).toMatchObject({
-    ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
+    ANTHROPIC_AUTH_TOKEN: 'broker-placeholder',
     CLAUDE_CONFIG_DIR: join(session, 'claude-config'),
     ATC_SESSION_ID: id,
   });
 
-  expect(written).toInclude('imp-broker-placeholder');
+  expect(written).toInclude('broker-placeholder');
   expect(written).not.toInclude(canary);
   expect(JSON.stringify(start)).not.toInclude(canary);
 });
@@ -469,7 +469,7 @@ test('it refuses a brokered gateway whose env sets a proxy variable before any i
             baseURL: 'https://api.z.ai/api/anthropic',
             auth: {
               profiles: ['glm'],
-              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
             },
           },
         },
@@ -541,7 +541,7 @@ test('it lists a brokered gateway with the bearer placeholder as spawnable and o
             baseURL: 'https://api.z.ai/api/anthropic',
             auth: {
               profiles: ['glm'],
-              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
             },
           },
           keyed: {
@@ -550,7 +550,7 @@ test('it lists a brokered gateway with the bearer placeholder as spawnable and o
             baseURL: 'https://api.z.ai/api/anthropic',
             auth: {
               profiles: ['glm'],
-              placeholderEnv: { ANTHROPIC_API_KEY: 'imp-broker-placeholder' },
+              placeholderEnv: { ANTHROPIC_API_KEY: 'broker-placeholder' },
             },
           },
         },
@@ -617,7 +617,7 @@ test('it refuses a brokered gateway with an unsupported placeholder before mater
               baseURL: 'https://api.z.ai/api/anthropic',
               auth: {
                 profiles: ['glm'],
-                placeholderEnv: { ANTHROPIC_API_KEY: 'imp-broker-placeholder' },
+                placeholderEnv: { ANTHROPIC_API_KEY: 'broker-placeholder' },
               },
             },
           },
@@ -682,7 +682,7 @@ test('it refuses a brokered gateway on the local target before materializing its
               baseURL: 'https://api.z.ai/api/anthropic',
               auth: {
                 profiles: ['glm'],
-                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
               },
             },
           },

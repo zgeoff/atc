@@ -7,8 +7,8 @@ on an imp target. The [brokered credentials guide](./brokered-credentials.md) co
 
 An entry's `auth.profiles` selects profiles, and atc adds each one's dependencies.
 `auth.placeholderEnv` lists the variables that stand in for the credential, each holding
-`imp-broker-placeholder`. atc refuses the entry, leaves it out of the picker, and prints the reason
-when the daemon starts, when any of these holds:
+`broker-placeholder`. atc refuses the entry, leaves it out of the picker, and prints the reason when
+the daemon starts, when any of these holds:
 
 - A selected profile or one of its dependencies is missing or refused, or the dependencies form a
   cycle.
@@ -99,8 +99,8 @@ its keys held by impd, looks like this:
       "auth": {
         "profiles": ["glm", "jev"],
         "placeholderEnv": {
-          "ANTHROPIC_AUTH_TOKEN": "imp-broker-placeholder",
-          "TYPESAFE_API_KEY": "imp-broker-placeholder"
+          "ANTHROPIC_AUTH_TOKEN": "broker-placeholder",
+          "TYPESAFE_API_KEY": "broker-placeholder"
         },
         "args": ["--plugin-dir", "/opt/auto-mode/mods/auto-mode"]
       }
@@ -138,7 +138,7 @@ Some backends take the key only in an `x-api-key` header and refuse a request th
          "baseURL": "https://api.meta.ai",
          "auth": {
            "profiles": ["muse"],
-           "placeholderEnv": { "ANTHROPIC_API_KEY": "imp-broker-placeholder" }
+           "placeholderEnv": { "ANTHROPIC_API_KEY": "broker-placeholder" }
          }
        }
      }

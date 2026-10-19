@@ -36,10 +36,10 @@ session's tools.
 [`mcpServers`](./subscription-tools.md#mcp-servers-on-imps), and the optional
 [`placeholderEnv`](./subscription-tools.md#api-keys-for-a-sessions-own-tools), which binds a
 variable to a profile that is not Anthropic's. atc fixes the endpoint, `https://api.anthropic.com`,
-and the subscription placeholder, `CLAUDE_CODE_OAUTH_TOKEN=imp-broker-placeholder`. Claude Code
-sends that variable as a bearer `authorization` header to `api.anthropic.com` and to no other host,
-and impd swaps the placeholder for the token there. atc leaves the entry out and prints the reason
-when the daemon starts if a selected profile does not resolve, or if no profile sets a bearer
+and the subscription placeholder, `CLAUDE_CODE_OAUTH_TOKEN=broker-placeholder`. Claude Code sends
+that variable as a bearer `authorization` header to `api.anthropic.com` and to no other host, and
+impd swaps the placeholder for the token there. atc leaves the entry out and prints the reason when
+the daemon starts if a selected profile does not resolve, or if no profile sets a bearer
 `authorization` header for `api.anthropic.com`.
 
 On an imp target, each session gets the same guest folder a brokered gateway gets: a settings file

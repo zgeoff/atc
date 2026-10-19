@@ -469,7 +469,7 @@ test('it starts a brokered harness with the variables its guest plan holds besid
   invariant(start?.kind === 'start', 'expected the harness start');
 
   expect(start.env).toMatchObject({
-    ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
+    ANTHROPIC_AUTH_TOKEN: 'broker-placeholder',
     CLAUDE_CONFIG_DIR: expect.toEndWith(`/sessions/${id}/claude-config`),
     ATC_SESSION_ID: id,
   });

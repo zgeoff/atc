@@ -1,6 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { buildExecutionTargets } from '@atc/daemon';
-import { buildMockHostServices } from '@atc/test-utils';
+import { buildMockAuthProfile, buildMockHostServices } from '@atc/test-utils';
 import { buildShippedExecutionProvider } from './build-shipped-execution-provider';
 
 test('it builds the shipped provider a target entry selects', () => {
@@ -12,6 +12,7 @@ test('it builds the shipped provider a target entry selects', () => {
     },
     buildMockHostServices({ version: '1.0.0' }),
     { FIXTURE_IMP_TOKEN: 'fixture-token' },
+    new Map(),
   );
 
   onTestFinished(async () => {
@@ -43,9 +44,12 @@ test('it gives a target whose imp provider builds the identity its stored sessio
       },
     ],
     (config) =>
-      buildShippedExecutionProvider(config, buildMockHostServices({ version: '1.0.0' }), {
-        EXAMPLE_TOKEN: 'fixture-token',
-      }),
+      buildShippedExecutionProvider(
+        config,
+        buildMockHostServices({ version: '1.0.0' }),
+        { EXAMPLE_TOKEN: 'fixture-token' },
+        new Map(),
+      ),
   );
 
   onTestFinished(async () => {
@@ -65,6 +69,7 @@ test('it builds no provider and the problem for an imp entry whose token variabl
     },
     buildMockHostServices({ version: '1.0.0' }),
     {},
+    new Map(),
   );
 
   expect(built).toStrictEqual({
@@ -83,7 +88,68 @@ test('it builds no provider and no problem for a kind this build ships no plugin
     { id: 'far', provider: 'teleport', options: {} },
     buildMockHostServices({ version: '1.0.0' }),
     {},
+    new Map(),
   );
 
   expect(built).toStrictEqual({ provider: null, problem: null });
+});
+
+test('it shows an error on each imp target when a profile has a secret name impd refuses', () => {
+  const profile = buildMockAuthProfile({ name: 'notes', secret: 'Notes_Key' });
+
+  const built = buildExecutionTargets(
+    [
+      { id: 'cloud', provider: 'imp', options: { url: 'http://impd.example:7070' } },
+      { id: 'lab', provider: 'imp', options: { url: 'http://impd.example:7071' } },
+      { id: 'local', provider: 'local-pty', options: {} },
+    ],
+    (config) =>
+      buildShippedExecutionProvider(
+        config,
+        buildMockHostServices({ version: '1.0.0' }),
+        {},
+        new Map([['notes', profile]]),
+      ),
+  );
+
+  onTestFinished(async () => {
+    await built.targets[2]?.provider?.dispose();
+  });
+
+  expect(built.errors).toStrictEqual([
+    {
+      scope: 'target',
+      target: 'cloud',
+      problem:
+        'target "cloud" cannot use authProfiles.notes: its secret must be a lowercase letter followed by up to 30 lowercase letters, digits or hyphens, the secret names impd accepts',
+    },
+    {
+      scope: 'target',
+      target: 'lab',
+      problem:
+        'target "lab" cannot use authProfiles.notes: its secret must be a lowercase letter followed by up to 30 lowercase letters, digits or hyphens, the secret names impd accepts',
+    },
+  ]);
+});
+
+test('it shows no error for a profile with a secret name impd refuses when no imp target is configured', () => {
+  const profile = buildMockAuthProfile({ name: 'notes', secret: 'Notes_Key' });
+
+  const built = buildExecutionTargets(
+    [{ id: 'local', provider: 'local-pty', options: {} }],
+    (config) =>
+      buildShippedExecutionProvider(
+        config,
+        buildMockHostServices({ version: '1.0.0' }),
+        {},
+        new Map([['notes', profile]]),
+      ),
+  );
+
+  onTestFinished(async () => {
+    await built.targets[0]?.provider?.dispose();
+  });
+
+  expect(built.errors).toStrictEqual([]);
+  expect(built.targets[0]?.provider?.kind).toBe('local-pty');
 });

@@ -202,3 +202,48 @@ test('it compares each expected secret on its own and ignores secrets the bindin
     },
   ]);
 });
+
+test('it matches a github secret on its kind and takes the rules the broker holds', () => {
+  const mismatches = collectSecretRuleMismatches(
+    [{ secret: 'gh', kind: 'github', rules: [] }],
+    [
+      {
+        name: 'gh',
+        kind: 'github',
+        rules: [
+          { host: 'api.github.com', header: 'authorization', scheme: 'bearer' },
+          { host: 'github.com', header: 'authorization', scheme: 'basic', user: 'x-access-token' },
+        ],
+      },
+    ],
+  );
+
+  expect(mismatches).toStrictEqual([]);
+});
+
+test('it reports a secret whose host a github secret the broker holds already covers', () => {
+  const mismatches = collectSecretRuleMismatches(
+    [
+      { secret: 'gh', kind: 'github', rules: [] },
+      {
+        secret: 'gh-api',
+        kind: 'custom',
+        rules: [{ host: 'api.github.com', header: 'authorization', scheme: 'bearer' }],
+      },
+    ],
+    [
+      {
+        name: 'gh',
+        kind: 'github',
+        rules: [{ host: 'api.github.com', header: 'authorization', scheme: 'bearer' }],
+      },
+      {
+        name: 'gh-api',
+        kind: 'custom',
+        rules: [{ host: 'api.github.com', header: 'authorization', scheme: 'bearer' }],
+      },
+    ],
+  );
+
+  expect(mismatches).toStrictEqual([{ secret: 'gh-api', reason: 'host', host: 'api.github.com' }]);
+});

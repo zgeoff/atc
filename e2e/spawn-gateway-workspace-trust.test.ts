@@ -95,7 +95,7 @@ test('it trusts only the resolved cloned root after an opted-in brokered launch'
             baseURL: 'https://api.z.ai/api/anthropic',
             auth: {
               profiles: ['glm'],
-              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
             },
           },
         },
@@ -198,7 +198,7 @@ test.each([
             baseURL: 'https://api.z.ai/api/anthropic',
             auth: {
               profiles: ['glm'],
-              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
             },
           },
         },
@@ -278,7 +278,7 @@ test('it refuses trust for an existing folder before touching the imp', async ()
             baseURL: 'https://api.z.ai/api/anthropic',
             auth: {
               profiles: ['glm'],
-              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
             },
           },
         },
@@ -350,7 +350,7 @@ test.each([
               baseURL: 'https://api.z.ai/api/anthropic',
               auth: {
                 profiles: ['glm'],
-                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
               },
             },
           },
@@ -452,7 +452,7 @@ test.each([
               baseURL: 'https://api.z.ai/api/anthropic',
               auth: {
                 profiles: ['glm'],
-                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
               },
             },
           },
@@ -548,7 +548,7 @@ test('it refuses clone trust for stock Claude on an imp target before preparing 
             baseURL: 'https://api.z.ai/api/anthropic',
             auth: {
               profiles: ['glm'],
-              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
             },
           },
         },
@@ -620,7 +620,7 @@ test('it refuses clone trust for a gateway on the local target before cloning', 
             baseURL: 'https://api.z.ai/api/anthropic',
             auth: {
               profiles: ['glm'],
-              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
             },
           },
         },
@@ -696,7 +696,7 @@ test.each([
               baseURL: 'https://api.z.ai/api/anthropic',
               auth: {
                 profiles: ['glm'],
-                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
               },
             },
           },
@@ -805,7 +805,7 @@ test.each([
               baseURL: 'https://api.z.ai/api/anthropic',
               auth: {
                 profiles: ['glm'],
-                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
               },
             },
           },
@@ -922,7 +922,7 @@ test.each([
               baseURL: 'https://api.z.ai/api/anthropic',
               auth: {
                 profiles: ['glm'],
-                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
               },
             },
           },
@@ -1055,7 +1055,7 @@ test.each([
               baseURL: 'https://api.z.ai/api/anthropic',
               auth: {
                 profiles: ['glm'],
-                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
               },
             },
           },
@@ -1149,7 +1149,7 @@ test.each([
               baseURL: 'https://api.z.ai/api/anthropic',
               auth: {
                 profiles: ['glm'],
-                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
               },
             },
           },
@@ -1239,7 +1239,7 @@ test('it refuses an inherited trust default without a clone before touching the 
             baseURL: 'https://api.z.ai/api/anthropic',
             auth: {
               profiles: ['glm'],
-              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
             },
           },
         },
@@ -1311,7 +1311,7 @@ test('it refuses inherited clone trust for stock Claude on an imp target', async
             baseURL: 'https://api.z.ai/api/anthropic',
             auth: {
               profiles: ['glm'],
-              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
             },
           },
         },
@@ -1384,7 +1384,7 @@ test('it permits an ordinary folder launch when false overrides inherited trust'
             baseURL: 'https://api.z.ai/api/anthropic',
             auth: {
               profiles: ['glm'],
-              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
             },
           },
         },
