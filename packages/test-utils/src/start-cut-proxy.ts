@@ -211,8 +211,8 @@ function applyCut(client: Socket<ProxyLink>, options: CutProxyOptions): void {
 }
 
 // A peer request line's message id and method, the dotted path of its
-// procedure; null for any other line. A payload the decoder cannot read
-// throws.
+// procedure; null for any other line, a request whose payload the decoder
+// cannot read included, so the proxy never cuts its answer.
 function findPeerRequest(line: string): { readonly id: string; readonly method: string } | null {
   const message = parsePeerMessage(line);
 
