@@ -1,7 +1,8 @@
 import { isHomeRelative } from '@atc/core';
 
-// Whether typed input reads as a path: under the home, absolute, or relative
-// to a working directory.
+// only a path prefix makes typed input a path to complete and resolve, so a
+// name with a slash in it, such as a project under a root, still filters the
+// listed directories.
 export function isPathInput(input: string): boolean {
   return input.startsWith('/') || isHomeRelative(input) || isRelativePathInput(input);
 }

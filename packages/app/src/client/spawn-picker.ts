@@ -1,3 +1,4 @@
+import { posix } from 'node:path';
 import type { WorkspacesConfig } from '@atc/config';
 import { DEFAULT_GIT_TRANSPORTS, LOCAL_TARGET, loadConfig } from '@atc/config';
 import type { AgentID } from '@atc/core';
@@ -813,6 +814,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.completionSeq = seq;
 
     let candidates: ListedCandidate[] = [];
+    let failure: string | null = null;
 
     try {
       const answer = await this.deps.sendRequest('sources.complete', {
@@ -821,10 +823,31 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       });
 
       candidates = parseCandidates(answer['completions']);
-    } catch {}
+    } catch (error) {
+      failure = formatError(error);
+    }
 
-    if (this.isStale(generation) || this.completionSeq !== seq || this.input !== input) {
+    if (
+      this.isStale(generation) ||
+      this.completionSeq !== seq ||
+      this.step !== 'dir' ||
+      this.input !== input
+    ) {
       this.deps.onDropAnswer?.('path completion');
+
+      return;
+    }
+
+    this.completionSeq = null;
+
+    // A refused completion is no empty one: the step shows why until the
+    // next key, and the input completes again on that key.
+    if (failure !== null) {
+      this.deps.log?.(`path completion failed: ${failure}`);
+      this.refusal = `cannot complete ${input}: ${failure}`;
+      this.completed = null;
+
+      this.render();
 
       return;
     }
@@ -835,12 +858,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       ),
     );
 
-    this.completionSeq = null;
     this.completed = { input, labels };
 
-    if (this.step === 'dir') {
-      this.render();
-    }
+    this.render();
   }
 
   // Stops waiting on the request in flight. Its answer, when it comes, is
@@ -1066,12 +1086,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   // resolves a typed path itself, through its source of directories.
   private async applyDirSubmit() {
     const typed = this.input.trim();
-
-    const chosen =
-      this.collectDirItems()[this.selected] ??
-      (this.deps.remoteDaemon === true
-        ? null
-        : resolvePathInput(typed, this.deps.cwd, this.deps.home));
+    const chosen = this.collectDirItems()[this.selected] ?? this.resolveTypedDir(typed);
 
     if (chosen !== null) {
       this.applyDir(chosen);
@@ -1081,7 +1096,26 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     if (typed !== '' && this.sources !== null) {
       await this.readTypedInput(typed, true);
+
+      return;
     }
+
+    if (this.deps.remoteDaemon === true && isPathInput(typed)) {
+      this.refusal = `the daemon resolves no ${typed} · type an absolute path`;
+
+      this.render();
+    }
+  }
+
+  // A typed path the client resolves itself: on this host for a local
+  // daemon, and only an absolute one for a remote daemon that offers no
+  // source to resolve the rest. Null leaves the text to the sources.
+  private resolveTypedDir(typed: string): string | null {
+    if (this.deps.remoteDaemon !== true) {
+      return resolvePathInput(typed, this.deps.cwd, this.deps.home);
+    }
+
+    return this.sources === null && typed.startsWith('/') ? posix.resolve(typed) : null;
   }
 
   private applyDir(dir: string) {

@@ -3218,3 +3218,269 @@ test('it reads typed github:owner/repo text the cached listing leaves out throug
     { source: 'github', input: 'github:zeta-org/zeta', target: 'local' },
   ]);
 });
+
+test("it drops a remote daemon's completion of input typed over since, keeping the later completion", async () => {
+  const ctx = setupTest();
+
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    remoteDaemon: true,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
+  );
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+
+  picker.applyKey(Buffer.from('~/a'));
+  picker.applyKey(Buffer.from('b'));
+
+  await ctx.daemon.answer('sources.complete', {
+    completions: [{ label: '~/ab-box', pick: { kind: 'path', dir: '/home/far/ab-box' } }],
+  });
+
+  await ctx.daemon.answerOldest('sources.complete', {
+    completions: [{ label: '~/a-box', pick: { kind: 'path', dir: '/home/far/a-box' } }],
+  });
+
+  const mark = ctx.terminal.countChunks();
+
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  expect(ctx.dropped).toStrictEqual(['path completion']);
+  expect(ctx.terminal.getTextSince(mark)).toInclude('spawn: name');
+
+  expect(ctx.daemon.collectSent('sources.complete')).toStrictEqual([
+    { source: 'dirs', input: '~/a' },
+    { source: 'dirs', input: '~/ab' },
+  ]);
+});
+
+test('it spawns in the directory a remote daemon completed', async () => {
+  const ctx = setupTest();
+
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    remoteDaemon: true,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
+  );
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+
+  picker.applyKey(Buffer.from('~/ab'));
+
+  await ctx.daemon.answer('sources.complete', {
+    completions: [{ label: '~/ab-box', pick: { kind: 'path', dir: '/home/far/ab-box' } }],
+  });
+
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(`far-one${KEYS.enter}`));
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  expect(ctx.daemon.collectSent('session.spawn')).toPartiallyContain({
+    cwd: '/home/far/ab-box',
+    name: 'far-one',
+  });
+});
+
+test("it shows a remote daemon's refused completion in place of the hint", async () => {
+  const ctx = setupTest();
+
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    remoteDaemon: true,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
+  );
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+
+  picker.applyKey(Buffer.from('~/a'));
+
+  const mark = ctx.terminal.countChunks();
+
+  await ctx.daemon.refuse(
+    'sources.complete',
+    new DaemonError('target_forbidden', 'target local is not yours'),
+  );
+
+  expect(ctx.terminal.getTextSince(mark)).toInclude(
+    'cannot complete ~/a: target_forbidden: target local is not yours',
+  );
+});
+
+test('it takes a typed absolute path on a remote daemon that offers no sources', async () => {
+  const ctx = setupTest();
+
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    remoteDaemon: true,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
+  );
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+  });
+
+  await ctx.daemon.answer('dirs.list', { dirs: [] });
+
+  picker.applyKey(Buffer.from('/srv/work/'));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(`far-one${KEYS.enter}`));
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  expect(ctx.daemon.collectSent('session.spawn')).toPartiallyContain({ cwd: '/srv/work' });
+});
+
+test('it refuses a typed ~ path on a remote daemon that offers no sources', async () => {
+  const ctx = setupTest();
+
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    remoteDaemon: true,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
+  );
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+  });
+
+  await ctx.daemon.answer('dirs.list', { dirs: [] });
+
+  picker.applyKey(Buffer.from('~/work'));
+
+  const mark = ctx.terminal.countChunks();
+
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  expect(ctx.terminal.getTextSince(mark)).toInclude(
+    'the daemon resolves no ~/work · type an absolute path',
+  );
+});

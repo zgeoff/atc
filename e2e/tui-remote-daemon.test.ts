@@ -153,8 +153,6 @@ test("it lists only the remote daemon's directories and spawns in the first of t
 
   ctx.tui.write(KEYS.enter);
 
-  // The wait ends once the remote daemon lists the session in the
-  // directory on its own host.
   const spawned = { name: 'far-one', cwd: join(remote.dir, 'alpha-box') };
 
   await waitFor(async () => {
@@ -232,8 +230,6 @@ test("it completes and resolves a typed ~ path on the remote daemon's host", asy
 
   ctx.tui.write(KEYS.enter);
 
-  // The wait ends once the remote daemon lists the session in the
-  // directory on its own host.
   const spawned = { name: 'far-two', cwd: join(remote.dir, 'beta-box') };
 
   await waitFor(async () => {

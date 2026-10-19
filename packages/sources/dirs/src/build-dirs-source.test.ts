@@ -48,6 +48,8 @@ test.each([
   ['/srv/app', { kind: 'path', dir: '/srv/app' }],
   ['~/app', { kind: 'path', dir: '/home/tester/app' }],
   [' /srv/app ', { kind: 'path', dir: '/srv/app' }],
+  ['./app', { kind: 'path', dir: '/home/tester/app' }],
+  ['../shared', { kind: 'path', dir: '/home/shared' }],
   ['app', { kind: 'none' }],
 ] as const)('it reads typed %p as %p', async (input, expected) => {
   const source = buildDirsSource({
