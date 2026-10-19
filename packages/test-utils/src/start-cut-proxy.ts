@@ -1,4 +1,9 @@
-import { isRecord } from '@atc/core';
+import {
+  MessageType,
+  deserializeRequestMessage,
+  deserializeResponseMessage,
+} from '@orpc/standard-server-peer';
+import type { BaseMessageFormat } from '@orpc/standard-server-peer';
 import type { Socket } from 'bun';
 import { registerTestCleanup } from './register-test-cleanup';
 
@@ -49,9 +54,6 @@ export function startCutProxy(options: CutProxyOptions): CutProxy {
   let requests = 0;
   let held = 0;
 
-  // A request names its method as the path of its procedure.
-  const methodPath = `"u":"/${options.method.replaceAll('.', '/')}"`;
-
   const links = new Set<Socket<ProxyLink>>();
 
   const server = Bun.listen<ProxyLink>({
@@ -86,7 +88,9 @@ export function startCutProxy(options: CutProxyOptions): CutProxy {
         let dropped = false;
 
         for (const line of lines) {
-          if (!line.includes(methodPath)) {
+          const request = findPeerRequest(line);
+
+          if (request?.method !== options.method) {
             continue;
           }
 
@@ -94,7 +98,7 @@ export function startCutProxy(options: CutProxyOptions): CutProxy {
 
           if (cutsLeft > 0) {
             cutsLeft--;
-            client.data.cutID = options.mode === 'drop' ? null : readMessageID(line);
+            client.data.cutID = options.mode === 'drop' ? null : request.id;
             dropped = options.mode === 'drop';
           }
         }
@@ -160,7 +164,7 @@ async function openUpstream(client: Socket<ProxyLink>, options: CutProxyOptions)
           client.data.upstreamBuffer = lines.pop() ?? '';
 
           for (const line of lines) {
-            if (client.data.cutID !== null && readMessageID(line) === client.data.cutID) {
+            if (client.data.cutID !== null && findResponseID(line) === client.data.cutID) {
               applyCut(client, options);
 
               return;
@@ -205,14 +209,28 @@ function applyCut(client: Socket<ProxyLink>, options: CutProxyOptions): void {
   client.data.upstream?.end();
 }
 
-function readMessageID(line: string): string | null {
-  let parsed: unknown;
-
+// A peer request line's message id and method, the dotted path of its
+// procedure; null for any other line. A line that is no peer message
+// throws as it decodes.
+function findPeerRequest(line: string): { readonly id: string; readonly method: string } | null {
   try {
-    parsed = JSON.parse(line);
+    const parsed: unknown = JSON.parse(line);
+    const [id, type, payload] = deserializeRequestMessage(parsed as BaseMessageFormat);
+
+    return type === MessageType.REQUEST
+      ? { id, method: payload.url.pathname.slice(1).replaceAll('/', '.') }
+      : null;
   } catch {
     return null;
   }
+}
 
-  return isRecord(parsed) && typeof parsed['i'] === 'string' ? parsed['i'] : null;
+function findResponseID(line: string): string | null {
+  try {
+    const parsed: unknown = JSON.parse(line);
+
+    return deserializeResponseMessage(parsed as BaseMessageFormat)[0];
+  } catch {
+    return null;
+  }
 }

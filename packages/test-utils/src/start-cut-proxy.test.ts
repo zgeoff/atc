@@ -114,6 +114,56 @@ test('it forwards the lines the target sends ahead of the cut answer, and only t
   expect(received.join('')).toBe('{"i":"1","t":3,"p":{"e":"message","d":{"ev":"SessionAdded"}}}\n');
 });
 
+test('it cuts the answer to a request of the method that its client wrote with spaces between the fields', async () => {
+  const target = Bun.listen({
+    hostname: '127.0.0.1',
+    port: 0,
+    socket: {
+      data(socket) {
+        socket.write('{"i":"7","p":{"b":{"json":{"session":{"id":"s-1"}}}}}\n');
+      },
+    },
+  });
+
+  registerTestCleanup(() => {
+    target.stop(true);
+  });
+
+  const proxy = startCutProxy({
+    target: { hostname: '127.0.0.1', port: target.port },
+    method: 'session.spawn',
+    cuts: 1,
+    mode: 'close',
+  });
+
+  const received: string[] = [];
+  const closed = Promise.withResolvers<void>();
+
+  const raw = await Bun.connect({
+    hostname: '127.0.0.1',
+    port: proxy.port,
+    socket: {
+      data(_socket, buf) {
+        received.push(buf.toString());
+      },
+      close() {
+        closed.resolve();
+      },
+    },
+  });
+
+  registerTestCleanup(() => {
+    raw.end();
+  });
+
+  raw.write('{"i": "7", "p": {"u": "/session/spawn", "b": {"json": {}}}}\n');
+
+  await closed.promise;
+
+  expect(received).toStrictEqual([]);
+  expect(proxy.countRequests()).toBe(1);
+});
+
 test('it forwards the answer once its cuts are spent', async () => {
   const ctx = setupTest();
 
