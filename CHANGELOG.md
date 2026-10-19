@@ -1,5 +1,40 @@
 # Changelog
 
+## [5.0.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.15.0...@zgeoff/atc@5.0.0) (2026-10-19)
+
+
+### ⚠ BREAKING CHANGES
+
+* **geo-402:** a config.json with the old agent keys (claudeBin, claudeArgs, grokBin, grokArgs, codexBin, codexArgs, claudeAuth, gateways) refuses every spawn; run 'atc config migrate --write' to move them into agents before you upgrade.
+* **geo-402:** a message idempotency key that an older daemon, gateway or atc mcp stored with a from no longer replays, and a retry under it is refused as idempotency_conflict.
+* **geo-402:** clients and daemons speak protocol 6; a client or daemon on protocol 5 is refused with protocol_mismatch.
+* **geo-402:** atc refuses an impd older than 2.2.0; upgrade impd before this release.
+* **geo-402:** a state database from before the migration ladder, a fleet.json file, and a fleet table without session ids are no longer read; upgrade through 4.15.0 first.
+* **geo-402:** a Claude config kept only at the older .config.json location gets no folder-trust entry; move it to .claude.json.
+* **geo-402:** a daemon that offers no sources gets a refusal in the spawn picker instead of a local directory list.
+* **geo-402:** the daemon answers only oRPC peer messages; a line-protocol client gets no answer and its connection closes.
+* **geo-402:** clients and daemons speak protocol 5, oRPC peer messages. Upgrade every host of a federation in lockstep: a gateway or client on this release cannot reach a daemon on an older release, and a local client offers to restart an older daemon in place.
+
+### Features
+
+* **geo-1303:** keep imp words out of the generic packages' text ([#763](https://github.com/zgeoff/atc/issues/763)) ([ca6493b](https://github.com/zgeoff/atc/commit/ca6493b1eae9194ec1b57a54db86d91504fbfbc9))
+* **geo-402:** answer daemon requests through an orpc router ([#784](https://github.com/zgeoff/atc/issues/784)) ([4934873](https://github.com/zgeoff/atc/commit/49348732fad6f58024adf7828d338a17a4c15322))
+* **geo-402:** drop daemon feature negotiation ([#800](https://github.com/zgeoff/atc/issues/800)) ([467f5df](https://github.com/zgeoff/atc/commit/467f5dfe6d841c99eed745c2e64a0e29e6e81c29))
+* **geo-402:** drop the fallbacks for older atc builds ([#805](https://github.com/zgeoff/atc/issues/805)) ([276da2f](https://github.com/zgeoff/atc/commit/276da2fdcb041344aa2c9bcb1f290154ef6808e8))
+* **geo-402:** drop the line protocol from the daemon ([#793](https://github.com/zgeoff/atc/issues/793)) ([db6c002](https://github.com/zgeoff/atc/commit/db6c00280ddcf638efe95dd6b64694b99f0dfdd2))
+* **geo-402:** drop the store's pre-ladder and fleet.json paths ([#798](https://github.com/zgeoff/atc/issues/798)) ([598467e](https://github.com/zgeoff/atc/commit/598467e05d4a8ada9c67a87bdacf3d8f90c3d1d0))
+* **geo-402:** drop the tui's local directory fallback ([#795](https://github.com/zgeoff/atc/issues/795)) ([83bb573](https://github.com/zgeoff/atc/commit/83bb57369ba743ef18a1261f6f8b31037e822b5c))
+* **geo-402:** drop the unread fleet resume column ([#796](https://github.com/zgeoff/atc/issues/796)) ([56cea6e](https://github.com/zgeoff/atc/commit/56cea6ef10ae0c2ce52e2b229186fa7ecc1f03a1))
+* **geo-402:** read claude's config only at its current location ([#797](https://github.com/zgeoff/atc/issues/797)) ([795b45f](https://github.com/zgeoff/atc/commit/795b45f1238ade5392b5163cdc7d3797f85d63dc))
+* **geo-402:** require impd 2.2.0 or later ([#799](https://github.com/zgeoff/atc/issues/799)) ([56491e8](https://github.com/zgeoff/atc/commit/56491e8c5a547a6bd9631149abfbc59deb616e8d))
+* **geo-402:** serve the daemon protocol over orpc peer messages ([#788](https://github.com/zgeoff/atc/issues/788)) ([8045226](https://github.com/zgeoff/atc/commit/80452262f9e9584211bc5e5061a08e2372e5874c))
+* **geo-402:** switch every client to the orpc daemon client ([#790](https://github.com/zgeoff/atc/issues/790)) ([eabee79](https://github.com/zgeoff/atc/commit/eabee794c4bedc66de959db42ca77442b1fad98c))
+
+
+### Documentation
+
+* **geo-402:** say the old agent keys make the config unusable ([#808](https://github.com/zgeoff/atc/issues/808)) ([dd59ac4](https://github.com/zgeoff/atc/commit/dd59ac4d4c276008d0d328d3365edf44ec319820))
+
 ## [4.15.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.14.0...@zgeoff/atc@4.15.0) (2026-10-19)
 
 ### Features
