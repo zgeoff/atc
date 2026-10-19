@@ -135,6 +135,40 @@ test('it stops a command whose child keeps its output open once the deadline pas
   );
 });
 
+test('it stops a command that exits while its child keeps its output open once the deadline passes', async () => {
+  const ctx = setupTest();
+  const pidFile = join(ctx.dir, 'child.pid');
+
+  const rejection = await readRemoteDaemonToken(
+    buildMockRemoteDaemon({
+      name: 'box',
+      token: { kind: 'command', argv: ['sh', '-c', `sleep 30 & echo $! > '${pidFile}'`] },
+    }),
+    { timeoutMs: 1000 },
+  ).then(
+    () => null,
+    (error: unknown) => error,
+  );
+
+  const pid = await readFile(pidFile, 'utf8');
+
+  expect(rejection).toBeInstanceOf(Error);
+
+  expect(rejection).toHaveProperty(
+    'message',
+    "daemon 'box': its token command sh ran past 1000 ms",
+  );
+
+  // A killed child lingers until the kernel reaps it, and one that escaped the
+  // kill would outlive this wait by far.
+  await waitFor(
+    () => {
+      expect(() => process.kill(Number(pid), 0)).toThrow('ESRCH');
+    },
+    { timeoutMs: 3000 },
+  );
+});
+
 test('it reads the token of a command whose child keeps stderr open after it exits', async () => {
   const ctx = setupTest();
   const pidFile = join(ctx.dir, 'child.pid');
