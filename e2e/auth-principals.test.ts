@@ -5,6 +5,7 @@ import { mkdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { collectPrincipals, collectTargets } from '@atc/config';
 import { buildStubTargets } from '@atc/daemon/testing';
+import { buildStubExecutionProvider } from '@atc/execution-local/testing';
 import { encodeCursor } from '@atc/protocol';
 import { DaemonClient, DaemonError, PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
@@ -389,6 +390,137 @@ test('it lists an agent as unable to spawn to a principal granted none of its sp
   });
 
   const agents = await daemon.client.sendRequest('agents.list', {}, 'empty');
+
+  expect(agents['agents']).toMatchObject([
+    {
+      id: 'claude',
+      spawnTargets: [],
+      capabilities: { spawn: false },
+      spawnOptions: {
+        model: { supported: true, available: false },
+        effort: { supported: true, available: false },
+        pluginDirs: { supported: true, available: false },
+      },
+    },
+  ]);
+});
+
+test('it lists an agent as spawnable without plugin folders to a principal granted only a remote target', async () => {
+  const local = buildStubExecutionProvider({ kind: 'local-pty' });
+  const remote = buildStubExecutionProvider({ kind: 'imp-like', remote: true });
+
+  const daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({
+        profile: {
+          label: 'Claude',
+          kind: 'claude',
+          bin: 'sh',
+          models: null,
+          spawnOptions: {
+            model: {
+              supported: true,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: 'applied',
+              note: null,
+            },
+            effort: {
+              supported: true,
+              values: ['low', 'high'],
+              examples: [],
+              default: null,
+              backendEffect: 'applied',
+              note: null,
+            },
+            pluginDirs: {
+              supported: true,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: 'applied',
+              note: null,
+            },
+          },
+        },
+      }),
+      targets: [
+        { id: 'local', kind: local.kind, options: {}, identity: 'test:local', provider: local },
+        { id: 'box', kind: remote.kind, options: {}, identity: 'test:box', provider: remote },
+      ],
+      defaultTarget: 'local',
+      principals: collectPrincipals({ remote: { targets: ['box'] } }).principals,
+    }),
+  });
+
+  const agents = await daemon.client.sendRequest('agents.list', {}, 'remote');
+
+  expect(agents['agents']).toMatchObject([
+    {
+      id: 'claude',
+      spawnTargets: ['box'],
+      capabilities: { spawn: true },
+      spawnOptions: {
+        model: { supported: true, available: true },
+        effort: { supported: true, available: true },
+        pluginDirs: { supported: true, available: false },
+      },
+    },
+  ]);
+});
+
+test("it lists an agent as unable to spawn to a principal granted only a remote target when the agent's config sets plugin folders", async () => {
+  const local = buildStubExecutionProvider({ kind: 'local-pty' });
+  const remote = buildStubExecutionProvider({ kind: 'imp-like', remote: true });
+
+  const daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({
+        profile: {
+          label: 'Claude',
+          kind: 'claude',
+          bin: 'sh',
+          models: null,
+          spawnOptions: {
+            model: {
+              supported: true,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: 'applied',
+              note: null,
+            },
+            effort: {
+              supported: true,
+              values: ['low', 'high'],
+              examples: [],
+              default: null,
+              backendEffect: 'applied',
+              note: null,
+            },
+            pluginDirs: {
+              supported: true,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: 'applied',
+              note: null,
+            },
+          },
+          pluginDirs: ['/opt/plugins/shared'],
+        },
+      }),
+      targets: [
+        { id: 'local', kind: local.kind, options: {}, identity: 'test:local', provider: local },
+        { id: 'box', kind: remote.kind, options: {}, identity: 'test:box', provider: remote },
+      ],
+      defaultTarget: 'local',
+      principals: collectPrincipals({ remote: { targets: ['box'] } }).principals,
+    }),
+  });
+
+  const agents = await daemon.client.sendRequest('agents.list', {}, 'remote');
 
   expect(agents['agents']).toMatchObject([
     {
