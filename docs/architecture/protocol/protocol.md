@@ -135,8 +135,10 @@ the old behaviour, never an error.
 
 A client receives events through one `events.subscribe` request, which the daemon answers with a
 stream that lasts as long as the connection. The daemon collects a connection's events from its
-handshake on, so a subscription sent right after the hello misses none, and a connection takes one
-subscription at a time.
+handshake on into a bounded backlog, so a subscription sent right after the hello misses none while
+the backlog holds them. A backlog that fills before the subscription comes is dropped, and the
+connection then receives only the events after its subscription. A connection takes one subscription
+at a time.
 
 The daemon broadcasts lifecycle and state events to every connection: sessions added, removed,
 renamed and resized, state changes, attaches and detaches, notes, message status changes, and
