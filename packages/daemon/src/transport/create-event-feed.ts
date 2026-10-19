@@ -3,6 +3,9 @@ import { DAEMON_EVENT_SCHEMA } from '@atc/protocol';
 import type { DaemonEvent } from '@atc/protocol';
 import { DaemonError, PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
+import { createActor } from 'xstate';
+import type { Actor } from 'xstate';
+import { EVENT_FEED_MACHINE } from './event-feed-machine';
 
 interface EventFeedOptions {
   // How many bytes of events the backlog holds before the next one
@@ -39,16 +42,14 @@ interface QueuedEvent {
 }
 
 interface FeedState {
+  // Whether the feed collects, has abandoned its backlog, or has a
+  // subscriber.
+  readonly actor: Actor<typeof EVENT_FEED_MACHINE>;
   readonly backlog: QueuedEvent[];
 
   // The bytes of output each session dropped since its last report.
   readonly desynced: Map<SessionID, number>;
   queuedBytes: number;
-  subscribed: boolean;
-
-  // Set when the backlog filled before a subscriber came; the feed then
-  // collects nothing until one does.
-  abandoned: boolean;
   wake: PromiseWithResolvers<void> | null;
 }
 
@@ -57,16 +58,15 @@ interface FeedState {
 // reports the dropped bytes with a repaint once the backlog drains.
 export function createEventFeed(options: EventFeedOptions): EventFeed {
   const state: FeedState = {
+    actor: createActor(EVENT_FEED_MACHINE).start(),
     backlog: [],
     desynced: new Map(),
     queuedBytes: 0,
-    subscribed: false,
-    abandoned: false,
     wake: null,
   };
 
   const emit = (event: EventMsg) => {
-    if (state.abandoned) {
+    if (isFeedIn(state, 'abandoned')) {
       return;
     }
 
@@ -78,13 +78,14 @@ export function createEventFeed(options: EventFeedOptions): EventFeed {
       return;
     }
 
-    if (state.subscribed) {
+    if (isFeedIn(state, 'subscribed')) {
       options.onOverflow();
 
       return;
     }
 
-    state.abandoned = true;
+    state.actor.send({ type: 'OVERFLOW' });
+
     state.backlog.length = 0;
     state.queuedBytes = 0;
 
@@ -94,7 +95,7 @@ export function createEventFeed(options: EventFeedOptions): EventFeed {
   // A chunk is never dropped without a report and a repaint, because a byte
   // stream cut mid-escape corrupts the client's terminal state.
   const emitOutput = (sessionID: SessionID, event: EventMsg, byteLength: number) => {
-    if (state.abandoned) {
+    if (isFeedIn(state, 'abandoned')) {
       return;
     }
 
@@ -118,12 +119,11 @@ export function createEventFeed(options: EventFeedOptions): EventFeed {
   // A second subscription is refused before it starts, so the refusal
   // answers the request instead of ending a stream.
   const subscribe = (signal: AbortSignal): AsyncGenerator<DaemonEvent> => {
-    if (state.subscribed) {
+    if (isFeedIn(state, 'subscribed')) {
       throw new DaemonError('bad_args', 'this connection already subscribes to its events');
     }
 
-    state.subscribed = true;
-    state.abandoned = false;
+    state.actor.send({ type: 'SUBSCRIBE' });
 
     return drainBacklog(state, signal, () => {
       emitDesyncs(state, options, emit);
@@ -138,6 +138,10 @@ export function createEventFeed(options: EventFeedOptions): EventFeed {
     },
     subscribe,
   };
+}
+
+function isFeedIn(state: FeedState, value: 'abandoned' | 'subscribed'): boolean {
+  return state.actor.getSnapshot().matches(value);
 }
 
 // A payload once started is never cut, so an empty backlog takes an event
@@ -194,7 +198,7 @@ async function* drainBacklog(
       await waitForEvent(state, signal);
     }
   } finally {
-    state.subscribed = false;
+    state.actor.send({ type: 'UNSUBSCRIBE' });
   }
 }
 

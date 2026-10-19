@@ -118,6 +118,21 @@ test('it rejects a request sent after the connection ended', async () => {
   });
 });
 
+test('it rejects a typed procedure call after the client stops, with the reason it closed', async () => {
+  const ctx = setupTest();
+
+  startStubPeerDaemon(ctx.socketPath, { answer: () => ({ ok: {} }) });
+
+  const client = await openDaemonClient(ctx.socketPath);
+
+  client.stop();
+
+  expect(client.procedures.daemon.ping({})).rejects.toMatchObject({
+    code: 'internal',
+    message: 'connection closed',
+  });
+});
+
 test('it sends its handshake with its protocol version and subscribes as the principal it gave', async () => {
   const ctx = setupTest();
   const answers: Readonly<Record<string, StubPeerAnswer>> = { 'daemon.hello': { ok: {} } };

@@ -106,3 +106,16 @@ test('it collects no frame from a write it refused, and every frame once it acce
 
   expect(stub.collectFrames()).toStrictEqual([{ id: 1 }, { id: 3 }]);
 });
+
+test('it counts each write it refused, and none it took', () => {
+  const stub = buildStubPeerSocket();
+
+  const encoder = new TextEncoder();
+
+  stub.socket.write(encoder.encode('{"id":1}\n'));
+  stub.setAccepting(false);
+  stub.socket.write(encoder.encode('{"id":2}\n'));
+  stub.socket.write(encoder.encode('{"id":3}\n'));
+
+  expect(stub.countRefusedWrites()).toBe(2);
+});

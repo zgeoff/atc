@@ -8,7 +8,6 @@ import { startStubPeerDaemon } from './start-stub-peer-daemon';
 import type { StubPeerAnswer, StubPeerRequest } from './start-stub-peer-daemon';
 import { waitFor } from './wait-for';
 
-// A temp directory to hold the daemon's socket.
 function setupTest() {
   const tmp = setupTempDir('atc-stub-peer-');
 

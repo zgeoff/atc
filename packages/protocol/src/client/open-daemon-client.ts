@@ -67,7 +67,11 @@ function createClientConnection(): ClientConnection {
 
   const link = new StandardRPCLink<CallContext>(
     {
+      // Every call, a typed procedure's included, refuses at once on a
+      // closed connection with the reason it closed.
       call: async (request) => {
+        requireOpenConnection(conn);
+
         const response = await peer.request(request);
 
         return { ...response, body: () => Promise.resolve(response.body) };
@@ -170,12 +174,6 @@ async function sendClientRequest(
   as?: string,
   asName?: string,
 ): Promise<Readonly<Record<string, unknown>>> {
-  const closedReason = conn.actor.getSnapshot().context.closedReason;
-
-  if (closedReason !== null) {
-    throw new DaemonError('internal', closedReason);
-  }
-
   const hello = m === 'daemon.hello';
   const principal = as ?? client.principal;
   const context = { as: principal, asName: principal === undefined ? undefined : asName };
@@ -292,6 +290,14 @@ function drainPending(
   conn.actor.send({ type: 'CLOSE', reason });
   conn.events?.abort();
   conn.peer.close({ reason: new DaemonError(code, reason) });
+}
+
+function requireOpenConnection(conn: ClientConnection): void {
+  const closedReason = conn.actor.getSnapshot().context.closedReason;
+
+  if (closedReason !== null) {
+    throw new DaemonError('internal', closedReason);
+  }
 }
 
 function isClientClosed(conn: ClientConnection): boolean {

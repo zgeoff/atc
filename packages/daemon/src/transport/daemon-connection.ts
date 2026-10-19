@@ -16,6 +16,8 @@ import type { EventMsg, RequestMsg, SocketWriter } from '@atc/protocol/wire';
 import type { StandardRequest, StandardResponse } from '@orpc/standard-server';
 import { ServerPeer } from '@orpc/standard-server-peer';
 import type { EncodedMessage } from '@orpc/standard-server-peer';
+import { createActor, waitFor } from 'xstate';
+import type { Actor } from 'xstate';
 import { buildScopedContext } from '../auth/build-scoped-context';
 import { isOwnerOnlyMethod } from '../auth/is-owner-only-method';
 import { TargetAccess } from '../auth/target-access';
@@ -30,7 +32,9 @@ import { createEventFeed } from './create-event-feed';
 import type { EventFeed } from './create-event-feed';
 import { decodePeerInput } from './decode-peer-input';
 import { findPeerMethod } from './find-peer-method';
+import { isPeerMessage } from './is-peer-message';
 import { parseRequestPrincipal } from './parse-request-principal';
+import { PEER_CONNECTION_MACHINE } from './peer-connection-machine';
 import type { ProcedureContext } from './procedure-context';
 import type { ConnectionIdentity, RequestPrincipal } from './request-deps';
 import { runDaemonProcedure } from './run-daemon-procedure';
@@ -62,15 +66,16 @@ export class DaemonConnection {
 
   private dialect: Dialect | null = null;
 
+  // Whether a line client has sent its handshake.
   private helloed = false;
 
-  // Whether a peer client's handshake passed, so its events and requests
-  // flow; a refused handshake ends the connection.
-  private helloAccepted = false;
+  // Where the connection stands, from its handshake to its close; a peer
+  // client's events and requests flow only while it is open.
+  private readonly lifecycle: Actor<typeof PEER_CONNECTION_MACHINE>;
 
-  // The handshake answer is written before any other response on this
-  // connection, even though building it reads the store: a request that
-  // arrives while that read is in flight waits behind it.
+  // A line client's handshake answer is written before any other response
+  // on this connection, even though building it reads the store: a request
+  // that arrives while that read is in flight waits behind it.
   private helloAnswered: Promise<void> = Promise.resolve();
 
   private readonly desynced = new Map<SessionID, number>();
@@ -114,11 +119,6 @@ export class DaemonConnection {
   // Sends waiting for the outbound queue to drain.
   private drainWaiters: (() => void)[] = [];
 
-  // Set once a refusal is on its way, so the connection ends after it.
-  private ending = false;
-
-  private disposed = false;
-
   constructor(
     peer: PeerSocket,
     ctx: DaemonContext,
@@ -128,6 +128,20 @@ export class DaemonConnection {
     this.peer = peer;
     this.ctx = ctx;
     this.tcp = tcp;
+
+    const machine = PEER_CONNECTION_MACHINE.provide({
+      actions: {
+        endSocket: () => {
+          this.peer.end();
+        },
+        releaseConnection: () => {
+          this.serverPeer?.close();
+          this.releaseDrainWaiters();
+        },
+      },
+    });
+
+    this.lifecycle = createActor(machine).start();
 
     this.identity = {
       principal: null,
@@ -149,7 +163,7 @@ export class DaemonConnection {
         void this.ctx.resyncClient(sessionID, this);
       },
       onOverflow: () => {
-        this.peer.end();
+        this.stopConnection();
       },
     });
 
@@ -166,15 +180,15 @@ export class DaemonConnection {
 
   // safe to call more than once
   dispose(): void {
-    this.peer.end();
+    this.lifecycle.send({ type: 'CLOSE' });
+  }
 
-    if (this.disposed) {
-      return;
-    }
+  private stopConnection(): void {
+    this.lifecycle.send({ type: 'END' });
+  }
 
-    this.disposed = true;
-    this.serverPeer?.close();
-    this.releaseDrainWaiters();
+  private isIn(state: 'awaiting' | 'checking' | 'open' | 'refusing' | 'closed'): boolean {
+    return this.lifecycle.getSnapshot().matches(state);
   }
 
   sendEvent(event: EventMsg): void {
@@ -191,7 +205,7 @@ export class DaemonConnection {
       if (this.dialect === 'peer') {
         this.feed.emit(visible);
       } else if (!this.queue.send(encodeMessage(visible))) {
-        this.peer.end();
+        this.stopConnection();
 
         return;
       }
@@ -238,7 +252,7 @@ export class DaemonConnection {
   // Whether the handshake has passed: on TCP, only once its token checked out.
   private hasPassedHello(): boolean {
     if (this.dialect === 'peer') {
-      return this.helloAccepted;
+      return this.isIn('open');
     }
 
     return this.helloed && (this.tcp === null || this.fingerprint !== null);
@@ -251,11 +265,15 @@ export class DaemonConnection {
   }
 
   applyChunk(chunk: string): void {
+    if (this.isIn('closed')) {
+      return;
+    }
+
     const oversized = this.lines.pendingLength + chunk.length > MAX_LINE;
 
     if (oversized && this.isUnauthenticatedTCP()) {
       this.tcp?.recordFailure('line_too_long');
-      this.peer.end();
+      this.stopConnection();
 
       return;
     }
@@ -265,14 +283,14 @@ export class DaemonConnection {
         this.reply.sendErr(0, 'bad_args', `line exceeds ${MAX_LINE} bytes`);
       }
 
-      this.peer.end();
+      this.stopConnection();
 
       return;
     }
 
     for (const line of this.lines.splitText(chunk)) {
       if (!this.applyLine(line)) {
-        this.peer.end();
+        this.stopConnection();
 
         return;
       }
@@ -309,7 +327,7 @@ export class DaemonConnection {
 
   // false: the connection is beyond recovery and gets closed.
   private applyLine(line: string): boolean {
-    this.dialect ??= findPeerMethod(line) === null ? 'line' : 'peer';
+    this.dialect ??= isPeerMessage(line) ? 'peer' : 'line';
 
     if (this.dialect === 'peer') {
       return this.applyPeerLine(line);
@@ -562,7 +580,7 @@ export class DaemonConnection {
 
       if (!hello.ok) {
         this.reply.sendErr(req.id, hello.code, hello.message);
-        this.peer.end();
+        this.stopConnection();
 
         return;
       }
@@ -634,7 +652,7 @@ export class DaemonConnection {
       try {
         await serverPeer.message(line, (request) => this.answerPeer(request));
       } catch {
-        this.peer.end();
+        this.stopConnection();
       }
     })();
 
@@ -646,24 +664,32 @@ export class DaemonConnection {
   // subscription's events instead of the socket's buffer.
   private async sendPeerMessage(message: EncodedMessage): Promise<void> {
     if (typeof message !== 'string' || !this.queue.send(`${message}\n`)) {
-      this.peer.end();
+      this.stopConnection();
 
       return;
     }
 
-    if (this.ending) {
-      this.peer.end();
+    const isRefusal = this.isIn('refusing');
 
+    await this.waitForDrain();
+
+    // A refusal ends the connection only once its bytes have left the
+    // queue, so the client reads the refusal whole.
+    if (isRefusal) {
+      this.lifecycle.send({ type: 'DRAINED' });
+    }
+  }
+
+  private async waitForDrain(): Promise<void> {
+    if (this.queue.queuedBytes === 0 || this.isIn('closed')) {
       return;
     }
 
-    if (this.queue.queuedBytes > 0 && !this.disposed) {
-      const drained = Promise.withResolvers<void>();
+    const drained = Promise.withResolvers<void>();
 
-      this.drainWaiters.push(drained.resolve);
+    this.drainWaiters.push(drained.resolve);
 
-      await drained.promise;
-    }
+    await drained.promise;
   }
 
   private releaseDrainWaiters(): void {
@@ -684,7 +710,9 @@ export class DaemonConnection {
     // A path in any form but the procedure's own names no procedure, and
     // before the handshake it ends the connection as any other request does.
     if (method === null) {
-      this.ending ||= !this.helloed;
+      if (this.isIn('awaiting')) {
+        this.lifecycle.send({ type: 'REFUSE' });
+      }
 
       return answerPeerRequest(
         request,
@@ -692,40 +720,42 @@ export class DaemonConnection {
       );
     }
 
-    if (method !== 'daemon.hello') {
-      const admitted = await this.checkPeerRequest(method, request);
-
-      return answerPeerRequest(request, admitted);
+    if (method === 'daemon.hello') {
+      return this.answerPeerHandshake(request);
     }
 
-    const settled = Promise.withResolvers<void>();
-    const checked = this.checkPeerHello(request);
+    const admitted = await this.checkPeerRequest(method, request);
 
-    this.helloAnswered = settled.promise;
+    return answerPeerRequest(request, admitted);
+  }
 
-    try {
-      const admitted = await checked;
-
-      return await answerPeerRequest(request, admitted);
-    } finally {
-      if (!this.helloAccepted) {
-        this.ending = true;
-      }
-
-      settled.resolve();
+  // A second handshake could change the principal under kept attachments,
+  // so a connection takes one.
+  private async answerPeerHandshake(request: StandardRequest): Promise<StandardResponse> {
+    if (!this.isIn('awaiting')) {
+      return answerPeerRequest(
+        request,
+        new DaemonError('unauthorized', 'a connection takes one handshake'),
+      );
     }
+
+    this.lifecycle.send({ type: 'HELLO' });
+
+    const admitted = await this.checkPeerHello(request);
+    const response = await answerPeerRequest(request, admitted);
+
+    // The handshake procedure accepts the connection; anything else it
+    // answers refuses it.
+    if (this.isIn('checking')) {
+      this.lifecycle.send({ type: 'REFUSE' });
+    }
+
+    return response;
   }
 
   // A TCP handshake checks its token before anything else, so a peer
-  // without one learns nothing about the daemon; a second one could change
-  // the principal under kept attachments.
+  // without one learns nothing about the daemon.
   private async checkPeerHello(request: StandardRequest): Promise<ProcedureContext | DaemonError> {
-    if (this.tcp !== null && this.helloed) {
-      return new DaemonError('unauthorized', 'a TCP connection takes one handshake');
-    }
-
-    this.helloed = true;
-
     const raw = decodePeerInput(request);
 
     if (this.tcp !== null) {
@@ -754,16 +784,20 @@ export class DaemonConnection {
     method: string,
     request: StandardRequest,
   ): Promise<ProcedureContext | DaemonError> {
-    if (!this.helloed) {
-      this.ending = true;
+    if (this.isIn('awaiting')) {
+      this.lifecycle.send({ type: 'REFUSE' });
 
       return new DaemonError('unauthorized', 'daemon.hello must be the first request');
     }
 
-    await this.helloAnswered;
+    await waitFor(this.lifecycle, (snapshot) => !snapshot.matches('checking'));
 
-    if (!this.helloAccepted) {
+    if (this.isIn('refusing')) {
       return new DaemonError('unauthorized', 'the handshake was refused');
+    }
+
+    if (!this.isIn('open')) {
+      return new DaemonError('unauthorized', 'the connection is closing');
     }
 
     try {
@@ -822,13 +856,13 @@ export class DaemonConnection {
         );
       }
 
+      this.setCallerSession(input.session ?? null);
+
       this.identity.helloClient = input.client;
 
       if (input.principal !== undefined) {
         this.setPrincipal(input.principal);
       }
-
-      this.setCallerSession(input.session ?? null);
     } else {
       if (tcpHello.principal !== null) {
         this.setPrincipal(tcpHello.principal);
@@ -841,7 +875,7 @@ export class DaemonConnection {
 
     const answer = await this.loadHelloAnswer();
 
-    this.helloAccepted = true;
+    this.lifecycle.send({ type: 'ACCEPT' });
 
     return answer;
   }

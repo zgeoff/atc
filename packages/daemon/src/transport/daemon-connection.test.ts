@@ -7,6 +7,7 @@ import { openDaemonClient } from '@atc/protocol/client';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { buildStubPeerSocket, setupTempDir, waitFor } from '@atc/test-utils';
 import { TargetAccess } from '../auth/target-access';
+import type { DaemonContext } from '../daemon-context';
 import { buildStubDaemonContext } from '../testing/build-stub-daemon-context';
 import { startConnectionListener } from '../testing/start-connection-listener';
 import { DaemonConnection } from './daemon-connection';
@@ -822,4 +823,619 @@ test('it ends the connection when an error answer overflows the outbound queue',
   await waitFor(() => {
     expect(peer.hasEnded()).toBeTrue();
   });
+});
+
+test.each([
+  [
+    'a handshake',
+    '/daemon/hello',
+    { client: 'atc/test', protocol: PROTOCOL_V },
+    { daemon: 'atc/test' },
+    false,
+  ],
+  [
+    'a request',
+    '/daemon/ping',
+    {},
+    { code: 'unauthorized', message: 'daemon.hello must be the first request' },
+    true,
+  ],
+  ['a path that names no procedure', '/daemon/ping/', {}, { code: 'unknown_method' }, true],
+])(
+  'it answers %s on a peer connection that awaits its handshake',
+  async (_label, path, body, answer, ends) => {
+    const peer = buildStubPeerSocket();
+
+    const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
+
+    conn.applyChunk(`${JSON.stringify({ i: '9', p: { u: path, b: { json: body } } })}\n`);
+
+    const json: unknown = expect.objectContaining(answer);
+    const response: unknown = expect.objectContaining({ b: expect.objectContaining({ json }) });
+
+    await waitFor(() => {
+      expect(peer.collectFrames()).toContainEqual(expect.objectContaining({ i: '9', p: response }));
+    });
+
+    await waitFor(() => {
+      expect(peer.hasEnded()).toBe(ends);
+    });
+  },
+);
+
+test('it drops an event sent to a peer connection that awaits its handshake', async () => {
+  const peer = buildStubPeerSocket();
+
+  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
+
+  conn.sendEvent({ v: PROTOCOL_V, ev: 'SessionRemoved', s: 's-early' });
+
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+
+  conn.applyChunk(
+    `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n${JSON.stringify({ i: '2', p: { u: '/events/subscribe', b: { json: {} } } })}\n`,
+  );
+
+  await waitFor(() => {
+    expect(peer.collectFrames().map((frame) => frame['i'])).toContain('1');
+  });
+
+  conn.sendEvent({ v: PROTOCOL_V, ev: 'SessionRemoved', s: 's-late' });
+
+  await waitFor(() => {
+    expect(JSON.stringify(peer.collectFrames())).toInclude('s-late');
+  });
+
+  expect(JSON.stringify(peer.collectFrames())).not.toInclude('s-early');
+});
+
+test('it ends a peer connection disposed while it awaits its handshake, and answers nothing after', () => {
+  const peer = buildStubPeerSocket();
+
+  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
+
+  conn.dispose();
+
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+
+  conn.applyChunk(`${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n`);
+
+  expect(peer.hasEnded()).toBeTrue();
+  expect(peer.collectFrames()).toStrictEqual([]);
+});
+
+test('it refuses a second handshake at once while the first is pending, and keeps the connection', async () => {
+  const peer = buildStubPeerSocket();
+  const held = Promise.withResolvers<string>();
+  const load = mock(() => held.promise);
+
+  const conn = new DaemonConnection(
+    peer.socket,
+    buildStubDaemonContext({ loadLastUsedAgent: load }),
+  );
+
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+
+  conn.applyChunk(`${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n`);
+
+  await waitFor(() => {
+    expect(load).toHaveBeenCalledOnce();
+  });
+
+  conn.applyChunk(`${JSON.stringify({ i: '9', p: { u: '/daemon/hello', b: { json: hello } } })}\n`);
+
+  const refusal: unknown = expect.objectContaining({
+    code: 'unauthorized',
+    message: 'a connection takes one handshake',
+  });
+
+  await waitFor(() => {
+    expect(peer.collectFrames()).toContainEqual(
+      expect.objectContaining({ i: '9', p: expect.objectContaining({ b: { json: refusal } }) }),
+    );
+  });
+
+  held.resolve('claude');
+
+  await waitFor(() => {
+    expect(peer.collectFrames().map((frame) => frame['i'])).toContain('1');
+  });
+
+  expect(peer.hasEnded()).toBeFalse();
+});
+
+test('it holds a peer request back until a pending handshake passes', async () => {
+  const peer = buildStubPeerSocket();
+  const held = Promise.withResolvers<string>();
+  const load = mock(() => held.promise);
+  const ack = mock(() => true);
+
+  const conn = new DaemonConnection(
+    peer.socket,
+    buildStubDaemonContext({ loadLastUsedAgent: load, ackSession: ack }),
+  );
+
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+
+  conn.applyChunk(`${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n`);
+
+  await waitFor(() => {
+    expect(load).toHaveBeenCalledOnce();
+  });
+
+  // The second handshake is refused at once, so its answer shows the
+  // request before it was read and held.
+  conn.applyChunk(
+    `${JSON.stringify({ i: '9', p: { u: '/session/ack', b: { json: { session: 's-1' } } } })}\n${JSON.stringify({ i: '8', p: { u: '/daemon/hello', b: { json: hello } } })}\n`,
+  );
+
+  await waitFor(() => {
+    expect(peer.collectFrames().map((frame) => frame['i'])).toContain('8');
+  });
+
+  const heldFrames = peer.collectFrames().map((frame) => frame['i']);
+  const heldAcks = ack.mock.calls.length;
+
+  held.resolve('claude');
+
+  await waitFor(() => {
+    expect(peer.collectFrames().map((frame) => frame['i'])).toIncludeAllMembers(['1', '9']);
+  });
+
+  expect(heldFrames).toStrictEqual(['8']);
+  expect(heldAcks).toBe(0);
+  expect(ack).toHaveBeenCalledExactlyOnceWith(toSessionID('s-1'));
+});
+
+test('it answers a path that names no procedure while the handshake is pending, and keeps the connection', async () => {
+  const peer = buildStubPeerSocket();
+  const held = Promise.withResolvers<string>();
+  const load = mock(() => held.promise);
+
+  const conn = new DaemonConnection(
+    peer.socket,
+    buildStubDaemonContext({ loadLastUsedAgent: load }),
+  );
+
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+
+  conn.applyChunk(`${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n`);
+
+  await waitFor(() => {
+    expect(load).toHaveBeenCalledOnce();
+  });
+
+  conn.applyChunk(`${JSON.stringify({ i: '9', p: { u: '/daemon/ping/', b: { json: {} } } })}\n`);
+
+  const refusal: unknown = expect.objectContaining({ code: 'unknown_method' });
+
+  await waitFor(() => {
+    expect(peer.collectFrames()).toContainEqual(
+      expect.objectContaining({ i: '9', p: expect.objectContaining({ b: { json: refusal } }) }),
+    );
+  });
+
+  held.resolve('claude');
+
+  await waitFor(() => {
+    expect(peer.collectFrames().map((frame) => frame['i'])).toContain('1');
+  });
+
+  expect(peer.hasEnded()).toBeFalse();
+});
+
+test('it drops an event sent to a peer connection while its handshake is pending', async () => {
+  const peer = buildStubPeerSocket();
+  const held = Promise.withResolvers<string>();
+  const load = mock(() => held.promise);
+
+  const conn = new DaemonConnection(
+    peer.socket,
+    buildStubDaemonContext({ loadLastUsedAgent: load }),
+  );
+
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+
+  conn.applyChunk(
+    `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n${JSON.stringify({ i: '2', p: { u: '/events/subscribe', b: { json: {} } } })}\n`,
+  );
+
+  await waitFor(() => {
+    expect(load).toHaveBeenCalledOnce();
+  });
+
+  conn.sendEvent({ v: PROTOCOL_V, ev: 'SessionRemoved', s: 's-early' });
+  held.resolve('claude');
+
+  await waitFor(() => {
+    expect(peer.collectFrames().map((frame) => frame['i'])).toContain('1');
+  });
+
+  conn.sendEvent({ v: PROTOCOL_V, ev: 'SessionRemoved', s: 's-late' });
+
+  await waitFor(() => {
+    expect(JSON.stringify(peer.collectFrames())).toInclude('s-late');
+  });
+
+  expect(JSON.stringify(peer.collectFrames())).not.toInclude('s-early');
+});
+
+test('it ends a peer connection disposed while its handshake is pending', async () => {
+  const peer = buildStubPeerSocket();
+  const held = Promise.withResolvers<string>();
+  const load = mock(() => held.promise);
+
+  const conn = new DaemonConnection(
+    peer.socket,
+    buildStubDaemonContext({ loadLastUsedAgent: load }),
+  );
+
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+
+  conn.applyChunk(`${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n`);
+
+  await waitFor(() => {
+    expect(load).toHaveBeenCalledOnce();
+  });
+
+  conn.dispose();
+
+  expect(peer.hasEnded()).toBeTrue();
+});
+
+test.each([
+  [
+    'a handshake',
+    '/daemon/hello',
+    { client: 'atc/test', protocol: PROTOCOL_V },
+    { code: 'unauthorized', message: 'a connection takes one handshake' },
+  ],
+  ['a request', '/daemon/ping', {}, {}],
+  ['a path that names no procedure', '/daemon/ping/', {}, { code: 'unknown_method' }],
+])('it answers %s on an open peer connection and keeps it', async (_label, path, body, answer) => {
+  const peer = buildStubPeerSocket();
+
+  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
+
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+
+  conn.applyChunk(`${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n`);
+
+  await waitFor(() => {
+    expect(peer.collectFrames().map((frame) => frame['i'])).toContain('1');
+  });
+
+  conn.applyChunk(`${JSON.stringify({ i: '9', p: { u: path, b: { json: body } } })}\n`);
+
+  const json: unknown = expect.objectContaining(answer);
+  const response: unknown = expect.objectContaining({ b: expect.objectContaining({ json }) });
+
+  await waitFor(() => {
+    expect(peer.collectFrames()).toContainEqual(expect.objectContaining({ i: '9', p: response }));
+  });
+
+  expect(peer.hasEnded()).toBeFalse();
+});
+
+test('it ends an open peer connection once disposed, and answers nothing after', async () => {
+  const peer = buildStubPeerSocket();
+
+  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
+
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+
+  conn.applyChunk(`${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n`);
+
+  await waitFor(() => {
+    expect(peer.collectFrames().map((frame) => frame['i'])).toContain('1');
+  });
+
+  conn.dispose();
+  conn.applyChunk(`${JSON.stringify({ i: '9', p: { u: '/daemon/ping', b: { json: {} } } })}\n`);
+
+  expect(peer.hasEnded()).toBeTrue();
+  expect(peer.collectFrames().map((frame) => frame['i'])).toStrictEqual(['1']);
+});
+
+test('it writes a refused handshake whole before it ends the connection', async () => {
+  const peer = buildStubPeerSocket();
+
+  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
+
+  const hello = { client: 'atc/old', protocol: 1 };
+
+  peer.setAccepting(false);
+  conn.applyChunk(`${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n`);
+
+  await waitFor(() => {
+    expect(peer.countRefusedWrites()).toBeGreaterThan(0);
+  });
+
+  const endedWhileQueued = peer.hasEnded();
+
+  peer.setAccepting(true);
+  conn.drain();
+
+  const refusal: unknown = expect.objectContaining({ code: 'protocol_mismatch' });
+
+  await waitFor(() => {
+    expect(peer.hasEnded()).toBeTrue();
+  });
+
+  expect(endedWhileQueued).toBeFalse();
+
+  expect(peer.collectFrames()).toStrictEqual([
+    expect.objectContaining({ i: '1', p: expect.objectContaining({ b: { json: refusal } }) }),
+  ]);
+});
+
+test.each([
+  [
+    'a handshake',
+    '/daemon/hello',
+    { client: 'atc/test', protocol: PROTOCOL_V },
+    { code: 'unauthorized', message: 'a connection takes one handshake' },
+  ],
+  ['a request', '/daemon/ping', {}, { code: 'unauthorized', message: 'the handshake was refused' }],
+  ['a path that names no procedure', '/daemon/ping/', {}, { code: 'unknown_method' }],
+])(
+  'it answers %s sent behind a refused handshake, then ends the connection once both are written',
+  async (_label, path, body, answer) => {
+    const peer = buildStubPeerSocket();
+
+    const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
+
+    const hello = { client: 'atc/old', protocol: 1 };
+
+    peer.setAccepting(false);
+
+    conn.applyChunk(
+      `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n${JSON.stringify({ i: '9', p: { u: path, b: { json: body } } })}\n`,
+    );
+
+    await waitFor(() => {
+      expect(peer.countRefusedWrites()).toBeGreaterThan(0);
+    });
+
+    const endedWhileQueued = peer.hasEnded();
+
+    peer.setAccepting(true);
+    conn.drain();
+
+    const json: unknown = expect.objectContaining(answer);
+    const response: unknown = expect.objectContaining({ b: expect.objectContaining({ json }) });
+
+    await waitFor(() => {
+      expect(peer.collectFrames()).toContainEqual(expect.objectContaining({ i: '9', p: response }));
+    });
+
+    await waitFor(() => {
+      expect(peer.hasEnded()).toBeTrue();
+    });
+
+    expect(endedWhileQueued).toBeFalse();
+  },
+);
+
+test('it writes no event to a peer connection whose refusal is still queued', async () => {
+  const peer = buildStubPeerSocket();
+
+  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
+
+  const hello = { client: 'atc/old', protocol: 1 };
+
+  peer.setAccepting(false);
+  conn.applyChunk(`${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n`);
+
+  await waitFor(() => {
+    expect(peer.countRefusedWrites()).toBeGreaterThan(0);
+  });
+
+  conn.sendEvent({ v: PROTOCOL_V, ev: 'SessionRemoved', s: 's-refused' });
+  peer.setAccepting(true);
+  conn.drain();
+
+  await waitFor(() => {
+    expect(peer.hasEnded()).toBeTrue();
+  });
+
+  expect(JSON.stringify(peer.collectFrames())).not.toInclude('s-refused');
+});
+
+test('it ends a peer connection disposed while its refusal is still queued', async () => {
+  const peer = buildStubPeerSocket();
+
+  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
+
+  const hello = { client: 'atc/old', protocol: 1 };
+
+  peer.setAccepting(false);
+  conn.applyChunk(`${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n`);
+
+  await waitFor(() => {
+    expect(peer.countRefusedWrites()).toBeGreaterThan(0);
+  });
+
+  conn.dispose();
+
+  expect(peer.hasEnded()).toBeTrue();
+});
+
+test.each([
+  [
+    'a handshake',
+    '/daemon/hello',
+    { client: 'atc/test', protocol: PROTOCOL_V },
+    { code: 'unauthorized', message: 'a connection takes one handshake' },
+  ],
+  ['a request', '/daemon/ping', {}, { code: 'unauthorized', message: 'the connection is closing' }],
+  ['a path that names no procedure', '/daemon/ping/', {}, { code: 'unknown_method' }],
+])('it answers %s on a peer connection that is closing', async (_label, path, body, answer) => {
+  const peer = buildStubPeerSocket();
+
+  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
+
+  const hello = { client: 'atc/old', protocol: 1 };
+
+  conn.applyChunk(`${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n`);
+
+  await waitFor(() => {
+    expect(peer.hasEnded()).toBeTrue();
+  });
+
+  conn.applyChunk(`${JSON.stringify({ i: '9', p: { u: path, b: { json: body } } })}\n`);
+
+  const json: unknown = expect.objectContaining(answer);
+  const response: unknown = expect.objectContaining({ b: expect.objectContaining({ json }) });
+
+  await waitFor(() => {
+    expect(peer.collectFrames()).toContainEqual(expect.objectContaining({ i: '9', p: response }));
+  });
+});
+
+test('it writes no event to a peer connection that is closing', async () => {
+  const peer = buildStubPeerSocket();
+
+  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
+
+  const hello = { client: 'atc/old', protocol: 1 };
+
+  conn.applyChunk(`${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n`);
+
+  await waitFor(() => {
+    expect(peer.hasEnded()).toBeTrue();
+  });
+
+  conn.sendEvent({ v: PROTOCOL_V, ev: 'SessionRemoved', s: 's-closing' });
+
+  expect(JSON.stringify(peer.collectFrames())).not.toInclude('s-closing');
+});
+
+test('it answers nothing on a closing peer connection once disposed', async () => {
+  const peer = buildStubPeerSocket();
+
+  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
+
+  const hello = { client: 'atc/old', protocol: 1 };
+
+  conn.applyChunk(`${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n`);
+
+  await waitFor(() => {
+    expect(peer.hasEnded()).toBeTrue();
+  });
+
+  conn.dispose();
+  conn.applyChunk(`${JSON.stringify({ i: '9', p: { u: '/daemon/ping', b: { json: {} } } })}\n`);
+
+  expect(peer.collectFrames().map((frame) => frame['i'])).toStrictEqual(['1']);
+});
+
+test.each([
+  ['a handshake', '/daemon/hello', { client: 'atc/test', protocol: PROTOCOL_V }],
+  ['a request', '/daemon/ping', {}],
+  ['a path that names no procedure', '/daemon/ping/', {}],
+])('it answers nothing to %s on a closed peer connection', async (_label, path, body) => {
+  const peer = buildStubPeerSocket();
+
+  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
+
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+
+  conn.applyChunk(`${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n`);
+
+  await waitFor(() => {
+    expect(peer.collectFrames().map((frame) => frame['i'])).toContain('1');
+  });
+
+  conn.dispose();
+  conn.applyChunk(`${JSON.stringify({ i: '9', p: { u: path, b: { json: body } } })}\n`);
+
+  expect(peer.collectFrames().map((frame) => frame['i'])).toStrictEqual(['1']);
+});
+
+test('it writes no event to a closed peer connection', async () => {
+  const peer = buildStubPeerSocket();
+
+  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
+
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+
+  conn.applyChunk(
+    `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n${JSON.stringify({ i: '2', p: { u: '/events/subscribe', b: { json: {} } } })}\n`,
+  );
+
+  await waitFor(() => {
+    expect(peer.collectFrames().map((frame) => frame['i'])).toContain('1');
+  });
+
+  conn.dispose();
+  conn.sendEvent({ v: PROTOCOL_V, ev: 'SessionRemoved', s: 's-closed' });
+
+  expect(JSON.stringify(peer.collectFrames())).not.toInclude('s-closed');
+});
+
+test('it takes a second dispose of a closed peer connection as a no-op', () => {
+  const peer = buildStubPeerSocket();
+
+  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
+
+  conn.dispose();
+
+  expect(() => {
+    conn.dispose();
+  }).not.toThrow();
+});
+
+test('it refuses a peer handshake that gives another session than the one the kernel names, and ends the connection', async () => {
+  const peer = buildStubPeerSocket();
+
+  const conn = new DaemonConnection(
+    peer.socket,
+    buildStubDaemonContext(),
+    null,
+    toSessionID('s-1'),
+  );
+
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V, session: 's-2' };
+
+  conn.applyChunk(`${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n`);
+
+  const refusal: unknown = expect.objectContaining({
+    code: 'unauthorized',
+    message:
+      "daemon.hello gives session 's-2', but the connecting process runs inside session 's-1'",
+  });
+
+  await waitFor(() => {
+    expect(peer.hasEnded()).toBeTrue();
+  });
+
+  expect(peer.collectFrames()).toStrictEqual([
+    expect.objectContaining({ i: '1', p: expect.objectContaining({ b: { json: refusal } }) }),
+  ]);
+});
+
+test('it acts as the session the kernel names for a peer handshake that gives none', async () => {
+  const peer = buildStubPeerSocket();
+  const isCallerTree = mock<DaemonContext['isCallerTree']>(() => true);
+
+  const conn = new DaemonConnection(
+    peer.socket,
+    buildStubDaemonContext({ isCallerTree }),
+    null,
+    toSessionID('s-1'),
+  );
+
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const add = { session: 's-6', scope: { worktrees: [{ path: '/srv/site' }] } };
+
+  conn.applyChunk(
+    `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n${JSON.stringify({ i: '2', p: { u: '/session/scope/add', b: { json: add } } })}\n`,
+  );
+
+  await waitFor(() => {
+    expect(peer.collectFrames().map((frame) => frame['i'])).toContain('2');
+  });
+
+  expect(isCallerTree).toHaveBeenCalledExactlyOnceWith(toSessionID('s-6'), toSessionID('s-1'));
 });
