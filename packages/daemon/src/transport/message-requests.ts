@@ -22,6 +22,7 @@ export class MessageRequests {
     data: RequestParams<'session.message'>,
     ctx: DaemonContext,
     as: RequestPrincipal | null,
+    sentFrom: unknown,
   ): Promise<DaemonAnswer<'session.message'>> {
     const sessionID = data.session;
 
@@ -35,7 +36,8 @@ export class MessageRequests {
     const keyed = buildKeyedRequest(hashed);
 
     // An older client's default sender names, so a key an older daemon
-    // stored with one still replays.
+    // stored with one still replays. The sender name the request gave is
+    // hashed as it was sent, untrimmed, as that daemon hashed it.
     const legacyNames = ['mcp', as?.name, this.identity.callerSession];
 
     const legacyKeyed =
@@ -43,7 +45,7 @@ export class MessageRequests {
         ? null
         : {
             ...keyed,
-            legacyPayloadHashes: buildLegacyMessageHashes(hashed, localName, legacyNames),
+            legacyPayloadHashes: buildLegacyMessageHashes(hashed, sentFrom, legacyNames),
           };
 
     // A send that needs no answer leaves no session to notify.

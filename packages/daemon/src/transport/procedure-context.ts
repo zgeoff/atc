@@ -9,4 +9,8 @@ export interface ProcedureContext {
   readonly ctx: DaemonContext;
   readonly requests: ConnectionRequests;
   readonly as: RequestPrincipal | null;
+
+  // The params as the request sent them, before the procedure's schema
+  // parsed them, for a hash an older daemon computed over the raw values.
+  readonly sentParams: unknown;
 }

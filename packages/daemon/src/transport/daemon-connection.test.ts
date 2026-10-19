@@ -220,6 +220,27 @@ test('it sends a principal no output of a session whose tree left its view, a re
   expect(resyncs).toStrictEqual([]);
 });
 
+test('it answers internal with the request id when a procedure returns an answer outside its contract', async () => {
+  const peer = buildStubPeerSocket();
+
+  const conn = new DaemonConnection(
+    peer.socket,
+    buildStubDaemonContext({ writeStateBackup: () => Promise.resolve(Number.NaN) }),
+  );
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 1, m: 'daemon.hello', p: { client: 'atc/test' } })}\n${JSON.stringify({ v: PROTOCOL_V, id: 2, m: 'daemon.backup', p: { path: '/backup.db' } })}\n`,
+  );
+
+  await peer.waitForAnswer(2);
+
+  expect(peer.collectFrames().find((frame) => frame['id'] === 2)).toStrictEqual({
+    v: PROTOCOL_V,
+    id: 2,
+    err: { code: 'internal', msg: expect.toStartWith('Output validation failed: ') as unknown },
+  });
+});
+
 test('it ends the connection when an answer overflows the outbound queue', async () => {
   const peer = buildStubPeerSocket();
 

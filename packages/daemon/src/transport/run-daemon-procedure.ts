@@ -10,7 +10,7 @@ import type { ProcedureContext } from './procedure-context';
 export async function runDaemonProcedure(
   method: string,
   params: unknown,
-  context: ProcedureContext,
+  context: Omit<ProcedureContext, 'sentParams'>,
 ): Promise<Readonly<Record<string, unknown>>> {
   const path = method.split('.');
   const procedure = getRouter(DAEMON_ROUTER, path);
@@ -22,7 +22,10 @@ export async function runDaemonProcedure(
   const input = isRecord(params) ? params : {};
 
   try {
-    const answer: unknown = await call(procedure, input, { context, path });
+    const answer: unknown = await call(procedure, input, {
+      context: { ...context, sentParams: params },
+      path,
+    });
 
     return isRecord(answer) ? answer : {};
   } catch (error) {
