@@ -15,53 +15,25 @@ test('it lets a scoped identity that may grant every bound secret activate the b
 
   await verifyBrokerAuthority(broker, { impNames: ['atc-s1'], secrets: ['glm'] });
 
-  expect(broker.calls).toStrictEqual(['readFeatures', 'readIdentity']);
+  expect(broker.calls).toStrictEqual(['verifyVersion', 'readIdentity']);
 });
 
-test('it refuses a broker without grantable tokens, secret rebinds and exec requirements before it checks the token', () => {
+test('it refuses an outdated broker with its version refusal before it checks the token', () => {
   const broker = buildStubCredentialBroker('atc-');
 
-  broker.setFeatures({
-    grantableTokens: false,
-    secretRebind: false,
-    execRequire: false,
-    oauthSecrets: false,
-  });
+  broker.setOutdated(true);
 
   broker.setIdentity({
     name: 'atc-runtime',
-    scope: 'manage',
+    scope: 'exec',
     hosts: ['atc-*'],
     grantable: ['glm'],
   });
 
   const refusal = verifyBrokerAuthority(broker, { impNames: ['atc-s1'], secrets: ['glm'] });
 
-  expect(refusal).rejects.toMatchObject({
-    code: 'auth_impd_too_old',
-    data: { grantableTokens: false, secretRebind: false, execRequire: false },
-  });
-
-  expect(broker.calls).toStrictEqual(['readFeatures', 'readIdentity']);
-});
-
-test.each([
-  ['grantable tokens', { grantableTokens: true, secretRebind: false, execRequire: false }],
-  ['secret rebinds', { grantableTokens: false, secretRebind: true, execRequire: false }],
-  ['exec requirements', { grantableTokens: false, secretRebind: false, execRequire: true }],
-  [
-    'grantable tokens and secret rebinds',
-    { grantableTokens: true, secretRebind: true, execRequire: false },
-  ],
-])('it refuses a broker that has only %s', (_flag, flags) => {
-  const broker = buildStubCredentialBroker('atc-');
-
-  broker.setFeatures({ oauthSecrets: false, ...flags });
-
-  const refusal = verifyBrokerAuthority(broker, { impNames: ['atc-s1'], secrets: ['glm'] });
-
-  expect(refusal).rejects.toMatchObject({ code: 'auth_impd_too_old' });
-  expect(broker.calls).toStrictEqual(['readFeatures', 'readIdentity']);
+  expect(refusal).rejects.toMatchObject({ code: 'refused', brokerCode: 'IMPD_OUTDATED' });
+  expect(broker.calls).toStrictEqual(['verifyVersion', 'readIdentity']);
 });
 
 test('it refuses an identity below manage scope', () => {
@@ -77,7 +49,7 @@ test('it refuses an identity below manage scope', () => {
   const refusal = verifyBrokerAuthority(broker, { impNames: ['atc-s1'], secrets: ['glm'] });
 
   expect(refusal).rejects.toMatchObject({ code: 'auth_token_scope', data: { scope: 'exec' } });
-  expect(broker.calls).toStrictEqual(['readFeatures', 'readIdentity']);
+  expect(broker.calls).toStrictEqual(['verifyVersion', 'readIdentity']);
 });
 
 test('it refuses an identity that reaches every host', () => {
@@ -93,7 +65,7 @@ test('it refuses an identity that reaches every host', () => {
   const refusal = verifyBrokerAuthority(broker, { impNames: ['atc-s1'], secrets: ['glm'] });
 
   expect(refusal).rejects.toMatchObject({ code: 'auth_token_too_broad', data: { imps: null } });
-  expect(broker.calls).toStrictEqual(['readFeatures', 'readIdentity']);
+  expect(broker.calls).toStrictEqual(['verifyVersion', 'readIdentity']);
 });
 
 test.each([
@@ -180,7 +152,7 @@ test.each([
       data: { token: 'wide', imps: hosts, offending },
     });
 
-    expect(broker.calls).toStrictEqual(['readFeatures', 'readIdentity']);
+    expect(broker.calls).toStrictEqual(['verifyVersion', 'readIdentity']);
   },
 );
 
@@ -196,7 +168,7 @@ test('it lets an identity whose literal host names sit inside the namespace acti
 
   await verifyBrokerAuthority(broker, { impNames: ['atc-s1'], secrets: ['glm'] });
 
-  expect(broker.calls).toStrictEqual(['readFeatures', 'readIdentity']);
+  expect(broker.calls).toStrictEqual(['verifyVersion', 'readIdentity']);
 });
 
 test('it rejects an empty namespace prefix as a broken invariant', () => {
@@ -236,7 +208,7 @@ test('it refuses an identity whose patterns do not cover the host the call touch
     data: { outside: ['atc-s1'] },
   });
 
-  expect(broker.calls).toStrictEqual(['readFeatures', 'readIdentity']);
+  expect(broker.calls).toStrictEqual(['verifyVersion', 'readIdentity']);
 });
 
 test('it checks the host names of the target namespace rather than a fixed prefix', async () => {
@@ -251,7 +223,7 @@ test('it checks the host names of the target namespace rather than a fixed prefi
 
   await verifyBrokerAuthority(broker, { impNames: ['harness-s1'], secrets: ['glm'] });
 
-  expect(broker.calls).toStrictEqual(['readFeatures', 'readIdentity']);
+  expect(broker.calls).toStrictEqual(['verifyVersion', 'readIdentity']);
 });
 
 test('it refuses when any one of the hosts the call touches is outside the patterns', () => {
@@ -295,74 +267,5 @@ test('it refuses an identity that may not grant every bound secret', () => {
     data: { missing: ['judge'] },
   });
 
-  expect(broker.calls).toStrictEqual(['readFeatures', 'readIdentity']);
-});
-
-test('it refuses a broker without oauth secrets for a binding that holds one', () => {
-  const broker = buildStubCredentialBroker('atc-');
-
-  broker.setFeatures({ oauthSecrets: false });
-
-  broker.setIdentity({
-    name: 'atc-runtime',
-    scope: 'manage',
-    hosts: ['atc-*'],
-    grantable: ['codex-chatgpt'],
-  });
-
-  const refusal = verifyBrokerAuthority(broker, {
-    impNames: ['atc-s1'],
-    secrets: ['codex-chatgpt'],
-    oauthSecrets: ['codex-chatgpt'],
-  });
-
-  expect(refusal).rejects.toBeInstanceOf(BrokerAuthorityError);
-
-  expect(refusal).rejects.toMatchObject({
-    code: 'auth_impd_too_old',
-    message: 'impd lacks oauth secret support, which codex-chatgpt needs',
-    data: { oauthSecrets: false, secrets: ['codex-chatgpt'] },
-  });
-
-  expect(broker.calls).toStrictEqual(['readFeatures', 'readIdentity']);
-});
-
-test('it lets a broker without oauth secrets activate a binding that holds none', async () => {
-  const broker = buildStubCredentialBroker('atc-');
-
-  broker.setFeatures({ oauthSecrets: false });
-
-  broker.setIdentity({
-    name: 'atc-runtime',
-    scope: 'manage',
-    hosts: ['atc-*'],
-    grantable: ['glm'],
-  });
-
-  await verifyBrokerAuthority(broker, {
-    impNames: ['atc-s1'],
-    secrets: ['glm'],
-    oauthSecrets: [],
-  });
-
-  expect(broker.calls).toStrictEqual(['readFeatures', 'readIdentity']);
-});
-
-test('it lets a broker with oauth secrets activate a binding that holds one', async () => {
-  const broker = buildStubCredentialBroker('atc-');
-
-  broker.setIdentity({
-    name: 'atc-runtime',
-    scope: 'manage',
-    hosts: ['atc-*'],
-    grantable: ['codex-chatgpt'],
-  });
-
-  await verifyBrokerAuthority(broker, {
-    impNames: ['atc-s1'],
-    secrets: ['codex-chatgpt'],
-    oauthSecrets: ['codex-chatgpt'],
-  });
-
-  expect(broker.calls).toStrictEqual(['readFeatures', 'readIdentity']);
+  expect(broker.calls).toStrictEqual(['verifyVersion', 'readIdentity']);
 });

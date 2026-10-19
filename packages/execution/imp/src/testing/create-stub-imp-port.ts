@@ -8,7 +8,6 @@ import type {
   ImpCommand,
   ImpCommandResult,
   ImpCreateSpec,
-  ImpFeatures,
   ImpForwardEnd,
   ImpIdentity,
   ImpLease,
@@ -25,7 +24,8 @@ import type {
 } from '../imp-port';
 import { ImpPortError } from '../imp-port-error';
 import type { ImpdBareRefusalCode, ImpdExecRefusal, ImpdOutput } from '../impd-contract';
-import { toImpFeatures } from '../to-imp-features';
+import { MIN_IMPD_VERSION } from '../min-impd-version';
+import { requireImpdVersion } from '../require-impd-version';
 import { buildNotFound } from './build-not-found';
 import { StubImpCommands } from './stub-imp-commands';
 import type { StubCommandHold } from './stub-imp-commands';
@@ -59,16 +59,7 @@ class StubImpPort implements ImpPort {
   // The spec of every imp create the port received, in order.
   readonly createSpecs: ImpCreateSpec[] = [];
 
-  features: ImpFeatures = {
-    sessionOffsets: true,
-    leases: true,
-    grantableTokens: true,
-    secretRebind: true,
-    execRequire: true,
-    oauthSecrets: true,
-    readOnlyFiles: false,
-    execDropSysAdmin: true,
-  };
+  version: string = MIN_IMPD_VERSION;
 
   // Where the port keeps each imp's read-only files, one folder per imp
   // name; null stands for an imp agent from before them.
@@ -82,11 +73,11 @@ class StubImpPort implements ImpPort {
   // impd's at-least-once delivery allows.
   resumeOverlap = 0;
 
-  // Feature reads still to fail as an unreachable impd before they answer.
-  private featureFailures = 0;
+  // Version checks still to fail as an unreachable impd before they answer.
+  private versionFailures = 0;
 
-  // Feature reads that failed as an unreachable impd.
-  private failedFeatureReads = 0;
+  // Version checks that failed as an unreachable impd.
+  private failedVersionChecks = 0;
 
   private readonly fleet: StubImpFleet;
 
@@ -116,32 +107,22 @@ class StubImpPort implements ImpPort {
     });
   }
 
-  readFeatures(): Promise<ImpFeatures> {
+  verifyVersion(): Promise<void> {
     this.calls.push('system.info');
 
-    if (this.featureFailures > 0) {
-      this.featureFailures -= 1;
-      this.failedFeatureReads += 1;
+    if (this.versionFailures > 0) {
+      this.versionFailures -= 1;
+      this.failedVersionChecks += 1;
 
       return Promise.reject(new ImpPortError('UNREACHABLE', 'impd did not answer'));
     }
 
-    const features = this.features;
+    const info: Pick<ImpdOutput<'system.info'>, 'version'> = { version: this.version };
 
-    const info: Pick<ImpdOutput<'system.info'>, 'features'> = {
-      features: {
-        sessionOffsets: features.sessionOffsets,
-        leases: features.leases,
-        grantableTokens: features.grantableTokens,
-        secretRebind: features.secretRebind,
-        execRequire: features.execRequire,
-        oauthSecrets: features.oauthSecrets,
-        readOnlyFiles: features.readOnlyFiles,
-        execDropSysAdmin: features.execDropSysAdmin,
-      },
-    };
-
-    return Promise.resolve(toImpFeatures(info));
+    return new Promise((resolve) => {
+      requireImpdVersion(info.version);
+      resolve();
+    });
   }
 
   readIdentity(): Promise<ImpIdentity> {
@@ -238,19 +219,6 @@ class StubImpPort implements ImpPort {
     onConnection: (connection: ImpRelayConnection) => void,
   ): ImpReverseForward {
     return this.forwards.openReverseForward(name, guestPath, onConnection);
-  }
-
-  setOldDaemonFeatures(): void {
-    this.features = {
-      sessionOffsets: true,
-      leases: true,
-      grantableTokens: false,
-      secretRebind: false,
-      execRequire: false,
-      oauthSecrets: false,
-      readOnlyFiles: false,
-      execDropSysAdmin: false,
-    };
   }
 
   setIdentity(identity: ImpIdentity): void {
@@ -450,13 +418,13 @@ class StubImpPort implements ImpPort {
     this.secrets.setGrantRemovalFailure(code);
   }
 
-  setFeatureFailures(count: number): void {
-    this.featureFailures = count;
+  setVersionFailures(count: number): void {
+    this.versionFailures = count;
   }
 
-  // How many feature reads failed as an unreachable impd.
-  countFailedFeatureReads(): number {
-    return this.failedFeatureReads;
+  // How many version checks failed as an unreachable impd.
+  countFailedVersionChecks(): number {
+    return this.failedVersionChecks;
   }
 
   setNextSessionFailure(refusal: ImpdExecRefusal, message?: string): void {

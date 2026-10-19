@@ -23,7 +23,7 @@ test('it reads nothing from impd for a binding without an oauth secret', async (
   expect(broker.calls).toStrictEqual([]);
 });
 
-test("it reads each bound oauth secret's sign-in state from impd's features and one secret list", async () => {
+test("it reads each bound oauth secret's sign-in state from one secret list once impd's version passes", async () => {
   const broker = buildStubCredentialBroker();
 
   broker.createSecret(
@@ -59,13 +59,13 @@ test("it reads each bound oauth secret's sign-in state from impd's features and 
     'codex-chatgpt': { status: 'ready', idClaims: { email: 'someone@example.com' } },
   });
 
-  expect(broker.calls).toStrictEqual(['readFeatures', 'readSecrets']);
+  expect(broker.calls).toStrictEqual(['verifyVersion', 'readSecrets']);
 });
 
-test('it refuses an impd without oauth secrets before it lists any secret', async () => {
+test('it refuses an outdated impd as an unavailable host before it lists any secret', async () => {
   const broker = buildStubCredentialBroker();
 
-  broker.setFeatures({ oauthSecrets: false });
+  broker.setOutdated(true);
 
   const loaded = loadOAuthStates(
     broker,
@@ -81,13 +81,13 @@ test('it refuses an impd without oauth secrets before it lists any secret', asyn
   );
 
   expect(loaded).rejects.toMatchObject({
-    code: 'auth_impd_too_old',
-    message: 'impd lacks oauth secret support, which codex-chatgpt needs',
+    code: 'host_unavailable',
+    data: { provider: 'imp', problem: 'impd_outdated' },
   });
 
   await loaded.catch(() => {});
 
-  expect(broker.calls).toStrictEqual(['readFeatures']);
+  expect(broker.calls).toStrictEqual(['verifyVersion']);
 });
 
 test('it refuses a bound oauth secret that impd does not hold', () => {
@@ -135,7 +135,7 @@ test('it refuses a bound oauth secret that impd holds as another kind', () => {
 test('it turns a call impd fails into an unavailable host', () => {
   const broker = buildStubCredentialBroker();
 
-  broker.setFeatureFailures(1);
+  broker.setVersionFailures(1);
 
   const loaded = loadOAuthStates(
     broker,

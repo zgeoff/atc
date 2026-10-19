@@ -51,7 +51,6 @@ export const ERROR_CODES = [
   'host_unavailable',
   'auth_not_configured',
   'auth_target_unsupported',
-  'auth_impd_too_old',
   'auth_signin_needed',
   'auth_token_scope',
   'auth_token_too_broad',

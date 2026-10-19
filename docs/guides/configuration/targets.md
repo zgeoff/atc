@@ -88,8 +88,13 @@ other target options do; existing sessions remain bound to the previous target c
 An `imp` target runs each top-level session in an imp of its own, a VM that impd hosts, and keeps
 each sub-session in its parent's imp. A kill of the top-level session puts its imp to sleep, and
 `session.forget` destroys it. The
-[daemon architecture](../../architecture/execution/imp-provider.md) covers the lifecycle. Its
-options:
+[daemon architecture](../../architecture/execution/imp-provider.md) covers the lifecycle.
+
+An imp target needs impd 2.2.0 or later, the first release that reports every capability atc uses.
+atc checks impd's version before it readies an imp, and refuses an older impd, or one whose version
+it cannot read, with `host_unavailable` and the problem `impd_outdated`. Upgrade impd to clear it.
+
+The target's options:
 
 | Key                    | Default    | What it does                                                                                          |
 | ---------------------- | ---------- | ----------------------------------------------------------------------------------------------------- |

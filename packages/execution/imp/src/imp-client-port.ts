@@ -7,7 +7,6 @@ import type {
   ImpCommand,
   ImpCommandResult,
   ImpCreateSpec,
-  ImpFeatures,
   ImpIdentity,
   ImpLease,
   ImpPort,
@@ -23,7 +22,7 @@ import type {
 import { ImpPortError } from './imp-port-error';
 import { openGatedSocket } from './open-gated-socket';
 import { openRelay } from './open-relay';
-import { toImpFeatures } from './to-imp-features';
+import { requireImpdVersion } from './require-impd-version';
 import { toImpIdentity } from './to-imp-identity';
 import { toImpLease } from './to-imp-lease';
 import { toImpSecret } from './to-imp-secret';
@@ -35,10 +34,10 @@ interface ImpClientPortOptions {
   readonly now?: () => number;
 }
 
-// How long one read of impd's slow status report answers later features
-// reads; the features change only when impd is replaced, which the doc on
+// How long one read of impd's slow status report answers later version
+// checks; the version changes only when impd is replaced, which the doc on
 // runtime auth weighs.
-const FEATURES_MAX_AGE_MS = 30_000;
+const VERSION_MAX_AGE_MS = 30_000;
 
 export class ImpClientPort implements ImpPort {
   private readonly url: string;
@@ -50,12 +49,12 @@ export class ImpClientPort implements ImpPort {
   // The client for the token read last, rebuilt when the token changes.
   private client: Readonly<{ token: string | null; client: ImpClient }> | null = null;
 
-  // The last read of impd's features under a token, from when it went out,
+  // The last read of impd's version under a token, from when it went out,
   // dropped when it rejects.
-  private features: Readonly<{
+  private version: Readonly<{
     token: string | null;
     at: number;
-    read: Promise<ImpFeatures>;
+    read: Promise<string>;
   }> | null = null;
 
   constructor(options: ImpClientPortOptions) {
@@ -64,37 +63,10 @@ export class ImpClientPort implements ImpPort {
     this.now = options.now ?? systemClock.now;
   }
 
-  readonly readFeatures = (): Promise<ImpFeatures> => {
-    const token = this.tryReadToken();
+  readonly verifyVersion = async (): Promise<void> => {
+    const version = await this.readVersion();
 
-    if (token instanceof ImpPortError) {
-      return Promise.reject(token);
-    }
-
-    const at = this.now();
-    const held = this.features;
-
-    if (held !== null && held.token === token && at - held.at < FEATURES_MAX_AGE_MS) {
-      return held.read;
-    }
-
-    const read = (async (): Promise<ImpFeatures> => {
-      try {
-        const info = await this.tryCall((client) => client.system.info());
-
-        return toImpFeatures(info);
-      } catch (error) {
-        if (this.features?.token === token && this.features.at === at) {
-          this.features = null;
-        }
-
-        throw error;
-      }
-    })();
-
-    this.features = { token, at, read };
-
-    return read;
+    requireImpdVersion(version);
   };
 
   readonly readIdentity = async (): Promise<ImpIdentity> => {
@@ -321,6 +293,41 @@ export class ImpClientPort implements ImpPort {
       },
     };
   };
+
+  // impd's version, from a read under the same token within the maximum age
+  // when one is held.
+  private readVersion(): Promise<string> {
+    const token = this.tryReadToken();
+
+    if (token instanceof ImpPortError) {
+      return Promise.reject(token);
+    }
+
+    const at = this.now();
+    const held = this.version;
+
+    if (held !== null && held.token === token && at - held.at < VERSION_MAX_AGE_MS) {
+      return held.read;
+    }
+
+    const read = (async (): Promise<string> => {
+      try {
+        const info = await this.tryCall((client) => client.system.info());
+
+        return info.version;
+      } catch (error) {
+        if (this.version?.token === token && this.version.at === at) {
+          this.version = null;
+        }
+
+        throw error;
+      }
+    })();
+
+    this.version = { token, at, read };
+
+    return read;
+  }
 
   // Runs one client call, turning impd's refusals and transport failures
   // into port errors.

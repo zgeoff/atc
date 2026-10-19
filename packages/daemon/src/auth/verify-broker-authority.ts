@@ -6,43 +6,20 @@ import { verifyTokenImpAuthority } from './verify-token-imp-authority';
 interface BrokerActivation {
   readonly impNames: readonly string[];
   readonly secrets: readonly string[];
-  readonly oauthSecrets?: readonly string[];
 }
 
 // reads only, so a refusal leaves impd as it was; whether each secret's rules
 // match the binding is a separate comparison
 export async function verifyBrokerAuthority(
-  broker: Pick<CredentialBroker, 'hostPrefix' | 'readFeatures' | 'readIdentity'>,
+  broker: Pick<CredentialBroker, 'hostPrefix' | 'verifyVersion' | 'readIdentity'>,
   activation: BrokerActivation,
 ): Promise<void> {
-  const [featuresRead, identityRead] = await Promise.allSettled([
-    broker.readFeatures(),
+  const [versionCheck, identityRead] = await Promise.allSettled([
+    broker.verifyVersion(),
     broker.readIdentity(),
   ]);
 
-  const features = getSettledValue(featuresRead);
-
-  if (!features.grantableTokens || !features.secretRebind || !features.execRequire) {
-    throw new BrokerAuthorityError(
-      'auth_impd_too_old',
-      'impd lacks grantable tokens, secret rebinds or exec requirements; it must be 0.30.0 or later',
-      {
-        grantableTokens: features.grantableTokens,
-        secretRebind: features.secretRebind,
-        execRequire: features.execRequire,
-      },
-    );
-  }
-
-  const oauthSecrets = activation.oauthSecrets ?? [];
-
-  if (oauthSecrets.length > 0 && !features.oauthSecrets) {
-    throw new BrokerAuthorityError(
-      'auth_impd_too_old',
-      `impd lacks oauth secret support, which ${oauthSecrets.join(', ')} needs`,
-      { oauthSecrets: features.oauthSecrets, secrets: oauthSecrets },
-    );
-  }
+  getSettledValue(versionCheck);
 
   const identity = getSettledValue(identityRead);
 

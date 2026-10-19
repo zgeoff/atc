@@ -10,9 +10,6 @@ export interface ImpHarnessHost {
   // end, after every exit listener has run.
   readonly onDone: () => void;
 
-  // Whether impd carries output offsets, so a reconnect can resume.
-  readonly offsets: boolean;
-
   // The wait before each reconnect after a connection ends without an
   // exit; the harness ends once they run out.
   readonly reconnectDelaysMs: readonly number[];

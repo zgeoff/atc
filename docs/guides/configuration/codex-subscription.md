@@ -3,9 +3,9 @@
 `auth` on a Codex entry signs it in on an imp target with the ChatGPT sign-in that impd holds as an
 [oauth secret](https://github.com/zgeoff/impz/blob/main/docs/guides/connectors.md#oauth-secrets).
 impd renews the access token from the refresh token and sets it on each request to `chatgpt.com`, so
-no token enters the imp. On the local target, Codex keeps the sign-in of your own Codex config. An
-imp target needs impd with oauth secrets; an older impd refuses the spawn with `auth_impd_too_old`.
-The [brokered credentials guide](./brokered-credentials.md) covers the profiles `auth` selects.
+no token enters the imp. On the local target, Codex keeps the sign-in of your own Codex config. The
+[targets guide](./targets.md#imp-targets) gives the oldest impd an imp target takes. The
+[brokered credentials guide](./brokered-credentials.md) covers the profiles `auth` selects.
 
 1. Sign Codex in with your ChatGPT account on your machine, so `~/.codex/auth.json` holds a refresh
    token.

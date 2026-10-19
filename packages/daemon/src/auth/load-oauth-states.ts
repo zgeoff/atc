@@ -15,15 +15,7 @@ export async function loadOAuthStates(
   }
 
   try {
-    const features = await host.readFeatures();
-
-    if (!features.oauthSecrets) {
-      throw new DaemonError(
-        'auth_impd_too_old',
-        `impd lacks oauth secret support, which ${expected.map((secret) => secret.secret).join(', ')} needs`,
-        { oauthSecrets: false, secrets: expected.map((secret) => secret.secret) },
-      );
-    }
+    await host.verifyVersion();
 
     const held = await host.readSecrets();
 

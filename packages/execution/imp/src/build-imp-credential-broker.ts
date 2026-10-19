@@ -14,7 +14,7 @@ export function buildImpCredentialBroker(port: ImpPort, hosts: ImpBrokerHosts): 
   return {
     hostPrefix: hosts.impPrefix,
     getHostName: hosts.getImpName,
-    readFeatures: () => withBrokerErrors(() => port.readFeatures()),
+    verifyVersion: () => withBrokerErrors(() => port.verifyVersion()),
     readIdentity: () =>
       withBrokerErrors(async () => {
         const identity = await port.readIdentity();

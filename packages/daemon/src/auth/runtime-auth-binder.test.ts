@@ -72,7 +72,7 @@ test('it provisions a host through the gate, a new imp and each grant, in that o
   });
 
   expect(ctx.host.calls).toStrictEqual([
-    'readFeatures',
+    'verifyVersion',
     'readIdentity',
     'readSecrets',
     'readHost atc-s1',
@@ -175,14 +175,14 @@ test('it provisions a host with two secrets in four round trips to impd', async 
   await created;
 
   expect([gateRound, createRound, grantsReadRound, grantRound]).toStrictEqual([
-    ['readFeatures', 'readIdentity', 'readSecrets', 'readHost atc-s1'],
+    ['verifyVersion', 'readIdentity', 'readSecrets', 'readHost atc-s1'],
     ['createHost atc-s1'],
     ['readGrants atc-s1'],
     ['createGrant atc-s1 glm', 'createGrant atc-s1 judge'],
   ]);
 });
 
-test('it refuses an impd without exec requirements and records nothing', async () => {
+test('it refuses an outdated impd as an unavailable host and records nothing', async () => {
   const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
@@ -203,7 +203,7 @@ test('it refuses an impd without exec requirements and records nothing', async (
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.host.setFeatures({ execRequire: false });
+  ctx.host.setOutdated(true);
 
   const created = ctx.binder.createBinding(ctx.host, {
     hostKey: toSessionID('s1'),
@@ -223,15 +223,15 @@ test('it refuses an impd without exec requirements and records nothing', async (
   });
 
   expect(created).rejects.toMatchObject({
-    code: 'auth_impd_too_old',
-    data: { execRequire: false },
+    code: 'host_unavailable',
+    data: { provider: 'imp', problem: 'impd_outdated' },
   });
 
   const calls = [...ctx.host.calls];
 
   const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
 
-  expect(calls).toStrictEqual(['readFeatures', 'readIdentity', 'readSecrets', 'readHost atc-s1']);
+  expect(calls).toStrictEqual(['verifyVersion', 'readIdentity', 'readSecrets', 'readHost atc-s1']);
   expect(binding).toBeNull();
 });
 
@@ -269,7 +269,7 @@ test('it refuses a token that reaches every imp and records nothing', async () =
 
   const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
 
-  expect(calls).toStrictEqual(['readFeatures', 'readIdentity', 'readSecrets', 'readHost atc-s1']);
+  expect(calls).toStrictEqual(['verifyVersion', 'readIdentity', 'readSecrets', 'readHost atc-s1']);
   expect(binding).toBeNull();
 });
 
@@ -316,7 +316,7 @@ test('it refuses a secret whose rules differ from the binding and creates no imp
 
   const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
 
-  expect(calls).toStrictEqual(['readFeatures', 'readIdentity', 'readSecrets', 'readHost atc-s1']);
+  expect(calls).toStrictEqual(['verifyVersion', 'readIdentity', 'readSecrets', 'readHost atc-s1']);
   expect(binding).toBeNull();
 });
 
@@ -369,7 +369,7 @@ test('it refuses an imp that already holds the name and grants nothing to it', a
 
   expect(calls).toStrictEqual([
     'createHost atc-s1',
-    'readFeatures',
+    'verifyVersion',
     'readIdentity',
     'readSecrets',
     'readHost atc-s1',
@@ -430,7 +430,7 @@ test('it takes back the imp a refused grant left and drops the record', async ()
   const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
 
   expect(ctx.host.calls).toStrictEqual([
-    'readFeatures',
+    'verifyVersion',
     'readIdentity',
     'readSecrets',
     'readHost atc-s1',
@@ -508,7 +508,7 @@ test('it verifies a bound host without granting anything again', async () => {
   expect(verified.state).toBe('ready');
 
   expect(ctx.host.calls).toStrictEqual([
-    'readFeatures',
+    'verifyVersion',
     'readIdentity',
     'readSecrets',
     'readHost atc-s1',
@@ -577,7 +577,7 @@ test('it verifies a bound host in one round trip to impd', async () => {
   await verified;
 
   expect(round).toStrictEqual([
-    'readFeatures',
+    'verifyVersion',
     'readIdentity',
     'readSecrets',
     'readHost atc-s1',
@@ -650,7 +650,7 @@ test('it refuses a host whose grant was revoked outside atc and grants it no mor
   });
 
   expect(ctx.host.calls).toStrictEqual([
-    'readFeatures',
+    'verifyVersion',
     'readIdentity',
     'readSecrets',
     'readHost atc-s1',
@@ -1200,7 +1200,7 @@ test('it rebinds a host to the next revision, granting the new secret and revoki
   expect(revision).toBe(2);
 
   expect(calls).toStrictEqual([
-    'readFeatures',
+    'verifyVersion',
     'readIdentity',
     'readSecrets',
     'readIdentity',
@@ -1318,7 +1318,7 @@ test('it removes only the grants a failed rebind added and keeps the imp at the 
   const grants = await ctx.host.readGrants('atc-s1');
 
   expect(calls).toStrictEqual([
-    'readFeatures',
+    'verifyVersion',
     'readIdentity',
     'readSecrets',
     'readIdentity',
@@ -2533,7 +2533,7 @@ test('it refuses a new imp that already holds a grant, grants it nothing and tak
   // The stand-in's own grant of judge is the only one; the binder never
   // asks for glm.
   expect(calls).toStrictEqual([
-    'readFeatures',
+    'verifyVersion',
     'readIdentity',
     'readSecrets',
     'readHost atc-s1',

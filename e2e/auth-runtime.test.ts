@@ -114,9 +114,9 @@ test('it provisions the host of a spawn before readying it and starts the harnes
     `imps.get ${imp}`,
     expect.toStartWith(`leases.acquire ${imp} `),
     expect.toInclude('mkdir -p "$1/run" && { [ -z "$2" ] || [ -x "$2" ]; }'),
+    expect.toStartWith(`files.write ${imp} atc/records/`),
     expect.toStartWith(`exec.run ${imp} sh -c umask 022 && mkdir -p "$1" && printf`),
     expect.toStartWith(`reverse ${imp} `),
-    'system.info',
     expect.toStartWith(`exec.start ${imp} `),
   ]);
 
@@ -537,7 +537,7 @@ test('it refuses a brokered spawn whose guest plan sets a proxy variable before 
   expect(listed).toStrictEqual({ sessions: [] });
 });
 
-test('it refuses a spawn on an impd without exec requirements after reads alone', async () => {
+test('it refuses a spawn on an impd older than 2.2.0 after reads alone', async () => {
   const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
@@ -578,7 +578,7 @@ test('it refuses a spawn on an impd without exec requirements after reads alone'
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  ctx.port.features = { ...ctx.port.features, execRequire: false };
+  ctx.port.version = '2.1.0';
 
   const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -592,7 +592,12 @@ test('it refuses a spawn on an impd without exec requirements after reads alone'
 
   const calls: readonly unknown[] = ctx.port.calls;
 
-  expect(spawn).rejects.toMatchObject({ code: 'auth_impd_too_old' });
+  expect(spawn).rejects.toMatchObject({
+    code: 'host_unavailable',
+    message:
+      'impd refused a runtime auth call: impd 2.1.0 is older than 2.2.0, the oldest impd this atc supports; upgrade impd',
+    data: { provider: 'imp', problem: 'impd_outdated' },
+  });
 
   expect(calls).toStrictEqual([
     'system.info',
@@ -2358,9 +2363,9 @@ test('it revives a slept session after verifying its binding, granting nothing a
     `imps.get ${imp}`,
     expect.toStartWith(`leases.acquire ${imp} `),
     expect.toInclude('mkdir -p "$1/run" && { [ -z "$2" ] || [ -x "$2" ]; }'),
+    expect.toStartWith(`files.write ${imp} atc/records/`),
     expect.toStartWith(`exec.run ${imp} sh -c umask 022 && mkdir -p "$1" && printf`),
     expect.toStartWith(`reverse ${imp} `),
-    'system.info',
     expect.toStartWith(`exec.start ${imp} `),
   ]);
 

@@ -7,8 +7,9 @@ export interface CredentialBroker {
   // The name of the host a host key runs on.
   readonly getHostName: (hostKey: string) => string;
 
-  // What the broker supports.
-  readonly readFeatures: () => Promise<BrokerFeatures>;
+  // Rejects when the broker is older than the oldest broker this atc
+  // supports.
+  readonly verifyVersion: () => Promise<void>;
 
   // The provider's own identity: its scope, the hosts it may reach, and the
   // secrets it may grant.
@@ -38,20 +39,6 @@ export interface CredentialBroker {
   // Destroys the host a host key runs on, as the provider itself destroys
   // it. A host that is already gone counts as destroyed.
   readonly destroyHost: (hostKey: string) => Promise<void>;
-}
-
-export interface BrokerFeatures {
-  // tokens that may grant a list of secrets.
-  readonly grantableTokens: boolean;
-
-  // grants that a rebound secret drops.
-  readonly secretRebind: boolean;
-
-  // starts that wait for the broker.
-  readonly execRequire: boolean;
-
-  // secrets whose access token the broker renews.
-  readonly oauthSecrets: boolean;
 }
 
 export interface BrokerIdentity {
