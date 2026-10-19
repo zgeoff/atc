@@ -1,9 +1,8 @@
 import type { SessionID } from '@atc/core';
-import { parseRequestParams } from '@atc/protocol';
-import type { RequestMsg } from '@atc/protocol/wire';
+import type { DaemonAnswer, RequestParams } from '@atc/protocol';
+import { DaemonError } from '@atc/protocol/wire';
 import { match } from 'ts-pattern';
 import type { DaemonContext, OutputClient } from '../daemon-context';
-import type { ConnectionReply } from './connection-reply';
 import type { RequestDeps } from './request-deps';
 
 // The requests that drive a session's terminal: attaching to it, typing
@@ -11,249 +10,177 @@ import type { RequestDeps } from './request-deps';
 export class TerminalRequests {
   private readonly client: OutputClient;
 
-  private readonly reply: ConnectionReply;
-
   constructor(deps: RequestDeps) {
     this.client = deps.client;
-    this.reply = deps.reply;
   }
 
-  applyAttach(req: RequestMsg, ctx: DaemonContext): void {
-    const parsed = parseRequestParams('session.attach', req.p);
-
-    if (!parsed.ok) {
-      this.reply.sendErr(req.id, 'bad_args', parsed.message);
-
-      return;
-    }
-
-    const sessionID = parsed.data.session;
-
-    const result = ctx.attachSession(this.client, sessionID, {
-      cols: parsed.data.cols,
-      rows: parsed.data.rows,
-    });
+  applyAttach(
+    data: RequestParams<'session.attach'>,
+    ctx: DaemonContext,
+  ): DaemonAnswer<'session.attach'> {
+    const sessionID = data.session;
+    const result = ctx.attachSession(this.client, sessionID, { cols: data.cols, rows: data.rows });
 
     if (result === 'missing') {
-      this.reply.sendErr(req.id, 'no_such_session', `no session '${sessionID}'`);
-
-      return;
+      throw new DaemonError('no_such_session', `no session '${sessionID}'`);
     }
 
     if (result === 'dead') {
-      this.reply.sendErr(req.id, 'session_dead', `session '${sessionID}' has no live process`);
-
-      return;
+      throw new DaemonError('session_dead', `session '${sessionID}' has no live process`);
     }
 
     const dims = ctx.getEffectiveDims(sessionID);
 
-    this.reply.sendOk(req.id, 'session.attach', { cols: dims.cols, rows: dims.rows });
+    return { cols: dims.cols, rows: dims.rows };
   }
 
-  applyInput(req: RequestMsg, ctx: DaemonContext): void {
-    const parsed = parseRequestParams('session.input', req.p);
+  applyInput(
+    data: RequestParams<'session.input'>,
+    ctx: DaemonContext,
+  ): DaemonAnswer<'session.input'> {
+    requireInputResult(data.session, ctx.writeSessionInput(data.session, data.d));
 
-    if (!parsed.ok) {
-      this.reply.sendErr(req.id, 'bad_args', parsed.message);
-
-      return;
-    }
-
-    const sessionID = parsed.data.session;
-
-    this.sendInputResult(
-      req,
-      'session.input',
-      sessionID,
-      ctx.writeSessionInput(sessionID, parsed.data.d),
-    );
+    return {};
   }
 
-  async applySubmit(req: RequestMsg, ctx: DaemonContext): Promise<void> {
-    const parsed = parseRequestParams('session.submit', req.p);
+  async applySubmit(
+    data: RequestParams<'session.submit'>,
+    ctx: DaemonContext,
+  ): Promise<DaemonAnswer<'session.submit'>> {
+    const result = await ctx.writeSessionLine(data.session, data.text);
 
-    if (!parsed.ok) {
-      this.reply.sendErr(req.id, 'bad_args', parsed.message);
+    requireInputResult(data.session, result);
 
-      return;
-    }
-
-    const sessionID = parsed.data.session;
-
-    const result = await ctx.writeSessionLine(sessionID, parsed.data.text);
-
-    this.sendInputResult(req, 'session.submit', sessionID, result);
+    return {};
   }
 
-  applySessionMenu(req: RequestMsg, ctx: DaemonContext): void {
-    const parsed = parseRequestParams('session.menu', req.p);
-
-    if (!parsed.ok) {
-      this.reply.sendErr(req.id, 'bad_args', parsed.message);
-
-      return;
-    }
-
-    const id = parsed.data.session;
+  // A read rejects with a DaemonError when the menu changes or ignores a key. The session
+  // can leave the caller's view while the read runs, so its view is checked again before
+  // the menu goes out.
+  async applySessionMenu(
+    data: RequestParams<'session.menu'>,
+    ctx: DaemonContext,
+  ): Promise<DaemonAnswer<'session.menu'>> {
+    const id = data.session;
 
     if (!ctx.isSessionVisible(id)) {
-      this.reply.sendErr(req.id, 'no_such_session', `no session '${id}'`);
-
-      return;
+      throw new DaemonError('no_such_session', `no session '${id}'`);
     }
 
-    // A read rejects with a DaemonError when the menu changes or ignores a key. The session
-    // can leave the caller's view while the read runs, so its view is checked again before
-    // the menu goes out.
-    this.reply.answerAsync(req.id, async () => {
-      const menu = await ctx.readSessionMenu(id);
+    const menu = await ctx.readSessionMenu(id);
 
-      if (menu === 'missing' || !ctx.isSessionVisible(id)) {
-        this.reply.sendErr(req.id, 'no_such_session', `no session '${id}'`);
-      } else if (menu === 'no_screen') {
-        this.reply.sendErr(req.id, 'session_dead', `session '${id}' has no captured screen`);
-      } else if (menu === 'unsupported') {
-        this.reply.sendErr(req.id, 'unsupported', `atc cannot read the menus in session '${id}'`);
-      } else {
-        this.reply.sendOk(req.id, 'session.menu', { menu });
-      }
-    });
+    if (menu === 'missing' || !ctx.isSessionVisible(id)) {
+      throw new DaemonError('no_such_session', `no session '${id}'`);
+    }
+
+    if (menu === 'no_screen') {
+      throw new DaemonError('session_dead', `session '${id}' has no captured screen`);
+    }
+
+    if (menu === 'unsupported') {
+      throw new DaemonError('unsupported', `atc cannot read the menus in session '${id}'`);
+    }
+
+    return { menu };
   }
 
   // A choice whose menu, label, or cursor does not match the screen rejects
   // with its DaemonError, which answers with that error's code.
-  applySessionChoose(req: RequestMsg, ctx: DaemonContext): void {
-    const parsed = parseRequestParams('session.choose', req.p);
-
-    if (!parsed.ok) {
-      this.reply.sendErr(req.id, 'bad_args', parsed.message);
-
-      return;
-    }
-
-    const id = parsed.data.session;
-    const menuToken = parsed.data.menuToken;
+  async applySessionChoose(
+    data: RequestParams<'session.choose'>,
+    ctx: DaemonContext,
+  ): Promise<DaemonAnswer<'session.choose'>> {
+    const id = data.session;
+    const menuToken = data.menuToken;
 
     if (!ctx.isSessionVisible(id)) {
-      this.reply.sendErr(req.id, 'no_such_session', `no session '${id}'`);
-
-      return;
+      throw new DaemonError('no_such_session', `no session '${id}'`);
     }
 
     const choice =
-      parsed.data.key === 'escape'
-        ? { menuToken, key: parsed.data.key }
-        : { menuToken, option: parsed.data.option ?? 0, label: parsed.data.label ?? '' };
+      data.key === 'escape'
+        ? { menuToken, key: data.key }
+        : { menuToken, option: data.option ?? 0, label: data.label ?? '' };
 
-    this.reply.answerAsync(req.id, async () => {
-      const result = await ctx.applySessionMenuChoice(id, choice);
-
-      if (result === 'missing') {
-        this.reply.sendErr(req.id, 'no_such_session', `no session '${id}'`);
-      } else if (result === 'dead') {
-        this.reply.sendErr(req.id, 'session_dead', `session '${id}' has no live process`);
-      } else if (result === 'unsupported') {
-        this.reply.sendErr(req.id, 'unsupported', `atc cannot read the menus in session '${id}'`);
-      } else {
-        this.reply.sendOk(req.id, 'session.choose', { ...result });
-      }
-    });
-  }
-
-  private sendInputResult(
-    req: RequestMsg,
-    method: 'session.input' | 'session.submit',
-    sessionID: SessionID,
-    result: 'busy' | 'ok' | 'missing' | 'dead' | 'permission_pending',
-  ): void {
-    if (result === 'permission_pending') {
-      this.reply.sendErr(
-        req.id,
-        'permission_pending',
-        `session '${sessionID}' is waiting on a permission prompt, where typed text picks the highlighted option; answer the prompt's menu with session.choose or in the atc TUI`,
-      );
-
-      return;
-    }
+    const result = await ctx.applySessionMenuChoice(id, choice);
 
     if (result === 'missing') {
-      this.reply.sendErr(req.id, 'no_such_session', `no session '${sessionID}'`);
-
-      return;
+      throw new DaemonError('no_such_session', `no session '${id}'`);
     }
 
     if (result === 'dead') {
-      this.reply.sendErr(req.id, 'session_dead', `session '${sessionID}' has no live process`);
-
-      return;
+      throw new DaemonError('session_dead', `session '${id}' has no live process`);
     }
 
-    if (result === 'busy') {
-      this.reply.sendErr(
-        req.id,
+    if (result === 'unsupported') {
+      throw new DaemonError('unsupported', `atc cannot read the menus in session '${id}'`);
+    }
+
+    return { ...result };
+  }
+
+  applyResize(
+    data: RequestParams<'session.resize'>,
+    ctx: DaemonContext,
+  ): DaemonAnswer<'session.resize'> {
+    const sessionID = data.session;
+
+    if (!ctx.resizeSession(this.client, sessionID, { cols: data.cols, rows: data.rows })) {
+      throw new DaemonError('bad_args', `not attached to session '${sessionID}'`);
+    }
+
+    return {};
+  }
+
+  applyPermissionRespond(
+    data: RequestParams<'permission.respond'>,
+    ctx: DaemonContext,
+  ): DaemonAnswer<'permission.respond'> {
+    const request = data.request;
+    const result = ctx.answerPermission(request, data.decision);
+
+    match(result)
+      .with('ok', () => {})
+      .with('already_answered', () => {
+        throw new DaemonError('already_answered', `request '${request}' was already answered`);
+      })
+      .with('unsupported', () => {
+        throw new DaemonError('unsupported', `request '${request}' is answered with keystrokes`);
+      })
+      .with('unknown', () => {
+        throw new DaemonError('bad_args', `unknown permission request '${request}'`);
+      })
+      .exhaustive();
+
+    return {};
+  }
+}
+
+// Text typed into a session goes through only when the session is live,
+// idle, and shows no permission prompt.
+function requireInputResult(
+  sessionID: SessionID,
+  result: 'busy' | 'ok' | 'missing' | 'dead' | 'permission_pending',
+): void {
+  match(result)
+    .with('ok', () => {})
+    .with('permission_pending', () => {
+      throw new DaemonError(
+        'permission_pending',
+        `session '${sessionID}' is waiting on a permission prompt, where typed text picks the highlighted option; answer the prompt's menu with session.choose or in the atc TUI`,
+      );
+    })
+    .with('missing', () => {
+      throw new DaemonError('no_such_session', `no session '${sessionID}'`);
+    })
+    .with('dead', () => {
+      throw new DaemonError('session_dead', `session '${sessionID}' has no live process`);
+    })
+    .with('busy', () => {
+      throw new DaemonError(
         'too_slow',
         `session '${sessionID}' is mid-run; wait for the turn to end`,
       );
-
-      return;
-    }
-
-    this.reply.sendOk(req.id, method, {});
-  }
-
-  applyResize(req: RequestMsg, ctx: DaemonContext): void {
-    const parsed = parseRequestParams('session.resize', req.p);
-
-    if (!parsed.ok) {
-      this.reply.sendErr(req.id, 'bad_args', parsed.message);
-
-      return;
-    }
-
-    const sessionID = parsed.data.session;
-
-    if (
-      !ctx.resizeSession(this.client, sessionID, { cols: parsed.data.cols, rows: parsed.data.rows })
-    ) {
-      this.reply.sendErr(req.id, 'bad_args', `not attached to session '${sessionID}'`);
-
-      return;
-    }
-
-    this.reply.sendOk(req.id, 'session.resize', {});
-  }
-
-  applyPermissionRespond(req: RequestMsg, ctx: DaemonContext): void {
-    const parsed = parseRequestParams('permission.respond', req.p);
-
-    if (!parsed.ok) {
-      this.reply.sendErr(req.id, 'bad_args', parsed.message);
-
-      return;
-    }
-
-    const request = parsed.data.request;
-    const decision = parsed.data.decision;
-    const result = ctx.answerPermission(request, decision);
-
-    match(result)
-      .with('ok', () => {
-        this.reply.sendOk(req.id, 'permission.respond', {});
-      })
-      .with('already_answered', () => {
-        this.reply.sendErr(req.id, 'already_answered', `request '${request}' was already answered`);
-      })
-      .with('unsupported', () => {
-        this.reply.sendErr(
-          req.id,
-          'unsupported',
-          `request '${request}' is answered with keystrokes`,
-        );
-      })
-      .with('unknown', () => {
-        this.reply.sendErr(req.id, 'bad_args', `unknown permission request '${request}'`);
-      })
-      .exhaustive();
-  }
+    })
+    .exhaustive();
 }

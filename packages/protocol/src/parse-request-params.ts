@@ -4,7 +4,7 @@ import { REQUEST_PARAM_SCHEMAS } from './request-param-schemas';
 
 export type RequestMethod = keyof typeof REQUEST_PARAM_SCHEMAS;
 
-type RequestParams<M extends RequestMethod> = z.infer<(typeof REQUEST_PARAM_SCHEMAS)[M]>;
+export type RequestParams<M extends RequestMethod> = z.infer<(typeof REQUEST_PARAM_SCHEMAS)[M]>;
 
 export type ParsedRequestParams<M extends RequestMethod> =
   | { readonly ok: true; readonly data: RequestParams<M> }

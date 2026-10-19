@@ -5,6 +5,7 @@ export * from './count-session-states';
 export type * from './daemon-answer';
 export type * from './daemon-boot';
 export type * from './daemon-boot-options';
+export * from './daemon-contract';
 export * from './daemon-event';
 export * from './daemon-features';
 export type * from './daemon-paths';
