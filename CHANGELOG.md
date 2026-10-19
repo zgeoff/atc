@@ -1,5 +1,28 @@
 # Changelog
 
+## [4.15.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.14.0...@zgeoff/atc@4.15.0) (2026-10-19)
+
+### Features
+
+- **geo-1080:** read events.read from the oldest retained event
+  ([#770](https://github.com/zgeoff/atc/issues/770))
+  ([df2bb2d](https://github.com/zgeoff/atc/commit/df2bb2d462bb44153811b0d615f959ec0e3764f4))
+- **geo-1408:** load plugin folders per spawn and per claude agent
+  ([#778](https://github.com/zgeoff/atc/issues/778))
+  ([14c5341](https://github.com/zgeoff/atc/commit/14c534143cfe968d31eb0b460a381ac227ea230a))
+- **geo-445:** record refused token exchanges and bearer tokens
+  ([#772](https://github.com/zgeoff/atc/issues/772))
+  ([378ec53](https://github.com/zgeoff/atc/commit/378ec5377a5caf23996fe69f4331e9339a11717f))
+- **geo-907:** read a remote daemon's directories on its own host
+  ([#777](https://github.com/zgeoff/atc/issues/777))
+  ([4dc6d31](https://github.com/zgeoff/atc/commit/4dc6d31a7ff0b92be6e306b7f66d5a5a5ff8cb9e))
+
+### Bug Fixes
+
+- **geo-910:** stop a hung token command's process group at its deadline
+  ([#776](https://github.com/zgeoff/atc/issues/776))
+  ([34a57ac](https://github.com/zgeoff/atc/commit/34a57ac72ada2c74183bbc31b3b77420d74e5966))
+
 ## [4.14.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.13.2...@zgeoff/atc@4.14.0) (2026-10-18)
 
 ### Features
