@@ -48,6 +48,8 @@ test.each([
   ['/srv/app', { kind: 'path', dir: '/srv/app' }],
   ['~/app', { kind: 'path', dir: '/home/tester/app' }],
   [' /srv/app ', { kind: 'path', dir: '/srv/app' }],
+  ['./app', { kind: 'path', dir: '/home/tester/app' }],
+  ['../shared', { kind: 'path', dir: '/home/shared' }],
   ['app', { kind: 'none' }],
 ] as const)('it reads typed %p as %p', async (input, expected) => {
   const source = buildDirsSource({
@@ -82,7 +84,9 @@ test("it completes a relative path under the client's directory", async () => {
     clientCwd: join(ctx.home, 'work'),
   });
 
-  expect(completions).toStrictEqual([join(ctx.home, 'work', 'alpha')]);
+  expect(completions).toStrictEqual([
+    { label: '~/work/alpha', pick: { kind: 'path', dir: join(ctx.home, 'work', 'alpha') } },
+  ]);
 });
 
 test('it completes a relative path under the home when the request holds no client directory', async () => {
@@ -101,7 +105,9 @@ test('it completes a relative path under the home when the request holds no clie
     collectSpawnDirs: () => Promise.resolve([]),
   });
 
-  expect(completions).toStrictEqual([join(ctx.home, 'alpha')]);
+  expect(completions).toStrictEqual([
+    { label: '~/alpha', pick: { kind: 'path', dir: join(ctx.home, 'alpha') } },
+  ]);
 });
 
 test('it completes input that is not a path to nothing', async () => {

@@ -122,7 +122,10 @@ config's order and leaves out one its host cannot run, such as GitHub without th
 source request runs on the daemon's host and checks the target the spawn will use, as a spawn does.
 
 - **Directories** list the spawn history on the targets the caller may use, then the directories
-  under the configured roots, then zoxide's list, and drop any that no longer exist.
+  under the configured roots, then zoxide's list, and drop any that no longer exist. They complete a
+  typed path on the daemon's host, with `~` and a relative path under the home of the user the
+  daemon runs as, and resolve a typed absolute or `~` path the same way. A TUI on a remote daemon
+  reads every path through them, so it reads no path on its own host.
 - **GitHub** lists one owner's repositories through `gh`, as the account `gh` is signed in to sees
   them, at the clone URL form `gh` prefers.
 - **A git URL** lists nothing and reads what the owner types.

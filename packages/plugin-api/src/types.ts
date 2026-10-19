@@ -59,6 +59,10 @@ export interface SourceProvider {
   readonly findAlternateURLs?: (url: string) => readonly string[];
 
   // Completions of partly typed input, best first, such as the directories
-  // a typed path could continue to. Absent: the source completes nothing.
-  readonly complete?: (input: string, request: SourceCompletionRequest) => Promise<string[]>;
+  // a typed path could continue to, each with the label the picker shows.
+  // Absent: the source completes nothing.
+  readonly complete?: (
+    input: string,
+    request: SourceCompletionRequest,
+  ) => Promise<SourceCandidate[]>;
 }

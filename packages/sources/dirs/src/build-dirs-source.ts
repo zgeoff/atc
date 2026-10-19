@@ -1,9 +1,9 @@
 import { existsSync } from 'node:fs';
-import { isAbsolute } from 'node:path';
-import { expandHome, formatHomePath } from '@atc/core';
+import { formatHomePath } from '@atc/core';
 import type { SourceInterpretation, SourceProvider } from '@atc/plugin-api';
 import { collectRootDirs } from './collect-root-dirs';
 import { collectPathCompletions } from './complete/collect-path-completions';
+import { resolvePathInput } from './complete/resolve-path-input';
 
 // What the source reads besides the spawn history a request brings.
 interface DirsSourceServices {
@@ -45,20 +45,28 @@ export function buildDirsSource(services: DirsSourceServices): SourceProvider {
       };
     },
     interpret(input) {
-      const text = input.trim();
-      const dir = expandHome(text, services.homeDir);
+      // a relative path resolves under the home, as a completion does.
+      const dir = resolvePathInput(input.trim(), services.homeDir, services.homeDir);
 
-      const interpretation: SourceInterpretation = isAbsolute(dir)
-        ? { kind: 'path', dir }
-        : { kind: 'none' };
+      const interpretation: SourceInterpretation =
+        dir === null ? { kind: 'none' } : { kind: 'path', dir };
 
       return Promise.resolve(interpretation);
     },
     complete(input, request) {
       // a caller sends its cwd only when the daemon runs on the client's machine,
       // so a relative path resolves under the home otherwise.
+      const dirs = collectPathCompletions(
+        input,
+        request.clientCwd ?? services.homeDir,
+        services.homeDir,
+      );
+
       return Promise.resolve(
-        collectPathCompletions(input, request.clientCwd ?? services.homeDir, services.homeDir),
+        dirs.map((dir) => ({
+          label: formatHomePath(dir, services.homeDir),
+          pick: { kind: 'path', dir },
+        })),
       );
     },
   };

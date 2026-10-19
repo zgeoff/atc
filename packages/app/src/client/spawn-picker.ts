@@ -1,3 +1,4 @@
+import { posix } from 'node:path';
 import type { WorkspacesConfig } from '@atc/config';
 import { DEFAULT_GIT_TRANSPORTS, LOCAL_TARGET, loadConfig } from '@atc/config';
 import type { AgentID } from '@atc/core';
@@ -26,7 +27,12 @@ import {
   SOURCE_INTERPRETATION_SCHEMA,
 } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
-import { collectPathCompletions, collectZoxideDirs, resolvePathInput } from '@atc/source-dirs';
+import {
+  collectPathCompletions,
+  collectZoxideDirs,
+  isPathInput,
+  resolvePathInput,
+} from '@atc/source-dirs';
 import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { collectAgentPicks } from './collect-agent-picks';
 import type { AgentPick } from './collect-agent-picks';
@@ -51,12 +57,13 @@ type PickerStep =
   | 'prompt'
   | 'spawned';
 
-// The kinds of answer the flow can drop: a git source's listing, a
-// directory source's listing, each request a step waits on, the daemon's
-// targets and sources, and the local directory flow's listing.
+// The kinds of answer the flow can drop: each source's listing, each
+// request a step waits on, the daemon's targets and sources, the local
+// directory flow's listing, and a remote daemon's path completions.
 export type DroppedAnswer =
   | 'listing'
   | 'directory listing'
+  | 'path completion'
   | 'interpret'
   | 'probe'
   | 'spawn'
@@ -88,6 +95,11 @@ export interface SpawnPickerDeps<TMirror> {
 
   // The client's home directory, which a typed `~` expands to.
   readonly home: string;
+
+  // Whether the daemon runs on another host, where the flow lists,
+  // completes, and resolves every path through the daemon and reads no
+  // directory on this host.
+  readonly remoteDaemon?: boolean;
 
   // The config file the flow reads its agents, roots, and workspaces from
   // each time it opens.
@@ -189,6 +201,16 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   private dirs: string[] = [];
 
   private dirLabels: ReadonlyMap<string, string> = new Map();
+
+  // A remote daemon's completions of a typed path with the label each
+  // shows, for the input they complete, and the completion request the flow
+  // waits on.
+  private completed: {
+    readonly input: string;
+    readonly labels: ReadonlyMap<string, string>;
+  } | null = null;
+
+  private completionSeq: number | null = null;
 
   // The configured roots and workspace settings, read with the agents each
   // time the menu opens.
@@ -323,6 +345,8 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.listedKey = null;
     this.listingSeq = null;
     this.pathListingSeq = null;
+    this.completed = null;
+    this.completionSeq = null;
     this.alternateURL = null;
     this.destination = '';
     this.destinationEdited = false;
@@ -564,7 +588,15 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   }
 
   private renderDirStep(verb: string) {
-    const items = this.collectDirItems().map((d) => this.dirLabels.get(d) ?? formatDir(d));
+    // This host's home stands for nothing on a remote daemon's host, so a
+    // remote daemon's path shows the label the daemon gave it, or else as it
+    // is.
+    const items = this.collectDirItems().map(
+      (d) =>
+        this.completed?.labels.get(d) ??
+        this.dirLabels.get(d) ??
+        (this.deps.remoteDaemon === true ? d : formatDir(d)),
+    );
 
     this.selected = Math.min(this.selected, Math.max(0, Math.min(items.length, 10) - 1));
 
@@ -754,6 +786,80 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
         return;
       }
     }
+
+    if (this.step === 'dir' && this.deps.remoteDaemon === true && isPathInput(value)) {
+      void this.loadCompletions(value);
+    }
+
+    this.render();
+  }
+
+  // Asks the remote daemon to complete a typed path on its own host. Only
+  // the latest request's answer draws, so an earlier answer is dropped even
+  // when the input has come back to the text it completes.
+  private async loadCompletions(input: string) {
+    const own = this.findSource();
+    const source = own?.kind === 'path' ? own : this.sources?.find((s) => s.kind === 'path');
+
+    if (source === undefined || !this.deps.hasDaemonFeature('sources.complete')) {
+      return;
+    }
+
+    const generation = this.generation;
+
+    this.requestSeq += 1;
+
+    const seq = this.requestSeq;
+
+    this.completionSeq = seq;
+
+    let candidates: ListedCandidate[] = [];
+    let failure: string | null = null;
+
+    try {
+      const answer = await this.deps.sendRequest('sources.complete', {
+        source: source.id,
+        input,
+        ...this.buildPathTargetParam(),
+      });
+
+      candidates = parseCandidates(answer['completions']);
+    } catch (error) {
+      failure = formatError(error);
+    }
+
+    if (
+      this.isStale(generation) ||
+      this.completionSeq !== seq ||
+      this.step !== 'dir' ||
+      this.input !== input
+    ) {
+      this.deps.onDropAnswer?.('path completion');
+
+      return;
+    }
+
+    this.completionSeq = null;
+
+    // A refused completion is no empty one: the step shows why until the
+    // next key, and the input completes again on that key.
+    if (failure !== null) {
+      this.deps.log?.(`path completion failed: ${failure}`);
+      this.refusal = `cannot complete ${input}: ${failure}`;
+      this.completed = null;
+
+      this.render();
+
+      return;
+    }
+
+    const labels = new Map(
+      candidates.flatMap((candidate) =>
+        candidate.pick.kind === 'path' ? [[candidate.pick.dir, candidate.label] as const] : [],
+      ),
+    );
+
+    this.completed = { input, labels };
 
     this.render();
   }
@@ -977,13 +1083,11 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   }
 
   // Takes the directory step's choice: a listed or completed directory, a
-  // typed path, or else what the sources read the text as.
+  // typed path, or else what the sources read the text as. A remote daemon
+  // resolves a typed path itself, through its source of directories.
   private async applyDirSubmit() {
     const typed = this.input.trim();
-
-    const chosen =
-      this.collectDirItems()[this.selected] ??
-      resolvePathInput(typed, this.deps.cwd, this.deps.home);
+    const chosen = this.collectDirItems()[this.selected] ?? this.resolveTypedDir(typed);
 
     if (chosen !== null) {
       this.applyDir(chosen);
@@ -993,7 +1097,26 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     if (typed !== '' && this.sources !== null) {
       await this.readTypedInput(typed, true);
+
+      return;
     }
+
+    if (this.deps.remoteDaemon === true && isPathInput(typed)) {
+      this.refusal = `the daemon resolves no ${typed} · type an absolute path`;
+
+      this.render();
+    }
+  }
+
+  // A typed path the client resolves itself: on this host for a local
+  // daemon, and only an absolute one for a remote daemon that offers no
+  // source to resolve the rest. Null leaves the text to the sources.
+  private resolveTypedDir(typed: string): string | null {
+    if (this.deps.remoteDaemon !== true) {
+      return resolvePathInput(typed, this.deps.cwd, this.deps.home);
+    }
+
+    return this.sources === null && typed.startsWith('/') ? posix.resolve(typed) : null;
   }
 
   private applyDir(dir: string) {
@@ -1046,9 +1169,15 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   }
 
   private collectDirItems(): string[] {
-    return resolvePathInput(this.input, this.deps.cwd, this.deps.home) === null
-      ? pickMatches(this.dirs, this.input)
-      : collectPathCompletions(this.input, this.deps.cwd, this.deps.home);
+    if (!isPathInput(this.input)) {
+      return pickMatches(this.dirs, this.input);
+    }
+
+    if (this.deps.remoteDaemon === true) {
+      return this.completed?.input === this.input ? [...this.completed.labels.keys()] : [];
+    }
+
+    return collectPathCompletions(this.input, this.deps.cwd, this.deps.home);
   }
 
   // The git source step's rows: the other URL form after a failed probe,
@@ -1127,8 +1256,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     }
   }
 
-  // the client's own directory lists first. The flow stays where it is until the listing
-  // answers, and an answer that comes after the flow moved on is dropped.
+  // the client's own directory lists first, unless the daemon runs on another host. The flow
+  // stays where it is until the listing answers, and an answer that comes after the flow
+  // moved on is dropped.
   private async openPathSource(index: number, scope: string | null) {
     const source = this.sources?.[index];
     const generation = this.generation;
@@ -1140,16 +1270,20 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.pathListingSeq = seq;
 
     let candidates: ListedCandidate[] = [];
+    let failure: string | null = null;
 
     if (source !== undefined) {
       try {
         const answer = await this.deps.sendRequest('sources.list', {
           source: source.id,
           ...(scope === null ? {} : { scope }),
+          ...this.buildPathTargetParam(),
         });
 
         candidates = parseCandidates(answer['candidates']);
-      } catch {}
+      } catch (error) {
+        failure = formatError(error);
+      }
     }
 
     if (this.isStale(generation) || this.pathListingSeq !== seq) {
@@ -1175,13 +1309,36 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     this.dirLabels = new Map(listed);
 
-    this.dirs = [...new Set([this.deps.cwd, ...listed.map(([dir]) => dir)])];
+    const own = this.deps.remoteDaemon === true ? [] : [this.deps.cwd];
+
+    this.dirs = [...new Set([...own, ...listed.map(([dir]) => dir)])];
     this.input = '';
     this.selected = 0;
     this.step = 'dir';
 
+    // A failed listing is no empty one, so the step shows why until the
+    // next key.
+    if (failure !== null) {
+      this.deps.log?.(`directory listing failed: ${failure}`);
+      this.refusal = `cannot list directories: ${failure}`;
+    }
+
     this.deps.write(ansi.clear);
     this.render();
+  }
+
+  // The target a remote daemon checks a directory request against: the
+  // chosen one, else the default the caller may use, else the first, since
+  // a principal may hold no default target. A local request sends none.
+  private buildPathTargetParam(): Readonly<Record<string, string>> {
+    if (this.deps.remoteDaemon !== true) {
+      return {};
+    }
+
+    const eligible = this.collectEligibleTargets();
+    const target = this.target ?? eligible.find((t) => t.isDefault) ?? eligible[0];
+
+    return target === undefined ? {} : { target: target.id };
   }
 
   // the target step comes first when there is one and no repository target is chosen yet,
@@ -1444,7 +1601,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
         return;
       }
 
-      if (canTakeReading('git', reading)) {
+      if (reading.kind !== 'refused' && canTakeReading('git', reading)) {
         this.applyReading(this.sourceIndex, reading, typed);
 
         return;
@@ -1465,12 +1622,14 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   }
 
   // Asks the sources in order what typed text is, the flow's own first when
-  // asked, and moves the flow to the first that reads it as something its
-  // kind takes. Text none reads is refused with the reason.
+  // asked, and moves the flow to the first whose kind takes the reading.
+  // Text none reads is refused, with each refusal the daemon gave.
   private async readTypedInput(typed: string, withOwn: boolean) {
     const order = (this.sources ?? []).flatMap((_, index) =>
       index === this.sourceIndex ? [] : [index],
     );
+
+    const failures: string[] = [];
 
     for (const index of withOwn ? [this.sourceIndex, ...order] : order) {
       const reading = await this.sendInterpret(index, typed);
@@ -1479,22 +1638,30 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
         return;
       }
 
-      if (canTakeReading(this.sources?.[index]?.kind, reading)) {
+      if (reading.kind === 'refused') {
+        failures.push(reading.reason);
+      } else if (canTakeReading(this.sources?.[index]?.kind, reading)) {
         this.applyReading(index, reading, typed);
 
         return;
       }
     }
 
-    this.refusal = `no source reads ${typed} · esc back`;
+    this.refusal =
+      failures.length === 0
+        ? `no source reads ${typed} · esc back`
+        : `cannot read ${typed}: ${failures.join(' · ')} · esc back`;
 
     this.deps.write(ansi.clear);
     this.render();
   }
 
   // Asks one source what typed text is. Null when Esc cancelled the
-  // request; a refused request reads as nothing.
-  private async sendInterpret(index: number, typed: string): Promise<SourceInterpretation | null> {
+  // request.
+  private async sendInterpret(
+    index: number,
+    typed: string,
+  ): Promise<SourceInterpretation | { readonly kind: 'refused'; readonly reason: string } | null> {
     const source = this.sources?.[index];
 
     if (source === undefined) {
@@ -1504,14 +1671,16 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     const answered = await this.sendPending('interpret', `reading ${typed}…`, 'sources.interpret', {
       source: source.id,
       input: typed,
-      ...(source.kind === 'git' ? this.buildTargetParam() : {}),
+      ...(source.kind === 'git' ? this.buildTargetParam() : this.buildPathTargetParam()),
     });
 
     if (answered === null) {
       return null;
     }
 
-    return answered.ok ? parseInterpretation(answered.answer) : { kind: 'none' };
+    return answered.ok
+      ? parseInterpretation(answered.answer)
+      : { kind: 'refused', reason: formatError(answered.error) };
   }
 
   // Moves the flow to what a source read typed text as: its scope listed,
@@ -1971,7 +2140,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
   // The local directory flow of a daemon that offers no sources: the
   // client's own directory, the daemon's spawn history, the configured
-  // roots, and zoxide's list on this host.
+  // roots, and zoxide's list on this host; a remote daemon's history alone.
   private async openLocalDirs(generation: number) {
     let recent: string[] = [];
 
@@ -1985,7 +2154,8 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       }
     } catch {}
 
-    const zoxide = await collectZoxideDirs(runCommand);
+    const remote = this.deps.remoteDaemon === true;
+    const zoxide = remote ? [] : await collectZoxideDirs(runCommand);
 
     if (this.isStale(generation)) {
       this.deps.onDropAnswer?.('local directory listing');
@@ -1993,7 +2163,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       return;
     }
 
-    this.dirs = collectDirs({ cwd: this.deps.cwd, recent, roots: this.roots, zoxide });
+    this.dirs = remote
+      ? [...new Set(recent)]
+      : collectDirs({ cwd: this.deps.cwd, recent, roots: this.roots, zoxide });
 
     this.dirLabels = new Map();
 

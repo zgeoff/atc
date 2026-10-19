@@ -32,6 +32,7 @@ const FEATURE_USES: Readonly<Record<DaemonFeature, string>> = {
   'spawn.workspace.trust': "atc_session_spawn's trustClonedWorkspace",
   'spawn.workspace.autoDir': "atc_session_spawn's git workspace without a cwd",
   sources: 'sources.list and sources.interpret',
+  'sources.complete': 'sources.complete',
   'git.probe': 'git.probe',
   'transport.tcp': 'a TCP connection to the daemon',
   'idempotency.replayOnly': 'a resend that only replays a held idempotency key',
