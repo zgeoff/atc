@@ -1601,7 +1601,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
         return;
       }
 
-      if (canTakeReading('git', reading)) {
+      if (reading.kind !== 'refused' && canTakeReading('git', reading)) {
         this.applyReading(this.sourceIndex, reading, typed);
 
         return;
@@ -1622,12 +1622,14 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   }
 
   // Asks the sources in order what typed text is, the flow's own first when
-  // asked, and moves the flow to the first that reads it as something its
-  // kind takes. Text none reads is refused with the reason.
+  // asked, and moves the flow to the first whose kind takes the reading.
+  // Text none reads is refused, with each refusal the daemon gave.
   private async readTypedInput(typed: string, withOwn: boolean) {
     const order = (this.sources ?? []).flatMap((_, index) =>
       index === this.sourceIndex ? [] : [index],
     );
+
+    const failures: string[] = [];
 
     for (const index of withOwn ? [this.sourceIndex, ...order] : order) {
       const reading = await this.sendInterpret(index, typed);
@@ -1636,22 +1638,30 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
         return;
       }
 
-      if (canTakeReading(this.sources?.[index]?.kind, reading)) {
+      if (reading.kind === 'refused') {
+        failures.push(reading.reason);
+      } else if (canTakeReading(this.sources?.[index]?.kind, reading)) {
         this.applyReading(index, reading, typed);
 
         return;
       }
     }
 
-    this.refusal = `no source reads ${typed} · esc back`;
+    this.refusal =
+      failures.length === 0
+        ? `no source reads ${typed} · esc back`
+        : `cannot read ${typed}: ${failures.join(' · ')} · esc back`;
 
     this.deps.write(ansi.clear);
     this.render();
   }
 
   // Asks one source what typed text is. Null when Esc cancelled the
-  // request; a refused request reads as nothing.
-  private async sendInterpret(index: number, typed: string): Promise<SourceInterpretation | null> {
+  // request.
+  private async sendInterpret(
+    index: number,
+    typed: string,
+  ): Promise<SourceInterpretation | { readonly kind: 'refused'; readonly reason: string } | null> {
     const source = this.sources?.[index];
 
     if (source === undefined) {
@@ -1668,7 +1678,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       return null;
     }
 
-    return answered.ok ? parseInterpretation(answered.answer) : { kind: 'none' };
+    return answered.ok
+      ? parseInterpretation(answered.answer)
+      : { kind: 'refused', reason: formatError(answered.error) };
   }
 
   // Moves the flow to what a source read typed text as: its scope listed,

@@ -1,5 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolveHomeDir } from '@atc/config/host';
 import { DaemonError } from '@atc/protocol/wire';
@@ -3445,6 +3445,169 @@ test('it spawns in the directory a remote daemon reads a typed ~ path as when no
   ]);
 
   expect(ctx.daemon.collectSent('session.spawn')).toPartiallyContain({ cwd: '/home/far/work' });
+});
+
+test('it reads a typed ~ path through the daemon when a remote daemon completes no paths', async () => {
+  const ctx = setupTest();
+
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    remoteDaemon: true,
+    ptyRows: () => 24,
+    hasDaemonFeature: (feature) => feature !== 'sources.complete',
+    getLastUsedAgent: () => 'claude',
+  });
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
+  );
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+
+  picker.applyKey(Buffer.from('~/work'));
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  await ctx.daemon.answer('sources.interpret', { kind: 'path', dir: '/home/far/work' });
+
+  picker.applyKey(Buffer.from(`far-one${KEYS.enter}`));
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  expect(ctx.daemon.collectSent('sources.complete')).toStrictEqual([]);
+  expect(ctx.daemon.collectSent('session.spawn')).toPartiallyContain({ cwd: '/home/far/work' });
+});
+
+test("it shows a remote daemon's refusal to read a typed ~ path", async () => {
+  const ctx = setupTest();
+
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    remoteDaemon: true,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
+  );
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+
+  picker.applyKey(Buffer.from('~/work'));
+
+  await ctx.daemon.answer('sources.complete', { completions: [] });
+
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  const mark = ctx.terminal.countChunks();
+
+  await ctx.daemon.refuse(
+    'sources.interpret',
+    new DaemonError('target_forbidden', 'target local is not yours'),
+  );
+
+  expect(ctx.terminal.getTextSince(mark)).toInclude(
+    'cannot read ~/work: target_forbidden: target local',
+  );
+});
+
+test("it lists only a remote daemon's spawn history when the daemon offers no sources", async () => {
+  const ctx = setupTest();
+
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    remoteDaemon: true,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  mkdirSync(join(ctx.cwd, 'projects', 'client-proj'), { recursive: true });
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+      dirs: { roots: [join(ctx.cwd, 'projects')] },
+    }),
+  );
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+  });
+
+  const mark = ctx.terminal.countChunks();
+
+  await ctx.daemon.answer('dirs.list', { dirs: ['/srv/remote'] });
+
+  const shown = ctx.terminal.getTextSince(mark);
+
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(`far-one${KEYS.enter}`));
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  expect(shown).toInclude('/srv/remote');
+  expect(shown).not.toInclude('client-proj');
+  expect(shown).not.toInclude(ctx.cwd);
+  expect(ctx.daemon.collectSent('session.spawn')).toPartiallyContain({ cwd: '/srv/remote' });
 });
 
 test('it names the one target a remote principal may use in its directory requests', async () => {

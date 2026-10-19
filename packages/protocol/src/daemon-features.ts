@@ -76,7 +76,8 @@ export const DAEMON_FEATURES = [
   // `sources`.
   'sources',
 
-  // `sources.complete` exists.
+  // `sources.complete` exists, so a client on another host completes a typed
+  // path against the daemon's host.
   'sources.complete',
 
   // `git.probe` exists, and `session.spawn` takes a git workspace with both
