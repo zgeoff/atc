@@ -1,10 +1,233 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
+import { join } from 'node:path';
 import type { SessionID } from '@atc/core';
 import { toSessionID } from '@atc/core';
+import type { DaemonEvent } from '@atc/protocol';
+import { DaemonClient } from '@atc/protocol/client';
 import { PROTOCOL_V } from '@atc/protocol/wire';
-import { buildStubPeerSocket, waitFor } from '@atc/test-utils';
+import { buildStubPeerSocket, setupTempDir, waitFor } from '@atc/test-utils';
+import { TargetAccess } from '../auth/target-access';
 import { buildStubDaemonContext } from '../testing/build-stub-daemon-context';
+import { startConnectionListener } from '../testing/start-connection-listener';
 import { DaemonConnection } from './daemon-connection';
+
+function setupTest() {
+  const tmp = setupTempDir('atc-daemon-connection-');
+
+  return { socketPath: join(tmp.dir, 'daemon.sock') };
+}
+
+test('it answers a peer client request with what its procedure returns', async () => {
+  const ctx = setupTest();
+
+  startConnectionListener(ctx.socketPath, buildStubDaemonContext({ ackSession: () => true }));
+
+  const client = await DaemonClient.open(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  await client.sendHello('atc/test');
+
+  const answer = await client.sendRequest('session.ack', { session: 's-1' });
+
+  expect(answer).toStrictEqual({});
+});
+
+test('it refuses a peer client request with the code its procedure throws', async () => {
+  const ctx = setupTest();
+
+  startConnectionListener(ctx.socketPath, buildStubDaemonContext({ ackSession: () => false }));
+
+  const client = await DaemonClient.open(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  await client.sendHello('atc/test');
+
+  expect(client.sendRequest('session.ack', { session: 's-2' })).rejects.toMatchObject({
+    code: 'no_such_session',
+    message: "no session 's-2'",
+  });
+});
+
+test('it refuses peer params the schema refuses with the first issue as bad_args', async () => {
+  const ctx = setupTest();
+
+  startConnectionListener(ctx.socketPath, buildStubDaemonContext());
+
+  const client = await DaemonClient.open(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  await client.sendHello('atc/test');
+
+  expect(client.sendRequest('daemon.backup', { path: 'relative.db' })).rejects.toMatchObject({
+    code: 'bad_args',
+    message: 'daemon.backup path must be an absolute path',
+  });
+});
+
+test('it refuses a peer method no procedure answers', async () => {
+  const ctx = setupTest();
+
+  startConnectionListener(ctx.socketPath, buildStubDaemonContext());
+
+  const client = await DaemonClient.open(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  await client.sendHello('atc/test');
+
+  expect(client.sendRequest('session.nope')).rejects.toMatchObject({
+    code: 'unknown_method',
+    message: "unknown method 'session.nope'",
+  });
+});
+
+test('it refuses a peer request before the handshake and ends the connection', async () => {
+  const ctx = setupTest();
+
+  startConnectionListener(ctx.socketPath, buildStubDaemonContext());
+
+  const client = await DaemonClient.open(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  const refused = client.sendRequest('daemon.ping');
+
+  expect(refused).rejects.toMatchObject({
+    code: 'unauthorized',
+    message: 'daemon.hello must be the first request',
+  });
+
+  await refused.catch(() => {});
+
+  await waitFor(() => {
+    expect(client.isClosed()).toBeTrue();
+  });
+});
+
+test('it refuses a peer handshake that speaks another protocol and ends the connection', async () => {
+  const ctx = setupTest();
+
+  startConnectionListener(ctx.socketPath, buildStubDaemonContext());
+
+  const client = await DaemonClient.open(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  const refused = client.sendRequest('daemon.hello', { client: 'atc/old', protocol: 1 });
+
+  expect(refused).rejects.toMatchObject({
+    code: 'protocol_mismatch',
+    message:
+      'atc/old speaks protocol v1, daemon atc/test speaks v4; restart the daemon so both run the same build',
+  });
+
+  await refused.catch(() => {});
+
+  await waitFor(() => {
+    expect(client.isClosed()).toBeTrue();
+  });
+});
+
+test('it refuses an owner-only procedure to a peer client that acts as a principal', async () => {
+  const ctx = setupTest();
+
+  startConnectionListener(ctx.socketPath, buildStubDaemonContext());
+
+  const client = await DaemonClient.open(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  await client.sendHello('atc/test', { principal: 'narrow' });
+
+  expect(client.sendRequest('daemon.quit')).rejects.toMatchObject({
+    code: 'unauthorized',
+    message: "daemon.quit is open to the daemon's owner only",
+  });
+});
+
+test('it delivers the connection events to a peer client through its subscription', async () => {
+  const ctx = setupTest();
+  const connections = startConnectionListener(ctx.socketPath, buildStubDaemonContext());
+
+  const client = await DaemonClient.open(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  const events: DaemonEvent[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
+
+  connections[0]?.sendEvent({ v: PROTOCOL_V, ev: 'SessionRemoved', s: 's-gone' });
+
+  await waitFor(() => {
+    expect(events).toStrictEqual([{ ev: 'SessionRemoved', s: 's-gone' }]);
+  });
+});
+
+test('it delivers a peer client that acts as a principal no event of a session out of its reach', async () => {
+  const ctx = setupTest();
+
+  const connections = startConnectionListener(
+    ctx.socketPath,
+    buildStubDaemonContext({
+      buildTargetAccess: () => new TargetAccess([]),
+      canSeeSession: (sessionID) => sessionID === 's-seen',
+    }),
+  );
+
+  const client = await DaemonClient.open(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  const events: DaemonEvent[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test', { principal: 'narrow' });
+
+  connections[0]?.sendOutput(
+    toSessionID('s-hidden'),
+    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's-hidden', seq: 1, d: 'secret' },
+    6,
+  );
+
+  connections[0]?.sendOutput(
+    toSessionID('s-seen'),
+    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's-seen', seq: 1, d: 'shown' },
+    5,
+  );
+
+  await waitFor(() => {
+    expect(events).toStrictEqual([{ ev: 'SessionOutput', s: 's-seen', seq: 1, d: 'shown' }]);
+  });
+});
 
 test('it drops an overflowing session backlog and reports the dropped bytes on drain', () => {
   const peer = buildStubPeerSocket();
