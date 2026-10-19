@@ -794,9 +794,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.render();
   }
 
-  // Asks the remote daemon to complete a typed path on its own host, and
-  // draws the completions when they still match the input. An answer for
-  // input the user has since changed, or for an earlier flow, is dropped.
+  // Asks the remote daemon to complete a typed path on its own host. Only
+  // the latest request's answer draws, so an earlier answer is dropped even
+  // when the input has come back to the text it completes.
   private async loadCompletions(input: string) {
     const own = this.findSource();
     const source = own?.kind === 'path' ? own : this.sources?.find((s) => s.kind === 'path');
