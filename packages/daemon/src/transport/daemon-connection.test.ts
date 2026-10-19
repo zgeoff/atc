@@ -371,6 +371,38 @@ test('it serves a TCP peer client whose token and principal check out, its event
   expect(answer).toStrictEqual({});
 });
 
+test('it keeps a TCP peer client whose handshake gave no principal subscribed, and serves its requests', async () => {
+  const ctx = setupTest();
+  const listed: Readonly<Record<string, boolean>> = { ci: true };
+  const tokens: Readonly<Record<string, string>> = { 'tok-good': 'fp-1' };
+
+  startConnectionListener(
+    ctx.socketPath,
+    buildStubDaemonContext({
+      ackSession: () => true,
+      hasListedPrincipal: (principal) => listed[principal] ?? false,
+    }),
+    {
+      verifyHandshake: (presented) => Promise.resolve(tokens[presented ?? ''] ?? null),
+      recordFailure: () => {},
+      recordRefusedPrincipal: () => {},
+    },
+  );
+
+  const client = await openDaemonClient(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  await client.sendHello('atc/test', { token: 'tok-good' });
+
+  const answer = await client.sendRequest('session.ack', { session: 's-1' }, 'ci');
+
+  expect(answer).toStrictEqual({});
+  expect(client.isClosed()).toBeFalse();
+});
+
 test.each([
   [
     'a token that does not check out',

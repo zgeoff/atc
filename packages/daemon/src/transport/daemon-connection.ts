@@ -804,6 +804,15 @@ export class DaemonConnection {
       const as = parseRequestPrincipal(request.headers);
       const sent = decodePeerInput(request);
 
+      // A subscription delivers only what the connection's own view admits,
+      // so over TCP it needs no principal of its own.
+      if (this.tcp !== null && method === 'events.subscribe' && as === null) {
+        const access = this.access ?? new TargetAccess([]);
+        const ctx = buildScopedContext(this.ctx, access, 'client:events');
+
+        return this.buildProcedureContext(ctx, null, sent);
+      }
+
       if (this.tcp !== null) {
         return this.buildProcedureContext(this.requireTCPRequestContext(method, as), as, sent);
       }
