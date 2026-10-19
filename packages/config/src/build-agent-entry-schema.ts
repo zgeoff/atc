@@ -1,6 +1,6 @@
-import { isAbsolute } from 'node:path';
-import { isHomeRelative, isRecord } from '@atc/core';
+import { isRecord } from '@atc/core';
 import type { AuthProfile, PluginConfigContext } from '@atc/plugin-api';
+import { findPluginDirProblem } from '@atc/plugin-api';
 import { z } from 'zod';
 import type { AgentEntry, AgentKind, ParsedAgentEntry } from './agent-entry';
 
@@ -122,8 +122,9 @@ const FIELD_CHECKS: ReadonlyMap<string, FieldCheck> = new Map([
   [
     'pluginDirs',
     {
-      schema: z.array(z.string().refine((dir) => isAbsolute(dir) || isHomeRelative(dir))),
-      problem: 'pluginDirs must be an array of absolute paths or paths that start with ~/',
+      schema: z.array(z.string().refine((dir) => findPluginDirProblem(dir) === null)),
+      problem:
+        'pluginDirs must be an array of absolute paths or paths that start with ~/, each without a .. segment or control characters',
     },
   ],
 ]);

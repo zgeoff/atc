@@ -1,6 +1,5 @@
-import { isAbsolute } from 'node:path';
-import { isHomeRelative } from '@atc/core';
 import type { SpawnOverrides } from '@atc/plugin-api';
+import { findPluginDirProblem } from '@atc/plugin-api';
 import { CONTROL_CHARACTER } from '@atc/protocol';
 import type { AgentEntry, SpawnOptionEntry } from './build-agent-list';
 
@@ -94,11 +93,6 @@ function findOptionRefusal(
   return null;
 }
 
-// The longest path Linux takes.
-const MAX_PATH_LENGTH = 4096;
-
-// A plugin folder is a path on the daemon's machine: absolute, or under the
-// daemon user's home with a leading ~/.
 function findPluginDirsRefusal(
   agentID: string,
   option: SpawnOptionEntry | undefined,
@@ -113,23 +107,8 @@ function findPluginDirsRefusal(
     return { ok: false, code: 'unsupported', message: `agent '${agentID}' ${reason}` };
   }
 
-  for (const dir of dirs) {
-    if (dir === '' || dir.length > MAX_PATH_LENGTH || CONTROL_CHARACTER.test(dir)) {
-      return {
-        ok: false,
-        code: 'bad_args',
-        message: `each pluginDirs entry must be 1 to ${MAX_PATH_LENGTH} characters without control characters`,
-      };
-    }
+  const problem =
+    dirs.map((dir) => findPluginDirProblem(dir)).find((found) => found !== null) ?? null;
 
-    if (!isAbsolute(dir) && !isHomeRelative(dir)) {
-      return {
-        ok: false,
-        code: 'bad_args',
-        message: `pluginDirs entry '${dir}' must be an absolute path or start with ~/`,
-      };
-    }
-  }
-
-  return null;
+  return problem === null ? null : { ok: false, code: 'bad_args', message: problem };
 }

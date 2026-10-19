@@ -124,6 +124,10 @@ test('it leaves an empty plugin folder list off the entry', () => {
 test.each([
   ['a relative path', ['plugins/band']],
   ['a path under another user home', ['~sam/plugins']],
+  ['a bare ~', ['~']],
+  ['a path with a .. segment', ['/opt/plugins/link/../band']],
+  ['a path with a newline', ['/opt/plugins/band\n']],
+  ['an empty path', ['']],
   ['a string in place of a list', '/opt/plugins/shared'],
 ])('it refuses pluginDirs that hold %s', (_label, pluginDirs) => {
   const schema = buildAgentEntrySchema(
@@ -134,6 +138,6 @@ test.each([
   const result = schema.safeParse({ pluginDirs });
 
   expect(result.error?.issues.map((issue) => issue.message)).toStrictEqual([
-    'pluginDirs must be an array of absolute paths or paths that start with ~/',
+    'pluginDirs must be an array of absolute paths or paths that start with ~/, each without a .. segment or control characters',
   ]);
 });

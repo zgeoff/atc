@@ -1,9 +1,8 @@
 import { tmpdir } from 'node:os';
-import { resolve } from 'node:path';
 import type { InvalidGitTransports } from '@atc/config';
 import { resolveHomeDir } from '@atc/config/host';
 import type { AgentID, Clock, SessionID } from '@atc/core';
-import { expandHome } from '@atc/core';
+import { normalizePluginDir } from '@atc/plugin-api';
 import type { DaemonAnswer, SessionDescriptor, SpawnWorkspaceSource } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
 import type { StateStore } from '@atc/store';
@@ -185,15 +184,15 @@ export class SpawnService {
     this.mgr.requireAgentTarget(agent, target);
   }
 
-  // A folder named twice, such as with and without a trailing slash, reaches
-  // the agent once, so each path is returned in its normal form.
+  // returns the requested folders in their normal form, which the session
+  // keeps for every later launch
   requirePluginDirs(
     target: string,
     configured: readonly string[],
     requested: readonly string[],
   ): string[] {
     const home = this.homeDir ?? resolveHomeDir();
-    const expanded = requested.map((dir) => resolve(expandHome(dir, home)));
+    const expanded = requested.map((dir) => normalizePluginDir(dir, home));
     const dirs = [...configured, ...expanded];
 
     if (dirs.length > 0) {

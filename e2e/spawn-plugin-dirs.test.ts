@@ -387,7 +387,10 @@ test('it refuses to start a session again once its plugin folder is gone, naming
   });
 });
 
-test('it refuses a relative plugin folder before spawning anything', async () => {
+test.each([
+  ['a relative plugin folder', 'plugins/band'],
+  ['a plugin folder with a .. segment', '~/plugins/link/../band'],
+])('it refuses %s before spawning anything', async (_label, dir) => {
   const ctx = setupTest();
 
   const daemon = await startTestDaemon({
@@ -401,13 +404,19 @@ test('it refuses a relative plugin folder before spawning anything', async () =>
 
   const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
-    pluginDirs: ['plugins/band'],
+    pluginDirs: [dir],
   });
+
+  await Promise.allSettled([spawn]);
+
+  const listed = await daemon.client.sendRequest('session.list');
 
   expect(spawn).rejects.toMatchObject({
     code: 'bad_args',
-    message: "pluginDirs entry 'plugins/band' must be an absolute path or start with ~/",
+    message: `pluginDirs entry '${dir}' must be an absolute path or start with ~/, without a .. segment`,
   });
+
+  expect(listed).toStrictEqual({ sessions: [] });
 });
 
 test('it refuses plugin folders for an agent that takes none', async () => {
@@ -480,6 +489,58 @@ test('it refuses plugin folders on a target that runs the agent on another machi
     message:
       "target 'box' runs the agent on another machine, so it takes no pluginDirs; the agent's config or the spawn sets them",
   });
+});
+
+test("it refuses a spawn on a target that runs the agent on another machine when only the agent's config sets plugin folders, and starts nothing there", async () => {
+  const ctx = setupTest();
+  const port = createStubImpPort();
+
+  const daemon = await startTestDaemon({
+    options: (paths) => ({
+      adapters: buildAgentAdapters(
+        parseConfig(SHIPPED_HARNESS_PLUGINS, {
+          agents: { claude: { bin: ctx.fakeClaude, pluginDirs: [ctx.dir] } },
+        }),
+        buildMockHostServices(),
+      ),
+      targets: [
+        {
+          id: LOCAL_TARGET.id,
+          kind: LOCAL_TARGET.provider,
+          options: LOCAL_TARGET.options,
+          identity: buildTargetIdentity(LOCAL_TARGET.provider, LOCAL_TARGET.options),
+          provider: new LocalPTYProvider(),
+        },
+        {
+          id: 'box',
+          kind: 'imp',
+          options: {},
+          identity: 'imp:test',
+          provider: new ImpProvider(
+            port,
+            { guestDir: join(paths.dir, 'g') },
+            { reconnectDelaysMs: [0, 0, 0], version: '1.0.0' },
+          ),
+        },
+      ],
+      defaultTarget: LOCAL_TARGET.id,
+    }),
+  });
+
+  const spawn = daemon.client.sendRequest('session.spawn', { cwd: '/work', target: 'box' });
+
+  await Promise.allSettled([spawn]);
+
+  const listed = await daemon.client.sendRequest('session.list');
+
+  expect(spawn).rejects.toMatchObject({
+    code: 'unsupported',
+    message:
+      "target 'box' runs the agent on another machine, so it takes no pluginDirs; the agent's config or the spawn sets them",
+  });
+
+  expect(listed).toStrictEqual({ sessions: [] });
+  expect(port.calls).toStrictEqual([]);
 });
 
 test('it shows the plugin folders a session was spawned with in its record', async () => {
@@ -577,7 +638,7 @@ test('it lists plugin folders as a spawn option of claude and not of grok', asyn
         examples: [],
         default: null,
         backendEffect: 'applied',
-        note: "Each folder passed as --plugin-dir, after the folders the agent's config sets. An absolute path or one that starts with ~/ on the daemon's machine; a path that does not exist or is not a folder, or a remote target, refuses the spawn.",
+        note: "Each folder passed as --plugin-dir, after the folders the agent's config sets. An absolute path or one that starts with ~/ on the daemon's machine, without a .. segment; a path that does not exist or is not a folder, or a remote target, refuses the spawn.",
         available: true,
       },
     ],

@@ -750,6 +750,84 @@ test("it revives a restored session with the config's plugin folders and the spa
   );
 });
 
+test("it revives a restored session with the config's plugin folders as they stand at the restart, and the spawn's own", async () => {
+  const ctx = setupTest();
+
+  mkdirSync(join(ctx.home, 'plugins', 'shared'), { recursive: true });
+  mkdirSync(join(ctx.home, 'plugins', 'review'), { recursive: true });
+  mkdirSync(join(ctx.home, 'plugins', 'band'), { recursive: true });
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: {
+        claude: { bin: ctx.claude, pluginDirs: ['~/plugins/shared'] },
+        grok: { bin: ctx.grok },
+      },
+
+      // A restarted daemon restores only when the test asks it to.
+      restoreFleetOnRestart: false,
+    }),
+  );
+
+  const daemon = startDaemonProcess({
+    command: ctx.atc,
+    home: ctx.home,
+    env: { ATC_RESTORE_BOOT_TIMEOUT_MS: '60000' },
+  });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', {
+    cwd: ctx.home,
+    pluginDirs: ['~/plugins/band'],
+    cols: 1000,
+    rows: 24,
+  });
+
+  const id = getString(getRecord(ok, 'session'), 'id');
+
+  await waitFor(async () => {
+    const listed = await client.sendRequest('fleet.list');
+
+    expect(listed).toMatchObject({ fleet: [{ agentSessionID: 'fake-1' }] });
+  });
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: {
+        claude: { bin: ctx.claude, pluginDirs: ['~/plugins/review'] },
+        grok: { bin: ctx.grok },
+      },
+      restoreFleetOnRestart: false,
+    }),
+  );
+
+  await daemon.restart('SIGKILL');
+
+  const revived = await daemon.openClient();
+
+  await revived.sendHello('atc/test');
+  await revived.sendRequest('fleet.restore', { cols: 1000, rows: 24 });
+
+  const screen = await waitFor(async () => {
+    const read = await revived.sendRequest('session.screen', { session: id });
+
+    expect(read['text']).toInclude('FAKE_CLAUDE_TERM:');
+
+    return read;
+  });
+
+  expect(screen['text']).toInclude(
+    `--plugin-dir ${join(ctx.home, 'plugins', 'review')} --plugin-dir ${join(ctx.home, 'plugins', 'band')} --resume fake-1`,
+  );
+
+  expect(screen['text']).not.toInclude(join(ctx.home, 'plugins', 'shared'));
+});
+
 test('it lists a restored session whose plugin folder is gone as refused, naming the path', async () => {
   const ctx = setupTest();
 
