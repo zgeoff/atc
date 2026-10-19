@@ -1,5 +1,4 @@
 import { expect, test } from 'bun:test';
-import { toSessionID } from '@atc/core';
 import { buildStubDaemonContext } from '../testing/build-stub-daemon-context';
 import { buildConnectionRequests } from './build-connection-requests';
 import { runDaemonProcedure } from './run-daemon-procedure';
@@ -23,10 +22,8 @@ test('it answers a request with what its procedure returns', async () => {
 });
 
 test('it leaves out an answer field the procedure does not declare', async () => {
-  const ctx = buildStubDaemonContext({
-    forgetSession: () =>
-      Promise.resolve({ forgotten: true, destroyed: false, host: 'h-1' } as never),
-  });
+  const forgotten = { forgotten: true as const, destroyed: false, host: 'h-1' };
+  const ctx = buildStubDaemonContext({ forgetSession: () => Promise.resolve(forgotten) });
 
   const requests = buildConnectionRequests({
     client: { sendOutput: () => {}, sendEvent: () => {} },
@@ -89,9 +86,7 @@ test('it passes on the refusal a procedure throws', () => {
 });
 
 test('it refuses an answer the schema refuses as internal', () => {
-  const ctx = buildStubDaemonContext({
-    collectSessions: () => [{ id: toSessionID('s-3') }] as never,
-  });
+  const ctx = buildStubDaemonContext({ writeStateBackup: () => Promise.resolve(Number.NaN) });
 
   const requests = buildConnectionRequests({
     client: { sendOutput: () => {}, sendEvent: () => {} },
@@ -99,7 +94,10 @@ test('it refuses an answer the schema refuses as internal', () => {
     identity: { principal: null, callerSession: null, peerSession: null, helloClient: 'atc/test' },
   });
 
-  expect(runDaemonProcedure('session.list', {}, { ctx, requests, as: null })).rejects.toMatchObject(
-    { code: 'internal', message: expect.toStartWith('Output validation failed: ') },
-  );
+  expect(
+    runDaemonProcedure('daemon.backup', { path: '/backup.db' }, { ctx, requests, as: null }),
+  ).rejects.toMatchObject({
+    code: 'internal',
+    message: expect.toStartWith('Output validation failed: '),
+  });
 });

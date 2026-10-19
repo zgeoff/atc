@@ -69,8 +69,8 @@ export const DAEMON_ROUTER = os.router({
       call.context.requests.spawn.applySpawn(call.input, call.context.ctx),
     ),
     kill: os.session.kill.handler((call) => applyKill(call.input, call.context.ctx)),
-    ack: os.session.ack.handler(async (call) => {
-      if (!(await call.context.ctx.ackSession(call.input.session))) {
+    ack: os.session.ack.handler((call) => {
+      if (!call.context.ctx.ackSession(call.input.session)) {
         throw new DaemonError('no_such_session', `no session '${call.input.session}'`);
       }
 
