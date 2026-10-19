@@ -322,7 +322,7 @@ const THREAD_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
 // takes longer over than the stub ever does.
 const REAL_CODEX_TEST_MS = 30_000;
 
-test.skipIf(codexOnPath === undefined || pinnedCodexVersion === undefined)(
+test.skipIf(codexOnPath === null || pinnedCodexVersion === undefined)(
   'it matches the installed Codex to the pinned version',
   async () => {
     invariant(typeof codexOnPath === 'string', 'no codex on PATH');
@@ -336,7 +336,7 @@ test.skipIf(codexOnPath === undefined || pinnedCodexVersion === undefined)(
   },
 );
 
-test.skipIf(codexOnPath === undefined)(
+test.skipIf(codexOnPath === null)(
   'it starts a thread on the installed Codex App Server',
   async () => {
     const ctx = setupTest();
@@ -366,7 +366,7 @@ test.skipIf(codexOnPath === undefined)(
   REAL_CODEX_TEST_MS,
 );
 
-test.skipIf(codexOnPath === undefined)(
+test.skipIf(codexOnPath === null)(
   'it resumes on the installed Codex App Server the thread an earlier bridge started',
   async () => {
     const ctx = setupTest();
