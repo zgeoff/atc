@@ -26,7 +26,7 @@ function main(): void {
     throw new Error(USAGE);
   }
 
-  const packageDirs = resolvePackageDirs(root, args.values.package);
+  const packageDirs = loadPackageDirs(root, args.values.package);
   const files = SOURCE_DIRS.flatMap((dir) => collectSourceFiles(root, dir));
   const planned = collectMoves(root, wave, packageDirs);
 
@@ -117,7 +117,7 @@ const USAGE = 'usage: run-wave-move.ts <wave> [root] [--package <name>]...';
 
 // The directories of the named packages in the root's workspace, which the
 // move is limited to; no name moves every package, and reads no manifest.
-function resolvePackageDirs(root: string, names: readonly string[]): string[] {
+function loadPackageDirs(root: string, names: readonly string[]): string[] {
   const packages = names.length === 0 ? [] : loadWorkspacePackages(root);
 
   return names.map((name) => {
