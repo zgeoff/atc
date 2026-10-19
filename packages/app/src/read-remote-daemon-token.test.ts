@@ -1,7 +1,8 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/test-utils';
+import { buildStubForkingGH, createStubBin, setupTempDir, waitFor } from '@atc/test-utils';
 import { readRemoteDaemonToken } from './read-remote-daemon-token';
 import { buildMockRemoteDaemon } from './test-utils/build-mock-remote-daemon';
 
@@ -91,6 +92,47 @@ test('it rejects a command that exits non-zero, without its output in the messag
       }),
     ),
   ).rejects.toThrowWithMessage(Error, "daemon 'box': its token command sh exited 3");
+});
+
+test('it stops a command whose child keeps its output open once the deadline passes', async () => {
+  const ctx = setupTest();
+  const pidsFile = join(ctx.dir, 'pids');
+  const bin = createStubBin(ctx.dir, 'forking-helper', buildStubForkingGH(pidsFile));
+  const started = performance.now();
+
+  const rejection = await readRemoteDaemonToken(
+    buildMockRemoteDaemon({ name: 'box', token: { kind: 'command', argv: [bin] } }),
+    { timeoutMs: 1000 },
+  ).then(
+    () => null,
+    (error: unknown) => error,
+  );
+
+  const elapsedMs = performance.now() - started;
+
+  const pids = await readFile(pidsFile, 'utf8');
+
+  const [group, child] = pids.trim().split('\n');
+
+  expect(rejection).toBeInstanceOf(Error);
+
+  expect(rejection).toHaveProperty(
+    'message',
+    `daemon 'box': its token command ${bin} ran past 1000 ms`,
+  );
+
+  // The child sleeps for 30 s, so a read that waits on it ends far later.
+  expect(elapsedMs).toBeLessThan(5000);
+
+  // The killed group's processes linger until the kernel reaps them, and a
+  // child that escaped the kill would outlive this wait by far.
+  await waitFor(
+    () => {
+      expect(() => process.kill(-Number(group), 0)).toThrow('ESRCH');
+      expect(() => process.kill(Number(child), 0)).toThrow('ESRCH');
+    },
+    { timeoutMs: 3000 },
+  );
 });
 
 test('it rejects a command that cannot start', () => {

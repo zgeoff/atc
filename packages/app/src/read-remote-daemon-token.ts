@@ -1,16 +1,29 @@
 import { readFileSync } from 'node:fs';
 import type { RemoteDaemon } from '@atc/config';
+import { runCommand } from '@atc/lifecycle/run-command';
 
 // How long a token command may run before the read gives up on it.
 const TOKEN_COMMAND_TIMEOUT_MS = 10_000;
 
-export async function readRemoteDaemonToken(daemon: RemoteDaemon): Promise<string> {
+interface TokenReadOptions {
+  // How long a token command may take, its output and its exit together.
+  readonly timeoutMs?: number;
+}
+
+export async function readRemoteDaemonToken(
+  daemon: RemoteDaemon,
+  options: TokenReadOptions = {},
+): Promise<string> {
   const source = daemon.token;
 
   const text =
     source.kind === 'file'
       ? readTokenFile(daemon.name, source.path)
-      : await readTokenCommand(daemon.name, source.argv);
+      : await readTokenCommand(
+          daemon.name,
+          source.argv,
+          options.timeoutMs ?? TOKEN_COMMAND_TIMEOUT_MS,
+        );
 
   const token = text.trim();
 
@@ -38,30 +51,30 @@ function readTokenFile(name: string, path: string): string {
   }
 }
 
-async function readTokenCommand(name: string, argv: readonly string[]): Promise<string> {
-  let proc: Bun.Subprocess<'ignore', 'pipe', 'ignore'>;
+async function readTokenCommand(
+  name: string,
+  argv: readonly string[],
+  timeoutMs: number,
+): Promise<string> {
+  // The deadline covers the output and the exit together, and on abort the
+  // command's whole process group stops, so a child that keeps the output
+  // open cannot hold the read past it.
+  const result = await runCommand(argv, { signal: AbortSignal.timeout(timeoutMs) });
 
-  try {
-    proc = Bun.spawn([...argv], {
-      stdin: 'ignore',
-      stdout: 'pipe',
-      stderr: 'ignore',
-      timeout: TOKEN_COMMAND_TIMEOUT_MS,
-    });
-  } catch (error) {
-    throw new Error(`daemon '${name}': cannot run its token command ${argv[0]}`, { cause: error });
+  if (result.aborted) {
+    throw new Error(`daemon '${name}': its token command ${argv[0]} ran past ${timeoutMs} ms`);
   }
 
-  const [text, exitCode] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
-
-  if (exitCode !== 0) {
-    const how =
-      proc.signalCode === null ? `exited ${exitCode}` : `was killed by ${proc.signalCode}`;
-
-    throw new Error(`daemon '${name}': its token command ${argv[0]} ${how}`);
+  // A command that cannot start reads as exit code 127, as a shell reports it.
+  if (result.code === 127) {
+    throw new Error(`daemon '${name}': cannot run its token command ${argv[0]}`);
   }
 
-  return text;
+  if (result.code !== 0) {
+    throw new Error(`daemon '${name}': its token command ${argv[0]} exited ${result.code}`);
+  }
+
+  return result.stdout;
 }
 
 function formatTokenSource(daemon: RemoteDaemon): string {
