@@ -4,33 +4,47 @@ import { ORPCError, ValidationError, call, getRouter, isProcedure } from '@orpc/
 import { DAEMON_ROUTER } from './daemon-router';
 import type { ProcedureContext } from './procedure-context';
 
+// The parts of a procedure's context a line request gives: the line
+// protocol answers its handshake itself and pushes events unasked.
+type LineProcedureContext = Pick<ProcedureContext, 'ctx' | 'requests' | 'as'>;
+
 // Runs the procedure a request method names. Params its schema refuses are
 // bad_args with the first issue's message; an answer its schema refuses is
 // internal.
 export async function runDaemonProcedure(
   method: string,
   params: unknown,
-  context: Omit<ProcedureContext, 'sentParams'>,
+  context: LineProcedureContext,
 ): Promise<Readonly<Record<string, unknown>>> {
   const path = method.split('.');
   const procedure = getRouter(DAEMON_ROUTER, path);
 
   if (!isProcedure(procedure)) {
-    throw new DaemonError('unknown_method', `unknown method '${method}'`);
+    throw buildUnknownMethodError(method);
   }
 
   const input = isRecord(params) ? params : {};
 
+  const lineContext: ProcedureContext = {
+    ...context,
+    sentParams: params,
+    answerHello: () => Promise.reject(buildUnknownMethodError(method)),
+    subscribeEvents: () => {
+      throw buildUnknownMethodError(method);
+    },
+  };
+
   try {
-    const answer: unknown = await call(procedure, input, {
-      context: { ...context, sentParams: params },
-      path,
-    });
+    const answer: unknown = await call(procedure, input, { context: lineContext, path });
 
     return isRecord(answer) ? answer : {};
   } catch (error) {
     throw toDaemonError(error);
   }
+}
+
+function buildUnknownMethodError(method: string): DaemonError {
+  return new DaemonError('unknown_method', `unknown method '${method}'`);
 }
 
 function toDaemonError(error: unknown): unknown {

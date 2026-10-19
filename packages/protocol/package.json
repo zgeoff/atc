@@ -5,13 +5,16 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./client": "./src/client/index.ts",
     "./session": "./src/session/index.ts",
     "./wire": "./src/wire/index.ts",
     "./wire/transport": "./src/wire/transport/index.ts"
   },
   "dependencies": {
     "@atc/core": "workspace:*",
+    "@orpc/client": "catalog:",
     "@orpc/contract": "catalog:",
+    "@orpc/standard-server-peer": "catalog:",
     "xstate": "catalog:",
     "zod": "catalog:"
   },

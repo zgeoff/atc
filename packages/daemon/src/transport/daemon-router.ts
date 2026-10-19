@@ -15,11 +15,7 @@ function buildDaemonRouter() {
 
   return os.router({
     daemon: {
-      // The handshake is answered before a request is admitted, so it never
-      // runs as one.
-      hello: os.daemon.hello.handler(() => {
-        throw new DaemonError('unknown_method', "unknown method 'daemon.hello'");
-      }),
+      hello: os.daemon.hello.handler((call) => call.context.answerHello(call.input)),
       ping: os.daemon.ping.handler(() => ({})),
       quit: os.daemon.quit.handler((call) => {
         call.context.ctx.quitDaemon();
@@ -205,10 +201,9 @@ function buildDaemonRouter() {
         call.context.requests.reads.applyEventsRead(call.input, call.context.ctx),
       ),
 
-      // The line protocol pushes events unasked, so it offers no subscription.
-      subscribe: os.events.subscribe.handler(() => {
-        throw new DaemonError('unknown_method', "unknown method 'events.subscribe'");
-      }),
+      subscribe: os.events.subscribe.handler((call) =>
+        call.context.subscribeEvents(call.signal ?? new AbortController().signal),
+      ),
     },
     message: {
       get: os.message.get.handler((call) =>

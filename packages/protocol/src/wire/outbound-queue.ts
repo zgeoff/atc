@@ -5,6 +5,9 @@ export interface SocketWriter {
 
 const encoder = new TextEncoder();
 
+// The bytes a queue holds when its owner gives no capacity.
+export const DEFAULT_QUEUE_BYTES = 2 * 1024 * 1024;
+
 // `socket.write()` drops whatever it does not accept, so a short write parks
 // the rest here; a payload once started is never cut, even past capacity
 export class OutboundQueue {
@@ -16,7 +19,7 @@ export class OutboundQueue {
 
   private queued = 0;
 
-  constructor(socket: SocketWriter, capacity = 2 * 1024 * 1024) {
+  constructor(socket: SocketWriter, capacity = DEFAULT_QUEUE_BYTES) {
     this.socket = socket;
     this.capacity = capacity;
   }

@@ -4,6 +4,7 @@ export function buildStubPeerSocket() {
 
   let accepting = true;
   let ended = false;
+  let refusedWrites = 0;
   let written = '';
 
   const collectFrames = (): Record<string, unknown>[] =>
@@ -18,6 +19,8 @@ export function buildStubPeerSocket() {
         // Taking no bytes stands in for a full kernel buffer, so backpressure is a
         // switch instead of a buffer race.
         if (!accepting) {
+          refusedWrites += 1;
+
           return 0;
         }
 
@@ -45,6 +48,10 @@ export function buildStubPeerSocket() {
       accepting = value;
     },
     hasEnded: (): boolean => ended,
+
+    // How many writes found the socket taking nothing, so a test can wait
+    // for a write that the daemon queued.
+    countRefusedWrites: (): number => refusedWrites,
     collectFrames,
     waitForAnswer: (id: number): Promise<Record<string, unknown>> => {
       const found = collectFrames().find((frame) => frame['id'] === id);
