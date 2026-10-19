@@ -191,6 +191,28 @@ test('it lists the spawn tool without a target for a daemon that predates target
   expect(getRecord(spawn.inputSchema, 'properties')).not.toContainKey('target');
 });
 
+test('it lists the spawn tool with plugin folders for a daemon that takes them', () => {
+  const spawn = buildToolList(new Set(DAEMON_FEATURES), null).find(
+    (tool) => tool.name === 'atc_session_spawn',
+  );
+
+  invariant(spawn !== undefined, 'spawn tool missing');
+
+  expect(getRecord(spawn.inputSchema, 'properties')).toContainKey('pluginDirs');
+});
+
+test('it lists the spawn tool without plugin folders for a daemon that predates them', () => {
+  const spawn = buildToolList(
+    new Set(DAEMON_FEATURES.filter((feature) => feature !== 'spawn.pluginDirs')),
+    null,
+  ).find((tool) => tool.name === 'atc_session_spawn');
+
+  invariant(spawn !== undefined, 'spawn tool missing');
+
+  expect(getRecord(spawn.inputSchema, 'properties')).not.toContainKey('pluginDirs');
+  expect(getRecord(spawn.inputSchema, 'properties')).toContainKey('model');
+});
+
 test('it lists the spawn tool with a workspace for a daemon that takes workspaces', () => {
   const spawn = buildToolList(new Set(DAEMON_FEATURES), null).find(
     (tool) => tool.name === 'atc_session_spawn',
