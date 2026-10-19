@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { existsSync, mkdirSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { toAgentSessionID } from '@atc/core';
 import { startDaemon } from '@atc/daemon';
@@ -7,15 +7,7 @@ import { findDaemonRecord } from '@atc/lifecycle';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { StateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
-import {
-  KEYS,
-  buildMockAgentAdapter,
-  buildStubHeldZoxide,
-  createStubBin,
-  registerTestCleanup,
-  startTUIHarness,
-  waitFor,
-} from '@atc/test-utils';
+import { KEYS, buildMockAgentAdapter, registerTestCleanup, startTUIHarness } from '@atc/test-utils';
 import { buildHostServices } from '../packages/app/src/build-host-services';
 import { buildLocalTarget } from '../packages/app/src/test-utils/build-local-target';
 
@@ -185,63 +177,6 @@ test('it draws the reconnect restart prompt again when the terminal resizes', as
   await legacy.exited;
 
   expect(legacy.signalCode).toBe('SIGTERM');
-});
-
-test('it keeps the reconnect restart prompt on screen when a directory listing answers late', async () => {
-  const ctx = setupTest();
-  const stateDir = join(ctx.home, '.local', 'state', 'atc');
-  const socketPath = join(ctx.home, 'atc-daemon.sock');
-
-  mkdirSync(stateDir, { recursive: true });
-
-  // While the hold file exists, the client's own zoxide marks that it
-  // started and waits, so the picker's local directory listing answers
-  // only once the test removes the file.
-  createStubBin(join(ctx.home, 'bin'), 'zoxide', buildStubHeldZoxide());
-  writeFileSync(join(ctx.home, 'zoxide-hold'), '');
-
-  // A daemon of an older build on this protocol offers no sources, so the
-  // picker lists directories on the client's host.
-  const older = await startStubDaemonProcess(socketPath, stateDir, 'current');
-
-  ctx.boot();
-
-  await ctx.waitFor('update ready');
-
-  ctx.write('n');
-
-  await ctx.waitFor('spawn: agent');
-
-  ctx.write(KEYS.enter);
-
-  await waitFor(() => {
-    expect(existsSync(join(ctx.home, 'zoxide-held'))).toBe(true);
-  });
-
-  unlinkSync(socketPath);
-
-  const legacy = await startStubDaemonProcess(socketPath, stateDir);
-
-  older.kill('SIGTERM');
-
-  await ctx.waitFor('Restart it now?');
-
-  ctx.reset();
-
-  const mark = ctx.countClientLogLines();
-
-  rmSync(join(ctx.home, 'zoxide-hold'));
-
-  await ctx.waitForClientLog('dropped local directory listing answer', mark);
-
-  expect(ctx.read()).not.toInclude('spawn:');
-
-  ctx.write('n');
-
-  const code = await ctx.waitForExit();
-
-  expect(code).toBe(1);
-  expect(legacy.exitCode).toBeNull();
 });
 
 test('it quits when the user keeps a daemon on another protocol that a reconnect meets', async () => {
@@ -473,13 +408,9 @@ async function setupManagedReconnectTest() {
   };
 }
 
-// The stub speaks another protocol, with 'current' the current one as an
-// older build would, or with 'line' the line protocol of an older release.
-async function startStubDaemonProcess(
-  socketPath: string,
-  stateDir: string,
-  build?: 'current' | 'line',
-) {
+// The stub speaks another protocol, or with 'line' the line protocol of an
+// older release.
+async function startStubDaemonProcess(socketPath: string, stateDir: string, build?: 'line') {
   const daemon = Bun.spawn(
     [
       process.execPath,

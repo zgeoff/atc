@@ -292,7 +292,7 @@ test('it lists the scope a source reads from a directory step once, after the ta
   expect(lists).toHaveLength(1);
 }, 30_000);
 
-test('it offers the local directory flow alone when the config offers no sources', async () => {
+test('it refuses a spawn when the config offers no sources', async () => {
   const ctx = setupTest();
 
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
@@ -309,26 +309,9 @@ test('it offers the local directory flow alone when the config offers no sources
   ctx.reset();
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor('spawn: directory');
+  await ctx.waitFor('the daemon offers no sources');
 
-  // A picker with a second source puts that source's label on the step's
-  // last row, GitHub first, so the label off screen shows none is offered.
-  expect(ctx.read()).not.toInclude('GitHub repository');
-  expect(ctx.read()).not.toInclude('on the daemon host');
-
-  ctx.reset();
-
-  const mark = ctx.countClientLogLines();
-
-  ctx.write(KEYS.tab);
-
-  await ctx.waitForClientLog('ignored tab with one source', mark);
-
-  ctx.write(KEYS.enter);
-
-  await ctx.waitFor('spawn: name');
-
-  expect(ctx.read()).not.toInclude('spawn: GitHub repository');
+  expect(ctx.read()).not.toInclude('spawn: directory');
 }, 30_000);
 
 test('it lists an owner typed in the directory step through the source that reads it', async () => {

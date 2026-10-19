@@ -1,4 +1,3 @@
-import { posix } from 'node:path';
 import type { WorkspacesConfig } from '@atc/config';
 import { DEFAULT_GIT_TRANSPORTS, LOCAL_TARGET, loadConfig } from '@atc/config';
 import type { AgentID } from '@atc/core';
@@ -12,7 +11,6 @@ import {
   isRecord,
   systemClock,
 } from '@atc/core';
-import { runCommand } from '@atc/lifecycle/run-command';
 import type {
   DaemonFeature,
   GitRef,
@@ -27,18 +25,13 @@ import {
   SOURCE_INTERPRETATION_SCHEMA,
 } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
-import {
-  collectPathCompletions,
-  collectZoxideDirs,
-  isPathInput,
-  resolvePathInput,
-} from '@atc/source-dirs';
+import { collectPathCompletions, isPathInput, resolvePathInput } from '@atc/source-dirs';
 import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { collectAgentPicks } from './collect-agent-picks';
 import type { AgentPick } from './collect-agent-picks';
 import { collectTargetPicks } from './collect-target-picks';
 import type { TargetPick } from './collect-target-picks';
-import { collectDirs, formatDir, formatDirName, pickMatches } from './dirs';
+import { formatDir, formatDirName, pickMatches } from './dirs';
 import { KEY, planTextEdit } from './keys';
 import type { ListingCache } from './open-listing-cache';
 import { pickRefusalStep } from './pick-refusal-step';
@@ -58,8 +51,8 @@ type PickerStep =
   | 'spawned';
 
 // The kinds of answer the flow can drop: each source's listing, each
-// request a step waits on, the daemon's targets and sources, the local
-// directory flow's listing, and a remote daemon's path completions.
+// request a step waits on, the daemon's targets and sources, and a remote
+// daemon's path completions.
 export type DroppedAnswer =
   | 'listing'
   | 'directory listing'
@@ -67,8 +60,7 @@ export type DroppedAnswer =
   | 'interpret'
   | 'probe'
   | 'spawn'
-  | 'targets and sources'
-  | 'local directory listing';
+  | 'targets and sources';
 
 // What the flow borrows from the client that owns the screen, the daemon
 // connection and the fleet mirror.
@@ -178,10 +170,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
   private step: PickerStep = 'agent';
 
-  // The sources the daemon offers, or null when it offers none, and the
-  // one the flow is on; -1 is the local directory flow of a daemon that
-  // offers none.
-  private sources: readonly SourceEntry[] | null = null;
+  // The sources the daemon offers, and the one the flow is on; -1 before
+  // the flow opens one.
+  private sources: readonly SourceEntry[] = [];
 
   private sourceIndex = -1;
 
@@ -212,10 +203,8 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
   private completionSeq: number | null = null;
 
-  // The configured roots and workspace settings, read with the agents each
-  // time the menu opens.
-  private roots: readonly string[] = [];
-
+  // The configured workspace settings, read with the agents each time the
+  // menu opens.
   private workspaces: WorkspacesConfig = {
     githubOwner: null,
     sources: null,
@@ -330,10 +319,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     const config = loadConfig(SHIPPED_HARNESS_PLUGINS, this.deps.configPath);
 
     this.picks = collectAgentPicks(config);
-    this.roots = config.dirs.roots;
     this.workspaces = config.workspaces;
     this.input = '';
-    this.sources = null;
+    this.sources = [];
     this.sourceIndex = -1;
     this.sourcesPending = false;
     this.target = null;
@@ -507,7 +495,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
           items: this.picks.map((p) => p.label),
           selected: this.selected,
           input: this.input,
-          hint,
+          hint: this.refusal ?? hint,
         },
         this.deps.write,
       );
@@ -737,9 +725,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     );
   }
 
-  // The source the flow is on, or null on the local directory flow.
+  // The source the flow is on, or null before the flow opens one.
   private findSource(): SourceEntry | null {
-    return this.sources?.[this.sourceIndex] ?? null;
+    return this.sources[this.sourceIndex] ?? null;
   }
 
   // Whether the flow is choosing a git repository rather than a directory.
@@ -750,13 +738,11 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   // The hint that Tab moves to the next source, when there is one to move
   // to.
   private formatTabHint(): string {
-    const sources = this.sources ?? [];
-
-    if (this.resume || sources.length < 2) {
+    if (this.resume || this.sources.length < 2) {
       return '';
     }
 
-    const next = sources[(this.sourceIndex + 1) % sources.length];
+    const next = this.sources[(this.sourceIndex + 1) % this.sources.length];
 
     return next === undefined ? '' : ` · tab ${next.label}`;
   }
@@ -778,7 +764,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     // A pasted URL in the directory step is a repository, not a path, so
     // the flow moves to the first source of repositories with it.
     if (this.step === 'dir' && !this.resume && isGitURL(value) && !value.startsWith('/')) {
-      const index = this.sources?.findIndex((source) => source.kind === 'git') ?? -1;
+      const index = this.sources.findIndex((source) => source.kind === 'git');
 
       if (index !== -1) {
         this.openGitSource(index, value, { kind: 'none' });
@@ -799,7 +785,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   // when the input has come back to the text it completes.
   private async loadCompletions(input: string) {
     const own = this.findSource();
-    const source = own?.kind === 'path' ? own : this.sources?.find((s) => s.kind === 'path');
+    const source = own?.kind === 'path' ? own : this.sources.find((s) => s.kind === 'path');
 
     if (source === undefined || !this.deps.hasDaemonFeature('sources.complete')) {
       return;
@@ -999,7 +985,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       return;
     }
 
-    const index = this.sources?.findIndex((source) => source.kind === 'path') ?? -1;
+    const index = this.sources.findIndex((source) => source.kind === 'path');
 
     if (index === -1) {
       this.openAgentStep();
@@ -1095,28 +1081,17 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       return;
     }
 
-    if (typed !== '' && this.sources !== null) {
+    if (typed !== '') {
       await this.readTypedInput(typed, true);
-
-      return;
-    }
-
-    if (this.deps.remoteDaemon === true && isPathInput(typed)) {
-      this.refusal = `the daemon resolves no ${typed} · type an absolute path`;
-
-      this.render();
     }
   }
 
-  // A typed path the client resolves itself: on this host for a local
-  // daemon, and only an absolute one for a remote daemon that offers no
-  // source to resolve the rest. Null leaves the text to the sources.
+  // A typed path the client resolves itself on this host for a local
+  // daemon. Null leaves the text to the sources.
   private resolveTypedDir(typed: string): string | null {
-    if (this.deps.remoteDaemon !== true) {
-      return resolvePathInput(typed, this.deps.cwd, this.deps.home);
-    }
-
-    return this.sources === null && typed.startsWith('/') ? posix.resolve(typed) : null;
+    return this.deps.remoteDaemon === true
+      ? null
+      : resolvePathInput(typed, this.deps.cwd, this.deps.home);
   }
 
   private applyDir(dir: string) {
@@ -1235,19 +1210,17 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
   // Opens the source after the current one, wrapping round.
   private openNextSource() {
-    const sources = this.sources ?? [];
-
-    if (sources.length < 2) {
+    if (this.sources.length < 2) {
       this.deps.log?.('ignored tab with one source');
 
       return;
     }
 
-    this.openSource((this.sourceIndex + 1) % sources.length);
+    this.openSource((this.sourceIndex + 1) % this.sources.length);
   }
 
   private openSource(index: number) {
-    const source = this.sources?.[index];
+    const source = this.sources[index];
 
     if (source?.kind === 'path') {
       void this.openPathSource(index, null);
@@ -1260,7 +1233,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   // stays where it is until the listing answers, and an answer that comes after the flow
   // moved on is dropped.
   private async openPathSource(index: number, scope: string | null) {
-    const source = this.sources?.[index];
+    const source = this.sources[index];
     const generation = this.generation;
 
     this.requestSeq += 1;
@@ -1625,10 +1598,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   // asked, and moves the flow to the first whose kind takes the reading.
   // Text none reads is refused, with each refusal the daemon gave.
   private async readTypedInput(typed: string, withOwn: boolean) {
-    const order = (this.sources ?? []).flatMap((_, index) =>
-      index === this.sourceIndex ? [] : [index],
-    );
-
+    const order = this.sources.flatMap((_, index) => (index === this.sourceIndex ? [] : [index]));
     const failures: string[] = [];
 
     for (const index of withOwn ? [this.sourceIndex, ...order] : order) {
@@ -1640,7 +1610,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
       if (reading.kind === 'refused') {
         failures.push(reading.reason);
-      } else if (canTakeReading(this.sources?.[index]?.kind, reading)) {
+      } else if (canTakeReading(this.sources[index]?.kind, reading)) {
         this.applyReading(index, reading, typed);
 
         return;
@@ -1662,7 +1632,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     index: number,
     typed: string,
   ): Promise<SourceInterpretation | { readonly kind: 'refused'; readonly reason: string } | null> {
-    const source = this.sources?.[index];
+    const source = this.sources[index];
 
     if (source === undefined) {
       return { kind: 'none' };
@@ -1700,7 +1670,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     const scope = reading.kind === 'browse' ? reading.scope : null;
 
-    if (this.sources?.[index]?.kind === 'path') {
+    if (this.sources[index]?.kind === 'path') {
       void this.openPathSource(index, scope);
 
       return;
@@ -2084,8 +2054,8 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   }
 
   // Reads the daemon's targets and sources once the agent is chosen, and
-  // opens the first source: the first of directories for an adopt, and the
-  // local directory flow for a daemon that offers no sources.
+  // opens the first source, or the first of directories for an adopt. With
+  // none to open, the agent step shows why.
   private async openFirstSource() {
     const generation = this.generation;
     let listed: Readonly<Record<string, unknown>> = {};
@@ -2125,56 +2095,21 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     const announced = parseAnnouncedSources(listed['sources']);
     const index = this.resume ? announced.findIndex((source) => source.kind === 'path') : 0;
 
-    if (announced.length > 0 && index !== -1) {
-      this.sources = announced;
+    this.sources = announced;
 
+    if (announced.length > 0 && index !== -1) {
       this.openSource(index);
 
       return;
     }
 
-    this.sources = null;
+    this.sourcesPending = false;
 
-    await this.openLocalDirs(generation);
-  }
+    this.refusal =
+      announced.length === 0
+        ? 'the daemon offers no sources · set workspaces.sources · esc cancel'
+        : 'no directory source to adopt in · set workspaces.sources · esc cancel';
 
-  // The local directory flow of a daemon that offers no sources: the
-  // client's own directory, the daemon's spawn history, the configured
-  // roots, and zoxide's list on this host; a remote daemon's history alone.
-  private async openLocalDirs(generation: number) {
-    let recent: string[] = [];
-
-    try {
-      const answer = await this.deps.sendRequest('dirs.list');
-
-      const dirs = answer['dirs'];
-
-      if (Array.isArray(dirs)) {
-        recent = dirs.filter((d): d is string => typeof d === 'string');
-      }
-    } catch {}
-
-    const remote = this.deps.remoteDaemon === true;
-    const zoxide = remote ? [] : await collectZoxideDirs(runCommand);
-
-    if (this.isStale(generation)) {
-      this.deps.onDropAnswer?.('local directory listing');
-
-      return;
-    }
-
-    this.dirs = remote
-      ? [...new Set(recent)]
-      : collectDirs({ cwd: this.deps.cwd, recent, roots: this.roots, zoxide });
-
-    this.dirLabels = new Map();
-
-    this.sourceIndex = -1;
-    this.input = '';
-    this.selected = 0;
-    this.step = 'dir';
-
-    this.deps.write(ansi.clear);
     this.render();
   }
 

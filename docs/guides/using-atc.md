@@ -10,9 +10,11 @@ prompt if you have one. The session takes the whole screen, and you work in it a
 plain terminal.
 
 The agent picker lists only the agents whose binary atc finds, and opens only when it finds more
-than one. The directory picker lists the directory you ran `atc` from, atc's spawn history, every
-project under the roots in `config.json`, and your [zoxide](https://github.com/ajeetdsouza/zoxide)
-list when zoxide is installed. A typed path such as `~/pro` completes like a shell.
+than one. The directory picker lists the directory you ran `atc` from, then what the daemon's
+directory source finds: atc's spawn history, every project under the roots in `config.json`, and
+your [zoxide](https://github.com/ajeetdsouza/zoxide) list when zoxide is installed. A typed path
+such as `~/pro` completes like a shell. A daemon that offers no source gets a refusal in place of a
+list, as the [directories guide](./configuration/workspaces.md#directories) describes.
 
 `Tab` in the picker moves to the next source the daemon offers, such as your GitHub repositories.
 The GitHub list opens at once from the copy atc kept the last time it listed them, marked with its
@@ -158,8 +160,9 @@ atc cannot restart a daemon on another host, so the TUI never offers `u` there: 
 own host. A principal may not restore the fleet, so `R` restores nothing on a remote daemon.
 
 On a remote daemon, the spawn picker lists, completes, and resolves directories on the daemon's
-host. It leaves out the directory you ran `atc` from, the roots in your `config.json`, and your
-zoxide list, and a typed `~` stands for the home of the user the daemon runs as.
+host, through the daemon's directory source. It leaves out the directory you ran `atc` from, and a
+typed `~` stands for the home of the user the daemon runs as. The roots and the zoxide list it shows
+are the daemon's own.
 
 ## Running the daemon under systemd
 

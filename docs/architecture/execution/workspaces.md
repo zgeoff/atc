@@ -120,12 +120,14 @@ A source is where the spawn picker finds what a session runs in: directories on 
 GitHub account's repositories, or a typed git URL. The daemon lists the sources it can offer in the
 config's order and leaves out one its host cannot run, such as GitHub without the `gh` CLI. Every
 source request runs on the daemon's host and checks the target the spawn will use, as a spawn does.
+The picker needs a source to list anything, so a daemon that offers none gets a refusal in place of
+a list.
 
 - **Directories** list the spawn history on the targets the caller may use, then the directories
   under the configured roots, then zoxide's list, and drop any that no longer exist. They complete a
   typed path on the daemon's host, with `~` and a relative path under the home of the user the
   daemon runs as, and resolve a typed absolute or `~` path the same way. A TUI on a remote daemon
-  reads every path through them, so it reads no path on its own host.
+  reads every path through them, so it reads no path on its own host. An adopt opens only on them.
 - **GitHub** lists one owner's repositories through `gh`, as the account `gh` is signed in to sees
   them, at the clone URL form `gh` prefers.
 - **A git URL** lists nothing and reads what the owner types.
