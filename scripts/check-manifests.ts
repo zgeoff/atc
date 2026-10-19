@@ -4,6 +4,8 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
 import { dirname, join, normalize, resolve } from 'node:path';
+import type { ImportZonesOptions } from '@zgeoff/oxlint-config-next/import-zones';
+import { collectRefusingEdges, importZonesSchema } from '@zgeoff/oxlint-config-next/import-zones';
 import { z } from 'zod';
 import type { ImportList } from './collect-imports';
 import { collectImports } from './collect-imports';
@@ -127,8 +129,10 @@ function readManifest(root: string, dir: string): Manifest {
 }
 
 // A full semver version with an optional prerelease and build part, such as
-// `1.7.6` or `0.3.0-beta.1`; a range, a tag, or a wildcard matches none.
-const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[\dA-Za-z.-]+)?(?:\+[\dA-Za-z.-]+)?$/u;
+// `1.7.6` or `0.3.0-beta.1`, bare or as an npm alias such as
+// `npm:@scope/name@1.7.6`; a range, a tag, or a wildcard matches none.
+const EXACT_VERSION =
+  /^(?:npm:(?:@[^/@]+\/)?[^/@]+@)?\d+\.\d+\.\d+(?:-[\dA-Za-z.-]+)?(?:\+[\dA-Za-z.-]+)?$/u;
 
 function checkManifest(pkg: WorkspacePackage): string[] {
   const findings: string[] = [];
@@ -325,26 +329,12 @@ function resolveModule(root: string, dir: string, specifier: string): string | u
   );
 }
 
-const NAMES_SCHEMA = z.array(z.string());
+const IMPORT_ZONES_SCHEMA = z.fromJSONSchema(importZonesSchema);
 
-// The edge options that zgeoff/import-zones takes, which its package keeps
-// private; a strict object fails the check when the rule gains an option this
-// reading does not apply
-const EDGE_SCHEMA = z.strictObject({
-  name: z.string(),
-  from: NAMES_SCHEMA,
-  ignore: NAMES_SCHEMA.optional(),
-  reason: z.string().optional(),
-  to: NAMES_SCHEMA.optional(),
-  allow: NAMES_SCHEMA.optional(),
-  allowTypeOnly: z.union([z.boolean(), NAMES_SCHEMA]).optional(),
-  allowWithin: z.string().optional(),
-});
-
-const ZONE_OPTIONS_SCHEMA = z.object({
-  zones: z.record(z.string(), NAMES_SCHEMA),
-  edges: z.array(EDGE_SCHEMA),
-});
+// The options of zgeoff/import-zones, checked against the rule's own schema
+const ZONE_OPTIONS_SCHEMA = z.custom<ImportZonesOptions>(
+  (value) => IMPORT_ZONES_SCHEMA.safeParse(value).success,
+);
 
 const ZONE_RULE_SCHEMA = z.tuple([z.string(), ZONE_OPTIONS_SCHEMA]);
 
@@ -352,18 +342,9 @@ const ZONES_CONFIG_SCHEMA = z.object({
   rules: z.object({ 'zgeoff/import-zones': ZONE_RULE_SCHEMA }),
 });
 
-type ZoneOptions = z.infer<typeof ZONE_OPTIONS_SCHEMA>;
-
-type Edge = z.infer<typeof EDGE_SCHEMA>;
-
-interface EdgePaths {
-  readonly importer: string;
-  readonly target: string;
-}
-
 // The lint rule judges only the imports a file holds, so a production
 // dependency that no file imports yet would pass it. Each one must pass every
-// edge that an import of the dependency's root from the package's src/ meets.
+// edge that a runtime import of its root from the package's src/ meets.
 function checkDependencyZones(root: string, packages: readonly WorkspacePackage[]): string[] {
   const configPath = join(root, '.oxlintrc.zones.json');
 
@@ -381,12 +362,10 @@ function checkDependencyZones(root: string, packages: readonly WorkspacePackage[
     .flatMap((pkg) =>
       Object.keys(pkg.manifest.dependencies ?? {}).flatMap((name) => {
         const target = dirs.get(name);
-        const importer = `${pkg.dir}/src/index.ts`;
+        const from = `${pkg.dir}/src/index.ts`;
 
         const refusing =
-          target === undefined
-            ? undefined
-            : options.edges.find((edge) => isRefusedByEdge(options, edge, { importer, target }));
+          target === undefined ? undefined : collectRefusingEdges(options, { from, to: target })[0];
 
         return refusing === undefined
           ? []
@@ -395,62 +374,6 @@ function checkDependencyZones(root: string, packages: readonly WorkspacePackage[
             ];
       }),
     );
-}
-
-// The lint rule's reading of an edge, with `to` and `allow` as its README
-// gives them; a production dependency loads at runtime, so `allowTypeOnly`
-// exempts none
-function isRefusedByEdge(options: ZoneOptions, edge: Edge, paths: EdgePaths): boolean {
-  const importerZones = collectZones(options, paths.importer);
-  const targetZones = collectZones(options, paths.target);
-  const applies = edge.from.some((zone) => importerZones.has(zone));
-  const ignored = edge.ignore?.some((glob) => isGlobMatch(glob, paths.importer)) ?? false;
-  const allowed = edge.allow?.some((zone) => targetZones.has(zone)) ?? false;
-
-  const within =
-    edge.allowWithin !== undefined && isWithin(edge.allowWithin, paths.importer, paths.target);
-
-  if (!applies || ignored || allowed || within) {
-    return false;
-  }
-
-  return edge.to === undefined
-    ? edge.allow !== undefined
-    : edge.to.some((zone) => targetZones.has(zone));
-}
-
-// `allowWithin: "packages/*"` exempts a target that shares the importer's
-// leading path segments, one per glob segment, when they match the glob
-function isWithin(glob: string, importer: string, target: string): boolean {
-  const depth = glob.split('/').length;
-  const prefix = importer.split('/').slice(0, depth).join('/');
-
-  return isGlobMatch(glob, prefix) && target.split('/').slice(0, depth).join('/') === prefix;
-}
-
-function collectZones(options: ZoneOptions, path: string): Set<string> {
-  return new Set(
-    Object.entries(options.zones)
-      .filter(([, globs]) => globs.some((glob) => isGlobMatch(glob, path)))
-      .map(([zone]) => zone),
-  );
-}
-
-// Bun.Glob matches `packages/tui{,/**}` only against `packages/tui`, since it
-// reads no slash inside braces, so each brace alternative is matched alone
-function isGlobMatch(glob: string, path: string): boolean {
-  const braces = /\{(?<alternatives>[^{}]*)\}/u.exec(glob);
-
-  if (braces?.groups === undefined) {
-    return new Bun.Glob(glob).match(path);
-  }
-
-  const before = glob.slice(0, braces.index);
-  const after = glob.slice(braces.index + braces[0].length);
-
-  return (braces.groups['alternatives'] ?? '')
-    .split(',')
-    .some((alternative) => isGlobMatch(`${before}${alternative}${after}`, path));
 }
 
 // oxlint's import rules read only quoted specifiers, so they never apply the
