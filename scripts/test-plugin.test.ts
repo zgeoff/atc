@@ -140,8 +140,11 @@ test('it tests a plugin in a workspace of its manifest closure and the test help
 
   const kept = /^test-plugin: kept (?<dir>.+)$/mu.exec(ran.stdout)?.groups?.['dir'];
 
-  invariant(kept);
-  onTestFinished(() => rmSync(kept, { recursive: true, force: true }));
+  invariant(kept !== undefined);
+
+  onTestFinished(() => {
+    rmSync(kept, { recursive: true, force: true });
+  });
 
   expect(ran.exitCode).toBe(0);
   expect(ran.stdout).toInclude('test-plugin: harness-demo passed in a workspace without the app');
