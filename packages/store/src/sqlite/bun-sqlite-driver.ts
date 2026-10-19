@@ -64,25 +64,27 @@ export class BunSqliteDriver implements Driver {
 }
 
 function buildConnection(sqlite: Database): DatabaseConnection {
+  const runQuery = <R>(compiledQuery: CompiledQuery): Promise<QueryResult<R>> => {
+    const stmt = sqlite.query<R, SQLQueryBindings[]>(compiledQuery.sql);
+
+    // oxlint-disable-next-line no-unsafe-type-assertion -- kysely's sqlite compiler only ever binds bun:sqlite-legal values here; this is the one point where it is trusted
+    const bindings = compiledQuery.parameters as SQLQueryBindings[];
+
+    if (stmt.columnNames.length > 0) {
+      return Promise.resolve({ rows: stmt.all(...bindings) });
+    }
+
+    const result = stmt.run(...bindings);
+
+    return Promise.resolve({
+      rows: [],
+      numAffectedRows: BigInt(result.changes),
+      insertId: BigInt(result.lastInsertRowid),
+    });
+  };
+
   return {
-    executeQuery<R>(compiledQuery: CompiledQuery): Promise<QueryResult<R>> {
-      const stmt = sqlite.query<R, SQLQueryBindings[]>(compiledQuery.sql);
-
-      // oxlint-disable-next-line no-unsafe-type-assertion -- kysely's sqlite compiler only ever binds bun:sqlite-legal values here; this is the one point where it is trusted
-      const bindings = compiledQuery.parameters as SQLQueryBindings[];
-
-      if (stmt.columnNames.length > 0) {
-        return Promise.resolve({ rows: stmt.all(...bindings) });
-      }
-
-      const result = stmt.run(...bindings);
-
-      return Promise.resolve({
-        rows: [],
-        numAffectedRows: BigInt(result.changes),
-        insertId: BigInt(result.lastInsertRowid),
-      });
-    },
+    executeQuery: runQuery,
 
     streamQuery<R>(): AsyncIterableIterator<QueryResult<R>> {
       throw new Error('BunSqliteDriver does not support streaming queries');
