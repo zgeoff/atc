@@ -76,7 +76,8 @@ prints its own reason, and the rules live where each bullet points.
   `e2e/import-zones.test.ts` lints a probe import against each boundary.
 - `bun run lint:mods`: the rules for `mods/`, in `.oxlintrc.mods.json`.
 - `bun run check:manifests`: each package's manifest, `exports` map, and import specifiers, in
-  `scripts/check-manifests.ts`.
+  `scripts/check-manifests.ts`. It also checks each declared workspace dependency against the edges
+  in `.oxlintrc.zones.json`, since the lint rule sees only the imports a file holds.
 - `bun run check:reach`: what the gateway entry, the reporters, and `cli.ts` may reach, in
   `scripts/check-reach.ts`.
 - `bun run check:bundle`: the execution providers the atc bundle carries, in

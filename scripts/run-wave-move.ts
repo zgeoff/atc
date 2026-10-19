@@ -8,10 +8,18 @@ import { z } from 'zod';
 import { collectSourceFiles } from './collect-source-files';
 import type { Token } from './collect-tokens';
 import { collectTokens } from './collect-tokens';
-import { collectWorkspacePackages } from './collect-workspace-packages';
+import type { WorkspacePackage } from './load-workspace-packages';
+import { loadWorkspacePackages } from './load-workspace-packages';
 
 function main(): void {
-  const args = parseArgs(process.argv.slice(2));
+  const argv = process.argv.slice(2);
+
+  // the package names come from this checkout's workspace, whatever root the move rewrites
+  const packages = argv.includes('--package')
+    ? loadWorkspacePackages(join(import.meta.dir, '..'))
+    : [];
+
+  const args = parseArgs(argv, packages);
   const wave = Number(args.positionals[0]);
   const root = resolve(args.positionals[1] ?? join(import.meta.dir, '..'));
 
@@ -115,12 +123,9 @@ interface WaveMoveArgs {
   readonly packageDirs: readonly string[];
 }
 
-function parseArgs(argv: readonly string[]): WaveMoveArgs {
+function parseArgs(argv: readonly string[], packages: readonly WorkspacePackage[]): WaveMoveArgs {
   const positionals: string[] = [];
   const packageDirs: string[] = [];
-
-  // the package names come from this checkout's workspace, whatever root the move rewrites
-  const packages = collectWorkspacePackages(join(import.meta.dir, '..'));
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i] ?? '';

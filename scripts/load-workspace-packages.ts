@@ -11,7 +11,7 @@ export interface WorkspacePackage {
 }
 
 // The packages that the root manifest's workspace globs match, sorted by directory.
-export function collectWorkspacePackages(root: string): WorkspacePackage[] {
+export function loadWorkspacePackages(root: string): WorkspacePackage[] {
   const manifest = ROOT_MANIFEST_SCHEMA.parse(readJSON(join(root, 'package.json')));
 
   const dirs = new Set<string>();

@@ -390,6 +390,46 @@ test.each([
   });
 });
 
+test('it refuses a file in a workspace package outside every package zone', async () => {
+  const ctx = await setupTest();
+
+  await Bun.write(join(ctx.dir, '.oxlintrc.json'), JSON.stringify(ctx.config));
+
+  await Bun.write(
+    join(ctx.dir, 'packages/extras/package.json'),
+    JSON.stringify({ name: '@atc/extras', exports: { '.': './src/a.ts' } }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/extras/src/a.ts'),
+    "import { a } from '@atc/core';\n\nexport const VALUE = [a];\n",
+  );
+
+  const linted = await runCommand(
+    [
+      process.execPath,
+      ctx.oxlint,
+      '-c',
+      '.oxlintrc.json',
+      '-f',
+      'json',
+      'packages/extras/src/a.ts',
+    ],
+    { cwd: ctx.dir },
+  );
+
+  const report = z
+    .object({ diagnostics: z.array(z.looseObject({})) })
+    .parse(JSON.parse(linted.stdout));
+
+  expect(report.diagnostics).toPartiallyContain({
+    code: 'zgeoff(import-zones)',
+    filename: 'packages/extras/src/a.ts',
+    message:
+      'package-zones: this file belongs to none of core, protocol, plugin-api, config, store, lifecycle, daemon, plugins, front-ends, test-utils, app; add its path to one',
+  });
+});
+
 test.each([
   ['a package in the row', 'packages/tui/src/a.ts', '@atc/protocol', []],
   ['a named entry point', 'packages/tui/src/a.ts', '@atc/protocol/wire', []],

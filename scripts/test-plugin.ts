@@ -2,8 +2,9 @@ import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:f
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
-import type { WorkspacePackage } from './collect-workspace-packages';
-import { collectWorkspacePackages } from './collect-workspace-packages';
+import { collectPackageClosure } from './collect-package-closure';
+import type { WorkspacePackage } from './load-workspace-packages';
+import { loadWorkspacePackages } from './load-workspace-packages';
 
 // Tests one plugin package in a workspace holding only it, the packages its
 // rule reaches and the test helpers, so a plugin that reaches past its rule
@@ -32,7 +33,7 @@ const TOOLING = new Set([
 async function main(): Promise<void> {
   const name = process.argv.at(2);
   const keep = process.argv.includes('--keep');
-  const workspace = collectWorkspacePackages(repo);
+  const workspace = loadWorkspacePackages(repo);
   const plugins = workspace.filter((pkg) => isPlugin(pkg));
   const plugin = plugins.find((pkg) => pkg.name === name);
 
@@ -42,7 +43,8 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
-  const packages = collectPackageClosure(workspace, plugin);
+  // the plugin, and the shared test helpers its tests import
+  const packages = collectPackageClosure(workspace, [plugin.name, 'test-utils']);
   const dir = mkdtempSync(join(tmpdir(), `atc-test-plugin-${plugin.name}-`));
 
   try {
@@ -89,29 +91,6 @@ function printUsage(plugins: readonly WorkspacePackage[]): void {
   console.error(
     `usage: bun run test:plugin <plugin>, where <plugin> is one of: ${plugins.map((rule) => rule.name).join(', ')}`,
   );
-}
-
-// The plugin, every package its manifest depends on, and the shared test
-// helpers with every package theirs depends on.
-function collectPackageClosure(
-  workspace: readonly WorkspacePackage[],
-  plugin: WorkspacePackage,
-): WorkspacePackage[] {
-  const found = new Map<string, WorkspacePackage>();
-
-  const pending = [plugin.name, 'test-utils'];
-
-  while (pending.length > 0) {
-    const name = pending.pop();
-    const rule = workspace.find((candidate) => candidate.name === name);
-
-    if (rule !== undefined && !found.has(rule.name)) {
-      found.set(rule.name, rule);
-      pending.push(...rule.deps);
-    }
-  }
-
-  return [...found.values()];
 }
 
 // The workspace's type check covers the plugin and the production files of

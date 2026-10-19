@@ -535,6 +535,95 @@ test('it fails on a package named outside the @atc/ scope', async () => {
   });
 });
 
+test('it fails on a production dependency that an edge of the zones table refuses', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'package.json'),
+    JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, '.oxlintrc.zones.json'),
+    `{
+  // the package boundaries
+  "rules": {
+    "zgeoff/import-zones": [
+      "error",
+      {
+        "zones": {
+          "packages": ["packages/**"],
+          "core": ["packages/core{,/**}"],
+          "lifecycle": ["packages/lifecycle{,/**}"],
+          "tui": ["packages/tui{,/**}"],
+          "test-utils": ["packages/test-utils{,/**}"]
+        },
+        "edges": [
+          { "name": "package-deps", "from": ["tui"], "allow": ["core", "test-utils"] },
+          {
+            "name": "test-helpers",
+            "from": ["packages"],
+            "to": ["test-utils"],
+            "ignore": ["**/*.test.ts"]
+          }
+        ]
+      }
+    ]
+  }
+}
+`,
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/core/package.json'),
+    JSON.stringify({
+      name: '@atc/core',
+      exports: { '.': './src/index.ts' },
+      devDependencies: { '@atc/test-utils': 'workspace:*' },
+    }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/lifecycle/package.json'),
+    JSON.stringify({ name: '@atc/lifecycle', exports: { '.': './src/index.ts' } }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/test-utils/package.json'),
+    JSON.stringify({ name: '@atc/test-utils', exports: { '.': './src/index.ts' } }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/tui/package.json'),
+    JSON.stringify({
+      name: '@atc/tui',
+      exports: { '.': './src/index.ts' },
+      dependencies: {
+        '@atc/core': 'workspace:*',
+        '@atc/lifecycle': 'workspace:*',
+        '@atc/test-utils': 'workspace:*',
+      },
+    }),
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-manifests.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-manifests: 5 packages, 0 files, 2 findings\n',
+    stderr:
+      'package rule: packages/tui/package.json depends on @atc/lifecycle, which the package-deps edge in .oxlintrc.zones.json refuses\npackage rule: packages/tui/package.json depends on @atc/test-utils, which the test-helpers edge in .oxlintrc.zones.json refuses\n',
+  });
+});
+
 test('it lets the root reach the app by path and nothing else', async () => {
   const ctx = setupTest();
 

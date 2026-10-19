@@ -42,7 +42,7 @@ function main(): void {
     }
   }
 
-  findings.push(...checkPreloads(root, packages));
+  findings.push(...checkPreloads(root, packages), ...checkDependencyZones(root, packages));
 
   // the mods belong to no workspace package, but the confinement rules that
   // lint:mods applies read only quoted specifiers too
@@ -323,6 +323,116 @@ function resolveModule(root: string, dir: string, specifier: string): string | u
     (path) =>
       SOURCE_FILE.test(path) && existsSync(join(root, path)) && statSync(join(root, path)).isFile(),
   );
+}
+
+const NAMES_SCHEMA = z.array(z.string());
+
+const EDGE_SCHEMA = z.object({
+  name: z.string(),
+  from: NAMES_SCHEMA.optional(),
+  to: NAMES_SCHEMA.optional(),
+  allow: NAMES_SCHEMA.optional(),
+  ignore: NAMES_SCHEMA.optional(),
+});
+
+const ZONE_OPTIONS_SCHEMA = z.object({
+  zones: z.record(z.string(), NAMES_SCHEMA),
+  edges: z.array(EDGE_SCHEMA),
+});
+
+const ZONE_RULE_SCHEMA = z.tuple([z.string(), ZONE_OPTIONS_SCHEMA]);
+
+const ZONES_CONFIG_SCHEMA = z.object({
+  rules: z.object({ 'zgeoff/import-zones': ZONE_RULE_SCHEMA }),
+});
+
+type ZoneOptions = z.infer<typeof ZONE_OPTIONS_SCHEMA>;
+
+type Edge = z.infer<typeof EDGE_SCHEMA>;
+
+interface EdgePaths {
+  readonly importer: string;
+  readonly target: string;
+}
+
+// The lint rule judges only the imports a file holds, so a production
+// dependency that no file imports yet would pass it. Each one must pass every
+// edge that an import of the dependency's root from the package's src/ meets.
+function checkDependencyZones(root: string, packages: readonly WorkspacePackage[]): string[] {
+  const configPath = join(root, '.oxlintrc.zones.json');
+
+  if (!existsSync(configPath)) {
+    return [];
+  }
+
+  const config = ZONES_CONFIG_SCHEMA.parse(Bun.JSONC.parse(readFileSync(configPath, 'utf8')));
+  const [, options] = config.rules['zgeoff/import-zones'];
+
+  const dirs = new Map(packages.map((pkg) => [pkg.manifest.name, pkg.dir]));
+
+  return packages
+    .filter((pkg) => pkg.dir !== '.')
+    .flatMap((pkg) =>
+      Object.keys(pkg.manifest.dependencies ?? {}).flatMap((name) => {
+        const target = dirs.get(name);
+        const importer = `${pkg.dir}/src/index.ts`;
+
+        const refusing =
+          target === undefined
+            ? undefined
+            : options.edges.find((edge) => isRefusedByEdge(options, edge, { importer, target }));
+
+        return refusing === undefined
+          ? []
+          : [
+              `package rule: ${pkg.dir}/package.json depends on ${name}, which the ${refusing.name} edge in .oxlintrc.zones.json refuses`,
+            ];
+      }),
+    );
+}
+
+// The lint rule's reading of an edge: a target in a `to` zone fails unless an
+// `allow` zone holds it, and with `allow` alone, a target outside every
+// `allow` zone fails
+function isRefusedByEdge(options: ZoneOptions, edge: Edge, paths: EdgePaths): boolean {
+  const importerZones = collectZones(options, paths.importer);
+  const targetZones = collectZones(options, paths.target);
+  const applies = edge.from?.some((zone) => importerZones.has(zone)) ?? true;
+  const ignored = edge.ignore?.some((glob) => isGlobMatch(glob, paths.importer)) ?? false;
+  const allowed = edge.allow?.some((zone) => targetZones.has(zone)) ?? false;
+
+  if (!applies || ignored || allowed) {
+    return false;
+  }
+
+  return edge.to === undefined
+    ? edge.allow !== undefined
+    : edge.to.some((zone) => targetZones.has(zone));
+}
+
+function collectZones(options: ZoneOptions, path: string): Set<string> {
+  return new Set(
+    Object.entries(options.zones)
+      .filter(([, globs]) => globs.some((glob) => isGlobMatch(glob, path)))
+      .map(([zone]) => zone),
+  );
+}
+
+// Bun.Glob matches `packages/tui{,/**}` only against `packages/tui`, since it
+// reads no slash inside braces, so each brace alternative is matched alone
+function isGlobMatch(glob: string, path: string): boolean {
+  const braces = /\{(?<alternatives>[^{}]*)\}/u.exec(glob);
+
+  if (braces?.groups === undefined) {
+    return new Bun.Glob(glob).match(path);
+  }
+
+  const before = glob.slice(0, braces.index);
+  const after = glob.slice(braces.index + braces[0].length);
+
+  return (braces.groups['alternatives'] ?? '')
+    .split(',')
+    .some((alternative) => isGlobMatch(`${before}${alternative}${after}`, path));
 }
 
 // oxlint's import rules read only quoted specifiers, so they never apply the
