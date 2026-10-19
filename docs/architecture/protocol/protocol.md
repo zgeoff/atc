@@ -1,10 +1,11 @@
 # The client protocol
 
-Every atc client talks to the daemon in one dialect: newline-delimited JSON, one object per line, in
-UTF-8, over the daemon's unix socket or its TCP listener. A connection opens with a handshake, then
-carries requests, one answer per request, and unsolicited events. Client and daemon ship from one
-repo and must speak the same protocol version, and inside one version the daemon lists the features
-it serves, so the protocol grows by addition and a peer never breaks on a field it does not know.
+Every atc client talks to the daemon in one dialect: oRPC peer messages, one JSON message per line,
+in UTF-8, over the daemon's unix socket or its TCP listener. A connection opens with a handshake,
+then carries requests, one response per request, and the event stream the client subscribes to.
+Client and daemon ship from one repo and must speak the same protocol version, and inside one
+version the daemon lists the features it serves, so the protocol grows by addition and a peer never
+breaks on a field it does not know.
 
 [Principals](./principals.md) covers who a request acts as, [idempotency](./idempotency.md) covers
 retrying a spawn or a message, [messages](./messages.md) covers the inbox, and [events](./events.md)
@@ -19,51 +20,52 @@ Agent SDK all speak JSON already.
 
 ## Messages
 
-A line is one of three kinds, told apart by its fields:
+The daemon's procedures and their schemas come from one oRPC contract in the protocol module, and
+the client and the daemon both build on it. A procedure is named `noun.verb`, and a request names it
+as a path, so `session.spawn` travels as `/session/spawn`:
 
 ```jsonc
-// request (client to daemon): the client numbers its requests
-{ "v": 4, "id": 7, "m": "session.spawn", "p": { "cwd": "/x", "name": "auth-bug" } }
+// request (client to daemon): the client picks a message id
+{ "i": "7", "p": { "u": "/session/spawn", "b": { "json": { "cwd": "/x", "name": "auth-bug" } } } }
 
-// answer (daemon to client): exactly one per request
-{ "v": 4, "id": 7, "ok": { "session": "s7-m4x2p" } }
-{ "v": 4, "id": 7, "err": { "code": "no_such_session", "msg": "…" } }
-
-// event (daemon to client): unsolicited, never acknowledged
-{ "v": 4, "ev": "SessionOutput", "s": "s7-m4x2p", "seq": 41, "d": "…" }
+// response (daemon to client): exactly one per request, under the request's id
+{ "i": "7", "p": { "b": { "json": { "session": { "id": "s7-m4x2p" } } } } }
+{ "i": "7", "p": { "s": 500, "b": { "json": { "code": "no_such_session", "message": "…" } } } }
 ```
 
-Every line carries the protocol version, so a tap on the socket can read any line alone. Methods are
-named `noun.verb` and events `PascalCase`, which the MCP tools map onto mechanically. The protocol
-module's request schemas define every method and its params, and its error list defines every code.
+Events are `PascalCase`, and the MCP tools map procedure and event names onto their own
+mechanically. The protocol module's error list defines every code.
 
-The daemon runs each request on its own, so answers can arrive in another order than their requests,
-and a client matches each answer to its request by id. A state-changing request always gets an
-answer, but a client need not wait for one, as the TUI does not for keystrokes: one socket carries
-one ordered stream, so input, resize and output stay in order by construction.
+The daemon runs each request on its own, so responses can arrive in another order than their
+requests, and a client matches each response to its request by message id. A state-changing request
+always gets a response, but a client need not wait for one, as the TUI does not for keystrokes: one
+socket carries one ordered stream, so input, resize and output stay in order by construction.
 
 ## Errors
 
 An error holds a code from a closed list that grows by addition, a human message, and optional
 `data` whose fields the code defines. The rules exist so additive evolution never breaks a peer:
 
-- An unknown method is an `unknown_method` error, never a disconnect.
-- A request whose params fail their method's schema is a `bad_args` error.
+- An unknown procedure is an `unknown_method` error, never a disconnect.
+- A request whose input fails its procedure's schema is a `bad_args` error with the first issue's
+  message.
+- An answer that fails its procedure's schema is an `internal` error, so a client never reads an
+  answer outside the contract.
 - Every field a peer does not know is ignored, in any message.
 - A peer decodes an error code it does not know as `internal` and keeps the message.
 
-A malformed line or one longer than the line cap means a buggy or hostile peer, since the transport
-guarantees byte integrity, so the daemon closes the connection with an error rather than scanning
-for the next good line. The daemon enforces the cap before it buffers a line.
+A line that is no peer message, or one longer than the line cap, means a buggy or hostile peer,
+since the transport guarantees byte integrity. The daemon closes the connection without an answer
+rather than scan for the next good line, and it enforces the cap before it buffers a line. A client
+built for an older daemon writes such a line first, so it meets a closed connection.
 
 ## The handshake
 
-The first line on a connection must be `daemon.hello`, and the daemon answers nothing else before it
-and holds back every other answer until the handshake answer is written. The hello carries the
-client's build and its credential, which is `none` on the unix socket and a bearer token on the TCP
-listener ([principals](./principals.md#the-tcp-listener)). A client started inside a session also
-sends that session's id, which the daemon uses to stop a session from widening its own record. On
-the unix socket the daemon reads the caller's session from the kernel instead, where the platform
+The first request on a connection must be `daemon.hello`. The hello carries the client's build, its
+protocol version and its credential, which is `none` on the unix socket and a bearer token on the
+TCP listener ([principals](./principals.md#the-tcp-listener)). A client started inside a session
+also sends that session's id, which the daemon uses to stop a session from widening its own record.
+On the unix socket the daemon reads the caller's session from the kernel instead, where the platform
 allows it, and refuses a hello whose session differs
 ([session record](../execution/session-record.md#who-may-change-the-record)).
 
@@ -73,22 +75,67 @@ that id into its store the first time it opens it, so the id stays the same acro
 every session descriptor holds a locator of the daemon id and the session's target, which tells a
 client routing across several daemons where a session lives.
 
+A connection takes one handshake, because a second could change the principal under the connection's
+attachments. A second hello gets `unauthorized`, and the connection stays open with the identity the
+first one gave.
+
+## Connection lifecycle
+
+A connection moves through six states, and only an open connection runs requests and receives
+events:
+
+```mermaid
+stateDiagram-v2
+  [*] --> awaiting
+  awaiting --> checking: hello
+  awaiting --> refusing: any other request
+  checking --> open: hello accepted
+  checking --> refusing: hello refused
+  refusing --> closing: refusal written
+  awaiting --> closing: end
+  checking --> closing: end
+  open --> closing: end
+  closing --> closed
+  closed --> [*]
+```
+
+- **Awaiting the handshake.** A request other than the hello gets `unauthorized` and refuses the
+  connection.
+- **Checking.** The daemon checks the hello's token on the TCP listener first, then its principal,
+  its session and its protocol version. A request that arrives meanwhile waits and runs once the
+  hello passes.
+- **Open.** Requests run, and the event subscription delivers.
+- **Refusing.** The daemon writes the refusal whole before it ends the socket, so the client reads
+  why it was refused. A request queued behind the refused hello gets `unauthorized`.
+- **Closing and closed.** The socket ends, and the daemon answers nothing more.
+
+Every change to the fleet is an explicit request: detach, kill, quit. The daemon never infers one
+from a connection closing, and a dropped connection means only that the daemon detaches that
+connection's attachments and its message tap. A client whose connection drops rejects every request
+still waiting for a response, and decides for itself whether to resend it.
+
 ## Versions and features
 
-The protocol version is one integer compared for equality. A daemon on another version refuses the
-handshake with `protocol_mismatch`, and the error holds both versions and both builds, so the
-failure says what to do. [The daemon](../daemon/daemon.md#builds-and-protocol-versions) covers how
-each client handles it.
+The protocol version is one integer compared for equality. The daemon records it in `daemon.json`
+beside its socket paths, and a client sends its own in the hello. A daemon on another version
+refuses the handshake with `protocol_mismatch`, and the error holds both versions and both builds,
+so the failure says what to do. [The daemon](../daemon/daemon.md#builds-and-protocol-versions)
+covers how each client handles it.
 
 Inside one version, the daemon's feature list names each request feature it serves beyond the
-version's base: a method that exists, a param it takes, a field its answer holds. A client that
-outlives a daemon upgrade, such as an MCP server, reads the list rather than the build string to
-learn what the running daemon honours. The MCP servers hide a tool or an input that the connected
+version's base: a procedure that exists, an input field it takes, a field its answer holds. A client
+that outlives a daemon upgrade, such as an MCP server, reads the list rather than the build string
+to learn what the running daemon honours. The MCP servers hide a tool or an input that the connected
 daemon lacks, and refuse a call that needs one with `daemon_outdated` without sending it on. A
-daemon ignores a param it does not know, so a client that sends one to an older daemon gets the old
-behaviour, never an error.
+daemon ignores an input field it does not know, so a client that sends one to an older daemon gets
+the old behaviour, never an error.
 
 ## Events
+
+A client receives events through one `events.subscribe` request, which the daemon answers with a
+stream that lasts as long as the connection. The daemon collects a connection's events from its
+handshake on, so a subscription sent right after the hello misses none, and a connection takes one
+subscription at a time.
 
 The daemon broadcasts lifecycle and state events to every connection: sessions added, removed,
 renamed and resized, state changes, attaches and detaches, notes, message status changes, and
@@ -103,10 +150,3 @@ protocol. Every prompt from a terminal session carries false, because the agent 
 keys in its terminal. A session that takes a structured answer raises the same event with the flag
 set, and the first answer wins: it broadcasts the resolution, so every client dismisses its prompt,
 and later answers get `already_answered`.
-
-## Connection lifecycle
-
-Every change to the fleet is an explicit request: detach, kill, quit. The daemon never infers one
-from a connection closing, and a dropped connection means only that the daemon detaches that
-connection's attachments and its message tap. A client whose connection drops rejects every request
-still waiting for an answer, and decides for itself whether to resend it.

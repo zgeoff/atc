@@ -4,7 +4,7 @@ import type { SessionID } from '@atc/core';
 import { toSessionID } from '@atc/core';
 import type { DaemonEvent } from '@atc/protocol';
 import { openDaemonClient } from '@atc/protocol/client';
-import { PROTOCOL_V } from '@atc/protocol/wire';
+import { MAX_LINE, PROTOCOL_V } from '@atc/protocol/wire';
 import { buildStubPeerSocket, runCommand, setupTempDir, waitFor } from '@atc/test-utils';
 import { TargetAccess } from '../auth/target-access';
 import type { DaemonContext } from '../daemon-context';
@@ -578,14 +578,14 @@ test('it holds a peer subscription back while the socket takes nothing, then rep
   expect(peer.hasEnded()).toBeFalse();
 });
 
-test('it drops an overflowing session backlog and reports the dropped bytes on drain', () => {
+test('it delivers output again after the dropped output is reported', async () => {
   const peer = buildStubPeerSocket();
   const resyncs: SessionID[] = [];
 
   const conn = new DaemonConnection(
     peer.socket,
     buildStubDaemonContext({
-      queueBytes: 64,
+      queueBytes: 512,
       resyncClient: (sessionID) => {
         resyncs.push(sessionID);
 
@@ -594,102 +594,64 @@ test('it drops an overflowing session backlog and reports the dropped bytes on d
     }),
   );
 
-  conn.applyChunk(
-    `${JSON.stringify({ v: PROTOCOL_V, id: 1, m: 'daemon.hello', p: { client: 'atc/test' } })}\n`,
-  );
-
-  peer.setAccepting(false);
-
-  conn.sendOutput(
-    toSessionID('s1'),
-    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', d: 'a'.repeat(40) },
-    40,
-  );
-
-  conn.sendOutput(
-    toSessionID('s1'),
-    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', d: 'b'.repeat(40) },
-    100,
-  );
-
-  conn.sendOutput(
-    toSessionID('s1'),
-    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', d: 'c'.repeat(40) },
-    50,
-  );
-
-  peer.setAccepting(true);
-  conn.drain();
-
-  expect(peer.collectFrames()).toStrictEqual([
-    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', d: 'a'.repeat(40) },
-    { v: PROTOCOL_V, ev: 'SessionDesync', s: 's1', dropped: 150 },
-  ]);
-
-  expect(resyncs).toStrictEqual([toSessionID('s1')]);
-});
-
-test('it delivers output again after the desync is reported', () => {
-  const peer = buildStubPeerSocket();
-  const resyncs: SessionID[] = [];
-
-  const conn = new DaemonConnection(
-    peer.socket,
-    buildStubDaemonContext({
-      queueBytes: 64,
-      resyncClient: (sessionID) => {
-        resyncs.push(sessionID);
-
-        return Promise.resolve();
-      },
-    }),
-  );
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
 
   conn.applyChunk(
-    `${JSON.stringify({ v: PROTOCOL_V, id: 1, m: 'daemon.hello', p: { client: 'atc/test' } })}\n`,
+    `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n${JSON.stringify({ i: '2', p: { u: '/events/subscribe', b: { json: {} } } })}\n`,
   );
 
-  peer.setAccepting(false);
-
-  conn.sendOutput(
-    toSessionID('s1'),
-    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', d: 'a'.repeat(40) },
-    40,
-  );
-
-  conn.sendOutput(
-    toSessionID('s1'),
-    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', d: 'b'.repeat(40) },
-    100,
-  );
-
-  peer.setAccepting(true);
-  conn.drain();
-
-  conn.sendOutput(
-    toSessionID('s1'),
-    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', d: 'z'.repeat(40) },
-    40,
-  );
-
-  expect(peer.collectFrames().at(-1)).toStrictEqual({
-    v: PROTOCOL_V,
-    ev: 'SessionOutput',
-    s: 's1',
-    d: 'z'.repeat(40),
+  await waitFor(() => {
+    expect(peer.collectFrames().map((frame) => frame['i'])).toContain('1');
   });
 
-  expect(resyncs).toStrictEqual([toSessionID('s1')]);
+  peer.setAccepting(false);
+
+  conn.sendOutput(
+    toSessionID('s1'),
+    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', seq: 1, d: 'a'.repeat(300) },
+    300,
+  );
+
+  conn.sendOutput(
+    toSessionID('s1'),
+    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', seq: 2, d: 'b'.repeat(300) },
+    300,
+  );
+
+  conn.sendOutput(
+    toSessionID('s1'),
+    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', seq: 3, d: 'c'.repeat(300) },
+    300,
+  );
+
+  peer.setAccepting(true);
+  conn.drain();
+
+  await waitFor(() => {
+    expect(resyncs).toStrictEqual([toSessionID('s1')]);
+  });
+
+  conn.sendOutput(
+    toSessionID('s1'),
+    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', seq: 4, d: 'z'.repeat(300) },
+    300,
+  );
+
+  await waitFor(() => {
+    expect(JSON.stringify(peer.collectFrames())).toInclude('z'.repeat(300));
+  });
+
+  expect(JSON.stringify(peer.collectFrames())).not.toInclude('c'.repeat(300));
 });
 
-test('it reports no desync while the queue still holds a backlog', () => {
+test('it reports no dropped output while the socket still takes nothing', async () => {
   const peer = buildStubPeerSocket();
   const resyncs: SessionID[] = [];
 
   const conn = new DaemonConnection(
     peer.socket,
     buildStubDaemonContext({
-      queueBytes: 64,
+      queueBytes: 512,
       resyncClient: (sessionID) => {
         resyncs.push(sessionID);
 
@@ -698,31 +660,48 @@ test('it reports no desync while the queue still holds a backlog', () => {
     }),
   );
 
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+
   conn.applyChunk(
-    `${JSON.stringify({ v: PROTOCOL_V, id: 1, m: 'daemon.hello', p: { client: 'atc/test' } })}\n`,
+    `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n${JSON.stringify({ i: '2', p: { u: '/events/subscribe', b: { json: {} } } })}\n`,
   );
+
+  await waitFor(() => {
+    expect(peer.collectFrames().map((frame) => frame['i'])).toContain('1');
+  });
 
   peer.setAccepting(false);
 
   conn.sendOutput(
     toSessionID('s1'),
-    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', d: 'a'.repeat(40) },
-    40,
+    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', seq: 1, d: 'a'.repeat(300) },
+    300,
   );
 
   conn.sendOutput(
     toSessionID('s1'),
-    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', d: 'b'.repeat(40) },
-    100,
+    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', seq: 2, d: 'b'.repeat(300) },
+    300,
   );
+
+  conn.sendOutput(
+    toSessionID('s1'),
+    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', seq: 3, d: 'c'.repeat(300) },
+    300,
+  );
+
+  await waitFor(() => {
+    expect(peer.countRefusedWrites()).toBeGreaterThan(0);
+  });
 
   conn.drain();
 
-  expect(peer.collectFrames()).toStrictEqual([]);
+  expect(JSON.stringify(peer.collectFrames())).not.toInclude('SessionDesync');
   expect(resyncs).toStrictEqual([]);
+  expect(peer.hasEnded()).toBeFalse();
 });
 
-test('it sends a principal no output of a session whose tree left its view, a resync included', () => {
+test('it sends a principal no output of a session whose tree left its view, a resync included', async () => {
   const peer = buildStubPeerSocket();
   const resyncs: SessionID[] = [];
   let visible = true;
@@ -730,7 +709,7 @@ test('it sends a principal no output of a session whose tree left its view, a re
   const conn = new DaemonConnection(
     peer.socket,
     buildStubDaemonContext({
-      queueBytes: 150,
+      queueBytes: 512,
       canSeeSession: () => visible,
       resyncClient: (sessionID) => {
         resyncs.push(sessionID);
@@ -740,59 +719,73 @@ test('it sends a principal no output of a session whose tree left its view, a re
     }),
   );
 
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V, principal: 'narrow' };
+
   conn.applyChunk(
-    `${JSON.stringify({
-      v: PROTOCOL_V,
-      id: 1,
-      m: 'daemon.hello',
-      p: { client: 'atc/test', principal: 'narrow' },
-    })}\n`,
+    `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n${JSON.stringify({ i: '2', p: { u: '/events/subscribe', b: { json: {} } } })}\n`,
   );
 
-  conn.sendEvent({ v: PROTOCOL_V, ev: 'SessionState', s: 's1' });
+  await waitFor(() => {
+    expect(peer.collectFrames().map((frame) => frame['i'])).toContain('1');
+  });
+
+  conn.sendEvent({ v: PROTOCOL_V, ev: 'SessionResized', s: 's1', cols: 80, rows: 24 });
+
+  await waitFor(() => {
+    expect(JSON.stringify(peer.collectFrames())).toInclude('SessionResized');
+  });
+
   peer.setAccepting(false);
 
   conn.sendOutput(
     toSessionID('s1'),
-    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', d: 'a'.repeat(40) },
-    40,
+    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', seq: 1, d: 'a'.repeat(300) },
+    300,
   );
 
   conn.sendOutput(
     toSessionID('s1'),
-    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', d: 'b'.repeat(40) },
-    40,
+    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', seq: 2, d: 'b'.repeat(300) },
+    300,
+  );
+
+  conn.sendOutput(
+    toSessionID('s1'),
+    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', seq: 3, d: 'c'.repeat(300) },
+    300,
   );
 
   visible = false;
 
-  conn.sendEvent({ v: PROTOCOL_V, ev: 'SessionState', s: 's1' });
+  conn.sendEvent({ v: PROTOCOL_V, ev: 'SessionResized', s: 's1', cols: 80, rows: 24 });
 
   conn.sendOutput(
     toSessionID('s1'),
-    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', d: 'secret'.repeat(40) },
+    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', seq: 4, d: 'secret'.repeat(40) },
     240,
   );
 
   peer.setAccepting(true);
   conn.drain();
 
+  await waitFor(() => {
+    expect(JSON.stringify(peer.collectFrames())).toInclude('SessionRemoved');
+  });
+
   conn.sendOutput(
     toSessionID('s1'),
-    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', d: 'secret'.repeat(40) },
+    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', seq: 5, d: 'secret'.repeat(40) },
     240,
   );
 
   conn.drain();
 
-  const frames = peer.collectFrames();
-
-  expect(frames.at(-1)).toStrictEqual({ v: PROTOCOL_V, ev: 'SessionRemoved', s: 's1' });
-  expect(JSON.stringify(frames)).not.toInclude('secret');
+  expect(JSON.stringify(peer.collectFrames())).not.toInclude('secret');
+  expect(JSON.stringify(peer.collectFrames())).not.toInclude('SessionDesync');
   expect(resyncs).toStrictEqual([]);
 });
 
-test('it answers internal with the request id when a procedure returns an answer outside its contract', async () => {
+test('it answers internal when a procedure returns an answer outside its contract', async () => {
   const peer = buildStubPeerSocket();
 
   const conn = new DaemonConnection(
@@ -800,34 +793,47 @@ test('it answers internal with the request id when a procedure returns an answer
     buildStubDaemonContext({ writeStateBackup: () => Promise.resolve(Number.NaN) }),
   );
 
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+
   conn.applyChunk(
-    `${JSON.stringify({ v: PROTOCOL_V, id: 1, m: 'daemon.hello', p: { client: 'atc/test' } })}\n${JSON.stringify({ v: PROTOCOL_V, id: 2, m: 'daemon.backup', p: { path: '/backup.db' } })}\n`,
+    `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n${JSON.stringify({ i: '2', p: { u: '/daemon/backup', b: { json: { path: '/backup.db' } } } })}\n`,
   );
 
-  await peer.waitForAnswer(2);
+  const refusal: unknown = expect.objectContaining({
+    code: 'internal',
+    message: expect.toStartWith('Output validation failed: ') as unknown,
+  });
 
-  expect(peer.collectFrames().find((frame) => frame['id'] === 2)).toStrictEqual({
-    v: PROTOCOL_V,
-    id: 2,
-    err: { code: 'internal', msg: expect.toStartWith('Output validation failed: ') as unknown },
+  await waitFor(() => {
+    expect<unknown[]>(peer.collectFrames()).toContainEqual(
+      expect.objectContaining({
+        i: '2',
+        p: expect.objectContaining({ b: { json: refusal } }) as unknown,
+      }),
+    );
   });
 });
 
-test('it ends the connection when an answer overflows the outbound queue', async () => {
+test.each([
+  ['an answer', '/daemon/ping'],
+  ['an error answer', '/no/such/method'],
+])('it ends the connection when %s overflows the outbound queue', async (_label, path) => {
   const peer = buildStubPeerSocket();
 
   const conn = new DaemonConnection(peer.socket, buildStubDaemonContext({ queueBytes: 16 }));
 
-  conn.applyChunk(
-    `${JSON.stringify({ v: PROTOCOL_V, id: 1, m: 'daemon.hello', p: { client: 'atc/test' } })}\n`,
-  );
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
 
-  await peer.waitForAnswer(1);
+  conn.applyChunk(`${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n`);
+
+  await waitFor(() => {
+    expect(peer.collectFrames().map((frame) => frame['i'])).toContain('1');
+  });
 
   peer.setAccepting(false);
 
   conn.applyChunk(
-    `${JSON.stringify({ v: PROTOCOL_V, id: 2, m: 'daemon.ping' })}\n${JSON.stringify({ v: PROTOCOL_V, id: 3, m: 'daemon.ping' })}\n`,
+    `${JSON.stringify({ i: '2', p: { u: path, b: { json: {} } } })}\n${JSON.stringify({ i: '3', p: { u: path, b: { json: {} } } })}\n`,
   );
 
   await waitFor(() => {
@@ -835,26 +841,63 @@ test('it ends the connection when an answer overflows the outbound queue', async
   });
 });
 
-test('it ends the connection when an error answer overflows the outbound queue', async () => {
+test('it ends a connection that sends a line-protocol request, without an answer', () => {
   const peer = buildStubPeerSocket();
 
-  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext({ queueBytes: 16 }));
+  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
 
   conn.applyChunk(
-    `${JSON.stringify({ v: PROTOCOL_V, id: 1, m: 'daemon.hello', p: { client: 'atc/test' } })}\n`,
+    `${JSON.stringify({ v: 5, id: 1, m: 'daemon.hello', p: { client: 'atc/old' } })}\n`,
   );
 
-  await peer.waitForAnswer(1);
+  expect(peer.hasEnded()).toBeTrue();
+  expect(peer.collectFrames()).toStrictEqual([]);
+});
 
-  peer.setAccepting(false);
+test('it records a line-protocol request before a TCP handshake as an unexpected line', () => {
+  const peer = buildStubPeerSocket();
+  const recordFailure = mock(() => {});
 
-  conn.applyChunk(
-    `${JSON.stringify({ v: PROTOCOL_V, id: 2, m: 'no.such.method' })}\n${JSON.stringify({ v: PROTOCOL_V, id: 3, m: 'no.such.method' })}\n`,
-  );
-
-  await waitFor(() => {
-    expect(peer.hasEnded()).toBeTrue();
+  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext(), {
+    verifyHandshake: () => Promise.resolve('fp-1'),
+    recordFailure,
+    recordRefusedPrincipal: () => {},
   });
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: 5, id: 1, m: 'daemon.hello', p: { client: 'atc/old' } })}\n`,
+  );
+
+  expect(recordFailure).toHaveBeenCalledExactlyOnceWith('unexpected_line');
+  expect(peer.hasEnded()).toBeTrue();
+  expect(peer.collectFrames()).toStrictEqual([]);
+});
+
+test('it ends a connection that sends a line over the size cap, without an answer', () => {
+  const peer = buildStubPeerSocket();
+
+  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
+
+  conn.applyChunk('x'.repeat(MAX_LINE + 1));
+
+  expect(peer.hasEnded()).toBeTrue();
+  expect(peer.collectFrames()).toStrictEqual([]);
+});
+
+test('it records a line over the size cap before a TCP handshake as too long', () => {
+  const peer = buildStubPeerSocket();
+  const recordFailure = mock(() => {});
+
+  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext(), {
+    verifyHandshake: () => Promise.resolve('fp-1'),
+    recordFailure,
+    recordRefusedPrincipal: () => {},
+  });
+
+  conn.applyChunk('x'.repeat(MAX_LINE + 1));
+
+  expect(recordFailure).toHaveBeenCalledExactlyOnceWith('line_too_long');
+  expect(peer.hasEnded()).toBeTrue();
 });
 
 test.each([

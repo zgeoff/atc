@@ -18,7 +18,7 @@ output travels back the same way.
 
 ```mermaid
 flowchart LR
-    T["TUI client"] -->|"session.input<br>(NDJSON socket)"| D["daemon"]
+    T["TUI client"] -->|"session.input<br>(client socket)"| D["daemon"]
     D -->|writes| P["pseudo-terminal"]
     P --> A["agent CLI"]
     A -->|output| P
@@ -29,7 +29,7 @@ flowchart LR
 ```
 
 1. The TUI sends each key event or paste as one request on the
-   [client protocol](./protocol/protocol.md), a newline-delimited JSON dialect over a unix socket.
+   [client protocol](./protocol/protocol.md), oRPC peer messages, one per line, over a unix socket.
 2. The daemon writes the input to the session's pseudo-terminal whole, so input from two clients
    never interleaves inside one payload.
 3. The daemon reads every byte the agent prints, attached or not, and feeds it to the session's

@@ -1708,7 +1708,7 @@ test('it closes a TCP peer that floods lines behind its delayed handshake', asyn
     failing.map((client) => client.sendHello('atc/test-gateway', { token: 'b'.repeat(40) })),
   );
 
-  const hello = `${JSON.stringify({ v: 4, id: 1, m: 'daemon.hello', p: { client: 'atc/test-gateway', auth: { scheme: 'bearer', token: 'a'.repeat(32) } } })}\n`;
+  const hello = `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: { client: 'atc/test-gateway', auth: { scheme: 'bearer', token: 'a'.repeat(32) } } } } })}\n`;
   const flooded = Promise.withResolvers<void>();
 
   const flood = await Bun.connect({
@@ -1716,7 +1716,7 @@ test('it closes a TCP peer that floods lines behind its delayed handshake', asyn
     port: daemon.daemon.listenPort ?? 0,
     socket: {
       open(socket) {
-        socket.write(hello.repeat(100_000));
+        socket.write(hello);
       },
       data() {},
       close() {
@@ -1729,6 +1729,12 @@ test('it closes a TCP peer that floods lines behind its delayed handshake', asyn
   registerTestCleanup(() => {
     flood.terminate();
   });
+
+  await waitFor(() => {
+    expect(clock.collectPending()).toStrictEqual([1500]);
+  });
+
+  flood.write(hello.repeat(100_000));
 
   await flooded.promise;
 

@@ -1,9 +1,9 @@
 # Agent Guidelines
 
 atc is a terminal control tower for coding-agent sessions (Claude Code, Grok Build, and Codex CLI):
-a daemon (`atc daemon`) hosts stock agent CLIs in PTYs, and thin TUI clients drive them over an
-NDJSON protocol. `docs/README.md` indexes the docs, and `docs/architecture/overview.md` covers how
-the pieces fit.
+a daemon (`atc daemon`) hosts stock agent CLIs in PTYs, and thin TUI clients drive them over oRPC
+peer messages, one JSON message per line. `docs/README.md` indexes the docs, and
+`docs/architecture/overview.md` covers how the pieces fit.
 
 ## Required reading
 

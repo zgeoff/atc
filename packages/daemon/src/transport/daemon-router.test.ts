@@ -1,108 +1,48 @@
 import { expect, mock, test } from 'bun:test';
 import { toSessionID } from '@atc/core';
 import { buildMockPublishedRecord } from '@atc/test-utils';
+import { call } from '@orpc/server';
 import type { DaemonContext } from '../daemon-context';
+import { buildMockProcedureContext } from '../testing/build-mock-procedure-context';
 import { buildStubDaemonContext } from '../testing/build-stub-daemon-context';
 import { buildConnectionRequests } from './build-connection-requests';
-import { runDaemonProcedure } from './run-daemon-procedure';
+import { DAEMON_ROUTER } from './daemon-router';
 
-test('it answers a request with what its procedure returns', async () => {
+test('#session.ack answers with what the procedure returns', async () => {
   const ctx = buildStubDaemonContext({ ackSession: () => true });
 
-  const requests = buildConnectionRequests({
-    client: { sendOutput: () => {}, sendEvent: () => {} },
-    ctx,
-    identity: { principal: null, callerSession: null, peerSession: null, helloClient: 'atc/test' },
-  });
-
-  const answer = await runDaemonProcedure(
-    'session.ack',
+  const answer = await call(
+    DAEMON_ROUTER.session.ack,
     { session: 's-1' },
-    { ctx, requests, as: null },
+    { context: buildMockProcedureContext({ ctx }) },
   );
 
   expect(answer).toStrictEqual({});
 });
 
-test('it leaves out an answer field the procedure does not declare', async () => {
+test('#session.forget leaves out an answer field the procedure does not declare', async () => {
   const forgotten = { forgotten: true as const, destroyed: false, host: 'h-1' };
   const ctx = buildStubDaemonContext({ forgetSession: () => Promise.resolve(forgotten) });
 
-  const requests = buildConnectionRequests({
-    client: { sendOutput: () => {}, sendEvent: () => {} },
-    ctx,
-    identity: { principal: null, callerSession: null, peerSession: null, helloClient: 'atc/test' },
-  });
-
-  const answer = await runDaemonProcedure(
-    'session.forget',
+  const answer = await call(
+    DAEMON_ROUTER.session.forget,
     { session: 's-1' },
-    { ctx, requests, as: null },
+    { context: buildMockProcedureContext({ ctx }) },
   );
 
   expect(answer).toStrictEqual({ forgotten: true, destroyed: false });
 });
 
-test('it refuses a method no procedure answers', () => {
-  const ctx = buildStubDaemonContext();
-
-  const requests = buildConnectionRequests({
-    client: { sendOutput: () => {}, sendEvent: () => {} },
-    ctx,
-    identity: { principal: null, callerSession: null, peerSession: null, helloClient: 'atc/test' },
-  });
-
-  expect(runDaemonProcedure('session.nope', {}, { ctx, requests, as: null })).rejects.toMatchObject(
-    { code: 'unknown_method', message: "unknown method 'session.nope'" },
-  );
-});
-
-test('it refuses params the schema refuses with the first issue as bad_args', () => {
-  const ctx = buildStubDaemonContext();
-
-  const requests = buildConnectionRequests({
-    client: { sendOutput: () => {}, sendEvent: () => {} },
-    ctx,
-    identity: { principal: null, callerSession: null, peerSession: null, helloClient: 'atc/test' },
-  });
-
-  expect(
-    runDaemonProcedure('daemon.backup', { path: 'relative.db' }, { ctx, requests, as: null }),
-  ).rejects.toMatchObject({
-    code: 'bad_args',
-    message: 'daemon.backup path must be an absolute path',
-  });
-});
-
-test('it passes on the refusal a procedure throws', () => {
+test('#session.ack passes on the refusal the procedure throws', () => {
   const ctx = buildStubDaemonContext({ ackSession: () => false });
 
-  const requests = buildConnectionRequests({
-    client: { sendOutput: () => {}, sendEvent: () => {} },
-    ctx,
-    identity: { principal: null, callerSession: null, peerSession: null, helloClient: 'atc/test' },
-  });
-
   expect(
-    runDaemonProcedure('session.ack', { session: 's-2' }, { ctx, requests, as: null }),
+    call(
+      DAEMON_ROUTER.session.ack,
+      { session: 's-2' },
+      { context: buildMockProcedureContext({ ctx }) },
+    ),
   ).rejects.toMatchObject({ code: 'no_such_session', message: "no session 's-2'" });
-});
-
-test('it refuses an answer the schema refuses as internal', () => {
-  const ctx = buildStubDaemonContext({ writeStateBackup: () => Promise.resolve(Number.NaN) });
-
-  const requests = buildConnectionRequests({
-    client: { sendOutput: () => {}, sendEvent: () => {} },
-    ctx,
-    identity: { principal: null, callerSession: null, peerSession: null, helloClient: 'atc/test' },
-  });
-
-  expect(
-    runDaemonProcedure('daemon.backup', { path: '/backup.db' }, { ctx, requests, as: null }),
-  ).rejects.toMatchObject({
-    code: 'internal',
-    message: expect.toStartWith('Output validation failed: '),
-  });
 });
 
 test.each([
@@ -139,17 +79,13 @@ test.each([
     { worktrees: Array.from({ length: 65 }, (_, index) => ({ path: `/srv/site-${index}` })) },
     'worktrees holds at most 64 entries',
   ],
-])('it refuses a scope add with %s as scope_invalid', (_label, scope, message) => {
-  const ctx = buildStubDaemonContext();
-
-  const requests = buildConnectionRequests({
-    client: { sendOutput: () => {}, sendEvent: () => {} },
-    ctx,
-    identity: { principal: null, callerSession: null, peerSession: null, helloClient: 'atc/test' },
-  });
-
+])('#session.scope.add refuses %s as scope_invalid', (_label, scope, message) => {
   expect(
-    runDaemonProcedure('session.scope.add', { session: 's-6', scope }, { ctx, requests, as: null }),
+    call(
+      DAEMON_ROUTER.session.scope.add,
+      { session: 's-6', scope },
+      { context: buildMockProcedureContext() },
+    ),
   ).rejects.toMatchObject({ code: 'scope_invalid', message: expect.toInclude(message) as unknown });
 });
 
@@ -157,7 +93,7 @@ test.each([
   ['the session itself', 's-6', 's-6'],
   ['a child of the session', 's-6', 's-child'],
   ['a grandchild of the session', 's-6', 's-grandchild'],
-])('it refuses a scope add from %s, which sits inside its tree', (_label, session, caller) => {
+])('#session.scope.add refuses %s, which sits inside its tree', (_label, session, caller) => {
   const isCallerTree = mock<DaemonContext['isCallerTree']>(() => true);
   const ctx = buildStubDaemonContext({ isCallerTree });
 
@@ -172,10 +108,10 @@ test.each([
     },
   });
 
-  const added = runDaemonProcedure(
-    'session.scope.add',
+  const added = call(
+    DAEMON_ROUTER.session.scope.add,
     { session, scope: { worktrees: [{ path: '/srv/site' }] } },
-    { ctx, requests, as: null },
+    { context: buildMockProcedureContext({ ctx, requests }) },
   );
 
   expect(added).rejects.toMatchObject({
@@ -186,7 +122,7 @@ test.each([
   expect(isCallerTree).toHaveBeenCalledExactlyOnceWith(toSessionID(session), toSessionID(caller));
 });
 
-test('it adds to the scope of a session from a caller outside its tree', async () => {
+test('#session.scope.add adds to the scope of a session from a caller outside its tree', async () => {
   const record = buildMockPublishedRecord({ session: 's-6' });
   const updated = mock<DaemonContext['updateSessionScope']>(() => Promise.resolve(record));
   const ctx = buildStubDaemonContext({ isCallerTree: () => false, updateSessionScope: updated });
@@ -202,10 +138,10 @@ test('it adds to the scope of a session from a caller outside its tree', async (
     },
   });
 
-  const answer = await runDaemonProcedure(
-    'session.scope.add',
+  const answer = await call(
+    DAEMON_ROUTER.session.scope.add,
     { session: 's-6', scope: { worktrees: [{ path: '/srv/site' }] } },
-    { ctx, requests, as: null },
+    { context: buildMockProcedureContext({ ctx, requests }) },
   );
 
   expect(answer).toStrictEqual({ record });
@@ -217,7 +153,7 @@ test('it adds to the scope of a session from a caller outside its tree', async (
   });
 });
 
-test('it hashes the sender name a message sent untrimmed, as an older daemon stored it', async () => {
+test('#session.message hashes the sender name a message sent untrimmed, as an older daemon stored it', async () => {
   const written = mock<DaemonContext['writeSessionMessage']>(() =>
     Promise.resolve({ message: 'm-7', status: 'queued' }),
   );
@@ -227,17 +163,11 @@ test('it hashes the sender name a message sent untrimmed, as an older daemon sto
     isSessionVisible: () => true,
   });
 
-  const requests = buildConnectionRequests({
-    client: { sendOutput: () => {}, sendEvent: () => {} },
-    ctx,
-    identity: { principal: null, callerSession: null, peerSession: null, helloClient: 'atc/test' },
-  });
+  const sent = { session: 's-7', text: 'hello', idempotencyKey: 'k-7', from: ' bot ' };
 
-  await runDaemonProcedure(
-    'session.message',
-    { session: 's-7', text: 'hello', idempotencyKey: 'k-7', from: ' bot ' },
-    { ctx, requests, as: null },
-  );
+  await call(DAEMON_ROUTER.session.message, sent, {
+    context: buildMockProcedureContext({ ctx, sentParams: sent }),
+  });
 
   // The hash an older daemon stored for this request, over its raw `from`.
   expect(written.mock.calls[0]?.[3]?.legacyPayloadHashes).toContain(

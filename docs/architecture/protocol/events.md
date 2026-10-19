@@ -1,10 +1,10 @@
 # Events
 
 Everything the fleet does becomes an event: a session added, a state change, an attach, a note, a
-message status change, a permission prompt. The daemon sends each event as one JSON line, the same
-line for every consumer, and it keeps the events that a caller needs to catch up on in an event
-trail in `atc.db`. Live events serve a client that is connected now; the trail serves a client that
-was not.
+message status change, a permission prompt. The daemon builds each event as one JSON object, the
+same object for every consumer, and it keeps the events that a caller needs to catch up on in an
+event trail in `atc.db`. Live events serve a client that is connected now; the trail serves a client
+that was not.
 
 [The protocol](./protocol.md#events) covers how events reach a client connection, and the
 [events guide](../../guides/events.md) covers consuming them from a shell.

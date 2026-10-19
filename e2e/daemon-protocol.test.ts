@@ -117,22 +117,36 @@ test('it stops counting a client connection once it closes', async () => {
 
 test('it rejects a protocol version mismatch naming both builds and closes the connection', async () => {
   const ctx = await setupTest({ mainClient: false });
+  const client = await openDaemonClient(ctx.socketPath);
+
+  registerTestCleanup(() => {
+    client.stop();
+  });
+
+  const refused = client.sendRequest('daemon.hello', { client: 'atc/newer-build', protocol: 6 });
+
+  expect(refused).rejects.toMatchObject({
+    code: 'protocol_mismatch',
+    message:
+      'atc/newer-build speaks protocol v6, daemon atc/test-build speaks v5; restart the daemon so both run the same build',
+  });
+
+  await Promise.allSettled([refused]);
+
+  await waitFor(() => {
+    expect(client.isClosed()).toBeTrue();
+  });
+});
+
+test('it closes a connection that sends a line-protocol hello, without an answer', async () => {
+  const ctx = await setupTest({ mainClient: false });
   const raw = await subscribeToSocketLines(ctx.socketPath);
 
-  raw.write('{"v":6,"id":1,"m":"daemon.hello","p":{"client":"atc/newer-build"}}\n');
+  raw.write('{"v":5,"id":1,"m":"daemon.hello","p":{"client":"atc/old"}}\n');
 
   await raw.closed;
 
-  expect(raw.lines.map((line): unknown => JSON.parse(line))).toStrictEqual([
-    {
-      v: 5,
-      id: 1,
-      err: {
-        code: 'protocol_mismatch',
-        msg: 'atc/newer-build speaks protocol v6, daemon atc/test-build speaks v5; restart the daemon so both run the same build',
-      },
-    },
-  ]);
+  expect(raw.lines).toStrictEqual([]);
 });
 
 test('it answers daemon.ping after the handshake', async () => {
@@ -172,32 +186,6 @@ test('it stays connected after answering an unknown method', async () => {
 
   expect(refused).rejects.toMatchObject({ code: 'unknown_method' });
   expect(pong).toStrictEqual({});
-});
-
-test('it closes the connection on a malformed line', async () => {
-  const ctx = await setupTest({ mainClient: false });
-  const raw = await subscribeToSocketLines(ctx.socketPath);
-
-  raw.write('this is not json\n');
-
-  await raw.closed;
-
-  expect(raw.lines.map((line): unknown => JSON.parse(line))).toStrictEqual([
-    { v: 5, id: 0, err: { code: 'bad_args', msg: 'malformed line: not valid JSON' } },
-  ]);
-});
-
-test('it closes the connection on an oversized line', async () => {
-  const ctx = await setupTest({ mainClient: false });
-  const raw = await subscribeToSocketLines(ctx.socketPath);
-
-  raw.write(`{"v":1,"id":1,"m":"daemon.hello","p":{"pad":"${'x'.repeat(1_100_000)}"}}\n`);
-
-  await raw.closed;
-
-  expect(raw.lines.map((line): unknown => JSON.parse(line))).toStrictEqual([
-    { v: 5, id: 0, err: { code: 'bad_args', msg: 'line exceeds 1048576 bytes' } },
-  ]);
 });
 
 test('it lists no sessions on a fresh daemon', async () => {

@@ -12,12 +12,12 @@ owner. `atc mcp --http` and atc-gateway act as the OAuth client that made each c
 
 ## Acting as a principal
 
-A request acts as a principal when its envelope holds `as`, and a whole connection acts as one when
+A request acts as a principal when its headers hold `as`, and a whole connection acts as one when
 its handshake holds `principal`. A request with neither acts as the owner. A request's principal can
 only narrow its connection's: on a connection that acts as one principal, a request that acts as
-another reaches only the targets both may use. A value that is not a non-empty string makes the line
-malformed rather than ignored, because ignoring it would leave the request with the connection's
-full reach.
+another reaches only the targets both may use. The daemon refuses a request whose `as` is not a
+non-empty string with `bad_args` rather than ignore the value, because ignoring it would leave the
+request with the connection's full reach.
 
 A daemon that predates principals ignores both fields, so a client that acts for a principal checks
 the daemon's features and sends such a daemon nothing.
@@ -48,10 +48,10 @@ A request that acts as a principal carries the principal's name in `asName`, bes
 daemon trusts the name on the same basis as `as`: the TCP listener's token, or the owner's local
 socket. A connection whose handshake gives a principal has no name for it, so its messages carry the
 principal for a name. The kernel's session binding wins over `as`, because a process inside a
-session that sends `as` and a name would otherwise label its message as any connector. An `asName`
-without `as`, or one that is not a non-empty string, makes the line malformed. A client that sends
-`asName` checks first that the daemon announces typed senders, because a daemon from before them
-labels a message with the free text its request gives.
+session that sends `as` and a name would otherwise label its message as any connector. The daemon
+refuses a request whose `asName` comes without `as` or is not a non-empty string. A client that
+sends `asName` checks first that the daemon announces typed senders, because a daemon from before
+them labels a message with the free text its request gives.
 
 ## Reach
 
@@ -102,13 +102,14 @@ other line, a malformed or oversized one, or a second line sent while the handsh
 checked closes the connection with no reply and counts as a failed handshake. A source address that
 fails several handshakes in a short window waits before its next one is checked, and the daemon
 bounds how many such waits run at once, refusing the overflow at once. After the handshake, a second
-hello closes the connection, so a connection never changes its principal.
+hello gets `unauthorized`, so a connection never changes its principal.
 
 On a TCP connection the two fields do different jobs. The handshake's `principal` decides which
 events the connection receives: a TCP connection starts with no reach at all, so it receives no
 event of any session until its handshake gives a principal. Every request must still carry `as` with
-a principal the config lists, and a request without one gets `unauthorized`. The listener logs each
-refusal to stderr as one line for a journal alert to match, and the
+a principal the config lists, and a request without one gets `unauthorized`. One exception: the
+event subscription needs no `as`, because it delivers only what the connection's own reach admits.
+The listener logs each refusal to stderr as one line for a journal alert to match, and the
 [gateway guide](../../guides/gateway.md#the-daemon-listener) covers the lines and the token rotation
 steps. No line holds a token or any part of one, and the listener's writes to stderr never block the
 daemon.
