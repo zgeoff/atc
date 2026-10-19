@@ -325,8 +325,8 @@ const REAL_CODEX_TEST_MS = 30_000;
 test.skipIf(codexOnPath === undefined || pinnedCodexVersion === undefined)(
   'it matches the installed Codex to the pinned version',
   async () => {
-    invariant(codexOnPath);
-    invariant(pinnedCodexVersion);
+    invariant(typeof codexOnPath === 'string', 'no codex on PATH');
+    invariant(typeof pinnedCodexVersion === 'string', 'no pinned Codex version');
 
     const printed = await new Response(
       Bun.spawn([codexOnPath, '--version'], { stderr: 'ignore' }).stdout,
@@ -341,7 +341,7 @@ test.skipIf(codexOnPath === undefined)(
   async () => {
     const ctx = setupTest();
 
-    invariant(codexOnPath);
+    invariant(typeof codexOnPath === 'string', 'no codex on PATH');
 
     const bridge = await startCodexAppServerBridge(
       {
@@ -371,7 +371,7 @@ test.skipIf(codexOnPath === undefined)(
   async () => {
     const ctx = setupTest();
 
-    invariant(codexOnPath);
+    invariant(typeof codexOnPath === 'string', 'no codex on PATH');
 
     const first = await startCodexAppServerBridge(
       {
