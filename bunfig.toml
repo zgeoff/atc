@@ -16,6 +16,7 @@ minimumReleaseAgeExcludes = [
   "@zgeoff/bun-test-extended",
   "@zgeoff/format-codemod",
   "@zgeoff/oxlint-config",
+  "@zgeoff/skill-gate",
 ]
 
 [test]
