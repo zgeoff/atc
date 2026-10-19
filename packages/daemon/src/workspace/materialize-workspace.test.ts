@@ -166,8 +166,6 @@ test('it holds the phase a refusal failed in when the refusal carries none', asy
   });
 });
 
-const IDENTITY = { name: 'Ada Lovelace', email: 'ada@example.com' };
-
 test('it sets the git identity in the checkout built inside the host', async () => {
   const ctx = await setupTest();
   const git = await createGitFixture({ prefix: 'atc-materialize-git-' });
@@ -192,7 +190,7 @@ test('it sets the git identity in the checkout built inside the host', async () 
       stagingRoot: ctx.scratch,
       gitTransports: ['file'],
       cloneOnTarget: true,
-      gitIdentity: IDENTITY,
+      gitIdentity: { name: 'Ada Lovelace', email: 'ada@example.com' },
     },
   );
 
@@ -235,7 +233,7 @@ test('it sets the git identity in the checkout uploaded to the host', async () =
       removeClaim: () => Promise.resolve(true),
       stagingRoot: ctx.scratch,
       gitTransports: ['file'],
-      gitIdentity: IDENTITY,
+      gitIdentity: { name: 'Ada Lovelace', email: 'ada@example.com' },
     },
   );
 
@@ -317,7 +315,7 @@ test('it refuses and removes the claimed directory when the git identity cannot 
       },
       stagingRoot: ctx.scratch,
       gitTransports: ['file'],
-      gitIdentity: IDENTITY,
+      gitIdentity: { name: 'Ada Lovelace', email: 'ada@example.com' },
     },
   );
 

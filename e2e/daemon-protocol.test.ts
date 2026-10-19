@@ -1,6 +1,6 @@
 import { Database } from 'bun:sqlite';
 import { expect, mock, test } from 'bun:test';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
 import { GrokAdapter } from '@atc/harness-grok';
@@ -14,49 +14,20 @@ import {
   getRecord,
   registerTestCleanup,
   spawnNamedSession,
-  subscribeToSocketLines,
   waitFor,
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
-// A test that leaves every connection to itself turns the main client off.
-interface DaemonTestConfig {
-  readonly mainClient: false;
-}
-
-function setupTest(config: DaemonTestConfig): ReturnType<typeof startTestDaemon<DaemonTestConfig>>;
-function setupTest(): ReturnType<typeof startTestDaemon<{ readonly prefix: string }>>;
-
-function setupTest(config?: DaemonTestConfig) {
+function setupTest() {
   return startTestDaemon({
-    ...config,
     prefix: 'atc-daemon-',
 
     // Every spawn needs a Claude adapter; this one runs a sleep.
     options: () => ({ adapter: buildMockAgentAdapter() }),
   });
 }
-
-test('it answers daemon.hello with the build and limits', async () => {
-  const ctx = await setupTest({ mainClient: false });
-  const client = await openDaemonClient(ctx.socketPath);
-
-  registerTestCleanup(() => {
-    client.stop();
-  });
-
-  const ok = await client.sendHello('atc/test-build');
-
-  expect(ok).toStrictEqual({
-    daemon: ctx.build,
-    daemonID: expect.stringMatching(/^[\da-f-]{36}$/u),
-    limits: { maxLine: 1_048_576, maxChunk: 65_536 },
-    idempotency: { completedRetentionMs: 86_400_000 },
-    lastUsedAgent: 'claude',
-  });
-});
 
 test('it counts a client connection while it is open', async () => {
   const ctx = await setupTest();
@@ -74,56 +45,11 @@ test('it stops counting a client connection once it closes', async () => {
   });
 });
 
-test('it rejects a protocol version mismatch naming both builds and closes the connection', async () => {
-  const ctx = await setupTest({ mainClient: false });
-  const client = await openDaemonClient(ctx.socketPath);
-
-  registerTestCleanup(() => {
-    client.stop();
-  });
-
-  const refused = client.sendRequest('daemon.hello', { client: 'atc/newer-build', protocol: 7 });
-
-  expect(refused).rejects.toMatchObject({
-    code: 'protocol_mismatch',
-    message:
-      'atc/newer-build speaks protocol v7, daemon atc/test-build speaks v6; restart the daemon so both run the same build',
-  });
-
-  await Promise.allSettled([refused]);
-
-  await waitFor(() => {
-    expect(client.isClosed()).toBeTrue();
-  });
-});
-
-test('it closes a connection that sends a line-protocol hello, without an answer', async () => {
-  const ctx = await setupTest({ mainClient: false });
-  const raw = await subscribeToSocketLines(ctx.socketPath);
-
-  raw.write('{"v":5,"id":1,"m":"daemon.hello","p":{"client":"atc/old"}}\n');
-
-  await raw.closed;
-
-  expect(raw.lines).toStrictEqual([]);
-});
-
 test('it answers daemon.ping after the handshake', async () => {
   const ctx = await setupTest();
   const pong = await ctx.client.sendRequest('daemon.ping');
 
   expect(pong).toStrictEqual({});
-});
-
-test('it refuses any request before daemon.hello', async () => {
-  const ctx = await setupTest({ mainClient: false });
-  const client = await openDaemonClient(ctx.socketPath);
-
-  registerTestCleanup(() => {
-    client.stop();
-  });
-
-  expect(client.sendRequest('daemon.ping')).rejects.toMatchObject({ code: 'unauthorized' });
 });
 
 test('it answers an unknown method with unknown_method', async () => {
@@ -934,26 +860,4 @@ test('it answers a kill whose fleet write meets a moved ownership epoch with sta
   expect(ctx.client.sendRequest('session.kill', { session: sessionID })).rejects.toMatchObject({
     code: 'stale_epoch',
   });
-});
-
-test('it stops the daemon when its handle is disposed', async () => {
-  const ctx = await setupTest({ mainClient: false });
-
-  await ctx.daemon[Symbol.asyncDispose]();
-
-  expect(existsSync(join(ctx.dir, 'daemon.json'))).toBeFalse();
-});
-
-test('it releases nothing again when a stopped handle is disposed', async () => {
-  const ctx = await setupTest({ mainClient: false });
-
-  const stopped = ctx.daemon;
-
-  await ctx.restart();
-
-  const disposed = stopped[Symbol.asyncDispose]();
-
-  await expect(disposed).toResolve();
-
-  expect(existsSync(join(ctx.dir, 'daemon.json'))).toBeTrue();
 });

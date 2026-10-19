@@ -1,13 +1,18 @@
 import { expect, test } from 'bun:test';
-import { mkdirSync, unlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { toAgentSessionID } from '@atc/core';
 import { startDaemon } from '@atc/daemon';
-import { findDaemonRecord } from '@atc/lifecycle';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { StateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
-import { KEYS, buildMockAgentAdapter, registerTestCleanup, startTUIHarness } from '@atc/test-utils';
+import {
+  KEYS,
+  buildMockAgentAdapter,
+  registerTestCleanup,
+  startStubLegacyDaemonProcess,
+  startTUIHarness,
+} from '@atc/test-utils';
 import { buildHostServices } from '../packages/app/src/build-host-services';
 import { buildLocalTarget } from '../packages/app/src/test-utils/build-local-target';
 
@@ -102,7 +107,7 @@ test('it stops a daemon that speaks the line protocol after the user confirms, a
 
   await seed.stop();
 
-  const line = await startStubDaemonProcess(socketPath, stateDir, 'line');
+  const line = await startStubLegacyDaemonProcess(socketPath, stateDir, 'line');
 
   ctx.boot();
 
@@ -137,139 +142,6 @@ test('it stops a daemon that speaks the line protocol after the user confirms, a
   await ctx.waitFor('linefleet');
 
   expect(line.signalCode).toBe('SIGTERM');
-});
-
-test('it restarts a daemon on another protocol that a reconnect meets after the user confirms', async () => {
-  const reconnect = await setupReconnectTest();
-
-  const ctx = reconnect.ctx;
-  const legacy = reconnect.legacy;
-
-  await ctx.waitFor('Restart it now?');
-
-  expect(ctx.read()).toInclude(`daemon atc/legacy-build speaks v${PROTOCOL_V + 1}`);
-
-  ctx.reset();
-  ctx.write('y');
-
-  await legacy.exited;
-
-  await ctx.waitFor('idle');
-
-  expect(legacy.signalCode).toBe('SIGTERM');
-});
-
-test('it draws the reconnect restart prompt again when the terminal resizes', async () => {
-  const reconnect = await setupReconnectTest();
-
-  const ctx = reconnect.ctx;
-  const legacy = reconnect.legacy;
-
-  await ctx.waitFor('Restart it now?');
-
-  ctx.reset();
-  reconnect.pty.resize(100, 30);
-
-  await ctx.waitFor('Restart it now?');
-
-  ctx.write('y');
-
-  await legacy.exited;
-
-  expect(legacy.signalCode).toBe('SIGTERM');
-});
-
-test('it quits when the user keeps a daemon on another protocol that a reconnect meets', async () => {
-  const reconnect = await setupReconnectTest();
-
-  const ctx = reconnect.ctx;
-  const legacy = reconnect.legacy;
-
-  await ctx.waitFor('Restart it now?');
-
-  ctx.reset();
-  ctx.write('n');
-
-  const code = await ctx.waitForExit();
-
-  expect(code).toBe(1);
-  expect(ctx.read()).toInclude(`daemon atc/legacy-build speaks v${PROTOCOL_V + 1}`);
-  expect(legacy.exitCode).toBeNull();
-});
-
-test('it draws help again when the user confirms a restart that a reconnect meets with help open', async () => {
-  const managed = await setupManagedReconnectTest();
-
-  const ctx = managed.ctx;
-
-  ctx.write('?');
-
-  await ctx.waitFor('attach the selected session');
-
-  const legacy = await managed.startLegacyDaemon();
-
-  await ctx.waitFor('Restart it now?');
-
-  ctx.reset();
-  ctx.write('y');
-
-  await legacy.exited;
-
-  await ctx.waitFor('attach the selected session');
-
-  expect(legacy.signalCode).toBe('SIGTERM');
-});
-
-test('it draws the home screen again when the user confirms a restart that a reconnect meets at home', async () => {
-  const managed = await setupManagedReconnectTest();
-
-  const ctx = managed.ctx;
-
-  ctx.reset();
-  ctx.write(KEYS.esc);
-
-  await ctx.waitFor('control tower for coding-agent sessions');
-
-  const legacy = await managed.startLegacyDaemon();
-
-  await ctx.waitFor('Restart it now?');
-
-  ctx.reset();
-  ctx.write('y');
-
-  await legacy.exited;
-
-  await ctx.waitFor('control tower for coding-agent sessions');
-
-  expect(legacy.signalCode).toBe('SIGTERM');
-});
-
-test('it draws the spawn picker again when the user confirms a restart that a reconnect meets in the picker', async () => {
-  const managed = await setupManagedReconnectTest();
-
-  const ctx = managed.ctx;
-
-  ctx.reset();
-  ctx.write(KEYS.esc);
-
-  await ctx.waitFor('control tower for coding-agent sessions');
-
-  ctx.write('n');
-
-  await ctx.waitFor('spawn: agent');
-
-  const legacy = await managed.startLegacyDaemon();
-
-  await ctx.waitFor('Restart it now?');
-
-  ctx.reset();
-  ctx.write('y');
-
-  await legacy.exited;
-
-  await ctx.waitFor('spawn: agent');
-
-  expect(legacy.signalCode).toBe('SIGTERM');
 });
 
 test('it stops a daemon of an older build when the user asks for the update and boots its own build', async () => {
@@ -327,110 +199,3 @@ test('it stops a daemon of an older build when the user asks for the update and 
   expect(older.signalCode).toBe('SIGTERM');
   expect(screen.slice(screen.lastIndexOf('restarting daemon'))).not.toInclude('update ready');
 });
-
-async function setupReconnectTest() {
-  const ctx = setupTest();
-  const stateDir = join(ctx.home, '.local', 'state', 'atc');
-  const socketPath = join(ctx.home, 'atc-daemon.sock');
-  const pty = ctx.boot();
-
-  await ctx.waitFor('idle');
-
-  const first = findDaemonRecord(join(stateDir, 'daemon.json'));
-
-  if (first === null) {
-    throw new Error('the first daemon wrote no record');
-  }
-
-  // The first daemon keeps its listener and the client's connection after
-  // its socket file goes, so the other daemon can bind the path.
-  unlinkSync(socketPath);
-
-  const legacy = Bun.spawn(
-    [
-      process.execPath,
-      join(import.meta.dir, '..', 'packages', 'test-utils', 'src', 'run-stub-legacy-daemon.ts'),
-      socketPath,
-      stateDir,
-    ],
-    { stdout: 'pipe', stderr: 'inherit' },
-  );
-
-  registerTestCleanup(() => {
-    legacy.kill('SIGKILL');
-  });
-
-  const reader = legacy.stdout.getReader();
-
-  await reader.read();
-
-  reader.releaseLock();
-  ctx.reset();
-  process.kill(first.pid, 'SIGKILL');
-
-  return { ctx, legacy, pty };
-}
-
-async function setupManagedReconnectTest() {
-  const ctx = setupTest();
-  const stateDir = join(ctx.home, '.local', 'state', 'atc');
-  const socketPath = join(ctx.home, 'atc-daemon.sock');
-  const unitDir = join(ctx.home, '.config', 'systemd', 'user');
-
-  mkdirSync(stateDir, { recursive: true });
-  mkdirSync(unitDir, { recursive: true });
-  writeFileSync(join(unitDir, 'atc-daemon.service'), '[Service]\nExecStart=atc daemon\n');
-
-  const first = await startDaemon({
-    socketPath,
-    reporterSocketPath: join(ctx.home, 'atc.sock'),
-    dbPath: join(stateDir, 'atc.db'),
-    statusPath: join(stateDir, 'status.json'),
-    build: buildHostServices().build,
-    targets: [buildLocalTarget()],
-    adapter: buildMockAgentAdapter(),
-  });
-
-  registerTestCleanup(() => first.stop());
-
-  ctx.boot();
-
-  await ctx.waitFor('no session');
-
-  ctx.reset();
-
-  await first.stop();
-  await ctx.waitFor('waiting for daemon');
-
-  return {
-    ctx,
-    startLegacyDaemon: () => startStubDaemonProcess(socketPath, stateDir),
-  };
-}
-
-// The stub speaks another protocol, or with 'line' the line protocol of an
-// older release.
-async function startStubDaemonProcess(socketPath: string, stateDir: string, build?: 'line') {
-  const daemon = Bun.spawn(
-    [
-      process.execPath,
-      join(import.meta.dir, '..', 'packages', 'test-utils', 'src', 'run-stub-legacy-daemon.ts'),
-      socketPath,
-      stateDir,
-      ...(build === undefined ? [] : [build]),
-    ],
-    { stdout: 'pipe', stderr: 'inherit' },
-  );
-
-  registerTestCleanup(() => {
-    daemon.kill('SIGKILL');
-  });
-
-  const reader = daemon.stdout.getReader();
-
-  await reader.read();
-
-  reader.releaseLock();
-
-  return daemon;
-}

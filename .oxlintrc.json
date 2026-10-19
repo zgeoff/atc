@@ -54,8 +54,7 @@
     "zgeoff/no-switch": "off",
     // GEO-1486 turns each of these on with the fixes it needs
     "zgeoff/module-order": "off",
-    "zgeoff/verb-contract": "off",
-    "zgeoff/setup-test-only": "off"
+    "zgeoff/verb-contract": "off"
   },
   "overrides": [
     {
