@@ -3,10 +3,6 @@ import { dirname } from 'node:path';
 import type { Clock } from '@atc/core';
 import { systemClock, waitUntil } from '@atc/core';
 
-// A lock older than this belongs to a holder that died: the Claude CLI's
-// lock library refreshes a held lock's age well inside it.
-const STALE_MS = 10_000;
-
 // How often a held lock's age is refreshed, well inside the stale age.
 const REFRESH_MS = 1000;
 
@@ -17,6 +13,14 @@ const RETRY_MS = 50;
 export interface ClaudeConfigLockOptions {
   readonly clock?: Clock;
   readonly onBusy?: () => void;
+}
+
+// The lock directory a holder created, as its inode and the age it last
+// gave it; a directory created in its place after a takeover can reuse
+// the inode but not that age.
+interface OwnedLock {
+  readonly ino: number;
+  readonly mtimeMs: number;
 }
 
 // takes the lock the Claude CLI takes before it writes its global config: a `.lock` directory
@@ -86,13 +90,9 @@ export async function withClaudeConfigLock<T>(
   }
 }
 
-// The lock directory a holder created, as its inode and the age it last
-// gave it; a directory created in its place after a takeover can reuse
-// the inode but not that age.
-interface OwnedLock {
-  readonly ino: number;
-  readonly mtimeMs: number;
-}
+// A lock older than this belongs to a holder that died: the Claude CLI's
+// lock library refreshes a held lock's age well inside it.
+const STALE_MS = 10_000;
 
 // Creates the lock directory and resolves to it while this call holds the
 // lock, or null; a stale directory is removed so the next try can take it.

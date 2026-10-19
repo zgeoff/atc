@@ -28,9 +28,6 @@ export interface CheckedScope {
   readonly pullRequests: readonly RecordedPullRequest[];
 }
 
-// How long one gh call may take before the entry it checks is refused.
-const GH_TIMEOUT_MS = 20_000;
-
 export async function checkSessionScope(
   request: ScopeCheckRequest,
   ghBin: string,
@@ -76,6 +73,10 @@ export async function checkSessionScope(
   }
 
   return { worktrees, branches, pullRequests };
+}
+
+function buildScopeRefusal(entry: string, reason: string): DaemonError {
+  return new DaemonError('scope_invalid', `${entry} ${reason}`, { entry });
 }
 
 async function checkWorktree(
@@ -175,6 +176,9 @@ const PULL_REQUEST_SCHEMA = z.object({
   base: z.object({ repo: BASE_REPO_SCHEMA }),
 });
 
+// How long one gh call may take before the entry it checks is refused.
+const GH_TIMEOUT_MS = 20_000;
+
 async function checkPullRequest(
   entry: string,
   repo: string,
@@ -218,8 +222,4 @@ function tryParseJSON(text: string): unknown {
   } catch {
     return null;
   }
-}
-
-function buildScopeRefusal(entry: string, reason: string): DaemonError {
-  return new DaemonError('scope_invalid', `${entry} ${reason}`, { entry });
 }

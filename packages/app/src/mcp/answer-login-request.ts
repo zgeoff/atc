@@ -178,22 +178,6 @@ export async function answerLoginRequest(
   return new Response(null, { status: 302, headers });
 }
 
-// The enrolled passkey the posted credential is an assertion of, for the
-// challenge the caller claimed, or null.
-function verifyAssertion(
-  ctx: HTTPServerContext,
-  credential: string,
-  challenge: string,
-): Promise<string | null> {
-  return verifyPasskeyAssertion(ctx.store.db, {
-    credential,
-    challenge,
-    origin: ctx.origin,
-    rpID: new URL(ctx.origin).hostname,
-    now: ctx.clock.now(),
-  });
-}
-
 async function probePasskey(ctx: HTTPServerContext): Promise<boolean> {
   const row = await ctx.store.db.selectFrom('atc_passkey').select('id').limit(1).executeTakeFirst();
 
@@ -241,4 +225,20 @@ function buildSignInResponse(
     [],
     [PASSKEY_SCRIPT.policySource],
   );
+}
+
+// The enrolled passkey the posted credential is an assertion of, for the
+// challenge the caller claimed, or null.
+function verifyAssertion(
+  ctx: HTTPServerContext,
+  credential: string,
+  challenge: string,
+): Promise<string | null> {
+  return verifyPasskeyAssertion(ctx.store.db, {
+    credential,
+    challenge,
+    origin: ctx.origin,
+    rpID: new URL(ctx.origin).hostname,
+    now: ctx.clock.now(),
+  });
 }

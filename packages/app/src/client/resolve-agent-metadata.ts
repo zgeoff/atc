@@ -43,6 +43,12 @@ export function resolveAgentMetadata(config: Config, listed: unknown): AgentMeta
   return { labels, models };
 }
 
+// A daemon-supplied id or alias can name `__proto__`, which would change a
+// map's prototype instead of adding an entry, so such keys stay out.
+function isSafeKey(key: string): boolean {
+  return key !== '__proto__';
+}
+
 // The alias-to-model entries of an `agents.list` model map, keeping the
 // string values a row can resolve and dropping anything else.
 function pickModelAliases(values: Readonly<Record<string, unknown>>): Record<string, string> {
@@ -55,10 +61,4 @@ function pickModelAliases(values: Readonly<Record<string, unknown>>): Record<str
   }
 
   return aliases;
-}
-
-// A daemon-supplied id or alias can name `__proto__`, which would change a
-// map's prototype instead of adding an entry, so such keys stay out.
-function isSafeKey(key: string): boolean {
-  return key !== '__proto__';
 }

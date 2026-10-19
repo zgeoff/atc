@@ -118,6 +118,13 @@ function hasControlCharacter(text: string): boolean {
   return /\p{Cc}/u.test(text);
 }
 
+// The message for an entry that is not an object, or that holds a key its
+// kind does not define.
+function buildEntryError(unrecognized: string): (issue: Readonly<{ code?: string }>) => string {
+  return (issue) =>
+    issue.code === 'unrecognized_keys' ? unrecognized : 'an entry must be an object';
+}
+
 // Where an issue lies: its path, and the first key a closed object refused
 // when it refused one.
 interface IssueLocation {
@@ -139,11 +146,4 @@ function formatEntry(issue: IssueLocation): string {
   }
 
   return typeof index === 'number' ? `scope.${list}[${index}]` : `scope.${list}`;
-}
-
-// The message for an entry that is not an object, or that holds a key its
-// kind does not define.
-function buildEntryError(unrecognized: string): (issue: Readonly<{ code?: string }>) => string {
-  return (issue) =>
-    issue.code === 'unrecognized_keys' ? unrecognized : 'an entry must be an object';
 }

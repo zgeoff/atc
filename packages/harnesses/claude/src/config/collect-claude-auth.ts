@@ -14,6 +14,9 @@ interface CollectedClaudeAuth {
   readonly errors: readonly string[];
 }
 
+// The one host Claude Code sends a subscription token to.
+const ANTHROPIC_API_HOST = 'api.anthropic.com';
+
 // an entry whose profiles send no bearer header to the Anthropic API is refused, so stock
 // Claude keeps its host's sign-in rather than binding a credential the CLI never sends
 export function collectClaudeAuth(
@@ -88,9 +91,6 @@ export function collectClaudeAuth(
     errors: servers.errors,
   };
 }
-
-// The one host Claude Code sends a subscription token to.
-const ANTHROPIC_API_HOST = 'api.anthropic.com';
 
 // What a placeholder is checked against: the profiles, and the selected
 // profiles' own variables, each with the profile that sets it.

@@ -120,9 +120,6 @@ function parseAuthProfile(name: string, entry: unknown): AuthProfile | string {
 }
 
 const ENV_NAME = /^[A-Z_][A-Z0-9_]*$/u;
-const RESERVED_ENV_PREFIXES = ['ANTHROPIC_', 'CLAUDE_', 'ATC_', 'CODEX_', 'OPENAI_'];
-
-const RESERVED_ENV_NAMES: ReadonlySet<string> = new Set(['PATH', 'HOME']);
 
 function parseProfileEnv(raw: unknown, host: string): Record<string, string> | string {
   if (raw === undefined) {
@@ -156,6 +153,10 @@ function parseProfileEnv(raw: unknown, host: string): Record<string, string> | s
 
   return env;
 }
+
+const RESERVED_ENV_PREFIXES = ['ANTHROPIC_', 'CLAUDE_', 'ATC_', 'CODEX_', 'OPENAI_'];
+
+const RESERVED_ENV_NAMES: ReadonlySet<string> = new Set(['PATH', 'HOME']);
 
 function isReservedEnvName(key: string): boolean {
   return (

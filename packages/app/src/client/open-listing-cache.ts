@@ -87,6 +87,44 @@ export function openListingCache(file: string, options: ListingCacheOptions = {}
   };
 }
 
+// The listings the file holds, leaving out each entry that does not parse.
+function loadListings(file: string): Map<string, CachedListing> {
+  let raw: unknown;
+
+  try {
+    raw = JSON.parse(readFileSync(file, 'utf8'));
+  } catch {
+    return new Map();
+  }
+
+  const listings = isRecord(raw) ? raw['listings'] : undefined;
+
+  if (!isRecord(listings)) {
+    return new Map();
+  }
+
+  return new Map(
+    Object.entries(listings).flatMap(([key, entry]) => {
+      const listing = parseListing(entry);
+
+      return listing === null ? [] : [[key, listing] as const];
+    }),
+  );
+}
+
+function parseListing(entry: unknown): CachedListing | null {
+  if (
+    !isRecord(entry) ||
+    !Array.isArray(entry['candidates']) ||
+    typeof entry['listedAt'] !== 'number' ||
+    !(entry['scope'] === null || typeof entry['scope'] === 'string')
+  ) {
+    return null;
+  }
+
+  return { candidates: entry['candidates'], scope: entry['scope'], listedAt: entry['listedAt'] };
+}
+
 // a rename never replaces a directory that holds a file, so it fails while another write
 // holds the lock; a lock whose process has exited is then removed so the next try can
 // take it.
@@ -174,42 +212,4 @@ function releaseLock(lockPath: string, token: string): void {
     unlinkSync(join(lockPath, token));
     rmdirSync(lockPath);
   } catch {}
-}
-
-// The listings the file holds, leaving out each entry that does not parse.
-function loadListings(file: string): Map<string, CachedListing> {
-  let raw: unknown;
-
-  try {
-    raw = JSON.parse(readFileSync(file, 'utf8'));
-  } catch {
-    return new Map();
-  }
-
-  const listings = isRecord(raw) ? raw['listings'] : undefined;
-
-  if (!isRecord(listings)) {
-    return new Map();
-  }
-
-  return new Map(
-    Object.entries(listings).flatMap(([key, entry]) => {
-      const listing = parseListing(entry);
-
-      return listing === null ? [] : [[key, listing] as const];
-    }),
-  );
-}
-
-function parseListing(entry: unknown): CachedListing | null {
-  if (
-    !isRecord(entry) ||
-    !Array.isArray(entry['candidates']) ||
-    typeof entry['listedAt'] !== 'number' ||
-    !(entry['scope'] === null || typeof entry['scope'] === 'string')
-  ) {
-    return null;
-  }
-
-  return { candidates: entry['candidates'], scope: entry['scope'], listedAt: entry['listedAt'] };
 }

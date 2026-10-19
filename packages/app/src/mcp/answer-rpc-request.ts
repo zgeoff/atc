@@ -114,6 +114,13 @@ function findMissingScope(
   return scopes.includes(needed) ? null : needed;
 }
 
+function buildRPCResult(
+  id: string | number,
+  result: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, unknown>> {
+  return { jsonrpc: '2.0', id, result };
+}
+
 // The part of an agents.list answer the spawn descriptions read.
 const ROSTER_AGENT_SCHEMA = z.object({ id: z.string(), installed: z.boolean() });
 const AGENT_ROSTER_SCHEMA = z.object({ agents: z.array(ROSTER_AGENT_SCHEMA) });
@@ -154,11 +161,4 @@ async function answerToolCall(
   } catch (error) {
     return { content: [{ type: 'text', text: formatToolError(error) }], isError: true };
   }
-}
-
-function buildRPCResult(
-  id: string | number,
-  result: Readonly<Record<string, unknown>>,
-): Readonly<Record<string, unknown>> {
-  return { jsonrpc: '2.0', id, result };
 }

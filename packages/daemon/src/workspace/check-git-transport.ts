@@ -2,19 +2,6 @@ type TransportCheck =
   | { readonly ok: true }
   | { readonly ok: false; readonly code: 'invalid_git_url'; readonly message: string };
 
-// `<transport>::<address>`, which runs git's remote helper for the
-// transport, such as `ext::` or `fd::`.
-const HELPER_PATTERN = /^(?<name>[A-Za-z][\w+.-]*)::/u;
-
-// `<scheme>://…`.
-const SCHEME_PATTERN = /^(?<name>[A-Za-z][\w+.-]*):\/\//u;
-
-// The scp-style `user@host:path` or `host:path`, which git reads as ssh.
-const SCP_PATTERN = /^(?:[^@/:\s]+@)?[^@/:\s]+:/u;
-
-// Schemes git treats as ssh.
-const SSH_SCHEMES: ReadonlySet<string> = new Set(['ssh', 'git+ssh', 'ssh+git']);
-
 export function checkGitTransport(url: string, transports: readonly string[]): TransportCheck {
   // git would read a leading dash as an option, whatever the transports
   if (url.startsWith('-')) {
@@ -38,6 +25,19 @@ export function checkGitTransport(url: string, transports: readonly string[]): T
     message: `git transport '${transport}' is not allowed; ${allowed}`,
   };
 }
+
+// `<transport>::<address>`, which runs git's remote helper for the
+// transport, such as `ext::` or `fd::`.
+const HELPER_PATTERN = /^(?<name>[A-Za-z][\w+.-]*)::/u;
+
+// `<scheme>://…`.
+const SCHEME_PATTERN = /^(?<name>[A-Za-z][\w+.-]*):\/\//u;
+
+// The scp-style `user@host:path` or `host:path`, which git reads as ssh.
+const SCP_PATTERN = /^(?:[^@/:\s]+@)?[^@/:\s]+:/u;
+
+// Schemes git treats as ssh.
+const SSH_SCHEMES: ReadonlySet<string> = new Set(['ssh', 'git+ssh', 'ssh+git']);
 
 function getTransport(url: string): string {
   const helper = HELPER_PATTERN.exec(url)?.groups?.['name'];

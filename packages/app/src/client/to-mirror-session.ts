@@ -3,6 +3,8 @@ import { isRecord, toAgentID } from '@atc/core';
 import type { SessionState } from '@atc/protocol';
 import { z } from 'zod';
 
+export type HarnessLifecycle = 'running' | 'suspended' | 'exited';
+
 export interface MirrorSession {
   id: string;
   name: string;
@@ -35,8 +37,6 @@ export interface MirrorSession {
   // attention a live harness last reported.
   harness: HarnessLifecycle;
 }
-
-export type HarnessLifecycle = 'running' | 'suspended' | 'exited';
 
 // Only the fields a mirror can't function without; an unparseable descriptor
 // is skipped rather than thrown into the event loop. Unknown keys pass

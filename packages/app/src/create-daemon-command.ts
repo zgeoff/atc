@@ -24,6 +24,19 @@ interface DaemonValues {
   readonly 'token-file'?: string | undefined;
 }
 
+// The flags `atc daemon` takes, on its own and on each command that starts
+// a daemon.
+const DAEMON_ARGS = {
+  listen: {
+    type: 'string',
+    description: 'Serve the client protocol on <host>:<port> too, a loopback or tailnet address',
+  },
+  'token-file': {
+    type: 'string',
+    description: 'File holding the one or two bearer tokens a --listen handshake must present',
+  },
+} as const;
+
 export function createDaemonCommand(io: DaemonCommandIO) {
   const runDaemonServe = async (values: DaemonValues): Promise<void> => {
     await io.runDaemon(values.listen ?? null, values['token-file'] ?? null);
@@ -105,16 +118,3 @@ export function createDaemonCommand(io: DaemonCommandIO) {
     },
   });
 }
-
-// The flags `atc daemon` takes, on its own and on each command that starts
-// a daemon.
-const DAEMON_ARGS = {
-  listen: {
-    type: 'string',
-    description: 'Serve the client protocol on <host>:<port> too, a loopback or tailnet address',
-  },
-  'token-file': {
-    type: 'string',
-    description: 'File holding the one or two bearer tokens a --listen handshake must present',
-  },
-} as const;

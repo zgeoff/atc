@@ -44,12 +44,6 @@ export interface StubSessionContext {
   readonly settings: StubSessionSettings;
 }
 
-// impd keeps exactly this many bytes of each generation's output.
-const RING_BYTES = 262_144;
-
-// The mode bytes a fresh attach sends ahead of a ring that has wrapped.
-const PRELUDE = '\u001B[0m';
-
 // impd's answer to a session request that reached it: a fault a test set, a
 // refusal, or a process started or joined and attached to the connection.
 export function answerStubSession(
@@ -211,6 +205,9 @@ function findBrokerProblem(
     : null;
 }
 
+// impd keeps exactly this many bytes of each generation's output.
+const RING_BYTES = 262_144;
+
 function startProcess(
   commands: StubImpCommands,
   imp: StubImp,
@@ -313,6 +310,9 @@ interface StubAttach {
   readonly connection: StubConnection;
   readonly created: boolean;
 }
+
+// The mode bytes a fresh attach sends ahead of a ring that has wrapped.
+const PRELUDE = '\u001B[0m';
 
 function attachProcess(settings: StubSessionSettings, attach: StubAttach): void {
   const imp = attach.imp;

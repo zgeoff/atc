@@ -26,6 +26,38 @@ interface GuestCloneRequest {
 // line of error.
 type GuestClone = { readonly ok: true } | { readonly ok: false; readonly reason: string };
 
+const LFS_PATHS_SHOWN = 5;
+
+// Exit statuses of the script for each refusal it reports; a clone or a
+// checkout that fails exits with git's status once the directory is empty.
+const UNREADABLE_TREE_EXIT = 81;
+const SUBMODULES_EXIT = 82;
+const LFS_EXIT = 83;
+const SANITIZE_EXIT = 84;
+
+// arguments: the directory, the URL, the commit, the branch or empty for a detached checkout,
+// and the transports joined by `:`; on success it prints the repository config as
+// `git config --list -z` does, and on an LFS refusal every LFS path, each ended by a NUL
+export const GUEST_CLONE_SCRIPT = String.raw`dir=$1 url=$2 sha=$3 branch=$4
+export GIT_CONFIG_NOSYSTEM=1 GIT_ATTR_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_TERMINAL_PROMPT=0 LC_ALL=C GIT_ALLOW_PROTOCOL="$5"
+iso() { git -c core.attributesFile=/dev/null -c core.hooksPath=/dev/null -c filter.lfs.smudge= -c filter.lfs.process= -c filter.lfs.required=false "$@"; }
+empty() { status=$?; find "$dir" -mindepth 1 -delete; exit "$status"; }
+git clone --quiet --no-local --no-hardlinks --no-checkout --filter=blob:none --template= -- "$url" "$dir" || empty
+cd "$dir" || empty
+if [ -n "$branch" ]; then iso checkout --quiet -B "$branch" "$sha" || empty
+else iso checkout --quiet --detach "$sha" || empty; fi
+tree=$(iso ls-tree -r --full-tree "$sha") || exit ${UNREADABLE_TREE_EXIT}
+tab=$(printf '\t')
+printf '%s\n' "$tree" | grep -q -e '^160000 ' -e "$tab\.gitmodules\$" && exit ${SUBMODULES_EXIT}
+iso ls-files -z -- ':(attr:filter=lfs)' > .git/atc-lfs || exit ${UNREADABLE_TREE_EXIT}
+if [ -s .git/atc-lfs ]; then cat .git/atc-lfs; exit ${LFS_EXIT}; fi
+rm -f .git/atc-lfs
+git config --file .git/config remote.origin.url "$url" || exit ${SANITIZE_EXIT}
+rm -rf .git/hooks .git/logs && mkdir .git/hooks || exit ${SANITIZE_EXIT}
+rm -f .git-credentials .netrc .git/.git-credentials .git/.netrc || exit ${SANITIZE_EXIT}
+git log -1 --format=%H > /dev/null || exit ${SANITIZE_EXIT}
+exec git config --file .git/config --list -z`;
+
 // isolated from the host's system and global git config, so no filter, hook, or credential
 // helper configured there runs; the host's own network fetches, so no repository bytes cross
 // the daemon's link
@@ -97,34 +129,3 @@ export async function createGuestClone(
 
 // The host runs commands in its own environment, so the clone unsets every
 // variable that could point git at another repository first.
-
-// Exit statuses of the script for each refusal it reports; a clone or a
-// checkout that fails exits with git's status once the directory is empty.
-const UNREADABLE_TREE_EXIT = 81;
-const SUBMODULES_EXIT = 82;
-const LFS_EXIT = 83;
-const SANITIZE_EXIT = 84;
-const LFS_PATHS_SHOWN = 5;
-
-// arguments: the directory, the URL, the commit, the branch or empty for a detached checkout,
-// and the transports joined by `:`; on success it prints the repository config as
-// `git config --list -z` does, and on an LFS refusal every LFS path, each ended by a NUL
-export const GUEST_CLONE_SCRIPT = String.raw`dir=$1 url=$2 sha=$3 branch=$4
-export GIT_CONFIG_NOSYSTEM=1 GIT_ATTR_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_TERMINAL_PROMPT=0 LC_ALL=C GIT_ALLOW_PROTOCOL="$5"
-iso() { git -c core.attributesFile=/dev/null -c core.hooksPath=/dev/null -c filter.lfs.smudge= -c filter.lfs.process= -c filter.lfs.required=false "$@"; }
-empty() { status=$?; find "$dir" -mindepth 1 -delete; exit "$status"; }
-git clone --quiet --no-local --no-hardlinks --no-checkout --filter=blob:none --template= -- "$url" "$dir" || empty
-cd "$dir" || empty
-if [ -n "$branch" ]; then iso checkout --quiet -B "$branch" "$sha" || empty
-else iso checkout --quiet --detach "$sha" || empty; fi
-tree=$(iso ls-tree -r --full-tree "$sha") || exit ${UNREADABLE_TREE_EXIT}
-tab=$(printf '\t')
-printf '%s\n' "$tree" | grep -q -e '^160000 ' -e "$tab\.gitmodules\$" && exit ${SUBMODULES_EXIT}
-iso ls-files -z -- ':(attr:filter=lfs)' > .git/atc-lfs || exit ${UNREADABLE_TREE_EXIT}
-if [ -s .git/atc-lfs ]; then cat .git/atc-lfs; exit ${LFS_EXIT}; fi
-rm -f .git/atc-lfs
-git config --file .git/config remote.origin.url "$url" || exit ${SANITIZE_EXIT}
-rm -rf .git/hooks .git/logs && mkdir .git/hooks || exit ${SANITIZE_EXIT}
-rm -f .git-credentials .netrc .git/.git-credentials .git/.netrc || exit ${SANITIZE_EXIT}
-git log -1 --format=%H > /dev/null || exit ${SANITIZE_EXIT}
-exec git config --file .git/config --list -z`;

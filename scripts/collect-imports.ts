@@ -94,63 +94,6 @@ export function collectImports(source: string): ImportList {
   };
 }
 
-// A `type` that is itself the imported name, as in `import type from`, does
-// not make the statement type-only
-function isTypeOnlyStatement(tokens: readonly Token[], i: number): boolean {
-  const after = tokens[i + 2];
-
-  return (
-    tokens[i + 1]?.kind === SyntaxKind.TypeKeyword &&
-    after?.kind !== SyntaxKind.FromKeyword &&
-    after?.kind !== SyntaxKind.CommaToken &&
-    after?.kind !== SyntaxKind.EqualsToken
-  );
-}
-
-// Bun erases a statement whose braces list only inline type-only specifiers
-// and never runs its module; an empty list still loads it
-function hasOnlyTypeSpecifiers(tokens: readonly Token[], i: number): boolean {
-  if (tokens[i + 1]?.kind !== SyntaxKind.OpenBraceToken) {
-    return false;
-  }
-
-  const elements: Token[][] = [[]];
-
-  for (let j = i + 2; tokens[j]?.kind !== SyntaxKind.CloseBraceToken; j += 1) {
-    const token = tokens[j];
-
-    if (token === undefined) {
-      return false;
-    }
-
-    if (token.kind === SyntaxKind.CommaToken) {
-      elements.push([]);
-    } else {
-      elements.at(-1)?.push(token);
-    }
-  }
-
-  const specifiers = elements.filter((element) => element.length > 0);
-
-  return specifiers.length > 0 && specifiers.every((specifier) => isTypeOnlySpecifier(specifier));
-}
-
-// `type A` and `type A as B` are type-only, two and four tokens long; `type`
-// alone and `type as B` name a value called type, one and three tokens long
-function isTypeOnlySpecifier(element: readonly Token[]): boolean {
-  return element[0]?.kind === SyntaxKind.TypeKeyword && element.length % 2 === 0;
-}
-
-function isResolveForm(tokens: readonly Token[], i: number): boolean {
-  const token = tokens[i];
-
-  return (
-    token?.text === 'Bun' ||
-    token?.kind === SyntaxKind.NewKeyword ||
-    (token?.kind === SyntaxKind.ImportKeyword && tokens[i + 1]?.kind === SyntaxKind.DotToken)
-  );
-}
-
 function findLoadParen(tokens: readonly Token[], i: number): number | null {
   const token = tokens[i];
   const previous = tokens[i - 1]?.kind;
@@ -218,6 +161,63 @@ function getCloseParen(tokens: readonly Token[], open: number): number {
   }
 
   return tokens.length;
+}
+
+// A `type` that is itself the imported name, as in `import type from`, does
+// not make the statement type-only
+function isTypeOnlyStatement(tokens: readonly Token[], i: number): boolean {
+  const after = tokens[i + 2];
+
+  return (
+    tokens[i + 1]?.kind === SyntaxKind.TypeKeyword &&
+    after?.kind !== SyntaxKind.FromKeyword &&
+    after?.kind !== SyntaxKind.CommaToken &&
+    after?.kind !== SyntaxKind.EqualsToken
+  );
+}
+
+// Bun erases a statement whose braces list only inline type-only specifiers
+// and never runs its module; an empty list still loads it
+function hasOnlyTypeSpecifiers(tokens: readonly Token[], i: number): boolean {
+  if (tokens[i + 1]?.kind !== SyntaxKind.OpenBraceToken) {
+    return false;
+  }
+
+  const elements: Token[][] = [[]];
+
+  for (let j = i + 2; tokens[j]?.kind !== SyntaxKind.CloseBraceToken; j += 1) {
+    const token = tokens[j];
+
+    if (token === undefined) {
+      return false;
+    }
+
+    if (token.kind === SyntaxKind.CommaToken) {
+      elements.push([]);
+    } else {
+      elements.at(-1)?.push(token);
+    }
+  }
+
+  const specifiers = elements.filter((element) => element.length > 0);
+
+  return specifiers.length > 0 && specifiers.every((specifier) => isTypeOnlySpecifier(specifier));
+}
+
+// `type A` and `type A as B` are type-only, two and four tokens long; `type`
+// alone and `type as B` name a value called type, one and three tokens long
+function isTypeOnlySpecifier(element: readonly Token[]): boolean {
+  return element[0]?.kind === SyntaxKind.TypeKeyword && element.length % 2 === 0;
+}
+
+function isResolveForm(tokens: readonly Token[], i: number): boolean {
+  const token = tokens[i];
+
+  return (
+    token?.text === 'Bun' ||
+    token?.kind === SyntaxKind.NewKeyword ||
+    (token?.kind === SyntaxKind.ImportKeyword && tokens[i + 1]?.kind === SyntaxKind.DotToken)
+  );
 }
 
 function getLineNumber(source: string, offset: number): number {

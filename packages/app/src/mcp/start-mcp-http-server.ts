@@ -71,6 +71,20 @@ export interface MCPHTTPServer {
   readonly stop: () => Promise<void>;
 }
 
+const PROBE_PATHS: ReadonlySet<string> = new Set(['/healthz', '/readyz']);
+
+interface ServerState {
+  readonly hosts: ReadonlySet<string>;
+  readonly origins: ReadonlySet<string>;
+  readonly ctx: HTTPServerContext;
+}
+
+// The JSON-RPC method and tool name of an MCP request, for its request line.
+interface RPCLabel {
+  readonly method: string;
+  readonly tool: string | null;
+}
+
 export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise<MCPHTTPServer> {
   const clock = options.clock ?? systemClock;
 
@@ -224,8 +238,6 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
   };
 }
 
-const PROBE_PATHS: ReadonlySet<string> = new Set(['/healthz', '/readyz']);
-
 // A probe from a Host other than the server's own is refused like any other
 // request; `ready` is whether the authorization server's database is open.
 function answerProbeRequest(
@@ -250,83 +262,9 @@ function answerProbeRequest(
   return new Response(null, { status: isReady ? 200 : 503 });
 }
 
-// An IPv6 address takes the brackets a URL puts around it.
-function formatBindURL(host: string, port: number): string {
-  const bracketed = host.includes(':') && !host.startsWith('[') ? `[${host}]` : host;
-
-  return `http://${bracketed}:${port}`;
-}
-
-interface ServerState {
-  readonly hosts: ReadonlySet<string>;
-  readonly origins: ReadonlySet<string>;
-  readonly ctx: HTTPServerContext;
-}
-
 // MCP answers at `/` as well as at `/mcp`, for a client configured with the
 // bare origin. Both are the one resource `<origin>/mcp`.
 const MCP_PATHS: ReadonlySet<string> = new Set(['/mcp', '/']);
-
-// The JSON-RPC method and tool name of an MCP request, for its request line.
-interface RPCLabel {
-  readonly method: string;
-  readonly tool: string | null;
-}
-
-function findRPCLabel(body: string): RPCLabel | null {
-  let message: unknown;
-
-  try {
-    message = JSON.parse(body);
-  } catch {
-    return null;
-  }
-
-  if (!isRecord(message) || typeof message['method'] !== 'string') {
-    return null;
-  }
-
-  const params = message['params'];
-
-  return {
-    method: message['method'],
-    tool: isRecord(params) && typeof params['name'] === 'string' ? params['name'] : null,
-  };
-}
-
-// Client-sent values in a request line are cut to this many characters.
-const LABEL_LENGTH = 64;
-
-// The line names the path without its query, which carries authorization
-// codes and signed state.
-function formatRequestLine(
-  request: Request,
-  rpc: RPCLabel | null,
-  status: number,
-  durationMs: number,
-): string {
-  const path = new URL(request.url).pathname;
-
-  const version = request.headers.get('mcp-protocol-version');
-
-  const fields = [
-    request.method,
-    toLogText(path, 128),
-    String(status),
-    `${Math.round(durationMs)}ms`,
-    ...(rpc === null ? [] : [`rpc=${toLogText(rpc.method, LABEL_LENGTH)}`]),
-    ...(rpc === null || rpc.tool === null ? [] : [`tool=${toLogText(rpc.tool, LABEL_LENGTH)}`]),
-    ...(version === null ? [] : [`mcp-protocol-version=${toLogText(version, LABEL_LENGTH)}`]),
-  ];
-
-  return fields.join(' ');
-}
-
-// Control and format characters are dropped, so a client cannot write
-// escape sequences into the operator's terminal.
-function toLogText(value: string, length: number): string {
-  return value.replaceAll(/[\p{Cc}\p{Cf}\s]/gu, '').slice(0, length);
-}
 
 // The browser pages: passkey sign-in, passkey enrollment, and consent.
 const PAGE_PATHS: ReadonlySet<string> = new Set(['/login', '/enroll', '/consent']);
@@ -562,4 +500,66 @@ async function answerTokenRequest(
     .execute();
 
   return response;
+}
+
+function findRPCLabel(body: string): RPCLabel | null {
+  let message: unknown;
+
+  try {
+    message = JSON.parse(body);
+  } catch {
+    return null;
+  }
+
+  if (!isRecord(message) || typeof message['method'] !== 'string') {
+    return null;
+  }
+
+  const params = message['params'];
+
+  return {
+    method: message['method'],
+    tool: isRecord(params) && typeof params['name'] === 'string' ? params['name'] : null,
+  };
+}
+
+// Client-sent values in a request line are cut to this many characters.
+const LABEL_LENGTH = 64;
+
+// The line names the path without its query, which carries authorization
+// codes and signed state.
+function formatRequestLine(
+  request: Request,
+  rpc: RPCLabel | null,
+  status: number,
+  durationMs: number,
+): string {
+  const path = new URL(request.url).pathname;
+
+  const version = request.headers.get('mcp-protocol-version');
+
+  const fields = [
+    request.method,
+    toLogText(path, 128),
+    String(status),
+    `${Math.round(durationMs)}ms`,
+    ...(rpc === null ? [] : [`rpc=${toLogText(rpc.method, LABEL_LENGTH)}`]),
+    ...(rpc === null || rpc.tool === null ? [] : [`tool=${toLogText(rpc.tool, LABEL_LENGTH)}`]),
+    ...(version === null ? [] : [`mcp-protocol-version=${toLogText(version, LABEL_LENGTH)}`]),
+  ];
+
+  return fields.join(' ');
+}
+
+// Control and format characters are dropped, so a client cannot write
+// escape sequences into the operator's terminal.
+function toLogText(value: string, length: number): string {
+  return value.replaceAll(/[\p{Cc}\p{Cf}\s]/gu, '').slice(0, length);
+}
+
+// An IPv6 address takes the brackets a URL puts around it.
+function formatBindURL(host: string, port: number): string {
+  const bracketed = host.includes(':') && !host.startsWith('[') ? `[${host}]` : host;
+
+  return `http://${bracketed}:${port}`;
 }

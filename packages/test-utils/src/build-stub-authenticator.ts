@@ -48,6 +48,10 @@ export interface StubAssertion {
   readonly clientExtensionResults: Readonly<Record<string, never>>;
 }
 
+const FLAG_AT = 0x40;
+
+type CBORValue = number | string | Buffer | ReadonlyMap<number | string, CBORValue>;
+
 export function buildStubAuthenticator() {
   const credentialID = randomBytes(16);
 
@@ -156,50 +160,6 @@ export function buildStubAuthenticator() {
   };
 }
 
-const FLAG_UP = 0x01;
-const FLAG_UV = 0x04;
-const FLAG_AT = 0x40;
-
-// The RP ID hash, the flags with user presence always set, and the
-// big-endian signature counter.
-function buildAuthenticatorHeader(
-  rpID: string,
-  ceremony: Ceremony,
-  signCount: number,
-  extraFlags: number,
-): Buffer {
-  const flags = FLAG_UP | (ceremony.userVerified === false ? 0 : FLAG_UV) | extraFlags;
-  const count = Buffer.alloc(4);
-
-  count.writeUInt32BE(signCount);
-
-  return Buffer.concat([createHash('sha256').update(rpID).digest(), Buffer.from([flags]), count]);
-}
-
-function buildClientData(type: string, challenge: string, ceremony: Ceremony): string {
-  return Buffer.from(
-    JSON.stringify({ type, challenge, origin: ceremony.origin, crossOrigin: false }),
-  ).toString('base64url');
-}
-
-// WebCrypto signs ECDSA as r and s side by side; WebAuthn carries the
-// signature as an ASN.1 DER sequence of two integers.
-function toDERSignature(raw: Buffer): Buffer {
-  const integers = [raw.subarray(0, 32), raw.subarray(32)].map((part) => {
-    const start = part.findIndex((byte) => byte !== 0);
-    const trimmed = start === -1 ? Buffer.from([0]) : part.subarray(start);
-    const value = (trimmed[0] ?? 0) >= 0x80 ? Buffer.concat([Buffer.from([0]), trimmed]) : trimmed;
-
-    return Buffer.concat([Buffer.from([0x02, value.length]), value]);
-  });
-
-  const body = Buffer.concat(integers);
-
-  return Buffer.concat([Buffer.from([0x30, body.length]), body]);
-}
-
-type CBORValue = number | string | Buffer | ReadonlyMap<number | string, CBORValue>;
-
 // The CBOR subset a COSE key and a `none` attestation need: integers,
 // byte strings, text strings, and maps.
 function encodeCBOR(value: CBORValue): Buffer {
@@ -238,4 +198,45 @@ function encodeCBORHead(major: number, length: number): Buffer {
   head.writeUInt16BE(length, 1);
 
   return head;
+}
+
+const FLAG_UP = 0x01;
+const FLAG_UV = 0x04;
+
+// The RP ID hash, the flags with user presence always set, and the
+// big-endian signature counter.
+function buildAuthenticatorHeader(
+  rpID: string,
+  ceremony: Ceremony,
+  signCount: number,
+  extraFlags: number,
+): Buffer {
+  const flags = FLAG_UP | (ceremony.userVerified === false ? 0 : FLAG_UV) | extraFlags;
+  const count = Buffer.alloc(4);
+
+  count.writeUInt32BE(signCount);
+
+  return Buffer.concat([createHash('sha256').update(rpID).digest(), Buffer.from([flags]), count]);
+}
+
+function buildClientData(type: string, challenge: string, ceremony: Ceremony): string {
+  return Buffer.from(
+    JSON.stringify({ type, challenge, origin: ceremony.origin, crossOrigin: false }),
+  ).toString('base64url');
+}
+
+// WebCrypto signs ECDSA as r and s side by side; WebAuthn carries the
+// signature as an ASN.1 DER sequence of two integers.
+function toDERSignature(raw: Buffer): Buffer {
+  const integers = [raw.subarray(0, 32), raw.subarray(32)].map((part) => {
+    const start = part.findIndex((byte) => byte !== 0);
+    const trimmed = start === -1 ? Buffer.from([0]) : part.subarray(start);
+    const value = (trimmed[0] ?? 0) >= 0x80 ? Buffer.concat([Buffer.from([0]), trimmed]) : trimmed;
+
+    return Buffer.concat([Buffer.from([0x02, value.length]), value]);
+  });
+
+  const body = Buffer.concat(integers);
+
+  return Buffer.concat([Buffer.from([0x30, body.length]), body]);
 }

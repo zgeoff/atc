@@ -21,8 +21,6 @@ import { runGit } from './run-git';
 import { toDaemonError } from './to-daemon-error';
 import { verifyTargetHead } from './verify-target-head';
 
-type MaterializedWorkspace = { readonly kind: 'in_place' } | ReadyWorkspace;
-
 interface ReadyWorkspace {
   readonly kind: 'ready';
   readonly workspace: SessionWorkspace;
@@ -34,6 +32,8 @@ interface ReadyWorkspace {
   // The variables every harness the session starts goes without.
   readonly withheldEnv: readonly string[];
 }
+
+type MaterializedWorkspace = { readonly kind: 'in_place' } | ReadyWorkspace;
 
 export async function materializeWorkspace(
   request: MaterializeRequest,
@@ -117,17 +117,6 @@ export async function materializeWorkspace(
   }
 }
 
-// a harness inherits the daemon's environment, so the session withholds from every harness
-// it starts the git source's credential variable and the askpass variables the clone hands
-// its network commands
-const ASKPASS_ENV = ['GIT_ASKPASS', 'ATC_GIT_ASKPASS_SECRET'];
-
-function buildWithheldEnv(source: SpawnWorkspaceSource): string[] {
-  return source.kind === 'git' && source.credentialRef !== undefined
-    ? [source.credentialRef.name, ...ASKPASS_ENV]
-    : [...ASKPASS_ENV];
-}
-
 // only git's own answer that no repository holds the path proves it is outside one: any other
 // failure, such as a broken config or an untrusted repository, refuses the spawn rather than
 // run it in place unchecked
@@ -149,6 +138,17 @@ async function probeOutsideWorkTree(path: string): Promise<boolean> {
     `git cannot inspect ${path}: ${inside.stderr.trim().split('\n')[0] ?? ''}`,
     { phase: 'resolving' },
   );
+}
+
+// a harness inherits the daemon's environment, so the session withholds from every harness
+// it starts the git source's credential variable and the askpass variables the clone hands
+// its network commands
+const ASKPASS_ENV = ['GIT_ASKPASS', 'ATC_GIT_ASKPASS_SECRET'];
+
+function buildWithheldEnv(source: SpawnWorkspaceSource): string[] {
+  return source.kind === 'git' && source.credentialRef !== undefined
+    ? [source.credentialRef.name, ...ASKPASS_ENV]
+    : [...ASKPASS_ENV];
 }
 
 async function runMaterialization(
@@ -216,6 +216,10 @@ async function runMaterialization(
   };
 }
 
+function toRedacted(text: string, secret: string): string {
+  return text.replaceAll(secret, '[credential]');
+}
+
 // Writes the identity into the checkout's own config file, passing each
 // value as its own argument so no shell reads it.
 async function writeGitIdentity(
@@ -272,10 +276,6 @@ function toScrubbedRefusal(
         );
 
   return new DaemonError(refusal.code, toRedacted(refusal.message, secret), data);
-}
-
-function toRedacted(text: string, secret: string): string {
-  return text.replaceAll(secret, '[credential]');
 }
 
 // a directory left behind blocks the next materialization into it with `workspace_exists`

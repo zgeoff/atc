@@ -1,5 +1,20 @@
 import { isRecord } from '@atc/core';
 
+const SETTINGS_ALLOW_LIST = [
+  'model',
+  'effortLevel',
+  'advisorModel',
+  'outputStyle',
+  'autoCompactWindow',
+  'autoMode',
+  'attribution',
+  'includeCoAuthoredBy',
+  'skipAutoPermissionPrompt',
+  'skipWorkflowUsageWarning',
+  'editorMode',
+  'tui',
+] as const;
+
 // any key off the allow-list stays on the host, so a credential, plugin or host path never
 // reaches a guest; auto mode is the default here since Claude Code honours it at user scope only
 export function buildClaudeBundleSettings(
@@ -26,21 +41,6 @@ export function buildClaudeBundleSettings(
     permissions: buildBundlePermissions(source['permissions'], guestDir),
   };
 }
-
-const SETTINGS_ALLOW_LIST = [
-  'model',
-  'effortLevel',
-  'advisorModel',
-  'outputStyle',
-  'autoCompactWindow',
-  'autoMode',
-  'attribution',
-  'includeCoAuthoredBy',
-  'skipAutoPermissionPrompt',
-  'skipWorkflowUsageWarning',
-  'editorMode',
-  'tui',
-] as const;
 
 // The variables an `env` block may ship. A variable off this list may hold
 // a credential, so it stays on the host.

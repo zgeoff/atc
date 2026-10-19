@@ -31,8 +31,6 @@ const INBOX_NOTICE_SCHEMA = z.looseObject({
   reason: z.string().optional(),
 });
 
-type InboxNotice = z.output<typeof INBOX_NOTICE_SCHEMA>;
-
 // Where the tap prints and how it exits: stdout, stderr, and the process by
 // default.
 interface TapIO {
@@ -161,28 +159,7 @@ interface RequestSender {
   readonly sendRequest: DaemonClient['sendRequest'];
 }
 
-async function ackInboxMessage(
-  client: RequestSender,
-  session: string,
-  message: string,
-  line: string,
-  io: TapIO,
-): Promise<void> {
-  try {
-    await io.writeStdout(line);
-  } catch {
-    io.exit(1);
-
-    return;
-  }
-
-  try {
-    // acks only once the line is written
-    await client.sendRequest('message.ack', { session, message });
-  } catch (error) {
-    io.printError(`atc tap: ${formatError(error)}`);
-  }
-}
+type InboxNotice = z.output<typeof INBOX_NOTICE_SCHEMA>;
 
 async function ackInboxNotice(
   client: RequestSender,
@@ -207,4 +184,27 @@ async function ackInboxNotice(
 
 function formatError(error: unknown): string {
   return error instanceof DaemonError ? `${error.code}: ${error.message}` : String(error);
+}
+
+async function ackInboxMessage(
+  client: RequestSender,
+  session: string,
+  message: string,
+  line: string,
+  io: TapIO,
+): Promise<void> {
+  try {
+    await io.writeStdout(line);
+  } catch {
+    io.exit(1);
+
+    return;
+  }
+
+  try {
+    // acks only once the line is written
+    await client.sendRequest('message.ack', { session, message });
+  } catch (error) {
+    io.printError(`atc tap: ${formatError(error)}`);
+  }
 }

@@ -186,6 +186,8 @@ function renderAgentEntry(entry: AgentEntry): Record<string, unknown> {
   return rendered;
 }
 
+const BUILT_IN_COUNT = 3;
+
 // One note per gateway the old parse left out, with the reason.
 function collectDroppedGateways(
   raw: unknown,
@@ -213,8 +215,6 @@ function collectDroppedGateways(
 
   return notes;
 }
-
-const BUILT_IN_COUNT = 3;
 
 function isDropped(id: string, kept: ReadonlySet<string>): boolean {
   return id === '__proto__' || !kept.has(id);

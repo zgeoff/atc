@@ -1,5 +1,8 @@
 import { BROKER_PLACEHOLDER } from '@atc/core';
 
+// A last refresh Codex never counts as stale.
+const LAST_REFRESH = '2099-01-01T00:00:00Z';
+
 export function buildCodexAuthFile(
   idClaims: Readonly<Record<string, unknown>>,
   accountID: string,
@@ -25,9 +28,6 @@ export function buildCodexAuthFile(
 
   return `${JSON.stringify(auth, null, 2)}\n`;
 }
-
-// A last refresh Codex never counts as stale.
-const LAST_REFRESH = '2099-01-01T00:00:00Z';
 
 // The claims of OpenAI's ID token that Codex reads: the account's email and
 // the object that holds its plan and account ids.

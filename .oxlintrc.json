@@ -59,9 +59,7 @@
     "id-length": "off",
     "zgeoff/no-abbreviated-names": "off",
     // the source branches on unions with switch statements
-    "zgeoff/no-switch": "off",
-    // GEO-1486 turns this on with the fixes it needs
-    "zgeoff/module-order": "off"
+    "zgeoff/no-switch": "off"
   },
   "overrides": [
     {
