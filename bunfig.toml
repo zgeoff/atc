@@ -8,15 +8,17 @@ exact = true
 # supply-chain guard: only install versions published >= 7 days ago
 minimumReleaseAge = 604800
 
-# first-party packages skip the gate; their own dependencies stay behind it.
-# Renovate bumps @zgeoff packages as soon as they publish, so each one atc
-# uses needs an entry here, or bun install refuses the bump.
+# first-party packages skip the gate; their third-party dependencies stay
+# behind it. Renovate bumps @zgeoff packages as soon as they publish, so each
+# one atc installs, directly or through another first-party package, needs an
+# entry here, or bun install refuses the bump.
 minimumReleaseAgeExcludes = [
   "@impz/client",
   "@zgeoff/bun-test-extended",
   "@zgeoff/format-codemod",
   "@zgeoff/oxlint-config",
   "@zgeoff/skill-gate",
+  "@zgeoff/std",
 ]
 
 [test]
