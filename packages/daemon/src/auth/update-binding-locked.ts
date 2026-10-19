@@ -30,24 +30,24 @@ export async function updateBindingLocked(
     );
   }
 
-  if (row.impID === null) {
+  if (row.hostID === null) {
     throw new DaemonError(
       'auth_runtime_mismatch',
-      `host ${hostKey} never recorded its imp, so atc cannot rebind it`,
-      { host: hostKey, imp: row.impName, recordedID: null, actualID: null },
+      `host ${hostKey} never recorded its host ID, so atc cannot rebind it`,
+      { host: hostKey, hostName: row.hostName, recordedID: null, actualID: null },
     );
   }
 
   try {
-    await verifyGate(host, row.impName, binding);
+    await verifyGate(host, row.hostName, binding);
 
-    const imp = await verifyCleanupAuthority(host, { name: row.impName, id: row.impID });
+    const found = await verifyCleanupAuthority(host, { name: row.hostName, id: row.hostID });
 
-    if (imp === null) {
+    if (found === null) {
       throw new BrokerAuthorityError(
         'auth_runtime_mismatch',
-        `imp ${row.impName} is gone, so atc cannot rebind it`,
-        { imp: row.impName, recordedID: row.impID, actualID: null },
+        `host ${row.hostName} is gone, so atc cannot rebind it`,
+        { hostName: row.hostName, recordedID: row.hostID, actualID: null },
       );
     }
   } catch (error) {
@@ -70,7 +70,7 @@ export async function updateBindingLocked(
   try {
     await applyRebindGrants(ledger, host, { row, binding, revision, attemptID });
   } catch (error) {
-    await removeRebindGrants(ledger, host, { hostKey, impName: row.impName, attemptID });
+    await removeRebindGrants(ledger, host, { hostKey, hostName: row.hostName, attemptID });
 
     await ledger.store.updateAuthBinding(hostKey, { state: 'rebind_failed' }, ledger.now());
 

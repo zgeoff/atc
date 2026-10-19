@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { decodeMessage, encodeMessage } from './protocol';
+import type { ErrorCode } from './protocol';
 
 test('#decodeMessage decodes a request with its params', () => {
   const decoded = decodeMessage('{"v":1,"id":7,"m":"session.spawn","p":{"cwd":"/x"}}');
@@ -72,6 +73,18 @@ test('#decodeMessage decodes an unknown error code as internal and keeps its mes
   expect(decoded).toStrictEqual({
     kind: 'response',
     msg: { v: 4, id: 1, err: { code: 'internal', msg: 'x' } },
+  });
+});
+
+test.each<[string, ErrorCode]>([
+  ['auth_host_out_of_scope', 'auth_host_out_of_scope'],
+  ['auth_imp_out_of_scope', 'internal'],
+])('#decodeMessage decodes the error code %s as %s', (code, expected) => {
+  const decoded = decodeMessage(`{"v":4,"id":1,"err":{"code":"${code}","msg":"x"}}`);
+
+  expect(decoded).toStrictEqual({
+    kind: 'response',
+    msg: { v: 4, id: 1, err: { code: expected, msg: 'x' } },
   });
 });
 

@@ -250,7 +250,7 @@ src/daemon/target-access.ts	daemon	auth	packages/daemon/src/auth/target-access.t
 src/daemon/to-daemon-error.ts	daemon	sessions	packages/daemon/src/sessions/to-daemon-error.ts	new in ticket 6
 src/daemon/verify-broker-authority.ts	daemon	auth	packages/daemon/src/auth/verify-broker-authority.ts	
 src/daemon/verify-cleanup-authority.ts	daemon	auth	packages/daemon/src/auth/verify-cleanup-authority.ts	
-src/daemon/verify-token-imp-authority.ts	daemon	auth	packages/daemon/src/auth/verify-token-imp-authority.ts	
+src/daemon/verify-token-imp-authority.ts	daemon	auth	packages/daemon/src/auth/verify-token-host-authority.ts	
 src/daemon/write-daemon-record.ts	lifecycle		packages/lifecycle/src/write-daemon-record.ts	
 src/daemon/write-line-steps.ts	daemon	sessions	packages/daemon/src/sessions/write-line-steps.ts	
 src/events.ts	app	cli	packages/app/src/cli/events.ts	

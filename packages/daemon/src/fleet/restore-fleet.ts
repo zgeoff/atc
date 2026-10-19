@@ -429,7 +429,7 @@ const REFUSED_ADOPT_CODES: ReadonlySet<string> = new Set([
   'auth_target_unsupported',
   'auth_token_scope',
   'auth_token_too_broad',
-  'auth_imp_out_of_scope',
+  'auth_host_out_of_scope',
   'auth_secret_not_grantable',
   'auth_secret_mismatch',
   'auth_runtime_mismatch',
@@ -446,7 +446,7 @@ const REFUSED_ADOPT_CODES: ReadonlySet<string> = new Set([
   'unsupported',
 ]);
 
-// The refusals a host can lift by itself, such as an imp that cannot take
+// The refusals a host can lift by itself, such as a remote machine that cannot take
 // a lease or run a command yet, or a broker that is still starting; the
 // restore tries these sessions again.
 const RETRIED_ADOPT_CODES: ReadonlySet<string> = new Set(['host_unavailable', 'broker_not_ready']);

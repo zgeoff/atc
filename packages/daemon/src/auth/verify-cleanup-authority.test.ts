@@ -106,7 +106,7 @@ test('it refuses cleanup of a host made again under the recorded name', async ()
 
   expect(verified).rejects.toMatchObject({
     code: 'auth_runtime_mismatch',
-    data: { imp: 'atc-s1', recordedID: created.id, actualID: remade.id },
+    data: { hostName: 'atc-s1', recordedID: created.id, actualID: remade.id },
   });
 });
 
@@ -127,7 +127,7 @@ test('it refuses cleanup by an identity whose patterns do not cover the recorded
   const verified = verifyCleanupAuthority(ctx.broker, { name: 'atc-s1', id: created.id });
 
   expect(verified).rejects.toMatchObject({
-    code: 'auth_imp_out_of_scope',
+    code: 'auth_host_out_of_scope',
     data: { outside: ['atc-s1'] },
   });
 
@@ -222,7 +222,7 @@ test.each([
 
     expect(verified).rejects.toMatchObject({
       code: 'auth_token_too_broad',
-      data: { token: 'wide', imps: hosts },
+      data: { token: 'wide', hosts },
     });
 
     expect(ctx.broker.calls).toStrictEqual(['readIdentity']);

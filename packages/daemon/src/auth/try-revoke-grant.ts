@@ -1,15 +1,15 @@
 import type { CredentialBroker } from '@atc/plugin-api';
 import { CredentialBrokerError } from '@atc/plugin-api';
 
-// Whether a grant is gone: revoked now, already gone, its imp or secret
-// gone, or, when impd forbids the revoke, absent from the imp's grants.
+// Whether a grant is gone: revoked now, already gone, its host or secret
+// gone, or, when the broker forbids the revoke, absent from the host's grants.
 export async function tryRevokeGrant(
   host: CredentialBroker,
-  impName: string,
+  hostName: string,
   secret: string,
 ): Promise<boolean> {
   try {
-    await host.removeGrant(impName, secret);
+    await host.removeGrant(hostName, secret);
 
     return true;
   } catch (error) {
@@ -23,7 +23,7 @@ export async function tryRevokeGrant(
   }
 
   try {
-    const held = await host.readGrants(impName);
+    const held = await host.readGrants(hostName);
 
     return !held.includes(secret);
   } catch (error) {

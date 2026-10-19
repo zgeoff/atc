@@ -5,11 +5,11 @@ import type { CredentialBroker, LaunchTicket } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import type { RuntimeAuthBinding } from '@atc/store';
 import { z } from 'zod';
-import { assertRecordedImpName } from './assert-recorded-imp-name';
+import { assertRecordedHostName } from './assert-recorded-host-name';
 import { BrokerAuthorityError } from './broker-authority-error';
 import type { AuthBinding } from './build-auth-binding';
 import { buildRevocationPending } from './build-revocation-pending';
-import { createImpAndGrants } from './create-imp-and-grants';
+import { createHostAndGrants } from './create-host-and-grants';
 import { formatError } from './format-error';
 import { LaunchAdmissions } from './launch-admissions';
 import { parseBoundSecrets } from './parse-bound-secrets';
@@ -23,7 +23,7 @@ import { revokeGrants } from './revoke-grants';
 import type { RuntimeAuthLedger, RuntimeAuthStore } from './runtime-auth-ledger';
 import { toAuthRefusal } from './to-auth-refusal';
 import { tryReadGrants } from './try-read-grants';
-import { tryReadImp } from './try-read-imp';
+import { tryReadHost } from './try-read-host';
 import { updateBindingLocked } from './update-binding-locked';
 import { verifyCleanupAuthority } from './verify-cleanup-authority';
 import { verifyGate } from './verify-gate';
@@ -77,14 +77,14 @@ export class RuntimeAuthBinder {
   // a take-back that cannot be confirmed rejects with an effect that remains
   createBinding(host: CredentialBroker, request: BindingRequest): Promise<string> {
     return this.withHostLock(request.hostKey, async () => {
-      const impName = host.getHostName(request.hostKey);
+      const hostName = host.getHostName(request.hostKey);
       const binding = request.binding;
 
       // The read of the name goes out with the gate's reads, and the gate
       // still refuses first.
       const [gate, existing] = await Promise.allSettled([
-        verifyGate(host, impName, binding),
-        host.readHost(impName),
+        verifyGate(host, hostName, binding),
+        host.readHost(hostName),
       ]);
 
       try {
@@ -100,7 +100,7 @@ export class RuntimeAuthBinder {
           hostKey: request.hostKey,
           target: request.target,
           targetIdentity: request.targetIdentity,
-          impName,
+          hostName,
           bindingHash: binding.hash,
           bindingJSON: JSON.stringify(binding),
           attemptID,
@@ -109,9 +109,9 @@ export class RuntimeAuthBinder {
       );
 
       try {
-        await createImpAndGrants(this.ledger, host, {
+        await createHostAndGrants(this.ledger, host, {
           hostKey: request.hostKey,
-          impName,
+          hostName,
           binding,
           attemptID,
           read: existing,
@@ -177,12 +177,12 @@ export class RuntimeAuthBinder {
         );
       }
 
-      // The imp and its grants are read with the gate's reads, and each
-      // check still refuses in the gate, imp, grants order.
-      const [gate, impRead, grantsRead] = await Promise.allSettled([
-        verifyGate(host, row.impName, binding),
-        tryReadImp(host, row.impName),
-        tryReadGrants(host, row.impName),
+      // The host and its grants are read with the gate's reads, and each
+      // check still refuses in the gate, host, grants order.
+      const [gate, hostRead, grantsRead] = await Promise.allSettled([
+        verifyGate(host, row.hostName, binding),
+        tryReadHost(host, row.hostName),
+        tryReadGrants(host, row.hostName),
       ]);
 
       try {
@@ -191,13 +191,18 @@ export class RuntimeAuthBinder {
         throw toAuthRefusal(error);
       }
 
-      const imp = getSettledValue(impRead);
+      const found = getSettledValue(hostRead);
 
-      if (imp === null || imp.id !== row.impID || row.impName !== host.getHostName(hostKey)) {
+      if (found === null || found.id !== row.hostID || row.hostName !== host.getHostName(hostKey)) {
         throw new DaemonError(
           'auth_runtime_mismatch',
-          `imp ${row.impName} is no longer the imp host ${hostKey} was bound to`,
-          { host: hostKey, imp: row.impName, recordedID: row.impID, actualID: imp?.id ?? null },
+          `host ${row.hostName} is no longer the one host ${hostKey} was bound to`,
+          {
+            host: hostKey,
+            hostName: row.hostName,
+            recordedID: row.hostID,
+            actualID: found?.id ?? null,
+          },
         );
       }
 
@@ -209,7 +214,7 @@ export class RuntimeAuthBinder {
       if (missing.length > 0) {
         throw new DaemonError(
           'auth_grant_missing',
-          `imp ${row.impName} no longer holds ${missing.join(', ')}; atc never grants it again on its own, so rebind the host`,
+          `host ${row.hostName} no longer holds ${missing.join(', ')}; atc never grants it again on its own, so rebind the host`,
           { host: hostKey, missing },
         );
       }
@@ -217,7 +222,7 @@ export class RuntimeAuthBinder {
       if (extra.length > 0) {
         throw new DaemonError(
           'auth_grants_mismatch',
-          `imp ${row.impName} holds ${extra.join(', ')}, which its binding does not grant`,
+          `host ${row.hostName} holds ${extra.join(', ')}, which its binding does not grant`,
           { host: hostKey, extra },
         );
       }
@@ -232,13 +237,22 @@ export class RuntimeAuthBinder {
     binding: AuthBinding,
     rebind: ChangedAuthRebind,
   ): Promise<RuntimeAuthBinding> {
-    const imp = await tryReadImp(host, row.impName);
+    const found = await tryReadHost(host, row.hostName);
 
-    if (imp === null || imp.id !== row.impID || row.impName !== host.getHostName(row.hostKey)) {
+    if (
+      found === null ||
+      found.id !== row.hostID ||
+      row.hostName !== host.getHostName(row.hostKey)
+    ) {
       throw new DaemonError(
         'auth_runtime_mismatch',
-        `imp ${row.impName} is no longer the imp host ${row.hostKey} was bound to`,
-        { host: row.hostKey, imp: row.impName, recordedID: row.impID, actualID: imp?.id ?? null },
+        `host ${row.hostName} is no longer the one host ${row.hostKey} was bound to`,
+        {
+          host: row.hostKey,
+          hostName: row.hostName,
+          recordedID: row.hostID,
+          actualID: found?.id ?? null,
+        },
       );
     }
 
@@ -247,12 +261,12 @@ export class RuntimeAuthBinder {
     if (row.state === 'rebind_failed' && row.rebind !== null) {
       await removeRebindGrants(this.ledger, host, {
         hostKey: row.hostKey,
-        impName: row.impName,
+        hostName: row.hostName,
         attemptID: row.rebind.attemptID,
       });
     }
 
-    const held = await tryReadGrants(host, row.impName);
+    const held = await tryReadGrants(host, row.hostName);
 
     const recorded = parseBoundSecrets(row.bindingJSON);
 
@@ -264,7 +278,7 @@ export class RuntimeAuthBinder {
     if (missing.length > 0) {
       throw new DaemonError(
         'auth_grant_missing',
-        `imp ${row.impName} no longer holds ${missing.join(', ')}; atc never grants it again on its own, so rebind the host`,
+        `host ${row.hostName} no longer holds ${missing.join(', ')}; atc never grants it again on its own, so rebind the host`,
         { host: row.hostKey, missing },
       );
     }
@@ -272,7 +286,7 @@ export class RuntimeAuthBinder {
     if (extra.length > 0) {
       throw new DaemonError(
         'auth_grants_mismatch',
-        `imp ${row.impName} holds ${extra.join(', ')}, which its binding does not grant`,
+        `host ${row.hostName} holds ${extra.join(', ')}, which its binding does not grant`,
         { host: row.hostKey, extra },
       );
     }
@@ -329,7 +343,7 @@ export class RuntimeAuthBinder {
     return this.admissions.countPendingAdmissions(hostKey);
   }
 
-  // rejects with an effect that remains when it cannot confirm the imp gone, leaving the
+  // rejects with an effect that remains when it cannot confirm the host gone, leaving the
   // binding pending its take-back
   async removeAttempt(
     host: CredentialBroker,
@@ -386,31 +400,31 @@ export class RuntimeAuthBinder {
       await this.store.updateAuthBinding(hostKey, { state: 'revocation_pending' }, this.now());
 
       if (host === null) {
-        throw buildRevocationPending(hostKey, ['(imp unreachable)']);
+        throw buildRevocationPending(hostKey, ['(host unreachable)']);
       }
 
       try {
-        assertRecordedImpName(host, row);
+        assertRecordedHostName(host, row);
 
-        const imp =
-          row.impID === null
-            ? await tryReadImp(host, row.impName)
-            : await verifyCleanupAuthority(host, { name: row.impName, id: row.impID });
+        const found =
+          row.hostID === null
+            ? await tryReadHost(host, row.hostName)
+            : await verifyCleanupAuthority(host, { name: row.hostName, id: row.hostID });
 
-        if (imp !== null && row.impID === null) {
+        if (found !== null && row.hostID === null) {
           throw new BrokerAuthorityError(
             'auth_runtime_mismatch',
-            `imp ${row.impName} exists, but host ${hostKey} never recorded its id`,
-            { imp: row.impName, recordedID: null, actualID: imp.id },
+            `host ${row.hostName} exists, but host ${hostKey} never recorded its id`,
+            { hostName: row.hostName, recordedID: null, actualID: found.id },
           );
         }
 
-        if (imp !== null) {
+        if (found !== null) {
           await host.destroyHost(hostKey);
         }
 
-        if ((await tryReadImp(host, row.impName)) !== null) {
-          throw new Error(`imp ${row.impName} is still listed after its destroy`);
+        if ((await tryReadHost(host, row.hostName)) !== null) {
+          throw new Error(`host ${row.hostName} is still listed after its destroy`);
         }
       } catch (error) {
         throw buildRevocationPending(hostKey, [formatError(error)]);
@@ -474,7 +488,7 @@ export class RuntimeAuthBinder {
     row: RuntimeAuthBinding,
   ): Promise<void> {
     const rebind = row.rebind;
-    const impID = row.impID;
+    const hostID = row.hostID;
 
     if (rebind === null) {
       return;
@@ -485,7 +499,7 @@ export class RuntimeAuthBinder {
 
       if (
         current === null ||
-        current.impID !== impID ||
+        current.hostID !== hostID ||
         current.revision !== row.revision ||
         current.state !== row.state ||
         current.rebind?.attemptID !== rebind.attemptID
@@ -495,18 +509,18 @@ export class RuntimeAuthBinder {
 
       await this.store.updateAuthBinding(row.hostKey, { state: 'rebind_failed' }, this.now());
 
-      if (host === null || impID === null) {
+      if (host === null || hostID === null) {
         return;
       }
 
-      assertRecordedImpName(host, row);
+      assertRecordedHostName(host, row);
 
-      const imp = await verifyCleanupAuthority(host, { name: row.impName, id: impID });
+      const found = await verifyCleanupAuthority(host, { name: row.hostName, id: hostID });
 
-      if (imp !== null) {
+      if (found !== null) {
         await removeRebindGrants(this.ledger, host, {
           hostKey: row.hostKey,
-          impName: row.impName,
+          hostName: row.hostName,
           attemptID: rebind.attemptID,
         });
       }

@@ -1,7 +1,7 @@
 type BrokerAuthorityCode =
   | 'auth_token_scope'
   | 'auth_token_too_broad'
-  | 'auth_imp_out_of_scope'
+  | 'auth_host_out_of_scope'
   | 'auth_secret_not_grantable'
   | 'auth_runtime_mismatch';
 

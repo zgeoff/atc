@@ -128,7 +128,7 @@ test('it provisions the host of a spawn before readying it and starts the harnes
   ).toStrictEqual([['start', ['broker']]]);
 
   expect(grants).toStrictEqual(['glm']);
-  expect(binding).toMatchObject({ state: 'ready', revision: 1, impName: imp });
+  expect(binding).toMatchObject({ state: 'ready', revision: 1, hostName: imp });
 });
 
 test('it lists the imp target as reaching the broker and the local target as reaching none', async () => {
@@ -2588,7 +2588,7 @@ test('it provisions concurrent spawns each in an imp of its own with only its ow
     spawned.map((answer) => getRecord(answer, 'session')['id']),
   );
 
-  expect(bindings.map((binding) => binding.impName)).toIncludeSameMembers(imps);
+  expect(bindings.map((binding) => binding.hostName)).toIncludeSameMembers(imps);
   expect(bindings.map((binding) => binding.state)).toStrictEqual(['ready', 'ready']);
 });
 

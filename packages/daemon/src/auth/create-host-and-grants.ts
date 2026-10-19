@@ -6,23 +6,23 @@ import { DaemonError } from '@atc/protocol/wire';
 import type { AuthBinding } from './build-auth-binding';
 import type { RuntimeAuthLedger } from './runtime-auth-ledger';
 
-// A fresh spawn's attempt: the host it provisions, the imp name and binding
+// A fresh spawn's attempt: the host it provisions, the host name and binding
 // it grants under, and the read of that name that went out with the gate.
-interface ImpAttempt {
+interface HostAttempt {
   readonly hostKey: SessionID;
-  readonly impName: string;
+  readonly hostName: string;
   readonly binding: AuthBinding;
   readonly attemptID: string;
   readonly read: Readonly<PromiseSettledResult<BrokerHost | null>>;
 }
 
-export async function createImpAndGrants(
+export async function createHostAndGrants(
   ledger: RuntimeAuthLedger,
   host: CredentialBroker,
-  attempt: ImpAttempt,
+  attempt: HostAttempt,
 ): Promise<void> {
   const hostKey = attempt.hostKey;
-  const impName = attempt.impName;
+  const hostName = attempt.hostName;
   const binding = attempt.binding;
   const attemptID = attempt.attemptID;
   const read = attempt.read;
@@ -33,19 +33,19 @@ export async function createImpAndGrants(
 
     throw new DaemonError(
       'auth_runtime_exists',
-      `imp ${impName} already exists, and atc never grants a credential to an imp it did not make`,
-      { imp: impName },
+      `host ${hostName} already exists, and atc never grants a credential to a host it did not make`,
+      { hostName },
     );
   }
 
-  let imp: BrokerHost;
+  let created: BrokerHost;
 
   try {
-    imp = await host.createHost(hostKey);
+    created = await host.createHost(hostKey);
   } catch (error) {
-    // A create impd refused made nothing, so the record goes with it. One
-    // that never answered may have made an imp, which the take-back
-    // settles by what impd shows under the name.
+    // A create the broker refused made nothing, so the record goes with it. One
+    // that never answered may have made a host, which the take-back
+    // settles by what the broker shows under the name.
     if (error instanceof CredentialBrokerError && error.code !== 'unreachable') {
       await ledger.store.removeAuthBinding(hostKey);
     }
@@ -55,16 +55,16 @@ export async function createImpAndGrants(
 
   await ledger.store.updateAuthBinding(
     hostKey,
-    { impID: imp.id, impCreatedByAttempt: true },
+    { hostID: created.id, hostCreatedByAttempt: true },
     ledger.now(),
   );
 
-  const held = await host.readGrants(impName);
+  const held = await host.readGrants(hostName);
 
   if (held.length > 0) {
     throw new DaemonError(
       'auth_grants_mismatch',
-      `the new imp ${impName} already holds ${held.join(', ')}`,
+      `the new host ${hostName} already holds ${held.join(', ')}`,
       { host: hostKey, extra: held },
     );
   }
@@ -80,7 +80,7 @@ export async function createImpAndGrants(
       };
 
       await ledger.store.upsertAuthGrant({ ...grant, phase: 'granting' }, ledger.now());
-      await host.createGrant(impName, secret.secret);
+      await host.createGrant(hostName, secret.secret);
       await ledger.store.upsertAuthGrant({ ...grant, phase: 'granted' }, ledger.now());
     }),
   );
