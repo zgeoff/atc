@@ -24,7 +24,7 @@ export async function loadOAuthStates(
     if (mismatches.length > 0) {
       throw new DaemonError(
         'auth_secret_mismatch',
-        `impd holds ${mismatches.map((mismatch) => `${mismatch.secret} (${mismatch.reason})`).join(', ')} unlike the binding`,
+        `the broker holds ${mismatches.map((mismatch) => `${mismatch.secret} (${mismatch.reason})`).join(', ')} unlike the binding`,
         { mismatches },
       );
     }
@@ -40,8 +40,8 @@ export async function loadOAuthStates(
     if (error instanceof CredentialBrokerError) {
       throw new DaemonError(
         'host_unavailable',
-        `impd refused a runtime auth call: ${error.message}`,
-        { provider: 'imp', problem: error.brokerCode.toLowerCase() },
+        `the ${error.provider} credential broker refused a runtime auth call: ${error.message}`,
+        { provider: error.provider, problem: error.brokerCode.toLowerCase() },
       );
     }
 

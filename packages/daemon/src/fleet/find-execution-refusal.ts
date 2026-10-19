@@ -2,6 +2,7 @@ import type { TargetConfigError } from '@atc/config';
 import type { ExecutionCapability } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import type { ExecutionTarget } from './build-execution-targets';
+import { isUnconfirmedBinding } from './is-unconfirmed-binding';
 
 // a null identity is a session not yet bound, which binds to the target as it
 // stands now; a null target is a spawn that names none when the config gives
@@ -62,10 +63,9 @@ export function findExecutionRefusal(
   }
 
   if (binding.targetIdentity !== null && binding.targetIdentity !== target.identity) {
-    const message =
-      target.kind === 'imp' && /^imp:[\da-f]{16}$/u.test(binding.targetIdentity)
-        ? `execution target '${id}' has not confirmed this session's unversioned binding. Check that its existing imp is reachable with the current credentials and retry fleet restore`
-        : `execution target '${id}' changed since this session started on it (was ${binding.targetIdentity}, now ${target.identity}). Restore the target's earlier config to use the session, or kill it`;
+    const message = isUnconfirmedBinding(target, binding.targetIdentity)
+      ? `execution target '${id}' has not confirmed this session's unversioned binding. Check that its existing host is reachable with the current credentials and retry fleet restore`
+      : `execution target '${id}' changed since this session started on it (was ${binding.targetIdentity}, now ${target.identity}). Restore the target's earlier config to use the session, or kill it`;
 
     return new DaemonError('target_changed', message, {
       target: id,

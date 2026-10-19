@@ -21,6 +21,12 @@ export const IMP_PLUGIN = definePlugin({
     'dropSysAdmin',
   ],
   configSchema: () => EXECUTION_TARGET_CONFIG_SCHEMA,
+
+  // options that never select an existing imp stay out of its identity
+  identity: {
+    version: 'reach-v1',
+    ignoredOptions: ['image', 'memoryMib', 'guestATC', 'rebindChangedAuth'],
+  },
   create: (config, host) => {
     const built = buildImpProvider(config.id, config.options, host.version, config.env);
 

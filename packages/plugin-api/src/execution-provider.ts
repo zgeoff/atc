@@ -27,6 +27,19 @@ export interface ExecutionProvider {
   // the current selection instead of refusing. Absent refuses.
   readonly rebindChangedAuth?: boolean;
 
+  // Whether the host fetches a workspace's repository over its own network,
+  // so the workspace never crosses the daemon's link. Absent clones on the
+  // daemon's side and transfers the result.
+  readonly cloneOnTarget?: boolean;
+
+  // Whether the host has no git identity of its own, so a checkout there
+  // takes the daemon host's. Absent leaves the host's own git config.
+  readonly hostGitIdentity?: boolean;
+
+  // Whether the provider can trust a verified clone on the host for an agent
+  // that signs in through the broker. Absent refuses that trust.
+  readonly guestWorkspaceTrust?: boolean;
+
   // Creates a missing remote host, wakes a sleeping one, and holds it awake while its harnesses
   // run. A failure after it created something it cannot take back rejects with an effect-remains
   // error instead of the refusal, so a retry under the same key never creates a second host.

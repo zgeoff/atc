@@ -1,3 +1,4 @@
+import type { TargetIdentityRule } from '@atc/core';
 import type { z } from 'zod';
 import type { AgentAdapter } from './agent-adapter';
 import type { AuthProfile } from './auth-profile';
@@ -35,6 +36,11 @@ export interface PluginDefinition<K extends PluginKind, C> {
 
   // built for each entry from that entry's context.
   readonly configSchema: (context: PluginConfigContext) => z.ZodType<C>;
+
+  // How an execution target of this plugin names the host it binds to. It
+  // sits on the definition, so a target whose provider fails to build still
+  // has its identity. Absent writes the kind and a digest of every option.
+  readonly identity?: TargetIdentityRule;
   readonly create: (config: C, host: HostServices, context: PluginContext) => PluginContracts[K];
 }
 

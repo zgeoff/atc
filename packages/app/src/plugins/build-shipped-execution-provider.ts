@@ -1,5 +1,6 @@
 import type { TargetConfig } from '@atc/config';
-import type { ExecutionProvider, HostServices } from '@atc/plugin-api';
+import type { ProviderBuild } from '@atc/daemon';
+import type { HostServices } from '@atc/plugin-api';
 import { TargetUnavailableError } from '@atc/plugin-api';
 import { createPluginContract } from './create-plugin-contract';
 import { SHIPPED_EXECUTION_PLUGINS } from './shipped-execution-plugins';
@@ -8,7 +9,7 @@ export function buildShippedExecutionProvider(
   config: TargetConfig,
   host: HostServices,
   env: Readonly<Record<string, string | undefined>>,
-): { readonly provider: ExecutionProvider | null; readonly problem: string | null } {
+): ProviderBuild {
   const plugin = SHIPPED_EXECUTION_PLUGINS.find((candidate) => candidate.id === config.provider);
 
   if (plugin === undefined) {
@@ -24,10 +25,10 @@ export function buildShippedExecutionProvider(
       context: { authProfiles: new Map() },
     });
 
-    return { provider, problem: null };
+    return { provider, problem: null, identityRule: plugin.identity };
   } catch (error) {
     if (error instanceof TargetUnavailableError) {
-      return { provider: null, problem: error.problem };
+      return { provider: null, problem: error.problem, identityRule: plugin.identity };
     }
 
     throw error;

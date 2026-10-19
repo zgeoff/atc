@@ -49,6 +49,30 @@ test('it holds no guest layout and no broker when the config gives none', () => 
   expect(provider).not.toContainAnyKeys(['guest', 'brokerAuth']);
 });
 
+test('it applies the workspace flags the config gives', () => {
+  const provider = buildStubMemoryProvider({
+    cloneOnTarget: false,
+    hostGitIdentity: true,
+    guestWorkspaceTrust: true,
+  });
+
+  expect(provider).toContainEntries([
+    ['cloneOnTarget', false],
+    ['hostGitIdentity', true],
+    ['guestWorkspaceTrust', true],
+  ]);
+});
+
+test('it holds no workspace flag when the config gives none', () => {
+  const provider = buildStubMemoryProvider();
+
+  expect(provider).not.toContainAnyKeys([
+    'cloneOnTarget',
+    'hostGitIdentity',
+    'guestWorkspaceTrust',
+  ]);
+});
+
 test('it records each harness it starts with its spec', () => {
   const provider = buildStubMemoryProvider();
 

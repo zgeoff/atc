@@ -23,6 +23,14 @@ test('it reports itself as a remote imp with the imp capabilities and guest layo
   });
 });
 
+test('it declares the workspace flags an imp declares', () => {
+  expect(buildStubRestoreImpProvider()).toContainEntries([
+    ['cloneOnTarget', true],
+    ['hostGitIdentity', true],
+    ['guestWorkspaceTrust', true],
+  ]);
+});
+
 test('it names the imp of a host key under the atc- prefix', () => {
   expect(buildStubRestoreImpProvider().getImpName('s-1')).toBe('atc-s-1');
 });

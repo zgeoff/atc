@@ -63,6 +63,7 @@ async function withBrokerErrors<T>(call: () => Promise<T>): Promise<T> {
   } catch (error) {
     if (error instanceof ImpPortError) {
       throw new CredentialBrokerError(toBrokerCode(error.code), error.message, {
+        provider: 'imp',
         brokerCode: error.code,
         data: error.data,
       });
