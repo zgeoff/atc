@@ -85,7 +85,8 @@ alike:
    folder written two ways loads once. It reads no symlink while it does so, so each launch loads
    the folder a symlink points at when that launch runs.
 3. The fleet row stores the spawn's own folders in that form. The adapter reads the config's folders
-   as they stand at each launch, so a restart after a config change loads the new list.
+   once, when the daemon starts, so a change to them takes effect only after a daemon restart. From
+   then on, every launch loads the new list, a restored session's included.
 4. Each launch checks the config's folders and the session's own together, before it changes
    anything. A path that does not exist or is not a folder on the daemon's machine is refused as
    `bad_args`, naming the path. Any folder on a target that runs the agent on another machine is
