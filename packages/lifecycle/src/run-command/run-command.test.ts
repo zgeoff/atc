@@ -25,6 +25,25 @@ test('it returns the exit code and the trimmed output of a command', async () =>
   expect(result).toStrictEqual({ code: 3, stdout: 'out', stderr: 'err', aborted: false });
 });
 
+test('it returns once a command exits when told to ignore stderr that a child keeps open', async () => {
+  const ctx = setupTest();
+  const pidFile = join(ctx.dir, 'child.pid');
+
+  const result = await runCommand(
+    ['sh', '-c', `sleep 30 >/dev/null & echo $! > '${pidFile}'; printf out`],
+    { signal: AbortSignal.timeout(1000), stderr: 'ignore' },
+  );
+
+  // A run that aborted has already killed the child's process group.
+  const pid = await readFile(pidFile, 'utf8');
+
+  registerTestCleanup(() => {
+    process.kill(Number(pid), 'SIGKILL');
+  });
+
+  expect(result).toStrictEqual({ code: 0, stdout: 'out', stderr: '', aborted: false });
+});
+
 test('it reads a command that cannot start as exit code 127', async () => {
   const result = await runCommand(['atc-no-such-command']);
 

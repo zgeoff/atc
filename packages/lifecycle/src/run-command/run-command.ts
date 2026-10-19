@@ -12,6 +12,10 @@ interface CommandOptions {
   // Aborting it kills the command's whole process group.
   readonly signal?: Readonly<AbortSignal>;
 
+  // With 'ignore', the command's stderr goes nowhere and the run never waits
+  // for it to close, so a child that keeps stderr open cannot hold the run.
+  readonly stderr?: 'pipe' | 'ignore';
+
   // Called with the pid of the started command right after it starts; with
   // a signal, that pid is also its process group's id.
   readonly onSpawn?: (pid: number) => void;
@@ -38,7 +42,7 @@ export async function runCommand(
 
   const finished = Promise.all([
     new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
+    proc.stderr === undefined ? '' : new Response(proc.stderr).text(),
     proc.exited,
   ]);
 
@@ -60,7 +64,7 @@ function spawnCommand(argv: readonly string[], options: CommandOptions) {
     ...(options.env === undefined ? {} : { env: { ...process.env, ...options.env } }),
     stdin: 'ignore',
     stdout: 'pipe',
-    stderr: 'pipe',
+    stderr: options.stderr ?? 'pipe',
 
     // A command that an abort can stop leads its own process group, so
     // stopping it stops what it started too.

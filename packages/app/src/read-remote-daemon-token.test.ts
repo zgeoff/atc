@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -133,6 +133,31 @@ test('it stops a command whose child keeps its output open once the deadline pas
     },
     { timeoutMs: 3000 },
   );
+});
+
+test('it reads the token of a command whose child keeps stderr open after it exits', async () => {
+  const ctx = setupTest();
+  const pidFile = join(ctx.dir, 'child.pid');
+
+  const token = await readRemoteDaemonToken(
+    buildMockRemoteDaemon({
+      name: 'box',
+      token: {
+        kind: 'command',
+        argv: ['sh', '-c', `sleep 30 >/dev/null & echo $! > '${pidFile}'; printf token`],
+      },
+    }),
+    { timeoutMs: 1000 },
+  );
+
+  // A read that timed out has already killed the child's process group.
+  const pid = await readFile(pidFile, 'utf8');
+
+  onTestFinished(() => {
+    process.kill(Number(pid), 'SIGKILL');
+  });
+
+  expect(token).toBe('token');
 });
 
 test('it rejects a command that cannot start', () => {

@@ -56,10 +56,13 @@ async function readTokenCommand(
   argv: readonly string[],
   timeoutMs: number,
 ): Promise<string> {
-  // The deadline covers the output and the exit together, and on abort the
-  // command's whole process group stops, so a child that keeps the output
-  // open cannot hold the read past it.
-  const result = await runCommand(argv, { signal: AbortSignal.timeout(timeoutMs) });
+  // One deadline covers the output and the exit, and stops the whole process
+  // group, so a child that holds stdout open cannot hold the read. A child can
+  // also hold stderr open after the token prints, so the read ignores stderr.
+  const result = await runCommand(argv, {
+    signal: AbortSignal.timeout(timeoutMs),
+    stderr: 'ignore',
+  });
 
   if (result.aborted) {
     throw new Error(`daemon '${name}': its token command ${argv[0]} ran past ${timeoutMs} ms`);
