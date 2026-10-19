@@ -166,7 +166,6 @@ function buildSocketHandlers(conn: ClientConnection, client: DaemonClient): Sock
 
         drainPending(conn, 'connection closed');
 
-        // A close handler that throws is reported, never left unhandled.
         try {
           client.onClose();
         } catch (error) {

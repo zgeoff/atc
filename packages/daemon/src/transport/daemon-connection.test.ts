@@ -5,7 +5,7 @@ import { toSessionID } from '@atc/core';
 import type { DaemonEvent } from '@atc/protocol';
 import { openDaemonClient } from '@atc/protocol/client';
 import { PROTOCOL_V } from '@atc/protocol/wire';
-import { buildStubPeerSocket, setupTempDir, waitFor } from '@atc/test-utils';
+import { buildStubPeerSocket, runCommand, setupTempDir, waitFor } from '@atc/test-utils';
 import { TargetAccess } from '../auth/target-access';
 import type { DaemonContext } from '../daemon-context';
 import { buildStubDaemonContext } from '../testing/build-stub-daemon-context';
@@ -1445,6 +1445,25 @@ test('it takes a second dispose of a closed peer connection as a no-op', () => {
   expect(() => {
     conn.dispose();
   }).not.toThrow();
+});
+
+// xstate warns of an event sent to a stopped actor only in its development
+// build, which a run under the development condition loads.
+test('it sends a closed peer connection disposed again no event, so xstate warns of none', async () => {
+  const script = [
+    `import { DaemonConnection } from '${join(import.meta.dir, 'daemon-connection.ts')}';`,
+    `import { buildStubDaemonContext } from '${join(import.meta.dir, '..', 'testing', 'build-stub-daemon-context.ts')}';`,
+    'const socket = { write: (data) => data.length, end: () => {} };',
+    'const conn = new DaemonConnection(socket, buildStubDaemonContext());',
+    'conn.dispose();',
+    'conn.dispose();',
+  ].join('\n');
+
+  const run = await runCommand([process.execPath, '--conditions', 'development', '-e', script], {
+    cwd: import.meta.dir,
+  });
+
+  expect({ exitCode: run.exitCode, stderr: run.stderr }).toStrictEqual({ exitCode: 0, stderr: '' });
 });
 
 test('it refuses a peer handshake that gives another session than the one the kernel names, and ends the connection', async () => {
