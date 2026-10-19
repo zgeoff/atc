@@ -341,7 +341,7 @@
     "@xterm/addon-serialize": "0.14.0",
     "@xterm/headless": "6.0.0",
     "@zgeoff/bun-test-extended": "0.2.0",
-    "@zgeoff/format-codemod": "0.1.1",
+    "@zgeoff/format-codemod": "0.2.0",
     "@zgeoff/oxlint-config": "0.2.12",
     "better-auth": "1.7.7",
     "bun-pty": "0.4.11",
@@ -842,7 +842,7 @@
 
     "@zgeoff/bun-test-extended": ["@zgeoff/bun-test-extended@0.2.0", "", { "dependencies": { "jest-extended": "7.0.0", "jest-matcher-utils": "30.4.1" } }, "sha512-OYeV2qCwGE8YpGdfhWMvecOdBiWnDvmVsaDpigc2Q1kr2gBP836lVgupQ19ALDkky3dxaYWwkFxdMBOcsfrPvQ=="],
 
-    "@zgeoff/format-codemod": ["@zgeoff/format-codemod@0.1.1", "", { "dependencies": { "gunshi": "1.0.0-rc.1", "oxc-parser": "0.153.0" }, "bin": { "format-codemod": "dist/cli.js" } }, "sha512-jr4ZKTO8VS4vAycIkfFamtQc+iVK8A/WzyUDfU/heYlA7qXXoL/HW/GytMBvFczeC5usioqsHvazx6bGzd0nGA=="],
+    "@zgeoff/format-codemod": ["@zgeoff/format-codemod@0.2.0", "", { "dependencies": { "gunshi": "1.0.0-rc.1", "oxc-parser": "0.153.0" }, "bin": { "format-codemod": "dist/cli.js" } }, "sha512-DsGhXuQ5lMHeDKb7JvV8Ol74xpSW8gIaA2psROa9h1hFElxeWCFmmiQCpgXHD1RrcC5GxJ6cTvxCrpgqy8CWMA=="],
 
     "@zgeoff/oxlint-config": ["@zgeoff/oxlint-config@0.2.12", "", { "dependencies": { "@stylistic/eslint-plugin": "5.10.0" }, "peerDependencies": { "oxlint": ">=1.78.0" } }, "sha512-WSaZLX3VQTXUoigzFtngHfCHI8ML3+ou/KItjCLkOSY7MycnF/1x4v0H/OYvlPJFMqVESYRNZk9lnT6I6NLCBw=="],
 
