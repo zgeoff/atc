@@ -137,7 +137,7 @@ type ReporterAllowance = readonly string[] | { readonly except: readonly string[
 const REPORTER_FOLDERS: ReadonlyMap<string, ReporterAllowance> = new Map<string, ReporterAllowance>(
   [
     ['core', { except: ['schema'] }],
-    ['protocol', ['session', 'wire']],
+    ['protocol', ['client', 'session', 'wire']],
     ['config', ['host', 'claude-statusline']],
     ['lifecycle', ['run-command']],
   ],
