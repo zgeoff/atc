@@ -85,19 +85,6 @@ export async function answerAuthorizeRequest(
   return response;
 }
 
-// The better-auth error codes an `authorize_invalid` event may hold; any
-// other code becomes `other`.
-const AUTHORIZE_ERRORS: ReadonlySet<string> = new Set([
-  'invalid_client',
-  'client_disabled',
-  'invalid_redirect',
-  'unauthorized_client',
-  'unsupported_response_type',
-  'invalid_request',
-  'invalid_scope',
-  'invalid_target',
-]);
-
 // A refusal that returns to the client went to a redirect URI better-auth
 // validated, so only then does the event hold its host. The client's id
 // and name go in only for a client atc holds.
@@ -124,6 +111,19 @@ async function recordInvalidRequest(
     ...(target === null || target.origin === ctx.origin ? {} : { redirectHost: target.host }),
   });
 }
+
+// The better-auth error codes an `authorize_invalid` event may hold; any
+// other code becomes `other`.
+const AUTHORIZE_ERRORS: ReadonlySet<string> = new Set([
+  'invalid_client',
+  'client_disabled',
+  'invalid_redirect',
+  'unauthorized_client',
+  'unsupported_response_type',
+  'invalid_request',
+  'invalid_scope',
+  'invalid_target',
+]);
 
 function isAuthorizeError(code: string | null): code is AuthorizeInvalidReason {
   return code !== null && AUTHORIZE_ERRORS.has(code);

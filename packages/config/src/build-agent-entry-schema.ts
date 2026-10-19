@@ -4,13 +4,6 @@ import { findPluginDirProblem } from '@atc/plugin-api';
 import { z } from 'zod';
 import type { AgentEntry, AgentKind, ParsedAgentEntry } from './agent-entry';
 
-interface AgentEntrySpec {
-  readonly kind: AgentKind;
-  readonly fields: readonly string[];
-  readonly defaultLabel: string;
-  readonly read?: (args: AgentEntryReadArgs) => AgentEntryRead;
-}
-
 interface AgentEntryReadArgs {
   readonly entry: AgentEntry;
   readonly raw: Readonly<Record<string, unknown>>;
@@ -18,6 +11,13 @@ interface AgentEntryReadArgs {
 }
 
 export type AgentEntryRead = ParsedAgentEntry | { readonly problems: readonly string[] };
+
+interface AgentEntrySpec {
+  readonly kind: AgentKind;
+  readonly fields: readonly string[];
+  readonly defaultLabel: string;
+  readonly read?: (args: AgentEntryReadArgs) => AgentEntryRead;
+}
 
 export function buildAgentEntrySchema(
   spec: AgentEntrySpec,
@@ -37,9 +37,6 @@ export function buildAgentEntrySchema(
     return read;
   });
 }
-
-// The fields every kind takes.
-const COMMON_FIELDS: ReadonlySet<string> = new Set(['kind', 'label', 'mark', 'bin', 'args']);
 
 function parseAgentEntryFields(
   raw: unknown,
@@ -62,6 +59,9 @@ function parseAgentEntryFields(
     ? { entry, warnings: [] }
     : spec.read({ entry, raw, authProfiles: context.authProfiles });
 }
+
+// The fields every kind takes.
+const COMMON_FIELDS: ReadonlySet<string> = new Set(['kind', 'label', 'mark', 'bin', 'args']);
 
 function collectFieldProblems(
   raw: Readonly<Record<string, unknown>>,
@@ -140,14 +140,6 @@ function findFieldProblem(name: string, value: unknown): string | null {
   return check.problem;
 }
 
-function isStringRecord(value: unknown): value is Record<string, string> {
-  return (
-    isRecord(value) &&
-    !Array.isArray(value) &&
-    Object.values(value).every((v) => typeof v === 'string')
-  );
-}
-
 // An entry with every default applied, from fields already checked. The id
 // that is the kind's own shows the kind's label; any other id shows itself.
 function buildEntry(
@@ -184,4 +176,12 @@ function buildEntry(
       ? { pluginDirs: pluginDirs.map(String) }
       : {}),
   };
+}
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+  return (
+    isRecord(value) &&
+    !Array.isArray(value) &&
+    Object.values(value).every((v) => typeof v === 'string')
+  );
 }

@@ -11,13 +11,6 @@ interface FleetVerdict {
   readonly failed: readonly RestartFailedRow[];
 }
 
-// The rows that are not restored yet, and whether waiting longer can still
-// change that.
-interface FailedRows {
-  readonly failed: readonly RestartFailedRow[];
-  readonly pending: boolean;
-}
-
 const UNSIZED_READ_MS = 30_000;
 
 export async function verifyRestoredFleet(
@@ -149,30 +142,11 @@ async function tryReadAgentIDs(
   }
 }
 
-async function tryCollectFailedRows(
-  client: Pick<DaemonClient, 'sendRequest'>,
-  stored: readonly StoredRow[],
-  restored: boolean,
-  agents: ReadonlySet<string> | null,
-  deadline: number,
-  clock: Clock,
-): Promise<FailedRows | null> {
-  let stopTimer: (() => void) | undefined;
-
-  const expired = new Promise<null>((resolve) => {
-    stopTimer = clock.schedule(
-      () => {
-        resolve(null);
-      },
-      Math.max(0, deadline - clock.now()),
-    );
-  });
-
-  try {
-    return await Promise.race([readFailedRows(client, stored, restored, agents), expired]);
-  } finally {
-    stopTimer?.();
-  }
+// The rows that are not restored yet, and whether waiting longer can still
+// change that.
+interface FailedRows {
+  readonly failed: readonly RestartFailedRow[];
+  readonly pending: boolean;
 }
 
 async function readFailedRows(
@@ -225,4 +199,30 @@ async function readFailedRows(
   }
 
   return { failed, pending };
+}
+
+async function tryCollectFailedRows(
+  client: Pick<DaemonClient, 'sendRequest'>,
+  stored: readonly StoredRow[],
+  restored: boolean,
+  agents: ReadonlySet<string> | null,
+  deadline: number,
+  clock: Clock,
+): Promise<FailedRows | null> {
+  let stopTimer: (() => void) | undefined;
+
+  const expired = new Promise<null>((resolve) => {
+    stopTimer = clock.schedule(
+      () => {
+        resolve(null);
+      },
+      Math.max(0, deadline - clock.now()),
+    );
+  });
+
+  try {
+    return await Promise.race([readFailedRows(client, stored, restored, agents), expired]);
+  } finally {
+    stopTimer?.();
+  }
 }

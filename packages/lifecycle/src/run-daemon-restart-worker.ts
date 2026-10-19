@@ -10,9 +10,6 @@ import { restartDaemon } from './restart-daemon';
 import type { RestartOptions } from './restart-daemon';
 import { writeRestartResult } from './write-restart-result';
 
-// How long a restart that finds another in flight waits for it to finish.
-const JOIN_WAIT_MS = 15 * 60_000;
-
 export async function runDaemonRestartWorker(
   host: LifecycleHost,
   options: RestartOptions,
@@ -55,6 +52,9 @@ export async function runDaemonRestartWorker(
 
   return result.code;
 }
+
+// How long a restart that finds another in flight waits for it to finish.
+const JOIN_WAIT_MS = 15 * 60_000;
 
 async function waitForRestartInFlight(host: LifecycleHost, runID: string): Promise<RestartResult> {
   console.log('another restart is in flight; this run joins it and reports its result');

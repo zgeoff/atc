@@ -6,10 +6,6 @@ import { runCommand } from '@atc/lifecycle/run-command';
 import type { HostServices } from '@atc/plugin-api';
 import pkg from '../package.json';
 
-// The packages folder of this checkout. Each package's src tree sits under
-// it, one folder deep or, for a package in a group folder, two.
-const PACKAGES_DIR = join(import.meta.dir, '..', '..');
-
 interface HostServicesOptions {
   // Where log lines go: stderr by default.
   readonly log?: (line: string) => void;
@@ -39,6 +35,10 @@ export function createHostServices(options: HostServicesOptions = {}): HostServi
       }),
   };
 }
+
+// The packages folder of this checkout. Each package's src tree sits under
+// it, one folder deep or, for a package in a group folder, two.
+const PACKAGES_DIR = join(import.meta.dir, '..', '..');
 
 function readSourceRoots(): string[] {
   try {

@@ -1,7 +1,3 @@
-// The glyph, unread, and pin cells that lead every row, plus the one space
-// before the first body column.
-const PREFIX_WIDTH = 4;
-
 // The last-event column's soft width once the rest has claimed its share;
 // whatever width remains after shrinking goes back to it.
 const EVENT_BASE_WIDTH = 4;
@@ -41,17 +37,6 @@ export interface OverlayColumnInput {
 }
 
 type ColumnKey = 'dir' | 'model' | 'event' | 'harness' | 'target' | 'name' | 'lifecycle';
-
-// from the first column crowded out to the last.
-const SHRINK_ORDER: readonly ColumnKey[] = [
-  'dir',
-  'model',
-  'event',
-  'harness',
-  'target',
-  'name',
-  'lifecycle',
-];
 
 const PREFERRED: Readonly<Record<ColumnKey, number>> = {
   dir: 18,
@@ -114,6 +99,17 @@ function pickWidth(contentMax: number, preferred: number): number {
   return contentMax <= 0 ? 0 : Math.min(contentMax, preferred);
 }
 
+// from the first column crowded out to the last.
+const SHRINK_ORDER: readonly ColumnKey[] = [
+  'dir',
+  'model',
+  'event',
+  'harness',
+  'target',
+  'name',
+  'lifecycle',
+];
+
 function truncateWidthsToFit(
   widths: Record<ColumnKey, number>,
   innerWidth: number,
@@ -129,6 +125,10 @@ function truncateWidthsToFit(
     widths[giver] -= 1;
   }
 }
+
+// The glyph, unread, and pin cells that lead every row, plus the one space
+// before the first body column.
+const PREFIX_WIDTH = 4;
 
 // The prefix plus every column and one space between the columns that still
 // draw, so a column crowded to nothing takes its gap with it.

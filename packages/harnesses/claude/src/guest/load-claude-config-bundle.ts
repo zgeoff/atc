@@ -52,13 +52,6 @@ export function loadClaudeConfigBundle(
   return files;
 }
 
-// The ways a command can spell the host's config folder: its path, and
-// when it is the default folder in the user's home, the home-relative forms
-// a shell expands.
-function buildHostDirSpellings(hostDir: string, homeDir: string): string[] {
-  return hostDir === join(homeDir, '.claude') ? [hostDir, '~/.claude', '$HOME/.claude'] : [hostDir];
-}
-
 // The host's settings, or none when the file is missing or is not JSON,
 // which still ships the auto-mode default.
 function readSettings(path: string): unknown {
@@ -67,6 +60,13 @@ function readSettings(path: string): unknown {
   } catch {
     return null;
   }
+}
+
+// The ways a command can spell the host's config folder: its path, and
+// when it is the default folder in the user's home, the home-relative forms
+// a shell expands.
+function buildHostDirSpellings(hostDir: string, homeDir: string): string[] {
+  return hostDir === join(homeDir, '.claude') ? [hostDir, '~/.claude', '$HOME/.claude'] : [hostDir];
 }
 
 // The stats of what a path resolves to, or null for a missing path or a
@@ -79,16 +79,33 @@ function readStats(path: string): Stats | null {
   }
 }
 
-// A folder's entry names, sorted, without the ones that start with a dot,
-// or none when the path is not a folder.
-function readEntryNames(dir: string): string[] {
-  if (readStats(dir)?.isDirectory() !== true) {
-    return [];
+const SHIPPED_ENTRIES: ReadonlySet<string> = new Set([
+  'CLAUDE.md',
+  'statusline.sh',
+  'agents',
+  'output-styles',
+  'skills',
+]);
+
+// a symlink ships only when its target could ship by its own path, so it never carries
+// credentials, account state, or the unfiltered settings
+function probeShippedFile(path: string, hostReal: string): boolean {
+  const real = realpathSync(path);
+
+  if (basename(real).startsWith('.')) {
+    return false;
   }
 
-  return readdirSync(dir)
-    .filter((name) => !name.startsWith('.'))
-    .toSorted();
+  const inside = relative(hostReal, real);
+
+  return inside.startsWith('..') || SHIPPED_ENTRIES.has(inside.split(sep)[0] ?? '');
+}
+
+// A file's bytes, with an executable mode when its owner may execute it.
+function readBundleFile(path: string, mode: number): GuestFile {
+  const content = readFileSync(path);
+
+  return (mode & 0o100) === 0 ? content : { content, mode: 0o755 };
 }
 
 // Every file under `dir` that may ship, keyed by its path under `prefix`,
@@ -124,31 +141,14 @@ function readTreeFiles(
   return files;
 }
 
-// a symlink ships only when its target could ship by its own path, so it never carries
-// credentials, account state, or the unfiltered settings
-function probeShippedFile(path: string, hostReal: string): boolean {
-  const real = realpathSync(path);
-
-  if (basename(real).startsWith('.')) {
-    return false;
+// A folder's entry names, sorted, without the ones that start with a dot,
+// or none when the path is not a folder.
+function readEntryNames(dir: string): string[] {
+  if (readStats(dir)?.isDirectory() !== true) {
+    return [];
   }
 
-  const inside = relative(hostReal, real);
-
-  return inside.startsWith('..') || SHIPPED_ENTRIES.has(inside.split(sep)[0] ?? '');
-}
-
-const SHIPPED_ENTRIES: ReadonlySet<string> = new Set([
-  'CLAUDE.md',
-  'statusline.sh',
-  'agents',
-  'output-styles',
-  'skills',
-]);
-
-// A file's bytes, with an executable mode when its owner may execute it.
-function readBundleFile(path: string, mode: number): GuestFile {
-  const content = readFileSync(path);
-
-  return (mode & 0o100) === 0 ? content : { content, mode: 0o755 };
+  return readdirSync(dir)
+    .filter((name) => !name.startsWith('.'))
+    .toSorted();
 }

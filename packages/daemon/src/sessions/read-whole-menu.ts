@@ -9,11 +9,6 @@ import { splitScreenMenu } from './split-screen-menu';
 import { waitForMenuPoll } from './wait-for-menu-poll';
 import { waitForMenuQuiet } from './wait-for-menu-quiet';
 
-// The most arrow keys one read presses, so a list that never ends, or a
-// screen that keeps changing, stops the read instead of holding the
-// session's input.
-const MAX_STEPS = 400;
-
 export async function readWholeMenu(
   terminal: MenuTerminal,
   waits: MenuWaits,
@@ -39,6 +34,11 @@ export async function readWholeMenu(
 
   return whole;
 }
+
+// The most arrow keys one read presses, so a list that never ends, or a
+// screen that keeps changing, stops the read instead of holding the
+// session's input.
+const MAX_STEPS = 400;
 
 // Moves the cursor up to the first option, down to the end of the list,
 // and back to where it started, gathering the list's rows on the way down.

@@ -28,12 +28,6 @@ interface DaemonRestartOptions {
   readonly dryRun: boolean;
 }
 
-const LOG_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
-
-// How long the follower waits for the worker to report its pid before it
-// gives up on a worker that never started.
-const WORKER_START_WAIT_MS = 30_000;
-
 // a restart hands the work to a detached worker because the restart can
 // end the process that asked for it.
 export async function runDaemonRestart(
@@ -87,6 +81,26 @@ export async function runDaemonRestart(
   console.log(`progress: ${logPath}`);
 
   return printRunLog(runID, logPath, workerPID, clock);
+}
+
+const LOG_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+
+function removeStaleRestartLogs(restartsDir: string, clock: Clock): void {
+  const cutoff = clock.now() - LOG_RETENTION_MS;
+
+  for (const entry of readdirSync(restartsDir)) {
+    if (!entry.endsWith('.log')) {
+      continue;
+    }
+
+    const path = join(restartsDir, entry);
+
+    try {
+      if (statSync(path).mtimeMs < cutoff) {
+        rmSync(path, { force: true });
+      }
+    } catch {}
+  }
 }
 
 function mintRunID(clock: Clock): string {
@@ -146,6 +160,10 @@ function startWorkerInUnit(
 
   return proc.exited;
 }
+
+// How long the follower waits for the worker to report its pid before it
+// gives up on a worker that never started.
+const WORKER_START_WAIT_MS = 30_000;
 
 async function printRunLog(
   runID: string,
@@ -210,12 +228,6 @@ async function printRunLog(
   return settled.code ?? printVanishedWorker(logPath);
 }
 
-function printVanishedWorker(logPath: string): number {
-  console.error(`atc daemon restart: the restart worker ended without a result; see ${logPath}`);
-
-  return 1;
-}
-
 function readLog(logPath: string): string {
   try {
     return readFileSync(logPath, 'utf8');
@@ -224,20 +236,8 @@ function readLog(logPath: string): string {
   }
 }
 
-function removeStaleRestartLogs(restartsDir: string, clock: Clock): void {
-  const cutoff = clock.now() - LOG_RETENTION_MS;
+function printVanishedWorker(logPath: string): number {
+  console.error(`atc daemon restart: the restart worker ended without a result; see ${logPath}`);
 
-  for (const entry of readdirSync(restartsDir)) {
-    if (!entry.endsWith('.log')) {
-      continue;
-    }
-
-    const path = join(restartsDir, entry);
-
-    try {
-      if (statSync(path).mtimeMs < cutoff) {
-        rmSync(path, { force: true });
-      }
-    } catch {}
-  }
+  return 1;
 }

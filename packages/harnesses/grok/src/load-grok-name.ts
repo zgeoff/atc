@@ -4,16 +4,6 @@ import { buildOptionalString } from '@atc/core/schema';
 import type { NameUpdate } from '@atc/plugin-api';
 import { z } from 'zod';
 
-// The fields of a session's summary.json a name comes from. A wrong-typed
-// title or summary reads as absent.
-const SUMMARY_SCHEMA = z.object({
-  title_is_manual: z.unknown().optional(),
-  generated_title: buildOptionalString(),
-  session_summary: buildOptionalString(),
-});
-
-type GrokSummary = z.infer<typeof SUMMARY_SCHEMA>;
-
 export function loadGrokName(
   home: string,
   source: string,
@@ -27,28 +17,15 @@ export function loadGrokName(
   return Promise.resolve(update);
 }
 
-function buildNameUpdate(
-  summary: GrokSummary,
-  namedBy: 'user' | 'auto' | 'agent',
-): NameUpdate | null {
-  const title = summary.generated_title ?? '';
-  const sessionSummary = summary.session_summary ?? '';
+// The fields of a session's summary.json a name comes from. A wrong-typed
+// title or summary reads as absent.
+const SUMMARY_SCHEMA = z.object({
+  title_is_manual: z.unknown().optional(),
+  generated_title: buildOptionalString(),
+  session_summary: buildOptionalString(),
+});
 
-  // a title the person set in grok wins over every name, a name typed in atc included
-  if (summary.title_is_manual === true && title !== '') {
-    return { name: title, namedBy: 'agent' };
-  }
-
-  if (namedBy !== 'user' && title !== '') {
-    return { name: title };
-  }
-
-  if (namedBy !== 'user' && sessionSummary !== '') {
-    return { name: sessionSummary };
-  }
-
-  return null;
-}
+type GrokSummary = z.infer<typeof SUMMARY_SCHEMA>;
 
 function readSummary(source: string | null): GrokSummary | null {
   if (source === null) {
@@ -84,4 +61,27 @@ function readGrokSummary(home: string, source: string): string | null {
   } catch {
     return null;
   }
+}
+
+function buildNameUpdate(
+  summary: GrokSummary,
+  namedBy: 'user' | 'auto' | 'agent',
+): NameUpdate | null {
+  const title = summary.generated_title ?? '';
+  const sessionSummary = summary.session_summary ?? '';
+
+  // a title the person set in grok wins over every name, a name typed in atc included
+  if (summary.title_is_manual === true && title !== '') {
+    return { name: title, namedBy: 'agent' };
+  }
+
+  if (namedBy !== 'user' && title !== '') {
+    return { name: title };
+  }
+
+  if (namedBy !== 'user' && sessionSummary !== '') {
+    return { name: sessionSummary };
+  }
+
+  return null;
 }

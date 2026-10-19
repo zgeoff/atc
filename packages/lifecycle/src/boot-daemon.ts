@@ -172,6 +172,114 @@ async function openOrBootDaemon(
   return booted;
 }
 
+// Opens the first socket a running daemon may answer on that takes the
+// connection, sending no handshake.
+async function tryOpenKnownDaemon(paths: DaemonPaths): Promise<OpenedDaemon | null> {
+  for (const socketPath of readDaemonSocketPaths(paths)) {
+    try {
+      return { client: await openDaemonClient(socketPath), socketPath };
+    } catch {
+      // A socket that refuses the connection passes the boot to the next.
+    }
+  }
+
+  return null;
+}
+
+// A boot given its own paths starts no daemon, since `atc daemon` would
+// listen at this process's paths instead, so the message says so.
+function readGivenPathsFailure(paths: DaemonPaths): string {
+  return (
+    readUnreachableDaemon(paths) ??
+    `no atc daemon answered at ${paths.socketPath}, and a boot given its own daemon paths does not start one; start \`atc daemon\` where it listens there first`
+  );
+}
+
+function readUnreachableDaemon(paths: DaemonPaths): string | null {
+  const record = readDaemonRecord(paths.recordFile);
+
+  if (record !== null && probeProcessAlive(record.pid)) {
+    return `the atc daemon (pid ${record.pid}) is running, but its socket ${record.socketPath} is unreachable from here`;
+  }
+
+  return null;
+}
+
+// One boot in flight per clock and daemon socket, which every boot of this
+// process on that clock for that socket shares.
+const bootFlights = new WeakMap<Clock, Map<string, () => Promise<void>>>();
+
+function bootDaemonOnce(
+  paths: DaemonPaths,
+  clock: Clock,
+  atcArgv: readonly string[],
+): Promise<void> {
+  let flights = bootFlights.get(clock);
+
+  if (flights === undefined) {
+    flights = new Map();
+
+    bootFlights.set(clock, flights);
+  }
+
+  let flight = flights.get(paths.socketPath);
+
+  if (flight === undefined) {
+    flight = makeSingleFlight(() => bootDaemon(paths, clock, atcArgv));
+
+    flights.set(paths.socketPath, flight);
+  }
+
+  return flight();
+}
+
+// How long a boot waits for a daemon to answer. It covers a daemon that
+// waits out the state lock of one still shutting down.
+const BOOT_DEADLINE_MS = 8000;
+
+async function bootDaemon(
+  paths: DaemonPaths,
+  clock: Clock,
+  atcArgv: readonly string[],
+): Promise<void> {
+  let child = spawnDaemonDetached(atcArgv);
+
+  await waitUntil(
+    async () => {
+      const probe = await tryOpenKnownDaemon(paths);
+
+      if (probe !== null) {
+        probe.client.stop();
+
+        return true;
+      }
+
+      // A daemon that found the state lock still held by one shutting down
+      // exits; once the old one is gone, a fresh spawn takes the lock.
+      if (child.exitCode !== null || child.signalCode !== null) {
+        child = spawnDaemonDetached(atcArgv);
+      }
+
+      return false;
+    },
+    { clock, intervalMs: 100, deadlineMs: clock.now() + BOOT_DEADLINE_MS },
+  );
+}
+
+function spawnDaemonDetached(atcArgv: readonly string[]): ChildProcess {
+  return spawnATCDetached(atcArgv, ['daemon']);
+}
+
+// A live daemon this process cannot reach, such as one whose runtime
+// directory a sandbox hides, needs a different fix than one that never
+// started, so the message tells them apart.
+function readBootFailure(paths: DaemonPaths): string {
+  return (
+    readUnreachableDaemon(paths) ??
+    'the atc daemon did not come up; try `atc daemon` for its output'
+  );
+}
+
 // The time a waiting boot gives up, and the length of its wait for the
 // error text.
 interface DaemonWait {
@@ -206,6 +314,15 @@ async function waitForDaemon(wait: DaemonWait): Promise<OpenedDaemon> {
   }
 }
 
+// A waiting caller was told not to start a daemon, so the message says so
+// and points at starting the managed one.
+function readWaitFailure(wait: DaemonWait): string {
+  return (
+    readUnreachableDaemon(wait.paths) ??
+    `no atc daemon answered at ${wait.paths.socketPath} within ${wait.timeoutMs / 1000}s, and this process does not start one; start \`atc daemon\` (or the service that runs it) first`
+  );
+}
+
 // the deadline rejects so a daemon that takes the connection but never
 // answers cannot hold the wait open.
 async function waitForHello(
@@ -230,121 +347,4 @@ async function waitForHello(
   } finally {
     cancel();
   }
-}
-
-// Opens the first socket a running daemon may answer on that takes the
-// connection, sending no handshake.
-async function tryOpenKnownDaemon(paths: DaemonPaths): Promise<OpenedDaemon | null> {
-  for (const socketPath of readDaemonSocketPaths(paths)) {
-    try {
-      return { client: await openDaemonClient(socketPath), socketPath };
-    } catch {
-      // A socket that refuses the connection passes the boot to the next.
-    }
-  }
-
-  return null;
-}
-
-// How long a boot waits for a daemon to answer. It covers a daemon that
-// waits out the state lock of one still shutting down.
-const BOOT_DEADLINE_MS = 8000;
-
-// One boot in flight per clock and daemon socket, which every boot of this
-// process on that clock for that socket shares.
-const bootFlights = new WeakMap<Clock, Map<string, () => Promise<void>>>();
-
-function bootDaemonOnce(
-  paths: DaemonPaths,
-  clock: Clock,
-  atcArgv: readonly string[],
-): Promise<void> {
-  let flights = bootFlights.get(clock);
-
-  if (flights === undefined) {
-    flights = new Map();
-
-    bootFlights.set(clock, flights);
-  }
-
-  let flight = flights.get(paths.socketPath);
-
-  if (flight === undefined) {
-    flight = makeSingleFlight(() => bootDaemon(paths, clock, atcArgv));
-
-    flights.set(paths.socketPath, flight);
-  }
-
-  return flight();
-}
-
-async function bootDaemon(
-  paths: DaemonPaths,
-  clock: Clock,
-  atcArgv: readonly string[],
-): Promise<void> {
-  let child = spawnDaemonDetached(atcArgv);
-
-  await waitUntil(
-    async () => {
-      const probe = await tryOpenKnownDaemon(paths);
-
-      if (probe !== null) {
-        probe.client.stop();
-
-        return true;
-      }
-
-      // A daemon that found the state lock still held by one shutting down
-      // exits; once the old one is gone, a fresh spawn takes the lock.
-      if (child.exitCode !== null || child.signalCode !== null) {
-        child = spawnDaemonDetached(atcArgv);
-      }
-
-      return false;
-    },
-    { clock, intervalMs: 100, deadlineMs: clock.now() + BOOT_DEADLINE_MS },
-  );
-}
-
-// A live daemon this process cannot reach, such as one whose runtime
-// directory a sandbox hides, needs a different fix than one that never
-// started, so the message tells them apart.
-function readBootFailure(paths: DaemonPaths): string {
-  return (
-    readUnreachableDaemon(paths) ??
-    'the atc daemon did not come up; try `atc daemon` for its output'
-  );
-}
-
-// A boot given its own paths starts no daemon, since `atc daemon` would
-// listen at this process's paths instead, so the message says so.
-function readGivenPathsFailure(paths: DaemonPaths): string {
-  return (
-    readUnreachableDaemon(paths) ??
-    `no atc daemon answered at ${paths.socketPath}, and a boot given its own daemon paths does not start one; start \`atc daemon\` where it listens there first`
-  );
-}
-
-function readUnreachableDaemon(paths: DaemonPaths): string | null {
-  const record = readDaemonRecord(paths.recordFile);
-
-  if (record !== null && probeProcessAlive(record.pid)) {
-    return `the atc daemon (pid ${record.pid}) is running, but its socket ${record.socketPath} is unreachable from here`;
-  }
-
-  return null;
-}
-
-// A waiting caller was told not to start a daemon, so the message says so
-// and points at starting the managed one.
-function readWaitFailure(wait: DaemonWait): string {
-  return (
-    readUnreachableDaemon(wait.paths) ??
-    `no atc daemon answered at ${wait.paths.socketPath} within ${wait.timeoutMs / 1000}s, and this process does not start one; start \`atc daemon\` (or the service that runs it) first`
-  );
-}
-
-function spawnDaemonDetached(atcArgv: readonly string[]): ChildProcess {
-  return spawnATCDetached(atcArgv, ['daemon']);
 }

@@ -159,6 +159,16 @@ async function openRemoteDaemon(
   }
 }
 
+function formatUnreachable(daemon: RemoteDaemon, detail: string): string {
+  return `cannot reach daemon '${daemon.name}' at ${formatRemoteAddress(daemon)}: ${detail}. ${NO_FALLBACK}`;
+}
+
+function formatRemoteAddress(daemon: RemoteDaemon): string {
+  return daemon.host.includes(':')
+    ? `[${daemon.host}]:${daemon.port}`
+    : `${daemon.host}:${daemon.port}`;
+}
+
 // Opens the TCP connection; a refusal is the daemon being unreachable.
 async function openRemoteConnection(daemon: RemoteDaemon): Promise<DaemonClient> {
   try {
@@ -168,6 +178,18 @@ async function openRemoteConnection(daemon: RemoteDaemon): Promise<DaemonClient>
       cause: error,
     });
   }
+}
+
+// The runtime's code for a refused or unresolved connection, or its
+// message when it gives none.
+function formatConnectError(error: unknown): string {
+  const code: unknown = error instanceof Error ? Reflect.get(error, 'code') : undefined;
+
+  if (typeof code === 'string') {
+    return code;
+  }
+
+  return error instanceof Error ? error.message : String(error);
 }
 
 // A handshake failure as the error the boot rejects with; one the boot
@@ -210,26 +232,4 @@ function toRemoteBootError(daemon: RemoteDaemon, build: string, error: unknown):
     error.code,
     `daemon '${daemon.name}' at ${formatRemoteAddress(daemon)} refused the handshake: ${error.message}. ${NO_FALLBACK}`,
   );
-}
-
-function formatUnreachable(daemon: RemoteDaemon, detail: string): string {
-  return `cannot reach daemon '${daemon.name}' at ${formatRemoteAddress(daemon)}: ${detail}. ${NO_FALLBACK}`;
-}
-
-// The runtime's code for a refused or unresolved connection, or its
-// message when it gives none.
-function formatConnectError(error: unknown): string {
-  const code: unknown = error instanceof Error ? Reflect.get(error, 'code') : undefined;
-
-  if (typeof code === 'string') {
-    return code;
-  }
-
-  return error instanceof Error ? error.message : String(error);
-}
-
-function formatRemoteAddress(daemon: RemoteDaemon): string {
-  return daemon.host.includes(':')
-    ? `[${daemon.host}]:${daemon.port}`
-    : `${daemon.host}:${daemon.port}`;
 }

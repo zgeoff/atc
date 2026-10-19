@@ -15,8 +15,6 @@ type NarrowedMember = {
   [K in keyof ContextMemberScopes]: ContextMemberScopes[K] extends 'narrowed' ? K : never;
 }[keyof ContextMemberScopes];
 
-type SharedMember = Exclude<keyof DaemonContext, NarrowedMember>;
-
 // a session outside the access answers as an unknown session does, so a
 // refusal never shows the principal that it exists; a spawn may use only a
 // target the access holds, a held key's replayed answer included
@@ -277,6 +275,8 @@ function requireTarget(canUseTarget: (target: string) => boolean, target: string
     throw buildTargetForbiddenError(target);
   }
 }
+
+type SharedMember = Exclude<keyof DaemonContext, NarrowedMember>;
 
 // The daemon's own members that the principal's context keeps as they are.
 // A member the daemon leaves unset stays unset.

@@ -12,6 +12,10 @@ interface HarnessArgvConfig {
   readonly args: readonly string[];
 }
 
+// A name the shell's `export` refuses, which would end the shell before it
+// runs the program, stays an assignment word for `env` instead.
+const SHELL_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/u;
+
 export function buildHarnessArgv(config: HarnessArgvConfig): string[] {
   const unset = [...config.unset.flatMap((name) => ['-u', name]), '--'];
 
@@ -48,10 +52,6 @@ function collectDYLDEntries(env: Readonly<Record<string, string>>): [string, str
 function toAssignment([name, value]: readonly [string, string]): string {
   return `${name}=${value}`;
 }
-
-// A name the shell's `export` refuses, which would end the shell before it
-// runs the program, stays an assignment word for `env` instead.
-const SHELL_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/u;
 
 // The shell's `$0` is the program path, and the values sit in `$1` onward,
 // in the order of the names, ahead of the program's own arguments. Each

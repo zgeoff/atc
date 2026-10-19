@@ -51,12 +51,6 @@ export function buildImpCredentialBroker(port: ImpPort, hosts: ImpBrokerHosts): 
   };
 }
 
-function toBrokerSecret(secret: ImpSecret): BrokerSecret {
-  const listed = { name: secret.name, kind: secret.kind, rules: secret.rules };
-
-  return secret.oauth === undefined ? listed : { ...listed, oauth: secret.oauth };
-}
-
 async function withBrokerErrors<T>(call: () => Promise<T>): Promise<T> {
   try {
     return await call();
@@ -91,4 +85,10 @@ function toBrokerCode(code: string): CredentialBrokerError['code'] {
       return 'refused';
     }
   }
+}
+
+function toBrokerSecret(secret: ImpSecret): BrokerSecret {
+  const listed = { name: secret.name, kind: secret.kind, rules: secret.rules };
+
+  return secret.oauth === undefined ? listed : { ...listed, oauth: secret.oauth };
 }

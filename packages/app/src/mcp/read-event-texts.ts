@@ -3,11 +3,6 @@ import type { Clock } from '@atc/core';
 import { formatToolError } from './format-tool-error';
 import type { FleetCaller } from './types';
 
-// The most note and answer text one events page carries, in UTF-8 bytes:
-// as much as the daemon keeps of one note or one answer, so a page always
-// has room for its first.
-const TEXT_BUDGET_BYTES = 65_536;
-
 // How long the reads of one page's texts may take in all. An events read
 // can hold a call for about 35 seconds, and the HTTP server drops a call
 // idle for 60, so the text reads finish well inside what is left.
@@ -40,6 +35,11 @@ export async function readEventTexts(
 
   return read;
 }
+
+// The most note and answer text one events page carries, in UTF-8 bytes:
+// as much as the daemon keeps of one note or one answer, so a page always
+// has room for its first.
+const TEXT_BUDGET_BYTES = 65_536;
 
 // The page with its note and answer texts read, one at a time, until the
 // budget or the deadline at `endsAt` on `clock` stops it. A read still out

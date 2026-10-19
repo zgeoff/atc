@@ -67,6 +67,17 @@ interface RestoreFleetResult {
   readonly settled: Promise<RestoreOutcome>;
 }
 
+// The refusals a host can lift by itself, such as a remote machine that cannot take
+// a lease or run a command yet, or a broker that is still starting; the
+// restore tries these sessions again.
+const RETRIED_ADOPT_CODES: ReadonlySet<string> = new Set(['host_unavailable', 'broker_not_ready']);
+
+// How one try at a session's terminal ended: the session it adopted, or
+// null when there was nothing to adopt, or the refusal its target gave.
+type AdoptResult =
+  | { readonly kind: 'adopted'; readonly session: Session | null }
+  | { readonly kind: 'refused'; readonly refusal: DaemonError };
+
 export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreFleetResult> {
   const mgr = params.mgr;
   const store = params.store;
@@ -445,17 +456,6 @@ const REFUSED_ADOPT_CODES: ReadonlySet<string> = new Set([
   'bad_args',
   'unsupported',
 ]);
-
-// The refusals a host can lift by itself, such as a remote machine that cannot take
-// a lease or run a command yet, or a broker that is still starting; the
-// restore tries these sessions again.
-const RETRIED_ADOPT_CODES: ReadonlySet<string> = new Set(['host_unavailable', 'broker_not_ready']);
-
-// How one try at a session's terminal ended: the session it adopted, or
-// null when there was nothing to adopt, or the refusal its target gave.
-type AdoptResult =
-  | { readonly kind: 'adopted'; readonly session: Session | null }
-  | { readonly kind: 'refused'; readonly refusal: DaemonError };
 
 async function tryAdoptTerminal(
   mgr: SessionManager,

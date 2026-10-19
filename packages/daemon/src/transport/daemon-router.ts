@@ -326,6 +326,14 @@ function applyEject(
   );
 }
 
+// A resume or adopt of a session whose agent saved no transcript yet.
+function buildNoTranscriptError(): DaemonError {
+  return new DaemonError(
+    'session_dead',
+    'nothing to resume yet — the session has no saved transcript',
+  );
+}
+
 async function applyAdopt(
   input: RequestParams<'session.adopt'>,
   ctx: DaemonContext,
@@ -343,13 +351,5 @@ async function applyAdopt(
   throw new DaemonError(
     'no_such_session',
     `session '${input.session}' is not a dead or headless session with a captured agent session id`,
-  );
-}
-
-// A resume or adopt of a session whose agent saved no transcript yet.
-function buildNoTranscriptError(): DaemonError {
-  return new DaemonError(
-    'session_dead',
-    'nothing to resume yet — the session has no saved transcript',
   );
 }

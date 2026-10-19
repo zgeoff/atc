@@ -193,44 +193,6 @@ async function openUpstream(client: Socket<ProxyLink>, options: CutProxyOptions)
   }
 }
 
-// Hold swallows the answer and every later byte, keeping the link open;
-// close ends both sides.
-function applyCut(client: Socket<ProxyLink>, options: CutProxyOptions): void {
-  client.data.cutID = null;
-
-  if (options.mode === 'hold') {
-    client.data.held = true;
-
-    client.data.onHold();
-
-    return;
-  }
-
-  client.end();
-  client.data.upstream?.end();
-}
-
-// A peer request line's message id and method, the dotted path of its
-// procedure; null for any other line, a request whose payload the decoder
-// cannot read included, so the proxy never cuts its answer.
-function findPeerRequest(line: string): { readonly id: string; readonly method: string } | null {
-  const message = parsePeerMessage(line);
-
-  if (message === null) {
-    return null;
-  }
-
-  try {
-    const [id, type, payload] = deserializeRequestMessage(message);
-
-    return type === MessageType.REQUEST
-      ? { id, method: payload.url.pathname.slice(1).replaceAll('/', '.') }
-      : null;
-  } catch {
-    return null;
-  }
-}
-
 function findResponseID(line: string): string | null {
   const message = parsePeerMessage(line);
 
@@ -275,4 +237,42 @@ function parsePeerMessage(line: string): BaseMessageFormat | null {
   }
 
   return { i: parsed['i'], p: parsed['p'], ...(type === undefined ? {} : { t: type }) };
+}
+
+// Hold swallows the answer and every later byte, keeping the link open;
+// close ends both sides.
+function applyCut(client: Socket<ProxyLink>, options: CutProxyOptions): void {
+  client.data.cutID = null;
+
+  if (options.mode === 'hold') {
+    client.data.held = true;
+
+    client.data.onHold();
+
+    return;
+  }
+
+  client.end();
+  client.data.upstream?.end();
+}
+
+// A peer request line's message id and method, the dotted path of its
+// procedure; null for any other line, a request whose payload the decoder
+// cannot read included, so the proxy never cuts its answer.
+function findPeerRequest(line: string): { readonly id: string; readonly method: string } | null {
+  const message = parsePeerMessage(line);
+
+  if (message === null) {
+    return null;
+  }
+
+  try {
+    const [id, type, payload] = deserializeRequestMessage(message);
+
+    return type === MessageType.REQUEST
+      ? { id, method: payload.url.pathname.slice(1).replaceAll('/', '.') }
+      : null;
+  } catch {
+    return null;
+  }
 }

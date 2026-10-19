@@ -1,6 +1,11 @@
 import { assign, setup } from 'xstate';
 import type { Actor } from 'xstate';
 
+export interface RestartConsent {
+  readonly prompt: string;
+  readonly answer: (key: string) => void;
+}
+
 type ClientMachineEvent =
   | { readonly type: 'ATTACH'; readonly sessionID: string }
   | { readonly type: 'HOME' }
@@ -18,11 +23,6 @@ type ClientMachineEvent =
   | { readonly type: 'RESTART_STARTED' }
   | { readonly type: 'RESTART_AWAITING_FRESH'; readonly freshUntil: number }
   | { readonly type: 'RESTART_ENDED'; readonly connected: boolean };
-
-export interface RestartConsent {
-  readonly prompt: string;
-  readonly answer: (key: string) => void;
-}
 
 interface ClientMachineContext {
   // The session whose kill the daemon refused until the operator confirms

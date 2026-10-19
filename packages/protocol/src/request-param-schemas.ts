@@ -404,16 +404,6 @@ function buildTerminalSize(fallback: number) {
   );
 }
 
-function buildDefaultedNumber(fallback: number) {
-  return z.preprocess((v) => (typeof v === 'number' ? v : undefined), z.number().default(fallback));
-}
-
-// How long a read may hold its request open, in milliseconds: 0 when absent,
-// clamped to 0–30000.
-function buildDefaultedWait() {
-  return buildDefaultedNumber(0).transform((v) => Math.min(Math.max(Math.trunc(v), 0), 30_000));
-}
-
 function buildDefaultedBooleanOrString(fallback: boolean | string) {
   return z.preprocess(
     (v) => (typeof v === 'boolean' || typeof v === 'string' ? v : undefined),
@@ -439,4 +429,14 @@ function buildOptionalCursor() {
     (v) => (typeof v === 'string' && v !== '' ? v : undefined),
     z.string().optional(),
   );
+}
+
+function buildDefaultedNumber(fallback: number) {
+  return z.preprocess((v) => (typeof v === 'number' ? v : undefined), z.number().default(fallback));
+}
+
+// How long a read may hold its request open, in milliseconds: 0 when absent,
+// clamped to 0–30000.
+function buildDefaultedWait() {
+  return buildDefaultedNumber(0).transform((v) => Math.min(Math.max(Math.trunc(v), 0), 30_000));
 }

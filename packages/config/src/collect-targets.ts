@@ -8,8 +8,6 @@ export interface TargetConfig {
   readonly options: Readonly<Record<string, unknown>>;
 }
 
-export type TargetConfigError = TargetSectionError | ConfigFileError;
-
 interface TargetSectionError {
   readonly scope: 'targets' | 'target' | 'defaultTarget';
 
@@ -24,6 +22,8 @@ interface ConfigFileError {
   readonly path: string;
   readonly detail: string;
 }
+
+export type TargetConfigError = TargetSectionError | ConfigFileError;
 
 interface TargetsConfig {
   // Every well-formed entry, in config order.

@@ -61,19 +61,6 @@ export function setupMCPHome() {
   };
 }
 
-function readStubPIDs(home: string): number[] {
-  const path = join(home, 'stub-pids');
-
-  if (!existsSync(path)) {
-    return [];
-  }
-
-  return readFileSync(path, 'utf8')
-    .split('\n')
-    .filter((line) => line !== '')
-    .map(Number);
-}
-
 async function killProcessGroups(groups: readonly number[]): Promise<void> {
   for (const group of groups) {
     try {
@@ -100,4 +87,17 @@ function isProcessGroupRunning(group: number): boolean {
   } catch (error) {
     return !(error instanceof Error && Reflect.get(error, 'code') === 'ESRCH');
   }
+}
+
+function readStubPIDs(home: string): number[] {
+  const path = join(home, 'stub-pids');
+
+  if (!existsSync(path)) {
+    return [];
+  }
+
+  return readFileSync(path, 'utf8')
+    .split('\n')
+    .filter((line) => line !== '')
+    .map(Number);
 }

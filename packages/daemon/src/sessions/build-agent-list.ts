@@ -13,6 +13,19 @@ interface AgentCapabilities {
   readonly input: boolean;
 }
 
+// A spawn option as `agents.list` shows it: the agent's own spec, plus
+// whether a spawn can pass it now. Only the supported option of an agent
+// some target can start is available.
+export interface SpawnOptionEntry extends SpawnOptionSpec {
+  readonly available: boolean;
+}
+
+interface SpawnOptionEntries {
+  readonly model: SpawnOptionEntry;
+  readonly effort: SpawnOptionEntry;
+  readonly pluginDirs: SpawnOptionEntry;
+}
+
 export interface AgentEntry {
   readonly id: string;
   readonly label: string;
@@ -38,13 +51,6 @@ export interface AgentEntry {
   readonly spawnOptions: SpawnOptionEntries;
 }
 
-// A spawn option as `agents.list` shows it: the agent's own spec, plus
-// whether a spawn can pass it now. Only the supported option of an agent
-// some target can start is available.
-export interface SpawnOptionEntry extends SpawnOptionSpec {
-  readonly available: boolean;
-}
-
 // A target as the agent list weighs it.
 export interface AgentListTarget {
   readonly id: string;
@@ -55,12 +61,6 @@ export interface AgentListTarget {
 
   // Whether its provider reaches impd's credential broker.
   readonly brokerAuth: boolean;
-}
-
-interface SpawnOptionEntries {
-  readonly model: SpawnOptionEntry;
-  readonly effort: SpawnOptionEntry;
-  readonly pluginDirs: SpawnOptionEntry;
 }
 
 export function buildAgentList(

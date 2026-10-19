@@ -105,15 +105,6 @@ export function collectGateways(
   return { gateways, errors };
 }
 
-// Claude Code settings the sessions of this gateway are started with, on top of
-// the ones atc writes itself. Anything but an object is no extra settings.
-function buildOptionalSettings() {
-  return z.preprocess(
-    (v) => (isRecord(v) ? v : undefined),
-    z.record(z.string(), z.unknown()).optional(),
-  );
-}
-
 // String values only: everything here is handed to a child process as an
 // environment variable.
 function buildStringEnvRecord() {
@@ -134,5 +125,14 @@ function buildStringEnvRecord() {
       return env;
     },
     z.record(z.string(), z.string()),
+  );
+}
+
+// Claude Code settings the sessions of this gateway are started with, on top of
+// the ones atc writes itself. Anything but an object is no extra settings.
+function buildOptionalSettings() {
+  return z.preprocess(
+    (v) => (isRecord(v) ? v : undefined),
+    z.record(z.string(), z.unknown()).optional(),
   );
 }
