@@ -194,6 +194,17 @@ test('it reads the token of a command whose child keeps stderr open after it exi
   expect(token).toBe('token');
 });
 
+test('it rejects a command that a signal kills with its exit code', () => {
+  expect(
+    readRemoteDaemonToken(
+      buildMockRemoteDaemon({
+        name: 'box',
+        token: { kind: 'command', argv: ['sh', '-c', 'kill -TERM $$'] },
+      }),
+    ),
+  ).rejects.toThrowWithMessage(Error, "daemon 'box': its token command sh exited 143");
+});
+
 test('it rejects a command that cannot start', () => {
   const ctx = setupTest();
   const helper = join(ctx.dir, 'no-such-helper');
