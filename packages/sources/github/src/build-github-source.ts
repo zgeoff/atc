@@ -1,8 +1,8 @@
 import type { HostServices, SourceProvider } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
-import { readGitHubRepos } from './collect-github-repos';
 import { findGitHubAlternateURL } from './find-github-alternate-url';
 import { readGitProtocol } from './read-git-protocol';
+import { readGitHubRepos } from './read-github-repos';
 
 interface GitHubSourceOptions {
   // The host's command runner, which runs gh.
