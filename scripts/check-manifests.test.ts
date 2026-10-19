@@ -468,6 +468,8 @@ test('it fails on a root catalog entry or root devDependency that is not exact',
         catalog: {
           '@types/bun': '1.4.2',
           '@impz/client': '0.3.0-beta.1',
+          '@demo/lint-next': 'npm:@demo/lint@2.1.0',
+          '@demo/lint-range': 'npm:@demo/lint@^2.1.0',
           gunshi: '*',
           knip: '^6.24.0',
           kysely: '>=0.29.5',
@@ -494,9 +496,9 @@ test('it fails on a root catalog entry or root devDependency that is not exact',
     stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
-    stdout: 'check-manifests: 1 packages, 0 files, 8 findings\n',
+    stdout: 'check-manifests: 1 packages, 0 files, 9 findings\n',
     stderr:
-      'manifest entry: package.json devDependencies has oxlint at ^1.73.0, not catalog:\ncatalog range: package.json catalog has gunshi at *, not an exact version\ncatalog range: package.json catalog has knip at ^6.24.0, not an exact version\ncatalog range: package.json catalog has kysely at >=0.29.5, not an exact version\ncatalog range: package.json catalog has oxfmt at ~0.57.0, not an exact version\ncatalog range: package.json catalog has tslib at , not an exact version\ncatalog range: package.json catalog has type-fest at latest, not an exact version\ncatalog range: package.json catalog has zod at 4.6.x, not an exact version\n',
+      'manifest entry: package.json devDependencies has oxlint at ^1.73.0, not catalog:\ncatalog range: package.json catalog has @demo/lint-range at npm:@demo/lint@^2.1.0, not an exact version\ncatalog range: package.json catalog has gunshi at *, not an exact version\ncatalog range: package.json catalog has knip at ^6.24.0, not an exact version\ncatalog range: package.json catalog has kysely at >=0.29.5, not an exact version\ncatalog range: package.json catalog has oxfmt at ~0.57.0, not an exact version\ncatalog range: package.json catalog has tslib at , not an exact version\ncatalog range: package.json catalog has type-fest at latest, not an exact version\ncatalog range: package.json catalog has zod at 4.6.x, not an exact version\n',
   });
 });
 
@@ -685,6 +687,49 @@ test('it fails on a production dependency that an edge of the zones table refuse
     stderr:
       'package rule: packages/tui/package.json depends on @atc/lifecycle, which the package-deps edge in .oxlintrc.zones.json refuses\npackage rule: packages/tui/package.json depends on @atc/test-utils, which the test-helpers edge in .oxlintrc.zones.json refuses\n',
   });
+});
+
+test.each([
+  [
+    'a key the rule does not know',
+    { name: 'package-deps', from: ['tui'], allow: ['tui'], allowAlways: true },
+  ],
+  ['neither to nor allow', { name: 'package-deps', from: ['tui'] }],
+  [
+    'an option of the wrong type',
+    { name: 'package-deps', from: ['tui'], allow: ['tui'], allowWithin: 3 },
+  ],
+])('it fails on a zones table with an edge that holds %s', async (_label, edge) => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'package.json'),
+    JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, '.oxlintrc.zones.json'),
+    JSON.stringify({
+      rules: {
+        'zgeoff/import-zones': [
+          'error',
+          {
+            zones: { tui: ['packages/tui{,/**}'] },
+            edges: [edge],
+          },
+        ],
+      },
+    }),
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-manifests.ts'),
+    ctx.dir,
+  ]);
+
+  expect(checked.exitCode).toBe(1);
+  expect(checked.stderr).toInclude('"zgeoff/import-zones"');
 });
 
 test('it lets the root reach the app by path and nothing else', async () => {
