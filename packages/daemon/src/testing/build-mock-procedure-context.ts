@@ -23,7 +23,6 @@ export function buildMockProcedureContext(
       },
     }),
     as: null,
-    sentParams: {},
     answerHello: () => Promise.reject(new Error('the mock procedure context has no handshake')),
     subscribeEvents: () => {
       throw new Error('the mock procedure context has no event feed');

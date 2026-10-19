@@ -1046,7 +1046,7 @@ test('it leaves a message to the final reply when atc prints undelivered for its
   ]);
 });
 
-test('it takes an answer from an atc build that prints no delivery result', async (engine, on) => {
+test('it refuses an answer when atc prints no delivery result', async (engine, on) => {
   const clock = mock.clock(on);
 
   mock.env(on, { ATC_SESSION_ID: 's-1' });
@@ -1086,7 +1086,7 @@ test('it takes an answer from an atc build that prints no delivery result', asyn
     text: 'for alice',
   });
 
-  expect(answered.result).toBe('Handed to atc as the answer to m-1.');
+  expect(answered.deny).toBe('atc did not take the answer: the answer did not reach atc');
 });
 
 test('it reports a message unanswered when its answer fails after its turn ended', async (engine, on) => {

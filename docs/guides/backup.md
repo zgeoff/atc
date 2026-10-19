@@ -23,7 +23,8 @@ open loses later writes.
 
 On success the command prints `atc backup: wrote <bytes> bytes to <path>` and exits 0. It exits 1
 with the reason on stderr when no daemon runs, since it never starts one, and when the running
-daemon is older than the command. Restart such a daemon with `atc daemon restart` first.
+daemon speaks another protocol than the command. Restart such a daemon with `atc daemon restart`
+first.
 
 The backup holds the database alone. These stay out of it:
 

@@ -339,7 +339,6 @@ function removeCarriedMessage(carried: TapMessage[], msg: TapMessage): void {
 
 // Why atc did not take the answer, or null once it did. The reporter always
 // exits 0, so its printed delivery result shows whether atc took the answer.
-// An atc build without that result prints nothing, and counts as taken.
 async function tryRunAnswer(
   $: EngineInterface,
   messageID: string,
@@ -356,9 +355,7 @@ async function tryRunAnswer(
       return `atc exited with ${String(ran.exitCode)}`;
     }
 
-    const delivery = ran.stdout.trim();
-
-    return delivery === 'delivered' || delivery === '' ? null : 'the answer did not reach atc';
+    return ran.stdout.trim() === 'delivered' ? null : 'the answer did not reach atc';
   } catch (error) {
     return String(error);
   }

@@ -502,7 +502,7 @@ export class DaemonConnection {
       this.acceptedTCPHello = hello;
     }
 
-    return this.buildProcedureContext(this.ctx, null, raw);
+    return this.buildProcedureContext(this.ctx, null);
   }
 
   private async checkPeerRequest(
@@ -527,7 +527,6 @@ export class DaemonConnection {
 
     try {
       const as = parseRequestPrincipal(request.headers);
-      const sent = decodePeerInput(request);
 
       // A subscription delivers only what the connection's own view admits,
       // so over TCP it needs no principal of its own.
@@ -535,11 +534,11 @@ export class DaemonConnection {
         const access = this.access ?? new TargetAccess([]);
         const ctx = buildScopedContext(this.ctx, access, 'client:events');
 
-        return this.buildProcedureContext(ctx, null, sent);
+        return this.buildProcedureContext(ctx, null);
       }
 
       if (this.tcp !== null) {
-        return this.buildProcedureContext(this.requireTCPRequestContext(method, as), as, sent);
+        return this.buildProcedureContext(this.requireTCPRequestContext(method, as), as);
       }
 
       const scope = this.findRequestScope(as?.principal);
@@ -551,7 +550,7 @@ export class DaemonConnection {
       const ctx =
         scope === null ? this.ctx : buildScopedContext(this.ctx, scope.access, scope.keyNamespace);
 
-      return this.buildProcedureContext(ctx, as, sent);
+      return this.buildProcedureContext(ctx, as);
     } catch (error) {
       if (error instanceof DaemonError) {
         return error;
@@ -561,16 +560,11 @@ export class DaemonConnection {
     }
   }
 
-  private buildProcedureContext(
-    ctx: DaemonContext,
-    as: RequestPrincipal | null,
-    sentParams: Readonly<Record<string, unknown>>,
-  ): ProcedureContext {
+  private buildProcedureContext(ctx: DaemonContext, as: RequestPrincipal | null): ProcedureContext {
     return {
       ctx,
       requests: this.requests,
       as,
-      sentParams,
       answerHello: (input) => this.answerPeerHello(input),
       subscribeEvents: (signal) => this.feed.subscribe(signal),
     };

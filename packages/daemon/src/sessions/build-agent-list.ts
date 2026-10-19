@@ -60,10 +60,7 @@ export interface AgentListTarget {
 interface SpawnOptionEntries {
   readonly model: SpawnOptionEntry;
   readonly effort: SpawnOptionEntry;
-
-  // the daemon lists it for every agent; optional so a list scoped to a
-  // principal keeps the shape it was given
-  readonly pluginDirs?: SpawnOptionEntry;
+  readonly pluginDirs: SpawnOptionEntry;
 }
 
 export function buildAgentList(

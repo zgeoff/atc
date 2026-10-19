@@ -1172,7 +1172,7 @@ test('it offers an agent that takes the broker credential only the targets that 
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
-    agents: [{ id: 'claude', brokerAuth: true }],
+    agents: [{ id: 'claude', brokerAuth: true, brokerRequired: true }],
     targets: [
       {
         id: 'local',
@@ -1236,7 +1236,7 @@ test('it offers an agent that takes no broker credential every target', async ()
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
-    agents: [{ id: 'claude', brokerAuth: false }],
+    agents: [{ id: 'claude', brokerAuth: false, brokerRequired: false }],
     targets: [
       {
         id: 'local',
@@ -2174,7 +2174,7 @@ test('it shows why no target can run an agent whose broker no target reaches', a
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
-    agents: [{ id: 'claude', brokerAuth: true }],
+    agents: [{ id: 'claude', brokerAuth: true, brokerRequired: true }],
     targets: [
       {
         id: 'local',

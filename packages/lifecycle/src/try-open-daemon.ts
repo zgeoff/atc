@@ -5,15 +5,13 @@ import type { DaemonClient } from '@atc/protocol/client';
 import { readSessionEnv } from '@atc/protocol/session';
 import { DaemonError } from '@atc/protocol/wire';
 
-// The fields of the handshake answer a probe reads; a daemon from before
-// either field answers without it.
-const HELLO_FIELDS = HELLO_RESULT_SCHEMA.pick({ daemon: true, daemonID: true }).partial();
+// The fields of the handshake answer a probe reads.
+const HELLO_FIELDS = HELLO_RESULT_SCHEMA.pick({ daemon: true, daemonID: true });
 
-// The daemon's answer to the handshake: its build, `unknown` when the answer
-// holds none, and its stable id, null when it holds none.
+// The daemon's answer to the handshake: its build and its stable id.
 interface DaemonHello {
   readonly build: string;
-  readonly daemonID: string | null;
+  readonly daemonID: string;
 }
 
 export type DaemonProbe<T> =
@@ -82,19 +80,24 @@ export async function tryOpenDaemon<T>(
         continue;
       }
 
+      const fields = HELLO_FIELDS.safeParse(answer);
+
+      if (!fields.success) {
+        return {
+          kind: 'refused',
+          socketPath,
+          message: 'the daemon answered the handshake without its build and id',
+        };
+      }
+
       const value = await read(client);
 
       keep = options.keepOpen === true;
 
-      const fields = HELLO_FIELDS.safeParse(answer);
-
       return {
         kind: 'ok',
         socketPath,
-        hello: {
-          build: (fields.success ? fields.data.daemon : undefined) ?? 'unknown',
-          daemonID: (fields.success ? fields.data.daemonID : undefined) ?? null,
-        },
+        hello: { build: fields.data.daemon, daemonID: fields.data.daemonID },
         value,
       };
     } finally {

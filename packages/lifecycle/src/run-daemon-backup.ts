@@ -64,14 +64,6 @@ export async function runDaemonBackup(
 
     return 0;
   } catch (error) {
-    if (error instanceof DaemonError && error.code === 'unknown_method') {
-      io.printError(
-        `atc backup: the running daemon (${probe.hello.build}) predates atc backup; restart it on this build with: atc daemon restart`,
-      );
-
-      return 1;
-    }
-
     const code = error instanceof DaemonError ? `${error.code}: ` : '';
 
     io.printError(`atc backup: ${code}${error instanceof Error ? error.message : String(error)}`);

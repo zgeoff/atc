@@ -39,6 +39,7 @@ export function startStubLegacyDaemon(
   const answers: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
     'daemon.hello': {
       daemon: 'atc/legacy-build',
+      daemonID: 'd-legacy',
       limits: { maxLine: MAX_LINE, maxChunk: MAX_CHUNK },
       lastUsedAgent: 'claude',
     },

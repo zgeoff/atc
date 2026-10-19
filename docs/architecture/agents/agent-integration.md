@@ -72,18 +72,18 @@ At session start, the mod starts `atc tap` for the session and hands each messag
 inside an `<atc-message>` envelope, as a new turn when the session is idle and inside the running
 turn otherwise. The envelope holds the message id, the sender's name and the sender's kind, plus the
 session id when the sender is a session ([messages](../protocol/messages.md#who-a-message-is-from)).
-A tap line without a kind, from a daemon that predates typed senders, gets an envelope with the name
-alone. The mod adds a section to the system prompt that says what the envelope means, so the model
-treats a relayed message as one from another tool rather than the owner's own words. The same
-section tells the model to answer each message with the `answer` tool, because the final reply of a
-turn is meant for the person at the terminal. The mod reports an `answer` call at once, as the
-answer to that one message. When a turn that carried messages ends with a reply, the mod reports
-every message the turn carried that has no answer as answered with that reply and the turn's id, in
-one call; a turn that ends without a reply is reported as unanswered for those messages, with the
-cause ([messages](../protocol/messages.md#answers)). The mod's tap also asks for answer notices, and
-the mod hands each one to the model in an `<atc-answer>` envelope that holds the outcome of a
-message the session sent. The model learns from the system prompt section that a notice needs no
-reply, and the mod never reports an answer for one
+A tap line without a kind, such as one for a message stored before atc labelled senders, gets an
+envelope with the name alone. The mod adds a section to the system prompt that says what the
+envelope means, so the model treats a relayed message as one from another tool rather than the
+owner's own words. The same section tells the model to answer each message with the `answer` tool,
+because the final reply of a turn is meant for the person at the terminal. The mod reports an
+`answer` call at once, as the answer to that one message. When a turn that carried messages ends
+with a reply, the mod reports every message the turn carried that has no answer as answered with
+that reply and the turn's id, in one call; a turn that ends without a reply is reported as
+unanswered for those messages, with the cause ([messages](../protocol/messages.md#answers)). The
+mod's tap also asks for answer notices, and the mod hands each one to the model in an `<atc-answer>`
+envelope that holds the outcome of a message the session sent. The model learns from the system
+prompt section that a notice needs no reply, and the mod never reports an answer for one
 ([delivering answers](../protocol/messages.md#delivering-answers)).
 
 The `note` tool sends progress mid-turn, labelled `progress`, `blocked` or `decision`, and never

@@ -287,7 +287,7 @@ test('it keeps waiting on a row whose agent is in the config but not installed y
   expect(outcome).toStrictEqual({ total: 1, failed: [] });
 });
 
-test('it keeps waiting on every row when the daemon predates the agent list', async () => {
+test('it keeps waiting on every row when the daemon refuses the agent list', async () => {
   const ctx = await setupTest();
 
   const clock = buildStubClock(0);

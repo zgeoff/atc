@@ -153,7 +153,7 @@ test('#session.scope.add adds to the scope of a session from a caller outside it
   });
 });
 
-test('#session.message hashes the sender name a message sent untrimmed, as an older daemon stored it', async () => {
+test('#session.message keys a send by its payload alone, leaving out the sender name', async () => {
   const written = mock<DaemonContext['writeSessionMessage']>(() =>
     Promise.resolve({ message: 'm-7', status: 'queued' }),
   );
@@ -163,14 +163,20 @@ test('#session.message hashes the sender name a message sent untrimmed, as an ol
     isSessionVisible: () => true,
   });
 
-  const sent = { session: 's-7', text: 'hello', idempotencyKey: 'k-7', from: ' bot ' };
+  const context = buildMockProcedureContext({ ctx });
 
-  await call(DAEMON_ROUTER.session.message, sent, {
-    context: buildMockProcedureContext({ ctx, sentParams: sent }),
-  });
-
-  // The hash an older daemon stored for this request, over its raw `from`.
-  expect(written.mock.calls[0]?.[3]?.legacyPayloadHashes).toContain(
-    '6a460754da46224ce300921ea63b8d29a9c350eed7515e32d29596a1835ed628',
+  await call(
+    DAEMON_ROUTER.session.message,
+    { session: 's-7', text: 'hello', idempotencyKey: 'k-7', from: 'bot' },
+    { context },
   );
+
+  await call(
+    DAEMON_ROUTER.session.message,
+    { session: 's-7', text: 'hello', idempotencyKey: 'k-7' },
+    { context },
+  );
+
+  expect(written.mock.calls[0]?.[3]).toMatchObject({ key: 'k-7' });
+  expect(written.mock.calls[0]?.[3]).toStrictEqual(written.mock.calls[1]?.[3]);
 });

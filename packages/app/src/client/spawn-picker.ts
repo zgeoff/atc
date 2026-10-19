@@ -2357,17 +2357,12 @@ function buildProbedRepo(
 }
 
 // Whether the daemon lists an agent as starting only behind impd's broker.
-// A daemon that sends no `brokerRequired` holds every agent with
-// `brokerAuth` to the broker, and one that sends neither lists none.
 function isBrokerAgent(raw: unknown, agent: AgentID): boolean {
   return (
     Array.isArray(raw) &&
     raw.some(
       (entry: unknown) =>
-        isRecord(entry) &&
-        entry['id'] === agent &&
-        entry['brokerAuth'] === true &&
-        entry['brokerRequired'] !== false,
+        isRecord(entry) && entry['id'] === agent && entry['brokerRequired'] === true,
     )
   );
 }

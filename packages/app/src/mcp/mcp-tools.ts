@@ -376,26 +376,35 @@ const AGENTS_OUTPUT: Readonly<Record<string, unknown>> = {
           },
           spawnOptions: {
             type: 'object',
-            description:
-              'the model, effort and plugin folder options a spawn takes, present when the daemon supports them',
+            description: 'the model, effort and plugin folder options a spawn takes',
             properties: {
               model: SPAWN_OPTION_OUTPUT,
               effort: SPAWN_OPTION_OUTPUT,
               pluginDirs: {
                 ...SPAWN_OPTION_OUTPUT,
                 description:
-                  "the plugin folders a spawn can add for its session alone; available true when the agent can start on a target on the daemon's machine. Absent from a daemon that takes none",
+                  "the plugin folders a spawn can add for its session alone; available true when the agent can start on a target on the daemon's machine",
               },
             },
-            required: ['model', 'effort'],
+            required: ['model', 'effort', 'pluginDirs'],
           },
         },
-        required: ['id', 'label', 'kind', 'installed', 'capabilities', 'models', 'spawnOptions'],
+        required: [
+          'id',
+          'label',
+          'kind',
+          'installed',
+          'brokerAuth',
+          'brokerRequired',
+          'capabilities',
+          'models',
+          'spawnOptions',
+        ],
       },
     },
     targets: {
       type: 'array',
-      description: 'the execution targets, present when the daemon supports targets',
+      description: 'the execution targets',
       items: {
         type: 'object',
         properties: {
@@ -421,7 +430,15 @@ const AGENTS_OUTPUT: Readonly<Record<string, unknown>> = {
             description: 'whether sessions on the target sign in through a credential broker',
           },
         },
-        required: ['id', 'provider', 'identity', 'available', 'default', 'capabilities'],
+        required: [
+          'id',
+          'provider',
+          'identity',
+          'available',
+          'default',
+          'capabilities',
+          'brokerAuth',
+        ],
       },
     },
     spawnDefaults: {
@@ -480,7 +497,15 @@ const AGENTS_OUTPUT: Readonly<Record<string, unknown>> = {
       },
     },
   },
-  required: ['daemon', 'agents'],
+  required: [
+    'daemon',
+    'agents',
+    'targets',
+    'spawnDefaults',
+    'configRevision',
+    'targetErrors',
+    'sources',
+  ],
 };
 
 const EVENTS_OUTPUT: Readonly<Record<string, unknown>> = {
@@ -656,8 +681,7 @@ const TERMINAL_CHOOSE_OUTPUT: Readonly<Record<string, unknown>> = {
   required: ['menu'],
 };
 
-// A session's entry as the session tools return it. Only the fields every
-// daemon has sent are required, so an older daemon's entry still validates.
+// A session's entry as the session tools return it.
 const SESSION_ENTRY_PROPERTIES: Readonly<Record<string, unknown>> = {
   id: {
     type: 'string',
@@ -716,7 +740,21 @@ const SESSION_ENTRY_PROPERTIES: Readonly<Record<string, unknown>> = {
 const SESSION_ENTRY: Readonly<Record<string, unknown>> = {
   type: 'object',
   properties: SESSION_ENTRY_PROPERTIES,
-  required: ['id', 'name', 'cwd', 'agent', 'state'],
+  required: [
+    'id',
+    'name',
+    'cwd',
+    'agent',
+    'state',
+    'unread',
+    'pinned',
+    'alive',
+    'kind',
+    'lastMsg',
+    'createdAt',
+    'locator',
+    'lifecycle',
+  ],
 };
 
 const SESSIONS_LIST_OUTPUT: Readonly<Record<string, unknown>> = {

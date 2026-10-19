@@ -106,14 +106,10 @@ export function buildScopedContext(
                 ...agent.spawnOptions.effort,
                 available: spawn && agent.spawnOptions.effort.supported,
               },
-              ...(pluginDirs === undefined
-                ? {}
-                : {
-                    pluginDirs: {
-                      ...pluginDirs,
-                      available: takesPluginDirs && pluginDirs.supported,
-                    },
-                  }),
+              pluginDirs: {
+                ...pluginDirs,
+                available: takesPluginDirs && pluginDirs.supported,
+              },
             },
           };
         }),

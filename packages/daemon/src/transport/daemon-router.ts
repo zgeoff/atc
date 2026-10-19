@@ -1,4 +1,3 @@
-import { isRecord } from '@atc/core';
 import type { SessionID } from '@atc/core';
 import { DAEMON_CONTRACT, parseDeclaredScope } from '@atc/protocol';
 import type { DaemonAnswer, RequestParams } from '@atc/protocol';
@@ -176,17 +175,13 @@ function buildDaemonRouter() {
       read: os.session.read.handler((call) =>
         call.context.requests.reads.applySessionRead(call.input, call.context.ctx),
       ),
-      message: os.session.message.handler((call) => {
-        const sent = call.context.sentParams;
-        const sentFrom = isRecord(sent) ? sent['from'] : undefined;
-
-        return call.context.requests.messages.applySessionMessage(
+      message: os.session.message.handler((call) =>
+        call.context.requests.messages.applySessionMessage(
           call.input,
           call.context.ctx,
           call.context.as,
-          sentFrom,
-        );
-      }),
+        ),
+      ),
       tap: os.session.tap.handler((call) =>
         call.context.requests.messages.applyTap(call.input, call.context.ctx),
       ),

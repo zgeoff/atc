@@ -20,7 +20,7 @@ test('it sends the path to the daemon and prints what the daemon wrote', async (
 
   const daemon = startStubLegacyDaemon(ctx.host.paths.daemonSocketPath, {
     replies: {
-      'daemon.hello': { daemon: 'atc/1.2.3' },
+      'daemon.hello': { daemon: 'atc/1.2.3', daemonID: 'd-1' },
       'daemon.backup': { path: '/srv/backups/atc.db', bytes: 4096 },
     },
   });
@@ -56,11 +56,11 @@ test('it refuses with a hint when no daemon runs, without starting one', async (
   );
 });
 
-test('it tells the owner to restart a daemon that predates the backup request', async () => {
+test("it prints the daemon's refusal of the backup request with its code", async () => {
   const ctx = setupTest();
 
   startStubLegacyDaemon(ctx.host.paths.daemonSocketPath, {
-    replies: { 'daemon.hello': { daemon: 'atc/0.9.0' } },
+    replies: { 'daemon.hello': { daemon: 'atc/1.2.3', daemonID: 'd-1' } },
   });
 
   const io = { print: mock(), printError: mock() };
@@ -70,7 +70,7 @@ test('it tells the owner to restart a daemon that predates the backup request', 
   expect(code).toBe(1);
 
   expect(io.printError).toHaveBeenCalledExactlyOnceWith(
-    'atc backup: the running daemon (atc/0.9.0) predates atc backup; restart it on this build with: atc daemon restart',
+    "atc backup: unknown_method: unknown method 'daemon.backup'",
   );
 });
 
@@ -94,7 +94,7 @@ test('it prints the error when the daemon closes the connection before it answer
   const ctx = setupTest();
 
   startStubLegacyDaemon(ctx.host.paths.daemonSocketPath, {
-    replies: { 'daemon.hello': { daemon: 'atc/1.2.3' } },
+    replies: { 'daemon.hello': { daemon: 'atc/1.2.3', daemonID: 'd-1' } },
     closeOnRequest: 'daemon.backup',
   });
 
