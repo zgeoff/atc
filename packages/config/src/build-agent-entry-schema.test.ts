@@ -91,3 +91,53 @@ test('it refuses an appServer that is not true or false', () => {
     'appServer must be true or false',
   ]);
 });
+
+test('it carries absolute and ~/ plugin folders onto the entry as written', () => {
+  const schema = buildAgentEntrySchema(
+    { kind: 'claude', fields: ['pluginDirs'], defaultLabel: 'Claude' },
+    { authProfiles: new Map(), entryID: 'claude', foreignFields: new Set() },
+  );
+
+  expect(
+    schema.safeParse({ pluginDirs: ['~/plugins/band', '/opt/plugins/shared'] }).data?.entry
+      .pluginDirs,
+  ).toStrictEqual(['~/plugins/band', '/opt/plugins/shared']);
+});
+
+test('it leaves an empty plugin folder list off the entry', () => {
+  const schema = buildAgentEntrySchema(
+    { kind: 'claude', fields: ['pluginDirs'], defaultLabel: 'Claude' },
+    { authProfiles: new Map(), entryID: 'claude', foreignFields: new Set() },
+  );
+
+  expect(schema.safeParse({ pluginDirs: [] }).data?.entry).toStrictEqual({
+    id: 'claude',
+    kind: 'claude',
+    label: 'Claude',
+    mark: 'c',
+    bin: 'claude',
+    args: [],
+    env: {},
+  });
+});
+
+test.each([
+  ['a relative path', ['plugins/band']],
+  ['a path under another user home', ['~sam/plugins']],
+  ['a bare ~', ['~']],
+  ['a path with a .. segment', ['/opt/plugins/link/../band']],
+  ['a path with a newline', ['/opt/plugins/band\n']],
+  ['an empty path', ['']],
+  ['a string in place of a list', '/opt/plugins/shared'],
+])('it refuses pluginDirs that hold %s', (_label, pluginDirs) => {
+  const schema = buildAgentEntrySchema(
+    { kind: 'claude', fields: ['pluginDirs'], defaultLabel: 'Claude' },
+    { authProfiles: new Map(), entryID: 'claude', foreignFields: new Set() },
+  );
+
+  const result = schema.safeParse({ pluginDirs });
+
+  expect(result.error?.issues.map((issue) => issue.message)).toStrictEqual([
+    'pluginDirs must be an array of absolute paths or paths that start with ~/, each without a .. segment or control characters',
+  ]);
+});

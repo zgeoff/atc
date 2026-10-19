@@ -80,6 +80,6 @@ test('it resumes any session', () => {
 
 test('it gives no resume command', () => {
   expect(
-    buildMockAgentAdapter().buildResumeCommand('/nonexistent', toAgentSessionID('c-1')),
+    buildMockAgentAdapter().buildResumeCommand('/nonexistent', toAgentSessionID('c-1'), []),
   ).toBeNull();
 });

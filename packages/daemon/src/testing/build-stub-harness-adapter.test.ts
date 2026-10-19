@@ -96,5 +96,5 @@ test('it resumes any session and gives no resume command', () => {
   const adapter = buildStubHarnessAdapter();
 
   expect(adapter.canResume({ agentSessionID: toAgentSessionID('c-1') })).toBeTrue();
-  expect(adapter.buildResumeCommand('/work', toAgentSessionID('c-1'))).toBeNull();
+  expect(adapter.buildResumeCommand('/work', toAgentSessionID('c-1'), [])).toBeNull();
 });

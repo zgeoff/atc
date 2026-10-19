@@ -308,6 +308,15 @@ test('it lists an agent that takes the broker credential as spawnable on a daemo
           backendEffect: null,
           note: null,
         },
+        pluginDirs: {
+          supported: false,
+          available: false,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+        },
       },
     },
     {
@@ -346,6 +355,15 @@ test('it lists an agent that takes the broker credential as spawnable on a daemo
           backendEffect: null,
           note: null,
         },
+        pluginDirs: {
+          supported: false,
+          available: false,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+        },
       },
     },
     {
@@ -376,6 +394,15 @@ test('it lists an agent that takes the broker credential as spawnable on a daemo
           note: null,
         },
         effort: {
+          supported: false,
+          available: false,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+        },
+        pluginDirs: {
           supported: false,
           available: false,
           values: null,

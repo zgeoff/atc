@@ -39,6 +39,7 @@ export function startHeadlessTurn(
       reporterSocket,
       ...(s.model === undefined ? {} : { model: s.model }),
       ...(s.effort === undefined ? {} : { effort: s.effort }),
+      ...(s.pluginDirs === undefined ? {} : { pluginDirs: s.pluginDirs }),
       ...(s.withheldEnv.length === 0 ? {} : { withheldEnv: s.withheldEnv }),
       ...(mgr.records === null || mgr.findProvider(s)?.remote !== false
         ? {}

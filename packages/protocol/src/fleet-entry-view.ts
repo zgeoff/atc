@@ -16,6 +16,7 @@ export const FLEET_ENTRY_VIEW_SCHEMA = z.object({
   transcriptPath: z.string().optional(),
   model: z.string().optional(),
   effort: z.string().optional(),
+  pluginDirs: z.array(z.string()).readonly().optional(),
   target: z.string().optional(),
   targetIdentity: z.string().optional(),
   workspace: SESSION_WORKSPACE_SCHEMA.optional(),

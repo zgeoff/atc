@@ -28,7 +28,9 @@ export function buildResumeCommand(
   }
 
   const command =
-    registry.findAdapter(s.agent)?.buildResumeCommand(s.cwd, s.agentSessionID) ?? null;
+    registry
+      .findAdapter(s.agent)
+      ?.buildResumeCommand(s.cwd, s.agentSessionID, s.pluginDirs ?? []) ?? null;
 
   // e.g. a gateway that signs in through impd's broker alone
   if (command === null) {

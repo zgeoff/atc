@@ -1,10 +1,12 @@
 import type { SpawnOverrides } from '@atc/plugin-api';
+import { findPluginDirProblem } from '@atc/plugin-api';
 import { CONTROL_CHARACTER } from '@atc/protocol';
 import type { AgentEntry, SpawnOptionEntry } from './build-agent-list';
 
 interface RequestedOverrides {
   readonly model?: string | undefined;
   readonly effort?: string | undefined;
+  readonly pluginDirs?: readonly string[] | undefined;
 }
 
 interface SpawnRefusal {
@@ -23,6 +25,7 @@ export function parseSpawnOverrides(
 ): ParsedOverrides {
   const model = requested.model;
   const effort = requested.effort;
+  const pluginDirs = requested.pluginDirs;
 
   const refusal =
     (model === undefined
@@ -30,7 +33,10 @@ export function parseSpawnOverrides(
       : findOptionRefusal(agent.id, 'model', agent.spawnOptions.model, model)) ??
     (effort === undefined
       ? null
-      : findOptionRefusal(agent.id, 'effort', agent.spawnOptions.effort, effort));
+      : findOptionRefusal(agent.id, 'effort', agent.spawnOptions.effort, effort)) ??
+    (pluginDirs === undefined || pluginDirs.length === 0
+      ? null
+      : findPluginDirsRefusal(agent.id, agent.spawnOptions.pluginDirs, pluginDirs));
 
   if (refusal !== null) {
     return refusal;
@@ -41,6 +47,7 @@ export function parseSpawnOverrides(
     overrides: {
       ...(model === undefined ? {} : { model }),
       ...(effort === undefined ? {} : { effort }),
+      ...(pluginDirs === undefined || pluginDirs.length === 0 ? {} : { pluginDirs }),
     },
   };
 }
@@ -84,4 +91,24 @@ function findOptionRefusal(
   }
 
   return null;
+}
+
+function findPluginDirsRefusal(
+  agentID: string,
+  option: SpawnOptionEntry | undefined,
+  dirs: readonly string[],
+): SpawnRefusal | null {
+  if (option?.available !== true) {
+    const reason =
+      option?.supported === true
+        ? "takes pluginDirs only on a target on the daemon's machine where it is installed"
+        : 'takes no pluginDirs';
+
+    return { ok: false, code: 'unsupported', message: `agent '${agentID}' ${reason}` };
+  }
+
+  const problem =
+    dirs.map((dir) => findPluginDirProblem(dir)).find((found) => found !== null) ?? null;
+
+  return problem === null ? null : { ok: false, code: 'bad_args', message: problem };
 }

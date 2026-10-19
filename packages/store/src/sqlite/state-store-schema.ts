@@ -19,6 +19,10 @@ interface FleetTable {
   transcript_path: string | null;
   model: string | null;
   effort: string | null;
+
+  // The JSON array of plugin folders the spawn asked for, or null for a row
+  // that stores no plugin folders.
+  plugin_dirs: string | null;
   target: string | null;
   target_identity: string | null;
 

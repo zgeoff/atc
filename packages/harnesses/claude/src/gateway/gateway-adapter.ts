@@ -31,6 +31,7 @@ import { buildGuestBridgeFiles } from '../bridge/build-guest-bridge-files';
 import { buildClaudeArgs } from '../build-claude-args';
 import { buildClaudeHookEvent } from '../build-claude-hook-event';
 import { buildHookSettings } from '../build-hook-settings';
+import { buildPluginDirsOption } from '../build-plugin-dirs-option';
 import { buildRestoreModeArgs } from '../build-restore-mode-args';
 import type { ClaudeAdapterOptions } from '../claude-adapter-options';
 import { CLAUDE_EFFORT_LEVELS } from '../claude-effort-levels';
@@ -39,6 +40,7 @@ import type { GatewayConfig } from '../config/collect-gateways';
 import { createLocalScratchDir } from '../create-local-scratch-dir';
 import { findClaudeMenu } from '../find-claude-menu';
 import { findClaudePermissionMode } from '../find-claude-permission-mode';
+import { formatPluginDirArgs } from '../format-plugin-dir-args';
 import { buildClaudeConfigSeed } from '../guest/build-claude-config-seed';
 import { buildClaudeGuestLaunch } from '../guest/build-claude-guest-launch';
 import { buildClaudeProjectSettingsCheck } from '../guest/build-claude-project-settings-check';
@@ -47,6 +49,7 @@ import { loadClaudeName } from '../load-claude-name';
 import { parseClaudeTranscriptLine } from '../parse-claude-transcript-line';
 import { planClaudeLineInput } from '../plan-claude-line-input';
 import { resolveClaudePermissionMode } from '../resolve-claude-permission-mode';
+import { resolveConfiguredPluginDirs } from '../resolve-configured-plugin-dirs';
 import { SESSION_SCRATCH_FOLDER } from '../session-scratch-folder';
 
 export class GatewayAdapter implements AgentAdapter {
@@ -90,6 +93,8 @@ export class GatewayAdapter implements AgentAdapter {
   // credential helper, and its settings.
   private readonly files: ClaudeLaunchFiles;
 
+  private readonly pluginDirs: readonly string[];
+
   constructor(
     gateway: GatewayConfig,
     config: Pick<Config, 'authProfiles'>,
@@ -102,6 +107,7 @@ export class GatewayAdapter implements AgentAdapter {
     this.gateway = gateway;
     this.config = config;
     this.id = gateway.id;
+    this.pluginDirs = resolveConfiguredPluginDirs(gateway.pluginDirs, options.homeDir);
 
     this.files = new ClaudeLaunchFiles(
       {
@@ -122,6 +128,7 @@ export class GatewayAdapter implements AgentAdapter {
       bin: gateway.bin,
       models,
       spawnOptions: buildGatewaySpawnOptions(gateway.args, models),
+      ...(this.pluginDirs.length === 0 ? {} : { pluginDirs: this.pluginDirs }),
     };
 
     this.headlessRunner =
@@ -131,6 +138,7 @@ export class GatewayAdapter implements AgentAdapter {
             claudeBin: gateway.bin,
             permissionMode: resolveClaudePermissionMode(gateway.args, gateway.settings),
             pluginDir: () => this.files.writeBridge(),
+            pluginDirs: this.pluginDirs,
             settings: () => this.files.writeSettings(),
           });
   }
@@ -184,6 +192,7 @@ export class GatewayAdapter implements AgentAdapter {
         scratch,
         settings: this.files.writeSettings(),
         pluginDir: this.files.writeBridge(),
+        pluginDirs: [...this.pluginDirs, ...(opts.pluginDirs ?? [])],
       }),
       ...(scratch === null ? {} : { env: { TMPDIR: scratch } }),
     };
@@ -248,6 +257,7 @@ export class GatewayAdapter implements AgentAdapter {
           scratch: `${guest.dir}/${SESSION_SCRATCH_FOLDER}`,
           settings: `${guest.dir}/${settingsPath}`,
           pluginDir: `${guest.dir}/atc-bridge`,
+          pluginDirs: [],
         }),
       ],
       refusedEnv,
@@ -285,7 +295,11 @@ export class GatewayAdapter implements AgentAdapter {
     return { events: [buildClaudeHookEvent(e)] };
   }
 
-  buildResumeCommand(cwd: string, agentSessionID: AgentSessionID | undefined): string | null {
+  buildResumeCommand(
+    cwd: string,
+    agentSessionID: AgentSessionID | undefined,
+    pluginDirs: readonly string[],
+  ): string | null {
     // outside atc the broker never reaches the session
     if (isBrokerOnlyGateway(this.gateway)) {
       return null;
@@ -301,8 +315,9 @@ export class GatewayAdapter implements AgentAdapter {
     // without the settings file the CLI would resume against the default backend
     const settings = toShellArg(this.files.writeSettings());
     const resume = agentSessionID === undefined ? '' : ` ${agentSessionID}`;
+    const plugins = formatPluginDirArgs([...this.pluginDirs, ...pluginDirs]);
 
-    return `cd ${toShellArg(cwd)} && ${this.gateway.bin}${args} --settings ${settings} --resume${resume}`;
+    return `cd ${toShellArg(cwd)} && ${this.gateway.bin}${args} --settings ${settings}${plugins} --resume${resume}`;
   }
 
   // a brokered session's Claude config is fresh, so without an explicit mode the CLI's own
@@ -523,5 +538,6 @@ function buildGatewaySpawnOptions(
       backendEffect: 'unverified',
       note: "Passed as --effort; the gateway's provider may ignore it.",
     },
+    pluginDirs: buildPluginDirsOption(),
   };
 }

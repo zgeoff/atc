@@ -4,7 +4,7 @@ import { buildAgentEntrySchema } from '@atc/config';
 // No stand-in checks a kind's auth; a test that needs that check takes the
 // real plugin from its harness package.
 export function buildStubHarnessPlugins(): AgentConfigPlugin[] {
-  const claudeFields = ['settings', 'env', 'baseURL', 'apiKeyHelper', 'auth'];
+  const claudeFields = ['settings', 'env', 'baseURL', 'apiKeyHelper', 'auth', 'pluginDirs'];
   const codexFields = ['auth', 'appServer'];
 
   return [

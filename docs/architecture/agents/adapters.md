@@ -68,3 +68,40 @@ Each value reaches the CLI as its own argument, never through a shell, and repla
 effort in the entry's configured arguments for that spawn alone. The fleet row stores both values,
 so a restore, an adopt and a headless turn run the session with the model it started with, and a
 session spawned without them keeps the configured behaviour.
+
+## Plugin folders
+
+A Claude or gateway spawn can also name plugin folders, which Claude Code loads for that session
+alone through one `--plugin-dir` each, after atc's own mod and after the folders the entry's config
+sets. A spawn's folders add to the config's folders and never replace them. Both lists follow one
+path contract, so a folder the config names and the same folder a spawn names are checked and loaded
+alike:
+
+1. The config check and the spawn check take a path that is absolute or starts with `~/`, holds no
+   control character, and has no `..` segment. After a symlink, the filesystem takes `..` to the
+   parent of the link's target, while a reading of the text drops the link, and Claude Code may read
+   either way, so atc refuses the segment rather than guess.
+2. The daemon expands a leading `~/` to its user's home and drops empty and `.` segments, so a
+   folder written two ways loads once. It reads no symlink while it does so, so each launch loads
+   the folder a symlink points at when that launch runs.
+3. The fleet row stores the spawn's own folders in that form. The adapter reads the config's folders
+   once, when the daemon starts, so a change to them takes effect only after a daemon restart. From
+   then on, every launch loads the new list, a restored session's included.
+4. Each launch checks the config's folders and the session's own together, before it changes
+   anything. A path that does not exist or is not a folder on the daemon's machine is refused as
+   `bad_args`, naming the path. Any folder on a target that runs the agent on another machine is
+   refused as `unsupported`, because the daemon cannot see that machine's paths. For the same
+   reason, the agent listing leaves remote targets out of the spawn targets of an agent whose config
+   sets folders.
+
+The daemon runs this folder check at every launch:
+
+| Launch         | A refusal leaves                                            |
+| -------------- | ----------------------------------------------------------- |
+| Spawn          | no session and nothing started on the target                |
+| Restore        | the session listed as refused, with the path                |
+| Adopt          | the stopped terminal or the running headless turn as it was |
+| Eject          | the terminal running                                        |
+| Headless input | the session idle, with no turn started                      |
+
+The command that resumes a session outside atc carries both lists in the same order.

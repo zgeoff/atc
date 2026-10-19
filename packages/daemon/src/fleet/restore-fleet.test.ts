@@ -952,6 +952,196 @@ test('it logs a first session whose revive fails with a plain error and still re
   ]);
 });
 
+test("it lists the plugin refusal of a session on a remote target once its agent's config sets plugin folders, and still revives a local session", async () => {
+  const ctx = await setupTest();
+
+  const local = buildStubMemoryProvider({ kind: 'local-pty' });
+  const remote = buildStubMemoryProvider({ kind: 'imp-like', remote: true });
+
+  const mgr = new SessionManager(
+    buildMockAgentAdapter({
+      profile: {
+        label: 'Claude',
+        kind: 'claude',
+        bin: 'sh',
+        models: null,
+        spawnOptions: {
+          model: {
+            supported: false,
+            values: null,
+            examples: [],
+            default: null,
+            backendEffect: null,
+            note: null,
+          },
+          effort: {
+            supported: false,
+            values: null,
+            examples: [],
+            default: null,
+            backendEffect: null,
+            note: null,
+          },
+        },
+        pluginDirs: [ctx.dir],
+      },
+    }),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: remote },
+    ],
+  );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
+
+  mgr.log = ctx.log;
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-remote'),
+      cwd: '/work',
+      agentSessionID: toAgentSessionID('c-remote'),
+      target: 'box',
+      targetIdentity: 'imp-like:test',
+    }),
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-local'),
+      cwd: ctx.dir,
+      agentSessionID: toAgentSessionID('c-local'),
+    }),
+  ]);
+
+  const restored = await restoreFleet({
+    mgr,
+    store: ctx.store,
+    findRuntime: () => {},
+    cols: 80,
+    rows: 24,
+    capMs: 0,
+    retryDelaysMs: [],
+  });
+
+  await restored.settled;
+
+  const refusal =
+    "target 'box' runs the agent on another machine, so it takes no pluginDirs; the agent's config or the spawn sets them";
+
+  expect(mgr.sessions.find((s) => s.id === toSessionID('s-remote'))).toMatchObject({
+    pty: null,
+    lastMsg: refusal,
+    restoreRefusal: { code: 'unsupported', message: refusal },
+  });
+
+  expect<readonly unknown[]>(ctx.logged).toStrictEqual([
+    `atc could not revive session s-remote (${refusal})`,
+  ]);
+
+  expect(mgr.sessions.find((s) => s.id === toSessionID('s-local'))).toMatchObject({
+    kind: 'pty',
+    pty: local.harnesses[0],
+  });
+
+  expect(remote.harnesses).toStrictEqual([]);
+});
+
+test("it lists the plugin refusal of a local session whose agent's configured plugin folder is gone", async () => {
+  const ctx = await setupTest();
+
+  const local = buildStubMemoryProvider({ kind: 'local-pty' });
+
+  const mgr = new SessionManager(
+    buildMockAgentAdapter({
+      profile: {
+        label: 'Claude',
+        kind: 'claude',
+        bin: 'sh',
+        models: null,
+        spawnOptions: {
+          model: {
+            supported: false,
+            values: null,
+            examples: [],
+            default: null,
+            backendEffect: null,
+            note: null,
+          },
+          effort: {
+            supported: false,
+            values: null,
+            examples: [],
+            default: null,
+            backendEffect: null,
+            note: null,
+          },
+        },
+        pluginDirs: ['/nonexistent/plugins/shared'],
+      },
+    }),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: local,
+      },
+    ],
+  );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
+
+  mgr.log = ctx.log;
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-local'),
+      cwd: ctx.dir,
+      agentSessionID: toAgentSessionID('c-local'),
+    }),
+  ]);
+
+  const restored = await restoreFleet({
+    mgr,
+    store: ctx.store,
+    findRuntime: () => {},
+    cols: 80,
+    rows: 24,
+    capMs: 0,
+    retryDelaysMs: [],
+  });
+
+  await restored.settled;
+
+  const refusal = "plugin folder '/nonexistent/plugins/shared' does not exist";
+
+  expect(mgr.sessions).toMatchObject([
+    {
+      id: 's-local',
+      pty: null,
+      lastMsg: refusal,
+      restoreRefusal: { code: 'bad_args', message: refusal },
+    },
+  ]);
+
+  expect(local.harnesses).toStrictEqual([]);
+});
+
 test('it lists and logs the refusal of a session whose imp refuses it with no retry left', async () => {
   const ctx = await setupTest();
 

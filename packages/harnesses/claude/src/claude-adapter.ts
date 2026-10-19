@@ -42,6 +42,7 @@ import { buildClaudeArgs } from './build-claude-args';
 import { buildClaudeHookEvent } from './build-claude-hook-event';
 import { buildHookSettings } from './build-hook-settings';
 import type { HookSettingsProfile } from './build-hook-settings';
+import { buildPluginDirsOption } from './build-plugin-dirs-option';
 import { buildRestoreModeArgs } from './build-restore-mode-args';
 import { buildScratchLaunch } from './build-scratch-launch';
 import type { ClaudeAdapterOptions } from './claude-adapter-options';
@@ -50,6 +51,7 @@ import { ClaudeLaunchFiles } from './claude-launch-files';
 import { createLocalScratchDir } from './create-local-scratch-dir';
 import { findClaudeMenu } from './find-claude-menu';
 import { findClaudePermissionMode } from './find-claude-permission-mode';
+import { formatPluginDirArgs } from './format-plugin-dir-args';
 import { buildClaudeConfigSeed } from './guest/build-claude-config-seed';
 import { buildClaudeCredentialsFile } from './guest/build-claude-credentials-file';
 import { buildClaudeGuestLaunch } from './guest/build-claude-guest-launch';
@@ -65,6 +67,7 @@ import { updateClaudeProjectTrust } from './local-trust/update-claude-project-tr
 import { parseClaudeTranscriptLine } from './parse-claude-transcript-line';
 import { planClaudeLineInput } from './plan-claude-line-input';
 import { resolveClaudePermissionMode } from './resolve-claude-permission-mode';
+import { resolveConfiguredPluginDirs } from './resolve-configured-plugin-dirs';
 import { SESSION_SCRATCH_FOLDER } from './session-scratch-folder';
 
 export class ClaudeAdapter implements AgentAdapter {
@@ -104,6 +107,8 @@ export class ClaudeAdapter implements AgentAdapter {
 
   private readonly files: ClaudeLaunchFiles;
 
+  private readonly pluginDirs: readonly string[];
+
   constructor(
     entry: AgentEntry,
     config: Pick<Config, 'authProfiles'>,
@@ -116,6 +121,7 @@ export class ClaudeAdapter implements AgentAdapter {
     this.entry = entry;
     this.authProfiles = config.authProfiles;
     this.id = entry.id;
+    this.pluginDirs = resolveConfiguredPluginDirs(entry.pluginDirs, options.homeDir);
 
     this.files = new ClaudeLaunchFiles(this.buildSettingsProfile({}), host.atcArgv, options);
 
@@ -125,6 +131,7 @@ export class ClaudeAdapter implements AgentAdapter {
       bin: entry.bin,
       models: null,
       spawnOptions: buildClaudeSpawnOptions(entry.args),
+      ...(this.pluginDirs.length === 0 ? {} : { pluginDirs: this.pluginDirs }),
     };
 
     this.headlessRunner =
@@ -134,6 +141,7 @@ export class ClaudeAdapter implements AgentAdapter {
             claudeBin: entry.bin,
             permissionMode: resolveClaudePermissionMode(entry.args, entry.settings),
             pluginDir: () => this.files.writeBridge(),
+            pluginDirs: this.pluginDirs,
             settings: () => this.files.writeSettings(),
           });
   }
@@ -151,6 +159,7 @@ export class ClaudeAdapter implements AgentAdapter {
         scratch,
         settings: this.files.writeSettings(),
         pluginDir: this.files.writeBridge(),
+        pluginDirs: [...this.pluginDirs, ...(opts.pluginDirs ?? [])],
       }),
       ...(scratch === null ? {} : { env: { TMPDIR: scratch } }),
     };
@@ -203,6 +212,7 @@ export class ClaudeAdapter implements AgentAdapter {
         scratch,
         settings: `${guest.dir}/settings.json`,
         pluginDir: `${guest.dir}/atc-bridge`,
+        pluginDirs: [],
       }),
     ]);
 
@@ -251,7 +261,11 @@ export class ClaudeAdapter implements AgentAdapter {
 
   // the generated settings file sits on the daemon's machine, so it travels only for an entry
   // that sets its own settings or environment
-  buildResumeCommand(cwd: string, agentSessionID: AgentSessionID | undefined): string | null {
+  buildResumeCommand(
+    cwd: string,
+    agentSessionID: AgentSessionID | undefined,
+    pluginDirs: readonly string[],
+  ): string | null {
     const configured = findClaudePermissionMode(this.entry.args, this.entry.settings);
     const mode = configured === null ? '' : ` --permission-mode ${toShellArg(configured)}`;
     const resume = agentSessionID === undefined ? '' : ` ${agentSessionID}`;
@@ -261,7 +275,9 @@ export class ClaudeAdapter implements AgentAdapter {
         ? ''
         : ` --settings ${toShellArg(this.files.writeSettings())}`;
 
-    return `cd ${toShellArg(cwd)} && ${formatShellWord(this.entry.bin)}${mode}${settings} --resume${resume}`;
+    const plugins = formatPluginDirArgs([...this.pluginDirs, ...pluginDirs]);
+
+    return `cd ${toShellArg(cwd)} && ${formatShellWord(this.entry.bin)}${mode}${settings}${plugins} --resume${resume}`;
   }
 
   // A resumed session restores the permission mode the configured
@@ -312,6 +328,7 @@ export class ClaudeAdapter implements AgentAdapter {
           scratch: `${dir}/${SESSION_SCRATCH_FOLDER}`,
           settings: `${dir}/${settingsPath}`,
           pluginDir: `${dir}/atc-bridge`,
+          pluginDirs: [],
         }),
       ],
       [...OUTRANKING_VARIABLES],
@@ -482,6 +499,7 @@ function buildClaudeSpawnOptions(claudeArgs: readonly string[]): SpawnOptionSpec
       backendEffect: 'applied',
       note: 'Passed as --effort. Which levels a session honours depends on its model.',
     },
+    pluginDirs: buildPluginDirsOption(),
   };
 }
 

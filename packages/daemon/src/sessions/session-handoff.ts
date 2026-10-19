@@ -2,6 +2,7 @@ import type { SessionID } from '@atc/core';
 import { isTreeInReach } from '../auth/is-tree-in-reach';
 import type { TargetAccess } from '../auth/target-access';
 import { hasResumableTranscript } from './has-resumable-transcript';
+import { requireSessionPluginDirs } from './require-session-plugin-dirs';
 import { runEjectHandoff } from './run-eject-handoff';
 import type { SettleScheduler } from './run-eject-handoff';
 import type { SessionRuntime } from './session-runtime';
@@ -74,6 +75,9 @@ export class SessionHandoff {
     this.mgr.requireExecution(s, 'kill');
     this.mgr.requireExecution(s, 'headless');
 
+    // Refused before the terminal stops, so a refusal leaves it running.
+    requireSessionPluginDirs(this.mgr, s);
+
     const yanked = this.mgr.yankHeadless(id);
 
     if (yanked === null) {
@@ -116,6 +120,8 @@ export class SessionHandoff {
     // it was.
     if (listed !== undefined) {
       this.mgr.requireAgentTarget(listed.agent, listed.target);
+
+      requireSessionPluginDirs(this.mgr, listed);
     }
 
     this.findRuntime(id)?.stopHeadlessRun();

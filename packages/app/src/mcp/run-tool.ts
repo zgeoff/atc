@@ -48,6 +48,7 @@ export function runTool(
         ...(rawAgent === undefined ? {} : { agent: rawAgent }),
         ...(args['model'] === undefined ? {} : { model: args['model'] }),
         ...(args['effort'] === undefined ? {} : { effort: args['effort'] }),
+        ...(args['pluginDirs'] === undefined ? {} : { pluginDirs: args['pluginDirs'] }),
         ...(key === undefined ? {} : { idempotencyKey: key }),
         ...(args['target'] === undefined ? {} : { target: args['target'] }),
         ...(args['workspace'] === undefined ? {} : { workspace: args['workspace'] }),
@@ -59,10 +60,13 @@ export function runTool(
         rows: 30,
       };
 
-      // A model, effort, key, target, or workspace needs a daemon that takes
+      // A model, effort, plugin folder, key, target, or workspace needs a daemon that takes
       // them; the check runs on every connection the spawn rides.
       const optionFeatures: readonly DaemonFeature[] =
         args['model'] === undefined && args['effort'] === undefined ? [] : ['spawn.options'];
+
+      const pluginDirsFeatures: readonly DaemonFeature[] =
+        args['pluginDirs'] === undefined ? [] : ['spawn.pluginDirs'];
 
       const keyFeatures: readonly DaemonFeature[] = key === undefined ? [] : ['spawn.idempotency'];
 
@@ -87,6 +91,7 @@ export function runTool(
 
       const required = [
         ...optionFeatures,
+        ...pluginDirsFeatures,
         ...keyFeatures,
         ...targetFeatures,
         ...workspaceFeatures,

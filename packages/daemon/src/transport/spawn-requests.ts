@@ -93,11 +93,21 @@ export class SpawnRequests {
 
       ctx.requireAgentTarget(agent, target);
 
-      const overrides = parseSpawnOverrides(entry, { model: data.model, effort: data.effort });
+      const overrides = parseSpawnOverrides(entry, {
+        model: data.model,
+        effort: data.effort,
+        pluginDirs: data.pluginDirs,
+      });
 
       if (!overrides.ok) {
         throw new DaemonError(overrides.code, overrides.message);
       }
+
+      const pluginDirs = ctx.requirePluginDirs(
+        target,
+        adapter.profile?.pluginDirs ?? [],
+        overrides.overrides.pluginDirs ?? [],
+      );
 
       // Checked before the spawn starts, so a target that cannot take a
       // workspace refuses it before any git command runs.
@@ -157,6 +167,7 @@ export class SpawnRequests {
         parent,
         overrides: {
           ...overrides.overrides,
+          ...(pluginDirs.length === 0 ? {} : { pluginDirs }),
           ...(data.trustClonedWorkspace === undefined
             ? {}
             : { trustClonedWorkspace: data.trustClonedWorkspace }),

@@ -24,6 +24,7 @@ const FEATURE_USES: Readonly<Record<DaemonFeature, string>> = {
   'session.submit': 'atc_terminal_type',
   'spawn.idempotency': "atc_session_spawn's idempotencyKey",
   'spawn.options': "atc_session_spawn's model and effort",
+  'spawn.pluginDirs': "atc_session_spawn's pluginDirs",
   'spawn.target': "atc_session_spawn's target",
   'note.get': "atc_events_read's full note texts",
   'answer.get': "atc_events_read's full answers",

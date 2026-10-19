@@ -165,7 +165,7 @@ export interface DaemonOptions {
   }>;
 
   // The home a git workspace without a directory lands under on a target
-  // on the daemon's own machine when no root applies; the daemon user's
-  // home when unset.
+  // on the daemon's own machine when no root applies, and the one a spawn's
+  // plugin folder starting with ~ is under; the daemon user's home when unset.
   readonly homeDir?: string;
 }

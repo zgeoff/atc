@@ -38,6 +38,15 @@ test('it builds a default listed agent', () => {
         note: null,
         available: false,
       },
+      pluginDirs: {
+        supported: false,
+        values: null,
+        examples: [],
+        default: null,
+        backendEffect: null,
+        note: null,
+        available: false,
+      },
     },
   });
 });

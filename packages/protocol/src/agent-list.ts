@@ -39,7 +39,13 @@ const AGENT_ENTRY_SCHEMA = z.object({
     input: z.boolean(),
   }),
   models: z.record(z.string(), z.string()).nullable(),
-  spawnOptions: z.object({ model: SPAWN_OPTION_ENTRY_SCHEMA, effort: SPAWN_OPTION_ENTRY_SCHEMA }),
+  spawnOptions: z.object({
+    model: SPAWN_OPTION_ENTRY_SCHEMA,
+    effort: SPAWN_OPTION_ENTRY_SCHEMA,
+
+    // absent from a daemon that takes no plugin folders on a spawn
+    pluginDirs: SPAWN_OPTION_ENTRY_SCHEMA.optional(),
+  }),
 });
 
 export type AgentEntry = z.output<typeof AGENT_ENTRY_SCHEMA>;

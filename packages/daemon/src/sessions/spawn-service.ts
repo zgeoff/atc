@@ -2,6 +2,7 @@ import { tmpdir } from 'node:os';
 import type { InvalidGitTransports } from '@atc/config';
 import { resolveHomeDir } from '@atc/config/host';
 import type { AgentID, Clock, SessionID } from '@atc/core';
+import { normalizePluginDir } from '@atc/plugin-api';
 import type { DaemonAnswer, SessionDescriptor, SpawnWorkspaceSource } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
 import type { StateStore } from '@atc/store';
@@ -13,6 +14,7 @@ import { buildDefaultWorkspaceDir } from '../workspace/build-default-workspace-d
 import { materializeWorkspace } from '../workspace/materialize-workspace';
 import { readHostGitIdentity } from '../workspace/read-host-git-identity';
 import { mintSessionID } from './mint-session-id';
+import { requirePluginDirsOnTarget } from './require-plugin-dirs-on-target';
 import type { SessionRuntime } from './session-runtime';
 import type { SessionManager } from './sessions';
 import type { SpawnHostAccess, SpawnMaterializer } from './spawn-materializer';
@@ -53,8 +55,8 @@ interface SpawnServiceDeps {
   }>;
 
   // The home a git workspace without a directory lands under on a target on
-  // the daemon's own machine when no root applies; the daemon user's home
-  // when absent.
+  // the daemon's own machine when no root applies, and the one a plugin
+  // folder starting with ~ is under; the daemon user's home when absent.
   readonly homeDir?: string;
 }
 
@@ -180,6 +182,29 @@ export class SpawnService {
 
   requireAgentTarget(agent: AgentID, target: string): void {
     this.mgr.requireAgentTarget(agent, target);
+  }
+
+  // returns the requested folders in their normal form, which the session
+  // keeps for every later launch
+  requirePluginDirs(
+    target: string,
+    configured: readonly string[],
+    requested: readonly string[],
+  ): string[] {
+    const home = this.homeDir ?? resolveHomeDir();
+    const expanded = requested.map((dir) => normalizePluginDir(dir, home));
+    const dirs = [...configured, ...expanded];
+
+    if (dirs.length > 0) {
+      const provider = this.mgr.requireExecution(
+        { target, targetIdentity: null },
+        'spawn',
+      ).provider;
+
+      requirePluginDirsOnTarget(dirs, target, provider.remote);
+    }
+
+    return expanded;
   }
 
   // A spawn that fails unwinds its own steps before it throws, so a failed

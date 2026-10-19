@@ -87,6 +87,12 @@ export function buildScopedContext(
           const spawnTargets = agent.spawnTargets.filter(canUseTarget);
           const spawn = spawnTargets.length > 0;
 
+          const takesPluginDirs = list.targets.some(
+            (target) => !target.remote && spawnTargets.includes(target.id),
+          );
+
+          const pluginDirs = agent.spawnOptions.pluginDirs;
+
           return {
             ...agent,
             spawnTargets,
@@ -100,6 +106,14 @@ export function buildScopedContext(
                 ...agent.spawnOptions.effort,
                 available: spawn && agent.spawnOptions.effort.supported,
               },
+              ...(pluginDirs === undefined
+                ? {}
+                : {
+                    pluginDirs: {
+                      ...pluginDirs,
+                      available: takesPluginDirs && pluginDirs.supported,
+                    },
+                  }),
             },
           };
         }),

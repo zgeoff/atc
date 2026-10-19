@@ -18,6 +18,7 @@ export interface GatewayConfig {
   readonly env: Readonly<Record<string, string>>;
   readonly settings?: Readonly<Record<string, unknown>>;
   readonly auth?: GatewayAuth;
+  readonly pluginDirs?: readonly string[];
 }
 
 interface Gateways {

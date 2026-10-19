@@ -226,6 +226,13 @@ test('it lists the fleet tools', async () => {
                         "description": "whether the session carries a pin of its own",
                         "type": "boolean",
                       },
+                      "pluginDirs": {
+                        "description": "the plugin folders the spawn asked for, with ~ expanded; the folders the agent's config sets load too and are not listed. Absent when the spawn asked for none",
+                        "items": {
+                          "type": "string",
+                        },
+                        "type": "array",
+                      },
                       "state": {
                         "description": "running, needs_you, done or exited; the atc_sessions_list description holds their meanings, and a later daemon may add a value",
                         "type": "string",
@@ -300,6 +307,14 @@ test('it lists the fleet tools', async () => {
                   "default": "",
                   "description": "Session name; defaults to the basename of the working directory, without the -2, -3 suffix of a directory atc picked",
                   "type": "string",
+                },
+                "pluginDirs": {
+                  "description": "Claude Code plugin folders this session alone loads, at most 32, each an absolute path or one that starts with ~/ on the atc daemon's machine, without a .. segment; each reaches the CLI as --plugin-dir. They load after the folders the agent's config sets, which still load; the daemon reads the config's folders when it starts, so a change to them takes effect only after the atc daemon restarts. Refused when the agent takes none (spawnOptions.pluginDirs in atc_spawn_options_get), on a target that runs the agent on another machine, and when any path, the config's included, does not exist or is not a folder; the refusal names the path. Every restart of the session, after a daemon restart included, loads them again; a restart, an eject or a headless turn that finds a folder gone is refused the same way and leaves the session as it was.",
+                  "items": {
+                    "type": "string",
+                  },
+                  "maxItems": 32,
+                  "type": "array",
                 },
                 "prompt": {
                   "default": "",
@@ -510,6 +525,13 @@ test('it lists the fleet tools', async () => {
                 "pinned": {
                   "description": "whether the session carries a pin of its own",
                   "type": "boolean",
+                },
+                "pluginDirs": {
+                  "description": "the plugin folders the spawn asked for, with ~ expanded; the folders the agent's config sets load too and are not listed. Absent when the spawn asked for none",
+                  "items": {
+                    "type": "string",
+                  },
+                  "type": "array",
                 },
                 "state": {
                   "description": "running, needs_you, done or exited; the atc_sessions_list description holds their meanings, and a later daemon may add a value",
@@ -1094,7 +1116,7 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": false,
               "readOnlyHint": true,
             },
-            "description": "Read what atc_session_spawn accepts on this daemon: each agent (pass its id as agent) with whether it is installed, its capabilities, and the model and effort values it takes; each execution target (pass its id as target) with whether it is available; and spawnDefaults. A spawn that would fail says so in advance: an agent with installed false or capabilities.spawn false, a target with available false, or an entry in targetErrors, with their meanings in the output schema. available true does not show that the host of the target is up. A remote client sees only the targets it reaches, and no config-wide targetErrors. Under the gateway it returns daemons, an object keyed by daemon name that holds the state of each daemon and, for a daemon that is up, the object a single daemon returns. It never holds credentials, environment values or endpoints.",
+            "description": "Read what atc_session_spawn accepts on this daemon: each agent (pass its id as agent) with whether it is installed, its capabilities, the model and effort values it takes, and whether it takes plugin folders; each execution target (pass its id as target) with whether it is available; and spawnDefaults. A spawn that would fail says so in advance: an agent with installed false or capabilities.spawn false, a target with available false, or an entry in targetErrors, with their meanings in the output schema. available true does not show that the host of the target is up. A remote client sees only the targets it reaches, and no config-wide targetErrors. Under the gateway it returns daemons, an object keyed by daemon name that holds the state of each daemon and, for a daemon that is up, the object a single daemon returns. It never holds credentials, environment values or endpoints.",
             "inputSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "additionalProperties": false,
@@ -1181,7 +1203,7 @@ test('it lists the fleet tools', async () => {
                         ],
                       },
                       "spawnOptions": {
-                        "description": "the model and effort options a spawn takes, present when the daemon supports them",
+                        "description": "the model, effort and plugin folder options a spawn takes, present when the daemon supports them",
                         "properties": {
                           "effort": {
                             "properties": {
@@ -1261,6 +1283,84 @@ test('it lists the fleet tools', async () => {
                             "type": "object",
                           },
                           "model": {
+                            "properties": {
+                              "available": {
+                                "description": "whether a spawn on this host can pass the option now",
+                                "type": "boolean",
+                              },
+                              "backendEffect": {
+                                "description": "applied, or unverified when the backend may ignore the option; null when the agent takes no such option; a later daemon may add a value",
+                                "type": [
+                                  "string",
+                                  "null",
+                                ],
+                              },
+                              "default": {
+                                "description": "the configured value; null for the CLI's own default",
+                                "type": [
+                                  "string",
+                                  "null",
+                                ],
+                              },
+                              "examples": {
+                                "description": "example values, each with the provider model it resolves to",
+                                "items": {
+                                  "properties": {
+                                    "resolvesTo": {
+                                      "description": "the provider model the value resolves to; null when the config maps none",
+                                      "type": [
+                                        "string",
+                                        "null",
+                                      ],
+                                    },
+                                    "value": {
+                                      "description": "a value the option takes",
+                                      "type": "string",
+                                    },
+                                  },
+                                  "required": [
+                                    "value",
+                                    "resolvesTo",
+                                  ],
+                                  "type": "object",
+                                },
+                                "type": "array",
+                              },
+                              "note": {
+                                "description": "a note on the option, or null",
+                                "type": [
+                                  "string",
+                                  "null",
+                                ],
+                              },
+                              "supported": {
+                                "description": "whether atc passes this option to the agent CLI",
+                                "type": "boolean",
+                              },
+                              "values": {
+                                "description": "the accepted set; null for any alias or model name",
+                                "items": {
+                                  "type": "string",
+                                },
+                                "type": [
+                                  "array",
+                                  "null",
+                                ],
+                              },
+                            },
+                            "required": [
+                              "supported",
+                              "available",
+                              "values",
+                              "examples",
+                              "default",
+                              "backendEffect",
+                              "note",
+                            ],
+                            "type": "object",
+                          },
+                          "pluginDirs": {
+                            "description": "the plugin folders a spawn can add for its session alone; available true when the agent can start on a target on the daemon's machine. Absent from a daemon that takes none",
                             "properties": {
                               "available": {
                                 "description": "whether a spawn on this host can pass the option now",
@@ -1634,6 +1734,13 @@ test('it lists the fleet tools', async () => {
                     "pinned": {
                       "description": "whether the session carries a pin of its own",
                       "type": "boolean",
+                    },
+                    "pluginDirs": {
+                      "description": "the plugin folders the spawn asked for, with ~ expanded; the folders the agent's config sets load too and are not listed. Absent when the spawn asked for none",
+                      "items": {
+                        "type": "string",
+                      },
+                      "type": "array",
                     },
                     "state": {
                       "description": "running, needs_you, done or exited; the atc_sessions_list description holds their meanings, and a later daemon may add a value",

@@ -27,6 +27,7 @@ export function buildMockListedAgent(overrides: ListedAgentOverrides = {}): Agen
       spawnOptions: {
         model: buildUnsupportedOption(),
         effort: buildUnsupportedOption(),
+        pluginDirs: buildUnsupportedOption(),
       },
     },
     overrides,

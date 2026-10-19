@@ -60,6 +60,10 @@ export interface AgentListTarget {
 interface SpawnOptionEntries {
   readonly model: SpawnOptionEntry;
   readonly effort: SpawnOptionEntry;
+
+  // the daemon lists it for every agent; optional so a list scoped to a
+  // principal keeps the shape it was given
+  readonly pluginDirs?: SpawnOptionEntry;
 }
 
 export function buildAgentList(
@@ -73,15 +77,23 @@ export function buildAgentList(
     const selection = adapter.findAuthSelection?.() ?? null;
     const brokerRequired = selection?.brokerRequired ?? false;
     const refused = (adapter.findSpawnRefusal?.() ?? null) !== null;
+    const configuresPluginDirs = (profile?.pluginDirs ?? []).length > 0;
 
     const spawnTargets = refused
       ? []
       : targets
           .filter((target) => installed || target.remote)
           .filter((target) => !brokerRequired || target.brokerAuth)
+          .filter((target) => !configuresPluginDirs || !target.remote)
           .map((target) => target.id);
 
     const spawnable = spawnTargets.length > 0;
+
+    // a plugin folder is checked on the daemon's machine, so only a target
+    // that runs the agent there takes one
+    const takesPluginDirs = targets.some(
+      (target) => !target.remote && spawnTargets.includes(target.id),
+    );
 
     // only the profile and what the interface offers: no environment value, credential,
     // helper command, or base URL may reach a client
@@ -107,6 +119,7 @@ export function buildAgentList(
       spawnOptions: {
         model: buildSpawnOptionEntry(profile?.spawnOptions.model, spawnable),
         effort: buildSpawnOptionEntry(profile?.spawnOptions.effort, spawnable),
+        pluginDirs: buildSpawnOptionEntry(profile?.spawnOptions.pluginDirs, takesPluginDirs),
       },
     };
   });

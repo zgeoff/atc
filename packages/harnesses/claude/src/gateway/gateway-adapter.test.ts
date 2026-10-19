@@ -3,7 +3,14 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
 import { toAgentSessionID, toSessionID } from '@atc/core';
-import { KEYS, buildMockHostServices, runCommand, setupTempDir, updateEnv } from '@atc/test-utils';
+import {
+  KEYS,
+  buildMockHostServices,
+  getAgentEntry,
+  runCommand,
+  setupTempDir,
+  updateEnv,
+} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { ATC_BRIDGE_FILES } from '../bridge/atc-bridge-files';
 import { CLAUDE_PLUGIN } from '../claude-plugin';
@@ -172,6 +179,14 @@ test('it profiles a gateway with only the model names its env sets', () => {
         backendEffect: 'unverified',
         note: "Passed as --effort; the gateway's provider may ignore it.",
       },
+      pluginDirs: {
+        supported: true,
+        values: null,
+        examples: [],
+        default: null,
+        backendEffect: 'applied',
+        note: "Each folder passed as --plugin-dir, after the folders the agent's config sets. An absolute path or one that starts with ~/ on the daemon's machine, without a .. segment; a path that does not exist or is not a folder, or a remote target, refuses the spawn.",
+      },
     },
   });
 });
@@ -303,6 +318,58 @@ test("it starts a gateway's terminal run under its explicit permission-mode argu
   });
 });
 
+test("it loads a gateway's configured plugin folders with ~ expanded, then the session's own, after atc's mod", () => {
+  const ctx = setupTest();
+
+  const config = parseConfig([CLAUDE_PLUGIN], {
+    agents: {
+      zai: {
+        kind: 'claude',
+        baseURL: 'https://api.z.ai/api/anthropic',
+        pluginDirs: ['~/plugins/band'],
+      },
+    },
+  });
+
+  const entry = getAgentEntry(config, 'zai');
+
+  invariant(entry.baseURL !== undefined, 'expected a gateway entry');
+
+  const adapter = new GatewayAdapter(
+    { ...entry, baseURL: entry.baseURL },
+    config,
+    buildMockHostServices(),
+    {
+      bridgeTarget: join(ctx.dir, 'atc-bridge'),
+      stateDir: join(ctx.dir, 'state'),
+      homeDir: join(ctx.dir, 'home'),
+    },
+  );
+
+  const plan = adapter.planSpawn({ prompt: '', resume: false, pluginDirs: ['/srv/plugins/extra'] });
+
+  expect(plan.args).toStrictEqual([
+    '--settings',
+    join(ctx.dir, 'state', 'hook-settings-zai.json'),
+    '--plugin-dir',
+    join(ctx.dir, 'atc-bridge'),
+    '--plugin-dir',
+    join(ctx.dir, 'home', 'plugins', 'band'),
+    '--plugin-dir',
+    '/srv/plugins/extra',
+  ]);
+});
+
+test("it lists a gateway's configured plugin folders in its profile", () => {
+  const adapter = new GatewayAdapter(
+    buildMockGatewayConfig({ pluginDirs: ['/opt/plugins/shared'] }),
+    parseConfig([CLAUDE_PLUGIN], {}),
+    buildMockHostServices(),
+  );
+
+  expect(adapter.profile.pluginDirs).toStrictEqual(['/opt/plugins/shared']);
+});
+
 test("it keeps the gateway's arguments, its permission mode included, in the command that resumes it outside atc", () => {
   const ctx = setupTest();
 
@@ -322,10 +389,85 @@ test("it keeps the gateway's arguments, its permission mode included, in the com
     },
   );
 
-  const command = adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'));
+  const command = adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'), []);
 
   expect(command).toBe(
     `cd '/work/repo' && /opt/gw/bin/claude '--permission-mode' 'default' --settings '${join(ctx.dir, 'state', 'hook-settings-manual-resume.json')}' --resume sess-1`,
+  );
+});
+
+test("it keeps a gateway's configured plugin folders and the session's own in the command that resumes it outside atc", () => {
+  const ctx = setupTest();
+
+  const adapter = new GatewayAdapter(
+    buildMockGatewayConfig({
+      id: 'plugged',
+      bin: '/opt/gw/bin/claude',
+      baseURL: 'https://gateway.example/anthropic',
+      pluginDirs: ['/opt/plugins/shared'],
+    }),
+    parseConfig([CLAUDE_PLUGIN], {}),
+    buildMockHostServices(),
+    {
+      bridgeTarget: join(ctx.dir, 'atc-bridge'),
+      stateDir: join(ctx.dir, 'state'),
+      homeDir: join(ctx.dir, 'home'),
+    },
+  );
+
+  const command = adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'), [
+    '/srv/plugins/band',
+  ]);
+
+  expect(command).toBe(
+    `cd '/work/repo' && /opt/gw/bin/claude --settings '${join(ctx.dir, 'state', 'hook-settings-plugged.json')}' --plugin-dir '/opt/plugins/shared' --plugin-dir '/srv/plugins/band' --resume sess-1`,
+  );
+});
+
+test("it runs a headless turn with a gateway's configured plugin folders before the turn's own", () => {
+  const ctx = setupTest();
+  const runner = buildStubClaudeHeadlessRun();
+
+  const adapter = new GatewayAdapter(
+    buildMockGatewayConfig({
+      id: 'zai',
+      bin: '/opt/zai/bin/claude',
+      pluginDirs: ['/opt/plugins/shared'],
+    }),
+    parseConfig([CLAUDE_PLUGIN], {}),
+    buildMockHostServices(),
+    {
+      headlessRun: runner,
+      bridgeTarget: join(ctx.dir, 'atc-bridge'),
+      stateDir: join(ctx.dir, 'state'),
+      homeDir: join(ctx.dir, 'home'),
+    },
+  );
+
+  const events = { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} };
+
+  adapter.headlessRunner?.(
+    {
+      cwd: '/tmp',
+      prompt: 'go',
+      reporterSocket: '/run/atc/atc.sock',
+      pluginDirs: ['/srv/plugins/extra'],
+    },
+    events,
+  );
+
+  expect(runner).toHaveBeenCalledExactlyOnceWith(
+    {
+      cwd: '/tmp',
+      prompt: 'go',
+      reporterSocket: '/run/atc/atc.sock',
+      pluginDirs: ['/opt/plugins/shared', '/srv/plugins/extra'],
+      claudeBin: '/opt/zai/bin/claude',
+      permissionMode: 'auto',
+      pluginDir: join(ctx.dir, 'atc-bridge'),
+      settings: join(ctx.dir, 'state', 'hook-settings-zai.json'),
+    },
+    events,
   );
 });
 
@@ -502,7 +644,7 @@ test("it keeps the gateway's settings default mode in the command that resumes i
     },
   );
 
-  const command = adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'));
+  const command = adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'), []);
 
   expect(command).toBe(
     `cd '/work/repo' && /opt/gw/bin/claude '--permission-mode' 'default' --settings '${join(ctx.dir, 'state', 'hook-settings-resume-settings.json')}' --resume sess-1`,
@@ -564,7 +706,7 @@ test('it resumes a gateway outside atc in its explicit permission-mode argument 
     },
   );
 
-  const command = adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'));
+  const command = adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'), []);
 
   expect(command).toBe(
     `cd '/work/repo' && claude '--permission-mode' 'plan' --settings '${join(ctx.dir, 'state', 'hook-settings-restore-flag.json')}' --resume sess-1`,
@@ -610,7 +752,7 @@ test('it gives a gateway with auth no resume command', () => {
     { headlessRun: buildStubClaudeHeadlessRun() },
   );
 
-  expect(adapter.buildResumeCommand('/work', toAgentSessionID('a1'))).toBeNull();
+  expect(adapter.buildResumeCommand('/work', toAgentSessionID('a1'), [])).toBeNull();
 });
 
 test("it starts a gateway with auth and a credential helper on the daemon's machine under that helper", () => {
@@ -845,7 +987,7 @@ test('it resumes a gateway with auth and a credential helper outside atc through
     },
   );
 
-  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'))).toBe(
+  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'), [])).toBe(
     `cd '/work/repo' && claude --settings '${join(ctx.dir, 'state', 'hook-settings-glm.json')}' --resume sess-1`,
   );
 });

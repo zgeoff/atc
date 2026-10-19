@@ -653,6 +653,38 @@ test('it round-trips a fleet row with its model and effort', async () => {
   expect(fleet).toStrictEqual([entry]);
 });
 
+test('it round-trips a fleet row with its plugin folders in order', async () => {
+  const ctx = await setupTest();
+
+  const entry = buildMockFleetEntry({ pluginDirs: ['/opt/plugins/band', '/srv/plugins/extra'] });
+
+  await ctx.store.writeFleet([entry]);
+
+  const fleet = await ctx.store.loadFleet();
+
+  expect(fleet).toStrictEqual([entry]);
+});
+
+test('it loads a fleet row whose stored plugin folders do not read with none', async () => {
+  const ctx = await setupTest();
+
+  const entry = buildMockFleetEntry();
+
+  await ctx.store.writeFleet([{ ...entry, pluginDirs: ['/opt/plugins/band'] }]);
+
+  const db = new Database(ctx.dbPath);
+
+  registerTestCleanup(() => {
+    db.close();
+  });
+
+  db.run("UPDATE fleet SET plugin_dirs = '{not json'");
+
+  const fleet = await ctx.store.loadFleet();
+
+  expect(fleet).toStrictEqual([entry]);
+});
+
 test('it round-trips a fleet row with what the operator asked of it and its host', async () => {
   const ctx = await setupTest();
 
@@ -1125,6 +1157,7 @@ test('it runs every migration once on the first open of a legacy database', asyn
     '033_add_messages_sender_kind',
     '034_add_events_answer_text',
     '035_add_fleet_suspended',
+    '036_add_fleet_plugin_dirs',
   ]);
 });
 
@@ -1174,7 +1207,7 @@ test('it re-runs no migration when it reopens a migrated database', async () => 
     .all()
     .map((row) => row.timestamp);
 
-  expect(stamps).toStrictEqual(Array.from({ length: 35 }, () => 'sentinel'));
+  expect(stamps).toStrictEqual(Array.from({ length: 36 }, () => 'sentinel'));
 });
 
 test('it keeps the fleet of a migrated database across a reopen', async () => {
@@ -4672,7 +4705,7 @@ test('it upgrades a database from before runtime auth and keeps every existing r
     .query<{ name: string }, []>('SELECT name FROM kysely_migration ORDER BY name')
     .all()
     .map((row) => row.name)
-    .slice(-11, -8);
+    .slice(-12, -9);
 
   const fleet = await upgraded.loadFleet();
   const dirs = await upgraded.collectSpawnDirs();

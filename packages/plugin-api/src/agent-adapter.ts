@@ -17,12 +17,17 @@ export interface SpawnOptions {
   // agent's configured default in place.
   readonly model?: string;
   readonly effort?: string;
+
+  // The session's own plugin folders, as absolute paths on the daemon's
+  // machine, loaded after the ones the agent's config sets.
+  readonly pluginDirs?: readonly string[];
 }
 
 export interface SpawnOverrides {
   readonly trustClonedWorkspace?: boolean;
   readonly model?: string;
   readonly effort?: string;
+  readonly pluginDirs?: readonly string[];
 }
 
 export interface SpawnPlan {
@@ -130,9 +135,11 @@ export interface HeadlessRunRequest {
   // The atc session the run belongs to.
   readonly sessionID?: SessionID;
 
-  // The session's own model and effort, so a headless turn keeps them.
+  // The session's own model, effort and plugin folders, so a headless turn
+  // keeps them.
   readonly model?: string;
   readonly effort?: string;
+  readonly pluginDirs?: readonly string[];
 
   // Environment variable names the run's process goes without, such as the
   // credential a session's workspace was cloned with.
@@ -180,11 +187,18 @@ export interface AgentProfile {
 
   // The per-session overrides a spawn can pass this agent's CLI.
   readonly spawnOptions: SpawnOptionSpecs;
+
+  // The plugin folders the config loads into every session of the agent, as
+  // absolute paths on the daemon's machine; absent loads none.
+  readonly pluginDirs?: readonly string[];
 }
 
 export interface SpawnOptionSpecs {
   readonly model: SpawnOptionSpec;
   readonly effort: SpawnOptionSpec;
+
+  // absent for an agent that takes no plugin folders.
+  readonly pluginDirs?: SpawnOptionSpec;
 }
 
 export interface TerminalInputModes {
@@ -311,9 +325,12 @@ export interface AgentAdapter {
     namedBy: 'user' | 'auto' | 'agent',
   ) => Promise<NameUpdate | null>;
   readonly canResume: (session: ResumeCheck) => boolean;
+
+  // The last argument holds the plugin folders the session's spawn asked for.
   readonly buildResumeCommand: (
     cwd: string,
     agentSessionID: AgentSessionID | undefined,
+    pluginDirs: readonly string[],
   ) => string | null;
 
   // Turns one line of the agent's transcript file into a conversation row,

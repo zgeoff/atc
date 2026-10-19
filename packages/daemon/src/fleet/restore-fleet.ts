@@ -441,6 +441,10 @@ const REFUSED_ADOPT_CODES: ReadonlySet<string> = new Set([
   'auth_binding_invalid',
   'broker_not_ready',
   'auth_placeholder_unsupported',
+
+  // a plugin folder the session loads is not a folder, or sits on a remote target
+  'bad_args',
+  'unsupported',
 ]);
 
 // The refusals a host can lift by itself, such as an imp that cannot take

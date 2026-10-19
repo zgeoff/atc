@@ -80,6 +80,8 @@ export function buildDaemonContext(deps: DaemonContextDeps): DaemonContext {
     requireAgentTarget: (agent, target) => {
       spawns.requireAgentTarget(agent, target);
     },
+    requirePluginDirs: (target, configured, requested) =>
+      spawns.requirePluginDirs(target, configured, requested),
     findSource: (id) => catalog.findSource(id),
     collectAlternateGitURLs: (url) => catalog.collectAlternateGitURLs(url),
     checkRepositoryAccess: (request) => catalog.checkRepositoryAccess(request),

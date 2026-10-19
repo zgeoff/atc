@@ -1,6 +1,9 @@
 import { expect, test } from 'bun:test';
+import { mkdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { setupMCPHome } from '@atc/lifecycle/testing';
-import { startMCPStdio, waitFor } from '@atc/test-utils';
+import { getRecords, startMCPStdio, waitFor } from '@atc/test-utils';
+import invariant from 'tiny-invariant';
 
 async function setupTest() {
   const mcpHome = setupMCPHome();
@@ -56,6 +59,54 @@ test('it passes the model and effort of a spawn to the agent CLI', async () => {
   });
 
   expect(screen).toStartWith('FAKE_CLAUDE_UP args: --model opus --effort high --add-dir ');
+});
+
+test('it passes the plugin folders of a spawn to the agent CLI with ~ expanded', async () => {
+  const ctx = await setupTest();
+
+  mkdirSync(join(ctx.home, 'plugins', 'band'), { recursive: true });
+
+  const session = await ctx.mcp.spawnSession({ cwd: ctx.home, pluginDirs: ['~/plugins/band'] });
+
+  const screen = await waitFor(async () => {
+    const result = await ctx.mcp.sendToolCall('atc_terminal_read', { session });
+
+    expect(result.text).toInclude('FAKE_CLAUDE_UP');
+
+    return result.text;
+  });
+
+  // The terminal wraps the argument line, so the check drops every space and
+  // line break.
+  expect(screen.replaceAll(/\s/gu, '')).toEndWith(
+    `--plugin-dir${join(ctx.home, 'plugins', 'band')}`,
+  );
+});
+
+test('it shows the plugin folders a session was spawned with in atc_session_get', async () => {
+  const ctx = await setupTest();
+
+  mkdirSync(join(ctx.home, 'plugins', 'band'), { recursive: true });
+
+  const session = await ctx.mcp.spawnSession({ cwd: ctx.home, pluginDirs: ['~/plugins/band'] });
+  const got = await ctx.mcp.sendToolCall('atc_session_get', { session });
+
+  expect(got.structured).toMatchObject({
+    session: { id: session, pluginDirs: [join(ctx.home, 'plugins', 'band')] },
+  });
+});
+
+test('it reports plugin folders as a spawn option of claude in atc_spawn_options_get', async () => {
+  const ctx = await setupTest();
+  const options = await ctx.mcp.sendToolCall('atc_spawn_options_get', {});
+
+  invariant(options.structured, 'expected structured content');
+
+  const claude = getRecords(options.structured, 'agents').find((agent) => agent['id'] === 'claude');
+
+  expect(claude).toMatchObject({
+    spawnOptions: { pluginDirs: { supported: true, available: true } },
+  });
 });
 
 test('it reports an unregistered agent id as a failed tool call', async () => {

@@ -135,6 +135,14 @@ test('it advertises the documented model aliases and effort levels with the conf
       backendEffect: 'applied',
       note: 'Passed as --effort. Which levels a session honours depends on its model.',
     },
+    pluginDirs: {
+      supported: true,
+      values: null,
+      examples: [],
+      default: null,
+      backendEffect: 'applied',
+      note: "Each folder passed as --plugin-dir, after the folders the agent's config sets. An absolute path or one that starts with ~/ on the daemon's machine, without a .. segment; a path that does not exist or is not a folder, or a remote target, refuses the spawn.",
+    },
   });
 });
 
@@ -201,7 +209,7 @@ test('it keeps the permission mode its configured arguments set in the command t
     buildMockHostServices(),
   );
 
-  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'))).toBe(
+  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'), [])).toBe(
     "cd '/work/repo' && claude --permission-mode 'plan' --resume sess-1",
   );
 });
@@ -273,6 +281,154 @@ test('it gives a local session a scratch folder of its own as a working director
   });
 
   expect(existsSync(join(ctx.dir, 'state', 'sessions', 's1', 'scratch'))).toBeTrue();
+});
+
+test("it loads the config's plugin folders with ~ expanded, then the session's own, after atc's mod", () => {
+  const ctx = setupTest();
+
+  const config = parseConfig([CLAUDE_PLUGIN], {
+    agents: { claude: { pluginDirs: ['~/plugins/band', '/opt/plugins/shared'] } },
+  });
+
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+    {
+      bridgeTarget: join(ctx.dir, 'atc-bridge'),
+      stateDir: join(ctx.dir, 'state'),
+      homeDir: join(ctx.dir, 'home'),
+    },
+  );
+
+  const plan = adapter.planSpawn({
+    prompt: '',
+    resume: false,
+    pluginDirs: ['/srv/plugins/extra', '/opt/plugins/shared'],
+  });
+
+  expect(plan.args).toStrictEqual([
+    '--settings',
+    join(ctx.dir, 'state', 'hook-settings-claude.json'),
+    '--plugin-dir',
+    join(ctx.dir, 'atc-bridge'),
+    '--plugin-dir',
+    join(ctx.dir, 'home', 'plugins', 'band'),
+    '--plugin-dir',
+    '/opt/plugins/shared',
+    '--plugin-dir',
+    '/srv/plugins/extra',
+  ]);
+});
+
+test("it lists the config's plugin folders with ~ expanded in its profile", () => {
+  const ctx = setupTest();
+
+  const config = parseConfig([CLAUDE_PLUGIN], {
+    agents: { claude: { pluginDirs: ['~/plugins/band', '/opt/plugins/shared'] } },
+  });
+
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+    { homeDir: join(ctx.dir, 'home') },
+  );
+
+  expect(adapter.profile.pluginDirs).toStrictEqual([
+    join(ctx.dir, 'home', 'plugins', 'band'),
+    '/opt/plugins/shared',
+  ]);
+});
+
+test('it lists no plugin folders in the profile of an entry whose config sets none', () => {
+  const config = parseConfig([CLAUDE_PLUGIN], {});
+
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+  );
+
+  expect(adapter.profile.pluginDirs).toBeUndefined();
+});
+
+test("it leaves the config's and the session's plugin folders out of a remote spawn", () => {
+  const config = parseConfig([CLAUDE_PLUGIN], {
+    agents: { claude: { pluginDirs: ['/opt/plugins/shared'] } },
+  });
+
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+  );
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: '', resume: false, pluginDirs: ['/srv/plugins/extra'] },
+    { atc: '/opt/atc/bin/atc', dir: '/tmp/atc/sessions/s1' },
+  );
+
+  expect(plan?.args).toStrictEqual([
+    '-c',
+    expect.toBeString(),
+    'sh',
+    '/tmp/atc/sessions/s1/scratch',
+    'claude',
+    '--add-dir',
+    '/tmp/atc/sessions/s1/scratch',
+    '--settings',
+    '/tmp/atc/sessions/s1/settings.json',
+    '--plugin-dir',
+    '/tmp/atc/sessions/s1/atc-bridge',
+  ]);
+});
+
+test("it runs a headless turn with the config's plugin folders and then the session's own", () => {
+  const ctx = setupTest();
+  const runner = buildStubClaudeHeadlessRun();
+
+  const config = parseConfig([CLAUDE_PLUGIN], {
+    agents: { claude: { pluginDirs: ['/opt/plugins/shared'] } },
+  });
+
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+    {
+      headlessRun: runner,
+      bridgeTarget: join(ctx.dir, 'atc-bridge'),
+      stateDir: join(ctx.dir, 'state'),
+      homeDir: join(ctx.dir, 'home'),
+    },
+  );
+
+  const events = { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} };
+
+  adapter.headlessRunner?.(
+    {
+      cwd: '/tmp',
+      prompt: 'go',
+      reporterSocket: '/run/atc/atc.sock',
+      pluginDirs: ['/srv/plugins/extra'],
+    },
+    events,
+  );
+
+  expect(runner).toHaveBeenCalledExactlyOnceWith(
+    {
+      cwd: '/tmp',
+      prompt: 'go',
+      reporterSocket: '/run/atc/atc.sock',
+      pluginDirs: ['/opt/plugins/shared', '/srv/plugins/extra'],
+      claudeBin: 'claude',
+      permissionMode: 'auto',
+      pluginDir: join(ctx.dir, 'atc-bridge'),
+      settings: join(ctx.dir, 'state', 'hook-settings-claude.json'),
+    },
+    events,
+  );
 });
 
 test('it plans the guest bridge files a remote session launches with', () => {
@@ -535,7 +691,7 @@ test('it quotes a configured binary path with spaces in the resume command', () 
     buildMockHostServices(),
   );
 
-  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'))).toBe(
+  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'), [])).toBe(
     "cd '/work/repo' && '/opt/Claude Code/claude' --resume sess-1",
   );
 });
@@ -554,7 +710,7 @@ test('it carries the settings file in the resume command of an entry with its ow
     { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
   );
 
-  const command = adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'));
+  const command = adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'), []);
 
   const settings: unknown = JSON.parse(
     readFileSync(join(ctx.dir, 'state', 'hook-settings-claude.json'), 'utf8'),
@@ -667,8 +823,26 @@ test('it resumes a stock session outside atc without a permission-mode argument'
     buildMockHostServices(),
   );
 
-  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'))).toBe(
+  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'), [])).toBe(
     "cd '/work/repo' && claude --resume sess-1",
+  );
+});
+
+test("it keeps the config's plugin folders and the session's own in the command that resumes it outside atc", () => {
+  const config = parseConfig([CLAUDE_PLUGIN], {
+    agents: { claude: { pluginDirs: ['/opt/plugins/shared'] } },
+  });
+
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+  );
+
+  expect(
+    adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'), ['/srv/plugins/band']),
+  ).toBe(
+    "cd '/work/repo' && claude --plugin-dir '/opt/plugins/shared' --plugin-dir '/srv/plugins/band' --resume sess-1",
   );
 });
 

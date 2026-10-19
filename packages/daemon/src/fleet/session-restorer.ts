@@ -139,6 +139,7 @@ export class SessionRestorer {
       ...(entry.transcriptPath === undefined ? {} : { transcriptPath: entry.transcriptPath }),
       ...(entry.model === undefined ? {} : { model: entry.model }),
       ...(entry.effort === undefined ? {} : { effort: entry.effort }),
+      ...(entry.pluginDirs === undefined ? {} : { pluginDirs: entry.pluginDirs }),
       target,
       targetIdentity,
       ...(entry.workspace === undefined ? {} : { workspace: entry.workspace }),

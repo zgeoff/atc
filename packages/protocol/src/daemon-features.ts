@@ -21,6 +21,10 @@ export const DAEMON_FEATURES = [
   // `spawnOptions`.
   'spawn.options',
 
+  // `session.spawn` takes `pluginDirs`, `agents.list` returns
+  // `spawnOptions.pluginDirs`, and a session descriptor holds `pluginDirs`.
+  'spawn.pluginDirs',
+
   // `daemon.hello` returns `daemonID`.
   'daemon.id',
 
