@@ -6,10 +6,15 @@ directory on its target. The [targets guide](./targets.md) covers the targets th
 
 ## Directories
 
-The directory picker behind `n` merges its sources in a fixed order: the directory you ran `atc`
-from, then atc's own spawn history (most recent first), then every project under `dirs.roots`, then
-zoxide's list when zoxide is installed. A path that no longer exists is dropped, and a duplicate
-keeps its first position.
+The directory picker behind `n` lists the directory you ran `atc` from, then what the daemon's
+`dirs` source lists in a fixed order: atc's own spawn history (most recent first), then every
+project under `dirs.roots`, then zoxide's list when zoxide is installed. A path that no longer
+exists is dropped, and a duplicate keeps its first position.
+
+`workspaces.sources` holds the ids of the sources the daemon offers, in picker order, and `null`
+offers every source the daemon can run. When the daemon offers no source, the picker refuses the
+spawn and names `workspaces.sources`. An adopt needs the `dirs` source, and the picker refuses one
+without it the same way.
 
 ```json
 {

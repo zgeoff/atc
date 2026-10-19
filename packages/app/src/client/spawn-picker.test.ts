@@ -1,5 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolveHomeDir } from '@atc/config/host';
 import { DaemonError } from '@atc/protocol/wire';
@@ -101,7 +101,99 @@ test('it drops the target and source answer that arrives after esc leaves the ag
   expect(ctx.daemon.collectSent('sources.list')).toStrictEqual([]);
 });
 
-test('it drops the directory history that arrives after esc leaves a daemon without sources', async () => {
+test('it refuses a spawn on a daemon that offers no sources', async () => {
+  const ctx = setupTest();
+
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
+  );
+
+  picker.open();
+
+  const mark = ctx.terminal.countChunks();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [],
+  });
+
+  const shown = ctx.terminal.getTextSince(mark);
+
+  expect(shown).toInclude('the daemon offers no sources · set workspaces.sources · esc cancel');
+  expect(shown).not.toInclude(ctx.cwd);
+  expect(ctx.daemon.collectSent('dirs.list')).toStrictEqual([]);
+  expect(ctx.daemon.collectSent('sources.list')).toStrictEqual([]);
+});
+
+test('it refuses an adopt on a daemon that offers no source of directories', async () => {
+  const ctx = setupTest();
+
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
+  );
+
+  picker.open(true);
+
+  const mark = ctx.terminal.countChunks();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'fake', label: 'fake repository', kind: 'git' }],
+  });
+
+  expect(ctx.terminal.getTextSince(mark)).toInclude(
+    'no directory source to adopt in · set workspaces.sources · esc cancel',
+  );
+
+  expect(ctx.daemon.collectSent('dirs.list')).toStrictEqual([]);
+  expect(ctx.daemon.collectSent('sources.list')).toStrictEqual([]);
+});
+
+test('it leaves the flow on esc from the refusal of a daemon that offers no sources', async () => {
   const ctx = setupTest();
 
   const picker = new SpawnPicker({
@@ -134,17 +226,12 @@ test('it drops the directory history that arrives after esc leaves a daemon with
         capabilities: { transfer: true, run: true },
       },
     ],
+    sources: [],
   });
 
   picker.applyKey(Buffer.from(KEYS.esc));
 
-  const renders = ctx.counts.renders;
-
-  await ctx.daemon.answer('dirs.list', { dirs: ['/srv/one'] });
-
   expect(ctx.counts.exits).toBe(1);
-  expect(ctx.counts.renders).toBe(renders);
-  expect(ctx.dropped).toStrictEqual(['local directory listing']);
 });
 
 test('it drops a git listing that arrives after the leader leaves the flow', async () => {
@@ -3614,61 +3701,6 @@ test("it shows a remote daemon's refusal to read a typed ~ path", async () => {
   );
 });
 
-test("it lists only a remote daemon's spawn history when the daemon offers no sources", async () => {
-  const ctx = setupTest();
-
-  const picker = new SpawnPicker({
-    ...ctx.deps,
-    remoteDaemon: true,
-    ptyRows: () => 24,
-    hasDaemonFeature: () => true,
-    getLastUsedAgent: () => 'claude',
-  });
-
-  mkdirSync(join(ctx.cwd, 'projects', 'client-proj'), { recursive: true });
-
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-      dirs: { roots: [join(ctx.cwd, 'projects')] },
-    }),
-  );
-
-  picker.open();
-
-  await ctx.daemon.answer('agents.list', {
-    targets: [
-      {
-        id: 'local',
-        provider: 'local-pty',
-        available: true,
-        default: true,
-        capabilities: { transfer: true, run: true },
-      },
-    ],
-  });
-
-  const mark = ctx.terminal.countChunks();
-
-  await ctx.daemon.answer('dirs.list', { dirs: ['/srv/remote'] });
-
-  const shown = ctx.terminal.getTextSince(mark);
-
-  picker.applyKey(Buffer.from(KEYS.enter));
-  picker.applyKey(Buffer.from(`far-one${KEYS.enter}`));
-  picker.applyKey(Buffer.from(KEYS.enter));
-
-  expect(shown).toInclude('/srv/remote');
-  expect(shown).not.toInclude('client-proj');
-  expect(shown).not.toInclude(ctx.cwd);
-  expect(ctx.daemon.collectSent('session.spawn')).toPartiallyContain({ cwd: '/srv/remote' });
-});
-
 test('it names the one target a remote principal may use in its directory requests', async () => {
   const ctx = setupTest();
 
@@ -3763,100 +3795,5 @@ test("it shows why a remote daemon's directory listing failed", async () => {
 
   expect(ctx.terminal.getTextSince(mark)).toInclude(
     'cannot list directories: target_forbidden: target local is not yours',
-  );
-});
-
-test('it takes a typed absolute path on a remote daemon that offers no sources', async () => {
-  const ctx = setupTest();
-
-  const picker = new SpawnPicker({
-    ...ctx.deps,
-    remoteDaemon: true,
-    ptyRows: () => 24,
-    hasDaemonFeature: () => true,
-    getLastUsedAgent: () => 'claude',
-  });
-
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
-  picker.open();
-
-  await ctx.daemon.answer('agents.list', {
-    targets: [
-      {
-        id: 'local',
-        provider: 'local-pty',
-        available: true,
-        default: true,
-        capabilities: { transfer: true, run: true },
-      },
-    ],
-  });
-
-  await ctx.daemon.answer('dirs.list', { dirs: [] });
-
-  picker.applyKey(Buffer.from('/srv/work/'));
-  picker.applyKey(Buffer.from(KEYS.enter));
-  picker.applyKey(Buffer.from(`far-one${KEYS.enter}`));
-  picker.applyKey(Buffer.from(KEYS.enter));
-
-  expect(ctx.daemon.collectSent('session.spawn')).toPartiallyContain({ cwd: '/srv/work' });
-});
-
-test('it refuses a typed ~ path on a remote daemon that offers no sources', async () => {
-  const ctx = setupTest();
-
-  const picker = new SpawnPicker({
-    ...ctx.deps,
-    remoteDaemon: true,
-    ptyRows: () => 24,
-    hasDaemonFeature: () => true,
-    getLastUsedAgent: () => 'claude',
-  });
-
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
-  picker.open();
-
-  await ctx.daemon.answer('agents.list', {
-    targets: [
-      {
-        id: 'local',
-        provider: 'local-pty',
-        available: true,
-        default: true,
-        capabilities: { transfer: true, run: true },
-      },
-    ],
-  });
-
-  await ctx.daemon.answer('dirs.list', { dirs: [] });
-
-  picker.applyKey(Buffer.from('~/work'));
-
-  const mark = ctx.terminal.countChunks();
-
-  picker.applyKey(Buffer.from(KEYS.enter));
-
-  expect(ctx.terminal.getTextSince(mark)).toInclude(
-    'the daemon resolves no ~/work · type an absolute path',
   );
 });

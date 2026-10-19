@@ -1,40 +1,6 @@
-import { existsSync } from 'node:fs';
 import { basename } from 'node:path';
 import { resolveHomeDir } from '@atc/config/host';
 import { formatHomePath } from '@atc/core';
-import { collectRootDirs } from '@atc/source-dirs';
-
-export interface DirSources {
-  readonly cwd: string;
-  readonly recent: readonly string[];
-  readonly roots: readonly string[];
-  readonly zoxide: readonly string[];
-  readonly home?: string;
-}
-
-export function collectDirs(sources: DirSources): string[] {
-  const seen = new Set<string>();
-
-  const found: string[] = [];
-
-  for (const d of [
-    sources.cwd,
-    ...sources.recent,
-    ...collectRootDirs(sources.roots),
-    ...sources.zoxide,
-  ]) {
-    if (!seen.has(d) && existsSync(d)) {
-      seen.add(d);
-      found.push(d);
-    }
-  }
-
-  if (found.length === 0) {
-    found.push(sources.home ?? resolveHomeDir());
-  }
-
-  return found;
-}
 
 export function pickMatches(items: readonly string[], filter: string): string[] {
   if (filter === '') {

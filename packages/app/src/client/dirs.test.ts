@@ -1,15 +1,6 @@
 import { expect, test } from 'bun:test';
-import { mkdirSync } from 'node:fs';
-import { join } from 'node:path';
-import { setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
-import { collectDirs, findFuzzyScore, pickMatches } from './dirs';
-
-function setupTest() {
-  const tmp = setupTempDir('atc-dirs-');
-
-  return { dir: tmp.dir };
-}
+import { findFuzzyScore, pickMatches } from './dirs';
 
 test.each([
   ['vers', 'vrs'],
@@ -51,56 +42,4 @@ test('#pickMatches drops candidates the filter cannot fuzzy-match', () => {
   expect(pickMatches(['/home/me/projects/atc', '/home/me/music'], 'atc')).toStrictEqual([
     '/home/me/projects/atc',
   ]);
-});
-
-test('#collectDirs lists the working directory first, then history, roots, and zoxide, without repeats', () => {
-  const ctx = setupTest();
-
-  mkdirSync(join(ctx.dir, 'cwd'));
-  mkdirSync(join(ctx.dir, 'recent'));
-  mkdirSync(join(ctx.dir, 'root', 'app'), { recursive: true });
-  mkdirSync(join(ctx.dir, 'visited'));
-
-  const dirs = collectDirs({
-    cwd: join(ctx.dir, 'cwd'),
-    recent: [join(ctx.dir, 'recent'), join(ctx.dir, 'cwd')],
-    roots: [join(ctx.dir, 'root')],
-    zoxide: [join(ctx.dir, 'visited'), join(ctx.dir, 'recent')],
-  });
-
-  expect(dirs).toStrictEqual([
-    join(ctx.dir, 'cwd'),
-    join(ctx.dir, 'recent'),
-    join(ctx.dir, 'root', 'app'),
-    join(ctx.dir, 'visited'),
-  ]);
-});
-
-test('#collectDirs drops a directory that no longer exists', () => {
-  const ctx = setupTest();
-
-  mkdirSync(join(ctx.dir, 'kept'));
-
-  const dirs = collectDirs({
-    cwd: join(ctx.dir, 'kept'),
-    recent: [join(ctx.dir, 'gone')],
-    roots: [],
-    zoxide: [],
-  });
-
-  expect(dirs).toStrictEqual([join(ctx.dir, 'kept')]);
-});
-
-test('#collectDirs falls back to the home directory when every source is empty', () => {
-  const ctx = setupTest();
-
-  const dirs = collectDirs({
-    cwd: join(ctx.dir, 'gone'),
-    recent: [],
-    roots: [],
-    zoxide: [],
-    home: join(ctx.dir, 'home'),
-  });
-
-  expect(dirs).toStrictEqual([join(ctx.dir, 'home')]);
 });
