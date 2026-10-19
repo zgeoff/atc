@@ -67,8 +67,12 @@ export function startStubPeerDaemon(
     open(socket) {
       socket.data = {
         lines: new LineDecoder(),
+
+        // The peer encodes every message as a JSON string.
         peer: new ServerPeer((message) => {
-          socket.write(`${String(message)}\n`);
+          if (typeof message === 'string') {
+            socket.write(`${message}\n`);
+          }
         }),
       };
 

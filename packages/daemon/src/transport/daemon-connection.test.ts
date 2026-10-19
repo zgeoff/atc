@@ -511,7 +511,7 @@ test('it holds a peer subscription back while the socket takes nothing, then rep
   );
 
   await waitFor(() => {
-    expect(peer.collectFrames()).toContainEqual(expect.objectContaining({ i: '1' }));
+    expect(peer.collectFrames().map((frame) => frame['i'])).toContain('1');
   });
 
   peer.setAccepting(false);
