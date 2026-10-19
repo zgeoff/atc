@@ -61,10 +61,6 @@ test('it sends the principal a request acts as, and its name, as headers', async
 
   const client = await DaemonClient.open(ctx.socketPath);
 
-  onTestFinished(() => {
-    client.stop();
-  });
-
   const unanswered = client.sendRequest('session.list', {}, 'ci', 'Build bot');
 
   onTestFinished(async () => {
