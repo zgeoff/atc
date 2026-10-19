@@ -45,8 +45,43 @@ test('it reads null for a database whose fleet table has no session id', () => {
 
   db.run('CREATE TABLE fleet (agent_session_id TEXT, name TEXT, cwd TEXT, exited INTEGER)');
   db.run('CREATE TABLE prefs (key TEXT, value TEXT)');
-  db.run('CREATE TABLE session_owner (session_id TEXT, daemon_id TEXT)');
   db.run("INSERT INTO fleet VALUES ('a-a', 'a', '/tmp', 0)");
+
+  expect(readStoredFleetFile(ctx.dbPath)).toBeNull();
+});
+
+test('it reads null for a database whose fleet table has no exit status', () => {
+  const ctx = setupTest();
+
+  const db = new Database(ctx.dbPath);
+
+  registerTestCleanup(() => {
+    db.close();
+  });
+
+  db.run('CREATE TABLE fleet (session_id TEXT, name TEXT)');
+  db.run('CREATE TABLE prefs (key TEXT, value TEXT)');
+  db.run('CREATE TABLE session_owner (session_id TEXT, daemon_id TEXT)');
+  db.run("INSERT INTO prefs VALUES ('daemon_id', 'd-1')");
+  db.run("INSERT INTO fleet VALUES ('s-a', 'a')");
+  db.run("INSERT INTO session_owner VALUES ('s-a', 'd-1')");
+
+  expect(readStoredFleetFile(ctx.dbPath)).toBeNull();
+});
+
+test('it reads null for a database without an ownership table', () => {
+  const ctx = setupTest();
+
+  const db = new Database(ctx.dbPath);
+
+  registerTestCleanup(() => {
+    db.close();
+  });
+
+  db.run('CREATE TABLE fleet (session_id TEXT, name TEXT, exited INTEGER)');
+  db.run('CREATE TABLE prefs (key TEXT, value TEXT)');
+  db.run("INSERT INTO prefs VALUES ('daemon_id', 'd-1')");
+  db.run("INSERT INTO fleet VALUES ('s-a', 'a', 0)");
 
   expect(readStoredFleetFile(ctx.dbPath)).toBeNull();
 });

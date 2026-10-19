@@ -386,3 +386,33 @@ test('it restores the stored fleet by itself when the config leaves restoreFleet
 
   expect(sessions.map((session) => session['name'])).toIncludeSameMembers(['one', 'two']);
 });
+
+test('it starts with an empty fleet beside a fleet.json and no state database', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(ctx.configPath, JSON.stringify({ agents: { claude: { bin: ctx.claude } } }));
+  mkdirSync(join(ctx.home, '.local', 'state', 'atc'), { recursive: true });
+
+  writeFileSync(
+    join(ctx.home, '.local', 'state', 'atc', 'fleet.json'),
+    JSON.stringify([
+      { name: 'one', cwd: ctx.home, agentSessionID: 'fake-a' },
+      { name: 'two', cwd: ctx.home, agentSessionID: 'fake-b' },
+    ]),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  // The daemon opens its store before it answers the hello.
+  await client.sendHello('atc/test');
+
+  const store = await StateStore.open(join(ctx.home, '.local', 'state', 'atc', 'atc.db'));
+
+  registerTestCleanup(() => store.stop());
+
+  const fleet = await store.loadFleet();
+
+  expect(fleet).toStrictEqual([]);
+});
