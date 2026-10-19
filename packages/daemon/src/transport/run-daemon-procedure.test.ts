@@ -153,31 +153,37 @@ test.each([
   ).rejects.toMatchObject({ code: 'scope_invalid', message: expect.toInclude(message) as unknown });
 });
 
-test('it refuses a scope add from a session inside the tree of the session it widens', () => {
-  const ctx = buildStubDaemonContext({ isCallerTree: () => true });
+test.each([
+  ['the session itself', 's-6', 's-6'],
+  ['a child of the session', 's-6', 's-child'],
+  ['a grandchild of the session', 's-6', 's-grandchild'],
+])('it refuses a scope add from %s, which sits inside its tree', (_label, session, caller) => {
+  const isCallerTree = mock<DaemonContext['isCallerTree']>(() => true);
+  const ctx = buildStubDaemonContext({ isCallerTree });
 
   const requests = buildConnectionRequests({
     client: { sendOutput: () => {}, sendEvent: () => {} },
     ctx,
     identity: {
       principal: null,
-      callerSession: toSessionID('s-child'),
+      callerSession: toSessionID(caller),
       peerSession: null,
       helloClient: 'atc/test',
     },
   });
 
-  expect(
-    runDaemonProcedure(
-      'session.scope.add',
-      { session: 's-6', scope: { worktrees: [{ path: '/srv/site' }] } },
-      { ctx, requests, as: null },
-    ),
-  ).rejects.toMatchObject({
+  const added = runDaemonProcedure(
+    'session.scope.add',
+    { session, scope: { worktrees: [{ path: '/srv/site' }] } },
+    { ctx, requests, as: null },
+  );
+
+  expect(added).rejects.toMatchObject({
     code: 'unauthorized',
-    message:
-      "session 's-child' cannot add to the scope of session 's-6': a session never widens its own scope or that of a session above it",
+    message: `session '${caller}' cannot add to the scope of session '${session}': a session never widens its own scope or that of a session above it`,
   });
+
+  expect(isCallerTree).toHaveBeenCalledExactlyOnceWith(toSessionID(session), toSessionID(caller));
 });
 
 test('it adds to the scope of a session from a caller outside its tree', async () => {

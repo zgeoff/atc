@@ -7,225 +7,229 @@ import { implement } from '@orpc/server';
 import type { DaemonContext } from '../daemon-context';
 import type { ProcedureContext } from './procedure-context';
 
-const os = implement(DAEMON_CONTRACT).$context<ProcedureContext>();
-
 // Answers each procedure a connection admits.
-export const DAEMON_ROUTER = os.router({
-  daemon: {
-    hello: os.daemon.hello.handler((call) => call.context.answerHello(call.input)),
-    ping: os.daemon.ping.handler(() => ({})),
-    quit: os.daemon.quit.handler((call) => {
-      call.context.ctx.quitDaemon();
+export const DAEMON_ROUTER = buildDaemonRouter();
 
-      return {};
-    }),
-    backup: os.daemon.backup.handler(async (call) => ({
-      path: call.input.path,
-      bytes: await call.context.ctx.writeStateBackup(call.input.path),
-    })),
-  },
-  dirs: {
-    list: os.dirs.list.handler(async (call) => ({
-      dirs: await call.context.ctx.collectSpawnDirs(null),
-    })),
-  },
-  agents: {
-    list: os.agents.list.handler((call) => ({ ...call.context.ctx.collectAgents() })),
-  },
-  sources: {
-    list: os.sources.list.handler((call) =>
-      call.context.requests.spawn.applySourcesList(call.input, call.context.ctx),
-    ),
-    interpret: os.sources.interpret.handler((call) =>
-      call.context.requests.spawn.applySourcesInterpret(call.input, call.context.ctx),
-    ),
-    complete: os.sources.complete.handler((call) =>
-      call.context.requests.spawn.applySourcesComplete(call.input, call.context.ctx),
-    ),
-  },
-  git: {
-    probe: os.git.probe.handler((call) =>
-      call.context.requests.spawn.applyGitProbe(call.input, call.context.ctx),
-    ),
-  },
-  fleet: {
-    list: os.fleet.list.handler(async (call) => {
-      const ctx = call.context.ctx;
+function buildDaemonRouter() {
+  const os = implement(DAEMON_CONTRACT).$context<ProcedureContext>();
 
-      const fleet = await ctx.collectFleet();
+  return os.router({
+    daemon: {
+      hello: os.daemon.hello.handler((call) => call.context.answerHello(call.input)),
+      ping: os.daemon.ping.handler(() => ({})),
+      quit: os.daemon.quit.handler((call) => {
+        call.context.ctx.quitDaemon();
 
-      return { fleet: fleet.filter((entry) => ctx.isSessionVisible(entry.sessionID)) };
-    }),
-    restore: os.fleet.restore.handler(async (call) => ({
-      restored: await call.context.ctx.restoreFleet(call.input.cols, call.input.rows),
-    })),
-  },
-  session: {
-    list: os.session.list.handler((call) => ({ sessions: call.context.ctx.collectSessions() })),
-    spawn: os.session.spawn.handler((call) =>
-      call.context.requests.spawn.applySpawn(call.input, call.context.ctx),
-    ),
-    kill: os.session.kill.handler((call) => applyKill(call.input, call.context.ctx)),
-    ack: os.session.ack.handler((call) => {
-      if (!call.context.ctx.ackSession(call.input.session)) {
-        throw new DaemonError('no_such_session', `no session '${call.input.session}'`);
-      }
-
-      return {};
-    }),
-    forget: os.session.forget.handler(async (call) => {
-      const input = call.input;
-
-      const forgotten = await call.context.ctx.forgetSession(
-        input.session,
-        input.confirmToken,
-        { pinned: input.refusePinned === true, live: input.refuseLive === true },
-        call.context.requests.identity.callerSession,
-      );
-
-      if (forgotten === 'missing') {
-        throw new DaemonError('no_such_session', `no session '${input.session}'`);
-      }
-
-      return { ...forgotten };
-    }),
-    resumeCommand: os.session.resumeCommand.handler((call) => {
-      const resume = call.context.ctx.buildResumeCommand(call.input.session);
-
-      if ('command' in resume) {
-        return { command: resume.command };
-      }
-
-      if (resume.refusal === 'missing') {
-        throw new DaemonError('no_such_session', `no session '${call.input.session}'`);
-      }
-
-      throw new DaemonError('unsupported', resume.reason);
-    }),
-    auth: {
-      revoke: os.session.auth.revoke.handler(async (call) => {
-        if (!(await call.context.ctx.revokeSessionAuth(call.input.session))) {
-          throw new DaemonError('no_such_session', `no session '${call.input.session}'`);
-        }
-
-        return { revoked: true as const };
+        return {};
       }),
-      rebind: os.session.auth.rebind.handler(async (call) => {
-        const rebound = await call.context.ctx.updateSessionAuth(call.input.session);
-
-        if (rebound === null) {
-          throw new DaemonError('no_such_session', `no session '${call.input.session}'`);
-        }
-
-        return { ...rebound };
-      }),
+      backup: os.daemon.backup.handler(async (call) => ({
+        path: call.input.path,
+        bytes: await call.context.ctx.writeStateBackup(call.input.path),
+      })),
     },
-    update: os.session.update.handler((call) => applyUpdate(call.input, call.context.ctx)),
-    scope: {
-      add: os.session.scope.add.handler((call) =>
-        applyScopeAdd(call.input, call.context.ctx, call.context.requests.identity.callerSession),
+    dirs: {
+      list: os.dirs.list.handler(async (call) => ({
+        dirs: await call.context.ctx.collectSpawnDirs(null),
+      })),
+    },
+    agents: {
+      list: os.agents.list.handler((call) => ({ ...call.context.ctx.collectAgents() })),
+    },
+    sources: {
+      list: os.sources.list.handler((call) =>
+        call.context.requests.spawn.applySourcesList(call.input, call.context.ctx),
+      ),
+      interpret: os.sources.interpret.handler((call) =>
+        call.context.requests.spawn.applySourcesInterpret(call.input, call.context.ctx),
+      ),
+      complete: os.sources.complete.handler((call) =>
+        call.context.requests.spawn.applySourcesComplete(call.input, call.context.ctx),
       ),
     },
-    attach: os.session.attach.handler((call) =>
-      call.context.requests.terminal.applyAttach(call.input, call.context.ctx),
-    ),
-    detach: os.session.detach.handler((call) => {
-      call.context.ctx.detachSession(call.context.requests.client, call.input.session);
+    git: {
+      probe: os.git.probe.handler((call) =>
+        call.context.requests.spawn.applyGitProbe(call.input, call.context.ctx),
+      ),
+    },
+    fleet: {
+      list: os.fleet.list.handler(async (call) => {
+        const ctx = call.context.ctx;
 
-      return {};
-    }),
-    input: os.session.input.handler((call) =>
-      call.context.requests.terminal.applyInput(call.input, call.context.ctx),
-    ),
-    submit: os.session.submit.handler((call) =>
-      call.context.requests.terminal.applySubmit(call.input, call.context.ctx),
-    ),
-    resize: os.session.resize.handler((call) =>
-      call.context.requests.terminal.applyResize(call.input, call.context.ctx),
-    ),
-    screen: os.session.screen.handler(async (call) => {
-      const ctx = call.context.ctx;
-      const id = call.input.session;
+        const fleet = await ctx.collectFleet();
 
-      const screen = await ctx.readSessionScreen(id);
+        return { fleet: fleet.filter((entry) => ctx.isSessionVisible(entry.sessionID)) };
+      }),
+      restore: os.fleet.restore.handler(async (call) => ({
+        restored: await call.context.ctx.restoreFleet(call.input.cols, call.input.rows),
+      })),
+    },
+    session: {
+      list: os.session.list.handler((call) => ({ sessions: call.context.ctx.collectSessions() })),
+      spawn: os.session.spawn.handler((call) =>
+        call.context.requests.spawn.applySpawn(call.input, call.context.ctx),
+      ),
+      kill: os.session.kill.handler((call) => applyKill(call.input, call.context.ctx)),
+      ack: os.session.ack.handler((call) => {
+        if (!call.context.ctx.ackSession(call.input.session)) {
+          throw new DaemonError('no_such_session', `no session '${call.input.session}'`);
+        }
 
-      if (screen === 'missing' || !ctx.isSessionVisible(id)) {
-        throw new DaemonError('no_such_session', `no session '${id}'`);
-      }
+        return {};
+      }),
+      forget: os.session.forget.handler(async (call) => {
+        const input = call.input;
 
-      if (screen === 'no_screen') {
-        throw new DaemonError('session_dead', `session '${id}' has no captured screen`);
-      }
+        const forgotten = await call.context.ctx.forgetSession(
+          input.session,
+          input.confirmToken,
+          { pinned: input.refusePinned === true, live: input.refuseLive === true },
+          call.context.requests.identity.callerSession,
+        );
 
-      return { ...screen };
-    }),
-    menu: os.session.menu.handler((call) =>
-      call.context.requests.terminal.applySessionMenu(call.input, call.context.ctx),
-    ),
-    choose: os.session.choose.handler((call) =>
-      call.context.requests.terminal.applySessionChoose(call.input, call.context.ctx),
-    ),
-    eject: os.session.eject.handler((call) => applyEject(call.input, call.context.ctx)),
-    adopt: os.session.adopt.handler((call) => applyAdopt(call.input, call.context.ctx)),
-    get: os.session.get.handler((call) =>
-      call.context.requests.reads.applySessionGet(call.input, call.context.ctx),
-    ),
-    read: os.session.read.handler((call) =>
-      call.context.requests.reads.applySessionRead(call.input, call.context.ctx),
-    ),
-    message: os.session.message.handler((call) => {
-      const sent = call.context.sentParams;
-      const sentFrom = isRecord(sent) ? sent['from'] : undefined;
+        if (forgotten === 'missing') {
+          throw new DaemonError('no_such_session', `no session '${input.session}'`);
+        }
 
-      return call.context.requests.messages.applySessionMessage(
-        call.input,
-        call.context.ctx,
-        call.context.as,
-        sentFrom,
-      );
-    }),
-    tap: os.session.tap.handler((call) =>
-      call.context.requests.messages.applyTap(call.input, call.context.ctx),
-    ),
-  },
-  permission: {
-    respond: os.permission.respond.handler((call) =>
-      call.context.requests.terminal.applyPermissionRespond(call.input, call.context.ctx),
-    ),
-  },
-  events: {
-    read: os.events.read.handler((call) =>
-      call.context.requests.reads.applyEventsRead(call.input, call.context.ctx),
-    ),
+        return { ...forgotten };
+      }),
+      resumeCommand: os.session.resumeCommand.handler((call) => {
+        const resume = call.context.ctx.buildResumeCommand(call.input.session);
 
-    subscribe: os.events.subscribe.handler((call) =>
-      call.context.subscribeEvents(call.signal ?? new AbortController().signal),
-    ),
-  },
-  message: {
-    get: os.message.get.handler((call) =>
-      call.context.requests.messages.applyMessageGet(call.input, call.context.ctx),
-    ),
-    ack: os.message.ack.handler((call) =>
-      call.context.requests.messages.applyMessageAck(call.input, call.context.ctx),
-    ),
-  },
-  notice: {
-    ack: os.notice.ack.handler((call) =>
-      call.context.requests.messages.applyNoticeAck(call.input, call.context.ctx),
-    ),
-  },
-  note: {
-    get: os.note.get.handler((call) =>
-      call.context.requests.reads.applyNoteGet(call.input, call.context.ctx),
-    ),
-  },
-  answer: {
-    get: os.answer.get.handler((call) =>
-      call.context.requests.reads.applyAnswerGet(call.input, call.context.ctx),
-    ),
-  },
-});
+        if ('command' in resume) {
+          return { command: resume.command };
+        }
+
+        if (resume.refusal === 'missing') {
+          throw new DaemonError('no_such_session', `no session '${call.input.session}'`);
+        }
+
+        throw new DaemonError('unsupported', resume.reason);
+      }),
+      auth: {
+        revoke: os.session.auth.revoke.handler(async (call) => {
+          if (!(await call.context.ctx.revokeSessionAuth(call.input.session))) {
+            throw new DaemonError('no_such_session', `no session '${call.input.session}'`);
+          }
+
+          return { revoked: true as const };
+        }),
+        rebind: os.session.auth.rebind.handler(async (call) => {
+          const rebound = await call.context.ctx.updateSessionAuth(call.input.session);
+
+          if (rebound === null) {
+            throw new DaemonError('no_such_session', `no session '${call.input.session}'`);
+          }
+
+          return { ...rebound };
+        }),
+      },
+      update: os.session.update.handler((call) => applyUpdate(call.input, call.context.ctx)),
+      scope: {
+        add: os.session.scope.add.handler((call) =>
+          applyScopeAdd(call.input, call.context.ctx, call.context.requests.identity.callerSession),
+        ),
+      },
+      attach: os.session.attach.handler((call) =>
+        call.context.requests.terminal.applyAttach(call.input, call.context.ctx),
+      ),
+      detach: os.session.detach.handler((call) => {
+        call.context.ctx.detachSession(call.context.requests.client, call.input.session);
+
+        return {};
+      }),
+      input: os.session.input.handler((call) =>
+        call.context.requests.terminal.applyInput(call.input, call.context.ctx),
+      ),
+      submit: os.session.submit.handler((call) =>
+        call.context.requests.terminal.applySubmit(call.input, call.context.ctx),
+      ),
+      resize: os.session.resize.handler((call) =>
+        call.context.requests.terminal.applyResize(call.input, call.context.ctx),
+      ),
+      screen: os.session.screen.handler(async (call) => {
+        const ctx = call.context.ctx;
+        const id = call.input.session;
+
+        const screen = await ctx.readSessionScreen(id);
+
+        if (screen === 'missing' || !ctx.isSessionVisible(id)) {
+          throw new DaemonError('no_such_session', `no session '${id}'`);
+        }
+
+        if (screen === 'no_screen') {
+          throw new DaemonError('session_dead', `session '${id}' has no captured screen`);
+        }
+
+        return { ...screen };
+      }),
+      menu: os.session.menu.handler((call) =>
+        call.context.requests.terminal.applySessionMenu(call.input, call.context.ctx),
+      ),
+      choose: os.session.choose.handler((call) =>
+        call.context.requests.terminal.applySessionChoose(call.input, call.context.ctx),
+      ),
+      eject: os.session.eject.handler((call) => applyEject(call.input, call.context.ctx)),
+      adopt: os.session.adopt.handler((call) => applyAdopt(call.input, call.context.ctx)),
+      get: os.session.get.handler((call) =>
+        call.context.requests.reads.applySessionGet(call.input, call.context.ctx),
+      ),
+      read: os.session.read.handler((call) =>
+        call.context.requests.reads.applySessionRead(call.input, call.context.ctx),
+      ),
+      message: os.session.message.handler((call) => {
+        const sent = call.context.sentParams;
+        const sentFrom = isRecord(sent) ? sent['from'] : undefined;
+
+        return call.context.requests.messages.applySessionMessage(
+          call.input,
+          call.context.ctx,
+          call.context.as,
+          sentFrom,
+        );
+      }),
+      tap: os.session.tap.handler((call) =>
+        call.context.requests.messages.applyTap(call.input, call.context.ctx),
+      ),
+    },
+    permission: {
+      respond: os.permission.respond.handler((call) =>
+        call.context.requests.terminal.applyPermissionRespond(call.input, call.context.ctx),
+      ),
+    },
+    events: {
+      read: os.events.read.handler((call) =>
+        call.context.requests.reads.applyEventsRead(call.input, call.context.ctx),
+      ),
+
+      subscribe: os.events.subscribe.handler((call) =>
+        call.context.subscribeEvents(call.signal ?? new AbortController().signal),
+      ),
+    },
+    message: {
+      get: os.message.get.handler((call) =>
+        call.context.requests.messages.applyMessageGet(call.input, call.context.ctx),
+      ),
+      ack: os.message.ack.handler((call) =>
+        call.context.requests.messages.applyMessageAck(call.input, call.context.ctx),
+      ),
+    },
+    notice: {
+      ack: os.notice.ack.handler((call) =>
+        call.context.requests.messages.applyNoticeAck(call.input, call.context.ctx),
+      ),
+    },
+    note: {
+      get: os.note.get.handler((call) =>
+        call.context.requests.reads.applyNoteGet(call.input, call.context.ctx),
+      ),
+    },
+    answer: {
+      get: os.answer.get.handler((call) =>
+        call.context.requests.reads.applyAnswerGet(call.input, call.context.ctx),
+      ),
+    },
+  });
+}
 
 async function applyKill(
   input: RequestParams<'session.kill'>,
