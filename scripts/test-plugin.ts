@@ -1,6 +1,7 @@
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { parseArgs } from 'node:util';
 import { z } from 'zod';
 import { collectPackageClosure } from './collect-package-closure';
 import type { WorkspacePackage } from './load-workspace-packages';
@@ -29,10 +30,15 @@ const TOOLING = new Set([
 ]);
 
 async function main(): Promise<void> {
-  const positionals = process.argv.slice(2).filter((arg) => arg !== '--keep');
-  const [name, root] = positionals;
+  const args = parseArgs({
+    args: process.argv.slice(2),
+    options: { keep: { type: 'boolean', default: false } },
+    allowPositionals: true,
+  });
+
+  const [name, root] = args.positionals;
   const repo = resolve(root ?? join(import.meta.dir, '..'));
-  const keep = process.argv.includes('--keep');
+  const keep = args.values.keep;
   const workspace = loadWorkspacePackages(repo);
   const plugins = workspace.filter((pkg) => isPlugin(pkg));
   const plugin = plugins.find((pkg) => pkg.name === name);

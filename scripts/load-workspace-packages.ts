@@ -10,6 +10,15 @@ export interface WorkspacePackage {
   readonly deps: readonly string[];
 }
 
+const SCOPE = '@atc/';
+const WORKSPACES_SCHEMA = z.object({ packages: z.array(z.string()) });
+const ROOT_MANIFEST_SCHEMA = z.object({ workspaces: WORKSPACES_SCHEMA });
+
+const PACKAGE_MANIFEST_SCHEMA = z.object({
+  name: z.string().startsWith(SCOPE),
+  dependencies: z.record(z.string(), z.string()).optional(),
+});
+
 // The packages that the root manifest's workspace globs match, sorted by directory.
 export function loadWorkspacePackages(root: string): WorkspacePackage[] {
   const manifest = ROOT_MANIFEST_SCHEMA.parse(loadJSON(join(root, 'package.json')));
@@ -37,12 +46,3 @@ export function loadWorkspacePackages(root: string): WorkspacePackage[] {
 function loadJSON(path: string): unknown {
   return JSON.parse(readFileSync(path, 'utf8'));
 }
-
-const SCOPE = '@atc/';
-const WORKSPACES_SCHEMA = z.object({ packages: z.array(z.string()) });
-const ROOT_MANIFEST_SCHEMA = z.object({ workspaces: WORKSPACES_SCHEMA });
-
-const PACKAGE_MANIFEST_SCHEMA = z.object({
-  name: z.string().startsWith(SCOPE),
-  dependencies: z.record(z.string(), z.string()).optional(),
-});
