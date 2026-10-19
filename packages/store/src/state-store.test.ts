@@ -17,9 +17,14 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
+import { Kysely } from 'kysely';
 import type { CompiledQuery } from 'kysely';
+import { Migrator } from 'kysely/migration';
 import invariant from 'tiny-invariant';
 import { buildTargetIdentity } from './build-target-identity';
+import { buildSQLiteDialect } from './sqlite/build-sqlite-dialect';
+import { MIGRATIONS } from './sqlite/migrations';
+import type { StateStoreSchema } from './sqlite/state-store-schema';
 import { StateStore } from './state-store';
 import { buildMockFleetEntry } from './testing/build-mock-fleet-entry';
 import { buildMockMessageRecord } from './testing/build-mock-message-record';
@@ -1158,7 +1163,54 @@ test('it runs every migration once on the first open of a legacy database', asyn
     '034_add_events_answer_text',
     '035_add_fleet_suspended',
     '036_add_fleet_plugin_dirs',
+    '037_drop_fleet_resume_interrupted_turns',
   ]);
+});
+
+test('it drops the resume column from a database that stopped at the step that added it, and keeps its fleet', async () => {
+  const tmp = setupTempDir('atc-store-');
+  const dbPath = join(tmp.dir, 'state.db');
+
+  const older = new Database(dbPath);
+
+  registerTestCleanup(() => {
+    older.close();
+  });
+
+  const db = new Kysely<StateStoreSchema>({ dialect: buildSQLiteDialect(older) });
+
+  await new Migrator({
+    db,
+    provider: { getMigrations: () => Promise.resolve(MIGRATIONS) },
+  }).migrateTo('026_add_fleet_resume_interrupted_turns');
+
+  older.run(
+    "INSERT INTO fleet (session_id, name, cwd, pinned, agent, exited, resume_interrupted_turns) VALUES ('s-1', 'nightly-build', '/work/app', 0, 'claude', 0, 1)",
+  );
+
+  older.close();
+
+  const upgraded = await StateStore.open(dbPath);
+
+  registerTestCleanup(() => upgraded.stop());
+
+  const reader = new Database(dbPath, { readonly: true });
+
+  registerTestCleanup(() => {
+    reader.close();
+  });
+
+  const columns = reader
+    .query<{ name: string }, []>('PRAGMA table_info(fleet)')
+    .all()
+    .map((column) => column.name);
+
+  const rows = reader
+    .query<{ session_id: string; name: string }, []>('SELECT session_id, name FROM fleet')
+    .all();
+
+  expect(columns).not.toContain('resume_interrupted_turns');
+  expect(rows).toStrictEqual([{ session_id: 's-1', name: 'nightly-build' }]);
 });
 
 test('it re-runs no migration when it reopens a migrated database', async () => {
@@ -1207,7 +1259,7 @@ test('it re-runs no migration when it reopens a migrated database', async () => 
     .all()
     .map((row) => row.timestamp);
 
-  expect(stamps).toStrictEqual(Array.from({ length: 36 }, () => 'sentinel'));
+  expect(stamps).toStrictEqual(Array.from({ length: 37 }, () => 'sentinel'));
 });
 
 test('it keeps the fleet of a migrated database across a reopen', async () => {
@@ -4705,7 +4757,7 @@ test('it upgrades a database from before runtime auth and keeps every existing r
     .query<{ name: string }, []>('SELECT name FROM kysely_migration ORDER BY name')
     .all()
     .map((row) => row.name)
-    .slice(-12, -9);
+    .slice(-13, -10);
 
   const fleet = await upgraded.loadFleet();
   const dirs = await upgraded.collectSpawnDirs();
