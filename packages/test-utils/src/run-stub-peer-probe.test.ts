@@ -29,7 +29,7 @@ test('it adds an empty scope to the session after a handshake without a session'
   expect(JSON.parse(readFileSync(ctx.outPath, 'utf8'))).toStrictEqual({ ok: true });
 
   expect(daemon.requests).toStrictEqual([
-    { m: 'daemon.hello', p: { client: 'atc/peer-probe', auth: { scheme: 'none' } } },
+    { m: 'daemon.hello', p: { client: 'atc/peer-probe', protocol: 5, auth: { scheme: 'none' } } },
     { m: 'session.scope.add', p: { session: 's-7', scope: {} } },
   ]);
 });
@@ -105,7 +105,7 @@ test('it gives the session in its handshake', async () => {
   expect(daemon.requests).toStrictEqual([
     {
       m: 'daemon.hello',
-      p: { client: 'atc/peer-probe', auth: { scheme: 'none' }, session: 's-7' },
+      p: { client: 'atc/peer-probe', protocol: 5, auth: { scheme: 'none' }, session: 's-7' },
     },
   ]);
 });

@@ -1,6 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { DaemonClient } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
+import type { DaemonClient } from '@atc/protocol/client';
 import { registerTestCleanup, waitFor } from '@atc/test-utils';
 import type { Subprocess } from 'bun';
 import { findDaemonRecord } from '../find-daemon-record';
@@ -100,7 +101,7 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
   // A client that opens after the wait for it ended, or after the stop,
   // closes at once, so nothing outlives the daemon it reached.
   const openTrackedClient = async (isAbandoned: () => boolean) => {
-    const client = await DaemonClient.open(socketPath);
+    const client = await openDaemonClient(socketPath);
 
     if (stopped || isAbandoned()) {
       client.stop();

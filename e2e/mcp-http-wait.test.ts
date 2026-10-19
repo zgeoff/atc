@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DaemonClient } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
 import { registerTestCleanup, resolveATCCommand, setupTempDir, waitFor } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 
@@ -97,7 +97,7 @@ test('it waits for a daemon started after it, starting none of its own, and serv
 
   // A handshake answered after the server stopped proves the daemon still
   // serves.
-  const client = await DaemonClient.open(join(ctx.dir, 'atc-daemon.sock'));
+  const client = await openDaemonClient(join(ctx.dir, 'atc-daemon.sock'));
 
   registerTestCleanup(() => {
     client.stop();
@@ -122,6 +122,7 @@ test('it waits for a daemon started after it, starting none of its own, and serv
     reporterSocketPath: join(ctx.dir, 'atc.sock'),
     eventsSocketPath: join(ctx.dir, 'atc-events.sock'),
     listenPort: null,
+    protocol: 5,
   });
 
   expect(Bun.peek.status(daemon.exited)).toBe('pending');

@@ -1,3 +1,4 @@
+import { isRecord } from '@atc/core';
 import type { Socket } from 'bun';
 import { registerTestCleanup } from './register-test-cleanup';
 
@@ -26,15 +27,17 @@ export interface CutProxy {
   readonly stop: () => void;
 }
 
-// One proxied connection: the target side once it is connected, what the
-// client sent before it was, the client's unfinished line, and whether
-// the target's next answer is lost or every answer from now on is.
+// One proxied connection: what the client sent before the target side
+// connected, each side's unfinished line, the message id of the request
+// whose answer is lost, and whether every answer from now on is.
 interface ProxyLink {
   upstream: Socket | null;
   readonly pending: Uint8Array[];
   readonly decoder: TextDecoder;
   lineBuffer: string;
-  cutting: boolean;
+  readonly upstreamDecoder: TextDecoder;
+  upstreamBuffer: string;
+  cutID: string | null;
   held: boolean;
 
   // Counts an answer the link swallows in hold mode.
@@ -45,6 +48,9 @@ export function startCutProxy(options: CutProxyOptions): CutProxy {
   let cutsLeft = options.cuts;
   let requests = 0;
   let held = 0;
+
+  // A request names its method as the path of its procedure.
+  const methodPath = `"u":"/${options.method.replaceAll('.', '/')}"`;
 
   const links = new Set<Socket<ProxyLink>>();
 
@@ -58,7 +64,9 @@ export function startCutProxy(options: CutProxyOptions): CutProxy {
           pending: [],
           decoder: new TextDecoder(),
           lineBuffer: '',
-          cutting: false,
+          upstreamDecoder: new TextDecoder(),
+          upstreamBuffer: '',
+          cutID: null,
           held: false,
           onHold: () => {
             held++;
@@ -78,7 +86,7 @@ export function startCutProxy(options: CutProxyOptions): CutProxy {
         let dropped = false;
 
         for (const line of lines) {
-          if (!line.includes(`"m":"${options.method}"`)) {
+          if (!line.includes(methodPath)) {
             continue;
           }
 
@@ -86,7 +94,7 @@ export function startCutProxy(options: CutProxyOptions): CutProxy {
 
           if (cutsLeft > 0) {
             cutsLeft--;
-            client.data.cutting = options.mode !== 'drop';
+            client.data.cutID = options.mode === 'drop' ? null : readMessageID(line);
             dropped = options.mode === 'drop';
           }
         }
@@ -131,8 +139,9 @@ export function startCutProxy(options: CutProxyOptions): CutProxy {
   };
 }
 
-// Connects the client's link to the target, forwarding what the client
-// sent meanwhile, and ends the client when the target cannot be reached.
+// The target's lines pass whole, so the answer to the cut request is lost
+// while the events the target sends before it still arrive. A target that
+// cannot be reached ends the client.
 async function openUpstream(client: Socket<ProxyLink>, options: CutProxyOptions): Promise<void> {
   try {
     const upstream = await Bun.connect({
@@ -144,24 +153,21 @@ async function openUpstream(client: Socket<ProxyLink>, options: CutProxyOptions)
             return;
           }
 
-          if (!client.data.cutting) {
-            client.write(buf);
+          client.data.upstreamBuffer += client.data.upstreamDecoder.decode(buf, { stream: true });
 
-            return;
+          const lines = client.data.upstreamBuffer.split('\n');
+
+          client.data.upstreamBuffer = lines.pop() ?? '';
+
+          for (const line of lines) {
+            if (client.data.cutID !== null && readMessageID(line) === client.data.cutID) {
+              applyCut(client, options);
+
+              return;
+            }
+
+            client.write(`${line}\n`);
           }
-
-          client.data.cutting = false;
-
-          if (options.mode === 'hold') {
-            client.data.held = true;
-
-            client.data.onHold();
-
-            return;
-          }
-
-          client.end();
-          client.data.upstream?.end();
         },
         close() {
           if (!client.data.held) {
@@ -180,4 +186,33 @@ async function openUpstream(client: Socket<ProxyLink>, options: CutProxyOptions)
   } catch {
     client.end();
   }
+}
+
+// Hold swallows the answer and every later byte, keeping the link open;
+// close ends both sides.
+function applyCut(client: Socket<ProxyLink>, options: CutProxyOptions): void {
+  client.data.cutID = null;
+
+  if (options.mode === 'hold') {
+    client.data.held = true;
+
+    client.data.onHold();
+
+    return;
+  }
+
+  client.end();
+  client.data.upstream?.end();
+}
+
+function readMessageID(line: string): string | null {
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(line);
+  } catch {
+    return null;
+  }
+
+  return isRecord(parsed) && typeof parsed['i'] === 'string' ? parsed['i'] : null;
 }

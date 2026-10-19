@@ -1,7 +1,9 @@
 import type { Clock } from '@atc/core';
 import { HELLO_RESULT_SCHEMA } from '@atc/protocol';
+import { openDaemonClient } from '@atc/protocol/client';
+import type { DaemonClient } from '@atc/protocol/client';
 import { readSessionEnv } from '@atc/protocol/session';
-import { DaemonClient, DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atc/protocol/wire';
 
 // The fields of the handshake answer a probe reads; a daemon from before
 // either field answers without it.
@@ -45,7 +47,7 @@ export async function tryOpenDaemon<T>(
     let client: DaemonClient;
 
     try {
-      client = await DaemonClient.open(socketPath);
+      client = await openDaemonClient(socketPath);
     } catch {
       continue;
     }

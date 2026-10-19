@@ -2,8 +2,8 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { startDaemon } from '@atc/daemon';
-import { DaemonClient } from '@atc/protocol/wire';
-import type { EventMsg } from '@atc/protocol/wire';
+import type { DaemonEvent } from '@atc/protocol';
+import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildMockAgentAdapter,
   registerTestCleanup,
@@ -33,9 +33,9 @@ async function setupTest() {
 
   registerTestCleanup(() => daemon.stop());
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
-  const actor = await DaemonClient.open(socketPath);
+  const actor = await openDaemonClient(socketPath);
 
   registerTestCleanup(() => {
     actor.stop();
@@ -201,7 +201,7 @@ test('it exits 0 when another tap replaces it', async () => {
     expect(ctx.events).toPartiallyContain({ ev: 'SessionMessage', status: 'delivered' });
   });
 
-  const replacement = await DaemonClient.open(ctx.socketPath);
+  const replacement = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     replacement.stop();

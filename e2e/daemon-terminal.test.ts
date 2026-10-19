@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { toSessionID } from '@atc/core';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
-import type { EventMsg } from '@atc/protocol/wire';
+import type { DaemonEvent } from '@atc/protocol';
 import { StateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
@@ -82,7 +82,7 @@ test('it streams pty output to an attached client with increasing seq', async ()
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -119,7 +119,7 @@ test('it stops streaming to a detached client while others keep receiving', asyn
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -129,7 +129,7 @@ test('it stops streaming to a detached client while others keep receiving', asyn
 
   const leaver = await daemon.openClient();
 
-  const leaverEvents: EventMsg[] = [];
+  const leaverEvents: DaemonEvent[] = [];
 
   leaver.onEvent = (event) => {
     leaverEvents.push(event);
@@ -171,7 +171,7 @@ test('it resizes the pty to the smallest dims across attached clients', async ()
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -220,7 +220,7 @@ test('it resizes the pty before the attach replay reaches the client', async () 
 
   const joiner = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   joiner.onEvent = (event) => {
     events.push(event);
@@ -343,7 +343,7 @@ test.each([['codex'], ['grok']])(
 
     const client = await daemon.openClient();
 
-    const events: EventMsg[] = [];
+    const events: DaemonEvent[] = [];
 
     client.onEvent = (event) => {
       events.push(event);
@@ -402,7 +402,7 @@ test('it submits a multi-line text to a codex session as one submission', async 
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -460,7 +460,7 @@ test('it submits a line to a claude session as one line', async () => {
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -509,7 +509,7 @@ test('it submits a long line to a claude session as one submission', async () =>
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -566,7 +566,7 @@ test('it types a slash command name to a claude session and pastes its long argu
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -630,7 +630,7 @@ test('it pastes a slash command line to a grok session whole', async () => {
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -694,7 +694,7 @@ test('it pastes a slash command name to a codex session on its own before its lo
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -767,7 +767,7 @@ test('it holds input sent while a codex slash command line pauses until the line
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -839,7 +839,7 @@ test('it pastes a long line to a busy claude session as it does to an idle one',
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -911,7 +911,7 @@ test('it submits a claude composer draft on an empty line without adding a line 
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -970,7 +970,7 @@ test('it writes raw input to a codex session byte for byte', async () => {
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);

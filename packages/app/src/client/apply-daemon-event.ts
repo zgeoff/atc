@@ -1,10 +1,10 @@
 import type { AgentID, Clock } from '@atc/core';
-import type { EventMsg } from '@atc/protocol/wire';
 import { match } from 'ts-pattern';
 import type { ClientActor, ClientMode } from './build-client-machine';
 import type { FleetMirror } from './fleet-mirror';
 import type { OverlayScreen } from './overlay-screen';
 import { parseDaemonEvent } from './parse-daemon-event';
+import type { RawDaemonEvent } from './parse-daemon-event';
 import type { MirrorSession } from './to-mirror-session';
 
 // What a daemon event borrows from the client that owns the screen and the
@@ -22,7 +22,7 @@ export interface DaemonEventDeps {
   readonly scheduleStatus: () => void;
 }
 
-export function applyDaemonEvent(raw: EventMsg, deps: DaemonEventDeps) {
+export function applyDaemonEvent(raw: RawDaemonEvent, deps: DaemonEventDeps) {
   const event = parseDaemonEvent(raw);
 
   if (event === null) {

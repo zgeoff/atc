@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { toAgentSessionID, toSessionID } from '@atc/core';
 import { findDaemonRecord } from '@atc/lifecycle';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
-import type { EventMsg } from '@atc/protocol/wire';
+import type { DaemonEvent } from '@atc/protocol';
 import { StateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
@@ -65,7 +65,7 @@ test('it restores the fleet cold after a daemon crash', async () => {
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -128,6 +128,7 @@ test('it starts a daemon on the state directory of one killed with SIGKILL', asy
     reporterSocketPath: daemon.reporterSocketPath,
     eventsSocketPath: join(ctx.home, 'atc-events.sock'),
     listenPort: null,
+    protocol: 5,
   });
 });
 
@@ -155,7 +156,7 @@ test('it restores a killed session as exited across a daemon restart', async () 
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -261,7 +262,7 @@ test('it revives the fleet one boot at a time, gated on SessionStart', async () 
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -340,7 +341,7 @@ test('it moves on to the next revive when one dies before announcing itself', as
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -408,7 +409,7 @@ test('it revives the fleet most recently active first', async () => {
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -484,7 +485,7 @@ test('it restores a grok session via grok --resume, not claude --resume', async 
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -505,7 +506,7 @@ test('it restores a grok session via grok --resume, not claude --resume', async 
 
   const revived = await daemon.openClient();
 
-  const replay: EventMsg[] = [];
+  const replay: DaemonEvent[] = [];
 
   revived.onEvent = (event) => {
     replay.push(event);
@@ -533,9 +534,11 @@ test('it restores a grok session via grok --resume, not claude --resume', async 
     sessions: [{ agentSessionID: 'fake-grok-1', agent: 'grok', alive: true }],
   });
 
-  expect(output['d']).toInclude('--resume fake-grok-1');
-  expect(output['d']).not.toInclude('claude --resume');
-  expect(output['d']).not.toInclude('FAKE_CLAUDE_UP');
+  invariant(output.ev === 'SessionOutput');
+
+  expect(output.d).toInclude('--resume fake-grok-1');
+  expect(output.d).not.toInclude('claude --resume');
+  expect(output.d).not.toInclude('FAKE_CLAUDE_UP');
 });
 
 test('it keeps the spawn prompt and latest result across a daemon restart', async () => {
@@ -562,7 +565,7 @@ test('it keeps the spawn prompt and latest result across a daemon restart', asyn
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);

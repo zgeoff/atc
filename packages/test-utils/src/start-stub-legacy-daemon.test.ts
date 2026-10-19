@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DaemonClient } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
 import invariant from 'tiny-invariant';
 import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
@@ -21,7 +21,7 @@ test('it drops a connection on the selected request after answering the handshak
   const ctx = setupTest();
   const daemon = startStubLegacyDaemon(ctx.socketPath, { closeOnRequest: 'session.list' });
 
-  const client = await DaemonClient.open(ctx.socketPath);
+  const client = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     client.stop();
@@ -32,8 +32,8 @@ test('it drops a connection on the selected request after answering the handshak
   expect(client.sendRequest('session.list')).rejects.toThrowWithMessage(Error, 'connection closed');
 
   expect(daemon.requests).toStrictEqual([
-    { m: 'daemon.hello', p: { client: 'atc/test-build', auth: { scheme: 'none' } } },
-    { m: 'session.list', p: undefined },
+    { m: 'daemon.hello', p: { client: 'atc/test-build', protocol: 5, auth: { scheme: 'none' } } },
+    { m: 'session.list', p: {} },
   ]);
 });
 
@@ -42,7 +42,7 @@ test('it answers the handshake without a feature list when given none', async ()
 
   startStubLegacyDaemon(ctx.socketPath);
 
-  const client = await DaemonClient.open(ctx.socketPath);
+  const client = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     client.stop();
@@ -64,7 +64,7 @@ test('it announces the features it was given in the handshake', async () => {
     features: ['agents.list', 'message.wait'],
   });
 
-  const client = await DaemonClient.open(ctx.socketPath);
+  const client = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     client.stop();
@@ -87,7 +87,7 @@ test('it answers a method with the reply it was given and records the request', 
     replies: { 'message.get': { message: 'm-1', status: 'queued' } },
   });
 
-  const client = await DaemonClient.open(ctx.socketPath);
+  const client = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     client.stop();
@@ -100,7 +100,7 @@ test('it answers a method with the reply it was given and records the request', 
   expect(got).toStrictEqual({ message: 'm-1', status: 'queued' });
 
   expect(daemon.requests).toStrictEqual([
-    { m: 'daemon.hello', p: { client: 'atc/test-build', auth: { scheme: 'none' } } },
+    { m: 'daemon.hello', p: { client: 'atc/test-build', protocol: 5, auth: { scheme: 'none' } } },
     { m: 'message.get', p: { message: 'm-1', waitMs: 5000 } },
   ]);
 });
@@ -110,7 +110,7 @@ test('it refuses a method it was given no reply for', async () => {
 
   startStubLegacyDaemon(ctx.socketPath, { features: ['agents.list'] });
 
-  const client = await DaemonClient.open(ctx.socketPath);
+  const client = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     client.stop();
@@ -128,7 +128,7 @@ test('it answers a ping without being given a reply', async () => {
 
   startStubLegacyDaemon(ctx.socketPath);
 
-  const client = await DaemonClient.open(ctx.socketPath);
+  const client = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     client.stop();
@@ -146,7 +146,7 @@ test('it refuses a hello on another protocol version with protocol_mismatch', as
 
   startStubLegacyDaemon(ctx.socketPath, { protocol: 3 });
 
-  const client = await DaemonClient.open(ctx.socketPath);
+  const client = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     client.stop();
@@ -155,7 +155,7 @@ test('it refuses a hello on another protocol version with protocol_mismatch', as
   expect(client.sendHello('atc/test-build')).rejects.toMatchObject({
     code: 'protocol_mismatch',
     message:
-      'atc/test-build speaks protocol v4, daemon atc/legacy-build speaks v3; restart the daemon so both run the same build',
+      'atc/test-build speaks protocol v5, daemon atc/legacy-build speaks v3; restart the daemon so both run the same build',
   });
 });
 
@@ -163,7 +163,7 @@ test('it counts a connection it accepted as open until the client closes it', as
   const ctx = setupTest();
   const daemon = startStubLegacyDaemon(ctx.socketPath);
 
-  const client = await DaemonClient.open(ctx.socketPath);
+  const client = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     client.stop();
@@ -178,7 +178,7 @@ test('it counts a connection the client closed as accepted and no longer open', 
   const ctx = setupTest();
   const daemon = startStubLegacyDaemon(ctx.socketPath);
 
-  const client = await DaemonClient.open(ctx.socketPath);
+  const client = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     client.stop();
@@ -199,7 +199,7 @@ test('it stops listening when stopped', () => {
 
   legacy.stop();
 
-  expect(DaemonClient.open(ctx.socketPath)).rejects.toThrow();
+  expect(openDaemonClient(ctx.socketPath)).rejects.toThrow();
 });
 
 test('it answers the handshake on the TCP port it bound when given a TCP address', async () => {
@@ -207,7 +207,7 @@ test('it answers the handshake on the TCP port it bound when given a TCP address
 
   invariant(daemon.port !== null, 'the daemon bound no TCP port');
 
-  const client = await DaemonClient.open({ hostname: '127.0.0.1', port: daemon.port });
+  const client = await openDaemonClient({ hostname: '127.0.0.1', port: daemon.port });
 
   registerTestCleanup(() => {
     client.stop();

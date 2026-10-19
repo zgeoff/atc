@@ -1,4 +1,4 @@
-import type { DaemonClient } from '@atc/protocol/wire';
+import type { DaemonClient } from '@atc/protocol/client';
 import { DaemonError } from '@atc/protocol/wire';
 
 // What `atc session` does to one session: rebind its host's runtime auth,

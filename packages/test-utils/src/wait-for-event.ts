@@ -1,12 +1,11 @@
 import { expect } from 'bun:test';
-import type { EventMsg } from '@atc/protocol/wire';
 import { waitFor } from './wait-for';
 
-export function waitForEvent(
-  events: readonly EventMsg[],
+export function waitForEvent<TEvent extends { readonly ev: string }>(
+  events: readonly TEvent[],
   shape: Readonly<Record<string, unknown>>,
   options: Parameters<typeof waitFor>[1] = {},
-): Promise<EventMsg> {
+): Promise<TEvent> {
   return waitFor(() => {
     const found = events.find((event) => isMatch(event, shape));
 
@@ -22,7 +21,7 @@ export function waitForEvent(
 
 // The match runs on a copy: Bun's toMatchObject writes each asymmetric
 // matcher it compares over the field it matched in the received object.
-function isMatch(event: EventMsg, shape: Readonly<Record<string, unknown>>): boolean {
+function isMatch(event: unknown, shape: Readonly<Record<string, unknown>>): boolean {
   try {
     expect(structuredClone(event)).toMatchObject(shape);
 

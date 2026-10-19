@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
-import type { EventMsg } from '@atc/protocol/wire';
+import type { DaemonEvent } from '@atc/protocol';
 import {
   createStubClaude,
   createStubComposer,
@@ -46,7 +46,7 @@ test('it carries a message from queued through delivered to answered', async () 
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -154,7 +154,7 @@ test('it delivers a message queued before a daemon crash to the restored session
 
   const revived = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   revived.onEvent = (event) => {
     events.push(event);
@@ -228,7 +228,7 @@ test('it names a message event from before a daemon crash by the restored sessio
 
   const revived = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   revived.onEvent = (event) => {
     events.push(event);
@@ -290,7 +290,7 @@ test('it names a message event sent before SessionStart by the restored session'
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);

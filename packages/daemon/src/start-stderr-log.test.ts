@@ -8,7 +8,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { DaemonClient } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
 import {
   registerTestCleanup,
   runCommand,
@@ -79,7 +79,7 @@ test('it answers another client while a flood of refusals fills a stderr nobody 
 
   await sendLinesBeforeHandshake(ctx.port, 3000);
 
-  const client = await DaemonClient.open(join(ctx.dir, 'daemon.sock'));
+  const client = await openDaemonClient(join(ctx.dir, 'daemon.sock'));
 
   onTestFinished(() => {
     client.stop();

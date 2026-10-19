@@ -1,7 +1,7 @@
 import type { AgentID, Clock } from '@atc/core';
-import type { DaemonBoot } from '@atc/protocol';
+import type { DaemonBoot, DaemonEvent } from '@atc/protocol';
+import type { DaemonClient } from '@atc/protocol/client';
 import { DaemonError } from '@atc/protocol/wire';
-import type { DaemonClient, EventMsg } from '@atc/protocol/wire';
 import { DaemonTransport } from '@atc/protocol/wire/transport';
 import type { ClientActor, ClientMode } from './build-client-machine';
 import type { FleetMirror } from './fleet-mirror';
@@ -30,7 +30,7 @@ export interface DaemonConnectionDeps {
   readonly ptyRows: () => number;
   readonly quit: (code: number, message: string) => never;
   readonly logClientEvent: (line: string) => void;
-  readonly onEvent: (raw: EventMsg) => void;
+  readonly onEvent: (raw: DaemonEvent) => void;
   readonly setLastUsedAgent: (agent: AgentID) => void;
 }
 

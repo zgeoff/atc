@@ -1,4 +1,3 @@
-import type { EventMsg } from '@atc/protocol/wire';
 import { match } from 'ts-pattern';
 import { z } from 'zod';
 import { toMirrorSession } from './to-mirror-session';
@@ -70,7 +69,13 @@ const DAEMON_EVENT_SCHEMA = z.discriminatedUnion('ev', [
   }),
 ]);
 
-export function parseDaemonEvent(raw: EventMsg): DaemonEvent | null {
+// An event as the daemon sent it, before the client parsed it.
+export interface RawDaemonEvent {
+  readonly ev: string;
+  readonly [field: string]: unknown;
+}
+
+export function parseDaemonEvent(raw: RawDaemonEvent): DaemonEvent | null {
   const parsed = DAEMON_EVENT_SCHEMA.safeParse(raw);
 
   if (!parsed.success) {

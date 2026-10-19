@@ -5,8 +5,8 @@ import { isRecord, toSessionID } from '@atc/core';
 import type { RestoreSettled } from '@atc/daemon';
 import { ClaudeAdapter } from '@atc/harness-claude';
 import { encodeCursor } from '@atc/protocol';
+import type { DaemonEvent } from '@atc/protocol';
 import { decodeMessage } from '@atc/protocol/wire';
-import type { EventMsg } from '@atc/protocol/wire';
 import { StateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
@@ -15,6 +15,7 @@ import {
   buildMockHostServices,
   buildStubClock,
   getRecord,
+  getString,
   registerTestCleanup,
   spawnNamedSession,
   startStubTap,
@@ -377,10 +378,9 @@ test('it hands a message queued during the restore to the session tap that attac
   await waitFor(() => {
     expect(inbox.messages).toStrictEqual([
       {
-        v: 4,
         ev: 'InboxMessage',
         s: 's-agent-c',
-        message: sent['message'],
+        message: getString(sent, 'message'),
         from: 'owner',
         sender: { kind: 'owner', name: 'owner' },
         text: 'hello',
@@ -420,30 +420,27 @@ test('it drains pending messages to a tap in the order they were sent', async ()
   await waitFor(() => {
     expect(inbox.messages).toStrictEqual([
       {
-        v: 4,
         ev: 'InboxMessage',
         s: id,
-        message: first['message'],
+        message: getString(first, 'message'),
         from: 'owner',
         sender: { kind: 'owner', name: 'owner' },
         text: 'one',
         sentAt: expect.any(Number),
       },
       {
-        v: 4,
         ev: 'InboxMessage',
         s: id,
-        message: second['message'],
+        message: getString(second, 'message'),
         from: 'owner',
         sender: { kind: 'owner', name: 'owner' },
         text: 'two',
         sentAt: expect.any(Number),
       },
       {
-        v: 4,
         ev: 'InboxMessage',
         s: id,
-        message: third['message'],
+        message: getString(third, 'message'),
         from: 'owner',
         sender: { kind: 'owner', name: 'owner' },
         text: 'three',
@@ -462,7 +459,7 @@ test('it streams a message queued while the tap is connected', async () => {
 
   const tap = await daemon.openClient();
 
-  const tapEvents: EventMsg[] = [];
+  const tapEvents: DaemonEvent[] = [];
 
   tap.onEvent = (event) => {
     tapEvents.push(event);
@@ -480,10 +477,9 @@ test('it streams a message queued while the tap is connected', async () => {
   await waitFor(() => {
     expect(tapEvents.filter((event) => event.ev === 'InboxMessage')).toStrictEqual([
       {
-        v: 4,
         ev: 'InboxMessage',
         s: id,
-        message: ok['message'],
+        message: getString(ok, 'message'),
         from: 'owner',
         sender: { kind: 'owner', name: 'owner' },
         text: 'live',
@@ -508,7 +504,7 @@ test('it drains two hundred pending messages to a tap with zero loss', async () 
   const tap = await daemon.openClient();
   const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
 
-  const sent: unknown[] = [];
+  const sent: string[] = [];
 
   for (let i = 0; i < 200; i++) {
     const ok = await daemon.client.sendRequest('session.message', {
@@ -516,7 +512,7 @@ test('it drains two hundred pending messages to a tap with zero loss', async () 
       text: `message ${i}`,
     });
 
-    sent.push(ok['message']);
+    sent.push(getString(ok, 'message'));
   }
 
   const inbox = await startStubTap(tap, id);
@@ -536,7 +532,7 @@ test('it drains a backlog larger than the outbound queue without dropping the ta
 
   const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
 
-  const sent: unknown[] = [];
+  const sent: string[] = [];
 
   for (let i = 0; i < 12; i++) {
     const ok = await daemon.client.sendRequest('session.message', {
@@ -544,7 +540,7 @@ test('it drains a backlog larger than the outbound queue without dropping the ta
       text: `${i}`.padEnd(1500, 'x'),
     });
 
-    sent.push(ok['message']);
+    sent.push(getString(ok, 'message'));
   }
 
   const tapClient = await daemon.openClient();
@@ -636,10 +632,9 @@ test('it broadcasts SessionMessage for an acked message', async () => {
 
   await waitFor(() => {
     expect(daemon.events).toContainEqual({
-      v: 4,
       ev: 'SessionMessage',
       s: id,
-      message: sent['message'],
+      message: getString(sent, 'message'),
       status: 'delivered',
       from: 'owner',
       sender: { kind: 'owner', name: 'owner' },
@@ -728,10 +723,9 @@ test('it broadcasts delivered once for a repeat ack', async () => {
     daemon.events.filter((e) => e.ev === 'SessionMessage' && e['status'] === 'delivered'),
   ).toStrictEqual([
     {
-      v: 4,
       ev: 'SessionMessage',
       s: id,
-      message: sent['message'],
+      message: getString(sent, 'message'),
       status: 'delivered',
       from: 'owner',
       sender: { kind: 'owner', name: 'owner' },
@@ -781,10 +775,9 @@ test('it moves a message to answered from a Report line on the reporter socket',
 
   await waitFor(() => {
     expect(daemon.events).toContainEqual({
-      v: 4,
       ev: 'SessionMessage',
       s: id,
-      message: sent['message'],
+      message: getString(sent, 'message'),
       status: 'answered',
       from: 'owner',
       sender: { kind: 'owner', name: 'owner' },
@@ -926,10 +919,10 @@ test('it broadcasts SessionMessage on the events socket', async () => {
   expect(decoded).toStrictEqual({
     kind: 'event',
     msg: {
-      v: 4,
+      v: 5,
       ev: 'SessionMessage',
       s: id,
-      message: sent['message'],
+      message: getString(sent, 'message'),
       status: 'queued',
       from: 'owner',
       sender: { kind: 'owner', name: 'owner' },
@@ -966,10 +959,10 @@ test('it runs SessionMessage hooks with the event on stdin', async () => {
   expect(decoded).toStrictEqual({
     kind: 'event',
     msg: {
-      v: 4,
+      v: 5,
       ev: 'SessionMessage',
       s: id,
-      message: sent['message'],
+      message: getString(sent, 'message'),
       status: 'queued',
       from: 'owner',
       sender: { kind: 'owner', name: 'owner' },
@@ -996,7 +989,6 @@ test('it broadcasts a note from the reporter socket as SessionNote', async () =>
 
   await waitFor(() => {
     expect(daemon.events).toContainEqual({
-      v: 4,
       ev: 'SessionNote',
       s: id,
       kind: 'blocked',
@@ -1062,7 +1054,7 @@ test('it broadcasts SessionNote on the events socket', async () => {
   expect(decoded).toStrictEqual({
     kind: 'event',
     msg: {
-      v: 4,
+      v: 5,
       ev: 'SessionNote',
       s: id,
       kind: 'progress',
@@ -1104,7 +1096,7 @@ test('it runs SessionNote hooks with the event on stdin', async () => {
   expect(decoded).toStrictEqual({
     kind: 'event',
     msg: {
-      v: 4,
+      v: 5,
       ev: 'SessionNote',
       s: id,
       kind: 'decision',
@@ -1123,7 +1115,7 @@ test('it keeps InboxMessage off every connection but the tap', async () => {
 
   const tap = await daemon.openClient();
 
-  const tapEvents: EventMsg[] = [];
+  const tapEvents: DaemonEvent[] = [];
 
   tap.onEvent = (event) => {
     tapEvents.push(event);
@@ -1174,7 +1166,7 @@ test('it delivers pending messages to a new tap before a message queued at the s
 
   await waitFor(() => {
     expect(inbox.messages.map((e) => e['message'])).toStrictEqual(
-      [...pending, live].map((ok) => ok['message']),
+      [...pending, live].map((ok) => getString(ok, 'message')),
     );
   });
 });
@@ -1853,10 +1845,9 @@ test('it moves a delivered message to unanswered from an unanswered Note line', 
 
   await waitFor(() => {
     expect(daemon.events).toContainEqual({
-      v: 4,
       ev: 'SessionMessage',
       s: id,
-      message: sent['message'],
+      message: getString(sent, 'message'),
       status: 'unanswered',
       from: 'owner',
       sender: { kind: 'owner', name: 'owner' },
@@ -2115,7 +2106,7 @@ test('it ends the earlier tap subscription when a second tap attaches', async ()
 
   const tap = await daemon.openClient();
 
-  const tapEvents: EventMsg[] = [];
+  const tapEvents: DaemonEvent[] = [];
 
   tap.onEvent = (event) => {
     tapEvents.push(event);
@@ -2129,7 +2120,7 @@ test('it ends the earlier tap subscription when a second tap attaches', async ()
 
   await waitFor(() => {
     expect(tapEvents.filter((e) => e.ev === 'InboxClosed')).toStrictEqual([
-      { v: 4, ev: 'InboxClosed', s: id, reason: 'replaced' },
+      { ev: 'InboxClosed', s: id, reason: 'replaced' },
     ]);
   });
 });
@@ -2143,7 +2134,7 @@ test('it keeps the tap subscription when the same connection taps again', async 
 
   const tap = await daemon.openClient();
 
-  const tapEvents: EventMsg[] = [];
+  const tapEvents: DaemonEvent[] = [];
 
   tap.onEvent = (event) => {
     tapEvents.push(event);
@@ -2170,7 +2161,7 @@ test('it ends the tap subscription when its session is removed', async () => {
 
   const tap = await daemon.openClient();
 
-  const tapEvents: EventMsg[] = [];
+  const tapEvents: DaemonEvent[] = [];
 
   tap.onEvent = (event) => {
     tapEvents.push(event);
@@ -2186,7 +2177,7 @@ test('it ends the tap subscription when its session is removed', async () => {
 
   await waitFor(() => {
     expect(tapEvents.filter((e) => e.ev === 'InboxClosed')).toStrictEqual([
-      { v: 4, ev: 'InboxClosed', s: id, reason: 'removed' },
+      { ev: 'InboxClosed', s: id, reason: 'removed' },
     ]);
   });
 });
@@ -2232,7 +2223,7 @@ test('it records each message status change in events.read in order', async () =
         name: 'one',
         kind: 'message-queued',
         detail: 'hello',
-        message: sent['message'],
+        message: getString(sent, 'message'),
       },
       {
         cursor: expect.toBeString(),
@@ -2241,7 +2232,7 @@ test('it records each message status change in events.read in order', async () =
         name: 'one',
         kind: 'message-delivered',
         detail: 'hello',
-        message: sent['message'],
+        message: getString(sent, 'message'),
       },
       {
         cursor: expect.toBeString(),
@@ -2250,7 +2241,7 @@ test('it records each message status change in events.read in order', async () =
         name: 'one',
         kind: 'message-answered',
         detail: 'done',
-        message: sent['message'],
+        message: getString(sent, 'message'),
       },
     ],
     cursor: expect.toBeString(),
@@ -2966,10 +2957,9 @@ test('it marks a delivered message unanswered as session_ended when the process 
 
   await waitFor(() => {
     expect(daemon.events).toContainEqual({
-      v: 4,
       ev: 'SessionMessage',
       s: id,
-      message: sent['message'],
+      message: getString(sent, 'message'),
       status: 'unanswered',
       from: 'owner',
       sender: { kind: 'owner', name: 'owner' },

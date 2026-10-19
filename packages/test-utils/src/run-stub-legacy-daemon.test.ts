@@ -1,7 +1,8 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DaemonClient, PROTOCOL_V } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
+import { PROTOCOL_V } from '@atc/protocol/wire';
 import { registerTestCleanup } from './register-test-cleanup';
 import { runCommand } from './run-command';
 import { setupTempDir } from './setup-temp-dir';
@@ -66,7 +67,7 @@ test('it refuses a handshake on the current protocol with protocol_mismatch', as
 
   await ctx.proc.stdout.getReader().read();
 
-  const client = await DaemonClient.open(ctx.socketPath);
+  const client = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     client.stop();
@@ -101,7 +102,7 @@ test('it answers a handshake on the current protocol as an older build when told
 
   await current.stdout.getReader().read();
 
-  const client = await DaemonClient.open(socketPath);
+  const client = await openDaemonClient(socketPath);
 
   registerTestCleanup(() => {
     client.stop();

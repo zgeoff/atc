@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { DaemonClient } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildStubAuthenticator,
   buildStubClock,
@@ -27,7 +27,7 @@ async function setupTest() {
 
   // enrollment never reaches the daemon, so nothing listens on this socket.
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());

@@ -538,6 +538,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     reporterSocketPath: opts.reporterSocketPath,
     eventsSocketPath: opts.eventsSocketPath ?? null,
     listenPort: tcpListener?.port ?? null,
+    protocol: PROTOCOL_V,
   });
 
   await updateEndedFleetMessages({

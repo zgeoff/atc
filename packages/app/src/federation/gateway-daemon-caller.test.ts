@@ -3,7 +3,7 @@ import { expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DaemonClient } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildMockAgentAdapter,
   buildStubChannelOpener,
@@ -41,7 +41,7 @@ async function setupTest() {
     },
   });
 
-  const prober = await DaemonClient.open(daemon.socketPath);
+  const prober = await openDaemonClient(daemon.socketPath);
 
   registerTestCleanup(() => {
     prober.stop();
@@ -67,7 +67,7 @@ test('it answers a request through a daemon whose handshake returns the pinned i
       token: 'a'.repeat(32),
     }),
     build: 'atc-gateway/test',
-    openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
+    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
   registerTestCleanup(() => caller.stop());
@@ -88,7 +88,7 @@ test('it reads the build, features, and key retention from the handshake', async
       token: 'a'.repeat(32),
     }),
     build: 'atc-gateway/test',
-    openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
+    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
   registerTestCleanup(() => caller.stop());
@@ -114,7 +114,7 @@ test('it refuses a daemon behind another state identity as daemon_changed and se
       token: 'a'.repeat(32),
     }),
     build: 'atc-gateway/test',
-    openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
+    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
   registerTestCleanup(() => caller.stop());
@@ -144,7 +144,7 @@ test('it refuses a daemon that rejects the token as daemon_unauthorized', async 
       token: 'w'.repeat(32),
     }),
     build: 'atc-gateway/test',
-    openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
+    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
   registerTestCleanup(() => caller.stop());
@@ -164,7 +164,7 @@ test('it refuses a daemon nothing listens for as daemon_unavailable', () => {
       address: { host: '127.0.0.1', port: 0 },
     }),
     build: 'atc-gateway/test',
-    openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
+    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
   registerTestCleanup(() => caller.stop());
@@ -187,7 +187,7 @@ test("it passes a daemon's own error through with its code", async () => {
       token: 'a'.repeat(32),
     }),
     build: 'atc-gateway/test',
-    openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
+    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
   registerTestCleanup(() => caller.stop());
@@ -216,7 +216,7 @@ test('it retries a keyed spawn whose response was lost once on the same daemon, 
       token: 'a'.repeat(32),
     }),
     build: 'atc-gateway/test',
-    openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
+    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
   registerTestCleanup(() => caller.stop());
@@ -252,7 +252,7 @@ test('it answers outcome_unknown for an unkeyed spawn whose response was lost', 
       token: 'a'.repeat(32),
     }),
     build: 'atc-gateway/test',
-    openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
+    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
   registerTestCleanup(() => caller.stop());
@@ -285,7 +285,7 @@ test('it answers outcome_unknown for a keyed spawn whose retry also lost its res
       token: 'a'.repeat(32),
     }),
     build: 'atc-gateway/test',
-    openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
+    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
   registerTestCleanup(() => caller.stop());
@@ -314,7 +314,7 @@ test('it retries a keyed spawn whose response timed out on a fresh connection', 
 
   const opener = buildStubChannelOpener([
     (address: RegistryDaemon['address']) =>
-      DaemonClient.open({ hostname: address.host, port: address.port }),
+      openDaemonClient({ hostname: address.host, port: address.port }),
   ]);
 
   const caller = new GatewayDaemonCaller({
@@ -371,7 +371,7 @@ test('it refuses a daemon that never answers the handshake as daemon_unavailable
       address: { host: '127.0.0.1', port: silent.port },
     }),
     build: 'atc-gateway/test',
-    openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
+    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
     connectTimeoutMs: 300,
     clock,
   });
@@ -413,8 +413,8 @@ test('it answers outcome_unknown instead of retrying a keyed spawn on a reconnec
 
   const opener = buildStubChannelOpener([
     (address: RegistryDaemon['address']) =>
-      DaemonClient.open({ hostname: address.host, port: address.port }),
-    () => DaemonClient.open(join(ctx.daemon.dir, 'legacy.sock')),
+      openDaemonClient({ hostname: address.host, port: address.port }),
+    () => openDaemonClient(join(ctx.daemon.dir, 'legacy.sock')),
   ]);
 
   const caller = new GatewayDaemonCaller({
@@ -453,7 +453,7 @@ test('it resends a keyed spawn replay-only, so a resend after the daemon swept t
   const opener = buildStubChannelOpener(
     [
       (address: RegistryDaemon['address']) =>
-        DaemonClient.open({ hostname: address.host, port: address.port }),
+        openDaemonClient({ hostname: address.host, port: address.port }),
     ],
     { holdDial: 2 },
   );
@@ -508,7 +508,7 @@ test('it holds concurrent first requests until the handshake answers, so the dae
       token: 'a'.repeat(32),
     }),
     build: 'atc-gateway/test',
-    openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
+    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
   registerTestCleanup(() => caller.stop());
@@ -527,7 +527,7 @@ test('it gives a long poll its own waitMs on top of the response time on the sam
 
   const opener = buildStubChannelOpener([
     (address: RegistryDaemon['address']) =>
-      DaemonClient.open({ hostname: address.host, port: address.port }),
+      openDaemonClient({ hostname: address.host, port: address.port }),
   ]);
 
   const caller = new GatewayDaemonCaller({
@@ -605,7 +605,7 @@ test('it refuses a principal request to a daemon that would not label its messag
       token: 'a'.repeat(32),
     }),
     build: 'atc-gateway/test',
-    openChannel: () => DaemonClient.open(join(ctx.daemon.dir, 'legacy.sock')),
+    openChannel: () => openDaemonClient(join(ctx.daemon.dir, 'legacy.sock')),
   });
 
   registerTestCleanup(() => caller.stop());
@@ -633,7 +633,7 @@ test('it sends the name of the principal beside it', async () => {
       token: 'a'.repeat(32),
     }),
     build: 'atc-gateway/test',
-    openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
+    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
   registerTestCleanup(() => caller.stop());

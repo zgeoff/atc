@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { DaemonClient } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildStubAuthenticator,
   registerTestCleanup,
@@ -25,7 +25,7 @@ async function setupTest() {
   const dbPath = join(tmp.dir, 'mcp-auth.db');
 
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());

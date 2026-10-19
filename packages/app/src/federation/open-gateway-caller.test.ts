@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isRecord } from '@atc/core';
-import { DaemonClient } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildMockAgentAdapter,
   buildStubAuthenticator,
@@ -73,13 +73,13 @@ async function setupTest() {
     }),
   ]);
 
-  const cloudProber = await DaemonClient.open(cloud.socketPath);
+  const cloudProber = await openDaemonClient(cloud.socketPath);
 
   registerTestCleanup(() => {
     cloudProber.stop();
   });
 
-  const pcProber = await DaemonClient.open(pc.socketPath);
+  const pcProber = await openDaemonClient(pc.socketPath);
 
   registerTestCleanup(() => {
     pcProber.stop();
@@ -120,7 +120,7 @@ async function setupTest() {
       defaultDaemon: 'cloud',
     },
     build: 'atc-gateway/test',
-    openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
+    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
     gatewayDBPath: join(tmp.dir, 'gateway.db'),
 
     // Bounds a call asked of every daemon, so a daemon that never answers

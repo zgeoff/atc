@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DaemonClient } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
 import { registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
 
 // The listener daemon running on state in a temp directory, with what it
@@ -57,7 +57,7 @@ test('it prints the loopback port its TCP listener bound', async () => {
 
 test('it answers a hello on the daemon socket in its test directory', async () => {
   const ctx = await setupTest();
-  const client = await DaemonClient.open(join(ctx.dir, 'daemon.sock'));
+  const client = await openDaemonClient(join(ctx.dir, 'daemon.sock'));
 
   registerTestCleanup(() => {
     client.stop();

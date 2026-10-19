@@ -3,12 +3,12 @@
 // its id; `kill-all` kills every session the daemon hosts.
 import { resolvePaths } from '@atc/config/host';
 import { isRecord } from '@atc/core';
-import { DaemonClient } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
 import { buildHostServices } from '../packages/app/src/build-host-services';
 
 const [mode, cwd, name = '', prompt = ''] = process.argv.slice(2);
 
-const client = await DaemonClient.open(resolvePaths(process.env).daemonSocketPath);
+const client = await openDaemonClient(resolvePaths(process.env).daemonSocketPath);
 
 await client.sendHello(buildHostServices().build);
 

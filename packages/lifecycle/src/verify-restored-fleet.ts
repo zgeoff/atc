@@ -1,6 +1,6 @@
 import { isRecord } from '@atc/core';
 import type { Clock } from '@atc/core';
-import type { DaemonClient } from '@atc/protocol/wire';
+import type { DaemonClient } from '@atc/protocol/client';
 import type { StoredRow } from '@atc/store';
 import { readStoredRows } from '@atc/store';
 import type { RestartFailedRow } from './parse-restart-result';

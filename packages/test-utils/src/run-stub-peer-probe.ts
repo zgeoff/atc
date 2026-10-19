@@ -1,5 +1,7 @@
 import { writeFileSync } from 'node:fs';
-import { DaemonClient, DaemonError } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
+import type { DaemonClient } from '@atc/protocol/client';
+import { DaemonError } from '@atc/protocol/wire';
 
 async function main() {
   const [probe, socketPath, session, outPath] = process.argv.slice(2);
@@ -23,7 +25,7 @@ async function tryProbe(
   socketPath: string,
   session: string,
 ): Promise<Readonly<Record<string, unknown>>> {
-  const client = await DaemonClient.open(socketPath);
+  const client = await openDaemonClient(socketPath);
 
   try {
     return await runProbe(client, probe, session);

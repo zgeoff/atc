@@ -9,6 +9,10 @@ export interface DaemonRecord {
 
   // The port the TCP listener bound, or null without one.
   readonly listenPort: number | null;
+
+  // The protocol version the daemon speaks, or null for a daemon whose
+  // record holds none, which speaks the older line protocol.
+  readonly protocol: number | null;
 }
 
 const RECORD_SCHEMA = z.object({
@@ -17,6 +21,7 @@ const RECORD_SCHEMA = z.object({
   reporterSocketPath: z.string().min(1),
   eventsSocketPath: z.string().min(1).nullable(),
   listenPort: z.number().int().min(1).max(65_535).nullable().default(null),
+  protocol: z.number().int().positive().nullable().default(null),
 });
 
 // a record left by a crashed daemon still parses, so a caller proves

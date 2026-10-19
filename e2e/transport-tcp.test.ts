@@ -7,7 +7,7 @@ import { collectTargets } from '@atc/config';
 import { startDaemon } from '@atc/daemon';
 import { LocalPTYProvider } from '@atc/execution-local';
 import { claimDaemonLock } from '@atc/lifecycle';
-import type { EventMsg } from '@atc/protocol/wire';
+import type { DaemonEvent } from '@atc/protocol';
 import { buildTargetIdentity } from '@atc/store';
 import {
   buildMockAgentAdapter,
@@ -628,7 +628,7 @@ test('it pushes a TCP connection no event of a session it did not act on', async
 
   const client = await daemon.openTCPClient();
 
-  const pushed: EventMsg[] = [];
+  const pushed: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     pushed.push(event);
@@ -1625,7 +1625,7 @@ test('it counts lines before the handshake as failed handshakes toward the delay
   expect(Bun.peek.status(hello)).toBe('pending');
 });
 
-test('it refuses a second handshake on a TCP connection and closes it', async () => {
+test('it refuses a second handshake on a TCP connection, which keeps its first principal', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
@@ -1648,12 +1648,6 @@ test('it refuses a second handshake on a TCP connection and closes it', async ()
 
   const client = await daemon.openTCPClient();
 
-  const closed = Promise.withResolvers<void>();
-
-  client.onClose = () => {
-    closed.resolve();
-  };
-
   await client.sendRequest('daemon.hello', {
     client: 'atc/test-gateway',
     principal: 'gw-a',
@@ -1666,15 +1660,25 @@ test('it refuses a second handshake on a TCP connection and closes it', async ()
     'gw-a',
   );
 
-  const second = client.sendRequest('daemon.hello', {
-    client: 'atc/test-gateway',
-    principal: 'gw-b',
-    auth: { scheme: 'bearer', token: 'a'.repeat(32) },
+  const second = await client
+    .sendRequest('daemon.hello', {
+      client: 'atc/test-gateway',
+      principal: 'gw-b',
+      auth: { scheme: 'bearer', token: 'a'.repeat(32) },
+    })
+    .then(
+      () => null,
+      (error: unknown) => error,
+    );
+
+  const listed = await client.sendRequest('session.list', {}, 'gw-a');
+
+  expect(second).toMatchObject({
+    code: 'unauthorized',
+    message: 'a connection takes one handshake',
   });
 
-  expect(second).rejects.toMatchObject({ code: 'unauthorized' });
-
-  await closed.promise;
+  expect(listed['sessions']).toHaveLength(1);
 });
 
 test('it closes a TCP peer that floods lines behind its delayed handshake', async () => {
@@ -2092,7 +2096,7 @@ test('it pushes a TCP connection whose handshake gives a principal the removal o
 
   const client = await daemon.openTCPClient();
 
-  const pushed: EventMsg[] = [];
+  const pushed: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     pushed.push(event);

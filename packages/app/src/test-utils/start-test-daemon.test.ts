@@ -1,8 +1,8 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
+import { openDaemonClient } from '@atc/protocol/client';
 import type { HookEvent } from '@atc/protocol/session';
-import { DaemonClient } from '@atc/protocol/wire';
 import { StateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import { buildMockAgentAdapter, registerTestCleanup, waitFor } from '@atc/test-utils';
@@ -327,7 +327,7 @@ test('it delivers every hook line of a large batch', async () => {
 
 test('it closes every client the daemon holds when it stops', async () => {
   const harness = await startTestDaemon();
-  const outside = await DaemonClient.open(harness.socketPath);
+  const outside = await openDaemonClient(harness.socketPath);
 
   registerTestCleanup(() => {
     outside.stop();
@@ -455,7 +455,7 @@ test('it boots with the options a restart gives', async () => {
 
 test('it stops the running daemon and removes its directory once disposed', async () => {
   const harness = await startTestDaemon();
-  const outside = await DaemonClient.open(harness.socketPath);
+  const outside = await openDaemonClient(harness.socketPath);
 
   registerTestCleanup(() => {
     outside.stop();
@@ -478,7 +478,7 @@ test('it stops the daemon a restart booted once disposed', async () => {
 
   await harness.restart();
 
-  const outside = await DaemonClient.open(harness.socketPath);
+  const outside = await openDaemonClient(harness.socketPath);
 
   registerTestCleanup(() => {
     outside.stop();
@@ -529,7 +529,7 @@ test('it stops the daemon and removes its directory once the test finishes witho
 
   // A client the harness does not track, so only the daemon's stop closes
   // it.
-  const outside = await DaemonClient.open(harness.socketPath);
+  const outside = await openDaemonClient(harness.socketPath);
 
   onTestFinished(() => {
     outside.stop();

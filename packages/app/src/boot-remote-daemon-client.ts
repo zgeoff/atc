@@ -3,7 +3,9 @@ import { systemClock, toAgentID } from '@atc/core';
 import type { Clock } from '@atc/core';
 import type { DaemonBoot, DaemonBootOptions } from '@atc/protocol';
 import { parseDaemonFeatures } from '@atc/protocol';
-import { DaemonClient, DaemonError, PROTOCOL_V } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
+import type { DaemonClient } from '@atc/protocol/client';
+import { DaemonError, PROTOCOL_V } from '@atc/protocol/wire';
 import { readRemoteDaemonToken } from './read-remote-daemon-token';
 
 // How long one attempt gives the remote daemon to take the connection and
@@ -162,7 +164,7 @@ async function openRemoteDaemon(
 // Opens the TCP connection; a refusal is the daemon being unreachable.
 async function openRemoteConnection(daemon: RemoteDaemon): Promise<DaemonClient> {
   try {
-    return await DaemonClient.open({ hostname: daemon.host, port: daemon.port });
+    return await openDaemonClient({ hostname: daemon.host, port: daemon.port });
   } catch (error) {
     throw new RemoteDaemonUnreachableError(formatUnreachable(daemon, formatConnectError(error)), {
       cause: error,

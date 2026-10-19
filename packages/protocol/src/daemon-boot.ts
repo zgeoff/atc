@@ -1,6 +1,6 @@
 import type { AgentID } from '@atc/core';
+import type { DaemonClient } from './client/daemon-client';
 import type { DaemonFeature } from './daemon-features';
-import type { DaemonClient } from './wire/daemon-client';
 
 export interface DaemonBoot {
   readonly client: DaemonClient;

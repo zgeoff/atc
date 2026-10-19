@@ -1,6 +1,7 @@
 import type { DaemonBoot } from '@atc/protocol';
+import { openDaemonClient } from '@atc/protocol/client';
 import { readSessionEnv } from '@atc/protocol/session';
-import { DaemonClient, LineDecoder } from '@atc/protocol/wire';
+import { LineDecoder } from '@atc/protocol/wire';
 import { answerRPCRequest } from './mcp/answer-rpc-request';
 import { TransportCaller } from './mcp/transport-caller';
 import type { FleetCaller, ToolContext } from './mcp/types';
@@ -21,7 +22,7 @@ export async function runMCPServer(
   const caller = new TransportCaller(
     boot.socketPath,
     build,
-    (path) => DaemonClient.open(path),
+    (path) => openDaemonClient(path),
     callerSessionID,
   );
 

@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { existsSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DaemonClient } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
 import {
   KEYS,
   buildStubHeldGH,
@@ -231,7 +231,7 @@ test('it leaves the picker when esc stops waiting on a spawn, and the spawn list
   expect(ctx.read()).not.toInclude('FAKE_CLAUDE_UP');
   expect(ctx.read()).not.toInclude('spawn: initial prompt');
 
-  const daemon = await DaemonClient.open(join(ctx.home, 'atc-daemon.sock'));
+  const daemon = await openDaemonClient(join(ctx.home, 'atc-daemon.sock'));
 
   registerTestCleanup(() => {
     daemon.stop();
@@ -396,7 +396,7 @@ test('it keeps a probe started on a git source after a tab in that flow, spawnin
 
   await ctx.waitFor('FAKE_CLAUDE_UP', 20_000);
 
-  const daemon = await DaemonClient.open(join(ctx.home, 'atc-daemon.sock'));
+  const daemon = await openDaemonClient(join(ctx.home, 'atc-daemon.sock'));
 
   registerTestCleanup(() => {
     daemon.stop();

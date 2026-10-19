@@ -3,7 +3,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { findDaemonRecord } from '@atc/lifecycle';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
-import { DaemonClient } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
 import { registerTestCleanup, resolveATCCommand, setupTempDir } from '@atc/test-utils';
 import { z } from 'zod';
 
@@ -39,7 +39,7 @@ test('it closes a TCP connection whose token a SIGHUP reload removed', async () 
     .int()
     .parse(findDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.listenPort);
 
-  const tcp = await DaemonClient.open({ hostname: '127.0.0.1', port });
+  const tcp = await openDaemonClient({ hostname: '127.0.0.1', port });
 
   registerTestCleanup(() => {
     tcp.stop();
@@ -88,7 +88,7 @@ test('it accepts a TCP handshake with a token a SIGHUP reload kept', async () =>
     .int()
     .parse(findDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.listenPort);
 
-  const removed = await DaemonClient.open({ hostname: '127.0.0.1', port });
+  const removed = await openDaemonClient({ hostname: '127.0.0.1', port });
 
   registerTestCleanup(() => {
     removed.stop();
@@ -109,7 +109,7 @@ test('it accepts a TCP handshake with a token a SIGHUP reload kept', async () =>
   // The connection on the removed token closes once the reload has applied.
   await reloaded.promise;
 
-  const kept = await DaemonClient.open({ hostname: '127.0.0.1', port });
+  const kept = await openDaemonClient({ hostname: '127.0.0.1', port });
 
   registerTestCleanup(() => {
     kept.stop();

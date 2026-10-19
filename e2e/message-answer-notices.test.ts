@@ -1,12 +1,14 @@
 import { expect, mock, test } from 'bun:test';
 import { isRecord, toMessageID, toSessionID } from '@atc/core';
 import { ClaudeAdapter } from '@atc/harness-claude';
-import type { DaemonClient, EventMsg } from '@atc/protocol/wire';
+import type { DaemonEvent } from '@atc/protocol';
+import type { DaemonClient } from '@atc/protocol/client';
 import { StateStore } from '@atc/store';
 import {
   buildMockAgentAdapter,
   buildMockAgentEntry,
   buildMockHostServices,
+  getString,
   registerTestCleanup,
   spawnNamedSession,
   waitFor,
@@ -64,8 +66,8 @@ interface ClientOpener {
 async function startNoticeTap(daemon: ClientOpener, session: string, notices: boolean) {
   const client = await daemon.openClient();
 
-  const notes: EventMsg[] = [];
-  const messages: EventMsg[] = [];
+  const notes: DaemonEvent[] = [];
+  const messages: DaemonEvent[] = [];
 
   // An ack that a closing connection never answers changes nothing the
   // test reads.
@@ -112,10 +114,9 @@ test('it hands the sending session an answer notice with the answer once the rec
   await waitFor(() => {
     expect(tap.notices).toStrictEqual([
       {
-        v: 4,
         ev: 'InboxNotice',
         s: ctx.sender,
-        message: sent['message'],
+        message: getString(sent, 'message'),
         from: ctx.recipient,
         status: 'answered',
         answer: 'the build is green',
@@ -150,10 +151,9 @@ test('it hands the sending session an unanswered notice with the reason when the
   await waitFor(() => {
     expect(tap.notices).toStrictEqual([
       {
-        v: 4,
         ev: 'InboxNotice',
         s: ctx.sender,
-        message: sent['message'],
+        message: getString(sent, 'message'),
         from: ctx.recipient,
         status: 'unanswered',
         reason: 'interrupted',
@@ -191,10 +191,9 @@ test('it hands the sending session an unanswered notice when the recipient sessi
   await waitFor(() => {
     expect(tap.notices).toStrictEqual([
       {
-        v: 4,
         ev: 'InboxNotice',
         s: ctx.sender,
-        message: sent['message'],
+        message: getString(sent, 'message'),
         from: ctx.recipient,
         status: 'unanswered',
         reason: 'session_ended',
@@ -221,10 +220,9 @@ test('it hands the sending session one unanswered notice when the recipient of a
   await waitFor(() => {
     expect(tap.notices).toStrictEqual([
       {
-        v: 4,
         ev: 'InboxNotice',
         s: ctx.sender,
-        message: sent['message'],
+        message: getString(sent, 'message'),
         from: ctx.recipient,
         status: 'unanswered',
         reason: 'session_ended',
@@ -333,10 +331,9 @@ test('it hands one answer notice after a restart when the daemon stopped right a
   await waitFor(() => {
     expect(tap.notices).toStrictEqual([
       {
-        v: 4,
         ev: 'InboxNotice',
         s: ctx.sender,
-        message: sent['message'],
+        message: getString(sent, 'message'),
         from: ctx.recipient,
         status: 'answered',
         answer: 'the release is tagged',
@@ -462,10 +459,9 @@ test('it hands a message delivered before a restart to the revived recipient and
   await waitFor(() => {
     expect(after.messages).toStrictEqual([
       {
-        v: 4,
         ev: 'InboxMessage',
         s: ctx.recipient,
-        message: sent['message'],
+        message: getString(sent, 'message'),
         from: 'sender',
         sender: { kind: 'session', session: ctx.sender, name: 'sender' },
         text: 'rotate the staging keys',
@@ -485,10 +481,9 @@ test('it hands a message delivered before a restart to the revived recipient and
   await waitFor(() => {
     expect(tap.notices).toStrictEqual([
       {
-        v: 4,
         ev: 'InboxNotice',
         s: ctx.sender,
-        message: sent['message'],
+        message: getString(sent, 'message'),
         from: ctx.recipient,
         status: 'answered',
         answer: 'the keys are rotated',
@@ -608,7 +603,7 @@ test('it hands no answer notice to a tap that did not ask for notices', async ()
   const ctx = await setupTest();
   const tap = await startNoticeTap(ctx.daemon, ctx.sender, false);
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   const watcher = await ctx.daemon.openClient();
 

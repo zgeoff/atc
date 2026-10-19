@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'bun:test';
 import { isRecord } from '@atc/core';
 import type { SessionID } from '@atc/core';
-import type { EventMsg } from '@atc/protocol/wire';
+import type { DaemonEvent } from '@atc/protocol';
 import { buildMockAgentAdapter, getRecord, waitFor } from '@atc/test-utils';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
@@ -69,7 +69,7 @@ test('it flips the session back to working once the prompt is answered', async (
 
   await waitFor(() => {
     expect(daemon.events).toSatisfyAny(
-      (e: EventMsg) =>
+      (e: DaemonEvent) =>
         e.ev === 'SessionState' &&
         isRecord(e['session']) &&
         e['session']['id'] === id &&
@@ -81,7 +81,7 @@ test('it flips the session back to working once the prompt is answered', async (
 
   await waitFor(() => {
     expect(daemon.events).toSatisfyAny(
-      (e: EventMsg) =>
+      (e: DaemonEvent) =>
         e.ev === 'SessionState' &&
         isRecord(e['session']) &&
         e['session']['id'] === id &&
@@ -155,7 +155,7 @@ test('it never flags a prompt as needing input when the adapter has no screen de
 
   await waitFor(() => {
     expect(daemon.events).toSatisfyAny(
-      (e: EventMsg) =>
+      (e: DaemonEvent) =>
         e.ev === 'SessionOutput' && typeof e['d'] === 'string' && e['d'].includes('READY>'),
     );
   });
@@ -163,7 +163,7 @@ test('it never flags a prompt as needing input when the adapter has no screen de
   expect(onDetectSkipped).toHaveBeenCalledWith(id);
 
   expect(daemon.events).not.toSatisfyAny(
-    (e: EventMsg) =>
+    (e: DaemonEvent) =>
       e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
   );
 });
@@ -208,7 +208,7 @@ test('it never flags a prompt as needing input when another agent has a screen d
 
   await waitFor(() => {
     expect(daemon.events).toSatisfyAny(
-      (e: EventMsg) =>
+      (e: DaemonEvent) =>
         e.ev === 'SessionOutput' && typeof e['d'] === 'string' && e['d'].includes('READY>'),
     );
   });
@@ -216,7 +216,7 @@ test('it never flags a prompt as needing input when another agent has a screen d
   expect(onDetectSkipped).toHaveBeenCalledWith(id);
 
   expect(daemon.events).not.toSatisfyAny(
-    (e: EventMsg) =>
+    (e: DaemonEvent) =>
       e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
   );
 });

@@ -1,5 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { DaemonClient } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
 import { registerTestCleanup } from './register-test-cleanup';
 import { startCutProxy } from './start-cut-proxy';
 import { startStubTCPDaemon } from './start-stub-tcp-daemon';
@@ -22,7 +22,7 @@ test('it forwards requests and answers of other methods unchanged', async () => 
     mode: 'close',
   });
 
-  const client = await DaemonClient.open({ hostname: '127.0.0.1', port: proxy.port });
+  const client = await openDaemonClient({ hostname: '127.0.0.1', port: proxy.port });
 
   registerTestCleanup(() => {
     client.stop();
@@ -43,7 +43,7 @@ test('it closes the connection in place of the answer to a cut request that reac
     mode: 'close',
   });
 
-  const client = await DaemonClient.open({ hostname: '127.0.0.1', port: proxy.port });
+  const client = await openDaemonClient({ hostname: '127.0.0.1', port: proxy.port });
 
   registerTestCleanup(() => {
     client.stop();
@@ -64,6 +64,56 @@ test('it closes the connection in place of the answer to a cut request that reac
   expect(proxy.countRequests()).toBe(1);
 });
 
+test('it forwards the lines the target sends ahead of the cut answer, and only the answer is lost', async () => {
+  const target = Bun.listen({
+    hostname: '127.0.0.1',
+    port: 0,
+    socket: {
+      data(socket) {
+        socket.write('{"i":"1","t":3,"p":{"e":"message","d":{"ev":"SessionAdded"}}}\n');
+        socket.write('{"i":"7","p":{"b":{"json":{"session":{"id":"s-1"}}}}}\n');
+      },
+    },
+  });
+
+  registerTestCleanup(() => {
+    target.stop(true);
+  });
+
+  const proxy = startCutProxy({
+    target: { hostname: '127.0.0.1', port: target.port },
+    method: 'session.spawn',
+    cuts: 1,
+    mode: 'close',
+  });
+
+  const received: string[] = [];
+  const closed = Promise.withResolvers<void>();
+
+  const raw = await Bun.connect({
+    hostname: '127.0.0.1',
+    port: proxy.port,
+    socket: {
+      data(_socket, buf) {
+        received.push(buf.toString());
+      },
+      close() {
+        closed.resolve();
+      },
+    },
+  });
+
+  registerTestCleanup(() => {
+    raw.end();
+  });
+
+  raw.write('{"i":"7","p":{"u":"/session/spawn","b":{"json":{}}}}\n');
+
+  await closed.promise;
+
+  expect(received.join('')).toBe('{"i":"1","t":3,"p":{"e":"message","d":{"ev":"SessionAdded"}}}\n');
+});
+
 test('it forwards the answer once its cuts are spent', async () => {
   const ctx = setupTest();
 
@@ -74,7 +124,7 @@ test('it forwards the answer once its cuts are spent', async () => {
     mode: 'close',
   });
 
-  const cut = await DaemonClient.open({ hostname: '127.0.0.1', port: proxy.port });
+  const cut = await openDaemonClient({ hostname: '127.0.0.1', port: proxy.port });
 
   registerTestCleanup(() => {
     cut.stop();
@@ -84,7 +134,7 @@ test('it forwards the answer once its cuts are spent', async () => {
 
   await Promise.allSettled([cutReply]);
 
-  const fresh = await DaemonClient.open({ hostname: '127.0.0.1', port: proxy.port });
+  const fresh = await openDaemonClient({ hostname: '127.0.0.1', port: proxy.port });
 
   registerTestCleanup(() => {
     fresh.stop();
@@ -106,7 +156,7 @@ test('it swallows the answer to a cut request and leaves the connection open in 
     mode: 'hold',
   });
 
-  const client = await DaemonClient.open({ hostname: '127.0.0.1', port: proxy.port });
+  const client = await openDaemonClient({ hostname: '127.0.0.1', port: proxy.port });
 
   registerTestCleanup(() => {
     client.stop();
@@ -141,7 +191,7 @@ test('it closes the connection in place of forwarding a cut request in drop mode
     mode: 'drop',
   });
 
-  const client = await DaemonClient.open({ hostname: '127.0.0.1', port: proxy.port });
+  const client = await openDaemonClient({ hostname: '127.0.0.1', port: proxy.port });
 
   registerTestCleanup(() => {
     client.stop();

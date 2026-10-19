@@ -3,7 +3,7 @@ import type { AgentID } from '@atc/core';
 import { ansi } from '@atc/core';
 import { sortGroupedSessionViews, sortSessionViews } from '@atc/protocol';
 import type { DaemonBoot } from '@atc/protocol';
-import type { DaemonClient } from '@atc/protocol/wire';
+import type { DaemonClient } from '@atc/protocol/client';
 import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import type { ClientMode } from './build-client-machine';
 import { collectTargetPicks } from './collect-target-picks';

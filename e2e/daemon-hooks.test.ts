@@ -3,7 +3,7 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
-import type { EventMsg } from '@atc/protocol/wire';
+import type { DaemonEvent } from '@atc/protocol';
 import {
   createStubClaude,
   createStubCodex,
@@ -58,7 +58,7 @@ test('it keeps a live terminal alive when its session reports an end', async () 
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -115,7 +115,7 @@ test('it stops showing a live terminal as ended once a new session starts in it'
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -188,7 +188,7 @@ test('it keeps a gone terminal exited when a late end and start arrive', async (
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -259,7 +259,7 @@ test('it marks a grok session done on end-turn Stop', async () => {
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -307,7 +307,7 @@ test('it ignores a grok hook event that names a subagent', async () => {
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -374,7 +374,7 @@ test('it keeps a grok session needing you when an idle notification follows a pe
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -445,7 +445,7 @@ test('it keeps a nested codex harness from rebinding or answering for the claude
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -542,7 +542,7 @@ test('it drops a hook line without an agent at a session whose own hooks carry o
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -609,7 +609,7 @@ test.each(['resume', 'clear', 'compact'])(
 
     const client = await daemon.openClient();
 
-    const events: EventMsg[] = [];
+    const events: DaemonEvent[] = [];
 
     client.onEvent = (event) => {
       events.push(event);
@@ -666,7 +666,7 @@ test('it binds a gateway session through the hook command atc wrote for it', asy
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -710,7 +710,7 @@ test('it binds a session from a hook line without an agent while none of its own
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);

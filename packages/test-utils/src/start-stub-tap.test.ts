@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { startTestDaemon } from '../../app/src/test-utils/start-test-daemon';
 import { buildMockAgentAdapter } from './build-mock-agent-adapter';
+import { getString } from './get-string';
 import { spawnNamedSession } from './spawn-named-session';
 import { startStubTap } from './start-stub-tap';
 import { waitFor } from './wait-for';
@@ -39,9 +40,9 @@ test('it takes every pending message in the order the daemon accepted them', asy
   const tap = await startStubTap(ctx.tapClient, ctx.sessionID);
 
   await waitFor(() => {
-    expect(tap.messages.map((event) => event['message'])).toStrictEqual([
-      first['message'],
-      second['message'],
+    expect(tap.messages.map((event) => event.message)).toStrictEqual([
+      getString(first, 'message'),
+      getString(second, 'message'),
     ]);
   });
 });
@@ -71,8 +72,6 @@ test('it records the end of its subscription', async () => {
   await replacement.sendRequest('session.tap', { session: ctx.sessionID });
 
   await waitFor(() => {
-    expect(tap.closed).toStrictEqual([
-      { v: 4, ev: 'InboxClosed', s: ctx.sessionID, reason: 'replaced' },
-    ]);
+    expect(tap.closed).toStrictEqual([{ ev: 'InboxClosed', s: ctx.sessionID, reason: 'replaced' }]);
   });
 });

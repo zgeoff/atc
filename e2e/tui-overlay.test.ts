@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { DaemonClient } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
 import {
   KEYS,
   registerTestCleanup,
@@ -170,7 +170,7 @@ test('it lists a sub-session indented under its parent', async () => {
 
   await ctx.waitFor('atc — control tower');
 
-  const daemon = await DaemonClient.open(join(ctx.home, 'atc-daemon.sock'));
+  const daemon = await openDaemonClient(join(ctx.home, 'atc-daemon.sock'));
 
   registerTestCleanup(() => {
     daemon.stop();
@@ -207,7 +207,7 @@ test('it lists a detached sub-session as top-level', async () => {
 
   await ctx.waitFor('atc — control tower');
 
-  const daemon = await DaemonClient.open(join(ctx.home, 'atc-daemon.sock'));
+  const daemon = await openDaemonClient(join(ctx.home, 'atc-daemon.sock'));
 
   registerTestCleanup(() => {
     daemon.stop();

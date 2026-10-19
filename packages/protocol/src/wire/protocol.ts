@@ -1,6 +1,6 @@
 import { isRecord } from '@atc/core';
 
-export const PROTOCOL_V = 4;
+export const PROTOCOL_V = 5;
 
 // Control lines are capped before buffering; PTY output is split into chunks
 // so a queued response is delayed by at most one chunk.

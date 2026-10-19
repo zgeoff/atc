@@ -4,7 +4,7 @@ import type { AgentID } from '@atc/core';
 import { ansi, makeSingleFlight, systemClock } from '@atc/core';
 import { countSessionStates, sortSessionViews } from '@atc/protocol';
 import type { DaemonBoot, DaemonFeature } from '@atc/protocol';
-import type { DaemonClient } from '@atc/protocol/wire';
+import type { DaemonClient } from '@atc/protocol/client';
 import { createActor } from 'xstate';
 import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { applyDaemonEvent } from './apply-daemon-event';

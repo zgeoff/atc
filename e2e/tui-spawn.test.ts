@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DaemonClient } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
 import {
   KEYS,
   createGitFixture,
@@ -150,7 +150,7 @@ test('it spawns on the target chosen in the target step, keeping the choice acro
 
   await ctx.waitFor('FAKE_CLAUDE_UP');
 
-  const daemon = await DaemonClient.open(join(ctx.home, 'atc-daemon.sock'));
+  const daemon = await openDaemonClient(join(ctx.home, 'atc-daemon.sock'));
 
   registerTestCleanup(() => {
     daemon.stop();

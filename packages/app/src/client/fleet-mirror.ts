@@ -1,4 +1,4 @@
-import type { DaemonClient } from '@atc/protocol/wire';
+import type { DaemonClient } from '@atc/protocol/client';
 import { toMirrorSession } from './to-mirror-session';
 import type { MirrorSession } from './to-mirror-session';
 

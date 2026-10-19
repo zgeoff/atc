@@ -1,5 +1,5 @@
 import { ansi } from '@atc/core';
-import type { DaemonClient } from '@atc/protocol/wire';
+import type { DaemonClient } from '@atc/protocol/client';
 import type { ClientActor } from './build-client-machine';
 import { planTextEdit } from './keys';
 import type { SessionActions } from './session-actions';

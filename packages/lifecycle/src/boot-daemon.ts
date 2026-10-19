@@ -3,8 +3,10 @@ import { makeSingleFlight, toAgentID, waitUntil } from '@atc/core';
 import type { Clock } from '@atc/core';
 import type { DaemonBoot, DaemonBootOptions, DaemonPaths, ProtocolMismatch } from '@atc/protocol';
 import { formatProtocolMismatch, parseDaemonFeatures } from '@atc/protocol';
+import { openDaemonClient } from '@atc/protocol/client';
+import type { DaemonClient } from '@atc/protocol/client';
 import { readSessionEnv } from '@atc/protocol/session';
-import { DaemonClient, DaemonError, PROTOCOL_V } from '@atc/protocol/wire';
+import { DaemonError, PROTOCOL_V } from '@atc/protocol/wire';
 import { buildHostDaemonPaths } from './build-host-daemon-paths';
 import { collectDaemonSocketPaths } from './collect-daemon-socket-paths';
 import { findDaemonPID } from './find-daemon-pid';
@@ -233,7 +235,7 @@ async function waitForHello(
 async function tryOpenKnownDaemon(paths: DaemonPaths): Promise<OpenedDaemon | null> {
   for (const socketPath of collectDaemonSocketPaths(paths)) {
     try {
-      return { client: await DaemonClient.open(socketPath), socketPath };
+      return { client: await openDaemonClient(socketPath), socketPath };
     } catch {
       // A socket that refuses the connection passes the boot to the next.
     }

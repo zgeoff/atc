@@ -7,8 +7,9 @@ import { collectPrincipals, collectTargets } from '@atc/config';
 import { buildStubTargets } from '@atc/daemon/testing';
 import { buildStubExecutionProvider } from '@atc/execution-local/testing';
 import { encodeCursor } from '@atc/protocol';
-import { DaemonClient, DaemonError, PROTOCOL_V } from '@atc/protocol/wire';
-import type { EventMsg } from '@atc/protocol/wire';
+import type { DaemonEvent } from '@atc/protocol';
+import { openDaemonClient } from '@atc/protocol/client';
+import { DaemonError } from '@atc/protocol/wire';
 import {
   buildMockAgentAdapter,
   buildStubAttentionAdapter,
@@ -1103,7 +1104,7 @@ test('it answers permission.respond for a request of a session outside the princ
     },
   });
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   daemon.client.onEvent = (event) => {
     events.push(event);
@@ -2021,7 +2022,7 @@ test.each([
 
     const client = await daemon.openClient({ principal: 'narrow' });
 
-    const events: EventMsg[] = [];
+    const events: DaemonEvent[] = [];
 
     client.onEvent = (event) => {
       events.push(event);
@@ -2122,8 +2123,8 @@ test('it shows a principal a parent leaving when an out-of-reach sub-session joi
   const joinedClient = await daemon.openClient({ principal: 'narrow' });
   const forgotClient = await forgot.openClient({ principal: 'narrow' });
 
-  const joinedEvents: EventMsg[] = [];
-  const forgotEvents: EventMsg[] = [];
+  const joinedEvents: DaemonEvent[] = [];
+  const forgotEvents: DaemonEvent[] = [];
 
   joinedClient.onEvent = (event) => {
     joinedEvents.push(event);
@@ -2172,7 +2173,7 @@ test('it shows a principal a parent leaving when an out-of-reach sub-session joi
     JSON.stringify(joinedFleet).replaceAll(joinedParent, '<parent>'),
   );
 
-  expect(forgotEvents).toStrictEqual([{ v: PROTOCOL_V, ev: 'SessionRemoved', s: forgotParent }]);
+  expect(forgotEvents).toStrictEqual([{ ev: 'SessionRemoved', s: forgotParent }]);
   expect(forgotSessions).toStrictEqual({ sessions: [] });
   expect(forgotFleet).toStrictEqual({ fleet: [] });
   expect(JSON.stringify(joinedEvents)).not.toInclude(child);
@@ -2222,7 +2223,7 @@ test('it pushes a principal that sees the whole tree only the removal of a forgo
 
   const client = await daemon.openClient({ principal: 'wide' });
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -2237,7 +2238,7 @@ test('it pushes a principal that sees the whole tree only the removal of a forgo
   });
 
   expect(events.filter((event) => event.ev === 'SessionRemoved')).toStrictEqual([
-    { v: PROTOCOL_V, ev: 'SessionRemoved', s: parent },
+    { ev: 'SessionRemoved', s: parent },
   ]);
 
   expect(events.filter((event) => event.ev === 'SessionAdded')).toBeEmpty();
@@ -2278,8 +2279,8 @@ test('it takes the inbox tap from a principal connection whose tapped session le
 
   const client = await daemon.openClient({ principal: 'narrow' });
 
-  const events: EventMsg[] = [];
-  const ownerEvents: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
+  const ownerEvents: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -2939,7 +2940,7 @@ test('it reads the whole text of only the notes of sessions a principal may see 
   });
 
   const caller = new TransportCaller(daemon.socketPath, 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -3013,7 +3014,7 @@ test('it reads the first of many large notes a principal may see while another c
   });
 
   const caller = new TransportCaller(daemon.socketPath, 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -3302,7 +3303,7 @@ test('it pushes a principal connection only the events of sessions it may see', 
 
   const client = await daemon.openClient({ principal: 'narrow' });
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -4189,7 +4190,7 @@ test("it keeps a hidden session's messages from a principal tapping a session th
 
   const client = await daemon.openClient({ principal: 'narrow' });
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);

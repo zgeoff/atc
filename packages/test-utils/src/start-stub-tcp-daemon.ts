@@ -1,6 +1,4 @@
-import { PROTOCOL_V } from '@atc/protocol/wire';
-import { z } from 'zod';
-import { registerTestCleanup } from './register-test-cleanup';
+import { startStubPeerDaemon } from './start-stub-peer-daemon';
 
 interface StubTCPDaemon {
   readonly port: number;
@@ -15,52 +13,39 @@ interface StubTCPDaemon {
   readonly stop: () => void;
 }
 
-// The two request fields the stand-in reads; every other field passes
-// unread.
-const REQUEST = z.object({ id: z.number(), m: z.string() });
-
+// A daemon on a TCP port that answers every request with its own method.
 export function startStubTCPDaemon(): StubTCPDaemon {
   const seen: string[] = [];
-  let reads = 0;
 
-  const server = Bun.listen<{ buffer: string }>({
-    hostname: '127.0.0.1',
-    port: 0,
-    socket: {
-      open(socket) {
-        socket.data = { buffer: '' };
-      },
-      data(socket, buf) {
-        reads += 1;
-
-        const lines = `${socket.data.buffer}${buf.toString()}`.split('\n');
-
-        socket.data.buffer = lines.pop() ?? '';
-
-        for (const line of lines.filter((part) => part !== '')) {
-          const request = REQUEST.parse(JSON.parse(line));
-
-          seen.push(request.m);
-
-          socket.write(
-            `${JSON.stringify({ v: PROTOCOL_V, id: request.id, ok: { m: request.m } })}\n`,
-          );
+  const daemon = startStubPeerDaemon(
+    { hostname: '127.0.0.1', port: 0 },
+    {
+      answer: (request) => {
+        // The client opens its event stream once the handshake passes,
+        // which this daemon holds open and never sends to.
+        if (request.method === 'events.subscribe') {
+          return 'silent';
         }
-      },
-      error() {},
-    },
-  });
 
-  const stop = registerTestCleanup(() => {
-    server.stop(true);
-  });
+        seen.push(request.method);
+
+        return { ok: { m: request.method } };
+      },
+    },
+  );
+
+  const port = daemon.port;
+
+  if (port === null) {
+    throw new Error('the TCP stand-in bound no port');
+  }
 
   return {
-    port: server.port,
+    port,
     seen,
     get reads() {
-      return reads;
+      return daemon.reads;
     },
-    stop,
+    stop: daemon.stop,
   };
 }
