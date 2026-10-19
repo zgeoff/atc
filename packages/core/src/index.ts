@@ -26,6 +26,7 @@ export * from './reset-input-modes';
 export type * from './session-id';
 export * from './sort-json-keys';
 export * from './system-clock';
+export type * from './target-identity-rule';
 export * from './to-agent-id';
 export * from './to-agent-session-id';
 export * from './to-daemon-id';

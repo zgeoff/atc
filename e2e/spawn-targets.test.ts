@@ -347,7 +347,7 @@ test('it lists each target and each config error', async () => {
       {
         id: 'box',
         provider: 'imp',
-        identity: 'imp:reach-v1:44136fa355b3678a',
+        identity: 'imp:44136fa355b3678a',
         available: false,
         remote: false,
         default: true,
@@ -387,7 +387,7 @@ test.each([
   ],
   [
     'left without a provider',
-    'imp:reach-v1:44136fa355b3678a',
+    'imp:44136fa355b3678a',
     { local: { provider: 'local-pty' }, box: { provider: 'imp' } },
     'target_unavailable',
   ],

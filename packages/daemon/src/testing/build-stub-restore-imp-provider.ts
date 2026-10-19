@@ -3,7 +3,7 @@ import type { StubMemoryProvider } from './build-stub-memory-provider';
 import { buildStubMemoryProvider } from './build-stub-memory-provider';
 
 // What the provider does in place of the in-memory defaults beyond the
-// imp's own kind, remoteness, capabilities, and guest layout.
+// imp's own kind, remoteness, capabilities, guest layout, and workspace flags.
 type StubRestoreImpProviderConfig = Pick<
   NonNullable<Parameters<typeof buildStubMemoryProvider>[0]>,
   'runCommand' | 'clock'
@@ -52,6 +52,9 @@ export function buildStubRestoreImpProvider(
     remote: true,
     capabilities: { headless: false, suspend: true, destroy: true },
     guest: { dir: '/tmp/atc', atc: null },
+    cloneOnTarget: true,
+    hostGitIdentity: true,
+    guestWorkspaceTrust: true,
     prepareHost: async (request) => {
       if (hold !== null) {
         heldPrepares += 1;

@@ -16,7 +16,19 @@ test('it builds the revision a daemon reported before the providers moved into p
         },
       },
     ],
-    () => ({ provider: null, problem: null }),
+    (config) => ({
+      provider: null,
+      problem: null,
+      identityRule: new Map([
+        [
+          'imp',
+          {
+            version: 'reach-v1',
+            ignoredOptions: ['image', 'memoryMib', 'guestATC', 'rebindChangedAuth'],
+          },
+        ],
+      ]).get(config.provider),
+    }),
   );
 
   // clients compare this revision across daemons and restarts, so no change

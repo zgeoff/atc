@@ -674,7 +674,7 @@ test('it refuses local trust for a gateway', async () => {
   ).rejects.toMatchObject({
     code: 'unsupported',
     message:
-      'trustClonedWorkspace requires stock Claude on the local target, or stock Claude, a Claude gateway, or Codex signed in through the broker on an imp target',
+      'trustClonedWorkspace requires stock Claude on the local target, or stock Claude, a Claude gateway, or Codex signed in through the broker on a remote target that can trust a clone',
   });
 });
 

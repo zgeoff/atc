@@ -15,7 +15,12 @@ test('it restores a legacy binding once the provider confirms its imp exists', a
     id: 'cloud',
     kind: 'imp',
     options: { image: 'new' },
-    identity: buildTargetIdentity('imp', { image: 'new' }),
+    identity: buildTargetIdentity(
+      'imp',
+      { image: 'new' },
+      { version: 'reach-v1', ignoredOptions: ['image'] },
+    ),
+    identityRule: { version: 'reach-v1', ignoredOptions: ['image'] },
     provider,
   };
 
@@ -34,7 +39,12 @@ test('it refuses a legacy binding whose imp is gone without creating an imp', as
     id: 'cloud',
     kind: 'imp',
     options: { image: 'new' },
-    identity: buildTargetIdentity('imp', { image: 'new' }),
+    identity: buildTargetIdentity(
+      'imp',
+      { image: 'new' },
+      { version: 'reach-v1', ignoredOptions: ['image'] },
+    ),
+    identityRule: { version: 'reach-v1', ignoredOptions: ['image'] },
     provider,
   };
 
@@ -50,7 +60,11 @@ test('it refuses a versioned binding to a different server even when an imp has 
 
   const entry = buildMockFleetEntry({
     target: 'cloud',
-    targetIdentity: buildTargetIdentity('imp', { url: 'http://server-a' }),
+    targetIdentity: buildTargetIdentity(
+      'imp',
+      { url: 'http://server-a' },
+      { version: 'reach-v1', ignoredOptions: [] },
+    ),
   });
 
   provider.createHost(entry.sessionID);
@@ -59,7 +73,12 @@ test('it refuses a versioned binding to a different server even when an imp has 
     id: 'cloud',
     kind: 'imp',
     options: { url: 'http://server-b' },
-    identity: buildTargetIdentity('imp', { url: 'http://server-b' }),
+    identity: buildTargetIdentity(
+      'imp',
+      { url: 'http://server-b' },
+      { version: 'reach-v1', ignoredOptions: [] },
+    ),
+    identityRule: { version: 'reach-v1', ignoredOptions: [] },
     provider,
   };
 
@@ -84,7 +103,8 @@ test('it checks the shared host of a legacy sub-session', async () => {
     id: 'cloud',
     kind: 'imp',
     options: {},
-    identity: buildTargetIdentity('imp', {}),
+    identity: buildTargetIdentity('imp', {}, { version: 'reach-v1', ignoredOptions: [] }),
+    identityRule: { version: 'reach-v1', ignoredOptions: [] },
     provider,
   };
 
@@ -92,4 +112,66 @@ test('it checks the shared host of a legacy sub-session', async () => {
 
   expect(identity).toBe(target.identity);
   expect(provider.checked).toStrictEqual(['parent-host']);
+});
+
+test('it confirms an unversioned binding on any kind whose plugin declares an identity rule', async () => {
+  const provider = buildStubRestoreImpProvider();
+  const entry = buildMockFleetEntry({ target: 'far', targetIdentity: 'cloud:0123456789abcdef' });
+
+  provider.createHost(entry.sessionID);
+
+  const target = {
+    id: 'far',
+    kind: 'cloud',
+    options: {},
+    identity: buildTargetIdentity('cloud', {}, { version: 'reach-v2', ignoredOptions: [] }),
+    identityRule: { version: 'reach-v2', ignoredOptions: [] },
+    provider,
+  };
+
+  const identity = await resolveRestoredTargetIdentity(target, entry);
+
+  expect(identity).toBe(target.identity);
+  expect(provider.checked).toStrictEqual([entry.sessionID]);
+});
+
+test('it leaves an unversioned binding unchecked on a kind whose plugin declares no identity rule', async () => {
+  const provider = buildStubRestoreImpProvider();
+  const entry = buildMockFleetEntry({ target: 'far', targetIdentity: 'cloud:0123456789abcdef' });
+
+  provider.createHost(entry.sessionID);
+
+  const target = {
+    id: 'far',
+    kind: 'cloud',
+    options: { region: 'north' },
+    identity: buildTargetIdentity('cloud', { region: 'north' }),
+    provider,
+  };
+
+  const identity = await resolveRestoredTargetIdentity(target, entry);
+
+  expect(identity).toBe('cloud:0123456789abcdef');
+  expect(provider.checked).toStrictEqual([]);
+});
+
+test('it leaves an unversioned binding of another kind unchecked', async () => {
+  const provider = buildStubRestoreImpProvider();
+  const entry = buildMockFleetEntry({ target: 'far', targetIdentity: 'other:0123456789abcdef' });
+
+  provider.createHost(entry.sessionID);
+
+  const target = {
+    id: 'far',
+    kind: 'cloud',
+    options: {},
+    identity: buildTargetIdentity('cloud', {}, { version: 'reach-v2', ignoredOptions: [] }),
+    identityRule: { version: 'reach-v2', ignoredOptions: [] },
+    provider,
+  };
+
+  const identity = await resolveRestoredTargetIdentity(target, entry);
+
+  expect(identity).toBe('other:0123456789abcdef');
+  expect(provider.checked).toStrictEqual([]);
 });

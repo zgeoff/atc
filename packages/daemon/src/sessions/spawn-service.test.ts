@@ -4,11 +4,12 @@ import { systemClock, toSessionID } from '@atc/core';
 import type { SessionID } from '@atc/core';
 import { StateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/testing';
-import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { createGitFixture, registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { TargetAccess } from '../auth/target-access';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
+import { buildStubLocalProvider } from '../testing/build-stub-local-provider';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { IdempotencyLedger } from '../transport/idempotency-ledger';
 import { SessionRuntime } from './session-runtime';
@@ -22,6 +23,9 @@ interface SetupTestConfig {
     root: string | null;
     targetRoots: ReadonlyMap<string, string>;
   }>;
+
+  // The transports a workspace may clone over; https and ssh when absent.
+  readonly gitTransports?: readonly string[];
 }
 
 // A session manager over the targets given, with the stub harness as its
@@ -67,7 +71,7 @@ async function setupTest(config: SetupTestConfig) {
     clock: systemClock,
     ledger,
     findRuntime: (id) => runtimes.get(id),
-    gitTransports: ['https', 'ssh'],
+    gitTransports: config.gitTransports ?? ['https', 'ssh'],
     defaultTarget: config.defaultTarget,
     ...(config.workspaceRoots === undefined ? {} : { workspaceRoots: config.workspaceRoots }),
     homeDir: '/home/wrangler',
@@ -455,4 +459,86 @@ test('it lands a git workspace under the daemon home when no root applies', asyn
   });
 
   expect(dir).toBe('/home/wrangler/.local/share/atc/workspaces/widgets');
+});
+
+test('it clones a workspace on the daemon side for a remote target that does not clone on its host', async () => {
+  const git = await createGitFixture({ prefix: 'atc-spawn-service-git-' });
+
+  const provider = buildStubLocalProvider({ kind: 'cloud', remote: true, cloneOnTarget: false });
+
+  const ctx = await setupTest({
+    targets: [buildMockExecutionTarget({ id: 'far', identity: 'cloud:test', provider })],
+    defaultTarget: 'far',
+    gitTransports: ['file'],
+  });
+
+  const dir = join(ctx.dir, 'ws');
+
+  await ctx.spawns.spawnSession(
+    () => ({
+      cwd: dir,
+      name: 'builder',
+      prompt: '',
+      cols: 100,
+      rows: 30,
+      resume: false,
+      namedBy: 'user',
+      agent: 'claude',
+      parent: null,
+      overrides: {},
+      target: 'far',
+      workspace: { kind: 'git', url: git.upstream, ref: 'main' },
+      scope: null,
+      autoDir: false,
+    }),
+    null,
+    null,
+  );
+
+  expect(provider.transfers).toPartiallyContain({ dir });
+
+  expect(provider.commands.map((command) => command.argv.join(' '))).not.toContainEqual(
+    expect.stringContaining('clone'),
+  );
+});
+
+test('it clones a workspace inside the host for a remote target that clones on its host', async () => {
+  const git = await createGitFixture({ prefix: 'atc-spawn-service-git-' });
+
+  const provider = buildStubLocalProvider({ kind: 'cloud', remote: true, cloneOnTarget: true });
+
+  const ctx = await setupTest({
+    targets: [buildMockExecutionTarget({ id: 'far', identity: 'cloud:test', provider })],
+    defaultTarget: 'far',
+    gitTransports: ['file'],
+  });
+
+  const dir = join(ctx.dir, 'ws');
+
+  await ctx.spawns.spawnSession(
+    () => ({
+      cwd: dir,
+      name: 'builder',
+      prompt: '',
+      cols: 100,
+      rows: 30,
+      resume: false,
+      namedBy: 'user',
+      agent: 'claude',
+      parent: null,
+      overrides: {},
+      target: 'far',
+      workspace: { kind: 'git', url: git.upstream, ref: 'main' },
+      scope: null,
+      autoDir: false,
+    }),
+    null,
+    null,
+  );
+
+  expect(provider.transfers).not.toPartiallyContain({ dir });
+
+  expect(provider.commands.map((command) => command.argv.join(' '))).toContainEqual(
+    expect.stringContaining('clone'),
+  );
 });

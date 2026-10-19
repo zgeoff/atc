@@ -63,6 +63,7 @@ export function buildStubCredentialBroker(hostPrefix = 'atc-'): StubFailingCrede
 
     if (host === undefined) {
       throw new CredentialBrokerError('not_found', `no host ${hostName}`, {
+        provider: 'stub-remote',
         brokerCode: 'NOT_FOUND',
       });
     }
@@ -75,6 +76,7 @@ export function buildStubCredentialBroker(hostPrefix = 'atc-'): StubFailingCrede
 
     if (secret === undefined) {
       throw new CredentialBrokerError('not_found', `no secret ${name}`, {
+        provider: 'stub-remote',
         brokerCode: 'NOT_FOUND',
       });
     }
@@ -126,6 +128,7 @@ export function buildStubCredentialBroker(hostPrefix = 'atc-'): StubFailingCrede
           versionFailures -= 1;
 
           throw new CredentialBrokerError('unreachable', 'the broker did not answer', {
+            provider: 'stub-remote',
             brokerCode: 'UNREACHABLE',
           });
         }
@@ -134,7 +137,7 @@ export function buildStubCredentialBroker(hostPrefix = 'atc-'): StubFailingCrede
           throw new CredentialBrokerError(
             'refused',
             'the broker is older than the oldest this atc supports',
-            { brokerCode: 'IMPD_OUTDATED' },
+            { provider: 'stub-remote', brokerCode: 'IMPD_OUTDATED' },
           );
         }
       }),
@@ -192,6 +195,7 @@ export function buildStubCredentialBroker(hostPrefix = 'atc-'): StubFailingCrede
 
         if (hosts.has(name)) {
           throw new CredentialBrokerError('refused', `host ${name} already exists`, {
+            provider: 'stub-remote',
             brokerCode: 'CONFLICT',
           });
         }

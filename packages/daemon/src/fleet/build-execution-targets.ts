@@ -1,4 +1,5 @@
 import type { TargetConfig, TargetConfigError } from '@atc/config';
+import type { TargetIdentityRule } from '@atc/core';
 import type { ExecutionProvider } from '@atc/plugin-api';
 import { buildTargetIdentity } from '@atc/store';
 
@@ -10,6 +11,10 @@ export interface ExecutionTarget {
   // The identity a session spawned here binds to.
   readonly identity: string;
 
+  // The rule the target's plugin declares for its identities, absent when it
+  // declares none.
+  readonly identityRule?: TargetIdentityRule;
+
   // null when this daemon has no provider of the kind: the target still lists, and a
   // spawn to it fails rather than running anywhere else
   readonly provider: ExecutionProvider | null;
@@ -18,6 +23,9 @@ export interface ExecutionTarget {
 export interface ProviderBuild {
   readonly provider: ExecutionProvider | null;
   readonly problem: string | null;
+
+  // the plugin's identity rule, which holds even when the provider fails to build
+  readonly identityRule?: TargetIdentityRule | undefined;
 }
 
 interface ExecutionTargetsBuild {
@@ -42,7 +50,8 @@ export function buildExecutionTargets(
       id: config.id,
       kind: config.provider,
       options: config.options,
-      identity: buildTargetIdentity(config.provider, config.options),
+      identity: buildTargetIdentity(config.provider, config.options, built.identityRule),
+      ...(built.identityRule === undefined ? {} : { identityRule: built.identityRule }),
       provider: built.provider,
     };
   });

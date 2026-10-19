@@ -595,7 +595,7 @@ test('it refuses a spawn on an impd older than 2.2.0 after reads alone', async (
   expect(spawn).rejects.toMatchObject({
     code: 'host_unavailable',
     message:
-      'impd refused a runtime auth call: impd 2.1.0 is older than 2.2.0, the oldest impd this atc supports; upgrade impd',
+      'the imp credential broker refused a runtime auth call: impd 2.1.0 is older than 2.2.0, the oldest impd this atc supports; upgrade impd',
     data: { provider: 'imp', problem: 'impd_outdated' },
   });
 

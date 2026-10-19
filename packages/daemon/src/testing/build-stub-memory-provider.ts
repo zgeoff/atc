@@ -26,6 +26,12 @@ interface StubMemoryProviderConfig {
   readonly guest?: GuestLayout;
   readonly brokerAuth?: CredentialBroker;
 
+  // How the host takes a workspace, as a remote provider declares it; each is
+  // absent when the config leaves it out.
+  readonly cloneOnTarget?: boolean;
+  readonly hostGitIdentity?: boolean;
+  readonly guestWorkspaceTrust?: boolean;
+
   // Called with each harness spec before the harness starts; a throw from it
   // aborts the spawn, and no harness is recorded.
   readonly onSpawn?: (spec: HarnessSpec) => void;
@@ -113,6 +119,11 @@ export function buildStubMemoryProvider(config: StubMemoryProviderConfig = {}): 
     },
     ...(config.guest === undefined ? {} : { guest: config.guest }),
     ...(config.brokerAuth === undefined ? {} : { brokerAuth: config.brokerAuth }),
+    ...(config.cloneOnTarget === undefined ? {} : { cloneOnTarget: config.cloneOnTarget }),
+    ...(config.hostGitIdentity === undefined ? {} : { hostGitIdentity: config.hostGitIdentity }),
+    ...(config.guestWorkspaceTrust === undefined
+      ? {}
+      : { guestWorkspaceTrust: config.guestWorkspaceTrust }),
     harnesses,
     prepared,
     suspended,

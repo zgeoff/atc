@@ -36,6 +36,10 @@ test('it builds no provider and the problem for an imp entry whose token variabl
     provider: null,
     problem:
       'target "box" reads its impd token from ATC_TEST_IMP_TOKEN, which is unset or empty in the daemon\'s environment',
+    identityRule: {
+      version: 'reach-v1',
+      ignoredOptions: ['image', 'memoryMib', 'guestATC', 'rebindChangedAuth'],
+    },
   });
 });
 
