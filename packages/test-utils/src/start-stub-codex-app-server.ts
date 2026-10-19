@@ -368,11 +368,11 @@ export function startStubCodexAppServer(
   };
 }
 
+function sendLine(ws: ServerWebSocket, value: unknown): void {
+  ws.send(JSON.stringify(value));
+}
+
 // The App Server speaks only over a WebSocket, so a plain request is refused.
 function answerUpgrade(request: Request, bunServer: Server<undefined>) {
   return bunServer.upgrade(request) ? undefined : new Response('upgrade required', { status: 426 });
-}
-
-function sendLine(ws: ServerWebSocket, value: unknown): void {
-  ws.send(JSON.stringify(value));
 }
