@@ -18,7 +18,7 @@ jobs:
   sync:
     permissions:
       contents: read
-    uses: zgeoff/tools/.github/workflows/repo-sync.yml@sync-v12
+    uses: zgeoff/tools/.github/workflows/repo-sync.yml@sync-v14
     with:
       include:
         skill-testing, skill-docs-writing, hook-skill-gate, skill-code-style, skill-skill-writing,
