@@ -80,7 +80,7 @@ test('it writes each pending message as an NDJSON line and acks it', async () =>
 
   await waitFor(() => {
     expect(
-      ctx.events.filter((e) => e.ev === 'SessionMessage' && e['status'] === 'delivered'),
+      ctx.events.filter((e) => e.ev === 'SessionMessage' && e.status === 'delivered'),
     ).toHaveLength(2);
   });
 

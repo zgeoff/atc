@@ -2049,7 +2049,7 @@ test.each([
     });
 
     expect(
-      events.filter((event) => event.ev === 'SessionAdded').map((event) => event['session']),
+      events.filter((event) => event.ev === 'SessionAdded').map((event) => event.session),
     ).toPartiallyContain({ id: shown });
 
     expect(JSON.stringify(events)).not.toInclude(root);

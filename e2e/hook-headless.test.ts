@@ -253,7 +253,7 @@ test('it reports a finished headless turn as done', async () => {
     expect(
       ctx.daemon.events
         .filter((event) => event.ev === 'SessionState')
-        .map((event) => event['session']),
+        .map((event) => event.session),
     ).toPartiallyContain({
       id: sessionID,
       state: 'done',
@@ -287,7 +287,7 @@ test('it reports a stuck headless turn as needs_you', async () => {
     expect(
       ctx.daemon.events
         .filter((event) => event.ev === 'SessionState')
-        .map((event) => event['session']),
+        .map((event) => event.session),
     ).toPartiallyContain({
       id: sessionID,
       state: 'needs_you',
@@ -323,7 +323,7 @@ test("it keeps a finished headless turn's whole final message as the latest resu
     expect(
       ctx.daemon.events
         .filter((event) => event.ev === 'SessionState')
-        .map((event) => event['session']),
+        .map((event) => event.session),
     ).toPartiallyContain({ id: sessionID, state: 'done' });
   });
 
@@ -357,7 +357,7 @@ test("it shows a finished headless turn's result as the session's latest detail"
     expect(
       ctx.daemon.events
         .filter((event) => event.ev === 'SessionState')
-        .map((event) => event['session']),
+        .map((event) => event.session),
     ).toPartiallyContain({
       id: sessionID,
       state: 'done',
@@ -509,7 +509,7 @@ test('it starts the next headless turn from session input once idle', async () =
     expect(
       ctx.daemon.events
         .filter((event) => event.ev === 'SessionState')
-        .map((event) => event['session']),
+        .map((event) => event.session),
     ).toPartiallyContain({ id: sessionID, state: 'done' });
   });
 
@@ -592,7 +592,7 @@ test('it adopts a headless session back into a terminal', async () => {
     expect(
       ctx.daemon.events
         .filter((event) => event.ev === 'SessionState')
-        .map((event) => event['session']),
+        .map((event) => event.session),
     ).toPartiallyContain({ id: sessionID, state: 'done' });
   });
 

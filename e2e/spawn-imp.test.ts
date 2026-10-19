@@ -417,7 +417,7 @@ test('it revives a slept session inside the same process by waking its imp', asy
   const pid = await waitFor(() => {
     const output = ctx.events
       .filter((event) => event.ev === 'SessionOutput')
-      .map((event) => String(event['d']))
+      .map((event) => event.d)
       .join('');
 
     const match = /UP:(?<pid>\d+)/u.exec(output);
@@ -436,7 +436,7 @@ test('it revives a slept session inside the same process by waking its imp', asy
     expect(
       ctx.events
         .filter((event) => event.ev === 'SessionOutput')
-        .map((event) => String(event['d']))
+        .map((event) => event.d)
         .join(''),
     ).toInclude(`GOT:again:${pid}`);
   });
@@ -805,7 +805,7 @@ test('it lists a session whose imp another owner put to sleep as asleep', async 
     expect(
       ctx.events
         .filter((event) => event.ev === 'SessionOutput')
-        .map((event) => String(event['d']))
+        .map((event) => event.d)
         .join(''),
     ).toInclude('UP:');
   });
@@ -847,7 +847,7 @@ test('it restores a session whose imp another owner put to sleep as suspended af
     expect(
       ctx.events
         .filter((event) => event.ev === 'SessionOutput')
-        .map((event) => String(event['d']))
+        .map((event) => event.d)
         .join(''),
     ).toInclude('UP:');
   });
@@ -899,7 +899,7 @@ test('it revives a session whose imp another owner put to sleep in the same proc
     const match = /UP:(?<pid>\d+)/u.exec(
       ctx.events
         .filter((event) => event.ev === 'SessionOutput')
-        .map((event) => String(event['d']))
+        .map((event) => event.d)
         .join(''),
     );
 
@@ -924,7 +924,7 @@ test('it revives a session whose imp another owner put to sleep in the same proc
     expect(
       ctx.events
         .filter((event) => event.ev === 'SessionOutput')
-        .map((event) => String(event['d']))
+        .map((event) => event.d)
         .join(''),
     ).toInclude(`GOT:again:${pid}`);
   });
