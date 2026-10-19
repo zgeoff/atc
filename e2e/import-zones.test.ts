@@ -422,6 +422,8 @@ test('it refuses a file in a workspace package outside every package zone', asyn
     .object({ diagnostics: z.array(z.looseObject({})) })
     .parse(JSON.parse(linted.stdout));
 
+  expect(linted.exitCode).toBe(1);
+
   expect(report.diagnostics).toPartiallyContain({
     code: 'zgeoff(import-zones)',
     filename: 'packages/extras/src/a.ts',
