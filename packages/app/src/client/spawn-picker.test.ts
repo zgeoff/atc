@@ -3282,6 +3282,65 @@ test("it drops a remote daemon's completion of input typed over since, keeping t
   ]);
 });
 
+test('it keeps the latest completion when an earlier one answers for input typed again since', async () => {
+  const ctx = setupTest();
+
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    remoteDaemon: true,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
+  );
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+
+  picker.applyKey(Buffer.from('~/a'));
+  picker.applyKey(Buffer.from('b'));
+  picker.applyKey(Buffer.from(KEYS.backspace));
+
+  await ctx.daemon.answer('sources.complete', {
+    completions: [{ label: '~/a-new', pick: { kind: 'path', dir: '/home/far/a-new' } }],
+  });
+
+  await ctx.daemon.answerOldest('sources.complete', {
+    completions: [{ label: '~/a-old', pick: { kind: 'path', dir: '/home/far/a-old' } }],
+  });
+
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(`far-one${KEYS.enter}`));
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  expect(ctx.dropped).toStrictEqual(['path completion']);
+  expect(ctx.daemon.collectSent('session.spawn')).toPartiallyContain({ cwd: '/home/far/a-new' });
+});
+
 test('it spawns in the directory a remote daemon completed', async () => {
   const ctx = setupTest();
 

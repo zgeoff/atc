@@ -238,7 +238,7 @@ export class SpawnRequests {
   }
 
   // Completes typed input through one source for a spawn to the request's
-  // target. A source that completes nothing answers no completions.
+  // target.
   async applySourcesComplete(req: RequestMsg, ctx: DaemonContext): Promise<void> {
     const parsed = parseRequestParams('sources.complete', req.p);
 
