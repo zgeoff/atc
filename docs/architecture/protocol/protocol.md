@@ -103,7 +103,8 @@ stateDiagram-v2
   connection.
 - **Checking.** The daemon checks the hello's token on the TCP listener first, then its principal,
   its session and its protocol version. A request that arrives meanwhile waits and runs once the
-  hello passes.
+  hello passes. One exception: on the TCP listener, a line that arrives while the daemon checks the
+  token records `unexpected_line` and ends the connection with no answer.
 - **Open.** Requests run, and the event subscription delivers.
 - **Refusing.** The daemon writes the refusal whole before it ends the socket, so the client reads
   why it was refused. A request queued behind the refused hello gets `unauthorized`.

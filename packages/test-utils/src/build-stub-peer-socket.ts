@@ -54,7 +54,6 @@ export function buildStubPeerSocket() {
     countRefusedWrites: (): number => refusedWrites,
     collectFrames,
 
-    // The payload of the first message written under the peer message id.
     waitForAnswer: (id: string): Promise<Record<string, unknown>> => {
       const found = collectFrames().find((frame) => frame['i'] === id);
 
