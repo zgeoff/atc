@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { toSessionID } from '@atc/core';
 import { buildTargetIdentity } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
+import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubRestoreImpProvider } from '../testing/build-stub-restore-imp-provider';
 import { resolveRestoredTargetIdentity } from './resolve-restored-target-identity';
 
@@ -11,7 +12,7 @@ test('it restores a legacy binding once the provider confirms its imp exists', a
 
   provider.createHost(entry.sessionID);
 
-  const target = {
+  const target = buildMockExecutionTarget({
     id: 'cloud',
     kind: 'imp',
     options: { image: 'new' },
@@ -22,7 +23,7 @@ test('it restores a legacy binding once the provider confirms its imp exists', a
     ),
     identityRule: { version: 'reach-v1', ignoredOptions: ['image'] },
     provider,
-  };
+  });
 
   const identity = await resolveRestoredTargetIdentity(target, entry);
 
@@ -35,7 +36,7 @@ test('it refuses a legacy binding whose imp is gone without creating an imp', as
   const provider = buildStubRestoreImpProvider();
   const entry = buildMockFleetEntry({ target: 'cloud', targetIdentity: 'imp:0123456789abcdef' });
 
-  const target = {
+  const target = buildMockExecutionTarget({
     id: 'cloud',
     kind: 'imp',
     options: { image: 'new' },
@@ -46,7 +47,7 @@ test('it refuses a legacy binding whose imp is gone without creating an imp', as
     ),
     identityRule: { version: 'reach-v1', ignoredOptions: ['image'] },
     provider,
-  };
+  });
 
   const identity = await resolveRestoredTargetIdentity(target, entry);
 
@@ -69,7 +70,7 @@ test('it refuses a versioned binding to a different server even when an imp has 
 
   provider.createHost(entry.sessionID);
 
-  const target = {
+  const target = buildMockExecutionTarget({
     id: 'cloud',
     kind: 'imp',
     options: { url: 'http://server-b' },
@@ -80,7 +81,7 @@ test('it refuses a versioned binding to a different server even when an imp has 
     ),
     identityRule: { version: 'reach-v1', ignoredOptions: [] },
     provider,
-  };
+  });
 
   const identity = await resolveRestoredTargetIdentity(target, entry);
 
@@ -99,14 +100,14 @@ test('it checks the shared host of a legacy sub-session', async () => {
 
   provider.createHost('parent-host');
 
-  const target = {
+  const target = buildMockExecutionTarget({
     id: 'cloud',
     kind: 'imp',
     options: {},
     identity: buildTargetIdentity('imp', {}, { version: 'reach-v1', ignoredOptions: [] }),
     identityRule: { version: 'reach-v1', ignoredOptions: [] },
     provider,
-  };
+  });
 
   const identity = await resolveRestoredTargetIdentity(target, entry);
 
@@ -120,14 +121,14 @@ test('it confirms an unversioned binding on any kind whose plugin declares an id
 
   provider.createHost(entry.sessionID);
 
-  const target = {
+  const target = buildMockExecutionTarget({
     id: 'far',
     kind: 'cloud',
     options: {},
     identity: buildTargetIdentity('cloud', {}, { version: 'reach-v2', ignoredOptions: [] }),
     identityRule: { version: 'reach-v2', ignoredOptions: [] },
     provider,
-  };
+  });
 
   const identity = await resolveRestoredTargetIdentity(target, entry);
 
@@ -141,13 +142,13 @@ test('it leaves an unversioned binding unchecked on a kind whose plugin declares
 
   provider.createHost(entry.sessionID);
 
-  const target = {
+  const target = buildMockExecutionTarget({
     id: 'far',
     kind: 'cloud',
     options: { region: 'north' },
     identity: buildTargetIdentity('cloud', { region: 'north' }),
     provider,
-  };
+  });
 
   const identity = await resolveRestoredTargetIdentity(target, entry);
 
@@ -161,14 +162,14 @@ test('it leaves an unversioned binding of another kind unchecked', async () => {
 
   provider.createHost(entry.sessionID);
 
-  const target = {
+  const target = buildMockExecutionTarget({
     id: 'far',
     kind: 'cloud',
     options: {},
     identity: buildTargetIdentity('cloud', {}, { version: 'reach-v2', ignoredOptions: [] }),
     identityRule: { version: 'reach-v2', ignoredOptions: [] },
     provider,
-  };
+  });
 
   const identity = await resolveRestoredTargetIdentity(target, entry);
 

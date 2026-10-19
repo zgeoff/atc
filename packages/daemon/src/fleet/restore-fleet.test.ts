@@ -19,6 +19,7 @@ import type { Session } from '../sessions/session';
 import { SessionRuntime } from '../sessions/session-runtime';
 import { SessionManager } from '../sessions/sessions';
 import { startHeadlessTurn } from '../sessions/start-headless-turn';
+import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { buildStubRestoreImpProvider } from '../testing/build-stub-restore-imp-provider';
 import { runLocalCommand } from '../testing/run-local-command';
@@ -1600,7 +1601,16 @@ test('it restores and persists a live legacy cloud session after an image change
     ctx.store,
     ctx.statusPath,
     [],
-    [{ id: 'cloud', kind: 'imp', options, identity, identityRule, provider: ctx.impProvider }],
+    [
+      buildMockExecutionTarget({
+        id: 'cloud',
+        kind: 'imp',
+        options,
+        identity,
+        identityRule,
+        provider: ctx.impProvider,
+      }),
+    ],
   );
 
   registerTestCleanup(() => {
@@ -1660,7 +1670,16 @@ test('it keeps a cloud session usable after the image changes under a versioned 
     ctx.store,
     ctx.statusPath,
     [],
-    [{ id: 'cloud', kind: 'imp', options, identity, identityRule, provider: ctx.impProvider }],
+    [
+      buildMockExecutionTarget({
+        id: 'cloud',
+        kind: 'imp',
+        options,
+        identity,
+        identityRule,
+        provider: ctx.impProvider,
+      }),
+    ],
   );
 
   registerTestCleanup(() => {
@@ -1711,7 +1730,16 @@ test('it leaves a missing legacy imp refused instead of creating a replacement',
     ctx.store,
     ctx.statusPath,
     [],
-    [{ id: 'cloud', kind: 'imp', options, identity, identityRule, provider: ctx.impProvider }],
+    [
+      buildMockExecutionTarget({
+        id: 'cloud',
+        kind: 'imp',
+        options,
+        identity,
+        identityRule,
+        provider: ctx.impProvider,
+      }),
+    ],
   );
 
   registerTestCleanup(() => {
@@ -1762,7 +1790,16 @@ test('it restores a listed legacy session when its imp becomes reachable on a la
     ctx.store,
     ctx.statusPath,
     [],
-    [{ id: 'cloud', kind: 'imp', options, identity, identityRule, provider: ctx.impProvider }],
+    [
+      buildMockExecutionTarget({
+        id: 'cloud',
+        kind: 'imp',
+        options,
+        identity,
+        identityRule,
+        provider: ctx.impProvider,
+      }),
+    ],
   );
 
   registerTestCleanup(() => {
@@ -1825,7 +1862,16 @@ test('it lists the adoption refusal in place of a stale binding refusal once the
     ctx.store,
     ctx.statusPath,
     [],
-    [{ id: 'cloud', kind: 'imp', options, identity, identityRule, provider: ctx.impProvider }],
+    [
+      buildMockExecutionTarget({
+        id: 'cloud',
+        kind: 'imp',
+        options,
+        identity,
+        identityRule,
+        provider: ctx.impProvider,
+      }),
+    ],
   );
 
   registerTestCleanup(() => {

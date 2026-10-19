@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { isUnconfirmedBinding } from './is-unconfirmed-binding';
 
 test.each([
@@ -12,14 +13,11 @@ test.each([
   (_label, identity, expected) => {
     expect(
       isUnconfirmedBinding(
-        {
-          id: 'far',
+        buildMockExecutionTarget({
           kind: 'cloud',
-          options: {},
           identity: 'cloud:reach-v2:fedcba9876543210',
           identityRule: { version: 'reach-v2', ignoredOptions: [] },
-          provider: null,
-        },
+        }),
         identity,
       ),
     ).toBe(expected);
@@ -29,13 +27,7 @@ test.each([
 test('it never counts a binding unconfirmed on a kind whose plugin declares no rule', () => {
   expect(
     isUnconfirmedBinding(
-      {
-        id: 'far',
-        kind: 'cloud',
-        options: {},
-        identity: 'cloud:fedcba9876543210',
-        provider: null,
-      },
+      buildMockExecutionTarget({ kind: 'cloud', identity: 'cloud:fedcba9876543210' }),
       'cloud:0123456789abcdef',
     ),
   ).toBeFalse();

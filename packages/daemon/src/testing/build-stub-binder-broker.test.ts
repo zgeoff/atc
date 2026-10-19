@@ -140,20 +140,43 @@ test('it records each contract call in order', async () => {
   ]);
 });
 
-test('it refuses a grant from an identity without the manage scope', async () => {
+test('it grants a secret to an identity with the manage scope', async () => {
   const broker = buildStubBinderBroker();
 
-  broker.setIdentity({ name: 'atc-runtime', scope: 'exec', hosts: ['atc-*'], grantable: ['glm'] });
+  broker.setIdentity({
+    name: 'atc-runtime',
+    scope: 'manage',
+    hosts: ['atc-*'],
+    grantable: ['glm'],
+  });
+
   broker.createSecret('glm', 'custom', []);
 
   await broker.createHost('s1');
+  await broker.createGrant('atc-s1', 'glm');
 
-  expect(broker.createGrant('atc-s1', 'glm')).rejects.toMatchObject({
-    code: 'forbidden',
-    brokerCode: 'FORBIDDEN',
-    data: { reason: 'scope' },
-  });
+  const grants = await broker.readGrants('atc-s1');
+
+  expect(grants).toStrictEqual(['glm']);
 });
+
+test.each([['read'], ['exec']] as const)(
+  'it refuses a grant from an identity with the %s scope',
+  async (scope) => {
+    const broker = buildStubBinderBroker();
+
+    broker.setIdentity({ name: 'atc-runtime', scope, hosts: ['atc-*'], grantable: ['glm'] });
+    broker.createSecret('glm', 'custom', []);
+
+    await broker.createHost('s1');
+
+    expect(broker.createGrant('atc-s1', 'glm')).rejects.toMatchObject({
+      code: 'forbidden',
+      brokerCode: 'FORBIDDEN',
+      data: { reason: 'scope' },
+    });
+  },
+);
 
 test('it refuses a grant on a host outside the identity patterns', async () => {
   const broker = buildStubBinderBroker();

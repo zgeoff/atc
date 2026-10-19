@@ -26,8 +26,7 @@ interface StubMemoryProviderConfig {
   readonly guest?: GuestLayout;
   readonly brokerAuth?: CredentialBroker;
 
-  // How the host takes a workspace, as a remote provider declares it; each is
-  // absent when the config leaves it out.
+  // The workspace flags a remote provider declares.
   readonly cloneOnTarget?: boolean;
   readonly hostGitIdentity?: boolean;
   readonly guestWorkspaceTrust?: boolean;

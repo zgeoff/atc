@@ -11,8 +11,6 @@ export interface ExecutionTarget {
   // The identity a session spawned here binds to.
   readonly identity: string;
 
-  // The rule the target's plugin declares for its identities, absent when it
-  // declares none.
   readonly identityRule?: TargetIdentityRule;
 
   // null when this daemon has no provider of the kind: the target still lists, and a
