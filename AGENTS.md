@@ -9,14 +9,14 @@ peer messages, one JSON message per line. `docs/README.md` indexes the docs, and
 
 The rules a task needs are not repeated here. Load the skill for the work before starting it.
 
-| Skill                | Load before                                                                      |
-| -------------------- | -------------------------------------------------------------------------------- |
-| `code-style`         | writing, reviewing, or renaming any TypeScript — the function-verb taxonomy      |
-| `project-code-style` | the same, beside `code-style` — atc's own verbs, exempt names, and comment rules |
-| `testing`            | designing, writing, or reviewing tests                                           |
-| `project-testing`    | the same, beside `testing` — atc's test home and PTY harness                     |
-| `docs-writing`       | writing or editing any committed prose: `docs/`, READMEs, this file, skills      |
-| `tool-contract`      | adding, renaming, or redescribing an `atc mcp` tool or an atc-bridge tool        |
+| Skill                | Load before                                                                                      |
+| -------------------- | ------------------------------------------------------------------------------------------------ |
+| `code-style`         | writing, reviewing, or renaming any TypeScript — the function-verb taxonomy and the comment rule |
+| `project-code-style` | the same, beside `code-style` — atc's own verbs and exempt names                                 |
+| `testing`            | designing, writing, or reviewing tests                                                           |
+| `project-testing`    | the same, beside `testing` — atc's test home and PTY harness                                     |
+| `docs-writing`       | writing or editing any committed prose: `docs/`, READMEs, this file, skills                      |
+| `tool-contract`      | adding, renaming, or redescribing an `atc mcp` tool or an atc-bridge tool                        |
 
 ## Repo structure
 

@@ -1,9 +1,9 @@
 ---
 name: project-code-style
 description:
-  atc's additions to the shared code-style skill — the function verbs only atc uses, the names
-  exempt from the verb rule, and the comment rules. Load beside code-style before writing,
-  reviewing, or renaming any TypeScript in atc.
+  atc's additions to the shared code-style skill — the function verbs only atc uses and the names
+  exempt from the verb rule. Load beside code-style before writing, reviewing, or renaming any
+  TypeScript in atc.
 ---
 
 # atc code style
@@ -18,8 +18,6 @@ there.
   it could be mistaken for a shared verb.
 - [Exempt names](#exempt-names): geometry helpers, script entrypoints, and kysely's driver methods
   need no verb.
-- [Comments](#comments): JSDoc is multi-line, and a comment holds no history and names no other
-  declaration.
 
 ## Project verbs
 
@@ -89,10 +87,3 @@ The verb rule skips these names. Each also sits in the `exemptNames` option besi
 - `commitTransaction`
 - `rollbackTransaction`
 - `releaseConnection`
-
-## Comments
-
-- A comment describes the code as it is, never how it got that way or what is planned, so it holds
-  no history or project state.
-- A comment never names another declaration, because a rename strands the reference. Describe the
-  behaviour instead.
