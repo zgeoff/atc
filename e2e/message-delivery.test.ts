@@ -384,7 +384,7 @@ test('it hands a message queued during the restore to the session tap that attac
         from: 'owner',
         sender: { kind: 'owner', name: 'owner' },
         text: 'hello',
-        sentAt: expect.any(Number),
+        sentAt: expect.any(Number) as unknown,
       },
     ]);
   });
@@ -426,7 +426,7 @@ test('it drains pending messages to a tap in the order they were sent', async ()
         from: 'owner',
         sender: { kind: 'owner', name: 'owner' },
         text: 'one',
-        sentAt: expect.any(Number),
+        sentAt: expect.any(Number) as unknown,
       },
       {
         ev: 'InboxMessage',
@@ -435,7 +435,7 @@ test('it drains pending messages to a tap in the order they were sent', async ()
         from: 'owner',
         sender: { kind: 'owner', name: 'owner' },
         text: 'two',
-        sentAt: expect.any(Number),
+        sentAt: expect.any(Number) as unknown,
       },
       {
         ev: 'InboxMessage',
@@ -444,7 +444,7 @@ test('it drains pending messages to a tap in the order they were sent', async ()
         from: 'owner',
         sender: { kind: 'owner', name: 'owner' },
         text: 'three',
-        sentAt: expect.any(Number),
+        sentAt: expect.any(Number) as unknown,
       },
     ]);
   });
@@ -483,7 +483,7 @@ test('it streams a message queued while the tap is connected', async () => {
         from: 'owner',
         sender: { kind: 'owner', name: 'owner' },
         text: 'live',
-        sentAt: expect.any(Number),
+        sentAt: expect.any(Number) as unknown,
       },
     ]);
   });
@@ -639,8 +639,8 @@ test('it broadcasts SessionMessage for an acked message', async () => {
       from: 'owner',
       sender: { kind: 'owner', name: 'owner' },
       textPreview: 'hello',
-      sentAt: expect.any(Number),
-      deliveredAt: expect.any(Number),
+      sentAt: expect.any(Number) as unknown,
+      deliveredAt: expect.any(Number) as unknown,
     });
   });
 });
@@ -730,8 +730,8 @@ test('it broadcasts delivered once for a repeat ack', async () => {
       from: 'owner',
       sender: { kind: 'owner', name: 'owner' },
       textPreview: 'hello',
-      sentAt: expect.any(Number),
-      deliveredAt: expect.any(Number),
+      sentAt: expect.any(Number) as unknown,
+      deliveredAt: expect.any(Number) as unknown,
     },
   ]);
 });
@@ -782,8 +782,8 @@ test('it moves a message to answered from a Report line on the reporter socket',
       from: 'owner',
       sender: { kind: 'owner', name: 'owner' },
       textPreview: 'hello',
-      sentAt: expect.any(Number),
-      answeredAt: expect.any(Number),
+      sentAt: expect.any(Number) as unknown,
+      answeredAt: expect.any(Number) as unknown,
       answerPreview: 'done',
     });
   });
@@ -927,7 +927,7 @@ test('it broadcasts SessionMessage on the events socket', async () => {
       from: 'owner',
       sender: { kind: 'owner', name: 'owner' },
       textPreview: 'hello',
-      sentAt: expect.any(Number),
+      sentAt: expect.any(Number) as unknown,
     },
   });
 });
@@ -967,7 +967,7 @@ test('it runs SessionMessage hooks with the event on stdin', async () => {
       from: 'owner',
       sender: { kind: 'owner', name: 'owner' },
       textPreview: 'hello',
-      sentAt: expect.any(Number),
+      sentAt: expect.any(Number) as unknown,
     },
   });
 });
@@ -993,7 +993,7 @@ test('it broadcasts a note from the reporter socket as SessionNote', async () =>
       s: id,
       kind: 'blocked',
       text: 'need review',
-      sentAt: expect.any(Number),
+      sentAt: expect.any(Number) as unknown,
     });
   });
 });
@@ -1059,7 +1059,7 @@ test('it broadcasts SessionNote on the events socket', async () => {
       s: id,
       kind: 'progress',
       text: 'halfway',
-      sentAt: expect.any(Number),
+      sentAt: expect.any(Number) as unknown,
     },
   });
 });
@@ -1101,7 +1101,7 @@ test('it runs SessionNote hooks with the event on stdin', async () => {
       s: id,
       kind: 'decision',
       text: 'pick one',
-      sentAt: expect.any(Number),
+      sentAt: expect.any(Number) as unknown,
     },
   });
 });
@@ -1226,7 +1226,7 @@ test('it reads a queued message back through message.get', async () => {
     sender: { kind: 'owner', name: 'owner' },
     text: 'hello',
     status: 'queued',
-    sentAt: expect.any(Number),
+    sentAt: expect.any(Number) as unknown,
     turn: null,
     answeredWith: [],
   });
@@ -1261,8 +1261,8 @@ test('it reads a delivered message back through message.get', async () => {
     sender: { kind: 'owner', name: 'owner' },
     text: 'hello',
     status: 'delivered',
-    sentAt: expect.any(Number),
-    deliveredAt: expect.any(Number),
+    sentAt: expect.any(Number) as unknown,
+    deliveredAt: expect.any(Number) as unknown,
     turn: null,
     answeredWith: [],
   });
@@ -1305,9 +1305,9 @@ test('it reads an answered message back through message.get', async () => {
       text: 'hello',
       status: 'answered',
       answer: 'done',
-      sentAt: expect.any(Number),
-      deliveredAt: expect.any(Number),
-      answeredAt: expect.any(Number),
+      sentAt: expect.any(Number) as unknown,
+      deliveredAt: expect.any(Number) as unknown,
+      answeredAt: expect.any(Number) as unknown,
       turn: null,
       answeredWith: [],
     });
@@ -1728,8 +1728,8 @@ test('it holds message.get open until the message status changes', async () => {
     sender: { kind: 'owner', name: 'owner' },
     text: 'hello',
     status: 'delivered',
-    sentAt: expect.any(Number),
-    deliveredAt: expect.any(Number),
+    sentAt: expect.any(Number) as unknown,
+    deliveredAt: expect.any(Number) as unknown,
     turn: null,
     answeredWith: [],
   });
@@ -1765,7 +1765,7 @@ test('it answers a held message.get with the unchanged status once the wait ends
     sender: { kind: 'owner', name: 'owner' },
     text: 'hello',
     status: 'queued',
-    sentAt: expect.any(Number),
+    sentAt: expect.any(Number) as unknown,
     turn: null,
     answeredWith: [],
   });
@@ -1807,8 +1807,8 @@ test('it answers message.get for an answered message at once whatever the wait',
     text: 'hello',
     status: 'answered',
     answer: 'done',
-    sentAt: expect.any(Number),
-    answeredAt: expect.any(Number),
+    sentAt: expect.any(Number) as unknown,
+    answeredAt: expect.any(Number) as unknown,
     turn: null,
     answeredWith: [],
   });
@@ -1852,9 +1852,9 @@ test('it moves a delivered message to unanswered from an unanswered Note line', 
       from: 'owner',
       sender: { kind: 'owner', name: 'owner' },
       textPreview: 'hello',
-      sentAt: expect.any(Number),
-      deliveredAt: expect.any(Number),
-      unansweredAt: expect.any(Number),
+      sentAt: expect.any(Number) as unknown,
+      deliveredAt: expect.any(Number) as unknown,
+      unansweredAt: expect.any(Number) as unknown,
       unansweredReason: 'interrupted',
     });
   });
@@ -1889,8 +1889,8 @@ test('it reads an unanswered message back through message.get with its reason an
     sender: { kind: 'owner', name: 'owner' },
     text: 'hello',
     status: 'unanswered',
-    sentAt: expect.any(Number),
-    unansweredAt: expect.any(Number),
+    sentAt: expect.any(Number) as unknown,
+    unansweredAt: expect.any(Number) as unknown,
     unansweredReason: 'error',
     turn: 't-9',
     answeredWith: [],
@@ -2964,9 +2964,9 @@ test('it marks a delivered message unanswered as session_ended when the process 
       from: 'owner',
       sender: { kind: 'owner', name: 'owner' },
       textPreview: 'hello',
-      sentAt: expect.any(Number),
-      deliveredAt: expect.any(Number),
-      unansweredAt: expect.any(Number),
+      sentAt: expect.any(Number) as unknown,
+      deliveredAt: expect.any(Number) as unknown,
+      unansweredAt: expect.any(Number) as unknown,
       unansweredReason: 'session_ended',
     });
   });
