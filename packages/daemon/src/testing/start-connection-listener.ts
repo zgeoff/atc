@@ -1,13 +1,15 @@
 import { registerTestCleanup } from '@atc/test-utils';
 import type { DaemonContext } from '../daemon-context';
 import { DaemonConnection } from '../transport/daemon-connection';
+import type { TCPPeer } from '../transport/tcp-peer';
 
-// Serves the daemon's connections on a unix socket, each on the given
-// context, the way the daemon's own listener wires them, and returns the
-// connections it accepts; the test's end stops it.
+// Serves the daemon's connections on a unix socket the way its listener
+// wires them, checked as TCP connections when given a TCP peer, and returns
+// the connections it accepts; the test's end stops it.
 export function startConnectionListener(
   socketPath: string,
   ctx: DaemonContext,
+  tcp: TCPPeer | null = null,
 ): readonly DaemonConnection[] {
   const connections: DaemonConnection[] = [];
 
@@ -15,7 +17,7 @@ export function startConnectionListener(
     unix: socketPath,
     socket: {
       open(socket) {
-        socket.data = new DaemonConnection(socket, ctx);
+        socket.data = new DaemonConnection(socket, ctx, tcp);
 
         connections.push(socket.data);
       },

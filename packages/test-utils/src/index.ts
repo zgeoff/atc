@@ -95,6 +95,7 @@ export * from './start-stub-dropping-daemon';
 export * from './start-stub-impd';
 export * from './start-stub-impd-info';
 export * from './start-stub-legacy-daemon';
+export * from './start-stub-peer-daemon';
 export * from './start-stub-refusing-listener';
 export * from './start-stub-reporter-socket';
 export * from './start-stub-restore-daemon';

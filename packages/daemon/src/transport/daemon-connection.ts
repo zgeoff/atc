@@ -1,5 +1,4 @@
 import type { SessionID } from '@atc/core';
-import { isRecord } from '@atc/core';
 import { DAEMON_FEATURES, parseRequestParams } from '@atc/protocol';
 import type { DaemonAnswer, RequestParams } from '@atc/protocol';
 import {
@@ -29,6 +28,7 @@ import { ConnectionReply } from './connection-reply';
 import { ConnectionView } from './connection-view';
 import { createEventFeed } from './create-event-feed';
 import type { EventFeed } from './create-event-feed';
+import { decodePeerInput } from './decode-peer-input';
 import { findPeerMethod } from './find-peer-method';
 import { parseRequestPrincipal } from './parse-request-principal';
 import type { ProcedureContext } from './procedure-context';
@@ -417,14 +417,14 @@ export class DaemonConnection {
     }
 
     const as = req.as === undefined ? null : { principal: req.as, name: req.asName };
-    const ctx = this.findTCPRequestContext(req.m, as);
+    const ctx = this.requireTCPRequestContext(req.m, as);
 
     await this.applyRequest(req, ctx);
   }
 
   // The context a request over TCP runs on, scoped to the principal it acts
   // as; a refusal throws.
-  private findTCPRequestContext(method: string, as: RequestPrincipal | null): DaemonContext {
+  private requireTCPRequestContext(method: string, as: RequestPrincipal | null): DaemonContext {
     if (isOwnerOnlyMethod(method)) {
       throw new DaemonError('unauthorized', `${method} is open to the daemon's owner only`);
     }
@@ -596,12 +596,12 @@ export class DaemonConnection {
   }
 
   private async sendHelloOk(id: number): Promise<void> {
-    const answer = await this.buildHelloAnswer();
+    const answer = await this.loadHelloAnswer();
 
     this.reply.sendAnswer(id, answer);
   }
 
-  private async buildHelloAnswer(): Promise<DaemonAnswer<'daemon.hello'>> {
+  private async loadHelloAnswer(): Promise<DaemonAnswer<'daemon.hello'>> {
     return {
       daemon: this.ctx.build,
       daemonID: this.ctx.daemonID,
@@ -681,6 +681,17 @@ export class DaemonConnection {
   private async answerPeer(request: StandardRequest): Promise<StandardResponse> {
     const method = toPeerMethod(request.url.pathname);
 
+    // A path in any form but the procedure's own names no procedure, and
+    // before the handshake it ends the connection as any other request does.
+    if (method === null) {
+      this.ending ||= !this.helloed;
+
+      return answerPeerRequest(
+        request,
+        new DaemonError('unknown_method', `unknown method '${request.url.pathname}'`),
+      );
+    }
+
     if (method !== 'daemon.hello') {
       const admitted = await this.checkPeerRequest(method, request);
 
@@ -715,8 +726,9 @@ export class DaemonConnection {
 
     this.helloed = true;
 
+    const raw = decodePeerInput(request);
+
     if (this.tcp !== null) {
-      const raw = readPeerInput(request.body);
       const protocol = raw['protocol'];
 
       const hello = await checkTCPHello(
@@ -735,7 +747,7 @@ export class DaemonConnection {
       this.acceptedTCPHello = hello;
     }
 
-    return this.buildProcedureContext(this.ctx, null);
+    return this.buildProcedureContext(this.ctx, null, raw);
   }
 
   private async checkPeerRequest(
@@ -756,9 +768,10 @@ export class DaemonConnection {
 
     try {
       const as = parseRequestPrincipal(request.headers);
+      const sent = decodePeerInput(request);
 
       if (this.tcp !== null) {
-        return this.buildProcedureContext(this.findTCPRequestContext(method, as), as);
+        return this.buildProcedureContext(this.requireTCPRequestContext(method, as), as, sent);
       }
 
       const scope = this.findRequestScope(as?.principal);
@@ -770,7 +783,7 @@ export class DaemonConnection {
       const ctx =
         scope === null ? this.ctx : buildScopedContext(this.ctx, scope.access, scope.keyNamespace);
 
-      return this.buildProcedureContext(ctx, as);
+      return this.buildProcedureContext(ctx, as, sent);
     } catch (error) {
       if (error instanceof DaemonError) {
         return error;
@@ -780,11 +793,16 @@ export class DaemonConnection {
     }
   }
 
-  private buildProcedureContext(ctx: DaemonContext, as: RequestPrincipal | null): ProcedureContext {
+  private buildProcedureContext(
+    ctx: DaemonContext,
+    as: RequestPrincipal | null,
+    sentParams: Readonly<Record<string, unknown>>,
+  ): ProcedureContext {
     return {
       ctx,
       requests: this.requests,
       as,
+      sentParams,
       answerHello: (input) => this.answerPeerHello(input),
       subscribeEvents: (signal) => this.feed.subscribe(signal),
     };
@@ -795,7 +813,15 @@ export class DaemonConnection {
   ): Promise<DaemonAnswer<'daemon.hello'>> {
     const tcpHello = this.acceptedTCPHello;
 
+    // A refused handshake leaves the connection's identity as it was.
     if (tcpHello === null) {
+      if (input.protocol !== PROTOCOL_V) {
+        throw new DaemonError(
+          'protocol_mismatch',
+          this.formatMismatch(input.client, input.protocol),
+        );
+      }
+
       this.identity.helloClient = input.client;
 
       if (input.principal !== undefined) {
@@ -803,13 +829,6 @@ export class DaemonConnection {
       }
 
       this.setCallerSession(input.session ?? null);
-
-      if (input.protocol !== PROTOCOL_V) {
-        throw new DaemonError(
-          'protocol_mismatch',
-          this.formatMismatch(input.client, input.protocol),
-        );
-      }
     } else {
       if (tcpHello.principal !== null) {
         this.setPrincipal(tcpHello.principal);
@@ -820,17 +839,10 @@ export class DaemonConnection {
       this.fingerprint = tcpHello.fingerprint;
     }
 
-    const answer = await this.buildHelloAnswer();
+    const answer = await this.loadHelloAnswer();
 
     this.helloAccepted = true;
 
     return answer;
   }
-}
-
-// The params a peer request carries before its procedure checks them.
-function readPeerInput(body: unknown): Readonly<Record<string, unknown>> {
-  const json = isRecord(body) ? body['json'] : undefined;
-
-  return isRecord(json) ? json : {};
 }

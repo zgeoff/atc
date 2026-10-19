@@ -1,7 +1,9 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, mock, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import { setupTempDir, waitFor } from '@atc/test-utils';
-import { DaemonClient } from './daemon-client';
+import { setupTempDir, startStubPeerDaemon, waitFor } from '@atc/test-utils';
+import type { StubPeerAnswer, StubPeerRequest } from '@atc/test-utils';
+import { PROTOCOL_V } from '../wire/protocol';
+import { openDaemonClient } from './open-daemon-client';
 
 function setupTest() {
   const tmp = setupTempDir('atc-daemon-client-');
@@ -31,7 +33,7 @@ test('it refuses every waiting request with a protocol mismatch when the daemon 
     server.stop(true);
   });
 
-  const client = await DaemonClient.open(ctx.socketPath);
+  const client = await openDaemonClient(ctx.socketPath);
 
   onTestFinished(() => {
     client.stop();
@@ -59,7 +61,7 @@ test('it sends the principal a request acts as, and its name, as headers', async
     server.stop(true);
   });
 
-  const client = await DaemonClient.open(ctx.socketPath);
+  const client = await openDaemonClient(ctx.socketPath);
 
   const unanswered = client.sendRequest('session.list', {}, 'ci', 'Build bot');
 
@@ -100,7 +102,7 @@ test('it rejects a request sent after the connection ended', async () => {
     server.stop(true);
   });
 
-  const client = await DaemonClient.open(ctx.socketPath);
+  const client = await openDaemonClient(ctx.socketPath);
 
   onTestFinished(() => {
     client.stop();
@@ -113,5 +115,71 @@ test('it rejects a request sent after the connection ended', async () => {
   expect(client.sendRequest('daemon.ping')).rejects.toMatchObject({
     code: 'internal',
     message: 'connection closed',
+  });
+});
+
+test('it sends its handshake with its protocol version and subscribes as the principal it gave', async () => {
+  const ctx = setupTest();
+  const answers: Readonly<Record<string, StubPeerAnswer>> = { 'daemon.hello': { ok: {} } };
+
+  const answer = mock<(request: StubPeerRequest) => StubPeerAnswer>(
+    (request) => answers[request.method] ?? 'silent',
+  );
+
+  startStubPeerDaemon(ctx.socketPath, { answer });
+
+  const client = await openDaemonClient(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  await client.sendHello('atc/test', { principal: 'ci' });
+
+  await waitFor(() => {
+    expect(answer.mock.calls.map((call) => call[0])).toStrictEqual([
+      {
+        method: 'daemon.hello',
+        params: {
+          protocol: PROTOCOL_V,
+          client: 'atc/test',
+          auth: { scheme: 'none' },
+          principal: 'ci',
+        },
+        as: undefined,
+        asName: undefined,
+      },
+      { method: 'events.subscribe', params: {}, as: 'ci', asName: undefined },
+    ]);
+  });
+});
+
+test('it closes the connection with the reason when the daemon refuses its event subscription', async () => {
+  const ctx = setupTest();
+
+  const answers: Readonly<Record<string, StubPeerAnswer>> = {
+    'daemon.hello': { ok: {} },
+    'events.subscribe': {
+      err: { code: 'unauthorized', msg: 'a request over TCP must act as a principal' },
+    },
+  };
+
+  startStubPeerDaemon(ctx.socketPath, { answer: (request) => answers[request.method] ?? 'silent' });
+
+  const client = await openDaemonClient(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  await client.sendHello('atc/test');
+
+  await waitFor(() => {
+    expect(client.isClosed()).toBeTrue();
+  });
+
+  expect(client.sendRequest('daemon.ping')).rejects.toMatchObject({
+    code: 'internal',
+    message: 'the event subscription failed: a request over TCP must act as a principal',
   });
 });
