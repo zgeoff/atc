@@ -11,7 +11,6 @@ export const eventsSocketPath = paths.eventsSocketPath;
 export const statusFile = paths.statusFile;
 export const dbFile = paths.dbFile;
 export const mcpAuthDBFile = paths.mcpAuthDBFile;
-export const legacyFleetFile = paths.legacyFleetFile;
 export const daemonPidFile = paths.daemonPidFile;
 export const daemonRecordFile = paths.daemonRecordFile;
 export const restartsDir = paths.restartsDir;

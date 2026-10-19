@@ -392,7 +392,6 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
       adapters,
       defaultAgent: cfg.defaultAgent,
       dbPath: config.dbFile,
-      legacyFleetPath: config.legacyFleetFile,
       pidPath: config.daemonPidFile,
       hooks: cfg.hooks,
       targets: built.targets,

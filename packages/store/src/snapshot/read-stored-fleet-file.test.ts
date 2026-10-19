@@ -29,12 +29,12 @@ test('it reads the rows this state directory owns with their exit status', () =>
   db.run("INSERT INTO session_owner VALUES ('s-a', 'd-1'), ('s-b', 'd-1'), ('s-other', 'd-2')");
 
   expect(readStoredFleetFile(ctx.dbPath)).toStrictEqual([
-    { id: 's-a', name: 'a', exited: false, agentSessionID: null },
-    { id: 's-b', name: 'b', exited: true, agentSessionID: null },
+    { id: 's-a', name: 'a', exited: false },
+    { id: 's-b', name: 'b', exited: true },
   ]);
 });
 
-test('it reads rows keyed by the agent session id on a schema from before atc session ids', () => {
+test('it reads null for a database whose fleet table has no session id', () => {
   const ctx = setupTest();
 
   const db = new Database(ctx.dbPath);
@@ -44,29 +44,11 @@ test('it reads rows keyed by the agent session id on a schema from before atc se
   });
 
   db.run('CREATE TABLE fleet (agent_session_id TEXT, name TEXT, cwd TEXT, exited INTEGER)');
-  db.run("INSERT INTO fleet VALUES ('a-a', 'a', '/tmp', 0), ('a-b', NULL, '/tmp', 1)");
+  db.run('CREATE TABLE prefs (key TEXT, value TEXT)');
+  db.run('CREATE TABLE session_owner (session_id TEXT, daemon_id TEXT)');
+  db.run("INSERT INTO fleet VALUES ('a-a', 'a', '/tmp', 0)");
 
-  expect(readStoredFleetFile(ctx.dbPath)).toStrictEqual([
-    { id: 'a-a', name: 'a', exited: false, agentSessionID: 'a-a' },
-    { id: 'a-b', name: 'a-b', exited: true, agentSessionID: 'a-b' },
-  ]);
-});
-
-test('it reads every row as live on the first schema, keyed by the claude id', () => {
-  const ctx = setupTest();
-
-  const db = new Database(ctx.dbPath);
-
-  registerTestCleanup(() => {
-    db.close();
-  });
-
-  db.run('CREATE TABLE fleet (claude_id TEXT PRIMARY KEY, name TEXT NOT NULL, cwd TEXT NOT NULL)');
-  db.run("INSERT INTO fleet VALUES ('c-a', 'a', '/tmp')");
-
-  expect(readStoredFleetFile(ctx.dbPath)).toStrictEqual([
-    { id: 'c-a', name: 'a', exited: false, agentSessionID: 'c-a' },
-  ]);
+  expect(readStoredFleetFile(ctx.dbPath)).toBeNull();
 });
 
 test('it reads null for a missing database file', () => {

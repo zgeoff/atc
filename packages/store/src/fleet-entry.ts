@@ -1,8 +1,5 @@
 import type { AgentID, AgentSessionID, DaemonID, SessionID } from '@atc/core';
-import { isRecord, toAgentID, toAgentSessionID } from '@atc/core';
-import { buildOptionalBoolean, buildOptionalString } from '@atc/core/schema';
 import type { SessionWorkspace } from '@atc/protocol';
-import { z } from 'zod';
 
 // One fleet row. The atc session id keys it and stays the same for the
 // session's whole life, across daemon restarts and fleet restores.
@@ -92,69 +89,4 @@ export interface FleetStore {
 export interface FleetEntryUpdate {
   readonly result?: string;
   readonly transcriptPath?: string;
-}
-
-// One entry of a legacy fleet.json, from before the fleet moved into the
-// state store: keyed by the agent session id, with the parent link held as
-// the parent's agent session id.
-export interface LegacyFleetEntry {
-  readonly name: string;
-  readonly cwd: string;
-  readonly agentSessionID: AgentSessionID;
-  readonly agent: AgentID;
-  readonly pinned?: boolean;
-  readonly lastAttachedAt?: number;
-  readonly exited?: boolean;
-  readonly parent?: AgentSessionID;
-}
-
-// Name, cwd and agentSessionID are required: a row missing any cannot restore,
-// so it parses to undefined rather than a half-built entry. A legacy file may
-// carry the id under its Claude-era key, so that key is read before validation.
-const FLEET_ENTRY_SCHEMA = z.preprocess(
-  (value) => {
-    if (!isRecord(value)) {
-      return value;
-    }
-
-    return { ...value, agentSessionID: value['agentSessionID'] ?? value['claudeId'] };
-  },
-  z.object({
-    name: z.string(),
-    cwd: z.string(),
-    agentSessionID: z.string(),
-    agent: z.unknown().optional(),
-    pinned: buildOptionalBoolean(),
-    lastAttachedAt: buildOptionalNumber(),
-    exited: buildOptionalBoolean(),
-    parent: buildOptionalString(),
-  }),
-);
-
-export function parseFleetEntry(raw: unknown): LegacyFleetEntry | undefined {
-  const parsed = FLEET_ENTRY_SCHEMA.safeParse(raw);
-
-  if (!parsed.success) {
-    return undefined;
-  }
-
-  return {
-    name: parsed.data.name,
-    cwd: parsed.data.cwd,
-
-    agentSessionID: toAgentSessionID(parsed.data.agentSessionID),
-    agent: toAgentID(parsed.data.agent),
-    ...(parsed.data.pinned === true ? { pinned: true } : {}),
-    ...(parsed.data.lastAttachedAt === undefined
-      ? {}
-      : { lastAttachedAt: parsed.data.lastAttachedAt }),
-    ...(parsed.data.exited === true ? { exited: true } : {}),
-    ...(parsed.data.parent === undefined || parsed.data.parent === ''
-      ? {}
-      : { parent: toAgentSessionID(parsed.data.parent) }),
-  };
-}
-
-function buildOptionalNumber() {
-  return z.preprocess((v) => (typeof v === 'number' ? v : undefined), z.number().optional());
 }

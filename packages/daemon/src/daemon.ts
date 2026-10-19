@@ -116,7 +116,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     writeFileSync(opts.pidPath, String(process.pid));
   }
 
-  const store = await StateStore.open(opts.dbPath, opts.legacyFleetPath);
+  const store = await StateStore.open(opts.dbPath);
 
   // Before any request is served: a workspace a stopped daemon left short
   // of ready fails as interrupted, and a key left in progress by a daemon

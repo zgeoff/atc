@@ -12,7 +12,6 @@ export interface Paths {
   readonly statusFile: string;
   readonly dbFile: string;
   readonly mcpAuthDBFile: string;
-  readonly legacyFleetFile: string;
   readonly daemonRecordFile: string;
   readonly restartsDir: string;
   readonly restartLockFile: string;
@@ -34,7 +33,6 @@ export function resolvePaths(env: Readonly<Record<string, string | undefined>>):
     statusFile: join(stateDir, 'status.json'),
     dbFile: join(stateDir, 'atc.db'),
     mcpAuthDBFile: join(stateDir, 'mcp-auth.db'),
-    legacyFleetFile: join(stateDir, 'fleet.json'),
     daemonRecordFile: join(stateDir, 'daemon.json'),
     restartsDir: join(stateDir, 'restarts'),
     restartLockFile: join(stateDir, 'daemon-restart.lock'),

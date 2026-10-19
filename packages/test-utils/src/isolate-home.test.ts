@@ -21,7 +21,7 @@ test("it resolves every atc config and state path inside the run's own home", as
     fixture,
     `import { expect, test } from 'bun:test';
 import { join, sep } from 'node:path';
-import { configFile, dbFile, legacyFleetFile, mcpAuthDBFile, stateDir, statusFile } from '${join(ctx.repo, 'packages', 'config', 'src', 'host', 'process-paths')}';
+import { configFile, dbFile, mcpAuthDBFile, stateDir, statusFile } from '${join(ctx.repo, 'packages', 'config', 'src', 'host', 'process-paths')}';
 
 const home = join(process.env['ATC_TEST_HOME'] ?? '', 'home') + sep;
 
@@ -29,8 +29,8 @@ test('it resolves the config file, state directory, and status file under the ho
   expect([configFile, stateDir, statusFile]).toSatisfyAll((path: string) => path.startsWith(home));
 });
 
-test('it resolves the databases and the legacy fleet file under the home', () => {
-  expect([dbFile, mcpAuthDBFile, legacyFleetFile]).toSatisfyAll((path: string) => path.startsWith(home));
+test('it resolves the databases under the home', () => {
+  expect([dbFile, mcpAuthDBFile]).toSatisfyAll((path: string) => path.startsWith(home));
 });
 `,
   );

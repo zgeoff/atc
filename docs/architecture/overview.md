@@ -113,8 +113,6 @@ The state directory holds these entries beside `atc.db` and its SQLite WAL files
 - `listing-cache.json` belongs to the TUI clients, not the daemon: it holds the repository lists the
   spawn picker showed, so the next open shows one at once while the client lists again. A client of
   a remote daemon keeps its lists in `listing-cache-<daemon_name>.json`.
-- `fleet.json` exists only in a state directory older than `atc.db`, and the store seeds the fleet
-  from it once.
 - When `$XDG_RUNTIME_DIR` is unset, the sockets and the daemon's pid file sit here too.
 
 Terminal output is never stored: each screen model lives in memory, and the agent's own transcript
