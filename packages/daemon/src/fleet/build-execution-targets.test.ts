@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { buildTargetIdentity } from '@atc/store';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { buildExecutionTargets } from './build-execution-targets';
 
@@ -106,7 +107,11 @@ test('it builds the identity from the rule the plugin declares when its provider
       id: 'far',
       kind: 'cloud',
       options: { region: 'north', image: 'dev' },
-      identity: expect.stringMatching(/^cloud:reach-v2:[\da-f]{16}$/u),
+      identity: buildTargetIdentity(
+        'cloud',
+        { region: 'north' },
+        { version: 'reach-v2', ignoredOptions: [] },
+      ),
       identityRule: { version: 'reach-v2', ignoredOptions: ['image'] },
       provider: null,
     },

@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { systemClock, toSessionID } from '@atc/core';
 import type { SessionID } from '@atc/core';
+import type { CommandSpec } from '@atc/plugin-api';
 import { StateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/testing';
 import { createGitFixture, registerTestCleanup, setupTempDir } from '@atc/test-utils';
@@ -497,8 +498,8 @@ test('it clones a workspace on the daemon side for a remote target that does not
 
   expect(provider.transfers).toPartiallyContain({ dir });
 
-  expect(provider.commands.map((command) => command.argv.join(' '))).not.toContainEqual(
-    expect.stringContaining('clone'),
+  expect(provider.commands).toSatisfyAll(
+    (command: CommandSpec) => !command.argv.join(' ').includes('clone'),
   );
 });
 
@@ -538,7 +539,7 @@ test('it clones a workspace inside the host for a remote target that clones on i
 
   expect(provider.transfers).not.toPartiallyContain({ dir });
 
-  expect(provider.commands.map((command) => command.argv.join(' '))).toContainEqual(
-    expect.stringContaining('clone'),
+  expect(provider.commands).toSatisfyAny((command: CommandSpec) =>
+    command.argv.join(' ').includes('clone'),
   );
 });
