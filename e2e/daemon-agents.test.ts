@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
-import type { EventMsg } from '@atc/protocol/wire';
+import type { DaemonEvent } from '@atc/protocol';
 import {
   createStubClaude,
   createStubCodex,
@@ -55,7 +55,7 @@ test('it spawns a grok session and captures a grok descriptor from SessionStart'
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -143,7 +143,7 @@ test('it yanks grok --resume for a grok session once its id is captured', async 
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -193,7 +193,7 @@ test('it spawns a codex session and captures its descriptor from SessionStart', 
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -240,7 +240,7 @@ test('it builds a codex resume command once the codex id is captured', async () 
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);

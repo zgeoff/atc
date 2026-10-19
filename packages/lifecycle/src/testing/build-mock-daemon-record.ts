@@ -1,3 +1,4 @@
+import { PROTOCOL_V } from '@atc/protocol/wire';
 import { mergeDeep } from '@atc/test-utils';
 import type { MockOverrides } from '@atc/test-utils';
 import { faker } from '@faker-js/faker';
@@ -15,6 +16,7 @@ export function buildMockDaemonRecord(
       reporterSocketPath: `${dir}/atc.sock`,
       eventsSocketPath: null,
       listenPort: null,
+      protocol: PROTOCOL_V,
     },
     overrides,
   );

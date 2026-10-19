@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { DaemonClient } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
 import { loadGatewayRegistry } from './federation/load-gateway-registry';
 import { openGatewayCaller } from './federation/open-gateway-caller';
 import { startMCPHTTPServer } from './mcp/start-mcp-http-server';
@@ -69,7 +69,7 @@ export async function runGateway(
   const gateway = openGatewayCaller({
     registry: loaded.registry,
     build,
-    openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
+    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
     gatewayDBPath: join(flags.stateDir, 'gateway.db'),
   });
 

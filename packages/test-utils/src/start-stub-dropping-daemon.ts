@@ -1,6 +1,6 @@
 import type { DaemonFeature } from '@atc/protocol';
-import { MAX_CHUNK, MAX_LINE, PROTOCOL_V, decodeMessage, encodeMessage } from '@atc/protocol/wire';
-import { registerTestCleanup } from './register-test-cleanup';
+import { MAX_CHUNK, MAX_LINE } from '@atc/protocol/wire';
+import { startStubPeerDaemon } from './start-stub-peer-daemon';
 
 interface DroppingDaemonOptions {
   // The features the first handshake announces.
@@ -11,80 +11,50 @@ interface DroppingDaemonOptions {
   readonly retryFeatures?: readonly DaemonFeature[];
 }
 
+// A daemon that drops the connection on the first request after a
+// handshake, and answers every later one with a spawned session.
 export function startStubDroppingDaemon(socketPath: string, options: DroppingDaemonOptions) {
   const keys: unknown[] = [];
   const params: (Readonly<Record<string, unknown>> | undefined)[] = [];
   let hellos = 0;
-  let reads = 0;
 
-  const server = Bun.listen<{ buffer: string }>({
-    unix: socketPath,
-    socket: {
-      open(socket) {
-        socket.data = { buffer: '' };
-      },
-      data(socket, buf) {
-        reads += 1;
+  const daemon = startStubPeerDaemon(socketPath, {
+    answer: (request) => {
+      if (request.method === 'daemon.hello') {
+        hellos += 1;
 
-        const lines = `${socket.data.buffer}${buf.toString()}`.split('\n');
+        const announced =
+          hellos === 1 ? options.features : (options.retryFeatures ?? options.features);
 
-        socket.data.buffer = lines.pop() ?? '';
+        return {
+          ok: {
+            daemon: 'atc/dropping-build',
+            limits: { maxLine: MAX_LINE, maxChunk: MAX_CHUNK },
+            lastUsedAgent: 'claude',
+            features: announced,
+          },
+        };
+      }
 
-        for (const line of lines) {
-          const decoded = decodeMessage(line);
+      // The client opens its event stream once the handshake passes, which
+      // this daemon never sends to.
+      if (request.method === 'events.subscribe') {
+        return 'silent';
+      }
 
-          if (decoded.kind !== 'request') {
-            continue;
-          }
+      keys.push(request.params?.['idempotencyKey']);
+      params.push(request.params);
 
-          if (decoded.msg.m === 'daemon.hello') {
-            hellos += 1;
-
-            const announced =
-              hellos === 1 ? options.features : (options.retryFeatures ?? options.features);
-
-            socket.write(
-              encodeMessage({
-                v: PROTOCOL_V,
-                id: decoded.msg.id,
-                ok: {
-                  daemon: 'atc/dropping-build',
-                  limits: { maxLine: MAX_LINE, maxChunk: MAX_CHUNK },
-                  lastUsedAgent: 'claude',
-                  features: announced,
-                },
-              }),
-            );
-
-            continue;
-          }
-
-          keys.push(decoded.msg.p?.['idempotencyKey']);
-          params.push(decoded.msg.p);
-
-          if (keys.length === 1) {
-            socket.end();
-            continue;
-          }
-
-          socket.write(
-            encodeMessage({ v: PROTOCOL_V, id: decoded.msg.id, ok: { session: { id: 's-1' } } }),
-          );
-        }
-      },
+      return keys.length === 1 ? 'close' : { ok: { session: { id: 's-1' } } };
     },
-  });
-
-  const stop = registerTestCleanup(() => {
-    server.stop(true);
   });
 
   return {
     keys,
     params,
     get reads() {
-      return reads;
+      return daemon.reads;
     },
-    stop,
+    stop: daemon.stop,
   };
 }

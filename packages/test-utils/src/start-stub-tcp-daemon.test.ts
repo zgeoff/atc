@@ -1,5 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { DaemonClient } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
 import { registerTestCleanup } from './register-test-cleanup';
 import { startStubTCPDaemon } from './start-stub-tcp-daemon';
 import { waitFor } from './wait-for';
@@ -7,7 +7,7 @@ import { waitFor } from './wait-for';
 test('it answers a request with an ok that holds its method', async () => {
   const daemon = startStubTCPDaemon();
 
-  const client = await DaemonClient.open({ hostname: '127.0.0.1', port: daemon.port });
+  const client = await openDaemonClient({ hostname: '127.0.0.1', port: daemon.port });
 
   registerTestCleanup(() => {
     client.stop();
@@ -21,7 +21,7 @@ test('it answers a request with an ok that holds its method', async () => {
 test('it records the method of every request in arrival order', async () => {
   const daemon = startStubTCPDaemon();
 
-  const client = await DaemonClient.open({ hostname: '127.0.0.1', port: daemon.port });
+  const client = await openDaemonClient({ hostname: '127.0.0.1', port: daemon.port });
 
   registerTestCleanup(() => {
     client.stop();
@@ -53,17 +53,17 @@ test('it answers a request split across two writes once its line ends', async ()
     socket.end();
   });
 
-  socket.write('{"v":4,"id":7,');
+  socket.write('{"i":"7","p":{"u":"/daemon/ping",');
 
   await waitFor(() => {
     expect(daemon.reads).toBe(1);
   });
 
-  socket.write('"m":"daemon.ping"}\n');
+  socket.write('"b":{"json":{}}}}\n');
 
   await answered.promise;
 
-  expect(answers).toStrictEqual(['{"v":4,"id":7,"ok":{"m":"daemon.ping"}}\n']);
+  expect(answers).toStrictEqual(['{"i":"7","p":{"b":{"json":{"m":"daemon.ping"}}}}\n']);
 });
 
 test('it counts each read it takes from a connection', async () => {
@@ -79,7 +79,7 @@ test('it counts each read it takes from a connection', async () => {
     socket.end();
   });
 
-  socket.write('{"v":4,');
+  socket.write('{"i":"1",');
 
   await waitFor(() => {
     expect(daemon.reads).toBe(1);
@@ -91,7 +91,7 @@ test('it stops listening once stopped', () => {
 
   daemon.stop();
 
-  const connecting = DaemonClient.open({ hostname: '127.0.0.1', port: daemon.port });
+  const connecting = openDaemonClient({ hostname: '127.0.0.1', port: daemon.port });
 
   expect(connecting).rejects.toMatchObject({ code: 'ECONNREFUSED' });
 });

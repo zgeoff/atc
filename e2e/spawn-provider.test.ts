@@ -40,7 +40,7 @@ test('it streams the output of a session harness on the local pty provider', asy
     expect(
       daemon.events
         .filter((event) => event.ev === 'SessionOutput')
-        .map((event) => event['d'])
+        .map((event) => event.d)
         .join(''),
     ).toInclude('FAKE_CLAUDE_UP');
   });
@@ -80,7 +80,7 @@ test('it types input into a session harness on the local pty provider', async ()
     expect(
       daemon.events
         .filter((event) => event.ev === 'SessionOutput')
-        .map((event) => event['d'])
+        .map((event) => event.d)
         .join(''),
     ).toInclude('GOT:ping');
   });

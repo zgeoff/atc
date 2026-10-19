@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
-import { DaemonClient } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildMockAgentAdapter,
   buildStubAuthenticator,
@@ -39,7 +39,7 @@ async function setupTest() {
   const security: string[] = [];
 
   const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -314,7 +314,7 @@ test('it shows a remote MCP client the sessions of the targets the principals gr
   });
 
   const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -413,7 +413,7 @@ test('it shows a remote MCP client no sessions when the principals grant the tar
   });
 
   const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -1805,7 +1805,7 @@ test('it refuses a token bound to the resource of an earlier public URL', async 
   const tokens = await readJSONRecord(exchanged);
 
   const caller = new TransportCaller(ctx.socketPath, 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -1843,7 +1843,7 @@ test.each([
   const tmp = setupTempDir('atc-mcp-http-');
 
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -1869,7 +1869,7 @@ test('it listens beyond loopback behind an https public URL', async () => {
   const tmp = setupTempDir('atc-mcp-http-');
 
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -3060,7 +3060,7 @@ test('it writes a token bound to the resource of an earlier public URL as invali
   const tokens = await readJSONRecord(exchanged);
 
   const caller = new TransportCaller(ctx.socketPath, 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());

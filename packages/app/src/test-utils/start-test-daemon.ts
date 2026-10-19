@@ -1,8 +1,9 @@
 import { join } from 'node:path';
 import { startDaemon } from '@atc/daemon';
 import type { DaemonHandle, DaemonOptions } from '@atc/daemon';
-import { DaemonClient } from '@atc/protocol/wire';
-import type { EventMsg } from '@atc/protocol/wire';
+import type { DaemonEvent } from '@atc/protocol';
+import { openDaemonClient } from '@atc/protocol/client';
+import type { DaemonClient } from '@atc/protocol/client';
 import {
   assertContractAnswer,
   assertContractEvent,
@@ -50,7 +51,7 @@ interface TestDaemonConfig {
 interface TestDaemon extends TestDaemonPaths {
   readonly build: string;
   readonly logs: string[];
-  readonly events: EventMsg[];
+  readonly events: DaemonEvent[];
   readonly daemon: DaemonHandle;
   readonly client: DaemonClient;
   readonly openClient: (hello?: Readonly<Record<string, unknown>>) => Promise<DaemonClient>;
@@ -96,7 +97,7 @@ export async function startTestDaemon(config: TestDaemonConfig = {}): Promise<Te
   };
 
   const logs: string[] = [];
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   const clients = new Set<DaemonClient>();
 
@@ -104,7 +105,7 @@ export async function startTestDaemon(config: TestDaemonConfig = {}): Promise<Te
   let live: DaemonHandle | null = null;
 
   const openClient = async (hello: Readonly<Record<string, unknown>> = {}) => {
-    const client = await DaemonClient.open(paths.socketPath);
+    const client = await openDaemonClient(paths.socketPath);
 
     client.onAnswer = assertContractAnswer;
 
@@ -214,7 +215,7 @@ export async function startTestDaemon(config: TestDaemonConfig = {}): Promise<Te
         throw new Error('the test daemon started without a TCP listener');
       }
 
-      const client = await DaemonClient.open({ hostname: '127.0.0.1', port });
+      const client = await openDaemonClient({ hostname: '127.0.0.1', port });
 
       client.onAnswer = assertContractAnswer;
 

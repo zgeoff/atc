@@ -3,7 +3,7 @@ import { expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DaemonClient } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildMockAgentAdapter,
   buildStubChannelOpener,
@@ -54,13 +54,13 @@ async function setupTest() {
     }),
   });
 
-  const cloudProber = await DaemonClient.open(cloud.socketPath);
+  const cloudProber = await openDaemonClient(cloud.socketPath);
 
   registerTestCleanup(() => {
     cloudProber.stop();
   });
 
-  const pcProber = await DaemonClient.open(pc.socketPath);
+  const pcProber = await openDaemonClient(pc.socketPath);
 
   registerTestCleanup(() => {
     pcProber.stop();
@@ -106,7 +106,7 @@ async function setupTest() {
   const pool = new DaemonPool({
     registry,
     build: 'atc-gateway/test',
-    openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
+    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
   registerTestCleanup(() => pool.stop());
@@ -161,8 +161,8 @@ test('it sends no read to a replacement connection whose handshake lacks the pri
 
   const opener = buildStubChannelOpener([
     (address: RegistryDaemon['address']) =>
-      DaemonClient.open({ hostname: address.host, port: address.port }),
-    () => DaemonClient.open(join(ctx.dir, 'legacy.sock')),
+      openDaemonClient({ hostname: address.host, port: address.port }),
+    () => openDaemonClient(join(ctx.dir, 'legacy.sock')),
   ]);
 
   const pool = new DaemonPool({ registry, build: 'atc-gateway/test', openChannel: opener.open });
@@ -260,7 +260,7 @@ test('it runs only one keyed spawn when another gateway binds its key to another
   const otherPool = new DaemonPool({
     registry: ctx.registry,
     build: 'atc-gateway/test',
-    openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
+    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
   registerTestCleanup(() => otherPool.stop());
@@ -299,7 +299,7 @@ test('it refuses a keyed spawn whose key another gateway bound to another daemon
   const otherPool = new DaemonPool({
     registry: ctx.registry,
     build: 'atc-gateway/test',
-    openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
+    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
   registerTestCleanup(() => otherPool.stop());
@@ -339,7 +339,7 @@ test('it refuses a keyed spawn on a daemon without keyed spawns as daemon_outdat
   const pool = new DaemonPool({
     registry: ctx.registry,
     build: 'atc-gateway/test',
-    openChannel: () => DaemonClient.open(join(ctx.dir, 'legacy.sock')),
+    openChannel: () => openDaemonClient(join(ctx.dir, 'legacy.sock')),
   });
 
   registerTestCleanup(() => pool.stop());
@@ -376,7 +376,7 @@ test('it refuses a keyed spawn as daemon_outdated when it found no binding and i
   });
 
   const heldOpener = buildStubChannelOpener(
-    [() => DaemonClient.open(join(ctx.dir, 'legacy.sock'))],
+    [() => openDaemonClient(join(ctx.dir, 'legacy.sock'))],
     { holdDial: 1 },
   );
 
@@ -426,7 +426,7 @@ test("it keeps another call's completed binding when a call that found none is r
   });
 
   const heldOpener = buildStubChannelOpener(
-    [() => DaemonClient.open(join(ctx.dir, 'legacy.sock'))],
+    [() => openDaemonClient(join(ctx.dir, 'legacy.sock'))],
     { holdDial: 1 },
   );
 
@@ -501,7 +501,7 @@ test('it resends an uncertain keyed spawn replay-only, so a retry after the daem
   const pool = new DaemonPool({
     registry,
     build: 'atc-gateway/test',
-    openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
+    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
   registerTestCleanup(() => pool.stop());
@@ -563,7 +563,7 @@ test('it spawns nothing for a queued keyed resend that reaches the daemon after 
   const opener = buildStubChannelOpener(
     [
       (address: RegistryDaemon['address']) =>
-        DaemonClient.open({ hostname: address.host, port: address.port }),
+        openDaemonClient({ hostname: address.host, port: address.port }),
     ],
     { holdDial: 3 },
   );
@@ -632,7 +632,7 @@ test('it spawns nothing for a keyed spawn whose first send never reached the dae
   const pool = new DaemonPool({
     registry,
     build: 'atc-gateway/test',
-    openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
+    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
   registerTestCleanup(() => pool.stop());
@@ -681,7 +681,7 @@ test('it runs one of two concurrent keyed spawns with one key from two gateways 
   const otherPool = new DaemonPool({
     registry: ctx.registry,
     build: 'atc-gateway/test',
-    openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
+    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
   registerTestCleanup(() => otherPool.stop());
@@ -856,7 +856,7 @@ test('it replays a keyed spawn sent before a gateway restart from the key the da
   const beforePool = new DaemonPool({
     registry,
     build: 'atc-gateway/test',
-    openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
+    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
   registerTestCleanup(() => beforePool.stop());
@@ -918,7 +918,7 @@ test('it answers outcome_unknown for a keyed spawn sent before a gateway restart
   const beforePool = new DaemonPool({
     registry,
     build: 'atc-gateway/test',
-    openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
+    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
   registerTestCleanup(() => beforePool.stop());
@@ -995,8 +995,8 @@ test('it sends no resend of a keyed spawn to a daemon that does not announce rep
 
   const opener = buildStubChannelOpener([
     (address: RegistryDaemon['address']) =>
-      DaemonClient.open({ hostname: address.host, port: address.port }),
-    () => DaemonClient.open(join(ctx.dir, 'legacy.sock')),
+      openDaemonClient({ hostname: address.host, port: address.port }),
+    () => openDaemonClient(join(ctx.dir, 'legacy.sock')),
   ]);
 
   const pool = new DaemonPool({ registry, build: 'atc-gateway/test', openChannel: opener.open });

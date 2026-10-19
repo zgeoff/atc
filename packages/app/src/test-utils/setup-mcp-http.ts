@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { startDaemon } from '@atc/daemon';
 import type { DaemonHandle } from '@atc/daemon';
-import { DaemonClient } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildMockAgentAdapter,
   buildStubAuthenticator,
@@ -59,7 +59,7 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
   stack.defer(() => daemon.stop());
 
   const caller = new TransportCaller(socketPath, 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   stack.defer(() => caller.stop());

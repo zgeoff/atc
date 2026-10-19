@@ -134,7 +134,7 @@ test('it refuses a peer handshake that speaks another protocol and ends the conn
   expect(refused).rejects.toMatchObject({
     code: 'protocol_mismatch',
     message:
-      'atc/old speaks protocol v1, daemon atc/test speaks v4; restart the daemon so both run the same build',
+      'atc/old speaks protocol v1, daemon atc/test speaks v5; restart the daemon so both run the same build',
   });
 
   await refused.catch(() => {});

@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { isRecord } from '@atc/core';
-import { DaemonClient } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildMockAgentAdapter,
   getRecord,
@@ -24,7 +24,7 @@ async function setupTest() {
   });
 
   const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -445,7 +445,7 @@ test('it answers a tool list with an error when no daemon listens on the socket'
   const tmp = setupTempDir('atc-answer-rpc-');
 
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -471,7 +471,7 @@ test('it leaves the agents tool out of the list when the connected daemon does n
   startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'));
 
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -500,7 +500,7 @@ test('it lists the message tool in its older form when the connected daemon anno
   startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'));
 
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -554,7 +554,7 @@ test.each([
     const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'));
 
     const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-      DaemonClient.open(path),
+      openDaemonClient(path),
     );
 
     registerTestCleanup(() => caller.stop());
@@ -599,7 +599,7 @@ test.each([
     const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'));
 
     const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-      DaemonClient.open(path),
+      openDaemonClient(path),
     );
 
     registerTestCleanup(() => caller.stop());
@@ -660,7 +660,7 @@ test('it reads a message from an older daemon when the call asks for no wait', a
   });
 
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -818,7 +818,7 @@ test('it lists the agents tool without an output schema when the daemon takes no
   });
 
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -882,7 +882,7 @@ test('it returns the agents a daemon without spawn options lists', async () => {
   });
 
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());

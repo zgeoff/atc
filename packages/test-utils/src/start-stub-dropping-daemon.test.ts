@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DaemonClient } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
 import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { startStubDroppingDaemon } from './start-stub-dropping-daemon';
@@ -25,7 +25,7 @@ test('it announces the first features on the first handshake', async () => {
     retryFeatures: [],
   });
 
-  const client = await DaemonClient.open(ctx.socketPath);
+  const client = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     client.stop();
@@ -47,7 +47,7 @@ test('it announces the retry features on a later handshake', async () => {
     retryFeatures: [],
   });
 
-  const first = await DaemonClient.open(ctx.socketPath);
+  const first = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     first.stop();
@@ -55,7 +55,7 @@ test('it announces the retry features on a later handshake', async () => {
 
   await first.sendHello('atc/test-build');
 
-  const second = await DaemonClient.open(ctx.socketPath);
+  const second = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     second.stop();
@@ -74,7 +74,7 @@ test('it announces the first features on a later handshake when given no retry f
 
   startStubDroppingDaemon(ctx.socketPath, { features: ['spawn.idempotency'] });
 
-  const first = await DaemonClient.open(ctx.socketPath);
+  const first = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     first.stop();
@@ -82,7 +82,7 @@ test('it announces the first features on a later handshake when given no retry f
 
   await first.sendHello('atc/test-build');
 
-  const second = await DaemonClient.open(ctx.socketPath);
+  const second = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     second.stop();
@@ -101,7 +101,7 @@ test('it drops the connection of the first request without answering it', async 
 
   startStubDroppingDaemon(ctx.socketPath, { features: [] });
 
-  const client = await DaemonClient.open(ctx.socketPath);
+  const client = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     client.stop();
@@ -119,7 +119,7 @@ test('it answers a later request with a session and records each request key', a
   const ctx = setupTest();
   const daemon = startStubDroppingDaemon(ctx.socketPath, { features: [] });
 
-  const first = await DaemonClient.open(ctx.socketPath);
+  const first = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     first.stop();
@@ -128,7 +128,7 @@ test('it answers a later request with a session and records each request key', a
   await first.sendHello('atc/test-build');
   await first.sendRequest('session.spawn', { idempotencyKey: 'k-1' }).catch(() => null);
 
-  const second = await DaemonClient.open(ctx.socketPath);
+  const second = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     second.stop();
@@ -146,7 +146,7 @@ test('it records the params of each request as they arrived', async () => {
   const ctx = setupTest();
   const daemon = startStubDroppingDaemon(ctx.socketPath, { features: [] });
 
-  const first = await DaemonClient.open(ctx.socketPath);
+  const first = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     first.stop();
@@ -158,7 +158,7 @@ test('it records the params of each request as they arrived', async () => {
     .sendRequest('session.spawn', { cwd: '/srv/harbor', idempotencyKey: 'k-1' })
     .catch(() => null);
 
-  const second = await DaemonClient.open(ctx.socketPath);
+  const second = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     second.stop();
@@ -167,7 +167,7 @@ test('it records the params of each request as they arrived', async () => {
   await second.sendHello('atc/test-build');
   await second.sendRequest('session.list');
 
-  expect(daemon.params).toStrictEqual([{ cwd: '/srv/harbor', idempotencyKey: 'k-1' }, undefined]);
+  expect(daemon.params).toStrictEqual([{ cwd: '/srv/harbor', idempotencyKey: 'k-1' }, {}]);
 });
 
 test('it stops listening when stopped', () => {
@@ -176,7 +176,7 @@ test('it stops listening when stopped', () => {
 
   daemon.stop();
 
-  expect(DaemonClient.open(ctx.socketPath)).rejects.toThrow();
+  expect(openDaemonClient(ctx.socketPath)).rejects.toThrow();
 });
 
 test('it counts each read it takes from a connection', async () => {
@@ -189,7 +189,7 @@ test('it counts each read it takes from a connection', async () => {
     raw.end();
   });
 
-  raw.write('{"v":4,');
+  raw.write('{"i":"1",');
 
   await waitFor(() => {
     expect(daemon.reads).toBe(1);
@@ -215,13 +215,13 @@ test('it reads a request split across two writes as one request', async () => {
     raw.end();
   });
 
-  raw.write('{"v":4,"id":1,"m":"session.spawn",');
+  raw.write('{"i":"1","p":{"u":"/session/spawn",');
 
   await waitFor(() => {
     expect(daemon.reads).toBe(1);
   });
 
-  raw.write('"p":{"idempotencyKey":"k-split"}}\n');
+  raw.write('"b":{"json":{"idempotencyKey":"k-split"}}}}\n');
 
   await closed.promise;
 

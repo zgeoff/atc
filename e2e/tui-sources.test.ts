@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DaemonClient } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
 import {
   KEYS,
   buildStubSignedInGH,
@@ -216,7 +216,7 @@ test('it spawns the repository a source reads typed text as, through to its work
 
   await ctx.waitFor('FAKE_CLAUDE_UP', 20_000);
 
-  const daemon = await DaemonClient.open(join(ctx.home, 'atc-daemon.sock'));
+  const daemon = await openDaemonClient(join(ctx.home, 'atc-daemon.sock'));
 
   registerTestCleanup(() => {
     daemon.stop();

@@ -1,6 +1,8 @@
 import { daemonSocketPath } from '@atc/config/host';
+import { openDaemonClient } from '@atc/protocol/client';
+import type { DaemonClient } from '@atc/protocol/client';
 import { readSessionEnv } from '@atc/protocol/session';
-import { DaemonClient, DaemonError, MESSAGE_SENDER_SCHEMA } from '@atc/protocol/wire';
+import { DaemonError, MESSAGE_SENDER_SCHEMA } from '@atc/protocol/wire';
 import { z } from 'zod';
 import { buildHostServices } from './build-host-services';
 import { renderMessageLine } from './render-message-line';
@@ -70,7 +72,7 @@ export async function runTap(
   try {
     // never boots a daemon: a tap runs inside the session it serves, so a
     // restart from here would take the whole fleet down
-    client = await DaemonClient.open(socketPath);
+    client = await openDaemonClient(socketPath);
   } catch {
     io.printError(`atc tap: no daemon at ${socketPath} — start atc first`);
     io.exit(1);
@@ -86,13 +88,15 @@ export async function runTap(
   };
 
   client.onEvent = (event) => {
-    if (event.ev === 'InboxClosed' && event['s'] === session) {
+    const eventSession = 's' in event ? event.s : null;
+
+    if (event.ev === 'InboxClosed' && eventSession === session) {
       closed.resolve();
 
       return;
     }
 
-    if (event['s'] !== session) {
+    if (eventSession !== session) {
       return;
     }
 

@@ -1,7 +1,7 @@
 import type { DaemonFeature } from '@atc/protocol';
-import { MAX_CHUNK, MAX_LINE, PROTOCOL_V, decodeMessage, encodeMessage } from '@atc/protocol/wire';
-import type { SocketHandler } from 'bun';
-import { registerTestCleanup } from './register-test-cleanup';
+import { MAX_CHUNK, MAX_LINE, PROTOCOL_V } from '@atc/protocol/wire';
+import { startStubPeerDaemon } from './start-stub-peer-daemon';
+import type { StubPeerAnswer, StubPeerRequest } from './start-stub-peer-daemon';
 
 interface ReceivedRequest {
   readonly m: string;
@@ -33,6 +33,8 @@ interface StubLegacyDaemonOptions {
   readonly owner?: 'test' | 'caller';
 }
 
+// A daemon of another build, which answers each request from its table of
+// replies.
 export function startStubLegacyDaemon(
   address: string | StubLegacyDaemonTCPAddress,
   options: StubLegacyDaemonOptions = {},
@@ -53,110 +55,55 @@ export function startStubLegacyDaemon(
 
   const protocol = options.protocol ?? PROTOCOL_V;
   const requests: ReceivedRequest[] = [];
-  const connections = { accepted: 0, open: 0 };
 
-  const handlers: SocketHandler<{ buffer: string }> = {
-    open(socket) {
-      socket.data = { buffer: '' };
-      connections.accepted += 1;
-      connections.open += 1;
-    },
-    close() {
-      connections.open -= 1;
-    },
-    data(socket, chunk) {
-      const lines = `${socket.data.buffer}${chunk.toString()}`.split('\n');
-
-      socket.data.buffer = lines.pop() ?? '';
-
-      for (const line of lines) {
-        const decoded = decodeMessage(line);
-
-        if (decoded.kind !== 'request') {
-          continue;
-        }
-
-        const req = decoded.msg;
-
-        requests.push({ m: req.m, p: req.p });
-
-        if (req.m === options.closeOnRequest) {
-          socket.end();
-
-          return;
-        }
-
-        if (req.m === 'daemon.hello' && req.v !== protocol) {
-          const client = req.p?.['client'];
-
-          socket.write(
-            encodeMessage({
-              v: protocol,
-              id: req.id,
-              err: {
-                code: 'protocol_mismatch',
-                msg: `${String(client)} speaks protocol v${req.v}, daemon atc/legacy-build speaks v${protocol}; restart the daemon so both run the same build`,
-              },
-            }),
-          );
-
-          continue;
-        }
-
-        const answer = answers[req.m];
-
-        const reply =
-          answer === undefined
-            ? {
-                v: protocol,
-                id: req.id,
-                err: { code: 'unknown_method' as const, msg: `unknown method '${req.m}'` },
-              }
-            : { v: protocol, id: req.id, ok: answer };
-
-        socket.write(encodeMessage(reply));
+  const daemon = startStubPeerDaemon(address, {
+    owner: options.owner ?? 'test',
+    answer: (request) => {
+      // The client opens its event stream once the handshake passes, which
+      // a scripted daemon holds open and never sends to.
+      if (request.method === 'events.subscribe') {
+        return 'silent';
       }
-    },
-  };
 
-  const server = startListener(address, handlers);
-  const stop = options.owner === 'caller' ? server.stop : registerTestCleanup(server.stop);
+      requests.push({ m: request.method, p: request.params });
+
+      if (request.method === options.closeOnRequest) {
+        return 'close';
+      }
+
+      return pickLegacyAnswer(request, answers, protocol);
+    },
+  });
 
   return {
     requests,
-    connections,
-    port: server.port,
-    stop,
+    connections: daemon.connections,
+    port: daemon.port,
+    stop: daemon.stop,
   };
 }
 
-// Listens on the unix socket path, or on the TCP address in its place, and
-// returns the port bound, `null` for a unix socket.
-function startListener(
-  address: string | StubLegacyDaemonTCPAddress,
-  handlers: Readonly<SocketHandler<{ buffer: string }>>,
-): { readonly port: number | null; readonly stop: () => void } {
-  if (typeof address === 'string') {
-    const unix = Bun.listen<{ buffer: string }>({ unix: address, socket: handlers });
+function pickLegacyAnswer(
+  request: StubPeerRequest,
+  answers: Readonly<Record<string, Readonly<Record<string, unknown>>>>,
+  protocol: number,
+): StubPeerAnswer {
+  const asked = request.params?.['protocol'];
+
+  if (request.method === 'daemon.hello' && asked !== protocol) {
+    const client = request.params?.['client'];
 
     return {
-      port: null,
-      stop: () => {
-        unix.stop(true);
+      err: {
+        code: 'protocol_mismatch',
+        msg: `${String(client)} speaks protocol v${String(asked)}, daemon atc/legacy-build speaks v${protocol}; restart the daemon so both run the same build`,
       },
     };
   }
 
-  const tcp = Bun.listen<{ buffer: string }>({
-    hostname: address.hostname,
-    port: address.port,
-    socket: handlers,
-  });
+  const answer = answers[request.method];
 
-  return {
-    port: tcp.port,
-    stop: () => {
-      tcp.stop(true);
-    },
-  };
+  return answer === undefined
+    ? { err: { code: 'unknown_method', msg: `unknown method '${request.method}'` } }
+    : { ok: answer };
 }

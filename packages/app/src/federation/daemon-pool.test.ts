@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DaemonClient } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
 import { buildMockAgentAdapter, registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
@@ -38,13 +38,13 @@ async function setupTest() {
     }),
   });
 
-  const cloudProber = await DaemonClient.open(cloud.socketPath);
+  const cloudProber = await openDaemonClient(cloud.socketPath);
 
   registerTestCleanup(() => {
     cloudProber.stop();
   });
 
-  const pcProber = await DaemonClient.open(pc.socketPath);
+  const pcProber = await openDaemonClient(pc.socketPath);
 
   registerTestCleanup(() => {
     pcProber.stop();
@@ -87,7 +87,7 @@ test('it gives each registry daemon its own caller that reaches only that daemon
       defaultDaemon: 'cloud',
     },
     build: 'atc-gateway/test',
-    openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
+    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
   registerTestCleanup(() => pool.stop());
@@ -112,7 +112,7 @@ test('it refuses a caller for a name the registry does not hold', () => {
   const pool = new DaemonPool({
     registry: { daemons: new Map(), defaultDaemon: 'cloud' },
     build: 'atc-gateway/test',
-    openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
+    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
   expect(() => pool.getCaller('pc')).toThrowWithMessage(Error, "no daemon 'pc' in the registry");

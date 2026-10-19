@@ -291,7 +291,7 @@ test('it delivers a message and a note held back while the bridge was unreachabl
     expect(
       ctx.daemon.events
         .filter((event) => event.ev === 'SessionOutput')
-        .map((event) => String(event['d']))
+        .map((event) => event.d)
         .join(''),
     ).toInclude('GOT:note while away');
   });

@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { DaemonClient } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
 import { createEnrollmentToken } from '../../app/src/mcp/create-enrollment-token';
 import { openMCPAuth } from '../../app/src/mcp/open-mcp-auth';
 import { startMCPHTTPServer } from '../../app/src/mcp/start-mcp-http-server';
@@ -19,7 +19,7 @@ async function setupTest() {
   // Sign-in never reaches the daemon, so the caller points at a socket nothing
   // listens on and never dials it.
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());

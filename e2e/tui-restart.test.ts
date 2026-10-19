@@ -84,6 +84,69 @@ test('it restarts a daemon on another protocol after the user confirms and resto
   expect(legacy.signalCode).toBe('SIGTERM');
 });
 
+test('it stops a daemon that speaks the line protocol after the user confirms, and the managed daemon after it restores the fleet', async () => {
+  const ctx = setupTest();
+  const stateDir = join(ctx.home, '.local', 'state', 'atc');
+  const socketPath = join(ctx.home, 'atc-daemon.sock');
+  const unitDir = join(ctx.home, '.config', 'systemd', 'user');
+
+  // An installed unit makes the client wait for the unit's daemon instead
+  // of starting one.
+  mkdirSync(stateDir, { recursive: true });
+  mkdirSync(unitDir, { recursive: true });
+  writeFileSync(join(unitDir, 'atc-daemon.service'), '[Service]\nExecStart=atc daemon\n');
+
+  const seed = await StateStore.open(join(stateDir, 'atc.db'));
+
+  registerTestCleanup(() => seed.stop());
+
+  await seed.writeFleet([
+    buildMockFleetEntry({
+      name: 'linefleet',
+      cwd: ctx.home,
+      agentSessionID: toAgentSessionID('fake-line-1'),
+    }),
+  ]);
+
+  await seed.stop();
+
+  const line = await startStubDaemonProcess(socketPath, stateDir, 'line');
+
+  ctx.boot();
+
+  await ctx.waitFor('Restart it now?');
+
+  expect(ctx.read()).toInclude('the daemon speaks an older protocol');
+
+  ctx.reset();
+  ctx.write('y');
+
+  await line.exited;
+
+  // The unit's manager starts the new daemon once the old one stops, and
+  // the new daemon restores the stored fleet.
+  const next = await startDaemon({
+    restoreFleetOnRestart: true,
+    socketPath,
+    reporterSocketPath: join(ctx.home, 'atc.sock'),
+    dbPath: join(stateDir, 'atc.db'),
+    statusPath: join(stateDir, 'status.json'),
+    build: buildHostServices().build,
+    targets: [buildLocalTarget()],
+    adapter: buildMockAgentAdapter(),
+  });
+
+  registerTestCleanup(() => next.stop());
+
+  await ctx.waitFor('1 running');
+
+  ctx.write(KEYS.ctrlSpace);
+
+  await ctx.waitFor('linefleet');
+
+  expect(line.signalCode).toBe('SIGTERM');
+});
+
 test('it restarts a daemon on another protocol that a reconnect meets after the user confirms', async () => {
   const reconnect = await setupReconnectTest();
 
@@ -410,9 +473,13 @@ async function setupManagedReconnectTest() {
   };
 }
 
-// The stub speaks another protocol, or with 'current' the current one as an
-// older build would.
-async function startStubDaemonProcess(socketPath: string, stateDir: string, build?: 'current') {
+// The stub speaks another protocol, with 'current' the current one as an
+// older build would, or with 'line' the line protocol of an older release.
+async function startStubDaemonProcess(
+  socketPath: string,
+  stateDir: string,
+  build?: 'current' | 'line',
+) {
   const daemon = Bun.spawn(
     [
       process.execPath,

@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { DaemonClient, PROTOCOL_V } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
+import { PROTOCOL_V } from '@atc/protocol/wire';
 import {
   buildMockAgentAdapter,
   getRecord,
@@ -18,7 +19,7 @@ async function setupTest() {
   const daemon = await startTestDaemon({ prefix: 'atc-reconnecting-caller-' });
 
   const caller = new TransportCaller(daemon.socketPath, 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -49,7 +50,7 @@ test('it closes a connection whose handshake the daemon rejects', async () => {
   });
 
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -71,7 +72,7 @@ test('it opens a fresh connection for the request after one whose handshake the 
   });
 
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -124,7 +125,7 @@ test('it retries a spawn on a fresh connection under the key it minted when the 
   });
 
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -143,7 +144,7 @@ test('it retries a message on a fresh connection under the key its caller passed
   });
 
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -165,7 +166,7 @@ test('it resends a keyed spawn unchanged, never as replay-only, so a daemon that
   });
 
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -192,7 +193,7 @@ test('it refuses to retry a keyed spawn unsent when the daemon behind the socket
   });
 
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -208,7 +209,7 @@ test('it fails a spawn whose connection drops when the daemon takes no keys', ()
   const dropping = startStubDroppingDaemon(join(tmp.dir, 'daemon.sock'), { features: [] });
 
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -225,17 +226,17 @@ test('it claims the session it was given in the handshake, and none when given n
   const claimed: unknown[] = [];
 
   const openRecording = async (path: string) => {
-    const client = await DaemonClient.open(path);
+    const client = await openDaemonClient(path);
 
-    const sendHello = client.sendHello.bind(client);
+    const sendHello = client.sendHello;
 
-    client.sendHello = (build, options) => {
-      claimed.push(options?.session);
+    return Object.assign(client, {
+      sendHello: (...args: Parameters<typeof sendHello>) => {
+        claimed.push(args[1]?.session);
 
-      return sendHello(build, options);
-    };
-
-    return client;
+        return sendHello(...args);
+      },
+    });
   };
 
   const inside = new TransportCaller(daemon.socketPath, 'atc/test-build', openRecording, 's-a');
@@ -260,7 +261,7 @@ test("it sends a principal's name beside it, which labels the message the reques
   const caller = new TransportCaller(
     daemon.socketPath,
     'atc/test-build',
-    (path) => DaemonClient.open(path),
+    (path) => openDaemonClient(path),
     null,
   );
 

@@ -1,5 +1,5 @@
 import { isRecord } from '@atc/core';
-import type { DaemonClient } from '@atc/protocol/wire';
+import type { DaemonClient } from '@atc/protocol/client';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { buildATCCommand } from './build-atc-command';
 import { buildHostDaemonPaths } from './build-host-daemon-paths';

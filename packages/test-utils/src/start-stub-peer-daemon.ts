@@ -40,6 +40,11 @@ interface StubPeerDaemonTCPAddress {
 
 interface StubPeerDaemonOptions {
   readonly answer: (request: StubPeerRequest) => StubPeerAnswer;
+
+  // Who stops the daemon: the current test, once it finishes, or the
+  // caller alone, for a process that runs it outside any test; the test
+  // unless set.
+  readonly owner?: 'test' | 'caller';
 }
 
 interface StubPeerConnection {
@@ -105,7 +110,7 @@ export function startStubPeerDaemon(
   };
 
   const server = startListener(address, handlers);
-  const stop = registerTestCleanup(server.stop);
+  const stop = options.owner === 'caller' ? server.stop : registerTestCleanup(server.stop);
 
   return {
     connections,

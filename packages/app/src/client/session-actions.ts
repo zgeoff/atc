@@ -1,5 +1,5 @@
+import type { DaemonClient } from '@atc/protocol/client';
 import { DaemonError } from '@atc/protocol/wire';
-import type { DaemonClient } from '@atc/protocol/wire';
 import type { ClientActor, ClientMode } from './build-client-machine';
 import type { FleetMirror } from './fleet-mirror';
 import type { OverlayScreen } from './overlay-screen';

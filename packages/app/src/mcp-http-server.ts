@@ -3,7 +3,7 @@ import { dirname } from 'node:path';
 import type { MCPHTTPConfig } from '@atc/config';
 import { loadMCPHTTPConfig, mcpAuthDBFile } from '@atc/config';
 import type { DaemonBoot, DaemonBootOptions, DaemonPaths } from '@atc/protocol';
-import { DaemonClient } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
 import { collectClients } from './mcp/collect-clients';
 import { collectPasskeys } from './mcp/collect-passkeys';
 import type { MCPAuthDatabase } from './mcp/mcp-auth-database';
@@ -104,7 +104,7 @@ export async function runMCPHTTPServer(
   const caller = new TransportCaller(
     boot.socketPath,
     build,
-    (path) => DaemonClient.open(path),
+    (path) => openDaemonClient(path),
     null,
   );
 

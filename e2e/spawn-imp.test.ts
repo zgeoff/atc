@@ -6,7 +6,7 @@ import { toSessionID } from '@atc/core';
 import { ImpProvider } from '@atc/execution-imp';
 import { createStubImpPort, getOnlyImpName } from '@atc/execution-imp/testing';
 import { LocalPTYProvider } from '@atc/execution-local';
-import { DaemonClient } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
 import { StateStore, buildTargetIdentity } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
@@ -163,7 +163,7 @@ test("it runs a sub-session in its parent's imp", async () => {
 
 test('it releases its own lease before it puts the imp of a killed session to sleep', async () => {
   const ctx = await setupTest();
-  const probe = await DaemonClient.open(ctx.socketPath);
+  const probe = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     probe.stop();
@@ -206,7 +206,7 @@ test('it releases its own lease before it puts the imp of a killed session to sl
 
 test('it keeps a session running and takes its lease back when another owner leases the imp', async () => {
   const ctx = await setupTest();
-  const probe = await DaemonClient.open(ctx.socketPath);
+  const probe = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     probe.stop();
@@ -417,7 +417,7 @@ test('it revives a slept session inside the same process by waking its imp', asy
   const pid = await waitFor(() => {
     const output = ctx.events
       .filter((event) => event.ev === 'SessionOutput')
-      .map((event) => String(event['d']))
+      .map((event) => event.d)
       .join('');
 
     const match = /UP:(?<pid>\d+)/u.exec(output);
@@ -436,7 +436,7 @@ test('it revives a slept session inside the same process by waking its imp', asy
     expect(
       ctx.events
         .filter((event) => event.ev === 'SessionOutput')
-        .map((event) => String(event['d']))
+        .map((event) => event.d)
         .join(''),
     ).toInclude(`GOT:again:${pid}`);
   });
@@ -454,7 +454,7 @@ test('it revives a slept session inside the same process by waking its imp', asy
 
 test('it leaves a session whose harness exited by itself restorable and gives its lease back', async () => {
   const ctx = await setupTest();
-  const probe = await DaemonClient.open(ctx.socketPath);
+  const probe = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     probe.stop();
@@ -805,7 +805,7 @@ test('it lists a session whose imp another owner put to sleep as asleep', async 
     expect(
       ctx.events
         .filter((event) => event.ev === 'SessionOutput')
-        .map((event) => String(event['d']))
+        .map((event) => event.d)
         .join(''),
     ).toInclude('UP:');
   });
@@ -847,7 +847,7 @@ test('it restores a session whose imp another owner put to sleep as suspended af
     expect(
       ctx.events
         .filter((event) => event.ev === 'SessionOutput')
-        .map((event) => String(event['d']))
+        .map((event) => event.d)
         .join(''),
     ).toInclude('UP:');
   });
@@ -899,7 +899,7 @@ test('it revives a session whose imp another owner put to sleep in the same proc
     const match = /UP:(?<pid>\d+)/u.exec(
       ctx.events
         .filter((event) => event.ev === 'SessionOutput')
-        .map((event) => String(event['d']))
+        .map((event) => event.d)
         .join(''),
     );
 
@@ -924,7 +924,7 @@ test('it revives a session whose imp another owner put to sleep in the same proc
     expect(
       ctx.events
         .filter((event) => event.ev === 'SessionOutput')
-        .map((event) => String(event['d']))
+        .map((event) => event.d)
         .join(''),
     ).toInclude(`GOT:again:${pid}`);
   });
@@ -932,7 +932,7 @@ test('it revives a session whose imp another owner put to sleep in the same proc
 
 test('it gives its lease back when a session it revived from sleep exits', async () => {
   const ctx = await setupTest();
-  const probe = await DaemonClient.open(ctx.socketPath);
+  const probe = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     probe.stop();

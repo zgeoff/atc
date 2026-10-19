@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
 import { GrokAdapter } from '@atc/harness-grok';
 import { encodeCursor } from '@atc/protocol';
-import { DaemonClient } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
 import { StateStore } from '@atc/store';
 import {
   buildMockAgentAdapter,
@@ -41,7 +41,7 @@ function setupTest(config?: DaemonTestConfig) {
 
 test('it answers daemon.hello with the build, limits, and features', async () => {
   const ctx = await setupTest({ mainClient: false });
-  const client = await DaemonClient.open(ctx.socketPath);
+  const client = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     client.stop();
@@ -119,17 +119,17 @@ test('it rejects a protocol version mismatch naming both builds and closes the c
   const ctx = await setupTest({ mainClient: false });
   const raw = await subscribeToSocketLines(ctx.socketPath);
 
-  raw.write('{"v":5,"id":1,"m":"daemon.hello","p":{"client":"atc/newer-build"}}\n');
+  raw.write('{"v":6,"id":1,"m":"daemon.hello","p":{"client":"atc/newer-build"}}\n');
 
   await raw.closed;
 
   expect(raw.lines.map((line): unknown => JSON.parse(line))).toStrictEqual([
     {
-      v: 4,
+      v: 5,
       id: 1,
       err: {
         code: 'protocol_mismatch',
-        msg: 'atc/newer-build speaks protocol v5, daemon atc/test-build speaks v4; restart the daemon so both run the same build',
+        msg: 'atc/newer-build speaks protocol v6, daemon atc/test-build speaks v5; restart the daemon so both run the same build',
       },
     },
   ]);
@@ -144,7 +144,7 @@ test('it answers daemon.ping after the handshake', async () => {
 
 test('it refuses any request before daemon.hello', async () => {
   const ctx = await setupTest({ mainClient: false });
-  const client = await DaemonClient.open(ctx.socketPath);
+  const client = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     client.stop();
@@ -183,7 +183,7 @@ test('it closes the connection on a malformed line', async () => {
   await raw.closed;
 
   expect(raw.lines.map((line): unknown => JSON.parse(line))).toStrictEqual([
-    { v: 4, id: 0, err: { code: 'bad_args', msg: 'malformed line: not valid JSON' } },
+    { v: 5, id: 0, err: { code: 'bad_args', msg: 'malformed line: not valid JSON' } },
   ]);
 });
 
@@ -196,7 +196,7 @@ test('it closes the connection on an oversized line', async () => {
   await raw.closed;
 
   expect(raw.lines.map((line): unknown => JSON.parse(line))).toStrictEqual([
-    { v: 4, id: 0, err: { code: 'bad_args', msg: 'line exceeds 1048576 bytes' } },
+    { v: 5, id: 0, err: { code: 'bad_args', msg: 'line exceeds 1048576 bytes' } },
   ]);
 });
 
@@ -570,7 +570,7 @@ test('it keeps last-used on a spawn that has not reported SessionStart', async (
     expect(listed).toStrictEqual({ dirs: [ctx.dir] });
   });
 
-  const probe = await DaemonClient.open(ctx.socketPath);
+  const probe = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     probe.stop();
@@ -650,7 +650,6 @@ test('it broadcasts SessionAttached with the session descriptor when a client at
   });
 
   expect(event).toMatchObject({
-    v: 4,
     ev: 'SessionAttached',
     session: {
       id: sessionID,
@@ -680,7 +679,7 @@ test('it broadcasts SessionDetached when an attached client detaches', async () 
     return found;
   });
 
-  expect(event).toMatchObject({ v: 4, ev: 'SessionDetached', session: { id: sessionID } });
+  expect(event).toMatchObject({ ev: 'SessionDetached', session: { id: sessionID } });
 });
 
 test('it broadcasts SessionDetached when an attached client disconnects', async () => {
@@ -763,8 +762,10 @@ test('it runs a configured hook with the same event JSON a watching client recei
   const [payload, eventName, rest] = text.split('\n');
   const parsed: unknown = JSON.parse(payload ?? '');
 
+  // The hook reads the wire form, which carries the protocol version the
+  // client drops.
   expect({ payload: parsed, eventName, rest }).toStrictEqual({
-    payload: event,
+    payload: { v: 5, ...event },
     eventName: 'SessionAttached',
     rest: '',
   });
@@ -921,11 +922,17 @@ test('it stops only once the quit delay has passed after it answers daemon.quit'
 
 test('it answers daemon.hello with the same daemon id after a restart', async () => {
   const ctx = await setupTest();
-  const firstHello = await ctx.client.sendHello(ctx.build);
+  const first = await openDaemonClient(ctx.socketPath);
+
+  registerTestCleanup(() => {
+    first.stop();
+  });
+
+  const firstHello = await first.sendHello(ctx.build);
 
   await ctx.restart();
 
-  const second = await DaemonClient.open(ctx.socketPath);
+  const second = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     second.stop();
@@ -938,7 +945,7 @@ test('it answers daemon.hello with the same daemon id after a restart', async ()
 
 test('it locates a spawned session on this daemon at the local target', async () => {
   const ctx = await setupTest();
-  const probe = await DaemonClient.open(ctx.socketPath);
+  const probe = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     probe.stop();

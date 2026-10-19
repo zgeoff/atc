@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
-import type { EventMsg } from '@atc/protocol/wire';
+import type { DaemonEvent } from '@atc/protocol';
 import {
   createStubClaude,
   createStubComposer,
@@ -43,7 +43,7 @@ test('it spawns a session and broadcasts SessionAdded to every client', async ()
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -53,7 +53,7 @@ test('it spawns a session and broadcasts SessionAdded to every client', async ()
 
   const actor = await daemon.openClient();
 
-  const actorEvents: EventMsg[] = [];
+  const actorEvents: DaemonEvent[] = [];
 
   actor.onEvent = (event) => {
     actorEvents.push(event);
@@ -90,7 +90,7 @@ test('it turns hook notifications into SessionState broadcasts', async () => {
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -127,7 +127,7 @@ test('it renames and pins a session through session.update', async () => {
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -211,7 +211,7 @@ test('it kills a live session to exited', async () => {
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -250,7 +250,7 @@ test('it removes a killed session on a second kill', async () => {
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -289,7 +289,7 @@ test('it builds a resume command once the claude id is captured', async () => {
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -324,7 +324,7 @@ test('it broadcasts PermissionRequested when a session needs input', async () =>
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -357,7 +357,7 @@ test('it answers permission.respond on a keystroke-only request with unsupported
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -390,7 +390,7 @@ test('it resolves a pending permission request as dismissed when the session die
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -427,7 +427,7 @@ test('it keeps the last screen of a killed session readable', async () => {
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -472,7 +472,7 @@ test.each([
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -507,7 +507,7 @@ test("it reports a session's pending prompt through session.get while it needs y
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
@@ -555,7 +555,7 @@ test("it reports a finished turn's last message through session.get", async () =
 
   const client = await daemon.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);

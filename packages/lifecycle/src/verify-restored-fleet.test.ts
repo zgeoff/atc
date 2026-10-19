@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { toSessionID } from '@atc/core';
-import { DaemonClient } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
 import { buildMockStoredRow } from '@atc/store/testing';
 import {
   buildMockListedAgent,
@@ -18,7 +18,7 @@ async function setupTest() {
   const tmp = setupTempDir('atc-verify-restored-fleet-');
   const daemon = startStubRestoreDaemon(join(tmp.dir, 'daemon.sock'));
 
-  const client = await DaemonClient.open(join(tmp.dir, 'daemon.sock'));
+  const client = await openDaemonClient(join(tmp.dir, 'daemon.sock'));
 
   registerTestCleanup(() => {
     client.stop();

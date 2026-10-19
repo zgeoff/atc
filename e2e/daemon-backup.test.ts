@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
-import type { EventMsg } from '@atc/protocol/wire';
+import type { DaemonEvent } from '@atc/protocol';
 import {
   createStubClaude,
   createStubComposer,
@@ -57,13 +57,13 @@ test('it backs up a running daemon to a file that a fresh daemon restores with e
 
   const client = await source.openClient();
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
   client.onEvent = (event) => {
     events.push(event);
   };
 
-  await client.sendHello('atc/test');
+  const sourceHello = await client.sendHello('atc/test');
 
   await client.sendRequest('session.spawn', {
     cwd: ctx.work,
@@ -98,7 +98,6 @@ test('it backs up a running daemon to a file that a fresh daemon restores with e
     session: { name: 'killed before the backup', lastMsg: 'killed' },
   });
 
-  const sourceHello = await client.sendRequest('daemon.hello', { client: 'atc/test' });
   const sourceFleet = await client.sendRequest('fleet.list');
 
   const backup = await runATC({

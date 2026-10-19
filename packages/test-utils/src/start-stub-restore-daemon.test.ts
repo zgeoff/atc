@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DaemonClient } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
 import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { startStubRestoreDaemon } from './start-stub-restore-daemon';
@@ -20,7 +20,7 @@ function setupTest() {
 test('it answers a fleet restore with an empty result', async () => {
   const ctx = setupTest();
 
-  const client = await DaemonClient.open(ctx.socketPath);
+  const client = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     client.stop();
@@ -34,7 +34,7 @@ test('it answers a fleet restore with an empty result', async () => {
 test('it answers each session list with the next reply the test pushed', async () => {
   const ctx = setupTest();
 
-  const client = await DaemonClient.open(ctx.socketPath);
+  const client = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     client.stop();
@@ -52,7 +52,7 @@ test('it answers each session list with the next reply the test pushed', async (
 test('it withholds the answer to a session list once no reply is left', async () => {
   const ctx = setupTest();
 
-  const client = await DaemonClient.open(ctx.socketPath);
+  const client = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     client.stop();
@@ -73,7 +73,7 @@ test('it withholds the answer to a session list once no reply is left', async ()
 test('it refuses a method the test marks unknown the way a daemon that predates it does', async () => {
   const ctx = setupTest();
 
-  const client = await DaemonClient.open(ctx.socketPath);
+  const client = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     client.stop();
@@ -97,7 +97,7 @@ test('it refuses a method the test marks unknown the way a daemon that predates 
 test('it records the method of each request in order', async () => {
   const ctx = setupTest();
 
-  const client = await DaemonClient.open(ctx.socketPath);
+  const client = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     client.stop();
@@ -114,7 +114,7 @@ test('it records the method of each request in order', async () => {
 test('it answers a client whose line another client left half written', async () => {
   const ctx = setupTest();
 
-  const client = await DaemonClient.open(ctx.socketPath);
+  const client = await openDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     client.stop();
@@ -135,7 +135,9 @@ test('it answers a client whose line another client left half written', async ()
     raw.end();
   });
 
-  raw.write('{"v":4,"id":1,"m":"fleet.restore","p":{"cols":80,"rows":24}}\n{"v":4,"id":2,');
+  raw.write(
+    '{"i":"1","p":{"u":"/fleet/restore","b":{"json":{"cols":80,"rows":24}}}}\n{"i":"2","p":',
+  );
 
   await answered.promise;
 
@@ -149,7 +151,7 @@ test('it stops listening once stopped', () => {
 
   ctx.daemon.stop();
 
-  expect(DaemonClient.open(ctx.socketPath)).rejects.toThrow();
+  expect(openDaemonClient(ctx.socketPath)).rejects.toThrow();
 });
 
 test('it stops listening once the test finishes without a stop', () => {

@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { DaemonClient } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
 import { buildStubClock, registerTestCleanup } from '@atc/test-utils';
 import { buildStubFleetCaller } from '../test-utils/build-stub-fleet-caller';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
@@ -11,7 +11,7 @@ async function setupTest() {
   const daemon = await startTestDaemon({ prefix: 'atc-read-event-texts-' });
 
   const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());

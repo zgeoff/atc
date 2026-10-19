@@ -1,7 +1,7 @@
 import { loadConfig } from '@atc/config';
 import type { Clock } from '@atc/core';
 import type { DaemonBoot } from '@atc/protocol';
-import type { DaemonClient } from '@atc/protocol/wire';
+import type { DaemonClient } from '@atc/protocol/client';
 import type { DaemonTransport } from '@atc/protocol/wire/transport';
 import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import type { ClientActor } from './build-client-machine';

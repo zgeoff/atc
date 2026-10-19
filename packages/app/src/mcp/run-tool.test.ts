@@ -10,7 +10,7 @@ import { LocalPTYProvider } from '@atc/execution-local';
 import { buildStubExecutionProvider } from '@atc/execution-local/testing';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { DAEMON_FEATURES, REQUEST_PARAM_SCHEMAS } from '@atc/protocol';
-import { DaemonClient } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atc/protocol/client';
 import { StateStore } from '@atc/store';
 import {
   buildMockAgentAdapter,
@@ -91,7 +91,7 @@ async function setupTest() {
   });
 
   const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -323,7 +323,7 @@ test("it returns a message's whole answer on its answered event by default", asy
   });
 
   const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -366,7 +366,7 @@ test('it returns the answer preview on an answered event when the call asks for 
   });
 
   const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -531,7 +531,7 @@ test('it replays a message key an older atc mcp stored with a given from, and la
   });
 
   const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -696,7 +696,7 @@ test('it spawns nothing top-level when the gone session belongs to a spawn its k
   });
 
   const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -835,7 +835,7 @@ test('it refuses a spawn on a target unsent when the daemon predates targets', (
   });
 
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -859,7 +859,7 @@ test('it refuses a spawn with plugin folders unsent when the daemon predates the
   });
 
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -906,7 +906,7 @@ test('it spawns a git workspace without a cwd and returns the directory the daem
   });
 
   const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -954,7 +954,7 @@ test('it refuses a git workspace without a cwd unsent when the daemon predates p
   });
 
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -996,7 +996,7 @@ test('it refuses a spawn with a workspace unsent when the daemon predates worksp
   });
 
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -1035,7 +1035,7 @@ test('it refuses a session input line unsent when the daemon predates line submi
   });
 
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -1184,7 +1184,7 @@ test('it refuses a full events read unsent when the daemon predates answer reads
   });
 
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -1204,7 +1204,7 @@ test('it reads previews from a daemon that predates answer reads', async () => {
   });
 
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -1222,7 +1222,7 @@ test('it refuses a menu read unsent when the daemon predates menus', () => {
   });
 
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -1275,7 +1275,7 @@ test('it refuses a stop unsent when the daemon predates stop-only kills', () => 
   });
 
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -1350,7 +1350,7 @@ test('it refuses a rename unsent when the daemon predates a reported skipped ren
   });
 
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -1377,7 +1377,7 @@ test('it refuses a detach unsent when the daemon predates a null parent on updat
   });
 
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -1452,7 +1452,7 @@ test('it refuses an explicit trust decision unsent when the daemon predates clon
   });
 
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -1480,7 +1480,7 @@ test.each([
   });
 
   const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -1654,7 +1654,15 @@ test('it starts a stopped pinned session again, since a pin guards only against 
 
 test('it returns the adopted session for atc_session_adopt through the gateway', async () => {
   const ctx = await setupTest();
-  const hello = await ctx.daemon.client.sendHello(ctx.daemon.build);
+
+  // A client of its own, since a connection takes one handshake.
+  const prober = await openDaemonClient(ctx.daemon.socketPath);
+
+  registerTestCleanup(() => {
+    prober.stop();
+  });
+
+  const hello = await prober.sendHello(ctx.daemon.build);
 
   // The daemon as `cloud`, the one daemon a gateway's registry holds.
   const registry = {
@@ -1675,7 +1683,7 @@ test('it returns the adopted session for atc_session_adopt through the gateway',
   const pool = new DaemonPool({
     registry,
     build: 'atc-gateway/test',
-    openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
+    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
   registerTestCleanup(() => pool.stop());
@@ -1717,7 +1725,15 @@ test('it returns the adopted session for atc_session_adopt through the gateway',
 
 test('it refuses atc_session_auth_rebind through the gateway as unauthorized, since the gateway acts as a remote client', async () => {
   const ctx = await setupTest();
-  const hello = await ctx.daemon.client.sendHello(ctx.daemon.build);
+
+  // A client of its own, since a connection takes one handshake.
+  const prober = await openDaemonClient(ctx.daemon.socketPath);
+
+  registerTestCleanup(() => {
+    prober.stop();
+  });
+
+  const hello = await prober.sendHello(ctx.daemon.build);
 
   // The daemon as `cloud`, the one daemon a gateway's registry holds.
   const registry = {
@@ -1738,7 +1754,7 @@ test('it refuses atc_session_auth_rebind through the gateway as unauthorized, si
   const pool = new DaemonPool({
     registry,
     build: 'atc-gateway/test',
-    openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
+    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
   registerTestCleanup(() => pool.stop());
@@ -2094,10 +2110,14 @@ test('it falls back to its own check when a gateway routes the forget to a daemo
     },
   });
 
-  const hello = await current.client.sendRequest('daemon.hello', {
-    client: current.build,
-    auth: { scheme: 'none' },
+  // A client of its own, since a connection takes one handshake.
+  const prober = await openDaemonClient(current.socketPath);
+
+  registerTestCleanup(() => {
+    prober.stop();
   });
+
+  const hello = await prober.sendHello(current.build);
 
   const currentID = String(hello['daemonID']);
 
@@ -2150,8 +2170,8 @@ test('it falls back to its own check when a gateway routes the forget to a daemo
     build: 'atc-gateway/test',
     openChannel: (address) =>
       address.host === 'old.sock'
-        ? DaemonClient.open(join(current.dir, 'old.sock'))
-        : DaemonClient.open({ hostname: address.host, port: address.port }),
+        ? openDaemonClient(join(current.dir, 'old.sock'))
+        : openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
   registerTestCleanup(() => pool.stop());
@@ -2207,7 +2227,7 @@ test('it refuses a principal a session on a target it cannot use as no_such_sess
   });
 
   const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -2312,7 +2332,7 @@ test('it rebinds the host of a session whose restore was refused for a changed a
   await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
   const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -2405,7 +2425,7 @@ test('it adopts a session whose restore was refused once its host is rebound', a
   await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
   const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -2500,7 +2520,7 @@ test('it refuses a rebind from a remote client acting as a principal and binds n
   await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
   const owner = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
-    DaemonClient.open(path),
+    openDaemonClient(path),
   );
 
   registerTestCleanup(() => owner.stop());

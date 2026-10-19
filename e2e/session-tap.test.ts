@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { startDaemon } from '@atc/daemon';
-import { DaemonClient } from '@atc/protocol/wire';
-import type { EventMsg } from '@atc/protocol/wire';
+import type { DaemonEvent } from '@atc/protocol';
+import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildMockAgentAdapter,
   registerTestCleanup,
@@ -30,9 +30,9 @@ async function setupTest() {
 
   registerTestCleanup(() => daemon.stop());
 
-  const events: EventMsg[] = [];
+  const events: DaemonEvent[] = [];
 
-  const actor = await DaemonClient.open(join(tmp.dir, 'atc-daemon.sock'));
+  const actor = await openDaemonClient(join(tmp.dir, 'atc-daemon.sock'));
 
   registerTestCleanup(() => {
     actor.stop();
@@ -80,7 +80,7 @@ test('it writes each pending message as an NDJSON line and acks it through atc t
 
   await waitFor(() => {
     expect(
-      ctx.events.filter((e) => e.ev === 'SessionMessage' && e['status'] === 'delivered'),
+      ctx.events.filter((e) => e.ev === 'SessionMessage' && e.status === 'delivered'),
     ).toHaveLength(2);
   });
 
