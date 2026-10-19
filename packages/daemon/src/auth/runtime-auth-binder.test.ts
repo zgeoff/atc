@@ -361,6 +361,7 @@ test('it refuses an imp that already holds the name and grants nothing to it', a
   });
 
   expect(created).rejects.toMatchObject({ code: 'auth_runtime_exists' });
+  expect(created).rejects.toHaveProperty('data', { hostName: 'atc-s1' });
 
   const calls = [...ctx.host.calls];
 

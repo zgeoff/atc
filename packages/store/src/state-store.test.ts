@@ -1152,8 +1152,8 @@ test('it records the resume column drop and keeps the fleet when a crash left th
 });
 
 test('it reads a runtime auth binding bound before the host column rename as the same binding after it', async () => {
-  const tmp = setupTempDir('atc-store-');
-  const dbPath = join(tmp.dir, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-store-');
+  const dbPath = join(temporaryDirectory.dir, 'state.db');
 
   const older = new Database(dbPath);
 
@@ -1200,8 +1200,8 @@ test('it reads a runtime auth binding bound before the host column rename as the
 });
 
 test('it finishes the host column rename and keeps the binding when a crash left one column renamed but the step unrecorded', async () => {
-  const tmp = setupTempDir('atc-store-');
-  const dbPath = join(tmp.dir, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-store-');
+  const dbPath = join(temporaryDirectory.dir, 'state.db');
 
   const older = new Database(dbPath);
 
