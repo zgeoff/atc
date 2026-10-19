@@ -453,4 +453,15 @@ export const MIGRATIONS: Record<string, Migration> = {
       await db.schema.alterTable('fleet').addColumn('plugin_dirs', 'text').execute();
     },
   },
+  '037_drop_fleet_resume_interrupted_turns': {
+    async up(db: Kysely<StateStoreSchema>) {
+      // Nothing reads the column. The drop runs only while it is there, so
+      // the step can run again after a crash.
+      const columns = await collectFleetColumns(db);
+
+      if (columns.has('resume_interrupted_turns')) {
+        await db.schema.alterTable('fleet').dropColumn('resume_interrupted_turns').execute();
+      }
+    },
+  },
 };
