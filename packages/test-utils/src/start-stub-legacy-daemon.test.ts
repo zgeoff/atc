@@ -32,7 +32,7 @@ test('it drops a connection on the selected request after answering the handshak
   expect(client.sendRequest('session.list')).rejects.toThrowWithMessage(Error, 'connection closed');
 
   expect(daemon.requests).toStrictEqual([
-    { m: 'daemon.hello', p: { client: 'atc/test-build', protocol: 5, auth: { scheme: 'none' } } },
+    { m: 'daemon.hello', p: { client: 'atc/test-build', protocol: 6, auth: { scheme: 'none' } } },
     { m: 'session.list', p: {} },
   ]);
 });
@@ -77,7 +77,7 @@ test('it answers a method with the reply it was given and records the request', 
   expect(got).toStrictEqual({ message: 'm-1', status: 'queued' });
 
   expect(daemon.requests).toStrictEqual([
-    { m: 'daemon.hello', p: { client: 'atc/test-build', protocol: 5, auth: { scheme: 'none' } } },
+    { m: 'daemon.hello', p: { client: 'atc/test-build', protocol: 6, auth: { scheme: 'none' } } },
     { m: 'message.get', p: { message: 'm-1', waitMs: 5000 } },
   ]);
 });
@@ -132,7 +132,7 @@ test('it refuses a hello on another protocol version with protocol_mismatch', as
   expect(client.sendHello('atc/test-build')).rejects.toMatchObject({
     code: 'protocol_mismatch',
     message:
-      'atc/test-build speaks protocol v5, daemon atc/legacy-build speaks v3; restart the daemon so both run the same build',
+      'atc/test-build speaks protocol v6, daemon atc/legacy-build speaks v3; restart the daemon so both run the same build',
   });
 });
 

@@ -82,12 +82,12 @@ test('it rejects a protocol version mismatch naming both builds and closes the c
     client.stop();
   });
 
-  const refused = client.sendRequest('daemon.hello', { client: 'atc/newer-build', protocol: 6 });
+  const refused = client.sendRequest('daemon.hello', { client: 'atc/newer-build', protocol: 7 });
 
   expect(refused).rejects.toMatchObject({
     code: 'protocol_mismatch',
     message:
-      'atc/newer-build speaks protocol v6, daemon atc/test-build speaks v5; restart the daemon so both run the same build',
+      'atc/newer-build speaks protocol v7, daemon atc/test-build speaks v6; restart the daemon so both run the same build',
   });
 
   await Promise.allSettled([refused]);
@@ -712,7 +712,7 @@ test('it runs a configured hook with the same event JSON a watching client recei
   // The hook reads the wire form, which carries the protocol version the
   // client drops.
   expect({ payload: parsed, eventName, rest }).toStrictEqual({
-    payload: { v: 5, ...event },
+    payload: { v: 6, ...event },
     eventName: 'SessionAttached',
     rest: '',
   });
