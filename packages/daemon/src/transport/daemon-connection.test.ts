@@ -851,10 +851,15 @@ test.each([
     conn.applyChunk(`${JSON.stringify({ i: '9', p: { u: path, b: { json: body } } })}\n`);
 
     const json: unknown = expect.objectContaining(answer);
-    const response: unknown = expect.objectContaining({ b: expect.objectContaining({ json }) });
+
+    const response: unknown = expect.objectContaining({
+      b: expect.objectContaining({ json }) as unknown,
+    });
 
     await waitFor(() => {
-      expect(peer.collectFrames()).toContainEqual(expect.objectContaining({ i: '9', p: response }));
+      expect<unknown[]>(peer.collectFrames()).toContainEqual(
+        expect.objectContaining({ i: '9', p: response }),
+      );
     });
 
     await waitFor(() => {
@@ -930,8 +935,11 @@ test('it refuses a second handshake at once while the first is pending, and keep
   });
 
   await waitFor(() => {
-    expect(peer.collectFrames()).toContainEqual(
-      expect.objectContaining({ i: '9', p: expect.objectContaining({ b: { json: refusal } }) }),
+    expect<unknown[]>(peer.collectFrames()).toContainEqual(
+      expect.objectContaining({
+        i: '9',
+        p: expect.objectContaining({ b: { json: refusal } }) as unknown,
+      }),
     );
   });
 
@@ -1010,8 +1018,11 @@ test('it answers a path that names no procedure while the handshake is pending, 
   const refusal: unknown = expect.objectContaining({ code: 'unknown_method' });
 
   await waitFor(() => {
-    expect(peer.collectFrames()).toContainEqual(
-      expect.objectContaining({ i: '9', p: expect.objectContaining({ b: { json: refusal } }) }),
+    expect<unknown[]>(peer.collectFrames()).toContainEqual(
+      expect.objectContaining({
+        i: '9',
+        p: expect.objectContaining({ b: { json: refusal } }) as unknown,
+      }),
     );
   });
 
@@ -1108,10 +1119,15 @@ test.each([
   conn.applyChunk(`${JSON.stringify({ i: '9', p: { u: path, b: { json: body } } })}\n`);
 
   const json: unknown = expect.objectContaining(answer);
-  const response: unknown = expect.objectContaining({ b: expect.objectContaining({ json }) });
+
+  const response: unknown = expect.objectContaining({
+    b: expect.objectContaining({ json }) as unknown,
+  });
 
   await waitFor(() => {
-    expect(peer.collectFrames()).toContainEqual(expect.objectContaining({ i: '9', p: response }));
+    expect<unknown[]>(peer.collectFrames()).toContainEqual(
+      expect.objectContaining({ i: '9', p: response }),
+    );
   });
 
   expect(peer.hasEnded()).toBeFalse();
@@ -1164,8 +1180,11 @@ test('it writes a refused handshake whole before it ends the connection', async 
 
   expect(endedWhileQueued).toBeFalse();
 
-  expect(peer.collectFrames()).toStrictEqual([
-    expect.objectContaining({ i: '1', p: expect.objectContaining({ b: { json: refusal } }) }),
+  expect<unknown[]>(peer.collectFrames()).toStrictEqual([
+    expect.objectContaining({
+      i: '1',
+      p: expect.objectContaining({ b: { json: refusal } }) as unknown,
+    }),
   ]);
 });
 
@@ -1203,10 +1222,15 @@ test.each([
     conn.drain();
 
     const json: unknown = expect.objectContaining(answer);
-    const response: unknown = expect.objectContaining({ b: expect.objectContaining({ json }) });
+
+    const response: unknown = expect.objectContaining({
+      b: expect.objectContaining({ json }) as unknown,
+    });
 
     await waitFor(() => {
-      expect(peer.collectFrames()).toContainEqual(expect.objectContaining({ i: '9', p: response }));
+      expect<unknown[]>(peer.collectFrames()).toContainEqual(
+        expect.objectContaining({ i: '9', p: response }),
+      );
     });
 
     await waitFor(() => {
@@ -1286,10 +1310,15 @@ test.each([
   conn.applyChunk(`${JSON.stringify({ i: '9', p: { u: path, b: { json: body } } })}\n`);
 
   const json: unknown = expect.objectContaining(answer);
-  const response: unknown = expect.objectContaining({ b: expect.objectContaining({ json }) });
+
+  const response: unknown = expect.objectContaining({
+    b: expect.objectContaining({ json }) as unknown,
+  });
 
   await waitFor(() => {
-    expect(peer.collectFrames()).toContainEqual(expect.objectContaining({ i: '9', p: response }));
+    expect<unknown[]>(peer.collectFrames()).toContainEqual(
+      expect.objectContaining({ i: '9', p: response }),
+    );
   });
 });
 
@@ -1410,8 +1439,11 @@ test('it refuses a peer handshake that gives another session than the one the ke
     expect(peer.hasEnded()).toBeTrue();
   });
 
-  expect(peer.collectFrames()).toStrictEqual([
-    expect.objectContaining({ i: '1', p: expect.objectContaining({ b: { json: refusal } }) }),
+  expect<unknown[]>(peer.collectFrames()).toStrictEqual([
+    expect.objectContaining({
+      i: '1',
+      p: expect.objectContaining({ b: { json: refusal } }) as unknown,
+    }),
   ]);
 });
 
