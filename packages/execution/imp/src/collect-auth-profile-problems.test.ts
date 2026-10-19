@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import type { AuthProfile } from '@atc/plugin-api';
 import { buildMockAuthProfile } from '@atc/test-utils';
 import { collectAuthProfileProblems } from './collect-auth-profile-problems';
 
@@ -8,7 +9,7 @@ test('it finds no problem in profiles whose names impd accepts', () => {
 
   const problems = collectAuthProfileProblems(
     'box',
-    new Map([
+    new Map<string, AuthProfile>([
       ['notes', notes],
       ['github', github],
     ]),
