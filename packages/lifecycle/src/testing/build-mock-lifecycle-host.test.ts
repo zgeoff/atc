@@ -15,7 +15,6 @@ test('it builds a default lifecycle host', () => {
       statusFile: expect.toEndWith('/.local/state/atc/status.json'),
       dbFile: expect.toEndWith('/.local/state/atc/atc.db'),
       mcpAuthDBFile: expect.toEndWith('/.local/state/atc/mcp-auth.db'),
-      legacyFleetFile: expect.toEndWith('/.local/state/atc/fleet.json'),
       daemonRecordFile: expect.toEndWith('/.local/state/atc/daemon.json'),
       restartsDir: expect.toEndWith('/.local/state/atc/restarts'),
       restartLockFile: expect.toEndWith('/.local/state/atc/daemon-restart.lock'),

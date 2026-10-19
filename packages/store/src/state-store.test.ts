@@ -24,6 +24,7 @@ import invariant from 'tiny-invariant';
 import { buildTargetIdentity } from './build-target-identity';
 import { buildSQLiteDialect } from './sqlite/build-sqlite-dialect';
 import { MIGRATIONS } from './sqlite/migrations';
+import { PreLadderDatabaseError } from './sqlite/pre-ladder-database-error';
 import type { StateStoreSchema } from './sqlite/state-store-schema';
 import { StateStore } from './state-store';
 import { buildMockFleetEntry } from './testing/build-mock-fleet-entry';
@@ -38,7 +39,7 @@ async function setupTest() {
 
   const queries: CompiledQuery[] = [];
 
-  const store = await StateStore.open(dbPath, undefined, (query) => {
+  const store = await StateStore.open(dbPath, (query) => {
     queries.push(query);
   });
 
@@ -371,67 +372,6 @@ test('it resolves stop only after an unawaited fleet write lands', async () => {
   expect(rows).toStrictEqual([{ name: entry.name }]);
 });
 
-test('it seeds an empty fleet from a legacy fleet.json', async () => {
-  const tmp = setupTempDir('atc-store-');
-  const legacy = join(tmp.dir, 'fleet.json');
-
-  writeFileSync(legacy, JSON.stringify([{ name: 'seeded', cwd: '/z', claudeId: 'c9' }]));
-
-  const store = await StateStore.open(join(tmp.dir, 'state.db'), legacy);
-
-  registerTestCleanup(() => store.stop());
-
-  const fleet = await store.loadFleet();
-
-  expect(fleet).toStrictEqual([
-    {
-      sessionID: expect.toSatisfy((id: string) =>
-        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/u.test(id),
-      ),
-      name: 'seeded',
-      cwd: '/z',
-      agentSessionID: toAgentSessionID('c9'),
-      agent: 'claude',
-    },
-  ]);
-});
-
-test('it never overwrites an existing fleet table from the legacy file', async () => {
-  const tmp = setupTempDir('atc-store-');
-  const legacy = join(tmp.dir, 'fleet.json');
-  const dbPath = join(tmp.dir, 'state.db');
-
-  writeFileSync(legacy, JSON.stringify([{ name: 'stale', cwd: '/old', claudeId: 'c0' }]));
-
-  const first = await StateStore.open(dbPath, legacy);
-
-  registerTestCleanup(() => first.stop());
-
-  const fresh = buildMockFleetEntry();
-
-  await first.writeFleet([fresh]);
-  await first.stop();
-
-  const second = await StateStore.open(dbPath, legacy);
-
-  registerTestCleanup(() => second.stop());
-
-  const fleet = await second.loadFleet();
-
-  expect(fleet).toStrictEqual([
-    {
-      sessionID: expect.toSatisfy((id: string) =>
-        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/u.test(id),
-      ),
-      name: 'stale',
-      cwd: '/old',
-      agentSessionID: toAgentSessionID('c0'),
-      agent: 'claude',
-    },
-    fresh,
-  ]);
-});
-
 test('it records hook events into the trail', async () => {
   const ctx = await setupTest();
 
@@ -580,15 +520,21 @@ test('it carries spawn directories from before their target was recorded over as
   const tmp = setupTempDir('atc-store-');
   const dbPath = join(tmp.dir, 'state.db');
 
-  const db = new Database(dbPath);
+  const older = new Database(dbPath);
 
   registerTestCleanup(() => {
-    db.close();
+    older.close();
   });
 
-  db.run('CREATE TABLE spawn_history (cwd TEXT PRIMARY KEY, last_spawn INTEGER NOT NULL);');
-  db.run("INSERT INTO spawn_history (cwd, last_spawn) VALUES ('/old', 1000), ('/older', 500);");
-  db.close();
+  const db = new Kysely<StateStoreSchema>({ dialect: buildSQLiteDialect(older) });
+
+  await new Migrator({
+    db,
+    provider: { getMigrations: () => Promise.resolve(MIGRATIONS) },
+  }).migrateTo('023_add_events_report_text');
+
+  older.run("INSERT INTO spawn_history (cwd, last_spawn) VALUES ('/old', 1000), ('/older', 500);");
+  older.close();
 
   const store = await StateStore.open(dbPath);
 
@@ -756,29 +702,24 @@ test('it adds parent to a fleet row that predates it', async () => {
   const tmp = setupTempDir('atc-store-');
   const dbPath = join(tmp.dir, 'state.db');
 
-  const db = new Database(dbPath);
+  const older = new Database(dbPath);
 
   registerTestCleanup(() => {
-    db.close();
+    older.close();
   });
 
-  db.run(`
-    CREATE TABLE fleet (
-      agent_session_id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      cwd TEXT NOT NULL,
-      pinned INTEGER NOT NULL DEFAULT 0,
-      last_attached INTEGER,
-      agent TEXT NOT NULL DEFAULT 'claude',
-      exited INTEGER NOT NULL DEFAULT 0
-    );
-  `);
+  const db = new Kysely<StateStoreSchema>({ dialect: buildSQLiteDialect(older) });
 
-  db.run(
+  await new Migrator({
+    db,
+    provider: { getMigrations: () => Promise.resolve(MIGRATIONS) },
+  }).migrateTo('006_add_fleet_exited');
+
+  older.run(
     "INSERT INTO fleet (agent_session_id, name, cwd, pinned, last_attached, agent, exited) VALUES ('c1', 'old', '/x', 0, 555, 'claude', 1)",
   );
 
-  db.close();
+  older.close();
 
   const store = await StateStore.open(dbPath);
 
@@ -848,37 +789,27 @@ test('it renames the id column and defaults agent for a store written before bot
   const tmp = setupTempDir('atc-store-');
   const dbPath = join(tmp.dir, 'state.db');
 
-  const db = new Database(dbPath);
+  const older = new Database(dbPath);
 
   registerTestCleanup(() => {
-    db.close();
+    older.close();
   });
 
-  db.run(`
-    CREATE TABLE fleet (
-      claude_id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      cwd TEXT NOT NULL,
-      grp TEXT
-    );
-  `);
+  const db = new Kysely<StateStoreSchema>({ dialect: buildSQLiteDialect(older) });
 
-  db.run("INSERT INTO fleet (claude_id, name, cwd, grp) VALUES ('c1', 'old', '/x', 'squad-a')");
-  db.close();
+  await new Migrator({
+    db,
+    provider: { getMigrations: () => Promise.resolve(MIGRATIONS) },
+  }).migrateTo('001_create_initial_schema');
+
+  older.run("INSERT INTO fleet (claude_id, name, cwd) VALUES ('c1', 'old', '/x')");
+  older.close();
 
   const store = await StateStore.open(dbPath);
 
   registerTestCleanup(() => store.stop());
 
   const fleet = await store.loadFleet();
-
-  const reader = new Database(dbPath, { readonly: true });
-
-  registerTestCleanup(() => {
-    reader.close();
-  });
-
-  const legacyColumn = reader.query('SELECT grp FROM fleet').all();
 
   expect(fleet).toStrictEqual([
     {
@@ -891,36 +822,27 @@ test('it renames the id column and defaults agent for a store written before bot
       agent: 'claude',
     },
   ]);
-
-  expect(legacyColumn).toStrictEqual([{ grp: 'squad-a' }]);
 });
 
 test('it adds pinned to a fleet row that predates it', async () => {
   const tmp = setupTempDir('atc-store-');
   const dbPath = join(tmp.dir, 'state.db');
 
-  const db = new Database(dbPath);
+  const older = new Database(dbPath);
 
   registerTestCleanup(() => {
-    db.close();
+    older.close();
   });
 
-  db.run(`
-    CREATE TABLE fleet (
-      agent_session_id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      cwd TEXT NOT NULL,
-      last_attached INTEGER,
-      agent TEXT NOT NULL DEFAULT 'claude',
-      exited INTEGER NOT NULL DEFAULT 0
-    );
-  `);
+  const db = new Kysely<StateStoreSchema>({ dialect: buildSQLiteDialect(older) });
 
-  db.run(
-    "INSERT INTO fleet (agent_session_id, name, cwd, last_attached, agent, exited) VALUES ('c1', 'old', '/x', 555, 'grok', 1)",
-  );
+  await new Migrator({
+    db,
+    provider: { getMigrations: () => Promise.resolve(MIGRATIONS) },
+  }).migrateTo('002_rename_fleet_claude_id_to_agent_session_id');
 
-  db.close();
+  older.run("INSERT INTO fleet (agent_session_id, name, cwd) VALUES ('c1', 'old', '/x')");
+  older.close();
 
   const store = await StateStore.open(dbPath);
 
@@ -936,9 +858,7 @@ test('it adds pinned to a fleet row that predates it', async () => {
       name: 'old',
       cwd: '/x',
       agentSessionID: toAgentSessionID('c1'),
-      agent: 'grok',
-      lastAttachedAt: 555,
-      exited: true,
+      agent: 'claude',
     },
   ]);
 });
@@ -947,28 +867,24 @@ test('it adds the last-attached time to a fleet row that predates it', async () 
   const tmp = setupTempDir('atc-store-');
   const dbPath = join(tmp.dir, 'state.db');
 
-  const db = new Database(dbPath);
+  const older = new Database(dbPath);
 
   registerTestCleanup(() => {
-    db.close();
+    older.close();
   });
 
-  db.run(`
-    CREATE TABLE fleet (
-      agent_session_id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      cwd TEXT NOT NULL,
-      pinned INTEGER NOT NULL DEFAULT 0,
-      agent TEXT NOT NULL DEFAULT 'claude',
-      exited INTEGER NOT NULL DEFAULT 0
-    );
-  `);
+  const db = new Kysely<StateStoreSchema>({ dialect: buildSQLiteDialect(older) });
 
-  db.run(
-    "INSERT INTO fleet (agent_session_id, name, cwd, pinned, agent, exited) VALUES ('c1', 'old', '/x', 1, 'grok', 1)",
+  await new Migrator({
+    db,
+    provider: { getMigrations: () => Promise.resolve(MIGRATIONS) },
+  }).migrateTo('003_add_fleet_pinned');
+
+  older.run(
+    "INSERT INTO fleet (agent_session_id, name, cwd, pinned) VALUES ('c1', 'old', '/x', 1)",
   );
 
-  db.close();
+  older.close();
 
   const store = await StateStore.open(dbPath);
 
@@ -984,9 +900,8 @@ test('it adds the last-attached time to a fleet row that predates it', async () 
       name: 'old',
       cwd: '/x',
       agentSessionID: toAgentSessionID('c1'),
-      agent: 'grok',
+      agent: 'claude',
       pinned: true,
-      exited: true,
     },
   ]);
 });
@@ -995,28 +910,24 @@ test('it adds agent to a fleet row that predates it', async () => {
   const tmp = setupTempDir('atc-store-');
   const dbPath = join(tmp.dir, 'state.db');
 
-  const db = new Database(dbPath);
+  const older = new Database(dbPath);
 
   registerTestCleanup(() => {
-    db.close();
+    older.close();
   });
 
-  db.run(`
-    CREATE TABLE fleet (
-      agent_session_id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      cwd TEXT NOT NULL,
-      pinned INTEGER NOT NULL DEFAULT 0,
-      last_attached INTEGER,
-      exited INTEGER NOT NULL DEFAULT 0
-    );
-  `);
+  const db = new Kysely<StateStoreSchema>({ dialect: buildSQLiteDialect(older) });
 
-  db.run(
-    "INSERT INTO fleet (agent_session_id, name, cwd, pinned, last_attached, exited) VALUES ('c1', 'old', '/x', 1, 555, 1)",
+  await new Migrator({
+    db,
+    provider: { getMigrations: () => Promise.resolve(MIGRATIONS) },
+  }).migrateTo('004_add_fleet_last_attached');
+
+  older.run(
+    "INSERT INTO fleet (agent_session_id, name, cwd, pinned, last_attached) VALUES ('c1', 'old', '/x', 1, 555)",
   );
 
-  db.close();
+  older.close();
 
   const store = await StateStore.open(dbPath);
 
@@ -1035,7 +946,6 @@ test('it adds agent to a fleet row that predates it', async () => {
       agent: 'claude',
       pinned: true,
       lastAttachedAt: 555,
-      exited: true,
     },
   ]);
 });
@@ -1044,28 +954,24 @@ test('it adds exited to a fleet row that predates it', async () => {
   const tmp = setupTempDir('atc-store-');
   const dbPath = join(tmp.dir, 'state.db');
 
-  const db = new Database(dbPath);
+  const older = new Database(dbPath);
 
   registerTestCleanup(() => {
-    db.close();
+    older.close();
   });
 
-  db.run(`
-    CREATE TABLE fleet (
-      agent_session_id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      cwd TEXT NOT NULL,
-      pinned INTEGER NOT NULL DEFAULT 0,
-      last_attached INTEGER,
-      agent TEXT NOT NULL DEFAULT 'claude'
-    );
-  `);
+  const db = new Kysely<StateStoreSchema>({ dialect: buildSQLiteDialect(older) });
 
-  db.run(
+  await new Migrator({
+    db,
+    provider: { getMigrations: () => Promise.resolve(MIGRATIONS) },
+  }).migrateTo('005_add_fleet_agent');
+
+  older.run(
     "INSERT INTO fleet (agent_session_id, name, cwd, pinned, last_attached, agent) VALUES ('c1', 'old', '/x', 1, 555, 'grok')",
   );
 
-  db.close();
+  older.close();
 
   const store = await StateStore.open(dbPath);
 
@@ -1088,26 +994,9 @@ test('it adds exited to a fleet row that predates it', async () => {
   ]);
 });
 
-test('it runs every migration once on the first open of a legacy database', async () => {
+test('it runs every migration once on the first open of a fresh database', async () => {
   const tmp = setupTempDir('atc-store-');
   const dbPath = join(tmp.dir, 'state.db');
-
-  const legacy = new Database(dbPath);
-
-  registerTestCleanup(() => {
-    legacy.close();
-  });
-
-  legacy.run(`
-    CREATE TABLE fleet (
-      claude_id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      cwd TEXT NOT NULL
-    );
-  `);
-
-  legacy.run("INSERT INTO fleet (claude_id, name, cwd) VALUES ('c1', 'first', '/x')");
-  legacy.close();
 
   const store = await StateStore.open(dbPath);
 
@@ -1265,23 +1154,6 @@ test('it re-runs no migration when it reopens a migrated database', async () => 
   const tmp = setupTempDir('atc-store-');
   const dbPath = join(tmp.dir, 'state.db');
 
-  const legacy = new Database(dbPath);
-
-  registerTestCleanup(() => {
-    legacy.close();
-  });
-
-  legacy.run(`
-    CREATE TABLE fleet (
-      claude_id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      cwd TEXT NOT NULL
-    );
-  `);
-
-  legacy.run("INSERT INTO fleet (claude_id, name, cwd) VALUES ('c1', 'first', '/x')");
-  legacy.close();
-
   const first = await StateStore.open(dbPath);
 
   registerTestCleanup(() => first.stop());
@@ -1314,22 +1186,21 @@ test('it keeps the fleet of a migrated database across a reopen', async () => {
   const tmp = setupTempDir('atc-store-');
   const dbPath = join(tmp.dir, 'state.db');
 
-  const legacy = new Database(dbPath);
+  const older = new Database(dbPath);
 
   registerTestCleanup(() => {
-    legacy.close();
+    older.close();
   });
 
-  legacy.run(`
-    CREATE TABLE fleet (
-      claude_id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      cwd TEXT NOT NULL
-    );
-  `);
+  const db = new Kysely<StateStoreSchema>({ dialect: buildSQLiteDialect(older) });
 
-  legacy.run("INSERT INTO fleet (claude_id, name, cwd) VALUES ('c1', 'first', '/x')");
-  legacy.close();
+  await new Migrator({
+    db,
+    provider: { getMigrations: () => Promise.resolve(MIGRATIONS) },
+  }).migrateTo('001_create_initial_schema');
+
+  older.run("INSERT INTO fleet (claude_id, name, cwd) VALUES ('c1', 'first', '/x')");
+  older.close();
 
   const first = await StateStore.open(dbPath);
 
@@ -1371,18 +1242,10 @@ test('it ends a fresh database at the same fleet schema as a fully migrated old 
     old.close();
   });
 
-  old.run(`
-    CREATE TABLE fleet (
-      agent_session_id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      cwd TEXT NOT NULL,
-      pinned INTEGER NOT NULL DEFAULT 0,
-      last_attached INTEGER,
-      agent TEXT NOT NULL DEFAULT 'claude',
-      exited INTEGER NOT NULL DEFAULT 0,
-      parent TEXT
-    );
-  `);
+  await new Migrator({
+    db: new Kysely<StateStoreSchema>({ dialect: buildSQLiteDialect(old) }),
+    provider: { getMigrations: () => Promise.resolve(MIGRATIONS) },
+  }).migrateTo('007_add_fleet_parent');
 
   old.close();
 
@@ -1435,7 +1298,7 @@ test('it ends a fresh database at the same fleet schema as a fully migrated old 
   expect(freshSchema).toStrictEqual(oldSchema);
 });
 
-test('it loads claude as the last-used agent from a database that predates prefs', async () => {
+test('it refuses a database that holds a fleet table but no migration ledger', () => {
   const tmp = setupTempDir('atc-store-');
   const dbPath = join(tmp.dir, 'state.db');
 
@@ -1445,90 +1308,14 @@ test('it loads claude as the last-used agent from a database that predates prefs
     db.close();
   });
 
-  db.run(`
-    CREATE TABLE fleet (
-      claude_id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      cwd TEXT NOT NULL
-    );
-  `);
-
-  db.run(`
-    CREATE TABLE events (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      ts TEXT NOT NULL,
-      atc_id TEXT NOT NULL,
-      event TEXT NOT NULL,
-      message TEXT,
-      session_id TEXT
-    );
-  `);
-
-  db.run(`
-    CREATE TABLE spawn_history (
-      cwd TEXT PRIMARY KEY,
-      last_spawn INTEGER NOT NULL
-    );
-  `);
-
+  db.run('CREATE TABLE fleet (claude_id TEXT PRIMARY KEY, name TEXT NOT NULL, cwd TEXT NOT NULL);');
+  db.run("INSERT INTO fleet (claude_id, name, cwd) VALUES ('c1', 'first', '/x')");
   db.close();
 
-  const store = await StateStore.open(dbPath);
-
-  registerTestCleanup(() => store.stop());
-
-  const agent = await store.loadLastUsedAgent();
-
-  expect(agent).toBe('claude');
-});
-
-test('it records a last-used agent in a database that predates prefs', async () => {
-  const tmp = setupTempDir('atc-store-');
-  const dbPath = join(tmp.dir, 'state.db');
-
-  const db = new Database(dbPath);
-
-  registerTestCleanup(() => {
-    db.close();
-  });
-
-  db.run(`
-    CREATE TABLE fleet (
-      claude_id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      cwd TEXT NOT NULL
-    );
-  `);
-
-  db.run(`
-    CREATE TABLE events (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      ts TEXT NOT NULL,
-      atc_id TEXT NOT NULL,
-      event TEXT NOT NULL,
-      message TEXT,
-      session_id TEXT
-    );
-  `);
-
-  db.run(`
-    CREATE TABLE spawn_history (
-      cwd TEXT PRIMARY KEY,
-      last_spawn INTEGER NOT NULL
-    );
-  `);
-
-  db.close();
-
-  const store = await StateStore.open(dbPath);
-
-  registerTestCleanup(() => store.stop());
-
-  await store.writeLastUsedAgent('grok');
-
-  const agent = await store.loadLastUsedAgent();
-
-  expect(agent).toBe('grok');
+  expect(StateStore.open(dbPath)).rejects.toThrowWithMessage(
+    PreLadderDatabaseError,
+    'the state database predates the migration ladder; start atc 4.15.0 against it once to migrate it, then start this release',
+  );
 });
 
 test("it round-trips a fleet row's prompt, result, and transcript path", async () => {
@@ -3611,135 +3398,24 @@ test('it lists the other messages of one turn in send order when they share a se
   ]);
 });
 
-test('it links a legacy fleet.json sub-session to its parent by the minted session id', async () => {
-  const tmp = setupTempDir('atc-store-');
-  const legacy = join(tmp.dir, 'fleet.json');
-
-  writeFileSync(
-    legacy,
-    JSON.stringify([
-      { name: 'wrangler', cwd: '/z', agentSessionID: 'c-parent' },
-      { name: 'worker', cwd: '/z', agentSessionID: 'c-child', parent: 'c-parent' },
-    ]),
-  );
-
-  const store = await StateStore.open(join(tmp.dir, 'state.db'), legacy);
-
-  registerTestCleanup(() => store.stop());
-
-  const fleet = await store.loadFleet();
-
-  const parent = fleet.find((entry) => entry.name === 'wrangler');
-  const child = fleet.find((entry) => entry.name === 'worker');
-
-  invariant(parent !== undefined && child !== undefined, 'expected both seeded entries');
-
-  expect(fleet).toStrictEqual([
-    {
-      sessionID: expect.toSatisfy((id: string) =>
-        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/u.test(id),
-      ),
-      name: 'wrangler',
-      cwd: '/z',
-      agentSessionID: toAgentSessionID('c-parent'),
-      agent: 'claude',
-    },
-    {
-      sessionID: expect.toSatisfy((id: string) =>
-        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/u.test(id),
-      ),
-      name: 'worker',
-      cwd: '/z',
-      agentSessionID: toAgentSessionID('c-child'),
-      agent: 'claude',
-      parent: parent.sessionID,
-    },
-  ]);
-});
-
 test('it rebuilds a fleet at the model-and-effort shape keyed by a minted session id', async () => {
   const tmp = setupTempDir('atc-store-');
   const dbPath = join(tmp.dir, 'state.db');
 
-  const db = new Database(dbPath);
+  const older = new Database(dbPath);
 
   registerTestCleanup(() => {
-    db.close();
+    older.close();
   });
 
-  db.run(`
-    CREATE TABLE fleet (
-      agent_session_id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      cwd TEXT NOT NULL,
-      pinned INTEGER NOT NULL DEFAULT 0,
-      last_attached INTEGER,
-      agent TEXT NOT NULL DEFAULT 'claude',
-      exited INTEGER NOT NULL DEFAULT 0,
-      parent TEXT,
-      prompt TEXT,
-      result TEXT,
-      transcript_path TEXT,
-      model TEXT,
-      effort TEXT
-    );
-  `);
+  const db = new Kysely<StateStoreSchema>({ dialect: buildSQLiteDialect(older) });
 
-  db.run(`
-    CREATE TABLE events (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      ts TEXT NOT NULL,
-      atc_id TEXT NOT NULL,
-      event TEXT NOT NULL,
-      message TEXT,
-      session_id TEXT,
-      kind TEXT,
-      detail TEXT
-    );
-  `);
+  await new Migrator({
+    db,
+    provider: { getMigrations: () => Promise.resolve(MIGRATIONS) },
+  }).migrateTo('014_add_fleet_model_effort');
 
-  db.run('CREATE TABLE spawn_history (cwd TEXT PRIMARY KEY, last_spawn INTEGER NOT NULL);');
-  db.run('CREATE TABLE prefs (key TEXT PRIMARY KEY, value TEXT NOT NULL);');
-
-  db.run(`
-    CREATE TABLE messages (
-      id TEXT PRIMARY KEY,
-      atc_id TEXT NOT NULL,
-      agent_session_id TEXT,
-      sender TEXT NOT NULL,
-      text TEXT NOT NULL,
-      status TEXT NOT NULL,
-      sent_at INTEGER NOT NULL,
-      delivered_at INTEGER,
-      answered_at INTEGER,
-      answer TEXT,
-      turn_id TEXT
-    );
-  `);
-
-  db.run(
-    'CREATE TABLE kysely_migration (name VARCHAR(255) PRIMARY KEY NOT NULL, timestamp VARCHAR(255) NOT NULL);',
-  );
-
-  db.run(
-    'INSERT INTO kysely_migration (name, timestamp) VALUES ' +
-      "('001_create_initial_schema', 'then'), " +
-      "('002_rename_fleet_claude_id_to_agent_session_id', 'then'), " +
-      "('003_add_fleet_pinned', 'then'), " +
-      "('004_add_fleet_last_attached', 'then'), " +
-      "('005_add_fleet_agent', 'then'), " +
-      "('006_add_fleet_exited', 'then'), " +
-      "('007_add_fleet_parent', 'then'), " +
-      "('008_add_fleet_prompt_result_transcript', 'then'), " +
-      "('009_add_events_kind_detail', 'then'), " +
-      "('010_add_events_trail_indexes', 'then'), " +
-      "('011_create_messages', 'then'), " +
-      "('012_index_messages_by_owner', 'then'), " +
-      "('013_add_messages_turn_id', 'then'), " +
-      "('014_add_fleet_model_effort', 'then')",
-  );
-
-  db.run(
+  older.run(
     'INSERT INTO fleet (agent_session_id, name, cwd, pinned, last_attached, agent, exited, parent, prompt, result, transcript_path, model, effort) VALUES ' +
       "('c-parent', 'wrangler', '/x', 1, 555, 'claude', 0, NULL, 'go', 'done', '/t.jsonl', 'opus', 'high'), " +
       "('c-child', 'worker', '/x', 0, NULL, 'claude', 1, 'c-parent', NULL, NULL, NULL, NULL, NULL), " +
@@ -3747,7 +3423,7 @@ test('it rebuilds a fleet at the model-and-effort shape keyed by a minted sessio
       "(NULL, 'unreported', '/x', 0, NULL, 'claude', 1, NULL, NULL, NULL, NULL, NULL, NULL)",
   );
 
-  db.close();
+  older.close();
 
   const store = await StateStore.open(dbPath);
 
@@ -3876,30 +3552,24 @@ test('it records this daemon as the owner of every fleet row it migrates', async
   const tmp = setupTempDir('atc-store-');
   const dbPath = join(tmp.dir, 'state.db');
 
-  const db = new Database(dbPath);
+  const older = new Database(dbPath);
 
   registerTestCleanup(() => {
-    db.close();
+    older.close();
   });
 
-  db.run(`
-    CREATE TABLE fleet (
-      agent_session_id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      cwd TEXT NOT NULL,
-      pinned INTEGER NOT NULL DEFAULT 0,
-      last_attached INTEGER,
-      agent TEXT NOT NULL DEFAULT 'claude',
-      exited INTEGER NOT NULL DEFAULT 0,
-      parent TEXT
-    );
-  `);
+  const db = new Kysely<StateStoreSchema>({ dialect: buildSQLiteDialect(older) });
 
-  db.run(
+  await new Migrator({
+    db,
+    provider: { getMigrations: () => Promise.resolve(MIGRATIONS) },
+  }).migrateTo('007_add_fleet_parent');
+
+  older.run(
     "INSERT INTO fleet (agent_session_id, name, cwd) VALUES ('c1', 'one', '/x'), ('c2', 'two', '/y')",
   );
 
-  db.close();
+  older.close();
 
   const store = await StateStore.open(dbPath);
 

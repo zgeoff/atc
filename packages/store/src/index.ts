@@ -1,5 +1,5 @@
 export * from './build-target-identity';
-export * from './fleet-entry';
+export type * from './fleet-entry';
 export type * from './idempotency-record';
 export type * from './message-owner';
 export type * from './message-record';

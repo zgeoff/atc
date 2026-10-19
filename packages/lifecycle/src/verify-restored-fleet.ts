@@ -187,19 +187,11 @@ async function collectFailedRows(
 
   const byID = new Map(sessions.map((session) => [String(session['id']), session]));
 
-  const byAgentID = new Map(
-    sessions
-      .filter((session) => typeof session['agentSessionID'] === 'string')
-      .map((session) => [String(session['agentSessionID']), session]),
-  );
-
   const failed: RestartFailedRow[] = [];
   let pending = false;
 
   for (const row of stored) {
-    const session =
-      byID.get(row.id) ??
-      (row.agentSessionID === null ? undefined : byAgentID.get(row.agentSessionID));
+    const session = byID.get(row.id);
 
     if (session === undefined) {
       failed.push({ name: row.name, id: row.id, reason: 'not listed after the restore' });

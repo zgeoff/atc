@@ -12,7 +12,6 @@ test('it puts the sockets and the pid file in the runtime folder the environment
     statusFile: '/home/u/.local/state/atc/status.json',
     dbFile: '/home/u/.local/state/atc/atc.db',
     mcpAuthDBFile: '/home/u/.local/state/atc/mcp-auth.db',
-    legacyFleetFile: '/home/u/.local/state/atc/fleet.json',
     daemonRecordFile: '/home/u/.local/state/atc/daemon.json',
     restartsDir: '/home/u/.local/state/atc/restarts',
     restartLockFile: '/home/u/.local/state/atc/daemon-restart.lock',

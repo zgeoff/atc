@@ -6,17 +6,13 @@ test('it builds a default stored row', () => {
     id: expect.toBeString(),
     name: expect.toBeString(),
     exited: false,
-    agentSessionID: null,
   });
 });
 
 test('it applies overrides on top of the defaults', () => {
-  expect(
-    buildMockStoredRow({ id: 's-kept', exited: true, agentSessionID: 'c-kept' }),
-  ).toStrictEqual({
+  expect(buildMockStoredRow({ id: 's-kept', exited: true })).toStrictEqual({
     id: 's-kept',
     name: expect.toBeString(),
     exited: true,
-    agentSessionID: 'c-kept',
   });
 });

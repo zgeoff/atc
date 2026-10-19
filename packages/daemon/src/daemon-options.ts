@@ -38,10 +38,8 @@ export interface DaemonOptions {
   // no principals, which leaves every principal the implicit local target.
   readonly principals?: ReadonlyMap<string, readonly string[]> | null;
 
-  // SQLite path for daemon state; a fleet.json at legacyFleetPath seeds the
-  // fleet table once so upgrading keeps the restorable fleet.
+  // SQLite path for daemon state.
   readonly dbPath: string;
-  readonly legacyFleetPath?: string;
 
   // When set, the daemon's pid is written here and removed on stop.
   readonly pidPath?: string;

@@ -1,16 +1,13 @@
 import type { Database } from 'bun:sqlite';
-import { randomUUID } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
 import type { AgentID, AgentSessionID, DaemonID, MessageID, SessionID } from '@atc/core';
-import { systemClock, toAgentID, toDaemonID, toSessionID } from '@atc/core';
+import { systemClock, toAgentID, toDaemonID } from '@atc/core';
 import type { AdapterEvent, PublishedRecord } from '@atc/protocol';
 import type { HookEvent } from '@atc/protocol/session';
 import { Kysely } from 'kysely';
 import type { CompiledQuery, LogEvent } from 'kysely';
 import { AuthBindingStore } from './auth-binding-store';
 import { EventTrailStore } from './event-trail-store';
-import { parseFleetEntry } from './fleet-entry';
-import type { FleetEntry, FleetEntryUpdate, LegacyFleetEntry } from './fleet-entry';
+import type { FleetEntry, FleetEntryUpdate } from './fleet-entry';
 import { FleetStore } from './fleet-store';
 import type { EffectTarget, IdempotencyClaim, IdempotencyRecord } from './idempotency-record';
 import { IdempotencyStore } from './idempotency-store';
@@ -98,11 +95,7 @@ export class StateStore {
   // Migrations run statements that cannot happen inside a constructor, so
   // opening a store is this factory instead of `new`. A caller that passes
   // a query listener receives each statement the store runs once it ran.
-  static async open(
-    dbPath: string,
-    legacyFleetPath?: string,
-    onQuery?: (query: CompiledQuery) => void,
-  ): Promise<StateStore> {
+  static async open(dbPath: string, onQuery?: (query: CompiledQuery) => void): Promise<StateStore> {
     const sqlite = openSQLite(dbPath);
 
     const db = new Kysely<StateStoreSchema>({
@@ -118,7 +111,14 @@ export class StateStore {
           }),
     });
 
-    await runMigrations(db);
+    try {
+      await runMigrations(db);
+    } catch (error) {
+      await db.destroy();
+
+      sqlite.close();
+      throw error;
+    }
 
     const daemonIDRow = await db
       .selectFrom('prefs')
@@ -126,13 +126,7 @@ export class StateStore {
       .where('key', '=', 'daemon_id')
       .executeTakeFirstOrThrow();
 
-    const store = new StateStore(sqlite, db, toDaemonID(daemonIDRow.value), dbPath);
-
-    if (legacyFleetPath !== undefined) {
-      await store.adoptLegacyFleet(legacyFleetPath);
-    }
-
-    return store;
+    return new StateStore(sqlite, db, toDaemonID(daemonIDRow.value), dbPath);
   }
 
   loadFleet(): Promise<FleetEntry[]> {
@@ -495,52 +489,4 @@ export class StateStore {
   [Symbol.asyncDispose](): Promise<void> {
     return this.stop();
   }
-
-  private async adoptLegacyFleet(legacyFleetPath: string): Promise<void> {
-    const count = await this.db
-      .selectFrom('fleet')
-      .select(this.db.fn.countAll<number>().as('n'))
-      .executeTakeFirst();
-
-    if (count === undefined || count.n > 0 || !existsSync(legacyFleetPath)) {
-      return;
-    }
-
-    try {
-      const parsed: unknown = JSON.parse(readFileSync(legacyFleetPath, 'utf8'));
-
-      if (!Array.isArray(parsed)) {
-        return;
-      }
-
-      const legacy: LegacyFleetEntry[] = [];
-
-      for (const entry of parsed) {
-        const parsedEntry = parseFleetEntry(entry);
-
-        if (parsedEntry !== undefined) {
-          legacy.push(parsedEntry);
-        }
-      }
-
-      await this.writeFleet(buildFleetFromLegacy(legacy));
-    } catch {}
-  }
-}
-
-// Mints each legacy entry an atc session id, then moves each sub-session
-// link from the parent's agent session id to the parent's minted id.
-function buildFleetFromLegacy(legacy: readonly LegacyFleetEntry[]): FleetEntry[] {
-  const minted = new Map(legacy.map((entry) => [entry.agentSessionID, toSessionID(randomUUID())]));
-
-  return legacy.map((entry) => {
-    const { parent, ...rest } = entry;
-    const parentID = parent === undefined ? undefined : minted.get(parent);
-
-    return {
-      ...rest,
-      sessionID: minted.get(entry.agentSessionID) ?? toSessionID(randomUUID()),
-      ...(parentID === undefined ? {} : { parent: parentID }),
-    };
-  });
 }

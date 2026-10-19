@@ -11,7 +11,6 @@ export function buildMockStoredRow(
       id: faker.string.uuid(),
       name: faker.word.noun(),
       exited: false,
-      agentSessionID: null,
     },
     overrides,
   );

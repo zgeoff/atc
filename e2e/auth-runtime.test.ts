@@ -4061,7 +4061,7 @@ test('it lists a restore refused for a changed auth selection with the rebind hi
   const verdict = await verifyRestoredFleet(
     daemon.client,
     60,
-    [{ id, name: 'cloud-review', exited: false, agentSessionID: 'a1' }],
+    [{ id, name: 'cloud-review', exited: false }],
     systemClock,
     15_000,
   );
@@ -4147,7 +4147,7 @@ test('it reports a restore refused for a dropped auth block in the restart check
   const verdict = await verifyRestoredFleet(
     daemon.client,
     60,
-    [{ id, name: 'gateway-docs', exited: false, agentSessionID: 'a1' }],
+    [{ id, name: 'gateway-docs', exited: false }],
     systemClock,
     15_000,
   );

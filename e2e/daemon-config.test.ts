@@ -1,7 +1,10 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { toAgentSessionID } from '@atc/core';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
+import { StateStore } from '@atc/store';
+import { buildMockFleetEntry } from '@atc/store/testing';
 import {
   createStubClaude,
   createStubCodex,
@@ -10,6 +13,7 @@ import {
   getRecord,
   getRecords,
   getString,
+  registerTestCleanup,
   resolveATCCommand,
   setupTempDir,
   waitFor,
@@ -337,15 +341,25 @@ test('it restores the stored fleet by itself when the config leaves restoreFleet
   writeFileSync(join(ctx.home, 'fake-claude-own-id'), '');
   mkdirSync(join(ctx.home, '.local', 'state', 'atc'), { recursive: true });
 
-  // A fleet.json from before the state store existed: the daemon imports it
-  // into atc.db on its first boot.
-  writeFileSync(
-    join(ctx.home, '.local', 'state', 'atc', 'fleet.json'),
-    JSON.stringify([
-      { name: 'one', cwd: ctx.home, agentSessionID: 'fake-a' },
-      { name: 'two', cwd: ctx.home, agentSessionID: 'fake-b' },
-    ]),
-  );
+  // The fleet a daemon that already ran here left behind.
+  const seed = await StateStore.open(join(ctx.home, '.local', 'state', 'atc', 'atc.db'));
+
+  registerTestCleanup(() => seed.stop());
+
+  await seed.writeFleet([
+    buildMockFleetEntry({
+      name: 'one',
+      cwd: ctx.home,
+      agentSessionID: toAgentSessionID('fake-a'),
+    }),
+    buildMockFleetEntry({
+      name: 'two',
+      cwd: ctx.home,
+      agentSessionID: toAgentSessionID('fake-b'),
+    }),
+  ]);
+
+  await seed.stop();
 
   const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
@@ -371,4 +385,34 @@ test('it restores the stored fleet by itself when the config leaves restoreFleet
   });
 
   expect(sessions.map((session) => session['name'])).toIncludeSameMembers(['one', 'two']);
+});
+
+test('it starts with an empty fleet beside a fleet.json and no state database', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(ctx.configPath, JSON.stringify({ agents: { claude: { bin: ctx.claude } } }));
+  mkdirSync(join(ctx.home, '.local', 'state', 'atc'), { recursive: true });
+
+  writeFileSync(
+    join(ctx.home, '.local', 'state', 'atc', 'fleet.json'),
+    JSON.stringify([
+      { name: 'one', cwd: ctx.home, agentSessionID: 'fake-a' },
+      { name: 'two', cwd: ctx.home, agentSessionID: 'fake-b' },
+    ]),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  // The daemon opens its store before it answers the hello.
+  await client.sendHello('atc/test');
+
+  const store = await StateStore.open(join(ctx.home, '.local', 'state', 'atc', 'atc.db'));
+
+  registerTestCleanup(() => store.stop());
+
+  const fleet = await store.loadFleet();
+
+  expect(fleet).toStrictEqual([]);
 });
