@@ -1,6 +1,6 @@
 import { isRecord } from '@atc/core';
 import type { StandardRequest } from '@orpc/standard-server';
-import { PEER_SERIALIZER } from './peer-codec';
+import { PEER_SERIALIZER } from './peer-serializer';
 
 // The params a peer request carries, decoded by the serializer the
 // handler's codec decodes them with, before the procedure's schema checks

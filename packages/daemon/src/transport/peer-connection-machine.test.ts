@@ -24,45 +24,45 @@ test('it starts awaiting the handshake', () => {
 });
 
 test.each([
-  ['awaiting', [], 'HELLO', 'checking'],
-  ['awaiting', [], 'ACCEPT', 'awaiting'],
-  ['awaiting', [], 'REFUSE', 'refusing'],
-  ['awaiting', [], 'DRAINED', 'awaiting'],
-  ['awaiting', [], 'END', 'closing'],
-  ['awaiting', [], 'CLOSE', 'closed'],
-  ['checking', ['HELLO'], 'HELLO', 'checking'],
-  ['checking', ['HELLO'], 'ACCEPT', 'open'],
-  ['checking', ['HELLO'], 'REFUSE', 'refusing'],
-  ['checking', ['HELLO'], 'DRAINED', 'checking'],
-  ['checking', ['HELLO'], 'END', 'closing'],
-  ['checking', ['HELLO'], 'CLOSE', 'closed'],
-  ['open', ['HELLO', 'ACCEPT'], 'HELLO', 'open'],
-  ['open', ['HELLO', 'ACCEPT'], 'ACCEPT', 'open'],
-  ['open', ['HELLO', 'ACCEPT'], 'REFUSE', 'open'],
-  ['open', ['HELLO', 'ACCEPT'], 'DRAINED', 'open'],
-  ['open', ['HELLO', 'ACCEPT'], 'END', 'closing'],
-  ['open', ['HELLO', 'ACCEPT'], 'CLOSE', 'closed'],
-  ['refusing', ['REFUSE'], 'HELLO', 'refusing'],
-  ['refusing', ['REFUSE'], 'ACCEPT', 'refusing'],
-  ['refusing', ['REFUSE'], 'REFUSE', 'refusing'],
-  ['refusing', ['REFUSE'], 'DRAINED', 'closing'],
-  ['refusing', ['REFUSE'], 'END', 'closing'],
-  ['refusing', ['REFUSE'], 'CLOSE', 'closed'],
-  ['closing', ['END'], 'HELLO', 'closing'],
-  ['closing', ['END'], 'ACCEPT', 'closing'],
-  ['closing', ['END'], 'REFUSE', 'closing'],
-  ['closing', ['END'], 'DRAINED', 'closing'],
-  ['closing', ['END'], 'END', 'closing'],
-  ['closing', ['END'], 'CLOSE', 'closed'],
-  ['closed', ['CLOSE'], 'HELLO', 'closed'],
-  ['closed', ['CLOSE'], 'ACCEPT', 'closed'],
-  ['closed', ['CLOSE'], 'REFUSE', 'closed'],
-  ['closed', ['CLOSE'], 'DRAINED', 'closed'],
-  ['closed', ['CLOSE'], 'END', 'closed'],
-  ['closed', ['CLOSE'], 'CLOSE', 'closed'],
+  ['awaiting', [], 'HELLO', 'checking', 0, 0],
+  ['awaiting', [], 'ACCEPT', 'awaiting', 0, 0],
+  ['awaiting', [], 'REFUSE', 'refusing', 0, 0],
+  ['awaiting', [], 'DRAINED', 'awaiting', 0, 0],
+  ['awaiting', [], 'END', 'closing', 1, 0],
+  ['awaiting', [], 'CLOSE', 'closed', 1, 1],
+  ['checking', ['HELLO'], 'HELLO', 'checking', 0, 0],
+  ['checking', ['HELLO'], 'ACCEPT', 'open', 0, 0],
+  ['checking', ['HELLO'], 'REFUSE', 'refusing', 0, 0],
+  ['checking', ['HELLO'], 'DRAINED', 'checking', 0, 0],
+  ['checking', ['HELLO'], 'END', 'closing', 1, 0],
+  ['checking', ['HELLO'], 'CLOSE', 'closed', 1, 1],
+  ['open', ['HELLO', 'ACCEPT'], 'HELLO', 'open', 0, 0],
+  ['open', ['HELLO', 'ACCEPT'], 'ACCEPT', 'open', 0, 0],
+  ['open', ['HELLO', 'ACCEPT'], 'REFUSE', 'open', 0, 0],
+  ['open', ['HELLO', 'ACCEPT'], 'DRAINED', 'open', 0, 0],
+  ['open', ['HELLO', 'ACCEPT'], 'END', 'closing', 1, 0],
+  ['open', ['HELLO', 'ACCEPT'], 'CLOSE', 'closed', 1, 1],
+  ['refusing', ['REFUSE'], 'HELLO', 'refusing', 0, 0],
+  ['refusing', ['REFUSE'], 'ACCEPT', 'refusing', 0, 0],
+  ['refusing', ['REFUSE'], 'REFUSE', 'refusing', 0, 0],
+  ['refusing', ['REFUSE'], 'DRAINED', 'closing', 1, 0],
+  ['refusing', ['REFUSE'], 'END', 'closing', 1, 0],
+  ['refusing', ['REFUSE'], 'CLOSE', 'closed', 1, 1],
+  ['closing', ['END'], 'HELLO', 'closing', 1, 0],
+  ['closing', ['END'], 'ACCEPT', 'closing', 1, 0],
+  ['closing', ['END'], 'REFUSE', 'closing', 1, 0],
+  ['closing', ['END'], 'DRAINED', 'closing', 1, 0],
+  ['closing', ['END'], 'END', 'closing', 1, 0],
+  ['closing', ['END'], 'CLOSE', 'closed', 2, 1],
+  ['closed', ['CLOSE'], 'HELLO', 'closed', 1, 1],
+  ['closed', ['CLOSE'], 'ACCEPT', 'closed', 1, 1],
+  ['closed', ['CLOSE'], 'REFUSE', 'closed', 1, 1],
+  ['closed', ['CLOSE'], 'DRAINED', 'closed', 1, 1],
+  ['closed', ['CLOSE'], 'END', 'closed', 1, 1],
+  ['closed', ['CLOSE'], 'CLOSE', 'closed', 1, 1],
 ] as const)(
-  'it moves a %s connection, reached through %p, on %s to %s',
-  (_from, before, event, expected) => {
+  'it moves a %s connection, reached through %p, on %s to %s, having ended its socket %d times and released it %d times',
+  (_from, before, event, expected, ends, releases) => {
     const ctx = setupTest();
 
     for (const type of before) {
@@ -72,6 +72,8 @@ test.each([
     ctx.actor.send({ type: event });
 
     expect(ctx.actor.getSnapshot().value).toBe(expected);
+    expect(ctx.endSocket).toHaveBeenCalledTimes(ends);
+    expect(ctx.releaseConnection).toHaveBeenCalledTimes(releases);
   },
 );
 

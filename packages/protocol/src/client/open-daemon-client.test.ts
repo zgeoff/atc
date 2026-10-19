@@ -1,4 +1,6 @@
-import { expect, mock, onTestFinished, test } from 'bun:test';
+import { expect, mock, onTestFinished, spyOn, test } from 'bun:test';
+import { createServer } from 'node:net';
+import type { Socket } from 'node:net';
 import { join } from 'node:path';
 import { setupTempDir, startStubPeerDaemon, waitFor } from '@atc/test-utils';
 import type { StubPeerAnswer, StubPeerRequest } from '@atc/test-utils';
@@ -196,5 +198,161 @@ test('it closes the connection with the reason when the daemon refuses its event
   expect(client.sendRequest('daemon.ping')).rejects.toMatchObject({
     code: 'internal',
     message: 'the event subscription failed: a request over TCP must act as a principal',
+  });
+});
+
+test("it sends a typed procedure call as the client's principal when the call gives none", async () => {
+  const ctx = setupTest();
+  const requests: StubPeerRequest[] = [];
+
+  startStubPeerDaemon(ctx.socketPath, {
+    answer: (request) => {
+      requests.push(request);
+
+      return { ok: { sessions: [] } };
+    },
+  });
+
+  const client = await openDaemonClient(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  client.principal = 'ci';
+
+  await client.procedures.session.list({});
+
+  expect(requests).toStrictEqual([
+    { method: 'session.list', params: {}, as: 'ci', asName: undefined },
+  ]);
+});
+
+test('it delivers every request whole once a reader that took nothing reads again', async () => {
+  const ctx = setupTest();
+  const lines: string[] = [];
+  const reading = Promise.withResolvers<Socket>();
+  let buffered = '';
+
+  const server = createServer((socket) => {
+    socket.pause();
+    socket.setEncoding('utf8');
+
+    socket.on('data', (chunk: string) => {
+      buffered += chunk;
+
+      const split = buffered.split('\n');
+
+      buffered = split.pop() ?? '';
+
+      lines.push(...split);
+    });
+
+    reading.resolve(socket);
+  });
+
+  server.listen(ctx.socketPath);
+
+  onTestFinished(() => {
+    server.close();
+  });
+
+  const client = await openDaemonClient(ctx.socketPath);
+
+  // The requests stay unanswered, and the stop rejects them.
+  const sent = Array.from({ length: 10 }, (_, index) =>
+    client.sendRequest('session.message', { session: 's-1', text: `${index}`.repeat(200_000) }),
+  );
+
+  onTestFinished(async () => {
+    client.stop();
+
+    await Promise.allSettled(sent);
+  });
+
+  const socket = await reading.promise;
+
+  socket.resume();
+
+  await waitFor(() => {
+    expect(lines).toHaveLength(10);
+  });
+
+  const texts = lines.map((line) => {
+    const parsed: unknown = JSON.parse(line);
+
+    return JSON.stringify(parsed).length;
+  });
+
+  expect(texts).toSatisfyAll((length: number) => length > 200_000);
+});
+
+test('it hands the answer handler each method and answer before the request resolves', async () => {
+  const ctx = setupTest();
+
+  startStubPeerDaemon(ctx.socketPath, { answer: () => ({ ok: { sessions: [] } }) });
+
+  const client = await openDaemonClient(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  const seen: unknown[] = [];
+  let isResolved = false;
+
+  client.onAnswer = (method, ok) => {
+    seen.push({ method, ok, isResolved });
+  };
+
+  await client.sendRequest('session.list');
+
+  isResolved = true;
+
+  expect(seen).toStrictEqual([{ method: 'session.list', ok: { sessions: [] }, isResolved: false }]);
+});
+
+test('it rejects a request as internal when the answer handler throws', async () => {
+  const ctx = setupTest();
+
+  startStubPeerDaemon(ctx.socketPath, { answer: () => ({ ok: { sessions: [] } }) });
+
+  const client = await openDaemonClient(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  client.onAnswer = () => {
+    throw new Error('the handler broke');
+  };
+
+  expect(client.sendRequest('session.list')).rejects.toMatchObject({
+    code: 'internal',
+    message: 'Error: the handler broke',
+  });
+});
+
+test('it reports a close handler that throws instead of leaving it unhandled', async () => {
+  const ctx = setupTest();
+  const daemon = startStubPeerDaemon(ctx.socketPath, { answer: () => 'silent' });
+  const reported = spyOn(console, 'error').mockImplementation(() => {});
+
+  onTestFinished(() => {
+    reported.mockRestore();
+  });
+
+  const client = await openDaemonClient(ctx.socketPath);
+
+  client.onClose = () => {
+    throw new Error('the close handler broke');
+  };
+
+  daemon.stop();
+
+  await waitFor(() => {
+    expect(reported).toHaveBeenCalledWith(
+      "atc: the daemon client's close handler failed: Error: the close handler broke",
+    );
   });
 });

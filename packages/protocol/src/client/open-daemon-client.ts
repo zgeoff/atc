@@ -28,6 +28,9 @@ interface ClientConnection {
 
   // The lines read so far, each handed to the peer after the one before.
   inbound: Promise<void>;
+
+  // The principal a call acts as when it gives none: the client's own.
+  findDefaultPrincipal: () => string | null;
 }
 
 const QUEUE_BYTES = 8 * 1024 * 1024;
@@ -79,7 +82,11 @@ function createClientConnection(): ClientConnection {
     },
     {
       url: 'http://orpc',
-      headers: (options) => buildPrincipalHeaders(options.context),
+      headers: (options) =>
+        buildPrincipalHeaders({
+          ...options.context,
+          as: options.context.as ?? conn.findDefaultPrincipal() ?? undefined,
+        }),
       interceptors: [
         async (options) => {
           try {
@@ -102,6 +109,7 @@ function createClientConnection(): ClientConnection {
     socket: null,
     events: null,
     inbound: Promise.resolve(),
+    findDefaultPrincipal: () => null,
   };
 
   return conn;
@@ -135,6 +143,8 @@ function buildDaemonClient(conn: ClientConnection): DaemonClient {
     },
   };
 
+  conn.findDefaultPrincipal = () => client.principal ?? null;
+
   return client;
 }
 
@@ -156,7 +166,12 @@ function buildSocketHandlers(conn: ClientConnection, client: DaemonClient): Sock
 
         drainPending(conn, 'connection closed');
 
-        client.onClose();
+        // A close handler that throws is reported, never left unhandled.
+        try {
+          client.onClose();
+        } catch (error) {
+          console.error(`atc: the daemon client's close handler failed: ${String(error)}`);
+        }
       })();
     },
     error() {},
