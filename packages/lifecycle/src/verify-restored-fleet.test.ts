@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { toSessionID } from '@atc/core';
+import { toAgentSessionID, toSessionID } from '@atc/core';
 import { openDaemonClient } from '@atc/protocol/client';
 import { buildMockStoredRow } from '@atc/store/testing';
 import {
@@ -141,6 +141,45 @@ test('it fails a row at once when its agent is not in the config', async () => {
   });
 
   expect(ctx.daemon.methods).toStrictEqual(['fleet.restore', 'agents.list', 'session.list']);
+});
+
+test('it fails a stored row that only a session with another id shares an agent session with', async () => {
+  const ctx = await setupTest();
+
+  const clock = buildStubClock(0);
+
+  ctx.daemon.lists.push(
+    {
+      fleet: [
+        {
+          sessionID: 's-old',
+          name: 'old',
+          cwd: '/work',
+          agent: 'claude',
+          exited: false,
+          agentSessionID: 'a-1',
+        },
+      ],
+    },
+    { agents: [buildMockListedAgent({ id: 'claude' })] },
+    {
+      sessions: [
+        buildMockSessionDescriptor({
+          id: toSessionID('s-other'),
+          agentSessionID: toAgentSessionID('a-1'),
+          kind: 'pty',
+          alive: true,
+        }),
+      ],
+    },
+  );
+
+  const outcome = await verifyRestoredFleet(ctx.client, 60, null, clock, 15_000);
+
+  expect(outcome).toStrictEqual({
+    total: 1,
+    failed: [{ name: 'old', id: 's-old', reason: 'not listed after the restore' }],
+  });
 });
 
 test('it fails a row at once with its refusal when its restore was refused for good', async () => {
