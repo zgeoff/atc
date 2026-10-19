@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { buildStubGHCommand } from '@atc/test-utils';
-import { readGitHubRepos } from './collect-github-repos';
+import { readGitHubRepos } from './read-github-repos';
 
 test("it lists the requested owner's repositories with the gh clone protocol", async () => {
   const gh = buildStubGHCommand({

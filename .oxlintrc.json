@@ -6,14 +6,6 @@
     "es2024": true
   },
   "rules": {
-    "zgeoff/function-verb": [
-      "error",
-      {
-        // Bun.serve calls a request handler named fetch, and kysely's Driver
-        // interface names executeQuery, so each library fixes the name
-        "exemptNames": ["fetch", "executeQuery"]
-      }
-    ],
     // Bun's synchronous spawn can lose a child's exit and spin its caller
     // forever (oven-sh/bun#34069); an async spawn keeps the caller's event
     // loop and its timeouts alive. The property rule catches access and

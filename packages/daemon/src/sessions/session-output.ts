@@ -69,7 +69,7 @@ export class SessionOutput {
       runtime.lastOutputAt = this.clock.now();
     }
 
-    const conns = this.attachments.readClientViews(s.id);
+    const conns = this.attachments.collectClients(s.id);
 
     if (conns.length === 0) {
       return;

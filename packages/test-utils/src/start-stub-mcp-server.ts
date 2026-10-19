@@ -20,20 +20,22 @@ interface StubMCPServer {
 export function startStubMCPServer(answer: unknown): StubMCPServer {
   const requests: StubMCPRequest[] = [];
 
+  const answerRequest = async (request: Request) => {
+    requests.push({
+      method: request.method,
+      path: new URL(request.url).pathname,
+      authorization: request.headers.get('authorization'),
+      type: request.headers.get('content-type'),
+      body: await request.json(),
+    });
+
+    return Response.json(answer);
+  };
+
   const server = Bun.serve({
     hostname: '127.0.0.1',
     port: 0,
-    async fetch(request) {
-      requests.push({
-        method: request.method,
-        path: new URL(request.url).pathname,
-        authorization: request.headers.get('authorization'),
-        type: request.headers.get('content-type'),
-        body: await request.json(),
-      });
-
-      return Response.json(answer);
-    },
+    fetch: answerRequest,
   });
 
   const stop = registerTestCleanup(() => server.stop(true));

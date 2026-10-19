@@ -543,7 +543,7 @@ src/sources/collect-builtin-sources.ts	app	plugins	packages/app/src/plugins/coll
 src/sources/dirs/build-dirs-source.ts	source-dirs		packages/sources/dirs/src/build-dirs-source.ts	
 src/sources/git/build-git-source.ts	source-git		packages/sources/git/src/build-git-source.ts	
 src/sources/github/build-github-source.ts	source-github		packages/sources/github/src/build-github-source.ts	
-src/sources/github/collect-github-repos.ts	source-github		packages/sources/github/src/collect-github-repos.ts	
+src/sources/github/read-github-repos.ts	source-github		packages/sources/github/src/read-github-repos.ts	
 src/sources/github/find-github-alternate-url.ts	source-github		packages/sources/github/src/find-github-alternate-url.ts	
 src/sources/github/read-git-protocol.ts	source-github		packages/sources/github/src/read-git-protocol.ts	
 src/sources/github/run-gh.ts	plugin-api		packages/plugin-api/src/run-gh.ts	in plugin-api: the GitHub source and the daemon (check-session-scope) both use it

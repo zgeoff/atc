@@ -1,6 +1,7 @@
 import { isRecord, systemClock } from '@atc/core';
 import type { Clock } from '@atc/core';
 import { MAX_LINE } from '@atc/protocol/wire';
+import type { Server } from 'bun';
 import { answerAuthorizeRequest } from './answer-authorize-request';
 import { answerConsentRequest } from './answer-consent-request';
 import { answerEnrollRequest } from './answer-enroll-request';
@@ -112,6 +113,65 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
     hosts: new Set(),
   };
 
+  const answerRequest = async (request: Request, bunServer: Server<undefined>) => {
+    const startedAt = performance.now();
+    const state = holder.ready;
+    let rpc: RPCLabel | null = null;
+    let response: Response;
+
+    const path = new URL(request.url).pathname;
+
+    // The socket's peer is the requester, or the proxy or tunnel in front
+    // of atc. Only a listed peer vouches for the forwarded address.
+    const socketAddress = bunServer.requestIP(request)?.address ?? null;
+    const connectingIP = request.headers.get('cf-connecting-ip');
+
+    const requester: Requester = {
+      socketAddress,
+      connectingIP:
+        connectingIP === null
+          ? null
+          : {
+              address: connectingIP,
+              provenance:
+                socketAddress !== null && trustedProxies.has(socketAddress)
+                  ? 'trusted'
+                  : 'unverified',
+            },
+      userAgent: request.headers.get('user-agent'),
+    };
+
+    if (options.probes === true && PROBE_PATHS.has(path)) {
+      response = answerProbeRequest(request, path, holder.hosts, state !== null);
+
+      if (response.status === 403) {
+        security.record({
+          kind: 'authorize_invalid',
+          outcome: 'rejected',
+          reason: 'bad_host',
+          path,
+          requester,
+        });
+      }
+    } else if (state === null) {
+      response = new Response(null, { status: 503 });
+    } else {
+      try {
+        response = await answerHTTPRequest(state, request, requester, (label) => {
+          rpc = label;
+        });
+      } catch {
+        response = new Response(null, { status: 503 });
+      }
+    }
+
+    options.printRequest(
+      formatRequestLine(request, rpc, response.status, performance.now() - startedAt),
+    );
+
+    return response;
+  };
+
   const server = Bun.serve({
     hostname: options.host,
     port: options.port,
@@ -119,64 +179,7 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
     // A long poll holds a request open for up to 30 seconds without a byte.
     idleTimeout: 60,
     maxRequestBodySize: MAX_LINE,
-    fetch: async (request, bunServer) => {
-      const startedAt = performance.now();
-      const state = holder.ready;
-      let rpc: RPCLabel | null = null;
-      let response: Response;
-
-      const path = new URL(request.url).pathname;
-
-      // The socket's peer is the requester, or the proxy or tunnel in front
-      // of atc. Only a listed peer vouches for the forwarded address.
-      const socketAddress = bunServer.requestIP(request)?.address ?? null;
-      const connectingIP = request.headers.get('cf-connecting-ip');
-
-      const requester: Requester = {
-        socketAddress,
-        connectingIP:
-          connectingIP === null
-            ? null
-            : {
-                address: connectingIP,
-                provenance:
-                  socketAddress !== null && trustedProxies.has(socketAddress)
-                    ? 'trusted'
-                    : 'unverified',
-              },
-        userAgent: request.headers.get('user-agent'),
-      };
-
-      if (options.probes === true && PROBE_PATHS.has(path)) {
-        response = answerProbeRequest(request, path, holder.hosts, state !== null);
-
-        if (response.status === 403) {
-          security.record({
-            kind: 'authorize_invalid',
-            outcome: 'rejected',
-            reason: 'bad_host',
-            path,
-            requester,
-          });
-        }
-      } else if (state === null) {
-        response = new Response(null, { status: 503 });
-      } else {
-        try {
-          response = await answerHTTPRequest(state, request, requester, (label) => {
-            rpc = label;
-          });
-        } catch {
-          response = new Response(null, { status: 503 });
-        }
-      }
-
-      options.printRequest(
-        formatRequestLine(request, rpc, response.status, performance.now() - startedAt),
-      );
-
-      return response;
-    },
+    fetch: answerRequest,
   });
 
   const port = server.port ?? options.port;

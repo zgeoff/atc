@@ -62,7 +62,7 @@ export class AttachRegistry<TClient> {
     return true;
   }
 
-  readClientViews(sessionID: SessionID): TClient[] {
+  collectClients(sessionID: SessionID): TClient[] {
     return [...(this.bySession.get(sessionID)?.keys() ?? [])];
   }
 

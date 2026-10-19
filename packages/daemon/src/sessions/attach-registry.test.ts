@@ -72,8 +72,8 @@ test('it detaches one client from every session it watched', () => {
   const affected = registry.detachAll('a');
 
   expect(affected).toStrictEqual([toSessionID('s1'), toSessionID('s2')]);
-  expect(registry.readClientViews(toSessionID('s1'))).toStrictEqual([]);
-  expect(registry.readClientViews(toSessionID('s2'))).toStrictEqual(['b']);
+  expect(registry.collectClients(toSessionID('s1'))).toStrictEqual([]);
+  expect(registry.collectClients(toSessionID('s2'))).toStrictEqual(['b']);
 });
 
 test('it keeps other sessions when one is removed', () => {

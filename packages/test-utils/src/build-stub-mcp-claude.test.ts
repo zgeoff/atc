@@ -7,6 +7,7 @@ import { readSourceEntry } from './read-source-entry';
 import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { startStubReporterSocket } from './start-stub-reporter-socket';
+import { updateEnv } from './update-env';
 import { waitFor } from './wait-for';
 
 function setupTest() {
@@ -226,5 +227,36 @@ test('it files the note file as a decision note', async () => {
     atcId: 's-1',
     event: 'Note',
     payload: { kind: 'note', label: 'decision', text: 'pick the second option' },
+  });
+});
+
+test('it reports through the CLI entry it is given, with none in the environment', async () => {
+  const ctx = setupTest();
+  const entry = readSourceEntry('atc');
+
+  updateEnv('ATC_CLI_ENTRY', undefined);
+
+  const bin = createStubBin(ctx.dir, 'given-entry', buildStubMCPClaude(entry));
+
+  const proc = Bun.spawn([bin], {
+    env: {
+      HOME: ctx.dir,
+      PATH: '/usr/bin:/bin',
+      ATC_SOCKET: join(ctx.dir, 'report.sock'),
+      ATC_SESSION_ID: 's-given',
+    },
+    stdin: 'pipe',
+    stdout: 'ignore',
+  });
+
+  registerTestCleanup(() => {
+    proc.kill();
+  });
+
+  await waitFor(() => {
+    expect(ctx.lines.map((line): unknown => JSON.parse(line))).toPartiallyContain({
+      atcId: 's-given',
+      event: 'SessionStart',
+    });
   });
 });
