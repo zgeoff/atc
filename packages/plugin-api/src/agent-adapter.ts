@@ -326,7 +326,7 @@ export interface AgentAdapter {
   ) => Promise<NameUpdate | null>;
   readonly canResume: (session: ResumeCheck) => boolean;
 
-  // pluginDirs holds the plugin folders the session's spawn asked for.
+  // The last argument holds the plugin folders the session's spawn asked for.
   readonly buildResumeCommand: (
     cwd: string,
     agentSessionID: AgentSessionID | undefined,

@@ -77,8 +77,6 @@ export function buildAgentList(
     const selection = adapter.findAuthSelection?.() ?? null;
     const brokerRequired = selection?.brokerRequired ?? false;
     const refused = (adapter.findSpawnRefusal?.() ?? null) !== null;
-
-    // a remote target refuses every spawn of an agent whose config loads plugin folders
     const configuresPluginDirs = (profile?.pluginDirs ?? []).length > 0;
 
     const spawnTargets = refused

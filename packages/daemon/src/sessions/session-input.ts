@@ -8,6 +8,7 @@ import { buildMenuView } from './build-menu-view';
 import type { MenuTerminal, MenuTiming } from './menu-terminal';
 import { readKnownMenu } from './read-known-menu';
 import { readWholeMenu } from './read-whole-menu';
+import { requireSessionPluginDirs } from './require-session-plugin-dirs';
 import type { ScreenText } from './screen-model';
 import type { SessionRuntime } from './session-runtime';
 import type { SessionManager } from './sessions';
@@ -16,7 +17,7 @@ import { writeLineSteps } from './write-line-steps';
 interface SessionInputDeps {
   readonly mgr: Pick<
     SessionManager,
-    'sessions' | 'findAdapter' | 'requireExecution' | 'findExecutionRefusal'
+    'sessions' | 'findAdapter' | 'findProvider' | 'requireExecution' | 'findExecutionRefusal'
   >;
   readonly clock: Clock;
   readonly findRuntime: (sessionID: SessionID) => SessionRuntime | undefined;
@@ -67,6 +68,8 @@ export class SessionInput {
       if ((this.findRuntime(sessionID)?.headlessRun ?? null) !== null) {
         return 'busy';
       }
+
+      requireSessionPluginDirs(this.mgr, s);
 
       return this.startHeadlessTurn(sessionID, data.trimEnd()) ? 'ok' : 'dead';
     }

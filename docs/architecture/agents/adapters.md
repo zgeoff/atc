@@ -72,11 +72,12 @@ session spawned without them keeps the configured behaviour.
 A Claude or gateway spawn can also name plugin folders, which Claude Code loads for that session
 alone through one `--plugin-dir` each, after atc's own mod and after the folders the entry's config
 sets. A spawn's folders add to the config's folders and never replace them. The daemon expands a
-leading `~` to its user's home and refuses the spawn, naming the path, when any folder of either
-list does not exist on its machine. It refuses any plugin folder on a target that runs the agent on
-another machine, because it cannot see that machine's paths, so the agent listing leaves remote
-targets out of the spawn targets of an agent whose config sets folders. The fleet row stores the
-spawn's own expanded folders, and the adapter adds the config's folders at each launch and to the
-command that resumes the session outside atc. A restore or an adopt checks both lists again, so it
-lists a session whose folder has gone as refused, naming the path, rather than starting it without
-the plugin.
+leading `~` to its user's home and normalizes each path, so a folder named twice loads once. It
+refuses the spawn, naming the path, when any path of either list is not a folder on its machine. It
+refuses any plugin folder on a target that runs the agent on another machine, because it cannot see
+that machine's paths, so the agent listing leaves remote targets out of the spawn targets of an
+agent whose config sets folders. The fleet row stores the spawn's own expanded folders, and the
+adapter adds the config's folders at each launch and to the command that resumes the session outside
+atc. Each later launch checks both lists again, so a session whose folder has gone never starts
+without the plugin. A restore lists such a session as refused, naming the path. An adopt, an eject
+or a headless turn is refused before it stops anything, so the session stays as it was.

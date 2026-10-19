@@ -185,7 +185,7 @@ test('it profiles a gateway with only the model names its env sets', () => {
         examples: [],
         default: null,
         backendEffect: 'applied',
-        note: "Each folder passed as --plugin-dir, after the folders the agent's config sets. An absolute path or one that starts with ~/ on the daemon's machine; a path that does not exist, or a remote target, refuses the spawn.",
+        note: "Each folder passed as --plugin-dir, after the folders the agent's config sets. An absolute path or one that starts with ~/ on the daemon's machine; a path that does not exist or is not a folder, or a remote target, refuses the spawn.",
       },
     },
   });
@@ -421,6 +421,53 @@ test("it keeps a gateway's configured plugin folders and the session's own in th
 
   expect(command).toBe(
     `cd '/work/repo' && /opt/gw/bin/claude --settings '${join(ctx.dir, 'state', 'hook-settings-plugged.json')}' --plugin-dir '/opt/plugins/shared' --plugin-dir '/srv/plugins/band' --resume sess-1`,
+  );
+});
+
+test("it runs a headless turn with a gateway's configured plugin folders before the turn's own", () => {
+  const ctx = setupTest();
+  const runner = buildStubClaudeHeadlessRun();
+
+  const adapter = new GatewayAdapter(
+    buildMockGatewayConfig({
+      id: 'zai',
+      bin: '/opt/zai/bin/claude',
+      pluginDirs: ['/opt/plugins/shared'],
+    }),
+    parseConfig([CLAUDE_PLUGIN], {}),
+    buildMockHostServices(),
+    {
+      headlessRun: runner,
+      bridgeTarget: join(ctx.dir, 'atc-bridge'),
+      stateDir: join(ctx.dir, 'state'),
+      homeDir: join(ctx.dir, 'home'),
+    },
+  );
+
+  const events = { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} };
+
+  adapter.headlessRunner?.(
+    {
+      cwd: '/tmp',
+      prompt: 'go',
+      reporterSocket: '/run/atc/atc.sock',
+      pluginDirs: ['/srv/plugins/extra'],
+    },
+    events,
+  );
+
+  expect(runner).toHaveBeenCalledExactlyOnceWith(
+    {
+      cwd: '/tmp',
+      prompt: 'go',
+      reporterSocket: '/run/atc/atc.sock',
+      pluginDirs: ['/opt/plugins/shared', '/srv/plugins/extra'],
+      claudeBin: '/opt/zai/bin/claude',
+      permissionMode: 'auto',
+      pluginDir: join(ctx.dir, 'atc-bridge'),
+      settings: join(ctx.dir, 'state', 'hook-settings-zai.json'),
+    },
+    events,
   );
 });
 

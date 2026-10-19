@@ -442,7 +442,7 @@ const REFUSED_ADOPT_CODES: ReadonlySet<string> = new Set([
   'broker_not_ready',
   'auth_placeholder_unsupported',
 
-  // a plugin folder the session loads does not exist, or sits on a remote target
+  // a plugin folder the session loads is not a folder, or sits on a remote target
   'bad_args',
   'unsupported',
 ]);

@@ -1,4 +1,5 @@
 import { tmpdir } from 'node:os';
+import { resolve } from 'node:path';
 import type { InvalidGitTransports } from '@atc/config';
 import { resolveHomeDir } from '@atc/config/host';
 import type { AgentID, Clock, SessionID } from '@atc/core';
@@ -184,15 +185,15 @@ export class SpawnService {
     this.mgr.requireAgentTarget(agent, target);
   }
 
-  // returns the requested folders with a leading ~ expanded to the daemon
-  // user's home
+  // A folder named twice, such as with and without a trailing slash, reaches
+  // the agent once, so each path is returned in its normal form.
   requirePluginDirs(
     target: string,
     configured: readonly string[],
     requested: readonly string[],
   ): string[] {
     const home = this.homeDir ?? resolveHomeDir();
-    const expanded = requested.map((dir) => expandHome(dir, home));
+    const expanded = requested.map((dir) => resolve(expandHome(dir, home)));
     const dirs = [...configured, ...expanded];
 
     if (dirs.length > 0) {

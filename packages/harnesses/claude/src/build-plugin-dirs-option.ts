@@ -7,6 +7,6 @@ export function buildPluginDirsOption(): SpawnOptionSpec {
     examples: [],
     default: null,
     backendEffect: 'applied',
-    note: "Each folder passed as --plugin-dir, after the folders the agent's config sets. An absolute path or one that starts with ~/ on the daemon's machine; a path that does not exist, or a remote target, refuses the spawn.",
+    note: "Each folder passed as --plugin-dir, after the folders the agent's config sets. An absolute path or one that starts with ~/ on the daemon's machine; a path that does not exist or is not a folder, or a remote target, refuses the spawn.",
   };
 }

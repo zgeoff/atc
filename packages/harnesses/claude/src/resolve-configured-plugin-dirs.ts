@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import { resolveHomeDir } from '@atc/config/host';
 import { expandHome } from '@atc/core';
 
@@ -7,5 +8,5 @@ export function resolveConfiguredPluginDirs(
 ): string[] {
   const home = homeDir ?? resolveHomeDir();
 
-  return (dirs ?? []).map((dir) => expandHome(dir, home));
+  return (dirs ?? []).map((dir) => resolve(expandHome(dir, home)));
 }

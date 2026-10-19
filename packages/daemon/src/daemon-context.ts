@@ -216,9 +216,9 @@ export interface DaemonContext {
   // broker on a target whose provider reaches no broker.
   readonly requireAgentTarget: (agent: AgentID, target: string) => void;
 
-  // The spawn's own plugin folders with a leading ~ expanded. Throws the
+  // The spawn's own plugin folders, expanded and normalized. Throws the
   // refusal for any folder on a remote target, and for a configured or
-  // requested folder that does not exist on the daemon's machine.
+  // requested path that is not a folder on the daemon's machine.
   readonly requirePluginDirs: (
     target: string,
     configured: readonly string[],

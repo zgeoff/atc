@@ -756,6 +756,170 @@ test('it keeps the headless run of a session whose adopt is refused for a plugin
   ]);
 });
 
+test('it keeps the terminal of a session whose eject is refused for a plugin folder that is gone', async () => {
+  const headless = buildStubHeadlessRunner();
+  const scheduler = buildStubTimeoutScheduler();
+  const home = setupTempDir('atc-headless-home-');
+
+  mkdirSync(join(home.dir, 'plugins', 'band'), { recursive: true });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-headless-',
+    options: () => ({
+      adapter: buildMockAgentAdapter({
+        headlessRunner: headless.runner,
+        profile: {
+          label: 'Claude',
+          kind: 'claude',
+          bin: 'sh',
+          models: null,
+          spawnOptions: {
+            model: {
+              supported: false,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: null,
+              note: null,
+            },
+            effort: {
+              supported: false,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: null,
+              note: null,
+            },
+            pluginDirs: {
+              supported: true,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: 'applied',
+              note: null,
+            },
+          },
+        },
+      }),
+      homeDir: home.dir,
+      scheduleEjectSettle: scheduler.schedule,
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    resume: 'sess-123',
+    pluginDirs: ['~/plugins/band'],
+    cols: 80,
+    rows: 24,
+  });
+
+  const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
+
+  rmSync(join(home.dir, 'plugins', 'band'), { recursive: true });
+
+  const ejected = daemon.client.sendRequest('session.eject', {
+    session: sessionID,
+    prompt: 'keep going',
+  });
+
+  await ejected.catch(() => null);
+
+  const listed = await daemon.client.sendRequest('session.list');
+
+  expect(ejected).rejects.toMatchObject({
+    code: 'bad_args',
+    message: `plugin folder '${join(home.dir, 'plugins', 'band')}' does not exist`,
+  });
+
+  expect(listed['sessions']).toMatchObject([{ id: sessionID, kind: 'pty', alive: true }]);
+});
+
+test('it refuses the next headless turn from session input once its plugin folder is gone', async () => {
+  const headless = buildStubHeadlessRunner();
+  const scheduler = buildStubTimeoutScheduler();
+  const home = setupTempDir('atc-headless-home-');
+
+  mkdirSync(join(home.dir, 'plugins', 'band'), { recursive: true });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-headless-',
+    options: () => ({
+      adapter: buildMockAgentAdapter({
+        headlessRunner: headless.runner,
+        profile: {
+          label: 'Claude',
+          kind: 'claude',
+          bin: 'sh',
+          models: null,
+          spawnOptions: {
+            model: {
+              supported: false,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: null,
+              note: null,
+            },
+            effort: {
+              supported: false,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: null,
+              note: null,
+            },
+            pluginDirs: {
+              supported: true,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: 'applied',
+              note: null,
+            },
+          },
+        },
+      }),
+      homeDir: home.dir,
+      scheduleEjectSettle: scheduler.schedule,
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    resume: 'sess-123',
+    pluginDirs: ['~/plugins/band'],
+    cols: 80,
+    rows: 24,
+  });
+
+  const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
+
+  await daemon.client.sendRequest('session.eject', { session: sessionID, prompt: 'keep going' });
+
+  scheduler.runTimer(4000);
+
+  const run = await headless.waitForRun(0);
+
+  run.events.onDone('wrapped up cleanly');
+
+  rmSync(join(home.dir, 'plugins', 'band'), { recursive: true });
+
+  const input = daemon.client.sendRequest('session.input', {
+    session: sessionID,
+    d: 'next task\n',
+  });
+
+  await input.catch(() => null);
+
+  expect(input).rejects.toMatchObject({
+    code: 'bad_args',
+    message: `plugin folder '${join(home.dir, 'plugins', 'band')}' does not exist`,
+  });
+
+  expect(headless.runs).toHaveLength(1);
+});
+
 test('it refuses to eject a session that never reported an agent session id', async () => {
   const ctx = await setupTest();
 

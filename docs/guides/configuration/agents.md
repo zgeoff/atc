@@ -123,8 +123,8 @@ the daemon's machine:
 atc passes each folder to Claude Code as `--plugin-dir` on every launch, a restore included. To load
 a plugin into one session only, pass `pluginDirs` to `atc_session_spawn` or `session.spawn`; those
 folders load after the entry's own. A spawn on a target that runs the agent on another machine, such
-as an imp, is refused while either list holds a folder, and so is a spawn whose folder does not
-exist. A different entry without `pluginDirs` starts sessions on such a target.
+as an imp, is refused while either list holds a folder, and so is a spawn whose path does not exist
+or is not a folder. A different entry without `pluginDirs` starts sessions on such a target.
 
 ## Claude scratch folder
 

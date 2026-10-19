@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { LOCAL_TARGET, parseConfig } from '@atc/config';
 import { ImpProvider } from '@atc/execution-imp';
@@ -220,6 +220,109 @@ test('it refuses a spawn whose plugin folder does not exist, naming the path, an
   });
 
   expect(listed).toStrictEqual({ sessions: [] });
+});
+
+test('it refuses a spawn whose plugin folder is a regular file, naming the path, and starts nothing', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(join(ctx.home, 'notes.txt'), 'not a plugin');
+
+  const daemon = await startTestDaemon({
+    options: () => ({
+      adapters: buildAgentAdapters(
+        parseConfig(SHIPPED_HARNESS_PLUGINS, { agents: { claude: { bin: ctx.fakeClaude } } }),
+        buildMockHostServices(),
+        null,
+        { homeDir: ctx.home },
+      ),
+      homeDir: ctx.home,
+    }),
+  });
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    pluginDirs: ['~/notes.txt'],
+  });
+
+  await Promise.allSettled([spawn]);
+
+  const listed = await daemon.client.sendRequest('session.list');
+
+  expect(spawn).rejects.toMatchObject({
+    code: 'bad_args',
+    message: `plugin folder '${join(ctx.home, 'notes.txt')}' is not a folder`,
+  });
+
+  expect(listed).toStrictEqual({ sessions: [] });
+});
+
+test("it refuses a spawn when a plugin folder the agent's config sets is a regular file, naming the path", async () => {
+  const ctx = setupTest();
+
+  writeFileSync(join(ctx.dir, 'shared.txt'), 'not a plugin');
+
+  const daemon = await startTestDaemon({
+    options: () => ({
+      adapters: buildAgentAdapters(
+        parseConfig(SHIPPED_HARNESS_PLUGINS, {
+          agents: { claude: { bin: ctx.fakeClaude, pluginDirs: [join(ctx.dir, 'shared.txt')] } },
+        }),
+        buildMockHostServices(),
+        null,
+        { homeDir: ctx.home },
+      ),
+      homeDir: ctx.home,
+    }),
+  });
+
+  const spawn = daemon.client.sendRequest('session.spawn', { cwd: ctx.dir });
+
+  expect(spawn).rejects.toMatchObject({
+    code: 'bad_args',
+    message: `plugin folder '${join(ctx.dir, 'shared.txt')}' is not a folder`,
+  });
+});
+
+test("it loads a folder once when the spawn names one the agent's config sets, with a trailing slash", async () => {
+  const ctx = setupTest();
+
+  mkdirSync(join(ctx.home, 'plugins', 'band'), { recursive: true });
+
+  const daemon = await startTestDaemon({
+    options: () => ({
+      adapters: buildAgentAdapters(
+        parseConfig(SHIPPED_HARNESS_PLUGINS, {
+          agents: { claude: { bin: ctx.fakeClaude, pluginDirs: ['~/plugins/band'] } },
+        }),
+        buildMockHostServices(),
+        null,
+        { homeDir: ctx.home },
+      ),
+      homeDir: ctx.home,
+    }),
+  });
+
+  await daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    pluginDirs: [`${join(ctx.home, 'plugins', 'band')}/`],
+    prompt: 'start the task',
+  });
+
+  const argv = await waitFor(() => {
+    const log = readFileSync(ctx.starts, 'utf8');
+
+    expect(log).toEndWith('\n\n');
+
+    return log.trimEnd().split('\n');
+  });
+
+  expect(argv.slice(-5)).toStrictEqual([
+    '--plugin-dir',
+    expect.toEndWith('atc-bridge'),
+    '--plugin-dir',
+    join(ctx.home, 'plugins', 'band'),
+    'start the task',
+  ]);
 });
 
 test("it refuses a spawn when a plugin folder the agent's config sets does not exist, naming the path", async () => {
@@ -474,7 +577,7 @@ test('it lists plugin folders as a spawn option of claude and not of grok', asyn
         examples: [],
         default: null,
         backendEffect: 'applied',
-        note: "Each folder passed as --plugin-dir, after the folders the agent's config sets. An absolute path or one that starts with ~/ on the daemon's machine; a path that does not exist, or a remote target, refuses the spawn.",
+        note: "Each folder passed as --plugin-dir, after the folders the agent's config sets. An absolute path or one that starts with ~/ on the daemon's machine; a path that does not exist or is not a folder, or a remote target, refuses the spawn.",
         available: true,
       },
     ],
