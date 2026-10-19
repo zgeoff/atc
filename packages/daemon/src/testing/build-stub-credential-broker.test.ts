@@ -158,15 +158,8 @@ test('it drops every grant of a secret that is removed', async () => {
   expect(secrets).toStrictEqual([]);
 });
 
-test('it starts with every feature', async () => {
-  const features = await buildStubCredentialBroker().readFeatures();
-
-  expect(features).toStrictEqual({
-    grantableTokens: true,
-    secretRebind: true,
-    execRequire: true,
-    oauthSecrets: true,
-  });
+test('it starts passing the version check', async () => {
+  await expect(buildStubCredentialBroker().verifyVersion()).toResolve();
 });
 
 test('it starts with an identity that manages its own hosts', async () => {
@@ -180,18 +173,14 @@ test('it starts with an identity that manages its own hosts', async () => {
   });
 });
 
-test('it answers with the features a test sets', async () => {
+test('it refuses the version check as outdated once a test marks it so', () => {
   const broker = buildStubCredentialBroker();
 
-  broker.setFeatures({ oauthSecrets: false });
+  broker.setOutdated(true);
 
-  const features = await broker.readFeatures();
-
-  expect(features).toStrictEqual({
-    grantableTokens: true,
-    secretRebind: true,
-    execRequire: true,
-    oauthSecrets: false,
+  expect(broker.verifyVersion()).rejects.toMatchObject({
+    code: 'refused',
+    brokerCode: 'IMPD_OUTDATED',
   });
 });
 
@@ -248,23 +237,16 @@ test('it lists the sign-in state of a secret created with one', async () => {
   ]);
 });
 
-test('it fails the set number of feature reads as an unreachable broker, then answers', async () => {
+test('it fails the set number of version checks as an unreachable broker, then passes', async () => {
   const broker = buildStubCredentialBroker();
 
-  broker.setFeatureFailures(1);
+  broker.setVersionFailures(1);
 
-  const failed = broker.readFeatures();
+  const failed = broker.verifyVersion();
 
   expect(failed).rejects.toMatchObject({ code: 'unreachable', brokerCode: 'UNREACHABLE' });
 
   await failed.catch(() => {});
 
-  const features = await broker.readFeatures();
-
-  expect(features).toStrictEqual({
-    grantableTokens: true,
-    secretRebind: true,
-    execRequire: true,
-    oauthSecrets: true,
-  });
+  await expect(broker.verifyVersion()).toResolve();
 });

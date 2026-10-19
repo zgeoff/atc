@@ -40,7 +40,6 @@ test('it reconnects after impd drops a send and resumes after the last byte it h
       rows: 24,
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
@@ -135,7 +134,6 @@ test('it drops the bytes a resume repeats below its high-water offset', async ()
       cwd: ctx.dir,
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
@@ -205,7 +203,6 @@ test('it does a fresh attach that clears the screen when the resume finds a gap'
       rows: 24,
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
@@ -286,7 +283,6 @@ test('it does a fresh attach when impd refuses its resume offset', async () => {
       rows: 24,
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
@@ -356,7 +352,6 @@ test('it takes the session back from another connection that takes it over', asy
       rows: 24,
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
@@ -435,7 +430,6 @@ test('it carries input once it takes the session back from another connection', 
       cwd: ctx.dir,
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
@@ -486,7 +480,6 @@ test('it ends a harness whose imp booted cold with the cause of the first boot a
       cwd: ctx.dir,
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
@@ -539,7 +532,6 @@ test('it ends a harness without a boot id as ended with the cause unknown', asyn
       cwd: ctx.dir,
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
@@ -594,7 +586,6 @@ test('it ends with the kept exit code of its own generation when impd no longer 
       cwd: ctx.dir,
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
@@ -657,7 +648,6 @@ test('it ends with the kept exit code when the cold boots impd returns do not re
       cwd: ctx.dir,
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
@@ -717,7 +707,6 @@ test('it ends with the refusal message in the detail when impd refuses without a
       cwd: ctx.dir,
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
@@ -774,7 +763,6 @@ test('it redacts credential-shaped runs from a refusal message it shows', async 
       cwd: ctx.dir,
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
@@ -836,7 +824,6 @@ test('it redacts short credentials in URL, header, and authorization shapes it s
       cwd: ctx.dir,
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
@@ -902,7 +889,6 @@ test('it never sends a resume offset to a session whose agent carries none', asy
       rows: 24,
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
@@ -953,68 +939,6 @@ test('it never sends a resume offset to a session whose agent carries none', asy
   expect(output.join('')).toInclude('\u001B[0m\u001B[H\u001B[2J');
 });
 
-test('it never sends a resume offset when impd carries no offsets', async () => {
-  const ctx = setupTest();
-
-  const guest = await createStubHarnessGuest(ctx.dir);
-
-  await ctx.port.createImp({ name: 'imp-b' });
-
-  const output: string[] = [];
-  const attachments: HarnessAttachment[] = [];
-
-  const harness = new ImpHarness(
-    ctx.port,
-    buildMockImpSessionRequest({
-      name: 'imp-b',
-      session: 's2',
-      argv: [guest.path],
-      env: {},
-      cwd: ctx.dir,
-      cols: 80,
-      rows: 24,
-    }),
-    {
-      offsets: false,
-      reconnectDelaysMs: [0, 0, 0],
-      isSuspending: () => false,
-      onDone: () => {},
-    },
-  );
-
-  registerTestCleanup(() => {
-    harness.kill();
-  });
-
-  harness.onData((data) => {
-    output.push(data);
-  });
-
-  harness.onAttachment((attachment) => {
-    attachments.push(attachment);
-  });
-
-  await waitFor(() => {
-    expect(output.join('')).toInclude('UP:');
-  });
-
-  ctx.port.stopConnection('imp-b', 's2', 1011);
-
-  await waitFor(() => {
-    expect(attachments).toStrictEqual(['attached', 'reattaching', 'attached']);
-  });
-
-  harness.write('six\r');
-
-  await waitFor(() => {
-    expect(output.join('')).toInclude('GOT:six');
-  });
-
-  expect(ctx.port.sessionRequests).toSatisfyAll(
-    (request: Readonly<Record<string, unknown>>) => !('resumeFrom' in request),
-  );
-});
-
 test('it reports a harness whose imp another owner put to sleep as suspended, without waking it', async () => {
   const ctx = setupTest();
 
@@ -1034,7 +958,6 @@ test('it reports a harness whose imp another owner put to sleep as suspended, wi
       rows: 24,
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
@@ -1112,7 +1035,6 @@ test('it confirms the exit of a killed harness once impd reports its process exi
       cwd: ctx.dir,
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
@@ -1156,7 +1078,6 @@ test('it reports no exit for a running harness whose wait runs out', async () =>
       cwd: ctx.dir,
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
@@ -1198,7 +1119,6 @@ test('it reports no exit for a harness whose imp went to sleep with the process 
       cwd: ctx.dir,
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
@@ -1247,7 +1167,6 @@ test('it counts connections impd drops before they start, and ends once its reco
       rows: 24,
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
@@ -1305,7 +1224,6 @@ test('it ends once its reconnects run out when a listener throws on every connec
       rows: 24,
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
@@ -1368,7 +1286,6 @@ test('it starts at the size a resize asked for while its host was still readying
       rows: 24,
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
@@ -1427,7 +1344,6 @@ test('it applies a resize that arrived before impd answered the start', async ()
       rows: 24,
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
@@ -1477,7 +1393,6 @@ test('it settles its start once impd starts the process', async () => {
       cwd: ctx.dir,
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
@@ -1524,7 +1439,6 @@ test('it rejects its start as broker_not_ready and ends without running when imp
       require: ['broker'],
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
@@ -1591,7 +1505,6 @@ test('it sends no requirements on the attach that reconnects a harness whose sta
       require: ['broker'],
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
@@ -1638,145 +1551,6 @@ test('it sends no requirements on the attach that reconnects a harness whose sta
   ]);
 });
 
-test('it refuses a start that requires the broker on an impd without exec requirements and sends no exec', async () => {
-  const ctx = setupTest();
-
-  await ctx.port.createImp({ name: 'imp-b' });
-
-  ctx.port.features = { ...ctx.port.features, execRequire: false };
-
-  const exits: HarnessExit[] = [];
-
-  const harness = new ImpHarness(
-    ctx.port,
-    buildMockImpSessionRequest({
-      name: 'imp-b',
-      session: 's2',
-      argv: ['sleep', '30'],
-      env: {},
-      cwd: ctx.dir,
-      cols: 80,
-      rows: 24,
-      require: ['broker'],
-    }),
-    {
-      offsets: true,
-      reconnectDelaysMs: [0, 0, 0],
-      isSuspending: () => false,
-      onDone: () => {},
-    },
-  );
-
-  registerTestCleanup(() => {
-    harness.kill();
-  });
-
-  harness.onExit((exit) => {
-    exits.push(exit);
-  });
-
-  const started = harness.waitForStart();
-
-  expect(started).rejects.toMatchObject({
-    code: 'auth_impd_too_old',
-    data: { imp: 'imp-b', execRequire: false },
-  });
-
-  expect(ctx.port.sessionRequests).toStrictEqual([]);
-
-  expect(exits).toStrictEqual([
-    { exitCode: 1, reason: 'ended', detail: 'impd too old to require the broker' },
-  ]);
-});
-
-test('it rejects its start as auth_impd_too_old when impd refuses it as outdated', async () => {
-  const ctx = setupTest();
-
-  await ctx.port.createImp({ name: 'imp-b' });
-
-  ctx.port.setNextSessionFailure({
-    code: 'PRECONDITION_FAILED',
-    data: {
-      reason: 'impd_outdated',
-      detail: 'impd takes no exec requirements',
-    },
-  });
-
-  const harness = new ImpHarness(
-    ctx.port,
-    buildMockImpSessionRequest({
-      name: 'imp-b',
-      session: 's2',
-      argv: ['sleep', '30'],
-      cwd: ctx.dir,
-      require: ['broker'],
-    }),
-    {
-      offsets: true,
-      reconnectDelaysMs: [0, 0, 0],
-      isSuspending: () => false,
-      onDone: () => {},
-    },
-  );
-
-  registerTestCleanup(() => {
-    harness.kill();
-  });
-
-  expect(harness.waitForStart()).rejects.toMatchObject({ code: 'auth_impd_too_old' });
-});
-
-test('it starts a harness that requires the broker after one failed feature read, sending the start again rather than an attach', async () => {
-  const ctx = setupTest();
-
-  ctx.port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['imp-*'],
-    grantable: ['glm'],
-  });
-
-  ctx.port.createSecret('glm', 'custom', [
-    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
-  ]);
-
-  await ctx.port.createImp({ name: 'imp-b' });
-  await ctx.port.createGrant('imp-b', 'glm');
-
-  ctx.port.setFeatureFailures(1);
-
-  const harness = new ImpHarness(
-    ctx.port,
-    buildMockImpSessionRequest({
-      name: 'imp-b',
-      session: 's2',
-      argv: ['sleep', '30'],
-      env: {},
-      cwd: ctx.dir,
-      cols: 80,
-      rows: 24,
-      require: ['broker'],
-    }),
-    {
-      offsets: true,
-      reconnectDelaysMs: [0, 0, 0],
-      isSuspending: () => false,
-      onDone: () => {},
-    },
-  );
-
-  registerTestCleanup(() => {
-    harness.kill();
-  });
-
-  await harness.waitForStart();
-
-  expect(ctx.port.countFailedFeatureReads()).toBe(1);
-  expect(ctx.port.sessionRequests.map((request) => request.kind)).toStrictEqual(['start']);
-  expect(ctx.port.findState('imp-b')).toBe('running');
-});
-
 test('it starts a harness that drops CAP_SYS_ADMIN after its capability check times out once, sending the start again rather than an attach', async () => {
   const ctx = setupTest();
 
@@ -1797,7 +1571,6 @@ test('it starts a harness that drops CAP_SYS_ADMIN after its capability check ti
       dropSysAdmin: true,
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
@@ -1813,50 +1586,6 @@ test('it starts a harness that drops CAP_SYS_ADMIN after its capability check ti
   expect(ctx.port.countFailedExecChecks()).toBe(1);
   expect(ctx.port.sessionRequests.map((request) => request.kind)).toStrictEqual(['start']);
   expect(ctx.port.findState('imp-b')).toBe('running');
-});
-
-test('it refuses a harness that requires the broker once its feature reads keep failing, sending no exec', async () => {
-  const ctx = setupTest();
-
-  await ctx.port.createImp({ name: 'imp-b' });
-
-  ctx.port.setFeatureFailures(10);
-
-  const exits: HarnessExit[] = [];
-
-  const harness = new ImpHarness(
-    ctx.port,
-    buildMockImpSessionRequest({
-      name: 'imp-b',
-      session: 's2',
-      argv: ['sleep', '30'],
-      env: {},
-      cwd: ctx.dir,
-      cols: 80,
-      rows: 24,
-      require: ['broker'],
-    }),
-    {
-      offsets: true,
-      reconnectDelaysMs: [0, 0, 0],
-      isSuspending: () => false,
-      onDone: () => {},
-    },
-  );
-
-  registerTestCleanup(() => {
-    harness.kill();
-  });
-
-  harness.onExit((exit) => {
-    exits.push(exit);
-  });
-
-  const started = harness.waitForStart();
-
-  expect(started).rejects.toMatchObject({ code: 'host_unavailable' });
-  expect(ctx.port.sessionRequests).toStrictEqual([]);
-  expect(exits).toStrictEqual([{ exitCode: 1, reason: 'ended', detail: 'imp unreachable' }]);
 });
 
 test('it refuses a harness whose admission check throws as its connection opens, sending no exec', async () => {
@@ -1877,7 +1606,6 @@ test('it refuses a harness whose admission check throws as its connection opens,
       require: ['broker'],
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
@@ -1928,7 +1656,6 @@ test('it sends the start of a harness whose admission check passes as its connec
       require: ['broker'],
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
@@ -1996,7 +1723,6 @@ test('it refuses the attach that reconnects a brokered harness once its admissio
       require: ['broker'],
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
@@ -2098,7 +1824,6 @@ test('it closes the attach that reconnects a brokered harness unsent when a revo
       require: ['broker'],
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
@@ -2178,7 +1903,6 @@ test('it releases the admission ticket of each connection that fails before it o
       require: ['broker'],
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0],
       isSuspending: () => false,
       onDone: () => {},
@@ -2239,7 +1963,6 @@ test('it releases the admission ticket of a connection whose opening throws, unc
       require: ['broker'],
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [],
       isSuspending: () => false,
       onDone: () => {},
@@ -2280,7 +2003,6 @@ test('it settles a start that impd answers by attaching to the running process a
       rows: 24,
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
@@ -2307,7 +2029,6 @@ test('it settles a start that impd answers by attaching to the running process a
       rows: 24,
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
@@ -2337,7 +2058,6 @@ test('it tells its host the harness is done only after every exit listener has r
       cwd: ctx.dir,
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {
@@ -2375,7 +2095,6 @@ test('it tells its host the harness is done once when the daemon lets go of it, 
       cwd: ctx.dir,
     }),
     {
-      offsets: true,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {

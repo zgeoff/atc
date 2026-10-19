@@ -88,12 +88,12 @@ test('it rejects a create under a name impd holds as refused, keeping impd code'
   });
 });
 
-test('it rejects a feature read impd never answered as unreachable', () => {
+test('it rejects a version check impd never answered as unreachable', () => {
   const ctx = setupTest();
 
-  ctx.port.setFeatureFailures(1);
+  ctx.port.setVersionFailures(1);
 
-  expect(ctx.broker.readFeatures()).rejects.toMatchObject({
+  expect(ctx.broker.verifyVersion()).rejects.toMatchObject({
     code: 'unreachable',
     brokerCode: 'UNREACHABLE',
   });
@@ -120,31 +120,26 @@ test('it rejects a grant removal impd forbids as forbidden', async () => {
   expect(ctx.broker.removeGrant('atc-s1', 'glm')).rejects.toMatchObject({ code: 'forbidden' });
 });
 
-test.each([
-  ['absent', { sessionOffsets: true, leases: true }],
-  ['false', { sessionOffsets: true, leases: true, grantableTokens: false, secretRebind: false }],
-  ['strings', { sessionOffsets: true, leases: true, grantableTokens: 'true', secretRebind: 'yes' }],
-])(
-  'it reads grant flags that are %s as unsupported after one system info call',
-  async (_kind, sent) => {
-    // An impd stand-in on a real HTTP port that answers every call with
-    // system info, for the real client to read.
-    const impd = startStubImpdInfo();
+test('it rejects the version check of an outdated impd as refused after one system info call', () => {
+  // An impd stand-in on a real HTTP port that answers every call with
+  // system info, for the real client to read.
+  const impd = startStubImpdInfo();
 
-    impd.info.features = sent;
+  impd.info.version = '2.1.0';
 
-    const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
 
-    const broker = buildImpCredentialBroker(port, {
-      impPrefix: 'atc-',
-      getImpName: (hostKey) => `atc-${hostKey}`,
-      createImp: (hostKey) => port.createImp({ name: `atc-${hostKey}` }),
-      destroyImp: (hostKey) => port.destroyImp(`atc-${hostKey}`),
-    });
+  const broker = buildImpCredentialBroker(port, {
+    impPrefix: 'atc-',
+    getImpName: (hostKey) => `atc-${hostKey}`,
+    createImp: (hostKey) => port.createImp({ name: `atc-${hostKey}` }),
+    destroyImp: (hostKey) => port.destroyImp(`atc-${hostKey}`),
+  });
 
-    const features = await broker.readFeatures();
+  expect(broker.verifyVersion()).rejects.toMatchObject({
+    code: 'refused',
+    brokerCode: 'IMPD_OUTDATED',
+  });
 
-    expect(features).toMatchObject({ grantableTokens: false, secretRebind: false });
-    expect(impd.paths).toStrictEqual(['/rpc/system/info']);
-  },
-);
+  expect(impd.paths).toStrictEqual(['/rpc/system/info']);
+});

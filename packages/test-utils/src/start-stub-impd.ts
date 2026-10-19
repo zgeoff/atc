@@ -7,6 +7,21 @@ import { registerTestCleanup } from './register-test-cleanup';
 // or start it and exit 2 at once without reading stdin.
 type StubExecReply = 'refuse' | 'count' | 'exit-early';
 
+// The system info of impd 2.2.0, which reports every capability flag.
+const SYSTEM_INFO = {
+  version: '2.2.0',
+  features: {
+    sessionOffsets: true,
+    leases: true,
+    grantableTokens: true,
+    secretRebind: true,
+    execRequire: true,
+    oauthSecrets: true,
+    readOnlyFiles: true,
+    execDropSysAdmin: true,
+  },
+};
+
 export function startStubImpd() {
   const authorizations: (string | null)[] = [];
   const calls: { path: string; input: unknown }[] = [];
@@ -36,10 +51,7 @@ export function startStubImpd() {
         calls.push({ path, input: isRecord(body) ? body['json'] : undefined });
       }
 
-      const answer = answers.get(path) ?? {
-        status: 200,
-        json: { features: { sessionOffsets: true, leases: true } },
-      };
+      const answer = answers.get(path) ?? { status: 200, json: SYSTEM_INFO };
 
       return isUpgraded
         ? undefined

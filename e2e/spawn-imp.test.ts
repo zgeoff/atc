@@ -95,7 +95,7 @@ test('it logs how long each step of a spawn on an imp took', async () => {
   ).toStrictEqual([
     expect.stringMatching(
       new RegExp(
-        String.raw`^atc: spawn of session ${id} on target 'box' took features \d+, inspect-imp \d+, create-imp \d+, lease \d+, guest-atc \d+, record \d+, harness-start \d+, total \d+$`,
+        String.raw`^atc: spawn of session ${id} on target 'box' took impd-version \d+, inspect-imp \d+, create-imp \d+, lease \d+, guest-atc \d+, record \d+, harness-start \d+, total \d+$`,
         'u',
       ),
     ),
@@ -120,7 +120,7 @@ test('it logs how long each step of a wake on an imp took', async () => {
   ).toStrictEqual([
     expect.stringMatching(
       new RegExp(
-        String.raw`^atc: wake of session ${id} on target 'box' took features \d+, inspect-imp \d+, lease \d+, guest-atc \d+, record \d+, harness-start \d+, total \d+$`,
+        String.raw`^atc: wake of session ${id} on target 'box' took impd-version \d+, inspect-imp \d+, lease \d+, guest-atc \d+, record \d+, harness-start \d+, total \d+$`,
         'u',
       ),
     ),
@@ -1038,10 +1038,9 @@ test('it places a read-only copy of the session record inside the imp before the
   });
 });
 
-test('it places the copy among the imp’s read-only files when impd keeps them', async () => {
+test('it places the copy among the imp’s read-only files when the imp’s agent keeps them', async () => {
   const ctx = await setupTest();
 
-  ctx.port.features = { ...ctx.port.features, readOnlyFiles: true };
   ctx.port.readOnlyFilesDir = join(ctx.dir, 'ro');
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
@@ -1069,7 +1068,6 @@ test('it replaces the read-only copy when a caller adds to the scope', async () 
   const ctx = await setupTest();
   const fixture = await createGitFixture({ prefix: 'atc-daemon-imp-record-' });
 
-  ctx.port.features = { ...ctx.port.features, readOnlyFiles: true };
   ctx.port.readOnlyFilesDir = join(ctx.dir, 'ro');
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
@@ -1094,7 +1092,7 @@ test('it replaces the read-only copy when a caller adds to the scope', async () 
   expect(copy).toStrictEqual(record);
 });
 
-test('it keeps the guest-folder copy current for a harness restored after impd gained read-only files', async () => {
+test('it keeps the guest-folder copy current for a harness restored after the imp’s agent gained read-only files', async () => {
   const ctx = await setupTest();
   const fixture = await createGitFixture({ prefix: 'atc-daemon-imp-record-' });
 
@@ -1107,7 +1105,6 @@ test('it keeps the guest-folder copy current for a harness restored after impd g
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  ctx.port.features = { ...ctx.port.features, readOnlyFiles: true };
   ctx.port.readOnlyFilesDir = join(ctx.dir, 'ro');
 
   await ctx.restart();
@@ -1151,9 +1148,8 @@ test('it keeps the guest-folder copy current for a harness restored after impd g
 test('it places the copy in the guest folder when the imp’s agent is from before read-only files', async () => {
   const ctx = await setupTest();
 
-  // impd keeps read-only files, and the port holds no folder for them, as
-  // an imp still on an older agent
-  ctx.port.features = { ...ctx.port.features, readOnlyFiles: true };
+  // the port holds no folder for read-only files, as an imp still on an
+  // older agent
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,

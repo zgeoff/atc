@@ -28,18 +28,7 @@ test('it calls impd with the token its token file holds', async () => {
 
   const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => readImpToken(tokenPath) });
 
-  const features = await port.readFeatures();
-
-  expect(features).toStrictEqual({
-    sessionOffsets: true,
-    leases: true,
-    grantableTokens: false,
-    secretRebind: false,
-    execRequire: false,
-    oauthSecrets: false,
-    readOnlyFiles: false,
-    execDropSysAdmin: false,
-  });
+  await port.verifyVersion();
 
   expect(ctx.impd.authorizations).toStrictEqual(['Bearer file-token']);
 });
@@ -53,49 +42,117 @@ test('it calls impd with the new token on the next call after the token file cha
 
   const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => readImpToken(tokenPath) });
 
-  await port.readFeatures();
+  await port.verifyVersion();
 
   writeFileSync(tokenPath, 'second-token\n');
 
-  await port.readFeatures();
+  await port.verifyVersion();
 
   expect(ctx.impd.authorizations).toStrictEqual(['Bearer first-token', 'Bearer second-token']);
 });
 
-test('it answers the features reads within 30 seconds of a read with its one call to impd', async () => {
+test.each(['2.2.0', '2.7.0'])('it accepts impd %s', async (version) => {
+  const ctx = setupTest();
+
+  ctx.impd.answers.set('/rpc/system/info', { status: 200, json: { version } });
+
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'version-token' });
+
+  await expect(port.verifyVersion()).toResolve();
+});
+
+test('it refuses impd 2.1.0 as outdated, naming both versions', () => {
+  const ctx = setupTest();
+
+  ctx.impd.answers.set('/rpc/system/info', { status: 200, json: { version: '2.1.0' } });
+
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'version-token' });
+
+  expect(port.verifyVersion()).rejects.toMatchObject({
+    code: 'IMPD_OUTDATED',
+    message: 'impd 2.1.0 is older than 2.2.0, the oldest impd this atc supports; upgrade impd',
+    data: { version: '2.1.0', minimum: '2.2.0' },
+  });
+});
+
+test('it refuses an impd whose version does not parse as outdated', () => {
+  const ctx = setupTest();
+
+  ctx.impd.answers.set('/rpc/system/info', { status: 200, json: { version: 'nightly' } });
+
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'version-token' });
+
+  expect(port.verifyVersion()).rejects.toMatchObject({
+    code: 'IMPD_OUTDATED',
+    message:
+      "impd reports version 'nightly', which atc cannot compare with 2.2.0, the oldest impd this atc supports; upgrade impd",
+    data: { version: 'nightly', minimum: '2.2.0' },
+  });
+});
+
+test('it answers the version checks within 30 seconds of a read with its one call to impd', async () => {
   const ctx = setupTest();
   const stub = buildStubClock(1000);
 
   const port = new ImpClientPort({
     url: ctx.impd.url,
-    readToken: () => 'features-token',
+    readToken: () => 'version-token',
     now: stub.now,
   });
 
-  await Promise.all([port.readFeatures(), port.readFeatures()]);
+  await Promise.all([port.verifyVersion(), port.verifyVersion()]);
 
   stub.advance(29_999);
 
-  await port.readFeatures();
+  await port.verifyVersion();
 
   expect(ctx.impd.calls).toStrictEqual([{ path: '/rpc/system/info', input: undefined }]);
 });
 
-test('it calls impd for the features again 30 seconds after its last call', async () => {
+test('it refuses an outdated impd again within 30 seconds from its one call to impd', async () => {
+  const ctx = setupTest();
+  const stub = buildStubClock(1000);
+
+  ctx.impd.answers.set('/rpc/system/info', { status: 200, json: { version: '2.1.0' } });
+
+  const port = new ImpClientPort({
+    url: ctx.impd.url,
+    readToken: () => 'version-token',
+    now: stub.now,
+  });
+
+  const first = await port.verifyVersion().then(
+    () => null,
+    (error: unknown) => error,
+  );
+
+  stub.advance(29_999);
+
+  const second = await port.verifyVersion().then(
+    () => null,
+    (error: unknown) => error,
+  );
+
+  expect(first).toMatchObject({ code: 'IMPD_OUTDATED' });
+  expect(second).toMatchObject({ code: 'IMPD_OUTDATED' });
+  expect(ctx.impd.calls).toStrictEqual([{ path: '/rpc/system/info', input: undefined }]);
+});
+
+test('it calls impd for the version again 30 seconds after its last call', async () => {
   const ctx = setupTest();
   const stub = buildStubClock(1000);
 
   const port = new ImpClientPort({
     url: ctx.impd.url,
-    readToken: () => 'features-token',
+    readToken: () => 'version-token',
     now: stub.now,
   });
 
-  await port.readFeatures();
+  await port.verifyVersion();
 
   stub.advance(30_000);
 
-  await port.readFeatures();
+  await port.verifyVersion();
 
   expect(ctx.impd.calls).toStrictEqual([
     { path: '/rpc/system/info', input: undefined },
@@ -103,13 +160,13 @@ test('it calls impd for the features again 30 seconds after its last call', asyn
   ]);
 });
 
-test('it calls impd for the features again after impd refused the read before', async () => {
+test('it calls impd for the version again after impd refused the read before', async () => {
   const ctx = setupTest();
   const stub = buildStubClock(1000);
 
   const port = new ImpClientPort({
     url: ctx.impd.url,
-    readToken: () => 'features-token',
+    readToken: () => 'version-token',
     now: stub.now,
   });
 
@@ -118,17 +175,16 @@ test('it calls impd for the features again after impd refused the read before', 
     json: { defined: true, code: 'UNAVAILABLE', status: 503, message: 'impd is starting' },
   });
 
-  const refused = await port.readFeatures().then(
+  const refused = await port.verifyVersion().then(
     () => null,
     (error: unknown) => error,
   );
 
   ctx.impd.answers.delete('/rpc/system/info');
 
-  const features = await port.readFeatures();
+  await port.verifyVersion();
 
   expect(refused).toMatchObject({ code: 'UNAVAILABLE' });
-  expect(features.leases).toBe(true);
   expect(ctx.impd.calls).toHaveLength(2);
 });
 
@@ -141,7 +197,7 @@ test('it refuses a call as unauthorized without reaching impd when the token fil
 
   const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => readImpToken(tokenPath) });
 
-  expect(port.readFeatures()).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+  expect(port.verifyVersion()).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
   expect(ctx.impd.authorizations).toStrictEqual([]);
 });
 
@@ -285,70 +341,6 @@ test('it ends a reverse forward as closed with the code when impd closes its tun
     kind: 'closed',
     code: 4001,
     reason: 'tunnel gone',
-  });
-});
-
-test.each([
-  ['absent', false, { sessionOffsets: true, leases: true }],
-  [
-    'false',
-    false,
-    {
-      sessionOffsets: true,
-      leases: true,
-      grantableTokens: false,
-      secretRebind: false,
-      execRequire: false,
-      oauthSecrets: false,
-      readOnlyFiles: false,
-    },
-  ],
-  [
-    'strings',
-    false,
-    {
-      sessionOffsets: true,
-      leases: true,
-      grantableTokens: 'true',
-      secretRebind: 'true',
-      execRequire: 'true',
-      oauthSecrets: 'true',
-      readOnlyFiles: 'true',
-      execDropSysAdmin: 'true',
-    },
-  ],
-  [
-    'true',
-    true,
-    {
-      sessionOffsets: true,
-      leases: true,
-      grantableTokens: true,
-      secretRebind: true,
-      execRequire: true,
-      oauthSecrets: true,
-      readOnlyFiles: true,
-      execDropSysAdmin: true,
-    },
-  ],
-])('it reads grant and exec requirement flags sent as %s as %p', async (_kind, flag, sent) => {
-  const ctx = setupTest();
-
-  ctx.impd.answers.set('/rpc/system/info', { status: 200, json: { features: sent } });
-
-  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
-
-  const features = await port.readFeatures();
-
-  expect(features).toStrictEqual({
-    sessionOffsets: true,
-    leases: true,
-    grantableTokens: flag,
-    secretRebind: flag,
-    execRequire: flag,
-    oauthSecrets: flag,
-    readOnlyFiles: flag,
-    execDropSysAdmin: flag,
   });
 });
 

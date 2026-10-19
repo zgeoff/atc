@@ -1,5 +1,4 @@
 import type {
-  BrokerFeatures,
   BrokerIdentity,
   BrokerSecret,
   BrokerSecretKind,
@@ -11,7 +10,10 @@ import { CredentialBrokerError } from '@atc/plugin-api';
 // enforces no authority itself, so the caller's own checks decide what may run
 interface StubCredentialBroker extends CredentialBroker {
   readonly calls: string[];
-  readonly setFeatures: (features: Partial<BrokerFeatures>) => void;
+
+  // Refuses every version check from now on, as a provider refuses a broker
+  // older than the oldest it supports, until called with false.
+  readonly setOutdated: (outdated: boolean) => void;
   readonly setIdentity: (identity: BrokerIdentity) => void;
 
   // Adds a secret, with the sign-in state the broker lists for an `oauth`
@@ -32,9 +34,9 @@ interface StubHost {
 }
 
 interface StubFailingCredentialBroker extends StubCredentialBroker {
-  // Fails the next feature reads as an unreachable broker, before they
+  // Fails the next version checks as an unreachable broker, before they
   // answer.
-  readonly setFeatureFailures: (count: number) => void;
+  readonly setVersionFailures: (count: number) => void;
 }
 
 export function buildStubCredentialBroker(hostPrefix = 'atc-'): StubFailingCredentialBroker {
@@ -43,12 +45,7 @@ export function buildStubCredentialBroker(hostPrefix = 'atc-'): StubFailingCrede
   const hosts = new Map<string, StubHost>();
   const secrets = new Map<string, BrokerSecret>();
 
-  let features: BrokerFeatures = {
-    grantableTokens: true,
-    secretRebind: true,
-    execRequire: true,
-    oauthSecrets: true,
-  };
+  let outdated = false;
 
   let identity: BrokerIdentity = {
     name: 'atc-runtime',
@@ -57,7 +54,7 @@ export function buildStubCredentialBroker(hostPrefix = 'atc-'): StubFailingCrede
     grantable: [],
   };
 
-  let featureFailures = 0;
+  let versionFailures = 0;
   let nextID = 1;
   const getHostName = (hostKey: string): string => `${hostPrefix}${hostKey}`;
 
@@ -96,14 +93,14 @@ export function buildStubCredentialBroker(hostPrefix = 'atc-'): StubFailingCrede
     calls,
     hostPrefix,
     getHostName,
-    setFeatures: (next) => {
-      features = { ...features, ...next };
+    setOutdated: (next) => {
+      outdated = next;
     },
     setIdentity: (next) => {
       identity = next;
     },
-    setFeatureFailures: (count) => {
-      featureFailures = count;
+    setVersionFailures: (count) => {
+      versionFailures = count;
     },
     createSecret: (name, kind, rules, oauth) => {
       const secret: BrokerSecret =
@@ -121,19 +118,25 @@ export function buildStubCredentialBroker(hostPrefix = 'atc-'): StubFailingCrede
 
       removeGrantsOf(name);
     },
-    readFeatures: () =>
+    verifyVersion: () =>
       answerCall(() => {
-        calls.push('readFeatures');
+        calls.push('verifyVersion');
 
-        if (featureFailures > 0) {
-          featureFailures -= 1;
+        if (versionFailures > 0) {
+          versionFailures -= 1;
 
           throw new CredentialBrokerError('unreachable', 'the broker did not answer', {
             brokerCode: 'UNREACHABLE',
           });
         }
 
-        return features;
+        if (outdated) {
+          throw new CredentialBrokerError(
+            'refused',
+            'the broker is older than the oldest this atc supports',
+            { brokerCode: 'IMPD_OUTDATED' },
+          );
+        }
       }),
     readIdentity: () =>
       answerCall(() => {

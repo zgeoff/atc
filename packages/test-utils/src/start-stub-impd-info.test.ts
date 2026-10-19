@@ -1,16 +1,27 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { startStubImpdInfo } from './start-stub-impd-info';
 
-test('it answers a call with the features the test sets, in the RPC body shape', async () => {
+test('it answers a call with impd 2.2.0 until the test sets a version', async () => {
   const impd = startStubImpdInfo();
-
-  impd.info.features = { leases: true };
 
   const response = await fetch(`${impd.url}/rpc/system/info`, { method: 'POST', body: '{}' });
 
   expect({ status: response.status, body: await response.json() }).toStrictEqual({
     status: 200,
-    body: { json: { features: { leases: true } } },
+    body: { json: { version: '2.2.0' } },
+  });
+});
+
+test('it answers a call with the version the test sets, in the RPC body shape', async () => {
+  const impd = startStubImpdInfo();
+
+  impd.info.version = '2.7.0';
+
+  const response = await fetch(`${impd.url}/rpc/system/info`, { method: 'POST', body: '{}' });
+
+  expect({ status: response.status, body: await response.json() }).toStrictEqual({
+    status: 200,
+    body: { json: { version: '2.7.0' } },
   });
 });
 

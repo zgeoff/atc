@@ -15,7 +15,6 @@ import type {
 } from '@atc/plugin-api';
 import { EffectRemainsError, isHostNameAllowed } from '@atc/plugin-api';
 import { buildSessionEnv } from '@atc/protocol/session';
-import { DaemonError } from '@atc/protocol/wire';
 import { buildBusyRefusal } from './build-busy-refusal';
 import { buildGuestEnv } from './build-guest-env';
 import { buildHomeRelativeCommand } from './build-home-relative-command';
@@ -129,14 +128,6 @@ export class ImpProvider implements ExecutionProvider {
   private readonly guestATC: ImpGuestATC;
 
   private readonly leases: ImpLeases;
-
-  // Whether impd carries output offsets, once a prepare has read its
-  // features; an impd without the flag carries none.
-  private offsets = false;
-
-  // Whether impd writes read-only files, once a prepare has read its
-  // features; an impd without the flag writes none.
-  private readOnlyFiles = false;
 
   constructor(port: ImpPort, target: ImpTargetOptions, options: ImpProviderOptions) {
     this.port = port;
@@ -255,20 +246,7 @@ export class ImpProvider implements ExecutionProvider {
     const timer = request.timer ?? createStepTimer();
 
     try {
-      const features = await timer.withStep('features', () => this.port.readFeatures());
-
-      this.offsets = features.sessionOffsets;
-      this.readOnlyFiles = features.readOnlyFiles;
-
-      // an impd without the feature drops the field and would start the
-      // harness with the capability
-      if (this.target.dropSysAdmin === true && !features.execDropSysAdmin) {
-        throw new DaemonError(
-          'host_unavailable',
-          `imp ${name} cannot be used: impd cannot start a harness without CAP_SYS_ADMIN, which this target's dropSysAdmin asks for`,
-          { provider: 'imp', problem: 'impd_outdated' },
-        );
-      }
+      await timer.withStep('impd-version', () => this.port.verifyVersion());
 
       const existing = await timer.withStep('inspect-imp', () => this.port.readImp(name));
 
@@ -353,7 +331,6 @@ export class ImpProvider implements ExecutionProvider {
         ...(this.target.dropSysAdmin === true ? { dropSysAdmin: true } : {}),
       },
       {
-        offsets: this.offsets,
         reconnectDelaysMs: this.reconnectDelaysMs,
         ...(reporter === null ? {} : { ready: reporter.listening }),
         ...(spec.admit === undefined ? {} : { admit: spec.admit }),
@@ -406,17 +383,13 @@ export class ImpProvider implements ExecutionProvider {
     };
   };
 
-  // An impd without read-only files, or an imp whose agent booted before
-  // them, has no such place, which a later cold boot of the imp gives it.
+  // An imp whose agent booted before read-only files has no such place,
+  // which a later cold boot of the imp gives it.
   readonly writeReadOnlyFile = async (
     hostKey: string,
     path: string,
     content: string,
   ): Promise<string | null> => {
-    if (!this.readOnlyFiles) {
-      return null;
-    }
-
     const name = this.getImpName(hostKey);
 
     try {

@@ -104,11 +104,11 @@ close each new connection unread: hooks would be lost, and notes would wait in t
 ## Reconnecting
 
 A connection to a harness that ends without an exit reconnects without waking the imp, and the
-session lists as `reattaching` until it does. Where impd carries output offsets, the daemon resumes
-after the last byte it holds, at the generation it last saw, and drops any byte below that offset,
-since impd may repeat bytes across connections. A resume that finds a gap, an offset impd refuses,
-or an impd without offsets gets a fresh attach instead: the daemon clears the screen and takes
-impd's replay.
+session lists as `reattaching` until it does. Where the session carries output offsets, the daemon
+resumes after the last byte it holds, at the generation it last saw, and drops any byte below that
+offset, since impd may repeat bytes across connections. A resume that finds a gap, an offset impd
+refuses, or a session without offsets gets a fresh attach instead: the daemon clears the screen and
+takes impd's replay.
 
 impd's answer to the reconnect decides how the harness ended:
 

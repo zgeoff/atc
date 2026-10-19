@@ -102,11 +102,11 @@ atc replaces the file through a rename, so a reader never sees a half-written re
 hands the copy to impd, whose agent keeps it outside the imp's container and shows it there on a
 read-only mount
 ([read-only files](https://github.com/zgeoff/impz/blob/main/docs/architecture/guest/agent.md#read-only-files)).
-An impd without read-only files, or an imp whose agent booted before them, has no such mount, so atc
-places the copy at `<guestDir>/records/<session>.json` through a command instead, owned by root and
-mode 0444. A harness that started with that copy keeps its path across a revive, because the revive
-reattaches to the running process, so atc keeps a guest-folder copy current beside the read-only one
-until a cold boot clears the folder. A forget removes the record and its copy.
+An imp whose agent booted before read-only files has no such mount, so atc places the copy at
+`<guestDir>/records/<session>.json` through a command instead, owned by root and mode 0444. A
+harness that started with that copy keeps its path across a revive, because the revive reattaches to
+the running process, so atc keeps a guest-folder copy current beside the read-only one until a cold
+boot clears the folder. A forget removes the record and its copy.
 
 ## Who may change the record
 

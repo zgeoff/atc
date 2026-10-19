@@ -191,9 +191,7 @@ export class ImpHarness implements HarnessHandle {
     }
   }
 
-  // An impd from before exec requirements ignores them and runs the command
-  // anyway, so a start or reattach that has any waits until impd shows it
-  // honours them and the host admits it.
+  // A start or reattach that has requirements waits until the host admits it.
   private openCheckedConnection(request: ImpSessionRequest): void {
     if (!this.hasRequirements) {
       this.openConnection(request);
@@ -202,13 +200,8 @@ export class ImpHarness implements HarnessHandle {
     }
 
     void waitForAdmission(request.kind, {
-      port: this.port,
       host: this.host,
-      name: this.name,
       isDone: () => this.state.isDone(),
-      applyOutcome: (outcome) => {
-        this.applyOutcome(outcome, false);
-      },
       openConnection: (ticket) => {
         this.openConnection(request, ticket);
       },
@@ -280,7 +273,7 @@ export class ImpHarness implements HarnessHandle {
 
   private applyStarted(connection: ImpSessionConnection, started: ImpSessionStarted): void {
     const output = started.output;
-    const offsets = this.host.offsets && output.continuity === 'offsets' ? output : null;
+    const offsets = output.continuity === 'offsets' ? output : null;
 
     if (offsets?.resume?.kind === 'gap') {
       this.restartFreshAttach(connection);

@@ -12,9 +12,7 @@ interface PreconditionRefusal {
   readonly exit: HarnessExit;
 }
 
-// impd refuses a start whose broker is not ready. An exec with
-// requirements is refused against an impd that would ignore them, by
-// impd's client and the harness both.
+// impd refuses a start whose broker is not ready.
 export function buildPreconditionRefusal(
   outcome: Extract<ImpSessionOutcome, { kind: 'failed' }>,
   name: string,
@@ -23,18 +21,6 @@ export function buildPreconditionRefusal(
 
   return match(data.reason)
     .returnType<PreconditionRefusal>()
-    .with('impd_outdated', () => ({
-      refusal: new DaemonError(
-        'auth_impd_too_old',
-        `impd for imp ${name} does not honour exec requirements; upgrade it to 0.30.0 or later`,
-        { imp: name, execRequire: false },
-      ),
-      exit: {
-        exitCode: 1,
-        reason: 'ended',
-        detail: 'impd too old to require the broker',
-      },
-    }))
     .with('broker_not_ready', () => {
       const detail = data.detail ?? 'no detail';
 

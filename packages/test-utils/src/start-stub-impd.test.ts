@@ -10,7 +10,19 @@ test('it answers a call as system info until the caller sets an answer for its p
   const body: unknown = await response.json();
 
   expect(body).toStrictEqual({
-    json: { features: { sessionOffsets: true, leases: true } },
+    json: {
+      version: '2.2.0',
+      features: {
+        sessionOffsets: true,
+        leases: true,
+        grantableTokens: true,
+        secretRebind: true,
+        execRequire: true,
+        oauthSecrets: true,
+        readOnlyFiles: true,
+        execDropSysAdmin: true,
+      },
+    },
   });
 });
 

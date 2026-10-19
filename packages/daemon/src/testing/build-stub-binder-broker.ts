@@ -1,5 +1,4 @@
 import type {
-  BrokerFeatures,
   BrokerHost,
   BrokerIdentity,
   BrokerSecret,
@@ -13,7 +12,10 @@ import { CredentialBrokerError, isHostNameAllowed } from '@atc/plugin-api';
 // each is recorded as it arrives but takes effect and answers only on a release
 export interface StubBinderBroker extends CredentialBroker {
   readonly calls: string[];
-  readonly setFeatures: (features: Partial<BrokerFeatures>) => void;
+
+  // Refuses every version check from now on as the imp provider refuses an
+  // impd older than the oldest it supports, until called with false.
+  readonly setOutdated: (outdated: boolean) => void;
   readonly setIdentity: (identity: BrokerIdentity) => void;
   readonly createSecret: (
     name: string,
@@ -60,12 +62,7 @@ export function buildStubBinderBroker(hostPrefix = 'atc-'): StubBinderBroker {
   // Grantable secrets rebound or removed since the identity was set.
   const staleGrantable = new Set<string>();
 
-  let features: BrokerFeatures = {
-    grantableTokens: true,
-    secretRebind: true,
-    execRequire: true,
-    oauthSecrets: true,
-  };
+  let outdated = false;
 
   let identity: BrokerIdentity = {
     name: 'atc-runtime',
@@ -164,7 +161,16 @@ export function buildStubBinderBroker(hostPrefix = 'atc-'): StubBinderBroker {
     return {
       hostPrefix: prefix,
       getHostName,
-      readFeatures: () => answerCall('readFeatures', () => features),
+      verifyVersion: () =>
+        answerCall('verifyVersion', () => {
+          if (outdated) {
+            throw new CredentialBrokerError(
+              'refused',
+              'the broker is older than the oldest this atc supports',
+              { brokerCode: 'IMPD_OUTDATED' },
+            );
+          }
+        }),
       readIdentity: () => answerCall('readIdentity', () => identity),
       readSecrets: () => answerCall('readSecrets', () => [...secrets.values()]),
       readGrants: (hostName) =>
@@ -257,8 +263,8 @@ export function buildStubBinderBroker(hostPrefix = 'atc-'): StubBinderBroker {
         entry.answer();
       }
     },
-    setFeatures: (next) => {
-      features = { ...features, ...next };
+    setOutdated: (next) => {
+      outdated = next;
     },
     setIdentity: (next) => {
       identity = next;

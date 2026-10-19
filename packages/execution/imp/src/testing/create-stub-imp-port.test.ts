@@ -1595,22 +1595,20 @@ test('it reads the imp made last under a name', async () => {
   });
 });
 
-test('it reports the features of an old daemon without the grant and exec requirement flags', async () => {
+test('it passes the version check as impd 2.2.0 until the test sets a version', async () => {
   const ctx = setupTest();
 
-  ctx.port.setOldDaemonFeatures();
+  await expect(ctx.port.verifyVersion()).toResolve();
+});
 
-  const features = await ctx.port.readFeatures();
+test('it refuses the version check of the outdated version a test set', () => {
+  const ctx = setupTest();
 
-  expect(features).toStrictEqual({
-    sessionOffsets: true,
-    leases: true,
-    grantableTokens: false,
-    secretRebind: false,
-    execRequire: false,
-    oauthSecrets: false,
-    readOnlyFiles: false,
-    execDropSysAdmin: false,
+  ctx.port.version = '2.1.0';
+
+  expect(ctx.port.verifyVersion()).rejects.toMatchObject({
+    code: 'IMPD_OUTDATED',
+    message: 'impd 2.1.0 is older than 2.2.0, the oldest impd this atc supports; upgrade impd',
   });
 });
 
@@ -2694,54 +2692,45 @@ test('it destroys imps again once the destroy failure is cleared', async () => {
   expect(ctx.port.collectImpNames()).toStrictEqual([]);
 });
 
-test('it fails the next feature reads as an unreachable impd', () => {
+test('it fails the next version checks as an unreachable impd', () => {
   const ctx = setupTest();
 
-  ctx.port.setFeatureFailures(1);
+  ctx.port.setVersionFailures(1);
 
-  expect(ctx.port.readFeatures()).rejects.toMatchObject({
+  expect(ctx.port.verifyVersion()).rejects.toMatchObject({
     code: 'UNREACHABLE',
     message: 'impd did not answer',
   });
 });
 
-test('it answers a feature read once the failures are spent', async () => {
+test('it passes a version check once the failures are spent', async () => {
   const ctx = setupTest();
 
-  ctx.port.setFeatureFailures(1);
+  ctx.port.setVersionFailures(1);
 
-  const failedRead = ctx.port.readFeatures();
+  const failedCheck = ctx.port.verifyVersion();
 
-  await Promise.allSettled([failedRead]);
+  await Promise.allSettled([failedCheck]);
 
-  const features = await ctx.port.readFeatures();
+  const passedCheck = ctx.port.verifyVersion();
 
-  expect(failedRead).rejects.toMatchObject({
+  expect(failedCheck).rejects.toMatchObject({
     code: 'UNREACHABLE',
     message: 'impd did not answer',
   });
 
-  expect(features).toStrictEqual({
-    sessionOffsets: true,
-    leases: true,
-    grantableTokens: true,
-    secretRebind: true,
-    execRequire: true,
-    oauthSecrets: true,
-    readOnlyFiles: false,
-    execDropSysAdmin: true,
-  });
+  await expect(passedCheck).toResolve();
 });
 
-test('it counts each feature read that failed as an unreachable impd', async () => {
+test('it counts each version check that failed as an unreachable impd', async () => {
   const ctx = setupTest();
 
-  ctx.port.setFeatureFailures(2);
+  ctx.port.setVersionFailures(2);
 
-  await Promise.allSettled([ctx.port.readFeatures(), ctx.port.readFeatures()]);
-  await ctx.port.readFeatures();
+  await Promise.allSettled([ctx.port.verifyVersion(), ctx.port.verifyVersion()]);
+  await ctx.port.verifyVersion();
 
-  expect(ctx.port.countFailedFeatureReads()).toBe(2);
+  expect(ctx.port.countFailedVersionChecks()).toBe(2);
 });
 
 test('it exits 1 from a command whose argv holds the failing text without running it', async () => {

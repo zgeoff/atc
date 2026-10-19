@@ -5,7 +5,7 @@ import type { AuthBinding } from './build-auth-binding';
 import { collectSecretRuleMismatches } from './collect-secret-rule-mismatches';
 import { verifyBrokerAuthority } from './verify-broker-authority';
 
-// The full gate on a binding: impd's features and the token's authority
+// The full gate on a binding: impd's version and the token's authority
 // over the imp and every bound secret, then each secret's kind and rules.
 // The secrets are read with the authority's reads and checked after them.
 export async function verifyGate(
@@ -15,12 +15,8 @@ export async function verifyGate(
 ): Promise<void> {
   const secrets = binding.secrets.map((secret) => secret.secret);
 
-  const oauthSecrets = binding.secrets
-    .filter((secret) => secret.kind === 'oauth')
-    .map((secret) => secret.secret);
-
   const [authority, secretsRead] = await Promise.allSettled([
-    verifyBrokerAuthority(host, { impNames: [impName], secrets, oauthSecrets }),
+    verifyBrokerAuthority(host, { impNames: [impName], secrets }),
     host.readSecrets(),
   ]);
 

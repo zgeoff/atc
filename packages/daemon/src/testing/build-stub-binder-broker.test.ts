@@ -5,6 +5,21 @@ test('it names each host under its prefix', () => {
   expect(buildStubBinderBroker('harness-').getHostName('s1')).toBe('harness-s1');
 });
 
+test('it passes the version check until a test marks it outdated', async () => {
+  await expect(buildStubBinderBroker().verifyVersion()).toResolve();
+});
+
+test('it refuses the version check as outdated once a test marks it so', () => {
+  const broker = buildStubBinderBroker();
+
+  broker.setOutdated(true);
+
+  expect(broker.verifyVersion()).rejects.toMatchObject({
+    code: 'refused',
+    brokerCode: 'IMPD_OUTDATED',
+  });
+});
+
 test('it gives a host made again under the same name a new id', async () => {
   const broker = buildStubBinderBroker();
 
@@ -74,8 +89,8 @@ test('it lists the held calls without waiting for any', () => {
   const broker = buildStubBinderBroker();
 
   broker.holdCalls();
-  void broker.readFeatures();
-  expect(broker.collectHeldCalls()).toStrictEqual(['readFeatures']);
+  void broker.verifyVersion();
+  expect(broker.collectHeldCalls()).toStrictEqual(['verifyVersion']);
 });
 
 test('it answers calls at once again after a release', async () => {
@@ -102,7 +117,7 @@ test('it records each contract call in order', async () => {
 
   broker.createSecret('glm', 'custom', []);
 
-  await broker.readFeatures();
+  await broker.verifyVersion();
   await broker.readIdentity();
   await broker.readSecrets();
   await broker.readHost('atc-s1');
@@ -113,7 +128,7 @@ test('it records each contract call in order', async () => {
   await broker.destroyHost('s1');
 
   expect(broker.calls).toStrictEqual([
-    'readFeatures',
+    'verifyVersion',
     'readIdentity',
     'readSecrets',
     'readHost atc-s1',

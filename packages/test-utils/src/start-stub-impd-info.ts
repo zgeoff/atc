@@ -2,7 +2,7 @@ import { registerTestCleanup } from './register-test-cleanup';
 
 export function startStubImpdInfo() {
   const paths: string[] = [];
-  const info: { features: unknown } = { features: undefined };
+  const info: { version: unknown } = { version: '2.2.0' };
 
   const server = Bun.serve({
     port: 0,

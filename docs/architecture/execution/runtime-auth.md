@@ -19,8 +19,9 @@ would join a running process that started without the requirement. That refusal 
 `broker_not_ready`. An attach that reconnects to the harness carries no requirement, because impd's
 exec protocol takes none on an attach, so impd never checks the broker on it. The daemon still
 admits every reconnect through the binding, so a revoked or blocked binding stops the attach before
-it reaches impd. An impd too old to understand the requirement would ignore it, so the daemon reads
-impd's features first and refuses to launch on such an impd with `auth_impd_too_old`.
+it reaches impd. An impd older than the oldest impd atc supports can ignore the requirement, so the
+daemon checks impd's version first and refuses to launch on such an impd with `host_unavailable` and
+the problem `impd_outdated`.
 
 ## What the broker guarantees
 
@@ -37,21 +38,21 @@ already gone counts as done, so a forget that finds no host drops the binding.
 A spawn checks everything before it writes anything, so a refused spawn leaves no binding, no imp
 and no grant behind:
 
-1. impd must support every broker feature the binding needs.
+1. impd must be no older than the oldest impd atc supports.
 2. The daemon's impd token must manage imps only inside the target's name prefix and must be able to
    grant every bound secret.
 3. Each secret's kind and rules in impd must match the binding exactly.
 
 The daemon sends every read these checks need, and the read of the imp's name, to impd at once, so
-the checks cost one round trip, and it still refuses in the order of the list. impd builds its
-features into a full status report that takes it far longer than any other read, so the target's
-client answers a features read from the one before it for a short time. An impd replaced by an older
-one within that time is still taken to have the newer one's features. The spawn then records the
-binding, creates a new imp, and adds the grants at once. Every grant settles before a failed one
-refuses the spawn, so a take-back never runs beside a grant still in flight. An imp that already
-exists under the name refuses the spawn, so a spawn never inherits another session's grants. A spawn
-that fails after this point takes back the imp it created, and a take-back it cannot confirm answers
-`outcome_unknown` under an idempotency key.
+the checks cost one round trip, and it still refuses in the order of the list. impd reports its
+version in a full status report that takes it far longer than any other read, so the target's client
+answers a version check from the read before it for a short time. An impd replaced by an older one
+within that time still passes the check. The spawn then records the binding, creates a new imp, and
+adds the grants at once. Every grant settles before a failed one refuses the spawn, so a take-back
+never runs beside a grant still in flight. An imp that already exists under the name refuses the
+spawn, so a spawn never inherits another session's grants. A spawn that fails after this point takes
+back the imp it created, and a take-back it cannot confirm answers `outcome_unknown` under an
+idempotency key.
 
 A launch whose binding holds an OAuth secret reads that secret's sign-in from impd before it touches
 the imp, and refuses with `auth_signin_needed` when the sign-in is pending or incomplete.

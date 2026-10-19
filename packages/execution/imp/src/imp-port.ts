@@ -1,6 +1,7 @@
 export interface ImpPort {
-  // impd's capability flags; an impd without them has neither.
-  readonly readFeatures: () => Promise<ImpFeatures>;
+  // Rejects with `IMPD_OUTDATED` when impd is older than the oldest impd
+  // this atc supports, or reports a version that does not parse.
+  readonly verifyVersion: () => Promise<void>;
 
   // The caller's own identity: its scope, the imps it may reach, and the
   // secrets it may grant.
@@ -61,33 +62,6 @@ export interface ImpPort {
     guestPath: string,
     onConnection: (connection: ImpRelayConnection) => void,
   ) => ImpReverseForward;
-}
-
-export interface ImpFeatures {
-  readonly sessionOffsets: boolean;
-  readonly leases: boolean;
-
-  // Tokens limited to some imps may grant a list of secrets to them.
-  readonly grantableTokens: boolean;
-
-  // A rebound or recreated secret drops its grants and leaves a token's
-  // list of grantable secrets behind.
-  readonly secretRebind: boolean;
-
-  // A start may list what must be ready before the command runs, and impd
-  // refuses the start without running it when one is not.
-  readonly execRequire: boolean;
-
-  // impd holds secrets of kind `oauth`, whose access token it renews from a
-  // refresh token.
-  readonly oauthSecrets: boolean;
-
-  // impd writes files an imp's processes see read-only, root included.
-  readonly readOnlyFiles: boolean;
-
-  // A start may run its command without CAP_SYS_ADMIN, so root in it cannot
-  // remount those read-only files writable.
-  readonly execDropSysAdmin: boolean;
 }
 
 // A requirement impd readies before the command runs: for the broker, its CA

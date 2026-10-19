@@ -783,10 +783,9 @@ test('it keeps an imp that existed before a failed prepare and gives back only i
   expect(imp).toMatchObject({ name: 'atc-s1', leases: [], otherLeaseCount: 1 });
 });
 
-test('it writes a read-only file through impd once a prepare read the feature', async () => {
+test('it writes a read-only file through impd', async () => {
   const ctx = setupTest();
 
-  ctx.port.features = { ...ctx.port.features, readOnlyFiles: true };
   ctx.port.readOnlyFilesDir = join(ctx.dir, 'ro');
 
   const provider = new ImpProvider(
@@ -810,35 +809,11 @@ test('it writes a read-only file through impd once a prepare read the feature', 
   );
 });
 
-test('it has no read-only file on an impd without the feature, and asks impd nothing', async () => {
-  const ctx = setupTest();
-
-  ctx.port.readOnlyFilesDir = join(ctx.dir, 'ro');
-
-  const provider = new ImpProvider(
-    ctx.port,
-    { guestDir: join(ctx.dir, 'g') },
-    { atcBinary: null, version: '1.0.0' },
-  );
-
-  registerTestCleanup(() => {
-    provider.dispose();
-  });
-
-  await provider.prepareHost({ host: 's1', daemonID: 'd1' });
-
-  const path = await provider.writeReadOnlyFile('s1', 'notes/rota.json', '{}');
-
-  expect(path).toBeNull();
-  expect(ctx.port.calls.filter((call) => call.startsWith('files.write'))).toStrictEqual([]);
-});
-
 test('it has no read-only file on an imp whose agent is from before them', async () => {
   const ctx = setupTest();
 
-  // impd keeps read-only files, and the port holds no folder for them, as
-  // an imp still on an older agent
-  ctx.port.features = { ...ctx.port.features, readOnlyFiles: true };
+  // the port holds no folder for read-only files, as an imp still on an
+  // older agent
 
   const provider = new ImpProvider(
     ctx.port,
@@ -860,7 +835,6 @@ test('it has no read-only file on an imp whose agent is from before them', async
 test('it refuses a read-only file on an imp impd does not hold as the host refusal', async () => {
   const ctx = setupTest();
 
-  ctx.port.features = { ...ctx.port.features, readOnlyFiles: true };
   ctx.port.readOnlyFilesDir = join(ctx.dir, 'ro');
 
   const provider = new ImpProvider(
@@ -1081,12 +1055,12 @@ test('it starts a harness with CAP_SYS_ADMIN on a target that leaves it', async 
   expect(Object.keys(start)).not.toContain('dropSysAdmin');
 });
 
-test('it refuses to ready an imp for a target that drops CAP_SYS_ADMIN on an impd that cannot', () => {
+test('it refuses to ready an imp on an impd older than the oldest it supports, creating nothing', () => {
   const ctx = setupTest();
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g'), dropSysAdmin: true },
+    { guestDir: join(ctx.dir, 'g') },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -1094,12 +1068,12 @@ test('it refuses to ready an imp for a target that drops CAP_SYS_ADMIN on an imp
     provider.dispose();
   });
 
-  ctx.port.setOldDaemonFeatures();
+  ctx.port.version = '2.1.0';
 
   expect(provider.prepareHost({ host: 's1', daemonID: 'd1' })).rejects.toMatchObject({
     code: 'host_unavailable',
     message:
-      "imp atc-s1 cannot be used: impd cannot start a harness without CAP_SYS_ADMIN, which this target's dropSysAdmin asks for",
+      'imp atc-s1 cannot be used: impd 2.1.0 is older than 2.2.0, the oldest impd this atc supports; upgrade impd',
     data: { provider: 'imp', problem: 'impd_outdated' },
   });
 
