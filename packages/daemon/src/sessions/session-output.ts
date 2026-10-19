@@ -69,7 +69,7 @@ export class SessionOutput {
       runtime.lastOutputAt = this.clock.now();
     }
 
-    const conns = this.attachments.collectClients(s.id);
+    const conns = this.attachments.readClientViews(s.id);
 
     if (conns.length === 0) {
       return;
@@ -104,7 +104,7 @@ export class SessionOutput {
       return;
     }
 
-    const replay = `${ansi.clear}${await runtime.screen.renderReplay()}`;
+    const replay = `${ansi.clear}${await runtime.screen.captureReplay()}`;
     const seq = runtime.seq;
 
     for (let i = 0; i < replay.length; i += MAX_CHUNK) {
@@ -149,7 +149,7 @@ export class SessionOutput {
   }
 
   detachSession(client: OutputClient, sessionID: SessionID): void {
-    if (!this.attachments.detach(sessionID, client)) {
+    if (!this.attachments.removeClient(sessionID, client)) {
       return;
     }
 

@@ -1,9 +1,9 @@
 import { define, lazy } from 'gunshi';
 import { integer } from 'gunshi/combinators';
 import pkg from '../package.json';
-import { buildDaemonCommand } from './build-daemon-command';
-import type { DaemonCommandIO } from './build-daemon-command';
 import type { runClients } from './clients';
+import { createDaemonCommand } from './create-daemon-command';
+import type { DaemonCommandIO } from './create-daemon-command';
 import type { runNote } from './note';
 import type { runPasskeys } from './passkeys';
 import { makeMissingCommandRun, runCommandLine } from './run-command-line';
@@ -247,7 +247,7 @@ export async function runATCCLI(argv: readonly string[], io: ATCCLIIO): Promise<
     run: makeMissingCommandRun(io),
   });
 
-  const daemon = buildDaemonCommand(io);
+  const daemon = createDaemonCommand(io);
 
   const backup = lazy(
     () => async (ctx) => {

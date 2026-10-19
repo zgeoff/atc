@@ -1,8 +1,8 @@
 import { DaemonError } from '@atc/protocol/wire';
 import type { AuthSetup, HarnessAuthSetup, HarnessSetup } from '../auth/auth-setup';
 import { applyWorkspaceTrust } from './apply-workspace-trust';
-import { buildSpawnWorkspace } from './build-spawn-workspace';
-import type { SpawnWorkspaceDeps } from './build-spawn-workspace';
+import { createSpawnWorkspace } from './create-spawn-workspace';
+import type { SpawnWorkspaceDeps } from './create-spawn-workspace';
 import type { SpawnSteps } from './run-spawn-steps';
 import type { SessionCallbacks } from './session-callbacks';
 import type { MaterializedSpawn } from './spawn-materializer';
@@ -15,7 +15,7 @@ interface SpawnSetupDeps extends SpawnWorkspaceDeps {
     'destroyFailedSpawnHost' | 'removeLocalTrust' | 'removeSpawnWorkspace' | 'shouldTakeHost'
   >;
   readonly auth: Pick<AuthSetup, 'requireProjectSettings' | 'setupHarnessOnHost'>;
-  readonly callbacks: Pick<SessionCallbacks, 'getRecords'>;
+  readonly callbacks: Pick<SessionCallbacks, 'findRecords'>;
 }
 
 // What a spawn readied before its harness starts: the host's setup, the
@@ -101,7 +101,7 @@ export async function setupSpawn(
   const built =
     materialize === null
       ? { materialized: null, root: null }
-      : await buildSpawnWorkspace(deps, steps, spawn, {
+      : await createSpawnWorkspace(deps, steps, spawn, {
           materialize,
           setupHost,
           state: {
@@ -143,7 +143,7 @@ export async function setupSpawn(
 
   checked = true;
 
-  const records = deps.callbacks.getRecords();
+  const records = deps.callbacks.findRecords();
   const recordDir = spawn.autoDir && root !== null ? root : cwd;
 
   const recordPath = await steps.run(
@@ -175,7 +175,7 @@ export async function setupSpawn(
               }),
           ),
     async () => {
-      await deps.callbacks.getRecords()?.remove(id);
+      await deps.callbacks.findRecords()?.remove(id);
     },
   );
 

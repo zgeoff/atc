@@ -18,13 +18,13 @@ import { applyThreadRecovery } from './apply-thread-recovery';
 import { applyTurnCompleted } from './apply-turn-completed';
 import { buildModelParams } from './build-model-params';
 import { buildThreadStartParams } from './build-thread-start-params';
-import { collectLeftThreads } from './collect-left-threads';
-import { collectThreadTurns } from './collect-thread-turns';
 import { NOTICE_PREFIX } from './notice-prefix';
 import { parseAppServerTurn } from './parse-app-server-turn';
 import type { AppServerTurn } from './parse-app-server-turn';
 import type { LeftThreadRecovery } from './plan-left-thread-recovery';
 import { planThreadRecovery } from './plan-thread-recovery';
+import { readLeftThreads } from './read-left-threads';
+import { readThreadTurns } from './read-thread-turns';
 import { sendBridgedMessage } from './send-bridged-message';
 import { sendBridgedNotice } from './send-bridged-notice';
 import type { TurnSendContext } from './turn-send-context';
@@ -301,9 +301,9 @@ export class AppServerBridge {
     let turns: readonly AppServerTurn[];
 
     try {
-      const all = await this.config.host.collectUnsettledMessages();
+      const all = await this.config.host.readUnsettledMessages();
 
-      left = await collectLeftThreads({
+      left = await readLeftThreads({
         conn,
         unsettled: all,
         unconfirmed: this.unconfirmed,
@@ -314,9 +314,7 @@ export class AppServerBridge {
       // A message a left thread holds belongs to that thread alone, so the
       // thread the bridge serves never sends it again.
       unsettled = [...left.flatMap((l) => l.kept), ...all.filter((m) => !this.isLeft(m.id))];
-
-      turns =
-        unsettled.length === 0 ? [] : await collectThreadTurns(conn, this.threadID, unsettled);
+      turns = unsettled.length === 0 ? [] : await readThreadTurns(conn, this.threadID, unsettled);
     } catch (error) {
       this.config.host.log(
         `codex app server: recovery of session ${this.config.session} stopped, every message kept as it was (${String(error)})`,

@@ -4,7 +4,7 @@ import { openDaemonClient } from '@atc/protocol/client';
 import type { DaemonClient } from '@atc/protocol/client';
 import { registerTestCleanup, waitFor } from '@atc/test-utils';
 import type { Subprocess } from 'bun';
-import { findDaemonRecord } from '../find-daemon-record';
+import { readDaemonRecord } from '../read-daemon-record';
 
 interface DaemonProcessConfig {
   // The command atc runs as, such as the source entry under bun or a
@@ -81,7 +81,7 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
 
     await current.proc.exited;
 
-    const recorded = findDaemonRecord(join(stateDir, 'daemon.json'));
+    const recorded = readDaemonRecord(join(stateDir, 'daemon.json'));
 
     if (recorded !== null && recorded.pid !== current.proc.pid) {
       try {

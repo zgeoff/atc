@@ -131,7 +131,7 @@ function detachFocused() {
   }
 }
 
-function toBase() {
+function showBase() {
   const f = findFocused();
 
   if (f !== null && f.alive) {
@@ -154,7 +154,7 @@ const picker = new SpawnPicker<MirrorSession>({
   isLeaderKey,
   getLastUsedAgent,
   scheduleStatus,
-  toBase,
+  showBase,
   attach,
   toMirrorSession,
   upsertMirror: (d) => {
@@ -196,7 +196,7 @@ function setLastUsedAgent(agent: AgentID) {
   lastUsedAgent = agent;
 }
 
-function getFocusedID(): string | null {
+function findFocusedID(): string | null {
   return focusedID;
 }
 
@@ -276,7 +276,7 @@ function findRestartConsent(): RestartConsent | null {
 const overlay = new OverlayScreen({
   mirror,
   bootMetadata,
-  getFocusedID,
+  findFocusedID,
   getMode,
   getConfirm,
   getClient,
@@ -301,7 +301,7 @@ const eject = new EjectScreen({
   actions,
   getClient,
   isLeaderKey,
-  toBase,
+  showBase,
   scheduleStatus,
 });
 
@@ -311,7 +311,7 @@ const eventDeps: DaemonEventDeps = {
   overlay,
   clock,
   getMode,
-  getFocusedID,
+  findFocusedID,
   setFocusedID: (sessionID) => {
     focusedID = sessionID;
   },
@@ -427,10 +427,10 @@ const inputDeps: InputKeyDeps = {
   getMode,
   getConfirm,
   getBoot,
-  getFocusedID,
+  findFocusedID,
   findRestartConsent,
   isLeaderKey,
-  toBase,
+  showBase,
   attach,
   sendQuiet,
   restoreFleet,

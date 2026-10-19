@@ -192,7 +192,7 @@ test('it does not resume when the reported rollout is gone', () => {
 test('it builds a codex resume command with a captured id', () => {
   const adapter = new CodexAdapter(getAgentEntry(parseConfig([CODEX_PLUGIN], {}), 'codex'));
 
-  expect(adapter.buildResumeCommand("/tmp/it's", toAgentSessionID('c-1'))).toBe(
+  expect(adapter.planResumeCommand("/tmp/it's", toAgentSessionID('c-1'))).toBe(
     String.raw`cd '/tmp/it'\''s' && codex resume c-1`,
   );
 });
@@ -200,7 +200,7 @@ test('it builds a codex resume command with a captured id', () => {
 test('it builds a codex resume command with the picker when no id was captured', () => {
   const adapter = new CodexAdapter(getAgentEntry(parseConfig([CODEX_PLUGIN], {}), 'codex'));
 
-  expect(adapter.buildResumeCommand('/tmp', undefined)).toBe(`cd '/tmp' && codex resume`);
+  expect(adapter.planResumeCommand('/tmp', undefined)).toBe(`cd '/tmp' && codex resume`);
 });
 
 test('it refuses inbox messages without an App Server', () => {

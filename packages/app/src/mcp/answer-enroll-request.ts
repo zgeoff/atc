@@ -1,7 +1,7 @@
 import { buildPageResponse } from './build-page-response';
 import { createPasskey } from './create-passkey';
-import { findEnrollmentToken } from './find-enrollment-token';
 import { PASSKEY_SCRIPT } from './passkey-script';
+import { readEnrollmentToken } from './read-enrollment-token';
 import { renderEnrollPage } from './render-enroll-page';
 import type { HTTPServerContext, Requester } from './types';
 import { verifyPasskeyRegistration } from './verify-passkey-registration';
@@ -23,7 +23,7 @@ export async function answerEnrollRequest(
   const context = { path: url.pathname, requester };
 
   const tokenHash =
-    token === '' ? null : await findEnrollmentToken(ctx.store.db, token, ctx.clock.now());
+    token === '' ? null : await readEnrollmentToken(ctx.store.db, token, ctx.clock.now());
 
   if (tokenHash === null) {
     ctx.security.record({
@@ -43,7 +43,7 @@ export async function answerEnrollRequest(
   }
 
   if (!form.has('credential')) {
-    return buildCeremonyResponse(ctx, 200, token, tokenHash, null);
+    return answerCeremony(ctx, 200, token, tokenHash, null);
   }
 
   const taken = ctx.enrollments.claimChallenge(tokenHash);
@@ -72,7 +72,7 @@ export async function answerEnrollRequest(
       ? 'The enrollment took too long. Try again.'
       : 'atc could not enroll that passkey. Try again.';
 
-    return buildCeremonyResponse(ctx, 400, token, tokenHash, error);
+    return answerCeremony(ctx, 400, token, tokenHash, error);
   }
 
   let created: boolean;
@@ -94,7 +94,7 @@ export async function answerEnrollRequest(
       ...context,
     });
 
-    return buildCeremonyResponse(
+    return answerCeremony(
       ctx,
       400,
       token,
@@ -134,7 +134,7 @@ const PROMPT_TIMEOUT_MS = 120_000;
 // an authenticator files each one under the one atc account.
 const OWNER_HANDLE = Buffer.from('atc-owner').toString('base64url');
 
-async function buildCeremonyResponse(
+async function answerCeremony(
   ctx: HTTPServerContext,
   status: number,
   token: string,

@@ -389,7 +389,7 @@ test("it keeps the gateway's arguments, its permission mode included, in the com
     },
   );
 
-  const command = adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'), []);
+  const command = adapter.planResumeCommand('/work/repo', toAgentSessionID('sess-1'), []);
 
   expect(command).toBe(
     `cd '/work/repo' && /opt/gw/bin/claude '--permission-mode' 'default' --settings '${join(ctx.dir, 'state', 'hook-settings-manual-resume.json')}' --resume sess-1`,
@@ -415,7 +415,7 @@ test("it keeps a gateway's configured plugin folders and the session's own in th
     },
   );
 
-  const command = adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'), [
+  const command = adapter.planResumeCommand('/work/repo', toAgentSessionID('sess-1'), [
     '/srv/plugins/band',
   ]);
 
@@ -644,7 +644,7 @@ test("it keeps the gateway's settings default mode in the command that resumes i
     },
   );
 
-  const command = adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'), []);
+  const command = adapter.planResumeCommand('/work/repo', toAgentSessionID('sess-1'), []);
 
   expect(command).toBe(
     `cd '/work/repo' && /opt/gw/bin/claude '--permission-mode' 'default' --settings '${join(ctx.dir, 'state', 'hook-settings-resume-settings.json')}' --resume sess-1`,
@@ -706,7 +706,7 @@ test('it resumes a gateway outside atc in its explicit permission-mode argument 
     },
   );
 
-  const command = adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'), []);
+  const command = adapter.planResumeCommand('/work/repo', toAgentSessionID('sess-1'), []);
 
   expect(command).toBe(
     `cd '/work/repo' && claude '--permission-mode' 'plan' --settings '${join(ctx.dir, 'state', 'hook-settings-restore-flag.json')}' --resume sess-1`,
@@ -752,7 +752,7 @@ test('it gives a gateway with auth no resume command', () => {
     { headlessRun: buildStubClaudeHeadlessRun() },
   );
 
-  expect(adapter.buildResumeCommand('/work', toAgentSessionID('a1'), [])).toBeNull();
+  expect(adapter.planResumeCommand('/work', toAgentSessionID('a1'), [])).toBeNull();
 });
 
 test("it starts a gateway with auth and a credential helper on the daemon's machine under that helper", () => {
@@ -987,7 +987,7 @@ test('it resumes a gateway with auth and a credential helper outside atc through
     },
   );
 
-  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'), [])).toBe(
+  expect(adapter.planResumeCommand('/work/repo', toAgentSessionID('sess-1'), [])).toBe(
     `cd '/work/repo' && claude --settings '${join(ctx.dir, 'state', 'hook-settings-glm.json')}' --resume sess-1`,
   );
 });

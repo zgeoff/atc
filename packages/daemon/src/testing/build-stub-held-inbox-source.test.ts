@@ -20,7 +20,7 @@ test('it links every session to the agent session id it was given', () => {
 
 test('it holds a pending-message read until the test answers it', async () => {
   const inbox = buildStubHeldInboxSource(toAgentSessionID('a-1'));
-  const read = inbox.source.collectPendingMessages({ atcID: toSessionID('s1') });
+  const read = inbox.source.readPendingMessages({ atcID: toSessionID('s1') });
 
   await inbox.reading;
 
@@ -29,7 +29,7 @@ test('it holds a pending-message read until the test answers it', async () => {
 
 test('it answers a held read with the messages the test gives', async () => {
   const inbox = buildStubHeldInboxSource(toAgentSessionID('a-1'));
-  const read = inbox.source.collectPendingMessages({ atcID: toSessionID('s1') });
+  const read = inbox.source.readPendingMessages({ atcID: toSessionID('s1') });
   const record = buildMockMessageRecord({ atcID: toSessionID('s1') });
 
   inbox.answer([record]);

@@ -23,9 +23,9 @@ import {
   buildAuthRevisionFolder,
   buildCodexAuthFile,
   buildCodexConfig,
-  canResumeFromTranscript,
   findCodexSignIn,
   findFlagValue,
+  probeTranscriptResumable,
 } from '@atc/plugin-api';
 import type { HookEvent } from '@atc/protocol/session';
 import { DaemonError } from '@atc/protocol/wire';
@@ -74,7 +74,7 @@ export class CodexAdapter implements AgentAdapter {
   readonly planLineInput = planCodexLineInput;
 
   // A session resumes while its rollout exists.
-  readonly canResume = canResumeFromTranscript;
+  readonly canResume = probeTranscriptResumable;
 
   // Present only for an entry with `auth`: any other entry runs on a
   // remote host as a local spawn plans it, under the sign-in of the host's
@@ -316,7 +316,7 @@ export class CodexAdapter implements AgentAdapter {
   }
 
   // Shell command that re-opens this session outside atc (or anywhere).
-  buildResumeCommand(cwd: string, agentSessionID: AgentSessionID | undefined): string | null {
+  planResumeCommand(cwd: string, agentSessionID: AgentSessionID | undefined): string | null {
     const resume = agentSessionID === undefined ? 'codex resume' : `codex resume ${agentSessionID}`;
 
     return `cd ${toShellArg(cwd)} && ${resume}`;

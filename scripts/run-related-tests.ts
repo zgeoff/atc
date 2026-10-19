@@ -7,7 +7,7 @@ import type { TestSkip } from './load-test-skips';
 import { loadTestSkips } from './load-test-skips';
 import { planTestRuns } from './plan-test-runs';
 
-export function collectRelatedTests(paths: readonly string[], cwd: string): string[] {
+export function readRelatedTests(paths: readonly string[], cwd: string): string[] {
   const selected = new Set<string>();
 
   for (const path of paths) {
@@ -32,7 +32,7 @@ export async function runRelatedTests(
   cwd: string,
   skips: readonly TestSkip[],
 ): Promise<number> {
-  const tests = collectRelatedTests(paths, cwd);
+  const tests = readRelatedTests(paths, cwd);
 
   if (tests.length === 0) {
     process.stdout.write('run-related-tests: no related tests\n');

@@ -5,8 +5,8 @@ import type { IDisposable, IPty } from 'bun-pty';
 import { buildStubTUIClaude } from './build-stub-tui-claude';
 import { buildStubTUIGrok } from './build-stub-tui-grok';
 import { createStubBin } from './create-stub-bin';
-import { getSourceEntry } from './get-source-entry';
 import { mergeDeep } from './merge-deep';
+import { readSourceEntry } from './read-source-entry';
 import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
@@ -35,7 +35,7 @@ const INPUT_MAX = Math.min(COLS - 4, 90) - 8;
 export function startTUIHarness(options: TUIHarnessOptions = {}) {
   const now = options.now ?? Date.now;
   const wait = options.wait ?? Bun.sleep;
-  const cliPath = getSourceEntry('atc');
+  const cliPath = readSourceEntry('atc');
   const tmp = setupTempDir('atc-tui-');
 
   // Registered after the home, so it releases first: the client and its
@@ -51,8 +51,8 @@ export function startTUIHarness(options: TUIHarnessOptions = {}) {
   const home = realpathSync(tmp.dir);
   const configPath = join(home, '.config', 'atc', 'config.json');
   const clientLogPath = join(home, 'client.log');
-  const fakeClaude = createStubBin(home, 'fake-claude', buildStubTUIClaude());
-  const fakeGrok = createStubBin(home, 'fake-grok', buildStubTUIGrok());
+  const fakeClaude = createStubBin(home, 'fake-claude', buildStubTUIClaude(cliPath));
+  const fakeGrok = createStubBin(home, 'fake-grok', buildStubTUIGrok(cliPath));
 
   const bootConfig: Readonly<Record<string, unknown>> = {
     agents: {

@@ -218,7 +218,7 @@ export interface OverlayView {
 
 // A daemon-supplied id or alias can name an inherited property, so map
 // reads go through an own-property check instead of indexing blindly.
-function readMapValue<V>(map: Readonly<Record<string, V>>, key: string): V | undefined {
+function findMapValue<V>(map: Readonly<Record<string, V>>, key: string): V | undefined {
   return Object.hasOwn(map, key) ? map[key] : undefined;
 }
 
@@ -229,9 +229,9 @@ function resolveModelAlias(
   agent: AgentID,
   model: string,
 ): string {
-  const aliases = readMapValue(models, agent);
+  const aliases = findMapValue(models, agent);
 
-  return aliases === undefined ? model : (readMapValue(aliases, model) ?? model);
+  return aliases === undefined ? model : (findMapValue(aliases, model) ?? model);
 }
 
 // A session row draws status (the attention glyph plus the unread mark),
@@ -256,7 +256,7 @@ export function buildSessionRow(
   const target =
     plan.targetWidth > 0 ? truncate(s.target, plan.targetWidth).padEnd(plan.targetWidth) : '';
 
-  const label = readMapValue(view.agentLabels, s.agent) ?? s.agent;
+  const label = findMapValue(view.agentLabels, s.agent) ?? s.agent;
   const harness = truncate(label, plan.harnessWidth).padEnd(plan.harnessWidth);
   const resolved = s.model === null ? '' : resolveModelAlias(view.agentModels, s.agent, s.model);
 
@@ -291,7 +291,7 @@ export function drawOverlay(view: OverlayView, write: (chunk: string) => void = 
   // take the width of what is actually on screen.
   const harnessMax = Math.max(
     0,
-    ...view.sessions.map((s) => (readMapValue(view.agentLabels, s.agent) ?? s.agent).length),
+    ...view.sessions.map((s) => (findMapValue(view.agentLabels, s.agent) ?? s.agent).length),
   );
 
   const modelMax = Math.max(

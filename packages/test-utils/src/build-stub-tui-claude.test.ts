@@ -3,6 +3,7 @@ import { existsSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildStubTUIClaude } from './build-stub-tui-claude';
 import { createStubBin } from './create-stub-bin';
+import { readSourceEntry } from './read-source-entry';
 import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { startOutputCapture } from './start-output-capture';
@@ -14,7 +15,7 @@ function setupTest() {
 
   // The reporter the script reports through sends its lines here.
   const reporter = startStubReporterSocket(join(tmp.dir, 'report.sock'));
-  const bin = createStubBin(tmp.dir, 'claude', buildStubTUIClaude());
+  const bin = createStubBin(tmp.dir, 'claude', buildStubTUIClaude(readSourceEntry('atc')));
 
   return { dir: tmp.dir, bin, lines: reporter.lines };
 }

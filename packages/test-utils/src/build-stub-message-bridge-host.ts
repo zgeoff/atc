@@ -113,7 +113,7 @@ export function buildStubMessageBridgeHost(initial: readonly UnsettledMessage[] 
 
       return Promise.resolve(true);
     },
-    collectUnsettledMessages: () =>
+    readUnsettledMessages: () =>
       Promise.resolve(
         [...statuses]
           .filter(

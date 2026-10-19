@@ -12,7 +12,7 @@ export interface EjectScreenDeps {
   readonly actions: SessionActions;
   readonly getClient: () => DaemonClient;
   readonly isLeaderKey: (buf: Buffer) => boolean;
-  readonly toBase: () => void;
+  readonly showBase: () => void;
   readonly scheduleStatus: () => void;
 }
 
@@ -67,7 +67,7 @@ export class EjectScreen {
         return;
       }
       case 'leader': {
-        this.deps.toBase();
+        this.deps.showBase();
 
         return;
       }

@@ -77,7 +77,7 @@ export class ScreenDetection {
       return;
     }
 
-    const screen = await model.renderReplay();
+    const screen = await model.captureReplay();
 
     const judgment = detector.detectAttention(screen);
 

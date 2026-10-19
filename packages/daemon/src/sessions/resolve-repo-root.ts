@@ -28,7 +28,7 @@ export function resolveRepoRoot(cwd: string): string {
     }
 
     if (stat !== undefined && stat.isFile()) {
-      return findMainRoot(marker) ?? dir;
+      return readMainRoot(marker) ?? dir;
     }
 
     const parent = dirname(dir);
@@ -52,7 +52,7 @@ function tryStat(path: string): Stats | undefined | null {
 }
 
 // A linked worktree's `.git` file reads `gitdir: <main>/.git/worktrees/<name>`.
-function findMainRoot(gitFile: string): string | null {
+function readMainRoot(gitFile: string): string | null {
   try {
     const gitdir = /^gitdir:\s*(?<dir>.+)$/mu
       .exec(readFileSync(gitFile, 'utf8'))

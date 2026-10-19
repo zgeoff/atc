@@ -127,7 +127,7 @@ export class ImpHarness implements HarnessHandle {
   // Only an exit impd reports counts: a host that lost the process or went
   // to sleep with it inside confirms nothing.
   readonly waitForExit = (timeoutMs: number): Promise<boolean> => {
-    const confirmed = this.state.getExitConfirmation();
+    const confirmed = this.state.findExitConfirmation();
 
     if (confirmed !== null) {
       return Promise.resolve(confirmed);
@@ -137,7 +137,7 @@ export class ImpHarness implements HarnessHandle {
   };
 
   readonly waitForStart = (): Promise<HarnessStart> => {
-    const outcome = this.state.getStartOutcome();
+    const outcome = this.state.findStartOutcome();
 
     if (outcome === 'started') {
       return Promise.resolve({ created: this.created ?? true });
@@ -287,7 +287,7 @@ export class ImpHarness implements HarnessHandle {
       return;
     }
 
-    this.output.applyStart(offsets, this.state.needsFreshScreen());
+    this.output.applyStart(offsets, this.state.shouldReplaceScreen());
 
     this.failures = 0;
 
@@ -394,7 +394,7 @@ export class ImpHarness implements HarnessHandle {
         this.scheduleReconnect(outcome, 0);
       })
       .with('NO_SESSION', () => {
-        this.emitExit(buildLostExit(outcome.data, this.output.getCursor()));
+        this.emitExit(buildLostExit(outcome.data, this.output.findCursor()));
       })
       .with('INVALID_STATE', () => {
         this.emitExit(buildStateExit(outcome.data));
@@ -458,7 +458,7 @@ export class ImpHarness implements HarnessHandle {
   // A reconnect never wakes the imp: a sleeping imp answers that it sleeps,
   // and only a revive wakes it.
   private buildAttach(): ImpSessionRequest {
-    const cursor = this.state.needsFreshScreen() ? null : this.output.getCursor();
+    const cursor = this.state.shouldReplaceScreen() ? null : this.output.findCursor();
 
     if (cursor === null) {
       this.state.send({ type: 'FRESH_REQUESTED' });
@@ -501,7 +501,8 @@ export class ImpHarness implements HarnessHandle {
     previous: PreviousGeneration | undefined,
   ): void {
     const exit: HarnessExit =
-      previous !== undefined && previous.executionGeneration === this.output.getCursor()?.generation
+      previous !== undefined &&
+      previous.executionGeneration === this.output.findCursor()?.generation
         ? { exitCode: previous.exitCode ?? 1, reason: 'exited' }
         : { exitCode: 1, reason: 'ended', detail: 'imp replaced the process' };
 
@@ -552,12 +553,12 @@ export class ImpHarness implements HarnessHandle {
     this.connectionTicket?.release();
     this.connectionTicket = null;
 
-    this.events.dispose(this.state.getExitConfirmation() ?? false);
+    this.events.dispose(this.state.findExitConfirmation() ?? false);
   }
 
   // Each wait on the start settles once the start has settled.
   private emitStartOutcome(): void {
-    const outcome = this.state.getStartOutcome();
+    const outcome = this.state.findStartOutcome();
 
     if (outcome === null) {
       return;

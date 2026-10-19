@@ -9,8 +9,8 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
-import { findDaemonRecord } from '../find-daemon-record';
-import { isProcessAlive } from '../is-process-alive';
+import { probeProcessAlive } from '../probe-process-alive';
+import { readDaemonRecord } from '../read-daemon-record';
 import { startDaemonProcess } from './start-daemon-process';
 
 function setupTest() {
@@ -36,7 +36,7 @@ test('it keeps the daemon state in the home and records the daemon process there
 
   await client.sendHello('atc/test');
 
-  expect(findDaemonRecord(join(ctx.dir, '.local', 'state', 'atc', 'daemon.json'))).toStrictEqual({
+  expect(readDaemonRecord(join(ctx.dir, '.local', 'state', 'atc', 'daemon.json'))).toStrictEqual({
     pid: daemon.proc.pid,
     socketPath: join(ctx.dir, 'atc-daemon.sock'),
     reporterSocketPath: join(ctx.dir, 'atc.sock'),
@@ -146,7 +146,7 @@ test('it lays the config variables over the environment of the daemon', async ()
   await client.sendHello('atc/test');
 
   expect(
-    findDaemonRecord(join(ctx.dir, 'other', '.local', 'state', 'atc', 'daemon.json')),
+    readDaemonRecord(join(ctx.dir, 'other', '.local', 'state', 'atc', 'daemon.json')),
   ).toStrictEqual({
     pid: daemon.proc.pid,
     socketPath: join(ctx.dir, 'atc-daemon.sock'),
@@ -169,7 +169,7 @@ test('it removes a variable the config sets to undefined from the environment of
   // Without a runtime directory the daemon listens under its state
   // directory, which its record holds once it is up.
   const record = await waitFor(() => {
-    const found = findDaemonRecord(join(ctx.dir, '.local', 'state', 'atc', 'daemon.json'));
+    const found = readDaemonRecord(join(ctx.dir, '.local', 'state', 'atc', 'daemon.json'));
 
     expect(found).not.toBeNull();
 
@@ -274,7 +274,7 @@ test('it kills the daemon once the test finishes without a stop', () => {
   const pid = daemon.proc.pid;
 
   onTestFinished(() => {
-    expect(isProcessAlive(pid)).toBeFalse();
+    expect(probeProcessAlive(pid)).toBeFalse();
   });
 });
 
@@ -298,10 +298,10 @@ test('it kills the daemon its home records and removes its stderr directory once
   // release and before the fallback kill below. The helper signals the
   // recorded daemon without waiting for it to exit.
   onTestFinished(async () => {
-    expect(isProcessAlive(pid)).toBe(false);
+    expect(probeProcessAlive(pid)).toBe(false);
 
     await waitFor(() => {
-      expect(isProcessAlive(replacement.pid)).toBe(false);
+      expect(probeProcessAlive(replacement.pid)).toBe(false);
     });
 
     expect(stderrLeft).toBe(false);

@@ -47,7 +47,7 @@ export async function verifyRestoredFleet(
   const agents = await tryReadAgentIDs(client, deadline, clock);
 
   let found = await sendBounded(
-    () => collectFailedRows(client, stored, restored, agents),
+    () => readFailedRows(client, stored, restored, agents),
     deadline,
     clock,
   );
@@ -169,13 +169,13 @@ async function tryCollectFailedRows(
   });
 
   try {
-    return await Promise.race([collectFailedRows(client, stored, restored, agents), expired]);
+    return await Promise.race([readFailedRows(client, stored, restored, agents), expired]);
   } finally {
     stopTimer?.();
   }
 }
 
-async function collectFailedRows(
+async function readFailedRows(
   client: Pick<DaemonClient, 'sendRequest'>,
   stored: readonly StoredRow[],
   restored: boolean,

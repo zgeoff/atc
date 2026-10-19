@@ -31,7 +31,7 @@ export async function sanitizeWorkspaceClone(
   const gitDir = join(dir, '.git');
   const configFile = join(gitDir, 'config');
 
-  for (const key of await collectCredentialKeys(configFile)) {
+  for (const key of await readCredentialKeys(configFile)) {
     await runGit(['config', '--file', configFile, '--unset-all', key]);
   }
 
@@ -62,7 +62,7 @@ export async function sanitizeWorkspaceClone(
 }
 
 // Every credential key the repository config holds.
-async function collectCredentialKeys(configFile: string): Promise<string[]> {
+async function readCredentialKeys(configFile: string): Promise<string[]> {
   const listed = await runGit(['config', '--file', configFile, '--list', '-z']);
 
   return collectCredentialConfigKeys(listed.stdout);
@@ -83,7 +83,7 @@ async function verifyClone(
     };
   }
 
-  const remaining = await collectCredentialKeys(configFile);
+  const remaining = await readCredentialKeys(configFile);
 
   if (remaining.length > 0) {
     return {

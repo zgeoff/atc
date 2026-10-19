@@ -44,22 +44,22 @@ test('it reports true for a detach that removes an attachment', () => {
 
   registry.attach(toSessionID('s1'), 'a', { cols: 80, rows: 24 });
 
-  expect(registry.detach(toSessionID('s1'), 'a')).toBeTrue();
+  expect(registry.removeClient(toSessionID('s1'), 'a')).toBeTrue();
 });
 
 test('it reports false for a repeat detach', () => {
   const registry = new AttachRegistry<string>();
 
   registry.attach(toSessionID('s1'), 'a', { cols: 80, rows: 24 });
-  registry.detach(toSessionID('s1'), 'a');
+  registry.removeClient(toSessionID('s1'), 'a');
 
-  expect(registry.detach(toSessionID('s1'), 'a')).toBeFalse();
+  expect(registry.removeClient(toSessionID('s1'), 'a')).toBeFalse();
 });
 
 test('it reports false for a detach of a session it never tracked', () => {
   const registry = new AttachRegistry<string>();
 
-  expect(registry.detach(toSessionID('s1'), 'stranger')).toBeFalse();
+  expect(registry.removeClient(toSessionID('s1'), 'stranger')).toBeFalse();
 });
 
 test('it detaches one client from every session it watched', () => {
@@ -72,8 +72,8 @@ test('it detaches one client from every session it watched', () => {
   const affected = registry.detachAll('a');
 
   expect(affected).toStrictEqual([toSessionID('s1'), toSessionID('s2')]);
-  expect(registry.collectClients(toSessionID('s1'))).toStrictEqual([]);
-  expect(registry.collectClients(toSessionID('s2'))).toStrictEqual(['b']);
+  expect(registry.readClientViews(toSessionID('s1'))).toStrictEqual([]);
+  expect(registry.readClientViews(toSessionID('s2'))).toStrictEqual(['b']);
 });
 
 test('it keeps other sessions when one is removed', () => {

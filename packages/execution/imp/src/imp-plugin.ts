@@ -3,8 +3,8 @@ import {
   TargetUnavailableError,
   definePlugin,
 } from '@atc/plugin-api';
-import { buildImpProvider } from './build-imp-provider';
 import { collectAuthProfileProblems } from './collect-auth-profile-problems';
+import { createImpProvider } from './create-imp-provider';
 
 export const IMP_PLUGIN = definePlugin({
   kind: 'execution',
@@ -37,7 +37,7 @@ export const IMP_PLUGIN = definePlugin({
     ignoredOptions: ['image', 'memoryMib', 'guestATC', 'rebindChangedAuth'],
   },
   create: (config, host) => {
-    const built = buildImpProvider(config.id, config.options, host.version, config.env);
+    const built = createImpProvider(config.id, config.options, host.version, config.env);
 
     if (built.provider === null) {
       throw new TargetUnavailableError(config.id, built.problem);

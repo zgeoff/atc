@@ -7,12 +7,12 @@ import { buildMockLifecycleHost } from '@atc/lifecycle/testing';
 import { StateStore } from '@atc/store';
 import {
   buildMockAgentAdapter,
-  getSourceEntry,
   readJSONRecord,
+  readSourceEntry,
   registerTestCleanup,
   setupTempDir,
 } from '@atc/test-utils';
-import { buildHostServices } from '../packages/app/src/build-host-services';
+import { createHostServices } from '../packages/app/src/create-host-services';
 
 function setupTest() {
   const tmp = setupTempDir('atc-daemon-boot-');
@@ -30,7 +30,14 @@ function setupTest() {
     env: { ...process.env, HOME: tmp.dir, XDG_RUNTIME_DIR: tmp.dir },
     bootModule: join(import.meta.dir, '..', 'packages', 'lifecycle', 'src', 'boot-daemon.ts'),
     hostModule: join(import.meta.dir, '..', 'packages', 'app', 'src', 'build-lifecycle-host.ts'),
-    servicesModule: join(import.meta.dir, '..', 'packages', 'app', 'src', 'build-host-services.ts'),
+    servicesModule: join(
+      import.meta.dir,
+      '..',
+      'packages',
+      'app',
+      'src',
+      'create-host-services.ts',
+    ),
   };
 }
 
@@ -48,9 +55,9 @@ test('it makes a CLI client wait for an installed daemon unit before connecting'
     probe,
     `import { bootDaemonClient } from '${ctx.bootModule}';
 import { buildLifecycleHost } from '${ctx.hostModule}';
-import { buildHostServices } from '${ctx.servicesModule}';
+import { createHostServices } from '${ctx.servicesModule}';
 const invocation = { argv: ['false'], readBuild: () => 'atc/test-build' };
-const boot = await bootDaemonClient({ ...buildLifecycleHost(process.env, buildHostServices()), invocation });
+const boot = await bootDaemonClient({ ...buildLifecycleHost(process.env, createHostServices()), invocation });
 boot.client.stop();
 console.log('connected');
 `,
@@ -123,9 +130,9 @@ test('it reports a codex hello as the last-used agent instead of coercing it to 
     join(ctx.dir, 'probe.ts'),
     `import { bootDaemonClient } from '${ctx.bootModule}';
 import { buildLifecycleHost } from '${ctx.hostModule}';
-import { buildHostServices } from '${ctx.servicesModule}';
+import { createHostServices } from '${ctx.servicesModule}';
 const invocation = { argv: ['false'], readBuild: () => 'atc/test-build' };
-const boot = await bootDaemonClient({ ...buildLifecycleHost(process.env, buildHostServices()), invocation });
+const boot = await bootDaemonClient({ ...buildLifecycleHost(process.env, createHostServices()), invocation });
 process.stdout.write(JSON.stringify({ lastUsedAgent: boot.lastUsedAgent }));
 boot.client.stop();
 `,
@@ -169,9 +176,9 @@ test('it finds a running daemon through the state directory when XDG_RUNTIME_DIR
     join(ctx.dir, 'probe.ts'),
     `import { bootDaemonClient } from '${ctx.bootModule}';
 import { buildLifecycleHost } from '${ctx.hostModule}';
-import { buildHostServices } from '${ctx.servicesModule}';
+import { createHostServices } from '${ctx.servicesModule}';
 const invocation = { argv: ['false'], readBuild: () => 'atc/test-build' };
-const boot = await bootDaemonClient({ ...buildLifecycleHost(process.env, buildHostServices()), invocation });
+const boot = await bootDaemonClient({ ...buildLifecycleHost(process.env, createHostServices()), invocation });
 process.stdout.write(JSON.stringify({ socketPath: boot.socketPath }));
 boot.client.stop();
 `,
@@ -221,13 +228,13 @@ test('it stops a daemon on another protocol and boots its own build when the cal
     join(ctx.dir, 'probe.ts'),
     `import { bootDaemonClient } from '${ctx.bootModule}';
 import { buildLifecycleHost } from '${ctx.hostModule}';
-import { buildHostServices } from '${ctx.servicesModule}';
+import { createHostServices } from '${ctx.servicesModule}';
 const asked = [];
 const invocation = {
-  argv: ${JSON.stringify([process.execPath, getSourceEntry('atc')])},
-  readBuild: () => ${JSON.stringify(buildHostServices().build)},
+  argv: ${JSON.stringify([process.execPath, readSourceEntry('atc')])},
+  readBuild: () => ${JSON.stringify(createHostServices().build)},
 };
-const boot = await bootDaemonClient({ ...buildLifecycleHost(process.env, buildHostServices()), invocation }, {
+const boot = await bootDaemonClient({ ...buildLifecycleHost(process.env, createHostServices()), invocation }, {
   onProtocolMismatch: (mismatch) => { asked.push(mismatch.daemonPID); return Promise.resolve(true); },
 });
 await boot.client.sendRequest('daemon.quit');
@@ -278,10 +285,10 @@ test('it never reports a wait when a daemon answers on the first try', async () 
     join(ctx.dir, 'probe.ts'),
     `import { bootDaemonClient } from '${ctx.bootModule}';
 import { buildLifecycleHost } from '${ctx.hostModule}';
-import { buildHostServices } from '${ctx.servicesModule}';
+import { createHostServices } from '${ctx.servicesModule}';
 let waits = 0;
 const invocation = { argv: ['false'], readBuild: () => 'atc/test-build' };
-const boot = await bootDaemonClient({ ...buildLifecycleHost(process.env, buildHostServices()), invocation }, { waitForDaemonMs: 2000, onWaitForDaemon: () => { waits += 1; } });
+const boot = await bootDaemonClient({ ...buildLifecycleHost(process.env, createHostServices()), invocation }, { waitForDaemonMs: 2000, onWaitForDaemon: () => { waits += 1; } });
 boot.client.stop();
 process.stdout.write(JSON.stringify({ waits }));
 process.exit(0);

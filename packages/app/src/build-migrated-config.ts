@@ -207,7 +207,7 @@ function collectDroppedGateways(
     }
 
     notes.push(
-      `atc config migrate: gateways.${id} is left out: ${findDropReason(id, entry, errors)}`,
+      `atc config migrate: gateways.${id} is left out: ${pickDropReason(id, entry, errors)}`,
     );
   }
 
@@ -220,7 +220,7 @@ function isDropped(id: string, kept: ReadonlySet<string>): boolean {
   return id === '__proto__' || !kept.has(id);
 }
 
-function findDropReason(id: string, entry: unknown, errors: readonly string[]): string {
+function pickDropReason(id: string, entry: unknown, errors: readonly string[]): string {
   if (id === '') {
     return 'its id is empty';
   }

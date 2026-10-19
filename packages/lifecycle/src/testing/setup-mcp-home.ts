@@ -5,11 +5,12 @@ import {
   buildStubMCPClaude,
   buildStubMCPGrok,
   createStubBin,
+  readSourceEntry,
   registerTestCleanup,
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
-import { findPidFilePID } from '../find-pid-file-pid';
+import { readPidFilePID } from '../read-pid-file-pid';
 import { stopDaemonProcess } from '../stop-daemon-process';
 
 export function setupMCPHome() {
@@ -26,7 +27,7 @@ export function setupMCPHome() {
   const home = tmp.dir;
 
   stack.defer(async () => {
-    const pid = findPidFilePID(join(home, 'atc-daemon.pid'));
+    const pid = readPidFilePID(join(home, 'atc-daemon.pid'));
 
     if (pid !== null) {
       await stopDaemonProcess(pid, systemClock);
@@ -38,8 +39,8 @@ export function setupMCPHome() {
   mkdirSync(join(home, '.config', 'atc'), { recursive: true });
   mkdirSync(join(home, '.local', 'state', 'atc'), { recursive: true });
 
-  const claudeBin = createStubBin(home, 'fake-claude', buildStubMCPClaude());
-  const grokBin = createStubBin(home, 'fake-grok', buildStubMCPGrok());
+  const claudeBin = createStubBin(home, 'fake-claude', buildStubMCPClaude(readSourceEntry('atc')));
+  const grokBin = createStubBin(home, 'fake-grok', buildStubMCPGrok(readSourceEntry('atc')));
 
   writeFileSync(
     join(home, '.config', 'atc', 'config.json'),

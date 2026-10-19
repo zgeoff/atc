@@ -222,7 +222,7 @@ test('it marks a message delivered when the bridge acks it', async () => {
 
   await request.host.ackMessage('m-1');
 
-  const stored = await ctx.store.findMessageByID(toMessageID('m-1'));
+  const stored = await ctx.store.readMessageByID(toMessageID('m-1'));
 
   expect(stored?.status).toBe('delivered');
 });
@@ -307,7 +307,7 @@ test('it lists the queued and delivered messages of the session as unsettled', a
 
   invariant(request);
 
-  const unsettled = await request.host.collectUnsettledMessages();
+  const unsettled = await request.host.readUnsettledMessages();
 
   expect(unsettled).toIncludeSameMembers([
     { id: 'm-1', status: 'queued' },

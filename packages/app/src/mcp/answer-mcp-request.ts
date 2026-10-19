@@ -7,8 +7,8 @@ import { answerRPCRequest } from './answer-rpc-request';
 import { buildPrincipalCaller } from './build-principal-caller';
 import { buildRPCError } from './build-rpc-error';
 import { deriveTokenHash } from './derive-token-hash';
-import { findClientName } from './find-client-name';
 import { isSupportedProtocolVersion } from './is-supported-protocol-version';
+import { readClientName } from './read-client-name';
 import type { BearerReason, HTTPServerContext, Requester } from './types';
 
 interface MCPHTTPRequest {
@@ -159,7 +159,7 @@ async function verifyAccessToken(
 
   await upsertGrantUse(ctx, token);
 
-  const storedName = await findClientName(ctx.store.db, clientID);
+  const storedName = await readClientName(ctx.store.db, clientID);
 
   return {
     clientID,

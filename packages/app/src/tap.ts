@@ -4,7 +4,7 @@ import type { DaemonClient } from '@atc/protocol/client';
 import { readSessionEnv } from '@atc/protocol/session';
 import { DaemonError, MESSAGE_SENDER_SCHEMA } from '@atc/protocol/wire';
 import { z } from 'zod';
-import { buildHostServices } from './build-host-services';
+import { createHostServices } from './create-host-services';
 import { renderMessageLine } from './render-message-line';
 import { renderNoticeLine } from './render-notice-line';
 import { runBridgeTap } from './run-bridge-tap';
@@ -135,7 +135,7 @@ export async function runTap(
   };
 
   try {
-    await client.sendHello(buildHostServices().build, {
+    await client.sendHello(createHostServices().build, {
       session: readSessionEnv(process.env).sessionID,
     });
 

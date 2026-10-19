@@ -62,7 +62,7 @@ export class MaterializationStore {
       .execute();
   }
 
-  async findMaterialization(sessionID: SessionID): Promise<WorkspaceMaterialization | null> {
+  async readMaterialization(sessionID: SessionID): Promise<WorkspaceMaterialization | null> {
     const row = await this.db
       .selectFrom('workspace_materialization')
       .selectAll()

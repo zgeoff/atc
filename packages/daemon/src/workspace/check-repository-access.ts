@@ -1,10 +1,10 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { collectRemoteRefs } from './collect-remote-refs';
-import type { RemoteRef } from './collect-remote-refs';
 import type { GitCredential } from './create-git-askpass';
 import { findRemoteRef } from './find-remote-ref';
+import { readRemoteRefs } from './read-remote-refs';
+import type { RemoteRef } from './read-remote-refs';
 import { resolveGitURL } from './resolve-git-url';
 
 interface AccessRequest {
@@ -67,7 +67,7 @@ export async function checkRepositoryAccess(
       return resolved;
     }
 
-    const listing = await collectRemoteRefs(
+    const listing = await readRemoteRefs(
       resolved.url,
       request.credential,
       request.transports,

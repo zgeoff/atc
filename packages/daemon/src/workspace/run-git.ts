@@ -68,7 +68,7 @@ export async function runGit(
   const proc = Bun.spawn(['git', ...(isolated ? ISOLATED_ARGS : []), ...args], {
     ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
     env: {
-      ...collectHostEnv(),
+      ...readHostEnv(),
       ...options.env,
       ...(isolated ? ISOLATED_ENV : {}),
 
@@ -215,7 +215,7 @@ function findSubcommand(args: readonly string[]): string | undefined {
   return undefined;
 }
 
-function collectHostEnv(): Record<string, string | undefined> {
+function readHostEnv(): Record<string, string | undefined> {
   return Object.fromEntries(
     Object.entries(process.env).filter(
       ([name]) =>

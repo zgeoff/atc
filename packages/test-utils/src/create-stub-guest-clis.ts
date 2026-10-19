@@ -1,8 +1,8 @@
 import { createStubBin } from './create-stub-bin';
-import { getSourceEntry } from './get-source-entry';
+import { readSourceEntry } from './read-source-entry';
 
 export function createStubGuestCLIs(dir: string) {
-  const cliPath = getSourceEntry('atc');
+  const cliPath = readSourceEntry('atc');
 
   const atc = createStubBin(
     dir,

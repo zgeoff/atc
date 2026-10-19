@@ -45,7 +45,7 @@ export interface MessageBridgeHost {
   // takes the payload shapes `atc note`, `atc answer` and `atc unanswered`
   // send; false shows the daemon read none of them in it.
   readonly applyNote: (payload: Readonly<Record<string, unknown>>) => Promise<boolean>;
-  readonly collectUnsettledMessages: () => Promise<readonly UnsettledMessage[]>;
+  readonly readUnsettledMessages: () => Promise<readonly UnsettledMessage[]>;
   readonly log: (line: string) => void;
 }
 

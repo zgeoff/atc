@@ -27,11 +27,11 @@ import type { RuntimeAuthBinder } from '../auth/runtime-auth-binder';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { SessionFleetWriter } from '../fleet/session-fleet-writer';
 import { SessionRestorer } from '../fleet/session-restorer';
-import { buildResumeCommand } from './build-resume-command';
-import type { ResumeCommand } from './build-resume-command';
 import { collectSessionDescriptors } from './collect-session-descriptors';
 import { HostDirClaims } from './host-dir-claims';
 import { mintSessionID } from './mint-session-id';
+import { planResumeCommand } from './plan-resume-command';
+import type { ResumeCommand } from './plan-resume-command';
 import type { PublishedRecords } from './published-records';
 import type { Session } from './session';
 import { SessionAdopter } from './session-adopter';
@@ -165,8 +165,8 @@ export class SessionManager {
       },
       now: () => this.now(),
       getClock: () => this.clock,
-      getAuthBinder: () => this.authBinder,
-      getRecords: () => this.records,
+      findAuthBinder: () => this.authBinder,
+      findRecords: () => this.records,
     };
 
     const registry = new SessionRegistry({ fallback, adapters, targets, targetErrors, callbacks });
@@ -493,8 +493,8 @@ export class SessionManager {
     return this.hooks.applyHook(e, prev);
   }
 
-  buildResumeCommand(id: SessionID): ResumeCommand {
-    return buildResumeCommand(this.registry, id);
+  planResumeCommand(id: SessionID): ResumeCommand {
+    return planResumeCommand(this.registry, id);
   }
 
   attach(id: SessionID) {

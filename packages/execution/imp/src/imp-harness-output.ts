@@ -81,7 +81,7 @@ export class ImpHarnessOutput {
     }
   }
 
-  getCursor(): Readonly<{ bootId: string; generation: string }> | null {
+  findCursor(): Readonly<{ bootId: string; generation: string }> | null {
     return this.cursor;
   }
 

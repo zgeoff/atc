@@ -33,7 +33,7 @@ test("it lists the configured owner's repositories through gh run by the host co
 
   const listed = await source.list(
     {},
-    { target: 'local', collectSpawnDirs: () => Promise.resolve([]) },
+    { target: 'local', readSpawnDirs: () => Promise.resolve([]) },
   );
 
   expect(listed).toStrictEqual({

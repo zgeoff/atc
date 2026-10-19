@@ -1,8 +1,8 @@
 export type * from './atc-invocation';
 export * from './boot-daemon';
 export * from './claim-daemon-lock';
-export * from './find-daemon-record';
-export * from './is-process-alive';
+export * from './read-daemon-record';
+export * from './probe-process-alive';
 export type * from './lifecycle-host';
 export * from './log-client-event';
 export * from './read-managed-daemon-unit';

@@ -150,7 +150,7 @@ test('it records the directory of a spawned session in the spawn history', async
     null,
   );
 
-  const dirs = await ctx.store.collectSpawnDirs();
+  const dirs = await ctx.store.readSpawnDirs();
 
   expect(dirs).toStrictEqual([
     { cwd: ctx.dir, grant: { target: 'local', targetIdentity: 'local-pty:test' } },

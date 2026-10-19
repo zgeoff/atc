@@ -30,7 +30,7 @@ async function main(): Promise<void> {
   const findings: string[] = [];
 
   for (const build of builds) {
-    const bundled = await collectBundled(root, providers, build.kept);
+    const bundled = await readBundled(root, providers, build.kept);
 
     findings.push(...checkBundle(build.label, providers, build.kept, bundled));
 
@@ -106,7 +106,7 @@ const STAND_IN_NAMESPACE = 'dropped-provider';
 
 // Each module of a dropped provider that the list imports turns into a
 // stand-in that holds the same export names and no code
-async function collectBundled(
+async function readBundled(
   root: string,
   providers: readonly Provider[],
   kept: readonly Provider[],
@@ -158,7 +158,7 @@ function makeDropPlugin(registryPath: string, dropped: readonly Provider[]): Bun
       });
 
       builder.onLoad({ filter: /.*/u, namespace: STAND_IN_NAMESPACE }, (args) => {
-        const exports = collectExportNames(args.path);
+        const exports = readExportNames(args.path);
 
         return {
           contents: exports.map((name) => `export const ${name} = undefined;`).join('\n'),
@@ -173,7 +173,7 @@ function isEntryOf(provider: Provider, specifier: string): boolean {
   return specifier === provider.name || specifier.startsWith(`${provider.name}/`);
 }
 
-function collectExportNames(path: string): string[] {
+function readExportNames(path: string): string[] {
   const source = readFileSync(path, 'utf8');
 
   const names = new Bun.Transpiler({ loader: 'ts' }).scan(source).exports;
@@ -184,7 +184,7 @@ function collectExportNames(path: string): string[] {
     if (specifier !== undefined) {
       const target = Bun.resolveSync(specifier, dirname(path));
 
-      names.push(...collectExportNames(target));
+      names.push(...readExportNames(target));
     }
   }
 

@@ -7,7 +7,7 @@ interface MCPAuthorizationServer {
   readonly origin: string;
 
   // The authenticator that holds the owner's enrolled passkey.
-  readonly authenticator: Pick<ReturnType<typeof buildStubAuthenticator>, 'get'>;
+  readonly authenticator: Pick<ReturnType<typeof buildStubAuthenticator>, 'signAssertion'>;
 }
 
 interface MCPAuthorizationRequest {

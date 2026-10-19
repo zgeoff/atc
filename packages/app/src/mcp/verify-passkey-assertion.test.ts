@@ -54,7 +54,7 @@ async function setupTest() {
 test('it returns the id of the enrolled passkey an assertion verifies against and stores its counter and use', async () => {
   const ctx = await setupTest();
 
-  const assertion = await ctx.authenticator.get(
+  const assertion = await ctx.authenticator.signAssertion(
     { challenge: 'c2lnbi1pbg', rpId: 'atc.example' },
     { origin: 'https://atc.example' },
   );
@@ -85,7 +85,7 @@ test.each([
 ])('it refuses an assertion made for %s', async (_label, expected, ceremony) => {
   const ctx = await setupTest();
 
-  const assertion = await ctx.authenticator.get(
+  const assertion = await ctx.authenticator.signAssertion(
     { challenge: 'c2lnbi1pbg', rpId: 'atc.example' },
     { origin: 'https://atc.example', ...ceremony },
   );
@@ -112,7 +112,7 @@ test('it refuses an assertion from a passkey that is not enrolled', async () => 
     { origin: 'https://atc.example' },
   );
 
-  const assertion = await stranger.get(
+  const assertion = await stranger.signAssertion(
     { challenge: 'c2lnbi1pbg', rpId: 'atc.example' },
     { origin: 'https://atc.example' },
   );
@@ -138,7 +138,7 @@ test("it refuses an assertion signed by another key under the enrolled passkey's
     { origin: 'https://atc.example' },
   );
 
-  const forged = await forger.get(
+  const forged = await forger.signAssertion(
     { challenge: 'c2lnbi1pbg', rpId: 'atc.example' },
     { origin: 'https://atc.example' },
   );
@@ -161,7 +161,7 @@ test("it refuses an assertion signed by another key under the enrolled passkey's
 test('it refuses an assertion whose counter does not pass the stored one', async () => {
   const ctx = await setupTest();
 
-  const assertion = await ctx.authenticator.get(
+  const assertion = await ctx.authenticator.signAssertion(
     { challenge: 'c2lnbi1pbg', rpId: 'atc.example' },
     { origin: 'https://atc.example' },
   );
@@ -199,12 +199,12 @@ test.each([['not json'], ['{}'], ['{"id":"x","rawId":"x","type":"public-key","re
 test('it passes only one of two assertions checked at once against the same stored counter', async () => {
   const ctx = await setupTest();
 
-  const first = await ctx.authenticator.get(
+  const first = await ctx.authenticator.signAssertion(
     { challenge: 'Zmlyc3Q', rpId: 'atc.example' },
     { origin: 'https://atc.example' },
   );
 
-  const second = await ctx.authenticator.get(
+  const second = await ctx.authenticator.signAssertion(
     { challenge: 'c2Vjb25k', rpId: 'atc.example' },
     { origin: 'https://atc.example' },
   );

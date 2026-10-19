@@ -43,7 +43,7 @@ export class MessageStore {
       .execute();
   }
 
-  async collectPendingMessages(owner: MessageOwner): Promise<MessageRecord[]> {
+  async readPendingMessages(owner: MessageOwner): Promise<MessageRecord[]> {
     const rows = await this.db
       .selectFrom('messages')
       .selectAll()
@@ -58,7 +58,7 @@ export class MessageStore {
 
   // The messages the owner holds queued or delivered, which no turn has
   // settled yet, oldest first.
-  async collectUnsettledMessages(owner: MessageOwner): Promise<MessageRecord[]> {
+  async readUnsettledMessages(owner: MessageOwner): Promise<MessageRecord[]> {
     const rows = await this.db
       .selectFrom('messages')
       .selectAll()
@@ -71,7 +71,7 @@ export class MessageStore {
     return rows.map((row) => toMessageRecord(row));
   }
 
-  async findMessage(id: MessageID, owner: MessageOwner): Promise<MessageRecord | null> {
+  async readMessage(id: MessageID, owner: MessageOwner): Promise<MessageRecord | null> {
     const row = await this.db
       .selectFrom('messages')
       .selectAll()
@@ -82,7 +82,7 @@ export class MessageStore {
     return row === undefined ? null : toMessageRecord(row);
   }
 
-  async findMessageByID(id: MessageID): Promise<MessageRecord | null> {
+  async readMessageByID(id: MessageID): Promise<MessageRecord | null> {
     const row = await this.db
       .selectFrom('messages')
       .selectAll()
@@ -95,7 +95,7 @@ export class MessageStore {
   // The other messages of the same session the given message's turn
   // answered, oldest first; none when the message has no turn or no answer.
   // A message left unanswered keeps its turn but shares no answer.
-  async collectTurnSiblings(record: MessageRecord): Promise<TurnSibling[]> {
+  async readTurnSiblings(record: MessageRecord): Promise<TurnSibling[]> {
     if (record.turn === undefined || record.status !== 'answered') {
       return [];
     }
@@ -265,7 +265,7 @@ export class MessageStore {
 
   // The answer notices queued for the sender session and not yet taken by
   // its tap, oldest first.
-  async collectPendingNotices(senderSession: SessionID): Promise<MessageRecord[]> {
+  async readPendingNotices(senderSession: SessionID): Promise<MessageRecord[]> {
     const rows = await this.db
       .selectFrom('messages')
       .selectAll()

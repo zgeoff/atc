@@ -33,7 +33,7 @@ function setupTest() {
     sendRequest: (m: string, p?: Readonly<Record<string, unknown>>) => daemon.sendRequest(m, p),
     isLeaderKey: (buf: Buffer) => buf.toString() === KEYS.ctrlRightBracket,
     scheduleStatus: host.scheduleStatus,
-    toBase: host.toBase,
+    showBase: host.showBase,
     attach: host.attach,
     toMirrorSession,
     upsertMirror: () => {},

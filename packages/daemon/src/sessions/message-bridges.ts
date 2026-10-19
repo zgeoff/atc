@@ -22,7 +22,7 @@ interface MessageBridgesDeps {
   readonly mgr: Pick<SessionManager, 'sessions' | 'log'>;
   readonly store: Pick<
     StateStore,
-    'updateMessageDelivered' | 'updateNoticeDelivered' | 'collectUnsettledMessages'
+    'updateMessageDelivered' | 'updateNoticeDelivered' | 'readUnsettledMessages'
   >;
   readonly clock: Clock;
   readonly messages: Pick<
@@ -194,14 +194,14 @@ export class MessageBridges {
 
         return true;
       },
-      collectUnsettledMessages: async () => {
+      readUnsettledMessages: async () => {
         const owner = findOwner();
 
         if (owner === null) {
           return [];
         }
 
-        const unsettled = await this.store.collectUnsettledMessages(owner);
+        const unsettled = await this.store.readUnsettledMessages(owner);
 
         return unsettled.flatMap((record) =>
           record.status === 'queued' || record.status === 'delivered'

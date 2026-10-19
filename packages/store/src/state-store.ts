@@ -133,8 +133,8 @@ export class StateStore {
     return this.fleet.loadFleet();
   }
 
-  collectFleetRecency(): Promise<Map<AgentSessionID, string>> {
-    return this.trail.collectFleetRecency();
+  readFleetRecency(): Promise<Map<AgentSessionID, string>> {
+    return this.trail.readFleetRecency();
   }
 
   writeFleet(entries: readonly FleetEntry[], removed: readonly SessionID[] = []): Promise<void> {
@@ -157,24 +157,24 @@ export class StateStore {
     return this.trail.recordTrailEntry(entry);
   }
 
-  collectEventsAfter(
+  readEventsAfter(
     afterID: number,
     limit: number,
     scope: EventScope | null = null,
   ): Promise<StoredEvent[]> {
-    return this.trail.collectEventsAfter(afterID, limit, scope);
+    return this.trail.readEventsAfter(afterID, limit, scope);
   }
 
-  findNote(id: number, scope: EventScope | null = null): Promise<StoredNote | null> {
-    return this.trail.findNote(id, scope);
+  readNote(id: number, scope: EventScope | null = null): Promise<StoredNote | null> {
+    return this.trail.readNote(id, scope);
   }
 
-  findAnswer(id: number, scope: EventScope | null = null): Promise<StoredAnswer | null> {
-    return this.trail.findAnswer(id, scope);
+  readAnswer(id: number, scope: EventScope | null = null): Promise<StoredAnswer | null> {
+    return this.trail.readAnswer(id, scope);
   }
 
-  collectLatestEvents(limit: number, scope: EventScope | null = null): Promise<StoredEvent[]> {
-    return this.trail.collectLatestEvents(limit, scope);
+  readLatestEvents(limit: number, scope: EventScope | null = null): Promise<StoredEvent[]> {
+    return this.trail.readLatestEvents(limit, scope);
   }
 
   loadLastActivityAt(
@@ -205,7 +205,7 @@ export class StateStore {
       .execute();
   }
 
-  async collectSpawnDirs(): Promise<SpawnDir[]> {
+  async readSpawnDirs(): Promise<SpawnDir[]> {
     const rows = await this.db
       .selectFrom('spawn_history')
       .select(['cwd', 'target', 'target_identity'])
@@ -242,24 +242,24 @@ export class StateStore {
     return this.messages.writeMessage(record);
   }
 
-  collectPendingMessages(owner: MessageOwner): Promise<MessageRecord[]> {
-    return this.messages.collectPendingMessages(owner);
+  readPendingMessages(owner: MessageOwner): Promise<MessageRecord[]> {
+    return this.messages.readPendingMessages(owner);
   }
 
-  collectUnsettledMessages(owner: MessageOwner): Promise<MessageRecord[]> {
-    return this.messages.collectUnsettledMessages(owner);
+  readUnsettledMessages(owner: MessageOwner): Promise<MessageRecord[]> {
+    return this.messages.readUnsettledMessages(owner);
   }
 
-  findMessage(id: MessageID, owner: MessageOwner): Promise<MessageRecord | null> {
-    return this.messages.findMessage(id, owner);
+  readMessage(id: MessageID, owner: MessageOwner): Promise<MessageRecord | null> {
+    return this.messages.readMessage(id, owner);
   }
 
-  findMessageByID(id: MessageID): Promise<MessageRecord | null> {
-    return this.messages.findMessageByID(id);
+  readMessageByID(id: MessageID): Promise<MessageRecord | null> {
+    return this.messages.readMessageByID(id);
   }
 
-  collectTurnSiblings(record: MessageRecord): Promise<TurnSibling[]> {
-    return this.messages.collectTurnSiblings(record);
+  readTurnSiblings(record: MessageRecord): Promise<TurnSibling[]> {
+    return this.messages.readTurnSiblings(record);
   }
 
   updateMessageDelivered(
@@ -310,8 +310,8 @@ export class StateStore {
     return this.messages.updateDeliveredMessagesQueued(owner);
   }
 
-  collectPendingNotices(senderSession: SessionID): Promise<MessageRecord[]> {
-    return this.messages.collectPendingNotices(senderSession);
+  readPendingNotices(senderSession: SessionID): Promise<MessageRecord[]> {
+    return this.messages.readPendingNotices(senderSession);
   }
 
   updateNoticeDelivered(
@@ -338,10 +338,10 @@ export class StateStore {
     return this.idempotency.claimIdempotencyKey(claim);
   }
 
-  findIdempotencyKey(
+  readIdempotencyKey(
     id: Pick<IdempotencyRecord, 'principal' | 'operation' | 'key'>,
   ): Promise<IdempotencyRecord | null> {
-    return this.idempotency.findIdempotencyKey(id);
+    return this.idempotency.readIdempotencyKey(id);
   }
 
   updateIdempotencyCompleted(
@@ -392,16 +392,16 @@ export class StateStore {
     return this.materializations.updateMaterialization(sessionID, fields, at);
   }
 
-  findMaterialization(sessionID: SessionID): Promise<WorkspaceMaterialization | null> {
-    return this.materializations.findMaterialization(sessionID);
+  readMaterialization(sessionID: SessionID): Promise<WorkspaceMaterialization | null> {
+    return this.materializations.readMaterialization(sessionID);
   }
 
   reconcileMaterializations(at: number): Promise<void> {
     return this.materializations.reconcileMaterializations(at);
   }
 
-  findPublishedRecord(sessionID: SessionID): Promise<PublishedRecord | null> {
-    return this.publishedRecords.findPublishedRecord(sessionID);
+  readPublishedRecord(sessionID: SessionID): Promise<PublishedRecord | null> {
+    return this.publishedRecords.readPublishedRecord(sessionID);
   }
 
   writePublishedRecord(record: PublishedRecord): Promise<void> {
@@ -436,20 +436,20 @@ export class StateStore {
     return this.authBindings.updateAuthBinding(hostKey, fields, at);
   }
 
-  findAuthBinding(hostKey: SessionID): Promise<RuntimeAuthBinding | null> {
-    return this.authBindings.findAuthBinding(hostKey);
+  readAuthBinding(hostKey: SessionID): Promise<RuntimeAuthBinding | null> {
+    return this.authBindings.readAuthBinding(hostKey);
   }
 
-  collectAuthBindings(): Promise<RuntimeAuthBinding[]> {
-    return this.authBindings.collectAuthBindings();
+  readAuthBindings(): Promise<RuntimeAuthBinding[]> {
+    return this.authBindings.readAuthBindings();
   }
 
   upsertAuthGrant(grant: Omit<RuntimeAuthGrant, 'updatedAt'>, at: number): Promise<void> {
     return this.authBindings.upsertAuthGrant(grant, at);
   }
 
-  collectAuthGrants(hostKey: SessionID): Promise<RuntimeAuthGrant[]> {
-    return this.authBindings.collectAuthGrants(hostKey);
+  readAuthGrants(hostKey: SessionID): Promise<RuntimeAuthGrant[]> {
+    return this.authBindings.readAuthGrants(hostKey);
   }
 
   removeAuthBinding(hostKey: SessionID): Promise<void> {

@@ -36,7 +36,7 @@ function setupTest(config: SetupConfig) {
     callbacks: {
       onEvent: mock<() => void>(),
       log: mock<() => void>(),
-      getAuthBinder: () => null,
+      findAuthBinder: () => null,
     },
   });
 

@@ -15,7 +15,7 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
-import { buildHostServices } from '../packages/app/src/build-host-services';
+import { createHostServices } from '../packages/app/src/create-host-services';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
@@ -42,7 +42,7 @@ async function setupTest() {
             {
               reconnectDelaysMs: [0, 0, 0],
               atcBinary: null,
-              version: buildHostServices().version,
+              version: createHostServices().version,
             },
           ),
         },

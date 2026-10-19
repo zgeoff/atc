@@ -1,7 +1,5 @@
-import { getSourceEntry } from './get-source-entry';
-
-export function buildStubTUIClaude(): string {
-  const report = `"${process.execPath}" "${getSourceEntry('atc')}" hook-report`;
+export function buildStubTUIClaude(cliEntry: string): string {
+  const report = `"${process.execPath}" "${cliEntry}" hook-report`;
 
   return `#!/usr/bin/env bash
 ARGS="$*"

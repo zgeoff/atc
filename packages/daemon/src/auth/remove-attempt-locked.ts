@@ -15,7 +15,7 @@ export async function removeAttemptLocked(
   hostKey: SessionID,
   attemptID: string,
 ): Promise<void> {
-  const row = await ledger.store.findAuthBinding(hostKey);
+  const row = await ledger.store.readAuthBinding(hostKey);
 
   if (row === null || row.attemptID !== attemptID || row.rebind !== null) {
     return;

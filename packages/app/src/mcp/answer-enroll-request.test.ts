@@ -12,9 +12,9 @@ import {
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { openMCPAuthDatabase } from '../open-mcp-auth-database';
-import { collectPasskeys } from './collect-passkeys';
 import { createEnrollmentToken } from './create-enrollment-token';
 import { openMCPAuth } from './open-mcp-auth';
+import { readPasskeyViews } from './read-passkey-views';
 import { resetPasskeys } from './reset-passkeys';
 import { startMCPHTTPServer } from './start-mcp-http-server';
 import { TransportCaller } from './transport-caller';
@@ -91,7 +91,7 @@ test('it enrolls a passkey with a minted token and signs nobody in doing so', as
   expect(enrolled.status).toBe(200);
   expect(enrolled.headers.getSetCookie()).toBeEmpty();
 
-  const passkeys = await collectPasskeys(ctx.store.db);
+  const passkeys = await readPasskeyViews(ctx.store.db);
 
   expect(passkeys).toStrictEqual([
     { id: authenticator.credentialID, createdAt: expect.toBeString(), lastUsedAt: null },
@@ -167,7 +167,7 @@ test('it refuses a registration posted without a token, storing no passkey', asy
 
   expect(enrolled.status).toBe(400);
 
-  const passkeys = await collectPasskeys(ctx.store.db);
+  const passkeys = await readPasskeyViews(ctx.store.db);
 
   expect(passkeys).toBeEmpty();
 });
@@ -249,7 +249,7 @@ test.each([
 
   expect(refused.status).toBe(400);
 
-  const passkeys = await collectPasskeys(ctx.store.db);
+  const passkeys = await readPasskeyViews(ctx.store.db);
 
   expect(passkeys).toBeEmpty();
   expect(ctx.security.at(-1)).toInclude('"reason":"assertion_failed"');
@@ -286,7 +286,7 @@ test('it keeps a token usable after it refused a registration made with it', asy
 
   await runPasskeyEnrollment(ctx, enrollment.token, buildStubAuthenticator());
 
-  const passkeys = await collectPasskeys(ctx.store.db);
+  const passkeys = await readPasskeyViews(ctx.store.db);
 
   expect(passkeys).toBeArrayOfSize(1);
 });
@@ -326,7 +326,7 @@ test("it refuses a registration signed for another token's challenge", async () 
 
   expect(crossed.status).toBe(400);
 
-  const passkeys = await collectPasskeys(ctx.store.db);
+  const passkeys = await readPasskeyViews(ctx.store.db);
 
   expect(passkeys).toBeEmpty();
 });
@@ -441,7 +441,7 @@ test.each([
 
   expect(answered.status).toBe(404);
 
-  const passkeys = await collectPasskeys(ctx.store.db);
+  const passkeys = await readPasskeyViews(ctx.store.db);
 
   expect(passkeys).toStrictEqual([
     { id: authenticator.credentialID, createdAt: expect.toBeString(), lastUsedAt: null },

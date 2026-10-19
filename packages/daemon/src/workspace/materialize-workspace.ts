@@ -8,10 +8,10 @@ import type { ErrorCode } from '@atc/protocol/wire';
 import type { MaterializationPhase } from '@atc/store';
 import { claimLanding } from './claim-landing';
 import { createCheckout } from './create-checkout';
-import { findCredentialSecret } from './find-credential-secret';
 import type { MaterializationProgress, ProgressTracker } from './materialization-progress';
 import type { Landing, MaterializeDeps } from './materialize-deps';
 import type { MaterializeRequest } from './materialize-request';
+import { readCredentialSecret } from './read-credential-secret';
 import type { GitIdentity } from './read-host-git-identity';
 import { recordPhase } from './record-phase';
 import { requireGitTransports } from './require-git-transports';
@@ -42,7 +42,7 @@ export async function materializeWorkspace(
   const source = request.source;
 
   const outside =
-    source.kind === 'path' && request.inPlace ? await isOutsideWorkTree(source.path) : false;
+    source.kind === 'path' && request.inPlace ? await probeOutsideWorkTree(source.path) : false;
 
   if (source.kind === 'path' && outside) {
     if (resolve(source.path) !== resolve(request.dir)) {
@@ -56,7 +56,7 @@ export async function materializeWorkspace(
     return { kind: 'in_place' };
   }
 
-  const secret = findCredentialSecret(source);
+  const secret = readCredentialSecret(source);
   const withheldEnv = buildWithheldEnv(source);
   const progress: MaterializationProgress = { phase: 'resolving', landing: null, claimed: false };
 
@@ -131,7 +131,7 @@ function buildWithheldEnv(source: SpawnWorkspaceSource): string[] {
 // only git's own answer that no repository holds the path proves it is outside one: any other
 // failure, such as a broken config or an untrusted repository, refuses the spawn rather than
 // run it in place unchecked
-async function isOutsideWorkTree(path: string): Promise<boolean> {
+async function probeOutsideWorkTree(path: string): Promise<boolean> {
   const inside = await runGit(['rev-parse', '--is-inside-work-tree'], { cwd: path }).catch(
     requireStartFailure,
   );

@@ -1,5 +1,5 @@
-import { getSourceEntry } from './get-source-entry';
+import { readSourceEntry } from './read-source-entry';
 
 export function resolveGatewayCommand(binary: string | undefined): readonly string[] {
-  return binary === undefined ? [process.execPath, getSourceEntry('atc-gateway')] : [binary];
+  return binary === undefined ? [process.execPath, readSourceEntry('atc-gateway')] : [binary];
 }

@@ -24,7 +24,7 @@ import type {
   SpawnOptions,
   SpawnPlan,
 } from '@atc/plugin-api';
-import { buildAuthRevisionFolder, canResumeFromTranscript, findFlagValue } from '@atc/plugin-api';
+import { buildAuthRevisionFolder, findFlagValue, probeTranscriptResumable } from '@atc/plugin-api';
 import type { HookEvent } from '@atc/protocol/session';
 import { DaemonError } from '@atc/protocol/wire';
 import { buildGuestBridgeFiles } from '../bridge/build-guest-bridge-files';
@@ -79,7 +79,7 @@ export class GatewayAdapter implements AgentAdapter {
     namedBy: 'user' | 'auto' | 'agent',
   ) => Promise<NameUpdate | null> = loadClaudeName;
 
-  readonly canResume: (session: ResumeCheck) => boolean = canResumeFromTranscript;
+  readonly canResume: (session: ResumeCheck) => boolean = probeTranscriptResumable;
 
   readonly profile: AgentProfile;
 
@@ -295,7 +295,7 @@ export class GatewayAdapter implements AgentAdapter {
     return { events: [buildClaudeHookEvent(e)] };
   }
 
-  buildResumeCommand(
+  planResumeCommand(
     cwd: string,
     agentSessionID: AgentSessionID | undefined,
     pluginDirs: readonly string[],

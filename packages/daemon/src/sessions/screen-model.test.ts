@@ -12,7 +12,7 @@ test('it replays text written to the screen', async () => {
 
   model.record('hello fleet');
 
-  const replay = await model.renderReplay();
+  const replay = await model.captureReplay();
 
   expect(replay).toInclude('hello fleet');
 });
@@ -27,11 +27,11 @@ test('it drops cleared content from the replay', async () => {
   model.record('stale screen\r\n');
 
   // A replay waits for every byte recorded before it.
-  await model.renderReplay();
+  await model.captureReplay();
 
   model.record('\u001B[2J\u001B[Hfresh screen');
 
-  const replay = await model.renderReplay();
+  const replay = await model.captureReplay();
 
   expect(replay).toInclude('fresh screen');
   expect(replay).not.toInclude('stale screen');
@@ -47,9 +47,9 @@ test('it includes bytes recorded while a replay is pending', async () => {
   model.record('first');
 
   // A replay waits for every byte recorded before it.
-  await model.renderReplay();
+  await model.captureReplay();
 
-  const replay = model.renderReplay();
+  const replay = model.captureReplay();
 
   model.record(' second');
 
@@ -67,7 +67,7 @@ test('it replays only the visible screen for a session on the alternate buffer',
 
   model.record('normal residue\r\n\u001B[?1049haltscreen content');
 
-  const replay = await model.renderReplay();
+  const replay = await model.captureReplay();
 
   expect(replay).toInclude('altscreen content');
   expect(replay).not.toInclude('\u001B[?1049h');
@@ -83,7 +83,7 @@ test('it preserves colors and cursor positioning in the replay', async () => {
 
   model.record('\u001B[5;10H\u001B[1;31malert\u001B[0m');
 
-  const replay = await model.renderReplay();
+  const replay = await model.captureReplay();
 
   // The replay reaches row 5 by four line breaks and column 10 by a
   // nine-column move, then sets bold red.
@@ -100,12 +100,12 @@ test('it keeps replaying after a resize', async () => {
   model.record('before resize\r\n');
 
   // A replay waits for every byte recorded before it.
-  await model.renderReplay();
+  await model.captureReplay();
 
   model.updateDims(30, 8);
   model.record('after resize');
 
-  const replay = await model.renderReplay();
+  const replay = await model.captureReplay();
 
   expect(replay).toInclude('after resize');
 });
@@ -119,7 +119,7 @@ test('it re-emits SGR mouse encoding and alternate scroll in the replay', async 
 
   model.record('\u001B[?1000h\u001B[?1006h\u001B[?1007h');
 
-  const replay = await model.renderReplay();
+  const replay = await model.captureReplay();
 
   expect(replay).toInclude('\u001B[?1006h');
   expect(replay).toInclude('\u001B[?1007h');
@@ -134,7 +134,7 @@ test('it restores the kitty keyboard push and modifyOtherKeys in the replay', as
 
   model.record('\u001B[>1u\u001B[>4;2m');
 
-  const replay = await model.renderReplay();
+  const replay = await model.captureReplay();
 
   expect(replay).toInclude('\u001B[>1u');
   expect(replay).toInclude('\u001B[>4;2m');
@@ -151,7 +151,7 @@ test('it drops popped and reset input modes from the replay', async () => {
   model.record('\u001B[?1006l\u001B[<u\u001B[>4;0m');
   model.record('modes reset');
 
-  const replay = await model.renderReplay();
+  const replay = await model.captureReplay();
 
   expect(replay).toInclude('modes reset');
   expect(replay).not.toInclude('\u001B[?1006h');
@@ -169,7 +169,7 @@ test('it re-emits a mode whose set sequence arrived split across chunks', async 
   model.record('\u001B[?10');
   model.record('06h');
 
-  const replay = await model.renderReplay();
+  const replay = await model.captureReplay();
 
   expect(replay).toInclude('\u001B[?1006h');
 });
@@ -183,7 +183,7 @@ test('it leads the replay with an input-mode reset', async () => {
 
   model.record('hello');
 
-  const replay = await model.renderReplay();
+  const replay = await model.captureReplay();
 
   expect(replay).toStartWith(RESET_INPUT_MODES);
 });
@@ -198,7 +198,7 @@ test('it renders the visible screen as plain text with trailing blank rows dropp
   model.record('hello fleet\r\n\u001B[32msecond\u001B[0m   ');
 
   const screen = await waitFor(async () => {
-    const rendered = await model.renderText();
+    const rendered = await model.captureText();
 
     expect(rendered.text).toInclude('second');
 
@@ -218,12 +218,12 @@ test('it renders only the alternate buffer as text for a session on the alternat
   model.record('normal screen\r\n');
 
   // A replay waits for every byte recorded before it.
-  await model.renderReplay();
+  await model.captureReplay();
 
   model.record('\u001B[?1049h\u001B[Halternate screen');
 
   const screen = await waitFor(async () => {
-    const rendered = await model.renderText();
+    const rendered = await model.captureText();
 
     expect(rendered.text).toInclude('alternate screen');
 

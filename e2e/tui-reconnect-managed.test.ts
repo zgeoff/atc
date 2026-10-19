@@ -9,7 +9,7 @@ import {
   startStubLegacyDaemonProcess,
   startTUIHarness,
 } from '@atc/test-utils';
-import { buildHostServices } from '../packages/app/src/build-host-services';
+import { createHostServices } from '../packages/app/src/create-host-services';
 import { buildLocalTarget } from '../packages/app/src/test-utils/build-local-target';
 
 // A client that waits for an installed unit's daemon after that daemon
@@ -30,7 +30,7 @@ async function setupTest() {
     reporterSocketPath: join(harness.home, 'atc.sock'),
     dbPath: join(stateDir, 'atc.db'),
     statusPath: join(stateDir, 'status.json'),
-    build: buildHostServices().build,
+    build: createHostServices().build,
     targets: [buildLocalTarget()],
     adapter: buildMockAgentAdapter(),
   });

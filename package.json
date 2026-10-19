@@ -78,7 +78,7 @@
     "check:source-entries": "bun scripts/check-source-entries.ts",
     "deadcode": "bun scripts/deadcode.ts",
     "demo:record": "bash scripts/record-demo.sh",
-    "files:branch": "bun scripts/collect-branch-files.ts",
+    "files:branch": "bun scripts/read-branch-files.ts",
     "lint": "oxlint",
     "lint:files": "oxlint --no-error-on-unmatched-pattern",
     "lint:fix": "oxlint --fix",

@@ -14,12 +14,12 @@ export function buildStubHeldInboxSource(
   const source: InboxSource = {
     taps: new TapRegistry<TapClient>(),
     findLinkedOwner: (sessionID: SessionID) => ({ atcID: sessionID, agentSessionID }),
-    collectPendingMessages: () => {
+    readPendingMessages: () => {
       reading.resolve();
 
       return pending.promise;
     },
-    collectPendingNotices: () => Promise.resolve([...notices]),
+    readPendingNotices: () => Promise.resolve([...notices]),
   };
 
   return {

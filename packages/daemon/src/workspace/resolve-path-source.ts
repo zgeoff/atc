@@ -118,7 +118,7 @@ export async function resolvePathSource(
     return { ok: false, code: url.code, message: `origin of ${root}: ${url.message}` };
   }
 
-  const pushed = await isOnOrigin(root, sha, options.transports);
+  const pushed = await probeOnOrigin(root, sha, options.transports);
 
   if (!pushed) {
     return { ok: false, code: 'unpushed_head', message: `${sha} is not on origin; push it first` };
@@ -148,7 +148,7 @@ function countChangedPaths(porcelain: string): number {
   return porcelain.split('\n').filter((line) => line.trim() !== '').length;
 }
 
-async function isOnOrigin(
+async function probeOnOrigin(
   root: string,
   sha: string,
   transports: readonly string[],

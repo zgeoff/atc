@@ -60,9 +60,8 @@
     "zgeoff/no-abbreviated-names": "off",
     // the source branches on unions with switch statements
     "zgeoff/no-switch": "off",
-    // GEO-1486 turns each of these on with the fixes it needs
-    "zgeoff/module-order": "off",
-    "zgeoff/verb-contract": "off"
+    // GEO-1486 turns this on with the fixes it needs
+    "zgeoff/module-order": "off"
   },
   "overrides": [
     {
@@ -235,7 +234,7 @@
         "packages/app/src/federation/build-gateway-error.test.ts",
         "packages/app/src/mcp/mcp-tools.ts",
         "packages/app/src/mcp/run-tool.test.ts",
-        "packages/app/src/plugins/build-shipped-execution-provider.test.ts",
+        "packages/app/src/plugins/create-shipped-execution-provider.test.ts",
         "packages/app/src/plugins/shipped-execution-plugins.test.ts",
         "packages/app/src/run-session-action.test.ts",
         "packages/app/src/shared/collect-legacy-agents.test.ts",
@@ -267,7 +266,7 @@
         "packages/daemon/src/fleet/update-ended-fleet-messages.test.ts",
         "packages/daemon/src/sessions/apply-workspace-trust.ts",
         "packages/daemon/src/sessions/build-agent-list.ts",
-        "packages/daemon/src/sessions/build-resume-command.ts",
+        "packages/daemon/src/sessions/plan-resume-command.ts",
         "packages/daemon/src/sessions/host-dir-claims.test.ts",
         "packages/daemon/src/sessions/published-records.ts",
         "packages/daemon/src/sessions/require-session-plugin-dirs.test.ts",

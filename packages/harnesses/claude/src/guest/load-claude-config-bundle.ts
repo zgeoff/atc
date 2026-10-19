@@ -24,19 +24,19 @@ export function loadClaudeConfigBundle(
     'settings.json': JSON.stringify(settings, null, 2),
   };
 
-  const hostReal = findStats(hostDir) === null ? hostDir : realpathSync(hostDir);
+  const hostReal = readStats(hostDir) === null ? hostDir : realpathSync(hostDir);
 
   for (const name of ['CLAUDE.md', 'statusline.sh']) {
     const path = join(hostDir, name);
-    const stats = findStats(path);
+    const stats = readStats(path);
 
-    if (stats?.isFile() === true && shouldShipFile(path, hostReal)) {
+    if (stats?.isFile() === true && probeShippedFile(path, hostReal)) {
       files[name] = readBundleFile(path, stats.mode);
     }
   }
 
   for (const name of ['agents', 'output-styles']) {
-    Object.assign(files, collectTreeFiles(join(hostDir, name), name, hostReal, new Set()));
+    Object.assign(files, readTreeFiles(join(hostDir, name), name, hostReal, new Set()));
   }
 
   const skills = join(hostDir, 'skills');
@@ -44,8 +44,8 @@ export function loadClaudeConfigBundle(
   for (const name of readEntryNames(skills)) {
     const path = join(skills, name);
 
-    if (findStats(join(path, 'SKILL.md'))?.isFile() === true) {
-      Object.assign(files, collectTreeFiles(path, `skills/${name}`, hostReal, new Set()));
+    if (readStats(join(path, 'SKILL.md'))?.isFile() === true) {
+      Object.assign(files, readTreeFiles(path, `skills/${name}`, hostReal, new Set()));
     }
   }
 
@@ -71,7 +71,7 @@ function readSettings(path: string): unknown {
 
 // The stats of what a path resolves to, or null for a missing path or a
 // symlink that points nowhere.
-function findStats(path: string): Stats | null {
+function readStats(path: string): Stats | null {
   try {
     return statSync(path);
   } catch {
@@ -82,7 +82,7 @@ function findStats(path: string): Stats | null {
 // A folder's entry names, sorted, without the ones that start with a dot,
 // or none when the path is not a folder.
 function readEntryNames(dir: string): string[] {
-  if (findStats(dir)?.isDirectory() !== true) {
+  if (readStats(dir)?.isDirectory() !== true) {
     return [];
   }
 
@@ -94,13 +94,13 @@ function readEntryNames(dir: string): string[] {
 // Every file under `dir` that may ship, keyed by its path under `prefix`,
 // with symlinks followed. `seen` holds the real paths of the folders on the
 // way down, so a symlink back up the tree ends there.
-function collectTreeFiles(
+function readTreeFiles(
   dir: string,
   prefix: string,
   hostReal: string,
   seen: ReadonlySet<string>,
 ): Record<string, GuestFile> {
-  const real = findStats(dir) === null ? null : realpathSync(dir);
+  const real = readStats(dir) === null ? null : realpathSync(dir);
 
   if (real === null || seen.has(real)) {
     return {};
@@ -112,12 +112,12 @@ function collectTreeFiles(
 
   for (const name of readEntryNames(dir)) {
     const path = join(dir, name);
-    const stats = findStats(path);
+    const stats = readStats(path);
 
-    if (stats?.isFile() === true && shouldShipFile(path, hostReal)) {
+    if (stats?.isFile() === true && probeShippedFile(path, hostReal)) {
       files[`${prefix}/${name}`] = readBundleFile(path, stats.mode);
     } else if (stats?.isDirectory() === true) {
-      Object.assign(files, collectTreeFiles(path, `${prefix}/${name}`, hostReal, below));
+      Object.assign(files, readTreeFiles(path, `${prefix}/${name}`, hostReal, below));
     }
   }
 
@@ -126,7 +126,7 @@ function collectTreeFiles(
 
 // a symlink ships only when its target could ship by its own path, so it never carries
 // credentials, account state, or the unfiltered settings
-function shouldShipFile(path: string, hostReal: string): boolean {
+function probeShippedFile(path: string, hostReal: string): boolean {
   const real = realpathSync(path);
 
   if (basename(real).startsWith('.')) {

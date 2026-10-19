@@ -83,7 +83,7 @@ export class ScreenModel {
   // Serializing before the flush drains would omit bytes already streamed
   // live to clients, and the replay's leading clear would erase them from
   // the client's screen for good.
-  async renderReplay(): Promise<string> {
+  async captureReplay(): Promise<string> {
     await this.waitForFlush();
 
     return RESET_INPUT_MODES + this.renderVisibleScreen() + this.renderInputModes();
@@ -96,7 +96,7 @@ export class ScreenModel {
     return this.term.modes.bracketedPasteMode;
   }
 
-  async renderText(): Promise<ScreenText> {
+  async captureText(): Promise<ScreenText> {
     await this.waitForFlush();
 
     const buffer = this.term.buffer.active;

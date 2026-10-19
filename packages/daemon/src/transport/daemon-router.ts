@@ -7,9 +7,9 @@ import type { DaemonContext } from '../daemon-context';
 import type { ProcedureContext } from './procedure-context';
 
 // Answers each procedure a connection admits.
-export const DAEMON_ROUTER = buildDaemonRouter();
+export const DAEMON_ROUTER = createDaemonRouter();
 
-function buildDaemonRouter() {
+function createDaemonRouter() {
   const os = implement(DAEMON_CONTRACT).$context<ProcedureContext>();
 
   return os.router({
@@ -28,7 +28,7 @@ function buildDaemonRouter() {
     },
     dirs: {
       list: os.dirs.list.handler(async (call) => ({
-        dirs: await call.context.ctx.collectSpawnDirs(null),
+        dirs: await call.context.ctx.readSpawnDirs(null),
       })),
     },
     agents: {
@@ -54,7 +54,7 @@ function buildDaemonRouter() {
       list: os.fleet.list.handler(async (call) => {
         const ctx = call.context.ctx;
 
-        const fleet = await ctx.collectFleet();
+        const fleet = await ctx.readFleet();
 
         return { fleet: fleet.filter((entry) => ctx.isSessionVisible(entry.sessionID)) };
       }),
@@ -92,7 +92,7 @@ function buildDaemonRouter() {
         return { ...forgotten };
       }),
       resumeCommand: os.session.resumeCommand.handler((call) => {
-        const resume = call.context.ctx.buildResumeCommand(call.input.session);
+        const resume = call.context.ctx.planResumeCommand(call.input.session);
 
         if ('command' in resume) {
           return { command: resume.command };

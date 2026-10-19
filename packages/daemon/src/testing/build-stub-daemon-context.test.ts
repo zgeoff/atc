@@ -15,7 +15,7 @@ test('it holds no sessions', () => {
 });
 
 test('it holds an empty fleet', () => {
-  expect(buildStubDaemonContext().collectFleet()).resolves.toStrictEqual([]);
+  expect(buildStubDaemonContext().readFleet()).resolves.toStrictEqual([]);
 });
 
 test('it loads claude as the last agent used', () => {

@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { collectCleanEnv } from '@atc/config';
+import { readCleanEnv } from '@atc/config';
 import type { MessageBridge, MessageBridgeRequest, SpawnPlan } from '@atc/plugin-api';
 import type { Subprocess } from 'bun';
 import { AppServerBridge } from './app-server-bridge';
@@ -33,7 +33,7 @@ export async function startCodexAppServerBridge(
 
   const socket = join(request.dir, 'codex.sock');
   const pidFile = join(request.dir, 'app-server.pid');
-  const env = collectCleanEnv(request.env, request.withheldEnv);
+  const env = readCleanEnv(request.env, request.withheldEnv);
   const bin = Bun.which(launch.bin, { PATH: env['PATH'] ?? '', cwd: request.cwd }) ?? launch.bin;
   const listenArgs = ['app-server', '--listen', `unix://${socket}`];
   const attempts = Math.ceil((launch.listenTimeoutMs ?? 10_000) / LISTEN_POLL_MS);

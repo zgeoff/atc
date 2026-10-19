@@ -1,6 +1,6 @@
 import { normalizeClientName } from '../shared/normalize-client-name';
 import { buildPageResponse } from './build-page-response';
-import { findClientName } from './find-client-name';
+import { readClientName } from './read-client-name';
 import type { AuthorizeInvalidReason, HTTPServerContext, Requester } from './types';
 
 export async function answerAuthorizeRequest(
@@ -44,7 +44,7 @@ export async function answerAuthorizeRequest(
   const clientID = target.searchParams.get('client_id') ?? '';
   const redirectURI = target.searchParams.get('redirect_uri') ?? '';
 
-  const storedName = await findClientName(ctx.store.db, clientID);
+  const storedName = await readClientName(ctx.store.db, clientID);
 
   const clientName = normalizeClientName(storedName);
 
@@ -110,7 +110,7 @@ async function recordInvalidRequest(
   const code = target?.searchParams.get('error') ?? null;
   const reason = isAuthorizeError(code) ? code : 'other';
   const clientID = url.searchParams.get('client_id');
-  const storedName = clientID === null ? null : await findClientName(ctx.store.db, clientID);
+  const storedName = clientID === null ? null : await readClientName(ctx.store.db, clientID);
 
   ctx.security.record({
     kind: 'authorize_invalid',

@@ -10,7 +10,7 @@ export function buildMockAgentAdapter(overrides: Partial<AgentAdapter> = {}): Ag
     planHookEvents: () => ({ events: [{ kind: 'heartbeat' }] }),
     loadName: () => Promise.resolve(null),
     canResume: () => true,
-    buildResumeCommand: () => null,
+    planResumeCommand: () => null,
     ...overrides,
   };
 }

@@ -13,7 +13,7 @@ export interface InputKeyDeps extends OverlayKeyDeps {
   readonly eject: EjectScreen;
   readonly stdinDecoder: TextDecoder;
   readonly getMode: () => ClientMode;
-  readonly getFocusedID: () => string | null;
+  readonly findFocusedID: () => string | null;
   readonly findRestartConsent: () => RestartConsent | null;
   readonly restoreFleet: () => Promise<void>;
 }
@@ -36,7 +36,7 @@ export function applyInputKey(buf: Buffer, deps: InputKeyDeps) {
         return;
       }
 
-      const focusedID = deps.getFocusedID();
+      const focusedID = deps.findFocusedID();
 
       if (focusedID !== null) {
         void deps.sendQuiet('session.input', {

@@ -68,7 +68,7 @@ const REPO_LIST_SCHEMA = z.array(
   }),
 );
 
-export async function collectGitHubRepos(
+export async function readGitHubRepos(
   request: GitHubListRequest,
 ): Promise<GitHubRepoListing | GitHubUnavailable> {
   const timeoutMs = request.timeoutMs ?? GH_TIMEOUT_MS;

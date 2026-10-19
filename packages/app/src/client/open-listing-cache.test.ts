@@ -24,7 +24,7 @@ test('it finds a listing that a cache opened earlier on the same file wrote', as
     listedAt: 1_000_000,
   });
 
-  expect(openListingCache(ctx.file).findListing('github', 1_060_000)).toStrictEqual({
+  expect(openListingCache(ctx.file).readListing('github', 1_060_000)).toStrictEqual({
     candidates: [{ label: 'acme/app', pick: { kind: 'git', url: 'git@github.com:acme/app.git' } }],
     scope: 'acme',
     listedAt: 1_000_000,
@@ -41,7 +41,7 @@ test('it finds no listing under a key nothing was written under', async () => {
     listedAt: 1_000_000,
   });
 
-  expect(cache.findListing('gitlab', 1_000_000)).toBeNull();
+  expect(cache.readListing('gitlab', 1_000_000)).toBeNull();
 });
 
 test('it finds a listing exactly as old as the lifetime', async () => {
@@ -54,7 +54,7 @@ test('it finds a listing exactly as old as the lifetime', async () => {
     listedAt: 1_000_000,
   });
 
-  expect(cache.findListing('github', 1_000_000 + LISTING_CACHE_LIFETIME_MS)).toStrictEqual({
+  expect(cache.readListing('github', 1_000_000 + LISTING_CACHE_LIFETIME_MS)).toStrictEqual({
     candidates: [{ label: 'acme/app' }],
     scope: null,
     listedAt: 1_000_000,
@@ -71,7 +71,7 @@ test('it finds no listing older than the lifetime', async () => {
     listedAt: 1_000_000,
   });
 
-  expect(cache.findListing('github', 1_000_001 + LISTING_CACHE_LIFETIME_MS)).toBeNull();
+  expect(cache.readListing('github', 1_000_001 + LISTING_CACHE_LIFETIME_MS)).toBeNull();
 });
 
 test('it keeps a day as the lifetime', () => {
@@ -94,7 +94,7 @@ test('it replaces the listing under a key with the one written last', async () =
     listedAt: 2_000_000,
   });
 
-  expect(cache.findListing('github', 2_000_000)).toStrictEqual({
+  expect(cache.readListing('github', 2_000_000)).toStrictEqual({
     candidates: [{ label: 'acme/app' }, { label: 'acme/new-tool' }],
     scope: null,
     listedAt: 2_000_000,
@@ -117,7 +117,7 @@ test('it keeps the listing requested later when an earlier request writes after 
     listedAt: 1_000_000,
   });
 
-  expect(cache.findListing('github', 2_000_000)).toStrictEqual({
+  expect(cache.readListing('github', 2_000_000)).toStrictEqual({
     candidates: [{ label: 'acme/new-tool' }],
     scope: null,
     listedAt: 2_000_000,
@@ -140,7 +140,7 @@ test('it drops listings older than the lifetime when it writes another', async (
     listedAt: 1_000_001 + LISTING_CACHE_LIFETIME_MS,
   });
 
-  expect(cache.findListing('old', 1_000_000)).toBeNull();
+  expect(cache.readListing('old', 1_000_000)).toBeNull();
 });
 
 test('it keeps the 32 newest listings and drops the rest', async () => {
@@ -155,7 +155,7 @@ test('it keeps the 32 newest listings and drops the rest', async () => {
     });
   }
 
-  const kept = Array.from({ length: 33 }, (_, i) => cache.findListing(`key-${i}`, 33));
+  const kept = Array.from({ length: 33 }, (_, i) => cache.readListing(`key-${i}`, 33));
 
   expect(kept.filter((listing) => listing === null)).toHaveLength(1);
   expect(kept[0]).toBeNull();
@@ -166,7 +166,7 @@ test('it finds no listing in a file that does not parse', () => {
 
   writeFileSync(ctx.file, '{"listings":');
 
-  expect(openListingCache(ctx.file).findListing('github', 1_000_000)).toBeNull();
+  expect(openListingCache(ctx.file).readListing('github', 1_000_000)).toBeNull();
 });
 
 test('it leaves out an entry that does not parse and keeps the rest', () => {
@@ -184,9 +184,9 @@ test('it leaves out an entry that does not parse and keeps the rest', () => {
 
   const cache = openListingCache(ctx.file);
 
-  expect(cache.findListing('broken', 1_000_000)).toBeNull();
+  expect(cache.readListing('broken', 1_000_000)).toBeNull();
 
-  expect(cache.findListing('github', 1_000_000)).toStrictEqual({
+  expect(cache.readListing('github', 1_000_000)).toStrictEqual({
     candidates: [{ label: 'acme/app' }],
     scope: 'acme',
     listedAt: 1_000_000,
@@ -204,7 +204,7 @@ test('it keeps nothing and leaves no temporary file when the folder cannot be wr
     listedAt: 1_000_000,
   });
 
-  expect(cache.findListing('github', 1_000_000)).toBeNull();
+  expect(cache.readListing('github', 1_000_000)).toBeNull();
   expect(readdirSync(ctx.dir)).toStrictEqual([]);
 });
 
@@ -252,7 +252,7 @@ for (let round = 0; round < 6; round += 1) {
 
   expect(
     Array.from({ length: 24 }, (_, i) =>
-      cache.findListing(`writer-${Math.floor(i / 6)}-${i % 6}`, 2_000_100),
+      cache.readListing(`writer-${Math.floor(i / 6)}-${i % 6}`, 2_000_100),
     ),
   ).toStrictEqual(
     Array.from({ length: 24 }, (_, i) => ({
@@ -262,7 +262,7 @@ for (let round = 0; round < 6; round += 1) {
     })),
   );
 
-  expect(cache.findListing('shared', 2_000_100)).toStrictEqual({
+  expect(cache.readListing('shared', 2_000_100)).toStrictEqual({
     candidates: [{ label: 'acme/shared-3-5' }],
     scope: null,
     listedAt: 2_000_023,
@@ -287,7 +287,7 @@ test('it takes over a lock that a writer which exited left behind', async () => 
     listedAt: 1_000_000,
   });
 
-  expect(openListingCache(ctx.file).findListing('github', 1_000_000)).toStrictEqual({
+  expect(openListingCache(ctx.file).readListing('github', 1_000_000)).toStrictEqual({
     candidates: [{ label: 'acme/app' }],
     scope: null,
     listedAt: 1_000_000,
@@ -313,7 +313,7 @@ test('it keeps nothing and leaves an old lock alone while the writer holding it 
     listedAt: 1_000_000,
   });
 
-  expect(openListingCache(ctx.file).findListing('github', 1_000_000)).toBeNull();
+  expect(openListingCache(ctx.file).readListing('github', 1_000_000)).toBeNull();
   expect(readdirSync(ctx.dir)).toStrictEqual(['listing-cache.json.lock']);
   expect(readdirSync(lockPath)).toStrictEqual([`${process.pid}-live-writer`]);
 });
@@ -366,7 +366,7 @@ for (let round = 0; round < 6; round += 1) {
 
   expect(
     Array.from({ length: 24 }, (_, i) =>
-      cache.findListing(`writer-${Math.floor(i / 6)}-${i % 6}`, 1_000_100),
+      cache.readListing(`writer-${Math.floor(i / 6)}-${i % 6}`, 1_000_100),
     ),
   ).toStrictEqual(
     Array.from({ length: 24 }, (_, i) => ({

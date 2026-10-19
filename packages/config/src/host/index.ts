@@ -1,4 +1,4 @@
-export * from './get-build';
+export * from './read-build';
 export * from './is-compiled-binary';
 export * from './listen/format-listen-refusal';
 export * from './listen/is-allowed-listen-host';

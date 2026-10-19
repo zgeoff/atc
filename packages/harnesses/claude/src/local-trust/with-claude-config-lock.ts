@@ -78,7 +78,7 @@ export async function withClaudeConfigLock<T>(
 
     await refreshing;
 
-    const isOwned = await isOwnedLock(lockPath, owned);
+    const isOwned = await probeOwnedLock(lockPath, owned);
 
     if (isOwned) {
       await rmdir(lockPath).catch(() => {});
@@ -130,7 +130,7 @@ async function refreshOwnedLock(
   owned: OwnedLock,
   nowMs: number,
 ): Promise<OwnedLock | null> {
-  const isOwned = await isOwnedLock(lockPath, owned);
+  const isOwned = await probeOwnedLock(lockPath, owned);
 
   if (!isOwned) {
     return null;
@@ -149,7 +149,7 @@ async function refreshOwnedLock(
   }
 }
 
-async function isOwnedLock(lockPath: string, owned: OwnedLock): Promise<boolean> {
+async function probeOwnedLock(lockPath: string, owned: OwnedLock): Promise<boolean> {
   const current = await stat(lockPath).catch(() => null);
 
   return current !== null && current.ino === owned.ino && current.mtimeMs === owned.mtimeMs;

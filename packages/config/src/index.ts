@@ -4,7 +4,7 @@ export * from './build-current-placeholder-config';
 export * from './claude-statusline';
 export * from './collect-agents';
 export * from './collect-auth-profiles';
-export * from './collect-clean-env';
+export * from './read-clean-env';
 export * from './collect-hooks';
 export * from './collect-mcp-http-config';
 export * from './collect-principals';

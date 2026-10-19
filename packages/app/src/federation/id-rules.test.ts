@@ -258,7 +258,7 @@ test('it has a rule for every id in a session.resumeCommand answer', async () =>
         parseTranscriptLine: parseClaudeTranscriptLine,
 
         // A resume command that holds the agent's session id.
-        buildResumeCommand: (_cwd, agentSessionID) => `claude --resume ${agentSessionID ?? ''}`,
+        planResumeCommand: (_cwd, agentSessionID) => `claude --resume ${agentSessionID ?? ''}`,
       }),
     }),
   });

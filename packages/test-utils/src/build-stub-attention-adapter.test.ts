@@ -8,7 +8,7 @@ test('it builds an adapter whose sessions take messages and resume with claude',
   expect(adapter.id).toBe('claude');
   expect(adapter.takesMessages).toBe(true);
 
-  expect(adapter.buildResumeCommand('/nonexistent', toAgentSessionID('c-1'), [])).toBe(
+  expect(adapter.planResumeCommand('/nonexistent', toAgentSessionID('c-1'), [])).toBe(
     'claude --resume',
   );
 });

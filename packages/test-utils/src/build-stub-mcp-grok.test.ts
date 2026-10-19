@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildStubMCPGrok } from './build-stub-mcp-grok';
 import { createStubBin } from './create-stub-bin';
+import { readSourceEntry } from './read-source-entry';
 import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { startStubReporterSocket } from './start-stub-reporter-socket';
@@ -13,7 +14,7 @@ function setupTest() {
 
   // The reporter the script reports through sends its lines here.
   const reporter = startStubReporterSocket(join(tmp.dir, 'report.sock'));
-  const bin = createStubBin(tmp.dir, 'grok', buildStubMCPGrok());
+  const bin = createStubBin(tmp.dir, 'grok', buildStubMCPGrok(readSourceEntry('atc')));
 
   return {
     dir: tmp.dir,

@@ -28,7 +28,7 @@ export class ImpHarnessState {
   }
 
   // Whether the next connection replaces the screen rather than resuming.
-  needsFreshScreen(): boolean {
+  shouldReplaceScreen(): boolean {
     return this.actor.getSnapshot().matches({ run: { following: { screen: 'fresh' } } });
   }
 
@@ -38,7 +38,7 @@ export class ImpHarnessState {
 
   // Whether the process exited, once the harness stops being followed;
   // null until then.
-  getExitConfirmation(): boolean | null {
+  findExitConfirmation(): boolean | null {
     const snapshot = this.actor.getSnapshot();
 
     if (snapshot.matches({ run: { ended: 'exited' } })) {
@@ -49,7 +49,7 @@ export class ImpHarnessState {
   }
 
   // How the harness's start settled, or null while it has not.
-  getStartOutcome(): 'started' | Readonly<DaemonError> | null {
+  findStartOutcome(): 'started' | Readonly<DaemonError> | null {
     const snapshot = this.actor.getSnapshot();
 
     if (snapshot.matches({ start: 'started' })) {

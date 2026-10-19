@@ -17,7 +17,7 @@ test("it lists a scope's repositories as clone URLs of the gh protocol, with pri
 
   const listed = await source.list(
     { scope: 'acme' },
-    { target: 'local', collectSpawnDirs: () => Promise.resolve([]) },
+    { target: 'local', readSpawnDirs: () => Promise.resolve([]) },
   );
 
   expect(listed).toStrictEqual({
@@ -47,7 +47,7 @@ test('it lists the configured owner as https clone URLs when the request holds n
 
   const listed = await source.list(
     {},
-    { target: 'local', collectSpawnDirs: () => Promise.resolve([]) },
+    { target: 'local', readSpawnDirs: () => Promise.resolve([]) },
   );
 
   expect(listed).toStrictEqual({
@@ -76,7 +76,7 @@ test('it refuses a scope that is not a GitHub login', () => {
   expect(
     source.list(
       { scope: 'not a login' },
-      { target: 'local', collectSpawnDirs: () => Promise.resolve([]) },
+      { target: 'local', readSpawnDirs: () => Promise.resolve([]) },
     ),
   ).rejects.toMatchObject({ code: 'bad_args' });
 });
@@ -86,7 +86,7 @@ test('it refuses a listing gh cannot give as unavailable with the problem', () =
   const source = buildGitHubSource({ run: gh.runCommand, bin: 'gh', owner: null });
 
   expect(
-    source.list({}, { target: 'local', collectSpawnDirs: () => Promise.resolve([]) }),
+    source.list({}, { target: 'local', readSpawnDirs: () => Promise.resolve([]) }),
   ).rejects.toMatchObject({ code: 'github_unavailable', data: { problem: 'not_authenticated' } });
 });
 
@@ -107,7 +107,7 @@ test.each([
 
     const interpretation = await source.interpret(input, {
       target: 'local',
-      collectSpawnDirs: () => Promise.resolve([]),
+      readSpawnDirs: () => Promise.resolve([]),
     });
 
     expect(interpretation).toStrictEqual(expected);

@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { buildStubGHCommand } from '@atc/test-utils';
-import { collectGitHubRepos } from './collect-github-repos';
+import { readGitHubRepos } from './collect-github-repos';
 
 test("it lists the requested owner's repositories with the gh clone protocol", async () => {
   const gh = buildStubGHCommand({
@@ -13,7 +13,7 @@ test("it lists the requested owner's repositories with the gh clone protocol", a
     },
   });
 
-  const listed = await collectGitHubRepos({ run: gh.runCommand, bin: 'gh', owner: 'acme' });
+  const listed = await readGitHubRepos({ run: gh.runCommand, bin: 'gh', owner: 'acme' });
 
   expect(listed).toStrictEqual({
     ok: true,
@@ -56,7 +56,7 @@ test("it lists the gh account's own repositories without an owner, reading the o
     },
   });
 
-  const listed = await collectGitHubRepos({ run: gh.runCommand, bin: 'gh', owner: null });
+  const listed = await readGitHubRepos({ run: gh.runCommand, bin: 'gh', owner: null });
 
   expect(listed).toStrictEqual({
     ok: true,
@@ -92,7 +92,7 @@ test('it refuses a host where gh cannot start as not installed', async () => {
     replies: { repo: { stderr: 'Executable not found in $PATH: "/opt/gh"', exitCode: 127 } },
   });
 
-  const listed = await collectGitHubRepos({ run: gh.runCommand, bin: '/opt/gh', owner: null });
+  const listed = await readGitHubRepos({ run: gh.runCommand, bin: '/opt/gh', owner: null });
 
   expect(listed).toStrictEqual({
     ok: false,
@@ -113,7 +113,7 @@ test('it refuses a gh that is signed out as not authenticated', async () => {
     },
   });
 
-  const listed = await collectGitHubRepos({ run: gh.runCommand, bin: 'gh', owner: null });
+  const listed = await readGitHubRepos({ run: gh.runCommand, bin: 'gh', owner: null });
 
   expect(listed).toStrictEqual({
     ok: false,
@@ -134,7 +134,7 @@ test("it refuses a gh listing that fails with gh's own message", async () => {
     },
   });
 
-  const listed = await collectGitHubRepos({ run: gh.runCommand, bin: 'gh', owner: 'nobody' });
+  const listed = await readGitHubRepos({ run: gh.runCommand, bin: 'gh', owner: 'nobody' });
 
   expect(listed).toStrictEqual({
     ok: false,
@@ -147,7 +147,7 @@ test("it refuses a gh listing that fails with gh's own message", async () => {
 test('it refuses a gh listing that prints no repository list', async () => {
   const gh = buildStubGHCommand({ replies: { repo: { stdout: 'not json\n' } } });
 
-  const listed = await collectGitHubRepos({ run: gh.runCommand, bin: 'gh', owner: null });
+  const listed = await readGitHubRepos({ run: gh.runCommand, bin: 'gh', owner: null });
 
   expect(listed).toStrictEqual({
     ok: false,
@@ -160,7 +160,7 @@ test('it refuses a gh listing that prints no repository list', async () => {
 test('it refuses a gh listing that does not answer within its time limit', async () => {
   const gh = buildStubGHCommand({ replies: { repo: 'hang' } });
 
-  const listed = await collectGitHubRepos({
+  const listed = await readGitHubRepos({
     run: gh.runCommand,
     bin: 'gh',
     owner: null,
@@ -178,7 +178,7 @@ test('it refuses a gh listing that does not answer within its time limit', async
 test('it refuses a gh listing that fails silently with its exit code', async () => {
   const gh = buildStubGHCommand({ replies: { repo: { exitCode: 3 } } });
 
-  const listed = await collectGitHubRepos({ run: gh.runCommand, bin: 'gh', owner: 'acme' });
+  const listed = await readGitHubRepos({ run: gh.runCommand, bin: 'gh', owner: 'acme' });
 
   expect(listed).toStrictEqual({
     ok: false,
@@ -193,7 +193,7 @@ test("it lists no owner when the gh account's own list is empty", async () => {
     replies: { config: { stdout: 'https\n' }, repo: { stdout: '[]\n' } },
   });
 
-  const listed = await collectGitHubRepos({ run: gh.runCommand, bin: 'gh', owner: null });
+  const listed = await readGitHubRepos({ run: gh.runCommand, bin: 'gh', owner: null });
 
   expect(listed).toStrictEqual({ ok: true, owner: null, repos: [], gitProtocol: 'https' });
 });

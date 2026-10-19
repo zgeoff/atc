@@ -8,7 +8,7 @@ test('it answers the adapter command for a session on the daemon machine', async
     prefix: 'atc-daemon-resume-',
     options: () => ({
       adapter: buildMockAgentAdapter({
-        buildResumeCommand: (cwd) => `cd '${cwd}' && claude --resume`,
+        planResumeCommand: (cwd) => `cd '${cwd}' && claude --resume`,
       }),
     }),
   });
@@ -33,7 +33,7 @@ test('it refuses the command for a session on another machine as unsupported', a
     prefix: 'atc-daemon-resume-',
     options: () => ({
       adapter: buildMockAgentAdapter({
-        buildResumeCommand: (cwd) => `cd '${cwd}' && claude --resume`,
+        planResumeCommand: (cwd) => `cd '${cwd}' && claude --resume`,
       }),
       targets: [{ id: 'box', kind: provider.kind, options: {}, identity: 'test:box', provider }],
       defaultTarget: 'box',
@@ -60,7 +60,7 @@ test('it refuses the command for an agent that builds none as unsupported', asyn
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-resume-',
     options: () => ({
-      adapter: buildMockAgentAdapter({ buildResumeCommand: () => null }),
+      adapter: buildMockAgentAdapter({ planResumeCommand: () => null }),
     }),
   });
 
@@ -85,7 +85,7 @@ test('it answers a session id the daemon does not hold as no such session', asyn
     prefix: 'atc-daemon-resume-',
     options: () => ({
       adapter: buildMockAgentAdapter({
-        buildResumeCommand: (cwd) => `cd '${cwd}' && claude --resume`,
+        planResumeCommand: (cwd) => `cd '${cwd}' && claude --resume`,
       }),
     }),
   });

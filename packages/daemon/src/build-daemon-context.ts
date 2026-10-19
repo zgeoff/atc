@@ -55,9 +55,9 @@ export function buildDaemonContext(deps: DaemonContextDeps): DaemonContext {
     daemonID: store.daemonID,
     idempotencyRetentionMs: deps.idempotencyRetentionMs,
     collectSessions: () => mgr.collectDescriptors(),
-    collectSpawnDirs: (access) => catalog.collectSpawnDirs(access),
+    readSpawnDirs: (access) => catalog.readSpawnDirs(access),
     collectAgents: () => catalog.collectAgents(),
-    collectFleet: () => store.loadFleet(),
+    readFleet: () => store.loadFleet(),
     loadLastUsedAgent: () => store.loadLastUsedAgent(),
     findAdapter: (kind) => mgr.findAdapter(kind),
     buildTargetAccess: (principal) => buildTargetAccess(principals, targetsByID, principal),
@@ -114,7 +114,7 @@ export function buildDaemonContext(deps: DaemonContextDeps): DaemonContext {
 
       return true;
     },
-    buildResumeCommand: (id) => mgr.buildResumeCommand(id),
+    planResumeCommand: (id) => mgr.planResumeCommand(id),
 
     readSessionScreen: (id) => input.readSessionScreen(id),
     readSessionMenu: (id) => input.readSessionMenu(id),
