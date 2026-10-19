@@ -4,8 +4,8 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
 import { dirname, join, normalize, resolve } from 'node:path';
-import type { ImportZonesOptions } from '@zgeoff/oxlint-config-next/import-zones';
-import { collectRefusingEdges, importZonesSchema } from '@zgeoff/oxlint-config-next/import-zones';
+import type { ImportZonesOptions } from '@zgeoff/oxlint-config/import-zones';
+import { collectRefusingEdges, importZonesSchema } from '@zgeoff/oxlint-config/import-zones';
 import { z } from 'zod';
 import type { ImportList } from './collect-imports';
 import { collectImports } from './collect-imports';
