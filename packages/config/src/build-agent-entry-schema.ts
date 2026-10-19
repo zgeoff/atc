@@ -1,4 +1,5 @@
-import { isRecord } from '@atc/core';
+import { isAbsolute } from 'node:path';
+import { isHomeRelative, isRecord } from '@atc/core';
 import type { AuthProfile, PluginConfigContext } from '@atc/plugin-api';
 import { z } from 'zod';
 import type { AgentEntry, AgentKind, ParsedAgentEntry } from './agent-entry';
@@ -118,6 +119,13 @@ const FIELD_CHECKS: ReadonlyMap<string, FieldCheck> = new Map([
     { schema: z.record(z.string(), z.unknown()), problem: 'settings must be an object' },
   ],
   ['appServer', { schema: z.boolean(), problem: 'appServer must be true or false' }],
+  [
+    'pluginDirs',
+    {
+      schema: z.array(z.string().refine((dir) => isAbsolute(dir) || isHomeRelative(dir))),
+      problem: 'pluginDirs must be an array of absolute paths or paths that start with ~/',
+    },
+  ],
 ]);
 
 // The problem with one field's value, or null.
@@ -155,6 +163,7 @@ function buildEntry(
   const baseURL = raw['baseURL'];
   const apiKeyHelper = raw['apiKeyHelper'];
   const appServer = raw['appServer'];
+  const pluginDirs = raw['pluginDirs'];
   const markSource = typeof mark === 'string' ? mark : id;
   const defaultLabel = id === spec.kind ? spec.defaultLabel : id;
 
@@ -170,5 +179,8 @@ function buildEntry(
     ...(typeof baseURL === 'string' ? { baseURL } : {}),
     ...(typeof apiKeyHelper === 'string' ? { apiKeyHelper } : {}),
     ...(typeof appServer === 'boolean' ? { appServer } : {}),
+    ...(Array.isArray(pluginDirs) && pluginDirs.length > 0
+      ? { pluginDirs: pluginDirs.map(String) }
+      : {}),
   };
 }

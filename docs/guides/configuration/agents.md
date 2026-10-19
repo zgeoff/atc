@@ -33,6 +33,7 @@ Codex adds an entry for each:
 | `baseURL`      | none                                 | Claude only. The backend's Anthropic-format endpoint; an entry that sets it is a [gateway](#gateways).                                                                                                                                          |
 | `apiKeyHelper` | none                                 | Claude only, with `baseURL`. Command the CLI runs on the daemon's machine to read the credential.                                                                                                                                               |
 | `auth`         | none                                 | Claude or Codex. The credential profiles impd's broker applies; [brokered credentials](./brokered-credentials.md), [Claude subscription on imps](./claude-subscription.md), and [Codex subscription on imps](./codex-subscription.md) cover it. |
+| `pluginDirs`   | `[]`                                 | Claude only. Plugin folders every session of the entry loads; [Claude plugin folders](#claude-plugin-folders) covers them.                                                                                                                      |
 | `appServer`    | `false`                              | Codex only. `true` runs each local session on a Codex App Server of its own, so the session takes messages; [Codex sessions that take messages](#codex-sessions-that-take-messages) covers it.                                                  |
 
 `kind` defaults to the id for `claude`, `codex`, and `grok`, so `"codex": {}` is a Codex entry. A
@@ -104,6 +105,26 @@ does not resolve is left out of the picker. A spawn that names no agent runs `cl
 registry has an entry with that id, and the first entry otherwise. With an empty registry,
 `agents.list` still reports `claude` as the default, and the spawn fails because no adapter is
 registered for it.
+
+## Claude plugin folders
+
+To load a Claude Code plugin into every session of one Claude entry, gateways included, list its
+folder in the entry's `pluginDirs`. Each folder is an absolute path or one that starts with `~/`, on
+the daemon's machine:
+
+```json
+{
+  "agents": {
+    "claude": { "pluginDirs": ["~/plugins/review-band"] }
+  }
+}
+```
+
+atc passes each folder to Claude Code as `--plugin-dir` on every launch, a restore included. To load
+a plugin into one session only, pass `pluginDirs` to `atc_session_spawn` or `session.spawn`; those
+folders load after the entry's own. A spawn on a target that runs the agent on another machine, such
+as an imp, is refused while either list holds a folder, and so is a spawn whose folder does not
+exist. A different entry without `pluginDirs` starts sessions on such a target.
 
 ## Claude scratch folder
 

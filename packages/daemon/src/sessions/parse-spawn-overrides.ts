@@ -1,3 +1,5 @@
+import { isAbsolute } from 'node:path';
+import { isHomeRelative } from '@atc/core';
 import type { SpawnOverrides } from '@atc/plugin-api';
 import { CONTROL_CHARACTER } from '@atc/protocol';
 import type { AgentEntry, SpawnOptionEntry } from './build-agent-list';
@@ -5,6 +7,7 @@ import type { AgentEntry, SpawnOptionEntry } from './build-agent-list';
 interface RequestedOverrides {
   readonly model?: string | undefined;
   readonly effort?: string | undefined;
+  readonly pluginDirs?: readonly string[] | undefined;
 }
 
 interface SpawnRefusal {
@@ -23,6 +26,7 @@ export function parseSpawnOverrides(
 ): ParsedOverrides {
   const model = requested.model;
   const effort = requested.effort;
+  const pluginDirs = requested.pluginDirs;
 
   const refusal =
     (model === undefined
@@ -30,7 +34,10 @@ export function parseSpawnOverrides(
       : findOptionRefusal(agent.id, 'model', agent.spawnOptions.model, model)) ??
     (effort === undefined
       ? null
-      : findOptionRefusal(agent.id, 'effort', agent.spawnOptions.effort, effort));
+      : findOptionRefusal(agent.id, 'effort', agent.spawnOptions.effort, effort)) ??
+    (pluginDirs === undefined || pluginDirs.length === 0
+      ? null
+      : findPluginDirsRefusal(agent.id, agent.spawnOptions.pluginDirs, pluginDirs));
 
   if (refusal !== null) {
     return refusal;
@@ -41,6 +48,7 @@ export function parseSpawnOverrides(
     overrides: {
       ...(model === undefined ? {} : { model }),
       ...(effort === undefined ? {} : { effort }),
+      ...(pluginDirs === undefined || pluginDirs.length === 0 ? {} : { pluginDirs }),
     },
   };
 }
@@ -81,6 +89,46 @@ function findOptionRefusal(
       code: 'bad_args',
       message: `agent '${agentID}' takes ${name} ${option.values.join(', ')}; got '${value}'`,
     };
+  }
+
+  return null;
+}
+
+// The longest path Linux takes.
+const MAX_PATH_LENGTH = 4096;
+
+// A plugin folder is a path on the daemon's machine: absolute, or under the
+// daemon user's home with a leading ~/.
+function findPluginDirsRefusal(
+  agentID: string,
+  option: SpawnOptionEntry | undefined,
+  dirs: readonly string[],
+): SpawnRefusal | null {
+  if (option?.available !== true) {
+    const reason =
+      option?.supported === true
+        ? "takes pluginDirs only on a target on the daemon's machine where it is installed"
+        : 'takes no pluginDirs';
+
+    return { ok: false, code: 'unsupported', message: `agent '${agentID}' ${reason}` };
+  }
+
+  for (const dir of dirs) {
+    if (dir === '' || dir.length > MAX_PATH_LENGTH || CONTROL_CHARACTER.test(dir)) {
+      return {
+        ok: false,
+        code: 'bad_args',
+        message: `each pluginDirs entry must be 1 to ${MAX_PATH_LENGTH} characters without control characters`,
+      };
+    }
+
+    if (!isAbsolute(dir) && !isHomeRelative(dir)) {
+      return {
+        ok: false,
+        code: 'bad_args',
+        message: `pluginDirs entry '${dir}' must be an absolute path or start with ~/`,
+      };
+    }
   }
 
   return null;

@@ -2,6 +2,59 @@ import { expect, test } from 'bun:test';
 import { buildMockAgentAdapter } from '@atc/test-utils';
 import { buildAgentList } from './build-agent-list';
 
+test.each([
+  ['a target on the daemon machine', [{ id: 'local', remote: false, brokerAuth: false }], true],
+  ['only a remote target', [{ id: 'box', remote: true, brokerAuth: false }], false],
+])('it lists plugin folders as available with %s: %p', (_label, targets, available) => {
+  const adapter = buildMockAgentAdapter({
+    id: 'claude',
+    profile: {
+      label: 'Claude',
+      kind: 'claude',
+      bin: 'claude',
+      models: null,
+      spawnOptions: {
+        model: {
+          supported: false,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+        },
+        effort: {
+          supported: false,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+        },
+        pluginDirs: {
+          supported: true,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: 'applied',
+          note: null,
+        },
+      },
+    },
+  });
+
+  const [listed] = buildAgentList([adapter], () => true, targets);
+
+  expect(listed?.spawnOptions.pluginDirs).toStrictEqual({
+    supported: true,
+    values: null,
+    examples: [],
+    default: null,
+    backendEffect: 'applied',
+    note: null,
+    available,
+  });
+});
+
 test('it lists an agent whose binary is missing as spawnable only on a remote target', () => {
   const adapter = buildMockAgentAdapter({
     id: 'claude',
@@ -65,6 +118,15 @@ test('it lists an agent whose binary is missing as spawnable only on a remote ta
           available: true,
         },
         effort: {
+          supported: false,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+          available: false,
+        },
+        pluginDirs: {
           supported: false,
           values: null,
           examples: [],
@@ -155,6 +217,15 @@ test('it lists an agent that takes the broker credential as spawnable once a tar
           note: null,
           available: false,
         },
+        pluginDirs: {
+          supported: false,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+          available: false,
+        },
       },
     },
   ]);
@@ -237,6 +308,15 @@ test('it lists an agent that takes the broker credential as not spawnable when n
           note: null,
           available: false,
         },
+        pluginDirs: {
+          supported: false,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+          available: false,
+        },
       },
     },
   ]);
@@ -302,6 +382,15 @@ test('it lists an agent that takes no broker credential as spawnable when no tar
           available: false,
         },
         effort: {
+          supported: false,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+          available: false,
+        },
+        pluginDirs: {
           supported: false,
           values: null,
           examples: [],
@@ -387,6 +476,15 @@ test('it lists an agent that takes the broker credential only where a broker is 
           available: true,
         },
         effort: {
+          supported: false,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+          available: false,
+        },
+        pluginDirs: {
           supported: false,
           values: null,
           examples: [],

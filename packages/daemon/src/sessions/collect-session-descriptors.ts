@@ -35,6 +35,7 @@ export function collectSessionDescriptors(
     ...(s.workspace === undefined ? {} : { workspace: s.workspace }),
     lifecycle: buildLifecycle(s),
     ...(s.model === undefined ? {} : { model: s.model }),
+    ...(s.pluginDirs === undefined ? {} : { pluginDirs: s.pluginDirs }),
   }));
 }
 

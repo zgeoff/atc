@@ -216,6 +216,15 @@ export interface DaemonContext {
   // broker on a target whose provider reaches no broker.
   readonly requireAgentTarget: (agent: AgentID, target: string) => void;
 
+  // The spawn's own plugin folders with a leading ~ expanded. Throws the
+  // refusal for any folder on a remote target, and for a configured or
+  // requested folder that does not exist on the daemon's machine.
+  readonly resolvePluginDirs: (
+    target: string,
+    configured: readonly string[],
+    requested: readonly string[],
+  ) => string[];
+
   // The source the daemon offers the spawn picker under an id, or null when
   // it offers none under it.
   readonly findSource: (id: string) => SourceProvider | null;

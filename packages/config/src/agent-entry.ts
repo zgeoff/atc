@@ -24,6 +24,10 @@ export interface AgentEntry {
   readonly auth?: GatewayAuth;
   readonly mcpServers?: readonly ClaudeMCPServer[];
   readonly appServer?: boolean;
+
+  // Claude only: plugin folders every session of the entry loads, each an
+  // absolute path or one under the home with a leading ~/.
+  readonly pluginDirs?: readonly string[];
 }
 
 export interface ParsedAgentEntry {

@@ -1,7 +1,9 @@
+import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import type { InvalidGitTransports } from '@atc/config';
 import { resolveHomeDir } from '@atc/config/host';
 import type { AgentID, Clock, SessionID } from '@atc/core';
+import { expandHome } from '@atc/core';
 import type { DaemonAnswer, SessionDescriptor, SpawnWorkspaceSource } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
 import type { StateStore } from '@atc/store';
@@ -53,8 +55,8 @@ interface SpawnServiceDeps {
   }>;
 
   // The home a git workspace without a directory lands under on a target on
-  // the daemon's own machine when no root applies; the daemon user's home
-  // when absent.
+  // the daemon's own machine when no root applies, and the one a plugin
+  // folder starting with ~ is under; the daemon user's home when absent.
   readonly homeDir?: string;
 }
 
@@ -180,6 +182,40 @@ export class SpawnService {
 
   requireAgentTarget(agent: AgentID, target: string): void {
     this.mgr.requireAgentTarget(agent, target);
+  }
+
+  // A remote target's folders are out of the daemon's sight, so any folder
+  // there refuses the spawn, as does a configured or requested path that
+  // does not exist.
+  resolvePluginDirs(
+    target: string,
+    configured: readonly string[],
+    requested: readonly string[],
+  ): string[] {
+    const home = this.homeDir ?? resolveHomeDir();
+    const resolved = requested.map((dir) => expandHome(dir, home));
+
+    if (configured.length === 0 && resolved.length === 0) {
+      return resolved;
+    }
+
+    const remote = this.mgr.requireExecution({ target, targetIdentity: null }, 'spawn').provider
+      .remote;
+
+    if (remote) {
+      throw new DaemonError(
+        'unsupported',
+        `target '${target}' runs the agent on another machine, so it takes no pluginDirs; the agent's config or the spawn sets them`,
+      );
+    }
+
+    const missing = [...configured, ...resolved].find((dir) => !existsSync(dir));
+
+    if (missing !== undefined) {
+      throw new DaemonError('bad_args', `plugin folder '${missing}' does not exist`);
+    }
+
+    return resolved;
   }
 
   // A spawn that fails unwinds its own steps before it throws, so a failed

@@ -369,6 +369,14 @@ test('it lists an agent as unable to spawn to a principal granted none of its sp
                 backendEffect: 'applied',
                 note: null,
               },
+              pluginDirs: {
+                supported: true,
+                values: null,
+                examples: [],
+                default: null,
+                backendEffect: 'applied',
+                note: null,
+              },
             },
           },
         }),
@@ -390,6 +398,7 @@ test('it lists an agent as unable to spawn to a principal granted none of its sp
       spawnOptions: {
         model: { supported: true, available: false },
         effort: { supported: true, available: false },
+        pluginDirs: { supported: true, available: false },
       },
     },
   ]);

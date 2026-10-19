@@ -89,6 +89,9 @@ const SPAWN_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
     effort: SPAWN_SCHEMA.shape.effort.describe(
       "Effort level for the new session, one of the agent's spawnOptions.effort.values in atc_spawn_options_get. Refused when the agent takes no effort. Omit it to keep the agent's configured default.",
     ),
+    pluginDirs: SPAWN_SCHEMA.shape.pluginDirs.describe(
+      "Claude Code plugin folders this session alone loads, at most 32, each an absolute path or one that starts with ~/ on the atc daemon's machine; each reaches the CLI as --plugin-dir. They load after the folders the agent's config sets, which still load. Refused when the agent takes none (spawnOptions.pluginDirs in atc_spawn_options_get), on a target that runs the agent on another machine, and when any folder, the config's included, does not exist; the refusal names the path. Every restart of the session, after a daemon restart included, loads them again.",
+    ),
     target: SPAWN_SCHEMA.shape.target.describe(
       'Execution target for the new session, one of the target ids in atc_spawn_options_get. Omit it to run on the default target (spawnDefaults.target). An unknown or unavailable target is refused; atc never runs the session on another target instead.',
     ),
@@ -374,10 +377,15 @@ const AGENTS_OUTPUT: Readonly<Record<string, unknown>> = {
           spawnOptions: {
             type: 'object',
             description:
-              'the model and effort options a spawn takes, present when the daemon supports them',
+              'the model, effort and plugin folder options a spawn takes, present when the daemon supports them',
             properties: {
               model: SPAWN_OPTION_OUTPUT,
               effort: SPAWN_OPTION_OUTPUT,
+              pluginDirs: {
+                ...SPAWN_OPTION_OUTPUT,
+                description:
+                  "the plugin folders a spawn can add for its session alone; available true when the agent can start on a target on the daemon's machine. Absent from a daemon that takes none",
+              },
             },
             required: ['model', 'effort'],
           },
@@ -686,6 +694,12 @@ const SESSION_ENTRY_PROPERTIES: Readonly<Record<string, unknown>> = {
   model: {
     type: 'string',
     description: "the model the spawn asked for; absent when the agent's default runs",
+  },
+  pluginDirs: {
+    type: 'array',
+    items: { type: 'string' },
+    description:
+      "the plugin folders the spawn asked for, with ~ expanded; the folders the agent's config sets load too and are not listed. Absent when the spawn asked for none",
   },
   workspace: {
     type: 'object',
@@ -1008,6 +1022,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
         daemon: 'fleet.daemons',
         model: 'spawn.options',
         effort: 'spawn.options',
+        pluginDirs: 'spawn.pluginDirs',
         idempotencyKey: 'spawn.idempotency',
         target: 'spawn.target',
         workspace: 'spawn.workspace',
@@ -1202,7 +1217,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     annotations: READ_ONLY,
     scope: 'read',
     description:
-      'Read what atc_session_spawn accepts on this daemon: each agent (pass its id as agent) with whether it is installed, its capabilities, and the model and effort values it takes; each execution target (pass its id as target) with whether it is available; and spawnDefaults. A spawn that would fail says so in advance: an agent with installed false or capabilities.spawn false, a target with available false, or an entry in targetErrors, with their meanings in the output schema. available true does not show that the host of the target is up. A remote client sees only the targets it reaches, and no config-wide targetErrors. Under the gateway it returns daemons, an object keyed by daemon name that holds the state of each daemon and, for a daemon that is up, the object a single daemon returns. It never holds credentials, environment values or endpoints.',
+      'Read what atc_session_spawn accepts on this daemon: each agent (pass its id as agent) with whether it is installed, its capabilities, the model and effort values it takes, and whether it takes plugin folders; each execution target (pass its id as target) with whether it is available; and spawnDefaults. A spawn that would fail says so in advance: an agent with installed false or capabilities.spawn false, a target with available false, or an entry in targetErrors, with their meanings in the output schema. available true does not show that the host of the target is up. A remote client sees only the targets it reaches, and no config-wide targetErrors. Under the gateway it returns daemons, an object keyed by daemon name that holds the state of each daemon and, for a daemon that is up, the object a single daemon returns. It never holds credentials, environment values or endpoints.',
     inputSchema: NO_INPUT,
     outputSchema: AGENTS_OUTPUT,
     requires: { tool: 'agents.list', output: 'spawn.options', outputUnless: 'fleet.daemons' },

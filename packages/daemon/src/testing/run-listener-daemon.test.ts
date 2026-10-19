@@ -77,6 +77,7 @@ test('it answers a hello on the daemon socket in its test directory', async () =
       'message.turn',
       'message.wait',
       'spawn.options',
+      'spawn.pluginDirs',
       'daemon.id',
       'session.locator',
       'spawn.idempotency',

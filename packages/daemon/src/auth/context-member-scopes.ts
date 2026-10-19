@@ -18,6 +18,7 @@ export const CONTEXT_MEMBER_SCOPES = {
   requireWorkspaceTarget: 'daemon-wide',
   buildDefaultWorkspaceDir: 'daemon-wide',
   requireAgentTarget: 'daemon-wide',
+  resolvePluginDirs: 'daemon-wide',
   findSource: 'daemon-wide',
   collectAlternateGitURLs: 'daemon-wide',
   checkRepositoryAccess: 'daemon-wide',

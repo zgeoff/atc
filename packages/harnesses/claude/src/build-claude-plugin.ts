@@ -7,7 +7,7 @@ import { readClaudeEntry } from './config/read-claude-entry';
 import { GatewayAdapter } from './gateway/gateway-adapter';
 
 // The fields a Claude entry sets beside the ones every entry takes.
-const CLAUDE_FIELDS = ['settings', 'env', 'baseURL', 'apiKeyHelper', 'auth'];
+const CLAUDE_FIELDS = ['settings', 'env', 'baseURL', 'apiKeyHelper', 'auth', 'pluginDirs'];
 
 export function buildClaudePlugin(options: ClaudeAdapterOptions = {}): HarnessPlugin {
   return definePlugin({

@@ -364,6 +364,9 @@ export class SessionSpawner {
           ...(spawn.prompt === '' ? {} : { prompt: spawn.prompt }),
           ...(spawn.overrides.model === undefined ? {} : { model: spawn.overrides.model }),
           ...(spawn.overrides.effort === undefined ? {} : { effort: spawn.overrides.effort }),
+          ...(spawn.overrides.pluginDirs === undefined
+            ? {}
+            : { pluginDirs: spawn.overrides.pluginDirs }),
           target,
           targetIdentity: spawn.execution.identity,
           ...(materialized === null ? {} : { workspace: materialized.workspace }),

@@ -58,6 +58,10 @@ export const SESSION_DESCRIPTOR_SCHEMA = z.object({
   // the model the session was spawned with; absent when it runs the agent's
   // default
   model: z.string().optional(),
+
+  // the plugin folders the spawn asked for, after the ones the agent's
+  // config sets; absent when it asked for none
+  pluginDirs: z.array(z.string()).readonly().optional(),
 });
 
 export type SessionDescriptor = Readonly<z.output<typeof SESSION_DESCRIPTOR_SCHEMA>>;

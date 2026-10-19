@@ -74,6 +74,15 @@ test('it lists an agent atc has no code for with the kind and label its adapter 
           backendEffect: null,
           note: null,
         },
+        pluginDirs: {
+          supported: false,
+          available: false,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+        },
       },
     },
   ]);
@@ -117,6 +126,15 @@ test('it lists an adapter without a profile under its own id as its kind', async
           note: null,
         },
         effort: {
+          supported: false,
+          available: false,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+        },
+        pluginDirs: {
           supported: false,
           available: false,
           values: null,

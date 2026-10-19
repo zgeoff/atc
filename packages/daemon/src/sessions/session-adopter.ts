@@ -192,6 +192,7 @@ export class SessionAdopter {
             resume,
             ...(s.model === undefined ? {} : { model: s.model }),
             ...(s.effort === undefined ? {} : { effort: s.effort }),
+            ...(s.pluginDirs === undefined ? {} : { pluginDirs: s.pluginDirs }),
           },
           authSetup,
           s.cwd,
@@ -267,6 +268,7 @@ export class SessionAdopter {
             resume,
             ...(s.model === undefined ? {} : { model: s.model }),
             ...(s.effort === undefined ? {} : { effort: s.effort }),
+            ...(s.pluginDirs === undefined ? {} : { pluginDirs: s.pluginDirs }),
           },
         });
 

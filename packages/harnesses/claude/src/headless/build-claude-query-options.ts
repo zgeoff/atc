@@ -52,6 +52,14 @@ export function buildClaudeQueryOptions(
     ...(opts.model === undefined ? {} : { model: opts.model }),
     ...(effort === undefined ? {} : { effort }),
 
+    // The config's plugin folders and the session's own, each passed as
+    // --plugin-dir.
+    ...(opts.pluginDirs === undefined || opts.pluginDirs.length === 0
+      ? {}
+      : {
+          plugins: [...new Set(opts.pluginDirs)].map((path) => ({ type: 'local' as const, path })),
+        }),
+
     // The same generated file the terminal spawn passes, so the turn runs
     // against the session's own backend and instrumentation.
     ...(opts.settings === undefined ? {} : { extraArgs: { settings: opts.settings } }),

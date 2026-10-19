@@ -8,6 +8,10 @@ export interface ClaudeLaunchPaths {
   readonly scratch: string | null;
   readonly settings: string;
   readonly pluginDir: string;
+
+  // The plugin folders the launch loads beside atc's own, the config's first
+  // and then the session's.
+  readonly pluginDirs: readonly string[];
 }
 
 export function buildClaudeArgs(
@@ -25,6 +29,7 @@ export function buildClaudeArgs(
     paths.settings,
     '--plugin-dir',
     paths.pluginDir,
+    ...[...new Set(paths.pluginDirs)].flatMap((dir) => ['--plugin-dir', dir]),
     ...(opts.resume === true ? ['--resume'] : []),
     ...(typeof opts.resume === 'string' ? ['--resume', opts.resume] : []),
     ...(opts.prompt === '' ? [] : [opts.prompt]),

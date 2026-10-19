@@ -1,5 +1,12 @@
 import type { DaemonID, SessionID } from '@atc/core';
-import { systemClock, toAgentID, toAgentSessionID, toDaemonID, toSessionID } from '@atc/core';
+import {
+  parseJSONStrings,
+  systemClock,
+  toAgentID,
+  toAgentSessionID,
+  toDaemonID,
+  toSessionID,
+} from '@atc/core';
 import type { SessionWorkspace } from '@atc/protocol';
 import { sql } from 'kysely';
 import type { Kysely, Transaction } from 'kysely';
@@ -54,6 +61,7 @@ export class FleetStore {
         'fleet.transcript_path',
         'fleet.model',
         'fleet.effort',
+        'fleet.plugin_dirs',
         'fleet.target',
         'fleet.target_identity',
         'workspace.repo_url',
@@ -97,6 +105,7 @@ export class FleetStore {
         ...(row.transcript_path === null ? {} : { transcriptPath: row.transcript_path }),
         ...(row.model === null ? {} : { model: row.model }),
         ...(row.effort === null ? {} : { effort: row.effort }),
+        ...buildPluginDirsField(row.plugin_dirs),
         ...(row.target === null ? {} : { target: row.target }),
         ...(row.target_identity === null ? {} : { targetIdentity: row.target_identity }),
         ...buildWorkspaceField(row),
@@ -211,6 +220,10 @@ export class FleetStore {
             transcript_path: entry.transcriptPath ?? null,
             model: entry.model ?? null,
             effort: entry.effort ?? null,
+            plugin_dirs:
+              entry.pluginDirs === undefined || entry.pluginDirs.length === 0
+                ? null
+                : JSON.stringify(entry.pluginDirs),
             target: entry.target ?? null,
             target_identity: entry.targetIdentity ?? null,
             desired: entry.desired ?? null,
@@ -269,6 +282,15 @@ export class FleetStore {
       await trx.updateTable('fleet').set(values).where('session_id', '=', sessionID).execute();
     });
   }
+}
+
+// A fleet row's plugin folders as its entry field, or nothing for a row that
+// asked for none. A stored list that does not read loads none, since a
+// session without its plugins still runs.
+function buildPluginDirsField(stored: string | null): { readonly pluginDirs?: string[] } {
+  const dirs = stored === null ? null : parseJSONStrings(stored);
+
+  return dirs === null || dirs.length === 0 ? {} : { pluginDirs: dirs };
 }
 
 // A fleet row's ready workspace as its entry field, or nothing for a row

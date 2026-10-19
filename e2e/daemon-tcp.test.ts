@@ -130,6 +130,7 @@ test('it accepts a TCP handshake with a token a SIGHUP reload kept', async () =>
       'message.turn',
       'message.wait',
       'spawn.options',
+      'spawn.pluginDirs',
       'daemon.id',
       'session.locator',
       'spawn.idempotency',

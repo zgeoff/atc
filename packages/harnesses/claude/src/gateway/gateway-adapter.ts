@@ -31,6 +31,7 @@ import { buildGuestBridgeFiles } from '../bridge/build-guest-bridge-files';
 import { buildClaudeArgs } from '../build-claude-args';
 import { buildClaudeHookEvent } from '../build-claude-hook-event';
 import { buildHookSettings } from '../build-hook-settings';
+import { buildPluginDirsOption } from '../build-plugin-dirs-option';
 import { buildRestoreModeArgs } from '../build-restore-mode-args';
 import type { ClaudeAdapterOptions } from '../claude-adapter-options';
 import { CLAUDE_EFFORT_LEVELS } from '../claude-effort-levels';
@@ -47,6 +48,7 @@ import { loadClaudeName } from '../load-claude-name';
 import { parseClaudeTranscriptLine } from '../parse-claude-transcript-line';
 import { planClaudeLineInput } from '../plan-claude-line-input';
 import { resolveClaudePermissionMode } from '../resolve-claude-permission-mode';
+import { resolveConfiguredPluginDirs } from '../resolve-configured-plugin-dirs';
 import { SESSION_SCRATCH_FOLDER } from '../session-scratch-folder';
 
 export class GatewayAdapter implements AgentAdapter {
@@ -90,6 +92,8 @@ export class GatewayAdapter implements AgentAdapter {
   // credential helper, and its settings.
   private readonly files: ClaudeLaunchFiles;
 
+  private readonly pluginDirs: readonly string[];
+
   constructor(
     gateway: GatewayConfig,
     config: Pick<Config, 'authProfiles'>,
@@ -102,6 +106,7 @@ export class GatewayAdapter implements AgentAdapter {
     this.gateway = gateway;
     this.config = config;
     this.id = gateway.id;
+    this.pluginDirs = resolveConfiguredPluginDirs(gateway.pluginDirs, options.homeDir);
 
     this.files = new ClaudeLaunchFiles(
       {
@@ -122,6 +127,7 @@ export class GatewayAdapter implements AgentAdapter {
       bin: gateway.bin,
       models,
       spawnOptions: buildGatewaySpawnOptions(gateway.args, models),
+      ...(this.pluginDirs.length === 0 ? {} : { pluginDirs: this.pluginDirs }),
     };
 
     this.headlessRunner =
@@ -131,6 +137,7 @@ export class GatewayAdapter implements AgentAdapter {
             claudeBin: gateway.bin,
             permissionMode: resolveClaudePermissionMode(gateway.args, gateway.settings),
             pluginDir: () => this.files.writeBridge(),
+            pluginDirs: this.pluginDirs,
             settings: () => this.files.writeSettings(),
           });
   }
@@ -184,6 +191,7 @@ export class GatewayAdapter implements AgentAdapter {
         scratch,
         settings: this.files.writeSettings(),
         pluginDir: this.files.writeBridge(),
+        pluginDirs: [...this.pluginDirs, ...(opts.pluginDirs ?? [])],
       }),
       ...(scratch === null ? {} : { env: { TMPDIR: scratch } }),
     };
@@ -248,6 +256,7 @@ export class GatewayAdapter implements AgentAdapter {
           scratch: `${guest.dir}/${SESSION_SCRATCH_FOLDER}`,
           settings: `${guest.dir}/${settingsPath}`,
           pluginDir: `${guest.dir}/atc-bridge`,
+          pluginDirs: [],
         }),
       ],
       refusedEnv,
@@ -523,5 +532,6 @@ function buildGatewaySpawnOptions(
       backendEffect: 'unverified',
       note: "Passed as --effort; the gateway's provider may ignore it.",
     },
+    pluginDirs: buildPluginDirsOption(),
   };
 }

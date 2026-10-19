@@ -448,4 +448,9 @@ export const MIGRATIONS: Record<string, Migration> = {
       await db.schema.alterTable('fleet').addColumn('suspended', 'integer').execute();
     },
   },
+  '036_add_fleet_plugin_dirs': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('fleet').addColumn('plugin_dirs', 'text').execute();
+    },
+  },
 };

@@ -681,6 +681,75 @@ test("it revives a restored session with the spawn's model and effort", async ()
   expect(screen['text']).toInclude('--resume fake-1');
 });
 
+test("it revives a restored session with the config's plugin folders and the spawn's own", async () => {
+  const ctx = setupTest();
+
+  mkdirSync(join(ctx.home, 'plugins', 'shared'), { recursive: true });
+  mkdirSync(join(ctx.home, 'plugins', 'band'), { recursive: true });
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: {
+        claude: { bin: ctx.claude, pluginDirs: ['~/plugins/shared'] },
+        grok: { bin: ctx.grok },
+      },
+
+      // A restarted daemon restores only when the test asks it to.
+      restoreFleetOnRestart: false,
+    }),
+  );
+
+  const daemon = startDaemonProcess({
+    command: ctx.atc,
+    home: ctx.home,
+
+    // A boot wait far longer than any test, so a revive that boots shows
+    // that the start or death of the one before it released the wait.
+    env: { ATC_RESTORE_BOOT_TIMEOUT_MS: '60000' },
+  });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', {
+    cwd: ctx.home,
+    pluginDirs: ['~/plugins/band'],
+    cols: 1000,
+    rows: 24,
+  });
+
+  const id = getString(getRecord(ok, 'session'), 'id');
+
+  await waitFor(async () => {
+    const listed = await client.sendRequest('fleet.list');
+
+    expect(listed).toMatchObject({
+      fleet: [{ agentSessionID: 'fake-1', pluginDirs: [join(ctx.home, 'plugins', 'band')] }],
+    });
+  });
+
+  await daemon.restart('SIGKILL');
+
+  const revived = await daemon.openClient();
+
+  await revived.sendHello('atc/test');
+  await revived.sendRequest('fleet.restore', { cols: 1000, rows: 24 });
+
+  const screen = await waitFor(async () => {
+    const read = await revived.sendRequest('session.screen', { session: id });
+
+    expect(read['text']).toInclude('FAKE_CLAUDE_TERM:');
+
+    return read;
+  });
+
+  expect(screen['text']).toInclude(
+    `--plugin-dir ${join(ctx.home, 'plugins', 'shared')} --plugin-dir ${join(ctx.home, 'plugins', 'band')} --resume fake-1`,
+  );
+});
+
 test('it revives a restored session that has no model or effort without either flag', async () => {
   const ctx = setupTest();
 

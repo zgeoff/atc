@@ -3,7 +3,14 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
 import { toAgentSessionID, toSessionID } from '@atc/core';
-import { KEYS, buildMockHostServices, runCommand, setupTempDir, updateEnv } from '@atc/test-utils';
+import {
+  KEYS,
+  buildMockHostServices,
+  getAgentEntry,
+  runCommand,
+  setupTempDir,
+  updateEnv,
+} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { ATC_BRIDGE_FILES } from '../bridge/atc-bridge-files';
 import { CLAUDE_PLUGIN } from '../claude-plugin';
@@ -172,6 +179,14 @@ test('it profiles a gateway with only the model names its env sets', () => {
         backendEffect: 'unverified',
         note: "Passed as --effort; the gateway's provider may ignore it.",
       },
+      pluginDirs: {
+        supported: true,
+        values: null,
+        examples: [],
+        default: null,
+        backendEffect: 'applied',
+        note: "Each folder passed as --plugin-dir, after the folders the agent's config sets. An absolute path or one that starts with ~/ on the daemon's machine; a path that does not exist, or a remote target, refuses the spawn.",
+      },
     },
   });
 });
@@ -301,6 +316,58 @@ test("it starts a gateway's terminal run under its explicit permission-mode argu
       join(ctx.dir, 'atc-bridge'),
     ],
   });
+});
+
+test("it loads a gateway's configured plugin folders with ~ expanded, then the session's own, after atc's mod", () => {
+  const ctx = setupTest();
+
+  const config = parseConfig([CLAUDE_PLUGIN], {
+    agents: {
+      zai: {
+        kind: 'claude',
+        baseURL: 'https://api.z.ai/api/anthropic',
+        pluginDirs: ['~/plugins/band'],
+      },
+    },
+  });
+
+  const entry = getAgentEntry(config, 'zai');
+
+  invariant(entry.baseURL !== undefined, 'expected a gateway entry');
+
+  const adapter = new GatewayAdapter(
+    { ...entry, baseURL: entry.baseURL },
+    config,
+    buildMockHostServices(),
+    {
+      bridgeTarget: join(ctx.dir, 'atc-bridge'),
+      stateDir: join(ctx.dir, 'state'),
+      homeDir: join(ctx.dir, 'home'),
+    },
+  );
+
+  const plan = adapter.planSpawn({ prompt: '', resume: false, pluginDirs: ['/srv/plugins/extra'] });
+
+  expect(plan.args).toStrictEqual([
+    '--settings',
+    join(ctx.dir, 'state', 'hook-settings-zai.json'),
+    '--plugin-dir',
+    join(ctx.dir, 'atc-bridge'),
+    '--plugin-dir',
+    join(ctx.dir, 'home', 'plugins', 'band'),
+    '--plugin-dir',
+    '/srv/plugins/extra',
+  ]);
+});
+
+test("it lists a gateway's configured plugin folders in its profile", () => {
+  const adapter = new GatewayAdapter(
+    buildMockGatewayConfig({ pluginDirs: ['/opt/plugins/shared'] }),
+    parseConfig([CLAUDE_PLUGIN], {}),
+    buildMockHostServices(),
+  );
+
+  expect(adapter.profile.pluginDirs).toStrictEqual(['/opt/plugins/shared']);
 });
 
 test("it keeps the gateway's arguments, its permission mode included, in the command that resumes it outside atc", () => {

@@ -68,3 +68,12 @@ Each value reaches the CLI as its own argument, never through a shell, and repla
 effort in the entry's configured arguments for that spawn alone. The fleet row stores both values,
 so a restore, an adopt and a headless turn run the session with the model it started with, and a
 session spawned without them keeps the configured behaviour.
+
+A Claude or gateway spawn can also name plugin folders, which Claude Code loads for that session
+alone through one `--plugin-dir` each, after atc's own mod and after the folders the entry's config
+sets. A spawn's folders add to the config's folders and never replace them. The daemon expands a
+leading `~` to its user's home and refuses the spawn, naming the path, when any folder of either
+list does not exist on its machine. It refuses any plugin folder on a target that runs the agent on
+another machine, because it cannot see that machine's paths. The fleet row stores the spawn's own
+expanded folders, and the adapter adds the config's folders at each launch, so a restore loads the
+folders the config holds at that time.

@@ -79,6 +79,7 @@ export class SessionFleetWriter {
         ...(s.transcriptPath === undefined ? {} : { transcriptPath: s.transcriptPath }),
         ...(s.model === undefined ? {} : { model: s.model }),
         ...(s.effort === undefined ? {} : { effort: s.effort }),
+        ...(s.pluginDirs === undefined ? {} : { pluginDirs: s.pluginDirs }),
         target: s.target,
         targetIdentity: s.targetIdentity,
         ...(s.desired === 'run' ? {} : { desired: s.desired }),

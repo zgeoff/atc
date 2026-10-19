@@ -169,6 +169,12 @@ export const REQUEST_PARAM_SCHEMAS = {
     // advertises before anything spawns.
     model: z.string({ error: 'session.spawn model must be a string' }).optional(),
     effort: z.string({ error: 'session.spawn effort must be a string' }).optional(),
+    pluginDirs: z
+      .array(z.string({ error: 'session.spawn pluginDirs must be an array of strings' }), {
+        error: 'session.spawn pluginDirs must be an array of strings',
+      })
+      .max(32, 'session.spawn pluginDirs takes at most 32 folders')
+      .optional(),
 
     // A retry carrying the same key replays the first spawn's answer instead
     // of spawning again.

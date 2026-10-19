@@ -56,6 +56,10 @@ export interface Session {
   model?: string;
   effort?: string;
 
+  // the plugin folders the spawn asked for, as absolute paths on the
+  // daemon's machine; every revive loads them again.
+  pluginDirs?: readonly string[];
+
   // the execution target the session runs on, and the identity it had
   // when the session started there; every revive runs there too, and only
   // while the target keeps that identity.

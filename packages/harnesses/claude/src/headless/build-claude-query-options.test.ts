@@ -109,6 +109,33 @@ test('it starts the CLI with the settings file a turn carries', () => {
   expect(options.extraArgs).toStrictEqual({ settings: '/state/settings-zai.json' });
 });
 
+test('it loads each plugin folder a turn carries once, in order', () => {
+  const options = buildClaudeQueryOptions(
+    {
+      claudeBin: 'claude',
+      cwd: '/tmp',
+      prompt: 'go',
+      reporterSocket: '/run/atc/atc.sock',
+      pluginDirs: ['/opt/plugins/shared', '/srv/plugins/extra', '/opt/plugins/shared'],
+    },
+    false,
+  );
+
+  expect(options.plugins).toStrictEqual([
+    { type: 'local', path: '/opt/plugins/shared' },
+    { type: 'local', path: '/srv/plugins/extra' },
+  ]);
+});
+
+test('it loads no plugin folders for a turn that carries none', () => {
+  const options = buildClaudeQueryOptions(
+    { claudeBin: 'claude', cwd: '/tmp', prompt: 'go', reporterSocket: '/run/atc/atc.sock' },
+    false,
+  );
+
+  expect(options).not.toContainKey('plugins');
+});
+
 test('it passes no extra CLI arguments for a turn without a settings file', () => {
   const options = buildClaudeQueryOptions(
     { claudeBin: 'claude', cwd: '/tmp', prompt: 'go', reporterSocket: '/run/atc/atc.sock' },

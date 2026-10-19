@@ -61,6 +61,7 @@ test('it answers daemon.hello with the build, limits, and features', async () =>
       'message.turn',
       'message.wait',
       'spawn.options',
+      'spawn.pluginDirs',
       'daemon.id',
       'session.locator',
       'spawn.idempotency',

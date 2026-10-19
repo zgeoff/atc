@@ -106,6 +106,15 @@ test('it lists an agent whose binary is missing here as spawnable only on the im
           note: null,
           available: false,
         },
+        pluginDirs: {
+          supported: false,
+          values: null,
+          examples: [],
+          default: null,
+          backendEffect: null,
+          note: null,
+          available: false,
+        },
       },
     },
   ]);

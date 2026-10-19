@@ -36,6 +36,10 @@ export interface FleetEntry {
   readonly model?: string;
   readonly effort?: string;
 
+  // The plugin folders the spawn asked for, which every restart of the
+  // session loads again; absent for a session that asked for none.
+  readonly pluginDirs?: readonly string[];
+
   // The execution target the session runs on; a row without one restores
   // on the `local` target.
   readonly target?: string;
