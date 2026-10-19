@@ -74,6 +74,59 @@ test("it starts claude with each of the spawn's plugin folders, ~ expanded, afte
   ]);
 });
 
+test("it starts a sub-session with the config's plugin folders and its own spawn's, not its parent's", async () => {
+  const ctx = setupTest();
+
+  mkdirSync(join(ctx.home, 'plugins', 'shared'), { recursive: true });
+  mkdirSync(join(ctx.home, 'plugins', 'parent'), { recursive: true });
+  mkdirSync(join(ctx.home, 'plugins', 'child'), { recursive: true });
+
+  const daemon = await startTestDaemon({
+    options: () => ({
+      adapters: buildAgentAdapters(
+        parseConfig(SHIPPED_HARNESS_PLUGINS, {
+          agents: { claude: { bin: ctx.fakeClaude, pluginDirs: ['~/plugins/shared'] } },
+        }),
+        buildMockHostServices(),
+        null,
+        { homeDir: ctx.home },
+      ),
+      homeDir: ctx.home,
+    }),
+  });
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    pluginDirs: ['~/plugins/parent'],
+    prompt: 'lead the task',
+  });
+
+  await daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    parent: getRecord(parent, 'session')['id'],
+    pluginDirs: ['~/plugins/child'],
+    prompt: 'help with the task',
+  });
+
+  const child = await waitFor(() => {
+    const starts = readFileSync(ctx.starts, 'utf8').split('\n\n');
+
+    expect(starts).toHaveLength(3);
+
+    return (starts[1] ?? '').split('\n');
+  });
+
+  expect(child.slice(-7)).toStrictEqual([
+    '--plugin-dir',
+    expect.toEndWith('atc-bridge'),
+    '--plugin-dir',
+    join(ctx.home, 'plugins', 'shared'),
+    '--plugin-dir',
+    join(ctx.home, 'plugins', 'child'),
+    'help with the task',
+  ]);
+});
+
 test("it starts every session of a claude entry with the config's plugin folders, and a spawn's own add to them", async () => {
   const ctx = setupTest();
 

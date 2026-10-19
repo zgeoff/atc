@@ -1,4 +1,5 @@
 import { expect, mock, test } from 'bun:test';
+import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { systemClock, toAgentSessionID, toSessionID } from '@atc/core';
 import type { SessionID } from '@atc/core';
@@ -351,4 +352,167 @@ test('it stops the message bridge when the revived terminal fails to start', asy
 
   expect(adopted).rejects.toThrowWithMessage(Error, 'harness refused');
   expect(ctx.stopMessageBridge).toHaveBeenCalledExactlyOnceWith(toSessionID('s-c-1'));
+});
+
+test('it revives a session with the plugin folders its spawn kept', async () => {
+  const adapter = buildStubHarnessAdapter();
+  const provider = buildStubMemoryProvider({ kind: 'local-pty' });
+
+  const ctx = await setupTest({
+    adapters: [adapter],
+    targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
+  });
+
+  mkdirSync(join(ctx.dir, 'band'));
+
+  const session = buildMockSession({
+    id: toSessionID('s-c-1'),
+    cwd: ctx.dir,
+    kind: 'headless',
+    state: 'running',
+    agentSessionID: toAgentSessionID('c-1'),
+    agent: 'claude',
+    target: 'local',
+    targetIdentity: 'local-pty:test',
+    pluginDirs: [join(ctx.dir, 'band')],
+  });
+
+  ctx.registry.sessions.push(session);
+  ctx.registry.unrestored.add(session.id);
+
+  await ctx.adopter.adoptTerminal(session.id, 80, 24);
+
+  expect(adapter.spawns).toStrictEqual([
+    {
+      opts: { prompt: '', resume: toAgentSessionID('c-1'), pluginDirs: [join(ctx.dir, 'band')] },
+      session: toSessionID('s-c-1'),
+    },
+  ]);
+});
+
+test("it refuses to revive a session whose agent's configured plugin folder is gone, starting nothing", async () => {
+  const provider = buildStubMemoryProvider({ kind: 'local-pty' });
+
+  const ctx = await setupTest({
+    adapters: [
+      {
+        ...buildStubHarnessAdapter(),
+        profile: {
+          label: 'Claude',
+          kind: 'claude',
+          bin: 'stub-harness',
+          models: null,
+          spawnOptions: {
+            model: {
+              supported: false,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: null,
+              note: null,
+            },
+            effort: {
+              supported: false,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: null,
+              note: null,
+            },
+          },
+          pluginDirs: ['/nonexistent/plugins/shared'],
+        },
+      },
+    ],
+    targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
+  });
+
+  const session = buildMockSession({
+    id: toSessionID('s-c-1'),
+    cwd: ctx.dir,
+    kind: 'headless',
+    state: 'running',
+    agentSessionID: toAgentSessionID('c-1'),
+    agent: 'claude',
+    target: 'local',
+    targetIdentity: 'local-pty:test',
+  });
+
+  ctx.registry.sessions.push(session);
+  ctx.registry.unrestored.add(session.id);
+
+  const adopted = ctx.adopter.adoptTerminal(session.id, 80, 24);
+
+  await adopted.catch(() => null);
+
+  expect(adopted).rejects.toMatchObject({
+    code: 'bad_args',
+    message: "plugin folder '/nonexistent/plugins/shared' does not exist",
+  });
+
+  expect(provider.harnesses).toStrictEqual([]);
+});
+
+test("it refuses to revive a session on a remote target once its agent's config sets plugin folders, starting nothing", async () => {
+  const provider = buildStubMemoryProvider({ kind: 'imp-like', remote: true });
+
+  const ctx = await setupTest({
+    adapters: [
+      {
+        ...buildStubHarnessAdapter(),
+        profile: {
+          label: 'Claude',
+          kind: 'claude',
+          bin: 'stub-harness',
+          models: null,
+          spawnOptions: {
+            model: {
+              supported: false,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: null,
+              note: null,
+            },
+            effort: {
+              supported: false,
+              values: null,
+              examples: [],
+              default: null,
+              backendEffect: null,
+              note: null,
+            },
+          },
+          pluginDirs: ['/opt/plugins/shared'],
+        },
+      },
+    ],
+    targets: [buildMockExecutionTarget({ id: 'box', identity: 'imp-like:test', provider })],
+  });
+
+  const session = buildMockSession({
+    id: toSessionID('s-c-1'),
+    cwd: '/work',
+    kind: 'headless',
+    state: 'running',
+    agentSessionID: toAgentSessionID('c-1'),
+    agent: 'claude',
+    target: 'box',
+    targetIdentity: 'imp-like:test',
+  });
+
+  ctx.registry.sessions.push(session);
+  ctx.registry.unrestored.add(session.id);
+
+  const adopted = ctx.adopter.adoptTerminal(session.id, 80, 24);
+
+  await adopted.catch(() => null);
+
+  expect(adopted).rejects.toMatchObject({
+    code: 'unsupported',
+    message:
+      "target 'box' runs the agent on another machine, so it takes no pluginDirs; the agent's config or the spawn sets them",
+  });
+
+  expect(provider.harnesses).toStrictEqual([]);
 });
