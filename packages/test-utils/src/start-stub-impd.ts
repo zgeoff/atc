@@ -1,5 +1,5 @@
 import { isRecord } from '@atc/core';
-import type { ServerWebSocket } from 'bun';
+import type { Server, ServerWebSocket } from 'bun';
 import { registerTestCleanup } from './register-test-cleanup';
 
 // What the stand-in does with an exec open: refuse it as a start whose
@@ -35,28 +35,28 @@ export function startStubImpd() {
 
   const counted = new WeakMap<ServerWebSocket, number>();
 
+  const answerRequest = async (request: Request, bunServer: Server<undefined>) => {
+    authorizations.push(request.headers.get('authorization'));
+
+    const path = new URL(request.url).pathname;
+
+    const isUpgraded = (path === '/tunnel' || path === '/exec') && bunServer.upgrade(request);
+    const text = isUpgraded ? '' : await request.text();
+    const body: unknown = text === '' ? null : JSON.parse(text);
+
+    if (!isUpgraded) {
+      calls.push({ path, input: isRecord(body) ? body['json'] : undefined });
+    }
+
+    const answer = answers.get(path) ?? { status: 200, json: SYSTEM_INFO };
+
+    return isUpgraded ? undefined : Response.json({ json: answer.json }, { status: answer.status });
+  };
+
   const server = Bun.serve({
     port: 0,
     hostname: '127.0.0.1',
-    fetch: async (request, bunServer) => {
-      authorizations.push(request.headers.get('authorization'));
-
-      const path = new URL(request.url).pathname;
-
-      const isUpgraded = (path === '/tunnel' || path === '/exec') && bunServer.upgrade(request);
-      const text = isUpgraded ? '' : await request.text();
-      const body: unknown = text === '' ? null : JSON.parse(text);
-
-      if (!isUpgraded) {
-        calls.push({ path, input: isRecord(body) ? body['json'] : undefined });
-      }
-
-      const answer = answers.get(path) ?? { status: 200, json: SYSTEM_INFO };
-
-      return isUpgraded
-        ? undefined
-        : Response.json({ json: answer.json }, { status: answer.status });
-    },
+    fetch: answerRequest,
     websocket: {
       // Impd refuses a message over its own limit.
       maxPayloadLength: 2 * 1024 * 1024,

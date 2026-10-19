@@ -14,7 +14,7 @@ async function setupTest() {
   });
 
   const sessionID = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.dir,
   );
@@ -80,7 +80,7 @@ test('it takes the notice of a message the session sent when it asks for notices
   const ctx = await setupTest();
 
   const sender = await spawnNamedSession(
-    (m, p) => ctx.daemon.client.sendRequest(m, p),
+    (method, params) => ctx.daemon.client.sendRequest(method, params),
     'sender',
     ctx.daemon.dir,
   );
@@ -115,15 +115,16 @@ test('it acks each notice it takes', async () => {
   const ctx = await setupTest();
 
   const sender = await spawnNamedSession(
-    (m, p) => ctx.daemon.client.sendRequest(m, p),
+    (method, params) => ctx.daemon.client.sendRequest(method, params),
     'sender',
     ctx.daemon.dir,
   );
 
   const inside = await ctx.daemon.openClient({ session: sender });
-  const tap = await startStubTap(ctx.tapClient, sender, { notices: true });
 
-  await inside.sendRequest('session.message', {
+  await startStubTap(ctx.tapClient, sender, { notices: true });
+
+  const sent = await inside.sendRequest('session.message', {
     session: ctx.sessionID,
     text: 'archive the old logs',
   });
@@ -131,21 +132,22 @@ test('it acks each notice it takes', async () => {
   await ctx.daemon.client.sendRequest('session.kill', { session: ctx.sessionID });
   await ctx.daemon.client.sendRequest('session.kill', { session: ctx.sessionID });
 
-  await waitFor(() => {
-    expect(tap.notices).toHaveLength(1);
+  // The daemon records the notice as delivered only once its ack arrives.
+  await waitFor(async () => {
+    const read = await ctx.daemon.client.sendRequest('events.read', { session: sender });
+
+    expect(read['events']).toPartiallyContain({
+      kind: 'notice-delivered',
+      message: getString(sent, 'message'),
+    });
   });
-
-  const replacement = await ctx.daemon.openClient();
-  const replay = await startStubTap(replacement, sender, { notices: true });
-
-  expect(replay.notices).toStrictEqual([]);
 });
 
 test('it takes no notice when it does not ask for notices', async () => {
   const ctx = await setupTest();
 
   const sender = await spawnNamedSession(
-    (m, p) => ctx.daemon.client.sendRequest(m, p),
+    (method, params) => ctx.daemon.client.sendRequest(method, params),
     'sender',
     ctx.daemon.dir,
   );
