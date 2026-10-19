@@ -17,7 +17,7 @@ import type { StandardRequest, StandardResponse } from '@orpc/standard-server';
 import { ServerPeer } from '@orpc/standard-server-peer';
 import type { EncodedMessage } from '@orpc/standard-server-peer';
 import { createActor, waitFor } from 'xstate';
-import type { Actor } from 'xstate';
+import type { Actor, EventFromLogic } from 'xstate';
 import { buildScopedContext } from '../auth/build-scoped-context';
 import { isOwnerOnlyMethod } from '../auth/is-owner-only-method';
 import { TargetAccess } from '../auth/target-access';
@@ -180,11 +180,18 @@ export class DaemonConnection {
 
   // safe to call more than once
   dispose(): void {
-    this.lifecycle.send({ type: 'CLOSE' });
+    this.sendLifecycleEvent({ type: 'CLOSE' });
+  }
+
+  // A closed connection's machine has stopped, and takes no event.
+  private sendLifecycleEvent(event: EventFromLogic<typeof PEER_CONNECTION_MACHINE>): void {
+    if (this.lifecycle.getSnapshot().status === 'active') {
+      this.lifecycle.send(event);
+    }
   }
 
   private stopConnection(): void {
-    this.lifecycle.send({ type: 'END' });
+    this.sendLifecycleEvent({ type: 'END' });
   }
 
   private isIn(state: 'awaiting' | 'checking' | 'open' | 'refusing' | 'closed'): boolean {
@@ -676,7 +683,7 @@ export class DaemonConnection {
     // A refusal ends the connection only once its bytes have left the
     // queue, so the client reads the refusal whole.
     if (isRefusal) {
-      this.lifecycle.send({ type: 'DRAINED' });
+      this.sendLifecycleEvent({ type: 'DRAINED' });
     }
   }
 
@@ -711,7 +718,7 @@ export class DaemonConnection {
     // before the handshake it ends the connection as any other request does.
     if (method === null) {
       if (this.isIn('awaiting')) {
-        this.lifecycle.send({ type: 'REFUSE' });
+        this.sendLifecycleEvent({ type: 'REFUSE' });
       }
 
       return answerPeerRequest(
@@ -739,7 +746,7 @@ export class DaemonConnection {
       );
     }
 
-    this.lifecycle.send({ type: 'HELLO' });
+    this.sendLifecycleEvent({ type: 'HELLO' });
 
     const admitted = await this.checkPeerHello(request);
     const response = await answerPeerRequest(request, admitted);
@@ -747,7 +754,7 @@ export class DaemonConnection {
     // The handshake procedure accepts the connection; anything else it
     // answers refuses it.
     if (this.isIn('checking')) {
-      this.lifecycle.send({ type: 'REFUSE' });
+      this.sendLifecycleEvent({ type: 'REFUSE' });
     }
 
     return response;
@@ -785,7 +792,7 @@ export class DaemonConnection {
     request: StandardRequest,
   ): Promise<ProcedureContext | DaemonError> {
     if (this.isIn('awaiting')) {
-      this.lifecycle.send({ type: 'REFUSE' });
+      this.sendLifecycleEvent({ type: 'REFUSE' });
 
       return new DaemonError('unauthorized', 'daemon.hello must be the first request');
     }
@@ -884,7 +891,7 @@ export class DaemonConnection {
 
     const answer = await this.loadHelloAnswer();
 
-    this.lifecycle.send({ type: 'ACCEPT' });
+    this.sendLifecycleEvent({ type: 'ACCEPT' });
 
     return answer;
   }

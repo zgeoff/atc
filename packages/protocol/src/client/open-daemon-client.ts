@@ -159,7 +159,7 @@ function buildSocketHandlers(conn: ClientConnection, client: DaemonClient): Sock
       conn.queue?.drain();
     },
     close() {
-      conn.actor.send({ type: 'CLOSE', reason: 'connection closed' });
+      sendClose(conn, 'connection closed');
 
       void (async () => {
         await conn.inbound;
@@ -302,9 +302,16 @@ function drainPending(
   reason: string,
   code: 'internal' | 'protocol_mismatch' = 'internal',
 ): void {
-  conn.actor.send({ type: 'CLOSE', reason });
+  sendClose(conn, reason);
   conn.events?.abort();
   conn.peer.close({ reason: new DaemonError(code, reason) });
+}
+
+// A closed client's machine has stopped, and takes no event.
+function sendClose(conn: ClientConnection, reason: string): void {
+  if (!isClientClosed(conn)) {
+    conn.actor.send({ type: 'CLOSE', reason });
+  }
 }
 
 function requireOpenConnection(conn: ClientConnection): void {
