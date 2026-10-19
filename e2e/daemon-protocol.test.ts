@@ -23,13 +23,10 @@ import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemo
 
 // A test that leaves every connection to itself turns the main client off.
 interface DaemonTestConfig {
-  readonly mainClient: false;
+  readonly mainClient?: false;
 }
 
-function setupTest(config: DaemonTestConfig): ReturnType<typeof startTestDaemon<DaemonTestConfig>>;
-function setupTest(): ReturnType<typeof startTestDaemon<{ readonly prefix: string }>>;
-
-function setupTest(config?: DaemonTestConfig) {
+function setupTest<const Config extends DaemonTestConfig = Record<never, never>>(config?: Config) {
   return startTestDaemon({
     ...config,
     prefix: 'atc-daemon-',

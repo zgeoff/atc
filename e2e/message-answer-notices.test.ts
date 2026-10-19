@@ -2,7 +2,6 @@ import { expect, mock, test } from 'bun:test';
 import { isRecord, toMessageID, toSessionID } from '@atc/core';
 import { ClaudeAdapter } from '@atc/harness-claude';
 import type { DaemonEvent } from '@atc/protocol';
-import type { DaemonClient } from '@atc/protocol/client';
 import { StateStore } from '@atc/store';
 import {
   buildMockAgentAdapter,
@@ -11,6 +10,7 @@ import {
   getString,
   registerTestCleanup,
   spawnNamedSession,
+  startStubTap,
   waitFor,
 } from '@atc/test-utils';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
@@ -57,48 +57,10 @@ async function setupTest(
   return { daemon, sender, recipient, inside, noteIgnored };
 }
 
-interface ClientOpener {
-  readonly openClient: () => Promise<DaemonClient>;
-}
-
-// Opens a client that taps the session, with or without notices, and acks
-// each message and notice it is handed, the way the bridge's tap does.
-async function startNoticeTap(daemon: ClientOpener, session: string, notices: boolean) {
-  const client = await daemon.openClient();
-
-  const notes: DaemonEvent[] = [];
-  const messages: DaemonEvent[] = [];
-
-  // An ack that a closing connection never answers changes nothing the
-  // test reads.
-  const sendAck = async (method: string, message: unknown) => {
-    try {
-      await client.sendRequest(method, { session, message });
-    } catch {}
-  };
-
-  client.onEvent = (event) => {
-    if (event.ev === 'InboxNotice') {
-      notes.push(event);
-      void sendAck('notice.ack', event.message);
-    }
-
-    if (event.ev === 'InboxMessage') {
-      messages.push(event);
-      void sendAck('message.ack', event.message);
-    }
-  };
-
-  const tapParams = notices ? { session, notices } : { session };
-
-  await client.sendRequest('session.tap', tapParams);
-
-  return { notices: notes, messages };
-}
-
 test('it hands the sending session an answer notice with the answer once the recipient answers', async () => {
   const ctx = await setupTest();
-  const tap = await startNoticeTap(ctx.daemon, ctx.sender, true);
+  const tapClient = await ctx.daemon.openClient();
+  const tap = await startStubTap(tapClient, ctx.sender, { notices: true });
 
   const sent = await ctx.inside.sendRequest('session.message', {
     session: ctx.recipient,
@@ -130,7 +92,8 @@ test('it hands the sending session an answer notice with the answer once the rec
 
 test('it hands the sending session an unanswered notice with the reason when the turn is interrupted', async () => {
   const ctx = await setupTest();
-  const tap = await startNoticeTap(ctx.daemon, ctx.sender, true);
+  const tapClient = await ctx.daemon.openClient();
+  const tap = await startStubTap(tapClient, ctx.sender, { notices: true });
 
   const sent = await ctx.inside.sendRequest('session.message', {
     session: ctx.recipient,
@@ -171,7 +134,8 @@ test('it hands the sending session an unanswered notice when the recipient sessi
   });
 
   const ctx = await setupTest(planSpawn);
-  const tap = await startNoticeTap(ctx.daemon, ctx.sender, true);
+  const tapClient = await ctx.daemon.openClient();
+  const tap = await startStubTap(tapClient, ctx.sender, { notices: true });
   const recipientTap = await ctx.daemon.openClient();
 
   const sent = await ctx.inside.sendRequest('session.message', {
@@ -205,7 +169,8 @@ test('it hands the sending session an unanswered notice when the recipient sessi
 
 test('it hands the sending session one unanswered notice when the recipient of a queued message is removed', async () => {
   const ctx = await setupTest();
-  const tap = await startNoticeTap(ctx.daemon, ctx.sender, true);
+  const tapClient = await ctx.daemon.openClient();
+  const tap = await startStubTap(tapClient, ctx.sender, { notices: true });
 
   const sent = await ctx.inside.sendRequest('session.message', {
     session: ctx.recipient,
@@ -232,7 +197,8 @@ test('it hands the sending session one unanswered notice when the recipient of a
   });
 
   // A second tap replays nothing the first one took.
-  const replay = await startNoticeTap(ctx.daemon, ctx.sender, true);
+  const replayClient = await ctx.daemon.openClient();
+  const replay = await startStubTap(replayClient, ctx.sender, { notices: true });
 
   expect(replay.notices).toStrictEqual([]);
   expect(tap.notices).toHaveLength(1);
@@ -240,7 +206,8 @@ test('it hands the sending session one unanswered notice when the recipient of a
 
 test('it hands one answer notice for a message whose answer is reported twice', async () => {
   const ctx = await setupTest();
-  const tap = await startNoticeTap(ctx.daemon, ctx.sender, true);
+  const tapClient = await ctx.daemon.openClient();
+  const tap = await startStubTap(tapClient, ctx.sender, { notices: true });
 
   const sent = await ctx.inside.sendRequest('session.message', {
     session: ctx.recipient,
@@ -261,7 +228,8 @@ test('it hands one answer notice for a message whose answer is reported twice', 
   });
 
   // A second tap replays nothing the first one took.
-  const replay = await startNoticeTap(ctx.daemon, ctx.sender, true);
+  const replayClient = await ctx.daemon.openClient();
+  const replay = await startStubTap(replayClient, ctx.sender, { notices: true });
   const read = await ctx.daemon.client.sendRequest('events.read', { session: ctx.sender });
 
   expect(replay.notices).toStrictEqual([]);
@@ -326,7 +294,8 @@ test('it hands one answer notice after a restart when the daemon stopped right a
     expect(listed['sessions']).toPartiallyContain({ id: ctx.sender, alive: true });
   });
 
-  const tap = await startNoticeTap(ctx.daemon, ctx.sender, true);
+  const tapClient = await ctx.daemon.openClient();
+  const tap = await startStubTap(tapClient, ctx.sender, { notices: true });
 
   await waitFor(() => {
     expect<unknown[]>(tap.notices).toStrictEqual([
@@ -391,7 +360,8 @@ test('it hands no second answer notice when the answer is reported again after a
     expect(listed['sessions']).toPartiallyContain({ id: ctx.sender, alive: true });
   });
 
-  const tap = await startNoticeTap(ctx.daemon, ctx.sender, true);
+  const tapClient = await ctx.daemon.openClient();
+  const tap = await startStubTap(tapClient, ctx.sender, { notices: true });
 
   await waitFor(() => {
     expect(tap.notices).toHaveLength(1);
@@ -408,7 +378,8 @@ test('it hands no second answer notice when the answer is reported again after a
   });
 
   // A second tap replays nothing the first one took.
-  const replay = await startNoticeTap(ctx.daemon, ctx.sender, true);
+  const replayClient = await ctx.daemon.openClient();
+  const replay = await startStubTap(replayClient, ctx.sender, { notices: true });
 
   expect(replay.notices).toStrictEqual([]);
   expect(tap.notices).toHaveLength(1);
@@ -437,7 +408,8 @@ test('it hands a message delivered before a restart to the revived recipient and
     text: 'rotate the staging keys',
   });
 
-  const before = await startNoticeTap(ctx.daemon, ctx.recipient, false);
+  const beforeClient = await ctx.daemon.openClient();
+  const before = await startStubTap(beforeClient, ctx.recipient);
 
   await waitFor(async () => {
     const read = await ctx.daemon.client.sendRequest('message.get', { message: sent['message'] });
@@ -454,7 +426,8 @@ test('it hands a message delivered before a restart to the revived recipient and
     expect(listed['sessions']).toPartiallyContain({ id: ctx.sender, alive: true });
   });
 
-  const after = await startNoticeTap(ctx.daemon, ctx.recipient, false);
+  const afterClient = await ctx.daemon.openClient();
+  const after = await startStubTap(afterClient, ctx.recipient);
 
   await waitFor(() => {
     expect<unknown[]>(after.messages).toStrictEqual([
@@ -476,7 +449,8 @@ test('it hands a message delivered before a restart to the revived recipient and
     payload: { kind: 'answered', message: sent['message'], answer: 'the keys are rotated' },
   });
 
-  const tap = await startNoticeTap(ctx.daemon, ctx.sender, true);
+  const tapClient = await ctx.daemon.openClient();
+  const tap = await startStubTap(tapClient, ctx.sender, { notices: true });
 
   await waitFor(() => {
     expect<unknown[]>(tap.notices).toStrictEqual([
@@ -493,7 +467,8 @@ test('it hands a message delivered before a restart to the revived recipient and
   });
 
   // A second tap replays nothing the first one took.
-  const replay = await startNoticeTap(ctx.daemon, ctx.sender, true);
+  const replayClient = await ctx.daemon.openClient();
+  const replay = await startStubTap(replayClient, ctx.sender, { notices: true });
 
   expect(replay.notices).toStrictEqual([]);
   expect(tap.notices).toHaveLength(1);
@@ -558,7 +533,8 @@ test('it keeps the answer notice of an exited sender queued and hands it over on
     expect(listed['sessions']).toPartiallyContain({ id: ctx.sender, alive: true });
   });
 
-  const tap = await startNoticeTap(ctx.daemon, ctx.sender, true);
+  const tapClient = await ctx.daemon.openClient();
+  const tap = await startStubTap(tapClient, ctx.sender, { notices: true });
 
   await waitFor(() => {
     expect(tap.notices).toPartiallyContain({
@@ -571,7 +547,8 @@ test('it keeps the answer notice of an exited sender queued and hands it over on
 
 test('it hands no answer notice for a message whose from names the session but whose caller runs in none', async () => {
   const ctx = await setupTest();
-  const tap = await startNoticeTap(ctx.daemon, ctx.sender, true);
+  const tapClient = await ctx.daemon.openClient();
+  const tap = await startStubTap(tapClient, ctx.sender, { notices: true });
 
   const sent = await ctx.daemon.client.sendRequest('session.message', {
     session: ctx.recipient,
@@ -601,7 +578,8 @@ test('it hands no answer notice for a message whose from names the session but w
 
 test('it hands no answer notice to a tap that did not ask for notices', async () => {
   const ctx = await setupTest();
-  const tap = await startNoticeTap(ctx.daemon, ctx.sender, false);
+  const tapClient = await ctx.daemon.openClient();
+  const tap = await startStubTap(tapClient, ctx.sender);
 
   const events: DaemonEvent[] = [];
 
@@ -634,7 +612,8 @@ test('it hands no answer notice to a tap that did not ask for notices', async ()
 
 test('it hands no answer notice to the sending session for a message sent with notice false', async () => {
   const ctx = await setupTest();
-  const tap = await startNoticeTap(ctx.daemon, ctx.sender, true);
+  const tapClient = await ctx.daemon.openClient();
+  const tap = await startStubTap(tapClient, ctx.sender, { notices: true });
 
   const sent = await ctx.inside.sendRequest('session.message', {
     session: ctx.recipient,

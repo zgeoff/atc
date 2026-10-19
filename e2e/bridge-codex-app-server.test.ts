@@ -9,13 +9,11 @@ import {
   getRecord,
   getString,
   setupTempDir,
+  startCodexTerminalThread,
   waitFor,
 } from '@atc/test-utils';
 import { z } from 'zod';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
-
-// One line of the stand-in's request log.
-const REQUEST_LINE_SCHEMA = z.object({ method: z.string(), params: z.unknown() });
 
 // A daemon whose one agent is a Codex entry on an App Server, run by the
 // stand-in Codex CLI, which reads its scenario from the stub folder and
@@ -40,7 +38,9 @@ async function setupTest() {
       readFileSync(join(tmp.dir, 'app-server-requests.jsonl'), 'utf8')
         .trim()
         .split('\n')
-        .map((line) => REQUEST_LINE_SCHEMA.parse(JSON.parse(line))),
+        .map((line) =>
+          z.object({ method: z.string(), params: z.unknown() }).parse(JSON.parse(line)),
+        ),
   };
 }
 
@@ -253,42 +253,6 @@ test('it leaves each message the App Server refuses unanswered and goes on to th
   expect(earlier['status']).toBe('unanswered');
 });
 
-// Starts a thread on the session's App Server from a client of its own, as
-// the terminal does when it opens a new conversation, and resolves with the
-// thread's id.
-async function startTerminalThread(socket: string): Promise<string> {
-  const ws = new WebSocket(`ws+unix://${socket}`);
-  const answers = new Map<number, (value: unknown) => void>();
-
-  ws.addEventListener('message', (e) => {
-    const line = z
-      .looseObject({ id: z.unknown(), result: z.unknown() })
-      .safeParse(JSON.parse(String(e.data)));
-
-    if (line.success && typeof line.data.id === 'number') {
-      answers.get(line.data.id)?.(line.data.result);
-    }
-  });
-
-  await new Promise((resolve) => {
-    ws.addEventListener('open', resolve, { once: true });
-  });
-
-  const sendRequest = (id: number, method: string, params: unknown) =>
-    new Promise<unknown>((resolve) => {
-      answers.set(id, resolve);
-      ws.send(JSON.stringify({ jsonrpc: '2.0', id, method, params }));
-    });
-
-  await sendRequest(1, 'initialize', { clientInfo: { name: 'terminal', version: '1' } });
-
-  const started = await sendRequest(2, 'thread/start', {});
-
-  ws.close();
-
-  return z.object({ thread: z.object({ id: z.string() }) }).parse(started).thread.id;
-}
-
 test('it delivers a message to the thread a hook shows the terminal moved to and none to the old one', async () => {
   const ctx = await setupTest();
 
@@ -321,7 +285,7 @@ test('it delivers a message to the thread a hook shows the terminal moved to and
     payload: { session_id: 'thread-1' },
   });
 
-  const moved = await startTerminalThread(socket);
+  const moved = await startCodexTerminalThread(socket);
 
   await ctx.daemon.sendHookLines({
     atcId: id,
@@ -387,7 +351,7 @@ test('it keeps delivering to the thread the terminal moved to when a turn of the
     payload: { session_id: 'thread-1' },
   });
 
-  const moved = await startTerminalThread(socket);
+  const moved = await startCodexTerminalThread(socket);
 
   await ctx.daemon.sendHookLines({
     atcId: id,
@@ -452,7 +416,7 @@ test('it raises no attention for an approval a turn of the old thread asks for a
     payload: { session_id: 'thread-1' },
   });
 
-  const moved = await startTerminalThread(socket);
+  const moved = await startCodexTerminalThread(socket);
 
   await ctx.daemon.sendHookLines({
     atcId: id,

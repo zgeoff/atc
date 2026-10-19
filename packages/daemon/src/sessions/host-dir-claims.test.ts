@@ -7,6 +7,7 @@ import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildMockSession } from '../testing/build-mock-session';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
+import { buildStubStaleRelativeProvider } from '../testing/build-stub-stale-relative-provider';
 import {
   HostDirClaims,
   REMOVE_DIR_SCRIPT,
@@ -209,27 +210,8 @@ test('it removes a claimed directory on the host when no other session lies insi
   });
 });
 
-// Stands in for a host whose home is /home/guest and where a relative
-// directory cannot be entered, as one removed inside the guest cannot.
-function buildStaleRelativeProvider() {
-  return buildStubMemoryProvider({
-    capabilities: { suspend: true, destroy: true },
-    runCommand: (spec) => {
-      if (spec.argv[2] === RESOLVE_HOME_SCRIPT) {
-        return Promise.resolve({ exitCode: 0, stdout: '/home/guest\n', stderr: '' });
-      }
-
-      if (spec.cwd !== undefined && !spec.cwd.startsWith('/')) {
-        return Promise.resolve({ exitCode: 1, stdout: '', stderr: 'no such directory\n' });
-      }
-
-      return Promise.resolve({ exitCode: 0, stdout: `${spec.argv[4] ?? ''}\n\0`, stderr: '' });
-    },
-  });
-}
-
 test('it removes a claimed directory on the host when a stale relative directory resolves outside it from the home', async () => {
-  const provider = buildStaleRelativeProvider();
+  const provider = buildStubStaleRelativeProvider();
   const ctx = setupTest({ targets: [buildMockExecutionTarget({ id: 'imp', provider })] });
 
   ctx.registry.sessions = [
@@ -254,7 +236,7 @@ test('it removes a claimed directory on the host when a stale relative directory
 });
 
 test('it keeps a claimed directory on the host when a stale relative directory resolves inside it from the home', async () => {
-  const provider = buildStaleRelativeProvider();
+  const provider = buildStubStaleRelativeProvider();
   const ctx = setupTest({ targets: [buildMockExecutionTarget({ id: 'imp', provider })] });
 
   ctx.registry.sessions = [

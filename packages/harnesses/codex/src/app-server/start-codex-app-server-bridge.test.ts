@@ -306,40 +306,34 @@ test('it kills a server that ignores the stop signal once the stop grace ends', 
   expect(() => process.kill(pid, 0)).toThrow();
 });
 
-// The real Codex CLI, whose App Server API is experimental and changes between
-// releases; the suite skips these tests on a machine with none on PATH, and
-// the CI job that sets CODEX_VERSION installs the pinned build for them.
-const codexOnPath = Bun.which('codex');
+// The real Codex CLI's App Server API changes between releases, so CI installs
+// the build that CODEX_VERSION pins, and a machine without one skips these
+// tests; Bun 1.4.2's skipIf takes a boolean and has no in-body skip.
+const codexMissing = Bun.which('codex') === null;
 
-// The Codex version the CI job pins beside the Claude Code pin; unset on a
+// The Codex version the CI job pins beside the Claude Code pin is unset on a
 // local run, where no pin names the installed build.
-const pinnedCodexVersion = process.env['CODEX_VERSION'];
+const codexUnpinned = codexMissing || process.env['CODEX_VERSION'] === undefined;
 
-// A thread id the real App Server hands out.
-const THREAD_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
+test.skipIf(codexUnpinned)('it matches the installed Codex to the pinned version', async () => {
+  const codexOnPath = Bun.which('codex');
+  const pinnedCodexVersion = process.env['CODEX_VERSION'];
 
-// Enough time for the real CLI to come up and answer, which a loaded machine
-// takes longer over than the stub ever does.
-const REAL_CODEX_TEST_MS = 30_000;
+  invariant(typeof codexOnPath === 'string', 'no codex on PATH');
+  invariant(typeof pinnedCodexVersion === 'string', 'no pinned Codex version');
 
-test.skipIf(codexOnPath === null || pinnedCodexVersion === undefined)(
-  'it matches the installed Codex to the pinned version',
-  async () => {
-    invariant(typeof codexOnPath === 'string', 'no codex on PATH');
-    invariant(typeof pinnedCodexVersion === 'string', 'no pinned Codex version');
+  const printed = await new Response(
+    Bun.spawn([codexOnPath, '--version'], { stderr: 'ignore' }).stdout,
+  ).text();
 
-    const printed = await new Response(
-      Bun.spawn([codexOnPath, '--version'], { stderr: 'ignore' }).stdout,
-    ).text();
+  expect(printed.trim()).toBe(`codex-cli ${pinnedCodexVersion}`);
+});
 
-    expect(printed.trim()).toBe(`codex-cli ${pinnedCodexVersion}`);
-  },
-);
-
-test.skipIf(codexOnPath === null)(
+test.skipIf(codexMissing)(
   'it starts a thread on the installed Codex App Server',
   async () => {
     const ctx = setupTest();
+    const codexOnPath = Bun.which('codex');
 
     invariant(typeof codexOnPath === 'string', 'no codex on PATH');
 
@@ -361,15 +355,21 @@ test.skipIf(codexOnPath === null)(
 
     onTestFinished(() => bridge.stop());
 
-    expect(bridge.plan.args[1]).toMatch(THREAD_ID);
+    expect(bridge.plan.args[1]).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u,
+    );
   },
-  REAL_CODEX_TEST_MS,
+
+  // enough time for the real CLI to come up and answer, which a loaded
+  // machine takes longer over than the stub ever does
+  30_000,
 );
 
-test.skipIf(codexOnPath === null)(
+test.skipIf(codexMissing)(
   'it resumes on the installed Codex App Server the thread an earlier bridge started',
   async () => {
     const ctx = setupTest();
+    const codexOnPath = Bun.which('codex');
 
     invariant(typeof codexOnPath === 'string', 'no codex on PATH');
 
@@ -417,5 +417,7 @@ test.skipIf(codexOnPath === null)(
 
     expect(second.plan.args[1]).toBe(thread);
   },
-  REAL_CODEX_TEST_MS * 2,
+
+  // two starts of the real CLI, each given the time that one start needs
+  60_000,
 );
