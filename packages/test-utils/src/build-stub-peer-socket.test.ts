@@ -38,33 +38,37 @@ test('it refuses a line that is not a JSON object as a frame', () => {
   );
 });
 
-test('it answers a wait for a frame already written with that frame, its id left out', async () => {
+test('it answers a wait for a message already written with its payload', async () => {
   const stub = buildStubPeerSocket();
 
-  stub.socket.write(new TextEncoder().encode('{"id":1,"ok":{}}\n{"id":2,"ok":{"n":2}}\n'));
+  stub.socket.write(
+    new TextEncoder().encode(
+      '{"i":"1","p":{"b":{"json":{}}}}\n{"i":"2","p":{"b":{"json":{"n":2}}}}\n',
+    ),
+  );
 
-  const answer = await stub.waitForAnswer(2);
+  const answer = await stub.waitForAnswer('2');
 
-  expect(answer).toStrictEqual({ ok: { n: 2 } });
+  expect(answer).toStrictEqual({ b: { json: { n: 2 } } });
 });
 
-test('it answers a wait for a frame once a later write completes it', async () => {
+test('it answers a wait for a message once a later write completes it', async () => {
   const stub = buildStubPeerSocket();
-  const answer = stub.waitForAnswer(1);
+  const answer = stub.waitForAnswer('1');
 
-  stub.socket.write(new TextEncoder().encode('{"id":1,'));
-  stub.socket.write(new TextEncoder().encode('"err":{"code":"bad_args"}}\n'));
+  stub.socket.write(new TextEncoder().encode('{"i":"1",'));
+  stub.socket.write(new TextEncoder().encode('"p":{"s":400,"b":{"json":{"code":"bad_args"}}}}\n'));
 
   const answered = await answer;
 
-  expect(answered).toStrictEqual({ err: { code: 'bad_args' } });
+  expect(answered).toStrictEqual({ s: 400, b: { json: { code: 'bad_args' } } });
 });
 
-test('it leaves a wait pending while only other frames are written', async () => {
+test('it leaves a wait pending while only other messages are written', async () => {
   const stub = buildStubPeerSocket();
-  const answer = stub.waitForAnswer(2);
+  const answer = stub.waitForAnswer('2');
 
-  stub.socket.write(new TextEncoder().encode('{"id":1,"ok":{}}\n'));
+  stub.socket.write(new TextEncoder().encode('{"i":"1","p":{"b":{"json":{}}}}\n'));
 
   const raced = await Promise.race([answer, Promise.resolve('pending')]);
 

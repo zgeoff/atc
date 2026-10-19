@@ -1,5 +1,5 @@
 import { createConnection } from 'node:net';
-import { PROTOCOL_V, encodeMessage } from '@atc/protocol/wire';
+import { PROTOCOL_V } from '@atc/protocol/wire';
 import { registerTestCleanup } from './register-test-cleanup';
 
 interface StubStalledClient {
@@ -24,13 +24,12 @@ export async function startStubStalledClient(
     socket.destroy();
   });
 
+  // The handshake and the event subscription go out in one write, so the
+  // daemon pushes events the client never reads.
+  const hello = { client, protocol: PROTOCOL_V, auth: { scheme: 'none' } };
+
   socket.write(
-    encodeMessage({
-      v: PROTOCOL_V,
-      id: 1,
-      m: 'daemon.hello',
-      p: { client, auth: { scheme: 'none' } },
-    }),
+    `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n${JSON.stringify({ i: '2', p: { u: '/events/subscribe', b: { json: {} } } })}\n`,
   );
 
   void (async () => {

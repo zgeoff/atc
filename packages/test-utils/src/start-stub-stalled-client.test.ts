@@ -23,19 +23,20 @@ async function setupTest() {
   return { path, peers: listener.peers, lines: listener.lines };
 }
 
-test('it sends a hello with no auth under the client name it is given', async () => {
+test('it sends a hello with no auth under the client name it is given, then subscribes to events', async () => {
   const ctx = await setupTest();
   const client = await startStubStalledClient(ctx.path, 'atc/stub');
 
   expect(client.chunks).toStrictEqual([Buffer.from('answer\n')]);
 
-  expect(ctx.lines.map((line) => JSON.parse(line) as unknown)).toStrictEqual([
-    {
-      v: PROTOCOL_V,
-      id: 1,
-      m: 'daemon.hello',
-      p: { client: 'atc/stub', auth: { scheme: 'none' } },
-    },
+  expect(ctx.lines).toStrictEqual([
+    `${JSON.stringify({
+      i: '1',
+      p: {
+        u: '/daemon/hello',
+        b: { json: { client: 'atc/stub', protocol: PROTOCOL_V, auth: { scheme: 'none' } } },
+      },
+    })}\n${JSON.stringify({ i: '2', p: { u: '/events/subscribe', b: { json: {} } } })}\n`,
   ]);
 });
 

@@ -1,5 +1,5 @@
 import type { SessionID } from '@atc/core';
-import { DAEMON_FEATURES, parseRequestParams } from '@atc/protocol';
+import { DAEMON_FEATURES } from '@atc/protocol';
 import type { DaemonAnswer, RequestParams } from '@atc/protocol';
 import {
   DEFAULT_QUEUE_BYTES,
@@ -9,10 +9,8 @@ import {
   MAX_LINE,
   OutboundQueue,
   PROTOCOL_V,
-  decodeMessage,
-  encodeMessage,
 } from '@atc/protocol/wire';
-import type { EventMsg, RequestMsg, SocketWriter } from '@atc/protocol/wire';
+import type { EventMsg, SocketWriter } from '@atc/protocol/wire';
 import type { StandardRequest, StandardResponse } from '@orpc/standard-server';
 import { ServerPeer } from '@orpc/standard-server-peer';
 import type { EncodedMessage } from '@orpc/standard-server-peer';
@@ -26,7 +24,6 @@ import { answerPeerRequest } from './answer-peer-request';
 import { buildConnectionRequests } from './build-connection-requests';
 import type { ConnectionRequests } from './build-connection-requests';
 import { checkTCPHello } from './check-tcp-hello';
-import { ConnectionReply } from './connection-reply';
 import { ConnectionView } from './connection-view';
 import { createEventFeed } from './create-event-feed';
 import type { EventFeed } from './create-event-feed';
@@ -37,7 +34,6 @@ import { parseRequestPrincipal } from './parse-request-principal';
 import { PEER_CONNECTION_MACHINE } from './peer-connection-machine';
 import type { ProcedureContext } from './procedure-context';
 import type { ConnectionIdentity, RequestPrincipal } from './request-deps';
-import { runDaemonProcedure } from './run-daemon-procedure';
 import type { TCPPeer } from './tcp-peer';
 import { toPeerMethod } from './to-peer-method';
 
@@ -51,10 +47,7 @@ interface PeerSocket extends SocketWriter {
   readonly end: () => void;
 }
 
-// How the client frames its requests, which its first line settles: oRPC
-// peer messages, or the line protocol's requests.
-type Dialect = 'peer' | 'line';
-
+// One client connection, which speaks oRPC peer messages, one per line.
 export class DaemonConnection {
   private readonly peer: PeerSocket;
 
@@ -64,21 +57,9 @@ export class DaemonConnection {
 
   private readonly lines = new LineDecoder();
 
-  private dialect: Dialect | null = null;
-
-  // Whether a line client has sent its handshake.
-  private helloed = false;
-
-  // Where the connection stands, from its handshake to its close; a peer
-  // client's events and requests flow only while it is open.
+  // Where the connection stands, from its handshake to its close; its
+  // events and requests flow only while it is open.
   private readonly lifecycle: Actor<typeof PEER_CONNECTION_MACHINE>;
-
-  // A line client's handshake answer is written before any other response
-  // on this connection, even though building it reads the store: a request
-  // that arrives while that read is in flight waits behind it.
-  private helloAnswered: Promise<void> = Promise.resolve();
-
-  private readonly desynced = new Map<SessionID, number>();
 
   // Who the connection acts as, from its handshake and the kernel.
   private readonly identity: ConnectionIdentity;
@@ -89,8 +70,6 @@ export class DaemonConnection {
 
   // What this connection sees of the fleet while its access is limited.
   private readonly view: ConnectionView;
-
-  private readonly reply: ConnectionReply;
 
   private readonly requests: ConnectionRequests;
 
@@ -113,7 +92,7 @@ export class DaemonConnection {
 
   private serverPeer: ServerPeer | null = null;
 
-  // A peer client's events, delivered through its subscription.
+  // The connection's events, delivered through its subscription.
   private readonly feed: EventFeed;
 
   // Sends waiting for the outbound queue to drain.
@@ -152,7 +131,6 @@ export class DaemonConnection {
 
     this.view = new ConnectionView(ctx);
     this.queue = new OutboundQueue(peer, ctx.queueBytes);
-    this.reply = new ConnectionReply(this.queue, peer);
 
     this.requests = buildConnectionRequests({ client: this, ctx, identity: this.identity });
 
@@ -199,7 +177,7 @@ export class DaemonConnection {
   }
 
   sendEvent(event: EventMsg): void {
-    if (!this.hasPassedHello()) {
+    if (!this.isIn('open')) {
       return;
     }
 
@@ -209,60 +187,25 @@ export class DaemonConnection {
         : this.view.updateView(event, this.access);
 
     for (const visible of view.events) {
-      if (this.dialect === 'peer') {
-        this.feed.emit(visible);
-      } else if (!this.queue.send(encodeMessage(visible))) {
-        this.stopConnection();
-
-        return;
-      }
+      this.feed.emit(visible);
     }
 
     // Output and inbox messages of a session that left the view stop with
     // it. The detach runs once the view is settled, since it emits an event
     // of its own.
     for (const id of view.withdrawn) {
-      this.desynced.delete(id);
       this.feed.forgetSession(id);
       this.ctx.detachSession(this, id);
       this.ctx.detachTap(this, id);
     }
   }
 
-  // An overflow drops this session's backlog for this client and resynchronizes with a repaint
-  // once the queue drains. A chunk is never dropped without that resync, because a byte stream
-  // cut mid-escape corrupts the client's terminal state.
   sendOutput(sessionID: SessionID, event: EventMsg, byteLength: number): void {
-    if (!this.hasPassedHello() || !this.canSeeOutput(sessionID)) {
+    if (!this.isIn('open') || !this.canSeeOutput(sessionID)) {
       return;
     }
 
-    if (this.dialect === 'peer') {
-      this.feed.emitOutput(sessionID, event, byteLength);
-
-      return;
-    }
-
-    const dropped = this.desynced.get(sessionID);
-
-    if (dropped !== undefined) {
-      this.desynced.set(sessionID, dropped + byteLength);
-
-      return;
-    }
-
-    if (!this.queue.send(encodeMessage(event))) {
-      this.desynced.set(sessionID, byteLength);
-    }
-  }
-
-  // Whether the handshake has passed: on TCP, only once its token checked out.
-  private hasPassedHello(): boolean {
-    if (this.dialect === 'peer') {
-      return this.isIn('open');
-    }
-
-    return this.helloed && (this.tcp === null || this.fingerprint !== null);
+    this.feed.emitOutput(sessionID, event, byteLength);
   }
 
   // Decodes with state kept across reads, so a multi-byte character split
@@ -276,18 +219,9 @@ export class DaemonConnection {
       return;
     }
 
-    const oversized = this.lines.pendingLength + chunk.length > MAX_LINE;
-
-    if (oversized && this.isUnauthenticatedTCP()) {
-      this.tcp?.recordFailure('line_too_long');
-      this.stopConnection();
-
-      return;
-    }
-
-    if (oversized) {
-      if (this.dialect !== 'peer') {
-        this.reply.sendErr(0, 'bad_args', `line exceeds ${MAX_LINE} bytes`);
+    if (this.lines.pendingLength + chunk.length > MAX_LINE) {
+      if (this.isUnauthenticatedTCP()) {
+        this.tcp?.recordFailure('line_too_long');
       }
 
       this.stopConnection();
@@ -310,19 +244,6 @@ export class DaemonConnection {
     if (this.queue.queuedBytes === 0) {
       this.releaseDrainWaiters();
     }
-
-    if (this.queue.queuedBytes > 0 || this.desynced.size === 0) {
-      return;
-    }
-
-    for (const [sessionID, dropped] of this.desynced) {
-      this.desynced.delete(sessionID);
-
-      if (this.canSeeOutput(sessionID)) {
-        this.sendEvent({ v: PROTOCOL_V, ev: 'SessionDesync', s: sessionID, dropped });
-        void this.ctx.resyncClient(sessionID, this);
-      }
-    }
   }
 
   // Whether this connection may receive the session's output: always for
@@ -332,119 +253,45 @@ export class DaemonConnection {
     return this.access === null || this.ctx.canSeeSession(sessionID, this.access);
   }
 
-  // false: the connection is beyond recovery and gets closed.
+  // false: the connection is beyond recovery and gets closed. A line goes to
+  // the connection's oRPC peer. Until its token checks out, a TCP connection
+  // takes one handshake line and nothing else.
   private applyLine(line: string): boolean {
-    this.dialect ??= isPeerMessage(line) ? 'peer' : 'line';
+    const isPeer = isPeerMessage(line);
 
-    if (this.dialect === 'peer') {
-      return this.applyPeerLine(line);
-    }
-
-    if (this.tcp !== null) {
-      const refused = this.findTCPLineRefusal(line);
-
-      if (refused === 'close') {
-        return false;
-      }
-    }
-
-    const decoded = decodeMessage(line);
-
-    if (decoded.kind === 'malformed') {
-      this.reply.sendErr(0, 'bad_args', `malformed line: ${decoded.reason}`);
-
-      return false;
-    }
-
-    if (decoded.kind !== 'request') {
-      this.reply.sendErr(0, 'bad_args', 'only requests flow client to daemon');
-
-      return false;
-    }
-
-    const req = decoded.msg;
-
-    if (req.m === 'daemon.hello') {
-      return this.tcp === null ? this.applyHello(req) : this.applyTCPHello(req, this.tcp);
-    }
-
-    if (!this.helloed) {
-      this.reply.sendErr(req.id, 'unauthorized', 'daemon.hello must be the first request');
-
-      return false;
-    }
-
-    if (this.tcp !== null) {
-      this.reply.answerAsync(req.id, () => this.applyTCPRequest(req));
-
-      return true;
-    }
-
-    const scope = this.findRequestScope(req.as);
-
-    if (scope !== null && isOwnerOnlyMethod(req.m)) {
-      this.reply.sendErr(req.id, 'unauthorized', `${req.m} is open to the daemon's owner only`);
-
-      return true;
-    }
-
-    const ctx =
-      scope === null ? this.ctx : buildScopedContext(this.ctx, scope.access, scope.keyNamespace);
-
-    this.reply.answerAsync(req.id, () => this.applyRequest(req, ctx));
-
-    return true;
-  }
-
-  // Until its token checks out, a TCP connection gets nothing but the answer to one handshake,
-  // so a peer learns nothing and floods nothing past the delay.
-  private findTCPLineRefusal(line: string): 'close' | null {
     if (this.isUnauthenticatedTCP()) {
-      const decoded = decodeMessage(line);
-      const isHello = decoded.kind === 'request' && decoded.msg.m === 'daemon.hello';
-
-      if (this.tcpHelloSent || !isHello) {
+      if (!isPeer || this.tcpHelloSent || findPeerMethod(line) !== 'daemon.hello') {
         this.tcp?.recordFailure('unexpected_line');
 
-        return 'close';
+        return false;
       }
 
       this.tcpHelloSent = true;
-
-      return null;
     }
 
-    const decoded = decodeMessage(line);
-
-    // a second handshake could change the principal under kept attachments
-    if (decoded.kind === 'request' && decoded.msg.m === 'daemon.hello') {
-      this.reply.sendErr(decoded.msg.id, 'unauthorized', 'a TCP connection takes one handshake');
-
-      return 'close';
+    if (!isPeer) {
+      return false;
     }
 
-    return null;
+    this.serverPeer ??= new ServerPeer((message) => this.sendPeerMessage(message));
+
+    const serverPeer = this.serverPeer;
+
+    // A line the peer cannot decode ends the connection.
+    void (async () => {
+      try {
+        await serverPeer.message(line, (request) => this.answerPeer(request));
+      } catch {
+        this.stopConnection();
+      }
+    })();
+
+    return true;
   }
 
   // Whether this is a TCP connection whose handshake has not passed.
   private isUnauthenticatedTCP(): boolean {
     return this.tcp !== null && this.fingerprint === null;
-  }
-
-  // A request over TCP runs only once the handshake has passed, only as a
-  // principal the config lists, and never as the daemon's owner, so it
-  // always runs on the context scoped to that principal.
-  private async applyTCPRequest(req: RequestMsg): Promise<void> {
-    await this.helloAnswered;
-
-    if (this.fingerprint === null) {
-      return;
-    }
-
-    const as = req.as === undefined ? null : { principal: req.as, name: req.asName };
-    const ctx = this.requireTCPRequestContext(req.m, as);
-
-    await this.applyRequest(req, ctx);
   }
 
   // The context a request over TCP runs on, scoped to the principal it acts
@@ -494,64 +341,6 @@ export class DaemonConnection {
     return { access: this.access.merge(access), keyNamespace: `client:${this.identity.principal}` };
   }
 
-  private async applyRequest(req: RequestMsg, ctx: DaemonContext): Promise<void> {
-    await this.helloAnswered;
-
-    const answer = await runDaemonProcedure(req.m, req.p, {
-      ctx,
-      requests: this.requests,
-      as: req.as === undefined ? null : { principal: req.as, name: req.asName },
-    });
-
-    this.reply.sendAnswer(req.id, answer);
-  }
-
-  private applyHello(req: RequestMsg): boolean {
-    const parsedHello = parseRequestParams('daemon.hello', req.p);
-    const client = parsedHello.ok ? parsedHello.data.client : 'unknown client';
-
-    this.identity.helloClient = client;
-
-    // A principal the handshake cannot read would otherwise leave the
-    // connection with the owner's reach.
-    if (!parsedHello.ok && req.p?.['principal'] !== undefined) {
-      this.reply.sendErr(req.id, 'bad_args', parsedHello.message);
-
-      return false;
-    }
-
-    const principal = parsedHello.ok ? (parsedHello.data.principal ?? null) : null;
-
-    if (principal !== null) {
-      this.setPrincipal(principal);
-    }
-
-    const declared = parsedHello.ok ? (parsedHello.data.session ?? null) : null;
-
-    try {
-      this.setCallerSession(declared);
-    } catch (error) {
-      if (error instanceof DaemonError) {
-        this.reply.sendErr(req.id, error.code, error.message);
-      }
-
-      return false;
-    }
-
-    if (req.v !== PROTOCOL_V) {
-      this.reply.sendErr(req.id, 'protocol_mismatch', this.formatMismatch(client, req.v));
-
-      return false;
-    }
-
-    this.helloed = true;
-    this.helloAnswered = this.sendHelloOk(req.id);
-
-    this.reply.answerAsync(req.id, () => this.helloAnswered);
-
-    return true;
-  }
-
   // The kernel's answer wins over the handshake: a process inside a session
   // acts as that session whether or not it gives one, and one that gives
   // another session is refused.
@@ -574,40 +363,6 @@ export class DaemonConnection {
     return `${client} speaks protocol v${protocol ?? 'unknown'}, daemon ${this.ctx.build} speaks v${PROTOCOL_V}; restart the daemon so both run the same build`;
   }
 
-  // Requests that arrive while the check runs wait behind it.
-  private applyTCPHello(req: RequestMsg, tcp: TCPPeer): boolean {
-    this.helloed = true;
-
-    this.helloAnswered = (async () => {
-      const hello = await checkTCPHello(req, {
-        tcp,
-        hasListedPrincipal: (principal) => this.ctx.hasListedPrincipal(principal),
-        build: this.ctx.build,
-      });
-
-      if (!hello.ok) {
-        this.reply.sendErr(req.id, hello.code, hello.message);
-        this.stopConnection();
-
-        return;
-      }
-
-      if (hello.principal !== null) {
-        this.setPrincipal(hello.principal);
-      }
-
-      this.identity.callerSession = hello.session;
-      this.identity.helloClient = hello.client;
-      this.fingerprint = hello.fingerprint;
-
-      await this.sendHelloOk(req.id);
-    })();
-
-    this.reply.answerAsync(req.id, () => this.helloAnswered);
-
-    return true;
-  }
-
   // Makes the connection act as the principal, its view starting as the
   // sessions the principal may see now, so one that leaves its reach later
   // is pushed as removed.
@@ -620,12 +375,6 @@ export class DaemonConnection {
     this.view.startView(access);
   }
 
-  private async sendHelloOk(id: number): Promise<void> {
-    const answer = await this.loadHelloAnswer();
-
-    this.reply.sendAnswer(id, answer);
-  }
-
   private async loadHelloAnswer(): Promise<DaemonAnswer<'daemon.hello'>> {
     return {
       daemon: this.ctx.build,
@@ -635,35 +384,6 @@ export class DaemonConnection {
       idempotency: { completedRetentionMs: this.ctx.idempotencyRetentionMs },
       lastUsedAgent: await this.ctx.loadLastUsedAgent(),
     };
-  }
-
-  // A peer line goes to the connection's oRPC peer. Until its token checks
-  // out, a TCP connection takes one handshake line and nothing else.
-  private applyPeerLine(line: string): boolean {
-    if (this.isUnauthenticatedTCP()) {
-      if (this.tcpHelloSent || findPeerMethod(line) !== 'daemon.hello') {
-        this.tcp?.recordFailure('unexpected_line');
-
-        return false;
-      }
-
-      this.tcpHelloSent = true;
-    }
-
-    this.serverPeer ??= new ServerPeer((message) => this.sendPeerMessage(message));
-
-    const serverPeer = this.serverPeer;
-
-    // A line the peer cannot decode ends the connection.
-    void (async () => {
-      try {
-        await serverPeer.message(line, (request) => this.answerPeer(request));
-      } catch {
-        this.stopConnection();
-      }
-    })();
-
-    return true;
   }
 
   // A full outbound queue ends the connection, as it does for an event; a

@@ -1,6 +1,6 @@
 export function buildStubPeerSocket() {
   const decoder = new TextDecoder();
-  const waiters = new Map<number, PromiseWithResolvers<Record<string, unknown>>>();
+  const waiters = new Map<string, PromiseWithResolvers<Record<string, unknown>>>();
 
   let accepting = true;
   let ended = false;
@@ -29,12 +29,12 @@ export function buildStubPeerSocket() {
         // Frames are parsed only for a pending wait, so a stray line fails
         // the read that looks at it rather than the daemon's write.
         for (const frame of waiters.size === 0 ? [] : collectFrames()) {
-          const id = frame['id'];
-          const waiter = typeof id === 'number' ? waiters.get(id) : undefined;
+          const id = frame['i'];
+          const waiter = typeof id === 'string' ? waiters.get(id) : undefined;
 
-          if (waiter !== undefined) {
-            waiters.delete(Number(id));
-            waiter.resolve(buildAnswer(frame));
+          if (typeof id === 'string' && waiter !== undefined) {
+            waiters.delete(id);
+            waiter.resolve(getPayload(frame));
           }
         }
 
@@ -53,11 +53,12 @@ export function buildStubPeerSocket() {
     // for a write that the daemon queued.
     countRefusedWrites: (): number => refusedWrites,
     collectFrames,
-    waitForAnswer: (id: number): Promise<Record<string, unknown>> => {
-      const found = collectFrames().find((frame) => frame['id'] === id);
+
+    waitForAnswer: (id: string): Promise<Record<string, unknown>> => {
+      const found = collectFrames().find((frame) => frame['i'] === id);
 
       if (found !== undefined) {
-        return Promise.resolve(buildAnswer(found));
+        return Promise.resolve(getPayload(found));
       }
 
       const waiter = Promise.withResolvers<Record<string, unknown>>();
@@ -77,6 +78,6 @@ function toFrame(value: unknown): Record<string, unknown> {
   return Object.fromEntries(Object.entries(value));
 }
 
-function buildAnswer(frame: Readonly<Record<string, unknown>>): Record<string, unknown> {
-  return Object.fromEntries(Object.entries(frame).filter(([key]) => key !== 'id'));
+function getPayload(frame: Readonly<Record<string, unknown>>): Record<string, unknown> {
+  return toFrame(frame['p']);
 }
