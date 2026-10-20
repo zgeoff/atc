@@ -10,17 +10,17 @@ import type { TargetAccess } from '../auth/target-access';
 import type { SessionManager } from './sessions';
 
 interface SpawnReplayDeps {
-  readonly mgr: Pick<SessionManager, 'sessions' | 'collectDescriptors'>;
+  readonly manager: Pick<SessionManager, 'sessions' | 'collectDescriptors'>;
   readonly store: Pick<StateStore, 'loadFleet'>;
 }
 
 export class SpawnReplay {
-  private readonly mgr: SpawnReplayDeps['mgr'];
+  private readonly manager: SpawnReplayDeps['manager'];
 
   private readonly store: SpawnReplayDeps['store'];
 
   constructor(deps: SpawnReplayDeps) {
-    this.mgr = deps.mgr;
+    this.manager = deps.manager;
     this.store = deps.store;
   }
 
@@ -46,7 +46,9 @@ export class SpawnReplay {
   // A key that start-up reconciliation completed has no stored answer, and
   // its session lists only once the fleet is restored.
   private loadAnswer(record: IdempotencyRecord): DaemonAnswer<'session.spawn'> {
-    const listed = this.mgr.collectDescriptors().find((d) => d.id === record.effectRef);
+    const listed = this.manager
+      .collectDescriptors()
+      .find((descriptor) => descriptor.id === record.effectRef);
 
     if (listed !== undefined) {
       return { session: listed };
@@ -75,7 +77,7 @@ export class SpawnReplay {
       throw buildTargetForbiddenError(getReplayTarget(record));
     }
 
-    const sessions = this.mgr.sessions;
+    const sessions = this.manager.sessions;
     const session = sessions.find((x) => x.id === record.effectRef);
 
     if (
@@ -90,7 +92,7 @@ export class SpawnReplay {
     record: IdempotencyRecord,
     access: TargetAccess,
   ): Promise<void> {
-    if (this.mgr.sessions.some((x) => x.id === record.effectRef)) {
+    if (this.manager.sessions.some((x) => x.id === record.effectRef)) {
       return;
     }
 

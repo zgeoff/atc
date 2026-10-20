@@ -7,7 +7,7 @@ interface GuestCloneRequest {
   // The host the clone runs on, and the directory there it lands in, which
   // exists and is empty.
   readonly host: string;
-  readonly dir: string;
+  readonly directory: string;
 
   // The token-free URL the clone fetches from and records as its origin.
   readonly url: string;
@@ -72,7 +72,7 @@ export async function createGuestClone(
       '-c',
       GUEST_CLONE_SCRIPT,
       'sh',
-      request.dir,
+      request.directory,
       request.url,
       request.sha,
       request.branch ?? '',

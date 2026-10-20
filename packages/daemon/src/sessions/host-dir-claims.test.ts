@@ -87,7 +87,7 @@ test('it passes an overlapping workspace claim once the earlier claim is release
       {
         hostKey: toSessionID('host-1'),
         target: 'imp',
-        dir: '/work/b',
+        directory: '/work/b',
         resolved: null,
         kind: 'workspace',
       },
@@ -177,7 +177,7 @@ test('it keeps a claimed directory that holds the directory of another session l
   );
 
   expect(removed).toBeFalse();
-  expect(provider.commands.map((c) => c.argv[2])).toStrictEqual([RESOLVE_DIR_SCRIPT]);
+  expect(provider.commands.map((command) => command.argv[2])).toStrictEqual([RESOLVE_DIR_SCRIPT]);
 });
 
 test('it removes a claimed directory on the host when no other session lies inside it', async () => {
@@ -252,7 +252,7 @@ test('it keeps a claimed directory on the host when a stale relative directory r
   );
 
   expect(removed).toBeFalse();
-  expect(provider.commands.map((c) => c.argv[2])).not.toContain(REMOVE_DIR_SCRIPT);
+  expect(provider.commands.map((command) => command.argv[2])).not.toContain(REMOVE_DIR_SCRIPT);
 });
 
 test.each([
@@ -288,7 +288,7 @@ test.each([
     );
 
     expect(removed).toBeFalse();
-    expect(provider.commands.map((c) => c.argv[2])).not.toContain(REMOVE_DIR_SCRIPT);
+    expect(provider.commands.map((command) => command.argv[2])).not.toContain(REMOVE_DIR_SCRIPT);
   },
 );
 
@@ -313,12 +313,12 @@ test('it keeps a claimed directory on the host when the host home cannot be reso
   );
 
   expect(removed).toBeFalse();
-  expect(provider.commands.map((c) => c.argv[2])).not.toContain(REMOVE_DIR_SCRIPT);
+  expect(provider.commands.map((command) => command.argv[2])).not.toContain(REMOVE_DIR_SCRIPT);
 });
 
 test('it keeps a claimed directory on the host when a stale relative directory is a symlink whose target lay inside it', async () => {
-  const tmp = setupTempDir('atc-host-dir-claims-');
-  const home = join(tmp.path, 'home');
+  const temporaryDirectory = setupTempDir('atc-host-dir-claims-');
+  const home = join(temporaryDirectory.path, 'home');
   const workspace = join(home, 'work', 'a');
 
   mkdirSync(workspace, { recursive: true });
@@ -331,7 +331,7 @@ test('it keeps a claimed directory on the host when a stale relative directory i
   const provider = buildStubMemoryProvider({
     capabilities: { suspend: true, destroy: true },
     runCommand: async (spec) => {
-      const proc = Bun.spawn([...spec.argv], {
+      const subprocess = Bun.spawn([...spec.argv], {
         cwd: resolve(home, spec.cwd ?? '.'),
         env: { PATH: process.env['PATH'] ?? '', HOME: home },
         stdout: 'pipe',
@@ -339,9 +339,9 @@ test('it keeps a claimed directory on the host when a stale relative directory i
       });
 
       const [stdout, stderr, exitCode] = await Promise.all([
-        new Response(proc.stdout).text(),
-        new Response(proc.stderr).text(),
-        proc.exited,
+        new Response(subprocess.stdout).text(),
+        new Response(subprocess.stderr).text(),
+        subprocess.exited,
       ]);
 
       return { exitCode, stdout, stderr };

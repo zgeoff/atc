@@ -20,8 +20,8 @@ interface SetupTestConfig {
 }
 
 async function setupTest(config: SetupTestConfig) {
-  const tmp = setupTempDir('atc-screen-detection-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-screen-detection-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -35,47 +35,47 @@ async function setupTest(config: SetupTestConfig) {
 
   const provider = buildStubMemoryProvider({ kind: 'local-pty' });
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     null,
     store,
-    join(tmp.path, 'status.json'),
+    join(temporaryDirectory.path, 'status.json'),
     [...config.adapters],
     [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
     [],
     {
-      onEvent: (kind, s) => {
+      onEvent: (kind, session) => {
         if (kind === 'added') {
-          runtimes.set(s.id, new SessionRuntime());
+          runtimes.set(session.id, new SessionRuntime());
         }
       },
-      onBoot: (s, cols, rows) => {
-        const runtime = runtimes.get(s.id);
+      onBoot: (session, cols, rows) => {
+        const runtime = runtimes.get(session.id);
 
         if (runtime !== undefined) {
           runtime.screen ??= new ScreenModel(cols, rows);
         }
       },
-      onOutput: (s, data) => {
-        runtimes.get(s.id)?.screen?.record(data);
-        detection.scheduleDetect(s.id);
+      onOutput: (session, data) => {
+        runtimes.get(session.id)?.screen?.record(data);
+        detection.scheduleDetect(session.id);
       },
     },
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
   const onDetectSkipped = mock<(sessionID: SessionID) => void>();
 
   const detection = new ScreenDetection({
-    mgr,
+    manager,
     clock,
     findRuntime: (id) => runtimes.get(id),
     onDetectSkipped,
   });
 
-  return { dir: tmp.path, clock, provider, mgr, onDetectSkipped };
+  return { directory: temporaryDirectory.path, clock, provider, manager, onDetectSkipped };
 }
 
 test('it moves a session waiting at a prompt to needs_you once its output goes quiet', async () => {
@@ -91,7 +91,7 @@ test('it moves a session waiting at a prompt to needs_you once its output goes q
     ],
   });
 
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
   const [harness] = ctx.provider.harnesses;
 
@@ -101,10 +101,10 @@ test('it moves a session waiting at a prompt to needs_you once its output goes q
   ctx.clock.advance(300);
 
   await waitFor(() => {
-    expect(s.state).toBe('needs_you');
+    expect(session.state).toBe('needs_you');
   });
 
-  expect(s.lastMsg).toBe('waiting at a prompt');
+  expect(session.lastMsg).toBe('waiting at a prompt');
 });
 
 test('it moves a session back to running once its screen shows work', async () => {
@@ -117,9 +117,9 @@ test('it moves a session back to running once its screen shows work', async () =
     ],
   });
 
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  ctx.mgr.updateAttention(s.id, 'needs_you', 'Allow the edit?');
+  ctx.manager.updateAttention(session.id, 'needs_you', 'Allow the edit?');
 
   const [harness] = ctx.provider.harnesses;
 
@@ -129,7 +129,7 @@ test('it moves a session back to running once its screen shows work', async () =
   ctx.clock.advance(300);
 
   await waitFor(() => {
-    expect(s.state).toBe('running');
+    expect(session.state).toBe('running');
   });
 });
 
@@ -143,7 +143,7 @@ test('it restarts the wait on each output', async () => {
     ],
   });
 
-  await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
   const [harness] = ctx.provider.harnesses;
 
@@ -159,7 +159,7 @@ test('it restarts the wait on each output', async () => {
 
 test('it skips the screen of a session whose agents have no screen detector', async () => {
   const ctx = await setupTest({ adapters: [buildStubHarnessAdapter()] });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
   const [harness] = ctx.provider.harnesses;
 
@@ -167,7 +167,7 @@ test('it skips the screen of a session whose agents have no screen detector', as
 
   harness.emitData('READY>');
 
-  expect(ctx.onDetectSkipped).toHaveBeenCalledExactlyOnceWith(s.id);
+  expect(ctx.onDetectSkipped).toHaveBeenCalledExactlyOnceWith(session.id);
   expect(ctx.clock.collectPending()).toBeEmpty();
 });
 
@@ -182,7 +182,7 @@ test('it skips the screen of a session whose agent has no screen detector while 
     ],
   });
 
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
   const [harness] = ctx.provider.harnesses;
 
@@ -190,6 +190,6 @@ test('it skips the screen of a session whose agent has no screen detector while 
 
   harness.emitData('READY>');
 
-  expect(ctx.onDetectSkipped).toHaveBeenCalledExactlyOnceWith(s.id);
+  expect(ctx.onDetectSkipped).toHaveBeenCalledExactlyOnceWith(session.id);
   expect(ctx.clock.collectPending()).toBeEmpty();
 });

@@ -11,7 +11,7 @@ import type { SessionManager } from '../sessions/sessions';
 import type { EventSignal } from './event-signal';
 
 interface EventTrailDeps {
-  readonly mgr: Pick<SessionManager, 'sessions' | 'collectDescriptors'>;
+  readonly manager: Pick<SessionManager, 'sessions' | 'collectDescriptors'>;
   readonly store: Pick<
     StateStore,
     'readLatestEvents' | 'readEventsAfter' | 'readNote' | 'readAnswer'
@@ -29,7 +29,7 @@ type NoteRead = Awaited<ReturnType<DaemonContext['readNote']>>;
 type AnswerRead = Awaited<ReturnType<DaemonContext['readAnswer']>>;
 
 export class EventTrail {
-  private readonly mgr: EventTrailDeps['mgr'];
+  private readonly manager: EventTrailDeps['manager'];
 
   private readonly store: EventTrailDeps['store'];
 
@@ -38,7 +38,7 @@ export class EventTrail {
   private readonly eventSignal: EventTrailDeps['eventSignal'];
 
   constructor(deps: EventTrailDeps) {
-    this.mgr = deps.mgr;
+    this.manager = deps.manager;
     this.store = deps.store;
     this.clock = deps.clock;
     this.eventSignal = deps.eventSignal;
@@ -135,7 +135,7 @@ export class EventTrail {
     sessionID: SessionID | null,
     access: TargetAccess | null,
   ): EventScope | null {
-    const sessions = this.mgr.sessions;
+    const sessions = this.manager.sessions;
 
     if (access === null) {
       if (sessionID === null) {
@@ -162,7 +162,7 @@ export class EventTrail {
   // The sessions that may name a trail row: under an access, only those
   // whose whole tree is on targets it holds.
   private collectNamingDescriptors(access: TargetAccess | null): SessionDescriptor[] {
-    const sessions = this.mgr.sessions;
+    const sessions = this.manager.sessions;
 
     const reached = new Set(
       sessions
@@ -170,6 +170,6 @@ export class EventTrail {
         .map((x) => x.id),
     );
 
-    return this.mgr.collectDescriptors().filter((d) => reached.has(d.id));
+    return this.manager.collectDescriptors().filter((descriptor) => reached.has(descriptor.id));
   }
 }

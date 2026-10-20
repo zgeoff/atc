@@ -7,12 +7,12 @@ interface DescriptorSource {
   readonly collectDescriptors: SessionManager['collectDescriptors'];
 }
 
-export function getDescriptor(mgr: DescriptorSource, id: SessionID): SessionDescriptor {
-  const d = mgr.collectDescriptors().find((x) => x.id === id);
+export function getDescriptor(manager: DescriptorSource, id: SessionID): SessionDescriptor {
+  const descriptor = manager.collectDescriptors().find((x) => x.id === id);
 
-  if (d === undefined) {
+  if (descriptor === undefined) {
     throw new Error(`descriptor for unknown session ${id}`);
   }
 
-  return d;
+  return descriptor;
 }

@@ -41,9 +41,9 @@ export class SessionKiller {
   // the response is the caller's cue that the session is safely archived,
   // so the fleet write lands before it
   async kill(id: SessionID, stopOnly = false): Promise<'stopped' | 'unchanged' | 'removed'> {
-    const s = this.registry.sessions.find((x) => x.id === id);
+    const session = this.registry.sessions.find((x) => x.id === id);
 
-    if (!s) {
+    if (!session) {
       return 'unchanged';
     }
 
@@ -53,8 +53,8 @@ export class SessionKiller {
 
     const restartStopped = await this.restarts.stopRestart(id);
 
-    if (s.pty) {
-      await this.stopHarness(s);
+    if (session.pty) {
+      await this.stopHarness(session);
 
       for (const child of children) {
         if (this.registry.sessions.includes(child) && child.parent === id) {
@@ -68,11 +68,11 @@ export class SessionKiller {
         }
       }
     } else if (stopOnly) {
-      if (s.kind !== 'headless' || s.state === 'exited') {
+      if (session.kind !== 'headless' || session.state === 'exited') {
         return 'unchanged';
       }
 
-      this.killTerminal(s);
+      this.killTerminal(session);
 
       for (const child of children) {
         if (this.registry.sessions.includes(child) && child.parent === id) {
@@ -80,15 +80,15 @@ export class SessionKiller {
         }
       }
     } else {
-      if (this.registry.findProvider(s)?.capabilities.destroy === true) {
+      if (this.registry.findProvider(session)?.capabilities.destroy === true) {
         throw new DaemonError(
           'confirmation_required',
-          `forgetting session ${id} destroys its host on target '${s.target}'; confirm it with session.forget`,
+          `forgetting session ${id} destroys its host on target '${session.target}'; confirm it with session.forget`,
           { session: id },
         );
       }
 
-      this.removeWithChildren(s, children);
+      this.removeWithChildren(session, children);
 
       await this.fleet.writeFleet();
 
@@ -105,26 +105,28 @@ export class SessionKiller {
   }
 
   async forget(id: SessionID): Promise<boolean> {
-    const s = this.registry.sessions.find((x) => x.id === id);
+    const session = this.registry.sessions.find((x) => x.id === id);
 
-    if (s === undefined) {
+    if (session === undefined) {
       return false;
     }
 
     // taken before the first await, so a sub-session spawned while the
     // forget waits on a host becomes top-level
     const children = this.registry.collectChildren(id);
-    const provider = this.registry.findProvider(s);
-    const destroys = provider !== null && provider.capabilities.destroy && s.hostKey === s.id;
+    const provider = this.registry.findProvider(session);
+
+    const destroys =
+      provider !== null && provider.capabilities.destroy && session.hostKey === session.id;
 
     // a harness asleep in a host it does not own has a process the daemon
     // cannot reach or end; its record keeps that process owned until the
     // host wakes or its owner's forget destroys the host
-    if (!destroys && s.pty === null && s.vm === 'asleep') {
+    if (!destroys && session.pty === null && session.vm === 'asleep') {
       throw new DaemonError(
         'unsupported_operation',
-        `session ${id} sleeps inside the host of session ${s.hostKey}; revive it or forget session ${s.hostKey} first`,
-        { provider: provider?.kind ?? null, problem: 'host_asleep', host: s.hostKey },
+        `session ${id} sleeps inside the host of session ${session.hostKey}; revive it or forget session ${session.hostKey} first`,
+        { provider: provider?.kind ?? null, problem: 'host_asleep', host: session.hostKey },
       );
     }
 
@@ -134,15 +136,19 @@ export class SessionKiller {
       const bound =
         binder === null
           ? false
-          : await binder.forgetBinding(provider.brokerAuth ?? null, s.hostKey);
+          : await binder.forgetBinding(provider.brokerAuth ?? null, session.hostKey);
 
       // a failed destroy throws before anything is forgotten
       if (!bound) {
-        await provider.destroyHost(s.hostKey);
+        await provider.destroyHost(session.hostKey);
       }
 
       for (const onHost of this.registry.sessions) {
-        if (onHost.hostKey === s.hostKey && onHost.target === s.target && onHost.id !== s.id) {
+        if (
+          onHost.hostKey === session.hostKey &&
+          onHost.target === session.target &&
+          onHost.id !== session.id
+        ) {
           onHost.pty?.detach();
           onHost.pty = null;
 
@@ -150,13 +156,13 @@ export class SessionKiller {
         }
       }
 
-      s.pty?.detach();
-      s.pty = null;
+      session.pty?.detach();
+      session.pty = null;
     } else {
-      this.killTerminal(s);
+      this.killTerminal(session);
     }
 
-    this.removeWithChildren(s, children);
+    this.removeWithChildren(session, children);
 
     await this.fleet.writeFleet();
 
@@ -165,11 +171,11 @@ export class SessionKiller {
     return destroys;
   }
 
-  private removeWithChildren(s: Session, forgettable: readonly Session[]): void {
+  private removeWithChildren(session: Session, forgettable: readonly Session[]): void {
     const kept: Session[] = [];
     const dropped: Session[] = [];
 
-    for (const child of this.registry.collectChildren(s.id)) {
+    for (const child of this.registry.collectChildren(session.id)) {
       const live = child.pty !== null || (child.kind === 'headless' && child.state !== 'exited');
 
       // a pin of its own guards a sub-session from its parent; one whose
@@ -191,7 +197,7 @@ export class SessionKiller {
     // kept sub-sessions are top-level before the removal is announced and
     // announced after it, so no announcement finds a parent gone or one
     // standing without the sub-sessions that leave with it
-    this.registry.remove(s);
+    this.registry.remove(session);
 
     for (const child of kept) {
       this.callbacks.onEvent('state', child);
@@ -202,30 +208,33 @@ export class SessionKiller {
     }
   }
 
-  pickKillCapability(s: Session): ExecutionCapability {
-    return this.canSuspendHost(s) ? 'suspend' : 'kill';
+  pickKillCapability(session: Session): ExecutionCapability {
+    return this.canSuspendHost(session) ? 'suspend' : 'kill';
   }
 
-  private canSuspendHost(s: Session): boolean {
-    return s.hostKey === s.id && this.registry.findProvider(s)?.capabilities.suspend === true;
+  private canSuspendHost(session: Session): boolean {
+    return (
+      session.hostKey === session.id &&
+      this.registry.findProvider(session)?.capabilities.suspend === true
+    );
   }
 
   // Puts the session's host to sleep when it owns one that can sleep, and
   // ends its harness otherwise. A refused sleep throws before anything
   // changes.
-  private async stopHarness(s: Session): Promise<void> {
-    const provider = this.registry.findProvider(s);
+  private async stopHarness(session: Session): Promise<void> {
+    const provider = this.registry.findProvider(session);
 
-    if (provider === null || !this.canSuspendHost(s)) {
-      this.killTerminal(s);
+    if (provider === null || !this.canSuspendHost(session)) {
+      this.killTerminal(session);
 
       return;
     }
 
-    await provider.suspendHost(s.hostKey);
+    await provider.suspendHost(session.hostKey);
 
     for (const onHost of this.registry.sessions) {
-      if (onHost.hostKey === s.hostKey && onHost.target === s.target) {
+      if (onHost.hostKey === session.hostKey && onHost.target === session.target) {
         this.updateSuspended(onHost);
       }
     }
@@ -234,67 +243,67 @@ export class SessionKiller {
   // A sub-session whose host stays awake is ended instead, and one whose
   // revive waits on the kill of its outdated harness starts no fresh one,
   // so a kill never leaves part of its set running.
-  private async tryStopHarness(s: Session): Promise<void> {
-    if (s.pty === null) {
-      const restartStopped = await this.restarts.stopRestart(s.id);
+  private async tryStopHarness(session: Session): Promise<void> {
+    if (session.pty === null) {
+      const restartStopped = await this.restarts.stopRestart(session.id);
 
       if (!restartStopped) {
-        this.killTerminal(s);
+        this.killTerminal(session);
       }
 
       return;
     }
 
     try {
-      await this.stopHarness(s);
+      await this.stopHarness(session);
     } catch (error) {
       this.callbacks.log(
-        `atc could not put the host of session ${s.id} to sleep (${error instanceof Error ? error.message : String(error)}); ending its harness instead`,
+        `atc could not put the host of session ${session.id} to sleep (${error instanceof Error ? error.message : String(error)}); ending its harness instead`,
       );
 
-      this.killTerminal(s);
+      this.killTerminal(session);
     }
   }
 
   // A harness inside a host that went to sleep: the daemon lets go of it,
   // and the process stays inside the host for a revive to find.
-  updateSuspended(s: Session): void {
-    s.vm = 'asleep';
+  updateSuspended(session: Session): void {
+    session.vm = 'asleep';
 
-    if (s.pty === null) {
-      this.callbacks.onEvent('state', s);
+    if (session.pty === null) {
+      this.callbacks.onEvent('state', session);
 
       return;
     }
 
-    s.pty.detach();
+    session.pty.detach();
 
-    s.pty = null;
-    s.state = 'exited';
-    s.lastMsg = 'asleep';
-    s.desired = 'sleep';
-    s.attachment = 'detached';
-    s.suspended = true;
+    session.pty = null;
+    session.state = 'exited';
+    session.lastMsg = 'asleep';
+    session.desired = 'sleep';
+    session.attachment = 'detached';
+    session.suspended = true;
 
-    this.callbacks.onEvent('state', s);
+    this.callbacks.onEvent('state', session);
   }
 
   // Ends a live session, terminal or headless, leaving a dead entry; a
   // session already dead is left as it is.
-  private killTerminal(s: Session) {
-    if (s.pty !== null) {
-      s.pty.kill();
+  private killTerminal(session: Session) {
+    if (session.pty !== null) {
+      session.pty.kill();
 
-      s.pty = null;
-    } else if (s.kind !== 'headless' || s.state === 'exited') {
+      session.pty = null;
+    } else if (session.kind !== 'headless' || session.state === 'exited') {
       return;
     }
 
-    s.state = 'exited';
-    s.lastMsg = 'killed';
-    s.desired = 'stop';
+    session.state = 'exited';
+    session.lastMsg = 'killed';
+    session.desired = 'stop';
 
-    this.callbacks.onEvent('state', s);
-    this.callbacks.onProcessEnded(s);
+    this.callbacks.onEvent('state', session);
+    this.callbacks.onProcessEnded(session);
   }
 }

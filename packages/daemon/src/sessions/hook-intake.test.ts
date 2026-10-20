@@ -32,8 +32,8 @@ interface SetupTestConfig {
 }
 
 async function setupTest(config: SetupTestConfig) {
-  const tmp = setupTempDir('atc-hook-intake-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-hook-intake-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -47,10 +47,10 @@ async function setupTest(config: SetupTestConfig) {
 
   const adapter = buildStubHarnessAdapter({ hooks: config.hooks, takesMessages: true });
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     null,
     store,
-    join(tmp.path, 'status.json'),
+    join(temporaryDirectory.path, 'status.json'),
     [adapter],
     [
       buildMockExecutionTarget({
@@ -61,21 +61,21 @@ async function setupTest(config: SetupTestConfig) {
     ],
     [],
     {
-      onEvent: (kind, s) => {
+      onEvent: (kind, session) => {
         if (kind === 'added') {
-          runtimes.set(s.id, new SessionRuntime());
+          runtimes.set(session.id, new SessionRuntime());
         }
       },
     },
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
   const recorder = buildStubLog();
 
-  mgr.log = recorder.log;
+  manager.log = recorder.log;
 
   const emitted: EventMsg[] = [];
 
@@ -87,7 +87,7 @@ async function setupTest(config: SetupTestConfig) {
   };
 
   const messages = new MessageService({
-    mgr,
+    manager,
     store,
     clock,
     ledger: new IdempotencyLedger(store, 'local', () => {}, clock),
@@ -105,7 +105,7 @@ async function setupTest(config: SetupTestConfig) {
   const onLastUsedUnchanged = mock<(sessionID: SessionID) => void>();
 
   const hooks = new HookIntake({
-    mgr,
+    manager,
     store,
     clock,
     messages,
@@ -120,10 +120,10 @@ async function setupTest(config: SetupTestConfig) {
   });
 
   return {
-    dir: tmp.path,
+    directory: temporaryDirectory.path,
     store,
     adapter,
-    mgr,
+    manager,
     runtimes,
     lines: recorder.lines,
     emitted,
@@ -137,33 +137,39 @@ async function setupTest(config: SetupTestConfig) {
 
 test('it records a hook line in the trail under the event its adapter planned', async () => {
   const ctx = await setupTest({ hooks: { Stop: [{ kind: 'turn-done' }] } });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  ctx.hooks.applyHookEvent({ atcId: s.id, event: 'Stop', payload: {} });
+  ctx.hooks.applyHookEvent({ atcId: session.id, event: 'Stop', payload: {} });
 
   await waitFor(async () => {
     const rows = await ctx.store.readLatestEvents(10, null);
 
-    expect(rows).toMatchObject([{ atcID: s.id, kind: 'turn-done' }]);
+    expect(rows).toMatchObject([{ atcID: session.id, kind: 'turn-done' }]);
   });
 });
 
 test('it passes back the harness state the same session last returned', async () => {
   const ctx = await setupTest({ hooks: {} });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  ctx.hooks.applyHookEvent({ atcId: s.id, event: 'PreToolUse', payload: {} });
-  ctx.hooks.applyHookEvent({ atcId: s.id, event: 'PreToolUse', payload: {} });
+  ctx.hooks.applyHookEvent({ atcId: session.id, event: 'PreToolUse', payload: {} });
+  ctx.hooks.applyHookEvent({ atcId: session.id, event: 'PreToolUse', payload: {} });
 
-  expect(ctx.adapter.hookReads.map((read) => read.prev)).toStrictEqual([undefined, 1]);
+  expect(ctx.adapter.hookReads.map((read) => read.previous)).toStrictEqual([undefined, 1]);
 });
 
 test('it drops a hook line from a harness nested inside the session', async () => {
   const ctx = await setupTest({ hooks: {} });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  ctx.hooks.applyHookEvent({ atcId: s.id, event: 'PreToolUse', payload: {}, agent: 'claude' });
-  ctx.hooks.applyHookEvent({ atcId: s.id, event: 'PreToolUse', payload: {}, agent: 'grok' });
+  ctx.hooks.applyHookEvent({
+    atcId: session.id,
+    event: 'PreToolUse',
+    payload: {},
+    agent: 'claude',
+  });
+
+  ctx.hooks.applyHookEvent({ atcId: session.id, event: 'PreToolUse', payload: {}, agent: 'grok' });
 
   expect(ctx.adapter.hookReads).toHaveLength(1);
   expect(ctx.lines).toSatisfyAny((line: string) => line.startsWith('atc hook event=dropped'));
@@ -171,15 +177,15 @@ test('it drops a hook line from a harness nested inside the session', async () =
 
 test('it writes the last-used agent when a spawned session reports its start', async () => {
   const ctx = await setupTest({ hooks: { SessionStart: [{ kind: 'started' }] } });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  const runtime = ctx.runtimes.get(s.id);
+  const runtime = ctx.runtimes.get(session.id);
 
   invariant(runtime);
 
   runtime.pendingLastUsed = true;
 
-  ctx.hooks.applyHookEvent({ atcId: s.id, event: 'SessionStart', payload: {} });
+  ctx.hooks.applyHookEvent({ atcId: session.id, event: 'SessionStart', payload: {} });
 
   await waitFor(async () => {
     const agent = await ctx.store.loadLastUsedAgent();
@@ -190,11 +196,11 @@ test('it writes the last-used agent when a spawned session reports its start', a
 
 test('it leaves the last-used agent when no spawn waits on the start a session reports', async () => {
   const ctx = await setupTest({ hooks: { SessionStart: [{ kind: 'started' }] } });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  ctx.hooks.applyHookEvent({ atcId: s.id, event: 'SessionStart', payload: {} });
+  ctx.hooks.applyHookEvent({ atcId: session.id, event: 'SessionStart', payload: {} });
 
-  expect(ctx.onLastUsedUnchanged).toHaveBeenCalledExactlyOnceWith(s.id);
+  expect(ctx.onLastUsedUnchanged).toHaveBeenCalledExactlyOnceWith(session.id);
 });
 
 test('it moves the bridge to the conversation a session start shows', async () => {
@@ -202,27 +208,27 @@ test('it moves the bridge to the conversation a session start shows', async () =
     hooks: { SessionStart: [{ kind: 'started', agentSessionID: toAgentSessionID('a-2') }] },
   });
 
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  ctx.hooks.applyHookEvent({ atcId: s.id, event: 'SessionStart', payload: {} });
+  ctx.hooks.applyHookEvent({ atcId: session.id, event: 'SessionStart', payload: {} });
 
-  expect(ctx.updateBridgeThread).toHaveBeenCalledExactlyOnceWith(s.id, 'a-2');
+  expect(ctx.updateBridgeThread).toHaveBeenCalledExactlyOnceWith(session.id, 'a-2');
 });
 
 test('it records a note from a listed session and broadcasts it', async () => {
   const ctx = await setupTest({ hooks: {} });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
   await ctx.hooks.applyNote({
-    atcId: s.id,
+    atcId: session.id,
     event: 'Note',
     payload: { kind: 'note', label: 'progress', text: 'halfway there' },
   });
 
   const rows = await ctx.store.readLatestEvents(10, null);
 
-  expect(rows).toMatchObject([{ atcID: s.id, kind: 'note' }]);
-  expect(ctx.emitted).toPartiallyContain({ ev: 'SessionNote', s: s.id });
+  expect(rows).toMatchObject([{ atcID: session.id, kind: 'note' }]);
+  expect(ctx.emitted).toPartiallyContain({ ev: 'SessionNote', s: session.id });
 });
 
 test('it ignores a note from a session the fleet does not list', async () => {
@@ -239,14 +245,14 @@ test('it ignores a note from a session the fleet does not list', async () => {
 
 test('it answers the messages a turn answer names', async () => {
   const ctx = await setupTest({ hooks: {} });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
   await ctx.store.writeMessage(
-    buildMockMessageRecord({ id: toMessageID('m-1'), atcID: s.id, status: 'delivered' }),
+    buildMockMessageRecord({ id: toMessageID('m-1'), atcID: session.id, status: 'delivered' }),
   );
 
   await ctx.hooks.applyNote({
-    atcId: s.id,
+    atcId: session.id,
     event: 'Note',
     payload: { kind: 'answered', messages: ['m-1'], answer: 'all green' },
   });
@@ -258,26 +264,26 @@ test('it answers the messages a turn answer names', async () => {
 
 test('it ignores a turn answer that names no message the session holds', async () => {
   const ctx = await setupTest({ hooks: {} });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
   await ctx.hooks.applyNote({
-    atcId: s.id,
+    atcId: session.id,
     event: 'Note',
     payload: { kind: 'answered', messages: ['m-gone'], answer: 'all green' },
   });
 
-  expect(ctx.onNoteIgnored).toHaveBeenCalledExactlyOnceWith(s.id, 'answered');
+  expect(ctx.onNoteIgnored).toHaveBeenCalledExactlyOnceWith(session.id, 'answered');
 });
 
 test('it records a headless turn in the trail under a synthetic event', async () => {
   const ctx = await setupTest({ hooks: {} });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  ctx.hooks.recordHeadlessTurnEvent(s.id, { kind: 'turn-done' });
+  ctx.hooks.recordHeadlessTurnEvent(session.id, { kind: 'turn-done' });
 
   await waitFor(async () => {
     const rows = await ctx.store.readLatestEvents(10, null);
 
-    expect(rows).toMatchObject([{ atcID: s.id, kind: 'turn-done' }]);
+    expect(rows).toMatchObject([{ atcID: session.id, kind: 'turn-done' }]);
   });
 });

@@ -27,8 +27,8 @@ interface SetupTestConfig {
 }
 
 async function setupTest(config: SetupTestConfig) {
-  const tmp = setupTempDir('atc-message-service-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-message-service-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -40,10 +40,10 @@ async function setupTest(config: SetupTestConfig) {
 
   const runtimes = new Map<SessionID, SessionRuntime>();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     null,
     store,
-    join(tmp.path, 'status.json'),
+    join(temporaryDirectory.path, 'status.json'),
     [buildStubHarnessAdapter({ takesMessages: config.takesMessages })],
     [
       buildMockExecutionTarget({
@@ -54,16 +54,16 @@ async function setupTest(config: SetupTestConfig) {
     ],
     [],
     {
-      onEvent: (kind, s) => {
+      onEvent: (kind, session) => {
         if (kind === 'added') {
-          runtimes.set(s.id, new SessionRuntime());
+          runtimes.set(session.id, new SessionRuntime());
         }
       },
     },
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
   const emitted: EventMsg[] = [];
@@ -72,7 +72,7 @@ async function setupTest(config: SetupTestConfig) {
   const taps = new TapRegistry<TapClient>();
 
   const messages = new MessageService({
-    mgr,
+    manager,
     store,
     clock,
     ledger: new IdempotencyLedger(store, 'local', () => {}, clock),
@@ -87,15 +87,24 @@ async function setupTest(config: SetupTestConfig) {
     tapGraceMs: 15_000,
   });
 
-  return { dir: tmp.path, store, clock, mgr, runtimes, emitted, ended, messages };
+  return {
+    directory: temporaryDirectory.path,
+    store,
+    clock,
+    manager,
+    runtimes,
+    emitted,
+    ended,
+    messages,
+  };
 }
 
 test('it queues a message to a live session that takes messages', async () => {
   const ctx = await setupTest({ takesMessages: true });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
   const answer = await ctx.messages.writeSessionMessage(
-    s.id,
+    session.id,
     { kind: 'owner' },
     'check the build',
     null,
@@ -109,16 +118,16 @@ test('it queues a message to a live session that takes messages', async () => {
 
   expect(answer.message).toStartWith('m-');
   expect(answer.status).toBe('queued');
-  expect(stored).toMatchObject({ atcID: s.id, text: 'check the build', status: 'queued' });
+  expect(stored).toMatchObject({ atcID: session.id, text: 'check the build', status: 'queued' });
 });
 
 test('it broadcasts the status of a message it writes', async () => {
   const ctx = await setupTest({ takesMessages: true });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  await ctx.messages.writeSessionMessage(s.id, { kind: 'owner' }, 'hello', null, null, null);
+  await ctx.messages.writeSessionMessage(session.id, { kind: 'owner' }, 'hello', null, null, null);
 
-  expect(ctx.emitted).toPartiallyContain({ ev: 'SessionMessage', s: s.id });
+  expect(ctx.emitted).toPartiallyContain({ ev: 'SessionMessage', s: session.id });
 });
 
 test('it refuses a message to a session the daemon does not hold as missing', async () => {
@@ -138,10 +147,10 @@ test('it refuses a message to a session the daemon does not hold as missing', as
 
 test('it refuses a message to a session whose agent takes none as unsupported', async () => {
   const ctx = await setupTest({ takesMessages: false });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
   const answer = await ctx.messages.writeSessionMessage(
-    s.id,
+    session.id,
     { kind: 'owner' },
     'hello',
     null,
@@ -154,16 +163,16 @@ test('it refuses a message to a session whose agent takes none as unsupported', 
 
 test('it refuses a message to a started session that has gone without a tap past the grace window', async () => {
   const ctx = await setupTest({ takesMessages: true });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  const runtime = ctx.runtimes.get(s.id);
+  const runtime = ctx.runtimes.get(session.id);
 
   invariant(runtime);
 
   runtime.startedAt = ctx.clock.now() - 15_000;
 
   const answer = await ctx.messages.writeSessionMessage(
-    s.id,
+    session.id,
     { kind: 'owner' },
     'hello',
     null,
@@ -176,10 +185,10 @@ test('it refuses a message to a started session that has gone without a tap past
 
 test('it answers a retried keyed send with the first message and writes it once', async () => {
   const ctx = await setupTest({ takesMessages: true });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
   const first = await ctx.messages.writeSessionMessage(
-    s.id,
+    session.id,
     { kind: 'owner' },
     'hello',
     { key: 'k-1', payloadHash: 'h-1' },
@@ -188,7 +197,7 @@ test('it answers a retried keyed send with the first message and writes it once'
   );
 
   const second = await ctx.messages.writeSessionMessage(
-    s.id,
+    session.id,
     { kind: 'owner' },
     'hello',
     { key: 'k-1', payloadHash: 'h-1' },
@@ -196,7 +205,7 @@ test('it answers a retried keyed send with the first message and writes it once'
     null,
   );
 
-  const pending = await ctx.store.readPendingMessages({ atcID: s.id });
+  const pending = await ctx.store.readPendingMessages({ atcID: session.id });
 
   expect(second).toStrictEqual(first);
   expect(pending).toHaveLength(1);
@@ -204,57 +213,57 @@ test('it answers a retried keyed send with the first message and writes it once'
 
 test('it hands a queued message to the tap that attaches', async () => {
   const ctx = await setupTest({ takesMessages: true });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  await ctx.messages.writeSessionMessage(s.id, { kind: 'owner' }, 'hello', null, null, null);
+  await ctx.messages.writeSessionMessage(session.id, { kind: 'owner' }, 'hello', null, null, null);
 
   const tap = { sendEvent: mock<TapClient['sendEvent']>() };
 
-  ctx.messages.attachTap(tap, s.id, null, false);
+  ctx.messages.attachTap(tap, session.id, null, false);
 
-  await ctx.messages.drainSessionInbox(s.id);
+  await ctx.messages.drainSessionInbox(session.id);
 
   expect(tap.sendEvent).toHaveBeenCalledWith(
-    expect.objectContaining({ ev: 'InboxMessage', s: s.id }),
+    expect.objectContaining({ ev: 'InboxMessage', s: session.id }),
   );
 });
 
 test('it closes the inbox of the tap a new tap replaces', async () => {
   const ctx = await setupTest({ takesMessages: true });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
   const first = { sendEvent: mock<TapClient['sendEvent']>() };
 
-  ctx.messages.attachTap(first, s.id, null, false);
-  ctx.messages.attachTap({ sendEvent: mock<TapClient['sendEvent']>() }, s.id, null, false);
+  ctx.messages.attachTap(first, session.id, null, false);
+  ctx.messages.attachTap({ sendEvent: mock<TapClient['sendEvent']>() }, session.id, null, false);
 
   expect(first.sendEvent).toHaveBeenCalledWith({
     v: PROTOCOL_V,
     ev: 'InboxClosed',
-    s: s.id,
+    s: session.id,
     reason: 'replaced',
   });
 });
 
 test('it refuses a tap for a session whose agent takes no messages', async () => {
   const ctx = await setupTest({ takesMessages: false });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
   expect(
-    ctx.messages.attachTap({ sendEvent: mock<TapClient['sendEvent']>() }, s.id, null, false),
+    ctx.messages.attachTap({ sendEvent: mock<TapClient['sendEvent']>() }, session.id, null, false),
   ).toBe('unsupported');
 });
 
 test('it marks a tapped message delivered when the tap acks it', async () => {
   const ctx = await setupTest({ takesMessages: true });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
   const tap = { sendEvent: mock<TapClient['sendEvent']>() };
 
-  ctx.messages.attachTap(tap, s.id, null, false);
+  ctx.messages.attachTap(tap, session.id, null, false);
 
   const answer = await ctx.messages.writeSessionMessage(
-    s.id,
+    session.id,
     { kind: 'owner' },
     'hello',
     null,
@@ -264,20 +273,20 @@ test('it marks a tapped message delivered when the tap acks it', async () => {
 
   invariant(typeof answer === 'object');
 
-  const acked = await ctx.messages.ackMessage(tap, s.id, toMessageID(answer.message), null);
+  const acked = await ctx.messages.ackMessage(tap, session.id, toMessageID(answer.message), null);
 
   expect(acked).toMatchObject({ id: answer.message, status: 'delivered' });
 });
 
 test('it refuses an ack from a client that is not the tap of the session', async () => {
   const ctx = await setupTest({ takesMessages: true });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  ctx.messages.attachTap({ sendEvent: mock<TapClient['sendEvent']>() }, s.id, null, false);
+  ctx.messages.attachTap({ sendEvent: mock<TapClient['sendEvent']>() }, session.id, null, false);
 
   const acked = await ctx.messages.ackMessage(
     { sendEvent: mock<TapClient['sendEvent']>() },
-    s.id,
+    session.id,
     toMessageID('m-1'),
     null,
   );
@@ -287,14 +296,14 @@ test('it refuses an ack from a client that is not the tap of the session', async
 
 test('it marks each delivered message unanswered when the process of its session ends', async () => {
   const ctx = await setupTest({ takesMessages: true });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
   const tap = { sendEvent: mock<TapClient['sendEvent']>() };
 
-  ctx.messages.attachTap(tap, s.id, null, false);
+  ctx.messages.attachTap(tap, session.id, null, false);
 
   const answer = await ctx.messages.writeSessionMessage(
-    s.id,
+    session.id,
     { kind: 'owner' },
     'hello',
     null,
@@ -304,8 +313,8 @@ test('it marks each delivered message unanswered when the process of its session
 
   invariant(typeof answer === 'object');
 
-  await ctx.messages.ackMessage(tap, s.id, toMessageID(answer.message), null);
-  await ctx.messages.updateEndedSessionMessages(s);
+  await ctx.messages.ackMessage(tap, session.id, toMessageID(answer.message), null);
+  await ctx.messages.updateEndedSessionMessages(session);
 
   const stored = await ctx.store.readMessageByID(toMessageID(answer.message));
 
@@ -321,10 +330,10 @@ test('it reads a message the store does not hold as none', async () => {
 
 test('it reads a message under the live session it was sent to', async () => {
   const ctx = await setupTest({ takesMessages: true });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
   const answer = await ctx.messages.writeSessionMessage(
-    s.id,
+    session.id,
     { kind: 'owner' },
     'hello',
     null,
@@ -337,7 +346,7 @@ test('it reads a message under the live session it was sent to', async () => {
   const view = await ctx.messages.readMessage(toMessageID(answer.message), 0);
 
   expect(view).toMatchObject({
-    session: s.id,
+    session: session.id,
     record: { id: answer.message, status: 'queued' },
     answeredWith: [],
   });
@@ -345,8 +354,8 @@ test('it reads a message under the live session it was sent to', async () => {
 
 test('it marks a delivered message unanswered for its sender when the store refuses its requeue at boot', async () => {
   const ctx = await setupTest({ takesMessages: true });
-  const sender = await ctx.mgr.spawn(ctx.dir, 'sender', '', 80, 24);
-  const recipient = await ctx.mgr.spawn(ctx.dir, 'recipient', '', 80, 24);
+  const sender = await ctx.manager.spawn(ctx.directory, 'sender', '', 80, 24);
+  const recipient = await ctx.manager.spawn(ctx.directory, 'recipient', '', 80, 24);
 
   const tap = { sendEvent: mock<TapClient['sendEvent']>() };
 
@@ -377,7 +386,7 @@ test('it marks a delivered message unanswered for its sender when the store refu
 
   // The store's own database refuses the move back to queued, as a failed
   // write would.
-  const db = new Database(join(ctx.dir, 'state.db'));
+  const db = new Database(join(ctx.directory, 'state.db'));
 
   db.run(
     "CREATE TRIGGER refuse_requeue BEFORE UPDATE OF status ON messages WHEN OLD.status = 'delivered' AND NEW.status = 'queued' BEGIN SELECT RAISE(ABORT, 'requeue refused'); END",
@@ -387,10 +396,10 @@ test('it marks a delivered message unanswered for its sender when the store refu
 
   const log = mock<(line: string) => void>();
 
-  ctx.mgr.log = log;
+  ctx.manager.log = log;
 
   await updateEndedFleetMessages({
-    mgr: ctx.mgr,
+    manager: ctx.manager,
     store: ctx.store,
     messages: ctx.messages,
     isRestoring: true,

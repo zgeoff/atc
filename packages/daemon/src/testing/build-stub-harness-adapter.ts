@@ -17,7 +17,7 @@ interface StubHarnessAdapterConfig {
 
 interface StubHookRead {
   readonly hook: HookEvent;
-  readonly prev: unknown;
+  readonly previous: unknown;
 }
 
 export interface StubHarnessAdapter extends AgentAdapter {
@@ -48,15 +48,15 @@ export function buildStubHarnessAdapter(config: StubHarnessAdapterConfig = {}): 
       // only an in-memory host starts this binary
       return { bin: 'stub-harness', args: [] };
     },
-    planHookEvents: (hook, prev) => {
-      hookReads.push({ hook, prev });
+    planHookEvents: (hook, previous) => {
+      hookReads.push({ hook, previous });
 
       return {
         events: hooks[hook.event] ?? [{ kind: 'heartbeat' }],
 
         // the state counts the lines the harness reported since it booted, so a test
         // can tell which state the daemon kept for which session
-        next: (typeof prev === 'number' ? prev : 0) + 1,
+        next: (typeof previous === 'number' ? previous : 0) + 1,
       };
     },
     loadName: () => Promise.resolve(null),

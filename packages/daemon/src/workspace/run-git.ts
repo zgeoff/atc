@@ -80,7 +80,7 @@ export async function runGit(
 ): Promise<GitRun> {
   const isolated = options.isolated === true;
 
-  const proc = Bun.spawn(['git', ...(isolated ? ISOLATED_ARGS : []), ...args], {
+  const subprocess = Bun.spawn(['git', ...(isolated ? ISOLATED_ARGS : []), ...args], {
     ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
     env: {
       ...readHostEnv(),
@@ -102,13 +102,18 @@ export async function runGit(
     detached: true,
   });
 
-  options.onSpawn?.(proc.pid);
-  const output = Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
+  options.onSpawn?.(subprocess.pid);
+
+  const output = Promise.all([
+    new Response(subprocess.stdout).text(),
+    new Response(subprocess.stderr).text(),
+  ]);
+
   const stopped = Promise.withResolvers<void>();
 
   const closed = waitForOutputClose(
-    proc.pid,
-    proc.exited,
+    subprocess.pid,
+    subprocess.exited,
     output,
     findSubcommand(args) ?? 'command',
     options.openOutputWatch ?? DEFAULT_OPEN_OUTPUT_WATCH,
@@ -116,7 +121,7 @@ export async function runGit(
   );
 
   const finished = (async () => {
-    const [[stdout, stderr], exitCode] = await Promise.all([output, proc.exited, closed]);
+    const [[stdout, stderr], exitCode] = await Promise.all([output, subprocess.exited, closed]);
 
     return [stdout, stderr, exitCode] as const;
   })();
@@ -148,7 +153,7 @@ export async function runGit(
     stopped.resolve();
 
     try {
-      process.kill(-proc.pid, 'SIGKILL');
+      process.kill(-subprocess.pid, 'SIGKILL');
     } catch {
       // The group already exited.
     }
@@ -213,11 +218,11 @@ async function waitForOutputClose(
 // option nor the value of a `-c` or `-C`. The report holds only it, since
 // another argument, such as a URL, can hold a credential.
 function findSubcommand(args: readonly string[]): string | undefined {
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index];
 
     if (arg === '-c' || arg === '-C') {
-      i++;
+      index++;
     } else if (arg !== undefined && !arg.startsWith('-')) {
       return arg;
     }

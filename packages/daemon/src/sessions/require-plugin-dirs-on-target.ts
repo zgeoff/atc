@@ -20,15 +20,15 @@ export function requirePluginDirsOnTarget(
     );
   }
 
-  for (const dir of dirs) {
-    const kind = readPathKind(dir);
+  for (const directory of dirs) {
+    const kind = readPathKind(directory);
 
     if (kind === 'missing') {
-      throw new DaemonError('bad_args', `plugin folder '${dir}' does not exist`);
+      throw new DaemonError('bad_args', `plugin folder '${directory}' does not exist`);
     }
 
     if (kind === 'other') {
-      throw new DaemonError('bad_args', `plugin folder '${dir}' is not a folder`);
+      throw new DaemonError('bad_args', `plugin folder '${directory}' is not a folder`);
     }
   }
 }

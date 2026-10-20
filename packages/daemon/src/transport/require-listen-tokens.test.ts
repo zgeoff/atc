@@ -5,14 +5,14 @@ import { requireListenTokens } from './require-listen-tokens';
 
 // A temporary folder for the token file.
 function setupTest() {
-  const tmp = setupTempDir('atc-listen-tokens-');
+  const temporaryDirectory = setupTempDir('atc-listen-tokens-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it loads the tokens of a loopback listener', async () => {
   const ctx = setupTest();
-  const tokenFile = join(ctx.dir, 'tokens');
+  const tokenFile = join(ctx.directory, 'tokens');
 
   await Bun.write(tokenFile, 'a-listener-token-of-forty-bytes-or-so-0001\n');
 
@@ -25,7 +25,7 @@ test('it refuses a wildcard bind before it reads the token file', () => {
   const ctx = setupTest();
 
   expect(() =>
-    requireListenTokens({ host: '0.0.0.0', tokenFile: join(ctx.dir, 'missing') }),
+    requireListenTokens({ host: '0.0.0.0', tokenFile: join(ctx.directory, 'missing') }),
   ).toThrowWithMessage(Error, /^atc daemon: .*0\.0\.0\.0/u);
 });
 
@@ -33,6 +33,6 @@ test('it refuses a token file that fails to load', () => {
   const ctx = setupTest();
 
   expect(() =>
-    requireListenTokens({ host: '127.0.0.1', tokenFile: join(ctx.dir, 'missing') }),
+    requireListenTokens({ host: '127.0.0.1', tokenFile: join(ctx.directory, 'missing') }),
   ).toThrowWithMessage(Error, /^atc daemon: --token-file: cannot read /u);
 });

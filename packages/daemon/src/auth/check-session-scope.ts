@@ -15,7 +15,7 @@ import { runHostGit } from '../workspace/run-host-git';
 interface ScopeCheckRequest {
   readonly provider: ExecutionProvider;
   readonly host: string;
-  readonly dir: string;
+  readonly directory: string;
 
   // null for a directory that runs as it stands, with no materialized workspace
   readonly repoURL: string | null;
@@ -52,7 +52,7 @@ export async function checkSessionScope(
   const branches: RecordedBranch[] = [];
 
   for (const [index, branch] of declared.branches.entries()) {
-    const repo = branch.repo ?? request.dir;
+    const repo = branch.repo ?? request.directory;
 
     const checked = await checkBranch(request, `scope.branches[${index}]`, branch.name, repo);
 
@@ -142,7 +142,7 @@ async function readGitHubRepo(request: ScopeCheckRequest, entry: string): Promis
   let url = request.repoURL;
 
   if (url === null && (!request.provider.remote || request.provider.capabilities.run)) {
-    const origin = await runHostGit(request.provider, request.host, request.dir, [
+    const origin = await runHostGit(request.provider, request.host, request.directory, [
       'remote',
       'get-url',
       'origin',

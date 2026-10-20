@@ -9,44 +9,44 @@ export function collectSessionDescriptors(
   registry: Pick<SessionRegistry, 'sessions' | 'findAdapter'>,
   store: Pick<FleetStore, 'daemonID'>,
 ): SessionDescriptor[] {
-  return registry.sessions.map((s) => ({
-    id: s.id,
-    name: s.name,
-    cwd: s.cwd,
-    state: pickSessionState(buildLifecycle(s), s.state),
-    unread: s.unread,
-    lastMsg: s.lastMsg,
-    ...(s.lastDetail === undefined ? {} : { lastDetail: s.lastDetail }),
-    ...(s.pty === null && s.restoreRefusal?.message === s.lastMsg
-      ? { restoreRefusal: s.restoreRefusal.code }
+  return registry.sessions.map((session) => ({
+    id: session.id,
+    name: session.name,
+    cwd: session.cwd,
+    state: pickSessionState(buildLifecycle(session), session.state),
+    unread: session.unread,
+    lastMsg: session.lastMsg,
+    ...(session.lastDetail === undefined ? {} : { lastDetail: session.lastDetail }),
+    ...(session.pty === null && session.restoreRefusal?.message === session.lastMsg
+      ? { restoreRefusal: session.restoreRefusal.code }
       : {}),
-    ...(s.agentSessionID === undefined ? {} : { agentSessionID: s.agentSessionID }),
-    agent: s.agent,
-    pinned: s.pinned,
-    lastAttachedAt: s.lastAttachedAt,
-    repoRoot: s.repoRoot,
-    namedBy: s.namedBy,
-    createdAt: s.createdAt,
-    kind: s.kind,
-    alive: s.pty !== null || (s.kind === 'headless' && s.state !== 'exited'),
-    canEject: (registry.findAdapter(s.agent)?.headlessRunner ?? null) !== null,
-    ...(s.parent === null ? {} : { parent: s.parent }),
-    locator: { daemonID: store.daemonID, targetID: s.target },
-    ...(s.workspace === undefined ? {} : { workspace: s.workspace }),
-    lifecycle: buildLifecycle(s),
-    ...(s.model === undefined ? {} : { model: s.model }),
-    ...(s.pluginDirs === undefined ? {} : { pluginDirs: s.pluginDirs }),
+    ...(session.agentSessionID === undefined ? {} : { agentSessionID: session.agentSessionID }),
+    agent: session.agent,
+    pinned: session.pinned,
+    lastAttachedAt: session.lastAttachedAt,
+    repoRoot: session.repoRoot,
+    namedBy: session.namedBy,
+    createdAt: session.createdAt,
+    kind: session.kind,
+    alive: session.pty !== null || (session.kind === 'headless' && session.state !== 'exited'),
+    canEject: (registry.findAdapter(session.agent)?.headlessRunner ?? null) !== null,
+    ...(session.parent === null ? {} : { parent: session.parent }),
+    locator: { daemonID: store.daemonID, targetID: session.target },
+    ...(session.workspace === undefined ? {} : { workspace: session.workspace }),
+    lifecycle: buildLifecycle(session),
+    ...(session.model === undefined ? {} : { model: session.model }),
+    ...(session.pluginDirs === undefined ? {} : { pluginDirs: session.pluginDirs }),
   }));
 }
 
-function buildLifecycle(s: Session): SessionLifecycle {
+function buildLifecycle(session: Session): SessionLifecycle {
   return buildSessionLifecycle({
-    desired: s.desired,
-    vm: s.vm,
-    attachment: s.attachment,
-    suspended: s.suspended,
-    hasHarness: s.pty !== null,
-    kind: s.kind,
-    state: s.state,
+    desired: session.desired,
+    vm: session.vm,
+    attachment: session.attachment,
+    suspended: session.suspended,
+    hasHarness: session.pty !== null,
+    kind: session.kind,
+    state: session.state,
   });
 }

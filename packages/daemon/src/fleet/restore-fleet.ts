@@ -8,7 +8,7 @@ import type { SessionManager } from '../sessions/sessions';
 import { formatRestoreRefusal } from './format-restore-refusal';
 
 interface RestoreFleetParams {
-  readonly mgr: SessionManager;
+  readonly manager: SessionManager;
   readonly store: StateStore;
   readonly findRuntime: (sessionID: SessionID) => SessionRuntime | undefined;
   readonly cols: number;
@@ -79,7 +79,7 @@ type AdoptResult =
   | { readonly kind: 'refused'; readonly refusal: DaemonError };
 
 export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreFleetResult> {
-  const mgr = params.mgr;
+  const manager = params.manager;
   const store = params.store;
   const findRuntime = params.findRuntime;
   const cols = params.cols;
@@ -93,15 +93,18 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
   // headless turn starts for it; a live session that resumed the entry's agent session
   // on another target leaves the entry to restore, as the fleet keeps a row per target
   const hasLiveSession = (entry: FleetEntry) =>
-    mgr.sessions.some(
-      (s) =>
-        isSameSession(s, entry) &&
-        (s.id === entry.sessionID || isOnEntryTarget(s, entry)) &&
-        (s.pty !== null ||
-          (s.kind === 'headless' && s.state !== 'exited' && !mgr.isUnrestored(s.id))),
+    manager.sessions.some(
+      (session) =>
+        isSameSession(session, entry) &&
+        (session.id === entry.sessionID || isOnEntryTarget(session, entry)) &&
+        (session.pty !== null ||
+          (session.kind === 'headless' &&
+            session.state !== 'exited' &&
+            !manager.isUnrestored(session.id))),
     );
 
-  const hasAnySession = (entry: FleetEntry) => mgr.sessions.some((s) => isSameSession(s, entry));
+  const hasAnySession = (entry: FleetEntry) =>
+    manager.sessions.some((session) => isSameSession(session, entry));
 
   const findRecency = (entry: FleetEntry) =>
     entry.agentSessionID === undefined ? '' : (recency.get(entry.agentSessionID) ?? '');
@@ -114,7 +117,7 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
   // listed session, so repeated restores never double up the killed archive
   const kept = stored
     .filter((entry) => (entry.exited === true ? !hasAnySession(entry) : !hasLiveSession(entry)))
-    .toSorted((a, b) => findRecency(b).localeCompare(findRecency(a)));
+    .toSorted((left, right) => findRecency(right).localeCompare(findRecency(left)));
 
   // Sub-sessions register after every top-level entry, so each one links
   // to a parent that is already listed; the wrangling session also boots
@@ -131,7 +134,7 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
 
   for (const entry of entries) {
     try {
-      const listed = mgr.sessions.find((s) => s.id === entry.sessionID);
+      const listed = manager.sessions.find((session) => session.id === entry.sessionID);
 
       const binding =
         listed === undefined
@@ -143,44 +146,44 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
               hostKey: listed.hostKey,
             };
 
-      const resolved = await mgr.resolveRestoredEntry(binding);
+      const resolved = await manager.resolveRestoredEntry(binding);
 
       if (listed !== undefined && resolved.targetIdentity !== undefined) {
-        mgr.updateRestoredIdentity(listed, resolved.targetIdentity);
+        manager.updateRestoredIdentity(listed, resolved.targetIdentity);
       }
 
       // a session still listed, though dead, revives in place rather than listing twice
       const row =
         listed === undefined
-          ? { session: mgr.restore(resolved), revive: false }
+          ? { session: manager.restore(resolved), revive: false }
           : { session: listed, revive: true };
 
       registered.push(row);
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
 
-      mgr.log(`atc could not restore session ${entry.sessionID} (${reason})`);
+      manager.log(`atc could not restore session ${entry.sessionID} (${reason})`);
     }
   }
 
   // exited entries only register: they stay killed until revived by hand
   const queued = registered
-    .filter((r) => r.revive || r.session.state !== 'exited')
-    .map((r) => r.session);
+    .filter((row) => row.revive || row.session.state !== 'exited')
+    .map((row) => row.session);
 
   // A headless turn removes the unrestored mark from its session, so a
   // queued session that loses the mark without a terminal runs a turn that
   // began during this restore, and the restore starts no terminal beside it.
-  const markedAtQueue = new Set(queued.filter((s) => mgr.isUnrestored(s.id)));
+  const markedAtQueue = new Set(queued.filter((session) => manager.isUnrestored(session.id)));
 
-  const hasHeadlessTurnStarted = (s: Session) =>
-    markedAtQueue.has(s) && s.pty === null && !mgr.isUnrestored(s.id);
+  const hasHeadlessTurnStarted = (session: Session) =>
+    markedAtQueue.has(session) && session.pty === null && !manager.isUnrestored(session.id);
 
   // A session that announced itself, or whose terminal died, before the
   // wait began has nothing left to wait for.
   const waitForBoot = (sessionID: SessionID): Promise<void> => {
     const runtime = findRuntime(sessionID);
-    const session = mgr.sessions.find((s) => s.id === sessionID);
+    const session = manager.sessions.find((candidate) => candidate.id === sessionID);
 
     if (
       runtime === undefined ||
@@ -225,60 +228,62 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
   // caller left and gets no further try; a refusal no later try lifts lists with its
   // code, so a reader knows only an action of its own brings the session back
   const recordRefusal = (
-    s: Session,
+    session: Session,
     reason: string,
     code: string | null,
     retry: boolean,
     unchanged: boolean,
   ) => {
-    const listed = unchanged && s.pty === null && mgr.sessions.includes(s);
+    const listed = unchanged && session.pty === null && manager.sessions.includes(session);
     const retried = retry && listed;
 
-    mgr.log(`atc could not revive session ${s.id} (${reason})${retried ? '; trying again' : ''}`);
+    manager.log(
+      `atc could not revive session ${session.id} (${reason})${retried ? '; trying again' : ''}`,
+    );
 
     if (listed) {
       const finalCode = retried ? null : code;
 
-      mgr.updateRestoreRefusal(s, reason, finalCode);
-      refusals.set(s, reason);
+      manager.updateRestoreRefusal(session, reason, finalCode);
+      refusals.set(session, reason);
     }
 
     if (retried) {
-      retrying.push(s);
+      retrying.push(session);
     }
   };
 
   const tryAdoptQueued = async (
-    s: Session,
+    session: Session,
     canRetry: boolean,
-    isEligible: (s: Session) => boolean,
+    isEligible: (session: Session) => boolean,
   ): Promise<boolean> => {
     let adopted: AdoptResult;
-    const before = { state: s.state, lastMsg: s.lastMsg };
-    const isUnchanged = () => s.state === before.state && s.lastMsg === before.lastMsg;
+    const before = { state: session.state, lastMsg: session.lastMsg };
+    const isUnchanged = () => session.state === before.state && session.lastMsg === before.lastMsg;
 
     try {
       adopted = await tryAdoptTerminal(
-        mgr,
-        s.id,
+        manager,
+        session.id,
         cols,
         rows,
-        () => !isStopped() && isEligible(s) && !hasHeadlessTurnStarted(s),
+        () => !isStopped() && isEligible(session) && !hasHeadlessTurnStarted(session),
       );
     } catch (error) {
       failed = true;
 
       const reason = error instanceof Error ? error.message : String(error);
 
-      recordRefusal(s, reason, null, false, isUnchanged());
+      recordRefusal(session, reason, null, false, isUnchanged());
 
       return false;
     }
 
     if (adopted.kind === 'refused') {
       recordRefusal(
-        s,
-        formatRestoreRefusal(s.id, adopted.refusal),
+        session,
+        formatRestoreRefusal(session.id, adopted.refusal),
         adopted.refusal.code,
         canRetry && RETRIED_ADOPT_CODES.has(adopted.refusal.code),
         isUnchanged(),
@@ -297,36 +302,36 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     sessions: readonly Session[],
     previous: Session | null,
     canRetry: boolean,
-    isEligible: (s: Session) => boolean,
+    isEligible: (session: Session) => boolean,
   ): Promise<RoundEnd> => {
-    let prev = previous;
+    let lastAdopted = previous;
 
-    for (const s of sessions) {
+    for (const session of sessions) {
       // a heavy fleet comes up one process at a time; the per-session cap keeps a
       // session that never reports its boot from stalling the rest
-      if (prev !== null) {
-        await waitForBoot(prev.id);
+      if (lastAdopted !== null) {
+        await waitForBoot(lastAdopted.id);
       }
 
       if (isStopped()) {
         return { stopped: true };
       }
 
-      if (!isEligible(s) || hasHeadlessTurnStarted(s)) {
-        prev = null;
+      if (!isEligible(session) || hasHeadlessTurnStarted(session)) {
+        lastAdopted = null;
         continue;
       }
 
-      const booted = await tryAdoptQueued(s, canRetry, isEligible);
+      const booted = await tryAdoptQueued(session, canRetry, isEligible);
 
       if (isStopped()) {
         return { stopped: true };
       }
 
-      prev = booted ? s : null;
+      lastAdopted = booted ? session : null;
     }
 
-    return { stopped: false, last: prev };
+    return { stopped: false, last: lastAdopted };
   };
 
   // Waits out a retry delay a slice at a time, so a daemon that stops
@@ -346,8 +351,10 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
   // a retry round tries only sessions still listed under their last refusal, checked
   // before each try and while the host readies, so one a caller revived, killed, or
   // forgot meanwhile is left as it is
-  const isStillRefused = (s: Session) =>
-    s.pty === null && mgr.sessions.includes(s) && s.lastMsg === refusals.get(s);
+  const isStillRefused = (session: Session) =>
+    session.pty === null &&
+    manager.sessions.includes(session) &&
+    session.lastMsg === refusals.get(session);
 
   const adoptRest = async (previous: Session | null): Promise<RestoreOutcome> => {
     let ended = await adoptEach(rest, previous, retryDelaysMs.length > 0, () => true);
@@ -396,7 +403,7 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     try {
       return await adoptRest(firstBooted);
     } catch (error) {
-      mgr.log(
+      manager.log(
         `atc could not finish restoring the fleet (${error instanceof Error ? error.message : String(error)})`,
       );
 
@@ -409,20 +416,20 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
 
 // A stored entry matches a listed session by its atc session id, or by its
 // agent session id when a listed session resumed the same agent session.
-function isSameSession(s: Session, entry: FleetEntry): boolean {
+function isSameSession(session: Session, entry: FleetEntry): boolean {
   return (
-    s.id === entry.sessionID ||
-    (entry.agentSessionID !== undefined && s.agentSessionID === entry.agentSessionID)
+    session.id === entry.sessionID ||
+    (entry.agentSessionID !== undefined && session.agentSessionID === entry.agentSessionID)
   );
 }
 
 // Whether a listed session runs on the target and identity a stored entry
 // was bound to. An entry without a target was bound to the `local` target,
 // and one without an identity matches any identity of its target.
-function isOnEntryTarget(s: Session, entry: FleetEntry): boolean {
+function isOnEntryTarget(session: Session, entry: FleetEntry): boolean {
   return (
-    s.target === (entry.target ?? 'local') &&
-    (entry.targetIdentity === undefined || s.targetIdentity === entry.targetIdentity)
+    session.target === (entry.target ?? 'local') &&
+    (entry.targetIdentity === undefined || session.targetIdentity === entry.targetIdentity)
   );
 }
 
@@ -458,14 +465,14 @@ const REFUSED_ADOPT_CODES: ReadonlySet<string> = new Set([
 ]);
 
 async function tryAdoptTerminal(
-  mgr: SessionManager,
+  manager: SessionManager,
   id: SessionID,
   cols: number,
   rows: number,
   canProceed: () => boolean,
 ): Promise<AdoptResult> {
   try {
-    return { kind: 'adopted', session: await mgr.adoptTerminal(id, cols, rows, canProceed) };
+    return { kind: 'adopted', session: await manager.adoptTerminal(id, cols, rows, canProceed) };
   } catch (error) {
     if (error instanceof DaemonError && REFUSED_ADOPT_CODES.has(error.code)) {
       return { kind: 'refused', refusal: error };

@@ -38,7 +38,7 @@ export type Note = TurnAnswer | TurnUnanswered | SentNote;
 // Optional, so a note from an older bridge still parses; a missing, empty,
 // or wrong-typed turn reads as unknown.
 const TURN_SCHEMA = z.preprocess(
-  (v) => (typeof v === 'string' && v !== '' ? v : undefined),
+  (value) => (typeof value === 'string' && value !== '' ? value : undefined),
   z.string().optional(),
 );
 
@@ -56,7 +56,7 @@ const REPORT_SCHEMA = z.discriminatedUnion('kind', [
       answer: z.string(),
       turn: TURN_SCHEMA,
     })
-    .refine((v) => (v.message === undefined) !== (v.messages === undefined)),
+    .refine((report) => (report.message === undefined) !== (report.messages === undefined)),
   z.object({
     kind: z.literal('unanswered'),
     messages: REQUIRED_MESSAGE_IDS_SCHEMA,

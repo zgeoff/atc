@@ -22,8 +22,8 @@ interface SetupTestConfig {
 // A session manager on one `local` target over the in-memory provider and
 // a real state store.
 async function setupTest(config: SetupTestConfig) {
-  const tmp = setupTempDir('atc-resumable-transcript-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-resumable-transcript-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -31,10 +31,10 @@ async function setupTest(config: SetupTestConfig) {
 
   registerTestCleanup(() => store.stop());
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     null,
     store,
-    join(tmp.path, 'status.json'),
+    join(temporaryDirectory.path, 'status.json'),
     [config.adapter],
     [
       buildMockExecutionTarget({
@@ -48,13 +48,13 @@ async function setupTest(config: SetupTestConfig) {
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
   // A remote spawn logs its step times.
-  mgr.log = buildStubLog().log;
+  manager.log = buildStubLog().log;
 
-  return { dir: tmp.path, mgr };
+  return { directory: temporaryDirectory.path, manager };
 }
 
 test('it asks the agent whether it can resume the conversation of a local session', async () => {
@@ -66,11 +66,11 @@ test('it asks the agent whether it can resume the conversation of a local sessio
     remote: false,
   });
 
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  s.agentSessionID = toAgentSessionID('a-1');
+  session.agentSessionID = toAgentSessionID('a-1');
 
-  expect(hasResumableTranscript(ctx.mgr, s.id)).toBeTrue();
+  expect(hasResumableTranscript(ctx.manager, session.id)).toBeTrue();
 });
 
 test('it finds a local session resumable only when its agent says so', async () => {
@@ -79,11 +79,11 @@ test('it finds a local session resumable only when its agent says so', async () 
     remote: false,
   });
 
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  s.agentSessionID = toAgentSessionID('a-1');
+  session.agentSessionID = toAgentSessionID('a-1');
 
-  expect(hasResumableTranscript(ctx.mgr, s.id)).toBeFalse();
+  expect(hasResumableTranscript(ctx.manager, session.id)).toBeFalse();
 });
 
 test('it finds a remote session resumable once it holds an agent session id', async () => {
@@ -92,22 +92,22 @@ test('it finds a remote session resumable once it holds an agent session id', as
     remote: true,
   });
 
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  s.agentSessionID = toAgentSessionID('a-1');
+  session.agentSessionID = toAgentSessionID('a-1');
 
-  expect(hasResumableTranscript(ctx.mgr, s.id)).toBeTrue();
+  expect(hasResumableTranscript(ctx.manager, session.id)).toBeTrue();
 });
 
 test('it finds a remote session without an agent session id not resumable', async () => {
   const ctx = await setupTest({ adapter: buildStubHarnessAdapter(), remote: true });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  expect(hasResumableTranscript(ctx.mgr, s.id)).toBeFalse();
+  expect(hasResumableTranscript(ctx.manager, session.id)).toBeFalse();
 });
 
 test('it finds a session the manager does not hold not resumable', async () => {
   const ctx = await setupTest({ adapter: buildStubHarnessAdapter(), remote: false });
 
-  expect(hasResumableTranscript(ctx.mgr, toSessionID('s-gone'))).toBeFalse();
+  expect(hasResumableTranscript(ctx.manager, toSessionID('s-gone'))).toBeFalse();
 });

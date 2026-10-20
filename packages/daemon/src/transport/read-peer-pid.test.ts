@@ -4,8 +4,8 @@ import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { readPeerPID } from './read-peer-pid';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-peer-pid-');
-  const socketPath = join(tmp.path, 'peer.sock');
+  const temporaryDirectory = setupTempDir('atc-peer-pid-');
+  const socketPath = join(temporaryDirectory.path, 'peer.sock');
   const peer = Promise.withResolvers<number | null>();
 
   const server = Bun.listen({
@@ -30,7 +30,7 @@ test.skipIf(process.platform !== 'linux')(
   async () => {
     const ctx = setupTest();
 
-    const proc = Bun.spawn(
+    const subprocess = Bun.spawn(
       [
         process.execPath,
         '-e',
@@ -40,14 +40,14 @@ test.skipIf(process.platform !== 'linux')(
     );
 
     registerTestCleanup(async () => {
-      proc.kill('SIGKILL');
+      subprocess.kill('SIGKILL');
 
-      await proc.exited;
+      await subprocess.exited;
     });
 
     const peer = await ctx.peer;
 
-    expect(peer).toBe(proc.pid);
+    expect(peer).toBe(subprocess.pid);
   },
 );
 

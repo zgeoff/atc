@@ -6,7 +6,7 @@ import type { SessionManager } from './sessions';
 const DETECT_QUIET_MS = 300;
 
 interface ScreenDetectionDeps {
-  readonly mgr: Pick<
+  readonly manager: Pick<
     SessionManager,
     'hasScreenDetector' | 'sessions' | 'findAdapter' | 'updateAttention'
   >;
@@ -18,7 +18,7 @@ interface ScreenDetectionDeps {
 }
 
 export class ScreenDetection {
-  private readonly mgr: ScreenDetectionDeps['mgr'];
+  private readonly manager: ScreenDetectionDeps['manager'];
 
   private readonly clock: Clock;
 
@@ -27,7 +27,7 @@ export class ScreenDetection {
   private readonly onDetectSkipped: ScreenDetectionDeps['onDetectSkipped'];
 
   constructor(deps: ScreenDetectionDeps) {
-    this.mgr = deps.mgr;
+    this.manager = deps.manager;
     this.clock = deps.clock;
     this.findRuntime = deps.findRuntime;
     this.onDetectSkipped = deps.onDetectSkipped;
@@ -36,16 +36,18 @@ export class ScreenDetection {
   // Each output restarts the wait, so the screen is judged once the
   // output stops.
   scheduleDetect(sessionID: SessionID): void {
-    if (!this.mgr.hasScreenDetector) {
+    if (!this.manager.hasScreenDetector) {
       this.onDetectSkipped?.(sessionID);
 
       return;
     }
 
-    const s = this.mgr.sessions.find((x) => x.id === sessionID);
+    const session = this.manager.sessions.find((x) => x.id === sessionID);
 
     const detector =
-      s === undefined ? null : (this.mgr.findAdapter(s.agent)?.screenDetector ?? null);
+      session === undefined
+        ? null
+        : (this.manager.findAdapter(session.agent)?.screenDetector ?? null);
 
     const runtime = this.findRuntime(sessionID);
 
@@ -66,10 +68,12 @@ export class ScreenDetection {
   }
 
   private async applyScreenJudgment(sessionID: SessionID): Promise<void> {
-    const s = this.mgr.sessions.find((x) => x.id === sessionID);
+    const session = this.manager.sessions.find((x) => x.id === sessionID);
 
     const detector =
-      s === undefined ? null : (this.mgr.findAdapter(s.agent)?.screenDetector ?? null);
+      session === undefined
+        ? null
+        : (this.manager.findAdapter(session.agent)?.screenDetector ?? null);
 
     const model = this.findRuntime(sessionID)?.screen ?? null;
 
@@ -82,11 +86,11 @@ export class ScreenDetection {
     const judgment = detector.detectAttention(screen);
 
     if (judgment === 'needs-input') {
-      this.mgr.updateAttention(sessionID, 'needs_you', 'waiting at a prompt');
+      this.manager.updateAttention(sessionID, 'needs_you', 'waiting at a prompt');
     }
 
     if (judgment === 'working') {
-      this.mgr.updateAttention(sessionID, 'running', 'working');
+      this.manager.updateAttention(sessionID, 'running', 'working');
     }
   }
 }

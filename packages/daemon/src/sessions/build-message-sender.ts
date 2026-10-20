@@ -14,7 +14,7 @@ export function buildMessageSender(
   }
 
   if (caller.kind === 'session') {
-    const name = sessions.find((s) => s.id === caller.session)?.name ?? caller.session;
+    const name = sessions.find((session) => session.id === caller.session)?.name ?? caller.session;
 
     return { kind: 'session', session: caller.session, name };
   }

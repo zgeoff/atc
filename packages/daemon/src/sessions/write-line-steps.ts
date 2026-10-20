@@ -10,7 +10,7 @@ interface LineTerminal {
 export async function writeLineSteps(
   steps: readonly LineInputStep[],
   terminal: LineTerminal,
-  wait: (ms: number) => Promise<void>,
+  wait: (delayMs: number) => Promise<void>,
 ): Promise<'ok' | 'dead'> {
   for (const step of steps) {
     if (typeof step !== 'string') {

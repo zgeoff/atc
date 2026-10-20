@@ -61,10 +61,10 @@ async function claimTargetDir(
   updateProgress: ProgressTracker,
 ): Promise<void> {
   // A directory the daemon picked is reported as it landed.
-  const shown = request.autoDir === true ? landing.dir : request.dir;
+  const shown = request.autoDir === true ? landing.directory : request.directory;
 
   const claim = await deps.requireProvider('run').runCommand({
-    argv: ['sh', '-c', CLAIM_DIR_SCRIPT, 'sh', dirname(landing.dir), landing.dir],
+    argv: ['sh', '-c', CLAIM_DIR_SCRIPT, 'sh', dirname(landing.directory), landing.directory],
     cwd: '/',
     host: landing.host,
   });

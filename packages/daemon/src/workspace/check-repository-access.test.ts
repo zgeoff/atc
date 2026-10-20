@@ -19,7 +19,7 @@ async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'atc-repo-access-test-' });
 
   return {
-    dir: fixture.directory,
+    directory: fixture.directory,
     env: fixture.env,
     upstream: fixture.upstream,
     work: fixture.work,
@@ -174,7 +174,7 @@ test('it refuses a URL that carries a credential', async () => {
 test("it refuses an upstream that asks for a sign-in the host cannot give, with git's own message", async () => {
   const ctx = await setupTest();
 
-  const server = startGitHTTPServer(ctx.dir, ctx.env);
+  const server = startGitHTTPServer(ctx.directory, ctx.env);
 
   const access = await checkRepositoryAccess({
     transports: ['https', 'ssh', 'http', 'file'],
@@ -191,7 +191,7 @@ test("it refuses an upstream that asks for a sign-in the host cannot give, with 
 test('it authenticates through a credential helper in the host git config', async () => {
   const ctx = await setupTest();
 
-  const server = startGitHTTPServer(ctx.dir, ctx.env);
+  const server = startGitHTTPServer(ctx.directory, ctx.env);
 
   const pushed = await $`git rev-parse HEAD`
     .env(ctx.env)
@@ -200,11 +200,11 @@ test('it authenticates through a credential helper in the host git config', asyn
     .then((text) => text.trim());
 
   await writeFile(
-    join(ctx.dir, 'gitconfig'),
+    join(ctx.directory, 'gitconfig'),
     '[credential]\n\thelper = "!f() { echo username=atc; echo password=host-tok; }; f"\n',
   );
 
-  updateEnv('GIT_CONFIG_GLOBAL', join(ctx.dir, 'gitconfig'));
+  updateEnv('GIT_CONFIG_GLOBAL', join(ctx.directory, 'gitconfig'));
 
   const access = await checkRepositoryAccess({
     transports: ['https', 'ssh', 'http', 'file'],
@@ -230,7 +230,7 @@ test('it authenticates through a credential helper in the host git config', asyn
 test('it authenticates with an env credential through the askpass helper', async () => {
   const ctx = await setupTest();
 
-  const server = startGitHTTPServer(ctx.dir, ctx.env);
+  const server = startGitHTTPServer(ctx.directory, ctx.env);
 
   const pushed = await $`git rev-parse HEAD`
     .env(ctx.env)
@@ -308,11 +308,11 @@ test.each([
 
   // A git first on the PATH records each run, so a refusal that runs git
   // leaves the record behind.
-  createStubBin(ctx.dir, 'git', buildStubRecordingGit(join(ctx.dir, 'git-ran')));
-  updateEnv('PATH', `${ctx.dir}:${process.env['PATH'] ?? ''}`);
+  createStubBin(ctx.directory, 'git', buildStubRecordingGit(join(ctx.directory, 'git-ran')));
+  updateEnv('PATH', `${ctx.directory}:${process.env['PATH'] ?? ''}`);
 
   const access = await checkRepositoryAccess({ url, transports: DEFAULT_GIT_TRANSPORTS });
-  const ran = await Bun.file(join(ctx.dir, 'git-ran')).exists();
+  const ran = await Bun.file(join(ctx.directory, 'git-ran')).exists();
 
   expect(access).toStrictEqual({ ok: false, code: 'invalid_git_url', message });
   expect(ran).toBeFalse();
@@ -322,11 +322,11 @@ test('it refuses an https URL the host git config rewrites to a local repository
   const ctx = await setupTest();
 
   await writeFile(
-    join(ctx.dir, 'gitconfig'),
+    join(ctx.directory, 'gitconfig'),
     `[url "file://${ctx.upstream}"]\n\tinsteadOf = https://example.invalid/upstream.git\n`,
   );
 
-  updateEnv('GIT_CONFIG_GLOBAL', join(ctx.dir, 'gitconfig'));
+  updateEnv('GIT_CONFIG_GLOBAL', join(ctx.directory, 'gitconfig'));
 
   const access = await checkRepositoryAccess({
     url: 'https://example.invalid/upstream.git',

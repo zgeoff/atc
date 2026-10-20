@@ -23,7 +23,7 @@ import type { SessionManager } from './sessions';
 import type { TapRegistry } from './tap-registry';
 
 interface HookIntakeDeps {
-  readonly mgr: Pick<SessionManager, 'sessions' | 'findAdapter' | 'applyHook' | 'log'>;
+  readonly manager: Pick<SessionManager, 'sessions' | 'findAdapter' | 'applyHook' | 'log'>;
   readonly store: Pick<
     StateStore,
     | 'recordEvent'
@@ -67,7 +67,7 @@ interface HookIntakeDeps {
 }
 
 export class HookIntake {
-  private readonly mgr: HookIntakeDeps['mgr'];
+  private readonly manager: HookIntakeDeps['manager'];
 
   private readonly store: HookIntakeDeps['store'];
 
@@ -92,7 +92,7 @@ export class HookIntake {
   private readonly onLastUsedUnchanged: HookIntakeDeps['onLastUsedUnchanged'];
 
   constructor(deps: HookIntakeDeps) {
-    this.mgr = deps.mgr;
+    this.manager = deps.manager;
     this.store = deps.store;
     this.clock = deps.clock;
     this.messages = deps.messages;
@@ -106,15 +106,15 @@ export class HookIntake {
     this.onLastUsedUnchanged = deps.onLastUsedUnchanged;
   }
 
-  applyHookEvent(e: HookEvent): void {
-    if (e.event === 'Note') {
-      void this.applyNote(e);
+  applyHookEvent(hookEvent: HookEvent): void {
+    if (hookEvent.event === 'Note') {
+      void this.applyNote(hookEvent);
 
       return;
     }
 
-    const before = this.mgr.sessions.find((s) => s.id === e.atcId);
-    const runtime = this.findRuntime(e.atcId);
+    const before = this.manager.sessions.find((session) => session.id === hookEvent.atcId);
+    const runtime = this.findRuntime(hookEvent.atcId);
 
     // A harness nested inside a session inherits its environment and
     // reports under its id; only the harness atc started may change the
@@ -123,24 +123,24 @@ export class HookIntake {
       before !== undefined &&
       runtime !== undefined &&
       !isOwnHookEvent(
-        e.agent,
-        this.mgr.findAdapter(before.agent)?.hookAgent ?? before.agent,
+        hookEvent.agent,
+        this.manager.findAdapter(before.agent)?.hookAgent ?? before.agent,
         runtime.hasAgentHookLines,
       )
     ) {
-      this.mgr.log(
-        `atc hook event=dropped session=${formatLogField(e.atcId)} agent=${formatLogField(e.agent ?? '')} hook=${formatLogField(e.event)}`,
+      this.manager.log(
+        `atc hook event=dropped session=${formatLogField(hookEvent.atcId)} agent=${formatLogField(hookEvent.agent ?? '')} hook=${formatLogField(hookEvent.event)}`,
       );
 
       return;
     }
 
-    if (runtime !== undefined && e.agent !== undefined) {
+    if (runtime !== undefined && hookEvent.agent !== undefined) {
       runtime.hasAgentHookLines = true;
     }
 
     const previousAgentSessionID = before?.agentSessionID;
-    const plan = this.mgr.applyHook(e, runtime?.harnessState);
+    const plan = this.manager.applyHook(hookEvent, runtime?.harnessState);
 
     if (plan !== null && runtime !== undefined) {
       runtime.harnessState = plan.next;
@@ -152,21 +152,28 @@ export class HookIntake {
     // or a run's own CLI stay out; a line records the last event it planned, as the state does
     const trailEvent = before?.kind === 'headless' ? null : (events.at(-1) ?? null);
 
-    if (e.event !== 'Statusline') {
-      void this.recordHookEvent(e, trailEvent);
+    if (hookEvent.event !== 'Statusline') {
+      void this.recordHookEvent(hookEvent, trailEvent);
     }
 
-    const currentAgentSessionID = this.mgr.sessions.find((s) => s.id === e.atcId)?.agentSessionID;
+    const currentAgentSessionID = this.manager.sessions.find(
+      (session) => session.id === hookEvent.atcId,
+    )?.agentSessionID;
 
     if (currentAgentSessionID !== undefined && currentAgentSessionID !== previousAgentSessionID) {
-      void this.store.updateMessageOwner(e.atcId, previousAgentSessionID, currentAgentSessionID);
-      void this.store.updateTrailOwner(e.atcId, currentAgentSessionID);
+      void this.store.updateMessageOwner(
+        hookEvent.atcId,
+        previousAgentSessionID,
+        currentAgentSessionID,
+      );
+
+      void this.store.updateTrailOwner(hookEvent.atcId, currentAgentSessionID);
     }
 
     // only a session start shows the terminal on a conversation: a turn of an older one can still
     // end after the terminal moves on, and the bridge must not follow it back
     if (currentAgentSessionID !== undefined && events.some((ev) => ev.kind === 'started')) {
-      this.updateBridgeThread(e.atcId, currentAgentSessionID);
+      this.updateBridgeThread(hookEvent.atcId, currentAgentSessionID);
     }
 
     for (const ev of events) {
@@ -182,7 +189,7 @@ export class HookIntake {
         }
 
         runtime?.bootWaiter?.();
-        const started = this.mgr.sessions.find((s) => s.id === e.atcId);
+        const started = this.manager.sessions.find((session) => session.id === hookEvent.atcId);
 
         if (started !== undefined && runtime !== undefined && runtime.pendingLastUsed) {
           runtime.pendingLastUsed = false;
@@ -197,18 +204,18 @@ export class HookIntake {
   // A note id, which a remote session's reporter gives each note, makes a
   // resent note land once; a resent answer changes nothing, since only an
   // unanswered message takes one.
-  async applyNote(e: HookEvent, noteID?: string): Promise<void> {
-    const note = parseNote(e.payload);
+  async applyNote(hookEvent: HookEvent, noteID?: string): Promise<void> {
+    const note = parseNote(hookEvent.payload);
 
     if (note === null) {
       return;
     }
 
     if (note.kind === 'note') {
-      const sender = this.mgr.sessions.find((x) => x.id === e.atcId);
+      const sender = this.manager.sessions.find((x) => x.id === hookEvent.atcId);
 
       if (sender === undefined) {
-        this.onNoteIgnored?.(e.atcId, 'note');
+        this.onNoteIgnored?.(hookEvent.atcId, 'note');
 
         return;
       }
@@ -229,8 +236,8 @@ export class HookIntake {
       return;
     }
 
-    const s = this.mgr.sessions.find((x) => x.id === e.atcId);
-    const owner = s === undefined ? { atcID: e.atcId } : buildMessageOwner(s);
+    const session = this.manager.sessions.find((x) => x.id === hookEvent.atcId);
+    const owner = session === undefined ? { atcID: hookEvent.atcId } : buildMessageOwner(session);
 
     try {
       // One statement settles the whole turn, so a reader that sees any
@@ -253,11 +260,11 @@ export class HookIntake {
             );
 
       if (settled.length === 0) {
-        this.onNoteIgnored?.(e.atcId, note.kind);
+        this.onNoteIgnored?.(hookEvent.atcId, note.kind);
       }
 
       for (const record of settled) {
-        await this.messages.recordMessageStatus(e.atcId, record);
+        await this.messages.recordMessageStatus(hookEvent.atcId, record);
         await this.messages.recordAnswerNotice(record);
       }
     } catch {}
@@ -266,13 +273,14 @@ export class HookIntake {
   // A headless turn has no terminal hooks of its own, so the daemon writes
   // its start and end to the trail under a synthetic event name.
   recordHeadlessTurnEvent(sessionID: SessionID, ev: Readonly<AdapterEvent>): void {
-    const s = this.mgr.sessions.find((x) => x.id === sessionID);
+    const session = this.manager.sessions.find((x) => x.id === sessionID);
 
     void this.recordHookEvent(
       {
         atcId: sessionID,
         event: 'HeadlessTurn',
-        payload: s?.agentSessionID === undefined ? {} : { session_id: s.agentSessionID },
+        payload:
+          session?.agentSessionID === undefined ? {} : { session_id: session.agentSessionID },
       },
       ev,
     );
@@ -282,9 +290,9 @@ export class HookIntake {
   // line that names any other session is dropped.
   startRelay(binding: BridgeBinding, relay: HarnessRelay): void {
     startSessionBridge(relay, binding, {
-      findSession: (sessionID) => this.mgr.sessions.find((x) => x.id === sessionID),
-      applyHookEvent: (e) => {
-        this.applyHookEvent(e);
+      findSession: (sessionID) => this.manager.sessions.find((x) => x.id === sessionID),
+      applyHookEvent: (hookEvent) => {
+        this.applyHookEvent(hookEvent);
       },
       applyNote: async (sessionID, payload, noteID) => {
         if (parseNote(payload) === null) {
@@ -307,8 +315,11 @@ export class HookIntake {
     });
   }
 
-  private async recordHookEvent(e: HookEvent, ev: Readonly<AdapterEvent> | null): Promise<void> {
-    await this.store.recordEvent(e, ev, this.clock.now());
+  private async recordHookEvent(
+    hookEvent: HookEvent,
+    ev: Readonly<AdapterEvent> | null,
+  ): Promise<void> {
+    await this.store.recordEvent(hookEvent, ev, this.clock.now());
 
     this.eventSignal.emit();
   }

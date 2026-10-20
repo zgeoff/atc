@@ -17,8 +17,8 @@ interface SetupConfig {
 // daemon's machine and that revives the sessions the test names, and
 // recorders of the messages it marks and requeues and the lines it logs.
 async function setupTest(config: SetupConfig) {
-  const tmp = setupTempDir('atc-ended-fleet-messages-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-ended-fleet-messages-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -28,7 +28,7 @@ async function setupTest(config: SetupConfig) {
 
   const log = mock<(line: string) => void>();
 
-  const mgr = {
+  const manager = {
     isLocalTarget: (target: string) => target === 'local',
     isRevivable: (entry: FleetEntry) => config.revivable.includes(entry.sessionID),
     log,
@@ -44,7 +44,7 @@ async function setupTest(config: SetupConfig) {
 
   return {
     store,
-    mgr,
+    manager,
     log,
     isRestoring: config.isRestoring,
     messages: { updateEndedMessages, updateRevivedMessages },

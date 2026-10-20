@@ -21,8 +21,8 @@ interface SetupConfig {
 // the revives the config lists wait on the kill of an outdated harness; with
 // no runtime auth binder, a forget destroys a host through its provider
 async function setupTest(config: SetupConfig) {
-  const tmp = setupTempDir('atc-session-killer-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-session-killer-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -50,7 +50,7 @@ async function setupTest(config: SetupConfig) {
   const fleet = new SessionFleetWriter({
     registry,
     store,
-    statusPath: join(tmp.path, 'status.json'),
+    statusPath: join(temporaryDirectory.path, 'status.json'),
     callbacks,
   });
 
@@ -211,9 +211,9 @@ test('it forgets a dead parent with its dead sub-sessions and promotes the live 
 
   await ctx.killer.kill(parent.id);
 
-  expect(ctx.registry.sessions.map((s) => ({ id: s.id, parent: s.parent }))).toStrictEqual([
-    { id: live.id, parent: null },
-  ]);
+  expect(
+    ctx.registry.sessions.map((session) => ({ id: session.id, parent: session.parent })),
+  ).toStrictEqual([{ id: live.id, parent: null }]);
 });
 
 test('it keeps an exited sub-session on a host-destroying target when a second kill forgets its dead local parent', async () => {
@@ -257,9 +257,9 @@ test('it keeps an exited sub-session on a host-destroying target when a second k
 
   await ctx.killer.kill(toSessionID('s-parent'));
 
-  expect(ctx.registry.sessions.map((s) => ({ id: s.id, parent: s.parent }))).toStrictEqual([
-    { id: remote.id, parent: null },
-  ]);
+  expect(
+    ctx.registry.sessions.map((session) => ({ id: session.id, parent: session.parent })),
+  ).toStrictEqual([{ id: remote.id, parent: null }]);
 });
 
 test("it refuses to forget a session kept asleep inside its parent's host and keeps its record", async () => {
@@ -307,7 +307,7 @@ test("it refuses to forget a session kept asleep inside its parent's host and ke
     data: { problem: 'host_asleep', host: 's-parent' },
   });
 
-  expect(ctx.registry.sessions.map((s) => s.id)).toStrictEqual([
+  expect(ctx.registry.sessions.map((session) => session.id)).toStrictEqual([
     toSessionID('s-parent'),
     toSessionID('s-guest'),
   ]);
@@ -352,7 +352,10 @@ test("it forgets an exited session on its parent's host while that host is not a
   const destroyed = await ctx.killer.forget(toSessionID('s-guest'));
 
   expect(destroyed).toBeFalse();
-  expect(ctx.registry.sessions.map((s) => s.id)).toStrictEqual([toSessionID('s-parent')]);
+
+  expect(ctx.registry.sessions.map((session) => session.id)).toStrictEqual([
+    toSessionID('s-parent'),
+  ]);
 });
 
 test('it puts the host of a killed host owner to sleep and marks each session on it asleep', async () => {
@@ -421,15 +424,15 @@ test('it puts the host of a killed host owner to sleep and marks each session on
   expect(box.suspended).toStrictEqual(['s-owner']);
 
   expect(
-    ctx.registry.sessions.map((s) => ({
-      id: s.id,
-      pty: s.pty,
-      state: s.state,
-      lastMsg: s.lastMsg,
-      vm: s.vm,
-      desired: s.desired,
-      attachment: s.attachment,
-      suspended: s.suspended,
+    ctx.registry.sessions.map((session) => ({
+      id: session.id,
+      pty: session.pty,
+      state: session.state,
+      lastMsg: session.lastMsg,
+      vm: session.vm,
+      desired: session.desired,
+      attachment: session.attachment,
+      suspended: session.suspended,
     })),
   ).toStrictEqual([
     {
@@ -487,7 +490,7 @@ test('it refuses to kill a dead session on a target that destroys its host witho
     data: { session: 's-dead' },
   });
 
-  expect(ctx.registry.sessions.map((s) => s.id)).toStrictEqual([toSessionID('s-dead')]);
+  expect(ctx.registry.sessions.map((session) => session.id)).toStrictEqual([toSessionID('s-dead')]);
 });
 
 test('it destroys the host of a forgotten host owner and removes every session on that host', async () => {
@@ -536,7 +539,10 @@ test('it destroys the host of a forgotten host owner and removes every session o
 
   expect(destroyed).toBeTrue();
   expect(box.destroyed).toStrictEqual(['s-owner']);
-  expect(ctx.registry.sessions.map((s) => s.id)).toStrictEqual([toSessionID('s-other')]);
+
+  expect(ctx.registry.sessions.map((session) => session.id)).toStrictEqual([
+    toSessionID('s-other'),
+  ]);
 });
 
 test('it leaves a dead session unchanged when the kill only stops', async () => {
@@ -558,5 +564,5 @@ test('it leaves a dead session unchanged when the kill only stops', async () => 
   const outcome = await ctx.killer.kill(toSessionID('s-dead'), true);
 
   expect(outcome).toBe('unchanged');
-  expect(ctx.registry.sessions.map((s) => s.id)).toStrictEqual([toSessionID('s-dead')]);
+  expect(ctx.registry.sessions.map((session) => session.id)).toStrictEqual([toSessionID('s-dead')]);
 });

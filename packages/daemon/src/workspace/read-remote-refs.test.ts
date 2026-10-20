@@ -9,7 +9,7 @@ async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'atc-remote-refs-' });
 
   return {
-    dir: fixture.directory,
+    directory: fixture.directory,
     env: fixture.env,
     upstream: fixture.upstream,
     work: fixture.work,
@@ -61,9 +61,11 @@ test('it lists the branches, the peeled tags, and the default branch of an upstr
 test('it lists an empty upstream as no refs and no default branch', async () => {
   const ctx = await setupTest();
 
-  await $`git init --quiet --bare --template= ${join(ctx.dir, 'empty.git')}`.env(ctx.env).quiet();
+  await $`git init --quiet --bare --template= ${join(ctx.directory, 'empty.git')}`
+    .env(ctx.env)
+    .quiet();
 
-  const listing = await readRemoteRefs(join(ctx.dir, 'empty.git'), undefined, [
+  const listing = await readRemoteRefs(join(ctx.directory, 'empty.git'), undefined, [
     'https',
     'ssh',
     'file',
@@ -75,7 +77,7 @@ test('it lists an empty upstream as no refs and no default branch', async () => 
 test("it refuses an upstream git cannot read with git's own message", async () => {
   const ctx = await setupTest();
 
-  const listing = await readRemoteRefs(join(ctx.dir, 'missing.git'), undefined, [
+  const listing = await readRemoteRefs(join(ctx.directory, 'missing.git'), undefined, [
     'https',
     'ssh',
     'file',
@@ -84,7 +86,7 @@ test("it refuses an upstream git cannot read with git's own message", async () =
   expect(listing).toStrictEqual({
     ok: false,
     code: 'clone_failed',
-    message: expect.toInclude(join(ctx.dir, 'missing.git')),
+    message: expect.toInclude(join(ctx.directory, 'missing.git')),
   });
 });
 

@@ -68,12 +68,14 @@ export class SessionRegistry {
       [
         ...(deps.fallback === null || deps.fallback === undefined ? [] : [deps.fallback]),
         ...deps.adapters,
-      ].map((a) => [a.id, a]),
+      ].map((adapter) => [adapter.id, adapter]),
     );
 
-    this.hasScreenDetector = Object.values(this.adapters).some((a) => a.screenDetector !== null);
+    this.hasScreenDetector = Object.values(this.adapters).some(
+      (adapter) => adapter.screenDetector !== null,
+    );
 
-    this.targets = new Map(deps.targets.map((t) => [t.id, t]));
+    this.targets = new Map(deps.targets.map((target) => [target.id, target]));
 
     this.targetErrors = deps.targetErrors;
     this.callbacks = deps.callbacks;
@@ -109,8 +111,8 @@ export class SessionRegistry {
 
   // The provider a session's harness runs on, or null when its target is
   // gone from the config or has no provider here.
-  findProvider(s: Session): ExecutionProvider | null {
-    return this.targets.get(s.target)?.provider ?? null;
+  findProvider(session: Session): ExecutionProvider | null {
+    return this.targets.get(session.target)?.provider ?? null;
   }
 
   // never falls back to another id: a session whose agent is not registered
@@ -163,20 +165,20 @@ export class SessionRegistry {
 
   // The live and dead sub-sessions of a session, in list order.
   collectChildren(id: SessionID): Session[] {
-    return this.sessions.filter((s) => s.parent === id);
+    return this.sessions.filter((session) => session.parent === id);
   }
 
-  remove(s: Session) {
-    this.sessions = this.sessions.filter((x) => x.id !== s.id);
+  remove(session: Session) {
+    this.sessions = this.sessions.filter((x) => x.id !== session.id);
 
-    this.removedIDs.add(s.id);
-    this.unrestored.delete(s.id);
+    this.removedIDs.add(session.id);
+    this.unrestored.delete(session.id);
 
-    if (this.focusedId === s.id) {
+    if (this.focusedId === session.id) {
       this.focusedId = null;
     }
 
-    this.callbacks.onEvent('removed', s);
+    this.callbacks.onEvent('removed', session);
   }
 
   countStates() {

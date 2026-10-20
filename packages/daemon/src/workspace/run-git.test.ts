@@ -5,9 +5,9 @@ import { runGit } from './run-git';
 
 // A directory outside any repository for git to run in.
 function setupTest() {
-  const tmp = setupTempDir('atc-run-git-');
+  const temporaryDirectory = setupTempDir('atc-run-git-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it drops git config that the host environment injects', async () => {
@@ -17,7 +17,7 @@ test('it drops git config that the host environment injects', async () => {
   updateEnv('GIT_CONFIG_VALUE_0', 'yes');
 
   const read = await runGit(['config', '--get', 'atc.injected'], {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: { GIT_CONFIG_COUNT: '1' },
   });
 
@@ -28,7 +28,7 @@ test('it drops git config that the host environment injects', async () => {
 test('it reads no system attributes file in an isolated command', async () => {
   const ctx = setupTest();
 
-  const located = await runGit(['var', 'GIT_ATTR_SYSTEM'], { cwd: ctx.dir, isolated: true });
+  const located = await runGit(['var', 'GIT_ATTR_SYSTEM'], { cwd: ctx.directory, isolated: true });
 
   expect(located).toStrictEqual({ exitCode: 1, stdout: '', stderr: '', timedOut: false });
 });
@@ -38,7 +38,7 @@ test('it stops a command that runs past its time limit and reports it timed out'
   const groups: number[] = [];
 
   const run = await runGit(['-c', 'alias.wait=!sleep 30', 'wait'], {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     timeoutMs: 200,
     onSpawn: (pid) => {
       groups.push(pid);
@@ -64,7 +64,7 @@ test('it fails with git_output_open, by subcommand only, when a child a git left
   const run = runGit(
     ['-c', 'alias.hold=!sleep 30 & :', 'hold', 'https://user:secret@example.test'],
     {
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       onSpawn: (pid) => {
         groups.push(pid);
       },
@@ -107,7 +107,7 @@ test('it kills the process group of a git whose output stays open past the bound
   const armed: (() => void)[] = [];
 
   const run = runGit(['-c', 'alias.hold=!sleep 30 & :', 'hold'], {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     onSpawn: (pid) => {
       groups.push(pid);
     },
@@ -143,7 +143,7 @@ test('it disarms the bound when a command passes its time limit', async () => {
   const watched: { disarmed: boolean }[] = [];
 
   await runGit(['-c', 'alias.wait=!sleep 30', 'wait'], {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     timeoutMs: 200,
     openOutputWatch: {
       schedule: () => {
@@ -171,7 +171,7 @@ test('it disarms the bound once the output of the git closes', async () => {
   const watched: { afterMs: number; disarmed: boolean }[] = [];
 
   await runGit(['--version'], {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     openOutputWatch: {
       schedule: (_report, afterMs) => {
         const entry = { afterMs, disarmed: false };
@@ -194,7 +194,7 @@ test('it reports the pid of the git it starts', async () => {
   const spawned: number[] = [];
 
   const run = await runGit(['-c', 'alias.parent=!echo $PPID', 'parent'], {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     onSpawn: (pid) => {
       spawned.push(pid);
     },

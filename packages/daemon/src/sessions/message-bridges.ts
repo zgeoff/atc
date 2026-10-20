@@ -19,7 +19,7 @@ import type { SessionManager } from './sessions';
 import type { TapRegistry } from './tap-registry';
 
 interface MessageBridgesDeps {
-  readonly mgr: Pick<SessionManager, 'sessions' | 'log'>;
+  readonly manager: Pick<SessionManager, 'sessions' | 'log'>;
   readonly store: Pick<
     StateStore,
     'updateMessageDelivered' | 'updateNoticeDelivered' | 'readUnsettledMessages'
@@ -32,7 +32,7 @@ interface MessageBridgesDeps {
   readonly taps: Pick<TapRegistry<TapClient>, 'detachAll'>;
 
   // Lands a note as the reporter's would.
-  readonly applyNote: (e: HookEvent) => Promise<void>;
+  readonly applyNote: (hookEvent: HookEvent) => Promise<void>;
 
   // The daemon's state directory, under which each bridge keeps its files.
   readonly stateDir: string;
@@ -40,7 +40,7 @@ interface MessageBridgesDeps {
 
 // a bridge's tap, acks, and notes act for its own session alone
 export class MessageBridges {
-  private readonly mgr: MessageBridgesDeps['mgr'];
+  private readonly manager: MessageBridgesDeps['manager'];
 
   private readonly store: MessageBridgesDeps['store'];
 
@@ -57,7 +57,7 @@ export class MessageBridges {
   private readonly bridges = new Map<SessionID, MessageBridge>();
 
   constructor(deps: MessageBridgesDeps) {
-    this.mgr = deps.mgr;
+    this.manager = deps.manager;
     this.store = deps.store;
     this.clock = deps.clock;
     this.messages = deps.messages;
@@ -127,9 +127,9 @@ export class MessageBridges {
     const bridgeClients = new Map<MessageBridgeTap, TapClient>();
 
     const findOwner = () => {
-      const s = this.mgr.sessions.find((x) => x.id === sessionID);
+      const session = this.manager.sessions.find((x) => x.id === sessionID);
 
-      return s === undefined ? null : buildMessageOwner(s);
+      return session === undefined ? null : buildMessageOwner(session);
     };
 
     return {
@@ -210,7 +210,7 @@ export class MessageBridges {
         );
       },
       log: (line) => {
-        this.mgr.log(line);
+        this.manager.log(line);
       },
     };
   }

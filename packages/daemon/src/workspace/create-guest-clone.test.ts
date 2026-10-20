@@ -12,12 +12,12 @@ import { GUEST_CLONE_SCRIPT, createGuestClone } from './create-guest-clone';
 async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'atc-guest-clone-' });
 
-  const dir = join(fixture.directory, 'ws');
+  const directory = join(fixture.directory, 'ws');
 
-  mkdirSync(dir);
+  mkdirSync(directory);
 
   return {
-    dir,
+    directory,
     env: fixture.env,
     upstream: fixture.upstream,
     sha: fixture.sha,
@@ -30,15 +30,15 @@ test('it checks out the pinned commit detached when no branch is given', async (
 
   const clone = await createGuestClone(ctx.provider, {
     host: 'h',
-    dir: ctx.dir,
+    directory: ctx.directory,
     url: ctx.upstream,
     sha: ctx.sha,
     branch: null,
     transports: ['file'],
   });
 
-  const head = await $`git rev-parse HEAD`.env(ctx.env).cwd(ctx.dir).text();
-  const branch = await $`git rev-parse --abbrev-ref HEAD`.env(ctx.env).cwd(ctx.dir).text();
+  const head = await $`git rev-parse HEAD`.env(ctx.env).cwd(ctx.directory).text();
+  const branch = await $`git rev-parse --abbrev-ref HEAD`.env(ctx.env).cwd(ctx.directory).text();
 
   expect(clone).toStrictEqual({ ok: true });
   expect(head.trim()).toBe(ctx.sha);
@@ -50,7 +50,7 @@ test('it empties the directory and returns the reason when the clone fails', asy
 
   const clone = await createGuestClone(ctx.provider, {
     host: 'h',
-    dir: ctx.dir,
+    directory: ctx.directory,
     url: ctx.upstream,
     sha: ctx.sha,
     branch: 'main',
@@ -58,7 +58,7 @@ test('it empties the directory and returns the reason when the clone fails', asy
   });
 
   expect(clone).toMatchObject({ ok: false, reason: "fatal: transport 'file' not allowed" });
-  expect(readdirSync(ctx.dir)).toStrictEqual([]);
+  expect(readdirSync(ctx.directory)).toStrictEqual([]);
 });
 
 test('it empties the directory and returns the reason when the pinned commit is not upstream', async () => {
@@ -66,7 +66,7 @@ test('it empties the directory and returns the reason when the pinned commit is 
 
   const clone = await createGuestClone(ctx.provider, {
     host: 'h',
-    dir: ctx.dir,
+    directory: ctx.directory,
     url: ctx.upstream,
     sha: '0123456789abcdef0123456789abcdef01234567',
     branch: null,
@@ -74,7 +74,7 @@ test('it empties the directory and returns the reason when the pinned commit is 
   });
 
   expect(clone).toMatchObject({ ok: false });
-  expect(readdirSync(ctx.dir)).toStrictEqual([]);
+  expect(readdirSync(ctx.directory)).toStrictEqual([]);
 });
 
 test('it clones through a script that passes shellcheck', async () => {

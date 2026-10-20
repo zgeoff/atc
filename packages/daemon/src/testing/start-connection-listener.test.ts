@@ -6,8 +6,8 @@ import { buildStubDaemonContext } from './build-stub-daemon-context';
 import { startConnectionListener } from './start-connection-listener';
 
 test('it serves a connection that answers a client on the socket', async () => {
-  const tmp = setupTempDir('atc-connection-listener-');
-  const socketPath = join(tmp.path, 'daemon.sock');
+  const temporaryDirectory = setupTempDir('atc-connection-listener-');
+  const socketPath = join(temporaryDirectory.path, 'daemon.sock');
   const connections = startConnectionListener(socketPath, buildStubDaemonContext());
 
   const client = await openDaemonClient(socketPath);
@@ -20,8 +20,8 @@ test('it serves a connection that answers a client on the socket', async () => {
 });
 
 test('it checks a handshake as a TCP connection when given a TCP peer', async () => {
-  const tmp = setupTempDir('atc-connection-listener-');
-  const socketPath = join(tmp.path, 'daemon.sock');
+  const temporaryDirectory = setupTempDir('atc-connection-listener-');
+  const socketPath = join(temporaryDirectory.path, 'daemon.sock');
 
   startConnectionListener(socketPath, buildStubDaemonContext(), {
     verifyHandshake: () => Promise.resolve(null),

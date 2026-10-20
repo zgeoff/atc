@@ -311,8 +311,8 @@ test('it records each archive transfer with its host', async () => {
   await provider.transferArchive(archive, '/guest/work', 'box');
 
   expect(provider.transfers).toStrictEqual([
-    { archive, dir: '/work' },
-    { archive, dir: '/guest/work', host: 'box' },
+    { archive, directory: '/work' },
+    { archive, directory: '/guest/work', host: 'box' },
   ]);
 });
 
@@ -324,7 +324,7 @@ test('it records an archive transfer and then unpacks it through the config', as
 
   await provider.transferArchive(archive, '/guest/work', 'box');
 
-  expect(provider.transfers).toStrictEqual([{ archive, dir: '/guest/work', host: 'box' }]);
+  expect(provider.transfers).toStrictEqual([{ archive, directory: '/guest/work', host: 'box' }]);
   expect(transferArchive).toHaveBeenCalledExactlyOnceWith(archive, '/guest/work', 'box');
 });
 

@@ -20,7 +20,7 @@ const DEFAULT_DIMS: Dims = { cols: 80, rows: 24 };
 const RESIZE_DEBOUNCE_MS = 50;
 
 interface SessionOutputDeps {
-  readonly mgr: Pick<
+  readonly manager: Pick<
     SessionManager,
     'sessions' | 'collectDescriptors' | 'findProvider' | 'requireExecution' | 'attach'
   >;
@@ -34,7 +34,7 @@ interface SessionOutputDeps {
 }
 
 export class SessionOutput {
-  private readonly mgr: SessionOutputDeps['mgr'];
+  private readonly manager: SessionOutputDeps['manager'];
 
   private readonly clock: Clock;
 
@@ -49,7 +49,7 @@ export class SessionOutput {
   private readonly attachments = new AttachRegistry<OutputClient>();
 
   constructor(deps: SessionOutputDeps) {
-    this.mgr = deps.mgr;
+    this.manager = deps.manager;
     this.clock = deps.clock;
     this.findRuntime = deps.findRuntime;
     this.emitEvent = deps.emitEvent;
@@ -59,17 +59,17 @@ export class SessionOutput {
 
   // The screen model consumes every byte continuously: background output
   // is consumed, not discarded.
-  recordOutput(s: Session, data: string): void {
-    const runtime = this.findRuntime(s.id);
+  recordOutput(session: Session, data: string): void {
+    const runtime = this.findRuntime(session.id);
 
     runtime?.screen?.record(data);
-    this.scheduleDetect(s.id);
+    this.scheduleDetect(session.id);
 
     if (runtime !== undefined) {
       runtime.lastOutputAt = this.clock.now();
     }
 
-    const conns = this.attachments.collectClients(s.id);
+    const conns = this.attachments.collectClients(session.id);
 
     if (conns.length === 0) {
       return;
@@ -77,15 +77,15 @@ export class SessionOutput {
 
     let seq = runtime?.seq ?? 0;
 
-    for (let i = 0; i < data.length; i += MAX_CHUNK) {
-      const chunk = data.slice(i, i + MAX_CHUNK);
+    for (let offset = 0; offset < data.length; offset += MAX_CHUNK) {
+      const chunk = data.slice(offset, offset + MAX_CHUNK);
 
       seq++;
 
-      const event: EventMsg = { v: PROTOCOL_V, ev: 'SessionOutput', s: s.id, seq, d: chunk };
+      const event: EventMsg = { v: PROTOCOL_V, ev: 'SessionOutput', s: session.id, seq, d: chunk };
 
       for (const conn of conns) {
-        conn.sendOutput(s.id, event, chunk.length);
+        conn.sendOutput(session.id, event, chunk.length);
       }
     }
 
@@ -107,8 +107,8 @@ export class SessionOutput {
     const replay = `${ansi.clear}${await runtime.screen.captureReplay()}`;
     const seq = runtime.seq;
 
-    for (let i = 0; i < replay.length; i += MAX_CHUNK) {
-      const chunk = replay.slice(i, i + MAX_CHUNK);
+    for (let offset = 0; offset < replay.length; offset += MAX_CHUNK) {
+      const chunk = replay.slice(offset, offset + MAX_CHUNK);
 
       client.sendOutput(
         sessionID,
@@ -119,26 +119,26 @@ export class SessionOutput {
   }
 
   attachSession(client: OutputClient, sessionID: SessionID, dims: Dims): 'ok' | 'missing' | 'dead' {
-    const s = this.mgr.sessions.find((x) => x.id === sessionID);
+    const session = this.manager.sessions.find((x) => x.id === sessionID);
 
-    if (s === undefined) {
+    if (session === undefined) {
       return 'missing';
     }
 
-    if (s.pty === null) {
+    if (session.pty === null) {
       return 'dead';
     }
 
-    this.mgr.requireExecution(s, 'attach');
+    this.manager.requireExecution(session, 'attach');
     this.attachments.attach(sessionID, client, dims);
-    this.mgr.attach(sessionID);
+    this.manager.attach(sessionID);
 
     // resize before the replay renders: a replay at the previous attachment's
     // dims paints misaligned, and the agent's resize repaint only redraws its
     // live region, never the rows above it
     this.applyEffectiveDims(sessionID);
     void this.sendReplay(sessionID, client);
-    const attached = getDescriptor(this.mgr, sessionID);
+    const attached = getDescriptor(this.manager, sessionID);
 
     this.emitEvent(
       { v: PROTOCOL_V, ev: 'SessionAttached', session: attached },
@@ -211,18 +211,21 @@ export class SessionOutput {
     }
 
     const runtime = this.findRuntime(sessionID);
-    const prev = runtime?.dims ?? null;
+    const previous = runtime?.dims ?? null;
 
-    if (prev !== null && prev.cols === dims.cols && prev.rows === dims.rows) {
+    if (previous !== null && previous.cols === dims.cols && previous.rows === dims.rows) {
       return;
     }
 
-    const s = this.mgr.sessions.find((x) => x.id === sessionID);
+    const session = this.manager.sessions.find((x) => x.id === sessionID);
 
     // A host that cannot resize keeps its terminal at the size it started
     // with; the screen model still follows the clients.
-    if (s !== undefined && (this.mgr.findProvider(s)?.capabilities.resize ?? false)) {
-      s.pty?.resize(dims.cols, dims.rows);
+    if (
+      session !== undefined &&
+      (this.manager.findProvider(session)?.capabilities.resize ?? false)
+    ) {
+      session.pty?.resize(dims.cols, dims.rows);
     }
 
     runtime?.screen?.updateDims(dims.cols, dims.rows);
@@ -247,7 +250,7 @@ export class SessionOutput {
   // client's connection closes), and a gone session already broadcast its
   // removal, so a descriptor miss emits nothing.
   private emitSessionDetached(sessionID: SessionID): void {
-    const session = this.mgr.collectDescriptors().find((x) => x.id === sessionID);
+    const session = this.manager.collectDescriptors().find((x) => x.id === sessionID);
 
     if (session !== undefined) {
       this.emitEvent(

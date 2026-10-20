@@ -22,14 +22,14 @@ function setupTest() {
 
 test('it opens a request when a session enters needs_you', () => {
   const ctx = setupTest();
-  const s = buildMockSession({ id: toSessionID('s-1'), state: 'running' });
+  const session = buildMockSession({ id: toSessionID('s-1'), state: 'running' });
 
-  ctx.permissions.recordSessionEvent('added', s);
+  ctx.permissions.recordSessionEvent('added', session);
 
-  s.state = 'needs_you';
-  s.lastMsg = 'Allow the edit?';
+  session.state = 'needs_you';
+  session.lastMsg = 'Allow the edit?';
 
-  ctx.permissions.recordSessionEvent('state', s);
+  ctx.permissions.recordSessionEvent('state', session);
 
   expect(ctx.emitted).toMatchObject([
     { ev: 'PermissionRequested', s: 's-1', message: 'Allow the edit?', respondable: false },
@@ -38,33 +38,33 @@ test('it opens a request when a session enters needs_you', () => {
 
 test('it opens one request while a session stays in needs_you', () => {
   const ctx = setupTest();
-  const s = buildMockSession({ id: toSessionID('s-1'), state: 'needs_you' });
+  const session = buildMockSession({ id: toSessionID('s-1'), state: 'needs_you' });
 
-  ctx.permissions.recordSessionEvent('state', s);
-  ctx.permissions.recordSessionEvent('state', s);
+  ctx.permissions.recordSessionEvent('state', session);
+  ctx.permissions.recordSessionEvent('state', session);
 
   expect(ctx.emitted).toHaveLength(1);
 });
 
 test('it dismisses the pending request when a session leaves needs_you', () => {
   const ctx = setupTest();
-  const s = buildMockSession({ id: toSessionID('s-1'), state: 'needs_you' });
+  const session = buildMockSession({ id: toSessionID('s-1'), state: 'needs_you' });
 
-  ctx.permissions.recordSessionEvent('state', s);
+  ctx.permissions.recordSessionEvent('state', session);
 
-  s.state = 'running';
+  session.state = 'running';
 
-  ctx.permissions.recordSessionEvent('state', s);
+  ctx.permissions.recordSessionEvent('state', session);
 
   expect(ctx.emitted.at(-1)).toMatchObject({ ev: 'PermissionResolved', decision: 'dismissed' });
 });
 
 test('it dismisses the pending request of a removed session', () => {
   const ctx = setupTest();
-  const s = buildMockSession({ id: toSessionID('s-1'), state: 'needs_you' });
+  const session = buildMockSession({ id: toSessionID('s-1'), state: 'needs_you' });
 
-  ctx.permissions.recordSessionEvent('state', s);
-  ctx.permissions.recordSessionEvent('removed', s);
+  ctx.permissions.recordSessionEvent('state', session);
+  ctx.permissions.recordSessionEvent('removed', session);
 
   expect(ctx.emitted.at(-1)).toMatchObject({ ev: 'PermissionResolved', decision: 'dismissed' });
 });

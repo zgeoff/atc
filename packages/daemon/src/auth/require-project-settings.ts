@@ -39,7 +39,7 @@ export async function requireProjectSettings(
   // The host resolves the directory as given, since a lexical join would
   // drop a parent step after a symlink that the host follows.
   const home = posix.isAbsolute(cwd) ? null : await claims.resolveHostHome(provider, hostKey);
-  const dir = home === null ? cwd : `${home}/${cwd}`;
+  const directory = home === null ? cwd : `${home}/${cwd}`;
 
   const found = await provider.runCommand({
     argv: [
@@ -48,7 +48,7 @@ export async function requireProjectSettings(
       '-c',
       READ_PROJECT_SETTINGS_SCRIPT,
       'sh',
-      dir,
+      directory,
       ...check.files,
       '--',
       ...check.rootFiles,
@@ -62,7 +62,7 @@ export async function requireProjectSettings(
   }
 
   if (found.exitCode !== 0) {
-    throw buildUnreadableSettingsRefusal(adapter.id, target, dir);
+    throw buildUnreadableSettingsRefusal(adapter.id, target, directory);
   }
 
   for (const [path, read] of collectSettingsReads(found.stdout)) {
@@ -98,9 +98,9 @@ function collectSettingsReads(stdout: string): Map<string, string | null> {
 
   const reads = new Map<string, string | null>();
 
-  for (let i = 0; i + 1 < fields.length; i += 2) {
-    const path = fields[i] ?? '';
-    const read = fields[i + 1] ?? '';
+  for (let index = 0; index + 1 < fields.length; index += 2) {
+    const path = fields[index] ?? '';
+    const read = fields[index + 1] ?? '';
     const content = read.startsWith('F') ? read.slice(1) : null;
 
     if (path !== '' && !reads.has(path)) {

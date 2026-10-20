@@ -29,7 +29,7 @@ test('it records a worktree with the branch git reads from it', async () => {
     {
       provider: ctx.provider,
       host: 's-1',
-      dir: ctx.fixture.work,
+      directory: ctx.fixture.work,
       repoURL: null,
       declared: { worktrees: [{ path: worktree }], branches: [], pullRequests: [] },
     },
@@ -54,7 +54,7 @@ test('it records a detached worktree without a branch', async () => {
     {
       provider: ctx.provider,
       host: 's-1',
-      dir: ctx.fixture.work,
+      directory: ctx.fixture.work,
       repoURL: null,
       declared: { worktrees: [{ path: worktree }], branches: [], pullRequests: [] },
     },
@@ -76,7 +76,7 @@ test('it refuses a worktree path outside git', async () => {
       {
         provider: ctx.provider,
         host: 's-1',
-        dir: ctx.fixture.work,
+        directory: ctx.fixture.work,
         repoURL: null,
         declared: {
           worktrees: [{ path: ctx.fixture.work }, { path: plain }],
@@ -105,7 +105,7 @@ test('it refuses a directory inside a worktree that is not its top level', async
       {
         provider: ctx.provider,
         host: 's-1',
-        dir: ctx.fixture.work,
+        directory: ctx.fixture.work,
         repoURL: null,
         declared: { worktrees: [{ path: inner }], branches: [], pullRequests: [] },
       },
@@ -127,7 +127,7 @@ test("it records a local branch in the session's directory when the entry gives 
     {
       provider: ctx.provider,
       host: 's-1',
-      dir: ctx.fixture.work,
+      directory: ctx.fixture.work,
       repoURL: null,
       declared: { worktrees: [], branches: [{ name: 'fix-login' }], pullRequests: [] },
     },
@@ -153,7 +153,7 @@ test('it records a branch that only the origin remote holds', async () => {
     {
       provider: ctx.provider,
       host: 's-1',
-      dir: ctx.fixture.work,
+      directory: ctx.fixture.work,
       repoURL: null,
       declared: { worktrees: [], branches: [{ name: 'release', repo }], pullRequests: [] },
     },
@@ -171,7 +171,7 @@ test('it refuses a branch the repository lacks', async () => {
       {
         provider: ctx.provider,
         host: 's-1',
-        dir: ctx.fixture.work,
+        directory: ctx.fixture.work,
         repoURL: null,
         declared: {
           worktrees: [],
@@ -196,7 +196,7 @@ test('it refuses a branch name git does not take', async () => {
       {
         provider: ctx.provider,
         host: 's-1',
-        dir: ctx.fixture.work,
+        directory: ctx.fixture.work,
         repoURL: null,
         declared: { worktrees: [], branches: [{ name: 'a..b' }], pullRequests: [] },
       },
@@ -234,7 +234,7 @@ test('it records a pull request of the repository the entry gives', async () => 
     {
       provider: ctx.provider,
       host: 's-1',
-      dir: ctx.fixture.work,
+      directory: ctx.fixture.work,
       repoURL: null,
       declared: { worktrees: [], branches: [], pullRequests: [{ number: 42, repo: 'me/app' }] },
     },
@@ -274,7 +274,7 @@ test("it takes a pull request's repository from the workspace's GitHub URL when 
     {
       provider: ctx.provider,
       host: 's-1',
-      dir: ctx.fixture.work,
+      directory: ctx.fixture.work,
       repoURL: 'https://github.com/me/app.git',
       declared: { worktrees: [], branches: [], pullRequests: [{ number: 9 }] },
     },
@@ -311,7 +311,7 @@ test('it refuses a pull request whose base is another repository', async () => {
       {
         provider: ctx.provider,
         host: 's-1',
-        dir: ctx.fixture.work,
+        directory: ctx.fixture.work,
         repoURL: null,
         declared: { worktrees: [], branches: [], pullRequests: [{ number: 42, repo: 'me/app' }] },
       },
@@ -340,7 +340,7 @@ test('it refuses a pull request gh cannot find', async () => {
       {
         provider: ctx.provider,
         host: 's-1',
-        dir: ctx.fixture.work,
+        directory: ctx.fixture.work,
         repoURL: null,
         declared: { worktrees: [], branches: [], pullRequests: [{ number: 404, repo: 'me/app' }] },
       },
@@ -361,7 +361,7 @@ test("it refuses a pull request without a repo when the session's origin is not 
       {
         provider: ctx.provider,
         host: 's-1',
-        dir: ctx.fixture.work,
+        directory: ctx.fixture.work,
         repoURL: null,
         declared: { worktrees: [], branches: [], pullRequests: [{ number: 1 }] },
       },
@@ -382,7 +382,7 @@ test('it refuses a pull request when gh is not installed', async () => {
       {
         provider: ctx.provider,
         host: 's-1',
-        dir: ctx.fixture.work,
+        directory: ctx.fixture.work,
         repoURL: null,
         declared: { worktrees: [], branches: [], pullRequests: [{ number: 1, repo: 'me/app' }] },
       },

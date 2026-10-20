@@ -10,7 +10,7 @@ import type { SessionRegistry } from './session-registry';
 export interface WorkspaceReservation {
   readonly hostKey: SessionID;
   readonly target: string;
-  dir: string;
+  directory: string;
   resolved: string | null;
 
   // A workspace spawn builds its directory and may remove it on a failure;
@@ -53,7 +53,7 @@ export class HostDirClaims {
 
   // The directories workspace rollbacks remove on the daemon's own machine
   // now, each with the spawn whose rollback removes it.
-  private readonly machineRemovals: { readonly id: SessionID; readonly dir: string }[] = [];
+  private readonly machineRemovals: { readonly id: SessionID; readonly directory: string }[] = [];
 
   private readonly registry: HostDirClaimsDeps['registry'];
 
@@ -68,72 +68,78 @@ export class HostDirClaims {
   }
 
   // the check and the reservation run in one turn, so of two concurrent spawns at most one passes
-  claimWorkspace(id: SessionID, hostKey: SessionID, target: string, dir: string): void {
+  claimWorkspace(id: SessionID, hostKey: SessionID, target: string, directory: string): void {
     const listed = this.registry.sessions
-      .filter((s) => s.hostKey === hostKey && s.target === target && posix.isAbsolute(s.cwd))
-      .map((s) => [s.id, s.cwd] as const);
+      .filter(
+        (session) =>
+          session.hostKey === hostKey && session.target === target && posix.isAbsolute(session.cwd),
+      )
+      .map((session) => [session.id, session.cwd] as const);
 
-    this.requireSeparateWorkspace(id, hostKey, target, dir, [dir], listed);
-    this.reservations.set(id, { hostKey, target, dir, resolved: null, kind: 'workspace' });
+    this.requireSeparateWorkspace(id, hostKey, target, directory, [directory], listed);
+    this.reservations.set(id, { hostKey, target, directory, resolved: null, kind: 'workspace' });
   }
 
-  claimPlainDir(id: SessionID, hostKey: SessionID, target: string, dir: string): void {
+  claimPlainDir(id: SessionID, hostKey: SessionID, target: string, directory: string): void {
     // a plain directory may reach the one a rollback is removing through a symlink no check has
     // resolved yet, so every plain spawn on the host waits for the removal
     if ((this.removals.get(buildHostSlot(hostKey, target)) ?? 0) > 0) {
       throw new DaemonError(
         'workspace_overlap',
         `a failed workspace spawn is removing its directory on the host of session ${hostKey}; spawn again once it is done`,
-        { phase: 'resolving', dir, session: hostKey },
+        { phase: 'resolving', dir: directory, session: hostKey },
       );
     }
 
     // a workspace still being built may be removed by its rollback; plain spawns share freely
-    for (const [other, r] of this.reservations) {
-      if (!posix.isAbsolute(dir)) {
+    for (const [other, reservation] of this.reservations) {
+      if (!posix.isAbsolute(directory)) {
         break;
       }
 
       if (
         other !== id &&
-        r.kind === 'workspace' &&
-        r.hostKey === hostKey &&
-        r.target === target &&
-        [r.dir, r.resolved ?? r.dir].some((held) => isPathOverlapping(dir, held))
+        reservation.kind === 'workspace' &&
+        reservation.hostKey === hostKey &&
+        reservation.target === target &&
+        [reservation.directory, reservation.resolved ?? reservation.directory].some((held) =>
+          isPathOverlapping(directory, held),
+        )
       ) {
         throw new DaemonError(
           'workspace_overlap',
-          `${dir} overlaps ${r.dir}, where session ${other} is still building its workspace on the same host`,
-          { phase: 'resolving', dir, session: other },
+          `${directory} overlaps ${reservation.directory}, where session ${other} is still building its workspace on the same host`,
+          { phase: 'resolving', dir: directory, session: other },
         );
       }
     }
 
-    this.reservations.set(id, { hostKey, target, dir, resolved: null, kind: 'plain' });
+    this.reservations.set(id, { hostKey, target, directory, resolved: null, kind: 'plain' });
   }
 
   // the check and the hold run in one turn: a running rollback resolves each held directory and
   // keeps a directory that holds one
-  claimMachineDir(id: SessionID, target: string, dir: string): void {
+  claimMachineDir(id: SessionID, target: string, directory: string): void {
     if (this.machineRemovals.length > 0) {
       // symlinks are resolved only while a removal runs, since resolving blocks the daemon; a
       // relative directory is refused while any removal runs
-      const forms = posix.isAbsolute(dir) ? [dir, resolveMachineDir(dir)] : null;
+      const forms = posix.isAbsolute(directory) ? [directory, resolveMachineDir(directory)] : null;
 
       const removal = this.machineRemovals.find(
-        (r) => forms === null || forms.some((form) => isPathOverlapping(form, r.dir)),
+        (candidate) =>
+          forms === null || forms.some((form) => isPathOverlapping(form, candidate.directory)),
       );
 
       if (removal !== undefined) {
         throw new DaemonError(
           'workspace_overlap',
-          `${dir} overlaps ${removal.dir}, which the failed workspace spawn of session ${removal.id} is removing on the daemon host; spawn again once it is done`,
-          { phase: 'resolving', dir, session: removal.id },
+          `${directory} overlaps ${removal.directory}, which the failed workspace spawn of session ${removal.id} is removing on the daemon host; spawn again once it is done`,
+          { phase: 'resolving', dir: directory, session: removal.id },
         );
       }
     }
 
-    this.reservations.set(id, { hostKey: id, target, dir, resolved: null, kind: 'plain' });
+    this.reservations.set(id, { hostKey: id, target, directory, resolved: null, kind: 'plain' });
   }
 
   // every later step creates, fills, and removes the physical path this resolves to, never the
@@ -143,17 +149,17 @@ export class HostDirClaims {
     id: SessionID,
     hostKey: SessionID,
     target: string,
-    dir: string,
+    directory: string,
     picked = false,
   ): Promise<string> {
     const before = this.collectHostSessionIDs(hostKey, target);
 
-    const physical = await this.resolveHostDir(provider, hostKey, dir);
+    const physical = await this.resolveHostDir(provider, hostKey, directory);
     const listed = await this.resolveListedDirs(provider, hostKey, target);
 
     // the claim is checked in the turn after the last wait, against the sessions listed then
     if (this.collectHostSessionIDs(hostKey, target) !== before) {
-      return this.claimHostDir(provider, id, hostKey, target, dir, picked);
+      return this.claimHostDir(provider, id, hostKey, target, directory, picked);
     }
 
     const reservation = this.reservations.get(id);
@@ -161,8 +167,22 @@ export class HostDirClaims {
     // a picked directory is reserved only here, once checked, so two spawns that picked the same
     // one never refuse each other before either holds it
     if (reservation !== undefined || picked) {
-      this.requireSeparateWorkspace(id, hostKey, target, dir, [dir, physical], listed.dirs);
-      this.reservations.set(id, { hostKey, target, dir, resolved: physical, kind: 'workspace' });
+      this.requireSeparateWorkspace(
+        id,
+        hostKey,
+        target,
+        directory,
+        [directory, physical],
+        listed.dirs,
+      );
+
+      this.reservations.set(id, {
+        hostKey,
+        target,
+        directory,
+        resolved: physical,
+        kind: 'workspace',
+      });
     }
 
     return physical;
@@ -176,7 +196,7 @@ export class HostDirClaims {
     id: SessionID,
     hostKey: SessionID,
     target: string,
-    dir: string,
+    directory: string,
   ): Promise<boolean> {
     // targets without hosts run on the daemon's machine, so the directory stays while a session on
     // any of them, or a plain spawn starting there, runs inside; while the removal runs, a plain
@@ -191,26 +211,28 @@ export class HostDirClaims {
       const seen = new Set(others.map(([other]) => other));
 
       if (this.collectMachineDirs(id).some(([other]) => !seen.has(other))) {
-        return this.removeClaimedDir(provider, id, hostKey, target, dir);
+        return this.removeClaimedDir(provider, id, hostKey, target, directory);
       }
 
       const holds = others.some(([, cwd], index) => {
         const physical = resolved[index] ?? null;
 
-        return physical === null || isPathWithin(cwd, dir) || isPathWithin(physical, dir);
+        return (
+          physical === null || isPathWithin(cwd, directory) || isPathWithin(physical, directory)
+        );
       });
 
       if (holds) {
         return false;
       }
 
-      const removal = { id, dir };
+      const removal = { id, directory };
 
       this.machineRemovals.push(removal);
 
       try {
         const removed = await provider.runCommand({
-          argv: ['sh', '-c', REMOVE_DIR_SCRIPT, 'sh', dir, `${dir}\nx`],
+          argv: ['sh', '-c', REMOVE_DIR_SCRIPT, 'sh', directory, `${directory}\nx`],
           cwd: '/',
         });
 
@@ -226,7 +248,7 @@ export class HostDirClaims {
     const fromHome = await this.resolveFromHome(provider, hostKey, listed.unresolved);
 
     if (this.collectHostSessionIDs(hostKey, target) !== before) {
-      return this.removeClaimedDir(provider, id, hostKey, target, dir);
+      return this.removeClaimedDir(provider, id, hostKey, target, directory);
     }
 
     // A directory the host could not resolve, even from its home, may lie
@@ -238,7 +260,7 @@ export class HostDirClaims {
     const holds = this.collectOtherWorkspaceDirs(id, hostKey, target, [
       ...listed.dirs,
       ...fromHome,
-    ]).some(([, other]) => isPathWithin(other, dir));
+    ]).some(([, other]) => isPathWithin(other, directory));
 
     if (holds) {
       return false;
@@ -250,7 +272,7 @@ export class HostDirClaims {
 
     try {
       const removed = await provider.runCommand({
-        argv: ['sh', '-c', REMOVE_DIR_SCRIPT, 'sh', dir, `${dir}\nx`],
+        argv: ['sh', '-c', REMOVE_DIR_SCRIPT, 'sh', directory, `${directory}\nx`],
         cwd: '/',
         host: hostKey,
       });
@@ -272,8 +294,8 @@ export class HostDirClaims {
   private collectHostSessionIDs(hostKey: SessionID, target: string): string {
     return [
       ...this.registry.sessions
-        .filter((s) => s.hostKey === hostKey && s.target === target)
-        .map((s) => s.id),
+        .filter((session) => session.hostKey === hostKey && session.target === target)
+        .map((session) => session.id),
       ...this.collectPlainDirs(hostKey, target).map(([id]) => id),
     ].join(' ');
   }
@@ -281,8 +303,13 @@ export class HostDirClaims {
   // The directories plain spawns still starting on a host hold, as given.
   private collectPlainDirs(hostKey: SessionID, target: string): (readonly [SessionID, string])[] {
     return [...this.reservations]
-      .filter(([, r]) => r.kind === 'plain' && r.hostKey === hostKey && r.target === target)
-      .map(([id, r]) => [id, r.dir] as const);
+      .filter(
+        ([, reservation]) =>
+          reservation.kind === 'plain' &&
+          reservation.hostKey === hostKey &&
+          reservation.target === target,
+      )
+      .map(([id, reservation]) => [id, reservation.directory] as const);
   }
 
   // The directories sessions on the daemon's own machine hold, other than
@@ -291,14 +318,16 @@ export class HostDirClaims {
   private collectMachineDirs(id: SessionID): (readonly [SessionID, string])[] {
     return [
       ...this.registry.sessions
-        .filter((s) => s.id !== id && !this.registry.hasHostLifecycle(s.target))
-        .map((s) => [s.id, s.cwd] as const),
+        .filter((session) => session.id !== id && !this.registry.hasHostLifecycle(session.target))
+        .map((session) => [session.id, session.cwd] as const),
       ...[...this.reservations]
         .filter(
-          ([other, r]) =>
-            other !== id && r.kind === 'plain' && !this.registry.hasHostLifecycle(r.target),
+          ([other, reservation]) =>
+            other !== id &&
+            reservation.kind === 'plain' &&
+            !this.registry.hasHostLifecycle(reservation.target),
         )
-        .map(([other, r]) => [other, r.dir] as const),
+        .map(([other, reservation]) => [other, reservation.directory] as const),
     ];
   }
 
@@ -306,7 +335,7 @@ export class HostDirClaims {
     id: SessionID,
     hostKey: SessionID,
     target: string,
-    dir: string,
+    directory: string,
     forms: readonly string[],
     listed: readonly (readonly [SessionID, string])[],
   ): void {
@@ -317,8 +346,8 @@ export class HostDirClaims {
     if (other !== undefined) {
       throw new DaemonError(
         'workspace_overlap',
-        `${dir} overlaps ${other[1]}, the directory of session ${other[0]} on the same host; a workspace there lands beside it`,
-        { phase: 'resolving', dir, session: other[0] },
+        `${directory} overlaps ${other[1]}, the directory of session ${other[0]} on the same host; a workspace there lands beside it`,
+        { phase: 'resolving', dir: directory, session: other[0] },
       );
     }
   }
@@ -333,12 +362,12 @@ export class HostDirClaims {
   ): (readonly [SessionID, string])[] {
     const dirs = [...listed];
 
-    for (const [other, r] of this.reservations) {
-      if (other !== id && r.hostKey === hostKey && r.target === target) {
+    for (const [other, reservation] of this.reservations) {
+      if (other !== id && reservation.hostKey === hostKey && reservation.target === target) {
         // A relative plain directory counts only once the host resolves
         // it, since it resolves against the session's home there.
         dirs.push(
-          ...[r.dir, r.resolved ?? r.dir]
+          ...[reservation.directory, reservation.resolved ?? reservation.directory]
             .filter((held) => posix.isAbsolute(held))
             .map((held) => [other, held] as const),
         );
@@ -360,31 +389,33 @@ export class HostDirClaims {
     readonly unresolved: (readonly [SessionID, string])[];
   }> {
     const onHost = [
-      ...this.registry.sessions.filter((s) => s.hostKey === hostKey && s.target === target),
+      ...this.registry.sessions.filter(
+        (session) => session.hostKey === hostKey && session.target === target,
+      ),
       ...this.collectPlainDirs(hostKey, target).map(([id, cwd]) => ({ id, cwd })),
     ];
 
     const resolved = await Promise.all(
-      onHost.map(async (s) => {
-        const dir = await this.resolveHostDir(provider, hostKey, s.cwd).catch(() => null);
+      onHost.map(async (entry) => {
+        const directory = await this.resolveHostDir(provider, hostKey, entry.cwd).catch(() => null);
 
         const dirs: (readonly [SessionID, string])[] = [];
 
-        if (posix.isAbsolute(s.cwd)) {
-          dirs.push([s.id, s.cwd]);
+        if (posix.isAbsolute(entry.cwd)) {
+          dirs.push([entry.id, entry.cwd]);
         }
 
-        if (dir !== null) {
-          dirs.push([s.id, dir]);
+        if (directory !== null) {
+          dirs.push([entry.id, directory]);
         }
 
-        return { dirs, unresolved: dir === null ? [[s.id, s.cwd] as const] : [] };
+        return { dirs, unresolved: directory === null ? [[entry.id, entry.cwd] as const] : [] };
       }),
     );
 
     return {
-      dirs: resolved.flatMap((r) => r.dirs),
-      unresolved: resolved.flatMap((r) => r.unresolved),
+      dirs: resolved.flatMap((resolution) => resolution.dirs),
+      unresolved: resolved.flatMap((resolution) => resolution.unresolved),
     };
   }
 
@@ -431,7 +462,9 @@ export class HostDirClaims {
       }),
     );
 
-    return resolved.some((r) => r === null) ? null : resolved.flatMap((r) => r ?? []);
+    return resolved.some((resolution) => resolution === null)
+      ? null
+      : resolved.flatMap((resolution) => resolution ?? []);
   }
 
   // a relative directory resolves as a harness started in it sees it, since the provider starts
@@ -439,14 +472,14 @@ export class HostDirClaims {
   async resolveHostDir(
     provider: ExecutionProvider,
     hostKey: SessionID | null,
-    dir: string,
+    directory: string,
     script: string = RESOLVE_DIR_SCRIPT,
   ): Promise<string> {
-    const absolute = posix.isAbsolute(dir);
+    const absolute = posix.isAbsolute(directory);
 
     const result = await provider.runCommand({
-      argv: ['sh', '-c', script, 'sh', absolute ? posix.normalize(dir) : '.'],
-      cwd: absolute ? '/' : dir,
+      argv: ['sh', '-c', script, 'sh', absolute ? posix.normalize(directory) : '.'],
+      cwd: absolute ? '/' : directory,
       ...(hostKey === null ? {} : { host: hostKey }),
     });
 
@@ -455,8 +488,8 @@ export class HostDirClaims {
     if (result.exitCode !== 0 || split < 1 || result.stdout[split - 1] !== '\n') {
       throw new DaemonError(
         'host_unavailable',
-        `${hostKey === null ? 'the daemon host' : `the host of session ${hostKey}`} cannot resolve ${dir}: ${result.stderr.trim()}`,
-        { phase: 'resolving', dir },
+        `${hostKey === null ? 'the daemon host' : `the host of session ${hostKey}`} cannot resolve ${directory}: ${result.stderr.trim()}`,
+        { phase: 'resolving', dir: directory },
       );
     }
 
@@ -496,8 +529,8 @@ function buildHostSlot(hostKey: SessionID, target: string): string {
 
 // Whether either of two directories on a host holds the other, or they are
 // the same.
-function isPathOverlapping(a: string, b: string): boolean {
-  return isPathWithin(a, b) || isPathWithin(b, a);
+function isPathOverlapping(left: string, right: string): boolean {
+  return isPathWithin(left, right) || isPathWithin(right, left);
 }
 
 function isPathWithin(child: string, parent: string): boolean {
@@ -508,12 +541,14 @@ function isPathWithin(child: string, parent: string): boolean {
 
 // An absolute directory on the daemon's own machine with every symlink in
 // it resolved, through its nearest existing directory.
-function resolveMachineDir(dir: string): string {
+function resolveMachineDir(directory: string): string {
   try {
-    return realpathSync(dir);
+    return realpathSync(directory);
   } catch {
-    const parent = posix.dirname(dir);
+    const parent = posix.dirname(directory);
 
-    return parent === dir ? dir : posix.join(resolveMachineDir(parent), posix.basename(dir));
+    return parent === directory
+      ? directory
+      : posix.join(resolveMachineDir(parent), posix.basename(directory));
   }
 }

@@ -24,8 +24,8 @@ import { TapRegistry } from './tap-registry';
 // one agent that takes its messages through a bridge in the daemon, a real
 // state store, the message service, and the bridges over them.
 async function setupTest() {
-  const tmp = setupTempDir('atc-message-bridges-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-message-bridges-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -44,10 +44,10 @@ async function setupTest() {
     startMessageBridge: stub.startMessageBridge,
   };
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     null,
     store,
-    join(tmp.path, 'status.json'),
+    join(temporaryDirectory.path, 'status.json'),
     [adapter],
     [
       buildMockExecutionTarget({
@@ -58,22 +58,22 @@ async function setupTest() {
     ],
     [],
     {
-      onEvent: (kind, s) => {
+      onEvent: (kind, session) => {
         if (kind === 'added') {
-          runtimes.set(s.id, new SessionRuntime());
+          runtimes.set(session.id, new SessionRuntime());
         }
       },
     },
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
   const taps = new TapRegistry<TapClient>();
 
   const messages = new MessageService({
-    mgr,
+    manager,
     store,
     clock,
     ledger: new IdempotencyLedger(store, 'local', () => {}, clock),
@@ -86,29 +86,29 @@ async function setupTest() {
     tapGraceMs: 15_000,
   });
 
-  const applyNote = mock<(e: HookEvent) => Promise<void>>(() => Promise.resolve());
+  const applyNote = mock<(hookEvent: HookEvent) => Promise<void>>(() => Promise.resolve());
 
   const bridges = new MessageBridges({
-    mgr,
+    manager,
     store,
     clock,
     messages,
     taps,
     applyNote,
-    stateDir: join(tmp.path, 'state'),
+    stateDir: join(temporaryDirectory.path, 'state'),
   });
 
-  return { dir: tmp.path, store, adapter, stub, mgr, applyNote, bridges };
+  return { directory: temporaryDirectory.path, store, adapter, stub, manager, applyNote, bridges };
 }
 
 test('it starts the bridge of the agent a launch runs and answers with its plan', async () => {
   const ctx = await setupTest();
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
   const plan = await ctx.bridges.startBridge({
     adapter: ctx.adapter,
-    session: s.id,
-    cwd: ctx.dir,
+    session: session.id,
+    cwd: ctx.directory,
     env: {},
     withheldEnv: [],
     options: { prompt: '', resume: false },
@@ -117,18 +117,22 @@ test('it starts the bridge of the agent a launch runs and answers with its plan'
   expect(plan).toStrictEqual({ bin: 'stub-bridge', args: [] });
 
   expect(ctx.stub.requests).toMatchObject([
-    { session: s.id, cwd: ctx.dir, directory: join(ctx.dir, 'state', 'sessions', s.id, 'codex') },
+    {
+      session: session.id,
+      cwd: ctx.directory,
+      directory: join(ctx.directory, 'state', 'sessions', session.id, 'codex'),
+    },
   ]);
 });
 
 test('it answers no plan for an agent without a bridge', async () => {
   const ctx = await setupTest();
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
   const plan = await ctx.bridges.startBridge({
     adapter: buildStubHarnessAdapter(),
-    session: s.id,
-    cwd: ctx.dir,
+    session: session.id,
+    cwd: ctx.directory,
     env: {},
     withheldEnv: [],
     options: { prompt: '', resume: false },
@@ -139,12 +143,12 @@ test('it answers no plan for an agent without a bridge', async () => {
 
 test('it stops the earlier bridge of a session a new launch starts', async () => {
   const ctx = await setupTest();
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
   const launch = {
     adapter: ctx.adapter,
-    session: s.id,
-    cwd: ctx.dir,
+    session: session.id,
+    cwd: ctx.directory,
     env: {},
     withheldEnv: [],
     options: { prompt: '', resume: false },
@@ -158,14 +162,14 @@ test('it stops the earlier bridge of a session a new launch starts', async () =>
 
 test('it stops every bridge when the daemon stops', async () => {
   const ctx = await setupTest();
-  const one = await ctx.mgr.spawn(ctx.dir, 'one', '', 80, 24);
-  const two = await ctx.mgr.spawn(ctx.dir, 'two', '', 80, 24);
+  const one = await ctx.manager.spawn(ctx.directory, 'one', '', 80, 24);
+  const two = await ctx.manager.spawn(ctx.directory, 'two', '', 80, 24);
 
-  for (const s of [one, two]) {
+  for (const session of [one, two]) {
     await ctx.bridges.startBridge({
       adapter: ctx.adapter,
-      session: s.id,
-      cwd: ctx.dir,
+      session: session.id,
+      cwd: ctx.directory,
       env: {},
       withheldEnv: [],
       options: { prompt: '', resume: false },
@@ -179,19 +183,19 @@ test('it stops every bridge when the daemon stops', async () => {
 
 test('it hands the start of delivery and a thread move to the bridge of the session', async () => {
   const ctx = await setupTest();
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
   await ctx.bridges.startBridge({
     adapter: ctx.adapter,
-    session: s.id,
-    cwd: ctx.dir,
+    session: session.id,
+    cwd: ctx.directory,
     env: {},
     withheldEnv: [],
     options: { prompt: '', resume: false },
   });
 
-  ctx.bridges.startDelivery(s.id);
-  ctx.bridges.updateThread(s.id, 'thread-2');
+  ctx.bridges.startDelivery(session.id);
+  ctx.bridges.updateThread(session.id, 'thread-2');
 
   const [bridge] = ctx.stub.bridges;
 
@@ -203,14 +207,16 @@ test('it hands the start of delivery and a thread move to the bridge of the sess
 
 test('it marks a message delivered when the bridge acks it', async () => {
   const ctx = await setupTest();
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  await ctx.store.writeMessage(buildMockMessageRecord({ id: toMessageID('m-1'), atcID: s.id }));
+  await ctx.store.writeMessage(
+    buildMockMessageRecord({ id: toMessageID('m-1'), atcID: session.id }),
+  );
 
   await ctx.bridges.startBridge({
     adapter: ctx.adapter,
-    session: s.id,
-    cwd: ctx.dir,
+    session: session.id,
+    cwd: ctx.directory,
     env: {},
     withheldEnv: [],
     options: { prompt: '', resume: false },
@@ -229,12 +235,12 @@ test('it marks a message delivered when the bridge acks it', async () => {
 
 test('it lands a note the bridge reports as the reporter would', async () => {
   const ctx = await setupTest();
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
   await ctx.bridges.startBridge({
     adapter: ctx.adapter,
-    session: s.id,
-    cwd: ctx.dir,
+    session: session.id,
+    cwd: ctx.directory,
     env: {},
     withheldEnv: [],
     options: { prompt: '', resume: false },
@@ -249,17 +255,22 @@ test('it lands a note the bridge reports as the reporter would', async () => {
   const taken = await request.host.applyNote(payload);
 
   expect(taken).toBeTrue();
-  expect(ctx.applyNote).toHaveBeenCalledExactlyOnceWith({ atcId: s.id, event: 'Note', payload });
+
+  expect(ctx.applyNote).toHaveBeenCalledExactlyOnceWith({
+    atcId: session.id,
+    event: 'Note',
+    payload,
+  });
 });
 
 test('it refuses a payload from the bridge that is no note', async () => {
   const ctx = await setupTest();
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
   await ctx.bridges.startBridge({
     adapter: ctx.adapter,
-    session: s.id,
-    cwd: ctx.dir,
+    session: session.id,
+    cwd: ctx.directory,
     env: {},
     withheldEnv: [],
     options: { prompt: '', resume: false },
@@ -277,18 +288,20 @@ test('it refuses a payload from the bridge that is no note', async () => {
 
 test('it lists the queued and delivered messages of the session as unsettled', async () => {
   const ctx = await setupTest();
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
-
-  await ctx.store.writeMessage(buildMockMessageRecord({ id: toMessageID('m-1'), atcID: s.id }));
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
   await ctx.store.writeMessage(
-    buildMockMessageRecord({ id: toMessageID('m-2'), atcID: s.id, status: 'delivered' }),
+    buildMockMessageRecord({ id: toMessageID('m-1'), atcID: session.id }),
+  );
+
+  await ctx.store.writeMessage(
+    buildMockMessageRecord({ id: toMessageID('m-2'), atcID: session.id, status: 'delivered' }),
   );
 
   await ctx.store.writeMessage(
     buildMockMessageRecord({
       id: toMessageID('m-3'),
-      atcID: s.id,
+      atcID: session.id,
       status: 'answered',
       answer: 'done',
     }),
@@ -296,8 +309,8 @@ test('it lists the queued and delivered messages of the session as unsettled', a
 
   await ctx.bridges.startBridge({
     adapter: ctx.adapter,
-    session: s.id,
-    cwd: ctx.dir,
+    session: session.id,
+    cwd: ctx.directory,
     env: {},
     withheldEnv: [],
     options: { prompt: '', resume: false },

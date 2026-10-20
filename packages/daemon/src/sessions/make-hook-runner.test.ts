@@ -10,12 +10,12 @@ import type { HookOutcome } from './make-hook-runner';
 // runner call started, which resolve once every one of them has ended, and
 // a clock that holds the kills the runner armed until the test advances it.
 function setupTest() {
-  const tmp = setupTempDir('atc-hook-runner-');
+  const temporaryDirectory = setupTempDir('atc-hook-runner-');
   const settled = Promise.withResolvers<readonly HookOutcome[]>();
   const clock = buildStubClock(0);
 
   return {
-    dir: tmp.path,
+    directory: temporaryDirectory.path,
     settled: settled.promise,
     clock,
     options: {
@@ -29,7 +29,7 @@ function setupTest() {
 
 test('it runs a hook with the event JSON on stdin and the event name in the environment', async () => {
   const ctx = setupTest();
-  const out = join(ctx.dir, 'out');
+  const out = join(ctx.directory, 'out');
 
   const run = makeHookRunner(
     { SessionAttached: [{ command: `cat > '${out}'; printf '%s\n' "$ATC_EVENT" >> '${out}'` }] },
@@ -54,8 +54,8 @@ test('it runs a dir hook when the session repo root or cwd sits at or under the 
   const run = makeHookRunner(
     {
       SessionAttached: [
-        { command: `touch '${join(ctx.dir, 'exact')}'`, directory: '/w/repo' },
-        { command: `touch '${join(ctx.dir, 'above')}'`, directory: '/w' },
+        { command: `touch '${join(ctx.directory, 'exact')}'`, directory: '/w/repo' },
+        { command: `touch '${join(ctx.directory, 'above')}'`, directory: '/w' },
       ],
     },
     ctx.options,
@@ -65,8 +65,8 @@ test('it runs a dir hook when the session repo root or cwd sits at or under the 
 
   await ctx.settled;
 
-  expect(existsSync(join(ctx.dir, 'exact'))).toBeTrue();
-  expect(existsSync(join(ctx.dir, 'above'))).toBeTrue();
+  expect(existsSync(join(ctx.directory, 'exact'))).toBeTrue();
+  expect(existsSync(join(ctx.directory, 'above'))).toBeTrue();
 });
 
 test('it skips a dir hook when the session path only shares a string prefix', async () => {
@@ -75,8 +75,8 @@ test('it skips a dir hook when the session path only shares a string prefix', as
   const run = makeHookRunner(
     {
       SessionAttached: [
-        { command: `touch '${join(ctx.dir, 'trap')}'`, directory: '/w/b' },
-        { command: `touch '${join(ctx.dir, 'control')}'` },
+        { command: `touch '${join(ctx.directory, 'trap')}'`, directory: '/w/b' },
+        { command: `touch '${join(ctx.directory, 'control')}'` },
       ],
     },
     ctx.options,
@@ -87,11 +87,11 @@ test('it skips a dir hook when the session path only shares a string prefix', as
   const outcomes = await ctx.settled;
 
   expect(outcomes).toStrictEqual([
-    { command: `touch '${join(ctx.dir, 'control')}'`, exitCode: 0, signalCode: null },
+    { command: `touch '${join(ctx.directory, 'control')}'`, exitCode: 0, signalCode: null },
   ]);
 
-  expect(existsSync(join(ctx.dir, 'trap'))).toBeFalse();
-  expect(existsSync(join(ctx.dir, 'control'))).toBeTrue();
+  expect(existsSync(join(ctx.directory, 'trap'))).toBeFalse();
+  expect(existsSync(join(ctx.directory, 'control'))).toBeTrue();
 });
 
 test('it skips dir hooks for an event that carries no session', async () => {
@@ -100,8 +100,8 @@ test('it skips dir hooks for an event that carries no session', async () => {
   const run = makeHookRunner(
     {
       PermissionResolved: [
-        { command: `touch '${join(ctx.dir, 'trap')}'`, directory: '/w' },
-        { command: `touch '${join(ctx.dir, 'control')}'` },
+        { command: `touch '${join(ctx.directory, 'trap')}'`, directory: '/w' },
+        { command: `touch '${join(ctx.directory, 'control')}'` },
       ],
     },
     ctx.options,
@@ -112,18 +112,18 @@ test('it skips dir hooks for an event that carries no session', async () => {
   const outcomes = await ctx.settled;
 
   expect(outcomes).toStrictEqual([
-    { command: `touch '${join(ctx.dir, 'control')}'`, exitCode: 0, signalCode: null },
+    { command: `touch '${join(ctx.directory, 'control')}'`, exitCode: 0, signalCode: null },
   ]);
 
-  expect(existsSync(join(ctx.dir, 'trap'))).toBeFalse();
-  expect(existsSync(join(ctx.dir, 'control'))).toBeTrue();
+  expect(existsSync(join(ctx.directory, 'trap'))).toBeFalse();
+  expect(existsSync(join(ctx.directory, 'control'))).toBeTrue();
 });
 
 test('it runs nothing for an event with no configured hooks', async () => {
   const ctx = setupTest();
 
   const run = makeHookRunner(
-    { SessionAttached: [{ command: `touch '${join(ctx.dir, 'trap')}'` }] },
+    { SessionAttached: [{ command: `touch '${join(ctx.directory, 'trap')}'` }] },
     ctx.options,
   );
 
@@ -132,7 +132,7 @@ test('it runs nothing for an event with no configured hooks', async () => {
   const outcomes = await ctx.settled;
 
   expect(outcomes).toBeEmpty();
-  expect(existsSync(join(ctx.dir, 'trap'))).toBeFalse();
+  expect(existsSync(join(ctx.directory, 'trap'))).toBeFalse();
 });
 
 test('it kills a hook that runs past its timeout', async () => {

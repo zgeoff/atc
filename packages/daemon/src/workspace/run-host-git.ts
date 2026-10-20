@@ -13,12 +13,12 @@ const GIT_OPTIONS = ['-c', 'safe.directory=*', '-c', 'core.fsmonitor=false'];
 export async function runHostGit(
   provider: ExecutionProvider,
   host: string,
-  dir: string,
+  directory: string,
   args: readonly string[],
 ): Promise<CommandResult> {
   if (provider.remote) {
     return provider.runCommand({
-      argv: [...REPOSITORY_ENV_UNSET_ARGV, 'git', ...GIT_OPTIONS, '-C', dir, ...args],
+      argv: [...REPOSITORY_ENV_UNSET_ARGV, 'git', ...GIT_OPTIONS, '-C', directory, ...args],
       cwd: '/',
       host,
     });
@@ -28,7 +28,7 @@ export async function runHostGit(
     Object.entries(process.env).filter(([name]) => !REPOSITORY_ENV_VARS.has(name)),
   );
 
-  const proc = Bun.spawn(['git', ...GIT_OPTIONS, '-C', dir, ...args], {
+  const subprocess = Bun.spawn(['git', ...GIT_OPTIONS, '-C', directory, ...args], {
     cwd: '/',
     env,
     stdin: 'ignore',
@@ -37,9 +37,9 @@ export async function runHostGit(
   });
 
   const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
+    new Response(subprocess.stdout).text(),
+    new Response(subprocess.stderr).text(),
+    subprocess.exited,
   ]);
 
   return { exitCode, stdout, stderr };

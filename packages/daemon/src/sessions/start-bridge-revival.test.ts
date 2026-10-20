@@ -46,7 +46,7 @@ function setupTest(config: SetupTestConfig) {
   };
 
   const revival = startBridgeRevival({
-    mgr: {
+    manager: {
       sessions,
       findAdapter: () => adapter,
       requireExecution: () => ({ provider, identity: 'imp:test' }),
@@ -57,8 +57,8 @@ function setupTest(config: SetupTestConfig) {
     taps,
     clock,
     isProcessEnded: (sessionID) => ended.has(sessionID),
-    applyNote: (e) => {
-      notes.push(e);
+    applyNote: (hookEvent) => {
+      notes.push(hookEvent);
 
       return Promise.resolve();
     },
@@ -94,7 +94,7 @@ test('it writes the bridge mod of a running remote session whose tap stays gone 
   ctx.clock.advance(30_000);
 
   expect(ctx.provider.transfers).toHaveLength(1);
-  expect(ctx.provider.transfers[0]?.dir).toBe('/tmp/atc/sessions/s-bridge');
+  expect(ctx.provider.transfers[0]?.directory).toBe('/tmp/atc/sessions/s-bridge');
   expect(ctx.provider.transfers[0]?.host).toBe('s-bridge');
 
   expect(new TextDecoder().decode(ctx.provider.transfers[0]?.archive)).toInclude(
@@ -206,20 +206,20 @@ test('it writes the mod once a session that slept through the wait wakes', () =>
     rows: 24,
   });
 
-  const s = buildMockSession({ id, pty, state: 'running' });
+  const session = buildMockSession({ id, pty, state: 'running' });
 
-  ctx.sessions.push(s);
+  ctx.sessions.push(session);
   ctx.taps.attach(id, ctx.client);
   ctx.taps.removeSession(id);
 
   // a suspend drops the terminal with the host's sleep
-  s.pty = null;
-  s.suspended = true;
+  session.pty = null;
+  session.suspended = true;
 
   ctx.clock.advance(30_000);
 
-  s.pty = pty;
-  s.suspended = false;
+  session.pty = pty;
+  session.suspended = false;
 
   ctx.clock.advance(30_000);
 
@@ -305,14 +305,14 @@ test('it waits at most 30 min between writes', async () => {
 
   ctx.sessions.push(buildMockSession({ id, pty, state: 'running' }));
 
-  for (let i = 1; i <= 8; i += 1) {
+  for (let loss = 1; loss <= 8; loss += 1) {
     ctx.taps.attach(id, ctx.client);
     ctx.taps.removeSession(id);
     ctx.clock.advance(30 * 60_000);
 
     // each write settles before the next loss
     await waitFor(() => {
-      expect(ctx.notes).toHaveLength(i);
+      expect(ctx.notes).toHaveLength(loss);
     });
   }
 

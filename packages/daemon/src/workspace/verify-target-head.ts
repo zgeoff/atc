@@ -19,7 +19,7 @@ export async function verifyTargetHead(
 ): Promise<void> {
   const verified = await deps.requireProvider('run').runCommand({
     argv: [...REPOSITORY_ENV_UNSET_ARGV, 'sh', '-c', VERIFY_SCRIPT],
-    cwd: landing.dir,
+    cwd: landing.directory,
     host: landing.host,
   });
 

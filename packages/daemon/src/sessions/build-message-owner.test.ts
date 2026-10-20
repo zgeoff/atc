@@ -4,19 +4,19 @@ import { buildMockSession } from '../testing/build-mock-session';
 import { buildMessageOwner } from './build-message-owner';
 
 test('it owns the messages of a session by its atc id and agent session id', () => {
-  const s = buildMockSession({
+  const session = buildMockSession({
     id: toSessionID('s-1'),
     agentSessionID: toAgentSessionID('a-1'),
   });
 
-  expect(buildMessageOwner(s)).toStrictEqual({
+  expect(buildMessageOwner(session)).toStrictEqual({
     atcID: toSessionID('s-1'),
     agentSessionID: toAgentSessionID('a-1'),
   });
 });
 
 test('it owns the messages of a session with no agent session id by its atc id alone', () => {
-  const s = buildMockSession({ id: toSessionID('s-1') });
+  const session = buildMockSession({ id: toSessionID('s-1') });
 
-  expect(buildMessageOwner(s)).toStrictEqual({ atcID: toSessionID('s-1') });
+  expect(buildMessageOwner(session)).toStrictEqual({ atcID: toSessionID('s-1') });
 });

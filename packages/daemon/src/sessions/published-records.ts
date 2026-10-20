@@ -26,7 +26,7 @@ interface RecordSubject {
   readonly target: string;
   readonly provider: ExecutionProvider;
   readonly host: SessionID;
-  readonly dir: string;
+  readonly directory: string;
   readonly workspace: SessionWorkspace | null;
 
   // The branch atc checked the workspace out on, when atc materialized it;
@@ -172,7 +172,7 @@ export class PublishedRecords {
       {
         provider: subject.provider,
         host: subject.host,
-        dir: subject.dir,
+        directory: subject.directory,
         repoURL: subject.workspace?.repoURL ?? null,
         declared,
       },
@@ -184,7 +184,7 @@ export class PublishedRecords {
     const branch = await this.readBranch(subject);
 
     return {
-      path: subject.dir,
+      path: subject.directory,
       branch,
       repoURL: subject.workspace?.repoURL ?? null,
       sha: subject.workspace?.sha ?? null,
@@ -200,7 +200,7 @@ export class PublishedRecords {
 
     return subject.provider.remote
       ? Promise.resolve(null)
-      : readHostBranch(subject.provider, subject.host, subject.dir);
+      : readHostBranch(subject.provider, subject.host, subject.directory);
   }
 
   private buildRecord(
@@ -226,12 +226,12 @@ export class PublishedRecords {
     const name = `${subject.session}.json`;
 
     if (!subject.provider.remote) {
-      const dir = this.options.localDir;
+      const directory = this.options.localDir;
       const path = this.getLocalPath(subject.session);
-      const staged = join(dir, `.${name}.${randomUUID()}`);
+      const staged = join(directory, `.${name}.${randomUUID()}`);
 
-      await mkdir(dir, { recursive: true, mode: 0o700 });
-      await chmod(dir, 0o700);
+      await mkdir(directory, { recursive: true, mode: 0o700 });
+      await chmod(directory, 0o700);
       await writeFile(staged, content, { mode: 0o444, flag: 'wx' });
       await rename(staged, path);
 
@@ -255,21 +255,21 @@ export class PublishedRecords {
     // Elsewhere one command writes the copy beside its place and renames it
     // there. A remote host runs it as the user its provider runs commands
     // as, root on an imp, so the copy and its directory belong to that user.
-    const dir = this.getGuestDir(subject);
+    const directory = this.getGuestDir(subject);
 
     this.withoutGuestCopy.delete(subject.session);
 
     const placed = await subject.provider.runCommand({
-      argv: ['sh', '-c', PLACE_COPY, 'sh', dir, name, `.${name}.${randomUUID()}`, content],
+      argv: ['sh', '-c', PLACE_COPY, 'sh', directory, name, `.${name}.${randomUUID()}`, content],
       cwd: '/',
       host: subject.host,
     });
 
     if (placed.exitCode !== 0) {
-      throw new Error(`placing the session record in ${dir} failed: ${placed.stderr.trim()}`);
+      throw new Error(`placing the session record in ${directory} failed: ${placed.stderr.trim()}`);
     }
 
-    return `${dir}/${name}`;
+    return `${directory}/${name}`;
   }
 
   // a harness started before its host kept read-only files reads the guest-folder copy, and a
@@ -284,10 +284,10 @@ export class PublishedRecords {
       return;
     }
 
-    const dir = this.getGuestDir(subject);
+    const directory = this.getGuestDir(subject);
 
     const refreshed = await subject.provider.runCommand({
-      argv: ['sh', '-c', REFRESH_COPY, 'sh', dir, name, `.${name}.${randomUUID()}`, content],
+      argv: ['sh', '-c', REFRESH_COPY, 'sh', directory, name, `.${name}.${randomUUID()}`, content],
       cwd: '/',
       host: subject.host,
     });
@@ -299,7 +299,9 @@ export class PublishedRecords {
     }
 
     if (refreshed.exitCode !== 0) {
-      throw new Error(`refreshing the session record in ${dir} failed: ${refreshed.stderr.trim()}`);
+      throw new Error(
+        `refreshing the session record in ${directory} failed: ${refreshed.stderr.trim()}`,
+      );
     }
   }
 

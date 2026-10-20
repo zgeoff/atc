@@ -38,7 +38,7 @@ import { IdempotencyLedger } from './transport/idempotency-ledger';
 
 export interface SessionServicesDeps {
   readonly opts: DaemonOptions;
-  readonly mgr: SessionManager;
+  readonly manager: SessionManager;
   readonly store: StateStore;
   readonly clock: Clock;
   readonly stateDir: string;
@@ -93,7 +93,7 @@ const LOCAL_PRINCIPAL = 'local';
 // it calls, and starts the reporter socket that hook events arrive on.
 export function startSessionServices(deps: SessionServicesDeps): SessionServices {
   const opts = deps.opts;
-  const mgr = deps.mgr;
+  const manager = deps.manager;
   const store = deps.store;
   const clock = deps.clock;
   const stateDir = deps.stateDir;
@@ -118,27 +118,27 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
     now: () => clock.now(),
   });
 
-  mgr.records = records;
+  manager.records = records;
 
   const authBinder = new RuntimeAuthBinder(store, () => clock.now());
 
-  mgr.authBinder = authBinder;
+  manager.authBinder = authBinder;
 
   // Settled in the background, since it reaches impd: each binding a
   // stopped daemon left mid-change stays blocked until it is settled.
-  void tryReconcileAuthBindings(authBinder, store, targetsByID, mgr.log);
+  void tryReconcileAuthBindings(authBinder, store, targetsByID, manager.log);
 
   const ledger = new IdempotencyLedger(
     store,
     LOCAL_PRINCIPAL,
     (line) => {
-      mgr.log(line);
+      manager.log(line);
     },
     clock,
   );
 
   const messages = new MessageService({
-    mgr,
+    manager,
     store,
     clock,
     ledger,
@@ -152,7 +152,7 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
   });
 
   const hooks = new HookIntake({
-    mgr,
+    manager,
     store,
     clock,
     messages,
@@ -171,36 +171,36 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
   });
 
   const bridges = new MessageBridges({
-    mgr,
+    manager,
     store,
     clock,
     messages,
     taps,
-    applyNote: (e) => hooks.applyNote(e),
+    applyNote: (hookEvent) => hooks.applyNote(hookEvent),
     stateDir,
   });
 
   // The revival notes each write through the hook intake, so the note lands
   // in the session's events like one the session sent.
   const revival = startBridgeRevival({
-    mgr,
+    manager,
     taps,
     clock,
     isProcessEnded: (sessionID) => endedProcesses.has(sessionID),
-    applyNote: (e) => hooks.applyNote(e),
+    applyNote: (hookEvent) => hooks.applyNote(hookEvent),
   });
 
-  const trail = new EventTrail({ mgr, store, clock, eventSignal });
+  const trail = new EventTrail({ manager, store, clock, eventSignal });
 
   const detection = new ScreenDetection({
-    mgr,
+    manager,
     clock,
     findRuntime,
     onDetectSkipped: opts.onDetectSkipped,
   });
 
   const output = new SessionOutput({
-    mgr,
+    manager,
     clock,
     findRuntime,
     emitEvent,
@@ -212,7 +212,7 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
 
   const startTurn = (sessionID: SessionID, prompt: string) =>
     startHeadlessTurn(
-      mgr,
+      manager,
       findRuntime,
       sessionID,
       prompt,
@@ -223,7 +223,7 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
     );
 
   const input = new SessionInput({
-    mgr,
+    manager,
     clock,
     findRuntime,
     menuTiming: opts.menuTiming ?? MENU_TIMING,
@@ -231,7 +231,7 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
   });
 
   const handoff = new SessionHandoff({
-    mgr,
+    manager,
     findRuntime,
     ejectSettleMs: opts.ejectSettleMs ?? 4000,
     scheduleEjectSettle: opts.scheduleEjectSettle ?? clock.schedule,
@@ -241,14 +241,14 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
     },
   });
 
-  const reads = new SessionReads({ mgr, store, records });
+  const reads = new SessionReads({ manager, store, records });
 
-  const reporter = startHookServer((e) => {
-    hooks.applyHookEvent(e);
+  const reporter = startHookServer((hookEvent) => {
+    hooks.applyHookEvent(hookEvent);
   }, opts.reporterSocketPath);
 
   const spawns = new SpawnService({
-    mgr,
+    manager,
     store,
     clock,
     ledger,
@@ -260,7 +260,7 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
   });
 
   const forgetter = new SessionForgetter({
-    mgr,
+    manager,
     findRuntime,
     tokens: new ConfirmTokens({
       now: opts.forgetClock ?? (() => clock.now()),
@@ -269,7 +269,7 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
   });
 
   const catalog = new SpawnCatalog({
-    mgr,
+    manager,
     store,
     build: opts.build,
     targets,
@@ -281,7 +281,7 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
   });
 
   const restorer = new FleetRestorer({
-    mgr,
+    manager,
     store,
     clock,
     findRuntime,

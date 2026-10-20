@@ -10,7 +10,7 @@ export async function recordPhase(
   updateProgress: ProgressTracker,
   phase: MaterializationPhase,
   fields: Readonly<{
-    dir?: string;
+    directory?: string;
     repoURL?: string;
     sha?: string;
     ref?: string | null;

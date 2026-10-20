@@ -8,36 +8,39 @@ import { registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
 // printed once it listened and everything it writes to stderr. Cleanup kills
 // the daemon, then removes the directory.
 async function setupTest() {
-  const tmp = setupTempDir('atc-run-listener-');
+  const temporaryDirectory = setupTempDir('atc-run-listener-');
 
   // The listener refuses to start without a token file.
-  writeFileSync(join(tmp.path, 'gateway-token'), `${'a'.repeat(32)}\n`);
+  writeFileSync(join(temporaryDirectory.path, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
-  const proc = Bun.spawn([process.execPath, join(import.meta.dir, 'run-listener-daemon.ts')], {
-    env: { ...process.env, ATC_TEST_DIR: tmp.path },
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
+  const subprocess = Bun.spawn(
+    [process.execPath, join(import.meta.dir, 'run-listener-daemon.ts')],
+    {
+      env: { ...process.env, ATC_TEST_DIR: temporaryDirectory.path },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+  );
 
   registerTestCleanup(async () => {
-    proc.kill();
+    subprocess.kill();
 
-    await proc.exited;
+    await subprocess.exited;
   });
 
   const stderr: string[] = [];
 
   void (async () => {
-    for await (const chunk of proc.stderr.pipeThrough(new TextDecoderStream())) {
+    for await (const chunk of subprocess.stderr.pipeThrough(new TextDecoderStream())) {
       stderr.push(chunk);
     }
   })();
 
-  const read = await proc.stdout.getReader().read();
+  const read = await subprocess.stdout.getReader().read();
 
   const printed = new TextDecoder().decode(read.value);
 
-  return { proc, printed, stderr, dir: tmp.path };
+  return { subprocess, printed, stderr, directory: temporaryDirectory.path };
 }
 
 test('it prints the loopback port its TCP listener bound', async () => {
@@ -57,7 +60,7 @@ test('it prints the loopback port its TCP listener bound', async () => {
 
 test('it answers a hello on the daemon socket in its test directory', async () => {
   const ctx = await setupTest();
-  const client = await openDaemonClient(join(ctx.dir, 'daemon.sock'));
+  const client = await openDaemonClient(join(ctx.directory, 'daemon.sock'));
 
   registerTestCleanup(() => {
     client.stop();
@@ -105,9 +108,9 @@ test('it logs a refused handshake on its stderr', async () => {
 test('it stops with exit code 0 on SIGTERM', async () => {
   const ctx = await setupTest();
 
-  ctx.proc.kill('SIGTERM');
+  ctx.subprocess.kill('SIGTERM');
 
-  const exitCode = await ctx.proc.exited;
+  const exitCode = await ctx.subprocess.exited;
 
   expect(exitCode).toBe(0);
 });

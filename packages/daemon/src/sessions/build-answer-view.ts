@@ -20,10 +20,10 @@ export function buildAnswerView(
   // a row can hold an older atc id of a restored session, so an alias holding its agent session
   // id names it; the alias only names it, and a read check still uses the row's own atc id
   const live =
-    sessions.find((s) => s.id === stored.atcID) ??
+    sessions.find((session) => session.id === stored.atcID) ??
     (stored.agentSessionID === null
       ? undefined
-      : aliases.find((s) => s.agentSessionID === stored.agentSessionID));
+      : aliases.find((session) => session.agentSessionID === stored.agentSessionID));
 
   return {
     answer: encodeCursor({ kind: 'events', id: stored.id }),

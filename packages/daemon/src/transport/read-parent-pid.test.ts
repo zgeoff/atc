@@ -5,9 +5,9 @@ import { setupTempDir } from '@atc/test-utils';
 import { readParentPID } from './read-parent-pid';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-parent-pid-');
+  const temporaryDirectory = setupTempDir('atc-parent-pid-');
 
-  return { procDir: tmp.path };
+  return { procDir: temporaryDirectory.path };
 }
 
 test('it reads the parent pid after a command name that holds spaces and parentheses', () => {

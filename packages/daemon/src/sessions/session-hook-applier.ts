@@ -30,70 +30,70 @@ export class SessionHookApplier {
   // the adapter plans from the state it returned for the previous line; the
   // plan goes back so the caller can key its bookkeeping and trail on its
   // events and keep the next state
-  applyHook(e: HookEvent, prev?: unknown): HookPlan | null {
-    const s = this.registry.sessions.find((x) => x.id === e.atcId);
+  applyHook(hookEvent: HookEvent, previous?: unknown): HookPlan | null {
+    const session = this.registry.sessions.find((x) => x.id === hookEvent.atcId);
 
-    if (!s) {
+    if (!session) {
       return null;
     }
 
-    const adapter = this.registry.findAdapter(s.agent);
+    const adapter = this.registry.findAdapter(session.agent);
 
     if (adapter === null) {
       return null;
     }
 
-    const plan = adapter.planHookEvents(e, prev);
+    const plan = adapter.planHookEvents(hookEvent, previous);
 
     for (const ev of plan.events) {
-      this.applyAdapterEvent(s, ev);
+      this.applyAdapterEvent(session, ev);
     }
 
     return plan;
   }
 
-  private applyAdapterEvent(s: Session, ev: Readonly<AdapterEvent>): void {
+  private applyAdapterEvent(session: Session, ev: Readonly<AdapterEvent>): void {
     // Reporters belong to the terminal process; once a session is headless,
     // late reports from the dying terminal must not clobber its state.
-    if (s.kind === 'headless') {
+    if (session.kind === 'headless') {
       return;
     }
 
-    const focused = this.registry.focusedId === s.id;
+    const focused = this.registry.focusedId === session.id;
     let dirty = false;
     let persist = false;
     const rowUpdate: { result?: string; transcriptPath?: string } = {};
 
     if (ev.transcriptSource !== undefined) {
-      s.transcriptSource = ev.transcriptSource;
+      session.transcriptSource = ev.transcriptSource;
 
-      if (s.transcriptPath !== ev.transcriptSource) {
-        s.transcriptPath = ev.transcriptSource;
+      if (session.transcriptPath !== ev.transcriptSource) {
+        session.transcriptPath = ev.transcriptSource;
         rowUpdate.transcriptPath = ev.transcriptSource;
       }
     }
 
-    if (ev.agentSessionID !== undefined && s.agentSessionID !== ev.agentSessionID) {
-      s.agentSessionID = ev.agentSessionID;
+    if (ev.agentSessionID !== undefined && session.agentSessionID !== ev.agentSessionID) {
+      session.agentSessionID = ev.agentSessionID;
       persist = true;
       dirty = true;
     }
 
     if (ev.detail !== undefined) {
-      s.lastDetail = ev.detail;
+      session.lastDetail = ev.detail;
     }
 
     if (ev.nameSource !== undefined) {
-      void this.refreshName(s, ev.nameSource);
+      void this.refreshName(session, ev.nameSource);
     }
 
     // A permission prompt stays pending until an event shows it closed: a
     // prompt, a finished turn, a start, an end, or an idle notice. A heartbeat
     // or a notice that says nothing about the prompt leaves it pending.
     if (ev.kind === 'needs-input') {
-      s.permissionPending = ev.permissionPending ?? s.permissionPending === true;
+      session.permissionPending = ev.permissionPending ?? session.permissionPending === true;
     } else if (ev.kind !== 'heartbeat') {
-      s.permissionPending = false;
+      session.permissionPending = false;
     }
 
     // Each event kind returns whether it changed what the session lists.
@@ -102,14 +102,14 @@ export class SessionHookApplier {
         // Clearing or resuming inside a live terminal ends the old agent
         // session and starts a new one in the same process, so the start
         // supersedes the end's message. A gone terminal keeps it.
-        if (s.lastMsg === 'adopting…') {
-          s.lastMsg = 'adopted';
+        if (session.lastMsg === 'adopting…') {
+          session.lastMsg = 'adopted';
 
           return true;
         }
 
-        if (s.lastMsg === 'session ended' && s.pty !== null) {
-          s.lastMsg = 'started';
+        if (session.lastMsg === 'session ended' && session.pty !== null) {
+          session.lastMsg = 'started';
 
           return true;
         }
@@ -117,29 +117,29 @@ export class SessionHookApplier {
         return false;
       })
       .with('needs-input', () => {
-        s.state = 'needs_you';
-        s.unread = !focused;
-        s.lastMsg = ev.message ?? 'needs input';
+        session.state = 'needs_you';
+        session.unread = !focused;
+        session.lastMsg = ev.message ?? 'needs input';
 
         return true;
       })
       .with('turn-done', () => {
-        s.state = 'done';
-        s.unread = !focused;
-        s.lastMsg = 'turn done';
+        session.state = 'done';
+        session.unread = !focused;
+        session.lastMsg = 'turn done';
 
         if (ev.result !== undefined) {
           // A runaway final message cannot bloat the fleet row.
-          s.result = truncateToBytes(ev.result, 16_384);
-          rowUpdate.result = s.result;
+          session.result = truncateToBytes(ev.result, 16_384);
+          rowUpdate.result = session.result;
         }
 
         return true;
       })
       .with('prompt-submitted', () => {
-        s.state = 'running';
-        s.unread = false;
-        s.lastMsg = ev.message ?? 'working';
+        session.state = 'running';
+        session.unread = false;
+        session.lastMsg = ev.message ?? 'working';
 
         return true;
       })
@@ -148,12 +148,12 @@ export class SessionHookApplier {
       // closes the superseded session while its process stays interactive.
       // Exited is reserved for a gone terminal; onExit owns that transition.
       .with('ended', () => {
-        if (s.pty === null) {
-          s.state = 'exited';
+        if (session.pty === null) {
+          session.state = 'exited';
         }
 
-        s.unread = false;
-        s.lastMsg = 'session ended';
+        session.unread = false;
+        session.lastMsg = 'session ended';
 
         return true;
       })
@@ -168,38 +168,38 @@ export class SessionHookApplier {
     // new agent session id takes it. Anything else touches this session's
     // own row.
     if (persist) {
-      void this.fleet.tryWriteFleet(s.id);
+      void this.fleet.tryWriteFleet(session.id);
     } else {
-      void this.fleet.tryUpdateFleetEntry(s.id, rowUpdate);
+      void this.fleet.tryUpdateFleetEntry(session.id, rowUpdate);
     }
 
     if (dirty) {
-      this.callbacks.onEvent('state', s);
+      this.callbacks.onEvent('state', session);
       this.fleet.emitChange();
     }
   }
 
-  private async refreshName(s: Session, source: string) {
-    const adapter = this.registry.findAdapter(s.agent);
+  private async refreshName(session: Session, source: string) {
+    const adapter = this.registry.findAdapter(session.agent);
 
     if (adapter === null) {
       return;
     }
 
-    const update = await adapter.loadName(source, s.namedBy);
+    const update = await adapter.loadName(source, session.namedBy);
 
-    if (update === null || update.name === '' || update.name === s.name) {
+    if (update === null || update.name === '' || update.name === session.name) {
       return;
     }
 
-    s.name = update.name;
+    session.name = update.name;
 
     if (update.namedBy !== undefined) {
-      s.namedBy = update.namedBy;
+      session.namedBy = update.namedBy;
     }
 
-    void this.fleet.tryWriteFleet(s.id);
-    this.callbacks.onEvent('renamed', s);
+    void this.fleet.tryWriteFleet(session.id);
+    this.callbacks.onEvent('renamed', session);
     this.fleet.emitChange();
   }
 }

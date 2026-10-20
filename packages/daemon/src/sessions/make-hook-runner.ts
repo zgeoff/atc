@@ -44,19 +44,19 @@ export function makeHookRunner(hooks: HooksConfig, options: HookRunnerOptions = 
   };
 }
 
-function isInScope(dir: string, scope: HookScope | null): boolean {
+function isInScope(directory: string, scope: HookScope | null): boolean {
   if (scope === null) {
     return false;
   }
 
-  return isUnderDir(scope.repoRoot, dir) || isUnderDir(scope.cwd, dir);
+  return isUnderDir(scope.repoRoot, directory) || isUnderDir(scope.cwd, directory);
 }
 
 // Path-segment containment: /a/b contains /a/b and /a/b/c, never /a/bc.
-function isUnderDir(candidate: string, dir: string): boolean {
-  const prefix = dir === '/' ? '/' : `${dir}/`;
+function isUnderDir(candidate: string, directory: string): boolean {
+  const prefix = directory === '/' ? '/' : `${directory}/`;
 
-  return candidate === dir || candidate.startsWith(prefix);
+  return candidate === directory || candidate.startsWith(prefix);
 }
 
 // Starts every hook at once and reports their outcomes once all have ended.
@@ -74,10 +74,10 @@ async function runHooks(
 const DEFAULT_TIMEOUT_MS = 10_000;
 
 async function runHook(entry: HookEntry, event: EventMsg, clock: Clock): Promise<HookOutcome> {
-  let proc: ReturnType<typeof Bun.spawn>;
+  let subprocess: ReturnType<typeof Bun.spawn>;
 
   try {
-    proc = Bun.spawn(['/bin/sh', '-c', entry.command], {
+    subprocess = Bun.spawn(['/bin/sh', '-c', entry.command], {
       stdin: Buffer.from(`${JSON.stringify(event)}\n`),
       stdout: 'ignore',
       stderr: 'ignore',
@@ -90,17 +90,21 @@ async function runHook(entry: HookEntry, event: EventMsg, clock: Clock): Promise
   }
 
   const disarm = clock.schedule(() => {
-    proc.kill();
+    subprocess.kill();
   }, entry.timeout ?? DEFAULT_TIMEOUT_MS);
 
   try {
-    const code = await proc.exited;
+    const code = await subprocess.exited;
 
     if (code !== 0) {
       console.error(`atc hook for ${event.ev} exited ${code}`);
     }
 
-    return { command: entry.command, exitCode: proc.exitCode, signalCode: proc.signalCode };
+    return {
+      command: entry.command,
+      exitCode: subprocess.exitCode,
+      signalCode: subprocess.signalCode,
+    };
   } finally {
     // disarmed on exit, so the armed kill never holds the process open past the hook
     disarm();

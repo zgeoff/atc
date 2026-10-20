@@ -134,7 +134,9 @@ export class SessionRestorer {
       namedBy: 'auto',
       createdAt: this.callbacks.getClock().now(),
       parent:
-        parent !== null && this.registry.sessions.some((s) => s.id === parent) ? parent : null,
+        parent !== null && this.registry.sessions.some((existing) => existing.id === parent)
+          ? parent
+          : null,
       ...(entry.prompt === undefined ? {} : { prompt: entry.prompt }),
       ...(entry.result === undefined ? {} : { result: entry.result }),
       ...(entry.transcriptPath === undefined ? {} : { transcriptPath: entry.transcriptPath }),
@@ -181,30 +183,30 @@ export class SessionRestorer {
   // Lists why a restore could not start a session's terminal, in place of
   // the wait it listed before, with the refusal's code when no later try
   // lifts it.
-  updateRestoreRefusal(s: Session, reason: string, code: string | null): void {
-    s.lastMsg = reason;
+  updateRestoreRefusal(session: Session, reason: string, code: string | null): void {
+    session.lastMsg = reason;
 
     if (code === null) {
-      delete s.restoreRefusal;
+      delete session.restoreRefusal;
     } else {
-      s.restoreRefusal = { code, message: reason };
+      session.restoreRefusal = { code, message: reason };
     }
 
-    this.callbacks.onEvent('state', s);
+    this.callbacks.onEvent('state', session);
     this.fleet.emitChange();
   }
 
   // Publishes a checked binding and clears the refusal from its earlier
   // restore before a terminal adoption can fail for a different reason.
-  updateRestoredIdentity(s: Session, identity: string): void {
-    if (s.targetIdentity === identity) {
+  updateRestoredIdentity(session: Session, identity: string): void {
+    if (session.targetIdentity === identity) {
       return;
     }
 
-    s.targetIdentity = identity;
-    s.lastMsg = 'waiting to restore';
+    session.targetIdentity = identity;
+    session.lastMsg = 'waiting to restore';
 
-    this.callbacks.onEvent('state', s);
+    this.callbacks.onEvent('state', session);
   }
 
   private findTargetRefusal(entry: FleetEntry): string | null {

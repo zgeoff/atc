@@ -18,8 +18,8 @@ import { SpawnReplay } from './spawn-replay';
 // A session manager on one `local` target over the in-memory provider, a
 // real state store, and the replay that reads both.
 async function setupTest() {
-  const tmp = setupTempDir('atc-spawn-replay-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-spawn-replay-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -27,10 +27,10 @@ async function setupTest() {
 
   registerTestCleanup(() => store.stop());
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     null,
     store,
-    join(tmp.path, 'status.json'),
+    join(temporaryDirectory.path, 'status.json'),
     [buildStubHarnessAdapter()],
     [
       buildMockExecutionTarget({
@@ -42,18 +42,18 @@ async function setupTest() {
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
-  const replay = new SpawnReplay({ mgr, store });
+  const replay = new SpawnReplay({ manager, store });
 
-  return { store, mgr, replay };
+  return { store, manager, replay };
 }
 
 test('it answers with the listed session as it stands now', async () => {
   const ctx = await setupTest();
 
-  ctx.mgr.restore(
+  ctx.manager.restore(
     buildMockFleetEntry({
       sessionID: toSessionID('s-1'),
       name: 'renamed since',
@@ -109,7 +109,7 @@ test('it refuses a replay whose session is neither listed nor stored as no such 
 test('it answers a replay whose session the access reaches', async () => {
   const ctx = await setupTest();
 
-  ctx.mgr.restore(
+  ctx.manager.restore(
     buildMockFleetEntry({
       sessionID: toSessionID('s-1'),
       target: 'local',

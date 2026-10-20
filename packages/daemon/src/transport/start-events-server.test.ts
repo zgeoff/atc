@@ -14,11 +14,11 @@ import { startEventsServer } from './start-events-server';
 // server under test. `snapshots` records each snapshot the server collected,
 // which it does once it has registered a new subscriber.
 function setupTest() {
-  const tmp = setupTempDir('atc-events-server-');
+  const temporaryDirectory = setupTempDir('atc-events-server-');
   const snapshots: (readonly EventMsg[])[] = [];
 
   return {
-    socketPath: join(tmp.path, 'events.sock'),
+    socketPath: join(temporaryDirectory.path, 'events.sock'),
     snapshots,
     collectSnapshot: () => {
       const snapshot: readonly EventMsg[] = [];
@@ -70,7 +70,7 @@ test('it disconnects a subscriber whose outbound queue overflows', async () => {
   // socket buffers, and then overflows the tiny queue on top of them.
   const big = 'x'.repeat(65_536);
 
-  for (let i = 0; i < 100; i++) {
+  for (let count = 0; count < 100; count++) {
     server.broadcast({ v: 4, ev: 'SessionRenamed', s: 'sx', name: big });
   }
 
@@ -122,7 +122,7 @@ test('it serves a new subscriber after disconnecting one whose queue overflowed'
   // socket buffers, and then overflows the tiny queue on top of them.
   const big = 'x'.repeat(65_536);
 
-  for (let i = 0; i < 100; i++) {
+  for (let count = 0; count < 100; count++) {
     server.broadcast({ v: 4, ev: 'SessionRenamed', s: 'sx', name: big });
   }
 

@@ -98,7 +98,7 @@ async function tryCreateCloneOnTarget(
     .withStep('guest-clone', () =>
       createGuestClone(deps.requireProvider('run'), {
         host: landing.host,
-        dir: landing.dir,
+        directory: landing.directory,
         url: pinned.cloneURL,
         sha: target.sha,
         branch: target.branch,
@@ -141,7 +141,9 @@ async function transferCleanClone(
 
   try {
     await timer.withStep('transfer', () =>
-      deps.requireProvider('transfer').transferArchive(clone.archive, landing.dir, landing.host),
+      deps
+        .requireProvider('transfer')
+        .transferArchive(clone.archive, landing.directory, landing.host),
     );
   } catch (error) {
     throw toDaemonError(error, 'transfer_failed', 'transferring');
@@ -158,7 +160,7 @@ interface CleanClone {
 
 async function createCleanClone(
   pinned: PinnedSource,
-  dir: string,
+  directory: string,
   transports: readonly string[],
   timer: StepTimer,
 ): Promise<CleanClone> {
@@ -170,7 +172,7 @@ async function createCleanClone(
         ref: pinned.checkout,
         ...(pinned.sha === undefined ? {} : { sha: pinned.sha }),
       },
-      dir,
+      directory,
       transports,
       ...(pinned.credential === undefined ? {} : { credential: pinned.credential }),
     }),
@@ -183,7 +185,7 @@ async function createCleanClone(
   }
 
   const sanitized = await timer.withStep('sanitize', () =>
-    sanitizeWorkspaceClone(dir, pinned.cloneURL),
+    sanitizeWorkspaceClone(directory, pinned.cloneURL),
   );
 
   if (!sanitized.ok) {
@@ -191,7 +193,7 @@ async function createCleanClone(
   }
 
   const read = await timer.withStep('archive', async () => {
-    const tar = readWorkspaceTar(dir);
+    const tar = readWorkspaceTar(directory);
 
     const bytes = await new Response(tar.stream).arrayBuffer();
 

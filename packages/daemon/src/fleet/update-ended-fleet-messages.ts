@@ -4,7 +4,7 @@ import type { MessageService } from '../sessions/message-service';
 import type { SessionManager } from '../sessions/sessions';
 
 interface EndedFleetMessagesDeps {
-  readonly mgr: Pick<SessionManager, 'isLocalTarget' | 'isRevivable' | 'log'>;
+  readonly manager: Pick<SessionManager, 'isLocalTarget' | 'isRevivable' | 'log'>;
   readonly store: Pick<StateStore, 'loadFleet'>;
   readonly messages: Pick<MessageService, 'updateEndedMessages' | 'updateRevivedMessages'>;
 
@@ -26,10 +26,10 @@ export async function updateEndedFleetMessages(deps: EndedFleetMessagesDeps): Pr
           x.agentSessionID !== undefined &&
           x.agentSessionID === entry.agentSessionID &&
           x.exited !== true &&
-          !deps.mgr.isLocalTarget(x.target ?? LOCAL_TARGET.id),
+          !deps.manager.isLocalTarget(x.target ?? LOCAL_TARGET.id),
       );
 
-      if (!deps.mgr.isLocalTarget(entry.target ?? LOCAL_TARGET.id)) {
+      if (!deps.manager.isLocalTarget(entry.target ?? LOCAL_TARGET.id)) {
         continue;
       }
 
@@ -40,7 +40,7 @@ export async function updateEndedFleetMessages(deps: EndedFleetMessagesDeps): Pr
           : { agentSessionID: entry.agentSessionID }),
       };
 
-      if (!deps.isRestoring || !deps.mgr.isRevivable(entry)) {
+      if (!deps.isRestoring || !deps.manager.isRevivable(entry)) {
         await deps.messages.updateEndedMessages(entry.sessionID, owner);
 
         continue;
@@ -51,7 +51,7 @@ export async function updateEndedFleetMessages(deps: EndedFleetMessagesDeps): Pr
       } catch (error) {
         const reason = error instanceof Error ? error.message : String(error);
 
-        deps.mgr.log(
+        deps.manager.log(
           `atc could not requeue the messages of session ${entry.sessionID} for its revive (${reason}); it marks them unanswered`,
         );
 

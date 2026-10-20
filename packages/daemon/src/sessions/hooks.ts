@@ -10,7 +10,10 @@ interface HookConnection {
   readonly lines: LineDecoder;
 }
 
-export function startHookServer(onEvent: (e: HookEvent) => void, path: string = socketPath) {
+export function startHookServer(
+  onEvent: (hookEvent: HookEvent) => void,
+  path: string = socketPath,
+) {
   try {
     unlinkSync(path);
   } catch {}

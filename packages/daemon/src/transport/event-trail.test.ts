@@ -16,8 +16,8 @@ import { EventTrail } from './event-trail';
 // A session manager on one `local` target over the in-memory provider, a
 // real state store, a stub clock, and the trail over them.
 async function setupTest() {
-  const tmp = setupTempDir('atc-event-trail-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-event-trail-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -25,10 +25,10 @@ async function setupTest() {
 
   registerTestCleanup(() => store.stop());
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     null,
     store,
-    join(tmp.path, 'status.json'),
+    join(temporaryDirectory.path, 'status.json'),
     [buildStubHarnessAdapter()],
     [
       buildMockExecutionTarget({
@@ -40,21 +40,21 @@ async function setupTest() {
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
   const clock = buildStubClock(1_000_000);
 
   const eventSignal = new EventSignal(clock);
-  const trail = new EventTrail({ mgr, store, clock, eventSignal });
+  const trail = new EventTrail({ manager, store, clock, eventSignal });
 
-  return { store, mgr, clock, eventSignal, trail };
+  return { store, manager, clock, eventSignal, trail };
 }
 
 test('it reads the latest events under the session that recorded them', async () => {
   const ctx = await setupTest();
 
-  ctx.mgr.restore(
+  ctx.manager.restore(
     buildMockFleetEntry({
       sessionID: toSessionID('s-1'),
       name: 'builder',
@@ -137,7 +137,7 @@ test('it answers an empty page once the wait runs out', async () => {
 test('it reads none of the events of a session whose target the access may not use', async () => {
   const ctx = await setupTest();
 
-  ctx.mgr.restore(
+  ctx.manager.restore(
     buildMockFleetEntry({
       sessionID: toSessionID('s-1'),
       target: 'local',

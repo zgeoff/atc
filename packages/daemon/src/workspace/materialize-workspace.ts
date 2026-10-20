@@ -45,7 +45,7 @@ export async function materializeWorkspace(
     source.kind === 'path' && request.inPlace ? await probeOutsideWorkTree(source.path) : false;
 
   if (source.kind === 'path' && outside) {
-    if (resolve(source.path) !== resolve(request.dir)) {
+    if (resolve(source.path) !== resolve(request.directory)) {
       throw new DaemonError(
         'bad_args',
         `${source.path} is outside any git work tree, so the session runs in it as it stands; spawn with it as cwd`,
@@ -70,7 +70,7 @@ export async function materializeWorkspace(
     {
       sessionID: request.sessionID,
       target: request.target,
-      directory: request.dir,
+      directory: request.directory,
       sourceKind: source.kind,
       withheldEnv,
     },
@@ -175,7 +175,7 @@ async function runMaterialization(
   await recordPhase(request, deps, updateProgress, 'cloning', {
     repoURL,
     ref,
-    ...(request.autoDir === true ? { dir: landing.dir } : {}),
+    ...(request.autoDir === true ? { directory: landing.directory } : {}),
   });
 
   const cloned = await createCheckout(
@@ -236,7 +236,7 @@ async function writeGitIdentity(
     // Sequential: both writes lock the same config file.
     const written = await deps.requireProvider('run').runCommand({
       argv: ['git', 'config', '--file', '.git/config', key, value],
-      cwd: landing.dir,
+      cwd: landing.directory,
       host: landing.host,
     });
 
@@ -290,27 +290,27 @@ async function tryRemoveClaimedDir(
     return null;
   }
 
-  const dir = progress.landing.dir;
+  const directory = progress.landing.directory;
 
   try {
-    const removed = await deps.removeClaim(dir);
+    const removed = await deps.removeClaim(directory);
 
     if (removed) {
       return null;
     }
 
     deps.log(
-      `atc: left ${dir} on target '${request.target}' after its workspace for session ${request.sessionID} failed: another session's directory lies inside it, or it no longer resolves to itself; remove it by hand`,
+      `atc: left ${directory} on target '${request.target}' after its workspace for session ${request.sessionID} failed: another session's directory lies inside it, or it no longer resolves to itself; remove it by hand`,
     );
   } catch (error) {
     const reason = toScrubbedRefusal(error, progress.phase, secret).message;
 
     deps.log(
-      `atc: left ${dir} on target '${request.target}' after its workspace for session ${request.sessionID} failed, since removing it failed: ${reason}; remove it by hand`,
+      `atc: left ${directory} on target '${request.target}' after its workspace for session ${request.sessionID} failed, since removing it failed: ${reason}; remove it by hand`,
     );
   }
 
-  return dir;
+  return directory;
 }
 
 async function tryUpdateFailed(

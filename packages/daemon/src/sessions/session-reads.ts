@@ -12,20 +12,20 @@ import type { SessionManager } from './sessions';
 const TRANSCRIPT_PAGE_MAX_BYTES = 262_144;
 
 interface SessionReadsDeps {
-  readonly mgr: Pick<SessionManager, 'sessions' | 'collectDescriptors' | 'findAdapter'>;
+  readonly manager: Pick<SessionManager, 'sessions' | 'collectDescriptors' | 'findAdapter'>;
   readonly store: Pick<StateStore, 'loadLastActivityAt'>;
   readonly records: Pick<PublishedRecords, 'readRecord'>;
 }
 
 export class SessionReads {
-  private readonly mgr: SessionReadsDeps['mgr'];
+  private readonly manager: SessionReadsDeps['manager'];
 
   private readonly store: SessionReadsDeps['store'];
 
   private readonly records: SessionReadsDeps['records'];
 
   constructor(deps: SessionReadsDeps) {
-    this.mgr = deps.mgr;
+    this.manager = deps.manager;
     this.store = deps.store;
     this.records = deps.records;
   }
@@ -36,33 +36,33 @@ export class SessionReads {
     id: SessionID,
     access: TargetAccess | null,
   ): Promise<SessionRecord | 'missing'> {
-    const s = this.mgr.sessions.find((x) => x.id === id);
+    const live = this.manager.sessions.find((x) => x.id === id);
 
-    if (s === undefined) {
+    if (live === undefined) {
       return 'missing';
     }
 
     // Every session-derived field is taken before the await: a kill or a
     // hook may change the session meanwhile.
-    const session = getDescriptor(this.mgr, id);
-    const prompt = s.prompt ?? null;
-    const pending = s.state === 'needs_you' ? { message: s.lastMsg } : null;
-    const result = s.result ?? null;
-    const createdAt = s.createdAt;
+    const session = getDescriptor(this.manager, id);
+    const prompt = live.prompt ?? null;
+    const pending = live.state === 'needs_you' ? { message: live.lastMsg } : null;
+    const result = live.result ?? null;
+    const createdAt = live.createdAt;
 
     // the agent session id links rows from before atc ids stayed stable,
     // unless another target resumed it too; under an access it links nothing,
     // since a session that shared it may be gone with its rows still in the trail
-    const shared = this.mgr.sessions.some(
+    const shared = this.manager.sessions.some(
       (x) =>
-        x.agentSessionID === s.agentSessionID &&
-        (x.target !== s.target || x.targetIdentity !== s.targetIdentity),
+        x.agentSessionID === live.agentSessionID &&
+        (x.target !== live.target || x.targetIdentity !== live.targetIdentity),
     );
 
-    const linked = access !== null || shared ? undefined : s.agentSessionID;
+    const linked = access !== null || shared ? undefined : live.agentSessionID;
 
-    const lastEventAt = await this.store.loadLastActivityAt(s.id, linked);
-    const sessionRecord = await this.records.readRecord(s.id);
+    const lastEventAt = await this.store.loadLastActivityAt(live.id, linked);
+    const sessionRecord = await this.records.readRecord(live.id);
 
     return {
       session,
@@ -79,19 +79,19 @@ export class SessionReads {
     from: TranscriptPosition | null,
     limit: number,
   ): Promise<SessionTranscriptRead | 'missing' | 'unsupported'> {
-    const s = this.mgr.sessions.find((x) => x.id === id);
+    const session = this.manager.sessions.find((x) => x.id === id);
 
-    if (s === undefined) {
+    if (session === undefined) {
       return 'missing';
     }
 
-    const parseLine = this.mgr.findAdapter(s.agent)?.parseTranscriptLine;
+    const parseLine = this.manager.findAdapter(session.agent)?.parseTranscriptLine;
 
     if (parseLine === undefined) {
       return 'unsupported';
     }
 
-    const path = s.transcriptPath ?? '';
+    const path = session.transcriptPath ?? '';
 
     if (path === '') {
       return { path, page: { rows: [], offset: 0, more: false } };

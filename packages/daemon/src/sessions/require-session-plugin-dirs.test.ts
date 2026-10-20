@@ -9,16 +9,16 @@ import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { requireSessionPluginDirs } from './require-session-plugin-dirs';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-session-plugin-dirs-');
+  const temporaryDirectory = setupTempDir('atc-session-plugin-dirs-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test("it accepts a session whose agent's folders and own folders are all folders", () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.dir, 'shared'));
-  mkdirSync(join(ctx.dir, 'band'));
+  mkdirSync(join(ctx.directory, 'shared'));
+  mkdirSync(join(ctx.directory, 'band'));
 
   const adapter: AgentAdapter = buildMockAgentAdapter({
     profile: {
@@ -44,7 +44,7 @@ test("it accepts a session whose agent's folders and own folders are all folders
           note: null,
         },
       },
-      pluginDirs: [join(ctx.dir, 'shared')],
+      pluginDirs: [join(ctx.directory, 'shared')],
     },
   });
 
@@ -53,7 +53,7 @@ test("it accepts a session whose agent's folders and own folders are all folders
   expect(() => {
     requireSessionPluginDirs(
       { findAdapter: () => adapter, findProvider: () => provider },
-      buildMockSession({ id: toSessionID('s-1'), pluginDirs: [join(ctx.dir, 'band')] }),
+      buildMockSession({ id: toSessionID('s-1'), pluginDirs: [join(ctx.directory, 'band')] }),
     );
   }).not.toThrow();
 });
@@ -85,7 +85,7 @@ test("it refuses a session whose agent's configured folder is gone, naming the p
           note: null,
         },
       },
-      pluginDirs: [join(ctx.dir, 'shared')],
+      pluginDirs: [join(ctx.directory, 'shared')],
     },
   });
 
@@ -99,7 +99,7 @@ test("it refuses a session whose agent's configured folder is gone, naming the p
   }).toThrow(
     expect.objectContaining({
       code: 'bad_args',
-      message: `plugin folder '${join(ctx.dir, 'shared')}' does not exist`,
+      message: `plugin folder '${join(ctx.directory, 'shared')}' does not exist`,
     }),
   );
 });
@@ -111,12 +111,12 @@ test('it refuses a session whose own folder is gone, naming the path', () => {
   expect(() => {
     requireSessionPluginDirs(
       { findAdapter: () => buildMockAgentAdapter(), findProvider: () => provider },
-      buildMockSession({ id: toSessionID('s-1'), pluginDirs: [join(ctx.dir, 'band')] }),
+      buildMockSession({ id: toSessionID('s-1'), pluginDirs: [join(ctx.directory, 'band')] }),
     );
   }).toThrow(
     expect.objectContaining({
       code: 'bad_args',
-      message: `plugin folder '${join(ctx.dir, 'band')}' does not exist`,
+      message: `plugin folder '${join(ctx.directory, 'band')}' does not exist`,
     }),
   );
 });

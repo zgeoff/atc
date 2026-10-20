@@ -22,7 +22,7 @@ export interface BridgeSession {
 
 export interface BridgeContext {
   readonly findSession: (sessionID: SessionID) => BridgeSession | undefined;
-  readonly applyHookEvent: (e: HookEvent) => void;
+  readonly applyHookEvent: (hookEvent: HookEvent) => void;
 
   // Applies a note under the id its reporter gave it, and settles once
   // the note is recorded; false when the payload is no note.
@@ -189,9 +189,14 @@ export function startSessionBridge(
     }
 
     if (op === 'status.read') {
-      const s = ctx.findSession(binding.sessionID);
+      const session = ctx.findSession(binding.sessionID);
 
-      void writeLine({ id, ok: true, state: s?.state ?? 'exited', lastMsg: s?.lastMsg ?? '' });
+      void writeLine({
+        id,
+        ok: true,
+        state: session?.state ?? 'exited',
+        lastMsg: session?.lastMsg ?? '',
+      });
 
       return;
     }
@@ -226,7 +231,7 @@ export function startSessionBridge(
     const record: Readonly<Record<string, unknown>> = Object.fromEntries(Object.entries(parsed));
 
     if (!('op' in record)) {
-      const e = parseHookLine(line);
+      const hookEvent = parseHookLine(line);
 
       if (!isCurrent()) {
         void answerRefusal(null, 'stale_binding');
@@ -234,13 +239,13 @@ export function startSessionBridge(
         return;
       }
 
-      if (e === null || e.atcId !== binding.sessionID) {
+      if (hookEvent === null || hookEvent.atcId !== binding.sessionID) {
         void answerRefusal(null, 'forbidden');
 
         return;
       }
 
-      ctx.applyHookEvent(e);
+      ctx.applyHookEvent(hookEvent);
 
       return;
     }

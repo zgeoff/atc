@@ -3,10 +3,10 @@ import { readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 export function resolveRepoRoot(cwd: string): string {
-  let dir = cwd;
+  let directory = cwd;
 
   while (true) {
-    const marker = join(dir, '.git');
+    const marker = join(directory, '.git');
     const stat = tryStat(marker);
 
     if (stat === null) {
@@ -23,21 +23,21 @@ export function resolveRepoRoot(cwd: string): string {
       }
 
       if (head !== undefined) {
-        return dir;
+        return directory;
       }
     }
 
     if (stat !== undefined && stat.isFile()) {
-      return readMainRoot(marker) ?? dir;
+      return readMainRoot(marker) ?? directory;
     }
 
-    const parent = dirname(dir);
+    const parent = dirname(directory);
 
-    if (parent === dir) {
+    if (parent === directory) {
       return cwd;
     }
 
-    dir = parent;
+    directory = parent;
   }
 }
 

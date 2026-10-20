@@ -14,23 +14,26 @@ export function buildStubLocalProvider(
   });
 }
 
-async function transferLocalArchive(archive: Uint8Array, dir: string): Promise<void> {
-  await mkdir(dir, { recursive: true });
+async function transferLocalArchive(archive: Uint8Array, directory: string): Promise<void> {
+  await mkdir(directory, { recursive: true });
 
   // an inherited TAR_OPTIONS would change how tar unpacks
   const { TAR_OPTIONS: _ignored, ...env } = process.env;
 
-  const proc = Bun.spawn(['tar', '-x', '-f', '-', '-C', dir], {
-    cwd: dir,
+  const subprocess = Bun.spawn(['tar', '-x', '-f', '-', '-C', directory], {
+    cwd: directory,
     env,
     stdin: archive,
     stdout: 'ignore',
     stderr: 'pipe',
   });
 
-  const [stderr, exitCode] = await Promise.all([new Response(proc.stderr).text(), proc.exited]);
+  const [stderr, exitCode] = await Promise.all([
+    new Response(subprocess.stderr).text(),
+    subprocess.exited,
+  ]);
 
   if (exitCode !== 0) {
-    throw new Error(`tar exited ${exitCode} unpacking into ${dir}: ${stderr}`);
+    throw new Error(`tar exited ${exitCode} unpacking into ${directory}: ${stderr}`);
   }
 }

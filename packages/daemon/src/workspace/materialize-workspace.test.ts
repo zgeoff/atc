@@ -20,9 +20,9 @@ import { materializeWorkspace } from './materialize-workspace';
 import { VERIFY_SCRIPT } from './verify-target-head';
 
 async function setupTest() {
-  const tmp = setupTempDir('atc-materialize-');
-  const scratch = join(tmp.path, 'scratch');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-materialize-');
+  const scratch = join(temporaryDirectory.path, 'scratch');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   // The staging root must exist for a clone to stage in it.
   mkdirSync(scratch);
@@ -54,7 +54,7 @@ test('it leaves no staging directory behind when the materialization row cannot 
     {
       sessionID: toSessionID('s-1'),
       target: 'box',
-      dir: join(ctx.scratch, 'ws'),
+      directory: join(ctx.scratch, 'ws'),
       source: { kind: 'git', url: 'https://example.com/repo.git', ref: 'main' },
       inPlace: false,
     },
@@ -82,7 +82,7 @@ test('it uploads the commit it pinned for the clone inside the host when the bra
   const ctx = await setupTest();
   const git = await createGitFixture({ prefix: 'atc-materialize-git-' });
 
-  const dir = join(ctx.scratch, 'ws');
+  const directory = join(ctx.scratch, 'ws');
 
   // The host fails its clone, and the branch moves on upstream before the
   // daemon uploads the workspace instead.
@@ -107,7 +107,7 @@ test('it uploads the commit it pinned for the clone inside the host when the bra
     {
       sessionID: toSessionID('s-1'),
       target: 'box',
-      dir,
+      directory,
       source: { kind: 'git', url: git.upstream, ref: 'main' },
       inPlace: false,
     },
@@ -115,7 +115,7 @@ test('it uploads the commit it pinned for the clone inside the host when the bra
       requireProvider: () => provider,
       store: ctx.store,
       log: () => {},
-      readyHost: () => Promise.resolve({ host: 'h', dir }),
+      readyHost: () => Promise.resolve({ host: 'h', directory }),
       removeClaim: () => Promise.resolve(true),
       stagingRoot: ctx.scratch,
       gitTransports: ['file'],
@@ -137,7 +137,7 @@ test('it holds the phase a refusal failed in when the refusal carries none', asy
     {
       sessionID: toSessionID('s-1'),
       target: 'box',
-      dir: join(ctx.scratch, 'ws'),
+      directory: join(ctx.scratch, 'ws'),
       source: { kind: 'git', url: 'https://example.com/repo.git', ref: 'main' },
       inPlace: false,
     },
@@ -171,13 +171,13 @@ test('it sets the git identity in the checkout built inside the host', async () 
   const git = await createGitFixture({ prefix: 'atc-materialize-git-' });
 
   const provider = buildStubLocalProvider();
-  const dir = join(ctx.scratch, 'ws');
+  const directory = join(ctx.scratch, 'ws');
 
   await materializeWorkspace(
     {
       sessionID: toSessionID('s-1'),
       target: 'box',
-      dir,
+      directory,
       source: { kind: 'git', url: git.upstream, ref: 'main' },
       inPlace: false,
     },
@@ -185,7 +185,7 @@ test('it sets the git identity in the checkout built inside the host', async () 
       requireProvider: () => provider,
       store: ctx.store,
       log: () => {},
-      readyHost: () => Promise.resolve({ host: 'h', dir }),
+      readyHost: () => Promise.resolve({ host: 'h', directory }),
       removeClaim: () => Promise.resolve(true),
       stagingRoot: ctx.scratch,
       gitTransports: ['file'],
@@ -199,11 +199,11 @@ test('it sets the git identity in the checkout built inside the host', async () 
       .filter((spec) => spec.argv.includes('--file'))
       .map((spec) => [spec.argv, spec.cwd]),
   ).toStrictEqual([
-    [['git', 'config', '--file', '.git/config', 'user.name', 'Ada Lovelace'], dir],
-    [['git', 'config', '--file', '.git/config', 'user.email', 'ada@example.com'], dir],
+    [['git', 'config', '--file', '.git/config', 'user.name', 'Ada Lovelace'], directory],
+    [['git', 'config', '--file', '.git/config', 'user.email', 'ada@example.com'], directory],
   ]);
 
-  const email = await $`git config --file ${join(dir, '.git', 'config')} --get user.email`
+  const email = await $`git config --file ${join(directory, '.git', 'config')} --get user.email`
     .quiet()
     .text();
 
@@ -215,13 +215,13 @@ test('it sets the git identity in the checkout uploaded to the host', async () =
   const git = await createGitFixture({ prefix: 'atc-materialize-git-' });
 
   const provider = buildStubLocalProvider();
-  const dir = join(ctx.scratch, 'ws');
+  const directory = join(ctx.scratch, 'ws');
 
   await materializeWorkspace(
     {
       sessionID: toSessionID('s-1'),
       target: 'box',
-      dir,
+      directory,
       source: { kind: 'git', url: git.upstream, ref: 'main' },
       inPlace: false,
     },
@@ -229,7 +229,7 @@ test('it sets the git identity in the checkout uploaded to the host', async () =
       requireProvider: () => provider,
       store: ctx.store,
       log: () => {},
-      readyHost: () => Promise.resolve({ host: 'h', dir }),
+      readyHost: () => Promise.resolve({ host: 'h', directory }),
       removeClaim: () => Promise.resolve(true),
       stagingRoot: ctx.scratch,
       gitTransports: ['file'],
@@ -237,7 +237,7 @@ test('it sets the git identity in the checkout uploaded to the host', async () =
     },
   );
 
-  const name = await $`git config --file ${join(dir, '.git', 'config')} --get user.name`
+  const name = await $`git config --file ${join(directory, '.git', 'config')} --get user.name`
     .quiet()
     .text();
 
@@ -249,13 +249,13 @@ test('it runs no git identity command when the host has no identity', async () =
   const git = await createGitFixture({ prefix: 'atc-materialize-git-' });
 
   const provider = buildStubLocalProvider();
-  const dir = join(ctx.scratch, 'ws');
+  const directory = join(ctx.scratch, 'ws');
 
   await materializeWorkspace(
     {
       sessionID: toSessionID('s-1'),
       target: 'box',
-      dir,
+      directory,
       source: { kind: 'git', url: git.upstream, ref: 'main' },
       inPlace: false,
     },
@@ -263,7 +263,7 @@ test('it runs no git identity command when the host has no identity', async () =
       requireProvider: () => provider,
       store: ctx.store,
       log: () => {},
-      readyHost: () => Promise.resolve({ host: 'h', dir }),
+      readyHost: () => Promise.resolve({ host: 'h', directory }),
       removeClaim: () => Promise.resolve(true),
       stagingRoot: ctx.scratch,
       gitTransports: ['file'],
@@ -278,7 +278,7 @@ test('it refuses and removes the claimed directory when the git identity cannot 
   const ctx = await setupTest();
   const git = await createGitFixture({ prefix: 'atc-materialize-git-' });
 
-  const dir = join(ctx.scratch, 'ws');
+  const directory = join(ctx.scratch, 'ws');
   const removed: string[] = [];
 
   const provider = buildStubLocalProvider({
@@ -299,7 +299,7 @@ test('it refuses and removes the claimed directory when the git identity cannot 
     {
       sessionID: toSessionID('s-1'),
       target: 'box',
-      dir,
+      directory,
       source: { kind: 'git', url: git.upstream, ref: 'main' },
       inPlace: false,
     },
@@ -307,7 +307,7 @@ test('it refuses and removes the claimed directory when the git identity cannot 
       requireProvider: () => provider,
       store: ctx.store,
       log: () => {},
-      readyHost: () => Promise.resolve({ host: 'h', dir }),
+      readyHost: () => Promise.resolve({ host: 'h', directory }),
       removeClaim: (claimed) => {
         removed.push(claimed);
 
@@ -327,7 +327,7 @@ test('it refuses and removes the claimed directory when the git identity cannot 
 
   await materialized.catch(() => {});
 
-  expect(removed).toStrictEqual([dir]);
+  expect(removed).toStrictEqual([directory]);
 });
 
 test.each([

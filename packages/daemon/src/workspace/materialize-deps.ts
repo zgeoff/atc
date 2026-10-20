@@ -7,7 +7,7 @@ import type { GitIdentity } from './read-host-git-identity';
 // The host a workspace lands on, and the directory there it is built in.
 export interface Landing {
   readonly host: string;
-  readonly dir: string;
+  readonly directory: string;
 }
 
 export interface MaterializeDeps {
@@ -25,7 +25,7 @@ export interface MaterializeDeps {
   // Removes the directory this call claimed after a failure, and resolves
   // to whether it did; one it leaves holds what another session needs, or
   // no longer resolves to itself.
-  readonly removeClaim: (dir: string) => Promise<boolean>;
+  readonly removeClaim: (directory: string) => Promise<boolean>;
 
   // The directory on the daemon's host that holds each clone's staging
   // directory while the workspace is built.

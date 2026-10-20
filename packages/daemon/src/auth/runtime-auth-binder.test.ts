@@ -16,8 +16,8 @@ import { RuntimeAuthBinder } from './runtime-auth-binder';
 // a binder over a real state store, a broker that refuses grants as impd does behind the imp
 // provider, and a broker stand-in that enforces no authority for the contract's own guarantees
 async function setupTest() {
-  const tmp = setupTempDir('atc-auth-binder-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-auth-binder-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 

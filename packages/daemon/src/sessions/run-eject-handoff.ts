@@ -2,7 +2,7 @@ import { systemClock } from '@atc/core';
 import type { SessionID } from '@atc/core';
 import type { SessionRuntime } from './session-runtime';
 
-export type SettleScheduler = (onTimeout: () => void, ms: number) => () => void;
+export type SettleScheduler = (onTimeout: () => void, delayMs: number) => () => void;
 
 interface EjectHandoffParams {
   readonly sessionID: SessionID;

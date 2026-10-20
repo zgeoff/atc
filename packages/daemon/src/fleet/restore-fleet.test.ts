@@ -28,8 +28,8 @@ import { buildExecutionTargets } from './build-execution-targets';
 import { restoreFleet } from './restore-fleet';
 
 async function setupTest(config: Readonly<{ targets?: readonly ExecutionTarget[] }> = {}) {
-  const tmp = setupTempDir('atc-restore-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-restore-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -53,7 +53,7 @@ async function setupTest(config: Readonly<{ targets?: readonly ExecutionTarget[]
   });
 
   const recorder = buildStubLog();
-  const statusPath = join(tmp.path, 'status.json');
+  const statusPath = join(temporaryDirectory.path, 'status.json');
 
   // with no targets of the test's own, sessions run on the `local` target
   // under the identity a local row binds to
@@ -67,17 +67,17 @@ async function setupTest(config: Readonly<{ targets?: readonly ExecutionTarget[]
     },
   ];
 
-  const mgr = new SessionManager(buildMockAgentAdapter(), store, statusPath, [], targets);
+  const manager = new SessionManager(buildMockAgentAdapter(), store, statusPath, [], targets);
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
   // no session holds a runtime, so a stagger waits on no boot
   const runtimes = new Map<SessionID, SessionRuntime>();
 
   return {
-    dir: tmp.path,
+    directory: temporaryDirectory.path,
     statusPath,
     store,
     impProvider,
@@ -86,7 +86,7 @@ async function setupTest(config: Readonly<{ targets?: readonly ExecutionTarget[]
       heldPrepares.get(host)?.resolve();
     },
     targets,
-    mgr,
+    manager,
     logged: recorder.lines,
     log: recorder.log,
     findRuntime: (sessionID: SessionID) => runtimes.get(sessionID),
@@ -99,13 +99,13 @@ test('it lists every restored session under the session id its row holds', async
   await ctx.store.writeFleet([
     buildMockFleetEntry({
       sessionID: toSessionID('s-kept'),
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       agentSessionID: toAgentSessionID('c-kept'),
     }),
   ]);
 
   const restored = await restoreFleet({
-    mgr: ctx.mgr,
+    manager: ctx.manager,
     store: ctx.store,
     findRuntime: ctx.findRuntime,
     cols: 80,
@@ -114,25 +114,33 @@ test('it lists every restored session under the session id its row holds', async
   });
 
   expect(restored.restored).toBe(1);
-  expect(ctx.mgr.sessions.map((s) => s.id)).toStrictEqual([toSessionID('s-kept')]);
+  expect(ctx.manager.sessions.map((session) => session.id)).toStrictEqual([toSessionID('s-kept')]);
 });
 
 test('it revives a listed dead session in place instead of listing its id twice', async () => {
   const ctx = await setupTest();
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24, toAgentSessionID('c-1'));
 
-  await ctx.mgr.writeFleet();
+  const session = await ctx.manager.spawn(
+    ctx.directory,
+    'worker',
+    '',
+    80,
+    24,
+    toAgentSessionID('c-1'),
+  );
 
-  s.pty?.kill();
+  await ctx.manager.writeFleet();
+
+  session.pty?.kill();
 
   await waitFor(() => {
-    expect(s.state).toBe('exited');
+    expect(session.state).toBe('exited');
   });
 
-  const exitedPTY = s.pty;
+  const exitedPTY = session.pty;
 
   await restoreFleet({
-    mgr: ctx.mgr,
+    manager: ctx.manager,
     store: ctx.store,
     findRuntime: ctx.findRuntime,
     cols: 80,
@@ -140,9 +148,9 @@ test('it revives a listed dead session in place instead of listing its id twice'
     capMs: 0,
   });
 
-  expect(ctx.mgr.sessions.map((x) => x.id)).toStrictEqual([s.id]);
+  expect(ctx.manager.sessions.map((x) => x.id)).toStrictEqual([session.id]);
   expect(exitedPTY).toBeNull();
-  expect(s.pty).not.toBeNull();
+  expect(session.pty).not.toBeNull();
 });
 
 test('it keeps a sub-session under the session that resumed its parent agent session', async () => {
@@ -165,24 +173,24 @@ test('it keeps a sub-session under the session that resumed its parent agent ses
   // so waiting for every terminal before the store closes lets none land after it
   registerTestCleanup(async () => {
     await waitFor(() => {
-      expect(restarted.sessions).toSatisfyAll((s: Session) => s.pty !== null);
+      expect(restarted.sessions).toSatisfyAll((session: Session) => session.pty !== null);
     });
 
     await restarted.writeFleet();
   });
 
-  const parent = ctx.mgr.restore(
+  const parent = ctx.manager.restore(
     buildMockFleetEntry({
       sessionID: toSessionID('s-parent'),
       name: 'wrangler',
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       agentSessionID: toAgentSessionID('c-parent'),
       exited: true,
     }),
   );
 
-  const child = await ctx.mgr.spawn(
-    ctx.dir,
+  const child = await ctx.manager.spawn(
+    ctx.directory,
     'worker',
     '',
     80,
@@ -193,8 +201,8 @@ test('it keeps a sub-session under the session that resumed its parent agent ses
     parent.id,
   );
 
-  const resumed = await ctx.mgr.spawn(
-    ctx.dir,
+  const resumed = await ctx.manager.spawn(
+    ctx.directory,
     'wrangler',
     '',
     80,
@@ -202,10 +210,10 @@ test('it keeps a sub-session under the session that resumed its parent agent ses
     toAgentSessionID('c-parent'),
   );
 
-  await ctx.mgr.writeFleet();
+  await ctx.manager.writeFleet();
 
   await restoreFleet({
-    mgr: restarted,
+    manager: restarted,
     store: ctx.store,
     findRuntime: ctx.findRuntime,
     cols: 80,
@@ -213,7 +221,7 @@ test('it keeps a sub-session under the session that resumed its parent agent ses
     capMs: 0,
   });
 
-  const restoredChild = restarted.sessions.find((s) => s.id === child.id);
+  const restoredChild = restarted.sessions.find((session) => session.id === child.id);
 
   expect(restoredChild?.parent).toBe(resumed.id);
 });
@@ -238,24 +246,24 @@ test('it keeps a sub-session under a sub-session that resumed their parent agent
   // so waiting for every terminal before the store closes lets none land after it
   registerTestCleanup(async () => {
     await waitFor(() => {
-      expect(restarted.sessions).toSatisfyAll((s: Session) => s.pty !== null);
+      expect(restarted.sessions).toSatisfyAll((session: Session) => session.pty !== null);
     });
 
     await restarted.writeFleet();
   });
 
-  const parent = ctx.mgr.restore(
+  const parent = ctx.manager.restore(
     buildMockFleetEntry({
       sessionID: toSessionID('s-parent'),
       name: 'wrangler',
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       agentSessionID: toAgentSessionID('c-parent'),
       exited: true,
     }),
   );
 
-  const child = await ctx.mgr.spawn(
-    ctx.dir,
+  const child = await ctx.manager.spawn(
+    ctx.directory,
     'worker',
     '',
     80,
@@ -268,8 +276,8 @@ test('it keeps a sub-session under a sub-session that resumed their parent agent
 
   // Spawned under the session whose agent session it resumes, so the
   // row it replaces is its own parent.
-  const resumed = await ctx.mgr.spawn(
-    ctx.dir,
+  const resumed = await ctx.manager.spawn(
+    ctx.directory,
     'wrangler',
     '',
     80,
@@ -280,10 +288,10 @@ test('it keeps a sub-session under a sub-session that resumed their parent agent
     parent.id,
   );
 
-  await ctx.mgr.writeFleet();
+  await ctx.manager.writeFleet();
 
   await restoreFleet({
-    mgr: restarted,
+    manager: restarted,
     store: ctx.store,
     findRuntime: ctx.findRuntime,
     cols: 80,
@@ -291,7 +299,7 @@ test('it keeps a sub-session under a sub-session that resumed their parent agent
     capMs: 0,
   });
 
-  const restored = restarted.sessions.map((s) => [s.id, s.parent]);
+  const restored = restarted.sessions.map((session) => [session.id, session.parent]);
 
   expect(restored).toIncludeSameMembers([
     [child.id, resumed.id],
@@ -319,34 +327,34 @@ test('it restores two crossed resumes with the earlier one top-level and the lat
   // so waiting for every terminal before the store closes lets none land after it
   registerTestCleanup(async () => {
     await waitFor(() => {
-      expect(restarted.sessions).toSatisfyAll((s: Session) => s.pty !== null);
+      expect(restarted.sessions).toSatisfyAll((session: Session) => session.pty !== null);
     });
 
     await restarted.writeFleet();
   });
 
-  const first = ctx.mgr.restore(
+  const first = ctx.manager.restore(
     buildMockFleetEntry({
       sessionID: toSessionID('s-p'),
       name: 'p',
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       agentSessionID: toAgentSessionID('c-a'),
       exited: true,
     }),
   );
 
-  const second = ctx.mgr.restore(
+  const second = ctx.manager.restore(
     buildMockFleetEntry({
       sessionID: toSessionID('s-q'),
       name: 'q',
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       agentSessionID: toAgentSessionID('c-b'),
       exited: true,
     }),
   );
 
-  const resumedFirst = await ctx.mgr.spawn(
-    ctx.dir,
+  const resumedFirst = await ctx.manager.spawn(
+    ctx.directory,
     'r',
     '',
     80,
@@ -357,8 +365,8 @@ test('it restores two crossed resumes with the earlier one top-level and the lat
     second.id,
   );
 
-  const resumedSecond = await ctx.mgr.spawn(
-    ctx.dir,
+  const resumedSecond = await ctx.manager.spawn(
+    ctx.directory,
     's',
     '',
     80,
@@ -369,10 +377,10 @@ test('it restores two crossed resumes with the earlier one top-level and the lat
     first.id,
   );
 
-  await ctx.mgr.writeFleet();
+  await ctx.manager.writeFleet();
 
   await restoreFleet({
-    mgr: restarted,
+    manager: restarted,
     store: ctx.store,
     findRuntime: ctx.findRuntime,
     cols: 80,
@@ -380,7 +388,7 @@ test('it restores two crossed resumes with the earlier one top-level and the lat
     capMs: 0,
   });
 
-  const restored = restarted.sessions.map((s) => [s.id, s.parent]);
+  const restored = restarted.sessions.map((session) => [session.id, session.parent]);
 
   expect(restored).toIncludeSameMembers([
     [resumedFirst.id, null],
@@ -400,7 +408,7 @@ test('it starts no terminal on a later restore for a session an earlier restore 
 
   const headless = buildStubHeadlessRunner();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter({ planSpawn, headlessRunner: headless.runner }),
     ctx.store,
     ctx.statusPath,
@@ -409,19 +417,19 @@ test('it starts no terminal on a later restore for a session an earlier restore 
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
   await ctx.store.writeFleet([
     buildMockFleetEntry({
       sessionID: toSessionID('s-headless'),
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       agentSessionID: toAgentSessionID('c-headless'),
     }),
   ]);
 
   const first = await restoreFleet({
-    mgr,
+    manager,
     store: ctx.store,
     findRuntime: ctx.findRuntime,
     cols: 80,
@@ -435,18 +443,18 @@ test('it starts no terminal on a later restore for a session an earlier restore 
   const runtime = new SessionRuntime();
 
   const started = startHeadlessTurn(
-    mgr,
+    manager,
     () => runtime,
     toSessionID('s-headless'),
     'keep going',
     () => {},
-    join(ctx.dir, 'reporter.sock'),
+    join(ctx.directory, 'reporter.sock'),
   );
 
   invariant(started, 'the headless turn did not start');
 
   const restored = await restoreFleet({
-    mgr,
+    manager,
     store: ctx.store,
     findRuntime: ctx.findRuntime,
     cols: 80,
@@ -458,7 +466,7 @@ test('it starts no terminal on a later restore for a session an earlier restore 
   await restored.settled;
 
   expect(planSpawn).toHaveBeenCalledOnce();
-  expect(mgr.sessions).toMatchObject([{ id: 's-headless', kind: 'headless', pty: null }]);
+  expect(manager.sessions).toMatchObject([{ id: 's-headless', kind: 'headless', pty: null }]);
   expect(headless.runs.map((run) => run.stopped)).toStrictEqual([false]);
 });
 
@@ -472,7 +480,7 @@ test('it revives on a later restore a session an earlier restore left without a 
     throw new Error('the agent CLI is missing');
   });
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter({
       planSpawn,
       headlessRunner: () => {
@@ -486,19 +494,19 @@ test('it revives on a later restore a session an earlier restore left without a 
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
   await ctx.store.writeFleet([
     buildMockFleetEntry({
       sessionID: toSessionID('s-headless'),
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       agentSessionID: toAgentSessionID('c-headless'),
     }),
   ]);
 
   const first = await restoreFleet({
-    mgr,
+    manager,
     store: ctx.store,
     findRuntime: ctx.findRuntime,
     cols: 80,
@@ -513,17 +521,17 @@ test('it revives on a later restore a session an earlier restore left without a 
 
   expect(() =>
     startHeadlessTurn(
-      mgr,
+      manager,
       () => runtime,
       toSessionID('s-headless'),
       'keep going',
       () => {},
-      join(ctx.dir, 'reporter.sock'),
+      join(ctx.directory, 'reporter.sock'),
     ),
   ).toThrowWithMessage(Error, 'the settings file cannot be written');
 
   const restored = await restoreFleet({
-    mgr,
+    manager,
     store: ctx.store,
     findRuntime: ctx.findRuntime,
     cols: 80,
@@ -534,7 +542,7 @@ test('it revives on a later restore a session an earlier restore left without a 
 
   await restored.settled;
 
-  expect(mgr.sessions).toMatchObject([{ id: 's-headless', kind: 'pty', lastMsg: 'revived' }]);
+  expect(manager.sessions).toMatchObject([{ id: 's-headless', kind: 'pty', lastMsg: 'revived' }]);
 });
 
 test('it starts no terminal for a queued session whose headless turn starts while the restore waits on an earlier session', async () => {
@@ -547,7 +555,7 @@ test('it starts no terminal for a queued session whose headless turn starts whil
 
   const headless = buildStubHeadlessRunner();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter({ planSpawn, headlessRunner: headless.runner }),
     ctx.store,
     ctx.statusPath,
@@ -556,18 +564,18 @@ test('it starts no terminal for a queued session whose headless turn starts whil
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
   await ctx.store.writeFleet([
     buildMockFleetEntry({
       sessionID: toSessionID('s-first'),
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       agentSessionID: toAgentSessionID('c-first'),
     }),
     buildMockFleetEntry({
       sessionID: toSessionID('s-second'),
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       agentSessionID: toAgentSessionID('c-second'),
     }),
   ]);
@@ -577,7 +585,7 @@ test('it starts no terminal for a queued session whose headless turn starts whil
   const firstRuntime = new SessionRuntime();
 
   const restored = await restoreFleet({
-    mgr,
+    manager,
     store: ctx.store,
     findRuntime: (id) => (id === toSessionID('s-first') ? firstRuntime : undefined),
     cols: 80,
@@ -591,12 +599,12 @@ test('it starts no terminal for a queued session whose headless turn starts whil
   });
 
   const started = startHeadlessTurn(
-    mgr,
+    manager,
     () => new SessionRuntime(),
     toSessionID('s-second'),
     'keep going',
     () => {},
-    join(ctx.dir, 'reporter.sock'),
+    join(ctx.directory, 'reporter.sock'),
   );
 
   invariant(started, 'the headless turn did not start');
@@ -607,7 +615,7 @@ test('it starts no terminal for a queued session whose headless turn starts whil
   expect(outcome).toBe('finished');
   expect(planSpawn).toHaveBeenCalledOnce();
 
-  expect(mgr.sessions).toMatchObject([
+  expect(manager.sessions).toMatchObject([
     { id: 's-first', kind: 'pty' },
     { id: 's-second', kind: 'headless', pty: null, lastMsg: 'headless turn running' },
   ]);
@@ -657,13 +665,13 @@ test('it restores sessions stored before the providers moved into packages by ta
   await ctx.store.writeFleet([
     buildMockFleetEntry({
       sessionID: toSessionID('s-on-local'),
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       target: 'local',
       targetIdentity: 'local-pty:44136fa355b3678a',
     }),
     buildMockFleetEntry({
       sessionID: toSessionID('s-on-cloud'),
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       target: 'cloud',
       targetIdentity: 'imp:reach-v1:c97f60aac21db24e',
       exited: true,
@@ -671,7 +679,7 @@ test('it restores sessions stored before the providers moved into packages by ta
   ]);
 
   await restoreFleet({
-    mgr: ctx.mgr,
+    manager: ctx.manager,
     store: ctx.store,
     findRuntime: ctx.findRuntime,
     cols: 80,
@@ -680,7 +688,13 @@ test('it restores sessions stored before the providers moved into packages by ta
   });
 
   expect(
-    ctx.mgr.sessions.map((s) => [s.id, s.target, s.targetIdentity, s.state, s.lastMsg]),
+    ctx.manager.sessions.map((session) => [
+      session.id,
+      session.target,
+      session.targetIdentity,
+      session.state,
+      session.lastMsg,
+    ]),
   ).toStrictEqual([
     ['s-on-local', 'local', 'local-pty:44136fa355b3678a', 'running', 'revived'],
     ['s-on-cloud', 'cloud', 'imp:reach-v1:c97f60aac21db24e', 'exited', 'killed'],
@@ -726,14 +740,14 @@ test('it refuses a stored session whose target config revision differs from the 
   await ctx.store.writeFleet([
     buildMockFleetEntry({
       sessionID: toSessionID('s-on-cloud'),
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       target: 'cloud',
       targetIdentity: 'imp:reach-v1:c97f60aac21db24e',
     }),
   ]);
 
   await restoreFleet({
-    mgr: ctx.mgr,
+    manager: ctx.manager,
     store: ctx.store,
     findRuntime: ctx.findRuntime,
     cols: 80,
@@ -741,9 +755,9 @@ test('it refuses a stored session whose target config revision differs from the 
     capMs: 0,
   });
 
-  expect(ctx.mgr.sessions.map((s) => [s.id, s.state, s.lastMsg])).toStrictEqual([
-    ['s-on-cloud', 'exited', "target 'cloud' changed"],
-  ]);
+  expect(
+    ctx.manager.sessions.map((session) => [session.id, session.state, session.lastMsg]),
+  ).toStrictEqual([['s-on-cloud', 'exited', "target 'cloud' changed"]]);
 });
 
 test('it restores a stored session on its own target config revision after another target is added', async () => {
@@ -784,14 +798,14 @@ test('it restores a stored session on its own target config revision after anoth
   await ctx.store.writeFleet([
     buildMockFleetEntry({
       sessionID: toSessionID('s-on-local'),
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       target: 'local',
       targetIdentity: 'local-pty:44136fa355b3678a',
     }),
   ]);
 
   await restoreFleet({
-    mgr: ctx.mgr,
+    manager: ctx.manager,
     store: ctx.store,
     findRuntime: ctx.findRuntime,
     cols: 80,
@@ -799,15 +813,20 @@ test('it restores a stored session on its own target config revision after anoth
     capMs: 0,
   });
 
-  expect(ctx.mgr.sessions.map((s) => [s.id, s.targetIdentity, s.state, s.lastMsg])).toStrictEqual([
-    ['s-on-local', 'local-pty:44136fa355b3678a', 'running', 'revived'],
-  ]);
+  expect(
+    ctx.manager.sessions.map((session) => [
+      session.id,
+      session.targetIdentity,
+      session.state,
+      session.lastMsg,
+    ]),
+  ).toStrictEqual([['s-on-local', 'local-pty:44136fa355b3678a', 'running', 'revived']]);
 });
 
 test('it restores the fleet with no terminal for each session whose agent is not signed in on its imp', async () => {
   const ctx = await setupTest();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter({ planAuthCheck: () => ['false'] }),
     ctx.store,
     ctx.statusPath,
@@ -816,28 +835,28 @@ test('it restores the fleet with no terminal for each session whose agent is not
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
-  mgr.log = ctx.log;
+  manager.log = ctx.log;
 
   await ctx.store.writeFleet([
     buildMockFleetEntry({
       sessionID: toSessionID('s-first'),
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       target: 'box',
       targetIdentity: 'imp:test',
     }),
     buildMockFleetEntry({
       sessionID: toSessionID('s-second'),
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       target: 'box',
       targetIdentity: 'imp:test',
     }),
   ]);
 
   const restored = await restoreFleet({
-    mgr,
+    manager,
     store: ctx.store,
     findRuntime: () => {},
     cols: 80,
@@ -849,7 +868,9 @@ test('it restores the fleet with no terminal for each session whose agent is not
 
   expect(restored.restored).toBe(2);
 
-  expect<readonly unknown[]>(mgr.sessions.map((s) => [s.id, s.pty !== null])).toStrictEqual([
+  expect<readonly unknown[]>(
+    manager.sessions.map((session) => [session.id, session.pty !== null]),
+  ).toStrictEqual([
     ['s-first', false],
     ['s-second', false],
   ]);
@@ -870,7 +891,7 @@ test('it logs a later session whose revive fails and leaves it without a termina
       throw new Error('no plan for s-second');
     });
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter({ planGuestSpawn }),
     ctx.store,
     ctx.statusPath,
@@ -879,28 +900,28 @@ test('it logs a later session whose revive fails and leaves it without a termina
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
-  mgr.log = ctx.log;
+  manager.log = ctx.log;
 
   await ctx.store.writeFleet([
     buildMockFleetEntry({
       sessionID: toSessionID('s-first'),
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       target: 'box',
       targetIdentity: 'imp:test',
     }),
     buildMockFleetEntry({
       sessionID: toSessionID('s-second'),
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       target: 'box',
       targetIdentity: 'imp:test',
     }),
   ]);
 
   const restored = await restoreFleet({
-    mgr,
+    manager,
     store: ctx.store,
     findRuntime: () => {},
     cols: 80,
@@ -917,7 +938,9 @@ test('it logs a later session whose revive fails and leaves it without a termina
     'atc could not revive session s-second (no plan for s-second)',
   ]);
 
-  expect<readonly unknown[]>(mgr.sessions.map((s) => [s.id, s.pty !== null])).toStrictEqual([
+  expect<readonly unknown[]>(
+    manager.sessions.map((session) => [session.id, session.pty !== null]),
+  ).toStrictEqual([
     ['s-first', true],
     ['s-second', false],
   ]);
@@ -936,7 +959,7 @@ test('it logs a first session whose revive fails with a plain error and still re
     throw new Error('no plan for s-first');
   });
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter({ planGuestSpawn }),
     ctx.store,
     ctx.statusPath,
@@ -945,28 +968,28 @@ test('it logs a first session whose revive fails with a plain error and still re
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
-  mgr.log = ctx.log;
+  manager.log = ctx.log;
 
   await ctx.store.writeFleet([
     buildMockFleetEntry({
       sessionID: toSessionID('s-first'),
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       target: 'box',
       targetIdentity: 'imp:test',
     }),
     buildMockFleetEntry({
       sessionID: toSessionID('s-second'),
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       target: 'box',
       targetIdentity: 'imp:test',
     }),
   ]);
 
   const restored = await restoreFleet({
-    mgr,
+    manager,
     store: ctx.store,
     findRuntime: () => {},
     cols: 80,
@@ -978,7 +1001,9 @@ test('it logs a first session whose revive fails with a plain error and still re
 
   expect(restored.restored).toBe(2);
 
-  expect<readonly unknown[]>(mgr.sessions.map((s) => [s.id, s.pty !== null])).toStrictEqual([
+  expect<readonly unknown[]>(
+    manager.sessions.map((session) => [session.id, session.pty !== null]),
+  ).toStrictEqual([
     ['s-first', false],
     ['s-second', true],
   ]);
@@ -995,7 +1020,7 @@ test("it lists the plugin refusal of a session on a remote target once its agent
   const local = buildStubMemoryProvider({ kind: 'local-pty' });
   const remote = buildStubMemoryProvider({ kind: 'imp-like', remote: true });
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter({
       profile: {
         label: 'Claude',
@@ -1020,7 +1045,7 @@ test("it lists the plugin refusal of a session on a remote target once its agent
             note: null,
           },
         },
-        pluginDirs: [ctx.dir],
+        pluginDirs: [ctx.directory],
       },
     }),
     ctx.store,
@@ -1039,10 +1064,10 @@ test("it lists the plugin refusal of a session on a remote target once its agent
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
-  mgr.log = ctx.log;
+  manager.log = ctx.log;
 
   await ctx.store.writeFleet([
     buildMockFleetEntry({
@@ -1054,13 +1079,13 @@ test("it lists the plugin refusal of a session on a remote target once its agent
     }),
     buildMockFleetEntry({
       sessionID: toSessionID('s-local'),
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       agentSessionID: toAgentSessionID('c-local'),
     }),
   ]);
 
   const restored = await restoreFleet({
-    mgr,
+    manager,
     store: ctx.store,
     findRuntime: () => {},
     cols: 80,
@@ -1074,7 +1099,7 @@ test("it lists the plugin refusal of a session on a remote target once its agent
   const refusal =
     "target 'box' runs the agent on another machine, so it takes no pluginDirs; the agent's config or the spawn sets them";
 
-  expect(mgr.sessions.find((s) => s.id === toSessionID('s-remote'))).toMatchObject({
+  expect(manager.sessions.find((session) => session.id === toSessionID('s-remote'))).toMatchObject({
     pty: null,
     lastMsg: refusal,
     restoreRefusal: { code: 'unsupported', message: refusal },
@@ -1084,7 +1109,7 @@ test("it lists the plugin refusal of a session on a remote target once its agent
     `atc could not revive session s-remote (${refusal})`,
   ]);
 
-  expect(mgr.sessions.find((s) => s.id === toSessionID('s-local'))).toMatchObject({
+  expect(manager.sessions.find((session) => session.id === toSessionID('s-local'))).toMatchObject({
     kind: 'pty',
     pty: local.harnesses[0],
   });
@@ -1097,7 +1122,7 @@ test("it lists the plugin refusal of a local session whose agent's configured pl
 
   const local = buildStubMemoryProvider({ kind: 'local-pty' });
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter({
       profile: {
         label: 'Claude',
@@ -1140,21 +1165,21 @@ test("it lists the plugin refusal of a local session whose agent's configured pl
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
-  mgr.log = ctx.log;
+  manager.log = ctx.log;
 
   await ctx.store.writeFleet([
     buildMockFleetEntry({
       sessionID: toSessionID('s-local'),
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       agentSessionID: toAgentSessionID('c-local'),
     }),
   ]);
 
   const restored = await restoreFleet({
-    mgr,
+    manager,
     store: ctx.store,
     findRuntime: () => {},
     cols: 80,
@@ -1167,7 +1192,7 @@ test("it lists the plugin refusal of a local session whose agent's configured pl
 
   const refusal = "plugin folder '/nonexistent/plugins/shared' does not exist";
 
-  expect(mgr.sessions).toMatchObject([
+  expect(manager.sessions).toMatchObject([
     {
       id: 's-local',
       pty: null,
@@ -1182,7 +1207,7 @@ test("it lists the plugin refusal of a local session whose agent's configured pl
 test('it lists and logs the refusal of a session whose imp refuses it with no retry left', async () => {
   const ctx = await setupTest();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -1191,15 +1216,15 @@ test('it lists and logs the refusal of a session whose imp refuses it with no re
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
-  mgr.log = ctx.log;
+  manager.log = ctx.log;
 
   await ctx.store.writeFleet([
     buildMockFleetEntry({
       sessionID: toSessionID('s-busy'),
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       target: 'box',
       targetIdentity: 'imp:test',
     }),
@@ -1208,7 +1233,7 @@ test('it lists and logs the refusal of a session whose imp refuses it with no re
   ctx.impProvider.refuseNextPrepare('UNAVAILABLE');
 
   const restored = await restoreFleet({
-    mgr,
+    manager,
     store: ctx.store,
     findRuntime: () => {},
     cols: 80,
@@ -1221,7 +1246,7 @@ test('it lists and logs the refusal of a session whose imp refuses it with no re
 
   const refusal = `imp ${ctx.impProvider.getImpName('s-busy')} cannot be used: impd refused the lease (UNAVAILABLE)`;
 
-  expect(mgr.sessions).toMatchObject([
+  expect(manager.sessions).toMatchObject([
     { id: 's-busy', kind: 'headless', state: 'running', pty: null, lastMsg: refusal },
   ]);
 
@@ -1233,7 +1258,7 @@ test('it lists and logs the refusal of a session whose imp refuses it with no re
 test('it revives a session on a later try once its imp stops refusing it', async () => {
   const ctx = await setupTest();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -1242,15 +1267,15 @@ test('it revives a session on a later try once its imp stops refusing it', async
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
-  mgr.log = ctx.log;
+  manager.log = ctx.log;
 
   await ctx.store.writeFleet([
     buildMockFleetEntry({
       sessionID: toSessionID('s-busy'),
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       target: 'box',
       targetIdentity: 'imp:test',
     }),
@@ -1259,7 +1284,7 @@ test('it revives a session on a later try once its imp stops refusing it', async
   ctx.impProvider.refuseNextPrepare('UNAVAILABLE');
 
   const restored = await restoreFleet({
-    mgr,
+    manager,
     store: ctx.store,
     findRuntime: () => {},
     cols: 80,
@@ -1270,7 +1295,7 @@ test('it revives a session on a later try once its imp stops refusing it', async
 
   await restored.settled;
 
-  expect(mgr.sessions).toMatchObject([{ id: 's-busy', kind: 'pty', lastMsg: 'revived' }]);
+  expect(manager.sessions).toMatchObject([{ id: 's-busy', kind: 'pty', lastMsg: 'revived' }]);
 
   expect<readonly unknown[]>(ctx.logged).toStrictEqual([
     `atc could not revive session s-busy (imp ${ctx.impProvider.getImpName('s-busy')} cannot be used: impd refused the lease (UNAVAILABLE)); trying again`,
@@ -1285,7 +1310,7 @@ test('it waits for the last session a round started to boot before a retry start
 
   const runtime = new SessionRuntime();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -1294,19 +1319,19 @@ test('it waits for the last session a round started to boot before a retry start
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
   await ctx.store.writeFleet([
     buildMockFleetEntry({
       sessionID: toSessionID('s-refused'),
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       target: 'box',
       targetIdentity: 'imp:test',
     }),
     buildMockFleetEntry({
       sessionID: toSessionID('s-booting'),
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       target: 'box',
       targetIdentity: 'imp:test',
     }),
@@ -1315,7 +1340,7 @@ test('it waits for the last session a round started to boot before a retry start
   ctx.impProvider.refuseNextPrepare('UNAVAILABLE');
 
   const restored = await restoreFleet({
-    mgr,
+    manager,
     store: ctx.store,
     findRuntime: (id) => (id === 's-booting' ? runtime : undefined),
     cols: 80,
@@ -1344,7 +1369,9 @@ test('it waits for the last session a round started to boot before a retry start
   expect(startedBeforeBoot).toBe(1);
   expect(ctx.impProvider.harnesses).toBeArrayOfSize(2);
 
-  expect<readonly unknown[]>(mgr.sessions.map((s) => [s.id, s.pty !== null])).toStrictEqual([
+  expect<readonly unknown[]>(
+    manager.sessions.map((session) => [session.id, session.pty !== null]),
+  ).toStrictEqual([
     ['s-refused', true],
     ['s-booting', true],
   ]);
@@ -1355,7 +1382,7 @@ test('it leaves stopped a refused session a caller stops while its retry readies
 
   const clock = buildStubClock(Date.now());
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -1364,13 +1391,13 @@ test('it leaves stopped a refused session a caller stops while its retry readies
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
   await ctx.store.writeFleet([
     buildMockFleetEntry({
       sessionID: toSessionID('s-busy'),
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       target: 'box',
       targetIdentity: 'imp:test',
     }),
@@ -1379,7 +1406,7 @@ test('it leaves stopped a refused session a caller stops while its retry readies
   ctx.impProvider.refuseNextPrepare('UNAVAILABLE');
 
   const restored = await restoreFleet({
-    mgr,
+    manager,
     store: ctx.store,
     findRuntime: () => {},
     cols: 80,
@@ -1400,13 +1427,13 @@ test('it leaves stopped a refused session a caller stops while its retry readies
     expect(ctx.impProvider.countHeldPrepares()).toBe(1);
   });
 
-  await mgr.kill(toSessionID('s-busy'), true);
+  await manager.kill(toSessionID('s-busy'), true);
 
   ctx.impProvider.stopPrepareHold();
 
   await restored.settled;
 
-  expect(mgr.sessions).toMatchObject([
+  expect(manager.sessions).toMatchObject([
     { id: 's-busy', state: 'exited', lastMsg: 'killed', pty: null },
   ]);
 
@@ -1416,7 +1443,7 @@ test('it leaves stopped a refused session a caller stops while its retry readies
 test('it leaves stopped a session a caller stops while a try its imp then refuses readies the imp', async () => {
   const ctx = await setupTest();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -1425,15 +1452,15 @@ test('it leaves stopped a session a caller stops while a try its imp then refuse
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
-  mgr.log = ctx.log;
+  manager.log = ctx.log;
 
   await ctx.store.writeFleet([
     buildMockFleetEntry({
       sessionID: toSessionID('s-busy'),
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       target: 'box',
       targetIdentity: 'imp:test',
     }),
@@ -1443,7 +1470,7 @@ test('it leaves stopped a session a caller stops while a try its imp then refuse
   ctx.impProvider.startPrepareHold();
 
   const restoring = restoreFleet({
-    mgr,
+    manager,
     store: ctx.store,
     findRuntime: () => {},
     cols: 80,
@@ -1456,7 +1483,7 @@ test('it leaves stopped a session a caller stops while a try its imp then refuse
     expect(ctx.impProvider.countHeldPrepares()).toBe(1);
   });
 
-  await mgr.kill(toSessionID('s-busy'), true);
+  await manager.kill(toSessionID('s-busy'), true);
 
   ctx.impProvider.stopPrepareHold();
 
@@ -1464,7 +1491,7 @@ test('it leaves stopped a session a caller stops while a try its imp then refuse
 
   await restored.settled;
 
-  expect(mgr.sessions).toMatchObject([
+  expect(manager.sessions).toMatchObject([
     { id: 's-busy', state: 'exited', lastMsg: 'killed', pty: null },
   ]);
 
@@ -1478,7 +1505,7 @@ test('it leaves stopped a session a caller stops while a try its imp then refuse
 test('it revives on a later restore a session an earlier restore left without a terminal', async () => {
   const ctx = await setupTest();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -1487,13 +1514,13 @@ test('it revives on a later restore a session an earlier restore left without a 
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
   await ctx.store.writeFleet([
     buildMockFleetEntry({
       sessionID: toSessionID('s-busy'),
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       target: 'box',
       targetIdentity: 'imp:test',
     }),
@@ -1502,7 +1529,7 @@ test('it revives on a later restore a session an earlier restore left without a 
   ctx.impProvider.refuseNextPrepare('UNAVAILABLE');
 
   const first = await restoreFleet({
-    mgr,
+    manager,
     store: ctx.store,
     findRuntime: () => {},
     cols: 80,
@@ -1514,7 +1541,7 @@ test('it revives on a later restore a session an earlier restore left without a 
   await first.settled;
 
   const restored = await restoreFleet({
-    mgr,
+    manager,
     store: ctx.store,
     findRuntime: () => {},
     cols: 80,
@@ -1525,14 +1552,14 @@ test('it revives on a later restore a session an earlier restore left without a 
 
   await restored.settled;
 
-  expect(mgr.sessions).toMatchObject([{ id: 's-busy', kind: 'pty', lastMsg: 'revived' }]);
-  expect(mgr.sessions).toBeArrayOfSize(1);
+  expect(manager.sessions).toMatchObject([{ id: 's-busy', kind: 'pty', lastMsg: 'revived' }]);
+  expect(manager.sessions).toBeArrayOfSize(1);
 });
 
 test('it never adopts a terminal for a live headless run a later restore finds listed', async () => {
   const ctx = await setupTest();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -1541,12 +1568,12 @@ test('it never adopts a terminal for a live headless run a later restore finds l
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
   const entry = buildMockFleetEntry({
     sessionID: toSessionID('s-headless'),
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     target: 'box',
     targetIdentity: 'imp:test',
   });
@@ -1554,7 +1581,7 @@ test('it never adopts a terminal for a live headless run a later restore finds l
   await ctx.store.writeFleet([entry]);
 
   const first = await restoreFleet({
-    mgr,
+    manager,
     store: ctx.store,
     findRuntime: () => {},
     cols: 80,
@@ -1565,16 +1592,16 @@ test('it never adopts a terminal for a live headless run a later restore finds l
 
   await first.settled;
 
-  const [s] = mgr.sessions;
+  const [session] = manager.sessions;
 
-  invariant(s !== undefined && s.pty !== null, 'the first restore adopted no terminal');
+  invariant(session !== undefined && session.pty !== null, 'the first restore adopted no terminal');
 
-  mgr.yankHeadless(s.id);
+  manager.yankHeadless(session.id);
 
   const requests = ctx.impProvider.harnesses.length;
 
   const restored = await restoreFleet({
-    mgr,
+    manager,
     store: ctx.store,
     findRuntime: () => {},
     cols: 80,
@@ -1586,7 +1613,7 @@ test('it never adopts a terminal for a live headless run a later restore finds l
   await restored.settled;
 
   expect(ctx.impProvider.harnesses.length - requests).toBe(0);
-  expect(mgr.sessions).toMatchObject([{ id: 's-headless', kind: 'headless', pty: null }]);
+  expect(manager.sessions).toMatchObject([{ id: 's-headless', kind: 'headless', pty: null }]);
 });
 
 test('it restores and persists a live legacy cloud session after an image change', async () => {
@@ -1596,7 +1623,7 @@ test('it restores and persists a live legacy cloud session after an image change
 
   const ctx = await setupTest();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -1614,11 +1641,11 @@ test('it restores and persists a live legacy cloud session after an image change
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
   const entry = buildMockFleetEntry({
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     target: 'cloud',
     targetIdentity: 'imp:0123456789abcdef',
   });
@@ -1628,7 +1655,7 @@ test('it restores and persists a live legacy cloud session after an image change
   await ctx.store.writeFleet([entry]);
 
   const restored = await restoreFleet({
-    mgr,
+    manager,
     store: ctx.store,
     findRuntime: () => {},
     cols: 80,
@@ -1638,11 +1665,11 @@ test('it restores and persists a live legacy cloud session after an image change
 
   await restored.settled;
 
-  await mgr.writeFleet();
+  await manager.writeFleet();
 
   expect(restored.restored).toBe(1);
 
-  expect(mgr.sessions).toMatchObject([
+  expect(manager.sessions).toMatchObject([
     {
       id: entry.sessionID,
       targetIdentity: identity,
@@ -1650,7 +1677,7 @@ test('it restores and persists a live legacy cloud session after an image change
     },
   ]);
 
-  expect(mgr.sessions[0]?.pty?.detach).toBeFunction();
+  expect(manager.sessions[0]?.pty?.detach).toBeFunction();
 
   const fleet = await ctx.store.loadFleet();
 
@@ -1665,7 +1692,7 @@ test('it keeps a cloud session usable after the image changes under a versioned 
 
   const ctx = await setupTest();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -1683,11 +1710,11 @@ test('it keeps a cloud session usable after the image changes under a versioned 
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
   const entry = buildMockFleetEntry({
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     target: 'cloud',
     targetIdentity: buildTargetIdentity('imp', { url: 'http://impd', image: 'old' }, identityRule),
   });
@@ -1697,7 +1724,7 @@ test('it keeps a cloud session usable after the image changes under a versioned 
   await ctx.store.writeFleet([entry]);
 
   const restored = await restoreFleet({
-    mgr,
+    manager,
     store: ctx.store,
     findRuntime: () => {},
     cols: 80,
@@ -1707,11 +1734,11 @@ test('it keeps a cloud session usable after the image changes under a versioned 
 
   await restored.settled;
 
-  expect(mgr.sessions).toMatchObject([{ id: entry.sessionID, state: 'running' }]);
-  expect(mgr.sessions[0]?.pty?.detach).toBeFunction();
+  expect(manager.sessions).toMatchObject([{ id: entry.sessionID, state: 'running' }]);
+  expect(manager.sessions[0]?.pty?.detach).toBeFunction();
 
   expect(
-    mgr.findExecutionRefusal(
+    manager.findExecutionRefusal(
       { target: 'cloud', targetIdentity: entry.targetIdentity ?? null },
       'input',
     ),
@@ -1725,7 +1752,7 @@ test('it leaves a missing legacy imp refused instead of creating a replacement',
 
   const ctx = await setupTest();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -1743,11 +1770,11 @@ test('it leaves a missing legacy imp refused instead of creating a replacement',
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
   const entry = buildMockFleetEntry({
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     target: 'cloud',
     targetIdentity: 'imp:0123456789abcdef',
   });
@@ -1755,7 +1782,7 @@ test('it leaves a missing legacy imp refused instead of creating a replacement',
   await ctx.store.writeFleet([entry]);
 
   const restored = await restoreFleet({
-    mgr,
+    manager,
     store: ctx.store,
     findRuntime: () => {},
     cols: 80,
@@ -1765,7 +1792,7 @@ test('it leaves a missing legacy imp refused instead of creating a replacement',
 
   await restored.settled;
 
-  expect(mgr.sessions).toMatchObject([
+  expect(manager.sessions).toMatchObject([
     {
       id: entry.sessionID,
       targetIdentity: 'imp:0123456789abcdef',
@@ -1785,7 +1812,7 @@ test('it restores a listed legacy session when its imp becomes reachable on a la
 
   const ctx = await setupTest();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -1803,11 +1830,11 @@ test('it restores a listed legacy session when its imp becomes reachable on a la
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
   const entry = buildMockFleetEntry({
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     target: 'cloud',
     targetIdentity: 'imp:0123456789abcdef',
   });
@@ -1815,7 +1842,7 @@ test('it restores a listed legacy session when its imp becomes reachable on a la
   await ctx.store.writeFleet([entry]);
 
   const first = await restoreFleet({
-    mgr,
+    manager,
     store: ctx.store,
     findRuntime: () => {},
     cols: 80,
@@ -1825,12 +1852,12 @@ test('it restores a listed legacy session when its imp becomes reachable on a la
 
   await first.settled;
 
-  const refused = mgr.sessions[0]?.lastMsg;
+  const refused = manager.sessions[0]?.lastMsg;
 
   ctx.impProvider.createHost(entry.sessionID);
 
   const restored = await restoreFleet({
-    mgr,
+    manager,
     store: ctx.store,
     findRuntime: () => {},
     cols: 80,
@@ -1842,12 +1869,12 @@ test('it restores a listed legacy session when its imp becomes reachable on a la
 
   expect(refused).toBe("target 'cloud' binding unverified");
 
-  expect(mgr.sessions).toMatchObject([
+  expect(manager.sessions).toMatchObject([
     { id: entry.sessionID, targetIdentity: identity, state: 'running' },
   ]);
 
-  expect(mgr.sessions).toBeArrayOfSize(1);
-  expect(mgr.sessions[0]?.pty?.detach).toBeFunction();
+  expect(manager.sessions).toBeArrayOfSize(1);
+  expect(manager.sessions[0]?.pty?.detach).toBeFunction();
 });
 
 test('it lists the adoption refusal in place of a stale binding refusal once the host check succeeds', async () => {
@@ -1857,7 +1884,7 @@ test('it lists the adoption refusal in place of a stale binding refusal once the
 
   const ctx = await setupTest();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -1875,11 +1902,11 @@ test('it lists the adoption refusal in place of a stale binding refusal once the
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
   const entry = buildMockFleetEntry({
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     target: 'cloud',
     targetIdentity: 'imp:0123456789abcdef',
   });
@@ -1887,7 +1914,7 @@ test('it lists the adoption refusal in place of a stale binding refusal once the
   await ctx.store.writeFleet([entry]);
 
   const first = await restoreFleet({
-    mgr,
+    manager,
     store: ctx.store,
     findRuntime: () => {},
     cols: 80,
@@ -1901,7 +1928,7 @@ test('it lists the adoption refusal in place of a stale binding refusal once the
   ctx.impProvider.refuseNextPrepare('LEASED');
 
   const restored = await restoreFleet({
-    mgr,
+    manager,
     store: ctx.store,
     findRuntime: () => {},
     cols: 80,
@@ -1912,7 +1939,7 @@ test('it lists the adoption refusal in place of a stale binding refusal once the
 
   await restored.settled;
 
-  expect(mgr.sessions).toMatchObject([
+  expect(manager.sessions).toMatchObject([
     {
       id: entry.sessionID,
       targetIdentity: identity,
@@ -1925,7 +1952,7 @@ test('it lists the adoption refusal in place of a stale binding refusal once the
 test('it starts no harness once the daemon stopped before the restore began', async () => {
   const ctx = await setupTest();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -1942,17 +1969,17 @@ test('it starts no harness once the daemon stopped before the restore began', as
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
   await ctx.store.writeFleet([
-    buildMockFleetEntry({ sessionID: toSessionID('s-a'), cwd: ctx.dir }),
-    buildMockFleetEntry({ sessionID: toSessionID('s-b'), cwd: ctx.dir }),
-    buildMockFleetEntry({ sessionID: toSessionID('s-c'), cwd: ctx.dir }),
+    buildMockFleetEntry({ sessionID: toSessionID('s-a'), cwd: ctx.directory }),
+    buildMockFleetEntry({ sessionID: toSessionID('s-b'), cwd: ctx.directory }),
+    buildMockFleetEntry({ sessionID: toSessionID('s-c'), cwd: ctx.directory }),
   ]);
 
   const result = await restoreFleet({
-    mgr,
+    manager,
     store: ctx.store,
     findRuntime: ctx.findRuntime,
     cols: 80,
@@ -1972,7 +1999,7 @@ test('it starts no harness once the daemon stopped before the restore began', as
 test('it starts no harness once the daemon stops while the first one starts', async () => {
   const ctx = await setupTest();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -1989,19 +2016,19 @@ test('it starts no harness once the daemon stops while the first one starts', as
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
   await ctx.store.writeFleet([
-    buildMockFleetEntry({ sessionID: toSessionID('s-a'), cwd: ctx.dir }),
-    buildMockFleetEntry({ sessionID: toSessionID('s-b'), cwd: ctx.dir }),
-    buildMockFleetEntry({ sessionID: toSessionID('s-c'), cwd: ctx.dir }),
+    buildMockFleetEntry({ sessionID: toSessionID('s-a'), cwd: ctx.directory }),
+    buildMockFleetEntry({ sessionID: toSessionID('s-b'), cwd: ctx.directory }),
+    buildMockFleetEntry({ sessionID: toSessionID('s-c'), cwd: ctx.directory }),
   ]);
 
   let stopped = false;
 
   const restoring = restoreFleet({
-    mgr,
+    manager,
     store: ctx.store,
     findRuntime: ctx.findRuntime,
     cols: 80,
@@ -2029,7 +2056,7 @@ test('it starts no harness once the daemon stops while the first one starts', as
 test('it starts no harness for a queued session once the daemon stops during its start', async () => {
   const ctx = await setupTest();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -2046,19 +2073,19 @@ test('it starts no harness for a queued session once the daemon stops during its
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
   await ctx.store.writeFleet([
-    buildMockFleetEntry({ sessionID: toSessionID('s-a'), cwd: ctx.dir }),
-    buildMockFleetEntry({ sessionID: toSessionID('s-b'), cwd: ctx.dir }),
-    buildMockFleetEntry({ sessionID: toSessionID('s-c'), cwd: ctx.dir }),
+    buildMockFleetEntry({ sessionID: toSessionID('s-a'), cwd: ctx.directory }),
+    buildMockFleetEntry({ sessionID: toSessionID('s-b'), cwd: ctx.directory }),
+    buildMockFleetEntry({ sessionID: toSessionID('s-c'), cwd: ctx.directory }),
   ]);
 
   let stopped = false;
 
   const restoring = restoreFleet({
-    mgr,
+    manager,
     store: ctx.store,
     findRuntime: ctx.findRuntime,
     cols: 80,

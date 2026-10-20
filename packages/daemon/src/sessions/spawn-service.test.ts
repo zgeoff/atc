@@ -35,8 +35,8 @@ interface SetupTestConfig {
 // one agent and a real state store, and the runtime the daemon gives each
 // session it announces.
 async function setupTest(config: SetupTestConfig) {
-  const tmp = setupTempDir('atc-spawn-service-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-spawn-service-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -46,30 +46,30 @@ async function setupTest(config: SetupTestConfig) {
 
   const runtimes = new Map<SessionID, SessionRuntime>();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     null,
     store,
-    join(tmp.path, 'status.json'),
+    join(temporaryDirectory.path, 'status.json'),
     [buildStubHarnessAdapter()],
     config.targets,
     [],
     {
-      onEvent: (kind, s) => {
+      onEvent: (kind, session) => {
         if (kind === 'added') {
-          runtimes.set(s.id, new SessionRuntime());
+          runtimes.set(session.id, new SessionRuntime());
         }
       },
     },
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
   const ledger = new IdempotencyLedger(store, 'local', () => {}, systemClock);
 
   const spawns = new SpawnService({
-    mgr,
+    manager,
     store,
     clock: systemClock,
     ledger,
@@ -80,7 +80,7 @@ async function setupTest(config: SetupTestConfig) {
     homeDir: '/home/wrangler',
   });
 
-  return { dir: tmp.path, store, mgr, runtimes, spawns };
+  return { directory: temporaryDirectory.path, store, manager, runtimes, spawns };
 }
 
 test('it spawns a session on the target given and answers with its descriptor', async () => {
@@ -93,7 +93,7 @@ test('it spawns a session on the target given and answers with its descriptor', 
 
   const answer = await ctx.spawns.spawnSession(
     () => ({
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       name: 'builder',
       prompt: '',
       cols: 100,
@@ -112,7 +112,10 @@ test('it spawns a session on the target given and answers with its descriptor', 
     null,
   );
 
-  expect(answer).toMatchObject({ session: { name: 'builder', cwd: ctx.dir, agent: 'claude' } });
+  expect(answer).toMatchObject({
+    session: { name: 'builder', cwd: ctx.directory, agent: 'claude' },
+  });
+
   expect(answer).not.toContainKey('warnings');
   expect(provider.harnesses).toHaveLength(1);
 });
@@ -131,7 +134,7 @@ test('it records the directory of a spawned session in the spawn history', async
 
   await ctx.spawns.spawnSession(
     () => ({
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       name: 'builder',
       prompt: '',
       cols: 80,
@@ -153,7 +156,7 @@ test('it records the directory of a spawned session in the spawn history', async
   const dirs = await ctx.store.readSpawnDirs();
 
   expect(dirs).toStrictEqual([
-    { cwd: ctx.dir, grant: { target: 'local', targetIdentity: 'local-pty:test' } },
+    { cwd: ctx.directory, grant: { target: 'local', targetIdentity: 'local-pty:test' } },
   ]);
 });
 
@@ -171,7 +174,7 @@ test('it marks a spawned session to write the last-used agent once it starts', a
 
   const answer = await ctx.spawns.spawnSession(
     () => ({
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       name: 'builder',
       prompt: '',
       cols: 80,
@@ -203,7 +206,7 @@ test('it answers a retried keyed spawn with the first session and spawns once', 
 
   const plan = () =>
     ({
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       name: 'builder',
       prompt: '',
       cols: 80,
@@ -236,7 +239,7 @@ test('it refuses a spawn under a parent the access does not reach as an unknown 
 
   const parent = await ctx.spawns.spawnSession(
     () => ({
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       name: 'lead',
       prompt: '',
       cols: 80,
@@ -257,7 +260,7 @@ test('it refuses a spawn under a parent the access does not reach as an unknown 
 
   const spawned = ctx.spawns.spawnSession(
     () => ({
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       name: 'helper',
       prompt: '',
       cols: 80,
@@ -362,7 +365,7 @@ test('it lands a spawn under a sub-session under the parent of that sub-session'
 
   const lead = await ctx.spawns.spawnSession(
     () => ({
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       name: 'lead',
       prompt: '',
       cols: 80,
@@ -383,7 +386,7 @@ test('it lands a spawn under a sub-session under the parent of that sub-session'
 
   const helper = await ctx.spawns.spawnSession(
     () => ({
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       name: 'helper',
       prompt: '',
       cols: 80,
@@ -435,13 +438,13 @@ test('it lands a git workspace under the root its target configures over the glo
     workspaceRoots: { root: '/srv/all', targetRoots: new Map([['local', '/srv/local']]) },
   });
 
-  const dir = ctx.spawns.buildDefaultWorkspaceDir('local', {
+  const directory = ctx.spawns.buildDefaultWorkspaceDir('local', {
     kind: 'git',
     url: 'https://example.com/team/widgets.git',
     ref: 'main',
   });
 
-  expect(dir).toBe('/srv/local/widgets-main');
+  expect(directory).toBe('/srv/local/widgets-main');
 });
 
 test('it lands a git workspace under the daemon home when no root applies', async () => {
@@ -456,12 +459,12 @@ test('it lands a git workspace under the daemon home when no root applies', asyn
     defaultTarget: 'local',
   });
 
-  const dir = ctx.spawns.buildDefaultWorkspaceDir('local', {
+  const directory = ctx.spawns.buildDefaultWorkspaceDir('local', {
     kind: 'git',
     url: 'https://example.com/team/widgets.git',
   });
 
-  expect(dir).toBe('/home/wrangler/.local/share/atc/workspaces/widgets');
+  expect(directory).toBe('/home/wrangler/.local/share/atc/workspaces/widgets');
 });
 
 test('it clones a workspace on the daemon side for a remote target that does not clone on its host', async () => {
@@ -475,11 +478,11 @@ test('it clones a workspace on the daemon side for a remote target that does not
     gitTransports: ['file'],
   });
 
-  const dir = join(ctx.dir, 'ws');
+  const directory = join(ctx.directory, 'ws');
 
   await ctx.spawns.spawnSession(
     () => ({
-      cwd: dir,
+      cwd: directory,
       name: 'builder',
       prompt: '',
       cols: 100,
@@ -498,7 +501,7 @@ test('it clones a workspace on the daemon side for a remote target that does not
     null,
   );
 
-  expect(provider.transfers).toPartiallyContain({ dir });
+  expect(provider.transfers).toPartiallyContain({ directory });
 
   expect(provider.commands).toSatisfyAll(
     (command: CommandSpec) => !command.argv.join(' ').includes('clone'),
@@ -516,11 +519,11 @@ test('it clones a workspace inside the host for a remote target that clones on i
     gitTransports: ['file'],
   });
 
-  const dir = join(ctx.dir, 'ws');
+  const directory = join(ctx.directory, 'ws');
 
   await ctx.spawns.spawnSession(
     () => ({
-      cwd: dir,
+      cwd: directory,
       name: 'builder',
       prompt: '',
       cols: 100,
@@ -539,7 +542,7 @@ test('it clones a workspace inside the host for a remote target that clones on i
     null,
   );
 
-  expect(provider.transfers).not.toPartiallyContain({ dir });
+  expect(provider.transfers).not.toPartiallyContain({ directory });
 
   expect(provider.commands).toSatisfyAny((command: CommandSpec) =>
     command.argv.join(' ').includes('clone'),
@@ -574,11 +577,11 @@ test.each([
       gitTransports: ['file'],
     });
 
-    const dir = join(ctx.dir, 'ws');
+    const directory = join(ctx.directory, 'ws');
 
     await ctx.spawns.spawnSession(
       () => ({
-        cwd: dir,
+        cwd: directory,
         name: 'builder',
         prompt: '',
         cols: 100,
@@ -599,7 +602,7 @@ test.each([
 
     // the checkout's own config file, read by path, so no git variable in
     // this process's environment picks another repository
-    const checkoutConfig = join(dir, '.git', 'config');
+    const checkoutConfig = join(directory, '.git', 'config');
 
     const name = await $`git config --file ${checkoutConfig} --get user.name`.nothrow().text();
     const email = await $`git config --file ${checkoutConfig} --get user.email`.nothrow().text();
