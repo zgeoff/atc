@@ -72,7 +72,7 @@ async function setupTest() {
   return {
     client: daemon.client,
     events: daemon.events,
-    dir: daemon.directory,
+    directory: daemon.directory,
     dbPath: daemon.dbPath,
     socketPath: daemon.socketPath,
     build: daemon.build,
@@ -86,7 +86,7 @@ async function setupTest() {
 
 test('it logs how long each step of a spawn on an imp took', async () => {
   const ctx = await setupTest();
-  const spawned = await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir });
+  const spawned = await ctx.client.sendRequest('session.spawn', { cwd: ctx.directory });
 
   const id = String(getRecord(spawned, 'session')['id']);
 
@@ -106,7 +106,7 @@ test('it logs how long each step of a wake on an imp took', async () => {
   const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     resume: 'agent-session-1',
   });
 
@@ -130,8 +130,8 @@ test('it logs how long each step of a wake on an imp took', async () => {
 test('it starts each top-level session in an imp of its own', async () => {
   const ctx = await setupTest();
 
-  await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, cols: 80, rows: 24 });
-  await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, cols: 80, rows: 24 });
+  await ctx.client.sendRequest('session.spawn', { cwd: ctx.directory, cols: 80, rows: 24 });
+  await ctx.client.sendRequest('session.spawn', { cwd: ctx.directory, cols: 80, rows: 24 });
 
   expect(ctx.port.collectImpNames()).toHaveLength(2);
 });
@@ -140,13 +140,13 @@ test("it runs a sub-session in its parent's imp", async () => {
   const ctx = await setupTest();
 
   const parent = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
   });
 
   await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
     parent: getRecord(parent, 'session')['id'],
@@ -172,7 +172,7 @@ test('it releases its own lease before it puts the imp of a killed session to sl
   const hello = await probe.sendHello(ctx.build);
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
   });
@@ -215,7 +215,7 @@ test('it keeps a session running and takes its lease back when another owner lea
   const hello = await probe.sendHello(ctx.build);
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
   });
@@ -249,7 +249,7 @@ test('it keeps the imp of a session when a forget carries no confirm token', asy
   const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
   });
@@ -266,7 +266,7 @@ test('it destroys the imp of a session once a forget carries its confirm token',
   const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
   });
@@ -292,7 +292,7 @@ test('it starts a remote harness with only the variables atc sets, never the dae
   updateEnv('ATC_TEST_WORKSPACE_TOKEN', 'fixture-not-a-secret');
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
   });
@@ -304,10 +304,14 @@ test('it starts a remote harness with only the variables atc sets, never the dae
 
   expect<Readonly<Record<string, unknown>>>(request.env).toStrictEqual({
     ATC_BRIDGE: '1',
-    ATC_OUTBOX: expect.stringMatching(new RegExp(`^${ctx.dir}/g/run/[0-9a-f]{16}\\.outbox$`, 'u')),
+    ATC_OUTBOX: expect.stringMatching(
+      new RegExp(`^${ctx.directory}/g/run/[0-9a-f]{16}\\.outbox$`, 'u'),
+    ),
     ATC_SESSION_ID: getRecord(spawned, 'session')['id'],
-    ATC_SESSION_RECORD: join(ctx.dir, 'g', 'records', `${spawnedID}.json`),
-    ATC_SOCKET: expect.stringMatching(new RegExp(`^${ctx.dir}/g/run/[0-9a-f]{16}\\.sock$`, 'u')),
+    ATC_SESSION_RECORD: join(ctx.directory, 'g', 'records', `${spawnedID}.json`),
+    ATC_SOCKET: expect.stringMatching(
+      new RegExp(`^${ctx.directory}/g/run/[0-9a-f]{16}\\.sock$`, 'u'),
+    ),
     LANG: 'C.UTF-8',
     PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
     TERM: 'xterm-256color',
@@ -318,7 +322,7 @@ test('it restores a cloud session that was mid-turn at a daemon restart and deli
   const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
     resume: 'agent-session-1',
@@ -369,7 +373,7 @@ test('it revives a remote harness with only the variables atc sets, never the da
   await store.writeFleet([
     buildMockFleetEntry({
       sessionID: toSessionID('0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0'),
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       target: 'box',
       targetIdentity: 'imp:test',
     }),
@@ -390,10 +394,15 @@ test('it revives a remote harness with only the variables atc sets, never the da
 
   expect<Readonly<Record<string, unknown>>>(request.env).toStrictEqual({
     ATC_BRIDGE: '1',
-    ATC_OUTBOX: join(ctx.dir, 'g', 'run', '0f1e2d3c4b5a6978.outbox'),
+    ATC_OUTBOX: join(ctx.directory, 'g', 'run', '0f1e2d3c4b5a6978.outbox'),
     ATC_SESSION_ID: '0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0',
-    ATC_SESSION_RECORD: join(ctx.dir, 'g', 'records', '0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0.json'),
-    ATC_SOCKET: join(ctx.dir, 'g', 'run', '0f1e2d3c4b5a6978.sock'),
+    ATC_SESSION_RECORD: join(
+      ctx.directory,
+      'g',
+      'records',
+      '0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0.json',
+    ),
+    ATC_SOCKET: join(ctx.directory, 'g', 'run', '0f1e2d3c4b5a6978.sock'),
     LANG: 'C.UTF-8',
     PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
     TERM: 'xterm-256color',
@@ -404,7 +413,7 @@ test('it revives a slept session inside the same process by waking its imp', asy
   const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
     resume: 'agent-session-1',
@@ -463,7 +472,7 @@ test('it leaves a session whose harness exited by itself restorable and gives it
   const hello = await probe.sendHello(ctx.build);
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
   });
@@ -495,7 +504,7 @@ test('it lists a session as reattaching while its connection is lost and as atta
   const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
   });
@@ -529,7 +538,7 @@ test('it keeps a delivered message delivered when the connection to its imp sess
   const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
   });
@@ -568,7 +577,7 @@ test('it marks a message unanswered when its tap acks it after the imp process e
   const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
   });
@@ -596,7 +605,7 @@ test('it keeps a message delivered when its tap acks it after the connection to 
   const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
   });
@@ -634,7 +643,7 @@ test('it keeps an imp session message delivered across a daemon restart beside a
   const ctx = await setupTest();
 
   await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
     resume: 'agent-session-1',
@@ -642,7 +651,7 @@ test('it keeps an imp session message delivered across a daemon restart beside a
   });
 
   const remote = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
     resume: 'agent-session-1',
@@ -679,7 +688,7 @@ test('it keeps an imp session message delivered across a daemon restart after a 
   const ctx = await setupTest();
 
   const remote = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
     resume: 'agent-session-1',
@@ -688,7 +697,7 @@ test('it keeps an imp session message delivered across a daemon restart after a 
   const remoteID = getRecord(remote, 'session')['id'];
 
   await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
     resume: 'agent-session-1',
@@ -724,7 +733,7 @@ test('it marks a local session message unanswered across a daemon restart after 
   const ctx = await setupTest();
 
   const local = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
     resume: 'agent-session-1',
@@ -734,7 +743,7 @@ test('it marks a local session message unanswered across a daemon restart after 
   const localID = getRecord(local, 'session')['id'];
 
   await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
     resume: 'agent-session-1',
@@ -757,7 +766,7 @@ test('it restores an imp session after a daemon restart when a local spawn resum
   const ctx = await setupTest();
 
   const remote = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
     resume: 'agent-session-1',
@@ -770,7 +779,7 @@ test('it restores an imp session after a daemon restart when a local spawn resum
   const client = await ctx.openClient();
 
   await client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
     resume: 'agent-session-1',
@@ -790,7 +799,7 @@ test('it lists a session whose imp another owner put to sleep as asleep', async 
   const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
     resume: 'agent-session-1',
@@ -832,7 +841,7 @@ test('it restores a session whose imp another owner put to sleep as suspended af
   const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
     resume: 'agent-session-1',
@@ -884,7 +893,7 @@ test('it revives a session whose imp another owner put to sleep in the same proc
   const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
     resume: 'agent-session-1',
@@ -941,7 +950,7 @@ test('it gives its lease back when a session it revived from sleep exits', async
   const hello = await probe.sendHello(ctx.build);
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
     resume: 'agent-session-1',
@@ -969,7 +978,7 @@ test('it revives a session that woke its imp even when a sibling on that imp can
   const ctx = await setupTest();
 
   const parent = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
     resume: 'agent-parent',
@@ -978,7 +987,7 @@ test('it revives a session that woke its imp even when a sibling on that imp can
   const parentID = getRecord(parent, 'session')['id'];
 
   const child = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
     resume: 'agent-child',
@@ -1005,13 +1014,13 @@ test('it places a read-only copy of the session record inside the imp before the
   const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
-  const path = join(ctx.dir, 'g', 'records', `${id}.json`);
+  const path = join(ctx.directory, 'g', 'records', `${id}.json`);
   const [request] = ctx.port.sessionRequests;
 
   invariant(request?.kind === 'start', 'the spawn sent no start request');
@@ -1030,7 +1039,7 @@ test('it places a read-only copy of the session record inside the imp before the
     revision: 1,
     updatedAt: expect.any(String),
     scope: {
-      workspace: { path: ctx.dir, branch: null, repoURL: null, sha: null },
+      workspace: { path: ctx.directory, branch: null, repoURL: null, sha: null },
       worktrees: [],
       branches: [],
       pullRequests: [],
@@ -1041,17 +1050,17 @@ test('it places a read-only copy of the session record inside the imp before the
 test('it places the copy among the imp’s read-only files when the imp’s agent keeps them', async () => {
   const ctx = await setupTest();
 
-  ctx.port.readOnlyFilesDir = join(ctx.dir, 'ro');
+  ctx.port.readOnlyFilesDir = join(ctx.directory, 'ro');
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
   const name = getOnlyImpName(ctx.port);
-  const path = join(ctx.dir, 'ro', name, 'atc', 'records', `${id}.json`);
+  const path = join(ctx.directory, 'ro', name, 'atc', 'records', `${id}.json`);
   const [request] = ctx.port.sessionRequests;
 
   invariant(request?.kind === 'start', 'the spawn sent no start request');
@@ -1061,14 +1070,14 @@ test('it places the copy among the imp’s read-only files when the imp’s agen
   expect(request.env['ATC_SESSION_RECORD']).toBe(path);
   expect(copy).toMatchObject({ format: 'atc.session-record', session: id, revision: 1 });
   expect(ctx.port.calls).toContain(`files.write ${name} atc/records/${id}.json`);
-  expect(existsSync(join(ctx.dir, 'g', 'records', `${id}.json`))).toBeFalse();
+  expect(existsSync(join(ctx.directory, 'g', 'records', `${id}.json`))).toBeFalse();
 });
 
 test('it replaces the read-only copy when a caller adds to the scope', async () => {
   const ctx = await setupTest();
   const fixture = await createGitFixture({ prefix: 'atc-daemon-imp-record-' });
 
-  ctx.port.readOnlyFilesDir = join(ctx.dir, 'ro');
+  ctx.port.readOnlyFilesDir = join(ctx.directory, 'ro');
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: fixture.work,
@@ -1084,7 +1093,7 @@ test('it replaces the read-only copy when a caller adds to the scope', async () 
   });
 
   const record = getRecord(added, 'record');
-  const path = join(ctx.dir, 'ro', getOnlyImpName(ctx.port), 'atc', 'records', `${id}.json`);
+  const path = join(ctx.directory, 'ro', getOnlyImpName(ctx.port), 'atc', 'records', `${id}.json`);
 
   const copy = await readJSONRecord(Bun.file(path));
 
@@ -1105,7 +1114,7 @@ test('it keeps the guest-folder copy current for a harness restored after the im
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  ctx.port.readOnlyFilesDir = join(ctx.dir, 'ro');
+  ctx.port.readOnlyFilesDir = join(ctx.directory, 'ro');
 
   await ctx.restart();
 
@@ -1125,10 +1134,10 @@ test('it keeps the guest-folder copy current for a harness restored after the im
   });
 
   const record = getRecord(added, 'record');
-  const guestPath = join(ctx.dir, 'g', 'records', `${id}.json`);
+  const guestPath = join(ctx.directory, 'g', 'records', `${id}.json`);
 
   const protectedPath = join(
-    ctx.dir,
+    ctx.directory,
     'ro',
     getOnlyImpName(ctx.port),
     'atc',
@@ -1152,13 +1161,13 @@ test('it places the copy in the guest folder when the imp’s agent is from befo
   // older agent
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
-  const path = join(ctx.dir, 'g', 'records', `${id}.json`);
+  const path = join(ctx.directory, 'g', 'records', `${id}.json`);
   const [request] = ctx.port.sessionRequests;
 
   invariant(request?.kind === 'start', 'the spawn sent no start request');
@@ -1185,7 +1194,7 @@ test('it rewrites the copy inside the imp when a caller adds to the scope', asyn
   });
 
   const record = getRecord(added, 'record');
-  const path = join(ctx.dir, 'g', 'records', `${id}.json`);
+  const path = join(ctx.directory, 'g', 'records', `${id}.json`);
 
   expect(record['revision']).toBe(2);
 

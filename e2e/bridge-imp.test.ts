@@ -20,9 +20,9 @@ import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-har
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 async function setupTest() {
-  const tmp = setupTempDir('atc-imp-bridge-');
-  const clis = createStubGuestCLIs(join(tmp.path, 'bin'));
-  const guestDir = join(tmp.path, 'g');
+  const temporaryDirectory = setupTempDir('atc-imp-bridge-');
+  const clis = createStubGuestCLIs(join(temporaryDirectory.path, 'bin'));
+  const guestDir = join(temporaryDirectory.path, 'g');
   const port = createStubImpPort();
   const config = parseConfig(SHIPPED_HARNESS_PLUGINS, { agents: { claude: { bin: clis.claude } } });
 
@@ -51,13 +51,13 @@ async function setupTest() {
     }),
   });
 
-  return { daemon, port, dir: tmp.path, guestDir };
+  return { daemon, port, directory: temporaryDirectory.path, guestDir };
 }
 
 test("it delivers a message to a remote session's tap", async () => {
   const ctx = await setupTest();
 
-  const tapLog = join(ctx.dir, 'tap.log');
+  const tapLog = join(ctx.directory, 'tap.log');
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
     cwd: ctx.daemon.directory,
@@ -85,7 +85,7 @@ test("it delivers a message to a remote session's tap", async () => {
 test('it records the answer a remote session reports to a message its tap took', async () => {
   const ctx = await setupTest();
 
-  const tapLog = join(ctx.dir, 'tap.log');
+  const tapLog = join(ctx.directory, 'tap.log');
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
     cwd: ctx.daemon.directory,
@@ -193,7 +193,7 @@ test('it answers an op the bridge does not offer with forbidden and closes the c
 test('it delivers a message sent after a sleep and a wake to the tap that ran before, and each message once', async () => {
   const ctx = await setupTest();
 
-  const tapLog = join(ctx.dir, 'tap.log');
+  const tapLog = join(ctx.directory, 'tap.log');
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
     cwd: ctx.daemon.directory,
@@ -255,7 +255,7 @@ test('it delivers a message sent after a sleep and a wake to the tap that ran be
 test('it delivers a message and a note held back while the bridge was unreachable once each after it reconnects', async () => {
   const ctx = await setupTest();
 
-  const tapLog = join(ctx.dir, 'tap.log');
+  const tapLog = join(ctx.directory, 'tap.log');
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
     cwd: ctx.daemon.directory,
@@ -321,7 +321,7 @@ test('it delivers a message and a note held back while the bridge was unreachabl
 test('it prints a message whose ack was lost once, and acks it again when the tap reconnects', async () => {
   const ctx = await setupTest();
 
-  const tapLog = join(ctx.dir, 'tap.log');
+  const tapLog = join(ctx.directory, 'tap.log');
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
     cwd: ctx.daemon.directory,

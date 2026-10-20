@@ -19,8 +19,8 @@ import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemo
 // stand-in Codex CLI, which reads its scenario from the stub folder and
 // logs every request it takes there.
 async function setupTest() {
-  const tmp = setupTempDir('atc-codex-app-server-');
-  const bin = createStubAppServerCodex(tmp.path);
+  const temporaryDirectory = setupTempDir('atc-codex-app-server-');
+  const bin = createStubAppServerCodex(temporaryDirectory.path);
 
   const codex = new CodexAdapter(
     getAgentEntry(
@@ -33,9 +33,9 @@ async function setupTest() {
 
   return {
     daemon,
-    stubDir: tmp.path,
+    stubDir: temporaryDirectory.path,
     readRequests: () =>
-      readFileSync(join(tmp.path, 'app-server-requests.jsonl'), 'utf8')
+      readFileSync(join(temporaryDirectory.path, 'app-server-requests.jsonl'), 'utf8')
         .trim()
         .split('\n')
         .map((line) =>
@@ -134,7 +134,7 @@ test('it keeps the stored message states when a history read fails during recove
 
   await waitFor(() => {
     expect(
-      ctx.readRequests().filter((r) => r.method === 'thread/turns/list').length,
+      ctx.readRequests().filter((request) => request.method === 'thread/turns/list').length,
     ).toBeGreaterThan(1);
   });
 
@@ -146,7 +146,7 @@ test('it keeps the stored message states when a history read fails during recove
 
   expect(first['status']).toBe('delivered');
   expect(second['status']).toBe('queued');
-  expect(ctx.readRequests().filter((r) => r.method === 'turn/start')).toHaveLength(2);
+  expect(ctx.readRequests().filter((request) => request.method === 'turn/start')).toHaveLength(2);
 });
 
 test('it resends no accepted message when its turn completes while the connection is set up', async () => {
@@ -185,8 +185,8 @@ test('it resends no accepted message when its turn completes while the connectio
   });
 
   expect(answered['answer']).toBe('answered once');
-  expect(ctx.readRequests().filter((r) => r.method === 'turn/start')).toHaveLength(1);
-  expect(ctx.readRequests().map((r) => r.method)).toContain('thread/resume');
+  expect(ctx.readRequests().filter((request) => request.method === 'turn/start')).toHaveLength(1);
+  expect(ctx.readRequests().map((request) => request.method)).toContain('thread/resume');
 });
 
 test('it starts the terminal against the session App Server on the bridge thread', async () => {
@@ -314,7 +314,7 @@ test('it delivers a message to the thread a hook shows the terminal moved to and
 
   expect(answered['answer']).toBe('the lint is clean');
 
-  expect(ctx.readRequests().filter((r) => r.method === 'turn/start')).toMatchObject([
+  expect(ctx.readRequests().filter((request) => request.method === 'turn/start')).toMatchObject([
     { params: { threadId: moved, clientUserMessageId: sent['message'] } },
   ]);
 });
@@ -380,7 +380,7 @@ test('it keeps delivering to the thread the terminal moved to when a turn of the
 
   expect(answered['answer']).toBe('the docs build');
 
-  expect(ctx.readRequests().filter((r) => r.method === 'turn/start')).toMatchObject([
+  expect(ctx.readRequests().filter((request) => request.method === 'turn/start')).toMatchObject([
     { params: { threadId: moved, clientUserMessageId: sent['message'] } },
   ]);
 

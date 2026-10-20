@@ -21,16 +21,16 @@ import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemo
 // A home whose ~ the daemon and its adapters expand, and a stand-in claude
 // that logs each start's arguments.
 function setupTest() {
-  const tmp = setupTempDir('atc-spawn-plugin-dirs-');
-  const home = join(tmp.path, 'home');
+  const temporaryDirectory = setupTempDir('atc-spawn-plugin-dirs-');
+  const home = join(temporaryDirectory.path, 'home');
 
   mkdirSync(home);
 
   return {
-    dir: tmp.path,
+    directory: temporaryDirectory.path,
     home,
-    fakeClaude: createStubRecordingClaude(join(tmp.path, 'bin')),
-    starts: join(tmp.path, 'bin', 'claude-starts.log'),
+    fakeClaude: createStubRecordingClaude(join(temporaryDirectory.path, 'bin')),
+    starts: join(temporaryDirectory.path, 'bin', 'claude-starts.log'),
   };
 }
 
@@ -52,7 +52,7 @@ test("it starts claude with each of the spawn's plugin folders, ~ expanded, afte
   });
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     pluginDirs: ['~/plugins/band'],
     prompt: 'start the task',
   });
@@ -96,13 +96,13 @@ test("it starts a sub-session with the config's plugin folders and its own spawn
   });
 
   const parent = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     pluginDirs: ['~/plugins/parent'],
     prompt: 'lead the task',
   });
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     parent: getRecord(parent, 'session')['id'],
     pluginDirs: ['~/plugins/child'],
     prompt: 'help with the task',
@@ -131,7 +131,7 @@ test("it starts every session of a claude entry with the config's plugin folders
   const ctx = setupTest();
 
   mkdirSync(join(ctx.home, 'plugins', 'shared'), { recursive: true });
-  mkdirSync(join(ctx.dir, 'extra'));
+  mkdirSync(join(ctx.directory, 'extra'));
 
   const daemon = await startTestDaemon({
     options: () => ({
@@ -147,11 +147,11 @@ test("it starts every session of a claude entry with the config's plugin folders
     }),
   });
 
-  await daemon.client.sendRequest('session.spawn', { cwd: ctx.dir, prompt: 'first' });
+  await daemon.client.sendRequest('session.spawn', { cwd: ctx.directory, prompt: 'first' });
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
-    pluginDirs: [join(ctx.dir, 'extra')],
+    cwd: ctx.directory,
+    pluginDirs: [join(ctx.directory, 'extra')],
     prompt: 'second',
   });
 
@@ -183,7 +183,7 @@ test("it starts every session of a claude entry with the config's plugin folders
       '--plugin-dir',
       join(ctx.home, 'plugins', 'shared'),
       '--plugin-dir',
-      join(ctx.dir, 'extra'),
+      join(ctx.directory, 'extra'),
       'second',
     ],
   ]);
@@ -193,7 +193,7 @@ test("it starts a Claude-compatible gateway with the config's plugin folders and
   const ctx = setupTest();
 
   mkdirSync(join(ctx.home, 'plugins', 'shared'), { recursive: true });
-  mkdirSync(join(ctx.dir, 'extra'));
+  mkdirSync(join(ctx.directory, 'extra'));
 
   const daemon = await startTestDaemon({
     options: () => ({
@@ -218,9 +218,9 @@ test("it starts a Claude-compatible gateway with the config's plugin folders and
   });
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'zai',
-    pluginDirs: [join(ctx.dir, 'extra')],
+    pluginDirs: [join(ctx.directory, 'extra')],
     prompt: 'start the task',
   });
 
@@ -238,7 +238,7 @@ test("it starts a Claude-compatible gateway with the config's plugin folders and
     '--plugin-dir',
     join(ctx.home, 'plugins', 'shared'),
     '--plugin-dir',
-    join(ctx.dir, 'extra'),
+    join(ctx.directory, 'extra'),
     'start the task',
   ]);
 });
@@ -259,7 +259,7 @@ test('it refuses a spawn whose plugin folder does not exist, naming the path, an
   });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     pluginDirs: ['~/plugins/missing'],
   });
 
@@ -293,7 +293,7 @@ test('it refuses a spawn whose plugin folder is a regular file, naming the path,
   });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     pluginDirs: ['~/notes.txt'],
   });
 
@@ -312,13 +312,15 @@ test('it refuses a spawn whose plugin folder is a regular file, naming the path,
 test("it refuses a spawn when a plugin folder the agent's config sets is a regular file, naming the path", async () => {
   const ctx = setupTest();
 
-  writeFileSync(join(ctx.dir, 'shared.txt'), 'not a plugin');
+  writeFileSync(join(ctx.directory, 'shared.txt'), 'not a plugin');
 
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
         parseConfig(SHIPPED_HARNESS_PLUGINS, {
-          agents: { claude: { bin: ctx.fakeClaude, pluginDirs: [join(ctx.dir, 'shared.txt')] } },
+          agents: {
+            claude: { bin: ctx.fakeClaude, pluginDirs: [join(ctx.directory, 'shared.txt')] },
+          },
         }),
         buildMockHostServices(),
         null,
@@ -328,11 +330,11 @@ test("it refuses a spawn when a plugin folder the agent's config sets is a regul
     }),
   });
 
-  const spawn = daemon.client.sendRequest('session.spawn', { cwd: ctx.dir });
+  const spawn = daemon.client.sendRequest('session.spawn', { cwd: ctx.directory });
 
   expect(spawn).rejects.toMatchObject({
     code: 'bad_args',
-    message: `plugin folder '${join(ctx.dir, 'shared.txt')}' is not a folder`,
+    message: `plugin folder '${join(ctx.directory, 'shared.txt')}' is not a folder`,
   });
 });
 
@@ -356,7 +358,7 @@ test("it loads a folder once when the spawn names one the agent's config sets, w
   });
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     pluginDirs: [`${join(ctx.home, 'plugins', 'band')}/`],
     prompt: 'start the task',
   });
@@ -395,7 +397,7 @@ test("it refuses a spawn when a plugin folder the agent's config sets does not e
     }),
   });
 
-  const spawn = daemon.client.sendRequest('session.spawn', { cwd: ctx.dir });
+  const spawn = daemon.client.sendRequest('session.spawn', { cwd: ctx.directory });
 
   expect(spawn).rejects.toMatchObject({
     code: 'bad_args',
@@ -421,7 +423,7 @@ test('it refuses to start a session again once its plugin folder is gone, naming
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     resume: 'sess-123',
     pluginDirs: ['~/plugins/band'],
   });
@@ -443,7 +445,7 @@ test('it refuses to start a session again once its plugin folder is gone, naming
 test.each([
   ['a relative plugin folder', 'plugins/band'],
   ['a plugin folder with a .. segment', '~/plugins/link/../band'],
-])('it refuses %s before spawning anything', async (_label, dir) => {
+])('it refuses %s before spawning anything', async (_label, directory) => {
   const ctx = setupTest();
 
   const daemon = await startTestDaemon({
@@ -456,8 +458,8 @@ test.each([
   });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
-    pluginDirs: [dir],
+    cwd: ctx.directory,
+    pluginDirs: [directory],
   });
 
   await Promise.allSettled([spawn]);
@@ -466,7 +468,7 @@ test.each([
 
   expect(spawn).rejects.toMatchObject({
     code: 'bad_args',
-    message: `pluginDirs entry '${dir}' must be an absolute path or start with ~/, without a .. segment`,
+    message: `pluginDirs entry '${directory}' must be an absolute path or start with ~/, without a .. segment`,
   });
 
   expect(listed).toStrictEqual({ sessions: [] });
@@ -487,9 +489,9 @@ test('it refuses plugin folders for an agent that takes none', async () => {
   });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'grok',
-    pluginDirs: [ctx.dir],
+    pluginDirs: [ctx.directory],
   });
 
   expect(spawn).rejects.toMatchObject({
@@ -534,7 +536,7 @@ test('it refuses plugin folders on a target that runs the agent on another machi
   const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: '/work',
     target: 'box',
-    pluginDirs: [ctx.dir],
+    pluginDirs: [ctx.directory],
   });
 
   expect(spawn).rejects.toMatchObject({
@@ -552,7 +554,7 @@ test("it refuses a spawn on a target that runs the agent on another machine when
     options: (paths) => ({
       adapters: buildAgentAdapters(
         parseConfig(SHIPPED_HARNESS_PLUGINS, {
-          agents: { claude: { bin: ctx.fakeClaude, pluginDirs: [ctx.dir] } },
+          agents: { claude: { bin: ctx.fakeClaude, pluginDirs: [ctx.directory] } },
         }),
         buildMockHostServices(),
       ),
@@ -614,7 +616,7 @@ test('it shows the plugin folders a session was spawned with in its record', asy
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     pluginDirs: ['~/plugins/band'],
   });
 
@@ -648,7 +650,7 @@ test("it keeps the config's plugin folders and the session's own in the command 
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     pluginDirs: ['~/plugins/band'],
   });
 

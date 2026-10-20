@@ -6,17 +6,17 @@ import { runCommand, setupTempDir } from '@atc/test-utils';
 // A temp directory that stands in for a checkout, with a project nested
 // inside it the way AGENTS.md places a worktree.
 function setupTest() {
-  const tmp = setupTempDir('atc-deadcode-');
+  const temporaryDirectory = setupTempDir('atc-deadcode-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it checks a project nested under a checkout whose tsconfig extends a package the checkout cannot resolve', async () => {
   const ctx = setupTest();
-  const project = join(ctx.dir, '.worktrees', 'me', 'branch');
+  const project = join(ctx.directory, '.worktrees', 'me', 'branch');
 
   writeFileSync(
-    join(ctx.dir, 'tsconfig.json'),
+    join(ctx.directory, 'tsconfig.json'),
     JSON.stringify({ extends: '@example/absent/tsconfig.json' }),
   );
 

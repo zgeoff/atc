@@ -43,7 +43,7 @@ test('it returns a spawn into an existing destination to the confirm screen with
     .text()
     .then((text) => text.trim());
 
-  const dest = join(
+  const destination = join(
     ctx.home,
     '.local',
     'share',
@@ -52,7 +52,7 @@ test('it returns a spawn into an existing destination to the confirm screen with
     `upstream-main-${sha.slice(0, 7)}`,
   );
 
-  mkdirSync(dest, { recursive: true });
+  mkdirSync(destination, { recursive: true });
 
   ctx.boot();
 
@@ -81,7 +81,7 @@ test('it returns a spawn into an existing destination to the confirm screen with
 
   await ctx.waitFor('workspace_exists', 10_000);
 
-  expect(ctx.read()).toInclude(ctx.formatInput(`${dest}-2`));
+  expect(ctx.read()).toInclude(ctx.formatInput(`${destination}-2`));
 
   ctx.reset();
   ctx.write(KEYS.enter);
@@ -98,7 +98,7 @@ test('it returns a spawn into an existing destination to the confirm screen with
 
   await ctx.waitFor('FAKE_CLAUDE_UP', 10_000);
 
-  expect(readFileSync(join(`${dest}-2`, 'notes.md'), 'utf8')).toBe('from the upstream\n');
+  expect(readFileSync(join(`${destination}-2`, 'notes.md'), 'utf8')).toBe('from the upstream\n');
 }, 30_000);
 
 test('it returns a spawn whose clone fails to the repository step', async () => {

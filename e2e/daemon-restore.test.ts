@@ -25,19 +25,19 @@ import {
 import invariant from 'tiny-invariant';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-e2e-restore-');
+  const temporaryDirectory = setupTempDir('atc-e2e-restore-');
   const atc = resolveATCCommand();
-  const composer = createStubComposer(tmp.path);
-  const configDir = join(tmp.path, '.config', 'atc');
+  const composer = createStubComposer(temporaryDirectory.path);
+  const configDir = join(temporaryDirectory.path, '.config', 'atc');
 
   mkdirSync(configDir, { recursive: true });
 
   return {
-    home: tmp.path,
+    home: temporaryDirectory.path,
     atc,
     configPath: join(configDir, 'config.json'),
-    claude: createStubClaude(tmp.path, { atc, composer }),
-    grok: createStubGrok(tmp.path, { atc, composer }),
+    claude: createStubClaude(temporaryDirectory.path, { atc, composer }),
+    grok: createStubGrok(temporaryDirectory.path, { atc, composer }),
   };
 }
 
@@ -288,7 +288,7 @@ test('it revives the fleet one boot at a time, gated on SessionStart', async () 
 
   // The first revive holds its start until a line arrives, so the rest stay
   // queued behind it until the test lets it go.
-  const booting = getRecords(immediate, 'sessions').find((s) => s['kind'] === 'pty');
+  const booting = getRecords(immediate, 'sessions').find((session) => session['kind'] === 'pty');
 
   invariant(booting !== undefined, 'no restored session has a terminal');
 
@@ -309,7 +309,10 @@ test('it revives the fleet one boot at a time, gated on SessionStart', async () 
     expect.objectContaining({ id: 's-three', lastMsg: 'waiting to restore' }),
   ]);
 
-  expect(getRecords(immediate, 'sessions').filter((s) => s['kind'] === 'pty')).toHaveLength(1);
+  expect(
+    getRecords(immediate, 'sessions').filter((session) => session['kind'] === 'pty'),
+  ).toHaveLength(1);
+
   expect(getRecords(settled, 'sessions')).toHaveLength(3);
 
   expect(getRecords(settled, 'sessions')).toSatisfyAll(
@@ -454,7 +457,7 @@ test('it revives the fleet most recently active first', async () => {
 
   expect(restored).toStrictEqual({ restored: 3 });
 
-  expect(events.filter((e) => e.ev === 'SessionAdded')).toMatchObject([
+  expect(events.filter((daemonEvent) => daemonEvent.ev === 'SessionAdded')).toMatchObject([
     { session: { name: 'three' } },
     { session: { name: 'two' } },
     { session: { name: 'one' } },

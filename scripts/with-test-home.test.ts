@@ -6,14 +6,14 @@ import { runCommand, setupTempDir } from '@atc/test-utils';
 // A temp directory that holds the host config a test hands the script, and
 // the directory outside any repository that the script's command runs in.
 function setupTest() {
-  const tmp = setupTempDir('atc-with-test-home-');
+  const temporaryDirectory = setupTempDir('atc-with-test-home-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it keeps a host XDG git config away from a command it runs', async () => {
   const ctx = setupTest();
-  const host = join(ctx.dir, 'host-xdg');
+  const host = join(ctx.directory, 'host-xdg');
 
   mkdirSync(join(host, 'git'), { recursive: true });
   writeFileSync(join(host, 'git', 'config'), '[atc]\n\tcanary = host\n');
@@ -21,7 +21,7 @@ test('it keeps a host XDG git config away from a command it runs', async () => {
   const read = await runCommand(
     ['bash', join(import.meta.dir, 'with-test-home.sh'), 'git', 'config', '--get', 'atc.canary'],
     {
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       env: { ...process.env, XDG_CONFIG_HOME: host },
     },
   );

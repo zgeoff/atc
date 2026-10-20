@@ -21,13 +21,13 @@ import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-har
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-auth-gateway-');
+  const temporaryDirectory = setupTempDir('atc-auth-gateway-');
   const port = createStubImpPort();
   const settles: RestoreSettled[] = [];
 
   const box = new ImpProvider(
     port,
-    { guestDir: join(tmp.path, 'g') },
+    { guestDir: join(temporaryDirectory.path, 'g') },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -36,11 +36,11 @@ function setupTest() {
   });
 
   return {
-    dir: tmp.path,
+    directory: temporaryDirectory.path,
     port,
     settles,
-    fakeClaude: createStubRecordingClaude(tmp.path),
-    marker: join(tmp.path, 'claude-starts.log'),
+    fakeClaude: createStubRecordingClaude(temporaryDirectory.path),
+    marker: join(temporaryDirectory.path, 'claude-starts.log'),
     local: new LocalPTYProvider(),
     box,
     onRestoreSettled: (settled: RestoreSettled) => {
@@ -91,7 +91,7 @@ test('it refuses a local spawn of a gateway with auth and starts no harness', as
   });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'local',
   });
@@ -147,7 +147,7 @@ test('it refuses an imp spawn of a gateway with auth before touching impd', asyn
   });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
   });
@@ -201,7 +201,11 @@ test('it starts the harness of a gateway without auth on a local spawn', async (
     }),
   });
 
-  await daemon.client.sendRequest('session.spawn', { cwd: ctx.dir, agent: 'zai', target: 'local' });
+  await daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.directory,
+    agent: 'zai',
+    target: 'local',
+  });
 
   await waitFor(() => {
     expect(existsSync(ctx.marker)).toBeTrue();
@@ -447,7 +451,7 @@ test('it refuses a local spawn that resumes a session of a gateway with auth and
   });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'local',
     resume: 'a1',
@@ -504,7 +508,7 @@ test('it refuses to adopt a restored local session of a gateway with auth and st
   });
 
   // A transcript that exists makes the session resumable.
-  const transcriptPath = join(ctx.dir, 'transcript.jsonl');
+  const transcriptPath = join(ctx.directory, 'transcript.jsonl');
 
   writeFileSync(transcriptPath, '');
 
@@ -519,7 +523,7 @@ test('it refuses to adopt a restored local session of a gateway with auth and st
   await store.writeFleet([
     buildMockFleetEntry({
       sessionID: toSessionID('s1'),
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       agent: 'glm',
       exited: true,
       transcriptPath,
@@ -581,7 +585,7 @@ test('it restores a local session of a gateway with auth without starting its ha
   });
 
   // A transcript that exists makes the session resumable.
-  const transcriptPath = join(ctx.dir, 'transcript.jsonl');
+  const transcriptPath = join(ctx.directory, 'transcript.jsonl');
 
   writeFileSync(transcriptPath, '');
 
@@ -595,7 +599,7 @@ test('it restores a local session of a gateway with auth without starting its ha
 
   await store.writeFleet([
     buildMockFleetEntry({
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       agent: 'glm',
       target: 'local',
       targetIdentity: 'local-pty:test',

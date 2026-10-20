@@ -27,7 +27,7 @@ function main(): void {
   }
 
   const packageDirs = loadPackageDirs(root, args.values.package);
-  const files = SOURCE_DIRS.flatMap((dir) => readSourceFiles(root, dir));
+  const files = SOURCE_DIRS.flatMap((directory) => readSourceFiles(root, directory));
   const planned = readMoves(root, wave, packageDirs);
 
   const known = new Set([...files, ...planned.keys()]);
@@ -108,7 +108,7 @@ function collectRelativeImports(
   const tokens = collectTokens(source);
 
   return [...tokens.entries()]
-    .filter(([i, token]) => isSpecifierToken(tokens, i) && token.value.startsWith('.'))
+    .filter(([index, token]) => isSpecifierToken(tokens, index) && token.value.startsWith('.'))
     .map(([, token]) => findModule(known, file, token.value))
     .filter((imported) => imported !== null);
 }
@@ -127,7 +127,7 @@ function loadPackageDirs(root: string, names: readonly string[]): string[] {
       throw new Error(`unknown package: ${name}; ${USAGE}`);
     }
 
-    return pkg.dir;
+    return pkg.directory;
   });
 }
 
@@ -158,7 +158,8 @@ function readMoves(
       const after = row[to] ?? '';
 
       const isSelected =
-        packageDirs.length === 0 || packageDirs.some((dir) => after.startsWith(`${dir}/`));
+        packageDirs.length === 0 ||
+        packageDirs.some((directory) => after.startsWith(`${directory}/`));
 
       if (isSelected && isPlainPath(before) && isPlainPath(after) && before !== after) {
         if (existsSync(join(root, before))) {
@@ -185,14 +186,14 @@ function readTable(path: string): Record<string, string>[] {
   return lines.map((line) => {
     const cells = line.split('\t');
 
-    return Object.fromEntries(columns.map((column, i) => [column, cells[i] ?? '']));
+    return Object.fromEntries(columns.map((column, index) => [column, cells[index] ?? '']));
   });
 }
 
 // A workspace package's directory, its name, and its wildcard entry, such as
 // `./*` exporting `./src/*.ts`.
 interface PackageEntry {
-  readonly dir: string;
+  readonly directory: string;
   readonly name: string;
   readonly prefix: string;
   readonly suffix: string;
@@ -217,7 +218,12 @@ function readEntries(root: string): PackageEntry[] {
     const [prefix, suffix] = target?.split('*') ?? [];
 
     if (manifest.name !== undefined && prefix !== undefined && suffix !== undefined) {
-      entries.push({ dir: dirname(path), name: manifest.name, prefix: prefix.slice(2), suffix });
+      entries.push({
+        directory: dirname(path),
+        name: manifest.name,
+        prefix: prefix.slice(2),
+        suffix,
+      });
     }
   }
 
@@ -240,9 +246,9 @@ function buildMovedSource(
   let updated = source;
 
   // from the end, so each edit leaves the earlier offsets in place
-  for (const [i, token] of [...tokens.entries()].toReversed()) {
+  for (const [index, token] of [...tokens.entries()].toReversed()) {
     const imported =
-      isSpecifierToken(tokens, i) && token.value.startsWith('.')
+      isSpecifierToken(tokens, index) && token.value.startsWith('.')
         ? findModule(ctx.known, file, token.value)
         : null;
 
@@ -268,9 +274,9 @@ function buildMovedSource(
   return updated;
 }
 
-function isSpecifierToken(tokens: readonly Token[], i: number): boolean {
-  const token = tokens[i];
-  const previous = tokens[i - 1]?.kind;
+function isSpecifierToken(tokens: readonly Token[], index: number): boolean {
+  const token = tokens[index];
+  const previous = tokens[index - 1]?.kind;
 
   if (token?.kind !== SyntaxKind.StringLiteral) {
     return false;
@@ -280,18 +286,18 @@ function isSpecifierToken(tokens: readonly Token[], i: number): boolean {
     return true;
   }
 
-  const callee = tokens[i - 2]?.kind;
+  const callee = tokens[index - 2]?.kind;
 
   return (
     previous === SyntaxKind.OpenParenToken &&
     (callee === SyntaxKind.ImportKeyword || callee === SyntaxKind.RequireKeyword) &&
-    tokens[i - 3]?.kind !== SyntaxKind.DotToken
+    tokens[index - 3]?.kind !== SyntaxKind.DotToken
   );
 }
 
 function findModule(known: ReadonlySet<string>, file: string, specifier: string): string | null {
-  const dir = dirname(file);
-  const base = normalize(join(dir, specifier));
+  const directory = dirname(file);
+  const base = normalize(join(directory, specifier));
 
   return [base, `${base}.ts`, `${base}/index.ts`].find((candidate) => known.has(candidate)) ?? null;
 }
@@ -304,9 +310,9 @@ function buildSpecifier(
   original: string,
   entries: readonly PackageEntry[],
 ): string {
-  const entry = entries.find((candidate) => imported.startsWith(`${candidate.dir}/`));
-  const isOtherPackage = entry !== undefined && !file.startsWith(`${entry.dir}/`);
-  const local = entry === undefined ? null : imported.slice(entry.dir.length + 1);
+  const entry = entries.find((candidate) => imported.startsWith(`${candidate.directory}/`));
+  const isOtherPackage = entry !== undefined && !file.startsWith(`${entry.directory}/`);
+  const local = entry === undefined ? null : imported.slice(entry.directory.length + 1);
 
   if (
     isOtherPackage &&
@@ -319,8 +325,8 @@ function buildSpecifier(
 
   // an import of a folder's index names the folder
   const module = original.endsWith('.ts') ? imported : imported.replace(/(?:\/index)?\.ts$/u, '');
-  const dir = dirname(file);
-  const path = relative(dir, module);
+  const directory = dirname(file);
+  const path = relative(directory, module);
 
   return path.startsWith('.') ? path : `./${path}`;
 }

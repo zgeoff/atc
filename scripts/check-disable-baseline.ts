@@ -12,8 +12,9 @@ function main(): void {
   const text = readFileSync(join(root, BASELINE_FILE), 'utf8');
   const baseline = BASELINE_SCHEMA.parse(JSON.parse(text)).importRuleDisables;
 
-  const found = SOURCE_DIRS.flatMap((dir) => readSourceFiles(root, dir)).flatMap((file) =>
-    collectDirectives(readFileSync(join(root, file), 'utf8')).map((line) => `${file}:${line}`),
+  const found = SOURCE_DIRS.flatMap((directory) => readSourceFiles(root, directory)).flatMap(
+    (file) =>
+      collectDirectives(readFileSync(join(root, file), 'utf8')).map((line) => `${file}:${line}`),
   );
 
   for (const directive of found) {

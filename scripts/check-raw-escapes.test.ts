@@ -4,20 +4,23 @@ import { runCommand, setupTempDir } from '@atc/test-utils';
 
 // A temp directory standing in for a repo root.
 function setupTest() {
-  const tmp = setupTempDir('check-raw-escapes-');
+  const temporaryDirectory = setupTempDir('check-raw-escapes-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it passes a source that writes ESC as an escape', async () => {
   const ctx = setupTest();
 
-  await Bun.write(join(ctx.dir, 'packages/tui/src/a.ts'), "export const CLEAR = '\\u001B[2J';\n");
+  await Bun.write(
+    join(ctx.directory, 'packages/tui/src/a.ts'),
+    "export const CLEAR = '\\u001B[2J';\n",
+  );
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-raw-escapes.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -35,19 +38,19 @@ test('it fails on a raw ESC byte in a source module and names the escape to writ
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'packages/tui/src/a.ts'),
+    join(ctx.directory, 'packages/tui/src/a.ts'),
     "// clears the screen\nexport const CLEAR = '\u001B[2J';\n",
   );
 
-  await Bun.write(join(ctx.dir, 'mods/bridge/b.mjs'), 'export const RESET = `\u001B[0m`;\n');
+  await Bun.write(join(ctx.directory, 'mods/bridge/b.mjs'), 'export const RESET = `\u001B[0m`;\n');
 
   // a file outside the source extensions is not a source module
-  await Bun.write(join(ctx.dir, 'packages/tui/fixture.txt'), '\u001B[0m\n');
+  await Bun.write(join(ctx.directory, 'packages/tui/fixture.txt'), '\u001B[0m\n');
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-raw-escapes.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({

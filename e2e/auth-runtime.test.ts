@@ -25,12 +25,15 @@ interface SetupConfig {
 }
 
 function setupTest(config?: SetupConfig) {
-  const tmp = setupTempDir('atc-runtime-auth-');
+  const temporaryDirectory = setupTempDir('atc-runtime-auth-');
   const port = createStubImpPort();
 
   const provider = new ImpProvider(
     port,
-    { guestDir: join(tmp.path, 'g'), rebindChangedAuth: config?.rebindChangedAuth ?? false },
+    {
+      guestDir: join(temporaryDirectory.path, 'g'),
+      rebindChangedAuth: config?.rebindChangedAuth ?? false,
+    },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -38,7 +41,7 @@ function setupTest(config?: SetupConfig) {
     provider.dispose();
   });
 
-  return { dir: tmp.path, port, provider };
+  return { directory: temporaryDirectory.path, port, provider };
 }
 
 test('it provisions the host of a spawn before readying it and starts the harness only behind a ready broker', async () => {
@@ -83,7 +86,7 @@ test('it provisions the host of a spawn before readying it and starts the harnes
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -458,7 +461,7 @@ test('it starts a brokered harness with the variables its guest plan holds besid
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
   });
@@ -519,7 +522,7 @@ test('it refuses a brokered spawn whose guest plan sets a proxy variable before 
   });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'proxied',
     target: 'box',
   });
@@ -581,7 +584,7 @@ test('it refuses a spawn on an impd older than 2.2.0 after reads alone', async (
   ctx.port.version = '2.1.0';
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
   });
@@ -653,7 +656,7 @@ test('it refuses a spawn whose broker is not ready, takes back its imp, and list
   ctx.port.startBrokerFailure();
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
   });
@@ -731,7 +734,7 @@ test('it refuses a spawn with runtime auth on the local target before touching i
   ]);
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'local',
   });
@@ -791,7 +794,7 @@ test('it starts an agent that takes the broker credential only where a broker is
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'subscription',
     target: 'local',
   });
@@ -857,7 +860,7 @@ test('it binds an agent that takes the broker credential only where a broker is 
   ]);
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'subscription',
     target: 'box',
   });
@@ -922,14 +925,14 @@ test.each([
       { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
     ]);
 
-    const cwd = join(ctx.dir, 'ws');
+    const cwd = join(ctx.directory, 'ws');
 
     const spawn = daemon.client.sendRequest('session.spawn', {
       cwd,
       agent: 'glm',
       target: 'local',
       resume,
-      workspace: { kind: 'path', path: join(ctx.dir, 'source') },
+      workspace: { kind: 'path', path: join(ctx.directory, 'source') },
     });
 
     await spawn.catch(() => null);
@@ -993,7 +996,7 @@ test('it refuses to adopt a local session with a workspace once its agent takes 
   authSelected = false;
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'local',
     resume: 'a1',
@@ -1008,7 +1011,13 @@ test('it refuses to adopt a local session with a workspace once its agent takes 
   registerTestCleanup(() => store.stop());
 
   await store.createMaterialization(
-    { sessionID: id, target: 'local', directory: ctx.dir, sourceKind: 'path', withheldEnv: [] },
+    {
+      sessionID: id,
+      target: 'local',
+      directory: ctx.directory,
+      sourceKind: 'path',
+      withheldEnv: [],
+    },
     Date.now(),
   );
 
@@ -1099,7 +1108,7 @@ test('it restores a local session with a workspace without a terminal once its a
   authSelected = false;
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'local',
     resume: 'a1',
@@ -1112,7 +1121,13 @@ test('it restores a local session with a workspace without a terminal once its a
   registerTestCleanup(() => store.stop());
 
   await store.createMaterialization(
-    { sessionID: id, target: 'local', directory: ctx.dir, sourceKind: 'path', withheldEnv: [] },
+    {
+      sessionID: id,
+      target: 'local',
+      directory: ctx.directory,
+      sourceKind: 'path',
+      withheldEnv: [],
+    },
     Date.now(),
   );
 
@@ -1195,7 +1210,7 @@ test('it refuses to revive a session whose agent dropped the broker credential w
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -1267,7 +1282,7 @@ test('it revives a session whose agent takes no broker credential on a host that
   authSelected = false;
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -1333,7 +1348,7 @@ test('it restores a session whose agent dropped the broker credential while its 
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -1408,7 +1423,7 @@ test('it restores a session whose agent takes no broker credential on a host tha
   authSelected = false;
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -1470,7 +1485,7 @@ test('it refuses a revive that a revoke blocks while its host wakes, sending no 
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -1565,7 +1580,7 @@ test('it refuses a sub-session spawn that a revoke blocks while it readies the s
   ]);
 
   const parent = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
   });
@@ -1583,7 +1598,7 @@ test('it refuses a sub-session spawn that a revoke blocks while it readies the s
   ctx.port.calls.length = 0;
 
   const child = daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     parent: parentID,
@@ -1655,7 +1670,7 @@ test('it puts a shared host back to sleep when a revoke refuses the sub-session 
   ]);
 
   const parent = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -1680,7 +1695,7 @@ test('it puts a shared host back to sleep when a revoke refuses the sub-session 
   ctx.port.calls.length = 0;
 
   const child = daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     parent: parentID,
@@ -1754,7 +1769,7 @@ test('it keeps a shared host awake when a revoke refuses a sub-session while ano
   ]);
 
   const parent = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
   });
@@ -1772,7 +1787,7 @@ test('it keeps a shared host awake when a revoke refuses a sub-session while ano
   ctx.port.calls.length = 0;
 
   const child = daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     parent: parentID,
@@ -1840,7 +1855,7 @@ test('it keeps a host awake for a sub-session that readies it while a refused re
   ]);
 
   const parent = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -1874,7 +1889,7 @@ test('it keeps a host awake for a sub-session that readies it while a refused re
   ctx.port.stopBrokerFailure();
 
   const child = daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     parent: parentID,
@@ -1942,7 +1957,7 @@ test('it puts a host to sleep after a refused revive when no other launch readie
   ]);
 
   const parent = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -2027,7 +2042,7 @@ test('it spawns a sub-session on the shared host while it readies when no revoke
   ]);
 
   const parent = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
   });
@@ -2045,7 +2060,7 @@ test('it spawns a sub-session on the shared host while it readies when no revoke
   ctx.port.calls.length = 0;
 
   const child = daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     parent: parentID,
@@ -2104,7 +2119,7 @@ test('it sends no start for a revive that a revoke blocks while its connection t
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -2193,7 +2208,7 @@ test('it sends the start of a revive whose connection to impd opens late when no
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -2265,7 +2280,7 @@ test('it revives a session while its host wakes when no revoke comes between', a
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -2338,7 +2353,7 @@ test('it revives a slept session after verifying its binding, granting nothing a
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -2422,7 +2437,7 @@ test('it refuses to revive a session whose grant was revoked outside atc and gra
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -2488,7 +2503,7 @@ test('it refuses to revive a session whose broker is not ready and puts its host
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -2564,8 +2579,8 @@ test('it provisions concurrent spawns each in an imp of its own with only its ow
   ]);
 
   const spawned = await Promise.all([
-    daemon.client.sendRequest('session.spawn', { cwd: ctx.dir, agent: 'glm', target: 'box' }),
-    daemon.client.sendRequest('session.spawn', { cwd: ctx.dir, agent: 'glm', target: 'box' }),
+    daemon.client.sendRequest('session.spawn', { cwd: ctx.directory, agent: 'glm', target: 'box' }),
+    daemon.client.sendRequest('session.spawn', { cwd: ctx.directory, agent: 'glm', target: 'box' }),
   ]);
 
   const imps = ctx.port.collectImpNames();
@@ -2634,7 +2649,7 @@ test('it revokes the grants of a running session while its harness keeps running
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -2694,7 +2709,7 @@ test('it refuses to revive a session revoked while it slept', async () => {
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -2755,7 +2770,7 @@ test('it rebinds a revoked session so it revives under the next revision', async
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -2839,7 +2854,7 @@ test('it restarts a suspended harness under the new revision when a rebind comes
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -2948,7 +2963,7 @@ test('it refuses an adopt whose outdated harness ignores its kill, leaves the se
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -3047,7 +3062,7 @@ test('it records an adopt whose outdated harness ignores its kill as stopped, so
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -3143,7 +3158,7 @@ test('it leaves a session stopped and starts no fresh harness when a stop lands 
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -3250,7 +3265,7 @@ test('it lists a running harness as pending a restart after a rebind and leaves 
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -3326,7 +3341,7 @@ test('it refuses session.auth.revoke from a principal as unauthorized and revoke
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
   });
@@ -3388,7 +3403,7 @@ test('it refuses session.auth.rebind from a principal as unauthorized and binds 
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
   });
@@ -3450,7 +3465,7 @@ test('it forgets a bound session by destroying its imp and dropping its binding,
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
   });
@@ -3518,7 +3533,7 @@ test("it runs a sub-session under the same binding in its parent's imp without g
   ]);
 
   const parent = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
   });
@@ -3526,7 +3541,7 @@ test("it runs a sub-session under the same binding in its parent's imp without g
   ctx.port.calls.length = 0;
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     parent: getRecord(parent, 'session')['id'],
@@ -3593,13 +3608,13 @@ test("it refuses a sub-session without runtime auth in a bound parent's imp", as
   ]);
 
   const parent = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
   });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'plain',
     target: 'box',
     parent: getRecord(parent, 'session')['id'],
@@ -3735,7 +3750,7 @@ test('it restores a session whose broker is not ready without a terminal', async
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -3807,7 +3822,7 @@ test('it restores every session on a host whose agent added a profile on a targe
   ]);
 
   const parent = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -3816,7 +3831,7 @@ test('it restores every session on a host whose agent added a profile on a targe
   const parentID = String(getRecord(parent, 'session')['id']);
 
   const child = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a2',
@@ -3907,7 +3922,7 @@ test('it revokes the grant of a dropped profile as it restores a session on a ta
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -3977,7 +3992,7 @@ test('it refuses to restore a session whose agent added a profile on a target th
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -4050,7 +4065,7 @@ test('it lists a restore refused for a changed auth selection with the rebind hi
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     name: 'cloud-review',
     target: 'box',
@@ -4136,7 +4151,7 @@ test('it reports a restore refused for a dropped auth block in the restart check
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     name: 'gateway-docs',
     target: 'box',
@@ -4212,7 +4227,7 @@ test('it refuses to restore a session whose agent dropped the broker credential 
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -4294,7 +4309,7 @@ test('it refuses to restore a session whose agent added a profile on a target th
   ]);
 
   const parent = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -4303,7 +4318,7 @@ test('it refuses to restore a session whose agent added a profile on a target th
   const parentID = String(getRecord(parent, 'session')['id']);
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'kimi',
     target: 'box',
     resume: 'a2',
@@ -4379,7 +4394,7 @@ test('it shows a running harness on the host that its auth revision applies at t
   ]);
 
   const parent = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -4388,7 +4403,7 @@ test('it shows a running harness on the host that its auth revision applies at t
   const parentID = String(getRecord(parent, 'session')['id']);
 
   const child = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a2',
@@ -4478,7 +4493,7 @@ test('it shows every restored harness on a host that rebinds during the first re
   ]);
 
   const parent = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -4487,7 +4502,7 @@ test('it shows every restored harness on a host that rebinds during the first re
   const parentID = String(getRecord(parent, 'session')['id']);
 
   const child = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a2',
@@ -4581,7 +4596,7 @@ test('it shows a harness restored after a daemon restart that its auth revision 
   ]);
 
   const parent = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -4590,7 +4605,7 @@ test('it shows a harness restored after a daemon restart that its auth revision 
   const parentID = String(getRecord(parent, 'session')['id']);
 
   const child = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a2',
@@ -4704,7 +4719,7 @@ test('it restarts a suspended harness under the revision a revive rebinds a chan
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',

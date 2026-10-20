@@ -8,10 +8,11 @@ import { readSourceFiles } from './read-source-files';
 function main(): void {
   const root = resolve(process.argv[2] ?? join(import.meta.dir, '..'));
 
-  const found = SOURCE_DIRS.flatMap((dir) => readSourceFiles(root, dir)).flatMap((file) =>
-    collectRawEscapes(readFileSync(join(root, file), 'utf8')).map(
-      (position) => `${file}:${position}`,
-    ),
+  const found = SOURCE_DIRS.flatMap((directory) => readSourceFiles(root, directory)).flatMap(
+    (file) =>
+      collectRawEscapes(readFileSync(join(root, file), 'utf8')).map(
+        (position) => `${file}:${position}`,
+      ),
   );
 
   for (const position of found) {

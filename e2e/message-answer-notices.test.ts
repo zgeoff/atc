@@ -45,8 +45,8 @@ async function setupTest(
     }),
   });
 
-  const send = (m: string, p?: Readonly<Record<string, unknown>>) =>
-    daemon.client.sendRequest(m, p);
+  const send = (method: string, params?: Readonly<Record<string, unknown>>) =>
+    daemon.client.sendRequest(method, params);
 
   const sender = await spawnNamedSession(send, 'sender', daemon.directory);
   const recipient = await spawnNamedSession(send, 'recipient', daemon.directory);
@@ -238,9 +238,9 @@ test('it hands one answer notice for a message whose answer is reported twice', 
 
   expect(
     events
-      .filter((e): e is Readonly<Record<string, unknown>> => isRecord(e))
-      .filter((e) => typeof e['kind'] === 'string' && e['kind'].startsWith('notice-'))
-      .map((e) => [e['kind'], e['message']]),
+      .filter((entry): entry is Readonly<Record<string, unknown>> => isRecord(entry))
+      .filter((entry) => typeof entry['kind'] === 'string' && entry['kind'].startsWith('notice-'))
+      .map((entry) => [entry['kind'], entry['message']]),
   ).toStrictEqual([
     ['notice-queued', sent['message']],
     ['notice-delivered', sent['message']],
@@ -607,7 +607,7 @@ test('it hands no answer notice to a tap that did not ask for notices', async ()
   });
 
   expect<unknown[]>(tap.notices).toStrictEqual([]);
-  expect(events.filter((e) => e.ev === 'InboxNotice')).toStrictEqual([]);
+  expect(events.filter((daemonEvent) => daemonEvent.ev === 'InboxNotice')).toStrictEqual([]);
 });
 
 test('it hands no answer notice to the sending session for a message sent with notice false', async () => {

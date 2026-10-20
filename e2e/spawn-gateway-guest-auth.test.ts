@@ -23,17 +23,17 @@ import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-har
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-gateway-guest-auth-');
+  const temporaryDirectory = setupTempDir('atc-gateway-guest-auth-');
   const port = createStubImpPort();
-  const fakeClaude = createStubRecordingClaude(tmp.path);
+  const fakeClaude = createStubRecordingClaude(temporaryDirectory.path);
 
   // The imp provider hands the guest this atc binary, which prints the
   // daemon's version, so the guest's hooks run it.
-  const guestATC = createStubBin(tmp.path, 'atc', '#!/bin/sh\necho 1.0.0\n');
+  const guestATC = createStubBin(temporaryDirectory.path, 'atc', '#!/bin/sh\necho 1.0.0\n');
 
   const provider = new ImpProvider(
     port,
-    { guestDir: join(tmp.path, 'g'), guestATC },
+    { guestDir: join(temporaryDirectory.path, 'g'), guestATC },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -42,7 +42,7 @@ function setupTest() {
   });
 
   return {
-    dir: tmp.path,
+    directory: temporaryDirectory.path,
     port,
     fakeClaude,
     targets: [
@@ -106,10 +106,10 @@ test('it starts a brokered gateway on an imp under the settings file of its bind
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
-  const session = join(ctx.dir, 'g', 'sessions', id);
+  const session = join(ctx.directory, 'g', 'sessions', id);
 
   await waitFor(() => {
-    expect(existsSync(join(ctx.dir, 'claude-starts.log'))).toBeTrue();
+    expect(existsSync(join(ctx.directory, 'claude-starts.log'))).toBeTrue();
   });
 
   const [start] = ctx.port.sessionRequests;
@@ -189,7 +189,7 @@ test('it revives a suspended session after a rebind as a fresh guest process und
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
-  const session = join(ctx.dir, 'g', 'sessions', id);
+  const session = join(ctx.directory, 'g', 'sessions', id);
 
   await daemon.client.sendRequest('session.kill', { session: id });
   await daemon.client.sendRequest('session.auth.revoke', { session: id });
@@ -261,7 +261,7 @@ test('it revives a suspended session after a rebind as a fresh guest process whe
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
-  const session = join(ctx.dir, 'g', 'sessions', id);
+  const session = join(ctx.directory, 'g', 'sessions', id);
 
   await daemon.client.sendRequest('session.kill', { session: id });
 
@@ -414,10 +414,10 @@ test('it starts a brokered gateway with the placeholder and its own Claude confi
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
-  const session = join(ctx.dir, 'g', 'sessions', id);
+  const session = join(ctx.directory, 'g', 'sessions', id);
 
   await waitFor(() => {
-    expect(existsSync(join(ctx.dir, 'claude-starts.log'))).toBeTrue();
+    expect(existsSync(join(ctx.directory, 'claude-starts.log'))).toBeTrue();
   });
 
   const [start] = ctx.port.sessionRequests;
@@ -649,7 +649,7 @@ test('it refuses a brokered gateway with an unsupported placeholder before mater
 
   expect(ctx.port.calls).toStrictEqual([]);
   expect(existsSync(cwd)).toBeFalse();
-  expect(existsSync(join(ctx.dir, 'g'))).toBeFalse();
+  expect(existsSync(join(ctx.directory, 'g'))).toBeFalse();
   expect(listed).toStrictEqual({ sessions: [] });
 });
 
@@ -714,6 +714,6 @@ test('it refuses a brokered gateway on the local target before materializing its
 
   expect(ctx.port.calls).toStrictEqual([]);
   expect(existsSync(cwd)).toBeFalse();
-  expect(existsSync(join(ctx.dir, 'claude-starts.log'))).toBeFalse();
+  expect(existsSync(join(ctx.directory, 'claude-starts.log'))).toBeFalse();
   expect(listed).toStrictEqual({ sessions: [] });
 });

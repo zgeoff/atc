@@ -6,7 +6,7 @@ import { z } from 'zod';
 // workspace packages its manifest depends on, in the same form.
 export interface WorkspacePackage {
   readonly name: string;
-  readonly dir: string;
+  readonly directory: string;
   readonly deps: readonly string[];
 }
 
@@ -31,13 +31,13 @@ export function loadWorkspacePackages(root: string): WorkspacePackage[] {
     }
   }
 
-  return [...dirs].toSorted().map((dir) => {
-    const pkg = PACKAGE_MANIFEST_SCHEMA.parse(loadJSON(join(root, dir, 'package.json')));
+  return [...dirs].toSorted().map((directory) => {
+    const pkg = PACKAGE_MANIFEST_SCHEMA.parse(loadJSON(join(root, directory, 'package.json')));
     const deps = Object.keys(pkg.dependencies ?? {}).filter((name) => name.startsWith(SCOPE));
 
     return {
       name: pkg.name.slice(SCOPE.length),
-      dir,
+      directory,
       deps: deps.map((name) => name.slice(SCOPE.length)),
     };
   });

@@ -133,9 +133,11 @@ function readSnapshot(canaries: readonly string[], watched: readonly string[]): 
     return `${file} ${hash} ${String(Math.floor(before.mtimeMs / 1000))} ${String(Math.floor(before.atimeMs / 1000))}`;
   });
 
-  const paths = watched.flatMap((dir) =>
-    existsSync(dir)
-      ? readdirSync(dir, { recursive: true, encoding: 'utf8' }).map((path) => join(dir, path))
+  const paths = watched.flatMap((directory) =>
+    existsSync(directory)
+      ? readdirSync(directory, { recursive: true, encoding: 'utf8' }).map((path) =>
+          join(directory, path),
+        )
       : [],
   );
 
@@ -159,13 +161,13 @@ function runGate(gate: readonly string[], home: string, run: string): Promise<nu
     ATC_SOCKET: join(run, 'atc.sock'),
   };
 
-  const proc = Bun.spawn([...gate], {
+  const subprocess = Bun.spawn([...gate], {
     cwd: join(import.meta.dir, '..'),
     env,
     stdio: ['inherit', 'inherit', 'inherit'],
   });
 
-  return proc.exited;
+  return subprocess.exited;
 }
 
 await main();

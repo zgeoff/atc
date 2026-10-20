@@ -4,21 +4,21 @@ import { runCommand, setupTempDir } from '@atc/test-utils';
 
 // A temp directory standing in for a repo root.
 function setupTest() {
-  const tmp = setupTempDir('check-manifests-');
+  const temporaryDirectory = setupTempDir('check-manifests-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it passes packages whose manifests declare what their files import', async () => {
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'package.json'),
+    join(ctx.directory, 'package.json'),
     JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/tui/package.json'),
+    join(ctx.directory, 'packages/tui/package.json'),
     JSON.stringify({
       name: '@atc/tui',
       exports: { '.': './src/index.ts' },
@@ -28,19 +28,19 @@ test('it passes packages whose manifests declare what their files import', async
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/tui/src/render.ts'),
+    join(ctx.directory, 'packages/tui/src/render.ts'),
     "import { z } from 'zod';\nimport { isRecord } from '@atc/core';\nimport { join } from 'node:path';\nimport { $ } from 'bun';\nimport { WIDTH } from './width';\n\nexport const RENDER = [z, isRecord, join, $, WIDTH];\n",
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/tui/src/render.test.ts'),
+    join(ctx.directory, 'packages/tui/src/render.test.ts'),
     "import { faker } from '@faker-js/faker';\n\nexport const NAME = faker;\n",
   );
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -58,34 +58,34 @@ test('it fails on a relative import into another package', async () => {
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'package.json'),
+    join(ctx.directory, 'package.json'),
     JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/tui/package.json'),
+    join(ctx.directory, 'packages/tui/package.json'),
     JSON.stringify({ name: '@atc/tui', exports: { '.': './src/index.ts' } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/daemon/package.json'),
+    join(ctx.directory, 'packages/daemon/package.json'),
     JSON.stringify({ name: '@atc/daemon', exports: { '.': './src/index.ts' } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/daemon/src/sessions.ts'),
+    join(ctx.directory, 'packages/daemon/src/sessions.ts'),
     'export const SESSIONS = [];\n',
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/tui/src/a.ts'),
+    join(ctx.directory, 'packages/tui/src/a.ts'),
     "import { SESSIONS } from '../../daemon/src/sessions';\n\nexport const A = SESSIONS;\n",
   );
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -104,24 +104,24 @@ test('it fails on a module load whose specifier is a template literal', async ()
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'package.json'),
+    join(ctx.directory, 'package.json'),
     JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/core/package.json'),
+    join(ctx.directory, 'packages/core/package.json'),
     JSON.stringify({ name: '@atc/core', exports: { '.': './src/index.ts' } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/core/src/a.ts'),
+    join(ctx.directory, 'packages/core/src/a.ts'),
     'export const FS = await import(`node:fs`);\n',
   );
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -140,17 +140,17 @@ test('it fails on a module load or a resolve form whose specifier is computed', 
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'package.json'),
+    join(ctx.directory, 'package.json'),
     JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/package.json'),
+    join(ctx.directory, 'packages/app/package.json'),
     JSON.stringify({ name: '@atc/app', exports: {} }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/store/rows.ts'),
+    join(ctx.directory, 'packages/app/src/store/rows.ts'),
     [
       "const name = '../daemon/ids';",
       'export const A = await import(name);',
@@ -165,7 +165,7 @@ test('it fails on a module load or a resolve form whose specifier is computed', 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -190,19 +190,19 @@ test('it fails on a mod that loads a module through a template literal', async (
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'package.json'),
+    join(ctx.directory, 'package.json'),
     JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'mods/bridge/hooks/register.ts'),
+    join(ctx.directory, 'mods/bridge/hooks/register.ts'),
     'export const CLIENT: unknown = await import(`@impz/client`);\n',
   );
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -221,19 +221,19 @@ test('it lets the root package resolve a computed specifier and never load one',
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'package.json'),
+    join(ctx.directory, 'package.json'),
     JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'scripts/bundle.ts'),
+    join(ctx.directory, 'scripts/bundle.ts'),
     "const name = './plugin';\nexport const PATH = Bun.resolveSync(name, import.meta.dir);\nexport const PLUGIN = await import(name);\n",
   );
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -252,36 +252,36 @@ test('it lets a listed helper test reach the app and no other helper test', asyn
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'package.json'),
+    join(ctx.directory, 'package.json'),
     JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/test-utils/package.json'),
+    join(ctx.directory, 'packages/test-utils/package.json'),
     JSON.stringify({ name: '@atc/test-utils', exports: { '.': './src/index.ts' } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/package.json'),
+    join(ctx.directory, 'packages/app/package.json'),
     JSON.stringify({ name: '@atc/app', exports: {} }),
   );
 
-  await Bun.write(join(ctx.dir, 'packages/app/src/keymap.ts'), 'export const KEYMAP = [];\n');
+  await Bun.write(join(ctx.directory, 'packages/app/src/keymap.ts'), 'export const KEYMAP = [];\n');
 
   await Bun.write(
-    join(ctx.dir, 'packages/test-utils/src/keys.test.ts'),
+    join(ctx.directory, 'packages/test-utils/src/keys.test.ts'),
     "import { KEYMAP } from '../../app/src/keymap';\n\nexport const A = KEYMAP;\n",
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/test-utils/src/wait-for.test.ts'),
+    join(ctx.directory, 'packages/test-utils/src/wait-for.test.ts'),
     "import { KEYMAP } from '../../app/src/keymap';\n\nexport const B = KEYMAP;\n",
   );
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -300,24 +300,24 @@ test('it fails on a literal dynamic import into another package', async () => {
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'package.json'),
+    join(ctx.directory, 'package.json'),
     JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/mcp/package.json'),
+    join(ctx.directory, 'packages/mcp/package.json'),
     JSON.stringify({ name: '@atc/mcp', exports: { '.': './src/index.ts' } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/mcp/src/a.ts'),
+    join(ctx.directory, 'packages/mcp/src/a.ts'),
     "export const LOADED = await import('../../store/src/open-store');\n",
   );
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -336,12 +336,12 @@ test('it fails on a bare import the manifest does not declare', async () => {
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'package.json'),
+    join(ctx.directory, 'package.json'),
     JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/tui/package.json'),
+    join(ctx.directory, 'packages/tui/package.json'),
     JSON.stringify({
       name: '@atc/tui',
       exports: { '.': './src/index.ts' },
@@ -350,14 +350,14 @@ test('it fails on a bare import the manifest does not declare', async () => {
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/tui/src/a.ts'),
+    join(ctx.directory, 'packages/tui/src/a.ts'),
     "import type { SessionID } from '@atc/core/ids';\n\nexport type A = SessionID;\n",
   );
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -376,12 +376,12 @@ test('it fails on a production file importing a dev dependency', async () => {
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'package.json'),
+    join(ctx.directory, 'package.json'),
     JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/store/package.json'),
+    join(ctx.directory, 'packages/store/package.json'),
     JSON.stringify({
       name: '@atc/store',
       exports: { '.': './src/index.ts' },
@@ -390,19 +390,19 @@ test('it fails on a production file importing a dev dependency', async () => {
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/store/src/a.ts'),
+    join(ctx.directory, 'packages/store/src/a.ts'),
     "import invariant from 'tiny-invariant';\n\nexport const A = invariant;\n",
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/store/src/testing/b.ts'),
+    join(ctx.directory, 'packages/store/src/testing/b.ts'),
     "import invariant from 'tiny-invariant';\n\nexport const B = invariant;\n",
   );
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -421,7 +421,7 @@ test('it fails on manifest entries that are not workspace or catalog references'
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'package.json'),
+    join(ctx.directory, 'package.json'),
     JSON.stringify({
       name: 'root',
       workspaces: { packages: ['packages/*'] },
@@ -430,7 +430,7 @@ test('it fails on manifest entries that are not workspace or catalog references'
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/store/package.json'),
+    join(ctx.directory, 'packages/store/package.json'),
     JSON.stringify({
       name: '@atc/store',
       exports: { '.': './src/index.ts' },
@@ -441,7 +441,7 @@ test('it fails on manifest entries that are not workspace or catalog references'
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -460,7 +460,7 @@ test('it fails on a root catalog entry or root devDependency that is not exact',
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'package.json'),
+    join(ctx.directory, 'package.json'),
     JSON.stringify({
       name: 'root',
       workspaces: {
@@ -487,7 +487,7 @@ test('it fails on a root catalog entry or root devDependency that is not exact',
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -506,24 +506,24 @@ test('it fails on a package named outside the @atc/ scope', async () => {
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'package.json'),
+    join(ctx.directory, 'package.json'),
     JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/extras/package.json'),
+    join(ctx.directory, 'packages/extras/package.json'),
     JSON.stringify({ name: 'extras', exports: { '.': './src/index.ts' } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/tui/package.json'),
+    join(ctx.directory, 'packages/tui/package.json'),
     JSON.stringify({ name: '@atc/terminal', exports: { '.': './src/index.ts' } }),
   );
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -541,17 +541,17 @@ test('it reads the committed zones table and refuses a dependency outside a pack
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'package.json'),
+    join(ctx.directory, 'package.json'),
     JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*', 'packages/*/*'] } }),
   );
 
   await Bun.write(
-    join(ctx.dir, '.oxlintrc.zones.json'),
+    join(ctx.directory, '.oxlintrc.zones.json'),
     Bun.file(join(import.meta.dir, '../.oxlintrc.zones.json')),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/core/package.json'),
+    join(ctx.directory, 'packages/core/package.json'),
     JSON.stringify({
       name: '@atc/core',
       exports: { '.': './src/index.ts' },
@@ -560,7 +560,7 @@ test('it reads the committed zones table and refuses a dependency outside a pack
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/protocol/package.json'),
+    join(ctx.directory, 'packages/protocol/package.json'),
     JSON.stringify({
       name: '@atc/protocol',
       exports: { '.': './src/index.ts' },
@@ -569,12 +569,12 @@ test('it reads the committed zones table and refuses a dependency outside a pack
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/harnesses/codex/package.json'),
+    join(ctx.directory, 'packages/harnesses/codex/package.json'),
     JSON.stringify({ name: '@atc/harness-codex', exports: { '.': './src/index.ts' } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/harnesses/grok/package.json'),
+    join(ctx.directory, 'packages/harnesses/grok/package.json'),
     JSON.stringify({
       name: '@atc/harness-grok',
       exports: { '.': './src/index.ts' },
@@ -585,7 +585,7 @@ test('it reads the committed zones table and refuses a dependency outside a pack
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -604,12 +604,12 @@ test('it fails on a production dependency that an edge of the zones table refuse
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'package.json'),
+    join(ctx.directory, 'package.json'),
     JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
   );
 
   await Bun.write(
-    join(ctx.dir, '.oxlintrc.zones.json'),
+    join(ctx.directory, '.oxlintrc.zones.json'),
     `{
   // the package boundaries
   "rules": {
@@ -640,7 +640,7 @@ test('it fails on a production dependency that an edge of the zones table refuse
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/core/package.json'),
+    join(ctx.directory, 'packages/core/package.json'),
     JSON.stringify({
       name: '@atc/core',
       exports: { '.': './src/index.ts' },
@@ -649,17 +649,17 @@ test('it fails on a production dependency that an edge of the zones table refuse
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/lifecycle/package.json'),
+    join(ctx.directory, 'packages/lifecycle/package.json'),
     JSON.stringify({ name: '@atc/lifecycle', exports: { '.': './src/index.ts' } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/test-utils/package.json'),
+    join(ctx.directory, 'packages/test-utils/package.json'),
     JSON.stringify({ name: '@atc/test-utils', exports: { '.': './src/index.ts' } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/tui/package.json'),
+    join(ctx.directory, 'packages/tui/package.json'),
     JSON.stringify({
       name: '@atc/tui',
       exports: { '.': './src/index.ts' },
@@ -674,7 +674,7 @@ test('it fails on a production dependency that an edge of the zones table refuse
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -703,12 +703,12 @@ test.each([
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'package.json'),
+    join(ctx.directory, 'package.json'),
     JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
   );
 
   await Bun.write(
-    join(ctx.dir, '.oxlintrc.zones.json'),
+    join(ctx.directory, '.oxlintrc.zones.json'),
     JSON.stringify({
       rules: {
         'zgeoff/import-zones': [
@@ -725,7 +725,7 @@ test.each([
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect(checked.exitCode).toBe(1);
@@ -736,29 +736,29 @@ test('it lets the root reach the app by path and nothing else', async () => {
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'package.json'),
+    join(ctx.directory, 'package.json'),
     JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/package.json'),
+    join(ctx.directory, 'packages/app/package.json'),
     JSON.stringify({ name: '@atc/app', exports: {} }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/tui/package.json'),
+    join(ctx.directory, 'packages/tui/package.json'),
     JSON.stringify({ name: '@atc/tui', exports: { '.': './src/index.ts' } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'e2e/journey.test.ts'),
+    join(ctx.directory, 'e2e/journey.test.ts'),
     "import { waitFor } from '../packages/app/src/test-utils/wait-for';\nimport { render } from '../packages/tui/src/render';\n\nexport const JOURNEY = [waitFor, render];\n",
   );
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -777,19 +777,19 @@ test('it ignores a package named only to resolve a path', async () => {
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'package.json'),
+    join(ctx.directory, 'package.json'),
     JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'scripts/probe.ts'),
+    join(ctx.directory, 'scripts/probe.ts'),
     "export const PATH = Bun.resolveSync('bun-pty/package.json', import.meta.dir);\n",
   );
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -807,17 +807,17 @@ test('it passes imports of a package root and of a named entry point', async () 
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'package.json'),
+    join(ctx.directory, 'package.json'),
     JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/core/package.json'),
+    join(ctx.directory, 'packages/core/package.json'),
     JSON.stringify({ name: '@atc/core', exports: { '.': './src/index.ts' } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/protocol/package.json'),
+    join(ctx.directory, 'packages/protocol/package.json'),
     JSON.stringify({
       name: '@atc/protocol',
       exports: { '.': './src/index.ts', './wire': './src/wire/index.ts' },
@@ -826,7 +826,7 @@ test('it passes imports of a package root and of a named entry point', async () 
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/tui/package.json'),
+    join(ctx.directory, 'packages/tui/package.json'),
     JSON.stringify({
       name: '@atc/tui',
       exports: { '.': './src/index.ts' },
@@ -835,14 +835,14 @@ test('it passes imports of a package root and of a named entry point', async () 
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/tui/src/a.ts'),
+    join(ctx.directory, 'packages/tui/src/a.ts'),
     "import { isRecord } from '@atc/core';\nimport { DaemonClient } from '@atc/protocol/wire';\n\nexport const A = [isRecord, DaemonClient];\n",
   );
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -860,17 +860,17 @@ test('it leaves a subpath the exports map does not list to the import lint rules
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'package.json'),
+    join(ctx.directory, 'package.json'),
     JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/core/package.json'),
+    join(ctx.directory, 'packages/core/package.json'),
     JSON.stringify({ name: '@atc/core', exports: { '.': './src/index.ts' } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/tui/package.json'),
+    join(ctx.directory, 'packages/tui/package.json'),
     JSON.stringify({
       name: '@atc/tui',
       exports: { '.': './src/index.ts' },
@@ -879,14 +879,14 @@ test('it leaves a subpath the exports map does not list to the import lint rules
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/tui/src/a.ts'),
+    join(ctx.directory, 'packages/tui/src/a.ts'),
     "import { isRecord } from '@atc/core/is-record';\n\nexport const A = isRecord;\n",
   );
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -904,17 +904,17 @@ test('it fails on a package with no exports map or a wildcard entry', async () =
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'package.json'),
+    join(ctx.directory, 'package.json'),
     JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/core/package.json'),
+    join(ctx.directory, 'packages/core/package.json'),
     JSON.stringify({ name: '@atc/core' }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/protocol/package.json'),
+    join(ctx.directory, 'packages/protocol/package.json'),
     JSON.stringify({
       name: '@atc/protocol',
       exports: { '.': './src/index.ts', './*': './src/*.ts' },
@@ -924,7 +924,7 @@ test('it fails on a package with no exports map or a wildcard entry', async () =
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -943,17 +943,17 @@ test('it fails on an entry point that loads a preloaded module', async () => {
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'package.json'),
+    join(ctx.directory, 'package.json'),
     JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'bunfig.toml'),
+    join(ctx.directory, 'bunfig.toml'),
     '[test]\npreload = ["./packages/test-utils/src/isolate-home.ts", "@zgeoff/bun-test-extended"]\n',
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/test-utils/package.json'),
+    join(ctx.directory, 'packages/test-utils/package.json'),
     JSON.stringify({
       name: '@atc/test-utils',
       exports: { '.': './src/index.ts', './home': './src/isolate-home.ts' },
@@ -962,24 +962,24 @@ test('it fails on an entry point that loads a preloaded module', async () => {
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/test-utils/src/index.ts'),
+    join(ctx.directory, 'packages/test-utils/src/index.ts'),
     "export * from './isolate-home';\nexport * from './wait-for';\n",
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/test-utils/src/wait-for.ts'),
+    join(ctx.directory, 'packages/test-utils/src/wait-for.ts'),
     "import '@zgeoff/bun-test-extended';\nimport { ROOT } from './isolate-home.ts';\n\nexport const WAIT = ROOT;\n",
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/test-utils/src/isolate-home.ts'),
+    join(ctx.directory, 'packages/test-utils/src/isolate-home.ts'),
     "export const ROOT = '/';\n",
   );
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -1001,41 +1001,41 @@ test('it lets a test load a preloaded module that no entry point reaches', async
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'package.json'),
+    join(ctx.directory, 'package.json'),
     JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'bunfig.toml'),
+    join(ctx.directory, 'bunfig.toml'),
     '[test]\npreload = ["./packages/test-utils/src/isolate-home.ts"]\n',
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/test-utils/package.json'),
+    join(ctx.directory, 'packages/test-utils/package.json'),
     JSON.stringify({ name: '@atc/test-utils', exports: { '.': './src/index.ts' } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/test-utils/src/index.ts'),
+    join(ctx.directory, 'packages/test-utils/src/index.ts'),
     "import SCRIPT from './unpack.sh' with { type: 'text' };\n\nexport const UNPACK = SCRIPT;\n",
   );
 
-  await Bun.write(join(ctx.dir, 'packages/test-utils/src/unpack.sh'), 'tar -x "$1"\n');
+  await Bun.write(join(ctx.directory, 'packages/test-utils/src/unpack.sh'), 'tar -x "$1"\n');
 
   await Bun.write(
-    join(ctx.dir, 'packages/test-utils/src/isolate-home.test.ts'),
+    join(ctx.directory, 'packages/test-utils/src/isolate-home.test.ts'),
     "import { ROOT } from './isolate-home';\n\nexport const HOME = ROOT;\n",
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/test-utils/src/isolate-home.ts'),
+    join(ctx.directory, 'packages/test-utils/src/isolate-home.ts'),
     "export const ROOT = '/';\n",
   );
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -1053,39 +1053,39 @@ test('it lets an entry point name a preloaded module only through type-only spec
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'package.json'),
+    join(ctx.directory, 'package.json'),
     JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'bunfig.toml'),
+    join(ctx.directory, 'bunfig.toml'),
     '[test]\npreload = ["./packages/test-utils/src/isolate-home.ts"]\n',
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/test-utils/package.json'),
+    join(ctx.directory, 'packages/test-utils/package.json'),
     JSON.stringify({ name: '@atc/test-utils', exports: { '.': './src/index.ts' } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/test-utils/src/index.ts'),
+    join(ctx.directory, 'packages/test-utils/src/index.ts'),
     "export { type Home } from './isolate-home.ts';\nexport * from './wait-for';\n",
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/test-utils/src/wait-for.ts'),
+    join(ctx.directory, 'packages/test-utils/src/wait-for.ts'),
     "import { type Home } from './isolate-home.ts';\n\nexport const WAIT: Home | null = null;\n",
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/test-utils/src/isolate-home.ts'),
+    join(ctx.directory, 'packages/test-utils/src/isolate-home.ts'),
     "export type Home = { root: string };\nexport const startHome = () => '/';\n",
   );
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -1103,34 +1103,34 @@ test('it fails on an entry point that names a preloaded module among a value and
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'package.json'),
+    join(ctx.directory, 'package.json'),
     JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'bunfig.toml'),
+    join(ctx.directory, 'bunfig.toml'),
     '[test]\npreload = ["./packages/test-utils/src/isolate-home.ts"]\n',
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/test-utils/package.json'),
+    join(ctx.directory, 'packages/test-utils/package.json'),
     JSON.stringify({ name: '@atc/test-utils', exports: { '.': './src/index.ts' } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/test-utils/src/index.ts'),
+    join(ctx.directory, 'packages/test-utils/src/index.ts'),
     "export { type Home, startHome } from './isolate-home.ts';\n",
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/test-utils/src/isolate-home.ts'),
+    join(ctx.directory, 'packages/test-utils/src/isolate-home.ts'),
     "export type Home = { root: string };\nexport const startHome = () => '/';\n",
   );
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -1149,17 +1149,17 @@ test('it resolves an extensionless preload the way bun does', async () => {
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'package.json'),
+    join(ctx.directory, 'package.json'),
     JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'bunfig.toml'),
+    join(ctx.directory, 'bunfig.toml'),
     '[test]\npreload = ["./packages/test-utils/src/isolate-home"]\n',
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/test-utils/package.json'),
+    join(ctx.directory, 'packages/test-utils/package.json'),
     JSON.stringify({
       name: '@atc/test-utils',
       exports: { '.': './src/index.ts', './home': './src/isolate-home.ts' },
@@ -1167,19 +1167,19 @@ test('it resolves an extensionless preload the way bun does', async () => {
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/test-utils/src/index.ts'),
+    join(ctx.directory, 'packages/test-utils/src/index.ts'),
     "export * from './isolate-home.ts';\n",
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/test-utils/src/isolate-home.ts'),
+    join(ctx.directory, 'packages/test-utils/src/isolate-home.ts'),
     "export const ROOT = '/';\n",
   );
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({

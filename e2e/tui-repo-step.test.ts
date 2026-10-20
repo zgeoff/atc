@@ -25,7 +25,7 @@ test('it spawns a session from a git repository at the commit the confirm screen
 
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
-  const dest = join(
+  const destination = join(
     ctx.home,
     '.local',
     'share',
@@ -50,7 +50,7 @@ test('it spawns a session from a git repository at the commit the confirm screen
   ctx.reset();
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor(ctx.formatInput(dest));
+  await ctx.waitFor(ctx.formatInput(destination));
 
   expect(ctx.read()).toInclude(`main → ${fixture.sha.slice(0, 12)}`);
   expect(ctx.read()).toInclude('dest    local:/');
@@ -83,7 +83,7 @@ test('it spawns a session from a git repository at the commit the confirm screen
   ctx.reset();
   ctx.write(KEYS.esc);
 
-  await ctx.waitFor(ctx.formatInput(dest));
+  await ctx.waitFor(ctx.formatInput(destination));
 
   ctx.reset();
   ctx.write(KEYS.enter);
@@ -111,10 +111,10 @@ test('it spawns a session from a git repository at the commit the confirm screen
   const listed = await daemon.sendRequest('session.list');
 
   expect(listed['sessions']).toMatchObject([
-    { cwd: dest, workspace: { repoURL: fixture.upstream, sha: fixture.sha, ref: 'main' } },
+    { cwd: destination, workspace: { repoURL: fixture.upstream, sha: fixture.sha, ref: 'main' } },
   ]);
 
-  expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe('hello\n');
+  expect(readFileSync(join(destination, 'README.md'), 'utf8')).toBe('hello\n');
 }, 30_000);
 
 test('it filters refs by name on the ref step', async () => {

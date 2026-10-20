@@ -21,11 +21,11 @@ import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemo
 // The fixed parts every imp guest test shares: the stub guest tools and the
 // guest folder under a temp directory, and a stub imp port.
 function setupTest() {
-  const tmp = setupTempDir('atc-imp-guest-');
-  const clis = createStubGuestCLIs(join(tmp.path, 'bin'));
+  const temporaryDirectory = setupTempDir('atc-imp-guest-');
+  const clis = createStubGuestCLIs(join(temporaryDirectory.path, 'bin'));
   const port = createStubImpPort();
 
-  return { port, guestDir: join(tmp.path, 'g'), clis };
+  return { port, guestDir: join(temporaryDirectory.path, 'g'), clis };
 }
 
 test('it refuses a remote Claude spawn when the host has no atc and the daemon has none to copy', async () => {
@@ -116,8 +116,8 @@ test('it gives a remote Claude session settings, a statusline, and a mod that re
     rows: 24,
   });
 
-  const dir = join(ctx.guestDir, 'sessions', String(getRecord(spawned, 'session')['id']));
-  const settings: unknown = JSON.parse(readFileSync(join(dir, 'settings.json'), 'utf8'));
+  const directory = join(ctx.guestDir, 'sessions', String(getRecord(spawned, 'session')['id']));
+  const settings: unknown = JSON.parse(readFileSync(join(directory, 'settings.json'), 'utf8'));
   const guestATC = join(ctx.guestDir, 'bin', 'atc');
 
   expect(settings).toMatchObject({
@@ -127,7 +127,7 @@ test('it gives a remote Claude session settings, a statusline, and a mod that re
     statusLine: { command: `"${guestATC}" statusline --agent='claude'` },
   });
 
-  expect(readFileSync(join(dir, 'atc-bridge', 'hooks', 'atc-cli.ts'), 'utf8')).toInclude(
+  expect(readFileSync(join(directory, 'atc-bridge', 'hooks', 'atc-cli.ts'), 'utf8')).toInclude(
     JSON.stringify([guestATC]),
   );
 
@@ -138,14 +138,14 @@ test('it gives a remote Claude session settings, a statusline, and a mod that re
         '-c',
         expect.any(String),
         'sh',
-        join(dir, 'scratch'),
+        join(directory, 'scratch'),
         expect.any(String),
         '--add-dir',
-        join(dir, 'scratch'),
+        join(directory, 'scratch'),
         '--settings',
-        join(dir, 'settings.json'),
+        join(directory, 'settings.json'),
         '--plugin-dir',
-        join(dir, 'atc-bridge'),
+        join(directory, 'atc-bridge'),
       ],
     }),
   ]);

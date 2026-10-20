@@ -3,11 +3,11 @@ import { join } from 'node:path';
 import { resolveATCCommand, runATC, setupTempDir, startStubReporterSocket } from '@atc/test-utils';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-e2e-answer-');
-  const sock = join(tmp.path, 'reporter.sock');
+  const temporaryDirectory = setupTempDir('atc-e2e-answer-');
+  const sock = join(temporaryDirectory.path, 'reporter.sock');
   const reporter = startStubReporterSocket(sock);
 
-  return { home: tmp.path, sock, reporter };
+  return { home: temporaryDirectory.path, sock, reporter };
 }
 
 test('it forwards one answer for every message a turn answered, with the turn, through atc answer', async () => {

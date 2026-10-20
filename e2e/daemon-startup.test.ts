@@ -7,9 +7,9 @@ import { getString, resolveATCCommand, runATC, setupTempDir, waitFor } from '@at
 import invariant from 'tiny-invariant';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-e2e-startup-');
+  const temporaryDirectory = setupTempDir('atc-e2e-startup-');
 
-  return { home: tmp.path, atc: resolveATCCommand() };
+  return { home: temporaryDirectory.path, atc: resolveATCCommand() };
 }
 
 test('it lets exactly one of two daemons started at once serve a state directory', async () => {
@@ -217,7 +217,7 @@ test.skipIf(process.env['ATC_BIN'] === undefined)(
     for (let run = 0; run < 9; run += 1) {
       for (const [command, cpuMs] of starts) {
         // Without an event socket the reporter exits once started, so its cost is the start alone.
-        const proc = Bun.spawn(command, {
+        const subprocess = Bun.spawn(command, {
           cwd: ctx.home,
           env: { PATH: process.env['PATH'], HOME: ctx.home },
           stdin: 'ignore',
@@ -225,11 +225,11 @@ test.skipIf(process.env['ATC_BIN'] === undefined)(
           stderr: 'ignore',
         });
 
-        const exitCode = await proc.exited;
+        const exitCode = await subprocess.exited;
 
         exitCodes.push(exitCode);
 
-        const usage = proc.resourceUsage();
+        const usage = subprocess.resourceUsage();
 
         invariant(usage);
 
@@ -242,8 +242,8 @@ test.skipIf(process.env['ATC_BIN'] === undefined)(
     // healthy start and one that parses the whole bundle.
     const multiples: Partial<Record<string, number>> = { linux: 16, darwin: 8 };
     const multiple = multiples[process.platform];
-    const reporterMedian = reporterCPUMs.toSorted((a, b) => a - b).at(4);
-    const bareMedian = bareCPUMs.toSorted((a, b) => a - b).at(4);
+    const reporterMedian = reporterCPUMs.toSorted((left, right) => left - right).at(4);
+    const bareMedian = bareCPUMs.toSorted((left, right) => left - right).at(4);
 
     invariant(multiple !== undefined, `no startup budget for ${process.platform}`);
     invariant(reporterMedian !== undefined && bareMedian !== undefined);

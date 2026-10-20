@@ -4,21 +4,21 @@ import { runCommand, setupTempDir } from '@atc/test-utils';
 
 // A temp directory standing in for a repo root.
 function setupTest() {
-  const tmp = setupTempDir('check-disable-baseline-');
+  const temporaryDirectory = setupTempDir('check-disable-baseline-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it passes a count at the baseline, skipping other rules and strings', async () => {
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'scripts/disable-baseline.json'),
+    join(ctx.directory, 'scripts/disable-baseline.json'),
     JSON.stringify({ importRuleDisables: 1 }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/store/src/a.ts'),
+    join(ctx.directory, 'packages/store/src/a.ts'),
     [
       '// oxlint-disable-next-line no-restricted-imports -- the opener the gateway injects',
       "import { Database } from 'bun:sqlite';",
@@ -34,7 +34,7 @@ test('it passes a count at the baseline, skipping other rules and strings', asyn
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-disable-baseline.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -52,12 +52,12 @@ test('it fails on more import rule directives than the baseline', async () => {
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'scripts/disable-baseline.json'),
+    join(ctx.directory, 'scripts/disable-baseline.json'),
     JSON.stringify({ importRuleDisables: 1 }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/tui/src/a.ts'),
+    join(ctx.directory, 'packages/tui/src/a.ts'),
     [
       "import { Database } from 'bun:sqlite'; // eslint-disable-line eslint/no-restricted-imports",
       '',
@@ -70,14 +70,14 @@ test('it fails on more import rule directives than the baseline', async () => {
   );
 
   await Bun.write(
-    join(ctx.dir, 'e2e/journey.test.ts'),
+    join(ctx.directory, 'e2e/journey.test.ts'),
     "// oxlint-disable-next-line import/no-cycle\nimport { A } from './a';\n\nexport const B = A;\n",
   );
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-disable-baseline.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -96,19 +96,19 @@ test('it counts a directive that switches off the package boundaries', async () 
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'scripts/disable-baseline.json'),
+    join(ctx.directory, 'scripts/disable-baseline.json'),
     JSON.stringify({ importRuleDisables: 0 }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/core/src/a.ts'),
+    join(ctx.directory, 'packages/core/src/a.ts'),
     "// oxlint-disable-next-line zgeoff/import-zones -- the clock reads the host\nimport { hrtime } from 'node:process';\n\nexport const NOW = hrtime;\n",
   );
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-disable-baseline.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -127,24 +127,24 @@ test('it counts a directive that switches off the require ban, in a mod too', as
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'scripts/disable-baseline.json'),
+    join(ctx.directory, 'scripts/disable-baseline.json'),
     JSON.stringify({ importRuleDisables: 0 }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'mods/bridge/hooks/register.ts'),
+    join(ctx.directory, 'mods/bridge/hooks/register.ts'),
     "// oxlint-disable-next-line typescript/no-require-imports\nexport const PTY: unknown = require('bun-pty');\n",
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/tui/src/a.ts'),
+    join(ctx.directory, 'packages/tui/src/a.ts'),
     "// eslint-disable-next-line @typescript-eslint/no-require-imports\nexport const PTY: unknown = require('bun-pty');\n",
   );
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-disable-baseline.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -163,12 +163,12 @@ test('it counts a block directive whose rules span several lines', async () => {
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'scripts/disable-baseline.json'),
+    join(ctx.directory, 'scripts/disable-baseline.json'),
     JSON.stringify({ importRuleDisables: 0 }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/tui/src/a.ts'),
+    join(ctx.directory, 'packages/tui/src/a.ts'),
     [
       'export const A = 1;',
       '',
@@ -184,7 +184,7 @@ test('it counts a block directive whose rules span several lines', async () => {
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-disable-baseline.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -203,12 +203,12 @@ test('it skips directive text inside a multiline template', async () => {
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'scripts/disable-baseline.json'),
+    join(ctx.directory, 'scripts/disable-baseline.json'),
     JSON.stringify({ importRuleDisables: 0 }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'scripts/a.test.ts'),
+    join(ctx.directory, 'scripts/a.test.ts'),
     [
       'export const FIXTURE = `',
       '// oxlint-disable-next-line no-restricted-imports',
@@ -224,7 +224,7 @@ test('it skips directive text inside a multiline template', async () => {
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-disable-baseline.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -242,16 +242,16 @@ test('it asks for a lower baseline when the count falls below it', async () => {
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'scripts/disable-baseline.json'),
+    join(ctx.directory, 'scripts/disable-baseline.json'),
     JSON.stringify({ importRuleDisables: 2 }),
   );
 
-  await Bun.write(join(ctx.dir, 'packages/core/src/a.ts'), 'export const A = 1;\n');
+  await Bun.write(join(ctx.directory, 'packages/core/src/a.ts'), 'export const A = 1;\n');
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-disable-baseline.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({

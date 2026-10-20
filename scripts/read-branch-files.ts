@@ -41,7 +41,7 @@ export async function readBranchFiles(
 }
 
 async function runGit(options: Readonly<CollectBranchFilesOptions>, args: readonly string[]) {
-  const proc = Bun.spawn(['git', ...args], {
+  const subprocess = Bun.spawn(['git', ...args], {
     cwd: options.cwd,
     ...(options.env === undefined ? {} : { env: { ...options.env } }),
     stdin: 'ignore',
@@ -50,9 +50,9 @@ async function runGit(options: Readonly<CollectBranchFilesOptions>, args: readon
   });
 
   const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
+    new Response(subprocess.stdout).text(),
+    new Response(subprocess.stderr).text(),
+    subprocess.exited,
   ]);
 
   return { exitCode, stdout, stderr };

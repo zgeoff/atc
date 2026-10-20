@@ -7,14 +7,14 @@ import { loadTestSkips } from './load-test-skips';
 
 // A temp directory to hold a skip list.
 function setupTest() {
-  const tmp = setupTempDir('load-test-skips-');
+  const temporaryDirectory = setupTempDir('load-test-skips-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it loads each entry of a skip list', () => {
   const ctx = setupTest();
-  const path = join(ctx.dir, 'skips.json');
+  const path = join(ctx.directory, 'skips.json');
 
   writeFileSync(
     path,
@@ -32,7 +32,7 @@ test('it loads each entry of a skip list', () => {
 
 test('it loads an empty skip list', () => {
   const ctx = setupTest();
-  const path = join(ctx.dir, 'skips.json');
+  const path = join(ctx.directory, 'skips.json');
 
   writeFileSync(path, '[]');
 
@@ -41,7 +41,7 @@ test('it loads an empty skip list', () => {
 
 test('it rejects an entry without a Linear issue ID', () => {
   const ctx = setupTest();
-  const path = join(ctx.dir, 'skips.json');
+  const path = join(ctx.directory, 'skips.json');
 
   writeFileSync(
     path,
@@ -53,7 +53,7 @@ test('it rejects an entry without a Linear issue ID', () => {
 
 test('it rejects an issue that is not a Linear issue ID', () => {
   const ctx = setupTest();
-  const path = join(ctx.dir, 'skips.json');
+  const path = join(ctx.directory, 'skips.json');
 
   writeFileSync(
     path,
@@ -67,7 +67,7 @@ test('it rejects an issue that is not a Linear issue ID', () => {
 
 test('it rejects a file that is not a test file', () => {
   const ctx = setupTest();
-  const path = join(ctx.dir, 'skips.json');
+  const path = join(ctx.directory, 'skips.json');
 
   writeFileSync(
     path,
@@ -79,7 +79,7 @@ test('it rejects a file that is not a test file', () => {
 
 test('it rejects an empty test name', () => {
   const ctx = setupTest();
-  const path = join(ctx.dir, 'skips.json');
+  const path = join(ctx.directory, 'skips.json');
 
   writeFileSync(path, JSON.stringify([{ file: 'src/hedge.test.ts', test: '', issue: 'GEO-18' }]));
 
@@ -88,7 +88,7 @@ test('it rejects an empty test name', () => {
 
 test('it rejects an entry with an unknown key', () => {
   const ctx = setupTest();
-  const path = join(ctx.dir, 'skips.json');
+  const path = join(ctx.directory, 'skips.json');
 
   writeFileSync(
     path,
@@ -102,7 +102,7 @@ test('it rejects an entry with an unknown key', () => {
 
 test('it rejects the same test listed twice', () => {
   const ctx = setupTest();
-  const path = join(ctx.dir, 'skips.json');
+  const path = join(ctx.directory, 'skips.json');
 
   writeFileSync(
     path,
@@ -120,7 +120,7 @@ test('it rejects the same test listed twice', () => {
 
 test('it rejects a file that is not JSON', () => {
   const ctx = setupTest();
-  const path = join(ctx.dir, 'skips.json');
+  const path = join(ctx.directory, 'skips.json');
 
   writeFileSync(path, 'not json');
 

@@ -56,7 +56,7 @@ const LOCAL_PROVIDER = '@atc/execution-local';
 
 interface Provider {
   readonly name: string;
-  readonly dir: string;
+  readonly directory: string;
 
   // The external packages this provider depends on and no other workspace
   // package declares.
@@ -76,15 +76,17 @@ function loadProviders(root: string): Provider[] {
     .map((path) => {
       const text = readFileSync(join(root, path), 'utf8');
 
-      return { dir: dirname(path), manifest: MANIFEST_SCHEMA.parse(JSON.parse(text)) };
+      return { directory: dirname(path), manifest: MANIFEST_SCHEMA.parse(JSON.parse(text)) };
     });
 
   return manifests
-    .filter((entry) => entry.dir.startsWith('packages/execution/'))
+    .filter((entry) => entry.directory.startsWith('packages/execution/'))
     .map((entry) => {
       const others = new Set<string>();
 
-      for (const other of manifests.filter((candidate) => candidate.dir !== entry.dir)) {
+      for (const other of manifests.filter(
+        (candidate) => candidate.directory !== entry.directory,
+      )) {
         for (const dependency of Object.keys(other.manifest.dependencies ?? {})) {
           others.add(dependency);
         }
@@ -98,7 +100,7 @@ function loadProviders(root: string): Provider[] {
         (dependency) => !dependency.startsWith('@atc/') && !others.has(dependency),
       );
 
-      return { name: entry.manifest.name, dir: entry.dir, ownDependencies };
+      return { name: entry.manifest.name, directory: entry.directory, ownDependencies };
     });
 }
 
@@ -202,7 +204,9 @@ function checkBundle(
   const findings: string[] = [];
 
   for (const provider of providers.filter((candidate) => !kept.includes(candidate))) {
-    for (const input of bundled.filter((path) => path.startsWith(`${provider.dir}/`)).toSorted()) {
+    for (const input of bundled
+      .filter((path) => path.startsWith(`${provider.directory}/`))
+      .toSorted()) {
       findings.push(`unshipped provider: ${label} bundles ${input} (${provider.name})`);
     }
 
@@ -214,7 +218,7 @@ function checkBundle(
   }
 
   for (const provider of kept) {
-    if (!bundled.some((input) => input.startsWith(`${provider.dir}/`))) {
+    if (!bundled.some((input) => input.startsWith(`${provider.directory}/`))) {
       findings.push(`missing provider: ${label} keeps ${provider.name} but bundles none of it`);
     }
   }
@@ -236,7 +240,9 @@ function findExternalPackage(input: string): string | null {
 }
 
 function formatNames(providers: readonly Provider[]): string {
-  return providers.length === 0 ? 'no providers' : providers.map((p) => p.name).join(', ');
+  return providers.length === 0
+    ? 'no providers'
+    : providers.map((provider) => provider.name).join(', ');
 }
 
 await main();

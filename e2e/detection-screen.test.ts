@@ -30,7 +30,10 @@ test('it flags a hook-less agent waiting at a prompt via the screen detector', a
   await waitFor(() => {
     expect(
       daemon.events.find(
-        (e) => e.ev === 'SessionState' && isRecord(e.session) && e.session.state === 'needs_you',
+        (daemonEvent) =>
+          daemonEvent.ev === 'SessionState' &&
+          isRecord(daemonEvent.session) &&
+          daemonEvent.session.state === 'needs_you',
       ),
     ).toMatchObject({ session: { lastMsg: 'waiting at a prompt' } });
   });
@@ -66,11 +69,11 @@ test('it flips the session back to working once the prompt is answered', async (
 
   await waitFor(() => {
     expect(daemon.events).toSatisfyAny(
-      (e: DaemonEvent) =>
-        e.ev === 'SessionState' &&
-        isRecord(e.session) &&
-        e.session.id === id &&
-        e.session.state === 'needs_you',
+      (daemonEvent: DaemonEvent) =>
+        daemonEvent.ev === 'SessionState' &&
+        isRecord(daemonEvent.session) &&
+        daemonEvent.session.id === id &&
+        daemonEvent.session.state === 'needs_you',
     );
   });
 
@@ -78,12 +81,12 @@ test('it flips the session back to working once the prompt is answered', async (
 
   await waitFor(() => {
     expect(daemon.events).toSatisfyAny(
-      (e: DaemonEvent) =>
-        e.ev === 'SessionState' &&
-        isRecord(e.session) &&
-        e.session.id === id &&
-        e.session.state === 'running' &&
-        e.session.lastMsg === 'working',
+      (daemonEvent: DaemonEvent) =>
+        daemonEvent.ev === 'SessionState' &&
+        isRecord(daemonEvent.session) &&
+        daemonEvent.session.id === id &&
+        daemonEvent.session.state === 'running' &&
+        daemonEvent.session.lastMsg === 'working',
     );
   });
 });
@@ -111,7 +114,9 @@ test('it opens a permission request from a screen-detected prompt', async () => 
   await daemon.client.sendRequest('session.spawn', { cwd: daemon.directory, cols: 60, rows: 12 });
 
   await waitFor(() => {
-    expect(daemon.events.find((e) => e.ev === 'PermissionRequested')).toMatchObject({
+    expect(
+      daemon.events.find((daemonEvent) => daemonEvent.ev === 'PermissionRequested'),
+    ).toMatchObject({
       message: 'waiting at a prompt',
       respondable: false,
     });
@@ -152,16 +157,20 @@ test('it never flags a prompt as needing input when the adapter has no screen de
 
   await waitFor(() => {
     expect(daemon.events).toSatisfyAny(
-      (e: DaemonEvent) =>
-        e.ev === 'SessionOutput' && typeof e.d === 'string' && e.d.includes('READY>'),
+      (daemonEvent: DaemonEvent) =>
+        daemonEvent.ev === 'SessionOutput' &&
+        typeof daemonEvent.d === 'string' &&
+        daemonEvent.d.includes('READY>'),
     );
   });
 
   expect(onDetectSkipped).toHaveBeenCalledWith(id);
 
   expect(daemon.events).not.toSatisfyAny(
-    (e: DaemonEvent) =>
-      e.ev === 'SessionState' && isRecord(e.session) && e.session.state === 'needs_you',
+    (daemonEvent: DaemonEvent) =>
+      daemonEvent.ev === 'SessionState' &&
+      isRecord(daemonEvent.session) &&
+      daemonEvent.session.state === 'needs_you',
   );
 });
 
@@ -205,15 +214,19 @@ test('it never flags a prompt as needing input when another agent has a screen d
 
   await waitFor(() => {
     expect(daemon.events).toSatisfyAny(
-      (e: DaemonEvent) =>
-        e.ev === 'SessionOutput' && typeof e.d === 'string' && e.d.includes('READY>'),
+      (daemonEvent: DaemonEvent) =>
+        daemonEvent.ev === 'SessionOutput' &&
+        typeof daemonEvent.d === 'string' &&
+        daemonEvent.d.includes('READY>'),
     );
   });
 
   expect(onDetectSkipped).toHaveBeenCalledWith(id);
 
   expect(daemon.events).not.toSatisfyAny(
-    (e: DaemonEvent) =>
-      e.ev === 'SessionState' && isRecord(e.session) && e.session.state === 'needs_you',
+    (daemonEvent: DaemonEvent) =>
+      daemonEvent.ev === 'SessionState' &&
+      isRecord(daemonEvent.session) &&
+      daemonEvent.session.state === 'needs_you',
   );
 });

@@ -6,12 +6,16 @@ import { registerTestCleanup, resolveATCCommand, setupTempDir, waitFor } from '@
 import invariant from 'tiny-invariant';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-mcp-http-wait-');
+  const temporaryDirectory = setupTempDir('atc-mcp-http-wait-');
 
   return {
-    dir: tmp.path,
+    directory: temporaryDirectory.path,
     atc: resolveATCCommand(),
-    env: { ...process.env, HOME: tmp.path, XDG_RUNTIME_DIR: tmp.path },
+    env: {
+      ...process.env,
+      HOME: temporaryDirectory.path,
+      XDG_RUNTIME_DIR: temporaryDirectory.path,
+    },
   };
 }
 
@@ -81,7 +85,7 @@ test('it waits for a daemon started after it, starting none of its own, and serv
   const response = await fetch(`http://127.0.0.1:${port}/mcp`, { method: 'POST' });
 
   const record = await waitFor((): unknown =>
-    JSON.parse(readFileSync(join(ctx.dir, '.local', 'state', 'atc', 'daemon.json'), 'utf8')),
+    JSON.parse(readFileSync(join(ctx.directory, '.local', 'state', 'atc', 'daemon.json'), 'utf8')),
   );
 
   // The server prints its no-clients and no-passkey lines after it opens
@@ -97,7 +101,7 @@ test('it waits for a daemon started after it, starting none of its own, and serv
 
   // A handshake answered after the server stopped proves the daemon still
   // serves.
-  const client = await openDaemonClient(join(ctx.dir, 'atc-daemon.sock'));
+  const client = await openDaemonClient(join(ctx.directory, 'atc-daemon.sock'));
 
   registerTestCleanup(() => {
     client.stop();
@@ -118,9 +122,9 @@ test('it waits for a daemon started after it, starting none of its own, and serv
 
   expect(record).toStrictEqual({
     pid: daemon.pid,
-    socketPath: join(ctx.dir, 'atc-daemon.sock'),
-    reporterSocketPath: join(ctx.dir, 'atc.sock'),
-    eventsSocketPath: join(ctx.dir, 'atc-events.sock'),
+    socketPath: join(ctx.directory, 'atc-daemon.sock'),
+    reporterSocketPath: join(ctx.directory, 'atc.sock'),
+    eventsSocketPath: join(ctx.directory, 'atc-events.sock'),
     listenPort: null,
     protocol: 6,
   });

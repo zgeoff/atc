@@ -15,19 +15,23 @@ import {
 import { createHostServices } from '../packages/app/src/create-host-services';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-daemon-boot-');
-  const stateDir = join(tmp.path, '.local', 'state', 'atc');
+  const temporaryDirectory = setupTempDir('atc-daemon-boot-');
+  const stateDir = join(temporaryDirectory.path, '.local', 'state', 'atc');
 
   // The daemon and the client both expect the state directory to exist.
   mkdirSync(stateDir, { recursive: true });
 
   return {
-    dir: tmp.path,
+    directory: temporaryDirectory.path,
     stateDir,
-    sockPath: join(tmp.path, 'atc-daemon.sock'),
+    sockPath: join(temporaryDirectory.path, 'atc-daemon.sock'),
 
     // The client reads its paths from its environment, so each test boots it in a subprocess.
-    env: { ...process.env, HOME: tmp.path, XDG_RUNTIME_DIR: tmp.path },
+    env: {
+      ...process.env,
+      HOME: temporaryDirectory.path,
+      XDG_RUNTIME_DIR: temporaryDirectory.path,
+    },
     bootModule: join(import.meta.dir, '..', 'packages', 'lifecycle', 'src', 'boot-daemon.ts'),
     hostModule: join(import.meta.dir, '..', 'packages', 'app', 'src', 'build-lifecycle-host.ts'),
     servicesModule: join(
@@ -43,12 +47,12 @@ function setupTest() {
 
 test('it makes a CLI client wait for an installed daemon unit before connecting', async () => {
   const ctx = setupTest();
-  const unitDir = join(ctx.dir, '.config', 'systemd', 'user');
+  const unitDir = join(ctx.directory, '.config', 'systemd', 'user');
 
   mkdirSync(unitDir, { recursive: true });
   writeFileSync(join(unitDir, 'atc-daemon.service'), '[Service]\nExecStart=atc daemon\n');
 
-  const probe = join(ctx.dir, 'probe.ts');
+  const probe = join(ctx.directory, 'probe.ts');
 
   // The argv starts nothing, so a boot that tried to start a daemon fails.
   writeFileSync(
@@ -63,17 +67,17 @@ console.log('connected');
 `,
   );
 
-  const proc = Bun.spawn([process.execPath, probe], {
+  const subprocess = Bun.spawn([process.execPath, probe], {
     env: ctx.env,
     stdout: 'pipe',
     stderr: 'pipe',
   });
 
   registerTestCleanup(() => {
-    proc.kill();
+    subprocess.kill();
   });
 
-  const reader = proc.stderr.getReader();
+  const reader = subprocess.stderr.getReader();
 
   const message = await reader.read();
 
@@ -85,7 +89,7 @@ console.log('connected');
 
   const daemon = await startDaemon({
     socketPath: ctx.sockPath,
-    reporterSocketPath: join(ctx.dir, 'atc.sock'),
+    reporterSocketPath: join(ctx.directory, 'atc.sock'),
     dbPath: join(ctx.stateDir, 'atc.db'),
     statusPath: join(ctx.stateDir, 'status.json'),
     build: 'atc/test-build',
@@ -95,9 +99,9 @@ console.log('connected');
 
   registerTestCleanup(() => daemon.stop());
 
-  const stdout = await new Response(proc.stdout).text();
+  const stdout = await new Response(subprocess.stdout).text();
 
-  const code = await proc.exited;
+  const code = await subprocess.exited;
 
   expect(code).toBe(0);
   expect(stdout).toBe('connected\n');
@@ -108,7 +112,7 @@ console.log('connected');
 test('it reports a codex hello as the last-used agent instead of coercing it to claude', async () => {
   const ctx = setupTest();
 
-  const store = await StateStore.open(join(ctx.dir, 'state.db'));
+  const store = await StateStore.open(join(ctx.directory, 'state.db'));
 
   registerTestCleanup(() => store.stop());
 
@@ -116,18 +120,18 @@ test('it reports a codex hello as the last-used agent instead of coercing it to 
 
   const daemon = await startDaemon({
     socketPath: ctx.sockPath,
-    reporterSocketPath: join(ctx.dir, 'reporter.sock'),
+    reporterSocketPath: join(ctx.directory, 'reporter.sock'),
     build: 'atc/test-build',
     adapter: buildMockAgentAdapter(),
     targets: [],
-    dbPath: join(ctx.dir, 'state.db'),
-    statusPath: join(ctx.dir, 'status.json'),
+    dbPath: join(ctx.directory, 'state.db'),
+    statusPath: join(ctx.directory, 'status.json'),
   });
 
   registerTestCleanup(() => daemon.stop());
 
   writeFileSync(
-    join(ctx.dir, 'probe.ts'),
+    join(ctx.directory, 'probe.ts'),
     `import { bootDaemonClient } from '${ctx.bootModule}';
 import { buildLifecycleHost } from '${ctx.hostModule}';
 import { createHostServices } from '${ctx.servicesModule}';
@@ -138,19 +142,19 @@ boot.client.stop();
 `,
   );
 
-  const proc = Bun.spawn([process.execPath, join(ctx.dir, 'probe.ts')], {
+  const subprocess = Bun.spawn([process.execPath, join(ctx.directory, 'probe.ts')], {
     env: ctx.env,
     stdout: 'pipe',
     stderr: 'pipe',
   });
 
   registerTestCleanup(() => {
-    proc.kill();
+    subprocess.kill();
   });
 
-  const stdout = await new Response(proc.stdout).text();
+  const stdout = await new Response(subprocess.stdout).text();
 
-  await proc.exited;
+  await subprocess.exited;
 
   expect(JSON.parse(stdout)).toStrictEqual({ lastUsedAgent: 'codex' });
 });
@@ -158,11 +162,11 @@ boot.client.stop();
 test('it finds a running daemon through the state directory when XDG_RUNTIME_DIR is unset', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.dir, 'run'));
+  mkdirSync(join(ctx.directory, 'run'));
 
   const daemon = await startDaemon({
-    socketPath: join(ctx.dir, 'run', 'atc-daemon.sock'),
-    reporterSocketPath: join(ctx.dir, 'run', 'atc.sock'),
+    socketPath: join(ctx.directory, 'run', 'atc-daemon.sock'),
+    reporterSocketPath: join(ctx.directory, 'run', 'atc.sock'),
     build: 'atc/test-build',
     adapter: buildMockAgentAdapter(),
     targets: [],
@@ -173,7 +177,7 @@ test('it finds a running daemon through the state directory when XDG_RUNTIME_DIR
   registerTestCleanup(() => daemon.stop());
 
   writeFileSync(
-    join(ctx.dir, 'probe.ts'),
+    join(ctx.directory, 'probe.ts'),
     `import { bootDaemonClient } from '${ctx.bootModule}';
 import { buildLifecycleHost } from '${ctx.hostModule}';
 import { createHostServices } from '${ctx.servicesModule}';
@@ -184,21 +188,23 @@ boot.client.stop();
 `,
   );
 
-  const proc = Bun.spawn([process.execPath, join(ctx.dir, 'probe.ts')], {
+  const subprocess = Bun.spawn([process.execPath, join(ctx.directory, 'probe.ts')], {
     env: { ...ctx.env, XDG_RUNTIME_DIR: undefined },
     stdout: 'pipe',
     stderr: 'pipe',
   });
 
   registerTestCleanup(() => {
-    proc.kill();
+    subprocess.kill();
   });
 
-  const stdout = await new Response(proc.stdout).text();
+  const stdout = await new Response(subprocess.stdout).text();
 
-  await proc.exited;
+  await subprocess.exited;
 
-  expect(JSON.parse(stdout)).toStrictEqual({ socketPath: join(ctx.dir, 'run', 'atc-daemon.sock') });
+  expect(JSON.parse(stdout)).toStrictEqual({
+    socketPath: join(ctx.directory, 'run', 'atc-daemon.sock'),
+  });
 });
 
 test('it stops a daemon on another protocol and boots its own build when the caller confirms the restart', async () => {
@@ -225,7 +231,7 @@ test('it stops a daemon on another protocol and boots its own build when the cal
   // The boot starts the real CLI from source, which runs this tree's build.
   // The probe quits the daemon it booted, so nothing outlives the test.
   writeFileSync(
-    join(ctx.dir, 'probe.ts'),
+    join(ctx.directory, 'probe.ts'),
     `import { bootDaemonClient } from '${ctx.bootModule}';
 import { buildLifecycleHost } from '${ctx.hostModule}';
 import { createHostServices } from '${ctx.servicesModule}';
@@ -244,19 +250,19 @@ process.exit(0);
 `,
   );
 
-  const proc = Bun.spawn([process.execPath, join(ctx.dir, 'probe.ts')], {
+  const subprocess = Bun.spawn([process.execPath, join(ctx.directory, 'probe.ts')], {
     env: ctx.env,
     stdout: 'pipe',
     stderr: 'pipe',
   });
 
   registerTestCleanup(() => {
-    proc.kill();
+    subprocess.kill();
   });
 
-  const stdout = await new Response(proc.stdout).text();
+  const stdout = await new Response(subprocess.stdout).text();
 
-  await proc.exited;
+  await subprocess.exited;
   await legacy.exited;
 
   const out = await readJSONRecord(new Response(stdout));
@@ -271,18 +277,18 @@ test('it never reports a wait when a daemon answers on the first try', async () 
 
   const daemon = await startDaemon({
     socketPath: ctx.sockPath,
-    reporterSocketPath: join(ctx.dir, 'reporter.sock'),
+    reporterSocketPath: join(ctx.directory, 'reporter.sock'),
     build: 'atc/test-build',
     adapter: buildMockAgentAdapter(),
     targets: [],
-    dbPath: join(ctx.dir, 'state.db'),
-    statusPath: join(ctx.dir, 'status.json'),
+    dbPath: join(ctx.directory, 'state.db'),
+    statusPath: join(ctx.directory, 'status.json'),
   });
 
   registerTestCleanup(() => daemon.stop());
 
   writeFileSync(
-    join(ctx.dir, 'probe.ts'),
+    join(ctx.directory, 'probe.ts'),
     `import { bootDaemonClient } from '${ctx.bootModule}';
 import { buildLifecycleHost } from '${ctx.hostModule}';
 import { createHostServices } from '${ctx.servicesModule}';
@@ -295,17 +301,17 @@ process.exit(0);
 `,
   );
 
-  const proc = Bun.spawn([process.execPath, join(ctx.dir, 'probe.ts')], {
+  const subprocess = Bun.spawn([process.execPath, join(ctx.directory, 'probe.ts')], {
     env: ctx.env,
     stdout: 'pipe',
     stderr: 'ignore',
   });
 
   registerTestCleanup(() => {
-    proc.kill();
+    subprocess.kill();
   });
 
-  const stdout = await new Response(proc.stdout).text();
+  const stdout = await new Response(subprocess.stdout).text();
 
   expect(JSON.parse(stdout)).toStrictEqual({ waits: 0 });
 });
@@ -313,11 +319,11 @@ process.exit(0);
 test('it finds a running daemon through the record at the paths it is given', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.dir, 'run'));
+  mkdirSync(join(ctx.directory, 'run'));
 
   const daemon = await startDaemon({
-    socketPath: join(ctx.dir, 'run', 'atc-daemon.sock'),
-    reporterSocketPath: join(ctx.dir, 'run', 'atc.sock'),
+    socketPath: join(ctx.directory, 'run', 'atc-daemon.sock'),
+    reporterSocketPath: join(ctx.directory, 'run', 'atc.sock'),
     build: 'atc/test-build',
     adapter: buildMockAgentAdapter(),
     targets: [],
@@ -329,9 +335,9 @@ test('it finds a running daemon through the record at the paths it is given', as
 
   const boot = await bootDaemonClient(buildMockLifecycleHost(), {
     paths: {
-      socketPath: join(ctx.dir, 'elsewhere', 'atc-daemon.sock'),
+      socketPath: join(ctx.directory, 'elsewhere', 'atc-daemon.sock'),
       recordFile: join(ctx.stateDir, 'daemon.json'),
-      pidFile: join(ctx.dir, 'elsewhere', 'atc-daemon.pid'),
+      pidFile: join(ctx.directory, 'elsewhere', 'atc-daemon.pid'),
     },
   });
 
@@ -339,5 +345,5 @@ test('it finds a running daemon through the record at the paths it is given', as
     boot.client.stop();
   });
 
-  expect(boot.socketPath).toBe(join(ctx.dir, 'run', 'atc-daemon.sock'));
+  expect(boot.socketPath).toBe(join(ctx.directory, 'run', 'atc-daemon.sock'));
 });
