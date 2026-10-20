@@ -22,7 +22,7 @@ export class EventTrailStore {
   async readFleetRecency(): Promise<Map<AgentSessionID, string>> {
     const rows = await this.db
       .selectFrom('events')
-      .select((eb) => ['session_id', eb.fn.max('ts').as('ts')])
+      .select((expressionBuilder) => ['session_id', expressionBuilder.fn.max('ts').as('ts')])
       .where('session_id', 'is not', null)
       .groupBy('session_id')
       .execute();
@@ -102,7 +102,7 @@ export class EventTrailStore {
       .selectFrom('events')
       .select(['id', 'ts', 'atc_id', 'session_id', 'kind', 'detail', 'message'])
       .where('id', '>', afterID)
-      .where((eb) => buildTrailFilter(eb))
+      .where((expressionBuilder) => buildTrailFilter(expressionBuilder))
       .where((eb) => buildScopeMatch(eb, scope))
       .orderBy('id', 'asc')
       .limit(limit)
@@ -167,7 +167,7 @@ export class EventTrailStore {
     const rows = await this.db
       .selectFrom('events')
       .select(['id', 'ts', 'atc_id', 'session_id', 'kind', 'detail', 'message'])
-      .where((eb) => buildTrailFilter(eb))
+      .where((expressionBuilder) => buildTrailFilter(expressionBuilder))
       .where((eb) => buildScopeMatch(eb, scope))
       .orderBy('id', 'desc')
       .limit(limit)
@@ -184,7 +184,7 @@ export class EventTrailStore {
   ): Promise<number | null> {
     const row = await this.db
       .selectFrom('events')
-      .select((eb) => eb.fn.max('ts').as('ts'))
+      .select((expressionBuilder) => expressionBuilder.fn.max('ts').as('ts'))
       .where((eb) =>
         eb.or([
           eb('atc_id', '=', atcID),
@@ -204,7 +204,7 @@ export class EventTrailStore {
 
     await this.db
       .deleteFrom('events')
-      .where((eb) => buildExpiredMatch(eb, cutoff))
+      .where((expressionBuilder) => buildExpiredMatch(expressionBuilder, cutoff))
       .execute();
   }
 
@@ -231,57 +231,74 @@ export class EventTrailStore {
 }
 
 function buildExpiredMatch(
-  eb: ExpressionBuilder<StateStoreSchema, 'events'>,
+  expressionBuilder: ExpressionBuilder<StateStoreSchema, 'events'>,
   cutoff: string,
 ): Expression<SqlBool> {
-  const isPastCutoff = eb('events.ts', '<', cutoff);
-  const isHeldByFleet = eb.exists(buildFleetHolders(eb));
+  const isPastCutoff = expressionBuilder('events.ts', '<', cutoff);
+  const isHeldByFleet = expressionBuilder.exists(buildFleetHolders(expressionBuilder));
 
-  const newestUnderAtcID = eb
+  const newestUnderAtcID = expressionBuilder
     .selectFrom('events as newer')
-    .select((inner) => inner.fn.max('newer.ts').as('ts'))
+    .select((subqueryBuilder) => subqueryBuilder.fn.max('newer.ts').as('ts'))
     .whereRef('newer.atc_id', '=', 'events.atc_id');
 
-  const newestUnderSessionID = eb
+  const newestUnderSessionID = expressionBuilder
     .selectFrom('events as newer')
-    .select((inner) => inner.fn.max('newer.ts').as('ts'))
+    .select((subqueryBuilder) => subqueryBuilder.fn.max('newer.ts').as('ts'))
     .whereRef('newer.session_id', '=', 'events.session_id');
 
-  const isOlderUnderSessionID = eb.or([
-    eb('events.session_id', 'is', null),
-    eb('events.ts', '<', newestUnderSessionID),
+  const isOlderUnderSessionID = expressionBuilder.or([
+    expressionBuilder('events.session_id', 'is', null),
+    expressionBuilder('events.ts', '<', newestUnderSessionID),
   ]);
 
-  const isOlderThanNewest = eb.and([eb('events.ts', '<', newestUnderAtcID), isOlderUnderSessionID]);
-  const isUnheldPastCutoff = eb.and([isPastCutoff, eb.not(isHeldByFleet)]);
-  const isTrail = buildTrailFilter(eb);
+  const isOlderThanNewest = expressionBuilder.and([
+    expressionBuilder('events.ts', '<', newestUnderAtcID),
+    isOlderUnderSessionID,
+  ]);
 
-  return eb.and([
-    eb.or([isPastCutoff, eb.not(isTrail)]),
-    eb.or([isUnheldPastCutoff, isOlderThanNewest]),
+  const isUnheldPastCutoff = expressionBuilder.and([
+    isPastCutoff,
+    expressionBuilder.not(isHeldByFleet),
+  ]);
+
+  const isTrail = buildTrailFilter(expressionBuilder);
+
+  return expressionBuilder.and([
+    expressionBuilder.or([isPastCutoff, expressionBuilder.not(isTrail)]),
+    expressionBuilder.or([isUnheldPastCutoff, isOlderThanNewest]),
   ]);
 }
 
-function buildFleetHolders(eb: ExpressionBuilder<StateStoreSchema, 'events'>) {
-  return eb
+function buildFleetHolders(expressionBuilder: ExpressionBuilder<StateStoreSchema, 'events'>) {
+  return expressionBuilder
     .selectFrom('fleet')
     .select(sql.lit(1).as('held'))
-    .where((inner) => {
-      const holdsAtcID = inner('fleet.session_id', '=', inner.ref('events.atc_id'));
+    .where((subqueryBuilder) => {
+      const holdsAtcID = subqueryBuilder(
+        'fleet.session_id',
+        '=',
+        subqueryBuilder.ref('events.atc_id'),
+      );
 
-      const holdsAgentSessionID = inner.and([
-        inner('events.session_id', 'is not', null),
-        inner('fleet.agent_session_id', '=', inner.ref('events.session_id')),
+      const holdsAgentSessionID = subqueryBuilder.and([
+        subqueryBuilder('events.session_id', 'is not', null),
+        subqueryBuilder('fleet.agent_session_id', '=', subqueryBuilder.ref('events.session_id')),
       ]);
 
-      return inner.or([holdsAtcID, holdsAgentSessionID]);
+      return subqueryBuilder.or([holdsAtcID, holdsAgentSessionID]);
     });
 }
 
 // Spelled as the partial index's predicate, with the literal inlined rather
 // than bound, so SQLite can match the index.
-function buildTrailFilter(eb: ExpressionBuilder<StateStoreSchema, 'events'>): Expression<SqlBool> {
-  return eb.and([eb('kind', 'is not', null), eb('kind', '!=', sql.lit('heartbeat'))]);
+function buildTrailFilter(
+  expressionBuilder: ExpressionBuilder<StateStoreSchema, 'events'>,
+): Expression<SqlBool> {
+  return expressionBuilder.and([
+    expressionBuilder('kind', 'is not', null),
+    expressionBuilder('kind', '!=', sql.lit('heartbeat')),
+  ]);
 }
 
 function buildScopeMatch(
