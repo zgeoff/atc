@@ -25,7 +25,7 @@ function writeUntilRefused(fd: number, chunk: Buffer): number {
     try {
       written += writeSync(fd, chunk);
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'EAGAIN') {
+      if (error instanceof Error && 'code' in error && error.code === 'EAGAIN') {
         return written;
       }
 
