@@ -5,7 +5,7 @@ import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { probeDaemonProcess } from './probe-daemon-process';
 
 function setupTest() {
-  const dir = setupTempDir('is-daemon-process-').dir;
+  const dir = setupTempDir('is-daemon-process-').path;
   const cli = join(dir, 'checkout', 'src', 'cli.ts');
 
   // A checkout entry that a process started as `cli.ts daemon` runs, so its

@@ -88,12 +88,12 @@ export async function startTestDaemon(config: TestDaemonConfig = {}): Promise<Te
   stack.defer(tmp.teardown);
 
   const paths: TestDaemonPaths = {
-    dir: tmp.dir,
-    socketPath: join(tmp.dir, 'daemon.sock'),
-    reporterSocketPath: join(tmp.dir, 'reporter.sock'),
-    eventsSocketPath: join(tmp.dir, 'events.sock'),
-    dbPath: join(tmp.dir, 'state.db'),
-    statusPath: join(tmp.dir, 'status.json'),
+    dir: tmp.path,
+    socketPath: join(tmp.path, 'daemon.sock'),
+    reporterSocketPath: join(tmp.path, 'reporter.sock'),
+    eventsSocketPath: join(tmp.path, 'events.sock'),
+    dbPath: join(tmp.path, 'state.db'),
+    statusPath: join(tmp.path, 'status.json'),
   };
 
   const logs: string[] = [];

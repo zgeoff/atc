@@ -125,7 +125,7 @@ export function startStubCodexAppServer(
   const startTurn = (thread: StubThread, text: string, clientID: string | undefined) => {
     // A turn/start on a thread with a turn in progress joins that turn, as Codex
     // does.
-    const active = thread.turns.find((t) => t.status === 'inProgress');
+    const active = thread.turns.find((candidate) => candidate.status === 'inProgress');
     const turn = active ?? { id: mintID('turn'), status: 'inProgress' as const, items: [] };
 
     if (active === undefined) {
@@ -189,12 +189,12 @@ export function startStubCodexAppServer(
 
     if (method === 'thread/resume') {
       if (scenario.completeHeldTurnsOnResume === true) {
-        for (const turn of thread.turns.filter((t) => t.status === 'inProgress')) {
+        for (const turn of thread.turns.filter((candidate) => candidate.status === 'inProgress')) {
           updateTurnCompleted(thread, turn);
         }
       }
 
-      const active = thread.turns.some((t) => t.status === 'inProgress');
+      const active = thread.turns.some((candidate) => candidate.status === 'inProgress');
 
       return {
         result: { thread: { id: thread.id, status: { type: active ? 'active' : 'idle' } } },
@@ -355,7 +355,7 @@ export function startStubCodexAppServer(
     },
     completeHeldTurns: () => {
       for (const thread of threads.values()) {
-        for (const turn of thread.turns.filter((t) => t.status === 'inProgress')) {
+        for (const turn of thread.turns.filter((candidate) => candidate.status === 'inProgress')) {
           updateTurnCompleted(thread, turn);
         }
       }

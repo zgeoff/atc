@@ -7,7 +7,7 @@ import { loadListenerTokens } from './load-listener-tokens';
 function setupTest() {
   const tmp = setupTempDir('atc-listener-tokens-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it loads one token with a final newline', () => {

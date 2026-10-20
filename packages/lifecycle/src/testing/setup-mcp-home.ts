@@ -24,7 +24,7 @@ export function setupMCPHome() {
 
   stack.defer(tmp.teardown);
 
-  const home = tmp.dir;
+  const home = tmp.path;
 
   stack.defer(async () => {
     const pid = readPidFilePID(join(home, 'atc-daemon.pid'));

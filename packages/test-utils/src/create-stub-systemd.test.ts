@@ -12,9 +12,9 @@ import { waitFor } from './wait-for';
 // A scratch directory for the files a test's commands write, removed once
 // the test finishes.
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-systemd-');
+  const temporaryDirectory = setupTempDir('atc-stub-systemd-');
 
-  return { dir: tmp.dir };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it answers a MainPID that no process holds while none is written', async () => {
@@ -80,9 +80,9 @@ test('it stops the main pid and starts atc daemon on restart', async () => {
   const ctx = setupTest();
 
   const atc = createStubBin(
-    join(ctx.dir, 'bin'),
+    join(ctx.directory, 'bin'),
     'atc',
-    buildStubRecordingATC(join(ctx.dir, 'started')),
+    buildStubRecordingATC(join(ctx.directory, 'started')),
   );
 
   const fake = createStubSystemd([atc]);
@@ -97,7 +97,9 @@ test('it stops the main pid and starts atc daemon on restart', async () => {
   await runCommand([join(fake.binDir, 'systemctl'), '--user', 'restart', 'a.service']);
 
   await waitFor(() => {
-    expect(readFileSync(join(ctx.dir, 'started'), 'utf8')).toBe('args:daemon\nsession:\nstdin:\n');
+    expect(readFileSync(join(ctx.directory, 'started'), 'utf8')).toBe(
+      'args:daemon\nsession:\nstdin:\n',
+    );
   });
 
   await main.exited;
@@ -108,7 +110,7 @@ test('it stops the main pid and starts atc daemon on restart', async () => {
 test('it runs the systemd-run command with only the setenv variables and the unit output file', async () => {
   const ctx = setupTest();
   const fake = createStubSystemd(['/bin/true']);
-  const out = join(ctx.dir, 'out.log');
+  const out = join(ctx.directory, 'out.log');
 
   await runCommand([
     join(fake.binDir, 'systemd-run'),

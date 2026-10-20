@@ -25,7 +25,7 @@ import { TapRegistry } from './tap-registry';
 // state store, the message service, and the bridges over them.
 async function setupTest() {
   const tmp = setupTempDir('atc-message-bridges-');
-  const dbPath = join(tmp.dir, 'state.db');
+  const dbPath = join(tmp.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -47,7 +47,7 @@ async function setupTest() {
   const mgr = new SessionManager(
     null,
     store,
-    join(tmp.dir, 'status.json'),
+    join(tmp.path, 'status.json'),
     [adapter],
     [
       buildMockExecutionTarget({
@@ -95,10 +95,10 @@ async function setupTest() {
     messages,
     taps,
     applyNote,
-    stateDir: join(tmp.dir, 'state'),
+    stateDir: join(tmp.path, 'state'),
   });
 
-  return { dir: tmp.dir, store, adapter, stub, mgr, applyNote, bridges };
+  return { dir: tmp.path, store, adapter, stub, mgr, applyNote, bridges };
 }
 
 test('it starts the bridge of the agent a launch runs and answers with its plan', async () => {

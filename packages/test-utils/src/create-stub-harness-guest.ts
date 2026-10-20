@@ -3,13 +3,13 @@ import { createStubBin } from './create-stub-bin';
 import { runCommand } from './run-command';
 
 // The burst of 300000 bytes is more than impd's ring keeps.
-export async function createStubHarnessGuest(dir: string) {
-  const burstPath = join(dir, 'burst');
+export async function createStubHarnessGuest(directory: string) {
+  const burstPath = join(directory, 'burst');
 
   await runCommand(['mkfifo', burstPath]);
 
   const path = createStubBin(
-    dir,
+    directory,
     'harness',
     `#!/usr/bin/env bash
 echo "UP:$$ START:$(stty size)"

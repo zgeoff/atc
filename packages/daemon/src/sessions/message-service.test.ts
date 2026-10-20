@@ -28,7 +28,7 @@ interface SetupTestConfig {
 
 async function setupTest(config: SetupTestConfig) {
   const tmp = setupTempDir('atc-message-service-');
-  const dbPath = join(tmp.dir, 'state.db');
+  const dbPath = join(tmp.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -43,7 +43,7 @@ async function setupTest(config: SetupTestConfig) {
   const mgr = new SessionManager(
     null,
     store,
-    join(tmp.dir, 'status.json'),
+    join(tmp.path, 'status.json'),
     [buildStubHarnessAdapter({ takesMessages: config.takesMessages })],
     [
       buildMockExecutionTarget({
@@ -87,7 +87,7 @@ async function setupTest(config: SetupTestConfig) {
     tapGraceMs: 15_000,
   });
 
-  return { dir: tmp.dir, store, clock, mgr, runtimes, emitted, ended, messages };
+  return { dir: tmp.path, store, clock, mgr, runtimes, emitted, ended, messages };
 }
 
 test('it queues a message to a live session that takes messages', async () => {

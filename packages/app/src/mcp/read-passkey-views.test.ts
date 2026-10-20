@@ -11,7 +11,7 @@ async function setupTest() {
   const tmp = setupTempDir('atc-collect-passkeys-');
 
   const store = await openMCPAuth({
-    dbPath: join(tmp.dir, 'mcp-auth.db'),
+    dbPath: join(tmp.path, 'mcp-auth.db'),
     openDatabase: openMCPAuthDatabase,
     origin: null,
   });

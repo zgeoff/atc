@@ -37,7 +37,7 @@ async function setupTest() {
 
   const provider = new ImpProvider(
     port,
-    { guestDir: join(tmp.dir, 'g') },
+    { guestDir: join(tmp.path, 'g') },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -48,7 +48,7 @@ async function setupTest() {
   return {
     port,
     provider,
-    dir: tmp.dir,
+    dir: tmp.path,
     upstream: git.upstream,
     work: git.work,
     sha: git.sha,

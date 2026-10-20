@@ -25,12 +25,12 @@ function setupTest() {
   const tmp = setupTempDir('atc-daemon-tcp-');
 
   return {
-    dir: tmp.dir,
-    socketPath: join(tmp.dir, 'daemon.sock'),
-    reporterSocketPath: join(tmp.dir, 'reporter.sock'),
-    dbPath: join(tmp.dir, 'state.db'),
-    statusPath: join(tmp.dir, 'status.json'),
-    tokenFile: join(tmp.dir, 'gateway-token'),
+    dir: tmp.path,
+    socketPath: join(tmp.path, 'daemon.sock'),
+    reporterSocketPath: join(tmp.path, 'reporter.sock'),
+    dbPath: join(tmp.path, 'state.db'),
+    statusPath: join(tmp.path, 'status.json'),
+    tokenFile: join(tmp.path, 'gateway-token'),
   };
 }
 

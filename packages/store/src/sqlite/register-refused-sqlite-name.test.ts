@@ -10,7 +10,7 @@ import {
 function setupTest() {
   const tmp = setupTempDir('atc-refused-sqlite-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it refuses a path whose file name is registered', () => {

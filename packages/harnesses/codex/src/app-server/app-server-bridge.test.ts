@@ -14,11 +14,11 @@ import { AppServerError } from './app-server-error';
 
 function setupTest() {
   const tmp = setupTempDir('atc-app-server-bridge-');
-  const socket = join(tmp.dir, 'codex.sock');
+  const socket = join(tmp.path, 'codex.sock');
 
   return {
     socket,
-    unconfirmedFile: join(tmp.dir, 'unconfirmed-sends.json'),
+    unconfirmedFile: join(tmp.path, 'unconfirmed-sends.json'),
     openConnection: () => AppServerConnection.open(`ws+unix://${socket}`),
   };
 }

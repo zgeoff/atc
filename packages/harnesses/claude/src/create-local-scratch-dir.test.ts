@@ -8,7 +8,7 @@ import { createLocalScratchDir } from './create-local-scratch-dir';
 function setupTest() {
   const tmp = setupTempDir('atc-scratch-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test("it creates the session's scratch folder under its own folder, readable by its owner alone", () => {

@@ -22,7 +22,7 @@ import { buildStubClaudeHeadlessRun } from './testing/build-stub-claude-headless
 function setupTest() {
   const tmp = setupTempDir('atc-claude-adapter-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test("it reads a session's hook lines as Claude's, with no state across them", () => {
@@ -366,7 +366,7 @@ test("it leaves the config's and the session's plugin folders out of a remote sp
 
   const plan = adapter.planGuestSpawn(
     { prompt: '', resume: false, pluginDirs: ['/srv/plugins/extra'] },
-    { atc: '/opt/atc/bin/atc', dir: '/tmp/atc/sessions/s1' },
+    { atc: '/opt/atc/bin/atc', directory: '/tmp/atc/sessions/s1' },
   );
 
   expect(plan?.args).toStrictEqual([
@@ -462,7 +462,7 @@ test('it restores an unbrokered remote session in the mode its settings set', ()
 
   const plan = adapter.planGuestSpawn(
     { prompt: '', resume: toAgentSessionID('sess-1') },
-    { atc: '/opt/atc/bin/atc', dir: '/tmp/atc/sessions/s1' },
+    { atc: '/opt/atc/bin/atc', directory: '/tmp/atc/sessions/s1' },
   );
 
   expect(plan).toStrictEqual({
@@ -579,7 +579,7 @@ test('it plans a remote spawn in the permission mode its configured arguments se
 
   const plan = adapter.planGuestSpawn(
     { prompt: '', resume: false },
-    { atc: '/opt/atc/bin/atc', dir: '/tmp/atc/sessions/s1' },
+    { atc: '/opt/atc/bin/atc', directory: '/tmp/atc/sessions/s1' },
   );
 
   expect(plan).toStrictEqual({
@@ -992,7 +992,7 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
     { prompt: 'hi', resume: false },
     {
       atc: '/opt/atc/bin/atc',
-      dir: '/tmp/atc/sessions/s1',
+      directory: '/tmp/atc/sessions/s1',
       auth: {
         revision: 2,
         env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
@@ -1159,7 +1159,7 @@ test("it ships the host's Claude config as the session's user settings and keeps
     { prompt: '', resume: false },
     {
       atc: '/opt/atc/bin/atc',
-      dir: '/tmp/atc/sessions/s1',
+      directory: '/tmp/atc/sessions/s1',
       auth: {
         revision: 1,
         env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
@@ -1322,7 +1322,7 @@ test('it gives a subscription guest spawn its MCP servers with the placeholder i
     { prompt: 'hi', resume: false },
     {
       atc: '/opt/atc/bin/atc',
-      dir: '/tmp/atc/sessions/s1',
+      directory: '/tmp/atc/sessions/s1',
       auth: {
         revision: 3,
         env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
@@ -1393,7 +1393,7 @@ test('it plans a guest spawn without a broker binding in the config of the host 
 
   const plan = adapter.planGuestSpawn(
     { prompt: '', resume: false },
-    { atc: '/opt/atc/bin/atc', dir: '/tmp/atc/sessions/s1' },
+    { atc: '/opt/atc/bin/atc', directory: '/tmp/atc/sessions/s1' },
   );
 
   expect(plan).toStrictEqual({
@@ -1527,7 +1527,7 @@ test.each([
       { prompt: '', resume: false },
       {
         atc: '/opt/atc/bin/atc',
-        dir: '/tmp/atc/sessions/s1',
+        directory: '/tmp/atc/sessions/s1',
         auth: {
           revision: 1,
           env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
@@ -1561,7 +1561,7 @@ test('it refuses a subscription guest spawn whose entry env overrides the sign-i
       { prompt: '', resume: false },
       {
         atc: '/opt/atc/bin/atc',
-        dir: '/tmp/atc/sessions/s1',
+        directory: '/tmp/atc/sessions/s1',
         auth: {
           revision: 1,
           env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
@@ -1597,7 +1597,7 @@ test('it refuses a subscription guest spawn whose entry settings env overrides t
       { prompt: '', resume: false },
       {
         atc: '/opt/atc/bin/atc',
-        dir: '/tmp/atc/sessions/s1',
+        directory: '/tmp/atc/sessions/s1',
         auth: {
           revision: 1,
           env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
@@ -1642,7 +1642,7 @@ test('it refuses to start a subscription session in a host whose environment set
     { prompt: '', resume: false },
     {
       atc: '/opt/atc/bin/atc',
-      dir: ctx.dir,
+      directory: ctx.dir,
       auth: {
         revision: 1,
         env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
@@ -1709,7 +1709,7 @@ test.each([
       { prompt: '', resume: false },
       {
         atc: '/opt/atc/bin/atc',
-        dir: ctx.dir,
+        directory: ctx.dir,
         auth: {
           revision: 1,
           env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
@@ -1757,7 +1757,7 @@ test('it starts a subscription session with a seeded config folder in a host who
     { prompt: '', resume: false },
     {
       atc: '/opt/atc/bin/atc',
-      dir: ctx.dir,
+      directory: ctx.dir,
       auth: {
         revision: 1,
         env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
@@ -1853,7 +1853,7 @@ test("it sets a profile's variables in a subscription guest's settings env and s
     { prompt: 'hi', resume: false },
     {
       atc: '/opt/atc/bin/atc',
-      dir: '/tmp/atc/sessions/s1',
+      directory: '/tmp/atc/sessions/s1',
       auth: {
         revision: 2,
         env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
@@ -2105,7 +2105,7 @@ test('it plans a Codex home in the binding revision when the profiles send a rea
     { prompt: 'hi', resume: false },
     {
       atc: '/opt/atc/bin/atc',
-      dir: '/tmp/atc/sessions/s1',
+      directory: '/tmp/atc/sessions/s1',
       auth: {
         revision: 2,
         env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
@@ -2196,7 +2196,7 @@ test('it plans no Codex home when the ChatGPT sign-in in impd is not ready', () 
     { prompt: 'hi', resume: false },
     {
       atc: '/opt/atc/bin/atc',
-      dir: '/tmp/atc/sessions/s1',
+      directory: '/tmp/atc/sessions/s1',
       auth: {
         revision: 2,
         env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
@@ -2255,7 +2255,7 @@ test('it plans no Codex home when a ChatGPT profile sets no bearer authorization
     { prompt: 'hi', resume: false },
     {
       atc: '/opt/atc/bin/atc',
-      dir: '/tmp/atc/sessions/s1',
+      directory: '/tmp/atc/sessions/s1',
       auth: {
         revision: 2,
         env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },

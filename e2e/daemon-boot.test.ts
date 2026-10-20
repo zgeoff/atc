@@ -16,18 +16,18 @@ import { createHostServices } from '../packages/app/src/create-host-services';
 
 function setupTest() {
   const tmp = setupTempDir('atc-daemon-boot-');
-  const stateDir = join(tmp.dir, '.local', 'state', 'atc');
+  const stateDir = join(tmp.path, '.local', 'state', 'atc');
 
   // The daemon and the client both expect the state directory to exist.
   mkdirSync(stateDir, { recursive: true });
 
   return {
-    dir: tmp.dir,
+    dir: tmp.path,
     stateDir,
-    sockPath: join(tmp.dir, 'atc-daemon.sock'),
+    sockPath: join(tmp.path, 'atc-daemon.sock'),
 
     // The client reads its paths from its environment, so each test boots it in a subprocess.
-    env: { ...process.env, HOME: tmp.dir, XDG_RUNTIME_DIR: tmp.dir },
+    env: { ...process.env, HOME: tmp.path, XDG_RUNTIME_DIR: tmp.path },
     bootModule: join(import.meta.dir, '..', 'packages', 'lifecycle', 'src', 'boot-daemon.ts'),
     hostModule: join(import.meta.dir, '..', 'packages', 'app', 'src', 'build-lifecycle-host.ts'),
     servicesModule: join(

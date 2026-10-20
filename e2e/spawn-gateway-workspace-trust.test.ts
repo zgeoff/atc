@@ -38,15 +38,15 @@ async function setupTest() {
 
   // Each agent run records its start, so a test sees whether a launch went
   // ahead.
-  const fakeClaude = createStubRecordingClaude(tmp.dir);
+  const fakeClaude = createStubRecordingClaude(tmp.path);
 
   // The imp provider installs this as the guest's atc. It prints the
   // daemon's version, so the guest's hooks run it.
-  const guestATC = createStubBin(tmp.dir, 'atc', '#!/bin/sh\necho 1.0.0\n');
+  const guestATC = createStubBin(tmp.path, 'atc', '#!/bin/sh\necho 1.0.0\n');
 
   const box = new ImpProvider(
     port,
-    { guestDir: join(tmp.dir, 'guest'), guestATC },
+    { guestDir: join(tmp.path, 'guest'), guestATC },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -55,9 +55,9 @@ async function setupTest() {
   });
 
   return {
-    dir: tmp.dir,
-    guestDir: join(tmp.dir, 'guest'),
-    starts: join(tmp.dir, 'claude-starts.log'),
+    dir: tmp.path,
+    guestDir: join(tmp.path, 'guest'),
+    starts: join(tmp.path, 'claude-starts.log'),
     port,
     work: git.work,
     box,

@@ -15,11 +15,11 @@ const PROXY_VARIABLES = [
 // A stand-in claude that sends the auth token its `--settings` file holds as
 // a bearer token to the URL, with the proxy variables of the process that
 // creates it, and writes the HTTP status to `brokered-status` in the dir.
-export function createStubBrokeredClaude(dir: string, url: string): string {
+export function createStubBrokeredClaude(directory: string, url: string): string {
   // the guest's PATH may lack the tools the test process finds
   const curl = Bun.which('curl') ?? 'curl';
   const sed = Bun.which('sed') ?? 'sed';
-  const status = join(dir, 'brokered-status');
+  const status = join(directory, 'brokered-status');
 
   const exports = PROXY_VARIABLES.flatMap((name) => {
     const value = process.env[name];
@@ -28,7 +28,7 @@ export function createStubBrokeredClaude(dir: string, url: string): string {
   });
 
   return createStubBin(
-    dir,
+    directory,
     'fake-claude',
     [
       '#!/bin/sh',

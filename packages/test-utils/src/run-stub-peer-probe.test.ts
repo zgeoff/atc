@@ -8,11 +8,11 @@ import { startStubLegacyDaemon } from './start-stub-legacy-daemon';
 // A socket path and an output path in a fresh temp directory, and the probe
 // script's path.
 function setupTest() {
-  const tmp = setupTempDir('atc-peer-probe-');
+  const temporaryDirectory = setupTempDir('atc-peer-probe-');
 
   return {
-    socketPath: join(tmp.dir, 'daemon.sock'),
-    outPath: join(tmp.dir, 'probe.json'),
+    socketPath: join(temporaryDirectory.path, 'daemon.sock'),
+    outPath: join(temporaryDirectory.path, 'probe.json'),
     probe: join(import.meta.dir, 'run-stub-peer-probe.ts'),
   };
 }
@@ -29,8 +29,11 @@ test('it adds an empty scope to the session after a handshake without a session'
   expect(JSON.parse(readFileSync(ctx.outPath, 'utf8'))).toStrictEqual({ ok: true });
 
   expect(daemon.requests).toStrictEqual([
-    { m: 'daemon.hello', p: { client: 'atc/peer-probe', protocol: 6, auth: { scheme: 'none' } } },
-    { m: 'session.scope.add', p: { session: 's-7', scope: {} } },
+    {
+      method: 'daemon.hello',
+      params: { client: 'atc/peer-probe', protocol: 6, auth: { scheme: 'none' } },
+    },
+    { method: 'session.scope.add', params: { session: 's-7', scope: {} } },
   ]);
 });
 
@@ -66,10 +69,10 @@ test('it writes the sender the daemon recorded for the message it sent', async (
 
   expect(daemon.requests.slice(1)).toStrictEqual([
     {
-      m: 'session.message',
-      p: { session: 's-7', text: 'is the build green?', from: 'someone-else' },
+      method: 'session.message',
+      params: { session: 's-7', text: 'is the build green?', from: 'someone-else' },
     },
-    { m: 'message.get', p: { message: 'm-3' } },
+    { method: 'message.get', params: { message: 'm-3' } },
   ]);
 });
 
@@ -104,8 +107,8 @@ test('it gives the session in its handshake', async () => {
 
   expect(daemon.requests).toStrictEqual([
     {
-      m: 'daemon.hello',
-      p: { client: 'atc/peer-probe', protocol: 6, auth: { scheme: 'none' }, session: 's-7' },
+      method: 'daemon.hello',
+      params: { client: 'atc/peer-probe', protocol: 6, auth: { scheme: 'none' }, session: 's-7' },
     },
   ]);
 });

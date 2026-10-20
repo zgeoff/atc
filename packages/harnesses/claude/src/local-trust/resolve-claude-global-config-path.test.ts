@@ -8,7 +8,7 @@ import { resolveClaudeGlobalConfigPath } from './resolve-claude-global-config-pa
 function setupTest() {
   const tmp = setupTempDir('atc-claude-config-path-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it resolves the config in the home directory when no config folder is set', () => {

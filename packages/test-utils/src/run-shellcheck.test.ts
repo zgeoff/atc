@@ -32,7 +32,7 @@ test('it checks a program as POSIX sh', async () => {
 test('it throws when shellcheck is not on the PATH', () => {
   const empty = setupTempDir('atc-shellcheck-path-');
 
-  updateEnv('PATH', empty.dir);
+  updateEnv('PATH', empty.path);
 
   expect(runShellcheck('true')).rejects.toThrowWithMessage(Error, /shellcheck is not on the PATH/u);
 });

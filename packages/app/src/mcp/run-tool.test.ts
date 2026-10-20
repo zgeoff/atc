@@ -1675,7 +1675,7 @@ test('it rebinds the host of a session whose restore was refused for a changed a
 
   const provider = new ImpProvider(
     port,
-    { guestDir: join(tmp.dir, 'g'), rebindChangedAuth: false },
+    { guestDir: join(tmp.path, 'g'), rebindChangedAuth: false },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -1730,7 +1730,7 @@ test('it rebinds the host of a session whose restore was refused for a changed a
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: tmp.dir,
+    cwd: tmp.path,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -1769,7 +1769,7 @@ test('it adopts a session whose restore was refused once its host is rebound', a
 
   const provider = new ImpProvider(
     port,
-    { guestDir: join(tmp.dir, 'g'), rebindChangedAuth: false },
+    { guestDir: join(tmp.path, 'g'), rebindChangedAuth: false },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -1824,7 +1824,7 @@ test('it adopts a session whose restore was refused once its host is rebound', a
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: tmp.dir,
+    cwd: tmp.path,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -1860,7 +1860,7 @@ test('it refuses a rebind from a remote client acting as a principal and binds n
 
   const provider = new ImpProvider(
     port,
-    { guestDir: join(tmp.dir, 'g'), rebindChangedAuth: false },
+    { guestDir: join(tmp.path, 'g'), rebindChangedAuth: false },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -1918,7 +1918,7 @@ test('it refuses a rebind from a remote client acting as a principal and binds n
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: tmp.dir,
+    cwd: tmp.path,
     agent: 'glm',
     target: 'box',
     resume: 'a1',

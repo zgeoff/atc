@@ -22,10 +22,10 @@ import { startStderrLog } from './start-stderr-log';
 
 async function setupTest() {
   const tmp = setupTempDir('atc-non-blocking-log-');
-  const fifoPath = join(tmp.dir, 'stderr');
+  const fifoPath = join(tmp.path, 'stderr');
 
   // The listener refuses to start without a token file.
-  writeFileSync(join(tmp.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+  writeFileSync(join(tmp.path, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
   // stderr is a named pipe because a pipe from the spawn itself never fills: the
   // runtime reads it as it fills
@@ -52,7 +52,7 @@ async function setupTest() {
     const proc = Bun.spawn(
       [process.execPath, join(import.meta.dir, 'testing', 'run-listener-daemon.ts')],
       {
-        env: { ATC_TEST_DIR: tmp.dir, HOME: tmp.dir },
+        env: { ATC_TEST_DIR: tmp.path, HOME: tmp.path },
         stdout: 'pipe',
         stderr: writeEnd,
       },
@@ -73,7 +73,7 @@ async function setupTest() {
     return { proc, port: Number(new TextDecoder().decode(first.value).trim()) };
   };
 
-  return { dir: tmp.dir, fifoPath, startListenerDaemon };
+  return { dir: tmp.path, fifoPath, startListenerDaemon };
 }
 
 test('it answers another client while a flood of refusals fills a stderr nobody reads', async () => {
@@ -249,7 +249,7 @@ test('it writes every line it holds at SIGTERM, and the count of the ones it dro
 
 test('it resolves a second stop that overlaps the first only once every line it holds is written', async () => {
   const tmp = setupTempDir('atc-stderr-log-');
-  const outputPath = join(tmp.dir, 'stderr');
+  const outputPath = join(tmp.path, 'stderr');
   const fd = openSync(outputPath, 'w');
 
   onTestFinished(() => {

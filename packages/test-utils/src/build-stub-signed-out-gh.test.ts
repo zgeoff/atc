@@ -5,14 +5,14 @@ import { runCommand } from './run-command';
 import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-signed-out-gh-');
+  const temporaryDirectory = setupTempDir('atc-stub-signed-out-gh-');
 
-  return { dir: tmp.dir };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it refuses every command with the sign-in hint and exit code 4', async () => {
   const ctx = setupTest();
-  const gh = createStubBin(ctx.dir, 'gh', buildStubSignedOutGH());
+  const gh = createStubBin(ctx.directory, 'gh', buildStubSignedOutGH());
 
   const result = await runCommand([gh, 'repo', 'list']);
 

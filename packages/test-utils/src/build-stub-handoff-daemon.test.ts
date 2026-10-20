@@ -10,16 +10,16 @@ import { setupTempDir } from './setup-temp-dir';
 // A temp directory that serves as the stand-in's home and holds the socket
 // it hands over, removed once the test finishes.
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-handoff-');
+  const temporaryDirectory = setupTempDir('atc-stub-handoff-');
 
-  return { dir: tmp.dir };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it moves the listening socket to the daemon socket of its home and exits 0', async () => {
   const ctx = setupTest();
 
   const listening = Bun.listen({
-    unix: join(ctx.dir, 'next.sock'),
+    unix: join(ctx.directory, 'next.sock'),
     socket: { data() {} },
   });
 
@@ -28,16 +28,16 @@ test('it moves the listening socket to the daemon socket of its home and exits 0
   });
 
   const atc = createStubBin(
-    join(ctx.dir, 'bin'),
+    join(ctx.directory, 'bin'),
     'atc',
-    buildStubHandoffDaemon(join(ctx.dir, 'next.sock')),
+    buildStubHandoffDaemon(join(ctx.directory, 'next.sock')),
   );
 
   const run = await runCommand([atc, 'daemon'], {
-    env: { HOME: ctx.dir, PATH: '/usr/bin:/bin' },
+    env: { HOME: ctx.directory, PATH: '/usr/bin:/bin' },
   });
 
   expect(run.exitCode).toBe(0);
-  expect(existsSync(join(ctx.dir, 'atc-daemon.sock'))).toBe(true);
-  expect(existsSync(join(ctx.dir, 'next.sock'))).toBe(false);
+  expect(existsSync(join(ctx.directory, 'atc-daemon.sock'))).toBe(true);
+  expect(existsSync(join(ctx.directory, 'next.sock'))).toBe(false);
 });

@@ -37,7 +37,7 @@ import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemo
 async function setupTest() {
   const git = await createGitFixture({ prefix: 'atc-workspace-' });
 
-  return { dir: git.dir, env: git.env, upstream: git.upstream, work: git.work, sha: git.sha };
+  return { dir: git.directory, env: git.env, upstream: git.upstream, work: git.work, sha: git.sha };
 }
 
 test('it materializes a path source at its pushed HEAD on the target and verifies it there', async () => {

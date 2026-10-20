@@ -7,7 +7,7 @@ import { readRootDirs } from './read-root-dirs';
 function setupTest() {
   const tmp = setupTempDir('atc-roots-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it lists each child directory of a root and the worktrees under it, sorted', () => {

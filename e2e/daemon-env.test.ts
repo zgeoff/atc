@@ -18,15 +18,15 @@ import { $ } from 'bun';
 function setupTest() {
   const tmp = setupTempDir('atc-e2e-env-');
   const atc = resolveATCCommand();
-  const configDir = join(tmp.dir, '.config', 'atc');
+  const configDir = join(tmp.path, '.config', 'atc');
 
   mkdirSync(configDir, { recursive: true });
 
   return {
-    home: tmp.dir,
+    home: tmp.path,
     atc,
     configPath: join(configDir, 'config.json'),
-    claude: createStubClaude(tmp.dir, { atc, composer: createStubComposer(tmp.dir) }),
+    claude: createStubClaude(tmp.path, { atc, composer: createStubComposer(tmp.path) }),
   };
 }
 

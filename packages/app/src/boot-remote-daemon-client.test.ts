@@ -17,7 +17,7 @@ import { startTestDaemon } from './test-utils/start-test-daemon';
 function setupTest() {
   const tmp = setupTempDir('atc-remote-boot-');
 
-  return { dir: tmp.dir, tokenFile: join(tmp.dir, 'box.token') };
+  return { dir: tmp.path, tokenFile: join(tmp.path, 'box.token') };
 }
 
 test('it connects to a daemon over TCP as the entry principal and lists its fleet', async () => {

@@ -498,7 +498,7 @@ test('it spawns nothing for a fleet.restore after the automatic restore settled'
 });
 
 test('it restores the rest of the fleet past rows whose repository cannot be resolved', async () => {
-  const locked = setupTempDir('atc-daemon-fleet-locked-').dir;
+  const locked = setupTempDir('atc-daemon-fleet-locked-').path;
   const clock = buildStubClock(0);
   const settles: RestoreSettled[] = [];
 

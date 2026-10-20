@@ -7,7 +7,7 @@ import { runClients } from './clients';
 function setupTest() {
   const tmp = setupTempDir('atc-clients-');
 
-  return { dbPath: join(tmp.dir, 'state', 'mcp-auth.db') };
+  return { dbPath: join(tmp.path, 'state', 'mcp-auth.db') };
 }
 
 test('it adds a client and prints its client ID', async () => {

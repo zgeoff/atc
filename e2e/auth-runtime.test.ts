@@ -30,7 +30,7 @@ function setupTest(config?: SetupConfig) {
 
   const provider = new ImpProvider(
     port,
-    { guestDir: join(tmp.dir, 'g'), rebindChangedAuth: config?.rebindChangedAuth ?? false },
+    { guestDir: join(tmp.path, 'g'), rebindChangedAuth: config?.rebindChangedAuth ?? false },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -38,7 +38,7 @@ function setupTest(config?: SetupConfig) {
     provider.dispose();
   });
 
-  return { dir: tmp.dir, port, provider };
+  return { dir: tmp.path, port, provider };
 }
 
 test('it provisions the host of a spawn before readying it and starts the harness only behind a ready broker', async () => {

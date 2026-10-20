@@ -9,9 +9,9 @@ function setupTest() {
   const tmp = setupTempDir('atc-mcp-http-wait-');
 
   return {
-    dir: tmp.dir,
+    dir: tmp.path,
     atc: resolveATCCommand(),
-    env: { ...process.env, HOME: tmp.dir, XDG_RUNTIME_DIR: tmp.dir },
+    env: { ...process.env, HOME: tmp.path, XDG_RUNTIME_DIR: tmp.path },
   };
 }
 

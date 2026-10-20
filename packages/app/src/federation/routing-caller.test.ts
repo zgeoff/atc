@@ -26,7 +26,7 @@ async function setupTest() {
   const tmp = setupTempDir('atc-routing-caller-');
 
   // The token both listeners take, which every pool here presents.
-  writeFileSync(join(tmp.dir, 'token'), `${'a'.repeat(32)}\n`);
+  writeFileSync(join(tmp.path, 'token'), `${'a'.repeat(32)}\n`);
 
   const cloud = await startTestDaemon({
     prefix: 'atc-routing-cloud-',
@@ -36,7 +36,7 @@ async function setupTest() {
 
       // Lets the pools' principal use the local target.
       principals: new Map([['gw', ['local']]]),
-      listen: { host: '127.0.0.1', port: 0, tokenFile: join(tmp.dir, 'token') },
+      listen: { host: '127.0.0.1', port: 0, tokenFile: join(tmp.path, 'token') },
     }),
   });
 
@@ -47,7 +47,7 @@ async function setupTest() {
 
       // Lets the pools' principal use the local target.
       principals: new Map([['gw', ['local']]]),
-      listen: { host: '127.0.0.1', port: 0, tokenFile: join(tmp.dir, 'token') },
+      listen: { host: '127.0.0.1', port: 0, tokenFile: join(tmp.path, 'token') },
     }),
   });
 
@@ -93,7 +93,7 @@ async function setupTest() {
     defaultDaemon: 'cloud',
   };
 
-  const storePath = join(tmp.dir, 'gateway.db');
+  const storePath = join(tmp.path, 'gateway.db');
   const store = GatewayStore.open(storePath);
 
   registerTestCleanup(() => {
@@ -109,7 +109,7 @@ async function setupTest() {
   registerTestCleanup(() => pool.stop());
 
   return {
-    dir: tmp.dir,
+    dir: tmp.path,
     cloud,
     pc,
     cloudID,

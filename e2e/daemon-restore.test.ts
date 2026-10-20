@@ -27,17 +27,17 @@ import invariant from 'tiny-invariant';
 function setupTest() {
   const tmp = setupTempDir('atc-e2e-restore-');
   const atc = resolveATCCommand();
-  const composer = createStubComposer(tmp.dir);
-  const configDir = join(tmp.dir, '.config', 'atc');
+  const composer = createStubComposer(tmp.path);
+  const configDir = join(tmp.path, '.config', 'atc');
 
   mkdirSync(configDir, { recursive: true });
 
   return {
-    home: tmp.dir,
+    home: tmp.path,
     atc,
     configPath: join(configDir, 'config.json'),
-    claude: createStubClaude(tmp.dir, { atc, composer }),
-    grok: createStubGrok(tmp.dir, { atc, composer }),
+    claude: createStubClaude(tmp.path, { atc, composer }),
+    grok: createStubGrok(tmp.path, { atc, composer }),
   };
 }
 

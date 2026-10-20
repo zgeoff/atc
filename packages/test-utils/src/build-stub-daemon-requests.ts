@@ -3,8 +3,8 @@ import { waitFor } from './wait-for';
 type DaemonAnswer = Readonly<Record<string, unknown>>;
 
 interface StubRequest {
-  readonly m: string;
-  readonly p: DaemonAnswer;
+  readonly method: string;
+  readonly params: DaemonAnswer;
   readonly resolve: (answer: DaemonAnswer) => void;
   readonly reject: (error: unknown) => void;
 }
@@ -22,7 +22,7 @@ interface StubDaemonRequestsOptions {
   readonly now?: () => number;
 
   // Waits out the pause between a wait's checks; a real sleep when absent.
-  readonly wait?: (ms: number) => Promise<void>;
+  readonly wait?: (delayMs: number) => Promise<void>;
 }
 
 export function buildStubDaemonRequests(options: StubDaemonRequestsOptions) {
@@ -47,48 +47,52 @@ export function buildStubDaemonRequests(options: StubDaemonRequestsOptions) {
 
     await waitFor(() => {
       if (countAll() <= before) {
-        throw new Error(`nothing reacted to the ${request.m} answer`);
+        throw new Error(`nothing reacted to the ${request.method} answer`);
       }
     }, waitOptions);
   };
 
-  const waitForLatest = (m: string) =>
+  const waitForLatest = (method: string) =>
     waitFor(() => {
-      const latest = sent.findLast((r) => r.m === m && !answered.has(r));
+      const latest = sent.findLast(
+        (candidate) => candidate.method === method && !answered.has(candidate),
+      );
 
       if (latest === undefined) {
-        throw new Error(`no ${m} request is waiting for an answer`);
+        throw new Error(`no ${method} request is waiting for an answer`);
       }
 
       return latest;
     }, waitOptions);
 
   return {
-    sendRequest(m: string, p: DaemonAnswer = {}): Promise<DaemonAnswer> {
+    sendRequest(method: string, params: DaemonAnswer = {}): Promise<DaemonAnswer> {
       return new Promise((resolve, reject) => {
-        sent.push({ m, p, resolve, reject });
+        sent.push({ method, params, resolve, reject });
       });
     },
-    async answer(m: string, value: DaemonAnswer): Promise<void> {
-      const request = await waitForLatest(m);
+    async answer(method: string, value: DaemonAnswer): Promise<void> {
+      const request = await waitForLatest(method);
 
       await answerRequest(request, () => {
         request.resolve(value);
       });
     },
-    async refuse(m: string, error: unknown): Promise<void> {
-      const request = await waitForLatest(m);
+    async refuse(method: string, error: unknown): Promise<void> {
+      const request = await waitForLatest(method);
 
       await answerRequest(request, () => {
         request.reject(error);
       });
     },
-    async answerOldest(m: string, value: DaemonAnswer): Promise<void> {
+    async answerOldest(method: string, value: DaemonAnswer): Promise<void> {
       const request = await waitFor(() => {
-        const oldest = sent.find((r) => r.m === m && !answered.has(r));
+        const oldest = sent.find(
+          (candidate) => candidate.method === method && !answered.has(candidate),
+        );
 
         if (oldest === undefined) {
-          throw new Error(`no ${m} request is waiting for an answer`);
+          throw new Error(`no ${method} request is waiting for an answer`);
         }
 
         return oldest;
@@ -98,8 +102,8 @@ export function buildStubDaemonRequests(options: StubDaemonRequestsOptions) {
         request.resolve(value);
       });
     },
-    collectSent(m: string): DaemonAnswer[] {
-      return sent.filter((request) => request.m === m).map((request) => request.p);
+    collectSent(method: string): DaemonAnswer[] {
+      return sent.filter((request) => request.method === method).map((request) => request.params);
     },
   };
 }

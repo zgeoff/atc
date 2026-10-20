@@ -1,8 +1,8 @@
 import { isRecord } from '@atc/core';
 
 type SendRequest = (
-  m: string,
-  p?: Readonly<Record<string, unknown>>,
+  method: string,
+  params?: Readonly<Record<string, unknown>>,
 ) => Promise<Readonly<Record<string, unknown>>>;
 
 export async function spawnNamedSession(

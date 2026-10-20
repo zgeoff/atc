@@ -5,9 +5,9 @@ import { setupTempDir } from './setup-temp-dir';
 import { startStubLineDaemon } from './start-stub-line-daemon';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-line-');
+  const temporaryDirectory = setupTempDir('atc-stub-line-');
 
-  return { socketPath: join(tmp.dir, 'daemon.sock') };
+  return { socketPath: join(temporaryDirectory.path, 'daemon.sock') };
 }
 
 test('it answers a peer handshake with the malformed-line error of protocol v4 and ends the connection', async () => {

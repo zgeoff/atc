@@ -12,9 +12,9 @@ import { waitFor } from './wait-for';
 // A temp directory to hold the daemon's socket, removed once the test
 // finishes.
 function setupTest() {
-  const tmp = setupTempDir('atc-dropping-daemon-');
+  const temporaryDirectory = setupTempDir('atc-dropping-daemon-');
 
-  return { socketPath: join(tmp.dir, 'daemon.sock') };
+  return { socketPath: join(temporaryDirectory.path, 'daemon.sock') };
 }
 
 test('it answers the handshake with its build', async () => {

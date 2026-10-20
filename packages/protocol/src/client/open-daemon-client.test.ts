@@ -9,7 +9,7 @@ import { openDaemonClient } from './open-daemon-client';
 
 function setupTest() {
   const tmp = setupTempDir('atc-daemon-client-');
-  const socketPath = join(tmp.dir, 'daemon.sock');
+  const socketPath = join(tmp.path, 'daemon.sock');
   const received: string[] = [];
 
   return { socketPath, received };

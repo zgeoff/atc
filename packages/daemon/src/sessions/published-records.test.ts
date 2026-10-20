@@ -21,11 +21,11 @@ async function setupTest() {
 
   const tmp = setupTempDir('atc-records-state-');
 
-  const store = await StateStore.open(join(tmp.dir, 'atc.db'));
+  const store = await StateStore.open(join(tmp.path, 'atc.db'));
 
   registerTestCleanup(() => store.stop());
 
-  const localDir = join(tmp.dir, 'records');
+  const localDir = join(tmp.path, 'records');
 
   const records = new PublishedRecords({
     store,
@@ -139,7 +139,7 @@ test('it records no branch for a directory outside git', async () => {
   const ctx = await setupTest();
 
   const session = toSessionID('s-plain');
-  const plain = join(ctx.fixture.dir, 'plain');
+  const plain = join(ctx.fixture.directory, 'plain');
 
   mkdirSync(plain);
 
@@ -169,7 +169,7 @@ test('it records the checked scope a spawn declares', async () => {
   const ctx = await setupTest();
 
   const session = toSessionID('s-scoped');
-  const worktree = join(ctx.fixture.dir, 'fix');
+  const worktree = join(ctx.fixture.directory, 'fix');
 
   await $`git worktree add --quiet -b fix ${worktree}`.env(ctx.fixture.env).cwd(ctx.fixture.work);
 

@@ -25,7 +25,7 @@ interface SetupTestConfig {
 // announces gets the runtime the daemon gives it.
 async function setupTest(config: SetupTestConfig) {
   const tmp = setupTempDir('atc-session-handoff-');
-  const dbPath = join(tmp.dir, 'state.db');
+  const dbPath = join(tmp.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -42,7 +42,7 @@ async function setupTest(config: SetupTestConfig) {
   const mgr = new SessionManager(
     null,
     store,
-    join(tmp.dir, 'status.json'),
+    join(tmp.path, 'status.json'),
     [config.adapter],
     [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
     [],
@@ -72,7 +72,7 @@ async function setupTest(config: SetupTestConfig) {
   });
 
   return {
-    dir: tmp.dir,
+    dir: tmp.path,
     clock,
     provider,
     mgr,

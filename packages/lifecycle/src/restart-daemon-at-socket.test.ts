@@ -7,7 +7,7 @@ import { restartDaemonAtSocket } from './restart-daemon-at-socket';
 import { buildMockLifecycleHost } from './testing/build-mock-lifecycle-host';
 
 function setupTest() {
-  const dir = setupTempDir('restart-daemon-at-socket-').dir;
+  const dir = setupTempDir('restart-daemon-at-socket-').path;
   const paths = resolvePaths({ HOME: dir, XDG_RUNTIME_DIR: dir });
   const procRoot = join(dir, 'proc');
 

@@ -11,7 +11,7 @@ import { requireSessionPluginDirs } from './require-session-plugin-dirs';
 function setupTest() {
   const tmp = setupTempDir('atc-session-plugin-dirs-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test("it accepts a session whose agent's folders and own folders are all folders", () => {

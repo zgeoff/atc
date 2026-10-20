@@ -9,7 +9,7 @@ import invariant from 'tiny-invariant';
 function setupTest() {
   const tmp = setupTempDir('atc-e2e-startup-');
 
-  return { home: tmp.dir, atc: resolveATCCommand() };
+  return { home: tmp.path, atc: resolveATCCommand() };
 }
 
 test('it lets exactly one of two daemons started at once serve a state directory', async () => {

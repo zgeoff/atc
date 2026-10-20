@@ -25,16 +25,16 @@ async function setupTest() {
 
   const git = await createGitFixture({ prefix: 'atc-project-settings-git-' });
 
-  const fakeClaude = createStubRecordingClaude(tmp.dir);
+  const fakeClaude = createStubRecordingClaude(tmp.path);
 
   // The guest's atc prints the daemon's version, so the guest's hooks run
   // it.
-  const guestATC = createStubBin(tmp.dir, 'atc', '#!/bin/sh\necho 1.0.0\n');
+  const guestATC = createStubBin(tmp.path, 'atc', '#!/bin/sh\necho 1.0.0\n');
   const port = createStubImpPort();
 
   const provider = new ImpProvider(
     port,
-    { guestDir: join(tmp.dir, 'guest'), guestATC },
+    { guestDir: join(tmp.path, 'guest'), guestATC },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -46,10 +46,10 @@ async function setupTest() {
     port,
     provider,
     fakeClaude,
-    starts: join(tmp.dir, 'claude-starts.log'),
+    starts: join(tmp.path, 'claude-starts.log'),
     work: git.work,
     gitEnv: git.env,
-    dir: tmp.dir,
+    dir: tmp.path,
   };
 }
 

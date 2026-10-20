@@ -12,7 +12,7 @@ test('it plans a guest spawn under a binding that prints the revision behind its
     { prompt: '', resume: false },
     {
       atc: null,
-      dir: '/guest/sessions/s1',
+      directory: '/guest/sessions/s1',
       auth: {
         revision: 3,
         env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
@@ -44,7 +44,7 @@ test('it plans a guest spawn under a binding that ignores the hangup signal whil
     { prompt: '', resume: false },
     {
       atc: null,
-      dir: '/guest/sessions/s1',
+      directory: '/guest/sessions/s1',
       auth: {
         revision: 3,
         env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
@@ -65,7 +65,7 @@ test('it plans a guest spawn without a binding that only sleeps', () => {
 
   const plan = adapter.planGuestSpawn?.(
     { prompt: '', resume: false },
-    { atc: null, dir: '/guest/sessions/s1' },
+    { atc: null, directory: '/guest/sessions/s1' },
   );
 
   expect(plan).toStrictEqual({ bin: 'sleep', args: ['30'], files: {} });

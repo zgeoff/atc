@@ -4,47 +4,47 @@ import { basename } from 'node:path';
 import { setupTempDir } from './setup-temp-dir';
 
 test('it creates an existing directory named by the prefix', () => {
-  const tmp = setupTempDir('atc-setup-temp-');
+  const temporaryDirectory = setupTempDir('atc-setup-temp-');
 
-  expect(existsSync(tmp.dir)).toBeTrue();
-  expect(basename(tmp.dir)).toStartWith('atc-setup-temp-');
+  expect(existsSync(temporaryDirectory.path)).toBeTrue();
+  expect(basename(temporaryDirectory.path)).toStartWith('atc-setup-temp-');
 });
 
 test('it creates a distinct directory per call', () => {
   const first = setupTempDir('atc-setup-temp-');
   const second = setupTempDir('atc-setup-temp-');
 
-  expect(second.dir).not.toBe(first.dir);
+  expect(second.path).not.toBe(first.path);
 });
 
 test('it removes the directory once torn down', () => {
-  const tmp = setupTempDir('atc-setup-temp-');
+  const temporaryDirectory = setupTempDir('atc-setup-temp-');
 
-  tmp.teardown();
+  temporaryDirectory.teardown();
 
-  expect(existsSync(tmp.dir)).toBeFalse();
+  expect(existsSync(temporaryDirectory.path)).toBeFalse();
 });
 
 test('it removes the directory once the test finishes without a teardown', () => {
-  const tmp = setupTempDir('atc-setup-temp-');
+  const temporaryDirectory = setupTempDir('atc-setup-temp-');
 
   onTestFinished(() => {
-    expect(existsSync(tmp.dir)).toBeFalse();
+    expect(existsSync(temporaryDirectory.path)).toBeFalse();
   });
 });
 
 test('it removes nothing once the test finishes after a teardown', () => {
-  const tmp = setupTempDir('atc-setup-temp-');
+  const temporaryDirectory = setupTempDir('atc-setup-temp-');
 
-  tmp.teardown();
+  temporaryDirectory.teardown();
 
-  mkdirSync(tmp.dir);
+  mkdirSync(temporaryDirectory.path);
 
   onTestFinished(() => {
-    expect(existsSync(tmp.dir)).toBeTrue();
+    expect(existsSync(temporaryDirectory.path)).toBeTrue();
   });
 
   onTestFinished(() => {
-    rmSync(tmp.dir, { recursive: true, force: true });
+    rmSync(temporaryDirectory.path, { recursive: true, force: true });
   });
 });

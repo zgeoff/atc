@@ -8,7 +8,7 @@ import { claimDaemonLock } from './claim-daemon-lock';
 function setupTest() {
   const tmp = setupTempDir('atc-daemon-lock-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it refuses the lock while another holder keeps it past the wait', async () => {

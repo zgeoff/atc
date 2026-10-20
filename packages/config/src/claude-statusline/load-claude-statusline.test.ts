@@ -8,7 +8,7 @@ import { loadClaudeStatusLine } from './load-claude-statusline';
 function setupTest() {
   const tmp = setupTempDir('atc-claude-statusline-');
 
-  return { home: tmp.dir };
+  return { home: tmp.path };
 }
 
 test("it reads the statusline from the home's Claude config folder", () => {

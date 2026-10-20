@@ -7,7 +7,7 @@ import { readParentPID } from './read-parent-pid';
 function setupTest() {
   const tmp = setupTempDir('atc-parent-pid-');
 
-  return { procDir: tmp.dir };
+  return { procDir: tmp.path };
 }
 
 test('it reads the parent pid after a command name that holds spaces and parentheses', () => {

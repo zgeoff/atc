@@ -10,9 +10,9 @@ import { waitFor } from './wait-for';
 
 // A temp directory to hold the listener's socket.
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-recording-listener-');
+  const temporaryDirectory = setupTempDir('atc-stub-recording-listener-');
 
-  return { path: join(tmp.dir, 'recording.sock') };
+  return { path: join(temporaryDirectory.path, 'recording.sock') };
 }
 
 test('it records what a connection sends and sends nothing back', async () => {

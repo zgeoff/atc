@@ -273,10 +273,10 @@ export class AuthSetup {
 
     const paths: GuestPaths =
       auth === null
-        ? { atc: guest.atc, dir }
+        ? { atc: guest.atc, directory: dir }
         : {
             atc: guest.atc,
-            dir,
+            directory: dir,
             auth: await timer.withStep('auth-plan', () =>
               this.planGuestAuth(auth, verified?.binding.revision ?? 1),
             ),

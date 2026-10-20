@@ -5,7 +5,7 @@ import pkg from '../packages/app/package.json';
 function setupTest() {
   const tmp = setupTempDir('atc-e2e-cli-command-line-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test.each([

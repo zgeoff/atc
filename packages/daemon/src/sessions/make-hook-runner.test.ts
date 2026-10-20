@@ -15,7 +15,7 @@ function setupTest() {
   const clock = buildStubClock(0);
 
   return {
-    dir: tmp.dir,
+    dir: tmp.path,
     settled: settled.promise,
     clock,
     options: {

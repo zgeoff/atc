@@ -6,35 +6,44 @@ import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-run-stub-app-server-');
+  const temporaryDirectory = setupTempDir('atc-run-stub-app-server-');
 
-  return { dir: tmp.dir, script: join(import.meta.dir, 'run-stub-codex-app-server.ts') };
+  return {
+    directory: temporaryDirectory.path,
+    script: join(import.meta.dir, 'run-stub-codex-app-server.ts'),
+  };
 }
 
 test('it refuses arguments that are not an app server listening on a Unix socket', async () => {
   const ctx = setupTest();
 
-  const result = await runCommand([process.execPath, ctx.script, ctx.dir, 'resume', 'thread-1']);
+  const result = await runCommand([
+    process.execPath,
+    ctx.script,
+    ctx.directory,
+    'resume',
+    'thread-1',
+  ]);
 
   expect(result.exitCode).toBe(2);
 });
 
 test('it serves with the scenario in the directory and logs each request there', async () => {
   const ctx = setupTest();
-  const socket = join(ctx.dir, 'codex.sock');
+  const socket = join(ctx.directory, 'codex.sock');
 
   writeFileSync(
-    join(ctx.dir, 'app-server-scenario.json'),
+    join(ctx.directory, 'app-server-scenario.json'),
     JSON.stringify({ failTurnsListFrom: 1 }),
   );
 
-  const proc = Bun.spawn(
-    [process.execPath, ctx.script, ctx.dir, 'app-server', '--listen', `unix://${socket}`],
+  const subprocess = Bun.spawn(
+    [process.execPath, ctx.script, ctx.directory, 'app-server', '--listen', `unix://${socket}`],
     { stdout: 'ignore', stderr: 'ignore' },
   );
 
   onTestFinished(() => {
-    proc.kill();
+    subprocess.kill();
   });
 
   const ws = await waitFor(
@@ -61,8 +70,8 @@ test('it serves with the scenario in the directory and logs each request there',
   const answered = new Promise<unknown>((resolve) => {
     ws.addEventListener(
       'message',
-      (e) => {
-        const value: unknown = JSON.parse(String(e.data));
+      (messageEvent) => {
+        const value: unknown = JSON.parse(String(messageEvent.data));
 
         resolve(value);
       },
@@ -79,7 +88,7 @@ test('it serves with the scenario in the directory and logs each request there',
     error: { code: -32_600, message: 'thread not loaded' },
   });
 
-  expect(readFileSync(join(ctx.dir, 'app-server-requests.jsonl'), 'utf8')).toBe(
+  expect(readFileSync(join(ctx.directory, 'app-server-requests.jsonl'), 'utf8')).toBe(
     '{"method":"thread/turns/list","params":{"threadId":"missing"}}\n',
   );
 });

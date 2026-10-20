@@ -10,7 +10,7 @@ import { startEventSweep } from './start-event-sweep';
 // its own.
 async function setupTest() {
   const tmp = setupTempDir('atc-event-sweep-');
-  const dbPath = join(tmp.dir, 'state.db');
+  const dbPath = join(tmp.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 

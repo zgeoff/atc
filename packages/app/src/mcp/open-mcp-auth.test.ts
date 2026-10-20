@@ -9,7 +9,7 @@ import { openMCPAuth } from './open-mcp-auth';
 function setupTest() {
   const tmp = setupTempDir('atc-mcp-auth-');
 
-  return { dir: tmp.dir, dbPath: join(tmp.dir, 'mcp-auth.db') };
+  return { dir: tmp.path, dbPath: join(tmp.path, 'mcp-auth.db') };
 }
 
 test('it sends no telemetry when the environment turns it on', async () => {

@@ -18,11 +18,11 @@ function setupTest() {
 
   // The real CLI refuses a CODEX_HOME that does not exist, and every file it
   // writes must stay inside the test's tree.
-  const codexHome = join(tmp.dir, 'codex-home');
+  const codexHome = join(tmp.path, 'codex-home');
 
   mkdirSync(codexHome, { recursive: true });
 
-  return { dir: tmp.dir, bridgeDir: join(tmp.dir, 'bridge'), codexHome };
+  return { dir: tmp.path, bridgeDir: join(tmp.path, 'bridge'), codexHome };
 }
 
 test('it stops the App Server and removes its socket when it stops', async () => {

@@ -19,11 +19,11 @@ import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemo
 
 function setupTest() {
   const tmp = setupTempDir('atc-codex-guest-auth-');
-  const guestDir = join(tmp.dir, 'g');
+  const guestDir = join(tmp.path, 'g');
 
   // The imp provider hands the guest this atc binary, which prints the
   // daemon's version, so the guest's hooks run it.
-  const guestATC = createStubBin(tmp.dir, 'atc', '#!/bin/sh\necho 1.0.0\n');
+  const guestATC = createStubBin(tmp.path, 'atc', '#!/bin/sh\necho 1.0.0\n');
   const port = createStubImpPort();
 
   const provider = new ImpProvider(
@@ -37,10 +37,10 @@ function setupTest() {
   });
 
   return {
-    dir: tmp.dir,
+    dir: tmp.path,
     port,
-    fakeCodex: createStubRecordingCodex(tmp.dir),
-    starts: join(tmp.dir, 'codex-starts.log'),
+    fakeCodex: createStubRecordingCodex(tmp.path),
+    starts: join(tmp.path, 'codex-starts.log'),
     guestDir,
     targets: [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider }],
   };

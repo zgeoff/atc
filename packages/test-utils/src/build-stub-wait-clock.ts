@@ -5,10 +5,10 @@ export function buildStubWaitClock() {
   return {
     waits,
     now: () => elapsed,
-    wait: (ms: number): Promise<void> => {
-      waits.push(ms);
+    wait: (delayMs: number): Promise<void> => {
+      waits.push(delayMs);
 
-      elapsed += ms;
+      elapsed += delayMs;
 
       return Promise.resolve();
     },

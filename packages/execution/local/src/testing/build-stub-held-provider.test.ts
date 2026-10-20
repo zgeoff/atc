@@ -6,7 +6,7 @@ import { buildStubHeldProvider } from './build-stub-held-provider';
 function setupTest() {
   const tmp = setupTempDir('atc-stub-held-provider-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it records the host of each preparation in the order it began', () => {

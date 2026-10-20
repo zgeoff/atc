@@ -7,7 +7,7 @@ import { runCommand, setupTempDir } from '@atc/test-utils';
 function setupTest() {
   const tmp = setupTempDir('run-wave-move-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it moves the wave files and points their importers at the package entry', async () => {

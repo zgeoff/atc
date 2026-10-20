@@ -872,7 +872,7 @@ test('it keeps the key in progress when a failed spawn cannot leave the fleet an
 
 test('it ends a failed spawn that ignores its kill with a forced kill before it answers', async () => {
   const pids = setupTempDir('atc-idempotency-pid-');
-  const pidPipe = join(pids.dir, 'child.pid');
+  const pidPipe = join(pids.path, 'child.pid');
 
   // The child ignores SIGHUP before it writes its pid, and the start fails
   // only once that pid is written.
@@ -913,7 +913,7 @@ test('it ends a failed spawn that ignores its kill with a forced kill before it 
 
 test('it completes the rollback of a failed spawn that ignores its kill, so a retry spawns once', async () => {
   const pids = setupTempDir('atc-idempotency-pid-');
-  const pidPipe = join(pids.dir, 'child.pid');
+  const pidPipe = join(pids.path, 'child.pid');
 
   // The child ignores SIGHUP before it writes its pid, and the start fails
   // only once that pid is written.
@@ -950,7 +950,7 @@ test('it completes the rollback of a failed spawn that ignores its kill, so a re
 
 test('it answers outcome_unknown and keeps the process of a failed spawn whose provider cannot confirm the exit', async () => {
   const pids = setupTempDir('atc-idempotency-pid-');
-  const pidPipe = join(pids.dir, 'child.pid');
+  const pidPipe = join(pids.path, 'child.pid');
 
   // The child ignores SIGHUP before it writes its pid, and the start fails
   // only once that pid is written, so the rollback's kill cannot end it.
@@ -1017,7 +1017,7 @@ test('it answers outcome_unknown and keeps the process of a failed spawn whose p
 
 test('it answers outcome_unknown for a failed spawn whose killed process outlasts the exit wait it is given', async () => {
   const pids = setupTempDir('atc-idempotency-pid-');
-  const pidPipe = join(pids.dir, 'child.pid');
+  const pidPipe = join(pids.path, 'child.pid');
 
   // The child takes a second to exit after SIGHUP, longer than the given wait and shorter than the
   // default one, and the start fails only once it has set that trap and written its pid. It ends
@@ -1067,7 +1067,7 @@ test('it answers outcome_unknown for a failed spawn whose killed process outlast
 
 test('it keeps the key of a failed spawn whose provider cannot confirm the exit as outcome_unknown, so a retry spawns nothing', async () => {
   const pids = setupTempDir('atc-idempotency-pid-');
-  const pidPipe = join(pids.dir, 'child.pid');
+  const pidPipe = join(pids.path, 'child.pid');
 
   // The child ignores SIGHUP before it writes its pid, and the start fails
   // only once that pid is written, so the rollback's kill cannot end it.
@@ -1135,7 +1135,7 @@ test('it keeps the key of a failed spawn whose provider cannot confirm the exit 
 
 test('it keeps a failed spawn whose provider cannot confirm the exit listed and refuses its revive', async () => {
   const pids = setupTempDir('atc-idempotency-pid-');
-  const pidPipe = join(pids.dir, 'child.pid');
+  const pidPipe = join(pids.path, 'child.pid');
 
   // The child ignores SIGHUP before it writes its pid, and the start fails
   // only once that pid is written, so the rollback's kill cannot end it.
@@ -1208,7 +1208,7 @@ test('it keeps a failed spawn whose provider cannot confirm the exit listed and 
 
 test('it answers a failed spawn only once its killed process has exited', async () => {
   const pids = setupTempDir('atc-idempotency-pid-');
-  const pidPipe = join(pids.dir, 'child.pid');
+  const pidPipe = join(pids.path, 'child.pid');
 
   // The child takes 300ms to exit after SIGHUP, and the start fails only
   // once it has set that trap and written its pid.
@@ -1247,7 +1247,7 @@ test('it answers a failed spawn only once its killed process has exited', async 
 
 test('it lets a retry spawn once after a failed spawn whose killed process took time to exit', async () => {
   const pids = setupTempDir('atc-idempotency-pid-');
-  const pidPipe = join(pids.dir, 'child.pid');
+  const pidPipe = join(pids.path, 'child.pid');
 
   // The child takes 300ms to exit after SIGHUP, and the start fails only
   // once it has set that trap and written its pid.
@@ -1282,7 +1282,7 @@ test('it lets a retry spawn once after a failed spawn whose killed process took 
 
 test('it refuses to revive a failed spawn while its rollback waits for the killed process', async () => {
   const pids = setupTempDir('atc-idempotency-pid-');
-  const pidPipe = join(pids.dir, 'child.pid');
+  const pidPipe = join(pids.path, 'child.pid');
 
   // The child takes 300ms to exit after SIGHUP, and the start fails only
   // once it has set that trap and written its pid.
@@ -1337,7 +1337,7 @@ test('it refuses to revive a failed spawn while its rollback waits for the kille
 
 test('it leaves no session behind from a failed spawn whose revive was refused during its rollback', async () => {
   const pids = setupTempDir('atc-idempotency-pid-');
-  const pidPipe = join(pids.dir, 'child.pid');
+  const pidPipe = join(pids.path, 'child.pid');
 
   // The child takes 300ms to exit after SIGHUP, and the start fails only
   // once it has set that trap and written its pid.

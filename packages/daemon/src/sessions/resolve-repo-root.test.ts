@@ -10,10 +10,10 @@ function setupTest() {
   // A test may leave a directory unreadable, and nothing can remove a tree
   // it cannot read, so every mode is restored before the tree is removed.
   registerTestCleanup(async () => {
-    await Bun.spawn(['chmod', '-R', 'u+rwx', tmp.dir]).exited;
+    await Bun.spawn(['chmod', '-R', 'u+rwx', tmp.path]).exited;
   });
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it resolves a directory inside a repository to the repository root', () => {

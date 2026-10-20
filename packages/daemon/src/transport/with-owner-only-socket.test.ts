@@ -14,7 +14,7 @@ function setupTest() {
     process.umask(previous);
   });
 
-  return { socketPath: join(tmp.dir, 'test.sock') };
+  return { socketPath: join(tmp.path, 'test.sock') };
 }
 
 test('it leaves a socket bound under a permissive umask readable and writable by its owner alone', () => {

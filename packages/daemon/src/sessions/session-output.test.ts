@@ -24,7 +24,7 @@ interface SetupTestConfig {
 
 async function setupTest(config: SetupTestConfig) {
   const tmp = setupTempDir('atc-session-output-');
-  const dbPath = join(tmp.dir, 'state.db');
+  const dbPath = join(tmp.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -44,7 +44,7 @@ async function setupTest(config: SetupTestConfig) {
   const mgr = new SessionManager(
     null,
     store,
-    join(tmp.dir, 'status.json'),
+    join(tmp.path, 'status.json'),
     [buildStubHarnessAdapter()],
     [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
     [],
@@ -87,7 +87,7 @@ async function setupTest(config: SetupTestConfig) {
     scheduleDetect,
   });
 
-  return { dir: tmp.dir, clock, provider, mgr, emitted, scheduleDetect, output };
+  return { dir: tmp.path, clock, provider, mgr, emitted, scheduleDetect, output };
 }
 
 test('it sends the output of a session to an attached client under the next sequence', async () => {

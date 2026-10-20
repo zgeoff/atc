@@ -20,7 +20,7 @@ import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemo
 // logs every request it takes there.
 async function setupTest() {
   const tmp = setupTempDir('atc-codex-app-server-');
-  const bin = createStubAppServerCodex(tmp.dir);
+  const bin = createStubAppServerCodex(tmp.path);
 
   const codex = new CodexAdapter(
     getAgentEntry(
@@ -33,9 +33,9 @@ async function setupTest() {
 
   return {
     daemon,
-    stubDir: tmp.dir,
+    stubDir: tmp.path,
     readRequests: () =>
-      readFileSync(join(tmp.dir, 'app-server-requests.jsonl'), 'utf8')
+      readFileSync(join(tmp.path, 'app-server-requests.jsonl'), 'utf8')
         .trim()
         .split('\n')
         .map((line) =>

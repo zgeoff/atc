@@ -10,18 +10,18 @@ async function setupTest() {
 
   // the local provider, which the local-only build keeps
   await Bun.write(
-    join(tmp.dir, 'packages/execution/local/package.json'),
+    join(tmp.path, 'packages/execution/local/package.json'),
     JSON.stringify({ name: '@atc/execution-local', exports: { './*': './src/*.ts' } }),
   );
 
   await Bun.write(
-    join(tmp.dir, 'packages/execution/local/src/local-plugin.ts'),
+    join(tmp.path, 'packages/execution/local/src/local-plugin.ts'),
     "export const LOCAL_PLUGIN = { id: 'local-pty' };\n",
   );
 
   // the remote provider, with an external package that only it depends on
   await Bun.write(
-    join(tmp.dir, 'packages/execution/remote/package.json'),
+    join(tmp.path, 'packages/execution/remote/package.json'),
     JSON.stringify({
       name: '@atc/execution-remote',
       exports: { './*': './src/*.ts' },
@@ -30,36 +30,39 @@ async function setupTest() {
   );
 
   await Bun.write(
-    join(tmp.dir, 'packages/execution/remote/src/remote-plugin.ts'),
+    join(tmp.path, 'packages/execution/remote/src/remote-plugin.ts'),
     "import { connect } from 'remote-sdk';\n\nexport const REMOTE_PLUGIN = { id: 'remote', connect };\n",
   );
 
   await Bun.write(
-    join(tmp.dir, 'node_modules/remote-sdk/package.json'),
+    join(tmp.path, 'node_modules/remote-sdk/package.json'),
     JSON.stringify({ name: 'remote-sdk', main: 'index.js' }),
   );
 
   await Bun.write(
-    join(tmp.dir, 'node_modules/remote-sdk/index.js'),
+    join(tmp.path, 'node_modules/remote-sdk/index.js'),
     'export function connect() {}\n',
   );
 
   // the app's manifest, which the provider scan reads beside the providers'
-  await Bun.write(join(tmp.dir, 'packages/app/package.json'), JSON.stringify({ name: '@atc/app' }));
+  await Bun.write(
+    join(tmp.path, 'packages/app/package.json'),
+    JSON.stringify({ name: '@atc/app' }),
+  );
 
-  mkdirSync(join(tmp.dir, 'node_modules/@atc'), { recursive: true });
+  mkdirSync(join(tmp.path, 'node_modules/@atc'), { recursive: true });
 
   symlinkSync(
-    join(tmp.dir, 'packages/execution/local'),
-    join(tmp.dir, 'node_modules/@atc/execution-local'),
+    join(tmp.path, 'packages/execution/local'),
+    join(tmp.path, 'node_modules/@atc/execution-local'),
   );
 
   symlinkSync(
-    join(tmp.dir, 'packages/execution/remote'),
-    join(tmp.dir, 'node_modules/@atc/execution-remote'),
+    join(tmp.path, 'packages/execution/remote'),
+    join(tmp.path, 'node_modules/@atc/execution-remote'),
   );
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it passes a bundle that reaches each provider only through the shipped list', async () => {
@@ -108,12 +111,12 @@ test('it passes a bundle that reaches each provider only through the shipped lis
 
   const links = setupTempDir('check-bundle-link-');
 
-  symlinkSync(ctx.dir, join(links.dir, 'root'));
+  symlinkSync(ctx.dir, join(links.path, 'root'));
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-bundle.ts'),
-    join(links.dir, 'root'),
+    join(links.path, 'root'),
   ]);
 
   expect({
@@ -143,12 +146,12 @@ test('it fails a bundle that carries a provider the shipped list leaves out when
 
   const links = setupTempDir('check-bundle-link-');
 
-  symlinkSync(ctx.dir, join(links.dir, 'root'));
+  symlinkSync(ctx.dir, join(links.path, 'root'));
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-bundle.ts'),
-    join(links.dir, 'root'),
+    join(links.path, 'root'),
   ]);
 
   expect({ exitCode: checked.exitCode, stderr: checked.stderr }).toStrictEqual({

@@ -6,7 +6,7 @@ import { runCommand, setupTempDir } from '@atc/test-utils';
 function setupTest() {
   const tmp = setupTempDir('check-manifests-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it passes packages whose manifests declare what their files import', async () => {

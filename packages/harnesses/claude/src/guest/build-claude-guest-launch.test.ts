@@ -9,7 +9,7 @@ import { buildClaudeGuestLaunch } from './build-claude-guest-launch';
 function setupTest() {
   const tmp = setupTempDir('atc-claude-launch-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test("it replaces the config folder's bundle with the one each launch stages", async () => {

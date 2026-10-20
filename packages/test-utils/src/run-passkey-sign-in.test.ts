@@ -13,13 +13,15 @@ import { runPasskeySignIn } from './run-passkey-sign-in';
 import { setupTempDir } from './setup-temp-dir';
 
 async function setupTest() {
-  const tmp = setupTempDir('atc-run-passkey-sign-in-');
-  const dbPath = join(tmp.dir, 'mcp-auth.db');
+  const temporaryDirectory = setupTempDir('atc-run-passkey-sign-in-');
+  const dbPath = join(temporaryDirectory.path, 'mcp-auth.db');
 
   // Sign-in never reaches the daemon, so the caller points at a socket nothing
   // listens on and never dials it.
-  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    openDaemonClient(path),
+  const caller = new TransportCaller(
+    join(temporaryDirectory.path, 'daemon.sock'),
+    'atc/test-build',
+    (path) => openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());

@@ -5,7 +5,7 @@ import { readPeerPID } from './read-peer-pid';
 
 function setupTest() {
   const tmp = setupTempDir('atc-peer-pid-');
-  const socketPath = join(tmp.dir, 'peer.sock');
+  const socketPath = join(tmp.path, 'peer.sock');
   const peer = Promise.withResolvers<number | null>();
 
   const server = Bun.listen({

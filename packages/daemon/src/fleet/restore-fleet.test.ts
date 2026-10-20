@@ -29,7 +29,7 @@ import { restoreFleet } from './restore-fleet';
 
 async function setupTest(config: Readonly<{ targets?: readonly ExecutionTarget[] }> = {}) {
   const tmp = setupTempDir('atc-restore-');
-  const dbPath = join(tmp.dir, 'state.db');
+  const dbPath = join(tmp.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -53,7 +53,7 @@ async function setupTest(config: Readonly<{ targets?: readonly ExecutionTarget[]
   });
 
   const recorder = buildStubLog();
-  const statusPath = join(tmp.dir, 'status.json');
+  const statusPath = join(tmp.path, 'status.json');
 
   // with no targets of the test's own, sessions run on the `local` target
   // under the identity a local row binds to
@@ -77,7 +77,7 @@ async function setupTest(config: Readonly<{ targets?: readonly ExecutionTarget[]
   const runtimes = new Map<SessionID, SessionRuntime>();
 
   return {
-    dir: tmp.dir,
+    dir: tmp.path,
     statusPath,
     store,
     impProvider,

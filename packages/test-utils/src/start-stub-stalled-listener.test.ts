@@ -9,9 +9,9 @@ import { startStubStalledListener } from './start-stub-stalled-listener';
 
 // A temp directory to hold the listener's socket.
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-stalled-');
+  const temporaryDirectory = setupTempDir('atc-stub-stalled-');
 
-  return { path: join(tmp.dir, 'stalled.sock') };
+  return { path: join(temporaryDirectory.path, 'stalled.sock') };
 }
 
 test('it accepts a connection and leaves a large write to it partly unsent', async () => {

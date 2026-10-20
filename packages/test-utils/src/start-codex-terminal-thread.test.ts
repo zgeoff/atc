@@ -6,8 +6,8 @@ import { startCodexTerminalThread } from './start-codex-terminal-thread';
 import { startStubCodexAppServer } from './start-stub-codex-app-server';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-terminal-thread-');
-  const socket = join(tmp.dir, 'codex.sock');
+  const temporaryDirectory = setupTempDir('atc-terminal-thread-');
+  const socket = join(temporaryDirectory.path, 'codex.sock');
 
   return { socket };
 }

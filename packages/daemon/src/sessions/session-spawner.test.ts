@@ -45,7 +45,7 @@ interface SetupTestConfig {
 // test's agents and targets and a recorder for each callback.
 async function setupTest(config: SetupTestConfig) {
   const tmp = setupTempDir('atc-session-spawner-');
-  const dbPath = join(tmp.dir, 'state.db');
+  const dbPath = join(tmp.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -56,7 +56,7 @@ async function setupTest(config: SetupTestConfig) {
   const records = new PublishedRecords({
     store,
     daemonID: store.daemonID,
-    localDir: join(tmp.dir, 'records'),
+    localDir: join(tmp.path, 'records'),
     ghBin: 'gh',
     now: () => 0,
   });
@@ -95,7 +95,7 @@ async function setupTest(config: SetupTestConfig) {
   const fleet = new SessionFleetWriter({
     registry,
     store,
-    statusPath: join(tmp.dir, 'status.json'),
+    statusPath: join(tmp.path, 'status.json'),
     callbacks,
   });
 
@@ -120,8 +120,8 @@ async function setupTest(config: SetupTestConfig) {
   });
 
   return {
-    dir: tmp.dir,
-    recordsDir: join(tmp.dir, 'records'),
+    dir: tmp.path,
+    recordsDir: join(tmp.path, 'records'),
     store,
     callbacks,
     stopMessageBridge,

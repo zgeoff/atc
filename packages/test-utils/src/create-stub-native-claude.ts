@@ -17,17 +17,17 @@ int main(void) {
 
 // A native program keeps its DYLD_ variables on macOS, where a script loses
 // them on the way into its protected interpreter.
-export async function createStubNativeClaude(dir: string, name: string): Promise<string> {
+export async function createStubNativeClaude(directory: string, name: string): Promise<string> {
   const cc = Bun.which('cc');
 
   if (cc === null) {
     throw new Error('the native stand-in needs cc on the PATH');
   }
 
-  mkdirSync(dir, { recursive: true });
+  mkdirSync(directory, { recursive: true });
 
-  const source = join(dir, `${name}.c`);
-  const path = join(dir, name);
+  const source = join(directory, `${name}.c`);
+  const path = join(directory, name);
 
   writeFileSync(source, NATIVE_SOURCE);
 

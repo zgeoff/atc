@@ -7,9 +7,9 @@ import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-query-plan-');
+  const temporaryDirectory = setupTempDir('atc-query-plan-');
 
-  return { dbPath: join(tmp.dir, 'plan.db') };
+  return { dbPath: join(temporaryDirectory.path, 'plan.db') };
 }
 
 test('it reads the index a bound query uses from its plan', () => {

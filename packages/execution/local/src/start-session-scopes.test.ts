@@ -129,14 +129,14 @@ test('it starts no scopes with a systemd-run too old to leave arguments unexpand
   const ctx = setupTest();
   const old = setupTempDir('atc-old-systemd-');
 
-  createStubBin(old.dir, 'systemd-run', '#!/bin/sh\n# libsystemd-shared-252.so\nexec "$@"\n');
+  createStubBin(old.path, 'systemd-run', '#!/bin/sh\n# libsystemd-shared-252.so\nexec "$@"\n');
 
   ctx.systemd.writeUnitCgroup(4242, 'atc-daemon.service');
 
   expect(
     startSessionScopes(
       {
-        PATH: `${old.dir}:${ctx.path}`,
+        PATH: `${old.path}:${ctx.path}`,
         SYSTEMD_EXEC_PID: '4242',
         INVOCATION_ID: '0a1b2c3d4e5f60718293a4b5c6d7e8f9',
       },

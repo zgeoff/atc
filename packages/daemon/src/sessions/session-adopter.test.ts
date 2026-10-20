@@ -33,7 +33,7 @@ interface SetupTestConfig {
 // callback.
 async function setupTest(config: SetupTestConfig) {
   const tmp = setupTempDir('atc-session-adopter-');
-  const dbPath = join(tmp.dir, 'state.db');
+  const dbPath = join(tmp.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -75,7 +75,7 @@ async function setupTest(config: SetupTestConfig) {
   const fleet = new SessionFleetWriter({
     registry,
     store,
-    statusPath: join(tmp.dir, 'status.json'),
+    statusPath: join(tmp.path, 'status.json'),
     callbacks,
   });
 
@@ -90,7 +90,7 @@ async function setupTest(config: SetupTestConfig) {
   const adopter = new SessionAdopter({ registry, fleet, harnesses, rollback, auth, callbacks });
 
   return {
-    dir: tmp.dir,
+    dir: tmp.path,
     callbacks,
     startMessageBridge,
     stopMessageBridge,

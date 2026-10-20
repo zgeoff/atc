@@ -6,7 +6,7 @@ import { runCommand, setupTempDir } from '@atc/test-utils';
 function setupTest() {
   const tmp = setupTempDir('check-source-entries-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it passes helpers that read the source entry from the wrapper variable', async () => {

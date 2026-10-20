@@ -6,7 +6,7 @@ import { buildStubPTYProvider } from './build-stub-pty-provider';
 function setupTest() {
   const tmp = setupTempDir('atc-stub-pty-provider-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it reports the local provider kind and capabilities by default', () => {

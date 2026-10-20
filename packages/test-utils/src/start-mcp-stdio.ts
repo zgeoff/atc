@@ -22,7 +22,7 @@ interface MCPToolResult {
 }
 
 export async function startMCPStdio(options: MCPStdioOptions) {
-  const proc = Bun.spawn(
+  const subprocess = Bun.spawn(
     [...(options.command ?? [process.execPath, readSourceEntry('atc'), 'mcp'])],
     {
       env: {
@@ -41,15 +41,15 @@ export async function startMCPStdio(options: MCPStdioOptions) {
 
   // The daemon the server booted or joined stays up, for the home to stop.
   const stop = registerTestCleanup(async (): Promise<void> => {
-    void proc.stdin.end();
-    proc.kill();
+    void subprocess.stdin.end();
+    subprocess.kill();
 
-    await proc.exited;
+    await subprocess.exited;
   });
 
   const pending = new Map<number, PromiseWithResolvers<Readonly<Record<string, unknown>>>>();
 
-  void readResponses(proc.stdout, pending);
+  void readResponses(subprocess.stdout, pending);
   let nextID = 0;
 
   const sendRequest = (
@@ -63,11 +63,11 @@ export async function startMCPStdio(options: MCPStdioOptions) {
 
     pending.set(id, response);
 
-    void proc.stdin.write(
+    void subprocess.stdin.write(
       `${JSON.stringify({ jsonrpc: '2.0', id, method, ...(params === undefined ? {} : { params }) })}\n`,
     );
 
-    void proc.stdin.flush();
+    void subprocess.stdin.flush();
 
     return response.promise;
   };

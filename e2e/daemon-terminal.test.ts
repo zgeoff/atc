@@ -24,18 +24,18 @@ import {
 function setupTest() {
   const tmp = setupTempDir('atc-e2e-terminal-');
   const atc = resolveATCCommand();
-  const composer = createStubComposer(tmp.dir);
-  const configDir = join(tmp.dir, '.config', 'atc');
+  const composer = createStubComposer(tmp.path);
+  const configDir = join(tmp.path, '.config', 'atc');
 
   mkdirSync(configDir, { recursive: true });
 
   return {
-    home: tmp.dir,
+    home: tmp.path,
     atc,
     configPath: join(configDir, 'config.json'),
-    claude: createStubClaude(tmp.dir, { atc, composer }),
-    grok: createStubGrok(tmp.dir, { atc, composer }),
-    codex: createStubCodex(tmp.dir, { atc, composer }),
+    claude: createStubClaude(tmp.path, { atc, composer }),
+    grok: createStubGrok(tmp.path, { atc, composer }),
+    codex: createStubCodex(tmp.path, { atc, composer }),
   };
 }
 

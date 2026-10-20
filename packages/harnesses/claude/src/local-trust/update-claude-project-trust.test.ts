@@ -15,7 +15,7 @@ import { updateClaudeProjectTrust } from './update-claude-project-trust';
 function setupTest() {
   const tmp = setupTempDir('atc-claude-trust-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it trusts the exact root and keeps every other key of the config', async () => {

@@ -12,23 +12,28 @@ import { updateEnv } from './update-env';
 import { waitFor } from './wait-for';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-tui-claude-');
+  const temporaryDirectory = setupTempDir('atc-stub-tui-claude-');
 
   // The reporter the script reports through sends its lines here.
-  const reporter = startStubReporterSocket(join(tmp.dir, 'report.sock'));
-  const bin = createStubBin(tmp.dir, 'claude', buildStubTUIClaude(readSourceEntry('atc')));
+  const reporter = startStubReporterSocket(join(temporaryDirectory.path, 'report.sock'));
 
-  return { dir: tmp.dir, bin, lines: reporter.lines };
+  const bin = createStubBin(
+    temporaryDirectory.path,
+    'claude',
+    buildStubTUIClaude(readSourceEntry('atc')),
+  );
+
+  return { directory: temporaryDirectory.path, bin, lines: reporter.lines };
 }
 
 test('it prints its marker with its arguments', async () => {
   const ctx = setupTest();
 
-  const proc = Bun.spawn([ctx.bin, '--model', 'opus'], {
+  const subprocess = Bun.spawn([ctx.bin, '--model', 'opus'], {
     env: {
-      HOME: ctx.dir,
+      HOME: ctx.directory,
       PATH: '/usr/bin:/bin',
-      ATC_SOCKET: join(ctx.dir, 'report.sock'),
+      ATC_SOCKET: join(ctx.directory, 'report.sock'),
       ATC_SESSION_ID: 's-1',
     },
     stdin: 'pipe',
@@ -36,10 +41,10 @@ test('it prints its marker with its arguments', async () => {
   });
 
   registerTestCleanup(() => {
-    proc.kill();
+    subprocess.kill();
   });
 
-  const output = startOutputCapture(proc.stdout);
+  const output = startOutputCapture(subprocess.stdout);
 
   const printed = await waitFor(() => {
     expect(output.read()).toInclude('\n');
@@ -53,11 +58,11 @@ test('it prints its marker with its arguments', async () => {
 test('it reports SessionStart and then a permission notification through the reporter', async () => {
   const ctx = setupTest();
 
-  const proc = Bun.spawn([ctx.bin], {
+  const subprocess = Bun.spawn([ctx.bin], {
     env: {
-      HOME: ctx.dir,
+      HOME: ctx.directory,
       PATH: '/usr/bin:/bin',
-      ATC_SOCKET: join(ctx.dir, 'report.sock'),
+      ATC_SOCKET: join(ctx.directory, 'report.sock'),
       ATC_SESSION_ID: 's-1',
     },
     stdin: 'pipe',
@@ -65,7 +70,7 @@ test('it reports SessionStart and then a permission notification through the rep
   });
 
   registerTestCleanup(() => {
-    proc.kill();
+    subprocess.kill();
   });
 
   await waitFor(() => {
@@ -79,7 +84,7 @@ test('it reports SessionStart and then a permission notification through the rep
       payload: {
         hook_event_name: 'SessionStart',
         session_id: 'fake-1',
-        transcript_path: join(ctx.dir, 'fake-transcript.jsonl'),
+        transcript_path: join(ctx.directory, 'fake-transcript.jsonl'),
       },
     },
     {
@@ -98,15 +103,15 @@ test('it reports the events file in place of the notification', async () => {
   const ctx = setupTest();
 
   writeFileSync(
-    join(ctx.dir, 'fake-claude-events.jsonl'),
+    join(ctx.directory, 'fake-claude-events.jsonl'),
     `${JSON.stringify({ hook_event_name: 'Stop', session_id: 'fake-1' })}\n`,
   );
 
-  const proc = Bun.spawn([ctx.bin], {
+  const subprocess = Bun.spawn([ctx.bin], {
     env: {
-      HOME: ctx.dir,
+      HOME: ctx.directory,
       PATH: '/usr/bin:/bin',
-      ATC_SOCKET: join(ctx.dir, 'report.sock'),
+      ATC_SOCKET: join(ctx.directory, 'report.sock'),
       ATC_SESSION_ID: 's-1',
     },
     stdin: 'pipe',
@@ -114,7 +119,7 @@ test('it reports the events file in place of the notification', async () => {
   });
 
   registerTestCleanup(() => {
-    proc.kill();
+    subprocess.kill();
   });
 
   const second = await waitFor(() => {
@@ -133,11 +138,11 @@ test('it reports the events file in place of the notification', async () => {
 test('it prints its marker again on SIGWINCH', async () => {
   const ctx = setupTest();
 
-  const proc = Bun.spawn([ctx.bin, '--x'], {
+  const subprocess = Bun.spawn([ctx.bin, '--x'], {
     env: {
-      HOME: ctx.dir,
+      HOME: ctx.directory,
       PATH: '/usr/bin:/bin',
-      ATC_SOCKET: join(ctx.dir, 'report.sock'),
+      ATC_SOCKET: join(ctx.directory, 'report.sock'),
       ATC_SESSION_ID: 's-1',
     },
     stdin: 'pipe',
@@ -145,16 +150,16 @@ test('it prints its marker again on SIGWINCH', async () => {
   });
 
   registerTestCleanup(() => {
-    proc.kill();
+    subprocess.kill();
   });
 
-  const output = startOutputCapture(proc.stdout);
+  const output = startOutputCapture(subprocess.stdout);
 
   await waitFor(() => {
     expect(ctx.lines).toBeArrayOfSize(2);
   });
 
-  proc.kill('SIGWINCH');
+  subprocess.kill('SIGWINCH');
 
   await waitFor(() => {
     expect(output.read()).toBe('FAKE_CLAUDE_UP args: --x\nFAKE_CLAUDE_UP args: --x\n');
@@ -164,11 +169,11 @@ test('it prints its marker again on SIGWINCH', async () => {
 test('it echoes each line it reads', async () => {
   const ctx = setupTest();
 
-  const proc = Bun.spawn([ctx.bin], {
+  const subprocess = Bun.spawn([ctx.bin], {
     env: {
-      HOME: ctx.dir,
+      HOME: ctx.directory,
       PATH: '/usr/bin:/bin',
-      ATC_SOCKET: join(ctx.dir, 'report.sock'),
+      ATC_SOCKET: join(ctx.directory, 'report.sock'),
       ATC_SESSION_ID: 's-1',
     },
     stdin: 'pipe',
@@ -176,13 +181,13 @@ test('it echoes each line it reads', async () => {
   });
 
   registerTestCleanup(() => {
-    proc.kill();
+    subprocess.kill();
   });
 
-  const output = startOutputCapture(proc.stdout);
+  const output = startOutputCapture(subprocess.stdout);
 
-  void proc.stdin.write('ping\n');
-  void proc.stdin.flush();
+  void subprocess.stdin.write('ping\n');
+  void subprocess.stdin.flush();
 
   const printed = await waitFor(() => {
     expect(output.read()).toInclude('GOT:ping\n');
@@ -196,13 +201,13 @@ test('it echoes each line it reads', async () => {
 test('it holds a resumed run until the hold file goes, printing nothing before', async () => {
   const ctx = setupTest();
 
-  writeFileSync(join(ctx.dir, 'fake-claude-hold-resume'), '');
+  writeFileSync(join(ctx.directory, 'fake-claude-hold-resume'), '');
 
-  const proc = Bun.spawn([ctx.bin, '--resume', 'fake-1'], {
+  const subprocess = Bun.spawn([ctx.bin, '--resume', 'fake-1'], {
     env: {
-      HOME: ctx.dir,
+      HOME: ctx.directory,
       PATH: '/usr/bin:/bin',
-      ATC_SOCKET: join(ctx.dir, 'report.sock'),
+      ATC_SOCKET: join(ctx.directory, 'report.sock'),
       ATC_SESSION_ID: 's-1',
     },
     stdin: 'pipe',
@@ -210,18 +215,18 @@ test('it holds a resumed run until the hold file goes, printing nothing before',
   });
 
   registerTestCleanup(() => {
-    proc.kill();
+    subprocess.kill();
   });
 
-  const output = startOutputCapture(proc.stdout);
+  const output = startOutputCapture(subprocess.stdout);
 
   await waitFor(() => {
-    expect(join(ctx.dir, 'fake-claude-resume-held')).toSatisfy(existsSync);
+    expect(join(ctx.directory, 'fake-claude-resume-held')).toSatisfy(existsSync);
   });
 
   const printedWhileHeld = output.read();
 
-  rmSync(join(ctx.dir, 'fake-claude-hold-resume'));
+  rmSync(join(ctx.directory, 'fake-claude-hold-resume'));
 
   const printedAfter = await waitFor(() => {
     expect(output.read()).toInclude('\n');
@@ -239,13 +244,13 @@ test('it reports through the CLI entry it is given, with none in the environment
 
   updateEnv('ATC_CLI_ENTRY', undefined);
 
-  const bin = createStubBin(ctx.dir, 'given-entry', buildStubTUIClaude(entry));
+  const bin = createStubBin(ctx.directory, 'given-entry', buildStubTUIClaude(entry));
 
-  const proc = Bun.spawn([bin], {
+  const subprocess = Bun.spawn([bin], {
     env: {
-      HOME: ctx.dir,
+      HOME: ctx.directory,
       PATH: '/usr/bin:/bin',
-      ATC_SOCKET: join(ctx.dir, 'report.sock'),
+      ATC_SOCKET: join(ctx.directory, 'report.sock'),
       ATC_SESSION_ID: 's-given',
     },
     stdin: 'pipe',
@@ -253,7 +258,7 @@ test('it reports through the CLI entry it is given, with none in the environment
   });
 
   registerTestCleanup(() => {
-    proc.kill();
+    subprocess.kill();
   });
 
   await waitFor(() => {

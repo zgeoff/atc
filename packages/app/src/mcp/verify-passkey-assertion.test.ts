@@ -13,7 +13,7 @@ async function setupTest() {
   const tmp = setupTempDir('atc-verify-passkey-assertion-');
 
   const store = await openMCPAuth({
-    dbPath: join(tmp.dir, 'mcp-auth.db'),
+    dbPath: join(tmp.path, 'mcp-auth.db'),
     openDatabase: openMCPAuthDatabase,
     origin: null,
   });

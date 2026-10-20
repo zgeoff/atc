@@ -9,8 +9,8 @@ function setupTest() {
   const logs: string[] = [];
 
   return {
-    dir: tmp.dir,
-    path: join(tmp.dir, 'unconfirmed-sends.json'),
+    dir: tmp.path,
+    path: join(tmp.path, 'unconfirmed-sends.json'),
     logs,
     log: (line: string) => {
       logs.push(line);

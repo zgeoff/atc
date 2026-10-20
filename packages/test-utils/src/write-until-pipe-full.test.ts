@@ -6,8 +6,8 @@ import { setupTempDir } from './setup-temp-dir';
 import { writeUntilPipeFull } from './write-until-pipe-full';
 
 async function setupTest() {
-  const tmp = setupTempDir('atc-write-until-pipe-full-');
-  const fifoPath = join(tmp.dir, 'pipe');
+  const temporaryDirectory = setupTempDir('atc-write-until-pipe-full-');
+  const fifoPath = join(temporaryDirectory.path, 'pipe');
 
   await runCommand(['mkfifo', fifoPath]);
 

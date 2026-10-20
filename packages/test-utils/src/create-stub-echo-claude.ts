@@ -1,8 +1,8 @@
 import { createStubBin } from './create-stub-bin';
 
-export function createStubEchoClaude(dir: string): string {
+export function createStubEchoClaude(directory: string): string {
   return createStubBin(
-    dir,
+    directory,
     'fake-claude',
     `#!/usr/bin/env bash
 echo "UP:$$"

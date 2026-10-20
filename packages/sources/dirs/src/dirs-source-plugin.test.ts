@@ -8,7 +8,7 @@ import { DIRS_SOURCE_PLUGIN } from './dirs-source-plugin';
 function setupTest() {
   const temp = setupTempDir('atc-dirs-plugin-');
 
-  return { home: temp.dir };
+  return { home: temp.path };
 }
 
 test('it refuses a slice without a home directory', () => {

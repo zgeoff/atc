@@ -10,7 +10,7 @@ async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'atc-tar-' });
 
   return {
-    dir: fixture.dir,
+    dir: fixture.directory,
     env: fixture.env,
     work: fixture.work,
   };

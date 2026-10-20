@@ -9,7 +9,7 @@ import { buildStubDirProvider } from './build-stub-dir-provider';
 function setupTest() {
   const tmp = setupTempDir('atc-stub-dir-provider-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it unpacks a transferred archive into the directory it is given and records it', async () => {

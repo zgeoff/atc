@@ -8,7 +8,7 @@ import { runCommand, setupTempDir } from '@atc/test-utils';
 function setupTest() {
   const tmp = setupTempDir('atc-deadcode-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it checks a project nested under a checkout whose tsconfig extends a package the checkout cannot resolve', async () => {

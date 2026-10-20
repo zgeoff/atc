@@ -22,7 +22,7 @@ interface SetupTestConfig {
 
 async function setupTest(config: SetupTestConfig) {
   const tmp = setupTempDir('atc-session-forgetter-');
-  const dbPath = join(tmp.dir, 'state.db');
+  const dbPath = join(tmp.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -42,7 +42,7 @@ async function setupTest(config: SetupTestConfig) {
   const mgr = new SessionManager(
     null,
     store,
-    join(tmp.dir, 'status.json'),
+    join(tmp.path, 'status.json'),
     [buildStubHarnessAdapter()],
     [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
     [],
@@ -68,7 +68,7 @@ async function setupTest(config: SetupTestConfig) {
     tokens: new ConfirmTokens({ now: () => clock.now(), lifetimeMs: 60_000 }),
   });
 
-  return { dir: tmp.dir, provider, mgr, runtimes, forgetter };
+  return { dir: tmp.path, provider, mgr, runtimes, forgetter };
 }
 
 test('it forgets a session at once on a target that cannot destroy its host', async () => {

@@ -7,7 +7,7 @@ import { readPathCompletions } from './read-path-completions';
 function setupTest() {
   const tmp = setupTempDir('atc-complete-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it lists every child directory after a trailing slash, the parent first', () => {

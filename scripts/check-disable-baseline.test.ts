@@ -6,7 +6,7 @@ import { runCommand, setupTempDir } from '@atc/test-utils';
 function setupTest() {
   const tmp = setupTempDir('check-disable-baseline-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it passes a count at the baseline, skipping other rules and strings', async () => {

@@ -10,7 +10,7 @@ import { writeATCBridge } from './write-atc-bridge';
 function setupTest() {
   const temp = setupTempDir('atc-bridge-');
 
-  return { folder: join(temp.dir, 'atc-bridge') };
+  return { folder: join(temp.path, 'atc-bridge') };
 }
 
 test('it writes the mod files and the atc command into the folder', () => {

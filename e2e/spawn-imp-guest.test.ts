@@ -22,10 +22,10 @@ import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemo
 // guest folder under a temp directory, and a stub imp port.
 function setupTest() {
   const tmp = setupTempDir('atc-imp-guest-');
-  const clis = createStubGuestCLIs(join(tmp.dir, 'bin'));
+  const clis = createStubGuestCLIs(join(tmp.path, 'bin'));
   const port = createStubImpPort();
 
-  return { port, guestDir: join(tmp.dir, 'g'), clis };
+  return { port, guestDir: join(tmp.path, 'g'), clis };
 }
 
 test('it refuses a remote Claude spawn when the host has no atc and the daemon has none to copy', async () => {

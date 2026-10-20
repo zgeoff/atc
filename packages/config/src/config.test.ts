@@ -7,7 +7,7 @@ import { loadConfig, parseConfig, renderDefaultConfig } from './config';
 function setupTest() {
   const tmp = setupTempDir('atc-config-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('#parseConfig leaves every target unusable, local included, and grants no principal a target when the root is not an object', () => {

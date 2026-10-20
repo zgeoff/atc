@@ -5,7 +5,7 @@ import { buildStubSoftKillProvider } from './build-stub-soft-kill-provider';
 function setupTest() {
   const tmp = setupTempDir('atc-soft-kill-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it declares the capabilities of a local terminal', () => {

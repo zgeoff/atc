@@ -8,7 +8,7 @@ import { BunSqliteDriver } from './bun-sqlite-driver';
 async function setupTest() {
   const tmp = setupTempDir('atc-driver-');
 
-  const sqlite = new Database(join(tmp.dir, 'state.db'), { create: true });
+  const sqlite = new Database(join(tmp.path, 'state.db'), { create: true });
 
   registerTestCleanup(() => {
     sqlite.close();

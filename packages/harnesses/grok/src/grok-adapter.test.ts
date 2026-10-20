@@ -11,7 +11,7 @@ import { GROK_PLUGIN } from './grok-plugin';
 function setupTest() {
   const tmp = setupTempDir('atc-grok-home-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it plans a new spawn without resume or -p and appends --no-leader', () => {

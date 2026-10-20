@@ -7,7 +7,7 @@ import { loadGatewayRegistry } from './load-gateway-registry';
 function setupTest() {
   const tmp = setupTempDir('atc-gateway-registry-');
 
-  return { path: join(tmp.dir, 'registry.json') };
+  return { path: join(tmp.path, 'registry.json') };
 }
 
 test('it loads a registry file with its tokens from the environment', () => {

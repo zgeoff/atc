@@ -19,19 +19,19 @@ import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemo
 async function setupTest() {
   const git = await createGitFixture({ prefix: 'atc-local-workspace-trust-' });
 
-  const homeDir = join(git.dir, 'home');
-  const fakeClaude = createStubRecordingClaude(join(git.dir, 'bin'));
+  const homeDir = join(git.directory, 'home');
+  const fakeClaude = createStubRecordingClaude(join(git.directory, 'bin'));
 
   // The adapter reads and writes the user's Claude config under this home.
   mkdirSync(homeDir);
 
   return {
-    dir: git.dir,
+    dir: git.directory,
     upstream: git.upstream,
     work: git.work,
     homeDir,
     fakeClaude,
-    starts: join(git.dir, 'bin', 'claude-starts.log'),
+    starts: join(git.directory, 'bin', 'claude-starts.log'),
     claudeConfig: join(homeDir, '.claude.json'),
   };
 }

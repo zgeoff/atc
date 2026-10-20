@@ -11,7 +11,7 @@ async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'atc-path-source-' });
 
   return {
-    dir: fixture.dir,
+    dir: fixture.directory,
     env: fixture.env,
     upstream: fixture.upstream,
     work: fixture.work,

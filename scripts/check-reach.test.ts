@@ -7,7 +7,7 @@ import { runCommand, setupTempDir } from '@atc/test-utils';
 function setupTest() {
   const tmp = setupTempDir('check-reach-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it passes a gateway that reaches only what its allowance holds', async () => {

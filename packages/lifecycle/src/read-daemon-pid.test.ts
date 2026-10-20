@@ -5,7 +5,7 @@ import { setupTempDir } from '@atc/test-utils';
 import { readDaemonPID } from './read-daemon-pid';
 
 function setupTest() {
-  const dir = setupTempDir('find-daemon-pid-').dir;
+  const dir = setupTempDir('find-daemon-pid-').path;
   const procRoot = join(dir, 'proc');
   const stateDir = join(dir, 'home', '.local', 'state', 'atc');
 

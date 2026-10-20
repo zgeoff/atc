@@ -11,7 +11,7 @@ async function setupTest() {
   const root = join(import.meta.dir, '..');
 
   // the zones resolve from the nearest .git, and each package name through its manifest
-  mkdirSync(join(tmp.dir, '.git'));
+  mkdirSync(join(tmp.path, '.git'));
 
   const manifests = [
     ...new Bun.Glob('packages/*/package.json').scanSync(root),
@@ -19,11 +19,13 @@ async function setupTest() {
   ];
 
   await Promise.all(
-    manifests.map((manifest) => Bun.write(join(tmp.dir, manifest), Bun.file(join(root, manifest)))),
+    manifests.map((manifest) =>
+      Bun.write(join(tmp.path, manifest), Bun.file(join(root, manifest))),
+    ),
   );
 
   return {
-    dir: tmp.dir,
+    dir: tmp.path,
     oxlint: join(root, 'node_modules', '.bin', 'oxlint'),
     config: { extends: [join(root, '.oxlintrc.json')] },
     modsConfig: { extends: [join(root, '.oxlintrc.mods.json')] },

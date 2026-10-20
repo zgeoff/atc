@@ -13,13 +13,13 @@ async function setupTest() {
   const bin = setupTempDir('atc-scope-check-bin-');
   const provider = buildStubMemoryProvider({ kind: 'local-pty', runCommand: runLocalCommand });
 
-  return { fixture, bin: bin.dir, provider };
+  return { fixture, bin: bin.path, provider };
 }
 
 test('it records a worktree with the branch git reads from it', async () => {
   const ctx = await setupTest();
 
-  const worktree = join(ctx.fixture.dir, 'fix-login');
+  const worktree = join(ctx.fixture.directory, 'fix-login');
 
   await $`git worktree add --quiet -b fix-login ${worktree}`
     .env(ctx.fixture.env)
@@ -46,7 +46,7 @@ test('it records a worktree with the branch git reads from it', async () => {
 test('it records a detached worktree without a branch', async () => {
   const ctx = await setupTest();
 
-  const worktree = join(ctx.fixture.dir, 'detached');
+  const worktree = join(ctx.fixture.directory, 'detached');
 
   await $`git worktree add --quiet --detach ${worktree}`.env(ctx.fixture.env).cwd(ctx.fixture.work);
 
@@ -67,7 +67,7 @@ test('it records a detached worktree without a branch', async () => {
 test('it refuses a worktree path outside git', async () => {
   const ctx = await setupTest();
 
-  const plain = join(ctx.fixture.dir, 'plain');
+  const plain = join(ctx.fixture.directory, 'plain');
 
   mkdirSync(plain);
 
@@ -140,7 +140,7 @@ test("it records a local branch in the session's directory when the entry gives 
 test('it records a branch that only the origin remote holds', async () => {
   const ctx = await setupTest();
 
-  const repo = join(ctx.fixture.dir, 'other');
+  const repo = join(ctx.fixture.directory, 'other');
 
   await $`git branch release && git push --quiet origin release && git branch -D release`
     .env(ctx.fixture.env)

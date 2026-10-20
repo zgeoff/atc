@@ -7,7 +7,7 @@ import { loadWorkspacePackages } from './load-workspace-packages';
 function setupTest() {
   const tmp = setupTempDir('load-workspace-packages-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it lists each package the workspace globs match, with its workspace dependencies', async () => {

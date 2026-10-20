@@ -152,8 +152,8 @@ test('it rejects an answer when no request under the method is sent before the w
     countReactions: () => 0,
     timeoutMs: 50,
     now: clock.now,
-    wait: (ms) => {
-      clock.advance(ms);
+    wait: (delayMs) => {
+      clock.advance(delayMs);
 
       return Promise.resolve();
     },
@@ -174,8 +174,8 @@ test('it rejects an answer the client never reacts to before the wait ends', () 
     countReactions: () => 0,
     timeoutMs: 50,
     now: clock.now,
-    wait: (ms) => {
-      clock.advance(ms);
+    wait: (delayMs) => {
+      clock.advance(delayMs);
 
       return Promise.resolve();
     },

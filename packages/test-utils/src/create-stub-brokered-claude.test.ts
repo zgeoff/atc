@@ -23,21 +23,25 @@ function setupTest() {
     await server.stop(true);
   });
 
-  return { dir: temporaryDirectory.dir, url: `http://127.0.0.1:${server.port}/user`, received };
+  return {
+    directory: temporaryDirectory.path,
+    url: `http://127.0.0.1:${server.port}/user`,
+    received,
+  };
 }
 
 test('it returns the path of the stub under the directory', () => {
   const ctx = setupTest();
 
-  expect(createStubBrokeredClaude(ctx.dir, ctx.url)).toBe(join(ctx.dir, 'fake-claude'));
+  expect(createStubBrokeredClaude(ctx.directory, ctx.url)).toBe(join(ctx.directory, 'fake-claude'));
 });
 
 test('it writes no status before it runs', () => {
   const ctx = setupTest();
 
-  createStubBrokeredClaude(ctx.dir, ctx.url);
+  createStubBrokeredClaude(ctx.directory, ctx.url);
 
-  expect(existsSync(join(ctx.dir, 'brokered-status'))).toBeFalse();
+  expect(existsSync(join(ctx.directory, 'brokered-status'))).toBeFalse();
 });
 
 test('it sends the auth token of its settings file as a bearer token and writes the status', async () => {
@@ -46,8 +50,8 @@ test('it sends the auth token of its settings file as a bearer token and writes 
   updateEnv('HTTPS_PROXY', undefined);
   updateEnv('https_proxy', undefined);
 
-  const bin = createStubBrokeredClaude(ctx.dir, ctx.url);
-  const settings = join(ctx.dir, 'settings.json');
+  const bin = createStubBrokeredClaude(ctx.directory, ctx.url);
+  const settings = join(ctx.directory, 'settings.json');
 
   writeFileSync(
     settings,
@@ -61,7 +65,7 @@ test('it sends the auth token of its settings file as a bearer token and writes 
   });
 
   await waitFor(() => {
-    expect(readFileSync(join(ctx.dir, 'brokered-status'), 'utf8')).toBe('200');
+    expect(readFileSync(join(ctx.directory, 'brokered-status'), 'utf8')).toBe('200');
   });
 
   expect(ctx.received).toStrictEqual(['Bearer broker-placeholder']);
@@ -72,7 +76,7 @@ test('it exports the proxy variables of the process that creates it', () => {
 
   updateEnv('HTTPS_PROXY', "http://proxy.example:3128/it's");
 
-  const bin = createStubBrokeredClaude(ctx.dir, ctx.url);
+  const bin = createStubBrokeredClaude(ctx.directory, ctx.url);
 
   expect(readFileSync(bin, 'utf8')).toInclude(
     String.raw`export HTTPS_PROXY='http://proxy.example:3128/it'\''s'`,

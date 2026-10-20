@@ -5,20 +5,20 @@ import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-echo-claude-');
+  const temporaryDirectory = setupTempDir('atc-stub-echo-claude-');
 
-  return { dir: tmp.dir };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it returns the path of the stub under the directory', () => {
   const ctx = setupTest();
 
-  expect(createStubEchoClaude(ctx.dir)).toBe(join(ctx.dir, 'fake-claude'));
+  expect(createStubEchoClaude(ctx.directory)).toBe(join(ctx.directory, 'fake-claude'));
 });
 
 test('it prints its pid, then echoes each line with its pid until it reads quit', async () => {
   const ctx = setupTest();
-  const bin = createStubEchoClaude(ctx.dir);
+  const bin = createStubEchoClaude(ctx.directory);
   const run = Bun.spawn([bin], { stdin: Buffer.from('one\ntwo\nquit\nafter\n'), stdout: 'pipe' });
 
   registerTestCleanup(() => {
@@ -37,7 +37,7 @@ test('it prints its pid, then echoes each line with its pid until it reads quit'
 
 test('it exits 0 when its input ends without quit', async () => {
   const ctx = setupTest();
-  const bin = createStubEchoClaude(ctx.dir);
+  const bin = createStubEchoClaude(ctx.directory);
   const run = Bun.spawn([bin], { stdin: Buffer.from('one\n'), stdout: 'ignore' });
 
   registerTestCleanup(() => {

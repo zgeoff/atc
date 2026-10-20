@@ -8,7 +8,7 @@ import { buildStubExecutionProvider } from './build-stub-execution-provider';
 function setupTest() {
   const tmp = setupTempDir('atc-stub-provider-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it builds a provider with the capabilities of a local pseudo-terminal', () => {

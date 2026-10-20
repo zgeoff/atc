@@ -10,7 +10,7 @@ import { runGateway } from './run-gateway';
 function setupTest() {
   const tmp = setupTempDir('atc-run-gateway-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it answers the liveness probe for the host of its public URL', async () => {

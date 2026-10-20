@@ -6,8 +6,8 @@ import { startStubCodexAppServer } from './start-stub-codex-app-server';
 import { waitFor } from './wait-for';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-app-server-');
-  const socket = join(tmp.dir, 'codex.sock');
+  const temporaryDirectory = setupTempDir('atc-stub-app-server-');
+  const socket = join(temporaryDirectory.path, 'codex.sock');
 
   return { socket };
 }
@@ -26,8 +26,8 @@ test('it completes a turn with the final reply after the message it carries', as
     ws.close();
   });
 
-  ws.addEventListener('message', (e) => {
-    received.push(JSON.parse(String(e.data)));
+  ws.addEventListener('message', (messageEvent) => {
+    received.push(JSON.parse(String(messageEvent.data)));
   });
 
   await new Promise((resolve) => {
@@ -86,8 +86,8 @@ test('it adds a second message to the turn in progress', async () => {
     ws.close();
   });
 
-  ws.addEventListener('message', (e) => {
-    received.push(JSON.parse(String(e.data)));
+  ws.addEventListener('message', (messageEvent) => {
+    received.push(JSON.parse(String(messageEvent.data)));
   });
 
   await new Promise((resolve) => {
@@ -137,8 +137,8 @@ test('it completes a held turn before it answers a resume, when the scenario ask
     ws.close();
   });
 
-  ws.addEventListener('message', (e) => {
-    received.push(JSON.parse(String(e.data)));
+  ws.addEventListener('message', (messageEvent) => {
+    received.push(JSON.parse(String(messageEvent.data)));
   });
 
   await new Promise((resolve) => {
@@ -161,8 +161,11 @@ test('it completes a held turn before it answers a resume, when the scenario ask
     expect(received).toPartiallyContain({ id: 3 });
   });
 
-  const completedAt = received.findIndex((m) => isRecord(m) && m['method'] === 'turn/completed');
-  const resumedAt = received.findIndex((m) => isRecord(m) && m['id'] === 3);
+  const completedAt = received.findIndex(
+    (message) => isRecord(message) && message['method'] === 'turn/completed',
+  );
+
+  const resumedAt = received.findIndex((message) => isRecord(message) && message['id'] === 3);
 
   expect(completedAt).toBeWithin(0, resumedAt);
 });
@@ -181,8 +184,8 @@ test('it fails every history read from the connection the scenario names', async
     ws.close();
   });
 
-  ws.addEventListener('message', (e) => {
-    received.push(JSON.parse(String(e.data)));
+  ws.addEventListener('message', (messageEvent) => {
+    received.push(JSON.parse(String(messageEvent.data)));
   });
 
   await new Promise((resolve) => {
@@ -216,8 +219,8 @@ test('it lists turns newest first, a page at a time', async () => {
     ws.close();
   });
 
-  ws.addEventListener('message', (e) => {
-    received.push(JSON.parse(String(e.data)));
+  ws.addEventListener('message', (messageEvent) => {
+    received.push(JSON.parse(String(messageEvent.data)));
   });
 
   await new Promise((resolve) => {
@@ -268,8 +271,8 @@ test('it refuses a request for a thread it does not hold', async () => {
     ws.close();
   });
 
-  ws.addEventListener('message', (e) => {
-    received.push(JSON.parse(String(e.data)));
+  ws.addEventListener('message', (messageEvent) => {
+    received.push(JSON.parse(String(messageEvent.data)));
   });
 
   await new Promise((resolve) => {
@@ -331,8 +334,8 @@ test('it takes the turn start the scenario names but sends the dropped connectio
 
   const received: unknown[] = [];
 
-  ws.addEventListener('message', (e) => {
-    received.push(JSON.parse(String(e.data)));
+  ws.addEventListener('message', (messageEvent) => {
+    received.push(JSON.parse(String(messageEvent.data)));
   });
 
   const closed = new Promise((resolve) => {
@@ -367,8 +370,8 @@ test('it takes the turn start the scenario names but sends the dropped connectio
     reader.close();
   });
 
-  reader.addEventListener('message', (e) => {
-    read.push(JSON.parse(String(e.data)));
+  reader.addEventListener('message', (messageEvent) => {
+    read.push(JSON.parse(String(messageEvent.data)));
   });
 
   await new Promise((resolve) => {
@@ -439,8 +442,8 @@ test('it closes the connection before it takes the turn start the scenario names
     reader.close();
   });
 
-  reader.addEventListener('message', (e) => {
-    received.push(JSON.parse(String(e.data)));
+  reader.addEventListener('message', (messageEvent) => {
+    received.push(JSON.parse(String(messageEvent.data)));
   });
 
   await new Promise((resolve) => {
@@ -472,8 +475,8 @@ test('it refuses a history read of a thread the scenario names', async () => {
     ws.close();
   });
 
-  ws.addEventListener('message', (e) => {
-    received.push(JSON.parse(String(e.data)));
+  ws.addEventListener('message', (messageEvent) => {
+    received.push(JSON.parse(String(messageEvent.data)));
   });
 
   await new Promise((resolve) => {
@@ -541,8 +544,8 @@ test('it resolves a tool call with the result the client answers', async () => {
     ws.close();
   });
 
-  ws.addEventListener('message', (e) => {
-    const message: unknown = JSON.parse(String(e.data));
+  ws.addEventListener('message', (messageEvent) => {
+    const message: unknown = JSON.parse(String(messageEvent.data));
 
     received.push(message);
 
@@ -600,8 +603,8 @@ test('it answers history reads on a connection before the one the scenario names
     ws.close();
   });
 
-  ws.addEventListener('message', (e) => {
-    received.push(JSON.parse(String(e.data)));
+  ws.addEventListener('message', (messageEvent) => {
+    received.push(JSON.parse(String(messageEvent.data)));
   });
 
   await new Promise((resolve) => {
@@ -632,8 +635,8 @@ test('it refuses every turn start when the scenario asks', async () => {
     ws.close();
   });
 
-  ws.addEventListener('message', (e) => {
-    received.push(JSON.parse(String(e.data)));
+  ws.addEventListener('message', (messageEvent) => {
+    received.push(JSON.parse(String(messageEvent.data)));
   });
 
   await new Promise((resolve) => {
@@ -676,8 +679,8 @@ test('it answers the first turn starts the scenario names as overloaded and take
     ws.close();
   });
 
-  ws.addEventListener('message', (e) => {
-    received.push(JSON.parse(String(e.data)));
+  ws.addEventListener('message', (messageEvent) => {
+    received.push(JSON.parse(String(messageEvent.data)));
   });
 
   await new Promise((resolve) => {
@@ -731,8 +734,8 @@ test('it completes every held turn when the test asks', async () => {
     ws.close();
   });
 
-  ws.addEventListener('message', (e) => {
-    received.push(JSON.parse(String(e.data)));
+  ws.addEventListener('message', (messageEvent) => {
+    received.push(JSON.parse(String(messageEvent.data)));
   });
 
   await new Promise((resolve) => {

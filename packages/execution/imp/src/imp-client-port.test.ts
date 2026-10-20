@@ -22,7 +22,7 @@ function setupTest() {
 test('it calls impd with the token its token file holds', async () => {
   const ctx = setupTest();
   const tmp = setupTempDir('atc-imp-client-port-');
-  const tokenPath = join(tmp.dir, 'imp-token');
+  const tokenPath = join(tmp.path, 'imp-token');
 
   writeFileSync(tokenPath, 'file-token\n');
 
@@ -36,7 +36,7 @@ test('it calls impd with the token its token file holds', async () => {
 test('it calls impd with the new token on the next call after the token file changes', async () => {
   const ctx = setupTest();
   const tmp = setupTempDir('atc-imp-client-port-');
-  const tokenPath = join(tmp.dir, 'imp-token');
+  const tokenPath = join(tmp.path, 'imp-token');
 
   writeFileSync(tokenPath, 'first-token\n');
 
@@ -191,7 +191,7 @@ test('it calls impd for the version again after impd refused the read before', a
 test('it refuses a call as unauthorized without reaching impd when the token file is empty', () => {
   const ctx = setupTest();
   const tmp = setupTempDir('atc-imp-client-port-');
-  const tokenPath = join(tmp.dir, 'imp-token');
+  const tokenPath = join(tmp.path, 'imp-token');
 
   writeFileSync(tokenPath, '\n');
 
@@ -204,7 +204,7 @@ test('it refuses a call as unauthorized without reaching impd when the token fil
 test('it ends a session connection as unauthorized without reaching impd when the token file is empty', async () => {
   const ctx = setupTest();
   const tmp = setupTempDir('atc-imp-client-port-');
-  const tokenPath = join(tmp.dir, 'imp-token');
+  const tokenPath = join(tmp.path, 'imp-token');
 
   writeFileSync(tokenPath, '');
 
@@ -224,7 +224,7 @@ test('it ends a session connection as unauthorized without reaching impd when th
 test('it refuses a reverse forward as unauthorized without reaching impd when the token file is empty', () => {
   const ctx = setupTest();
   const tmp = setupTempDir('atc-imp-client-port-');
-  const tokenPath = join(tmp.dir, 'imp-token');
+  const tokenPath = join(tmp.path, 'imp-token');
 
   writeFileSync(tokenPath, '');
 
@@ -240,7 +240,7 @@ test('it refuses a reverse forward as unauthorized without reaching impd when th
 test('it opens a guest connection relay with the token its token file holds when the relay opens', async () => {
   const ctx = setupTest();
   const tmp = setupTempDir('atc-imp-client-port-');
-  const tokenPath = join(tmp.dir, 'imp-token');
+  const tokenPath = join(tmp.path, 'imp-token');
 
   writeFileSync(tokenPath, 'first-token\n');
 
@@ -317,7 +317,7 @@ test("it ends a guest connection relay's input after the guest's last line once 
 test('it ends a reverse forward as closed with the code when impd closes its tunnel socket', async () => {
   const ctx = setupTest();
   const tmp = setupTempDir('atc-imp-client-port-');
-  const tokenPath = join(tmp.dir, 'imp-token');
+  const tokenPath = join(tmp.path, 'imp-token');
 
   writeFileSync(tokenPath, 'first-token\n');
 
@@ -377,7 +377,7 @@ test('it refuses a read-only file with impd’s code when the imp’s agent is t
 test('it sends a command stdin larger than one WebSocket message impd takes', async () => {
   const ctx = setupTest();
   const tmp = setupTempDir('atc-imp-client-port-');
-  const file = join(tmp.dir, 'token');
+  const file = join(tmp.path, 'token');
 
   writeFileSync(file, 't0');
 
@@ -399,7 +399,7 @@ test('it sends a command stdin larger than one WebSocket message impd takes', as
 test('it returns the exit of a command that ends before it reads its stdin', async () => {
   const ctx = setupTest();
   const tmp = setupTempDir('atc-imp-client-port-');
-  const file = join(tmp.dir, 'token');
+  const file = join(tmp.path, 'token');
 
   writeFileSync(file, 't0');
 
@@ -435,7 +435,7 @@ test('it runs a command over an exec socket that carries the token, with no exec
 test('it rejects a command as unauthorized without reaching impd when the token file is empty', () => {
   const ctx = setupTest();
   const tmp = setupTempDir('atc-imp-client-port-');
-  const file = join(tmp.dir, 'token');
+  const file = join(tmp.path, 'token');
 
   writeFileSync(file, '');
 
@@ -451,7 +451,7 @@ test('it rejects a command as unauthorized without reaching impd when the token 
 test('it rejects a command whose start impd refuses with the refusal', () => {
   const ctx = setupTest();
   const tmp = setupTempDir('atc-imp-client-port-');
-  const file = join(tmp.dir, 'token');
+  const file = join(tmp.path, 'token');
 
   writeFileSync(file, 't0');
 

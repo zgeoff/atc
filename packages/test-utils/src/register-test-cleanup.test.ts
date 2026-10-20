@@ -89,9 +89,9 @@ test('it releases what one test registered last first', () => {
 });
 
 test('it runs every release though some throw, then rethrows them together', async () => {
-  const tmp = setupTempDir('atc-register-test-cleanup-');
-  const log = join(tmp.dir, 'releases.log');
-  const fixture = join(tmp.dir, 'releases.test.ts');
+  const temporaryDirectory = setupTempDir('atc-register-test-cleanup-');
+  const log = join(temporaryDirectory.path, 'releases.log');
+  const fixture = join(temporaryDirectory.path, 'releases.test.ts');
 
   writeFileSync(
     fixture,
@@ -112,7 +112,9 @@ test('releases', () => {
 `,
   );
 
-  const result = await runCommand([process.execPath, 'test', fixture], { cwd: tmp.dir });
+  const result = await runCommand([process.execPath, 'test', fixture], {
+    cwd: temporaryDirectory.path,
+  });
 
   expect(result.exitCode).toBe(1);
   expect(readFileSync(log, 'utf8')).toBe('third\nfirst\n');
@@ -121,9 +123,9 @@ test('releases', () => {
 });
 
 test('it rethrows the one failure itself when a single release throws', async () => {
-  const tmp = setupTempDir('atc-register-test-cleanup-');
-  const log = join(tmp.dir, 'releases.log');
-  const fixture = join(tmp.dir, 'releases.test.ts');
+  const temporaryDirectory = setupTempDir('atc-register-test-cleanup-');
+  const log = join(temporaryDirectory.path, 'releases.log');
+  const fixture = join(temporaryDirectory.path, 'releases.test.ts');
 
   writeFileSync(
     fixture,
@@ -140,7 +142,9 @@ test('releases', () => {
 `,
   );
 
-  const result = await runCommand([process.execPath, 'test', fixture], { cwd: tmp.dir });
+  const result = await runCommand([process.execPath, 'test', fixture], {
+    cwd: temporaryDirectory.path,
+  });
 
   expect(result.exitCode).toBe(1);
   expect(readFileSync(log, 'utf8')).toBe('first\n');

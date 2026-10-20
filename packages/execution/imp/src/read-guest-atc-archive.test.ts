@@ -8,7 +8,7 @@ import { readGuestATCArchive } from './read-guest-atc-archive';
 function setupTest() {
   const tmp = setupTempDir('atc-guest-atc-archive-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it reads a gzipped tar that holds the binary as an executable bin/atc', async () => {

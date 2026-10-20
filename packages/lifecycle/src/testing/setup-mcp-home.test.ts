@@ -48,7 +48,7 @@ test('it writes the stand-in claude as an executable', async () => {
 test('it stops the daemon its pid file holds before removing the home', async () => {
   const mcpHome = setupMCPHome();
   const records = setupTempDir('atc-mcp-home-records-');
-  const seen = join(records.dir, 'seen');
+  const seen = join(records.path, 'seen');
 
   // A daemon that writes the status of a test for its home when the stop
   // signals it, 0 while the home exists, and prints a line once it can.

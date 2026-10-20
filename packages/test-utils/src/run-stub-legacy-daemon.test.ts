@@ -11,27 +11,32 @@ import { waitFor } from './wait-for';
 // The legacy daemon started on a socket in a temp directory, which is also
 // its state directory. Cleanup kills the daemon, then removes the directory.
 function setupTest() {
-  const tmp = setupTempDir('atc-run-legacy-');
-  const socketPath = join(tmp.dir, 'daemon.sock');
+  const temporaryDirectory = setupTempDir('atc-run-legacy-');
+  const socketPath = join(temporaryDirectory.path, 'daemon.sock');
 
-  const proc = Bun.spawn(
-    [process.execPath, join(import.meta.dir, 'run-stub-legacy-daemon.ts'), socketPath, tmp.dir],
+  const subprocess = Bun.spawn(
+    [
+      process.execPath,
+      join(import.meta.dir, 'run-stub-legacy-daemon.ts'),
+      socketPath,
+      temporaryDirectory.path,
+    ],
     { stdout: 'pipe', stderr: 'ignore' },
   );
 
   registerTestCleanup(async () => {
-    proc.kill();
+    subprocess.kill();
 
-    await proc.exited;
+    await subprocess.exited;
   });
 
-  return { dir: tmp.dir, socketPath, proc };
+  return { directory: temporaryDirectory.path, socketPath, subprocess };
 }
 
 test('it prints up and the pid of the session it hosts once it listens', async () => {
   const ctx = setupTest();
 
-  const printed = await ctx.proc.stdout.getReader().read();
+  const printed = await ctx.subprocess.stdout.getReader().read();
 
   expect(new TextDecoder().decode(printed.value)).toMatch(/^up \d+\n$/u);
 });
@@ -39,7 +44,7 @@ test('it prints up and the pid of the session it hosts once it listens', async (
 test('it keeps the session it hosts running while it runs', async () => {
   const ctx = setupTest();
 
-  const printed = await ctx.proc.stdout.getReader().read();
+  const printed = await ctx.subprocess.stdout.getReader().read();
 
   const sessionPID = Number(new TextDecoder().decode(printed.value).trim().split(' ')[1]);
 
@@ -49,12 +54,12 @@ test('it keeps the session it hosts running while it runs', async () => {
 test('it records its pid and sockets in the state directory the way a daemon records itself', async () => {
   const ctx = setupTest();
 
-  await ctx.proc.stdout.getReader().read();
+  await ctx.subprocess.stdout.getReader().read();
 
-  const record: unknown = JSON.parse(readFileSync(join(ctx.dir, 'daemon.json'), 'utf8'));
+  const record: unknown = JSON.parse(readFileSync(join(ctx.directory, 'daemon.json'), 'utf8'));
 
   expect(record).toStrictEqual({
-    pid: ctx.proc.pid,
+    pid: ctx.subprocess.pid,
     socketPath: ctx.socketPath,
     reporterSocketPath: `${ctx.socketPath}.reporter`,
     eventsSocketPath: null,
@@ -65,7 +70,7 @@ test('it records its pid and sockets in the state directory the way a daemon rec
 test('it refuses a handshake on the current protocol with protocol_mismatch', async () => {
   const ctx = setupTest();
 
-  await ctx.proc.stdout.getReader().read();
+  await ctx.subprocess.stdout.getReader().read();
 
   const client = await openDaemonClient(ctx.socketPath);
 
@@ -81,14 +86,14 @@ test('it refuses a handshake on the current protocol with protocol_mismatch', as
 
 test('it answers a handshake on the current protocol as an older build when told to speak it', async () => {
   const ctx = setupTest();
-  const socketPath = join(ctx.dir, 'current.sock');
+  const socketPath = join(ctx.directory, 'current.sock');
 
   const current = Bun.spawn(
     [
       process.execPath,
       join(import.meta.dir, 'run-stub-legacy-daemon.ts'),
       socketPath,
-      ctx.dir,
+      ctx.directory,
       'current',
     ],
     { stdout: 'pipe', stderr: 'ignore' },
@@ -113,14 +118,14 @@ test('it answers a handshake on the current protocol as an older build when told
 
 test('it answers in the line protocol, which the client refuses as a protocol mismatch, when told to speak it', async () => {
   const ctx = setupTest();
-  const socketPath = join(ctx.dir, 'line.sock');
+  const socketPath = join(ctx.directory, 'line.sock');
 
   const line = Bun.spawn(
     [
       process.execPath,
       join(import.meta.dir, 'run-stub-legacy-daemon.ts'),
       socketPath,
-      ctx.dir,
+      ctx.directory,
       'line',
     ],
     { stdout: 'pipe', stderr: 'ignore' },
@@ -163,13 +168,13 @@ test.each([['SIGTERM'], ['SIGINT']] as const)(
   async (signal) => {
     const ctx = setupTest();
 
-    const printed = await ctx.proc.stdout.getReader().read();
+    const printed = await ctx.subprocess.stdout.getReader().read();
 
     const sessionPID = Number(new TextDecoder().decode(printed.value).trim().split(' ')[1]);
 
-    ctx.proc.kill(signal);
+    ctx.subprocess.kill(signal);
 
-    await ctx.proc.exited;
+    await ctx.subprocess.exited;
 
     await waitFor(() => {
       expect(() => process.kill(sessionPID, 0)).toThrow(expect.objectContaining({ code: 'ESRCH' }));
@@ -180,11 +185,11 @@ test.each([['SIGTERM'], ['SIGINT']] as const)(
 test('it dies of the signal that stopped it', async () => {
   const ctx = setupTest();
 
-  await ctx.proc.stdout.getReader().read();
+  await ctx.subprocess.stdout.getReader().read();
 
-  ctx.proc.kill('SIGTERM');
+  ctx.subprocess.kill('SIGTERM');
 
-  await ctx.proc.exited;
+  await ctx.subprocess.exited;
 
-  expect(ctx.proc.signalCode).toBe('SIGTERM');
+  expect(ctx.subprocess.signalCode).toBe('SIGTERM');
 });

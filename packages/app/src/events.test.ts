@@ -8,7 +8,7 @@ function setupTest() {
   const out: string[] = [];
 
   return {
-    socketPath: join(tmp.dir, 'events.sock'),
+    socketPath: join(tmp.path, 'events.sock'),
     out,
     writeOut: (buf: Buffer) => {
       out.push(buf.toString());

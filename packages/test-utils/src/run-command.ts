@@ -24,7 +24,7 @@ export async function runCommand(
   cmd: readonly string[],
   options: Readonly<CommandOptions> = {},
 ): Promise<CommandResult> {
-  const proc = Bun.spawn([...cmd], {
+  const subprocess = Bun.spawn([...cmd], {
     ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
     ...(options.env === undefined ? {} : { env: { ...options.env } }),
     stdin: options.stdin === undefined ? 'ignore' : Buffer.from(options.stdin),
@@ -40,21 +40,21 @@ export async function runCommand(
 
   registerTestCleanup(async () => {
     if (!complete) {
-      killProcessGroup(proc.pid);
+      killProcessGroup(subprocess.pid);
     }
 
-    await proc.exited;
+    await subprocess.exited;
   });
 
   const [stdout, stderr] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
+    new Response(subprocess.stdout).text(),
+    new Response(subprocess.stderr).text(),
+    subprocess.exited,
   ]);
 
   complete = true;
 
-  return { exitCode: proc.exitCode, signalCode: proc.signalCode, stdout, stderr };
+  return { exitCode: subprocess.exitCode, signalCode: subprocess.signalCode, stdout, stderr };
 }
 
 // A group already empty has nothing left to kill.

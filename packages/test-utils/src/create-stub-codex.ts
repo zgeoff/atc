@@ -9,11 +9,11 @@ interface StubCodexConfig {
   readonly composer: string;
 }
 
-export function createStubCodex(dir: string, config: StubCodexConfig): string {
+export function createStubCodex(directory: string, config: StubCodexConfig): string {
   const report = `${config.atc.map((part) => `"${part}"`).join(' ')} hook-report --agent codex`;
 
   return createStubBin(
-    dir,
+    directory,
     'fake-codex',
     `#!/usr/bin/env bash
 echo "FAKE_CODEX_UP args: $@"

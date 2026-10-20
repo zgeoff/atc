@@ -41,8 +41,8 @@ export function buildStubClock(startMs: number) {
 
   return {
     ...clock,
-    advance(ms: number): void {
-      const until = time + ms;
+    advance(durationMs: number): void {
+      const until = time + durationMs;
 
       for (let due = findDue(until); due !== null; due = findDue(until)) {
         timers.delete(due[0]);
@@ -55,7 +55,9 @@ export function buildStubClock(startMs: number) {
       time = until;
     },
     collectPending: (): number[] =>
-      [...timers.values()].map((timer) => timer.dueAt - time).toSorted((a, b) => a - b),
+      [...timers.values()]
+        .map((timer) => timer.dueAt - time)
+        .toSorted((left, right) => left - right),
     collectDelays: (): number[] => [...delays],
   };
 }

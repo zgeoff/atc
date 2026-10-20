@@ -8,7 +8,7 @@ import { loadCodexName } from './load-codex-name';
 function setupTest() {
   const tmp = setupTempDir('atc-codex-name-');
 
-  return { codexHome: tmp.dir };
+  return { codexHome: tmp.path };
 }
 
 test('it loads the latest indexed thread name', async () => {
