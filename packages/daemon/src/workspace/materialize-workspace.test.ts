@@ -8,6 +8,7 @@ import { StateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/testing';
 import {
   createGitFixture,
+  getString,
   registerTestCleanup,
   runShellcheck,
   setupTempDir,
@@ -128,6 +129,42 @@ test('it uploads the commit it pinned for the clone inside the host when the bra
     workspace: { sha: git.sha },
     branch: 'main',
   });
+});
+
+test('it records the directory a picked workspace lands in once the first is taken', async () => {
+  const ctx = await setupTest();
+  const git = await createGitFixture({ prefix: 'atc-materialize-git-' });
+
+  const provider = buildStubLocalProvider();
+  const taken = join(ctx.scratch, 'ws');
+  const landings = { '1': taken, '2': join(ctx.scratch, 'ws-2') };
+
+  mkdirSync(taken);
+
+  await materializeWorkspace(
+    {
+      sessionID: toSessionID('s-1'),
+      target: 'box',
+      dir: taken,
+      source: { kind: 'git', url: git.upstream, ref: 'main' },
+      inPlace: false,
+      autoDir: true,
+    },
+    {
+      requireProvider: () => provider,
+      store: ctx.store,
+      log: () => {},
+      readyHost: (attempt) =>
+        Promise.resolve({ host: 'h', dir: getString(landings, String(attempt)) }),
+      removeClaim: () => Promise.resolve(true),
+      stagingRoot: ctx.scratch,
+      gitTransports: ['file'],
+    },
+  );
+
+  const recorded = await ctx.store.readMaterialization(toSessionID('s-1'));
+
+  expect(recorded).toMatchObject({ phase: 'ready', directory: join(ctx.scratch, 'ws-2') });
 });
 
 test('it holds the phase a refusal failed in when the refusal carries none', async () => {
