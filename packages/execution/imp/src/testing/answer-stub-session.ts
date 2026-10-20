@@ -159,15 +159,15 @@ export function answerStubSession(
     return;
   }
 
-  const proc = running ?? startProcess(context.commands, imp, request);
+  const subprocess = running ?? startProcess(context.commands, imp, request);
 
-  if (proc === null) {
+  if (subprocess === null) {
     return;
   }
 
   attachProcess(context.settings, {
     imp,
-    proc,
+    subprocess,
     request,
     connection,
     created: running === undefined,
@@ -225,7 +225,7 @@ function startProcess(
     env: { ...request.env, ...(commands.homeDir === null ? {} : { HOME: commands.homeDir }) },
   });
 
-  const proc: StubProcess = {
+  const subprocess: StubProcess = {
     pty,
     generation: randomBytes(16).toString('hex'),
     argv: [...request.argv],
@@ -237,18 +237,18 @@ function startProcess(
     requireBroker: request.require?.includes('broker') === true,
   };
 
-  imp.sessions.set(request.session, proc);
+  imp.sessions.set(request.session, subprocess);
 
   pty.onData((text) => {
     const data = new TextEncoder().encode(text);
 
-    proc.ring = mergeTail(proc.ring, data, RING_BYTES);
-    proc.end += data.length;
+    subprocess.ring = mergeTail(subprocess.ring, data, RING_BYTES);
+    subprocess.end += data.length;
 
-    const connection = proc.connection;
+    const connection = subprocess.connection;
 
     if (connection !== null) {
-      connection.sent = proc.end;
+      connection.sent = subprocess.end;
 
       tryEmit(connection, () => {
         connection.handlers.onOutput(data);
@@ -257,31 +257,31 @@ function startProcess(
   });
 
   pty.onExit((exit) => {
-    if (proc.ended) {
+    if (subprocess.ended) {
       return;
     }
 
     const exitCode = exit.exitCode;
 
-    proc.exited = { code: exitCode };
+    subprocess.exited = { code: exitCode };
 
     imp.previous.set(request.session, {
-      executionGeneration: proc.generation,
-      end: proc.end,
+      executionGeneration: subprocess.generation,
+      end: subprocess.end,
       exitCode,
     });
 
-    const connection = proc.connection;
+    const connection = subprocess.connection;
 
     // An exit nobody received stays attachable until a connection
     // delivers it.
     if (connection !== null) {
       imp.sessions.delete(request.session);
-      connection.stop({ kind: 'exit', code: exitCode, signal: null, offset: proc.end });
+      connection.stop({ kind: 'exit', code: exitCode, signal: null, offset: subprocess.end });
     }
   });
 
-  return proc;
+  return subprocess;
 }
 
 // Calls a connection's handler as the imp client does: a handler that
@@ -305,7 +305,7 @@ function tryEmit(connection: StubConnection, emit: () => void): boolean {
 // started the process.
 interface StubAttach {
   readonly imp: StubImp;
-  readonly proc: StubProcess;
+  readonly subprocess: StubProcess;
   readonly request: ImpSessionRequest;
   readonly connection: StubConnection;
   readonly created: boolean;
@@ -316,11 +316,11 @@ const PRELUDE = '\u001B[0m';
 
 function attachProcess(settings: StubSessionSettings, attach: StubAttach): void {
   const imp = attach.imp;
-  const proc = attach.proc;
+  const subprocess = attach.subprocess;
   const request = attach.request;
   const connection = attach.connection;
   const created = attach.created;
-  const bufferStart = proc.end - proc.ring.length;
+  const bufferStart = subprocess.end - subprocess.ring.length;
   let from = bufferStart;
   let prelude = '';
   let resume: ResumeResult | undefined;
@@ -328,18 +328,18 @@ function attachProcess(settings: StubSessionSettings, attach: StubAttach): void 
   if (request.resumeFrom !== undefined && settings.continuity === 'offsets') {
     const resumeFrom = request.resumeFrom;
 
-    if (resumeFrom.executionGeneration !== proc.generation) {
+    if (resumeFrom.executionGeneration !== subprocess.generation) {
       resume = {
         kind: 'generation_changed',
-        executionGeneration: proc.generation,
+        executionGeneration: subprocess.generation,
         firstOffset: bufferStart,
       };
-    } else if (resumeFrom.offset > proc.end) {
+    } else if (resumeFrom.offset > subprocess.end) {
       connection.stop({
         kind: 'failed',
         code: 'INVALID_RESUME',
         message: 'the resume offset is past the end',
-        data: { end: proc.end, bufferStart },
+        data: { end: subprocess.end, bufferStart },
       });
 
       return;
@@ -352,20 +352,20 @@ function attachProcess(settings: StubSessionSettings, attach: StubAttach): void 
   } else if (bufferStart > 0) {
     // A ring that has wrapped can start inside an escape sequence, so a
     // fresh attach skips to the next line and resets the modes first.
-    const newline = proc.ring.indexOf(0x0a);
+    const newline = subprocess.ring.indexOf(0x0a);
 
     from = bufferStart + (newline === -1 ? 0 : newline + 1);
     prelude = PRELUDE;
   }
 
-  proc.connection?.stop({
+  subprocess.connection?.stop({
     kind: 'detached',
     reason: 'taken_over',
-    offset: proc.connection.sent,
+    offset: subprocess.connection.sent,
   });
 
-  connection.process = proc;
-  connection.sent = proc.end;
+  connection.process = subprocess;
+  connection.sent = subprocess.end;
 
   const preludeBytes = new TextEncoder().encode(prelude);
 
@@ -378,9 +378,9 @@ function attachProcess(settings: StubSessionSettings, attach: StubAttach): void 
         : {
             continuity: 'offsets',
             bootId: imp.bootId,
-            executionGeneration: proc.generation,
+            executionGeneration: subprocess.generation,
             bufferStart,
-            end: proc.end,
+            end: subprocess.end,
             offset: from,
             prelude: preludeBytes.length,
             coldBoots: imp.coldBoots,
@@ -395,7 +395,7 @@ function attachProcess(settings: StubSessionSettings, attach: StubAttach): void 
     return;
   }
 
-  const backlog = proc.ring.subarray(from - bufferStart);
+  const backlog = subprocess.ring.subarray(from - bufferStart);
 
   for (const bytes of [preludeBytes, backlog]) {
     const sent =
@@ -409,24 +409,29 @@ function attachProcess(settings: StubSessionSettings, attach: StubAttach): void 
     }
   }
 
-  if (proc.exited !== null) {
-    const name = findSessionName(imp, proc);
+  if (subprocess.exited !== null) {
+    const name = findSessionName(imp, subprocess);
 
     if (name !== undefined) {
       imp.sessions.delete(name);
     }
 
-    connection.stop({ kind: 'exit', code: proc.exited.code, signal: null, offset: proc.end });
+    connection.stop({
+      kind: 'exit',
+      code: subprocess.exited.code,
+      signal: null,
+      offset: subprocess.end,
+    });
 
     return;
   }
 
-  proc.connection = connection;
+  subprocess.connection = connection;
 }
 
-function findSessionName(imp: StubImp, proc: StubProcess): string | undefined {
+function findSessionName(imp: StubImp, subprocess: StubProcess): string | undefined {
   for (const [name, held] of imp.sessions) {
-    if (held === proc) {
+    if (held === subprocess) {
       return name;
     }
   }

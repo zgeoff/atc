@@ -17,9 +17,9 @@ import { CODEX_PLUGIN } from './codex-plugin';
 // A folder for the files a test writes: a Codex home with its session index,
 // or a rollout.
 function setupTest() {
-  const tmp = setupTempDir('atc-codex-');
+  const temporaryDirectory = setupTempDir('atc-codex-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it spawns a fresh codex command with the prompt', () => {
@@ -143,7 +143,7 @@ test('it loads the latest indexed thread name', async () => {
   const ctx = setupTest();
 
   writeFileSync(
-    join(ctx.dir, 'session_index.jsonl'),
+    join(ctx.directory, 'session_index.jsonl'),
     [
       '{"id":"c-1","thread_name":"first title","updated_at":"2026-08-20T00:00:00Z"}',
       '{"id":"c-2","thread_name":"other session","updated_at":"2026-08-20T00:00:01Z"}',
@@ -154,7 +154,7 @@ test('it loads the latest indexed thread name', async () => {
   const adapter = new CodexAdapter(
     getAgentEntry(parseConfig([CODEX_PLUGIN], {}), 'codex'),
     undefined,
-    ctx.dir,
+    ctx.directory,
   );
 
   const name = await adapter.loadName('c-1', 'auto');
@@ -165,10 +165,10 @@ test('it loads the latest indexed thread name', async () => {
 test('it loads the indexed thread name from CODEX_HOME when built without a Codex home', async () => {
   const ctx = setupTest();
 
-  updateEnv('CODEX_HOME', ctx.dir);
+  updateEnv('CODEX_HOME', ctx.directory);
 
   writeFileSync(
-    join(ctx.dir, 'session_index.jsonl'),
+    join(ctx.directory, 'session_index.jsonl'),
     '{"id":"c-1","thread_name":"env title","updated_at":"2026-08-20T00:00:00Z"}\n',
   );
 
@@ -186,7 +186,7 @@ test('it does not resume when the reported rollout is gone', () => {
 
   const adapter = new CodexAdapter(getAgentEntry(parseConfig([CODEX_PLUGIN], {}), 'codex'));
 
-  expect(adapter.canResume({ transcriptSource: join(ctx.dir, 'missing.jsonl') })).toBeFalse();
+  expect(adapter.canResume({ transcriptSource: join(ctx.directory, 'missing.jsonl') })).toBeFalse();
 });
 
 test('it builds a codex resume command with a captured id', () => {
@@ -220,7 +220,7 @@ test('it takes inbox messages on an App Server', () => {
 
 test("it starts the session's App Server and plans the terminal on the bridge's thread", async () => {
   const ctx = setupTest();
-  const bin = createStubAppServerCodex(ctx.dir);
+  const bin = createStubAppServerCodex(ctx.directory);
 
   const adapter = new CodexAdapter(
     getAgentEntry(
@@ -237,11 +237,11 @@ test("it starts the session's App Server and plans the terminal on the bridge's 
 
   const bridge = await adapter.startMessageBridge({
     session: toSessionID('s-1'),
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: {},
     withheldEnv: [],
     options: { prompt: 'fix the bug', resume: false, model: 'gpt-b' },
-    directory: join(ctx.dir, 'bridge'),
+    directory: join(ctx.directory, 'bridge'),
     host: buildStubMessageBridgeHost().host,
   });
 
@@ -256,7 +256,7 @@ test("it starts the session's App Server and plans the terminal on the bridge's 
       'resume',
       'thread-1',
       '--remote',
-      `unix://${join(ctx.dir, 'bridge', 'codex.sock')}`,
+      `unix://${join(ctx.directory, 'bridge', 'codex.sock')}`,
       'fix the bug',
     ],
   });
@@ -870,11 +870,11 @@ test('it refuses a resume through the session picker on an App Server', () => {
   expect(
     adapter.startMessageBridge({
       session: toSessionID('s-1'),
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       env: {},
       withheldEnv: [],
       options: { prompt: '', resume: true },
-      directory: join(ctx.dir, 'bridge'),
+      directory: join(ctx.directory, 'bridge'),
       host: buildStubMessageBridgeHost().host,
     }),
   ).rejects.toMatchObject({ code: 'unsupported' });

@@ -55,10 +55,10 @@ export function startClaudeHeadlessRun(
       }
     } catch (error) {
       if (!controller.signal.aborted) {
-        const msg = error instanceof Error ? error.message : String(error);
+        const message = error instanceof Error ? error.message : String(error);
 
-        events.onOutput(`headless run failed: ${msg}\r\n`);
-        events.onNeedsYou(`headless run failed: ${truncateSummary(msg)}`);
+        events.onOutput(`headless run failed: ${message}\r\n`);
+        events.onNeedsYou(`headless run failed: ${truncateSummary(message)}`);
       }
     }
   })();

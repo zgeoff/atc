@@ -20,9 +20,9 @@ import { buildStubClaudeHeadlessRun } from './testing/build-stub-claude-headless
 // A folder for the files a test writes: transcripts, the atc-bridge mod, a
 // host config folder, or a guest folder a launch runs in.
 function setupTest() {
-  const tmp = setupTempDir('atc-claude-adapter-');
+  const temporaryDirectory = setupTempDir('atc-claude-adapter-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test("it reads a session's hook lines as Claude's, with no state across them", () => {
@@ -63,9 +63,9 @@ test('it runs a headless turn through the configured claude binary under the aut
     buildMockHostServices(),
     {
       headlessRun: runner,
-      bridgeTarget: join(ctx.dir, 'atc-bridge'),
-      stateDir: join(ctx.dir, 'state'),
-      homeDir: join(ctx.dir, 'home'),
+      bridgeTarget: join(ctx.directory, 'atc-bridge'),
+      stateDir: join(ctx.directory, 'state'),
+      homeDir: join(ctx.directory, 'home'),
     },
   );
 
@@ -91,8 +91,8 @@ test('it runs a headless turn through the configured claude binary under the aut
       effort: 'high',
       claudeBin: 'claude',
       permissionMode: 'auto',
-      pluginDir: join(ctx.dir, 'atc-bridge'),
-      settings: join(ctx.dir, 'state', 'hook-settings-claude.json'),
+      pluginDir: join(ctx.directory, 'atc-bridge'),
+      settings: join(ctx.directory, 'state', 'hook-settings-claude.json'),
     },
     events,
   );
@@ -171,9 +171,9 @@ test('it runs a headless turn under the permission mode its configured arguments
     buildMockHostServices(),
     {
       headlessRun: runner,
-      bridgeTarget: join(ctx.dir, 'atc-bridge'),
-      stateDir: join(ctx.dir, 'state'),
-      homeDir: join(ctx.dir, 'home'),
+      bridgeTarget: join(ctx.directory, 'atc-bridge'),
+      stateDir: join(ctx.directory, 'state'),
+      homeDir: join(ctx.directory, 'home'),
     },
   );
 
@@ -191,8 +191,8 @@ test('it runs a headless turn under the permission mode its configured arguments
       reporterSocket: '/run/atc/atc.sock',
       claudeBin: 'claude',
       permissionMode: 'plan',
-      pluginDir: join(ctx.dir, 'atc-bridge'),
-      settings: join(ctx.dir, 'state', 'hook-settings-claude.json'),
+      pluginDir: join(ctx.directory, 'atc-bridge'),
+      settings: join(ctx.directory, 'state', 'hook-settings-claude.json'),
     },
     events,
   );
@@ -226,9 +226,9 @@ test('it restores a stock session in the mode its settings set', () => {
     config,
     buildMockHostServices(),
     {
-      bridgeTarget: join(ctx.dir, 'atc-bridge'),
-      stateDir: join(ctx.dir, 'state'),
-      homeDir: join(ctx.dir, 'home'),
+      bridgeTarget: join(ctx.directory, 'atc-bridge'),
+      stateDir: join(ctx.directory, 'state'),
+      homeDir: join(ctx.directory, 'home'),
     },
   );
 
@@ -240,9 +240,9 @@ test('it restores a stock session in the mode its settings set', () => {
       '--permission-mode',
       'bypassPermissions',
       '--settings',
-      join(ctx.dir, 'state', 'hook-settings-claude.json'),
+      join(ctx.directory, 'state', 'hook-settings-claude.json'),
       '--plugin-dir',
-      join(ctx.dir, 'atc-bridge'),
+      join(ctx.directory, 'atc-bridge'),
       '--resume',
       'sess-1',
     ],
@@ -258,9 +258,9 @@ test('it gives a local session a scratch folder of its own as a working director
     config,
     buildMockHostServices(),
     {
-      bridgeTarget: join(ctx.dir, 'atc-bridge'),
-      stateDir: join(ctx.dir, 'state'),
-      homeDir: join(ctx.dir, 'home'),
+      bridgeTarget: join(ctx.directory, 'atc-bridge'),
+      stateDir: join(ctx.directory, 'state'),
+      homeDir: join(ctx.directory, 'home'),
     },
   );
 
@@ -270,17 +270,17 @@ test('it gives a local session a scratch folder of its own as a working director
     bin: 'claude',
     args: [
       '--add-dir',
-      join(ctx.dir, 'state', 'sessions', 's1', 'scratch'),
+      join(ctx.directory, 'state', 'sessions', 's1', 'scratch'),
       '--settings',
-      join(ctx.dir, 'state', 'hook-settings-claude.json'),
+      join(ctx.directory, 'state', 'hook-settings-claude.json'),
       '--plugin-dir',
-      join(ctx.dir, 'atc-bridge'),
+      join(ctx.directory, 'atc-bridge'),
       'hi',
     ],
-    env: { TMPDIR: join(ctx.dir, 'state', 'sessions', 's1', 'scratch') },
+    env: { TMPDIR: join(ctx.directory, 'state', 'sessions', 's1', 'scratch') },
   });
 
-  expect(existsSync(join(ctx.dir, 'state', 'sessions', 's1', 'scratch'))).toBeTrue();
+  expect(existsSync(join(ctx.directory, 'state', 'sessions', 's1', 'scratch'))).toBeTrue();
 });
 
 test("it loads the config's plugin folders with ~ expanded, then the session's own, after atc's mod", () => {
@@ -295,9 +295,9 @@ test("it loads the config's plugin folders with ~ expanded, then the session's o
     config,
     buildMockHostServices(),
     {
-      bridgeTarget: join(ctx.dir, 'atc-bridge'),
-      stateDir: join(ctx.dir, 'state'),
-      homeDir: join(ctx.dir, 'home'),
+      bridgeTarget: join(ctx.directory, 'atc-bridge'),
+      stateDir: join(ctx.directory, 'state'),
+      homeDir: join(ctx.directory, 'home'),
     },
   );
 
@@ -309,11 +309,11 @@ test("it loads the config's plugin folders with ~ expanded, then the session's o
 
   expect(plan.args).toStrictEqual([
     '--settings',
-    join(ctx.dir, 'state', 'hook-settings-claude.json'),
+    join(ctx.directory, 'state', 'hook-settings-claude.json'),
     '--plugin-dir',
-    join(ctx.dir, 'atc-bridge'),
+    join(ctx.directory, 'atc-bridge'),
     '--plugin-dir',
-    join(ctx.dir, 'home', 'plugins', 'band'),
+    join(ctx.directory, 'home', 'plugins', 'band'),
     '--plugin-dir',
     '/opt/plugins/shared',
     '--plugin-dir',
@@ -332,11 +332,11 @@ test("it lists the config's plugin folders with ~ expanded in its profile", () =
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
-    { homeDir: join(ctx.dir, 'home') },
+    { homeDir: join(ctx.directory, 'home') },
   );
 
   expect(adapter.profile.pluginDirs).toStrictEqual([
-    join(ctx.dir, 'home', 'plugins', 'band'),
+    join(ctx.directory, 'home', 'plugins', 'band'),
     '/opt/plugins/shared',
   ]);
 });
@@ -398,9 +398,9 @@ test("it runs a headless turn with the config's plugin folders and then the sess
     buildMockHostServices(),
     {
       headlessRun: runner,
-      bridgeTarget: join(ctx.dir, 'atc-bridge'),
-      stateDir: join(ctx.dir, 'state'),
-      homeDir: join(ctx.dir, 'home'),
+      bridgeTarget: join(ctx.directory, 'atc-bridge'),
+      stateDir: join(ctx.directory, 'state'),
+      homeDir: join(ctx.directory, 'home'),
     },
   );
 
@@ -424,8 +424,8 @@ test("it runs a headless turn with the config's plugin folders and then the sess
       pluginDirs: ['/opt/plugins/shared', '/srv/plugins/extra'],
       claudeBin: 'claude',
       permissionMode: 'auto',
-      pluginDir: join(ctx.dir, 'atc-bridge'),
-      settings: join(ctx.dir, 'state', 'hook-settings-claude.json'),
+      pluginDir: join(ctx.directory, 'atc-bridge'),
+      settings: join(ctx.directory, 'state', 'hook-settings-claude.json'),
     },
     events,
   );
@@ -707,17 +707,17 @@ test('it carries the settings file in the resume command of an entry with its ow
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices({ atcArgv: ['/opt/atc/bin/atc'] }),
-    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
+    { stateDir: join(ctx.directory, 'state'), homeDir: join(ctx.directory, 'home') },
   );
 
   const command = adapter.planResumeCommand('/work/repo', toAgentSessionID('sess-1'), []);
 
   const settings: unknown = JSON.parse(
-    readFileSync(join(ctx.dir, 'state', 'hook-settings-claude.json'), 'utf8'),
+    readFileSync(join(ctx.directory, 'state', 'hook-settings-claude.json'), 'utf8'),
   );
 
   expect(command).toBe(
-    `cd '/work/repo' && claude --settings '${join(ctx.dir, 'state', 'hook-settings-claude.json')}' --resume sess-1`,
+    `cd '/work/repo' && claude --settings '${join(ctx.directory, 'state', 'hook-settings-claude.json')}' --resume sess-1`,
   );
 
   expect(settings).toStrictEqual({
@@ -795,9 +795,9 @@ test('it restores a stock session without a permission-mode argument', () => {
     parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
     {
-      bridgeTarget: join(ctx.dir, 'atc-bridge'),
-      stateDir: join(ctx.dir, 'state'),
-      homeDir: join(ctx.dir, 'home'),
+      bridgeTarget: join(ctx.directory, 'atc-bridge'),
+      stateDir: join(ctx.directory, 'state'),
+      homeDir: join(ctx.directory, 'home'),
     },
   );
 
@@ -807,9 +807,9 @@ test('it restores a stock session without a permission-mode argument', () => {
     bin: 'claude',
     args: [
       '--settings',
-      join(ctx.dir, 'state', 'hook-settings-claude.json'),
+      join(ctx.directory, 'state', 'hook-settings-claude.json'),
       '--plugin-dir',
-      join(ctx.dir, 'atc-bridge'),
+      join(ctx.directory, 'atc-bridge'),
       '--resume',
       'sess-1',
     ],
@@ -985,7 +985,7 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
-    { homeDir: join(ctx.dir, 'home') },
+    { homeDir: join(ctx.directory, 'home') },
   );
 
   const plan = adapter.planGuestSpawn(
@@ -1121,7 +1121,7 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
 
 test("it ships the host's Claude config as the session's user settings and keeps it out of the --settings file", () => {
   const ctx = setupTest();
-  const claudeDir = join(ctx.dir, 'home', '.claude');
+  const claudeDir = join(ctx.directory, 'home', '.claude');
 
   mkdirSync(join(claudeDir, 'skills', 'delegate'), { recursive: true });
   writeFileSync(join(claudeDir, 'skills', 'delegate', 'SKILL.md'), 'delegate');
@@ -1152,7 +1152,7 @@ test("it ships the host's Claude config as the session's user settings and keeps
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
-    { homeDir: join(ctx.dir, 'home') },
+    { homeDir: join(ctx.directory, 'home') },
   );
 
   const plan = adapter.planGuestSpawn(
@@ -1315,7 +1315,7 @@ test('it gives a subscription guest spawn its MCP servers with the placeholder i
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
-    { homeDir: join(ctx.dir, 'home') },
+    { homeDir: join(ctx.directory, 'home') },
   );
 
   const plan = adapter.planGuestSpawn(
@@ -1635,14 +1635,14 @@ test('it refuses to start a subscription session in a host whose environment set
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
-    { homeDir: join(ctx.dir, 'home') },
+    { homeDir: join(ctx.directory, 'home') },
   );
 
   const plan = adapter.planGuestSpawn(
     { prompt: '', resume: false },
     {
       atc: '/opt/atc/bin/atc',
-      directory: ctx.dir,
+      directory: ctx.directory,
       auth: {
         revision: 1,
         env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
@@ -1656,7 +1656,7 @@ test('it refuses to start a subscription session in a host whose environment set
   const seed = plan.files['claude-config-seed.json'];
 
   invariant(typeof seed === 'string', 'expected the seed file');
-  writeFileSync(join(ctx.dir, 'claude-config-seed.json'), seed);
+  writeFileSync(join(ctx.directory, 'claude-config-seed.json'), seed);
 
   const run = await runCommand([plan.bin, ...plan.args], {
     env: { PATH: process.env['PATH'] ?? '', ...plan.env, ANTHROPIC_API_KEY: 'sk-test' },
@@ -1669,7 +1669,7 @@ test('it refuses to start a subscription session in a host whose environment set
       "atc: ANTHROPIC_API_KEY is set in this host's environment and overrides the sign-in atc gives this session, so Claude does not start\n",
   });
 
-  expect(existsSync(join(ctx.dir, 'claude-config'))).toBeFalse();
+  expect(existsSync(join(ctx.directory, 'claude-config'))).toBeFalse();
 });
 
 test.each([
@@ -1702,14 +1702,14 @@ test.each([
       getAgentEntry(config, 'claude'),
       config,
       buildMockHostServices(),
-      { homeDir: join(ctx.dir, 'home') },
+      { homeDir: join(ctx.directory, 'home') },
     );
 
     const plan = adapter.planGuestSpawn(
       { prompt: '', resume: false },
       {
         atc: '/opt/atc/bin/atc',
-        directory: ctx.dir,
+        directory: ctx.directory,
         auth: {
           revision: 1,
           env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
@@ -1750,14 +1750,14 @@ test('it starts a subscription session with a seeded config folder in a host who
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
-    { homeDir: join(ctx.dir, 'home') },
+    { homeDir: join(ctx.directory, 'home') },
   );
 
   const plan = adapter.planGuestSpawn(
     { prompt: '', resume: false },
     {
       atc: '/opt/atc/bin/atc',
-      directory: ctx.dir,
+      directory: ctx.directory,
       auth: {
         revision: 1,
         env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
@@ -1771,13 +1771,13 @@ test('it starts a subscription session with a seeded config folder in a host who
   const seed = plan.files['claude-config-seed.json'];
 
   invariant(typeof seed === 'string', 'expected the seed file');
-  writeFileSync(join(ctx.dir, 'claude-config-seed.json'), seed);
+  writeFileSync(join(ctx.directory, 'claude-config-seed.json'), seed);
 
   const run = await runCommand([plan.bin, ...plan.args], {
     env: { PATH: process.env['PATH'] ?? '', ...plan.env },
   });
 
-  const seeded = readFileSync(join(ctx.dir, 'claude-config', '.claude.json'), 'utf8');
+  const seeded = readFileSync(join(ctx.directory, 'claude-config', '.claude.json'), 'utf8');
 
   expect(run.exitCode).toBe(0);
 
@@ -1846,7 +1846,7 @@ test("it sets a profile's variables in a subscription guest's settings env and s
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
-    { homeDir: join(ctx.dir, 'home') },
+    { homeDir: join(ctx.directory, 'home') },
   );
 
   const plan = adapter.planGuestSpawn(
@@ -1984,25 +1984,25 @@ test("it leaves a profile's variables out of the local plan of an entry with a p
     config,
     buildMockHostServices({ atcArgv: ['/opt/atc/bin/atc'] }),
     {
-      bridgeTarget: join(ctx.dir, 'atc-bridge'),
-      stateDir: join(ctx.dir, 'state'),
-      homeDir: join(ctx.dir, 'home'),
+      bridgeTarget: join(ctx.directory, 'atc-bridge'),
+      stateDir: join(ctx.directory, 'state'),
+      homeDir: join(ctx.directory, 'home'),
     },
   );
 
   const plan = adapter.planSpawn({ prompt: '', resume: false });
 
   const settings: unknown = JSON.parse(
-    readFileSync(join(ctx.dir, 'state', 'hook-settings-claude.json'), 'utf8'),
+    readFileSync(join(ctx.directory, 'state', 'hook-settings-claude.json'), 'utf8'),
   );
 
   expect(plan).toStrictEqual({
     bin: 'claude',
     args: [
       '--settings',
-      join(ctx.dir, 'state', 'hook-settings-claude.json'),
+      join(ctx.directory, 'state', 'hook-settings-claude.json'),
       '--plugin-dir',
-      join(ctx.dir, 'atc-bridge'),
+      join(ctx.directory, 'atc-bridge'),
     ],
   });
 
@@ -2098,7 +2098,7 @@ test('it plans a Codex home in the binding revision when the profiles send a rea
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
-    { homeDir: join(ctx.dir, 'home') },
+    { homeDir: join(ctx.directory, 'home') },
   );
 
   const plan = adapter.planGuestSpawn(
@@ -2189,7 +2189,7 @@ test('it plans no Codex home when the ChatGPT sign-in in impd is not ready', () 
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
-    { homeDir: join(ctx.dir, 'home') },
+    { homeDir: join(ctx.directory, 'home') },
   );
 
   const plan = adapter.planGuestSpawn(
@@ -2248,7 +2248,7 @@ test('it plans no Codex home when a ChatGPT profile sets no bearer authorization
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
-    { homeDir: join(ctx.dir, 'home') },
+    { homeDir: join(ctx.directory, 'home') },
   );
 
   const plan = adapter.planGuestSpawn(

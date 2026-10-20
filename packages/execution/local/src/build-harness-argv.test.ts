@@ -5,9 +5,9 @@ import invariant from 'tiny-invariant';
 import { buildHarnessArgv } from './build-harness-argv';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-harness-argv-');
+  const temporaryDirectory = setupTempDir('atc-harness-argv-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it unsets the names and starts the program after the separator', () => {
@@ -77,7 +77,7 @@ test('it starts a program path holding = with a DYLD_ value that holds quotes, s
   const ctx = setupTest();
 
   const bin = createStubBin(
-    join(ctx.dir, 'agent=dir'),
+    join(ctx.directory, 'agent=dir'),
     'agent',
     '#!/bin/sh\nprintf \'DYLD:[%s] ARGS:[%s|%s]\' "$DYLD_ATC_TEST" "$1" "$2"\n',
   );
@@ -95,7 +95,7 @@ test('it starts a program path holding = with a DYLD_ value that holds quotes, s
         args: ['first arg', '$HOME'],
       }),
     ],
-    { env: { PATH: '/usr/bin:/bin', HOME: ctx.dir } },
+    { env: { PATH: '/usr/bin:/bin', HOME: ctx.directory } },
   );
 
   expect(result.stdout).toBe(`DYLD:[${value}] ARGS:[first arg|$HOME]`);
@@ -105,7 +105,7 @@ test('it starts a program path holding = with ten DYLD_ values, each under its o
   const ctx = setupTest();
 
   const bin = createStubBin(
-    join(ctx.dir, 'agent=dir'),
+    join(ctx.directory, 'agent=dir'),
     'agent',
     '#!/bin/sh\nprintf \'FIRST:[%s] TENTH:[%s] ARG:[%s]\' "$DYLD_ATC_1" "$DYLD_ATC_10" "$1"\n',
   );
@@ -142,7 +142,7 @@ test('it starts a program path holding = when a DYLD_ name is one the shell cann
   const ctx = setupTest();
 
   const bin = createStubBin(
-    join(ctx.dir, 'agent=dir'),
+    join(ctx.directory, 'agent=dir'),
     'agent',
     '#!/bin/sh\nprintf \'RAN:[%s]\' "$1"\n',
   );

@@ -7,5 +7,5 @@ export function resolveConfiguredPluginDirs(
 ): string[] {
   const home = homeDir ?? resolveHomeDir();
 
-  return (dirs ?? []).map((dir) => normalizePluginDir(dir, home));
+  return (dirs ?? []).map((directory) => normalizePluginDir(directory, home));
 }

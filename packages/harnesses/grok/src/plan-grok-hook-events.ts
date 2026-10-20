@@ -56,11 +56,15 @@ interface GrokHookPlan {
 // three rules need the previous line's state: a stop for a prompt older than the latest is stale,
 // an idle notice right after a permission prompt shows nothing finished, and a subagent's line
 // is only a heartbeat for its session
-export function planGrokHookEvents(e: HookEvent, prev: unknown, home: string): GrokHookPlan {
-  const parsed = GROK_HOOK_PAYLOAD_SCHEMA.safeParse(e.payload);
+export function planGrokHookEvents(
+  hookEvent: HookEvent,
+  previous: unknown,
+  home: string,
+): GrokHookPlan {
+  const parsed = GROK_HOOK_PAYLOAD_SCHEMA.safeParse(hookEvent.payload);
   const payload: GrokHookPayload = parsed.success ? parsed.data : {};
-  const state = GROK_HOOK_STATE_SCHEMA.safeParse(prev).data;
-  const hook = findGrokHook(e.event);
+  const state = GROK_HOOK_STATE_SCHEMA.safeParse(previous).data;
+  const hook = findGrokHook(hookEvent.event);
   const subagent = payload.subagentType !== undefined && payload.subagentType !== '';
   const event = buildGrokEvent(hook, payload, state, home, subagent);
 

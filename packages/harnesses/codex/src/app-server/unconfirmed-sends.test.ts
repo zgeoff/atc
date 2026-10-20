@@ -5,12 +5,12 @@ import { setupTempDir } from '@atc/test-utils';
 import { UnconfirmedSends } from './unconfirmed-sends';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-unconfirmed-sends-');
+  const temporaryDirectory = setupTempDir('atc-unconfirmed-sends-');
   const logs: string[] = [];
 
   return {
-    dir: tmp.path,
-    path: join(tmp.path, 'unconfirmed-sends.json'),
+    directory: temporaryDirectory.path,
+    path: join(temporaryDirectory.path, 'unconfirmed-sends.json'),
     logs,
     log: (line: string) => {
       logs.push(line);
@@ -74,7 +74,7 @@ test('it starts empty and logs the file when it holds no map of threads', () => 
 
 test('it keeps the thread in memory and logs the file when the write fails', () => {
   const ctx = setupTest();
-  const path = join(ctx.dir, 'missing', 'unconfirmed-sends.json');
+  const path = join(ctx.directory, 'missing', 'unconfirmed-sends.json');
 
   const sends = new UnconfirmedSends(path, ctx.log);
 

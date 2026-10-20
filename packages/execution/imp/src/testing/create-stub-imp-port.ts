@@ -386,8 +386,8 @@ class StubImpPort implements ImpPort {
     this.fleet.stopDestroyHold();
   }
 
-  setHomeDir(dir: string): void {
-    this.commands.setHomeDir(dir);
+  setHomeDir(directory: string): void {
+    this.commands.setHomeDir(directory);
   }
 
   setGuestPath(path: string): void {
@@ -468,9 +468,9 @@ class StubImpPort implements ImpPort {
     const commands = this.commands.kill();
 
     for (const imp of this.fleet.imps.values()) {
-      for (const proc of imp.sessions.values()) {
-        tryKill(proc.pty, 'SIGCONT');
-        tryKill(proc.pty, 'SIGKILL');
+      for (const subprocess of imp.sessions.values()) {
+        tryKill(subprocess.pty, 'SIGCONT');
+        tryKill(subprocess.pty, 'SIGKILL');
       }
     }
 

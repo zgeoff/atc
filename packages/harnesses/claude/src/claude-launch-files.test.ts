@@ -8,12 +8,12 @@ import { ClaudeLaunchFiles } from './claude-launch-files';
 // The folders the files go to: a state folder, a home, and a mod folder,
 // none of which exists until the files write it.
 function setupTest() {
-  const tmp = setupTempDir('atc-claude-launch-files-');
+  const temporaryDirectory = setupTempDir('atc-claude-launch-files-');
 
   return {
-    stateDir: join(tmp.path, 'state'),
-    homeDir: join(tmp.path, 'home'),
-    bridgeTarget: join(tmp.path, 'atc-bridge'),
+    stateDir: join(temporaryDirectory.path, 'state'),
+    homeDir: join(temporaryDirectory.path, 'home'),
+    bridgeTarget: join(temporaryDirectory.path, 'atc-bridge'),
   };
 }
 

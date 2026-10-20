@@ -109,14 +109,14 @@ export function collectGateways(
 // environment variable.
 function buildStringEnvRecord() {
   return z.preprocess(
-    (v) => {
-      if (!isRecord(v)) {
+    (input) => {
+      if (!isRecord(input)) {
         return {};
       }
 
       const env: Record<string, string> = {};
 
-      for (const [key, value] of Object.entries(v)) {
+      for (const [key, value] of Object.entries(input)) {
         if (typeof value === 'string') {
           env[key] = value;
         }
@@ -132,7 +132,7 @@ function buildStringEnvRecord() {
 // the ones atc writes itself. Anything but an object is no extra settings.
 function buildOptionalSettings() {
   return z.preprocess(
-    (v) => (isRecord(v) ? v : undefined),
+    (input) => (isRecord(input) ? input : undefined),
     z.record(z.string(), z.unknown()).optional(),
   );
 }

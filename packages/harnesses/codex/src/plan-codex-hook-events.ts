@@ -16,10 +16,10 @@ interface CodexHookPlan {
 
 // codex reports a session start each time the terminal starts, resumes, clears, compacts or
 // forks a thread, so only a session start moves the session to another thread
-export function planCodexHookEvents(e: HookEvent, prev: unknown): CodexHookPlan {
-  const parsed = CODEX_HOOK_STATE_SCHEMA.safeParse(prev);
+export function planCodexHookEvents(hookEvent: HookEvent, previous: unknown): CodexHookPlan {
+  const parsed = CODEX_HOOK_STATE_SCHEMA.safeParse(previous);
   const state = parsed.success ? parsed.data : undefined;
-  const ev = buildCodexHookEvent(e);
+  const ev = buildCodexHookEvent(hookEvent);
   const thread = ev.agentSessionID;
 
   if (ev.kind === 'started' && thread !== undefined) {

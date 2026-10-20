@@ -32,7 +32,7 @@ export function buildClaudeQueryOptions(
   opts: ClaudeHeadlessRunRequest,
   compiled: boolean,
 ): Options {
-  const mode = PERMISSION_MODES.find((m) => m === opts.permissionMode);
+  const mode = PERMISSION_MODES.find((permissionMode) => permissionMode === opts.permissionMode);
   const effort = CLAUDE_EFFORT_LEVELS.find((level) => level === opts.effort);
 
   return {

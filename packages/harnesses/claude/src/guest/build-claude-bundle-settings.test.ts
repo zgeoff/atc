@@ -20,7 +20,7 @@ test('it ships the allow-listed settings and leaves every other key on the host'
       extraKnownMarketplaces: { market: { source: { source: 'github', repo: 'a/b' } } },
       apiKeyHelper: 'op read op://vault/key',
       hooks: { Stop: [] },
-      feedbackDrafts: { a: 'b' },
+      feedbackDrafts: { draft: 'text' },
       agentPushNotifEnabled: true,
     },
     ['/home/me/.claude'],

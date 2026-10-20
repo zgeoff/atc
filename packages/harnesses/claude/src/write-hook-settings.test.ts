@@ -8,9 +8,12 @@ import { writeHookSettings } from './write-hook-settings';
 // A state folder for the settings file and a home for the Claude settings
 // a test writes.
 function setupTest() {
-  const tmp = setupTempDir('atc-hook-settings-');
+  const temporaryDirectory = setupTempDir('atc-hook-settings-');
 
-  return { stateDir: join(tmp.path, 'state'), home: join(tmp.path, 'home') };
+  return {
+    stateDir: join(temporaryDirectory.path, 'state'),
+    home: join(temporaryDirectory.path, 'home'),
+  };
 }
 
 test('it writes one settings file per agent id into the state folder', () => {

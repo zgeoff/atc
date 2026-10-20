@@ -112,12 +112,12 @@ function readBundleFile(path: string, mode: number): GuestFile {
 // with symlinks followed. `seen` holds the real paths of the folders on the
 // way down, so a symlink back up the tree ends there.
 function readTreeFiles(
-  dir: string,
+  directory: string,
   prefix: string,
   hostReal: string,
   seen: ReadonlySet<string>,
 ): Record<string, GuestFile> {
-  const real = readStats(dir) === null ? null : realpathSync(dir);
+  const real = readStats(directory) === null ? null : realpathSync(directory);
 
   if (real === null || seen.has(real)) {
     return {};
@@ -127,8 +127,8 @@ function readTreeFiles(
 
   const files: Record<string, GuestFile> = {};
 
-  for (const name of readEntryNames(dir)) {
-    const path = join(dir, name);
+  for (const name of readEntryNames(directory)) {
+    const path = join(directory, name);
     const stats = readStats(path);
 
     if (stats?.isFile() === true && probeShippedFile(path, hostReal)) {
@@ -143,12 +143,12 @@ function readTreeFiles(
 
 // A folder's entry names, sorted, without the ones that start with a dot,
 // or none when the path is not a folder.
-function readEntryNames(dir: string): string[] {
-  if (readStats(dir)?.isDirectory() !== true) {
+function readEntryNames(directory: string): string[] {
+  if (readStats(directory)?.isDirectory() !== true) {
     return [];
   }
 
-  return readdirSync(dir)
+  return readdirSync(directory)
     .filter((name) => !name.startsWith('.'))
     .toSorted();
 }

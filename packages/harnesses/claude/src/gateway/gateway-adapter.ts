@@ -291,8 +291,8 @@ export class GatewayAdapter implements AgentAdapter {
 
   // The gateway runs the Claude CLI, whose hook lines it reads as stock
   // Claude does, with no state across a session's lines.
-  planHookEvents(e: HookEvent): HookPlan {
-    return { events: [buildClaudeHookEvent(e)] };
+  planHookEvents(hookEvent: HookEvent): HookPlan {
+    return { events: [buildClaudeHookEvent(hookEvent)] };
   }
 
   planResumeCommand(
@@ -354,7 +354,7 @@ export class GatewayAdapter implements AgentAdapter {
     profiles: readonly string[],
   ): DaemonError | null {
     const keys = Object.keys(env);
-    const pairings = CREDENTIAL_PAIRINGS.filter((p) => keys.includes(p.variable));
+    const pairings = CREDENTIAL_PAIRINGS.filter((candidate) => keys.includes(candidate.variable));
     const [pairing] = pairings;
 
     if (pairing === undefined) {
@@ -389,7 +389,9 @@ export class GatewayAdapter implements AgentAdapter {
 
     const rule =
       'resolved' in resolution
-        ? resolution.resolved.secrets.flatMap((s) => s.rules).find((r) => r.host === host)
+        ? resolution.resolved.secrets
+            .flatMap((secret) => secret.rules)
+            .find((candidate) => candidate.host === host)
         : undefined;
 
     if (rule?.header !== pairing.header || rule.scheme !== pairing.scheme) {

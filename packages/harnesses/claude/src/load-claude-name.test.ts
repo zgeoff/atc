@@ -6,14 +6,14 @@ import { loadClaudeName } from './load-claude-name';
 
 // A folder for the transcript a test writes.
 function setupTest() {
-  const tmp = setupTempDir('atc-claude-name-');
+  const temporaryDirectory = setupTempDir('atc-claude-name-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it names the session after the last custom title, as named by the agent', async () => {
   const ctx = setupTest();
-  const transcript = join(ctx.dir, 'transcript.jsonl');
+  const transcript = join(ctx.directory, 'transcript.jsonl');
 
   writeFileSync(
     transcript,
@@ -31,7 +31,7 @@ test('it names the session after the last custom title, as named by the agent', 
 
 test('it names an automatically named session after its summary', async () => {
   const ctx = setupTest();
-  const transcript = join(ctx.dir, 'transcript.jsonl');
+  const transcript = join(ctx.directory, 'transcript.jsonl');
 
   writeFileSync(transcript, '{"type":"summary","summary":"Build fix"}\n');
 
@@ -42,7 +42,7 @@ test('it names an automatically named session after its summary', async () => {
 
 test('it keeps a name a person typed over a summary', async () => {
   const ctx = setupTest();
-  const transcript = join(ctx.dir, 'transcript.jsonl');
+  const transcript = join(ctx.directory, 'transcript.jsonl');
 
   writeFileSync(transcript, '{"type":"summary","summary":"Build fix"}\n');
 
@@ -53,7 +53,7 @@ test('it keeps a name a person typed over a summary', async () => {
 
 test('it skips a line that is not a name line', async () => {
   const ctx = setupTest();
-  const transcript = join(ctx.dir, 'transcript.jsonl');
+  const transcript = join(ctx.directory, 'transcript.jsonl');
 
   writeFileSync(
     transcript,
@@ -68,7 +68,7 @@ test('it skips a line that is not a name line', async () => {
 test('it gives no name for a transcript that does not exist', async () => {
   const ctx = setupTest();
 
-  const name = await loadClaudeName(join(ctx.dir, 'missing.jsonl'), 'auto');
+  const name = await loadClaudeName(join(ctx.directory, 'missing.jsonl'), 'auto');
 
   expect(name).toBeNull();
 });

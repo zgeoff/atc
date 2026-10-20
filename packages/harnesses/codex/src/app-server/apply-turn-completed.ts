@@ -23,12 +23,12 @@ export async function applyTurnCompleted(completed: CompletedTurn): Promise<void
   completed.settledTurns.add(completed.turn.id);
 
   const messages = [...completed.carried]
-    .filter(([, t]) => t === completed.turn.id)
-    .map(([m]) => m);
+    .filter(([, turnID]) => turnID === completed.turn.id)
+    .map(([messageID]) => messageID);
 
   const reply =
     completed.replies.get(completed.turn.id) ??
-    completed.turn.items.findLast((i) => i.type === 'agentMessage')?.text;
+    completed.turn.items.findLast((item) => item.type === 'agentMessage')?.text;
 
   for (const message of messages) {
     completed.carried.delete(message);

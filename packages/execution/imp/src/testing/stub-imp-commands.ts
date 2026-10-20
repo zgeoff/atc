@@ -127,7 +127,7 @@ export class StubImpCommands {
 
     const cwd = this.resolveGuestCwd(command.cwd);
 
-    const proc = Bun.spawn([...command.argv], {
+    const subprocess = Bun.spawn([...command.argv], {
       ...(cwd === undefined ? {} : { cwd }),
       env: { PATH: this.guestPath, ...(this.homeDir === null ? {} : { HOME: this.homeDir }) },
       stdin: command.stdin ?? 'ignore',
@@ -138,24 +138,24 @@ export class StubImpCommands {
 
     const pending = new Set(['stdout', 'stderr', 'exit']);
 
-    this.commands.set(proc, { line, pending });
+    this.commands.set(subprocess, { line, pending });
 
     const settled = await Promise.race([
       Promise.all([
-        new Response(proc.stdout).bytes().finally(() => {
+        new Response(subprocess.stdout).bytes().finally(() => {
           pending.delete('stdout');
         }),
-        new Response(proc.stderr).bytes().finally(() => {
+        new Response(subprocess.stderr).bytes().finally(() => {
           pending.delete('stderr');
         }),
-        proc.exited.finally(() => {
+        subprocess.exited.finally(() => {
           pending.delete('exit');
         }),
       ]),
       this.killed.promise,
     ]);
 
-    this.commands.delete(proc);
+    this.commands.delete(subprocess);
 
     // A run the stop cut short ends as a killed one does, without waiting
     // for output: the runtime can miss the close of a pipe whose last
@@ -180,8 +180,8 @@ export class StubImpCommands {
     return posix.isAbsolute(cwd) ? cwd : `/${cwd}`;
   }
 
-  setHomeDir(dir: string): void {
-    this.homeDir = dir;
+  setHomeDir(directory: string): void {
+    this.homeDir = directory;
   }
 
   setGuestPath(path: string): void {

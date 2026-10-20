@@ -25,8 +25,8 @@ export function planThreadRecovery(
   const carriedBy = new Map<string, string[]>();
 
   for (const message of unsettled) {
-    const turn = turns.find((t) =>
-      t.items.some((i) => i.type === 'userMessage' && i.clientId === message.id),
+    const turn = turns.find((candidate) =>
+      candidate.items.some((item) => item.type === 'userMessage' && item.clientId === message.id),
     );
 
     if (turn === undefined) {
@@ -50,13 +50,13 @@ export function planThreadRecovery(
   const replies = new Map<string, string>();
 
   for (const [turnID, messages] of carriedBy) {
-    const turn = turns.find((t) => t.id === turnID);
+    const turn = turns.find((candidate) => candidate.id === turnID);
 
     if (turn === undefined) {
       continue;
     }
 
-    const reply = turn.items.findLast((i) => i.type === 'agentMessage')?.text;
+    const reply = turn.items.findLast((item) => item.type === 'agentMessage')?.text;
     const settlement = planTurnSettlement(turn.id, turn.status, messages, reply);
 
     if (settlement !== null) {

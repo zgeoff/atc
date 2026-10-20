@@ -26,23 +26,23 @@ export type RenderableSDKMessage =
 
 export function renderSDKMessage(message: RenderableSDKMessage): string | null {
   return match(message)
-    .with({ type: 'assistant' }, (m) => renderAssistantContent(m.message.content))
+    .with({ type: 'assistant' }, (assistant) => renderAssistantContent(assistant.message.content))
     .with(
       { type: 'result', subtype: 'success' },
-      (m) => `— headless turn done: ${truncateSummary(m.result)}`,
+      (success) => `— headless turn done: ${truncateSummary(success.result)}`,
     )
-    .with({ type: 'result' }, (m) => `— headless turn stopped: ${m.subtype}`)
+    .with({ type: 'result' }, (stopped) => `— headless turn stopped: ${stopped.subtype}`)
     .otherwise(() => null);
 }
 
 function renderAssistantContent(content: readonly RenderableBlock[]): string | null {
   const lines = content.flatMap((block) =>
     match(block)
-      .with({ type: 'text' }, (b) =>
-        b.text.trim() === '' ? [] : [b.text.replaceAll('\n', '\r\n')],
+      .with({ type: 'text' }, (textBlock) =>
+        textBlock.text.trim() === '' ? [] : [textBlock.text.replaceAll('\n', '\r\n')],
       )
-      .with({ type: 'tool_use' }, (b) => [
-        `⚙ ${b.name} ${truncateSummary(JSON.stringify(b.input ?? {}))}`,
+      .with({ type: 'tool_use' }, (toolUse) => [
+        `⚙ ${toolUse.name} ${truncateSummary(JSON.stringify(toolUse.input ?? {}))}`,
       ])
       .otherwise(() => []),
   );

@@ -19,8 +19,8 @@ const CODEX_HOOK_PAYLOAD_SCHEMA = z.object({
 type CodexHookPayload = z.infer<typeof CODEX_HOOK_PAYLOAD_SCHEMA>;
 
 // the session id is the name source, since the session index keys titles by it
-export function buildCodexHookEvent(e: HookEvent): AdapterEvent {
-  return buildClaudeStyleHookEvent(e, {
+export function buildCodexHookEvent(hookEvent: HookEvent): AdapterEvent {
+  return buildClaudeStyleHookEvent(hookEvent, {
     hooks: CODEX_HOOKS,
     parsePayload: (payload) => {
       const parsed = CODEX_HOOK_PAYLOAD_SCHEMA.safeParse(payload);

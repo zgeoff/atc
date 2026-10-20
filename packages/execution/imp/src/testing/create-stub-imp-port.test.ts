@@ -27,10 +27,10 @@ import { createStubImpPort } from './create-stub-imp-port';
 // run in; once the test finishes, the port kills every process it started
 // before the directory goes.
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-imp-port-');
+  const temporaryDirectory = setupTempDir('atc-stub-imp-port-');
   const port = createStubImpPort();
 
-  return { port, dir: tmp.path };
+  return { port, directory: temporaryDirectory.path };
 }
 
 test('it writes a read-only file under the imp’s folder and returns its path', async () => {
@@ -38,11 +38,11 @@ test('it writes a read-only file under the imp’s folder and returns its path',
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  ctx.port.readOnlyFilesDir = ctx.dir;
+  ctx.port.readOnlyFilesDir = ctx.directory;
 
   const path = await ctx.port.writeReadOnlyFile('imp-a', 'notes/rota.json', '{"shift":"early"}');
 
-  expect(path).toBe(join(ctx.dir, 'imp-a', 'notes', 'rota.json'));
+  expect(path).toBe(join(ctx.directory, 'imp-a', 'notes', 'rota.json'));
   expect(readFileSync(path, 'utf8')).toBe('{"shift":"early"}');
   expect(statSync(path).mode & 0o777).toBe(0o444);
 });
@@ -52,14 +52,14 @@ test('it replaces a read-only file written again', async () => {
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  ctx.port.readOnlyFilesDir = ctx.dir;
+  ctx.port.readOnlyFilesDir = ctx.directory;
 
   await ctx.port.writeReadOnlyFile('imp-a', 'notes/rota.json', '{"shift":"early"}');
 
   const path = await ctx.port.writeReadOnlyFile('imp-a', 'notes/rota.json', '{"shift":"late"}');
 
   expect(readFileSync(path, 'utf8')).toBe('{"shift":"late"}');
-  expect(readdirSync(join(ctx.dir, 'imp-a', 'notes'))).toStrictEqual(['rota.json']);
+  expect(readdirSync(join(ctx.directory, 'imp-a', 'notes'))).toStrictEqual(['rota.json']);
 });
 
 test('it refuses a read-only file as AGENT_OUTDATED while it holds no folder for them', async () => {
@@ -75,7 +75,7 @@ test('it refuses a read-only file as AGENT_OUTDATED while it holds no folder for
 test('it refuses a read-only file for an imp it does not hold as NOT_FOUND', () => {
   const ctx = setupTest();
 
-  ctx.port.readOnlyFilesDir = ctx.dir;
+  ctx.port.readOnlyFilesDir = ctx.directory;
 
   expect(ctx.port.writeReadOnlyFile('imp-a', 'notes/rota.json', '{}')).rejects.toMatchObject({
     code: 'NOT_FOUND',
@@ -205,16 +205,16 @@ test('it streams a started session with offsets and delivers its exit with the e
       session: 's1',
       argv: ['printf', 'hello'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
     {
-      onStarted: (s) => {
-        started.push(s);
+      onStarted: (sessionStarted) => {
+        started.push(sessionStarted);
       },
-      onOutput: (d) => {
-        chunks.push(d);
+      onOutput: (chunk) => {
+        chunks.push(chunk);
       },
     },
   );
@@ -257,13 +257,13 @@ test('it resumes a running generation from the exact offset asked for', async ()
       session: 's1',
       argv: ['bash', '-c', 'printf abcdef; sleep 30'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
     {
-      onStarted: (s) => {
-        first.push(s);
+      onStarted: (sessionStarted) => {
+        first.push(sessionStarted);
       },
       onOutput: () => {},
     },
@@ -293,11 +293,11 @@ test('it resumes a running generation from the exact offset asked for', async ()
       wake: false,
     },
     {
-      onStarted: (s) => {
-        started.push(s);
+      onStarted: (sessionStarted) => {
+        started.push(sessionStarted);
       },
-      onOutput: (d) => {
-        chunks.push(d);
+      onOutput: (chunk) => {
+        chunks.push(chunk);
       },
     },
   );
@@ -338,13 +338,13 @@ test('it answers a resume below the ring with a gap and data from the ring start
       session: 's1',
       argv: ['bash', '-c', String.raw`head -c 300000 /dev/zero | tr '\0' x; sleep 30`],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
     {
-      onStarted: (s) => {
-        first.push(s);
+      onStarted: (sessionStarted) => {
+        first.push(sessionStarted);
       },
       onOutput: () => {},
     },
@@ -373,8 +373,8 @@ test('it answers a resume below the ring with a gap and data from the ring start
       wake: false,
     },
     {
-      onStarted: (s) => {
-        started.push(s);
+      onStarted: (sessionStarted) => {
+        started.push(sessionStarted);
       },
       onOutput: () => {},
     },
@@ -416,13 +416,13 @@ test('it refuses a resume past the end with INVALID_RESUME', async () => {
       session: 's1',
       argv: ['sleep', '30'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
     {
-      onStarted: (s) => {
-        first.push(s);
+      onStarted: (sessionStarted) => {
+        first.push(sessionStarted);
       },
       onOutput: () => {},
     },
@@ -498,7 +498,7 @@ test('it answers an attach after a cold boot with NO_SESSION and the boot that e
       session: 's1',
       argv: ['sleep', '30'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
@@ -552,13 +552,13 @@ test('it keeps the last four cold boots, newest first', async () => {
       session: 's1',
       argv: ['sleep', '30'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
     {
-      onStarted: (s) => {
-        started.push(s);
+      onStarted: (sessionStarted) => {
+        started.push(sessionStarted);
       },
       onOutput: () => {},
     },
@@ -606,14 +606,14 @@ test('it replays without offsets and ignores a resume for an agent without conti
       session: 's1',
       argv: ['sleep', '30'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
       resumeFrom: { executionGeneration: 'f'.repeat(32), offset: 0 },
     },
     {
-      onStarted: (s) => {
-        started.push(s);
+      onStarted: (sessionStarted) => {
+        started.push(sessionStarted);
       },
       onOutput: () => {},
     },
@@ -636,7 +636,7 @@ test('it closes a connection with the close code a test drops it with', async ()
       session: 's1',
       argv: ['sleep', '30'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
@@ -670,7 +670,7 @@ test('it ends a process that ignores a hangup when the port kills it', async () 
       session: 's1',
       argv: ['sh', '-c', `trap '' HUP; echo up; exec sleep 30`],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
@@ -698,9 +698,15 @@ test('it ends a connection whose output handler throws with a local error and ke
       kind: 'start',
       name: 'imp-a',
       session: 's1',
-      argv: ['bash', '-c', 'echo $$ > "$1"; echo hi; exec sleep 30', 'bash', join(ctx.dir, 'pid')],
+      argv: [
+        'bash',
+        '-c',
+        'echo $$ > "$1"; echo hi; exec sleep 30',
+        'bash',
+        join(ctx.directory, 'pid'),
+      ],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
@@ -714,7 +720,7 @@ test('it ends a connection whose output handler throws with a local error and ke
 
   const ended = await opened.outcome;
 
-  const pid = Number(readFileSync(join(ctx.dir, 'pid'), 'utf8'));
+  const pid = Number(readFileSync(join(ctx.directory, 'pid'), 'utf8'));
 
   expect(ended).toStrictEqual({ kind: 'local_error', detail: 'write EPIPE' });
   expect(() => process.kill(pid, 0)).not.toThrow();
@@ -732,7 +738,7 @@ test('it detaches the earlier connection when a second one attaches', async () =
       session: 's1',
       argv: ['sleep', '30'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
@@ -763,7 +769,7 @@ test('it relays each guest connection on a reverse forward to the daemon', async
   await ctx.port.createImp({ name: 'imp-a' });
 
   const received: string[] = [];
-  const guestPath = join(ctx.dir, 'guest.sock');
+  const guestPath = join(ctx.directory, 'guest.sock');
 
   ctx.port.openReverseForward('imp-a', guestPath, (connection) => {
     connection.onData((data) => {
@@ -790,7 +796,7 @@ test('it ends the input of a relayed connection once the guest ends its connecti
   await ctx.port.createImp({ name: 'imp-a' });
 
   const seen: string[] = [];
-  const guestPath = join(ctx.dir, 'guest.sock');
+  const guestPath = join(ctx.directory, 'guest.sock');
 
   ctx.port.openReverseForward('imp-a', guestPath, (connection) => {
     connection.onData((data) => {
@@ -817,7 +823,7 @@ test('it writes every byte the daemon sends to the guest end of a relayed connec
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const guestPath = join(ctx.dir, 'guest.sock');
+  const guestPath = join(ctx.directory, 'guest.sock');
 
   const sent = new Uint8Array(4 * 1024 * 1024).fill(97);
 
@@ -850,7 +856,7 @@ test('it closes every guest connection on its forwards', async () => {
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const guestPath = join(ctx.dir, 'guest.sock');
+  const guestPath = join(ctx.directory, 'guest.sock');
   let connections = 0;
   const closed = Promise.withResolvers<void>();
 
@@ -886,7 +892,7 @@ test('it ends every forward as closed with the code when its forwards stop', asy
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const forward = ctx.port.openReverseForward('imp-a', join(ctx.dir, 'guest.sock'), () => {});
+  const forward = ctx.port.openReverseForward('imp-a', join(ctx.directory, 'guest.sock'), () => {});
 
   ctx.port.stopForwards({ kind: 'closed', code: 1006, reason: '' });
 
@@ -898,7 +904,7 @@ test('it ends every forward as lost when its forwards stop as lost', async () =>
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const forward = ctx.port.openReverseForward('imp-a', join(ctx.dir, 'guest.sock'), () => {});
+  const forward = ctx.port.openReverseForward('imp-a', join(ctx.directory, 'guest.sock'), () => {});
 
   ctx.port.stopForwards({ kind: 'lost' });
 
@@ -910,7 +916,7 @@ test('it removes the guest socket of every forward when its forwards stop', asyn
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const guestPath = join(ctx.dir, 'guest.sock');
+  const guestPath = join(ctx.directory, 'guest.sock');
 
   ctx.port.openReverseForward('imp-a', guestPath, () => {});
   ctx.port.stopForwards({ kind: 'closed', code: 1006, reason: '' });
@@ -923,7 +929,7 @@ test('it ends a forward as stopped when the forward stops itself', async () => {
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const forward = ctx.port.openReverseForward('imp-a', join(ctx.dir, 'guest.sock'), () => {});
+  const forward = ctx.port.openReverseForward('imp-a', join(ctx.directory, 'guest.sock'), () => {});
 
   forward.stop();
 
@@ -935,7 +941,7 @@ test('it keeps the first end of a forward that its forwards stop after it stoppe
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const forward = ctx.port.openReverseForward('imp-a', join(ctx.dir, 'guest.sock'), () => {});
+  const forward = ctx.port.openReverseForward('imp-a', join(ctx.directory, 'guest.sock'), () => {});
 
   forward.stop();
   ctx.port.stopForwards({ kind: 'closed', code: 1006, reason: '' });
@@ -948,7 +954,7 @@ test('it keeps listening for the next guest connection after it closes every one
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const guestPath = join(ctx.dir, 'guest.sock');
+  const guestPath = join(ctx.directory, 'guest.sock');
   let connections = 0;
   const closed = Promise.withResolvers<void>();
 
@@ -994,7 +1000,7 @@ test('it closes each new guest connection without relaying it while relays are r
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const guestPath = join(ctx.dir, 'guest.sock');
+  const guestPath = join(ctx.directory, 'guest.sock');
   let connections = 0;
   const closed = Promise.withResolvers<void>();
 
@@ -1028,7 +1034,7 @@ test('it relays guest connections again once the refusal stops', async () => {
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const guestPath = join(ctx.dir, 'guest.sock');
+  const guestPath = join(ctx.directory, 'guest.sock');
   let connections = 0;
 
   ctx.port.openReverseForward('imp-a', guestPath, () => {
@@ -1079,7 +1085,7 @@ test('it drops what a guest writes while guest bytes are dropped', async () => {
   await ctx.port.createImp({ name: 'imp-a' });
 
   const received: string[] = [];
-  const guestPath = join(ctx.dir, 'guest.sock');
+  const guestPath = join(ctx.directory, 'guest.sock');
 
   ctx.port.openReverseForward('imp-a', guestPath, (connection) => {
     connection.onData((data) => {
@@ -1110,7 +1116,7 @@ test('it relays what a guest writes once the drop stops', async () => {
   await ctx.port.createImp({ name: 'imp-a' });
 
   const received: string[] = [];
-  const guestPath = join(ctx.dir, 'guest.sock');
+  const guestPath = join(ctx.directory, 'guest.sock');
 
   ctx.port.openReverseForward('imp-a', guestPath, (connection) => {
     connection.onData((data) => {
@@ -1151,7 +1157,7 @@ test('it still writes what the daemon sends to the guest while guest bytes are d
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const guestPath = join(ctx.dir, 'guest.sock');
+  const guestPath = join(ctx.directory, 'guest.sock');
   const received: string[] = [];
 
   ctx.port.openReverseForward('imp-a', guestPath, (connection) => {
@@ -1200,14 +1206,14 @@ test('it runs a command with the guest home as HOME once the test gives one', as
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  ctx.port.setHomeDir(ctx.dir);
+  ctx.port.setHomeDir(ctx.directory);
 
   const result = await ctx.port.runCommand('imp-a', {
     argv: ['sh', '-c', 'cd && pwd'],
     cwd: '/',
   });
 
-  expect(Buffer.from(result.stdout).toString()).toBe(`${ctx.dir}\n`);
+  expect(Buffer.from(result.stdout).toString()).toBe(`${ctx.directory}\n`);
 });
 
 test('it runs a command in an absolute working directory as it stands, so a `..` after a symlink leaves its target', async () => {
@@ -1215,15 +1221,17 @@ test('it runs a command in an absolute working directory as it stands, so a `..`
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  mkdirSync(join(ctx.dir, 'far', 'nested'), { recursive: true });
-  symlinkSync(join(ctx.dir, 'far', 'nested'), join(ctx.dir, 'link'));
+  mkdirSync(join(ctx.directory, 'far', 'nested'), { recursive: true });
+  symlinkSync(join(ctx.directory, 'far', 'nested'), join(ctx.directory, 'link'));
 
   const result = await ctx.port.runCommand('imp-a', {
     argv: ['pwd', '-P'],
-    cwd: `${ctx.dir}/link/..`,
+    cwd: `${ctx.directory}/link/..`,
   });
 
-  expect(Buffer.from(result.stdout).toString()).toBe(`${join(realpathSync(ctx.dir), 'far')}\n`);
+  expect(Buffer.from(result.stdout).toString()).toBe(
+    `${join(realpathSync(ctx.directory), 'far')}\n`,
+  );
 });
 
 test('it runs a command in a relative working directory from the root with no lexical folding', async () => {
@@ -1231,15 +1239,17 @@ test('it runs a command in a relative working directory from the root with no le
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  mkdirSync(join(ctx.dir, 'far', 'nested'), { recursive: true });
-  symlinkSync(join(ctx.dir, 'far', 'nested'), join(ctx.dir, 'link'));
+  mkdirSync(join(ctx.directory, 'far', 'nested'), { recursive: true });
+  symlinkSync(join(ctx.directory, 'far', 'nested'), join(ctx.directory, 'link'));
 
   const result = await ctx.port.runCommand('imp-a', {
     argv: ['pwd', '-P'],
-    cwd: `${relative('/', ctx.dir)}/link/..`,
+    cwd: `${relative('/', ctx.directory)}/link/..`,
   });
 
-  expect(Buffer.from(result.stdout).toString()).toBe(`${join(realpathSync(ctx.dir), 'far')}\n`);
+  expect(Buffer.from(result.stdout).toString()).toBe(
+    `${join(realpathSync(ctx.directory), 'far')}\n`,
+  );
 });
 
 test('it runs a command with the PATH the test gives in place of the guest one', async () => {
@@ -1247,13 +1257,13 @@ test('it runs a command with the PATH the test gives in place of the guest one',
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  ctx.port.setGuestPath(ctx.dir);
+  ctx.port.setGuestPath(ctx.directory);
 
   const result = await ctx.port.runCommand('imp-a', {
     argv: ['/bin/sh', '-c', 'printf %s "$PATH"'],
   });
 
-  expect(Buffer.from(result.stdout).toString()).toBe(ctx.dir);
+  expect(Buffer.from(result.stdout).toString()).toBe(ctx.directory);
 });
 
 test('it ends the output and exit of a command that runs while a session PTY opens in its imp', async () => {
@@ -1261,7 +1271,7 @@ test('it ends the output and exit of a command that runs while a session PTY ope
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const go = join(ctx.dir, 'go');
+  const go = join(ctx.directory, 'go');
 
   const result = ctx.port.runCommand('imp-a', {
     argv: [
@@ -1282,7 +1292,7 @@ test('it ends the output and exit of a command that runs while a session PTY ope
       session: 's1',
       argv: ['sleep', '30'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
@@ -1343,7 +1353,7 @@ test('it keeps a held command waiting until its hold stops', async () => {
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const marker = join(ctx.dir, 'held-ran');
+  const marker = join(ctx.directory, 'held-ran');
   const hold = ctx.port.startCommandHold('held-ran');
   const result = ctx.port.runCommand('imp-a', { argv: ['touch', marker] });
 
@@ -1397,7 +1407,7 @@ test('it ends a held command as killed without running it once the port stops', 
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const marker = join(ctx.dir, 'held-ran');
+  const marker = join(ctx.directory, 'held-ran');
   const hold = ctx.port.startCommandHold('held-ran');
   const result = ctx.port.runCommand('imp-a', { argv: ['touch', marker] });
 
@@ -1416,7 +1426,7 @@ test('it kills a running command once the port stops', async () => {
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const marker = join(ctx.dir, 'started');
+  const marker = join(ctx.directory, 'started');
 
   const result = ctx.port.runCommand('imp-a', {
     argv: ['sh', '-c', 'touch "$1"; exec sleep 30', 'sh', marker],
@@ -1434,7 +1444,7 @@ test('it kills a running command once the port stops', async () => {
 });
 
 test('it reports a command that exited while a child it left holds its output open when the port stops', async () => {
-  const tmp = setupTempDir('atc-stub-imp-port-');
+  const temporaryDirectory = setupTempDir('atc-stub-imp-port-');
   const reported: string[] = [];
 
   const port = createStubImpPort('token:atc', Date.now, (line) => {
@@ -1443,7 +1453,7 @@ test('it reports a command that exited while a child it left holds its output op
 
   await port.createImp({ name: 'imp-a' });
 
-  const marker = join(tmp.path, 'pids');
+  const marker = join(temporaryDirectory.path, 'pids');
 
   void port.runCommand('imp-a', {
     argv: ['sh', '-c', 'sleep 30 & echo "$$" > "$1"', 'sh', marker],
@@ -1475,7 +1485,7 @@ test('it ends a command whose child holds its output open once the port stops', 
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const marker = join(ctx.dir, 'pids');
+  const marker = join(ctx.directory, 'pids');
 
   const result = ctx.port.runCommand('imp-a', {
     argv: ['sh', '-c', 'sleep 30 & echo "$$ $!" > "$1"', 'sh', marker],
@@ -1504,7 +1514,7 @@ test('it ends a command whose child holds its output open once the port stops', 
 });
 
 test('it reports nothing for a running command the port stop cuts short', async () => {
-  const tmp = setupTempDir('atc-stub-imp-port-');
+  const temporaryDirectory = setupTempDir('atc-stub-imp-port-');
   const reported: string[] = [];
 
   const port = createStubImpPort('token:atc', Date.now, (line) => {
@@ -1513,7 +1523,7 @@ test('it reports nothing for a running command the port stop cuts short', async 
 
   await port.createImp({ name: 'imp-a' });
 
-  const marker = join(tmp.path, 'started');
+  const marker = join(temporaryDirectory.path, 'started');
 
   void port.runCommand('imp-a', {
     argv: ['sh', '-c', 'touch "$1"; exec sleep 30', 'sh', marker],
@@ -2038,23 +2048,23 @@ test('it refuses a start that requires the broker on an imp without a grant and 
       kind: 'start',
       name: 'atc-s1',
       session: 's1',
-      argv: ['touch', join(ctx.dir, 'ran')],
+      argv: ['touch', join(ctx.directory, 'ran')],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
       require: ['broker'],
     },
     {
-      onStarted: (s) => {
-        started.push(s);
+      onStarted: (sessionStarted) => {
+        started.push(sessionStarted);
       },
       onOutput: () => {},
     },
   );
 
   const outcome = await connection.outcome;
-  const ran = await Bun.file(join(ctx.dir, 'ran')).exists();
+  const ran = await Bun.file(join(ctx.directory, 'ran')).exists();
 
   expect(outcome).toStrictEqual({
     kind: 'failed',
@@ -2086,9 +2096,9 @@ test('it refuses a start that requires the broker while the broker fails, though
       kind: 'start',
       name: 'atc-s1',
       session: 's1',
-      argv: ['touch', join(ctx.dir, 'ran')],
+      argv: ['touch', join(ctx.directory, 'ran')],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
       require: ['broker'],
@@ -2097,7 +2107,7 @@ test('it refuses a start that requires the broker while the broker fails, though
   );
 
   const outcome = await connection.outcome;
-  const ran = await Bun.file(join(ctx.dir, 'ran')).exists();
+  const ran = await Bun.file(join(ctx.directory, 'ran')).exists();
 
   expect(outcome).toStrictEqual({
     kind: 'failed',
@@ -2128,7 +2138,7 @@ test('it runs a start that requires the broker on an imp with a grant and a work
       session: 's1',
       argv: ['printf', 'ran'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
       require: ['broker'],
@@ -2155,7 +2165,7 @@ test('it runs a start that requires nothing while the broker fails', async () =>
       session: 's1',
       argv: ['printf', 'ran'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
@@ -2184,9 +2194,9 @@ test('it refuses a start that requires the broker and sets a broker variable, wi
       kind: 'start',
       name: 'atc-s1',
       session: 's1',
-      argv: ['touch', join(ctx.dir, 'ran')],
+      argv: ['touch', join(ctx.directory, 'ran')],
       env: { HTTPS_PROXY: 'http://proxy.example:3128' },
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
       require: ['broker'],
@@ -2195,7 +2205,7 @@ test('it refuses a start that requires the broker and sets a broker variable, wi
   );
 
   const outcome = await connection.outcome;
-  const ran = await Bun.file(join(ctx.dir, 'ran')).exists();
+  const ran = await Bun.file(join(ctx.directory, 'ran')).exists();
 
   expect(outcome).toStrictEqual({
     kind: 'failed',
@@ -2228,7 +2238,7 @@ test('it lets a start that requires the broker join a session that started with 
       session: 's1',
       argv: ['sleep', '30'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
       require: ['broker'],
@@ -2252,7 +2262,7 @@ test('it lets a start that requires the broker join a session that started with 
       session: 's1',
       argv: ['sleep', '30'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
       require: ['broker'],
@@ -2309,7 +2319,7 @@ test('it refuses a start that requires the broker and would join a session that 
       session: 's1',
       argv: ['sleep', '30'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
@@ -2330,7 +2340,7 @@ test('it refuses a start that requires the broker and would join a session that 
       session: 's1',
       argv: ['sleep', '30'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
       require: ['broker'],
@@ -2741,10 +2751,10 @@ test('it exits 1 from a command whose argv holds the failing text without runnin
   ctx.port.setCommandFailure('ran');
 
   const result = await ctx.port.runCommand('imp-a', {
-    argv: ['touch', join(ctx.dir, 'ran')],
+    argv: ['touch', join(ctx.directory, 'ran')],
   });
 
-  const ran = await Bun.file(join(ctx.dir, 'ran')).exists();
+  const ran = await Bun.file(join(ctx.directory, 'ran')).exists();
 
   expect({
     code: result.code,
@@ -2808,7 +2818,7 @@ test('it records every session request it sends to impd', async () => {
     session: 's1',
     argv: ['true'],
     env: {},
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
   } as const;
@@ -2832,7 +2842,7 @@ test('it sends nothing for a session whose gate stays closed', async () => {
       session: 's1',
       argv: ['true'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
@@ -2881,9 +2891,9 @@ test('it drops the next session request with the close code it is given', async 
       kind: 'start',
       name: 'imp-a',
       session: 's1',
-      argv: ['touch', join(ctx.dir, 'ran')],
+      argv: ['touch', join(ctx.directory, 'ran')],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
@@ -2891,7 +2901,7 @@ test('it drops the next session request with the close code it is given', async 
   );
 
   const outcome = await connection.outcome;
-  const ran = await Bun.file(join(ctx.dir, 'ran')).exists();
+  const ran = await Bun.file(join(ctx.directory, 'ran')).exists();
 
   expect(outcome).toStrictEqual({ kind: 'closed', reason: 'code 1006', closeCode: 1006 });
   expect(ran).toBe(false);
@@ -2918,7 +2928,7 @@ test('it answers the session request after the dropped ones', async () => {
       session: 's1',
       argv: ['printf', 'ran'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
@@ -3024,7 +3034,7 @@ test('it ends a start that drops CAP_SYS_ADMIN unreachable when its capability c
       session: 's1',
       argv: ['sleep', '30'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
       dropSysAdmin: true,
@@ -3063,7 +3073,7 @@ test('it ends a start that requires the broker unreachable when its capability c
       session: 's1',
       argv: ['sleep', '30'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
       require: ['broker'],
@@ -3132,7 +3142,7 @@ test('it sends each held session request once the upgrade hold stops', async () 
       session: 's1',
       argv: ['printf', 'ran'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
@@ -3170,13 +3180,13 @@ test('it holds every session answer back while the answer hold lasts', async () 
       session: 's1',
       argv: ['sleep', '30'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
     {
-      onStarted: (s) => {
-        started.push(s);
+      onStarted: (sessionStarted) => {
+        started.push(sessionStarted);
       },
       onOutput: () => {},
     },
@@ -3203,7 +3213,7 @@ test('it sends every held answer once the answer hold stops', async () => {
       session: 's1',
       argv: ['printf', 'ran'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
@@ -3235,7 +3245,7 @@ test('it starts an exact resume the overlap it is given before the offset asked 
       session: 's1',
       argv: ['bash', '-c', 'printf abcdef; sleep 30'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
@@ -3260,8 +3270,8 @@ test('it starts an exact resume the overlap it is given before the offset asked 
     },
     {
       onStarted: () => {},
-      onOutput: (d) => {
-        chunks.push(d);
+      onOutput: (chunk) => {
+        chunks.push(chunk);
       },
     },
   );
@@ -3285,13 +3295,13 @@ test('it reads the generation and boot a started session runs under', async () =
       session: 's1',
       argv: ['sleep', '30'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
     {
-      onStarted: (s) => {
-        started.push(s);
+      onStarted: (sessionStarted) => {
+        started.push(sessionStarted);
       },
       onOutput: () => {},
     },
@@ -3345,13 +3355,13 @@ test('it reads the command line of the process a session runs', async () => {
       session: 's1',
       argv: ['sleep', '30'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
     {
-      onStarted: (s) => {
-        started.push(s);
+      onStarted: (sessionStarted) => {
+        started.push(sessionStarted);
       },
       onOutput: () => {},
     },
@@ -3390,7 +3400,7 @@ test('it writes what a connection sends to the session process', async () => {
       session: 's1',
       argv: ['cat'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
@@ -3398,8 +3408,8 @@ test('it writes what a connection sends to the session process', async () => {
       onStarted: () => {
         started.resolve();
       },
-      onOutput: (d) => {
-        chunks.push(d);
+      onOutput: (chunk) => {
+        chunks.push(chunk);
       },
     },
   );
@@ -3427,7 +3437,7 @@ test('it delivers a signal a connection sends to the session process', async () 
       session: 's1',
       argv: ['sleep', '30'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
@@ -3460,7 +3470,7 @@ test('it answers a resume from another generation with the running one and data 
       session: 's1',
       argv: ['bash', '-c', 'printf abc; sleep 30'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
@@ -3487,11 +3497,11 @@ test('it answers a resume from another generation with the running one and data 
       wake: false,
     },
     {
-      onStarted: (s) => {
-        started.push(s);
+      onStarted: (sessionStarted) => {
+        started.push(sessionStarted);
       },
-      onOutput: (d) => {
-        chunks.push(d);
+      onOutput: (chunk) => {
+        chunks.push(chunk);
       },
     },
   );
@@ -3542,7 +3552,7 @@ test('it starts a fresh attach on a wrapped ring at the next line, after the mod
         String.raw`head -c 300000 /dev/zero | tr '\0' a; printf '\nTAIL'; sleep 30`,
       ],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
@@ -3559,11 +3569,11 @@ test('it starts a fresh attach on a wrapped ring at the next line, after the mod
   ctx.port.openSession(
     { kind: 'attach', name: 'imp-a', session: 's1', cols: 80, rows: 24, wake: false },
     {
-      onStarted: (s) => {
-        started.push(s);
+      onStarted: (sessionStarted) => {
+        started.push(sessionStarted);
       },
-      onOutput: (d) => {
-        chunks.push(d);
+      onOutput: (chunk) => {
+        chunks.push(chunk);
       },
     },
   );
@@ -3603,7 +3613,7 @@ test('it finds no undelivered exit for a session whose process still runs', asyn
       session: 's1',
       argv: ['bash', '-c', 'printf up; sleep 30'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
@@ -3631,7 +3641,7 @@ test('it delivers an exit no connection received to the next attach, with the ge
       session: 's1',
       argv: ['sh', '-c', 'while [ ! -e go ]; do sleep 0.01; done; exit 3'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
@@ -3646,7 +3656,7 @@ test('it delivers an exit no connection received to the next attach, with the ge
 
   const generation = ctx.port.getGeneration('imp-a', 's1');
 
-  writeFileSync(join(ctx.dir, 'go'), '');
+  writeFileSync(join(ctx.directory, 'go'), '');
 
   await waitFor(() => {
     expect(ctx.port.findUndeliveredExit('imp-a', 's1')).toStrictEqual({ code: 3 });
@@ -3657,8 +3667,8 @@ test('it delivers an exit no connection received to the next attach, with the ge
   const attached = ctx.port.openSession(
     { kind: 'attach', name: 'imp-a', session: 's1', cols: 80, rows: 24, wake: false },
     {
-      onStarted: (s) => {
-        started.push(s);
+      onStarted: (sessionStarted) => {
+        started.push(sessionStarted);
       },
       onOutput: () => {},
     },
@@ -3702,7 +3712,7 @@ test('it answers an attach after the exit was delivered with NO_SESSION and the 
       session: 's1',
       argv: ['sh', '-c', 'while [ ! -e go ]; do sleep 0.01; done; exit 3'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
@@ -3717,7 +3727,7 @@ test('it answers an attach after the exit was delivered with NO_SESSION and the 
 
   const generation = ctx.port.getGeneration('imp-a', 's1');
 
-  writeFileSync(join(ctx.dir, 'go'), '');
+  writeFileSync(join(ctx.directory, 'go'), '');
 
   await waitFor(() => {
     expect(ctx.port.findUndeliveredExit('imp-a', 's1')).toStrictEqual({ code: 3 });
@@ -3761,14 +3771,14 @@ test('it resizes the terminal of the session a connection holds', async () => {
       session: 's1',
       argv: ['bash', '-c', 'trap "stty size" WINCH; printf ready; while :; do sleep 0.05; done'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
     {
       onStarted: () => {},
-      onOutput: (d) => {
-        chunks.push(d);
+      onOutput: (chunk) => {
+        chunks.push(chunk);
       },
     },
   );
@@ -3805,7 +3815,7 @@ test('it runs a start that requires the broker once a broker failure stops', asy
       session: 's0',
       argv: ['printf', 'ran'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
       require: ['broker'],
@@ -3824,7 +3834,7 @@ test('it runs a start that requires the broker once a broker failure stops', asy
       session: 's1',
       argv: ['printf', 'ran'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
       require: ['broker'],
@@ -3856,7 +3866,7 @@ test('it sends nothing for a session whose gate throws', async () => {
       session: 's1',
       argv: ['true'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
@@ -3882,9 +3892,9 @@ test('it starts a session with a relative working directory from the root, as im
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  mkdirSync(join(ctx.dir, 'work'));
+  mkdirSync(join(ctx.directory, 'work'));
 
-  ctx.port.setHomeDir(join(ctx.dir, 'home'));
+  ctx.port.setHomeDir(join(ctx.directory, 'home'));
 
   const chunks: Uint8Array[] = [];
 
@@ -3895,21 +3905,21 @@ test('it starts a session with a relative working directory from the root, as im
       session: 's1',
       argv: ['pwd'],
       env: {},
-      cwd: relative('/', join(ctx.dir, 'work')),
+      cwd: relative('/', join(ctx.directory, 'work')),
       cols: 80,
       rows: 24,
     },
     {
       onStarted: () => {},
-      onOutput: (d) => {
-        chunks.push(d);
+      onOutput: (chunk) => {
+        chunks.push(chunk);
       },
     },
   );
 
   await connection.outcome;
 
-  expect(Buffer.concat(chunks).toString()).toBe(`${join(ctx.dir, 'work')}\r\n`);
+  expect(Buffer.concat(chunks).toString()).toBe(`${join(ctx.directory, 'work')}\r\n`);
 });
 
 test('it starts a session with the guest home as HOME once the test gives one', async () => {
@@ -3917,7 +3927,7 @@ test('it starts a session with the guest home as HOME once the test gives one', 
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  ctx.port.setHomeDir(ctx.dir);
+  ctx.port.setHomeDir(ctx.directory);
 
   const chunks: Uint8Array[] = [];
 
@@ -3934,15 +3944,15 @@ test('it starts a session with the guest home as HOME once the test gives one', 
     },
     {
       onStarted: () => {},
-      onOutput: (d) => {
-        chunks.push(d);
+      onOutput: (chunk) => {
+        chunks.push(chunk);
       },
     },
   );
 
   await connection.outcome;
 
-  expect(Buffer.concat(chunks).toString()).toBe(`${ctx.dir}\r\n`);
+  expect(Buffer.concat(chunks).toString()).toBe(`${ctx.directory}\r\n`);
 });
 
 test('it finds no undelivered exit once an attach has delivered it', async () => {
@@ -3959,7 +3969,7 @@ test('it finds no undelivered exit once an attach has delivered it', async () =>
       session: 's1',
       argv: ['sh', '-c', 'while [ ! -e go ]; do sleep 0.01; done; exit 3'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
@@ -3972,7 +3982,7 @@ test('it finds no undelivered exit once an attach has delivered it', async () =>
 
   opened.close();
 
-  writeFileSync(join(ctx.dir, 'go'), '');
+  writeFileSync(join(ctx.directory, 'go'), '');
 
   await waitFor(() => {
     expect(ctx.port.findUndeliveredExit('imp-a', 's1')).toStrictEqual({ code: 3 });
@@ -4020,14 +4030,14 @@ test('it detaches a live connection as lost and stops its process when the imp s
       session: 's1',
       argv: ['bash', '-c', 'echo $$; exec sleep 30'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
     {
       onStarted: () => {},
-      onOutput: (d) => {
-        chunks.push(d);
+      onOutput: (chunk) => {
+        chunks.push(chunk);
       },
     },
   );
@@ -4066,14 +4076,14 @@ test('it continues a stopped process under the same generation when the imp wake
       session: 's1',
       argv: ['bash', '-c', 'echo $$; exec sleep 30'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
     {
       onStarted: () => {},
-      onOutput: (d) => {
-        chunks.push(d);
+      onOutput: (chunk) => {
+        chunks.push(chunk);
       },
     },
   );
@@ -4100,8 +4110,8 @@ test('it continues a stopped process under the same generation when the imp wake
   ctx.port.openSession(
     { kind: 'attach', name: 'imp-a', session: 's1', cols: 80, rows: 24, wake: true },
     {
-      onStarted: (s) => {
-        started.push(s);
+      onStarted: (sessionStarted) => {
+        started.push(sessionStarted);
       },
       onOutput: () => {},
     },
@@ -4152,14 +4162,14 @@ test('it closes a live connection and kills its process when the imp is destroye
       session: 's1',
       argv: ['bash', '-c', 'echo $$; exec sleep 30'],
       env: {},
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       cols: 80,
       rows: 24,
     },
     {
       onStarted: () => {},
-      onOutput: (d) => {
-        chunks.push(d);
+      onOutput: (chunk) => {
+        chunks.push(chunk);
       },
     },
   );
@@ -4198,8 +4208,8 @@ test('it owns a lease under the principal it was created with', async () => {
 test('it stops every forward once the test finishes without a stop', () => {
   // The directory registers first, so its removal runs after the check
   // below and only the forward's own stop can take the socket away first.
-  const tmp = setupTempDir('atc-stub-imp-port-');
-  const guestPath = join(tmp.path, 'guest.sock');
+  const temporaryDirectory = setupTempDir('atc-stub-imp-port-');
+  const guestPath = join(temporaryDirectory.path, 'guest.sock');
   let left: boolean | null = null;
 
   // Runs after the port's own release, which registers later; it records
@@ -4219,7 +4229,7 @@ test('it stops every forward once the test finishes without a stop', () => {
 
 test('it stops every forward once stopped', async () => {
   const ctx = setupTest();
-  const guestPath = join(ctx.dir, 'guest.sock');
+  const guestPath = join(ctx.directory, 'guest.sock');
 
   ctx.port.openReverseForward('imp-a', guestPath, () => {});
 

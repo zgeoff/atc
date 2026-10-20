@@ -12,7 +12,7 @@ import { LocalPTYProvider } from '../local-pty-provider';
 
 // One provider operation, in the order the daemon called it.
 type StubDirCall =
-  | { readonly op: 'transfer'; readonly dir: string; readonly bytes: number }
+  | { readonly op: 'transfer'; readonly directory: string; readonly bytes: number }
   | { readonly op: 'run'; readonly argv: readonly string[]; readonly cwd: string };
 
 interface StubDirOptions {
@@ -21,7 +21,7 @@ interface StubDirOptions {
 
   // Runs once an archive is unpacked, before the transfer resolves, so a
   // test can change what landed on the host or hold the transfer open.
-  readonly afterTransfer?: (dir: string) => Promise<void>;
+  readonly afterTransfer?: (directory: string) => Promise<void>;
 }
 
 class StubDirProvider implements ExecutionProvider {
@@ -36,7 +36,7 @@ class StubDirProvider implements ExecutionProvider {
   // Every harness the provider started, as the daemon specified it.
   readonly harnesses: HarnessSpec[] = [];
 
-  private readonly afterTransfer: ((dir: string) => Promise<void>) | undefined;
+  private readonly afterTransfer: ((directory: string) => Promise<void>) | undefined;
 
   private readonly terminals = new LocalPTYProvider();
 
@@ -67,24 +67,27 @@ class StubDirProvider implements ExecutionProvider {
     return this.terminals.spawnHarness(spec);
   };
 
-  readonly transferArchive = async (archive: Uint8Array, dir: string): Promise<void> => {
-    this.calls.push({ op: 'transfer', dir, bytes: archive.byteLength });
+  readonly transferArchive = async (archive: Uint8Array, directory: string): Promise<void> => {
+    this.calls.push({ op: 'transfer', directory, bytes: archive.byteLength });
 
-    await mkdir(dir, { recursive: true });
+    await mkdir(directory, { recursive: true });
 
-    const proc = Bun.spawn(['tar', '-x', '-f', '-', '-C', dir], {
+    const subprocess = Bun.spawn(['tar', '-x', '-f', '-', '-C', directory], {
       stdin: archive,
       stdout: 'ignore',
       stderr: 'pipe',
     });
 
-    const [stderr, exitCode] = await Promise.all([new Response(proc.stderr).text(), proc.exited]);
+    const [stderr, exitCode] = await Promise.all([
+      new Response(subprocess.stderr).text(),
+      subprocess.exited,
+    ]);
 
     if (exitCode !== 0) {
-      throw new Error(`tar exited ${exitCode} unpacking into ${dir}: ${stderr}`);
+      throw new Error(`tar exited ${exitCode} unpacking into ${directory}: ${stderr}`);
     }
 
-    await this.afterTransfer?.(dir);
+    await this.afterTransfer?.(directory);
   };
 
   readonly runCommand = async (spec: CommandSpec): Promise<CommandResult> => {
@@ -92,7 +95,7 @@ class StubDirProvider implements ExecutionProvider {
 
     // The command inherits the daemon's environment as it stands now, which
     // a spawn without an env option would take only from process start.
-    const proc = Bun.spawn([...spec.argv], {
+    const subprocess = Bun.spawn([...spec.argv], {
       cwd: spec.cwd,
       env: process.env,
       stdin: 'ignore',
@@ -101,9 +104,9 @@ class StubDirProvider implements ExecutionProvider {
     });
 
     const [stdout, stderr, exitCode] = await Promise.all([
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text(),
-      proc.exited,
+      new Response(subprocess.stdout).text(),
+      new Response(subprocess.stderr).text(),
+      subprocess.exited,
     ]);
 
     return { exitCode, stdout, stderr };

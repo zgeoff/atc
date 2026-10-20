@@ -7,20 +7,25 @@ import { buildCodexGuestLaunch } from './build-codex-guest-launch';
 
 // The guest folder a launch stages its files under and runs in.
 function setupTest() {
-  const tmp = setupTempDir('atc-codex-launch-');
+  const temporaryDirectory = setupTempDir('atc-codex-launch-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it copies the staged sign-in, config, and hooks into the Codex home and runs the CLI there', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.dir, 'auth-r1'), { recursive: true });
-  writeFileSync(join(ctx.dir, 'auth-r1', 'auth.json'), '{"rev":"auth-r1"}');
-  writeFileSync(join(ctx.dir, 'auth-r1', 'config.toml'), 'check_for_update_on_startup = false\n');
-  writeFileSync(join(ctx.dir, 'auth-r1', 'hooks.json'), '{"hooks":{}}');
+  mkdirSync(join(ctx.directory, 'auth-r1'), { recursive: true });
+  writeFileSync(join(ctx.directory, 'auth-r1', 'auth.json'), '{"rev":"auth-r1"}');
 
-  const launch = buildCodexGuestLaunch(ctx.dir, 'auth-r1', [
+  writeFileSync(
+    join(ctx.directory, 'auth-r1', 'config.toml'),
+    'check_for_update_on_startup = false\n',
+  );
+
+  writeFileSync(join(ctx.directory, 'auth-r1', 'hooks.json'), '{"hooks":{}}');
+
+  const launch = buildCodexGuestLaunch(ctx.directory, 'auth-r1', [
     'sh',
     '-c',
     'printf "%s|%s" "$CODEX_HOME" "$*"',
@@ -31,7 +36,7 @@ test('it copies the staged sign-in, config, and hooks into the Codex home and ru
 
   const run = await runCommand([launch.bin, ...launch.args], { env: { ...launch.env } });
 
-  const home = join(ctx.dir, 'codex-home');
+  const home = join(ctx.directory, 'codex-home');
 
   expect({ exitCode: run.exitCode, stdout: run.stdout }).toStrictEqual({
     exitCode: 0,
@@ -53,29 +58,39 @@ test('it copies the staged sign-in, config, and hooks into the Codex home and ru
 test('it appends the clone trust seed to the config on every launch that finds one', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.dir, 'auth-r1'), { recursive: true });
-  writeFileSync(join(ctx.dir, 'auth-r1', 'auth.json'), '{"rev":"auth-r1"}');
-  writeFileSync(join(ctx.dir, 'auth-r1', 'config.toml'), 'check_for_update_on_startup = false\n');
-  writeFileSync(join(ctx.dir, 'auth-r1', 'hooks.json'), '{"hooks":{}}');
-  mkdirSync(join(ctx.dir, 'auth-r2'), { recursive: true });
-  writeFileSync(join(ctx.dir, 'auth-r2', 'auth.json'), '{"rev":"auth-r2"}');
-  writeFileSync(join(ctx.dir, 'auth-r2', 'config.toml'), 'check_for_update_on_startup = false\n');
-  writeFileSync(join(ctx.dir, 'auth-r2', 'hooks.json'), '{"hooks":{}}');
+  mkdirSync(join(ctx.directory, 'auth-r1'), { recursive: true });
+  writeFileSync(join(ctx.directory, 'auth-r1', 'auth.json'), '{"rev":"auth-r1"}');
 
   writeFileSync(
-    join(ctx.dir, 'codex-trust.toml'),
+    join(ctx.directory, 'auth-r1', 'config.toml'),
+    'check_for_update_on_startup = false\n',
+  );
+
+  writeFileSync(join(ctx.directory, 'auth-r1', 'hooks.json'), '{"hooks":{}}');
+  mkdirSync(join(ctx.directory, 'auth-r2'), { recursive: true });
+  writeFileSync(join(ctx.directory, 'auth-r2', 'auth.json'), '{"rev":"auth-r2"}');
+
+  writeFileSync(
+    join(ctx.directory, 'auth-r2', 'config.toml'),
+    'check_for_update_on_startup = false\n',
+  );
+
+  writeFileSync(join(ctx.directory, 'auth-r2', 'hooks.json'), '{"hooks":{}}');
+
+  writeFileSync(
+    join(ctx.directory, 'codex-trust.toml'),
     '\n[projects."/work"]\ntrust_level = "trusted"\n',
   );
 
-  const first = buildCodexGuestLaunch(ctx.dir, 'auth-r1', ['true']);
+  const first = buildCodexGuestLaunch(ctx.directory, 'auth-r1', ['true']);
 
   await runCommand([first.bin, ...first.args]);
 
-  const second = buildCodexGuestLaunch(ctx.dir, 'auth-r2', ['true']);
+  const second = buildCodexGuestLaunch(ctx.directory, 'auth-r2', ['true']);
 
   const run = await runCommand([second.bin, ...second.args]);
 
-  const home = join(ctx.dir, 'codex-home');
+  const home = join(ctx.directory, 'codex-home');
 
   expect(run.exitCode).toBe(0);
   expect(readFileSync(join(home, 'auth.json'), 'utf8')).toBe('{"rev":"auth-r2"}');
@@ -88,12 +103,17 @@ test('it appends the clone trust seed to the config on every launch that finds o
 test('it unsets every variable that would sign Codex in another way', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.dir, 'auth-r1'), { recursive: true });
-  writeFileSync(join(ctx.dir, 'auth-r1', 'auth.json'), '{"rev":"auth-r1"}');
-  writeFileSync(join(ctx.dir, 'auth-r1', 'config.toml'), 'check_for_update_on_startup = false\n');
-  writeFileSync(join(ctx.dir, 'auth-r1', 'hooks.json'), '{"hooks":{}}');
+  mkdirSync(join(ctx.directory, 'auth-r1'), { recursive: true });
+  writeFileSync(join(ctx.directory, 'auth-r1', 'auth.json'), '{"rev":"auth-r1"}');
 
-  const launch = buildCodexGuestLaunch(ctx.dir, 'auth-r1', [
+  writeFileSync(
+    join(ctx.directory, 'auth-r1', 'config.toml'),
+    'check_for_update_on_startup = false\n',
+  );
+
+  writeFileSync(join(ctx.directory, 'auth-r1', 'hooks.json'), '{"hooks":{}}');
+
+  const launch = buildCodexGuestLaunch(ctx.directory, 'auth-r1', [
     'sh',
     '-c',
     'for v in OPENAI_API_KEY CODEX_API_KEY CODEX_ACCESS_TOKEN KEPT; do printf "%s," "$(printenv "$v" || echo unset)"; done',
@@ -113,7 +133,7 @@ test('it unsets every variable that would sign Codex in another way', async () =
 
 test('it stops before the CLI runs when the staged sign-in is missing', async () => {
   const ctx = setupTest();
-  const launch = buildCodexGuestLaunch(ctx.dir, 'auth-r1', ['sh', '-c', 'echo ran']);
+  const launch = buildCodexGuestLaunch(ctx.directory, 'auth-r1', ['sh', '-c', 'echo ran']);
 
   const run = await runCommand([launch.bin, ...launch.args]);
 

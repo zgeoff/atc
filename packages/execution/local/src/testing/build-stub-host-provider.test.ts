@@ -3,9 +3,9 @@ import { setupTempDir } from '@atc/test-utils';
 import { buildStubHostProvider } from './build-stub-host-provider';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-host-');
+  const temporaryDirectory = setupTempDir('atc-stub-host-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it declares every capability of a local terminal plus sleeping and destroying a host', () => {
@@ -27,8 +27,8 @@ test('it runs a command on this machine', () => {
   const ctx = setupTest();
 
   expect(
-    buildStubHostProvider().runCommand({ argv: ['pwd'], cwd: ctx.dir }),
-  ).resolves.toStrictEqual({ exitCode: 0, stdout: `${ctx.dir}\n`, stderr: '' });
+    buildStubHostProvider().runCommand({ argv: ['pwd'], cwd: ctx.directory }),
+  ).resolves.toStrictEqual({ exitCode: 0, stdout: `${ctx.directory}\n`, stderr: '' });
 });
 
 test('it puts a host to sleep without doing anything', () => {

@@ -4,9 +4,9 @@ import { setupTempDir, startStubCodexAppServer, waitFor } from '@atc/test-utils'
 import { AppServerConnection } from './app-server-connection';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-app-server-conn-');
+  const temporaryDirectory = setupTempDir('atc-app-server-conn-');
 
-  return { socket: join(tmp.path, 'codex.sock') };
+  return { socket: join(temporaryDirectory.path, 'codex.sock') };
 }
 
 test('it resolves a request with the result the server answers', async () => {

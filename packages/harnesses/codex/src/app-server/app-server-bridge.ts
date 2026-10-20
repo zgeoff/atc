@@ -313,7 +313,11 @@ export class AppServerBridge {
 
       // A message a left thread holds belongs to that thread alone, so the
       // thread the bridge serves never sends it again.
-      unsettled = [...left.flatMap((l) => l.kept), ...all.filter((m) => !this.isLeft(m.id))];
+      unsettled = [
+        ...left.flatMap((recovery) => recovery.kept),
+        ...all.filter((message) => !this.isLeft(message.id)),
+      ];
+
       turns = unsettled.length === 0 ? [] : await readThreadTurns(conn, this.threadID, unsettled);
     } catch (error) {
       this.config.host.log(

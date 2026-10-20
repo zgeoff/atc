@@ -145,14 +145,14 @@ export class StubImpFleet {
   }
 
   killProcess(name: string, session: string): void {
-    const proc = this.getImp(name).sessions.get(session);
+    const subprocess = this.getImp(name).sessions.get(session);
 
-    if (proc === undefined) {
+    if (subprocess === undefined) {
       throw new Error(`no session ${session} on imp ${name}`);
     }
 
-    tryKill(proc.pty, 'SIGCONT');
-    tryKill(proc.pty, 'SIGKILL');
+    tryKill(subprocess.pty, 'SIGCONT');
+    tryKill(subprocess.pty, 'SIGKILL');
   }
 
   bootImpCold(name: string, cause: ColdBootCause): void {
@@ -161,9 +161,9 @@ export class StubImpFleet {
 
   // impd closes with 1011 when it drops a send under backpressure.
   stopConnection(name: string, session: string, closeCode: number): void {
-    const proc = this.getImp(name).sessions.get(session);
+    const subprocess = this.getImp(name).sessions.get(session);
 
-    proc?.connection?.stop({ kind: 'closed', reason: `code ${closeCode}`, closeCode });
+    subprocess?.connection?.stop({ kind: 'closed', reason: `code ${closeCode}`, closeCode });
   }
 
   startDestroyHold(): void {
@@ -201,24 +201,24 @@ export class StubImpFleet {
 
   // The generation running under a session name.
   getGeneration(name: string, session: string): string {
-    const proc = this.getImp(name).sessions.get(session);
+    const subprocess = this.getImp(name).sessions.get(session);
 
-    if (proc === undefined) {
+    if (subprocess === undefined) {
       throw new Error(`no session ${session} on imp ${name}`);
     }
 
-    return proc.generation;
+    return subprocess.generation;
   }
 
   // The command line of the process running under a session name.
   getProcessArgv(name: string, session: string): readonly string[] {
-    const proc = this.getImp(name).sessions.get(session);
+    const subprocess = this.getImp(name).sessions.get(session);
 
-    if (proc === undefined) {
+    if (subprocess === undefined) {
       throw new Error(`no session ${session} on imp ${name}`);
     }
 
-    return proc.argv;
+    return subprocess.argv;
   }
 
   // Null while the process runs and once an attach has delivered the exit.
@@ -228,13 +228,13 @@ export class StubImpFleet {
 
   // The offset after the last byte a session's running generation wrote.
   getEnd(name: string, session: string): number {
-    const proc = this.getImp(name).sessions.get(session);
+    const subprocess = this.getImp(name).sessions.get(session);
 
-    if (proc === undefined) {
+    if (subprocess === undefined) {
       throw new Error(`no session ${session} on imp ${name}`);
     }
 
-    return proc.end;
+    return subprocess.end;
   }
 
   getImp(name: string): StubImp {
@@ -253,8 +253,8 @@ export class StubImpFleet {
     if (imp.state === 'sleeping') {
       imp.state = 'running';
 
-      for (const proc of imp.sessions.values()) {
-        tryKill(proc.pty, 'SIGCONT');
+      for (const subprocess of imp.sessions.values()) {
+        tryKill(subprocess.pty, 'SIGCONT');
       }
     } else if (imp.state !== 'running') {
       this.bootCold(imp, 'start');
@@ -284,12 +284,12 @@ export class StubImpFleet {
       return Promise.reject(buildNotFound('imps.destroy', name));
     }
 
-    for (const proc of imp.sessions.values()) {
-      proc.connection?.stop({ kind: 'closed', reason: 'imp destroyed', closeCode: 1000 });
-      proc.connection = null;
-      proc.exited ??= { code: null };
+    for (const subprocess of imp.sessions.values()) {
+      subprocess.connection?.stop({ kind: 'closed', reason: 'imp destroyed', closeCode: 1000 });
+      subprocess.connection = null;
+      subprocess.exited ??= { code: null };
 
-      tryKill(proc.pty, 'SIGKILL');
+      tryKill(subprocess.pty, 'SIGKILL');
     }
 
     this.imps.delete(name);
@@ -326,19 +326,19 @@ export class StubImpFleet {
 
     imp.state = 'sleeping';
 
-    for (const proc of imp.sessions.values()) {
-      tryKill(proc.pty, 'SIGSTOP');
-      proc.connection?.stop({ kind: 'detached', reason: 'lost', offset: proc.end });
+    for (const subprocess of imp.sessions.values()) {
+      tryKill(subprocess.pty, 'SIGSTOP');
+      subprocess.connection?.stop({ kind: 'detached', reason: 'lost', offset: subprocess.end });
     }
   }
 
   private bootCold(imp: StubImp, cause: ColdBootCause): void {
-    for (const proc of imp.sessions.values()) {
-      proc.connection?.stop({ kind: 'detached', reason: 'lost', offset: proc.end });
-      proc.ended = true;
+    for (const subprocess of imp.sessions.values()) {
+      subprocess.connection?.stop({ kind: 'detached', reason: 'lost', offset: subprocess.end });
+      subprocess.ended = true;
 
-      tryKill(proc.pty, 'SIGCONT');
-      tryKill(proc.pty, 'SIGKILL');
+      tryKill(subprocess.pty, 'SIGCONT');
+      tryKill(subprocess.pty, 'SIGKILL');
     }
 
     imp.sessions.clear();

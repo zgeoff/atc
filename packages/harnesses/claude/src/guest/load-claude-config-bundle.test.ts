@@ -6,14 +6,14 @@ import { loadClaudeConfigBundle } from './load-claude-config-bundle';
 
 // The folder the host's Claude config folder and its symlink targets sit in.
 function setupTest() {
-  const tmp = setupTempDir('atc-claude-bundle-');
+  const temporaryDirectory = setupTempDir('atc-claude-bundle-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it ships the allow-listed files and folders of the host config folder', () => {
   const ctx = setupTest();
-  const host = join(ctx.dir, '.claude');
+  const host = join(ctx.directory, '.claude');
 
   mkdirSync(join(host, 'agents'), { recursive: true });
   mkdirSync(join(host, 'output-styles'), { recursive: true });
@@ -30,7 +30,7 @@ test('it ships the allow-listed files and folders of the host config folder', ()
   writeFileSync(join(host, 'settings.json.bak'), '{}');
   writeFileSync(join(host, 'projects', 'p1', 'transcript.jsonl'), '{}');
 
-  const bundle = loadClaudeConfigBundle(host, '/guest/claude-config', join(ctx.dir, 'home'));
+  const bundle = loadClaudeConfigBundle(host, '/guest/claude-config', join(ctx.directory, 'home'));
 
   expect(bundle).toStrictEqual({
     'CLAUDE.md': Buffer.from('# rules'),
@@ -55,7 +55,7 @@ test('it ships the allow-listed files and folders of the host config folder', ()
 
 test('it never ships credentials, account state, or a secret the host env block holds', () => {
   const ctx = setupTest();
-  const host = join(ctx.dir, '.claude');
+  const host = join(ctx.directory, '.claude');
 
   mkdirSync(join(host, 'skills', 'delegate'), { recursive: true });
   writeFileSync(join(host, '.credentials.json'), '{"claudeAiOauth":{"accessToken":"oat-secret"}}');
@@ -75,7 +75,7 @@ test('it never ships credentials, account state, or a secret the host env block 
     }),
   );
 
-  const bundle = loadClaudeConfigBundle(host, '/guest/claude-config', join(ctx.dir, 'home'));
+  const bundle = loadClaudeConfigBundle(host, '/guest/claude-config', join(ctx.directory, 'home'));
 
   expect(bundle).toStrictEqual({
     'settings.json': JSON.stringify(
@@ -95,8 +95,8 @@ test('it never ships credentials, account state, or a secret the host env block 
 
 test('it copies a symlinked skill and leaves out a skills folder without a SKILL.md', () => {
   const ctx = setupTest();
-  const host = join(ctx.dir, '.claude');
-  const shared = join(ctx.dir, 'shared-skills', 'gh-stack');
+  const host = join(ctx.directory, '.claude');
+  const shared = join(ctx.directory, 'shared-skills', 'gh-stack');
 
   mkdirSync(join(host, 'skills', 'synced', 'abc', 'docx'), { recursive: true });
   mkdirSync(join(shared, 'references'), { recursive: true });
@@ -104,9 +104,9 @@ test('it copies a symlinked skill and leaves out a skills folder without a SKILL
   writeFileSync(join(shared, 'references', 'commands.md'), 'commands');
   writeFileSync(join(host, 'skills', 'synced', 'abc', 'docx', 'SKILL.md'), 'docx');
   symlinkSync(shared, join(host, 'skills', 'gh-stack'));
-  symlinkSync(join(ctx.dir, 'missing'), join(host, 'skills', 'dangling'));
+  symlinkSync(join(ctx.directory, 'missing'), join(host, 'skills', 'dangling'));
 
-  const bundle = loadClaudeConfigBundle(host, '/guest/claude-config', join(ctx.dir, 'home'));
+  const bundle = loadClaudeConfigBundle(host, '/guest/claude-config', join(ctx.directory, 'home'));
 
   expect(bundle).toStrictEqual({
     'settings.json': JSON.stringify(
@@ -126,7 +126,7 @@ test('it copies a symlinked skill and leaves out a skills folder without a SKILL
 
 test('it never ships a symlink that resolves to credentials, account state, or the unfiltered settings', () => {
   const ctx = setupTest();
-  const host = join(ctx.dir, '.claude');
+  const host = join(ctx.directory, '.claude');
   const skill = join(host, 'skills', 'leaky');
 
   mkdirSync(skill, { recursive: true });
@@ -134,15 +134,15 @@ test('it never ships a symlink that resolves to credentials, account state, or t
   writeFileSync(join(host, '.credentials.json'), '{"token":"oat-secret"}');
   writeFileSync(join(host, 'settings.json'), '{"env":{"GITHUB_TOKEN":"ghp-secret"}}');
   writeFileSync(join(host, 'history.jsonl'), '{"display":"history-secret"}');
-  writeFileSync(join(ctx.dir, '.claude.json'), '{"oauthAccount":"acct-secret"}');
-  writeFileSync(join(ctx.dir, 'notes.md'), 'shared notes');
+  writeFileSync(join(ctx.directory, '.claude.json'), '{"oauthAccount":"acct-secret"}');
+  writeFileSync(join(ctx.directory, 'notes.md'), 'shared notes');
   symlinkSync(join(host, '.credentials.json'), join(skill, 'credentials'));
   symlinkSync(join(host, 'settings.json'), join(skill, 'settings'));
   symlinkSync(join(host, 'history.jsonl'), join(skill, 'history'));
-  symlinkSync(join(ctx.dir, '.claude.json'), join(skill, 'account'));
-  symlinkSync(join(ctx.dir, 'notes.md'), join(skill, 'notes.md'));
+  symlinkSync(join(ctx.directory, '.claude.json'), join(skill, 'account'));
+  symlinkSync(join(ctx.directory, 'notes.md'), join(skill, 'notes.md'));
 
-  const bundle = loadClaudeConfigBundle(host, '/guest/claude-config', join(ctx.dir, 'home'));
+  const bundle = loadClaudeConfigBundle(host, '/guest/claude-config', join(ctx.directory, 'home'));
 
   expect(bundle).toStrictEqual({
     'settings.json': JSON.stringify(
@@ -162,14 +162,14 @@ test('it never ships a symlink that resolves to credentials, account state, or t
 
 test('it ends a symlink that loops back up a skill folder', () => {
   const ctx = setupTest();
-  const host = join(ctx.dir, '.claude');
+  const host = join(ctx.directory, '.claude');
   const skill = join(host, 'skills', 'looped');
 
   mkdirSync(skill, { recursive: true });
   writeFileSync(join(skill, 'SKILL.md'), 'looped');
   symlinkSync(skill, join(skill, 'again'));
 
-  const bundle = loadClaudeConfigBundle(host, '/guest/claude-config', join(ctx.dir, 'home'));
+  const bundle = loadClaudeConfigBundle(host, '/guest/claude-config', join(ctx.directory, 'home'));
 
   expect(bundle).toStrictEqual({
     'settings.json': JSON.stringify(
@@ -188,7 +188,7 @@ test('it ends a symlink that loops back up a skill folder', () => {
 
 test('it ships an executable file with an executable mode and any other file as bytes', () => {
   const ctx = setupTest();
-  const host = join(ctx.dir, '.claude');
+  const host = join(ctx.directory, '.claude');
 
   mkdirSync(join(host, 'skills', 'tool', 'scripts'), { recursive: true });
   writeFileSync(join(host, 'statusline.sh'), 'echo status');
@@ -197,7 +197,7 @@ test('it ships an executable file with an executable mode and any other file as 
   chmodSync(join(host, 'statusline.sh'), 0o700);
   chmodSync(join(host, 'skills', 'tool', 'scripts', 'run.sh'), 0o755);
 
-  const bundle = loadClaudeConfigBundle(host, '/guest/claude-config', join(ctx.dir, 'home'));
+  const bundle = loadClaudeConfigBundle(host, '/guest/claude-config', join(ctx.directory, 'home'));
 
   expect(bundle).toStrictEqual({
     'settings.json': JSON.stringify(
@@ -218,7 +218,7 @@ test('it ships an executable file with an executable mode and any other file as 
 
 test("it points a home-relative statusline at the guest when the host folder is the home's own", () => {
   const ctx = setupTest();
-  const host = join(ctx.dir, '.claude');
+  const host = join(ctx.directory, '.claude');
 
   mkdirSync(host, { recursive: true });
 
@@ -227,7 +227,7 @@ test("it points a home-relative statusline at the guest when the host folder is 
     JSON.stringify({ statusLine: { type: 'command', command: 'bash ~/.claude/statusline.sh' } }),
   );
 
-  const bundle = loadClaudeConfigBundle(host, '/guest/claude-config', ctx.dir);
+  const bundle = loadClaudeConfigBundle(host, '/guest/claude-config', ctx.directory);
 
   expect(bundle).toStrictEqual({
     'settings.json': JSON.stringify(
@@ -248,9 +248,9 @@ test('it ships auto mode alone when the host has no Claude config folder', () =>
   const ctx = setupTest();
 
   const bundle = loadClaudeConfigBundle(
-    join(ctx.dir, 'missing'),
+    join(ctx.directory, 'missing'),
     '/guest/claude-config',
-    join(ctx.dir, 'home'),
+    join(ctx.directory, 'home'),
   );
 
   expect(bundle).toStrictEqual({

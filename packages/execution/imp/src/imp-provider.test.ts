@@ -36,10 +36,10 @@ import { createStubImpPort } from './testing/create-stub-imp-port';
 import UNPACK_SCRIPT from './unpack-archive.sh' with { type: 'text' };
 
 function setupTest() {
-  const tmp = setupTempDir('atc-imp-provider-');
+  const temporaryDirectory = setupTempDir('atc-imp-provider-');
   const port = createStubImpPort();
 
-  return { dir: tmp.path, port };
+  return { directory: temporaryDirectory.path, port };
 }
 
 test('it keeps an existing-host check refused when impd errors after the credential check', async () => {
@@ -119,7 +119,7 @@ test('it destroys the imp a failed prepare created, since no session holds it', 
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g'), guestATC: join(ctx.dir, 'missing-atc') },
+    { guestDir: join(ctx.directory, 'g'), guestATC: join(ctx.directory, 'missing-atc') },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -136,7 +136,7 @@ test('it destroys the imp a failed prepare created, since no session holds it', 
     'imps.get atc-s1',
     'imps.create atc-s1',
     'leases.acquire atc-s1 atc-d1',
-    `exec.run atc-s1 sh -c ${READ_GUEST_ATC_SCRIPT} sh ${join(ctx.dir, 'g')} ${join(ctx.dir, 'missing-atc')} 1.0.0  `,
+    `exec.run atc-s1 sh -c ${READ_GUEST_ATC_SCRIPT} sh ${join(ctx.directory, 'g')} ${join(ctx.directory, 'missing-atc')} 1.0.0  `,
     'imps.destroy atc-s1',
   ]);
 
@@ -148,7 +148,7 @@ test('it refuses a prepare that installs atc when the guest atc is missing and t
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g'), guestATC: join(ctx.dir, 'missing-atc') },
+    { guestDir: join(ctx.directory, 'g'), guestATC: join(ctx.directory, 'missing-atc') },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -160,18 +160,18 @@ test('it refuses a prepare that installs atc when the guest atc is missing and t
     provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true }),
   ).rejects.toMatchObject({
     code: 'unsupported_operation',
-    message: `imp atc-s1 cannot run hooks through atc 1.0.0: the image has no executable atc at ${join(ctx.dir, 'missing-atc')}, and a daemon run from source has no binary to copy in; install atc 1.0.0 there, or run a compiled atc daemon on Linux`,
+    message: `imp atc-s1 cannot run hooks through atc 1.0.0: the image has no executable atc at ${join(ctx.directory, 'missing-atc')}, and a daemon run from source has no binary to copy in; install atc 1.0.0 there, or run a compiled atc daemon on Linux`,
     data: { problem: 'no_guest_atc' },
   });
 });
 
 test("it refuses a prepare that installs atc when the image's atc runs another version and the daemon has no binary to copy", () => {
   const ctx = setupTest();
-  const guestATC = createStubBin(ctx.dir, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
+  const guestATC = createStubBin(ctx.directory, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g'), guestATC },
+    { guestDir: join(ctx.directory, 'g'), guestATC },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -190,13 +190,13 @@ test("it refuses a prepare that installs atc when the image's atc runs another v
 
 test("it links the guest's atc to the image's atc and copies nothing when the image's atc runs the daemon's version", async () => {
   const ctx = setupTest();
-  const guestATC = createStubBin(ctx.dir, 'image-atc', '#!/bin/sh\necho 1.0.0\n');
-  const atcBinary = createStubBin(ctx.dir, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
+  const guestATC = createStubBin(ctx.directory, 'image-atc', '#!/bin/sh\necho 1.0.0\n');
+  const atcBinary = createStubBin(ctx.directory, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
   const log = mock(() => {});
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g'), guestATC },
+    { guestDir: join(ctx.directory, 'g'), guestATC },
     { atcBinary, version: '1.0.0' },
   );
 
@@ -206,7 +206,7 @@ test("it links the guest's atc to the image's atc and copies nothing when the im
 
   await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true, log });
 
-  expect(readlinkSync(join(ctx.dir, 'g', 'bin', 'atc'))).toBe(guestATC);
+  expect(readlinkSync(join(ctx.directory, 'g', 'bin', 'atc'))).toBe(guestATC);
   expect(ctx.port.calls).toSatisfyAll((call: string) => !call.includes('tar -x'));
 
   expect(log).toHaveBeenCalledExactlyOnceWith(
@@ -216,13 +216,13 @@ test("it links the guest's atc to the image's atc and copies nothing when the im
 
 test("it copies the daemon's atc in when the image's atc runs another version", async () => {
   const ctx = setupTest();
-  const guestATC = createStubBin(ctx.dir, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
-  const atcBinary = createStubBin(ctx.dir, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
+  const guestATC = createStubBin(ctx.directory, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
+  const atcBinary = createStubBin(ctx.directory, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
   const log = mock(() => {});
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g'), guestATC },
+    { guestDir: join(ctx.directory, 'g'), guestATC },
     { atcBinary, version: '1.0.0' },
   );
 
@@ -232,11 +232,14 @@ test("it copies the daemon's atc in when the image's atc runs another version", 
 
   await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true, log });
 
-  expect(lstatSync(join(ctx.dir, 'g', 'bin', 'atc')).isSymbolicLink()).toBeFalse();
-  expect(readFileSync(join(ctx.dir, 'g', 'bin', 'atc'), 'utf8')).toBe('#!/bin/sh\necho 1.0.0\n');
+  expect(lstatSync(join(ctx.directory, 'g', 'bin', 'atc')).isSymbolicLink()).toBeFalse();
+
+  expect(readFileSync(join(ctx.directory, 'g', 'bin', 'atc'), 'utf8')).toBe(
+    '#!/bin/sh\necho 1.0.0\n',
+  );
 
   expect(log).toHaveBeenCalledExactlyOnceWith(
-    `imp atc-s1 runs hooks through the daemon's atc 1.0.0, copied to ${join(ctx.dir, 'g')}/bin/atc: the image's atc at ${guestATC} is 0.9.0`,
+    `imp atc-s1 runs hooks through the daemon's atc 1.0.0, copied to ${join(ctx.directory, 'g')}/bin/atc: the image's atc at ${guestATC} is 0.9.0`,
   );
 });
 
@@ -247,21 +250,21 @@ test.each([
   "it keeps the guest's old atc runnable while the copy that replaces it is paused %s",
   async (_label, bytes) => {
     const ctx = setupTest();
-    const guestATC = createStubBin(ctx.dir, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
+    const guestATC = createStubBin(ctx.directory, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
 
     // tar writes 10 KiB records, so a pause after two leaves the new atc half
     // written; the comment pads the binary past the bytes the pause lets through.
     const atcBinary = createStubBin(
-      ctx.dir,
+      ctx.directory,
       'daemon-atc',
       `#!/bin/sh\n# ${'x'.repeat(30_000)}\necho 1.0.0\n`,
     );
 
-    createStubBin(join(ctx.dir, 'g', 'bin'), 'atc', '#!/bin/sh\necho 0.9.0\n');
+    createStubBin(join(ctx.directory, 'g', 'bin'), 'atc', '#!/bin/sh\necho 0.9.0\n');
 
     const provider = new ImpProvider(
       ctx.port,
-      { guestDir: join(ctx.dir, 'g'), guestATC },
+      { guestDir: join(ctx.directory, 'g'), guestATC },
       { atcBinary, version: '1.0.0' },
     );
 
@@ -276,9 +279,9 @@ test.each([
 
     invariant(realGzip !== null);
 
-    const bin = join(ctx.dir, 'bin');
-    const paused = join(ctx.dir, 'paused');
-    const resume = join(ctx.dir, 'resume');
+    const bin = join(ctx.directory, 'bin');
+    const paused = join(ctx.directory, 'paused');
+    const resume = join(ctx.directory, 'resume');
 
     createStubBin(
       bin,
@@ -298,7 +301,7 @@ test.each([
       expect(existsSync(paused)).toBeTrue();
     });
 
-    const during = Bun.spawn(['sh', '-c', 'exec "$0"', join(ctx.dir, 'g', 'bin', 'atc')], {
+    const during = Bun.spawn(['sh', '-c', 'exec "$0"', join(ctx.directory, 'g', 'bin', 'atc')], {
       stdout: 'pipe',
     });
 
@@ -313,7 +316,7 @@ test.each([
     expect(exitCode).toBe(0);
     expect(stdout).toBe('0.9.0\n');
 
-    expect(readFileSync(join(ctx.dir, 'g', 'bin', 'atc'), 'utf8')).toBe(
+    expect(readFileSync(join(ctx.directory, 'g', 'bin', 'atc'), 'utf8')).toBe(
       `#!/bin/sh\n# ${'x'.repeat(30_000)}\necho 1.0.0\n`,
     );
   },
@@ -321,12 +324,12 @@ test.each([
 
 test("it leaves no staging folder in the guest folder after it copies the daemon's atc in", async () => {
   const ctx = setupTest();
-  const guestATC = createStubBin(ctx.dir, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
-  const atcBinary = createStubBin(ctx.dir, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
+  const guestATC = createStubBin(ctx.directory, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
+  const atcBinary = createStubBin(ctx.directory, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g'), guestATC },
+    { guestDir: join(ctx.directory, 'g'), guestATC },
     { atcBinary, version: '1.0.0' },
   );
 
@@ -336,17 +339,17 @@ test("it leaves no staging folder in the guest folder after it copies the daemon
 
   await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true });
 
-  expect(readdirSync(join(ctx.dir, 'g')).toSorted()).toStrictEqual(['bin', 'run']);
+  expect(readdirSync(join(ctx.directory, 'g')).toSorted()).toStrictEqual(['bin', 'run']);
 });
 
 test("it copies the daemon's atc in when the image has no atc at the target's path", async () => {
   const ctx = setupTest();
-  const atcBinary = createStubBin(ctx.dir, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
+  const atcBinary = createStubBin(ctx.directory, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
   const log = mock(() => {});
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g'), guestATC: join(ctx.dir, 'missing-atc') },
+    { guestDir: join(ctx.directory, 'g'), guestATC: join(ctx.directory, 'missing-atc') },
     { atcBinary, version: '1.0.0' },
   );
 
@@ -356,20 +359,22 @@ test("it copies the daemon's atc in when the image has no atc at the target's pa
 
   await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true, log });
 
-  expect(readFileSync(join(ctx.dir, 'g', 'bin', 'atc'), 'utf8')).toBe('#!/bin/sh\necho 1.0.0\n');
+  expect(readFileSync(join(ctx.directory, 'g', 'bin', 'atc'), 'utf8')).toBe(
+    '#!/bin/sh\necho 1.0.0\n',
+  );
 
   expect(log).toHaveBeenCalledExactlyOnceWith(
-    `imp atc-s1 runs hooks through the daemon's atc 1.0.0, copied to ${join(ctx.dir, 'g')}/bin/atc: the image has no executable atc at ${join(ctx.dir, 'missing-atc')}`,
+    `imp atc-s1 runs hooks through the daemon's atc 1.0.0, copied to ${join(ctx.directory, 'g')}/bin/atc: the image has no executable atc at ${join(ctx.directory, 'missing-atc')}`,
   );
 });
 
 test("it sends the daemon's atc to an imp gzipped", async () => {
   const ctx = setupTest();
-  const atcBinary = createStubBin(ctx.dir, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
+  const atcBinary = createStubBin(ctx.directory, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g'), guestATC: join(ctx.dir, 'missing-atc') },
+    { guestDir: join(ctx.directory, 'g'), guestATC: join(ctx.directory, 'missing-atc') },
     { atcBinary, version: '1.0.0' },
   );
 
@@ -383,8 +388,8 @@ test("it sends the daemon's atc to an imp gzipped", async () => {
 
   invariant(realGzip !== null);
 
-  const wire = join(ctx.dir, 'wire.bin');
-  const bin = join(ctx.dir, 'bin');
+  const wire = join(ctx.directory, 'wire.bin');
+  const bin = join(ctx.directory, 'bin');
 
   createStubBin(bin, 'gzip', `#!/bin/sh\ntee '${wire}' | '${realGzip}' "$@"\n`);
 
@@ -392,7 +397,9 @@ test("it sends the daemon's atc to an imp gzipped", async () => {
 
   await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true });
 
-  expect(readFileSync(join(ctx.dir, 'g', 'bin', 'atc'), 'utf8')).toBe('#!/bin/sh\necho 1.0.0\n');
+  expect(readFileSync(join(ctx.directory, 'g', 'bin', 'atc'), 'utf8')).toBe(
+    '#!/bin/sh\necho 1.0.0\n',
+  );
 
   const sent = buildTarArchive([
     { path: 'bin/atc', content: '#!/bin/sh\necho 1.0.0\n', mode: 0o755 },
@@ -403,11 +410,11 @@ test("it sends the daemon's atc to an imp gzipped", async () => {
 
 test("it copies the daemon's atc it compressed for an earlier readying into a later one", async () => {
   const ctx = setupTest();
-  const atcBinary = createStubBin(ctx.dir, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
+  const atcBinary = createStubBin(ctx.directory, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
 
   const first = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g1'), guestATC: join(ctx.dir, 'missing-atc') },
+    { guestDir: join(ctx.directory, 'g1'), guestATC: join(ctx.directory, 'missing-atc') },
     { atcBinary, version: '1.0.0' },
   );
 
@@ -417,7 +424,7 @@ test("it copies the daemon's atc it compressed for an earlier readying into a la
 
   const second = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g2'), guestATC: join(ctx.dir, 'missing-atc') },
+    { guestDir: join(ctx.directory, 'g2'), guestATC: join(ctx.directory, 'missing-atc') },
     { atcBinary, version: '1.0.0' },
   );
 
@@ -432,16 +439,18 @@ test("it copies the daemon's atc it compressed for an earlier readying into a la
   await Bun.write(atcBinary, '#!/bin/sh\necho 2.0.0\n');
   await second.prepareHost({ host: 's2', daemonID: 'd1', installATC: true });
 
-  expect(readFileSync(join(ctx.dir, 'g2', 'bin', 'atc'), 'utf8')).toBe('#!/bin/sh\necho 1.0.0\n');
+  expect(readFileSync(join(ctx.directory, 'g2', 'bin', 'atc'), 'utf8')).toBe(
+    '#!/bin/sh\necho 1.0.0\n',
+  );
 });
 
 test("it refuses to copy the daemon's atc into an imp without gzip and leaves bin/atc unwritten", () => {
   const ctx = setupTest();
-  const atcBinary = createStubBin(ctx.dir, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
+  const atcBinary = createStubBin(ctx.directory, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g'), guestATC: join(ctx.dir, 'missing-atc') },
+    { guestDir: join(ctx.directory, 'g'), guestATC: join(ctx.directory, 'missing-atc') },
     { atcBinary, version: '1.0.0' },
   );
 
@@ -450,7 +459,7 @@ test("it refuses to copy the daemon's atc into an imp without gzip and leaves bi
   });
 
   // The guest's PATH holds every tool the readying runs except gzip.
-  const bin = join(ctx.dir, 'bin');
+  const bin = join(ctx.directory, 'bin');
 
   mkdirSync(bin);
 
@@ -467,24 +476,24 @@ test("it refuses to copy the daemon's atc into an imp without gzip and leaves bi
     provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true }),
   ).rejects.toMatchObject({
     code: 'host_unavailable',
-    message: `imp atc-s1 cannot be used: imp atc-s1 has no gzip, which installing atc in ${join(ctx.dir, 'g')} needs; install gzip in its image`,
+    message: `imp atc-s1 cannot be used: imp atc-s1 has no gzip, which installing atc in ${join(ctx.directory, 'g')} needs; install gzip in its image`,
     data: { provider: 'imp', problem: 'unknown' },
   });
 
-  expect(existsSync(join(ctx.dir, 'g', 'bin', 'atc'))).toBe(false);
+  expect(existsSync(join(ctx.directory, 'g', 'bin', 'atc'))).toBe(false);
 });
 
 test("it replaces a link to the image's atc with the daemon's atc when the image's atc runs another version", async () => {
   const ctx = setupTest();
-  const guestATC = createStubBin(ctx.dir, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
-  const atcBinary = createStubBin(ctx.dir, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
+  const guestATC = createStubBin(ctx.directory, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
+  const atcBinary = createStubBin(ctx.directory, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
 
-  mkdirSync(join(ctx.dir, 'g', 'bin'), { recursive: true });
-  symlinkSync(guestATC, join(ctx.dir, 'g', 'bin', 'atc'));
+  mkdirSync(join(ctx.directory, 'g', 'bin'), { recursive: true });
+  symlinkSync(guestATC, join(ctx.directory, 'g', 'bin', 'atc'));
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g'), guestATC },
+    { guestDir: join(ctx.directory, 'g'), guestATC },
     { atcBinary, version: '1.0.0' },
   );
 
@@ -494,21 +503,21 @@ test("it replaces a link to the image's atc with the daemon's atc when the image
 
   await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true });
 
-  expect(lstatSync(join(ctx.dir, 'g', 'bin', 'atc')).isSymbolicLink()).toBeFalse();
+  expect(lstatSync(join(ctx.directory, 'g', 'bin', 'atc')).isSymbolicLink()).toBeFalse();
   expect(readFileSync(guestATC, 'utf8')).toBe('#!/bin/sh\necho 0.9.0\n');
 });
 
 test("it keeps a copy of the daemon's atc an imp already holds and copies nothing", async () => {
   const ctx = setupTest();
-  const guestATC = createStubBin(ctx.dir, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
-  const atcBinary = createStubBin(ctx.dir, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
+  const guestATC = createStubBin(ctx.directory, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
+  const atcBinary = createStubBin(ctx.directory, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
   const log = mock(() => {});
 
-  createStubBin(join(ctx.dir, 'g', 'bin'), 'atc', '#!/bin/sh\necho 1.0.0\n');
+  createStubBin(join(ctx.directory, 'g', 'bin'), 'atc', '#!/bin/sh\necho 1.0.0\n');
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g'), guestATC },
+    { guestDir: join(ctx.directory, 'g'), guestATC },
     { atcBinary, version: '1.0.0' },
   );
 
@@ -521,17 +530,17 @@ test("it keeps a copy of the daemon's atc an imp already holds and copies nothin
   expect(ctx.port.calls).toSatisfyAll((call: string) => !call.includes('tar -x'));
 
   expect(log).toHaveBeenCalledExactlyOnceWith(
-    `imp atc-s1 runs hooks through the daemon's atc 1.0.0, already at ${join(ctx.dir, 'g')}/bin/atc: the image's atc at ${guestATC} is 0.9.0`,
+    `imp atc-s1 runs hooks through the daemon's atc 1.0.0, already at ${join(ctx.directory, 'g')}/bin/atc: the image's atc at ${guestATC} is 0.9.0`,
   );
 });
 
 test("it links the guest's atc again on a later readying without reading the image's version again", async () => {
   const ctx = setupTest();
-  const guestATC = createStubBin(ctx.dir, 'image-atc', '#!/bin/sh\necho 1.0.0\n');
+  const guestATC = createStubBin(ctx.directory, 'image-atc', '#!/bin/sh\necho 1.0.0\n');
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g'), guestATC },
+    { guestDir: join(ctx.directory, 'g'), guestATC },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -541,22 +550,22 @@ test("it links the guest's atc again on a later readying without reading the ima
 
   await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true });
 
-  rmSync(join(ctx.dir, 'g', 'bin'), { recursive: true });
+  rmSync(join(ctx.directory, 'g', 'bin'), { recursive: true });
 
   await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true });
 
   expect(ctx.port.calls.filter((call) => call.includes('--version'))).toBeArrayOfSize(1);
-  expect(readlinkSync(join(ctx.dir, 'g', 'bin', 'atc'))).toBe(guestATC);
+  expect(readlinkSync(join(ctx.directory, 'g', 'bin', 'atc'))).toBe(guestATC);
 });
 
 test("it copies the daemon's atc again on a later readying of an imp that lost it, without reading the image's version again", async () => {
   const ctx = setupTest();
-  const guestATC = createStubBin(ctx.dir, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
-  const atcBinary = createStubBin(ctx.dir, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
+  const guestATC = createStubBin(ctx.directory, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
+  const atcBinary = createStubBin(ctx.directory, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g'), guestATC },
+    { guestDir: join(ctx.directory, 'g'), guestATC },
     { atcBinary, version: '1.0.0' },
   );
 
@@ -566,27 +575,30 @@ test("it copies the daemon's atc again on a later readying of an imp that lost i
 
   await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true });
 
-  rmSync(join(ctx.dir, 'g', 'bin'), { recursive: true });
+  rmSync(join(ctx.directory, 'g', 'bin'), { recursive: true });
 
   await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true });
 
   expect(ctx.port.calls.filter((call) => call.includes('--version'))).toBeArrayOfSize(1);
-  expect(readFileSync(join(ctx.dir, 'g', 'bin', 'atc'), 'utf8')).toBe('#!/bin/sh\necho 1.0.0\n');
+
+  expect(readFileSync(join(ctx.directory, 'g', 'bin', 'atc'), 'utf8')).toBe(
+    '#!/bin/sh\necho 1.0.0\n',
+  );
 });
 
 test("it links a new imp to the image's atc without running it when the image's atc is the one it ran before", async () => {
   const ctx = setupTest();
-  const runs = join(ctx.dir, 'runs');
+  const runs = join(ctx.directory, 'runs');
 
   const guestATC = createStubBin(
-    ctx.dir,
+    ctx.directory,
     'image-atc',
     `#!/bin/sh\necho run >> ${runs}\necho 1.0.0\n`,
   );
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g'), guestATC },
+    { guestDir: join(ctx.directory, 'g'), guestATC },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -597,21 +609,21 @@ test("it links a new imp to the image's atc without running it when the image's 
   await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true });
   await provider.destroyHost('s1');
 
-  rmSync(join(ctx.dir, 'g'), { recursive: true });
+  rmSync(join(ctx.directory, 'g'), { recursive: true });
 
   await provider.prepareHost({ host: 's2', daemonID: 'd1', installATC: true });
 
   expect(readFileSync(runs, 'utf8')).toBe('run\n');
   expect(ctx.port.calls.filter((call) => call.startsWith('exec.run atc-s2'))).toBeArrayOfSize(1);
-  expect(readlinkSync(join(ctx.dir, 'g', 'bin', 'atc'))).toBe(guestATC);
+  expect(readlinkSync(join(ctx.directory, 'g', 'bin', 'atc'))).toBe(guestATC);
 });
 
 test("it runs the image's atc again for a new imp when the image's atc was rewritten to the same size within the same second", async () => {
   const ctx = setupTest();
-  const runs = join(ctx.dir, 'runs');
+  const runs = join(ctx.directory, 'runs');
 
   const guestATC = createStubBin(
-    ctx.dir,
+    ctx.directory,
     'image-atc',
     `#!/bin/sh\necho run >> ${runs}\necho 1.0.0\n`,
   );
@@ -620,7 +632,7 @@ test("it runs the image's atc again for a new imp when the image's atc was rewri
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g'), guestATC },
+    { guestDir: join(ctx.directory, 'g'), guestATC },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -631,7 +643,7 @@ test("it runs the image's atc again for a new imp when the image's atc was rewri
   await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true });
   await provider.destroyHost('s1');
 
-  rmSync(join(ctx.dir, 'g'), { recursive: true });
+  rmSync(join(ctx.directory, 'g'), { recursive: true });
   writeFileSync(guestATC, `#!/bin/sh\necho new >> ${runs}\necho 1.0.0\n`);
   utimesSync(guestATC, 1_700_000_000.2, 1_700_000_000.2);
 
@@ -642,11 +654,11 @@ test("it runs the image's atc again for a new imp when the image's atc was rewri
 
 test("it refuses a new imp whose image's atc lost its execute bit since it ran, when the daemon has no binary to copy", async () => {
   const ctx = setupTest();
-  const guestATC = createStubBin(ctx.dir, 'image-atc', '#!/bin/sh\necho 1.0.0\n');
+  const guestATC = createStubBin(ctx.directory, 'image-atc', '#!/bin/sh\necho 1.0.0\n');
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g'), guestATC },
+    { guestDir: join(ctx.directory, 'g'), guestATC },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -657,7 +669,7 @@ test("it refuses a new imp whose image's atc lost its execute bit since it ran, 
   await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true });
   await provider.destroyHost('s1');
 
-  rmSync(join(ctx.dir, 'g'), { recursive: true });
+  rmSync(join(ctx.directory, 'g'), { recursive: true });
   chmodSync(guestATC, 0o644);
 
   expect(
@@ -667,17 +679,17 @@ test("it refuses a new imp whose image's atc lost its execute bit since it ran, 
 
 test("it runs the image's atc again for a new imp when the image's atc changed since it ran", async () => {
   const ctx = setupTest();
-  const runs = join(ctx.dir, 'runs');
+  const runs = join(ctx.directory, 'runs');
 
   const guestATC = createStubBin(
-    ctx.dir,
+    ctx.directory,
     'image-atc',
     `#!/bin/sh\necho run >> ${runs}\necho 1.0.0\n`,
   );
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g'), guestATC },
+    { guestDir: join(ctx.directory, 'g'), guestATC },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -688,8 +700,8 @@ test("it runs the image's atc again for a new imp when the image's atc changed s
   await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true });
   await provider.destroyHost('s1');
 
-  rmSync(join(ctx.dir, 'g'), { recursive: true });
-  createStubBin(ctx.dir, 'image-atc', `#!/bin/sh\necho changed >> ${runs}\necho 1.0.0\n`);
+  rmSync(join(ctx.directory, 'g'), { recursive: true });
+  createStubBin(ctx.directory, 'image-atc', `#!/bin/sh\necho changed >> ${runs}\necho 1.0.0\n`);
 
   await provider.prepareHost({ host: 's2', daemonID: 'd1', installATC: true });
 
@@ -698,13 +710,13 @@ test("it runs the image's atc again for a new imp when the image's atc changed s
 
 test('it refuses a retried prepare on an imp whose atc runs another version when the daemon has no binary to copy', async () => {
   const ctx = setupTest();
-  const guestATC = createStubBin(ctx.dir, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
+  const guestATC = createStubBin(ctx.directory, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
 
-  createStubBin(join(ctx.dir, 'g', 'bin'), 'atc', '#!/bin/sh\necho 0.8.0\n');
+  createStubBin(join(ctx.directory, 'g', 'bin'), 'atc', '#!/bin/sh\necho 0.8.0\n');
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g'), guestATC },
+    { guestDir: join(ctx.directory, 'g'), guestATC },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -728,12 +740,12 @@ test('it refuses a retried prepare on an imp whose atc runs another version when
 
 test("it uses an image's atc at the guest's own atc path when it runs the daemon's version", async () => {
   const ctx = setupTest();
-  const guestATC = createStubBin(join(ctx.dir, 'g', 'bin'), 'atc', '#!/bin/sh\necho 1.0.0\n');
+  const guestATC = createStubBin(join(ctx.directory, 'g', 'bin'), 'atc', '#!/bin/sh\necho 1.0.0\n');
   const log = mock(() => {});
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g'), guestATC },
+    { guestDir: join(ctx.directory, 'g'), guestATC },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -753,7 +765,7 @@ test('it keeps an imp that existed before a failed prepare and gives back only i
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g'), guestATC: join(ctx.dir, 'missing-atc') },
+    { guestDir: join(ctx.directory, 'g'), guestATC: join(ctx.directory, 'missing-atc') },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -786,11 +798,11 @@ test('it keeps an imp that existed before a failed prepare and gives back only i
 test('it writes a read-only file through impd', async () => {
   const ctx = setupTest();
 
-  ctx.port.readOnlyFilesDir = join(ctx.dir, 'ro');
+  ctx.port.readOnlyFilesDir = join(ctx.directory, 'ro');
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g') },
+    { guestDir: join(ctx.directory, 'g') },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -802,9 +814,9 @@ test('it writes a read-only file through impd', async () => {
 
   const path = await provider.writeReadOnlyFile('s1', 'notes/rota.json', '{"shift":"early"}');
 
-  expect(path).toBe(join(ctx.dir, 'ro', 'atc-s1', 'notes', 'rota.json'));
+  expect(path).toBe(join(ctx.directory, 'ro', 'atc-s1', 'notes', 'rota.json'));
 
-  expect(readFileSync(join(ctx.dir, 'ro', 'atc-s1', 'notes', 'rota.json'), 'utf8')).toBe(
+  expect(readFileSync(join(ctx.directory, 'ro', 'atc-s1', 'notes', 'rota.json'), 'utf8')).toBe(
     '{"shift":"early"}',
   );
 });
@@ -817,7 +829,7 @@ test('it has no read-only file on an imp whose agent is from before them', async
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g') },
+    { guestDir: join(ctx.directory, 'g') },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -835,11 +847,11 @@ test('it has no read-only file on an imp whose agent is from before them', async
 test('it refuses a read-only file on an imp impd does not hold as the host refusal', async () => {
   const ctx = setupTest();
 
-  ctx.port.readOnlyFilesDir = join(ctx.dir, 'ro');
+  ctx.port.readOnlyFilesDir = join(ctx.directory, 'ro');
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g') },
+    { guestDir: join(ctx.directory, 'g') },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -860,7 +872,7 @@ test('it names each imp under the atc- prefix when the target sets none', async 
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g') },
+    { guestDir: join(ctx.directory, 'g') },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -879,7 +891,7 @@ test("it names each imp under the target's configured prefix", async () => {
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g'), impPrefix: 'harness-' },
+    { guestDir: join(ctx.directory, 'g'), impPrefix: 'harness-' },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -897,7 +909,7 @@ test("it scopes its broker and its imp names to the target's configured prefix",
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g'), impPrefix: 'harness-' },
+    { guestDir: join(ctx.directory, 'g'), impPrefix: 'harness-' },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -914,7 +926,7 @@ test('it reads the identity of the token its port holds through its broker', asy
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g'), impPrefix: 'harness-' },
+    { guestDir: join(ctx.directory, 'g'), impPrefix: 'harness-' },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -940,7 +952,7 @@ test('it asks impd to require the broker on a harness start that requires one', 
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g') },
+    { guestDir: join(ctx.directory, 'g') },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -955,7 +967,7 @@ test('it asks impd to require the broker on a harness start that requires one', 
     host: 's1',
     bin: 'sleep',
     args: ['30'],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: {},
     cols: 80,
     rows: 24,
@@ -980,7 +992,7 @@ test('it starts a harness without CAP_SYS_ADMIN on a target that drops it', asyn
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g'), dropSysAdmin: true },
+    { guestDir: join(ctx.directory, 'g'), dropSysAdmin: true },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -995,7 +1007,7 @@ test('it starts a harness without CAP_SYS_ADMIN on a target that drops it', asyn
     host: 's1',
     bin: 'sleep',
     args: ['30'],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: {},
     cols: 80,
     rows: 24,
@@ -1019,7 +1031,7 @@ test('it starts a harness with CAP_SYS_ADMIN on a target that leaves it', async 
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g') },
+    { guestDir: join(ctx.directory, 'g') },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -1034,7 +1046,7 @@ test('it starts a harness with CAP_SYS_ADMIN on a target that leaves it', async 
     host: 's1',
     bin: 'sleep',
     args: ['30'],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: {},
     cols: 80,
     rows: 24,
@@ -1060,7 +1072,7 @@ test('it refuses to ready an imp on an impd older than the oldest it supports, c
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g') },
+    { guestDir: join(ctx.directory, 'g') },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -1085,7 +1097,7 @@ test('it starts a harness with a relative working directory under the guest home
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g') },
+    { guestDir: join(ctx.directory, 'g') },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -1095,9 +1107,9 @@ test('it starts a harness with a relative working directory under the guest home
 
   await ctx.port.createImp({ name: 'atc-s1' });
 
-  mkdirSync(join(ctx.dir, 'home', 'orchard'), { recursive: true });
+  mkdirSync(join(ctx.directory, 'home', 'orchard'), { recursive: true });
 
-  ctx.port.setHomeDir(join(ctx.dir, 'home'));
+  ctx.port.setHomeDir(join(ctx.directory, 'home'));
 
   const harness = provider.spawnHarness({
     session: 's1',
@@ -1124,7 +1136,7 @@ test('it starts a harness with a relative working directory under the guest home
 
   await exited.promise;
 
-  expect(output.join('')).toBe(`${join(ctx.dir, 'home', 'orchard')}\r\n`);
+  expect(output.join('')).toBe(`${join(ctx.directory, 'home', 'orchard')}\r\n`);
 });
 
 test('it runs a command with a relative working directory under the guest home, which impd would resolve from the root', async () => {
@@ -1132,7 +1144,7 @@ test('it runs a command with a relative working directory under the guest home, 
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g') },
+    { guestDir: join(ctx.directory, 'g') },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -1142,15 +1154,15 @@ test('it runs a command with a relative working directory under the guest home, 
 
   await ctx.port.createImp({ name: 'atc-s1' });
 
-  mkdirSync(join(ctx.dir, 'home', 'orchard'), { recursive: true });
+  mkdirSync(join(ctx.directory, 'home', 'orchard'), { recursive: true });
 
-  ctx.port.setHomeDir(join(ctx.dir, 'home'));
+  ctx.port.setHomeDir(join(ctx.directory, 'home'));
 
   const result = await provider.runCommand({ argv: ['pwd'], cwd: 'orchard', host: 's1' });
 
   expect(result).toStrictEqual({
     exitCode: 0,
-    stdout: `${join(ctx.dir, 'home', 'orchard')}\n`,
+    stdout: `${join(ctx.directory, 'home', 'orchard')}\n`,
     stderr: '',
   });
 });
@@ -1160,7 +1172,7 @@ test('it keeps a full UUID imp session name inside the session limit', async () 
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g') },
+    { guestDir: join(ctx.directory, 'g') },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -1175,7 +1187,7 @@ test('it keeps a full UUID imp session name inside the session limit', async () 
     host: 's1',
     bin: 'sleep',
     args: ['30'],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: {},
     cols: 80,
     rows: 24,
@@ -1201,7 +1213,7 @@ test('it derives one imp session name per session', async () => {
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g') },
+    { guestDir: join(ctx.directory, 'g') },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -1218,7 +1230,7 @@ test('it derives one imp session name per session', async () => {
     host: 's1',
     bin: 'sleep',
     args: ['30'],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: {},
     cols: 80,
     rows: 24,
@@ -1233,7 +1245,7 @@ test('it derives one imp session name per session', async () => {
     host: 's2',
     bin: 'sleep',
     args: ['30'],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: {},
     cols: 80,
     rows: 24,
@@ -1248,7 +1260,7 @@ test('it derives one imp session name per session', async () => {
     host: 's3',
     bin: 'sleep',
     args: ['30'],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: {},
     cols: 80,
     rows: 24,
@@ -1285,7 +1297,7 @@ test('it asks impd to require nothing on a harness start that requires no broker
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g') },
+    { guestDir: join(ctx.directory, 'g') },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -1300,7 +1312,7 @@ test('it asks impd to require nothing on a harness start that requires no broker
     host: 's1',
     bin: 'sleep',
     args: ['30'],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: {},
     cols: 80,
     rows: 24,
@@ -1326,7 +1338,7 @@ test("it creates a host's imp for the broker with the target's image and memory"
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g'), image: 'base', memoryMib: 512 },
+    { guestDir: join(ctx.directory, 'g'), image: 'base', memoryMib: 512 },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -1346,7 +1358,7 @@ test('it sends an archive to an imp gzipped and unpacks it there', async () => {
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g') },
+    { guestDir: join(ctx.directory, 'g') },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -1362,8 +1374,8 @@ test('it sends an archive to an imp gzipped and unpacks it there', async () => {
 
   invariant(realGzip !== null);
 
-  const wire = join(ctx.dir, 'wire.bin');
-  const bin = join(ctx.dir, 'bin');
+  const wire = join(ctx.directory, 'wire.bin');
+  const bin = join(ctx.directory, 'bin');
 
   createStubBin(bin, 'gzip', `#!/bin/sh\ntee '${wire}' | '${realGzip}' "$@"\n`);
 
@@ -1371,9 +1383,12 @@ test('it sends an archive to an imp gzipped and unpacks it there', async () => {
 
   const archive = buildTarArchive([{ path: 'src/a.txt', content: 'hello from the daemon' }]);
 
-  await provider.transferArchive(archive, join(ctx.dir, 'w'), 's1');
+  await provider.transferArchive(archive, join(ctx.directory, 'w'), 's1');
 
-  expect(readFileSync(join(ctx.dir, 'w', 'src', 'a.txt'), 'utf8')).toBe('hello from the daemon');
+  expect(readFileSync(join(ctx.directory, 'w', 'src', 'a.txt'), 'utf8')).toBe(
+    'hello from the daemon',
+  );
+
   expect(gunzipSync(readFileSync(wire))).toStrictEqual(Buffer.from(archive));
 });
 
@@ -1382,7 +1397,7 @@ test('it refuses a transfer to an imp without gzip and leaves the directory uncr
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g') },
+    { guestDir: join(ctx.directory, 'g') },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -1393,7 +1408,7 @@ test('it refuses a transfer to an imp without gzip and leaves the directory uncr
   await provider.prepareHost({ host: 's1', daemonID: 'd1' });
 
   // The guest's PATH holds every tool the unpack runs except gzip.
-  const bin = join(ctx.dir, 'bin');
+  const bin = join(ctx.directory, 'bin');
 
   mkdirSync(bin);
 
@@ -1408,12 +1423,14 @@ test('it refuses a transfer to an imp without gzip and leaves the directory uncr
 
   const archive = buildTarArchive([{ path: 'a.txt', content: 'never unpacked' }]);
 
-  expect(provider.transferArchive(archive, join(ctx.dir, 'w'), 's1')).rejects.toThrowWithMessage(
+  expect(
+    provider.transferArchive(archive, join(ctx.directory, 'w'), 's1'),
+  ).rejects.toThrowWithMessage(
     Error,
-    `imp atc-s1 has no gzip, which unpacking the archive into ${join(ctx.dir, 'w')} needs; install gzip in its image`,
+    `imp atc-s1 has no gzip, which unpacking the archive into ${join(ctx.directory, 'w')} needs; install gzip in its image`,
   );
 
-  expect(existsSync(join(ctx.dir, 'w'))).toBe(false);
+  expect(existsSync(join(ctx.directory, 'w'))).toBe(false);
 });
 
 test.each([
@@ -1435,7 +1452,7 @@ test("it logs the end of a harness's hook forward and listens on the guest socke
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g') },
+    { guestDir: join(ctx.directory, 'g') },
     { atcBinary: null, version: '1.0.0', reconnectDelaysMs: [0] },
   );
 
@@ -1456,7 +1473,7 @@ test("it logs the end of a harness's hook forward and listens on the guest socke
     host: 's1',
     bin: 'sleep',
     args: ['30'],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: {},
     cols: 80,
     rows: 24,
@@ -1474,7 +1491,7 @@ test("it logs the end of a harness's hook forward and listens on the guest socke
   ctx.port.stopForwards({ kind: 'closed', code: 1006, reason: '' });
 
   await waitFor(() => {
-    expect(existsSync(join(ctx.dir, 'g', 'run', 's1.sock'))).toBeTrue();
+    expect(existsSync(join(ctx.directory, 'g', 'run', 's1.sock'))).toBeTrue();
   });
 
   expect(lines).toContain(
@@ -1487,7 +1504,7 @@ test('it listens on the guest socket no more once the harness ended', async () =
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g') },
+    { guestDir: join(ctx.directory, 'g') },
     { atcBinary: null, version: '1.0.0', reconnectDelaysMs: [0] },
   );
 
@@ -1502,7 +1519,7 @@ test('it listens on the guest socket no more once the harness ended', async () =
     host: 's1',
     bin: 'true',
     args: [],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: {},
     cols: 80,
     rows: 24,
@@ -1521,8 +1538,11 @@ test('it listens on the guest socket no more once the harness ended', async () =
 
   ctx.port.stopForwards({ kind: 'closed', code: 1006, reason: '' });
 
-  expect(existsSync(join(ctx.dir, 'g', 'run', 's1.sock'))).toBeFalse();
-  expect(reverseCalls).toStrictEqual([`reverse atc-s1 ${join(ctx.dir, 'g', 'run', 's1.sock')}`]);
+  expect(existsSync(join(ctx.directory, 'g', 'run', 's1.sock'))).toBeFalse();
+
+  expect(reverseCalls).toStrictEqual([
+    `reverse atc-s1 ${join(ctx.directory, 'g', 'run', 's1.sock')}`,
+  ]);
 });
 
 test('it leaves a hook forward that impd lost with the guest ended, so the imp sleeps on', async () => {
@@ -1531,7 +1551,7 @@ test('it leaves a hook forward that impd lost with the guest ended, so the imp s
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g') },
+    { guestDir: join(ctx.directory, 'g') },
     { atcBinary: null, version: '1.0.0', reconnectDelaysMs: [0] },
   );
 
@@ -1552,7 +1572,7 @@ test('it leaves a hook forward that impd lost with the guest ended, so the imp s
     host: 's1',
     bin: 'sleep',
     args: ['30'],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: {},
     cols: 80,
     rows: 24,
@@ -1576,7 +1596,7 @@ test('it leaves a hook forward that impd lost with the guest ended, so the imp s
   });
 
   expect(ctx.port.calls.filter((call) => call.startsWith('reverse '))).toStrictEqual([
-    `reverse atc-s1 ${join(ctx.dir, 'g', 'run', 's1.sock')}`,
+    `reverse atc-s1 ${join(ctx.directory, 'g', 'run', 's1.sock')}`,
   ]);
 });
 
@@ -1586,7 +1606,7 @@ test('it leaves a hook forward ended when the imp starts to sleep during the wai
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g') },
+    { guestDir: join(ctx.directory, 'g') },
     { atcBinary: null, version: '1.0.0', reconnectDelaysMs: [0] },
   );
 
@@ -1613,7 +1633,7 @@ test('it leaves a hook forward ended when the imp starts to sleep during the wai
     host: 's1',
     bin: 'sleep',
     args: ['30'],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: {},
     cols: 80,
     rows: 24,
@@ -1639,7 +1659,7 @@ test('it leaves a hook forward ended when the imp starts to sleep during the wai
   await Promise.all(suspends);
 
   expect(ctx.port.calls.filter((call) => call.startsWith('reverse '))).toStrictEqual([
-    `reverse atc-s1 ${join(ctx.dir, 'g', 'run', 's1.sock')}`,
+    `reverse atc-s1 ${join(ctx.directory, 'g', 'run', 's1.sock')}`,
   ]);
 });
 
@@ -1649,7 +1669,7 @@ test('it listens on the guest socket again when impd refuses the sleep that was 
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g') },
+    { guestDir: join(ctx.directory, 'g') },
     { atcBinary: null, version: '1.0.0', reconnectDelaysMs: [0] },
   );
 
@@ -1670,7 +1690,7 @@ test('it listens on the guest socket again when impd refuses the sleep that was 
     host: 's1',
     bin: 'sleep',
     args: ['30'],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: {},
     cols: 80,
     rows: 24,
@@ -1714,7 +1734,7 @@ test('it listens on the guest socket again when impd refuses the sleep that was 
   expect(suspend).rejects.toThrow();
 
   await waitFor(() => {
-    expect(existsSync(join(ctx.dir, 'g', 'run', 's1.sock'))).toBeTrue();
+    expect(existsSync(join(ctx.directory, 'g', 'run', 's1.sock'))).toBeTrue();
   });
 
   expect(ctx.port.calls.filter((call) => call.startsWith('reverse '))).toHaveLength(2);
@@ -1726,7 +1746,7 @@ test('it listens on the guest socket again when impd fails the destroy that was 
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g') },
+    { guestDir: join(ctx.directory, 'g') },
     { atcBinary: null, version: '1.0.0', reconnectDelaysMs: [0] },
   );
 
@@ -1747,7 +1767,7 @@ test('it listens on the guest socket again when impd fails the destroy that was 
     host: 's1',
     bin: 'sleep',
     args: ['30'],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: {},
     cols: 80,
     rows: 24,
@@ -1790,7 +1810,7 @@ test('it listens on the guest socket again when impd fails the destroy that was 
   expect(destroy).rejects.toThrow();
 
   await waitFor(() => {
-    expect(existsSync(join(ctx.dir, 'g', 'run', 's1.sock'))).toBeTrue();
+    expect(existsSync(join(ctx.directory, 'g', 'run', 's1.sock'))).toBeTrue();
   });
 
   expect(ctx.port.calls.filter((call) => call.startsWith('reverse '))).toHaveLength(2);
@@ -1802,7 +1822,7 @@ test('it listens on the guest socket no more when the daemon lets go of the harn
 
   const provider = new ImpProvider(
     ctx.port,
-    { guestDir: join(ctx.dir, 'g') },
+    { guestDir: join(ctx.directory, 'g') },
     { atcBinary: null, version: '1.0.0', reconnectDelaysMs: [0] },
   );
 
@@ -1829,7 +1849,7 @@ test('it listens on the guest socket no more when the daemon lets go of the harn
     host: 's1',
     bin: 'sleep',
     args: ['30'],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: {},
     cols: 80,
     rows: 24,
@@ -1874,9 +1894,9 @@ test('it listens on the guest socket no more when the daemon lets go of the harn
   ctx.port.stopReleaseHold();
 
   expect(Promise.all(suspends)).rejects.toThrow();
-  expect(existsSync(join(ctx.dir, 'g', 'run', 's1.sock'))).toBeFalse();
+  expect(existsSync(join(ctx.directory, 'g', 'run', 's1.sock'))).toBeFalse();
 
   expect(ctx.port.calls.filter((call) => call.startsWith('reverse '))).toStrictEqual([
-    `reverse atc-s1 ${join(ctx.dir, 'g', 'run', 's1.sock')}`,
+    `reverse atc-s1 ${join(ctx.directory, 'g', 'run', 's1.sock')}`,
   ]);
 });

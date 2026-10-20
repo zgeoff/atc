@@ -5,14 +5,14 @@ import { setupTempDir } from '@atc/test-utils';
 import { readImpToken } from './read-imp-token';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-read-imp-token-');
+  const temporaryDirectory = setupTempDir('atc-read-imp-token-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it reads a token file without its one trailing newline', () => {
   const ctx = setupTest();
-  const tokenPath = join(ctx.dir, 'imp-token');
+  const tokenPath = join(ctx.directory, 'imp-token');
 
   writeFileSync(tokenPath, 'file-token\n\n');
 
@@ -21,7 +21,7 @@ test('it reads a token file without its one trailing newline', () => {
 
 test('it reads a token file without a trailing newline as written', () => {
   const ctx = setupTest();
-  const tokenPath = join(ctx.dir, 'imp-token');
+  const tokenPath = join(ctx.directory, 'imp-token');
 
   writeFileSync(tokenPath, 'file-token');
 
@@ -30,7 +30,7 @@ test('it reads a token file without a trailing newline as written', () => {
 
 test('it refuses an empty token file as unauthorized', () => {
   const ctx = setupTest();
-  const tokenPath = join(ctx.dir, 'imp-token');
+  const tokenPath = join(ctx.directory, 'imp-token');
 
   writeFileSync(tokenPath, '\n');
 
@@ -44,7 +44,7 @@ test('it refuses an empty token file as unauthorized', () => {
 
 test('it refuses a missing token file as unauthorized, giving the read error code', () => {
   const ctx = setupTest();
-  const tokenPath = join(ctx.dir, 'imp-token');
+  const tokenPath = join(ctx.directory, 'imp-token');
 
   expect(() => readImpToken(tokenPath)).toThrow(
     expect.objectContaining({

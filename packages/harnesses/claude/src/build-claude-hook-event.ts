@@ -19,8 +19,8 @@ const CLAUDE_HOOK_PAYLOAD_SCHEMA = z.object({
 
 type ClaudeHookPayload = z.infer<typeof CLAUDE_HOOK_PAYLOAD_SCHEMA>;
 
-export function buildClaudeHookEvent(e: HookEvent): AdapterEvent {
-  return buildClaudeStyleHookEvent(e, {
+export function buildClaudeHookEvent(hookEvent: HookEvent): AdapterEvent {
+  return buildClaudeStyleHookEvent(hookEvent, {
     hooks: CLAUDE_HOOKS,
     parsePayload: (payload) => {
       const parsed = CLAUDE_HOOK_PAYLOAD_SCHEMA.safeParse(payload);

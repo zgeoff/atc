@@ -6,9 +6,9 @@ import { loadCodexName } from './load-codex-name';
 
 // A Codex home for the session index a test writes.
 function setupTest() {
-  const tmp = setupTempDir('atc-codex-name-');
+  const temporaryDirectory = setupTempDir('atc-codex-name-');
 
-  return { codexHome: tmp.path };
+  return { codexHome: temporaryDirectory.path };
 }
 
 test('it loads the latest indexed thread name', async () => {
