@@ -2,7 +2,7 @@ import { expect, mock, onTestFinished, spyOn, test } from 'bun:test';
 import { createServer } from 'node:net';
 import type { Socket } from 'node:net';
 import { join } from 'node:path';
-import { setupTempDir, startStubPeerDaemon, waitFor } from '@atc/test-utils';
+import { buildPeerRequestLine, setupTempDir, startStubPeerDaemon, waitFor } from '@atc/test-utils';
 import type { StubPeerAnswer, StubPeerRequest } from '@atc/test-utils';
 import { PROTOCOL_V } from '../wire/protocol';
 import { openDaemonClient } from './open-daemon-client';
@@ -74,17 +74,20 @@ test('it sends the principal a request acts as, and its name, as headers', async
   });
 
   await waitFor(() => {
-    expect(ctx.received.map((line): unknown => JSON.parse(line))).toStrictEqual([
-      {
-        i: expect.any(String) as unknown,
-        p: {
-          u: '/session/list',
-          b: { json: {} },
-          h: { 'x-atc-as': 'ci', 'x-atc-as-name': 'Build bot' },
-        },
-      },
-    ]);
+    expect(ctx.received).toHaveLength(1);
   });
+
+  // The request id is the client's own choice, so the expected line takes it.
+  expect(ctx.received).toStrictEqual(
+    ctx.received.map((line) =>
+      buildPeerRequestLine(
+        String(JSON.parse(line)['i']),
+        '/session/list',
+        {},
+        { 'x-atc-as': 'ci', 'x-atc-as-name': 'Build bot' },
+      ).trimEnd(),
+    ),
+  );
 });
 
 test('it rejects a request sent after the connection ended', async () => {

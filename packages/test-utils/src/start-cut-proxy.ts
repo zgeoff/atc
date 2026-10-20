@@ -207,13 +207,6 @@ function findResponseID(line: string): string | null {
   }
 }
 
-const MESSAGE_TYPES: readonly MessageType[] = [
-  MessageType.REQUEST,
-  MessageType.RESPONSE,
-  MessageType.EVENT_ITERATOR,
-  MessageType.ABORT_SIGNAL,
-];
-
 // A line in the shape of an oRPC peer message: a string id, a payload, and
 // a known message type when it gives one.
 function parsePeerMessage(line: string): BaseMessageFormat | null {
@@ -225,18 +218,24 @@ function parsePeerMessage(line: string): BaseMessageFormat | null {
     return null;
   }
 
-  if (!isRecord(parsed) || typeof parsed['i'] !== 'string') {
-    return null;
+  return isPeerMessage(parsed) ? parsed : null;
+}
+
+const MESSAGE_TYPES: readonly MessageType[] = [
+  MessageType.REQUEST,
+  MessageType.RESPONSE,
+  MessageType.EVENT_ITERATOR,
+  MessageType.ABORT_SIGNAL,
+];
+
+function isPeerMessage(value: unknown): value is BaseMessageFormat {
+  if (!isRecord(value) || typeof value['i'] !== 'string') {
+    return false;
   }
 
-  const given = parsed['t'];
-  const type = MESSAGE_TYPES.find((known) => known === given);
+  const given = value['t'];
 
-  if (given !== undefined && type === undefined) {
-    return null;
-  }
-
-  return { i: parsed['i'], p: parsed['p'], ...(type === undefined ? {} : { t: type }) };
+  return given === undefined || MESSAGE_TYPES.some((known) => known === given);
 }
 
 // Hold swallows the answer and every later byte, keeping the link open;

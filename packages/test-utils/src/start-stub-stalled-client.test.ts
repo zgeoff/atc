@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import invariant from 'tiny-invariant';
+import { buildPeerRequestLine } from './build-peer-request-line';
 import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { startStubAnsweringListener } from './start-stub-answering-listener';
@@ -30,13 +31,11 @@ test('it sends a hello with no auth under the client name it is given, then subs
   expect(client.chunks).toStrictEqual([Buffer.from('answer\n')]);
 
   expect(ctx.lines).toStrictEqual([
-    `${JSON.stringify({
-      i: '1',
-      p: {
-        u: '/daemon/hello',
-        b: { json: { client: 'atc/stub', protocol: PROTOCOL_V, auth: { scheme: 'none' } } },
-      },
-    })}\n${JSON.stringify({ i: '2', p: { u: '/events/subscribe', b: { json: {} } } })}\n`,
+    buildPeerRequestLine('1', '/daemon/hello', {
+      client: 'atc/stub',
+      protocol: PROTOCOL_V,
+      auth: { scheme: 'none' },
+    }) + buildPeerRequestLine('2', '/events/subscribe', {}),
   ]);
 });
 

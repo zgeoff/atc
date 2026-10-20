@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { buildPeerRequestLine } from './build-peer-request-line';
 import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { startStubLineDaemon } from './start-stub-line-daemon';
@@ -34,7 +35,7 @@ test('it answers a peer handshake with the malformed-line error of protocol v4 a
     socket.end();
   });
 
-  socket.write(`${JSON.stringify({ i: '0', p: { u: '/daemon/hello', b: { json: {} } } })}\n`);
+  socket.write(buildPeerRequestLine('0', '/daemon/hello', {}));
 
   await ended.promise;
 

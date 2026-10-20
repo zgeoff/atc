@@ -5,7 +5,15 @@ import { toSessionID } from '@atc/core';
 import type { DaemonEvent } from '@atc/protocol';
 import { openDaemonClient } from '@atc/protocol/client';
 import { MAX_LINE, PROTOCOL_V } from '@atc/protocol/wire';
-import { buildStubPeerSocket, runCommand, setupTempDir, waitFor } from '@atc/test-utils';
+import {
+  buildPeerRequestLine,
+  buildStubPeerSocket,
+  parsePeerFrame,
+  runCommand,
+  setupTempDir,
+  waitFor,
+} from '@atc/test-utils';
+import type { PeerFrame } from '@atc/test-utils';
 import { TargetAccess } from '../auth/target-access';
 import type { DaemonContext } from '../daemon-context';
 import { buildStubDaemonContext } from '../testing/build-stub-daemon-context';
@@ -296,7 +304,7 @@ test.each([
 
     startConnectionListener(ctx.socketPath, buildStubDaemonContext({ quitDaemon: quit }));
 
-    const lines: unknown[] = [];
+    const lines: PeerFrame[] = [];
 
     const raw = await Bun.connect({
       unix: ctx.socketPath,
@@ -304,7 +312,7 @@ test.each([
         data(_socket, buf) {
           const written = buf.toString().split('\n').filter(Boolean);
 
-          lines.push(...written.map((line): unknown => JSON.parse(line)));
+          lines.push(...written.map((line) => parsePeerFrame(line)));
         },
       },
     });
@@ -316,14 +324,13 @@ test.each([
     const hello = { client: 'atc/test', protocol: PROTOCOL_V, principal: 'narrow' };
 
     raw.write(
-      `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n${JSON.stringify({ i: '2', p: { u: path, b: { json: {} } } })}\n`,
+      buildPeerRequestLine('1', '/daemon/hello', hello) + buildPeerRequestLine('2', path, {}),
     );
 
     const refusal: unknown = expect.objectContaining({ code });
-    const response: unknown = expect.objectContaining({ b: { json: refusal } });
 
     await waitFor(() => {
-      expect(lines).toContainEqual(expect.objectContaining({ i: '2', p: response }));
+      expect(lines).toContainEqual(expect.objectContaining({ id: '2', body: refusal }));
     });
 
     expect(quit).not.toHaveBeenCalled();
@@ -542,11 +549,12 @@ test('it holds a peer subscription back while the socket takes nothing, then rep
   const hello = { client: 'atc/test', protocol: PROTOCOL_V };
 
   conn.applyChunk(
-    `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n${JSON.stringify({ i: '2', p: { u: '/events/subscribe', b: { json: {} } } })}\n`,
+    buildPeerRequestLine('1', '/daemon/hello', hello) +
+      buildPeerRequestLine('2', '/events/subscribe', {}),
   );
 
   await waitFor(() => {
-    expect(peer.collectFrames().map((frame) => frame['i'])).toContain('1');
+    expect(peer.collectFrames().map((frame) => frame.id)).toContain('1');
   });
 
   peer.setAccepting(false);
@@ -599,11 +607,12 @@ test('it delivers output again after the dropped output is reported', async () =
   const hello = { client: 'atc/test', protocol: PROTOCOL_V };
 
   conn.applyChunk(
-    `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n${JSON.stringify({ i: '2', p: { u: '/events/subscribe', b: { json: {} } } })}\n`,
+    buildPeerRequestLine('1', '/daemon/hello', hello) +
+      buildPeerRequestLine('2', '/events/subscribe', {}),
   );
 
   await waitFor(() => {
-    expect(peer.collectFrames().map((frame) => frame['i'])).toContain('1');
+    expect(peer.collectFrames().map((frame) => frame.id)).toContain('1');
   });
 
   peer.setAccepting(false);
@@ -665,11 +674,12 @@ test('it reports no dropped output while the socket still takes nothing', async 
   const hello = { client: 'atc/test', protocol: PROTOCOL_V };
 
   conn.applyChunk(
-    `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n${JSON.stringify({ i: '2', p: { u: '/events/subscribe', b: { json: {} } } })}\n`,
+    buildPeerRequestLine('1', '/daemon/hello', hello) +
+      buildPeerRequestLine('2', '/events/subscribe', {}),
   );
 
   await waitFor(() => {
-    expect(peer.collectFrames().map((frame) => frame['i'])).toContain('1');
+    expect(peer.collectFrames().map((frame) => frame.id)).toContain('1');
   });
 
   peer.setAccepting(false);
@@ -724,11 +734,12 @@ test('it sends a principal no output of a session whose tree left its view, a re
   const hello = { client: 'atc/test', protocol: PROTOCOL_V, principal: 'narrow' };
 
   conn.applyChunk(
-    `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n${JSON.stringify({ i: '2', p: { u: '/events/subscribe', b: { json: {} } } })}\n`,
+    buildPeerRequestLine('1', '/daemon/hello', hello) +
+      buildPeerRequestLine('2', '/events/subscribe', {}),
   );
 
   await waitFor(() => {
-    expect(peer.collectFrames().map((frame) => frame['i'])).toContain('1');
+    expect(peer.collectFrames().map((frame) => frame.id)).toContain('1');
   });
 
   conn.sendEvent({
@@ -822,7 +833,8 @@ test('it answers internal when a procedure returns an answer outside its contrac
   const hello = { client: 'atc/test', protocol: PROTOCOL_V };
 
   conn.applyChunk(
-    `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n${JSON.stringify({ i: '2', p: { u: '/daemon/backup', b: { json: { path: '/backup.db' } } } })}\n`,
+    buildPeerRequestLine('1', '/daemon/hello', hello) +
+      buildPeerRequestLine('2', '/daemon/backup', { path: '/backup.db' }),
   );
 
   const refusal: unknown = expect.objectContaining({
@@ -832,10 +844,7 @@ test('it answers internal when a procedure returns an answer outside its contrac
 
   await waitFor(() => {
     expect<unknown[]>(peer.collectFrames()).toContainEqual(
-      expect.objectContaining({
-        i: '2',
-        p: expect.objectContaining({ b: { json: refusal } }) as unknown,
-      }),
+      expect.objectContaining({ id: '2', body: refusal }),
     );
   });
 });
@@ -850,17 +859,14 @@ test.each([
 
   const hello = { client: 'atc/test', protocol: PROTOCOL_V };
 
-  conn.applyChunk(`${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n`);
+  conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
   await waitFor(() => {
-    expect(peer.collectFrames().map((frame) => frame['i'])).toContain('1');
+    expect(peer.collectFrames().map((frame) => frame.id)).toContain('1');
   });
 
   peer.setAccepting(false);
-
-  conn.applyChunk(
-    `${JSON.stringify({ i: '2', p: { u: path, b: { json: {} } } })}\n${JSON.stringify({ i: '3', p: { u: path, b: { json: {} } } })}\n`,
-  );
+  conn.applyChunk(buildPeerRequestLine('2', path, {}) + buildPeerRequestLine('3', path, {}));
 
   await waitFor(() => {
     expect(peer.hasEnded()).toBeTrue();
@@ -945,17 +951,13 @@ test.each([
 
     const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
 
-    conn.applyChunk(`${JSON.stringify({ i: '9', p: { u: path, b: { json: body } } })}\n`);
+    conn.applyChunk(buildPeerRequestLine('9', path, body));
 
-    const json: unknown = expect.objectContaining(answer);
-
-    const response: unknown = expect.objectContaining({
-      b: expect.objectContaining({ json }) as unknown,
-    });
+    const expected: unknown = expect.objectContaining(answer);
 
     await waitFor(() => {
       expect<unknown[]>(peer.collectFrames()).toContainEqual(
-        expect.objectContaining({ i: '9', p: response }),
+        expect.objectContaining({ id: '9', body: expected }),
       );
     });
 
@@ -975,11 +977,12 @@ test('it drops an event sent to a peer connection that awaits its handshake', as
   const hello = { client: 'atc/test', protocol: PROTOCOL_V };
 
   conn.applyChunk(
-    `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n${JSON.stringify({ i: '2', p: { u: '/events/subscribe', b: { json: {} } } })}\n`,
+    buildPeerRequestLine('1', '/daemon/hello', hello) +
+      buildPeerRequestLine('2', '/events/subscribe', {}),
   );
 
   await waitFor(() => {
-    expect(peer.collectFrames().map((frame) => frame['i'])).toContain('1');
+    expect(peer.collectFrames().map((frame) => frame.id)).toContain('1');
   });
 
   conn.sendEvent({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-late' });
@@ -1000,7 +1003,7 @@ test('it ends a peer connection disposed while it awaits its handshake, and answ
 
   const hello = { client: 'atc/test', protocol: PROTOCOL_V };
 
-  conn.applyChunk(`${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n`);
+  conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
   expect(peer.hasEnded()).toBeTrue();
   expect(peer.collectFrames()).toStrictEqual([]);
@@ -1018,13 +1021,13 @@ test('it refuses a second handshake at once while the first is pending, and keep
 
   const hello = { client: 'atc/test', protocol: PROTOCOL_V };
 
-  conn.applyChunk(`${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n`);
+  conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
   await waitFor(() => {
     expect(load).toHaveBeenCalledOnce();
   });
 
-  conn.applyChunk(`${JSON.stringify({ i: '9', p: { u: '/daemon/hello', b: { json: hello } } })}\n`);
+  conn.applyChunk(buildPeerRequestLine('9', '/daemon/hello', hello));
 
   const refusal: unknown = expect.objectContaining({
     code: 'unauthorized',
@@ -1033,17 +1036,14 @@ test('it refuses a second handshake at once while the first is pending, and keep
 
   await waitFor(() => {
     expect<unknown[]>(peer.collectFrames()).toContainEqual(
-      expect.objectContaining({
-        i: '9',
-        p: expect.objectContaining({ b: { json: refusal } }) as unknown,
-      }),
+      expect.objectContaining({ id: '9', body: refusal }),
     );
   });
 
   held.resolve('claude');
 
   await waitFor(() => {
-    expect(peer.collectFrames().map((frame) => frame['i'])).toContain('1');
+    expect(peer.collectFrames().map((frame) => frame.id)).toContain('1');
   });
 
   expect(peer.hasEnded()).toBeFalse();
@@ -1062,7 +1062,7 @@ test('it holds a peer request back until a pending handshake passes', async () =
 
   const hello = { client: 'atc/test', protocol: PROTOCOL_V };
 
-  conn.applyChunk(`${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n`);
+  conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
   await waitFor(() => {
     expect(load).toHaveBeenCalledOnce();
@@ -1071,20 +1071,21 @@ test('it holds a peer request back until a pending handshake passes', async () =
   // The second handshake is refused at once, so its answer shows the
   // request before it was read and held.
   conn.applyChunk(
-    `${JSON.stringify({ i: '9', p: { u: '/session/ack', b: { json: { session: 's-1' } } } })}\n${JSON.stringify({ i: '8', p: { u: '/daemon/hello', b: { json: hello } } })}\n`,
+    buildPeerRequestLine('9', '/session/ack', { session: 's-1' }) +
+      buildPeerRequestLine('8', '/daemon/hello', hello),
   );
 
   await waitFor(() => {
-    expect(peer.collectFrames().map((frame) => frame['i'])).toContain('8');
+    expect(peer.collectFrames().map((frame) => frame.id)).toContain('8');
   });
 
-  const heldFrames = peer.collectFrames().map((frame) => frame['i']);
+  const heldFrames = peer.collectFrames().map((frame) => frame.id);
   const heldAcks = ack.mock.calls.length;
 
   held.resolve('claude');
 
   await waitFor(() => {
-    expect(peer.collectFrames().map((frame) => frame['i'])).toIncludeAllMembers(['1', '9']);
+    expect(peer.collectFrames().map((frame) => frame.id)).toIncludeAllMembers(['1', '9']);
   });
 
   expect(heldFrames).toStrictEqual(['8']);
@@ -1104,29 +1105,26 @@ test('it answers a path that names no procedure while the handshake is pending, 
 
   const hello = { client: 'atc/test', protocol: PROTOCOL_V };
 
-  conn.applyChunk(`${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n`);
+  conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
   await waitFor(() => {
     expect(load).toHaveBeenCalledOnce();
   });
 
-  conn.applyChunk(`${JSON.stringify({ i: '9', p: { u: '/daemon/ping/', b: { json: {} } } })}\n`);
+  conn.applyChunk(buildPeerRequestLine('9', '/daemon/ping/', {}));
 
   const refusal: unknown = expect.objectContaining({ code: 'unknown_method' });
 
   await waitFor(() => {
     expect<unknown[]>(peer.collectFrames()).toContainEqual(
-      expect.objectContaining({
-        i: '9',
-        p: expect.objectContaining({ b: { json: refusal } }) as unknown,
-      }),
+      expect.objectContaining({ id: '9', body: refusal }),
     );
   });
 
   held.resolve('claude');
 
   await waitFor(() => {
-    expect(peer.collectFrames().map((frame) => frame['i'])).toContain('1');
+    expect(peer.collectFrames().map((frame) => frame.id)).toContain('1');
   });
 
   expect(peer.hasEnded()).toBeFalse();
@@ -1145,7 +1143,8 @@ test('it drops an event sent to a peer connection while its handshake is pending
   const hello = { client: 'atc/test', protocol: PROTOCOL_V };
 
   conn.applyChunk(
-    `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n${JSON.stringify({ i: '2', p: { u: '/events/subscribe', b: { json: {} } } })}\n`,
+    buildPeerRequestLine('1', '/daemon/hello', hello) +
+      buildPeerRequestLine('2', '/events/subscribe', {}),
   );
 
   await waitFor(() => {
@@ -1156,7 +1155,7 @@ test('it drops an event sent to a peer connection while its handshake is pending
   held.resolve('claude');
 
   await waitFor(() => {
-    expect(peer.collectFrames().map((frame) => frame['i'])).toContain('1');
+    expect(peer.collectFrames().map((frame) => frame.id)).toContain('1');
   });
 
   conn.sendEvent({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-late' });
@@ -1180,7 +1179,7 @@ test('it ends a peer connection disposed while its handshake is pending', async 
 
   const hello = { client: 'atc/test', protocol: PROTOCOL_V };
 
-  conn.applyChunk(`${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n`);
+  conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
   await waitFor(() => {
     expect(load).toHaveBeenCalledOnce();
@@ -1207,23 +1206,19 @@ test.each([
 
   const hello = { client: 'atc/test', protocol: PROTOCOL_V };
 
-  conn.applyChunk(`${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n`);
+  conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
   await waitFor(() => {
-    expect(peer.collectFrames().map((frame) => frame['i'])).toContain('1');
+    expect(peer.collectFrames().map((frame) => frame.id)).toContain('1');
   });
 
-  conn.applyChunk(`${JSON.stringify({ i: '9', p: { u: path, b: { json: body } } })}\n`);
+  conn.applyChunk(buildPeerRequestLine('9', path, body));
 
-  const json: unknown = expect.objectContaining(answer);
-
-  const response: unknown = expect.objectContaining({
-    b: expect.objectContaining({ json }) as unknown,
-  });
+  const expected: unknown = expect.objectContaining(answer);
 
   await waitFor(() => {
     expect<unknown[]>(peer.collectFrames()).toContainEqual(
-      expect.objectContaining({ i: '9', p: response }),
+      expect.objectContaining({ id: '9', body: expected }),
     );
   });
 
@@ -1237,17 +1232,17 @@ test('it ends an open peer connection once disposed, and answers nothing after',
 
   const hello = { client: 'atc/test', protocol: PROTOCOL_V };
 
-  conn.applyChunk(`${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n`);
+  conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
   await waitFor(() => {
-    expect(peer.collectFrames().map((frame) => frame['i'])).toContain('1');
+    expect(peer.collectFrames().map((frame) => frame.id)).toContain('1');
   });
 
   conn.dispose();
-  conn.applyChunk(`${JSON.stringify({ i: '9', p: { u: '/daemon/ping', b: { json: {} } } })}\n`);
+  conn.applyChunk(buildPeerRequestLine('9', '/daemon/ping', {}));
 
   expect(peer.hasEnded()).toBeTrue();
-  expect(peer.collectFrames().map((frame) => frame['i'])).toStrictEqual(['1']);
+  expect(peer.collectFrames().map((frame) => frame.id)).toStrictEqual(['1']);
 });
 
 test('it writes a refused handshake whole before it ends the connection', async () => {
@@ -1258,7 +1253,7 @@ test('it writes a refused handshake whole before it ends the connection', async 
   const hello = { client: 'atc/old', protocol: 1 };
 
   peer.setAccepting(false);
-  conn.applyChunk(`${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n`);
+  conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
   await waitFor(() => {
     expect(peer.countRefusedWrites()).toBeGreaterThan(0);
@@ -1278,10 +1273,7 @@ test('it writes a refused handshake whole before it ends the connection', async 
   expect(endedWhileQueued).toBeFalse();
 
   expect<unknown[]>(peer.collectFrames()).toStrictEqual([
-    expect.objectContaining({
-      i: '1',
-      p: expect.objectContaining({ b: { json: refusal } }) as unknown,
-    }),
+    expect.objectContaining({ id: '1', body: refusal }),
   ]);
 });
 
@@ -1306,7 +1298,7 @@ test.each([
     peer.setAccepting(false);
 
     conn.applyChunk(
-      `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n${JSON.stringify({ i: '9', p: { u: path, b: { json: body } } })}\n`,
+      buildPeerRequestLine('1', '/daemon/hello', hello) + buildPeerRequestLine('9', path, body),
     );
 
     await waitFor(() => {
@@ -1318,15 +1310,11 @@ test.each([
     peer.setAccepting(true);
     conn.drain();
 
-    const json: unknown = expect.objectContaining(answer);
-
-    const response: unknown = expect.objectContaining({
-      b: expect.objectContaining({ json }) as unknown,
-    });
+    const expected: unknown = expect.objectContaining(answer);
 
     await waitFor(() => {
       expect<unknown[]>(peer.collectFrames()).toContainEqual(
-        expect.objectContaining({ i: '9', p: response }),
+        expect.objectContaining({ id: '9', body: expected }),
       );
     });
 
@@ -1346,7 +1334,7 @@ test('it writes no event to a peer connection whose refusal is still queued', as
   const hello = { client: 'atc/old', protocol: 1 };
 
   peer.setAccepting(false);
-  conn.applyChunk(`${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n`);
+  conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
   await waitFor(() => {
     expect(peer.countRefusedWrites()).toBeGreaterThan(0);
@@ -1371,7 +1359,7 @@ test('it ends a peer connection disposed while its refusal is still queued', asy
   const hello = { client: 'atc/old', protocol: 1 };
 
   peer.setAccepting(false);
-  conn.applyChunk(`${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n`);
+  conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
   await waitFor(() => {
     expect(peer.countRefusedWrites()).toBeGreaterThan(0);
@@ -1398,23 +1386,19 @@ test.each([
 
   const hello = { client: 'atc/old', protocol: 1 };
 
-  conn.applyChunk(`${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n`);
+  conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
   await waitFor(() => {
     expect(peer.hasEnded()).toBeTrue();
   });
 
-  conn.applyChunk(`${JSON.stringify({ i: '9', p: { u: path, b: { json: body } } })}\n`);
+  conn.applyChunk(buildPeerRequestLine('9', path, body));
 
-  const json: unknown = expect.objectContaining(answer);
-
-  const response: unknown = expect.objectContaining({
-    b: expect.objectContaining({ json }) as unknown,
-  });
+  const expected: unknown = expect.objectContaining(answer);
 
   await waitFor(() => {
     expect<unknown[]>(peer.collectFrames()).toContainEqual(
-      expect.objectContaining({ i: '9', p: response }),
+      expect.objectContaining({ id: '9', body: expected }),
     );
   });
 });
@@ -1426,7 +1410,7 @@ test('it writes no event to a peer connection that is closing', async () => {
 
   const hello = { client: 'atc/old', protocol: 1 };
 
-  conn.applyChunk(`${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n`);
+  conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
   await waitFor(() => {
     expect(peer.hasEnded()).toBeTrue();
@@ -1444,16 +1428,16 @@ test('it answers nothing on a closing peer connection once disposed', async () =
 
   const hello = { client: 'atc/old', protocol: 1 };
 
-  conn.applyChunk(`${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n`);
+  conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
   await waitFor(() => {
     expect(peer.hasEnded()).toBeTrue();
   });
 
   conn.dispose();
-  conn.applyChunk(`${JSON.stringify({ i: '9', p: { u: '/daemon/ping', b: { json: {} } } })}\n`);
+  conn.applyChunk(buildPeerRequestLine('9', '/daemon/ping', {}));
 
-  expect(peer.collectFrames().map((frame) => frame['i'])).toStrictEqual(['1']);
+  expect(peer.collectFrames().map((frame) => frame.id)).toStrictEqual(['1']);
 });
 
 test.each([
@@ -1467,16 +1451,16 @@ test.each([
 
   const hello = { client: 'atc/test', protocol: PROTOCOL_V };
 
-  conn.applyChunk(`${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n`);
+  conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
   await waitFor(() => {
-    expect(peer.collectFrames().map((frame) => frame['i'])).toContain('1');
+    expect(peer.collectFrames().map((frame) => frame.id)).toContain('1');
   });
 
   conn.dispose();
-  conn.applyChunk(`${JSON.stringify({ i: '9', p: { u: path, b: { json: body } } })}\n`);
+  conn.applyChunk(buildPeerRequestLine('9', path, body));
 
-  expect(peer.collectFrames().map((frame) => frame['i'])).toStrictEqual(['1']);
+  expect(peer.collectFrames().map((frame) => frame.id)).toStrictEqual(['1']);
 });
 
 test('it writes no event to a closed peer connection', async () => {
@@ -1487,11 +1471,12 @@ test('it writes no event to a closed peer connection', async () => {
   const hello = { client: 'atc/test', protocol: PROTOCOL_V };
 
   conn.applyChunk(
-    `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n${JSON.stringify({ i: '2', p: { u: '/events/subscribe', b: { json: {} } } })}\n`,
+    buildPeerRequestLine('1', '/daemon/hello', hello) +
+      buildPeerRequestLine('2', '/events/subscribe', {}),
   );
 
   await waitFor(() => {
-    expect(peer.collectFrames().map((frame) => frame['i'])).toContain('1');
+    expect(peer.collectFrames().map((frame) => frame.id)).toContain('1');
   });
 
   conn.dispose();
@@ -1543,7 +1528,7 @@ test('it refuses a peer handshake that gives another session than the one the ke
 
   const hello = { client: 'atc/test', protocol: PROTOCOL_V, session: 's-2' };
 
-  conn.applyChunk(`${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n`);
+  conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
   const refusal: unknown = expect.objectContaining({
     code: 'unauthorized',
@@ -1556,10 +1541,7 @@ test('it refuses a peer handshake that gives another session than the one the ke
   });
 
   expect<unknown[]>(peer.collectFrames()).toStrictEqual([
-    expect.objectContaining({
-      i: '1',
-      p: expect.objectContaining({ b: { json: refusal } }) as unknown,
-    }),
+    expect.objectContaining({ id: '1', body: refusal }),
   ]);
 });
 
@@ -1578,11 +1560,12 @@ test('it acts as the session the kernel names for a peer handshake that gives no
   const add = { session: 's-6', scope: { worktrees: [{ path: '/srv/site' }] } };
 
   conn.applyChunk(
-    `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n${JSON.stringify({ i: '2', p: { u: '/session/scope/add', b: { json: add } } })}\n`,
+    buildPeerRequestLine('1', '/daemon/hello', hello) +
+      buildPeerRequestLine('2', '/session/scope/add', add),
   );
 
   await waitFor(() => {
-    expect(peer.collectFrames().map((frame) => frame['i'])).toContain('2');
+    expect(peer.collectFrames().map((frame) => frame.id)).toContain('2');
   });
 
   expect(isCallerTree).toHaveBeenCalledExactlyOnceWith(toSessionID('s-6'), toSessionID('s-1'));
