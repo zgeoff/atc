@@ -75,8 +75,9 @@ export class LocalPTYProvider implements ExecutionProvider {
       args: argv.slice(1),
     };
 
+    // bun-pty sets TERM from `name` over the map's TERM, so the harness keeps
+    // the TERM the map holds only when `name` is left out.
     const pty = spawn(command.file, command.args, {
-      name: 'xterm-256color',
       cols: spec.cols,
       rows: spec.rows,
       cwd: spec.cwd,
