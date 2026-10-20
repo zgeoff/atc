@@ -839,7 +839,7 @@ test('it answers internal when a procedure returns an answer outside its contrac
 
   const refusal: unknown = expect.objectContaining({
     code: 'internal',
-    message: expect.toStartWith('Output validation failed: ') as unknown,
+    message: expect.toStartWith('Output validation failed: '),
   });
 
   await waitFor(() => {

@@ -67,7 +67,6 @@ export * from './get-records';
 export * from './read-source-entry';
 export * from './get-string';
 export * from './keys';
-export * from './merge-deep';
 export type * from './mock-overrides';
 export * from './open-repo-step';
 export * from './parse-passkey-page';

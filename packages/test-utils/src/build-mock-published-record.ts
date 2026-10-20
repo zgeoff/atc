@@ -1,6 +1,6 @@
 import type { PublishedRecord } from '@atc/protocol';
 import { faker } from '@faker-js/faker';
-import { mergeDeep } from './merge-deep';
+import { mergeDeep } from '@zgeoff/std';
 import type { MockOverrides } from './mock-overrides';
 
 type DefaultedKey = keyof PublishedRecord;
@@ -8,7 +8,7 @@ type DefaultedKey = keyof PublishedRecord;
 export function buildMockPublishedRecord(
   overrides: MockOverrides<PublishedRecord, DefaultedKey> = {},
 ): PublishedRecord {
-  return mergeDeep<PublishedRecord, DefaultedKey>(
+  return mergeDeep<PublishedRecord>(
     {
       format: 'atc.session-record',
       version: 1,

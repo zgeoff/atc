@@ -107,7 +107,7 @@ test('it takes the notice of a message the session sent when it asks for notices
         from: ctx.sessionID,
         status: 'unanswered',
         reason: 'session_ended',
-        at: expect.any(Number) as unknown,
+        at: expect.any(Number),
       },
     ]);
   });

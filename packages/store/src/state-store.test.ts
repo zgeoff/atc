@@ -17,12 +17,13 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
+import { buildSQLiteDialect } from '@zgeoff/kysely-bun-sqlite';
 import { Kysely } from 'kysely';
 import type { CompiledQuery } from 'kysely';
 import { Migrator } from 'kysely/migration';
 import invariant from 'tiny-invariant';
+import { z } from 'zod';
 import { buildTargetIdentity } from './build-target-identity';
-import { buildSQLiteDialect } from './sqlite/build-sqlite-dialect';
 import { MIGRATIONS } from './sqlite/migrations';
 import { PreLadderDatabaseError } from './sqlite/pre-ladder-database-error';
 import type { StateStoreSchema } from './sqlite/state-store-schema';
@@ -367,7 +368,7 @@ test('it resolves stop only after an unawaited fleet write lands', async () => {
     db.close();
   });
 
-  const rows = db.query<{ name: string }, []>('SELECT name FROM fleet').all();
+  const rows = db.query('SELECT name FROM fleet').all();
 
   expect(rows).toStrictEqual([{ name: entry.name }]);
 });
@@ -387,15 +388,27 @@ test('it records hook events into the trail', async () => {
     db.close();
   });
 
-  const rows = db
-    .query<{ atc_id: string; event: string; message: string; session_id: string }, []>(
-      'SELECT atc_id, event, message, session_id FROM events',
-    )
-    .all();
+  const rows = db.query('SELECT atc_id, event, message, session_id FROM events').all();
 
   expect(rows).toStrictEqual([
     { atc_id: 's1', event: 'Notification', message: 'needs permission', session_id: 'c1' },
   ]);
+});
+
+test('it records a hook event whose payload is not an object with no message or session id', async () => {
+  const ctx = await setupTest();
+
+  await ctx.store.recordEvent({ atcId: toSessionID('s1'), event: 'Stop', payload: null });
+
+  const db = new Database(ctx.dbPath, { readonly: true });
+
+  registerTestCleanup(() => {
+    db.close();
+  });
+
+  const rows = db.query('SELECT atc_id, event, message, session_id FROM events').all();
+
+  expect(rows).toStrictEqual([{ atc_id: 's1', event: 'Stop', message: null, session_id: null }]);
 });
 
 test('it records a Grok session id from the camelCase payload key', async () => {
@@ -413,11 +426,7 @@ test('it records a Grok session id from the camelCase payload key', async () => 
     db.close();
   });
 
-  const rows = db
-    .query<{ atc_id: string; event: string; message: string | null; session_id: string }, []>(
-      'SELECT atc_id, event, message, session_id FROM events',
-    )
-    .all();
+  const rows = db.query('SELECT atc_id, event, message, session_id FROM events').all();
 
   expect(rows).toStrictEqual([
     { atc_id: 's1', event: 'SessionStart', message: null, session_id: 'g1' },
@@ -1010,10 +1019,7 @@ test('it runs every migration once on the first open of a fresh database', async
     ledger.close();
   });
 
-  const names = ledger
-    .query<{ name: string }, []>('SELECT name FROM kysely_migration ORDER BY name')
-    .all()
-    .map((row) => row.name);
+  const names = ledger.query('SELECT name FROM kysely_migration ORDER BY name').values().flat();
 
   expect(names).toStrictEqual([
     '001_create_initial_schema',
@@ -1091,14 +1097,12 @@ test('it drops the resume column from a database that stopped at the step that a
     reader.close();
   });
 
-  const columns = reader
-    .query<{ name: string }, []>('PRAGMA table_info(fleet)')
-    .all()
+  const columns = z
+    .array(z.object({ name: z.string() }))
+    .parse(reader.query('PRAGMA table_info(fleet)').all())
     .map((column) => column.name);
 
-  const rows = reader
-    .query<{ session_id: string; name: string }, []>('SELECT session_id, name FROM fleet')
-    .all();
+  const rows = reader.query('SELECT session_id, name FROM fleet').all();
 
   expect(columns).not.toContain('resume_interrupted_turns');
   expect(rows).toStrictEqual([{ session_id: 's-1', name: 'nightly-build' }]);
@@ -1139,14 +1143,12 @@ test('it records the resume column drop and keeps the fleet when a crash left th
   });
 
   const steps = reader
-    .query<{ name: string }, []>(
+    .query(
       "SELECT name FROM kysely_migration WHERE name = '037_drop_fleet_resume_interrupted_turns'",
     )
     .all();
 
-  const rows = reader
-    .query<{ session_id: string; name: string }, []>('SELECT session_id, name FROM fleet')
-    .all();
+  const rows = reader.query('SELECT session_id, name FROM fleet').all();
 
   expect(steps).toStrictEqual([{ name: '037_drop_fleet_resume_interrupted_turns' }]);
   expect(rows).toStrictEqual([{ session_id: 's-1', name: 'nightly-build' }]);
@@ -1352,10 +1354,7 @@ test('it re-runs no migration when it reopens a migrated database', async () => 
 
   await second.stop();
 
-  const stamps = ledger
-    .query<{ timestamp: string }, []>('SELECT timestamp FROM kysely_migration')
-    .all()
-    .map((row) => row.timestamp);
+  const stamps = ledger.query('SELECT timestamp FROM kysely_migration').values().flat();
 
   expect(stamps).toStrictEqual(Array.from({ length: 39 }, () => 'sentinel'));
 });
@@ -1451,24 +1450,23 @@ test('it ends a fresh database at the same fleet schema as a fully migrated old 
   });
 
   const [freshSchema, oldSchema] = [freshDB, oldDB].map((db) =>
-    db
-      .query<{ name: string }, []>("SELECT name FROM sqlite_master WHERE type = 'table'")
-      .all()
+    z
+      .array(z.object({ name: z.string() }))
+      .parse(db.query("SELECT name FROM sqlite_master WHERE type = 'table'").all())
       .map((row) => row.name)
       .toSorted()
       .map((table) => ({
         table,
-        columns: db
-          .query<{ name: string; type: string; notnull: number; dflt_value: unknown }, []>(
-            `PRAGMA table_info(${table})`,
+        columns: z
+          .array(
+            z.object({
+              name: z.string(),
+              type: z.string(),
+              notnull: z.number(),
+              dflt_value: z.unknown(),
+            }),
           )
-          .all()
-          .map((column) => ({
-            name: column.name,
-            type: column.type,
-            notnull: column.notnull,
-            dflt_value: column.dflt_value,
-          }))
+          .parse(db.query(`PRAGMA table_info(${table})`).all())
           .toSorted((left, right) => left.name.localeCompare(right.name)),
       })),
   );
@@ -1784,7 +1782,7 @@ test('it removes trail rows recorded before the cutoff', async () => {
     db.close();
   });
 
-  const rows = db.query<{ ts: string; kind: string }, []>('SELECT ts, kind FROM events').all();
+  const rows = db.query('SELECT ts, kind FROM events').all();
 
   expect(rows).toStrictEqual([{ ts: '2026-02-10T00:00:00.000Z', kind: 'turn-done' }]);
 });
@@ -1816,7 +1814,7 @@ test('it keeps the newest row of a fleet session recorded before the cutoff', as
     db.close();
   });
 
-  const rows = db.query<{ ts: string; kind: string }, []>('SELECT ts, kind FROM events').all();
+  const rows = db.query('SELECT ts, kind FROM events').all();
 
   expect(rows).toStrictEqual([{ ts: '2026-01-02T00:00:00.000Z', kind: 'turn-done' }]);
 });
@@ -1851,7 +1849,7 @@ test('it keeps the newest row under an agent session id that an earlier atc id r
     db.close();
   });
 
-  const rows = db.query<{ atc_id: string; ts: string }, []>('SELECT atc_id, ts FROM events').all();
+  const rows = db.query('SELECT atc_id, ts FROM events').all();
 
   expect(rows).toStrictEqual([{ atc_id: 's-old', ts: '2026-01-02T00:00:00.000Z' }]);
 });
@@ -1873,7 +1871,7 @@ test('it removes the newest row recorded before the cutoff of a session no fleet
     db.close();
   });
 
-  const rows = db.query<{ id: number }, []>('SELECT id FROM events').all();
+  const rows = db.query('SELECT id FROM events').all();
 
   expect(rows).toStrictEqual([]);
 });
@@ -1913,7 +1911,7 @@ test('it removes heartbeats and unclassified events after the cutoff except the 
     db.close();
   });
 
-  const rows = db.query<{ ts: string; kind: string }, []>('SELECT ts, kind FROM events').all();
+  const rows = db.query('SELECT ts, kind FROM events').all();
 
   expect(rows).toStrictEqual([
     { ts: '2026-02-01T00:00:00.000Z', kind: 'started' },
@@ -1950,9 +1948,7 @@ test('it never removes a trail row recorded after the cutoff', async () => {
     db.close();
   });
 
-  const rows = db
-    .query<{ atc_id: string; kind: string }, []>('SELECT atc_id, kind FROM events')
-    .all();
+  const rows = db.query('SELECT atc_id, kind FROM events').all();
 
   expect(rows).toStrictEqual([
     { atc_id: 's1', kind: 'started' },
@@ -3260,9 +3256,9 @@ test('it adds an empty answer text to the answered rows of a database from befor
     reader.close();
   });
 
-  const rows = reader
-    .query<{ id: number; answer_text: string | null }, []>('SELECT id, answer_text FROM events')
-    .all();
+  const rows = z
+    .array(z.object({ id: z.number(), answer_text: z.string().nullable() }))
+    .parse(reader.query('SELECT id, answer_text FROM events').all());
 
   const [row] = rows;
 
@@ -3615,11 +3611,7 @@ test('it rebuilds a fleet at the model-and-effort shape keyed by a minted sessio
     reader.close();
   });
 
-  const ledger = reader
-    .query<{ name: string }, []>('SELECT name FROM kysely_migration')
-    .all()
-    .map((row) => row.name);
-
+  const ledger = reader.query('SELECT name FROM kysely_migration').values().flat();
   const parent = fleet.find((entry) => entry.name === 'wrangler');
 
   invariant(parent !== undefined, 'expected the parent row');
@@ -3765,11 +3757,7 @@ test('it records this daemon as the owner of every fleet row it migrates', async
     reader.close();
   });
 
-  const owners = reader
-    .query<{ session_id: string; daemon_id: string; owner_epoch: number }, []>(
-      'SELECT session_id, daemon_id, owner_epoch FROM session_owner',
-    )
-    .all();
+  const owners = reader.query('SELECT session_id, daemon_id, owner_epoch FROM session_owner').all();
 
   expect(owners).toIncludeSameMembers(
     fleet.map((entry) => ({ session_id: entry.sessionID, daemon_id: daemonID, owner_epoch: 1 })),
@@ -3809,10 +3797,7 @@ test("it rewrites only this daemon's fleet rows and leaves another daemon's in p
     reader.close();
   });
 
-  const stored = reader
-    .query<{ session_id: string }, []>('SELECT session_id FROM fleet ORDER BY session_id')
-    .all()
-    .map((row) => row.session_id);
+  const stored = reader.query('SELECT session_id FROM fleet ORDER BY session_id').values().flat();
 
   const fleet = await ctx.store.loadFleet();
 
@@ -4658,9 +4643,9 @@ test('it upgrades a database from before runtime auth and keeps every existing r
   });
 
   const ledger = reader
-    .query<{ name: string }, []>('SELECT name FROM kysely_migration ORDER BY name')
-    .all()
-    .map((row) => row.name)
+    .query('SELECT name FROM kysely_migration ORDER BY name')
+    .values()
+    .flat()
     .slice(-15, -12);
 
   const fleet = await upgraded.loadFleet();
@@ -5274,25 +5259,16 @@ test('it renames reports to notes and accepted to queued in a database from befo
   });
 
   const events = reader
-    .query<Record<string, string | null>, []>(
-      'SELECT event, kind, note_id, note_text FROM events ORDER BY id',
-    )
+    .query('SELECT event, kind, note_id, note_text FROM events ORDER BY id')
     .all();
 
-  const statuses = reader
-    .query<{ status: string }, []>('SELECT status FROM messages ORDER BY id')
-    .all()
-    .map((row) => row.status);
-
-  const results = reader
-    .query<{ result: string }, []>('SELECT result FROM idempotency ORDER BY key')
-    .all()
-    .map((row) => row.result);
+  const statuses = reader.query('SELECT status FROM messages ORDER BY id').values().flat();
+  const results = reader.query('SELECT result FROM idempotency ORDER BY key').values().flat();
 
   const indexes = reader
-    .query<{ name: string }, []>("SELECT name FROM sqlite_master WHERE name LIKE 'events_%id'")
-    .all()
-    .map((row) => row.name);
+    .query("SELECT name FROM sqlite_master WHERE name LIKE 'events_%id'")
+    .values()
+    .flat();
 
   expect(events).toStrictEqual([
     { event: 'SessionNote', kind: 'note', note_id: 'r-1', note_text: 'whole text' },
@@ -5511,16 +5487,15 @@ test('it writes a consistent backup while another connection commits writes', as
     backup.close();
   });
 
-  const integrity = backup.query<{ integrity_check: string }, []>('PRAGMA integrity_check').get();
-  const head = backup.query<{ generation: number }, []>('SELECT generation FROM probe_head').get();
+  const integrity = backup.query('PRAGMA integrity_check').get();
+
+  const head = z
+    .object({ generation: z.number() })
+    .parse(backup.query('SELECT generation FROM probe_head').get());
 
   const generations = backup
-    .query<{ generation: number; rows: number }, []>(
-      'SELECT generation, COUNT(*) AS rows FROM probe GROUP BY generation ORDER BY generation',
-    )
+    .query('SELECT generation, COUNT(*) AS rows FROM probe GROUP BY generation ORDER BY generation')
     .all();
-
-  invariant(head !== null);
 
   expect(commits.filter((at) => at > startedAt && at < endedAt)).not.toBeEmpty();
   expect(integrity).toStrictEqual({ integrity_check: 'ok' });

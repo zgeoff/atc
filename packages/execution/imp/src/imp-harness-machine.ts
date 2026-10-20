@@ -1,4 +1,5 @@
 import type { DaemonError } from '@atc/protocol/wire';
+import { machineTypes } from '@zgeoff/std';
 import { assign, setup } from 'xstate';
 
 type ImpHarnessEvent =
@@ -18,13 +19,7 @@ interface ImpHarnessContext {
 // Holds state only: the harness performs every effect and reads its state
 // back from here.
 export const IMP_HARNESS_MACHINE = setup({
-  types: {
-    // oxlint-disable-next-line no-unsafe-type-assertion -- xstate's typed-setup contract: this value is never read, it only carries the context type past the type layer
-    context: {} as ImpHarnessContext,
-
-    // oxlint-disable-next-line no-unsafe-type-assertion -- xstate's typed-setup contract: this value is never read, it only carries the event union past the type layer
-    events: {} as ImpHarnessEvent,
-  },
+  types: machineTypes<{ context: ImpHarnessContext; events: ImpHarnessEvent }>(),
 }).createMachine({
   id: 'imp-harness',
   type: 'parallel',

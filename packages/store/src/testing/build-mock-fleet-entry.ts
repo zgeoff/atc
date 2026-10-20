@@ -1,7 +1,7 @@
 import { toAgentSessionID, toSessionID } from '@atc/core';
-import { mergeDeep } from '@atc/test-utils';
 import type { MockOverrides } from '@atc/test-utils';
 import { faker } from '@faker-js/faker';
+import { mergeDeep } from '@zgeoff/std';
 import type { FleetEntry } from '../fleet-entry';
 
 type DefaultedKey = 'sessionID' | 'name' | 'cwd' | 'agentSessionID' | 'agent';
@@ -9,7 +9,7 @@ type DefaultedKey = 'sessionID' | 'name' | 'cwd' | 'agentSessionID' | 'agent';
 export function buildMockFleetEntry(
   overrides: MockOverrides<FleetEntry, DefaultedKey> = {},
 ): FleetEntry {
-  return mergeDeep<FleetEntry, DefaultedKey>(
+  return mergeDeep<FleetEntry>(
     {
       sessionID: toSessionID(faker.string.uuid()),
       name: faker.word.noun(),

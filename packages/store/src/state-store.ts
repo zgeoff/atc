@@ -3,6 +3,7 @@ import type { AgentID, AgentSessionID, DaemonID, MessageID, SessionID } from '@a
 import { systemClock, toAgentID, toDaemonID } from '@atc/core';
 import type { AdapterEvent, PublishedRecord } from '@atc/protocol';
 import type { HookEvent } from '@atc/protocol/session';
+import { buildSQLiteDialect } from '@zgeoff/kysely-bun-sqlite';
 import { Kysely } from 'kysely';
 import type { CompiledQuery, LogEvent } from 'kysely';
 import { AuthBindingStore } from './auth-binding-store';
@@ -21,7 +22,6 @@ import type {
   RuntimeAuthBindingUpdate,
   RuntimeAuthGrant,
 } from './runtime-auth-binding';
-import { buildSQLiteDialect } from './sqlite/build-sqlite-dialect';
 import { openSQLite } from './sqlite/open-sqlite';
 import { runMigrations } from './sqlite/run-migrations';
 import type { StateStoreSchema } from './sqlite/state-store-schema';

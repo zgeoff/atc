@@ -362,7 +362,7 @@ async function tryRunAnswer(
 }
 
 function isNoteLabel(value: string): value is (typeof NOTE_LABELS)[number] {
-  return (NOTE_LABELS as readonly string[]).includes(value);
+  return NOTE_LABELS.some((label) => label === value);
 }
 
 async function runTap($: EngineInterface, state: BridgeState, sessionID: string): Promise<void> {
@@ -461,7 +461,7 @@ function parseTapSender(value: unknown): TapSender | undefined {
 }
 
 function isSenderKind(value: string): value is TapSender['kind'] {
-  return (SENDER_KINDS as readonly string[]).includes(value);
+  return SENDER_KINDS.some((kind) => kind === value);
 }
 
 function parseTapNotice(parsed: object): TapNotice | null {
@@ -483,7 +483,7 @@ function parseTapNotice(parsed: object): TapNotice | null {
 }
 
 function isNoticeStatus(value: string): value is TapNotice['status'] {
-  return (NOTICE_STATUSES as readonly string[]).includes(value);
+  return NOTICE_STATUSES.some((status) => status === value);
 }
 
 function scheduleDelivery($: EngineInterface, state: BridgeState, msg: TapMessage): void {

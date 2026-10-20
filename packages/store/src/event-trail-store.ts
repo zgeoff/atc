@@ -1,5 +1,5 @@
 import type { AgentSessionID, SessionID } from '@atc/core';
-import { toAgentSessionID, toMessageID, toSessionID } from '@atc/core';
+import { isRecord, toAgentSessionID, toMessageID, toSessionID } from '@atc/core';
 import type { AdapterEvent } from '@atc/protocol';
 import type { HookEvent } from '@atc/protocol/session';
 import { sql } from 'kysely';
@@ -7,9 +7,6 @@ import type { Expression, ExpressionBuilder, Kysely, SqlBool } from 'kysely';
 import type { StateStoreSchema } from './sqlite/state-store-schema';
 import type { EventScope, StoredAnswer, StoredEvent, StoredNote } from './stored-event';
 import type { TrailEntry } from './trail-entry';
-
-// Spelled as the partial index's predicate so SQLite can match them.
-const TRAIL_FILTER = sql<boolean>`kind IS NOT NULL AND kind != 'heartbeat'`;
 
 // The hook events and trail entries a session leaves behind, kept in the
 // events table.
@@ -25,7 +22,7 @@ export class EventTrailStore {
   async readFleetRecency(): Promise<Map<AgentSessionID, string>> {
     const rows = await this.db
       .selectFrom('events')
-      .select(['session_id', sql<string>`MAX(ts)`.as('ts')])
+      .select((expressionBuilder) => ['session_id', expressionBuilder.fn.max('ts').as('ts')])
       .where('session_id', 'is not', null)
       .groupBy('session_id')
       .execute();
@@ -50,8 +47,9 @@ export class EventTrailStore {
     ev: Readonly<AdapterEvent> | null,
     at: number,
   ): Promise<void> {
-    const rawMessage = hookEvent.payload['message'];
-    const rawSessionID = hookEvent.payload['session_id'] ?? hookEvent.payload['sessionId'];
+    const payload = isRecord(hookEvent.payload) ? hookEvent.payload : {};
+    const rawMessage = payload['message'];
+    const rawSessionID = payload['session_id'] ?? payload['sessionId'];
     const message = typeof rawMessage === 'string' ? rawMessage : null;
     const sessionID = typeof rawSessionID === 'string' ? rawSessionID : null;
     const atcID: string = hookEvent.atcId;
@@ -104,7 +102,7 @@ export class EventTrailStore {
       .selectFrom('events')
       .select(['id', 'ts', 'atc_id', 'session_id', 'kind', 'detail', 'message'])
       .where('id', '>', afterID)
-      .where(TRAIL_FILTER)
+      .where((expressionBuilder) => buildTrailFilter(expressionBuilder))
       .where((eb) => buildScopeMatch(eb, scope))
       .orderBy('id', 'asc')
       .limit(limit)
@@ -169,7 +167,7 @@ export class EventTrailStore {
     const rows = await this.db
       .selectFrom('events')
       .select(['id', 'ts', 'atc_id', 'session_id', 'kind', 'detail', 'message'])
-      .where(TRAIL_FILTER)
+      .where((expressionBuilder) => buildTrailFilter(expressionBuilder))
       .where((eb) => buildScopeMatch(eb, scope))
       .orderBy('id', 'desc')
       .limit(limit)
@@ -186,7 +184,7 @@ export class EventTrailStore {
   ): Promise<number | null> {
     const row = await this.db
       .selectFrom('events')
-      .select(sql<string | null>`MAX(ts)`.as('ts'))
+      .select((expressionBuilder) => expressionBuilder.fn.max('ts').as('ts'))
       .where((eb) =>
         eb.or([
           eb('atc_id', '=', atcID),
@@ -206,22 +204,7 @@ export class EventTrailStore {
 
     await this.db
       .deleteFrom('events')
-      .where(
-        sql<boolean>`(ts < ${cutoff} OR NOT (${TRAIL_FILTER})) AND (
-          (ts < ${cutoff} AND NOT EXISTS (
-            SELECT 1 FROM fleet
-            WHERE fleet.session_id = events.atc_id
-              OR (events.session_id IS NOT NULL AND fleet.agent_session_id = events.session_id)
-          ))
-          OR (
-            ts < (SELECT MAX(newer.ts) FROM events AS newer WHERE newer.atc_id = events.atc_id)
-            AND (
-              events.session_id IS NULL
-              OR ts < (SELECT MAX(newer.ts) FROM events AS newer WHERE newer.session_id = events.session_id)
-            )
-          )
-        )`,
-      )
+      .where((expressionBuilder) => buildExpiredMatch(expressionBuilder, cutoff))
       .execute();
   }
 
@@ -245,6 +228,77 @@ export class EventTrailStore {
       ])
       .execute();
   }
+}
+
+function buildExpiredMatch(
+  expressionBuilder: ExpressionBuilder<StateStoreSchema, 'events'>,
+  cutoff: string,
+): Expression<SqlBool> {
+  const isPastCutoff = expressionBuilder('events.ts', '<', cutoff);
+  const isHeldByFleet = expressionBuilder.exists(buildFleetHolders(expressionBuilder));
+
+  const newestUnderAtcID = expressionBuilder
+    .selectFrom('events as newer')
+    .select((subqueryBuilder) => subqueryBuilder.fn.max('newer.ts').as('ts'))
+    .whereRef('newer.atc_id', '=', 'events.atc_id');
+
+  const newestUnderSessionID = expressionBuilder
+    .selectFrom('events as newer')
+    .select((subqueryBuilder) => subqueryBuilder.fn.max('newer.ts').as('ts'))
+    .whereRef('newer.session_id', '=', 'events.session_id');
+
+  const isOlderUnderSessionID = expressionBuilder.or([
+    expressionBuilder('events.session_id', 'is', null),
+    expressionBuilder('events.ts', '<', newestUnderSessionID),
+  ]);
+
+  const isOlderThanNewest = expressionBuilder.and([
+    expressionBuilder('events.ts', '<', newestUnderAtcID),
+    isOlderUnderSessionID,
+  ]);
+
+  const isUnheldPastCutoff = expressionBuilder.and([
+    isPastCutoff,
+    expressionBuilder.not(isHeldByFleet),
+  ]);
+
+  const isTrail = buildTrailFilter(expressionBuilder);
+
+  return expressionBuilder.and([
+    expressionBuilder.or([isPastCutoff, expressionBuilder.not(isTrail)]),
+    expressionBuilder.or([isUnheldPastCutoff, isOlderThanNewest]),
+  ]);
+}
+
+function buildFleetHolders(expressionBuilder: ExpressionBuilder<StateStoreSchema, 'events'>) {
+  return expressionBuilder
+    .selectFrom('fleet')
+    .select(sql.lit(1).as('held'))
+    .where((subqueryBuilder) => {
+      const holdsAtcID = subqueryBuilder(
+        'fleet.session_id',
+        '=',
+        subqueryBuilder.ref('events.atc_id'),
+      );
+
+      const holdsAgentSessionID = subqueryBuilder.and([
+        subqueryBuilder('events.session_id', 'is not', null),
+        subqueryBuilder('fleet.agent_session_id', '=', subqueryBuilder.ref('events.session_id')),
+      ]);
+
+      return subqueryBuilder.or([holdsAtcID, holdsAgentSessionID]);
+    });
+}
+
+// Spelled as the partial index's predicate, with the literal inlined rather
+// than bound, so SQLite can match the index.
+function buildTrailFilter(
+  expressionBuilder: ExpressionBuilder<StateStoreSchema, 'events'>,
+): Expression<SqlBool> {
+  return expressionBuilder.and([
+    expressionBuilder('kind', 'is not', null),
+    expressionBuilder('kind', '!=', sql.lit('heartbeat')),
+  ]);
 }
 
 function buildScopeMatch(

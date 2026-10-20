@@ -1,8 +1,8 @@
 import { resolvePaths } from '@atc/config/host';
 import { systemClock } from '@atc/core';
-import { mergeDeep } from '@atc/test-utils';
 import type { MockOverrides } from '@atc/test-utils';
 import { faker } from '@faker-js/faker';
+import { mergeDeep } from '@zgeoff/std';
 import type { LifecycleHost } from '../lifecycle-host';
 
 export function buildMockLifecycleHost(

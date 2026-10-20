@@ -24,6 +24,8 @@
     "@better-auth/mcp": "catalog:",
     "@better-auth/oauth-provider": "catalog:",
     "@simplewebauthn/server": "catalog:",
+    "@zgeoff/kysely-bun-sqlite": "catalog:",
+    "@zgeoff/std": "catalog:",
     "better-auth": "catalog:",
     "gunshi": "catalog:",
     "kysely": "catalog:",

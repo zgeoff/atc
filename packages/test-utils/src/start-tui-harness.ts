@@ -1,11 +1,11 @@
 import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { mergeDeep } from '@zgeoff/std';
 import { spawn } from 'bun-pty';
 import type { IDisposable, IPty } from 'bun-pty';
 import { buildStubTUIClaude } from './build-stub-tui-claude';
 import { buildStubTUIGrok } from './build-stub-tui-grok';
 import { createStubBin } from './create-stub-bin';
-import { mergeDeep } from './merge-deep';
 import { readSourceEntry } from './read-source-entry';
 import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';

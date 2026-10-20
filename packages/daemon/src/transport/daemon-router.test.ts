@@ -66,7 +66,7 @@ test.each([
   ],
   [
     'a prototype key',
-    JSON.parse('{"__proto__":{"worktrees":[]}}') as unknown,
+    Object.fromEntries([['__proto__', { worktrees: [] }]]),
     'a scope holds only worktrees, branches, and pullRequests',
   ],
   [
@@ -86,7 +86,7 @@ test.each([
       { session: 's-6', scope },
       { context: buildMockProcedureContext() },
     ),
-  ).rejects.toMatchObject({ code: 'scope_invalid', message: expect.toInclude(message) as unknown });
+  ).rejects.toMatchObject({ code: 'scope_invalid', message: expect.toInclude(message) });
 });
 
 test.each([

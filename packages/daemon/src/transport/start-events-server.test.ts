@@ -143,7 +143,7 @@ test('it serves a new subscriber after disconnecting one whose queue overflowed'
 
   const lines = await fresh.waitForLine(1);
 
-  expect(lines.map((line) => JSON.parse(line) as unknown)).toStrictEqual([
+  expect(lines.map((line): unknown => JSON.parse(line))).toStrictEqual([
     { version: 4, ev: 'SessionRemoved', sessionID: 'sx' },
   ]);
 });

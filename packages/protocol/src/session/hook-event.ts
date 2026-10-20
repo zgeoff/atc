@@ -4,5 +4,5 @@ export interface HookEvent {
   atcId: SessionID;
   agent?: AgentID;
   event: string;
-  payload: Record<string, unknown>;
+  payload: unknown;
 }

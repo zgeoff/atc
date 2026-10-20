@@ -1,6 +1,6 @@
-import { mergeDeep } from '@atc/test-utils';
 import type { MockOverrides } from '@atc/test-utils';
 import { faker } from '@faker-js/faker';
+import { mergeDeep } from '@zgeoff/std';
 import type { GatewayConfig } from '../config/collect-gateways';
 
 type DefaultedKey = 'id' | 'label' | 'mark' | 'bin' | 'args' | 'baseURL' | 'env';
@@ -9,7 +9,7 @@ type DefaultedKey = 'id' | 'label' | 'mark' | 'bin' | 'args' | 'baseURL' | 'env'
 export function buildMockGatewayConfig(
   overrides: MockOverrides<GatewayConfig, DefaultedKey> = {},
 ): GatewayConfig {
-  return mergeDeep<GatewayConfig, DefaultedKey>(
+  return mergeDeep<GatewayConfig>(
     {
       id: faker.string.alpha({ length: 8, casing: 'lower' }),
       label: faker.company.name(),

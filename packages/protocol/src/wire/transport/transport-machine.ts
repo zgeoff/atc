@@ -1,3 +1,4 @@
+import { machineTypes } from '@zgeoff/std';
 import { assign, setup } from 'xstate';
 
 export type TransportReconnect = 'on-demand' | 'always';
@@ -21,16 +22,11 @@ interface TransportContext {
 // holds state only: the transport performs every effect and reads its
 // state back from here
 export const TRANSPORT_MACHINE = setup({
-  types: {
-    // oxlint-disable-next-line no-unsafe-type-assertion -- xstate's typed-setup contract: this value is never read, it only carries the context type past the type layer
-    context: {} as TransportContext,
-
-    // oxlint-disable-next-line no-unsafe-type-assertion -- xstate's typed-setup contract: this value is never read, it only carries the event union past the type layer
-    events: {} as TransportEvent,
-
-    // oxlint-disable-next-line no-unsafe-type-assertion -- xstate's typed-setup contract: this value is never read, it only carries the input type past the type layer
-    input: {} as { readonly reconnect: TransportReconnect },
-  },
+  types: machineTypes<{
+    context: TransportContext;
+    events: TransportEvent;
+    input: { readonly reconnect: TransportReconnect };
+  }>(),
   guards: {
     isAlways: (args) => args.context.reconnect === 'always',
     isFatal: (args) => args.event.type === 'OPEN_FAILED' && args.event.fatal,

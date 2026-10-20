@@ -16,7 +16,9 @@ test('it prints Codex hook entries that report under the codex agent', async () 
 
   const printed = await runATC({ command: atc, args: ['codex-hooks'], home: ctx.home });
 
-  expect({ code: printed.exitCode, file: JSON.parse(printed.stdout) as unknown }).toStrictEqual({
+  const file: unknown = JSON.parse(printed.stdout);
+
+  expect({ code: printed.exitCode, file }).toStrictEqual({
     code: 0,
     file: {
       hooks: {
@@ -46,7 +48,9 @@ test('it prints the Grok hook file that reports under the grok agent and writes 
     env: { GROK_HOME: grokHome },
   });
 
-  expect({ code: printed.exitCode, file: JSON.parse(printed.stdout) as unknown }).toStrictEqual({
+  const file: unknown = JSON.parse(printed.stdout);
+
+  expect({ code: printed.exitCode, file }).toStrictEqual({
     code: 0,
     file: {
       hooks: {

@@ -13,6 +13,7 @@
     "@atc/plugin-api": "workspace:*",
     "@atc/protocol": "workspace:*",
     "@impz/client": "catalog:",
+    "@zgeoff/std": "catalog:",
     "ts-pattern": "catalog:",
     "xstate": "catalog:",
     "zod": "catalog:"

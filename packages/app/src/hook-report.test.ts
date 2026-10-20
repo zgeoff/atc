@@ -31,7 +31,9 @@ test('it forwards a Claude SessionStart envelope as SessionStart', async () => {
 
   expect(codes).toStrictEqual([0]);
 
-  expect(JSON.parse(line) as unknown).toStrictEqual({
+  const report: unknown = JSON.parse(line);
+
+  expect(report).toStrictEqual({
     atcId: 's1',
     event: 'SessionStart',
     payload: { hook_event_name: 'SessionStart', session_id: 'claude-1' },
@@ -58,7 +60,9 @@ test('it forwards a Grok session_start envelope as SessionStart', async () => {
 
   expect(codes).toStrictEqual([0]);
 
-  expect(JSON.parse(line) as unknown).toStrictEqual({
+  const report: unknown = JSON.parse(line);
+
+  expect(report).toStrictEqual({
     atcId: 's1',
     event: 'SessionStart',
     payload: { hookEventName: 'session_start', sessionId: 'grok-1' },
@@ -84,7 +88,9 @@ test('it exits 0 and forwards no event name when both event name keys are missin
 
   expect(codes).toStrictEqual([0]);
 
-  expect(JSON.parse(line) as unknown).toStrictEqual({
+  const report: unknown = JSON.parse(line);
+
+  expect(report).toStrictEqual({
     atcId: 's1',
     payload: { sessionId: 'grok-1' },
   });
@@ -124,7 +130,7 @@ test('it forwards nothing for a hook of a Codex run that a Codex tool started', 
 
   expect(codes).toStrictEqual([0, 0]);
 
-  expect(ctx.reporter.lines.map((line) => JSON.parse(line) as unknown)).toStrictEqual([
+  expect(ctx.reporter.lines.map((line): unknown => JSON.parse(line))).toStrictEqual([
     {
       atcId: 's1',
       agent: 'codex',
@@ -154,7 +160,9 @@ test('it forwards the agent it is given', async () => {
 
   expect(codes).toStrictEqual([0]);
 
-  expect(JSON.parse(line) as unknown).toStrictEqual({
+  const report: unknown = JSON.parse(line);
+
+  expect(report).toStrictEqual({
     atcId: 's1',
     agent: 'codex',
     event: 'Stop',

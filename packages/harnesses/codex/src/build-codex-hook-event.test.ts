@@ -111,9 +111,7 @@ test('it maps a non-object hook payload to a bare event instead of throwing', ()
     buildCodexHookEvent({
       atcId: toSessionID('s1'),
       event: 'Stop',
-
-      // oxlint-disable-next-line no-unsafe-type-assertion -- exercising a non-object payload that the hook event's declared shape rules out but a hostile or buggy reporter could still send
-      payload: 'garbage' as unknown as Record<string, unknown>,
+      payload: 'garbage',
     }),
   ).toStrictEqual({ kind: 'turn-done' });
 });

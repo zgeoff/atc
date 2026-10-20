@@ -1,7 +1,7 @@
 import { toDaemonID, toSessionID } from '@atc/core';
 import type { SessionDescriptor } from '@atc/protocol';
 import { faker } from '@faker-js/faker';
-import { mergeDeep } from './merge-deep';
+import { mergeDeep } from '@zgeoff/std';
 import type { MockOverrides } from './mock-overrides';
 
 type DefaultedKey =
@@ -28,7 +28,7 @@ export function buildMockSessionDescriptor(
 ): SessionDescriptor {
   const cwd = faker.system.directoryPath();
 
-  return mergeDeep<SessionDescriptor, DefaultedKey>(
+  return mergeDeep<SessionDescriptor>(
     {
       id: toSessionID(faker.string.uuid()),
       name: faker.word.noun(),

@@ -1,7 +1,7 @@
 import { systemClock } from '@atc/core';
 import type { HostServices } from '@atc/plugin-api';
 import { faker } from '@faker-js/faker';
-import { mergeDeep } from './merge-deep';
+import { mergeDeep } from '@zgeoff/std';
 import type { MockOverrides } from './mock-overrides';
 
 export function buildMockHostServices(

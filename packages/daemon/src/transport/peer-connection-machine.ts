@@ -1,3 +1,4 @@
+import { machineTypes } from '@zgeoff/std';
 import { setup } from 'xstate';
 
 type PeerConnectionEvent =
@@ -12,10 +13,7 @@ type PeerConnectionEvent =
 // refusal ends the connection once the refusal's bytes leave the outbound
 // queue. The connection provides the actions and performs every effect.
 export const PEER_CONNECTION_MACHINE = setup({
-  types: {
-    // oxlint-disable-next-line no-unsafe-type-assertion -- xstate's typed-setup contract: this value is never read, it only carries the event union past the type layer
-    events: {} as PeerConnectionEvent,
-  },
+  types: machineTypes<{ events: PeerConnectionEvent }>(),
   actions: {
     endSocket: () => {},
     releaseConnection: () => {},

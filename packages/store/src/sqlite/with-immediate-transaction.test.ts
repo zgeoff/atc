@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { buildSQLiteDialect } from '@zgeoff/kysely-bun-sqlite';
 import { Kysely, sql } from 'kysely';
-import { buildSQLiteDialect } from './build-sqlite-dialect';
 import { openSQLite } from './open-sqlite';
 import { withImmediateTransaction } from './with-immediate-transaction';
 

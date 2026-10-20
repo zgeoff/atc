@@ -1,7 +1,7 @@
 import { PROTOCOL_V } from '@atc/protocol/wire';
-import { mergeDeep } from '@atc/test-utils';
 import type { MockOverrides } from '@atc/test-utils';
 import { faker } from '@faker-js/faker';
+import { mergeDeep } from '@zgeoff/std';
 import type { DaemonRecord } from '../read-daemon-record';
 
 export function buildMockDaemonRecord(

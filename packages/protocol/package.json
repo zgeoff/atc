@@ -15,6 +15,7 @@
     "@orpc/client": "catalog:",
     "@orpc/contract": "catalog:",
     "@orpc/standard-server-peer": "catalog:",
+    "@zgeoff/std": "catalog:",
     "xstate": "catalog:",
     "zod": "catalog:"
   },

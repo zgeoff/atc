@@ -78,3 +78,12 @@ test('it never runs the query whose plan it reads', () => {
 
   expect(reader.query('SELECT id FROM notes').all()).toStrictEqual([]);
 });
+
+test('it refuses a query parameter that bun:sqlite cannot bind', () => {
+  const ctx = setupTest();
+
+  expect(() => readQueryPlan(ctx.dbPath, CompiledQuery.raw('SELECT ?', [{}]))).toThrowWithMessage(
+    TypeError,
+    'bun:sqlite cannot bind a query parameter',
+  );
+});
