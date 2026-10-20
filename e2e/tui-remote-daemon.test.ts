@@ -6,6 +6,7 @@ import { buildDirsSource } from '@atc/source-dirs';
 import {
   KEYS,
   buildMockAgentAdapter,
+  buildMockAgentProfile,
   startStubLegacyDaemon,
   startTUIHarness,
   waitFor,
@@ -85,7 +86,8 @@ test("it lists only the remote daemon's directories and spawns in the first of t
       writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
-        adapter: buildMockAgentAdapter(),
+        // a binary the daemon finds, so it lists the agent as one it can start
+        adapter: buildMockAgentAdapter({ profile: buildMockAgentProfile({ bin: 'sleep' }) }),
         principals: new Map([['laptop', ['local']]]),
         listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
         sources: [
@@ -133,11 +135,6 @@ test("it lists only the remote daemon's directories and spawns in the first of t
 
   ctx.tui.write('n');
 
-  await ctx.tui.waitFor('spawn: agent');
-
-  ctx.tui.reset();
-  ctx.tui.write(KEYS.enter);
-
   await ctx.tui.waitFor('spawn: directory on the daemon host');
   await ctx.tui.waitFor('~/alpha-box');
 
@@ -170,7 +167,8 @@ test("it completes and resolves a typed ~ path on the remote daemon's host", asy
       writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
-        adapter: buildMockAgentAdapter(),
+        // a binary the daemon finds, so it lists the agent as one it can start
+        adapter: buildMockAgentAdapter({ profile: buildMockAgentProfile({ bin: 'sleep' }) }),
         principals: new Map([['laptop', ['local']]]),
         listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
         sources: [
@@ -208,10 +206,6 @@ test("it completes and resolves a typed ~ path on the remote daemon's host", asy
   await ctx.tui.waitFor('atc — control tower');
 
   ctx.tui.write('n');
-
-  await ctx.tui.waitFor('spawn: agent');
-
-  ctx.tui.write(KEYS.enter);
 
   await ctx.tui.waitFor('spawn: directory on the daemon host');
 

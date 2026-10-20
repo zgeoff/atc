@@ -36,12 +36,14 @@ another session's lines read.
 
 ## Choosing an agent
 
-The spawn picker resolves each agent's binary as it opens and lists only the agents that resolve, so
-every row is a session that can start, and an uninstalled agent never shows up later as a terminal
-that dies on exec. A picker with one row is no choice, so the flow takes that agent without showing
-the picker. The opening selection is the last agent the owner spawned on purpose, which the daemon
-records when that spawn's agent reports its start, so a fleet restore never changes it. An MCP spawn
-without an agent ignores that value and runs Claude Code.
+The spawn picker asks the daemon for its agents as it opens and lists only those the daemon reports
+as installed and able to start on some target, so every row is a session that can start, and an
+uninstalled agent never shows up later as a terminal that dies on exec. The daemon resolves each
+binary on its own host, so a remote daemon's menu shows what that host can run. A picker with one
+row is no choice, so the flow takes that agent without showing the picker. The opening selection is
+the last agent the owner spawned on purpose, which the daemon records when that spawn's agent
+reports its start, so a fleet restore never changes it. An MCP spawn without an agent ignores that
+value and runs Claude Code.
 
 The target step follows the same rule: it lists only the targets that can run the chosen source, and
 takes the only one without a picker ([targets](../execution/targets.md)).

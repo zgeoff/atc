@@ -9,12 +9,13 @@ Press `n` to spawn a session: pick an agent, pick a directory, give it a name, a
 prompt if you have one. The session takes the whole screen, and you work in it as you would in a
 plain terminal.
 
-The agent picker lists only the agents whose binary atc finds, and opens only when it finds more
-than one. The directory picker lists the directory you ran `atc` from, then what the daemon's
-directory source finds: atc's spawn history, every project under the roots in `config.json`, and
-your [zoxide](https://github.com/ajeetdsouza/zoxide) list when zoxide is installed. A typed path
-such as `~/pro` completes like a shell. A daemon that offers no source gets a refusal in place of a
-list, as the [directories guide](./configuration/workspaces.md#directories) describes.
+The agent picker lists only the agents whose binary the daemon finds and that some target can start,
+and opens only when it lists more than one. The directory picker lists the directory you ran `atc`
+from, then what the daemon's directory source finds: atc's spawn history, every project under the
+roots in `config.json`, and your [zoxide](https://github.com/ajeetdsouza/zoxide) list when zoxide is
+installed. A typed path such as `~/pro` completes like a shell. A daemon that offers no source gets
+a refusal in place of a list, as the [directories guide](./configuration/workspaces.md#directories)
+describes.
 
 `Tab` in the picker moves to the next source the daemon offers, such as your GitHub repositories.
 The GitHub list opens at once from the copy atc kept the last time it listed them, marked with its
