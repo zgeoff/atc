@@ -1,7 +1,7 @@
 import { isRecord } from '@atc/core';
 import { StandardRPCJsonSerializer, StandardRPCSerializer } from '@orpc/client/standard';
 import { MessageType, deserializeResponseMessage } from '@orpc/standard-server-peer';
-import type { BaseMessageFormat } from '@orpc/standard-server-peer';
+import type { BaseMessageFormat, DecodedResponseMessage } from '@orpc/standard-server-peer';
 
 // One message a daemon wrote to a peer client, decoded the way the client
 // decodes it: a response with its status and body, one event of a stream, or
@@ -19,6 +19,11 @@ export type PeerFrame =
 
 const SERIALIZER = new StandardRPCSerializer(new StandardRPCJsonSerializer());
 
+type AbortMessage = Extract<
+  DecodedResponseMessage,
+  readonly [string, MessageType.ABORT_SIGNAL, unknown]
+>;
+
 export function parsePeerFrame(line: string): PeerFrame {
   const parsed: unknown = JSON.parse(line);
 
@@ -26,9 +31,11 @@ export function parsePeerFrame(line: string): PeerFrame {
     throw new TypeError(`a peer frame is a JSON object with a string id, not ${line}`);
   }
 
-  const [id, type, payload] = deserializeResponseMessage(parsed);
+  const message = deserializeResponseMessage(parsed);
 
-  if (type === MessageType.RESPONSE) {
+  if (message[1] === MessageType.RESPONSE) {
+    const [id, , payload] = message;
+
     return {
       kind: 'response',
       id,
@@ -38,7 +45,9 @@ export function parsePeerFrame(line: string): PeerFrame {
     };
   }
 
-  if (type === MessageType.EVENT_ITERATOR) {
+  if (message[1] === MessageType.EVENT_ITERATOR) {
+    const [id, , payload] = message;
+
     return {
       kind: 'event',
       id,
@@ -47,7 +56,11 @@ export function parsePeerFrame(line: string): PeerFrame {
     };
   }
 
-  return { kind: 'abort', id };
+  // A message type with no branch above fails the type check here, so a new
+  // one cannot fall through as an abort.
+  const abort: AbortMessage = message;
+
+  return { kind: 'abort', id: abort[0] };
 }
 
 function isPeerMessage(value: unknown): value is BaseMessageFormat {
