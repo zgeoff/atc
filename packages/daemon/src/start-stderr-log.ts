@@ -15,9 +15,10 @@ export interface StderrLog {
 export async function startStderrLog(
   fd: number = STDERR_FD,
   clock: Clock = systemClock,
+  batchLines?: number,
 ): Promise<StderrLog> {
   await configure({
-    sinks: { stderr: createStderrSink(fd) },
+    sinks: { stderr: createStderrSink(fd, batchLines) },
     loggers: [
       { category: ['atc'], sinks: ['stderr'], lowestLevel: 'info' },
       { category: ['logtape', 'meta'], sinks: [] },

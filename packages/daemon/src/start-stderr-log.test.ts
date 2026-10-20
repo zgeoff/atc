@@ -15,6 +15,7 @@ import {
   sendLinesBeforeHandshake,
   setupTempDir,
   waitFor,
+  writeUntilPipeFull,
 } from '@atc/test-utils';
 import { getLogger, reset } from '@logtape/logtape';
 import { startStderrLog } from './start-stderr-log';
@@ -39,6 +40,9 @@ async function setupTest() {
     closeSync(readEnd);
   });
 
+  // The pipe starts full, whatever its size on the host, so the daemon's
+  // first line waits on a reader, and a reader takes these bytes first.
+  const filledBytes = writeUntilPipeFull(fifoPath);
   const writeEnd = openSync(fifoPath, constants.O_WRONLY);
 
   const closeWriteEnd = registerTestCleanup(() => {
@@ -69,6 +73,7 @@ async function setupTest() {
   return {
     dir: tmp.dir,
     fifoPath,
+    filledBytes,
     proc,
     port: Number(new TextDecoder().decode(first.value).trim()),
   };
@@ -77,7 +82,7 @@ async function setupTest() {
 test('it answers another client while a flood of refusals fills a stderr nobody reads', async () => {
   const ctx = await setupTest();
 
-  await sendLinesBeforeHandshake(ctx.port, 3000);
+  await sendLinesBeforeHandshake(ctx.port, 100);
 
   const client = await openDaemonClient(join(ctx.dir, 'daemon.sock'));
 
@@ -97,7 +102,7 @@ test('it logs how many lines it dropped once the stderr reader reads again', asy
 
   const output: string[] = [];
 
-  await sendLinesBeforeHandshake(ctx.port, 3000);
+  await sendLinesBeforeHandshake(ctx.port, 100);
 
   const reader = createReadStream(ctx.fifoPath, { encoding: 'utf8' });
 
@@ -107,8 +112,12 @@ test('it logs how many lines it dropped once the stderr reader reads again', asy
     output.push(String(chunk));
   });
 
-  await waitFor(() => {
-    expect(output.join('')).toMatch(/^atc log dropped=\d+$/mu);
+  // The log writes the count of the lines it dropped ahead of the next line
+  // it writes, so each check sends one more refusal.
+  await waitFor(async () => {
+    await sendLinesBeforeHandshake(ctx.port, 1);
+
+    expect(output.join('').slice(ctx.filledBytes)).toMatch(/^atc log dropped=\d+$/mu);
   });
 });
 
@@ -125,25 +134,25 @@ test('it delivers every line to a stderr reader that keeps reading', async () =>
   });
 
   await waitFor(() => {
-    expect(output.join('')).toStartWith('atc tcp event=listening ');
+    expect(output.join('').slice(ctx.filledBytes)).toStartWith('atc tcp event=listening ');
   });
 
-  // The log holds 1024 lines behind the ones it is writing and drops past
+  // The log holds 32 lines behind the ones it is writing and drops past
   // that, however fast its reader reads, so the refusals go out in bursts
-  // of 500 lines and the reader takes each burst before the next.
-  for (let sent = 500; sent <= 2000; sent += 500) {
-    await sendLinesBeforeHandshake(ctx.port, 500);
+  // of 16 lines and the reader takes each burst before the next.
+  for (let sent = 16; sent <= 64; sent += 16) {
+    await sendLinesBeforeHandshake(ctx.port, 16);
 
     await waitFor(() => {
-      expect(output.join('').split('\n')).toHaveLength(sent + 2);
+      expect(output.join('').slice(ctx.filledBytes).split('\n')).toHaveLength(sent + 2);
     });
   }
 
   await waitFor(() => {
-    expect(output.join('').split('\n')).toStrictEqual([
+    expect(output.join('').slice(ctx.filledBytes).split('\n')).toStrictEqual([
       expect.toStartWith('atc tcp event=listening '),
       ...Array.from(
-        { length: 2000 },
+        { length: 64 },
         () => 'atc tcp event=handshake_refused peer=127.0.0.1 reason=unexpected_line count=1',
       ),
       '',
@@ -154,7 +163,7 @@ test('it delivers every line to a stderr reader that keeps reading', async () =>
 test('it exits cleanly on SIGTERM while a flood of refusals fills the unread stderr', async () => {
   const ctx = await setupTest();
 
-  await sendLinesBeforeHandshake(ctx.port, 3000);
+  await sendLinesBeforeHandshake(ctx.port, 100);
 
   const running = Bun.peek.status(ctx.proc.exited);
 
@@ -172,7 +181,7 @@ test('it writes every line it holds at SIGTERM, and the count of the ones it dro
 
   const output: string[] = [];
 
-  await sendLinesBeforeHandshake(ctx.port, 3000);
+  await sendLinesBeforeHandshake(ctx.port, 100);
 
   ctx.proc.kill('SIGTERM');
 
@@ -193,9 +202,8 @@ test('it writes every line it holds at SIGTERM, and the count of the ones it dro
   await ended;
 
   // Every refusal arrives as a line of its own or is counted on a dropped
-  // line, however much of the flood the host's pipe took before the log
-  // started to queue and drop.
-  const lines = output.join('').split('\n');
+  // line.
+  const lines = output.join('').slice(ctx.filledBytes).split('\n');
 
   expect({
     exitCode,
@@ -219,7 +227,7 @@ test('it writes every line it holds at SIGTERM, and the count of the ones it dro
       ),
     ),
     last: '',
-    total: 3000,
+    total: 100,
   });
 });
 
