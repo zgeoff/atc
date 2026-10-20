@@ -998,7 +998,7 @@ test('it sends the drop of CAP_SYS_ADMIN on a start to impd', async () => {
 test('it refuses a start that drops CAP_SYS_ADMIN on an impd without the drop, sending impd nothing', async () => {
   const ctx = setupTest();
 
-  ctx.impd.answers.set('/rpc/system/info', {
+  ctx.impd.answers.set('/rpc/system/features', {
     status: 200,
     json: { features: { sessionOffsets: true, leases: true } },
   });
@@ -1025,10 +1025,12 @@ test('it refuses a start that drops CAP_SYS_ADMIN on an impd without the drop, s
   expect(outcome).toStrictEqual({
     kind: 'failed',
     code: 'PRECONDITION_FAILED',
-    message: 'nothing was started: this impd cannot start a command without CAP_SYS_ADMIN',
+    message:
+      'nothing was started: this impd cannot drop CAP_SYS_ADMIN from a command and would run the command with CAP_SYS_ADMIN',
     data: {
       reason: 'impd_outdated',
-      detail: 'this impd cannot start a command without CAP_SYS_ADMIN',
+      detail:
+        'this impd cannot drop CAP_SYS_ADMIN from a command and would run the command with CAP_SYS_ADMIN',
     },
   });
 
@@ -1038,7 +1040,7 @@ test('it refuses a start that drops CAP_SYS_ADMIN on an impd without the drop, s
 test('it never runs the gate of a start whose capability check fails, sending impd nothing', async () => {
   const ctx = setupTest();
 
-  ctx.impd.answers.set('/rpc/system/info', { status: 503, json: { message: 'impd is busy' } });
+  ctx.impd.answers.set('/rpc/system/features', { status: 503, json: { message: 'impd is busy' } });
 
   const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
 
@@ -1069,7 +1071,7 @@ test('it never runs the gate of a start whose capability check fails, sending im
   expect(outcome).toStrictEqual({
     kind: 'failed',
     code: null,
-    message: 'impd answered system.info with 503; nothing was started',
+    message: 'impd answered the feature check with 503; nothing was started',
   });
 
   expect(gates).toStrictEqual([]);
@@ -1079,7 +1081,7 @@ test('it never runs the gate of a start whose capability check fails, sending im
 test('it runs the gate of a start that drops CAP_SYS_ADMIN once its capability check passes', async () => {
   const ctx = setupTest();
 
-  ctx.impd.answers.set('/rpc/system/info', {
+  ctx.impd.answers.set('/rpc/system/features', {
     status: 200,
     json: { features: { sessionOffsets: true, leases: true, execDropSysAdmin: true } },
   });
@@ -1110,9 +1112,9 @@ test('it runs the gate of a start that drops CAP_SYS_ADMIN once its capability c
 
   await connection.outcome;
 
-  // The gate runs after the one system.info call, with the start still unsent.
+  // The gate runs after the one system.features call, with the start still unsent.
   expect(gates).toStrictEqual([1]);
-  expect(ctx.impd.calls).toStrictEqual([{ path: '/rpc/system/info', input: undefined }]);
+  expect(ctx.impd.calls).toStrictEqual([{ path: '/rpc/system/features', input: undefined }]);
   expect(ctx.impd.execOpens).toHaveLength(1);
 });
 
