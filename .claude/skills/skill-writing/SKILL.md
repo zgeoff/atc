@@ -11,9 +11,9 @@ description:
 
 A skill holds what an agent cannot get from the code: when to load the skill, the commands to run
 and what each needs, the traps that cost time, the reasons behind rules that look arbitrary, and
-where to look next. The code, its doc comments, `--help`, and the docs own everything else, so a
-skill points at them and never copies them. A copy goes stale the next time the code changes, and
-nothing tells the agent that reads it.
+where to look next. The code, its tests, `--help`, and the docs own everything else, so a skill
+points at them and never copies them. A copy goes stale the next time the code changes, and nothing
+tells the agent that reads it.
 
 The prose rules in [docs-writing](../docs-writing/SKILL.md) apply to a skill as they do to any
 committed doc, and this guide doesn't repeat them. Where the two disagree about a skill, this guide
@@ -161,15 +161,15 @@ An inventory is one row or bullet per file, function, option, or other member of
 defines. Replace it with the rule that defines the list and the search that lists it.
 
 - Bad: a table with a row for each stand-in in `test-utils/`, naming the boundary each replaces.
-- Good: "Each stand-in is a `build-stub-*` file in [test-utils](../../../test-utils/), and its doc
-  comment names the boundary it replaces. Search there before writing one."
+- Good: "Each stand-in is a `build-stub-*` file in [test-utils](../../../test-utils/), and its name
+  states the boundary it replaces. Search there before writing one."
 
 docs-writing allows a table whose key column is a list when its other columns hold facts the code
 doesn't. In a skill, a table keyed by files, functions, or options is an inventory whatever its
-other columns hold: move those facts into the code as doc comments, so the search returns them. A
-table keyed by something the agent does or passes, such as the commands table above or the arguments
-of a workflow the skill tells the agent to call, is no inventory: the agent needs it on every load,
-at the call.
+other columns hold: move those facts into the code, as a name, a type, or a test whose name states
+them, so the search returns them. A table keyed by something the agent does or passes, such as the
+commands table above or the arguments of a workflow the skill tells the agent to call, is no
+inventory: the agent needs it on every load, at the call.
 
 When agents need to browse a list, generate the reference from the code with a script, and have CI
 fail when the reference drifts. When most loads of the skill need the list itself, such as a table
