@@ -1,5 +1,21 @@
 # Changelog
 
+## [6.0.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@5.0.0...@zgeoff/atc@6.0.0) (2026-10-20)
+
+
+### ⚠ BREAKING CHANGES
+
+* **geo-1374:** event lines on the events socket, in atc events and on a hook's stdin hold version, sessionID and data; clients and daemons speak protocol 7.
+
+### Features
+
+* **geo-1304:** name hosts and brokers in the auth store and wire ([#811](https://github.com/zgeoff/atc/issues/811)) ([f5390fb](https://github.com/zgeoff/atc/commit/f5390fb4cd01f2a1bdaca774822ba4a30b85994b))
+
+
+### Code Refactoring
+
+* **geo-1374:** name the daemon's wire keys in full words ([#837](https://github.com/zgeoff/atc/issues/837)) ([cecd5a6](https://github.com/zgeoff/atc/commit/cecd5a6117d644a068a7c3cc9acaf8ab34aba8a7))
+
 ## [5.0.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.15.0...@zgeoff/atc@5.0.0) (2026-10-19)
 
 ### ⚠ BREAKING CHANGES
