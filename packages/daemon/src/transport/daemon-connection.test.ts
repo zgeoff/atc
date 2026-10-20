@@ -134,7 +134,7 @@ test('it refuses a peer handshake that speaks another protocol and ends the conn
   expect(refused).rejects.toMatchObject({
     code: 'protocol_mismatch',
     message:
-      'atc/old speaks protocol v1, daemon atc/test speaks v6; restart the daemon so both run the same build',
+      'atc/old speaks protocol v1, daemon atc/test speaks v7; restart the daemon so both run the same build',
   });
 
   await refused.catch(() => {});
@@ -181,10 +181,10 @@ test('it delivers the connection events to a peer client through its subscriptio
 
   await client.sendHello('atc/test');
 
-  connections[0]?.sendEvent({ v: PROTOCOL_V, ev: 'SessionRemoved', s: 's-gone' });
+  connections[0]?.sendEvent({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-gone' });
 
   await waitFor(() => {
-    expect(events).toStrictEqual([{ ev: 'SessionRemoved', s: 's-gone' }]);
+    expect(events).toStrictEqual([{ ev: 'SessionRemoved', sessionID: 's-gone' }]);
   });
 });
 
@@ -215,18 +215,20 @@ test('it delivers a peer client that acts as a principal no event of a session o
 
   connections[0]?.sendOutput(
     toSessionID('s-hidden'),
-    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's-hidden', seq: 1, d: 'secret' },
+    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's-hidden', seq: 1, data: 'secret' },
     6,
   );
 
   connections[0]?.sendOutput(
     toSessionID('s-seen'),
-    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's-seen', seq: 1, d: 'shown' },
+    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's-seen', seq: 1, data: 'shown' },
     5,
   );
 
   await waitFor(() => {
-    expect(events).toStrictEqual([{ ev: 'SessionOutput', s: 's-seen', seq: 1, d: 'shown' }]);
+    expect(events).toStrictEqual([
+      { ev: 'SessionOutput', sessionID: 's-seen', seq: 1, data: 'shown' },
+    ]);
   });
 });
 
@@ -362,10 +364,10 @@ test('it serves a TCP peer client whose token and principal check out, its event
 
   const answer = await client.sendRequest('session.ack', { session: 's-1' }, 'ci');
 
-  connections[0]?.sendEvent({ v: PROTOCOL_V, ev: 'SessionRemoved', s: 's-gone' });
+  connections[0]?.sendEvent({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-gone' });
 
   await waitFor(() => {
-    expect(events).toStrictEqual([{ ev: 'SessionRemoved', s: 's-gone' }]);
+    expect(events).toStrictEqual([{ ev: 'SessionRemoved', sessionID: 's-gone' }]);
   });
 
   expect(answer).toStrictEqual({});
@@ -509,7 +511,7 @@ test('it closes a peer client whose event handler throws, with the reason', asyn
 
   await client.sendHello('atc/test');
 
-  connections[0]?.sendEvent({ v: PROTOCOL_V, ev: 'SessionRemoved', s: 's-gone' });
+  connections[0]?.sendEvent({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-gone' });
 
   await waitFor(() => {
     expect(client.isClosed()).toBeTrue();
@@ -551,19 +553,19 @@ test('it holds a peer subscription back while the socket takes nothing, then rep
 
   conn.sendOutput(
     toSessionID('s1'),
-    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', seq: 1, d: 'a'.repeat(300) },
+    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 1, data: 'a'.repeat(300) },
     300,
   );
 
   conn.sendOutput(
     toSessionID('s1'),
-    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', seq: 2, d: 'b'.repeat(300) },
+    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 2, data: 'b'.repeat(300) },
     300,
   );
 
   conn.sendOutput(
     toSessionID('s1'),
-    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', seq: 3, d: 'c'.repeat(300) },
+    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 3, data: 'c'.repeat(300) },
     300,
   );
 
@@ -608,19 +610,19 @@ test('it delivers output again after the dropped output is reported', async () =
 
   conn.sendOutput(
     toSessionID('s1'),
-    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', seq: 1, d: 'a'.repeat(300) },
+    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 1, data: 'a'.repeat(300) },
     300,
   );
 
   conn.sendOutput(
     toSessionID('s1'),
-    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', seq: 2, d: 'b'.repeat(300) },
+    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 2, data: 'b'.repeat(300) },
     300,
   );
 
   conn.sendOutput(
     toSessionID('s1'),
-    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', seq: 3, d: 'c'.repeat(300) },
+    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 3, data: 'c'.repeat(300) },
     300,
   );
 
@@ -633,7 +635,7 @@ test('it delivers output again after the dropped output is reported', async () =
 
   conn.sendOutput(
     toSessionID('s1'),
-    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', seq: 4, d: 'z'.repeat(300) },
+    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 4, data: 'z'.repeat(300) },
     300,
   );
 
@@ -674,19 +676,19 @@ test('it reports no dropped output while the socket still takes nothing', async 
 
   conn.sendOutput(
     toSessionID('s1'),
-    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', seq: 1, d: 'a'.repeat(300) },
+    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 1, data: 'a'.repeat(300) },
     300,
   );
 
   conn.sendOutput(
     toSessionID('s1'),
-    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', seq: 2, d: 'b'.repeat(300) },
+    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 2, data: 'b'.repeat(300) },
     300,
   );
 
   conn.sendOutput(
     toSessionID('s1'),
-    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', seq: 3, d: 'c'.repeat(300) },
+    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 3, data: 'c'.repeat(300) },
     300,
   );
 
@@ -729,7 +731,13 @@ test('it sends a principal no output of a session whose tree left its view, a re
     expect(peer.collectFrames().map((frame) => frame['i'])).toContain('1');
   });
 
-  conn.sendEvent({ v: PROTOCOL_V, ev: 'SessionResized', s: 's1', cols: 80, rows: 24 });
+  conn.sendEvent({
+    version: PROTOCOL_V,
+    ev: 'SessionResized',
+    sessionID: 's1',
+    cols: 80,
+    rows: 24,
+  });
 
   await waitFor(() => {
     expect(JSON.stringify(peer.collectFrames())).toInclude('SessionResized');
@@ -739,29 +747,41 @@ test('it sends a principal no output of a session whose tree left its view, a re
 
   conn.sendOutput(
     toSessionID('s1'),
-    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', seq: 1, d: 'a'.repeat(300) },
+    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 1, data: 'a'.repeat(300) },
     300,
   );
 
   conn.sendOutput(
     toSessionID('s1'),
-    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', seq: 2, d: 'b'.repeat(300) },
+    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 2, data: 'b'.repeat(300) },
     300,
   );
 
   conn.sendOutput(
     toSessionID('s1'),
-    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', seq: 3, d: 'c'.repeat(300) },
+    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 3, data: 'c'.repeat(300) },
     300,
   );
 
   visible = false;
 
-  conn.sendEvent({ v: PROTOCOL_V, ev: 'SessionResized', s: 's1', cols: 80, rows: 24 });
+  conn.sendEvent({
+    version: PROTOCOL_V,
+    ev: 'SessionResized',
+    sessionID: 's1',
+    cols: 80,
+    rows: 24,
+  });
 
   conn.sendOutput(
     toSessionID('s1'),
-    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', seq: 4, d: 'secret'.repeat(40) },
+    {
+      version: PROTOCOL_V,
+      ev: 'SessionOutput',
+      sessionID: 's1',
+      seq: 4,
+      data: 'secret'.repeat(40),
+    },
     240,
   );
 
@@ -774,7 +794,13 @@ test('it sends a principal no output of a session whose tree left its view, a re
 
   conn.sendOutput(
     toSessionID('s1'),
-    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', seq: 5, d: 'secret'.repeat(40) },
+    {
+      version: PROTOCOL_V,
+      ev: 'SessionOutput',
+      sessionID: 's1',
+      seq: 5,
+      data: 'secret'.repeat(40),
+    },
     240,
   );
 
@@ -948,7 +974,7 @@ test('it drops an event sent to a peer connection that awaits its handshake', as
 
   const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
 
-  conn.sendEvent({ v: PROTOCOL_V, ev: 'SessionRemoved', s: 's-early' });
+  conn.sendEvent({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-early' });
 
   const hello = { client: 'atc/test', protocol: PROTOCOL_V };
 
@@ -960,7 +986,7 @@ test('it drops an event sent to a peer connection that awaits its handshake', as
     expect(peer.collectFrames().map((frame) => frame['i'])).toContain('1');
   });
 
-  conn.sendEvent({ v: PROTOCOL_V, ev: 'SessionRemoved', s: 's-late' });
+  conn.sendEvent({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-late' });
 
   await waitFor(() => {
     expect(JSON.stringify(peer.collectFrames())).toInclude('s-late');
@@ -1130,14 +1156,14 @@ test('it drops an event sent to a peer connection while its handshake is pending
     expect(load).toHaveBeenCalledOnce();
   });
 
-  conn.sendEvent({ v: PROTOCOL_V, ev: 'SessionRemoved', s: 's-early' });
+  conn.sendEvent({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-early' });
   held.resolve('claude');
 
   await waitFor(() => {
     expect(peer.collectFrames().map((frame) => frame['i'])).toContain('1');
   });
 
-  conn.sendEvent({ v: PROTOCOL_V, ev: 'SessionRemoved', s: 's-late' });
+  conn.sendEvent({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-late' });
 
   await waitFor(() => {
     expect(JSON.stringify(peer.collectFrames())).toInclude('s-late');
@@ -1330,7 +1356,7 @@ test('it writes no event to a peer connection whose refusal is still queued', as
     expect(peer.countRefusedWrites()).toBeGreaterThan(0);
   });
 
-  conn.sendEvent({ v: PROTOCOL_V, ev: 'SessionRemoved', s: 's-refused' });
+  conn.sendEvent({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-refused' });
   peer.setAccepting(true);
   conn.drain();
 
@@ -1410,7 +1436,7 @@ test('it writes no event to a peer connection that is closing', async () => {
     expect(peer.hasEnded()).toBeTrue();
   });
 
-  conn.sendEvent({ v: PROTOCOL_V, ev: 'SessionRemoved', s: 's-closing' });
+  conn.sendEvent({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-closing' });
 
   expect(JSON.stringify(peer.collectFrames())).not.toInclude('s-closing');
 });
@@ -1473,7 +1499,7 @@ test('it writes no event to a closed peer connection', async () => {
   });
 
   conn.dispose();
-  conn.sendEvent({ v: PROTOCOL_V, ev: 'SessionRemoved', s: 's-closed' });
+  conn.sendEvent({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-closed' });
 
   expect(JSON.stringify(peer.collectFrames())).not.toInclude('s-closed');
 });

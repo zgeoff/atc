@@ -159,8 +159,8 @@ test('it never flags a prompt as needing input when the adapter has no screen de
     expect(daemon.events).toSatisfyAny(
       (daemonEvent: DaemonEvent) =>
         daemonEvent.ev === 'SessionOutput' &&
-        typeof daemonEvent.d === 'string' &&
-        daemonEvent.d.includes('READY>'),
+        typeof daemonEvent.data === 'string' &&
+        daemonEvent.data.includes('READY>'),
     );
   });
 
@@ -216,8 +216,8 @@ test('it never flags a prompt as needing input when another agent has a screen d
     expect(daemon.events).toSatisfyAny(
       (daemonEvent: DaemonEvent) =>
         daemonEvent.ev === 'SessionOutput' &&
-        typeof daemonEvent.d === 'string' &&
-        daemonEvent.d.includes('READY>'),
+        typeof daemonEvent.data === 'string' &&
+        daemonEvent.data.includes('READY>'),
     );
   });
 

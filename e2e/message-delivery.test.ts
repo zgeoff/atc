@@ -407,7 +407,7 @@ test('it hands a message queued during the restore to the session tap that attac
     expect<unknown[]>(inbox.messages).toStrictEqual([
       {
         ev: 'InboxMessage',
-        s: 's-agent-c',
+        sessionID: 's-agent-c',
         message: getString(sent, 'message'),
         from: 'owner',
         sender: { kind: 'owner', name: 'owner' },
@@ -454,7 +454,7 @@ test('it drains pending messages to a tap in the order they were sent', async ()
     expect<unknown[]>(inbox.messages).toStrictEqual([
       {
         ev: 'InboxMessage',
-        s: id,
+        sessionID: id,
         message: getString(first, 'message'),
         from: 'owner',
         sender: { kind: 'owner', name: 'owner' },
@@ -463,7 +463,7 @@ test('it drains pending messages to a tap in the order they were sent', async ()
       },
       {
         ev: 'InboxMessage',
-        s: id,
+        sessionID: id,
         message: getString(second, 'message'),
         from: 'owner',
         sender: { kind: 'owner', name: 'owner' },
@@ -472,7 +472,7 @@ test('it drains pending messages to a tap in the order they were sent', async ()
       },
       {
         ev: 'InboxMessage',
-        s: id,
+        sessionID: id,
         message: getString(third, 'message'),
         from: 'owner',
         sender: { kind: 'owner', name: 'owner' },
@@ -515,7 +515,7 @@ test('it streams a message queued while the tap is connected', async () => {
     expect<unknown[]>(tapEvents.filter((event) => event.ev === 'InboxMessage')).toStrictEqual([
       {
         ev: 'InboxMessage',
-        s: id,
+        sessionID: id,
         message: getString(ok, 'message'),
         from: 'owner',
         sender: { kind: 'owner', name: 'owner' },
@@ -689,7 +689,7 @@ test('it broadcasts SessionMessage for an acked message', async () => {
   await waitFor(() => {
     expect<unknown[]>(daemon.events).toContainEqual({
       ev: 'SessionMessage',
-      s: id,
+      sessionID: id,
       message: getString(sent, 'message'),
       status: 'delivered',
       from: 'owner',
@@ -797,7 +797,7 @@ test('it broadcasts delivered once for a repeat ack', async () => {
   ).toStrictEqual([
     {
       ev: 'SessionMessage',
-      s: id,
+      sessionID: id,
       message: getString(sent, 'message'),
       status: 'delivered',
       from: 'owner',
@@ -858,7 +858,7 @@ test('it moves a message to answered from a Report line on the reporter socket',
   await waitFor(() => {
     expect<unknown[]>(daemon.events).toContainEqual({
       ev: 'SessionMessage',
-      s: id,
+      sessionID: id,
       message: getString(sent, 'message'),
       status: 'answered',
       from: 'owner',
@@ -1022,9 +1022,9 @@ test('it broadcasts SessionMessage on the events socket', async () => {
   expect(decoded).toStrictEqual({
     kind: 'event',
     message: {
-      v: 6,
+      version: 7,
       ev: 'SessionMessage',
-      s: id,
+      sessionID: id,
       message: getString(sent, 'message'),
       status: 'queued',
       from: 'owner',
@@ -1067,9 +1067,9 @@ test('it runs SessionMessage hooks with the event on stdin', async () => {
   expect(decoded).toStrictEqual({
     kind: 'event',
     message: {
-      v: 6,
+      version: 7,
       ev: 'SessionMessage',
-      s: id,
+      sessionID: id,
       message: getString(sent, 'message'),
       status: 'queued',
       from: 'owner',
@@ -1102,7 +1102,7 @@ test('it broadcasts a note from the reporter socket as SessionNote', async () =>
   await waitFor(() => {
     expect<unknown[]>(daemon.events).toContainEqual({
       ev: 'SessionNote',
-      s: id,
+      sessionID: id,
       kind: 'blocked',
       text: 'need review',
       sentAt: expect.any(Number) as unknown,
@@ -1175,9 +1175,9 @@ test('it broadcasts SessionNote on the events socket', async () => {
   expect(decoded).toStrictEqual({
     kind: 'event',
     message: {
-      v: 6,
+      version: 7,
       ev: 'SessionNote',
-      s: id,
+      sessionID: id,
       kind: 'progress',
       text: 'halfway',
       sentAt: expect.any(Number) as unknown,
@@ -1221,9 +1221,9 @@ test('it runs SessionNote hooks with the event on stdin', async () => {
   expect(decoded).toStrictEqual({
     kind: 'event',
     message: {
-      v: 6,
+      version: 7,
       ev: 'SessionNote',
-      s: id,
+      sessionID: id,
       kind: 'decision',
       text: 'pick one',
       sentAt: expect.any(Number) as unknown,
@@ -2063,7 +2063,7 @@ test('it moves a delivered message to unanswered from an unanswered Note line', 
   await waitFor(() => {
     expect<unknown[]>(daemon.events).toContainEqual({
       ev: 'SessionMessage',
-      s: id,
+      sessionID: id,
       message: getString(sent, 'message'),
       status: 'unanswered',
       from: 'owner',
@@ -2371,7 +2371,7 @@ test('it ends the earlier tap subscription when a second tap attaches', async ()
 
   await waitFor(() => {
     expect(tapEvents.filter((tapEvent) => tapEvent.ev === 'InboxClosed')).toStrictEqual([
-      { ev: 'InboxClosed', s: id, reason: 'replaced' },
+      { ev: 'InboxClosed', sessionID: id, reason: 'replaced' },
     ]);
   });
 });
@@ -2436,7 +2436,7 @@ test('it ends the tap subscription when its session is removed', async () => {
 
   await waitFor(() => {
     expect(tapEvents.filter((tapEvent) => tapEvent.ev === 'InboxClosed')).toStrictEqual([
-      { ev: 'InboxClosed', s: id, reason: 'removed' },
+      { ev: 'InboxClosed', sessionID: id, reason: 'removed' },
     ]);
   });
 });
@@ -3306,7 +3306,7 @@ test('it marks a delivered message unanswered as session_ended when the process 
   await waitFor(() => {
     expect<unknown[]>(daemon.events).toContainEqual({
       ev: 'SessionMessage',
-      s: id,
+      sessionID: id,
       message: getString(sent, 'message'),
       status: 'unanswered',
       from: 'owner',

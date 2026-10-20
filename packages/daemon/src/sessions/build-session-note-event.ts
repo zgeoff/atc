@@ -9,9 +9,9 @@ export function buildSessionNoteEvent(
   sentAt: number,
 ): EventMsg {
   return {
-    v: PROTOCOL_V,
+    version: PROTOCOL_V,
     ev: 'SessionNote',
-    s: sessionID,
+    sessionID,
     kind: note.label,
     text: note.text,
     sentAt,

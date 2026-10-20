@@ -3,7 +3,7 @@ import { isRecord } from '@atc/core';
 // Raised by any change to a procedure, an input field, or an answer field,
 // because a client trusts a daemon on its own version to serve its whole
 // contract.
-export const PROTOCOL_V = 6;
+export const PROTOCOL_V = 7;
 
 // Control lines are capped before buffering; PTY output is split into chunks
 // so a queued response is delayed by at most one chunk.
@@ -89,17 +89,17 @@ export type ErrorCode = (typeof ERROR_CODES)[number];
 
 interface ProtocolError {
   readonly code: ErrorCode;
-  readonly msg: string;
+  readonly message: string;
 
   // Structured detail an error code defines for itself.
   readonly data?: Readonly<Record<string, unknown>>;
 }
 
 export interface RequestMsg {
-  readonly v: number;
+  readonly version: number;
   readonly id: number;
-  readonly m: string;
-  readonly p?: Readonly<Record<string, unknown>>;
+  readonly method: string;
+  readonly params?: Readonly<Record<string, unknown>>;
 
   // The principal the request acts as, which narrows what the connection
   // may reach for this request alone.
@@ -111,14 +111,14 @@ export interface RequestMsg {
 }
 
 export interface ResponseMsg {
-  readonly v: number;
+  readonly version: number;
   readonly id: number;
   readonly ok?: Readonly<Record<string, unknown>>;
   readonly err?: ProtocolError;
 }
 
 export interface EventMsg {
-  readonly v: number;
+  readonly version: number;
   readonly ev: string;
   readonly [field: string]: unknown;
 }
@@ -138,20 +138,20 @@ export function decodeMessage(line: string): DecodedMsg {
     return { kind: 'malformed', reason: 'not valid JSON' };
   }
 
-  if (!isRecord(parsed) || typeof parsed['v'] !== 'number') {
-    return { kind: 'malformed', reason: 'missing v' };
+  if (!isRecord(parsed) || typeof parsed['version'] !== 'number') {
+    return { kind: 'malformed', reason: 'missing version' };
   }
 
   if (typeof parsed['ev'] === 'string') {
-    return { kind: 'event', message: { ...parsed, v: parsed['v'], ev: parsed['ev'] } };
+    return { kind: 'event', message: { ...parsed, version: parsed['version'], ev: parsed['ev'] } };
   }
 
   if (typeof parsed['id'] !== 'number') {
     return { kind: 'malformed', reason: 'missing id' };
   }
 
-  if (typeof parsed['m'] === 'string') {
-    const params = parsed['p'];
+  if (typeof parsed['method'] === 'string') {
+    const params = parsed['params'];
     const as = parsed['as'];
 
     // A principal that is not a string would otherwise drop out and leave the
@@ -175,10 +175,10 @@ export function decodeMessage(line: string): DecodedMsg {
     return {
       kind: 'request',
       message: {
-        v: parsed['v'],
+        version: parsed['version'],
         id: parsed['id'],
-        m: parsed['m'],
-        ...(isRecord(params) ? { p: params } : {}),
+        method: parsed['method'],
+        ...(isRecord(params) ? { params } : {}),
         ...(as === undefined ? {} : { as }),
         ...(asName === undefined ? {} : { asName }),
       },
@@ -192,7 +192,7 @@ export function decodeMessage(line: string): DecodedMsg {
     return {
       kind: 'response',
       message: {
-        v: parsed['v'],
+        version: parsed['version'],
         id: parsed['id'],
         ...(isRecord(ok) ? { ok } : {}),
         ...(err === null ? {} : { err }),
@@ -200,7 +200,7 @@ export function decodeMessage(line: string): DecodedMsg {
     };
   }
 
-  return { kind: 'malformed', reason: 'no m, ok, or err' };
+  return { kind: 'malformed', reason: 'no method, ok, or err' };
 }
 
 export function encodeMessage(message: EventMsg | RequestMsg | ResponseMsg): string {
@@ -208,7 +208,11 @@ export function encodeMessage(message: EventMsg | RequestMsg | ResponseMsg): str
 }
 
 function parseProtocolError(value: unknown): ProtocolError | null {
-  if (!isRecord(value) || typeof value['msg'] !== 'string' || typeof value['code'] !== 'string') {
+  if (
+    !isRecord(value) ||
+    typeof value['message'] !== 'string' ||
+    typeof value['code'] !== 'string'
+  ) {
     return null;
   }
 
@@ -217,7 +221,7 @@ function parseProtocolError(value: unknown): ProtocolError | null {
 
   return {
     code: ERROR_CODES.find((code) => code === raw) ?? 'internal',
-    msg: value['msg'],
+    message: value['message'],
     ...(isRecord(data) ? { data } : {}),
   };
 }

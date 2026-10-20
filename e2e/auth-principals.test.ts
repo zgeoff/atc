@@ -1149,7 +1149,7 @@ test('it answers permission.respond for a request of a session outside the princ
   await daemon.sendHookLines({ atcId: hidden, event: 'Notification', payload: {} });
 
   await waitFor(() => {
-    expect(events).toPartiallyContain({ ev: 'PermissionRequested', s: hidden });
+    expect(events).toPartiallyContain({ ev: 'PermissionRequested', sessionID: hidden });
   });
 
   const request = z
@@ -2073,7 +2073,7 @@ test.each([
     await daemon.client.sendRequest('session.kill', { session: shown });
 
     await waitFor(() => {
-      expect(events).toPartiallyContain({ ev: 'SessionRemoved', s: shown });
+      expect(events).toPartiallyContain({ ev: 'SessionRemoved', sessionID: shown });
     });
 
     expect(
@@ -2201,7 +2201,7 @@ test('it shows a principal a parent leaving when an out-of-reach sub-session joi
     JSON.stringify(joinedFleet).replaceAll(joinedParent, '<parent>'),
   );
 
-  expect(forgotEvents).toStrictEqual([{ ev: 'SessionRemoved', s: forgotParent }]);
+  expect(forgotEvents).toStrictEqual([{ ev: 'SessionRemoved', sessionID: forgotParent }]);
   expect(forgotSessions).toStrictEqual({ sessions: [] });
   expect(forgotFleet).toStrictEqual({ fleet: [] });
   expect(JSON.stringify(joinedEvents)).not.toInclude(child);
@@ -2262,11 +2262,11 @@ test('it pushes a principal that sees the whole tree only the removal of a forgo
   const listed = await client.sendRequest('session.list');
 
   await waitFor(() => {
-    expect(events).toPartiallyContain({ ev: 'SessionRemoved', s: parent });
+    expect(events).toPartiallyContain({ ev: 'SessionRemoved', sessionID: parent });
   });
 
   expect(events.filter((event) => event.ev === 'SessionRemoved')).toStrictEqual([
-    { ev: 'SessionRemoved', s: parent },
+    { ev: 'SessionRemoved', sessionID: parent },
   ]);
 
   expect(events.filter((event) => event.ev === 'SessionAdded')).toBeEmpty();
@@ -2330,7 +2330,7 @@ test('it takes the inbox tap from a principal connection whose tapped session le
   const child = String(getRecord(childSpawned, 'session')['id']);
 
   await waitFor(() => {
-    expect(events).toPartiallyContain({ ev: 'SessionRemoved', s: parent });
+    expect(events).toPartiallyContain({ ev: 'SessionRemoved', sessionID: parent });
   });
 
   await daemon.client.sendRequest('session.forget', { session: child });
@@ -3361,7 +3361,7 @@ test('it pushes a principal connection only the events of sessions it may see', 
   await daemon.client.sendRequest('session.kill', { session: shown });
 
   await waitFor(() => {
-    expect(events).toPartiallyContain({ ev: 'SessionRemoved', s: shown });
+    expect(events).toPartiallyContain({ ev: 'SessionRemoved', sessionID: shown });
   });
 
   const added = events.filter((event) => event.ev === 'SessionAdded');

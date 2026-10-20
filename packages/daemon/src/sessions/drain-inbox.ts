@@ -70,9 +70,9 @@ function sendInboxMessage(
   }
 
   client.sendEvent({
-    v: PROTOCOL_V,
+    version: PROTOCOL_V,
     ev: 'InboxMessage',
-    s: sessionID,
+    sessionID,
     message: record.id,
     from: record.from,
     ...(record.sender === undefined ? {} : { sender: record.sender }),
@@ -104,9 +104,9 @@ function sendInboxNotice(
   }
 
   client.sendEvent({
-    v: PROTOCOL_V,
+    version: PROTOCOL_V,
     ev: 'InboxNotice',
-    s: sessionID,
+    sessionID,
     message: record.id,
     from: record.atcID,
     status: record.status,

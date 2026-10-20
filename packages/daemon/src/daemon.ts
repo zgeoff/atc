@@ -185,7 +185,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
           socketPath: opts.eventsSocketPath,
           collectSnapshot: () =>
             manager.collectDescriptors().map((session) => ({
-              v: PROTOCOL_V,
+              version: PROTOCOL_V,
               ev: 'SessionAdded',
               session,
             })),

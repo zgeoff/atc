@@ -487,7 +487,12 @@ export class DaemonConnection {
       const protocol = raw['protocol'];
 
       const hello = await checkTCPHello(
-        { v: typeof protocol === 'number' ? protocol : 0, id: 0, m: 'daemon.hello', p: raw },
+        {
+          version: typeof protocol === 'number' ? protocol : 0,
+          id: 0,
+          method: 'daemon.hello',
+          params: raw,
+        },
         {
           tcp: this.tcp,
           hasListedPrincipal: (principal) => this.ctx.hasListedPrincipal(principal),

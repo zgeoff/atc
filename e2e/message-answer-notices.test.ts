@@ -77,7 +77,7 @@ test('it hands the sending session an answer notice with the answer once the rec
     expect<unknown[]>(tap.notices).toStrictEqual([
       {
         ev: 'InboxNotice',
-        s: ctx.sender,
+        sessionID: ctx.sender,
         message: getString(sent, 'message'),
         from: ctx.recipient,
         status: 'answered',
@@ -115,7 +115,7 @@ test('it hands the sending session an unanswered notice with the reason when the
     expect<unknown[]>(tap.notices).toStrictEqual([
       {
         ev: 'InboxNotice',
-        s: ctx.sender,
+        sessionID: ctx.sender,
         message: getString(sent, 'message'),
         from: ctx.recipient,
         status: 'unanswered',
@@ -156,7 +156,7 @@ test('it hands the sending session an unanswered notice when the recipient sessi
     expect<unknown[]>(tap.notices).toStrictEqual([
       {
         ev: 'InboxNotice',
-        s: ctx.sender,
+        sessionID: ctx.sender,
         message: getString(sent, 'message'),
         from: ctx.recipient,
         status: 'unanswered',
@@ -186,7 +186,7 @@ test('it hands the sending session one unanswered notice when the recipient of a
     expect<unknown[]>(tap.notices).toStrictEqual([
       {
         ev: 'InboxNotice',
-        s: ctx.sender,
+        sessionID: ctx.sender,
         message: getString(sent, 'message'),
         from: ctx.recipient,
         status: 'unanswered',
@@ -301,7 +301,7 @@ test('it hands one answer notice after a restart when the daemon stopped right a
     expect<unknown[]>(tap.notices).toStrictEqual([
       {
         ev: 'InboxNotice',
-        s: ctx.sender,
+        sessionID: ctx.sender,
         message: getString(sent, 'message'),
         from: ctx.recipient,
         status: 'answered',
@@ -433,7 +433,7 @@ test('it hands a message delivered before a restart to the revived recipient and
     expect<unknown[]>(after.messages).toStrictEqual([
       {
         ev: 'InboxMessage',
-        s: ctx.recipient,
+        sessionID: ctx.recipient,
         message: getString(sent, 'message'),
         from: 'sender',
         sender: { kind: 'session', session: ctx.sender, name: 'sender' },
@@ -456,7 +456,7 @@ test('it hands a message delivered before a restart to the revived recipient and
     expect<unknown[]>(tap.notices).toStrictEqual([
       {
         ev: 'InboxNotice',
-        s: ctx.sender,
+        sessionID: ctx.sender,
         message: getString(sent, 'message'),
         from: ctx.recipient,
         status: 'answered',

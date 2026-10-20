@@ -97,9 +97,9 @@ test("it sends an unlinked tap no message sent to another session's atc id", asy
   await drain;
 
   expect(tap.sendEvent).toHaveBeenCalledExactlyOnceWith({
-    v: 6,
+    version: 7,
     ev: 'InboxMessage',
-    s: 's-shown',
+    sessionID: 's-shown',
     message: 'm-own',
     from: 'owner',
     text: 'hello',
@@ -163,9 +163,9 @@ test('it sends a tap with notices the answer notice of a message its session sen
   expect(tap.sendEvent.mock.calls).toStrictEqual([
     [
       {
-        v: PROTOCOL_V,
+        version: PROTOCOL_V,
         ev: 'InboxNotice',
-        s: 's-1',
+        sessionID: 's-1',
         message: 'm-sent',
         from: 's-other',
         status: 'unanswered',

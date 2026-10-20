@@ -11,11 +11,11 @@ test('it delivers the events collected before the subscription, in order', async
     onOverflow: () => {},
   });
 
-  feed.emit({ v: PROTOCOL_V, ev: 'SessionRemoved', s: 's-1' });
+  feed.emit({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-1' });
 
   feed.emitOutput(
     toSessionID('s-2'),
-    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's-2', seq: 1, d: 'hi' },
+    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's-2', seq: 1, data: 'hi' },
     2,
   );
 
@@ -25,8 +25,8 @@ test('it delivers the events collected before the subscription, in order', async
   const second = await stream.next();
 
   expect([first.value, second.value]).toStrictEqual([
-    { ev: 'SessionRemoved', s: 's-1' },
-    { ev: 'SessionOutput', s: 's-2', seq: 1, d: 'hi' },
+    { ev: 'SessionRemoved', sessionID: 's-1' },
+    { ev: 'SessionOutput', sessionID: 's-2', seq: 1, data: 'hi' },
   ]);
 });
 
@@ -41,11 +41,11 @@ test('it delivers an event emitted while the subscriber waits', async () => {
   const stream = feed.subscribe(new AbortController().signal);
   const next = stream.next();
 
-  feed.emit({ v: PROTOCOL_V, ev: 'SessionRemoved', s: 's-3' });
+  feed.emit({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-3' });
 
   const delivered = await next;
 
-  expect(delivered.value).toStrictEqual({ ev: 'SessionRemoved', s: 's-3' });
+  expect(delivered.value).toStrictEqual({ ev: 'SessionRemoved', sessionID: 's-3' });
 });
 
 test('it drops overflowing output and reports the dropped bytes before the repaint', async () => {
@@ -60,9 +60,23 @@ test('it drops overflowing output and reports the dropped bytes before the repai
 
   const s1 = toSessionID('s1');
 
-  feed.emitOutput(s1, { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', seq: 1, d: 'a'.repeat(8) }, 8);
-  feed.emitOutput(s1, { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', seq: 2, d: 'b'.repeat(8) }, 8);
-  feed.emitOutput(s1, { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', seq: 3, d: 'c'.repeat(5) }, 5);
+  feed.emitOutput(
+    s1,
+    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 1, data: 'a'.repeat(8) },
+    8,
+  );
+
+  feed.emitOutput(
+    s1,
+    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 2, data: 'b'.repeat(8) },
+    8,
+  );
+
+  feed.emitOutput(
+    s1,
+    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 3, data: 'c'.repeat(5) },
+    5,
+  );
 
   const stream = feed.subscribe(new AbortController().signal);
 
@@ -70,8 +84,8 @@ test('it drops overflowing output and reports the dropped bytes before the repai
   const second = await stream.next();
 
   expect([first.value, second.value]).toStrictEqual([
-    { ev: 'SessionOutput', s: 's1', seq: 1, d: 'a'.repeat(8) },
-    { ev: 'SessionDesync', s: 's1', dropped: 13 },
+    { ev: 'SessionOutput', sessionID: 's1', seq: 1, data: 'a'.repeat(8) },
+    { ev: 'SessionDesync', sessionID: 's1', dropped: 13 },
   ]);
 
   expect(resync).toHaveBeenCalledExactlyOnceWith(s1);
@@ -89,8 +103,17 @@ test('it reports no dropped output of a session the connection can no longer see
 
   const s1 = toSessionID('s1');
 
-  feed.emitOutput(s1, { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', seq: 1, d: 'a'.repeat(8) }, 8);
-  feed.emitOutput(s1, { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', seq: 2, d: 'b'.repeat(8) }, 8);
+  feed.emitOutput(
+    s1,
+    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 1, data: 'a'.repeat(8) },
+    8,
+  );
+
+  feed.emitOutput(
+    s1,
+    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 2, data: 'b'.repeat(8) },
+    8,
+  );
 
   const stream = feed.subscribe(new AbortController().signal);
 
@@ -98,11 +121,11 @@ test('it reports no dropped output of a session the connection can no longer see
 
   const next = stream.next();
 
-  feed.emit({ v: PROTOCOL_V, ev: 'SessionRemoved', s: 's1' });
+  feed.emit({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's1' });
 
   const delivered = await next;
 
-  expect(delivered.value).toStrictEqual({ ev: 'SessionRemoved', s: 's1' });
+  expect(delivered.value).toStrictEqual({ ev: 'SessionRemoved', sessionID: 's1' });
   expect(resync).not.toHaveBeenCalled();
 });
 
@@ -117,8 +140,8 @@ test('it ends the connection when an event overflows the backlog of a subscribed
   });
 
   feed.subscribe(new AbortController().signal);
-  feed.emit({ v: PROTOCOL_V, ev: 'SessionRemoved', s: 's-first-session' });
-  feed.emit({ v: PROTOCOL_V, ev: 'SessionRemoved', s: 's-second-session' });
+  feed.emit({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-first-session' });
+  feed.emit({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-second-session' });
 
   expect(onOverflow).toHaveBeenCalledOnce();
 });
@@ -133,18 +156,18 @@ test('it stops collecting once the backlog fills before a subscriber comes', asy
     onOverflow,
   });
 
-  feed.emit({ v: PROTOCOL_V, ev: 'SessionRemoved', s: 's-first-session' });
-  feed.emit({ v: PROTOCOL_V, ev: 'SessionRemoved', s: 's-second-session' });
-  feed.emit({ v: PROTOCOL_V, ev: 'SessionRemoved', s: 's-third' });
+  feed.emit({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-first-session' });
+  feed.emit({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-second-session' });
+  feed.emit({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-third' });
 
   const stream = feed.subscribe(new AbortController().signal);
   const next = stream.next();
 
-  feed.emit({ v: PROTOCOL_V, ev: 'SessionRemoved', s: 's-fourth' });
+  feed.emit({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-fourth' });
 
   const delivered = await next;
 
-  expect(delivered.value).toStrictEqual({ ev: 'SessionRemoved', s: 's-fourth' });
+  expect(delivered.value).toStrictEqual({ ev: 'SessionRemoved', sessionID: 's-fourth' });
   expect(onOverflow).not.toHaveBeenCalled();
 });
 

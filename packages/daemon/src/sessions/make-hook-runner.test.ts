@@ -37,14 +37,14 @@ test('it runs a hook with the event JSON on stdin and the event name in the envi
   );
 
   run(
-    { v: 4, ev: 'SessionAttached', session: { id: 's1', cwd: '/w' } },
+    { version: 4, ev: 'SessionAttached', session: { id: 's1', cwd: '/w' } },
     { cwd: '/w', repoRoot: '/w' },
   );
 
   await ctx.settled;
 
   expect(readFileSync(out, 'utf8')).toBe(
-    `${JSON.stringify({ v: 4, ev: 'SessionAttached', session: { id: 's1', cwd: '/w' } })}\nSessionAttached\n`,
+    `${JSON.stringify({ version: 4, ev: 'SessionAttached', session: { id: 's1', cwd: '/w' } })}\nSessionAttached\n`,
   );
 });
 
@@ -61,7 +61,7 @@ test('it runs a dir hook when the session repo root or cwd sits at or under the 
     ctx.options,
   );
 
-  run({ v: 4, ev: 'SessionAttached' }, { cwd: '/w/repo/sub', repoRoot: '/w/repo' });
+  run({ version: 4, ev: 'SessionAttached' }, { cwd: '/w/repo/sub', repoRoot: '/w/repo' });
 
   await ctx.settled;
 
@@ -82,7 +82,7 @@ test('it skips a dir hook when the session path only shares a string prefix', as
     ctx.options,
   );
 
-  run({ v: 4, ev: 'SessionAttached' }, { cwd: '/w/bc', repoRoot: '/w/bc' });
+  run({ version: 4, ev: 'SessionAttached' }, { cwd: '/w/bc', repoRoot: '/w/bc' });
 
   const outcomes = await ctx.settled;
 
@@ -107,7 +107,7 @@ test('it skips dir hooks for an event that carries no session', async () => {
     ctx.options,
   );
 
-  run({ v: 4, ev: 'PermissionResolved', request: 'r1', decision: 'allow' }, null);
+  run({ version: 4, ev: 'PermissionResolved', request: 'r1', decision: 'allow' }, null);
 
   const outcomes = await ctx.settled;
 
@@ -127,7 +127,7 @@ test('it runs nothing for an event with no configured hooks', async () => {
     ctx.options,
   );
 
-  run({ v: 4, ev: 'SessionState', session: { id: 's1' } }, { cwd: '/w', repoRoot: '/w' });
+  run({ version: 4, ev: 'SessionState', session: { id: 's1' } }, { cwd: '/w', repoRoot: '/w' });
 
   const outcomes = await ctx.settled;
 
@@ -140,7 +140,7 @@ test('it kills a hook that runs past its timeout', async () => {
   const command = 'exec sleep 30';
   const run = makeHookRunner({ SessionAttached: [{ command, timeout: 500 }] }, ctx.options);
 
-  run({ v: 4, ev: 'SessionAttached' }, null);
+  run({ version: 4, ev: 'SessionAttached' }, null);
 
   ctx.clock.advance(500);
 
@@ -154,7 +154,7 @@ test('it arms the default timeout for a hook that sets none', async () => {
   const ctx = setupTest();
   const run = makeHookRunner({ SessionAttached: [{ command: 'true' }] }, ctx.options);
 
-  run({ v: 4, ev: 'SessionAttached' }, null);
+  run({ version: 4, ev: 'SessionAttached' }, null);
 
   await ctx.settled;
 

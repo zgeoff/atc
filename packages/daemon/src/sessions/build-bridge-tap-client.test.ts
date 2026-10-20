@@ -9,9 +9,9 @@ test('it hands an inbox message to the bridge with its sender', () => {
   };
 
   buildBridgeTapClient(tap).sendEvent({
-    v: 1,
+    version: 1,
     ev: 'InboxMessage',
-    s: 's-1',
+    sessionID: 's-1',
     message: 'm-1',
     from: 'planner',
     sender: { kind: 'session', session: 's-2', name: 'planner' },
@@ -35,9 +35,9 @@ test('it hands an answer notice to the bridge with its reason', () => {
   };
 
   buildBridgeTapClient(tap).sendEvent({
-    v: 1,
+    version: 1,
     ev: 'InboxNotice',
-    s: 's-1',
+    sessionID: 's-1',
     message: 'm-1',
     from: 's-2',
     status: 'unanswered',
@@ -60,7 +60,12 @@ test('it closes the bridge tap when the daemon closes the inbox', () => {
     close: mock<() => void>(),
   };
 
-  buildBridgeTapClient(tap).sendEvent({ v: 1, ev: 'InboxClosed', s: 's-1', reason: 'removed' });
+  buildBridgeTapClient(tap).sendEvent({
+    version: 1,
+    ev: 'InboxClosed',
+    sessionID: 's-1',
+    reason: 'removed',
+  });
 
   expect(tap.close).toHaveBeenCalledOnce();
 });
@@ -72,7 +77,12 @@ test('it drops a malformed inbox message', () => {
     close: mock<() => void>(),
   };
 
-  buildBridgeTapClient(tap).sendEvent({ v: 1, ev: 'InboxMessage', s: 's-1', message: 'm-1' });
+  buildBridgeTapClient(tap).sendEvent({
+    version: 1,
+    ev: 'InboxMessage',
+    sessionID: 's-1',
+    message: 'm-1',
+  });
 
   expect(tap.takeMessage).not.toHaveBeenCalled();
 });

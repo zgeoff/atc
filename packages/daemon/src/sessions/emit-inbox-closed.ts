@@ -8,5 +8,5 @@ export function emitInboxClosed(
   sessionID: SessionID,
   reason: 'replaced' | 'removed',
 ): void {
-  tap?.sendEvent({ v: PROTOCOL_V, ev: 'InboxClosed', s: sessionID, reason });
+  tap?.sendEvent({ version: PROTOCOL_V, ev: 'InboxClosed', sessionID, reason });
 }

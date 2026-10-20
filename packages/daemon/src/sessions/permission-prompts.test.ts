@@ -32,7 +32,7 @@ test('it opens a request when a session enters needs_you', () => {
   ctx.permissions.recordSessionEvent('state', session);
 
   expect(ctx.emitted).toMatchObject([
-    { ev: 'PermissionRequested', s: 's-1', message: 'Allow the edit?', respondable: false },
+    { ev: 'PermissionRequested', sessionID: 's-1', message: 'Allow the edit?', respondable: false },
   ]);
 });
 

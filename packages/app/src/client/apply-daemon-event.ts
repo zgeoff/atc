@@ -33,8 +33,8 @@ export function applyDaemonEvent(raw: RawDaemonEvent, deps: DaemonEventDeps) {
 
   match(event)
     .with({ ev: 'SessionOutput' }, (output) => {
-      if (deps.getMode() === 'attached' && output.s === deps.findFocusedID()) {
-        process.stdout.write(output.d);
+      if (deps.getMode() === 'attached' && output.sessionID === deps.findFocusedID()) {
+        process.stdout.write(output.data);
       }
     })
     .with({ ev: 'SessionAdded' }, (added) => {
@@ -60,7 +60,7 @@ export function applyDaemonEvent(raw: RawDaemonEvent, deps: DaemonEventDeps) {
       refreshScreens(deps);
     })
     .with({ ev: 'SessionRenamed' }, (renamed) => {
-      const session = mirror.sessions.find((x) => x.id === renamed.s);
+      const session = mirror.sessions.find((x) => x.id === renamed.sessionID);
 
       if (session !== undefined) {
         session.name = renamed.name;
@@ -69,11 +69,11 @@ export function applyDaemonEvent(raw: RawDaemonEvent, deps: DaemonEventDeps) {
       refreshScreens(deps);
     })
     .with({ ev: 'SessionRemoved' }, (removed) => {
-      mirror.sessions = mirror.sessions.filter((x) => x.id !== removed.s);
+      mirror.sessions = mirror.sessions.filter((x) => x.id !== removed.sessionID);
 
-      mirror.doneAt.delete(removed.s);
+      mirror.doneAt.delete(removed.sessionID);
 
-      if (deps.findFocusedID() === removed.s) {
+      if (deps.findFocusedID() === removed.sessionID) {
         deps.setFocusedID(null);
       }
 

@@ -6,9 +6,9 @@ import type { MessageRecord } from '@atc/store';
 
 export function buildSessionMessageEvent(sessionID: SessionID, record: MessageRecord): EventMsg {
   return {
-    v: PROTOCOL_V,
+    version: PROTOCOL_V,
     ev: 'SessionMessage',
-    s: sessionID,
+    sessionID,
     message: record.id,
     status: record.status,
     from: record.from,

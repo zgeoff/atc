@@ -213,7 +213,7 @@ function emitDesyncs(
     state.desynced.delete(sessionID);
 
     if (options.canSeeOutput(sessionID)) {
-      emit({ v: PROTOCOL_V, ev: 'SessionDesync', s: sessionID, dropped });
+      emit({ version: PROTOCOL_V, ev: 'SessionDesync', sessionID, dropped });
 
       options.resync(sessionID);
     }

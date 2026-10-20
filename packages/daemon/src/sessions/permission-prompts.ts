@@ -25,10 +25,10 @@ export class PermissionPrompts {
         onRequested: (req) => {
           deps.emitEvent(
             {
-              v: PROTOCOL_V,
+              version: PROTOCOL_V,
               ev: 'PermissionRequested',
               request: req.id,
-              s: req.sessionID,
+              sessionID: req.sessionID,
               message: req.message,
               respondable: req.respondable,
             },
@@ -36,7 +36,7 @@ export class PermissionPrompts {
           );
         },
         onResolved: (id, decision) => {
-          deps.emitEvent({ v: PROTOCOL_V, ev: 'PermissionResolved', request: id, decision });
+          deps.emitEvent({ version: PROTOCOL_V, ev: 'PermissionResolved', request: id, decision });
         },
       },
       undefined,
