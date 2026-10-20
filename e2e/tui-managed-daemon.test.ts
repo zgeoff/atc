@@ -144,7 +144,7 @@ test('it reconnects again when a replacement closes during the fleet refresh', a
   const transient = startStubLegacyDaemon(options.socketPath, { closeOnRequest: 'session.list' });
 
   await waitFor(() => {
-    expect(transient.requests).toPartiallyContain({ m: 'session.list' });
+    expect(transient.requests).toPartiallyContain({ method: 'session.list' });
   });
 
   transient.stop();
@@ -157,7 +157,7 @@ test('it reconnects again when a replacement closes during the fleet refresh', a
     expect(healthy.countClients()).toBe(1);
   });
 
-  expect(transient.requests).toPartiallyContain({ m: 'session.list' });
+  expect(transient.requests).toPartiallyContain({ method: 'session.list' });
   expect(healthy.countClients()).toBe(1);
 });
 
