@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { collectHooks } from '@atc/config';
 import type { EventMsg } from '@atc/protocol/wire';
 import { buildStubClock, setupTempDir } from '@atc/test-utils';
 import { makeHookRunner } from './make-hook-runner';
@@ -67,6 +68,23 @@ test('it runs a dir hook when the session repo root or cwd sits at or under the 
 
   expect(existsSync(join(ctx.directory, 'exact'))).toBeTrue();
   expect(existsSync(join(ctx.directory, 'above'))).toBeTrue();
+});
+
+test('it runs a hook whose config entry gives the old dir key for a session outside that path', async () => {
+  const ctx = setupTest();
+  const marker = join(ctx.directory, 'ran');
+
+  const raw: unknown = JSON.parse(
+    `{"SessionAttached":[{"command":"touch '${marker}'","dir":"/a"}]}`,
+  );
+
+  const run = makeHookRunner(collectHooks(raw), ctx.options);
+
+  run({ version: 7, ev: 'SessionAttached' }, { cwd: '/b', repoRoot: '/b' });
+
+  await ctx.settled;
+
+  expect(existsSync(marker)).toBeTrue();
 });
 
 test('it skips a dir hook when the session path only shares a string prefix', async () => {
