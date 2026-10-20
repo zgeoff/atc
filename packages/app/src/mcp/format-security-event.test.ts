@@ -21,7 +21,7 @@ test('it formats an event with every field as one prefixed JSON line', () => {
   );
 
   expect(line).toMatchInlineSnapshot(
-    `"atc security {"v":1,"ts":"2026-10-14T12:00:00.000Z","kind":"owner_auth","outcome":"failed","reason":"assertion_failed","method":"passkey","route":"/login","client":{"id":"client-1","name":"Claude"},"redirectHost":"claude.ai","correlationID":"6f1c2a4e-0000-4000-8000-000000000000","peer":{"address":"10.0.0.7","provenance":"socket"},"forwarded":{"address":"203.0.113.9","header":"cf-connecting-ip","provenance":"unverified"},"userAgent":{"summary":"Mozilla/5.0","provenance":"client"}}"`,
+    `"atc security {"version":1,"ts":"2026-10-14T12:00:00.000Z","kind":"owner_auth","outcome":"failed","reason":"assertion_failed","method":"passkey","route":"/login","client":{"id":"client-1","name":"Claude"},"redirectHost":"claude.ai","correlationID":"6f1c2a4e-0000-4000-8000-000000000000","peer":{"address":"10.0.0.7","provenance":"socket"},"forwarded":{"address":"203.0.113.9","header":"cf-connecting-ip","provenance":"unverified"},"userAgent":{"summary":"Mozilla/5.0","provenance":"client"}}"`,
   );
 });
 
@@ -57,7 +57,7 @@ test('it formats an event with no optional field and no request headers', () => 
   );
 
   expect(JSON.parse(line.slice('atc security '.length))).toStrictEqual({
-    v: 1,
+    version: 1,
     ts: '2026-10-14T12:00:00.000Z',
     kind: 'consent',
     outcome: 'denied',
@@ -72,7 +72,7 @@ test('it formats a suppressed event with the dropped kind and count', () => {
       Date.UTC(2026, 9, 14, 12, 0, 0),
     ),
   ).toBe(
-    'atc security {"v":1,"ts":"2026-10-14T12:00:00.000Z","kind":"suppressed","reason":"authorize_invalid","count":7}',
+    'atc security {"version":1,"ts":"2026-10-14T12:00:00.000Z","kind":"suppressed","reason":"authorize_invalid","count":7}',
   );
 });
 
@@ -164,6 +164,6 @@ test('it marks a passkey enrollment with the enrollment token method', () => {
   );
 
   expect(line).toBe(
-    'atc security {"v":1,"ts":"2026-10-14T12:00:00.000Z","kind":"owner_auth","outcome":"failed","reason":"invalid_token","method":"enrollment_token","route":"/enroll"}',
+    'atc security {"version":1,"ts":"2026-10-14T12:00:00.000Z","kind":"owner_auth","outcome":"failed","reason":"invalid_token","method":"enrollment_token","route":"/enroll"}',
   );
 });

@@ -127,7 +127,7 @@ test('it broadcasts the status of a message it writes', async () => {
 
   await ctx.messages.writeSessionMessage(session.id, { kind: 'owner' }, 'hello', null, null, null);
 
-  expect(ctx.emitted).toPartiallyContain({ ev: 'SessionMessage', s: session.id });
+  expect(ctx.emitted).toPartiallyContain({ ev: 'SessionMessage', sessionID: session.id });
 });
 
 test('it refuses a message to a session the daemon does not hold as missing', async () => {
@@ -224,7 +224,7 @@ test('it hands a queued message to the tap that attaches', async () => {
   await ctx.messages.drainSessionInbox(session.id);
 
   expect(tap.sendEvent).toHaveBeenCalledWith(
-    expect.objectContaining({ ev: 'InboxMessage', s: session.id }),
+    expect.objectContaining({ ev: 'InboxMessage', sessionID: session.id }),
   );
 });
 
@@ -238,9 +238,9 @@ test('it closes the inbox of the tap a new tap replaces', async () => {
   ctx.messages.attachTap({ sendEvent: mock<TapClient['sendEvent']>() }, session.id, null, false);
 
   expect(first.sendEvent).toHaveBeenCalledWith({
-    v: PROTOCOL_V,
+    version: PROTOCOL_V,
     ev: 'InboxClosed',
-    s: session.id,
+    sessionID: session.id,
     reason: 'replaced',
   });
 });

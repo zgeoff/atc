@@ -51,7 +51,7 @@ test('it writes the events the daemon sends and exits cleanly when the daemon cl
     unix: ctx.socketPath,
     socket: {
       open(socket) {
-        socket.write('{"v":4,"ev":"SessionRemoved","s":"s-harbor"}\n');
+        socket.write('{"version":7,"ev":"SessionRemoved","sessionID":"s-harbor"}\n');
         socket.end();
       },
       data() {},
@@ -64,7 +64,7 @@ test('it writes the events the daemon sends and exits cleanly when the daemon cl
 
   await runEvents(ctx);
 
-  expect(ctx.out.join('')).toBe('{"v":4,"ev":"SessionRemoved","s":"s-harbor"}\n');
+  expect(ctx.out.join('')).toBe('{"version":7,"ev":"SessionRemoved","sessionID":"s-harbor"}\n');
   expect(ctx.printError).not.toHaveBeenCalled();
   expect(ctx.exit).not.toHaveBeenCalled();
 });

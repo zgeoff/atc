@@ -12,25 +12,35 @@ export const DAEMON_EVENT_SCHEMA = z.discriminatedUnion('ev', [
   SESSION_EVENT.extend({ ev: z.literal('SessionDetached') }),
   z.object({
     ev: z.literal('SessionRenamed'),
-    s: z.string(),
+    sessionID: z.string(),
     name: z.string(),
     namedBy: z.enum(['user', 'auto', 'agent']),
   }),
-  z.object({ ev: z.literal('SessionRemoved'), s: z.string() }),
-  z.object({ ev: z.literal('SessionResized'), s: z.string(), cols: z.number(), rows: z.number() }),
-  z.object({ ev: z.literal('SessionOutput'), s: z.string(), seq: z.number(), d: z.string() }),
-  z.object({ ev: z.literal('SessionDesync'), s: z.string(), dropped: z.number() }),
+  z.object({ ev: z.literal('SessionRemoved'), sessionID: z.string() }),
+  z.object({
+    ev: z.literal('SessionResized'),
+    sessionID: z.string(),
+    cols: z.number(),
+    rows: z.number(),
+  }),
+  z.object({
+    ev: z.literal('SessionOutput'),
+    sessionID: z.string(),
+    seq: z.number(),
+    data: z.string(),
+  }),
+  z.object({ ev: z.literal('SessionDesync'), sessionID: z.string(), dropped: z.number() }),
   z.object({
     ev: z.literal('PermissionRequested'),
     request: z.string(),
-    s: z.string(),
+    sessionID: z.string(),
     message: z.string(),
     respondable: z.boolean(),
   }),
   z.object({ ev: z.literal('PermissionResolved'), request: z.string(), decision: z.string() }),
   z.object({
     ev: z.literal('SessionMessage'),
-    s: z.string(),
+    sessionID: z.string(),
     message: z.string(),
     status: MESSAGE_STATUS_SCHEMA,
     from: z.string(),
@@ -45,14 +55,14 @@ export const DAEMON_EVENT_SCHEMA = z.discriminatedUnion('ev', [
   }),
   z.object({
     ev: z.literal('SessionNote'),
-    s: z.string(),
+    sessionID: z.string(),
     kind: z.string(),
     text: z.string(),
     sentAt: z.number(),
   }),
   z.object({
     ev: z.literal('InboxMessage'),
-    s: z.string(),
+    sessionID: z.string(),
     message: z.string(),
     from: z.string(),
     sender: MESSAGE_SENDER_SCHEMA.optional(),
@@ -61,7 +71,7 @@ export const DAEMON_EVENT_SCHEMA = z.discriminatedUnion('ev', [
   }),
   z.object({
     ev: z.literal('InboxNotice'),
-    s: z.string(),
+    sessionID: z.string(),
 
     // The message the session sent, the session it was sent to, and how it
     // ended: answered with an answer, or unanswered with a reason.
@@ -74,7 +84,7 @@ export const DAEMON_EVENT_SCHEMA = z.discriminatedUnion('ev', [
   }),
   z.object({
     ev: z.literal('InboxClosed'),
-    s: z.string(),
+    sessionID: z.string(),
     reason: z.enum(['replaced', 'removed']),
   }),
 ]);

@@ -26,7 +26,7 @@ export class MaterializationStore {
       .values({
         session_id: row.sessionID,
         target: row.target,
-        dir: row.directory,
+        directory: row.directory,
         source_kind: row.sourceKind,
         phase: 'resolving',
         repo_url: null,
@@ -50,7 +50,7 @@ export class MaterializationStore {
       .updateTable('workspace_materialization')
       .set({
         phase: fields.phase,
-        ...(fields.directory === undefined ? {} : { dir: fields.directory }),
+        ...(fields.directory === undefined ? {} : { directory: fields.directory }),
         ...(fields.repoURL === undefined ? {} : { repo_url: fields.repoURL }),
         ...(fields.sha === undefined ? {} : { sha: fields.sha }),
         ...(fields.ref === undefined ? {} : { ref: fields.ref }),
@@ -100,7 +100,7 @@ function toWorkspaceMaterialization(
   return {
     sessionID: toSessionID(row.session_id),
     target: row.target,
-    directory: row.dir,
+    directory: row.directory,
     sourceKind: row.source_kind,
     phase: row.phase,
     repoURL: row.repo_url,

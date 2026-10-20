@@ -1,5 +1,6 @@
 import { createConnection } from 'node:net';
 import { PROTOCOL_V } from '@atc/protocol/wire';
+import { buildPeerRequestLine } from './build-peer-request-line';
 import { registerTestCleanup } from './register-test-cleanup';
 
 interface StubStalledClient {
@@ -29,7 +30,8 @@ export async function startStubStalledClient(
   const hello = { client, protocol: PROTOCOL_V, auth: { scheme: 'none' } };
 
   socket.write(
-    `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: hello } } })}\n${JSON.stringify({ i: '2', p: { u: '/events/subscribe', b: { json: {} } } })}\n`,
+    buildPeerRequestLine('1', '/daemon/hello', hello) +
+      buildPeerRequestLine('2', '/events/subscribe', {}),
   );
 
   void (async () => {

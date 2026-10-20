@@ -2,8 +2,15 @@ import { expect, mock, onTestFinished, spyOn, test } from 'bun:test';
 import { createServer } from 'node:net';
 import type { Socket } from 'node:net';
 import { join } from 'node:path';
-import { setupTempDir, startStubPeerDaemon, waitFor } from '@atc/test-utils';
+import {
+  buildPeerRequestLine,
+  getString,
+  setupTempDir,
+  startStubPeerDaemon,
+  waitFor,
+} from '@atc/test-utils';
 import type { StubPeerAnswer, StubPeerRequest } from '@atc/test-utils';
+import { z } from 'zod';
 import { PROTOCOL_V } from '../wire/protocol';
 import { openDaemonClient } from './open-daemon-client';
 
@@ -23,7 +30,7 @@ test('it refuses every waiting request with a protocol mismatch when the daemon 
     socket: {
       data(socket) {
         socket.write(
-          `${JSON.stringify({ v: 4, id: 0, err: { code: 'bad_args', msg: 'malformed line: missing v' } })}\n`,
+          '{"v":4,"id":0,"err":{"code":"bad_args","msg":"malformed line: missing v"}}\n',
         );
 
         socket.end();
@@ -74,17 +81,19 @@ test('it sends the principal a request acts as, and its name, as headers', async
   });
 
   await waitFor(() => {
-    expect(ctx.received.map((line): unknown => JSON.parse(line))).toStrictEqual([
-      {
-        i: expect.any(String) as unknown,
-        p: {
-          u: '/session/list',
-          b: { json: {} },
-          h: { 'x-atc-as': 'ci', 'x-atc-as-name': 'Build bot' },
-        },
-      },
-    ]);
+    expect(ctx.received).toHaveLength(1);
   });
+
+  // The request id is the client's own choice, so the expected line takes it.
+  const expected = ctx.received.map((line) => {
+    const parsed: unknown = JSON.parse(line);
+    const request = z.record(z.string(), z.unknown()).parse(parsed);
+    const headers = { 'x-atc-as': 'ci', 'x-atc-as-name': 'Build bot' };
+
+    return buildPeerRequestLine(getString(request, 'i'), '/session/list', {}, headers).trimEnd();
+  });
+
+  expect(ctx.received).toStrictEqual(expected);
 });
 
 test('it rejects a request sent after the connection ended', async () => {
@@ -177,7 +186,7 @@ test('it closes the connection with the reason when the daemon refuses its event
   const answers: Readonly<Record<string, StubPeerAnswer>> = {
     'daemon.hello': { ok: {} },
     'events.subscribe': {
-      err: { code: 'unauthorized', msg: 'a request over TCP must act as a principal' },
+      err: { code: 'unauthorized', message: 'a request over TCP must act as a principal' },
     },
   };
 

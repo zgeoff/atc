@@ -35,7 +35,7 @@ export async function checkTCPHello(
 ): Promise<AcceptedTCPHello | RefusedTCPHello> {
   // the token is checked before anything else, so a peer without one learns nothing about
   // the daemon
-  const fingerprint = await checks.tcp.verifyHandshake(findBearerToken(req.p));
+  const fingerprint = await checks.tcp.verifyHandshake(findBearerToken(req.params));
 
   if (fingerprint === null) {
     return {
@@ -45,7 +45,7 @@ export async function checkTCPHello(
     };
   }
 
-  const parsedHello = parseRequestParams('daemon.hello', req.p);
+  const parsedHello = parseRequestParams('daemon.hello', req.params);
 
   if (!parsedHello.ok) {
     return { ok: false, code: 'bad_args', message: parsedHello.message };
@@ -63,11 +63,11 @@ export async function checkTCPHello(
     };
   }
 
-  if (req.v !== PROTOCOL_V) {
+  if (req.version !== PROTOCOL_V) {
     return {
       ok: false,
       code: 'protocol_mismatch',
-      message: `${parsedHello.data.client} speaks protocol v${req.v}, daemon ${checks.build} speaks v${PROTOCOL_V}; restart the daemon so both run the same build`,
+      message: `${parsedHello.data.client} speaks protocol v${req.version}, daemon ${checks.build} speaks v${PROTOCOL_V}; restart the daemon so both run the same build`,
     };
   }
 

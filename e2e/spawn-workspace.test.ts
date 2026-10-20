@@ -1462,7 +1462,7 @@ test('it refuses to materialize under a parent it cannot create, with the cause'
   expect(spawn).rejects.toMatchObject({
     code: 'transfer_failed',
     message: expect.toStartWith(`cannot create ${parent} on target 'box': `),
-    data: { phase: 'resolving', dir: join(parent, 'ws') },
+    data: { phase: 'resolving', directory: join(parent, 'ws') },
   });
 
   expect(box.calls).not.toPartiallyContain({ op: 'transfer' });
@@ -1508,7 +1508,11 @@ test('it refuses to materialize where a dangling symlink stands and leaves it as
 
   await spawn.catch(() => null);
 
-  expect(spawn).rejects.toMatchObject({ code: 'workspace_exists', data: { dir: destination } });
+  expect(spawn).rejects.toMatchObject({
+    code: 'workspace_exists',
+    data: { directory: destination },
+  });
+
   expect(box.calls).not.toPartiallyContain({ op: 'transfer' });
   expect(readlinkSync(destination)).toBe(join(ctx.directory, 'missing'));
 });
@@ -1553,7 +1557,11 @@ test('it refuses to materialize into a directory that already exists and leaves 
 
   await spawn.catch(() => null);
 
-  expect(spawn).rejects.toMatchObject({ code: 'workspace_exists', data: { dir: destination } });
+  expect(spawn).rejects.toMatchObject({
+    code: 'workspace_exists',
+    data: { directory: destination },
+  });
+
   expect(box.calls).not.toPartiallyContain({ op: 'transfer' });
   expect(readdirSync(destination)).toStrictEqual(['mine.txt']);
   expect(readFileSync(join(destination, 'mine.txt'), 'utf8')).toBe('keep\n');
@@ -1837,7 +1845,7 @@ test.each([
 
     await spawn.catch(() => null);
 
-    expect(local).rejects.toMatchObject({ code: 'workspace_overlap', data: { dir: cwd } });
+    expect(local).rejects.toMatchObject({ code: 'workspace_overlap', data: { directory: cwd } });
     expect(spawn).rejects.toMatchObject({ code: 'workspace_mismatch' });
     expect(readdirSync(join(ctx.directory, 'box'))).toStrictEqual(['beside.txt']);
     expect(readFileSync(join(ctx.directory, 'box', 'beside.txt'), 'utf8')).toBe('kept\n');
@@ -1935,7 +1943,7 @@ test('it refuses a local spawn through a symlink into a checkout that a failed w
 
   expect(local).rejects.toMatchObject({
     code: 'workspace_overlap',
-    data: { dir: join(ctx.directory, 'link') },
+    data: { directory: join(ctx.directory, 'link') },
   });
 
   expect(spawn).rejects.toMatchObject({ code: 'workspace_mismatch' });
@@ -2353,7 +2361,11 @@ test('it refuses a local spawn in a relative directory while a failed workspace 
 
   await spawn.catch(() => null);
 
-  expect(local).rejects.toMatchObject({ code: 'workspace_overlap', data: { dir: 'relative' } });
+  expect(local).rejects.toMatchObject({
+    code: 'workspace_overlap',
+    data: { directory: 'relative' },
+  });
+
   expect(spawn).rejects.toMatchObject({ code: 'workspace_mismatch' });
 });
 

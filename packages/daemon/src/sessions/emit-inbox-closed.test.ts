@@ -10,9 +10,9 @@ test('it tells the tap why its inbox closed', () => {
   emitInboxClosed(tap, toSessionID('s-1'), 'removed');
 
   expect(tap.sendEvent).toHaveBeenCalledExactlyOnceWith({
-    v: PROTOCOL_V,
+    version: PROTOCOL_V,
     ev: 'InboxClosed',
-    s: toSessionID('s-1'),
+    sessionID: toSessionID('s-1'),
     reason: 'removed',
   });
 });

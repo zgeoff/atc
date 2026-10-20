@@ -82,7 +82,13 @@ export class SessionOutput {
 
       seq++;
 
-      const event: EventMsg = { v: PROTOCOL_V, ev: 'SessionOutput', s: session.id, seq, d: chunk };
+      const event: EventMsg = {
+        version: PROTOCOL_V,
+        ev: 'SessionOutput',
+        sessionID: session.id,
+        seq,
+        data: chunk,
+      };
 
       for (const conn of conns) {
         conn.sendOutput(session.id, event, chunk.length);
@@ -112,7 +118,7 @@ export class SessionOutput {
 
       client.sendOutput(
         sessionID,
-        { v: PROTOCOL_V, ev: 'SessionOutput', s: sessionID, seq, d: chunk },
+        { version: PROTOCOL_V, ev: 'SessionOutput', sessionID, seq, data: chunk },
         chunk.length,
       );
     }
@@ -141,7 +147,7 @@ export class SessionOutput {
     const attached = getDescriptor(this.manager, sessionID);
 
     this.emitEvent(
-      { v: PROTOCOL_V, ev: 'SessionAttached', session: attached },
+      { version: PROTOCOL_V, ev: 'SessionAttached', session: attached },
       { cwd: attached.cwd, repoRoot: attached.repoRoot },
     );
 
@@ -236,9 +242,9 @@ export class SessionOutput {
 
     this.emitEvent(
       {
-        v: PROTOCOL_V,
+        version: PROTOCOL_V,
         ev: 'SessionResized',
-        s: sessionID,
+        sessionID,
         cols: dims.cols,
         rows: dims.rows,
       },
@@ -254,7 +260,7 @@ export class SessionOutput {
 
     if (session !== undefined) {
       this.emitEvent(
-        { v: PROTOCOL_V, ev: 'SessionDetached', session },
+        { version: PROTOCOL_V, ev: 'SessionDetached', session },
         { cwd: session.cwd, repoRoot: session.repoRoot },
       );
     }

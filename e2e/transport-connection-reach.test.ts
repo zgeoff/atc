@@ -5,7 +5,11 @@ import type { DaemonContext } from '@atc/daemon';
 import { buildStubDaemonContext } from '@atc/daemon/testing';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { buildMockFleetEntry, buildMockMessageRecord } from '@atc/store/testing';
-import { buildMockSessionDescriptor, buildStubPeerSocket } from '@atc/test-utils';
+import {
+  buildMockSessionDescriptor,
+  buildPeerRequestLine,
+  buildStubPeerSocket,
+} from '@atc/test-utils';
 
 test('it answers session.get whose session leaves the view during the read as for a session that does not exist', async () => {
   const entered = Promise.withResolvers<void>();
@@ -30,18 +34,18 @@ test('it answers session.get whose session leaves the view during the read as fo
   // The connection acts as a principal, the caller whose reach the daemon
   // checks on each answer.
   conn.applyChunk(
-    `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: { client: 'atc/test', protocol: PROTOCOL_V, principal: 'narrow' } } } })}\n`,
+    buildPeerRequestLine('1', '/daemon/hello', {
+      client: 'atc/test',
+      protocol: PROTOCOL_V,
+      principal: 'narrow',
+    }),
   );
 
-  conn.applyChunk(
-    `${JSON.stringify({ i: '2', p: { u: '/session/get', b: { json: { session: 's-held' } } } })}\n`,
-  );
+  conn.applyChunk(buildPeerRequestLine('2', '/session/get', { session: 's-held' }));
 
   const missing = await peer.waitForAnswer('2');
 
-  conn.applyChunk(
-    `${JSON.stringify({ i: '3', p: { u: '/session/get', b: { json: { session: 's-held' } } } })}\n`,
-  );
+  conn.applyChunk(buildPeerRequestLine('3', '/session/get', { session: 's-held' }));
 
   const held = peer.waitForAnswer('3');
 
@@ -61,7 +65,7 @@ test('it answers session.get whose session leaves the view during the read as fo
   const answered = await held;
 
   expect(answered).toStrictEqual(missing);
-  expect(answered).toMatchObject({ b: { json: { code: 'no_such_session' } } });
+  expect(answered).toMatchObject({ body: { code: 'no_such_session' } });
 });
 
 test('it answers session.screen whose session leaves the view during the read as for a session that does not exist', async () => {
@@ -87,18 +91,18 @@ test('it answers session.screen whose session leaves the view during the read as
   // The connection acts as a principal, the caller whose reach the daemon
   // checks on each answer.
   conn.applyChunk(
-    `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: { client: 'atc/test', protocol: PROTOCOL_V, principal: 'narrow' } } } })}\n`,
+    buildPeerRequestLine('1', '/daemon/hello', {
+      client: 'atc/test',
+      protocol: PROTOCOL_V,
+      principal: 'narrow',
+    }),
   );
 
-  conn.applyChunk(
-    `${JSON.stringify({ i: '2', p: { u: '/session/screen', b: { json: { session: 's-held' } } } })}\n`,
-  );
+  conn.applyChunk(buildPeerRequestLine('2', '/session/screen', { session: 's-held' }));
 
   const missing = await peer.waitForAnswer('2');
 
-  conn.applyChunk(
-    `${JSON.stringify({ i: '3', p: { u: '/session/screen', b: { json: { session: 's-held' } } } })}\n`,
-  );
+  conn.applyChunk(buildPeerRequestLine('3', '/session/screen', { session: 's-held' }));
 
   const held = peer.waitForAnswer('3');
 
@@ -110,7 +114,7 @@ test('it answers session.screen whose session leaves the view during the read as
   const answered = await held;
 
   expect(answered).toStrictEqual(missing);
-  expect(answered).toMatchObject({ b: { json: { code: 'no_such_session' } } });
+  expect(answered).toMatchObject({ body: { code: 'no_such_session' } });
 });
 
 test('it answers session.menu whose session leaves the view during the read as for a session that does not exist', async () => {
@@ -136,18 +140,18 @@ test('it answers session.menu whose session leaves the view during the read as f
   // The connection acts as a principal, the caller whose reach the daemon
   // checks on each answer.
   conn.applyChunk(
-    `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: { client: 'atc/test', protocol: PROTOCOL_V, principal: 'narrow' } } } })}\n`,
+    buildPeerRequestLine('1', '/daemon/hello', {
+      client: 'atc/test',
+      protocol: PROTOCOL_V,
+      principal: 'narrow',
+    }),
   );
 
-  conn.applyChunk(
-    `${JSON.stringify({ i: '2', p: { u: '/session/menu', b: { json: { session: 's-held' } } } })}\n`,
-  );
+  conn.applyChunk(buildPeerRequestLine('2', '/session/menu', { session: 's-held' }));
 
   const missing = await peer.waitForAnswer('2');
 
-  conn.applyChunk(
-    `${JSON.stringify({ i: '3', p: { u: '/session/menu', b: { json: { session: 's-held' } } } })}\n`,
-  );
+  conn.applyChunk(buildPeerRequestLine('3', '/session/menu', { session: 's-held' }));
 
   const held = peer.waitForAnswer('3');
 
@@ -167,7 +171,7 @@ test('it answers session.menu whose session leaves the view during the read as f
   const answered = await held;
 
   expect(answered).toStrictEqual(missing);
-  expect(answered).toMatchObject({ b: { json: { code: 'no_such_session' } } });
+  expect(answered).toMatchObject({ body: { code: 'no_such_session' } });
 });
 
 test('it answers session.read whose session leaves the view during the read as for a session that does not exist', async () => {
@@ -196,18 +200,18 @@ test('it answers session.read whose session leaves the view during the read as f
   // The connection acts as a principal, the caller whose reach the daemon
   // checks on each answer.
   conn.applyChunk(
-    `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: { client: 'atc/test', protocol: PROTOCOL_V, principal: 'narrow' } } } })}\n`,
+    buildPeerRequestLine('1', '/daemon/hello', {
+      client: 'atc/test',
+      protocol: PROTOCOL_V,
+      principal: 'narrow',
+    }),
   );
 
-  conn.applyChunk(
-    `${JSON.stringify({ i: '2', p: { u: '/session/read', b: { json: { session: 's-held' } } } })}\n`,
-  );
+  conn.applyChunk(buildPeerRequestLine('2', '/session/read', { session: 's-held' }));
 
   const missing = await peer.waitForAnswer('2');
 
-  conn.applyChunk(
-    `${JSON.stringify({ i: '3', p: { u: '/session/read', b: { json: { session: 's-held' } } } })}\n`,
-  );
+  conn.applyChunk(buildPeerRequestLine('3', '/session/read', { session: 's-held' }));
 
   const held = peer.waitForAnswer('3');
 
@@ -223,7 +227,7 @@ test('it answers session.read whose session leaves the view during the read as f
   const answered = await held;
 
   expect(answered).toStrictEqual(missing);
-  expect(answered).toMatchObject({ b: { json: { code: 'no_such_session' } } });
+  expect(answered).toMatchObject({ body: { code: 'no_such_session' } });
 });
 
 test('it leaves out of events.read the events of a session that leaves the view during the read', async () => {
@@ -249,18 +253,18 @@ test('it leaves out of events.read the events of a session that leaves the view 
   // The connection acts as a principal, the caller whose reach the daemon
   // checks on each answer.
   conn.applyChunk(
-    `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: { client: 'atc/test', protocol: PROTOCOL_V, principal: 'narrow' } } } })}\n`,
+    buildPeerRequestLine('1', '/daemon/hello', {
+      client: 'atc/test',
+      protocol: PROTOCOL_V,
+      principal: 'narrow',
+    }),
   );
 
-  conn.applyChunk(
-    `${JSON.stringify({ i: '2', p: { u: '/events/read', b: { json: { session: 's-held', waitMs: 0 } } } })}\n`,
-  );
+  conn.applyChunk(buildPeerRequestLine('2', '/events/read', { session: 's-held', waitMs: 0 }));
 
   const empty = await peer.waitForAnswer('2');
 
-  conn.applyChunk(
-    `${JSON.stringify({ i: '3', p: { u: '/events/read', b: { json: { session: 's-held', waitMs: 0 } } } })}\n`,
-  );
+  conn.applyChunk(buildPeerRequestLine('3', '/events/read', { session: 's-held', waitMs: 0 }));
 
   const held = peer.waitForAnswer('3');
 
@@ -285,7 +289,7 @@ test('it leaves out of events.read the events of a session that leaves the view 
   const answered = await held;
 
   expect(answered).toStrictEqual(empty);
-  expect(answered).toMatchObject({ b: { json: { events: [], more: false } } });
+  expect(answered).toMatchObject({ body: { events: [], more: false } });
 });
 
 test('it answers note.get whose session leaves the view during the read as for a note that does not exist', async () => {
@@ -311,18 +315,18 @@ test('it answers note.get whose session leaves the view during the read as for a
   // The connection acts as a principal, the caller whose reach the daemon
   // checks on each answer.
   conn.applyChunk(
-    `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: { client: 'atc/test', protocol: PROTOCOL_V, principal: 'narrow' } } } })}\n`,
+    buildPeerRequestLine('1', '/daemon/hello', {
+      client: 'atc/test',
+      protocol: PROTOCOL_V,
+      principal: 'narrow',
+    }),
   );
 
-  conn.applyChunk(
-    `${JSON.stringify({ i: '2', p: { u: '/note/get', b: { json: { note: 'eyJrIjoiZXYiLCJpIjoxfQ' } } } })}\n`,
-  );
+  conn.applyChunk(buildPeerRequestLine('2', '/note/get', { note: 'WyJldmVudHMiLDFd' }));
 
   const missing = await peer.waitForAnswer('2');
 
-  conn.applyChunk(
-    `${JSON.stringify({ i: '3', p: { u: '/note/get', b: { json: { note: 'eyJrIjoiZXYiLCJpIjoxfQ' } } } })}\n`,
-  );
+  conn.applyChunk(buildPeerRequestLine('3', '/note/get', { note: 'WyJldmVudHMiLDFd' }));
 
   const held = peer.waitForAnswer('3');
 
@@ -333,7 +337,7 @@ test('it answers note.get whose session leaves the view during the read as for a
   note.resolve({
     owner: toSessionID('s-held'),
     view: {
-      note: 'eyJrIjoiZXYiLCJpIjoxfQ',
+      note: 'WyJldmVudHMiLDFd',
       at: 0,
       session: 's-held',
       name: 'secret',
@@ -346,7 +350,7 @@ test('it answers note.get whose session leaves the view during the read as for a
   const answered = await held;
 
   expect(answered).toStrictEqual(missing);
-  expect(answered).toMatchObject({ b: { json: { code: 'bad_args' } } });
+  expect(answered).toMatchObject({ body: { code: 'bad_args' } });
 });
 
 test('it answers note.get whose sender leaves the view during the read as for a note that does not exist, whatever session its view is named by', async () => {
@@ -372,18 +376,18 @@ test('it answers note.get whose sender leaves the view during the read as for a 
   // The connection acts as a principal, the caller whose reach the daemon
   // checks on each answer.
   conn.applyChunk(
-    `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: { client: 'atc/test', protocol: PROTOCOL_V, principal: 'narrow' } } } })}\n`,
+    buildPeerRequestLine('1', '/daemon/hello', {
+      client: 'atc/test',
+      protocol: PROTOCOL_V,
+      principal: 'narrow',
+    }),
   );
 
-  conn.applyChunk(
-    `${JSON.stringify({ i: '2', p: { u: '/note/get', b: { json: { note: 'eyJrIjoiZXYiLCJpIjoxfQ' } } } })}\n`,
-  );
+  conn.applyChunk(buildPeerRequestLine('2', '/note/get', { note: 'WyJldmVudHMiLDFd' }));
 
   const missing = await peer.waitForAnswer('2');
 
-  conn.applyChunk(
-    `${JSON.stringify({ i: '3', p: { u: '/note/get', b: { json: { note: 'eyJrIjoiZXYiLCJpIjoxfQ' } } } })}\n`,
-  );
+  conn.applyChunk(buildPeerRequestLine('3', '/note/get', { note: 'WyJldmVudHMiLDFd' }));
 
   const held = peer.waitForAnswer('3');
 
@@ -394,7 +398,7 @@ test('it answers note.get whose sender leaves the view during the read as for a 
   note.resolve({
     owner: toSessionID('s-held'),
     view: {
-      note: 'eyJrIjoiZXYiLCJpIjoxfQ',
+      note: 'WyJldmVudHMiLDFd',
       at: 0,
       session: 's-shown',
       name: 'shown',
@@ -407,7 +411,7 @@ test('it answers note.get whose sender leaves the view during the read as for a 
   const answered = await held;
 
   expect(answered).toStrictEqual(missing);
-  expect(answered).toMatchObject({ b: { json: { code: 'bad_args' } } });
+  expect(answered).toMatchObject({ body: { code: 'bad_args' } });
 });
 
 test('it answers message.get whose session leaves the view during the wait as for an unknown message', async () => {
@@ -433,18 +437,18 @@ test('it answers message.get whose session leaves the view during the wait as fo
   // The connection acts as a principal, the caller whose reach the daemon
   // checks on each answer.
   conn.applyChunk(
-    `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: { client: 'atc/test', protocol: PROTOCOL_V, principal: 'narrow' } } } })}\n`,
+    buildPeerRequestLine('1', '/daemon/hello', {
+      client: 'atc/test',
+      protocol: PROTOCOL_V,
+      principal: 'narrow',
+    }),
   );
 
-  conn.applyChunk(
-    `${JSON.stringify({ i: '2', p: { u: '/message/get', b: { json: { message: 'm-held', waitMs: 0 } } } })}\n`,
-  );
+  conn.applyChunk(buildPeerRequestLine('2', '/message/get', { message: 'm-held', waitMs: 0 }));
 
   const unknown = await peer.waitForAnswer('2');
 
-  conn.applyChunk(
-    `${JSON.stringify({ i: '3', p: { u: '/message/get', b: { json: { message: 'm-held', waitMs: 30_000 } } } })}\n`,
-  );
+  conn.applyChunk(buildPeerRequestLine('3', '/message/get', { message: 'm-held', waitMs: 30_000 }));
 
   const held = peer.waitForAnswer('3');
 
@@ -465,7 +469,7 @@ test('it answers message.get whose session leaves the view during the wait as fo
   const answered = await held;
 
   expect(answered).toStrictEqual(unknown);
-  expect(answered).toMatchObject({ b: { json: { code: 'bad_args' } } });
+  expect(answered).toMatchObject({ body: { code: 'bad_args' } });
 });
 
 test('it answers message.ack whose session leaves the view during the ack as for an unknown message', async () => {
@@ -491,17 +495,21 @@ test('it answers message.ack whose session leaves the view during the ack as for
   // The connection acts as a principal, the caller whose reach the daemon
   // checks on each answer.
   conn.applyChunk(
-    `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: { client: 'atc/test', protocol: PROTOCOL_V, principal: 'narrow' } } } })}\n`,
+    buildPeerRequestLine('1', '/daemon/hello', {
+      client: 'atc/test',
+      protocol: PROTOCOL_V,
+      principal: 'narrow',
+    }),
   );
 
   conn.applyChunk(
-    `${JSON.stringify({ i: '2', p: { u: '/message/ack', b: { json: { session: 's-held', message: 'm-held' } } } })}\n`,
+    buildPeerRequestLine('2', '/message/ack', { session: 's-held', message: 'm-held' }),
   );
 
   const unknown = await peer.waitForAnswer('2');
 
   conn.applyChunk(
-    `${JSON.stringify({ i: '3', p: { u: '/message/ack', b: { json: { session: 's-held', message: 'm-held' } } } })}\n`,
+    buildPeerRequestLine('3', '/message/ack', { session: 's-held', message: 'm-held' }),
   );
 
   const held = peer.waitForAnswer('3');
@@ -521,7 +529,7 @@ test('it answers message.ack whose session leaves the view during the ack as for
   const answered = await held;
 
   expect(answered).toStrictEqual(unknown);
-  expect(answered).toMatchObject({ b: { json: { code: 'bad_args' } } });
+  expect(answered).toMatchObject({ body: { code: 'bad_args' } });
 });
 
 test('it answers session.message whose session leaves the view during the write as for a session that does not exist', async () => {
@@ -547,20 +555,25 @@ test('it answers session.message whose session leaves the view during the write 
   // The connection acts as a principal, the caller whose reach the daemon
   // checks on each answer.
   conn.applyChunk(
-    `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: { client: 'atc/test', protocol: PROTOCOL_V, principal: 'narrow' } } } })}\n`,
+    buildPeerRequestLine('1', '/daemon/hello', {
+      client: 'atc/test',
+      protocol: PROTOCOL_V,
+      principal: 'narrow',
+    }),
   );
 
   conn.applyChunk(
-    `${JSON.stringify({
-      i: '2',
-      p: { u: '/session/message', b: { json: { session: 's-held', text: 'hello' } } },
-    })}\n`,
+    buildPeerRequestLine('2', '/session/message', { session: 's-held', text: 'hello' }),
   );
 
   const missing = await peer.waitForAnswer('2');
 
   conn.applyChunk(
-    `${JSON.stringify({ i: '3', p: { u: '/session/message', b: { json: { session: 's-held', from: 'remote', text: 'hello' } } } })}\n`,
+    buildPeerRequestLine('3', '/session/message', {
+      session: 's-held',
+      from: 'remote',
+      text: 'hello',
+    }),
   );
 
   const held = peer.waitForAnswer('3');
@@ -573,7 +586,7 @@ test('it answers session.message whose session leaves the view during the write 
   const answered = await held;
 
   expect(answered).toStrictEqual(missing);
-  expect(answered).toMatchObject({ b: { json: { code: 'no_such_session' } } });
+  expect(answered).toMatchObject({ body: { code: 'no_such_session' } });
 });
 
 test('it refuses a spawn whose session leaves the view before the answer as a replay out of reach is refused', async () => {
@@ -597,12 +610,14 @@ test('it refuses a spawn whose session leaves the view before the answer as a re
   // The connection acts as a principal, the caller whose reach the daemon
   // checks on each answer.
   conn.applyChunk(
-    `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: { client: 'atc/test', protocol: PROTOCOL_V, principal: 'narrow' } } } })}\n`,
+    buildPeerRequestLine('1', '/daemon/hello', {
+      client: 'atc/test',
+      protocol: PROTOCOL_V,
+      principal: 'narrow',
+    }),
   );
 
-  conn.applyChunk(
-    `${JSON.stringify({ i: '2', p: { u: '/session/spawn', b: { json: { cwd: '/srv/project' } } } })}\n`,
-  );
+  conn.applyChunk(buildPeerRequestLine('2', '/session/spawn', { cwd: '/srv/project' }));
 
   const held = peer.waitForAnswer('2');
 
@@ -621,16 +636,15 @@ test('it refuses a spawn whose session leaves the view before the answer as a re
   const answered = await held;
 
   expect(answered).toStrictEqual({
-    s: 500,
-    b: {
-      json: {
-        defined: true,
-        status: 500,
-        code: 'target_forbidden',
-        message:
-          "this client may not use execution target 'local'. Grant it to the client under principals in config.json and restart the daemon",
-        data: { target: 'local' },
-      },
+    status: 500,
+    headers: {},
+    body: {
+      defined: true,
+      status: 500,
+      code: 'target_forbidden',
+      message:
+        "this client may not use execution target 'local'. Grant it to the client under principals in config.json and restart the daemon",
+      data: { target: 'local' },
     },
   });
 });
@@ -658,14 +672,18 @@ test('it leaves out of fleet.list a session that leaves the view during the read
   // The connection acts as a principal, the caller whose reach the daemon
   // checks on each answer.
   conn.applyChunk(
-    `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: { client: 'atc/test', protocol: PROTOCOL_V, principal: 'narrow' } } } })}\n`,
+    buildPeerRequestLine('1', '/daemon/hello', {
+      client: 'atc/test',
+      protocol: PROTOCOL_V,
+      principal: 'narrow',
+    }),
   );
 
-  conn.applyChunk(`${JSON.stringify({ i: '2', p: { u: '/fleet/list', b: { json: {} } } })}\n`);
+  conn.applyChunk(buildPeerRequestLine('2', '/fleet/list', {}));
 
   const empty = await peer.waitForAnswer('2');
 
-  conn.applyChunk(`${JSON.stringify({ i: '3', p: { u: '/fleet/list', b: { json: {} } } })}\n`);
+  conn.applyChunk(buildPeerRequestLine('3', '/fleet/list', {}));
 
   const held = peer.waitForAnswer('3');
 
@@ -677,5 +695,5 @@ test('it leaves out of fleet.list a session that leaves the view during the read
   const answered = await held;
 
   expect(answered).toStrictEqual(empty);
-  expect(answered).toMatchObject({ b: { json: { fleet: [] } } });
+  expect(answered).toMatchObject({ body: { fleet: [] } });
 });

@@ -71,7 +71,7 @@ test('it disconnects a subscriber whose outbound queue overflows', async () => {
   const big = 'x'.repeat(65_536);
 
   for (let count = 0; count < 100; count++) {
-    server.broadcast({ v: 4, ev: 'SessionRenamed', s: 'sx', name: big });
+    server.broadcast({ version: 4, ev: 'SessionRenamed', sessionID: 'sx', name: big });
   }
 
   // A paused socket never reads the server's FIN; resuming lets the client
@@ -123,7 +123,7 @@ test('it serves a new subscriber after disconnecting one whose queue overflowed'
   const big = 'x'.repeat(65_536);
 
   for (let count = 0; count < 100; count++) {
-    server.broadcast({ v: 4, ev: 'SessionRenamed', s: 'sx', name: big });
+    server.broadcast({ version: 4, ev: 'SessionRenamed', sessionID: 'sx', name: big });
   }
 
   // A paused socket never reads the server's FIN; resuming lets the client
@@ -139,11 +139,11 @@ test('it serves a new subscriber after disconnecting one whose queue overflowed'
     expect(ctx.snapshots).toHaveLength(2);
   });
 
-  server.broadcast({ v: 4, ev: 'SessionRemoved', s: 'sx' });
+  server.broadcast({ version: 4, ev: 'SessionRemoved', sessionID: 'sx' });
 
   const lines = await fresh.waitForLine(1);
 
   expect(lines.map((line) => JSON.parse(line) as unknown)).toStrictEqual([
-    { v: 4, ev: 'SessionRemoved', s: 'sx' },
+    { version: 4, ev: 'SessionRemoved', sessionID: 'sx' },
   ]);
 });

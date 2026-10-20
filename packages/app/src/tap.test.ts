@@ -267,9 +267,9 @@ test('it taps through the session bridge inside a remote host', async () => {
   expect(codes).toStrictEqual([0]);
 
   expect(bridge.requests).toStrictEqual([
-    { v: 1, id: 'tap.open', op: 'tap.open' },
+    { version: 1, id: 'tap.open', op: 'tap.open' },
     {
-      v: 1,
+      version: 1,
       id: 'note:r1',
       op: 'note',
       noteID: 'r1',

@@ -29,7 +29,7 @@ export async function sendBridgeRequest(
       answered.resolve(null);
     }, timeoutMs);
 
-    socket.writeLine({ ...args, v: 1, id, op });
+    socket.writeLine({ ...args, version: 1, id, op });
 
     const answer = await answered.promise;
 

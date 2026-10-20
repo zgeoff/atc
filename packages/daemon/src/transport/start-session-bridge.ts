@@ -49,7 +49,11 @@ export interface BridgeContext {
   readonly detachTap: (client: TapClient) => void;
 }
 
-const REQUEST_SCHEMA = z.looseObject({ v: z.literal(1), id: z.string().min(1), op: z.string() });
+const REQUEST_SCHEMA = z.looseObject({
+  version: z.literal(1),
+  id: z.string().min(1),
+  op: z.string(),
+});
 
 const NOTE_SCHEMA = z.looseObject({
   noteID: z.string().min(1).max(128),

@@ -487,4 +487,16 @@ export const MIGRATIONS: Record<string, Migration> = {
       }
     },
   },
+  '039_rename_workspace_materialization_dir_to_directory': {
+    async up(db: Kysely<StateStoreSchema>) {
+      // The column renames only while it still carries the old name, so the
+      // step can run again after a crash.
+      const columns =
+        await sql<ColumnInfoRow>`PRAGMA table_info(workspace_materialization)`.execute(db);
+
+      if (columns.rows.some((column) => column.name === 'dir')) {
+        await sql`ALTER TABLE workspace_materialization RENAME COLUMN dir TO directory`.execute(db);
+      }
+    },
+  },
 };

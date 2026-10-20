@@ -1,17 +1,23 @@
+import { parsePeerFrame } from './parse-peer-frame';
+import type { PeerFrame } from './parse-peer-frame';
+
+// What a response frame answers: its status, headers and decoded body.
+export type PeerAnswer = Omit<Extract<PeerFrame, { kind: 'response' }>, 'kind' | 'id'>;
+
 export function buildStubPeerSocket() {
   const decoder = new TextDecoder();
-  const waiters = new Map<string, PromiseWithResolvers<Record<string, unknown>>>();
+  const waiters = new Map<string, PromiseWithResolvers<PeerAnswer>>();
 
   let accepting = true;
   let ended = false;
   let refusedWrites = 0;
   let written = '';
 
-  const collectFrames = (): Record<string, unknown>[] =>
+  const collectFrames = (): PeerFrame[] =>
     written
       .split('\n')
       .slice(0, -1)
-      .map((line): Record<string, unknown> => toFrame(JSON.parse(line)));
+      .map((line) => parsePeerFrame(line));
 
   return {
     socket: {
@@ -29,12 +35,12 @@ export function buildStubPeerSocket() {
         // Frames are parsed only for a pending wait, so a stray line fails
         // the read that looks at it rather than the daemon's write.
         for (const frame of waiters.size === 0 ? [] : collectFrames()) {
-          const id = frame['i'];
-          const waiter = typeof id === 'string' ? waiters.get(id) : undefined;
+          const waiter = waiters.get(frame.id);
 
-          if (typeof id === 'string' && waiter !== undefined) {
-            waiters.delete(id);
-            waiter.resolve(getPayload(frame));
+          if (waiter !== undefined) {
+            waiters.delete(frame.id);
+
+            settleAnswer(waiter, frame);
           }
         }
 
@@ -54,30 +60,29 @@ export function buildStubPeerSocket() {
     countRefusedWrites: (): number => refusedWrites,
     collectFrames,
 
-    waitForAnswer: (id: string): Promise<Record<string, unknown>> => {
-      const found = collectFrames().find((frame) => frame['i'] === id);
+    waitForAnswer: (id: string): Promise<PeerAnswer> => {
+      const found = collectFrames().find((frame) => frame.id === id);
+      const waiter = Promise.withResolvers<PeerAnswer>();
 
-      if (found !== undefined) {
-        return Promise.resolve(getPayload(found));
+      if (found === undefined) {
+        waiters.set(id, waiter);
+      } else {
+        settleAnswer(waiter, found);
       }
-
-      const waiter = Promise.withResolvers<Record<string, unknown>>();
-
-      waiters.set(id, waiter);
 
       return waiter.promise;
     },
   };
 }
 
-function toFrame(value: unknown): Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    throw new TypeError(`a protocol frame is a JSON object, not ${JSON.stringify(value)}`);
+// The first frame with a waited-for id answers the wait; a frame of a stream
+// in its place fails the wait instead of the daemon's write.
+function settleAnswer(waiter: PromiseWithResolvers<PeerAnswer>, frame: PeerFrame): void {
+  if (frame.kind !== 'response') {
+    waiter.reject(new TypeError(`message ${frame.id} is an ${frame.kind}, not a response`));
+
+    return;
   }
 
-  return Object.fromEntries(Object.entries(value));
-}
-
-function getPayload(frame: Readonly<Record<string, unknown>>): Record<string, unknown> {
-  return toFrame(frame['p']);
+  waiter.resolve({ status: frame.status, headers: frame.headers, body: frame.body });
 }

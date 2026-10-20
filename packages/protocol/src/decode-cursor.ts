@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import type { Cursor } from './encode-cursor';
 
-const WIRE_CURSOR = z.discriminatedUnion('k', [
-  z.object({ k: z.literal('ev'), i: z.number().int().nonnegative() }),
-  z.object({ k: z.literal('tr'), p: z.string(), o: z.number().int().nonnegative() }),
+const WIRE_CURSOR = z.union([
+  z.tuple([z.literal('events'), z.number().int().nonnegative()]),
+  z.tuple([z.literal('transcript'), z.string(), z.number().int().nonnegative()]),
 ]);
 
 export function decodeCursor(raw: string): Cursor | null {
@@ -21,9 +21,9 @@ export function decodeCursor(raw: string): Cursor | null {
     return null;
   }
 
-  if (parsed.data.k === 'ev') {
-    return { kind: 'events', id: parsed.data.i };
-  }
+  const wire = parsed.data;
 
-  return { kind: 'transcript', path: parsed.data.p, offset: parsed.data.o };
+  return wire[0] === 'events'
+    ? { kind: 'events', id: wire[1] }
+    : { kind: 'transcript', path: wire[1], offset: wire[2] };
 }

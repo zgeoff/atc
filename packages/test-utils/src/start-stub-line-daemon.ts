@@ -29,7 +29,7 @@ export function startStubLineDaemon(socketPath: string, options: StubLineDaemonO
         socket.data.answered = true;
 
         socket.write(
-          `${JSON.stringify({ v: 4, id: 0, err: { code: 'bad_args', msg: 'malformed line: missing v' } })}\n`,
+          '{"v":4,"id":0,"err":{"code":"bad_args","msg":"malformed line: missing v"}}\n',
         );
 
         socket.end();

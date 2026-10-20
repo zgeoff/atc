@@ -114,7 +114,13 @@ test('it sends the output of a session to an attached client under the next sequ
 
   expect(client.sendOutput).toHaveBeenLastCalledWith(
     session.id,
-    { v: PROTOCOL_V, ev: 'SessionOutput', s: session.id, seq: 1, d: 'build finished' },
+    {
+      version: PROTOCOL_V,
+      ev: 'SessionOutput',
+      sessionID: session.id,
+      seq: 1,
+      data: 'build finished',
+    },
     14,
   );
 });
@@ -146,7 +152,7 @@ test('it replays the screen to an attaching client after a clear', async () => {
 
   const client = {
     sendOutput: (_sessionID: SessionID, event: EventMsg) => {
-      sent.push(String(event['d']));
+      sent.push(String(event['data']));
     },
   };
 

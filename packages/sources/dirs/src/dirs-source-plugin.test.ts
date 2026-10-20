@@ -46,7 +46,7 @@ test('it lists the directories zoxide returns through the host command runner', 
   );
 
   expect(listed).toStrictEqual({
-    candidates: [{ label: '~/notes', pick: { kind: 'path', dir: join(ctx.home, 'notes') } }],
+    candidates: [{ label: '~/notes', pick: { kind: 'path', directory: join(ctx.home, 'notes') } }],
     scope: null,
   });
 });

@@ -63,14 +63,14 @@ test('it routes note.get by its note handle and hands the daemon its own cursor'
   const pc = buildMockRegistryDaemon({ name: 'pc', incarnation: '9a1b2c3d' });
 
   const resolved = resolveDaemonRequest(
-    { note: 'pc.9a1b2c3d.eyJrIjoiZXYiLCJpIjo3fQ' },
+    { note: 'pc.9a1b2c3d.WyJldmVudHMiLDdd' },
     { daemons: new Map([['pc', pc]]), defaultDaemon: 'pc' },
   );
 
   expect(resolved).toStrictEqual({
     daemon: pc,
-    params: { note: 'eyJrIjoiZXYiLCJpIjo3fQ' },
-    requestIDs: new Map([['eyJrIjoiZXYiLCJpIjo3fQ', 'pc.9a1b2c3d.eyJrIjoiZXYiLCJpIjo3fQ']]),
+    params: { note: 'WyJldmVudHMiLDdd' },
+    requestIDs: new Map([['WyJldmVudHMiLDdd', 'pc.9a1b2c3d.WyJldmVudHMiLDdd']]),
   });
 });
 
@@ -78,14 +78,14 @@ test('it routes answer.get by its answer handle and hands the daemon its own cur
   const pc = buildMockRegistryDaemon({ name: 'pc', incarnation: '9a1b2c3d' });
 
   const resolved = resolveDaemonRequest(
-    { answer: 'pc.9a1b2c3d.eyJrIjoiZXYiLCJpIjo3fQ' },
+    { answer: 'pc.9a1b2c3d.WyJldmVudHMiLDdd' },
     { daemons: new Map([['pc', pc]]), defaultDaemon: 'pc' },
   );
 
   expect(resolved).toStrictEqual({
     daemon: pc,
-    params: { answer: 'eyJrIjoiZXYiLCJpIjo3fQ' },
-    requestIDs: new Map([['eyJrIjoiZXYiLCJpIjo3fQ', 'pc.9a1b2c3d.eyJrIjoiZXYiLCJpIjo3fQ']]),
+    params: { answer: 'WyJldmVudHMiLDdd' },
+    requestIDs: new Map([['WyJldmVudHMiLDdd', 'pc.9a1b2c3d.WyJldmVudHMiLDdd']]),
   });
 });
 
@@ -94,13 +94,13 @@ test('it refuses an answer handle with a stale incarnation as an unknown answer'
 
   expect(() =>
     resolveDaemonRequest(
-      { answer: 'pc.11111111.eyJrIjoiZXYiLCJpIjo3fQ' },
+      { answer: 'pc.11111111.WyJldmVudHMiLDdd' },
       { daemons: new Map([['pc', pc]]), defaultDaemon: 'pc' },
     ),
   ).toThrow(
     expect.objectContaining({
       code: 'bad_args',
-      message: "no answer 'pc.11111111.eyJrIjoiZXYiLCJpIjo3fQ'",
+      message: "no answer 'pc.11111111.WyJldmVudHMiLDdd'",
     }),
   );
 });
@@ -110,13 +110,13 @@ test('it refuses a note handle with a stale incarnation as an unknown note', () 
 
   expect(() =>
     resolveDaemonRequest(
-      { note: 'pc.11111111.eyJrIjoiZXYiLCJpIjo3fQ' },
+      { note: 'pc.11111111.WyJldmVudHMiLDdd' },
       { daemons: new Map([['pc', pc]]), defaultDaemon: 'pc' },
     ),
   ).toThrow(
     expect.objectContaining({
       code: 'bad_args',
-      message: "no note 'pc.11111111.eyJrIjoiZXYiLCJpIjo3fQ'",
+      message: "no note 'pc.11111111.WyJldmVudHMiLDdd'",
     }),
   );
 });

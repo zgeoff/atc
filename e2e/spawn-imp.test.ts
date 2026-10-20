@@ -426,7 +426,7 @@ test('it revives a slept session inside the same process by waking its imp', asy
   const pid = await waitFor(() => {
     const output = ctx.events
       .filter((event) => event.ev === 'SessionOutput')
-      .map((event) => event.d)
+      .map((event) => event.data)
       .join('');
 
     const match = /UP:(?<pid>\d+)/u.exec(output);
@@ -439,13 +439,13 @@ test('it revives a slept session inside the same process by waking its imp', asy
   await ctx.client.sendRequest('session.kill', { session: id });
   await ctx.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
   await ctx.client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
-  await ctx.client.sendRequest('session.input', { session: id, d: 'again\r' });
+  await ctx.client.sendRequest('session.input', { session: id, data: 'again\r' });
 
   await waitFor(() => {
     expect(
       ctx.events
         .filter((event) => event.ev === 'SessionOutput')
-        .map((event) => event.d)
+        .map((event) => event.data)
         .join(''),
     ).toInclude(`GOT:again:${pid}`);
   });
@@ -480,7 +480,7 @@ test('it leaves a session whose harness exited by itself restorable and gives it
   const id = getRecord(spawned, 'session')['id'];
   const [imp] = ctx.port.collectImpNames();
 
-  await ctx.client.sendRequest('session.input', { session: id, d: 'quit\r' });
+  await ctx.client.sendRequest('session.input', { session: id, data: 'quit\r' });
 
   await waitFor(() => {
     expect(ctx.port.calls).toContain(`leases.release ${imp} atc-${String(hello['daemonID'])}`);
@@ -588,7 +588,7 @@ test('it marks a message unanswered when its tap acks it after the imp process e
   const sent = await ctx.client.sendRequest('session.message', { session: id, text: 'hello' });
 
   await tap.sendRequest('session.tap', { session: id });
-  await ctx.client.sendRequest('session.input', { session: id, d: 'quit\r' });
+  await ctx.client.sendRequest('session.input', { session: id, data: 'quit\r' });
 
   await waitFor(async () => {
     const listed = await ctx.client.sendRequest('session.list');
@@ -814,7 +814,7 @@ test('it lists a session whose imp another owner put to sleep as asleep', async 
     expect(
       ctx.events
         .filter((event) => event.ev === 'SessionOutput')
-        .map((event) => event.d)
+        .map((event) => event.data)
         .join(''),
     ).toInclude('UP:');
   });
@@ -856,7 +856,7 @@ test('it restores a session whose imp another owner put to sleep as suspended af
     expect(
       ctx.events
         .filter((event) => event.ev === 'SessionOutput')
-        .map((event) => event.d)
+        .map((event) => event.data)
         .join(''),
     ).toInclude('UP:');
   });
@@ -908,7 +908,7 @@ test('it revives a session whose imp another owner put to sleep in the same proc
     const match = /UP:(?<pid>\d+)/u.exec(
       ctx.events
         .filter((event) => event.ev === 'SessionOutput')
-        .map((event) => event.d)
+        .map((event) => event.data)
         .join(''),
     );
 
@@ -927,13 +927,13 @@ test('it revives a session whose imp another owner put to sleep in the same proc
 
   await ctx.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
   await ctx.client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
-  await ctx.client.sendRequest('session.input', { session: id, d: 'again\r' });
+  await ctx.client.sendRequest('session.input', { session: id, data: 'again\r' });
 
   await waitFor(() => {
     expect(
       ctx.events
         .filter((event) => event.ev === 'SessionOutput')
-        .map((event) => event.d)
+        .map((event) => event.data)
         .join(''),
     ).toInclude(`GOT:again:${pid}`);
   });
@@ -963,7 +963,7 @@ test('it gives its lease back when a session it revived from sleep exits', async
 
   const [imp] = ctx.port.collectImpNames();
 
-  await ctx.client.sendRequest('session.input', { session: id, d: 'quit\r' });
+  await ctx.client.sendRequest('session.input', { session: id, data: 'quit\r' });
 
   await waitFor(() => {
     expect(

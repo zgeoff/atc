@@ -53,7 +53,9 @@ test('it parks what a paused reader cannot take instead of refusing it', async (
   ctx.socket.data = { queue };
 
   const accepted = Array.from({ length: 10_000 }, (_, index) =>
-    queue.send(`{"v":1,"ev":"SessionOutput","s":"s1","seq":${index},"d":"${'x'.repeat(120)}"}\n`),
+    queue.send(
+      `{"version":1,"ev":"SessionOutput","sessionID":"s1","seq":${index},"data":"${'x'.repeat(120)}"}\n`,
+    ),
   );
 
   expect(accepted).toSatisfyAll((ok: boolean) => ok);
@@ -69,7 +71,8 @@ test('it delivers every byte to a slow reader without loss', async () => {
 
   const lines = Array.from(
     { length: 10_000 },
-    (_, index) => `{"v":1,"ev":"SessionOutput","s":"s1","seq":${index},"d":"${'x'.repeat(120)}"}\n`,
+    (_, index) =>
+      `{"version":1,"ev":"SessionOutput","sessionID":"s1","seq":${index},"data":"${'x'.repeat(120)}"}\n`,
   );
 
   const expected = lines.join('');

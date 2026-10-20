@@ -260,7 +260,7 @@ export const REQUEST_PARAM_SCHEMAS = {
   }),
   'session.detach': SESSION_DEFAULTED,
   'session.input': SESSION_DEFAULTED.extend({
-    d: buildDefaultedString(''),
+    data: buildDefaultedString(''),
   }),
   'session.submit': SESSION_DEFAULTED.extend({
     text: buildDefaultedString(''),

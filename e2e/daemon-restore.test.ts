@@ -128,7 +128,7 @@ test('it starts a daemon on the state directory of one killed with SIGKILL', asy
     reporterSocketPath: daemon.reporterSocketPath,
     eventsSocketPath: join(ctx.home, 'atc-events.sock'),
     listenPort: null,
-    protocol: 6,
+    protocol: 7,
   });
 });
 
@@ -292,7 +292,7 @@ test('it revives the fleet one boot at a time, gated on SessionStart', async () 
 
   invariant(booting !== undefined, 'no restored session has a terminal');
 
-  await client.sendRequest('session.input', { session: booting['id'], d: KEYS.enter });
+  await client.sendRequest('session.input', { session: booting['id'], data: KEYS.enter });
 
   await waitForEvent(events, {
     ev: 'SessionState',
@@ -528,7 +528,7 @@ test('it restores a grok session via grok --resume, not claude --resume', async 
 
   const output = await waitForEvent(replay, {
     ev: 'SessionOutput',
-    d: expect.stringContaining('FAKE_GROK_UP'),
+    data: expect.stringContaining('FAKE_GROK_UP'),
   });
 
   expect(restored).toStrictEqual({ restored: 1 });
@@ -539,9 +539,9 @@ test('it restores a grok session via grok --resume, not claude --resume', async 
 
   invariant(output.ev === 'SessionOutput');
 
-  expect(output.d).toInclude('--resume fake-grok-1');
-  expect(output.d).not.toInclude('claude --resume');
-  expect(output.d).not.toInclude('FAKE_CLAUDE_UP');
+  expect(output.data).toInclude('--resume fake-grok-1');
+  expect(output.data).not.toInclude('claude --resume');
+  expect(output.data).not.toInclude('FAKE_CLAUDE_UP');
 });
 
 test('it keeps the spawn prompt and latest result across a daemon restart', async () => {

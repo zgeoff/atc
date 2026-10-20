@@ -38,7 +38,7 @@ export class TerminalRequests {
     data: RequestParams<'session.input'>,
     ctx: DaemonContext,
   ): DaemonAnswer<'session.input'> {
-    requireInputResult(data.session, ctx.writeSessionInput(data.session, data.d));
+    requireInputResult(data.session, ctx.writeSessionInput(data.session, data.data));
 
     return {};
   }

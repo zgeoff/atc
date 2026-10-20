@@ -202,10 +202,10 @@ test("it takes a remote session's hook reports from a socket that serves that se
 
   await daemon.client.sendRequest('session.input', {
     session: secondID,
-    d: `forge ${firstID}\r`,
+    data: `forge ${firstID}\r`,
   });
 
-  await daemon.client.sendRequest('session.input', { session: secondID, d: 'notify own\r' });
+  await daemon.client.sendRequest('session.input', { session: secondID, data: 'notify own\r' });
 
   await waitFor(async () => {
     const listed = await daemon.client.sendRequest('session.list');
@@ -263,7 +263,7 @@ test('it keeps a nested harness inside a remote session from rebinding that sess
 
   await daemon.client.sendRequest('session.input', {
     session: id,
-    d: 'start agent-remote-1\r',
+    data: 'start agent-remote-1\r',
   });
 
   await waitFor(async () => {
@@ -274,10 +274,10 @@ test('it keeps a nested harness inside a remote session from rebinding that sess
 
   await daemon.client.sendRequest('session.input', {
     session: id,
-    d: 'nested nested-codex-1\r',
+    data: 'nested nested-codex-1\r',
   });
 
-  await daemon.client.sendRequest('session.input', { session: id, d: 'notify own\r' });
+  await daemon.client.sendRequest('session.input', { session: id, data: 'notify own\r' });
 
   await waitFor(async () => {
     const listed = await daemon.client.sendRequest('session.list');
@@ -569,7 +569,7 @@ test('it revives a slept remote session whose transcript only its imp holds', as
 
   await daemon.client.sendRequest('session.input', {
     session: id,
-    d: 'start agent-remote-1\r',
+    data: 'start agent-remote-1\r',
   });
 
   await waitFor(async () => {

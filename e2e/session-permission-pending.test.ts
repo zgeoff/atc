@@ -97,7 +97,7 @@ test('it takes raw input while a permission prompt is pending', async () => {
 
   const input = await ctx.daemon.client.sendRequest('session.input', {
     session: ctx.sessionID,
-    d: '2',
+    data: '2',
   });
 
   expect(input).toStrictEqual({});

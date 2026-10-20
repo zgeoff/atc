@@ -183,7 +183,7 @@ async function runTapConnection(
     if (notice.success) {
       if (notices) {
         schedulePrint(`notice:${notice.data.message}`, renderNoticeLine(notice.data), {
-          v: 1,
+          version: 1,
           id: `notice-ack:${notice.data.message}`,
           op: 'tap.notice-ack',
           message: notice.data.message,
@@ -202,7 +202,7 @@ async function runTapConnection(
     const message = parsedMessage.data;
 
     schedulePrint(`message:${message.message}`, renderMessageLine(message), {
-      v: 1,
+      version: 1,
       id: `ack:${message.message}`,
       op: 'tap.ack',
       message: message.message,
@@ -224,8 +224,8 @@ async function runTapConnection(
   })();
 
   const open = notices
-    ? { v: 1, id: 'tap.open', op: 'tap.open', notices: true }
-    : { v: 1, id: 'tap.open', op: 'tap.open' };
+    ? { version: 1, id: 'tap.open', op: 'tap.open', notices: true }
+    : { version: 1, id: 'tap.open', op: 'tap.open' };
 
   socket.writeLine(open);
 
@@ -292,7 +292,7 @@ function sendOutboxNotes(socket: BridgeSocket, outbox: string): Map<string, stri
     sent.set(id, path);
 
     socket.writeLine({
-      v: 1,
+      version: 1,
       id,
       op: 'note',
       noteID: note.noteID,

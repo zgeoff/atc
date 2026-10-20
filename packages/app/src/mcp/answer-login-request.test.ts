@@ -716,7 +716,7 @@ test('it writes a failed sign-in as a failed passkey owner sign-in with the star
   ).toStrictEqual([
     expect.objectContaining({ kind: 'authorize_started', correlationID: expect.toBeString() }),
     {
-      v: 1,
+      version: 1,
       ts: new Date(ctx.clock.now()).toISOString(),
       kind: 'owner_auth',
       outcome: 'failed',

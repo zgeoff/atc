@@ -51,7 +51,11 @@ test('it writes the bridge mod again and notes it in the feed for a remote sessi
   clock.advance(30_000);
 
   await waitFor(() => {
-    expect(daemon.events).toPartiallyContain({ ev: 'SessionNote', s: id, kind: 'progress' });
+    expect(daemon.events).toPartiallyContain({
+      ev: 'SessionNote',
+      sessionID: id,
+      kind: 'progress',
+    });
   });
 
   expect(

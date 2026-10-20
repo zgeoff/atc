@@ -20,7 +20,7 @@ test.each([
   ['session.update', { session: 's1', name: 'n', pinned: true }],
   ['session.attach', { session: 's1', cols: 100, rows: 30 }],
   ['session.detach', { session: 's1' }],
-  ['session.input', { session: 's1', d: 'x' }],
+  ['session.input', { session: 's1', data: 'x' }],
   ['session.submit', { session: 's1', text: 'x' }],
   ['note.get', { note: 'r1' }],
   ['answer.get', { answer: 'r1' }],

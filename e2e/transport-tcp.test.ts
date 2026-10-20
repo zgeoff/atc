@@ -11,6 +11,7 @@ import type { DaemonEvent } from '@atc/protocol';
 import { buildTargetIdentity } from '@atc/store';
 import {
   buildMockAgentAdapter,
+  buildPeerRequestLine,
   buildStubClock,
   getRecord,
   registerTestCleanup,
@@ -1716,7 +1717,11 @@ test('it closes a TCP peer that floods lines behind its delayed handshake', asyn
     failing.map((client) => client.sendHello('atc/test-gateway', { token: 'b'.repeat(40) })),
   );
 
-  const hello = `${JSON.stringify({ i: '1', p: { u: '/daemon/hello', b: { json: { client: 'atc/test-gateway', auth: { scheme: 'bearer', token: 'a'.repeat(32) } } } } })}\n`;
+  const hello = buildPeerRequestLine('1', '/daemon/hello', {
+    client: 'atc/test-gateway',
+    auth: { scheme: 'bearer', token: 'a'.repeat(32) },
+  });
+
   const flooded = Promise.withResolvers<void>();
 
   const flood = await Bun.connect({
@@ -2132,6 +2137,6 @@ test('it pushes a TCP connection whose handshake gives a principal the removal o
   await waitFor(() => {
     expect<readonly unknown[]>(
       pushed.filter((event) => event.ev === 'SessionRemoved'),
-    ).toStrictEqual([expect.objectContaining({ s: parent })]);
+    ).toStrictEqual([expect.objectContaining({ sessionID: parent })]);
   });
 });

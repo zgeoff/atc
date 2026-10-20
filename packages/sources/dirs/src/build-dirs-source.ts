@@ -39,7 +39,7 @@ export function buildDirsSource(services: DirsSourceServices): SourceProvider {
       return {
         candidates: [...seen].map((directory) => ({
           label: formatHomePath(directory, services.homeDir),
-          pick: { kind: 'path', dir: directory },
+          pick: { kind: 'path', directory },
         })),
         scope: null,
       };
@@ -49,7 +49,7 @@ export function buildDirsSource(services: DirsSourceServices): SourceProvider {
       const directory = resolvePathInput(input.trim(), services.homeDir, services.homeDir);
 
       const interpretation: SourceInterpretation =
-        directory === null ? { kind: 'none' } : { kind: 'path', dir: directory };
+        directory === null ? { kind: 'none' } : { kind: 'path', directory };
 
       return Promise.resolve(interpretation);
     },
@@ -65,7 +65,7 @@ export function buildDirsSource(services: DirsSourceServices): SourceProvider {
       return Promise.resolve(
         dirs.map((directory) => ({
           label: formatHomePath(directory, services.homeDir),
-          pick: { kind: 'path', dir: directory },
+          pick: { kind: 'path', directory },
         })),
       );
     },

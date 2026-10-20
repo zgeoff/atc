@@ -126,7 +126,7 @@ test('it waits for a daemon started after it, starting none of its own, and serv
     reporterSocketPath: join(ctx.directory, 'atc.sock'),
     eventsSocketPath: join(ctx.directory, 'atc-events.sock'),
     listenPort: null,
-    protocol: 6,
+    protocol: 7,
   });
 
   expect(Bun.peek.status(daemon.exited)).toBe('pending');

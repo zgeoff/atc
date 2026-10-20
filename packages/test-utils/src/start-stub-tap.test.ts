@@ -72,7 +72,9 @@ test('it records the end of its subscription', async () => {
   await replacement.sendRequest('session.tap', { session: ctx.sessionID });
 
   await waitFor(() => {
-    expect(tap.closed).toStrictEqual([{ ev: 'InboxClosed', s: ctx.sessionID, reason: 'replaced' }]);
+    expect(tap.closed).toStrictEqual([
+      { ev: 'InboxClosed', sessionID: ctx.sessionID, reason: 'replaced' },
+    ]);
   });
 });
 
@@ -100,7 +102,7 @@ test('it takes the notice of a message the session sent when it asks for notices
     expect<unknown[]>(tap.notices).toStrictEqual([
       {
         ev: 'InboxNotice',
-        s: sender,
+        sessionID: sender,
         message: getString(sent, 'message'),
         from: ctx.sessionID,
         status: 'unanswered',

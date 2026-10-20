@@ -20,10 +20,12 @@ test.each(['not-a-cursor', ''])('it decodes the text %p that holds no JSON to nu
 });
 
 test.each([
-  '{"k":"ev","i":-1}',
-  '{"k":"zz","i":42}',
-  '{"k":"tr","p":"/tmp/a b.jsonl","o":-1}',
-  '{"k":"tr","p":42,"o":12}',
+  '["events",-1]',
+  '["events",1.5]',
+  '["other",42]',
+  '["transcript","/tmp/a b.jsonl",-1]',
+  '["transcript",42,12]',
+  '["events"]',
 ])('it decodes the encoded wire cursor %s to null', (wire) => {
   expect(decodeCursor(Buffer.from(wire).toString('base64url'))).toBeNull();
 });

@@ -95,9 +95,9 @@ test('it streams pty output to an attached client with increasing seq', async ()
   const id = getString(getRecord(ok, 'session'), 'id');
 
   await client.sendRequest('session.attach', { session: id, cols: 100, rows: 30 });
-  await client.sendRequest('session.input', { session: id, d: `hello${KEYS.enter}` });
+  await client.sendRequest('session.input', { session: id, data: `hello${KEYS.enter}` });
 
-  await waitForEvent(events, { ev: 'SessionOutput', d: expect.stringContaining('GOT:hello') });
+  await waitForEvent(events, { ev: 'SessionOutput', data: expect.stringContaining('GOT:hello') });
 
   const seqs = events
     .filter((daemonEvent) => daemonEvent.ev === 'SessionOutput')
@@ -146,9 +146,9 @@ test('it stops streaming to a detached client while others keep receiving', asyn
   await client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
   await leaver.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
   await leaver.sendRequest('session.detach', { session: id });
-  await client.sendRequest('session.input', { session: id, d: `ping${KEYS.enter}` });
+  await client.sendRequest('session.input', { session: id, data: `ping${KEYS.enter}` });
 
-  await waitForEvent(events, { ev: 'SessionOutput', d: expect.stringContaining('GOT:ping') });
+  await waitForEvent(events, { ev: 'SessionOutput', data: expect.stringContaining('GOT:ping') });
 
   // The daemon answers on the same connection it streams on, so every
   // event it sent the leaver before this answer has arrived.
@@ -156,7 +156,7 @@ test('it stops streaming to a detached client while others keep receiving', asyn
 
   expect(
     leaverEvents.filter(
-      (daemonEvent) => daemonEvent.ev === 'SessionOutput' && daemonEvent.d.includes('GOT:ping'),
+      (daemonEvent) => daemonEvent.ev === 'SessionOutput' && daemonEvent.data.includes('GOT:ping'),
     ),
   ).toStrictEqual([]);
 });
@@ -199,7 +199,7 @@ test('it resizes the pty to the smallest dims across attached clients', async ()
 
   const shrunk = await waitForEvent(events, { ev: 'SessionResized', cols: 90 });
 
-  expect(shrunk).toMatchObject({ s: id, cols: 90, rows: 28 });
+  expect(shrunk).toMatchObject({ sessionID: id, cols: 90, rows: 28 });
 });
 
 test('it resizes the pty before the attach replay reaches the client', async () => {
@@ -233,14 +233,14 @@ test('it resizes the pty before the attach replay reaches the client', async () 
   await joiner.sendHello('atc/test');
   await joiner.sendRequest('session.attach', { session: id, cols: 100, rows: 30 });
 
-  await waitForEvent(events, { ev: 'SessionOutput', s: id });
+  await waitForEvent(events, { ev: 'SessionOutput', sessionID: id });
 
   const resizedAt = events.findIndex(
     (daemonEvent) => daemonEvent.ev === 'SessionResized' && daemonEvent.cols === 100,
   );
 
   const outputAt = events.findIndex(
-    (daemonEvent) => daemonEvent.ev === 'SessionOutput' && daemonEvent.s === id,
+    (daemonEvent) => daemonEvent.ev === 'SessionOutput' && daemonEvent.sessionID === id,
   );
 
   expect(resizedAt).toBeGreaterThanOrEqual(0);
@@ -275,7 +275,7 @@ test('it reads the current screen of a session as plain text without attaching',
     expect(read['text']).toInclude('FAKE_CLAUDE_UP');
   });
 
-  await client.sendRequest('session.input', { session: id, d: `hello${KEYS.enter}` });
+  await client.sendRequest('session.input', { session: id, data: `hello${KEYS.enter}` });
 
   const screen = await waitFor(async () => {
     const read = await client.sendRequest('session.screen', { session: id });
@@ -385,7 +385,7 @@ test.each([['codex'], ['grok']])(
     const submitted = await waitFor(() => {
       const output = events
         .filter((daemonEvent) => daemonEvent.ev === 'SessionOutput')
-        .map((daemonEvent) => daemonEvent.d)
+        .map((daemonEvent) => daemonEvent.data)
         .join('');
 
       expect(output).toMatch(/SUBMIT:.*\r/u);
@@ -444,7 +444,7 @@ test('it submits a multi-line text to a codex session as one submission', async 
   const submitted = await waitFor(() => {
     const output = events
       .filter((daemonEvent) => daemonEvent.ev === 'SessionOutput')
-      .map((daemonEvent) => daemonEvent.d)
+      .map((daemonEvent) => daemonEvent.data)
       .join('');
 
     expect(output).toMatch(/SUBMIT:.*\r/u);
@@ -485,7 +485,7 @@ test('it submits a line to a claude session as one line', async () => {
 
   await waitForEvent(events, {
     ev: 'SessionOutput',
-    d: expect.stringContaining('FAKE_CLAUDE_UP'),
+    data: expect.stringContaining('FAKE_CLAUDE_UP'),
   });
 
   await client.sendRequest('session.submit', { session: id, text: 'hello' });
@@ -493,7 +493,7 @@ test('it submits a line to a claude session as one line', async () => {
   const got = await waitFor(() => {
     const output = events
       .filter((daemonEvent) => daemonEvent.ev === 'SessionOutput')
-      .map((daemonEvent) => daemonEvent.d)
+      .map((daemonEvent) => daemonEvent.data)
       .join('');
 
     expect(output).toMatch(/GOT:.*\r/u);
@@ -550,7 +550,7 @@ test('it submits a long line to a claude session as one submission', async () =>
   const submitted = await waitFor(() => {
     const output = events
       .filter((daemonEvent) => daemonEvent.ev === 'SessionOutput')
-      .map((daemonEvent) => daemonEvent.d)
+      .map((daemonEvent) => daemonEvent.data)
       .join('');
 
     expect(output).toMatch(/SUBMIT:.*\r/u);
@@ -610,7 +610,7 @@ test('it types a slash command name to a claude session and pastes its long argu
   const submitted = await waitFor(() => {
     const output = events
       .filter((daemonEvent) => daemonEvent.ev === 'SessionOutput')
-      .map((daemonEvent) => daemonEvent.d)
+      .map((daemonEvent) => daemonEvent.data)
       .join('');
 
     expect(output).toMatch(/SUBMIT:.*\r/u);
@@ -674,7 +674,7 @@ test('it pastes a slash command line to a grok session whole', async () => {
   const submitted = await waitFor(() => {
     const output = events
       .filter((daemonEvent) => daemonEvent.ev === 'SessionOutput')
-      .map((daemonEvent) => daemonEvent.d)
+      .map((daemonEvent) => daemonEvent.data)
       .join('');
 
     expect(output).toMatch(/SUBMIT:.*\r/u);
@@ -741,7 +741,7 @@ test('it pastes a slash command name to a codex session on its own before its lo
   const submitted = await waitFor(() => {
     const output = events
       .filter((daemonEvent) => daemonEvent.ev === 'SessionOutput')
-      .map((daemonEvent) => daemonEvent.d)
+      .map((daemonEvent) => daemonEvent.data)
       .join('');
 
     expect(output).toMatch(/SUBMIT:.*\r/u);
@@ -806,7 +806,7 @@ test('it holds input sent while a codex slash command line pauses until the line
 
   const line = client.sendRequest('session.submit', { session: id, text: '/goal finish it' });
 
-  await client.sendRequest('session.input', { session: id, d: 'x' });
+  await client.sendRequest('session.input', { session: id, data: 'x' });
 
   const lineWhenInputAnswered = Bun.peek.status(line);
 
@@ -817,7 +817,7 @@ test('it holds input sent while a codex slash command line pauses until the line
   const received = await waitFor(() => {
     const output = events
       .filter((daemonEvent) => daemonEvent.ev === 'SessionOutput')
-      .map((daemonEvent) => daemonEvent.d)
+      .map((daemonEvent) => daemonEvent.data)
       .join('');
 
     expect(output).toInclude(String.raw`\rx"`);
@@ -891,7 +891,7 @@ test('it pastes a long line to a busy claude session as it does to an idle one',
   const submitted = await waitFor(() => {
     const output = events
       .filter((daemonEvent) => daemonEvent.ev === 'SessionOutput')
-      .map((daemonEvent) => daemonEvent.d)
+      .map((daemonEvent) => daemonEvent.data)
       .join('');
 
     expect(output).toMatch(/SUBMIT:.*\r/u);
@@ -942,11 +942,11 @@ test('it submits a claude composer draft on an empty line without adding a line 
     expect(read['text']).toInclude('FAKE_COMPOSER_READY');
   });
 
-  await client.sendRequest('session.input', { session: id, d: 'draft' });
+  await client.sendRequest('session.input', { session: id, data: 'draft' });
 
   await waitForEvent(events, {
     ev: 'SessionOutput',
-    d: expect.stringContaining('RECEIVED:"draft"'),
+    data: expect.stringContaining('RECEIVED:"draft"'),
   });
 
   await client.sendRequest('session.submit', { session: id, text: '' });
@@ -954,7 +954,7 @@ test('it submits a claude composer draft on an empty line without adding a line 
   const submitted = await waitFor(() => {
     const output = events
       .filter((daemonEvent) => daemonEvent.ev === 'SessionOutput')
-      .map((daemonEvent) => daemonEvent.d)
+      .map((daemonEvent) => daemonEvent.data)
       .join('');
 
     expect(output).toMatch(/SUBMIT:.*\r/u);
@@ -1000,15 +1000,15 @@ test('it writes raw input to a codex session byte for byte', async () => {
 
   await waitForEvent(events, {
     ev: 'SessionOutput',
-    d: expect.stringContaining('FAKE_COMPOSER_READY'),
+    data: expect.stringContaining('FAKE_COMPOSER_READY'),
   });
 
-  await client.sendRequest('session.input', { session: id, d: `abc${KEYS.up}x${KEYS.enter}` });
+  await client.sendRequest('session.input', { session: id, data: `abc${KEYS.up}x${KEYS.enter}` });
 
   const received = await waitFor(() => {
     const output = events
       .filter((daemonEvent) => daemonEvent.ev === 'SessionOutput')
-      .map((daemonEvent) => daemonEvent.d)
+      .map((daemonEvent) => daemonEvent.data)
       .join('');
 
     expect(output).toMatch(/RECEIVED:.*\\r"\r/u);

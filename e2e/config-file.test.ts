@@ -464,7 +464,7 @@ test('it refuses input to a restored local session without running a turn when t
 
   await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  const input = daemon.client.sendRequest('session.input', { session: 's-old', d: 'go\r' });
+  const input = daemon.client.sendRequest('session.input', { session: 's-old', data: 'go\r' });
 
   expect(input).rejects.toMatchObject({
     code: 'target_config_invalid',

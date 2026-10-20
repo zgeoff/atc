@@ -147,7 +147,7 @@ test('it renames and pins a session through session.update', async () => {
   const renamed = await waitForEvent(events, { ev: 'SessionRenamed', name: 'auth-bug' });
   const listed = await client.sendRequest('session.list');
 
-  expect(renamed).toMatchObject({ s: id, namedBy: 'user' });
+  expect(renamed).toMatchObject({ sessionID: id, namedBy: 'user' });
   expect(listed).toMatchObject({ sessions: [{ name: 'auth-bug', pinned: true, namedBy: 'user' }] });
 });
 
@@ -274,7 +274,7 @@ test('it removes a killed session on a second kill', async () => {
   const removed = await waitForEvent(events, { ev: 'SessionRemoved' });
   const listed = await client.sendRequest('session.list');
 
-  expect(removed).toMatchObject({ s: id });
+  expect(removed).toMatchObject({ sessionID: id });
   expect(listed).toStrictEqual({ sessions: [] });
 });
 
@@ -339,7 +339,7 @@ test('it broadcasts PermissionRequested when a session needs input', async () =>
   const requested = await waitForEvent(events, { ev: 'PermissionRequested' });
 
   expect(requested).toMatchObject({
-    s: getRecord(ok, 'session')['id'],
+    sessionID: getRecord(ok, 'session')['id'],
     message: 'needs permission',
     respondable: false,
     request: expect.toBeString(),
@@ -458,7 +458,7 @@ test('it keeps the last screen of a killed session readable', async () => {
 });
 
 test.each([
-  ['session.input', { d: 'x' }],
+  ['session.input', { data: 'x' }],
   ['session.submit', { text: 'x' }],
   ['session.attach', { cols: 80, rows: 24 }],
 ])('it answers %s on a dead session with session_dead', async (method, params) => {

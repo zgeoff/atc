@@ -446,7 +446,7 @@ test.each([
 
     await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-    const input = daemon.client.sendRequest('session.input', { session: 's-box', d: 'go\r' });
+    const input = daemon.client.sendRequest('session.input', { session: 's-box', data: 'go\r' });
 
     expect(input).rejects.toMatchObject({ code, data: { target: 'box' } });
     expect(ctx.headless.runs).toStrictEqual([]);
@@ -487,7 +487,7 @@ test('it refuses input to a restored headless session on local once the targets 
 
   await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  const input = daemon.client.sendRequest('session.input', { session: 's-old', d: 'go\r' });
+  const input = daemon.client.sendRequest('session.input', { session: 's-old', data: 'go\r' });
 
   expect(input).rejects.toMatchObject({ code: 'unknown_target', data: { target: 'local' } });
   expect(ctx.headless.runs).toStrictEqual([]);
@@ -549,7 +549,7 @@ test('it refuses input to a restored headless session whose provider runs no hea
 
   await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  const input = daemon.client.sendRequest('session.input', { session: 's-box', d: 'go\r' });
+  const input = daemon.client.sendRequest('session.input', { session: 's-box', data: 'go\r' });
 
   expect(input).rejects.toMatchObject({
     code: 'unsupported_operation',
@@ -590,7 +590,7 @@ test('it refuses input to a killed headless session on a working target, without
 
   await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  const input = daemon.client.sendRequest('session.input', { session: 's-old', d: 'go\r' });
+  const input = daemon.client.sendRequest('session.input', { session: 's-old', data: 'go\r' });
 
   expect(input).rejects.toMatchObject({ code: 'session_dead' });
   expect(ctx.headless.runs).toStrictEqual([]);
@@ -627,7 +627,7 @@ test('it runs a local headless turn through the runner once per request', async 
     expect(listed).toMatchObject({ sessions: [{ id, state: 'done' }] });
   });
 
-  await daemon.client.sendRequest('session.input', { session: id, d: 'next step\n' });
+  await daemon.client.sendRequest('session.input', { session: id, data: 'next step\n' });
 
   const second = await ctx.headless.waitForRun(1);
 
@@ -714,7 +714,7 @@ test.each([
 
     await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-    const input = daemon.client.sendRequest('session.input', { session: id, d: 'go\r' });
+    const input = daemon.client.sendRequest('session.input', { session: id, data: 'go\r' });
 
     expect(input).rejects.toMatchObject({ code: 'target_changed', data: { target: 'box' } });
     expect(ctx.headless.runs.map((run) => run.request.prompt)).toStrictEqual(['carry on']);

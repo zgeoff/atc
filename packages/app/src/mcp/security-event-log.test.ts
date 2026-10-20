@@ -30,7 +30,7 @@ test('it prints each event as an atc security line', () => {
   });
 
   expect(ctx.lines).toStrictEqual([
-    'atc security {"v":1,"ts":"2026-10-14T12:00:00.000Z","kind":"authorize_invalid","outcome":"rejected","reason":"bad_host","route":"/mcp","peer":{"address":"127.0.0.1","provenance":"socket"}}',
+    'atc security {"version":1,"ts":"2026-10-14T12:00:00.000Z","kind":"authorize_invalid","outcome":"rejected","reason":"bad_host","route":"/mcp","peer":{"address":"127.0.0.1","provenance":"socket"}}',
   ]);
 });
 
@@ -53,7 +53,7 @@ test('it prints one suppressed event with the count once a burst past the cap en
   expect(ctx.lines.slice(0, 20)).toSatisfyAll((line: string) => line.includes('"bad_host"'));
 
   expect(ctx.lines[20]).toBe(
-    'atc security {"v":1,"ts":"2026-10-14T12:01:00.000Z","kind":"suppressed","reason":"authorize_invalid","count":7}',
+    'atc security {"version":1,"ts":"2026-10-14T12:01:00.000Z","kind":"suppressed","reason":"authorize_invalid","count":7}',
   );
 });
 
@@ -124,8 +124,8 @@ test('it prints events of a kind again once its window ends', () => {
   });
 
   expect(ctx.lines.slice(20)).toStrictEqual([
-    'atc security {"v":1,"ts":"2026-10-14T12:01:00.000Z","kind":"suppressed","reason":"consent","count":1}',
-    'atc security {"v":1,"ts":"2026-10-14T12:01:00.000Z","kind":"consent","outcome":"allowed","route":"/consent"}',
+    'atc security {"version":1,"ts":"2026-10-14T12:01:00.000Z","kind":"suppressed","reason":"consent","count":1}',
+    'atc security {"version":1,"ts":"2026-10-14T12:01:00.000Z","kind":"consent","outcome":"allowed","route":"/consent"}',
   ]);
 });
 
@@ -147,6 +147,6 @@ test('it prints the pending suppressed count when drained before the window ends
   ctx.clock.advance(60_000);
 
   expect(ctx.lines.slice(20)).toStrictEqual([
-    'atc security {"v":1,"ts":"2026-10-14T12:00:01.000Z","kind":"suppressed","reason":"authorize_started","count":3}',
+    'atc security {"version":1,"ts":"2026-10-14T12:00:01.000Z","kind":"suppressed","reason":"authorize_started","count":3}',
   ]);
 });

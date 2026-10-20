@@ -18,7 +18,7 @@ export function startStubRestoreDaemon(socketPath: string) {
 
       if (unknown.has(request.method)) {
         return {
-          err: { code: 'unknown_method', msg: `unknown method '${request.method}'` },
+          err: { code: 'unknown_method', message: `unknown method '${request.method}'` },
         };
       }
 

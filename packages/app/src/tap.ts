@@ -86,7 +86,7 @@ export async function runTap(
   };
 
   client.onEvent = (event) => {
-    const eventSession = 's' in event ? event.s : null;
+    const eventSession = 'sessionID' in event ? event.sessionID : null;
 
     if (event.ev === 'InboxClosed' && eventSession === session) {
       closed.resolve();

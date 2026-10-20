@@ -8,10 +8,10 @@ test('it delivers a sent value to every line listener as one JSON line', () => {
 
   stub.relay.onLine(first);
   stub.relay.onLine(second);
-  stub.sendLine({ v: 1, id: 'r1', op: 'status.read' });
+  stub.sendLine({ version: 1, id: 'r1', op: 'status.read' });
 
-  expect(first).toHaveBeenCalledExactlyOnceWith('{"v":1,"id":"r1","op":"status.read"}');
-  expect(second).toHaveBeenCalledExactlyOnceWith('{"v":1,"id":"r1","op":"status.read"}');
+  expect(first).toHaveBeenCalledExactlyOnceWith('{"version":1,"id":"r1","op":"status.read"}');
+  expect(second).toHaveBeenCalledExactlyOnceWith('{"version":1,"id":"r1","op":"status.read"}');
 });
 
 test('it records each written line parsed, in the order it was written', async () => {

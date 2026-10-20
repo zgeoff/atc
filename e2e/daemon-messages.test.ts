@@ -100,14 +100,20 @@ test('it carries a message from queued through delivered to answered', async () 
   expect(tapped).toInclude('ping from test');
 
   expect(delivered).toMatchObject({
-    s: id,
+    sessionID: id,
     message: messageID,
     from: 'owner',
     sender: { kind: 'owner', name: 'owner' },
   });
 
   expect(reporter.exitCode).toBe(0);
-  expect(answered).toMatchObject({ s: id, message: messageID, answerPreview: 'final text' });
+
+  expect(answered).toMatchObject({
+    sessionID: id,
+    message: messageID,
+    answerPreview: 'final text',
+  });
+
   expect(getString(screen, 'text')).not.toInclude('ping from test');
 });
 
@@ -182,7 +188,7 @@ test('it delivers a message queued before a daemon crash to the restored session
   expect(restored).toStrictEqual({ restored: 1 });
   expect(tapped).toInclude('survive the crash');
   expect(listed).toMatchObject({ sessions: [{ id: originalID }] });
-  expect(delivered).toMatchObject({ s: originalID, message: messageID });
+  expect(delivered).toMatchObject({ sessionID: originalID, message: messageID });
 });
 
 test('it names a message event from before a daemon crash by the restored session', async () => {

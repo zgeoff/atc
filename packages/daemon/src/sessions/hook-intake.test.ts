@@ -228,7 +228,7 @@ test('it records a note from a listed session and broadcasts it', async () => {
   const rows = await ctx.store.readLatestEvents(10, null);
 
   expect(rows).toMatchObject([{ atcID: session.id, kind: 'note' }]);
-  expect(ctx.emitted).toPartiallyContain({ ev: 'SessionNote', s: session.id });
+  expect(ctx.emitted).toPartiallyContain({ ev: 'SessionNote', sessionID: session.id });
 });
 
 test('it ignores a note from a session the fleet does not list', async () => {

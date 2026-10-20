@@ -73,7 +73,7 @@ async function claimTargetDir(
     throw new DaemonError(
       'transfer_failed',
       `cannot create ${dirname(shown)} on target '${request.target}': ${claim.stderr.trim()}`,
-      { phase: 'resolving', dir: shown },
+      { phase: 'resolving', directory: shown },
     );
   }
 
@@ -81,7 +81,7 @@ async function claimTargetDir(
     throw new DaemonError(
       'workspace_exists',
       `${shown} already exists on target '${request.target}'; a workspace is materialized only into a directory that does not exist`,
-      { phase: 'resolving', dir: shown },
+      { phase: 'resolving', directory: shown },
     );
   }
 
@@ -91,7 +91,7 @@ async function claimTargetDir(
     throw new DaemonError(
       'transfer_failed',
       `cannot create ${shown} on target '${request.target}': ${claim.stderr.trim()}`,
-      { phase: 'resolving', dir: shown },
+      { phase: 'resolving', directory: shown },
     );
   }
 

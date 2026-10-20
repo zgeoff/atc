@@ -52,7 +52,7 @@ export class ConnectionView {
         this.shownSessions.delete(id);
         this.withheldSessions.add(id);
         withdrawn.push(id);
-        sent.push({ v: PROTOCOL_V, ev: 'SessionRemoved', s: id });
+        sent.push({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: id });
       }
     }
 
@@ -95,7 +95,7 @@ export class ConnectionView {
 
       if (this.shownSessions.delete(sessionID)) {
         withdrawn.push(sessionID);
-        sent.push({ v: PROTOCOL_V, ev: 'SessionRemoved', s: sessionID });
+        sent.push({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID });
       }
 
       return { events: sent, withdrawn };
@@ -126,15 +126,15 @@ export class ConnectionView {
   private buildSessionAdded(id: SessionID): EventMsg[] {
     const session = this.ctx.collectSessions().find((x) => x.id === id);
 
-    return session === undefined ? [] : [{ v: PROTOCOL_V, ev: 'SessionAdded', session }];
+    return session === undefined ? [] : [{ version: PROTOCOL_V, ev: 'SessionAdded', session }];
   }
 }
 
-// The session an event is about, from its `s` field or its session's id;
+// The session an event is about, from its `sessionID` field or its session's id;
 // null for an event about no one session.
 function findEventSession(event: EventMsg): SessionID | null {
-  if (typeof event['s'] === 'string') {
-    return toSessionID(event['s']);
+  if (typeof event['sessionID'] === 'string') {
+    return toSessionID(event['sessionID']);
   }
 
   const session = event['session'];

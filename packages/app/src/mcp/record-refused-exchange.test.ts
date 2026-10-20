@@ -53,7 +53,7 @@ test.each([
     JSON.parse(`[${ctx.lines.map((line) => line.slice('atc security '.length)).join(',')}]`),
   ).toStrictEqual([
     {
-      v: 1,
+      version: 1,
       ts: new Date(ctx.clock.now()).toISOString(),
       kind: 'token_exchange',
       outcome: 'rejected',
@@ -82,7 +82,7 @@ test('it records an error code outside the fixed list as other and keeps the cod
     JSON.parse(`[${ctx.lines.map((line) => line.slice('atc security '.length)).join(',')}]`),
   ).toStrictEqual([
     {
-      v: 1,
+      version: 1,
       ts: new Date(ctx.clock.now()).toISOString(),
       kind: 'token_exchange',
       outcome: 'rejected',

@@ -1,6 +1,6 @@
 // a probe pins a git pick to a commit before any spawn uses it.
 type SourcePick =
-  | { readonly kind: 'path'; readonly dir: string }
+  | { readonly kind: 'path'; readonly directory: string }
   | { readonly kind: 'git'; readonly url: string };
 
 // The kind of pick every candidate of one source resolves to.

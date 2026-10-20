@@ -63,7 +63,7 @@ exec cat
 
     const id = getString(getRecord(spawned, 'session'), 'id');
 
-    await client.sendRequest('session.input', { session: id, d: 'go\r' });
+    await client.sendRequest('session.input', { session: id, data: 'go\r' });
 
     const outcome = await waitFor(() => JSON.parse(readFileSync(ctx.outPath, 'utf8')) as unknown);
 
@@ -106,7 +106,7 @@ exec cat
 
     const id = getString(getRecord(spawned, 'session'), 'id');
 
-    await client.sendRequest('session.input', { session: id, d: 'go\r' });
+    await client.sendRequest('session.input', { session: id, data: 'go\r' });
 
     const outcome = await waitFor(() => JSON.parse(readFileSync(ctx.outPath, 'utf8')) as unknown);
 
@@ -152,7 +152,7 @@ exec cat
     const id = getString(getRecord(spawned, 'session'), 'id');
     const name = getString(getRecord(spawned, 'session'), 'name');
 
-    await client.sendRequest('session.input', { session: id, d: 'go\r' });
+    await client.sendRequest('session.input', { session: id, data: 'go\r' });
 
     const outcome = await waitFor(() => JSON.parse(readFileSync(ctx.outPath, 'utf8')) as unknown);
 
@@ -194,7 +194,7 @@ exec cat
 
     const id = getString(getRecord(spawned, 'session'), 'id');
 
-    await client.sendRequest('session.input', { session: id, d: 'go\r' });
+    await client.sendRequest('session.input', { session: id, data: 'go\r' });
 
     const outcome = await waitFor(() => JSON.parse(readFileSync(ctx.outPath, 'utf8')) as unknown);
 
@@ -238,7 +238,7 @@ exec cat
 
     const id = getString(getRecord(spawned, 'session'), 'id');
 
-    await client.sendRequest('session.input', { session: id, d: 'go\r' });
+    await client.sendRequest('session.input', { session: id, data: 'go\r' });
 
     const line = await waitFor(() => JSON.parse(readFileSync(ctx.outPath, 'utf8')) as unknown);
 
@@ -281,7 +281,7 @@ exec cat
 
     const id = getString(getRecord(spawned, 'session'), 'id');
 
-    await client.sendRequest('session.input', { session: id, d: 'go\r' });
+    await client.sendRequest('session.input', { session: id, data: 'go\r' });
 
     const outcome = await waitFor(() => JSON.parse(readFileSync(ctx.outPath, 'utf8')) as unknown);
 

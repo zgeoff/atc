@@ -323,7 +323,7 @@ test('it drops a directory listing that arrives after the leader leaves the flow
   await ctx.daemon.answer('sources.list', {
     source: 'dirs',
     scope: null,
-    candidates: [{ label: '/srv/one', pick: { kind: 'path', dir: '/srv/one' } }],
+    candidates: [{ label: '/srv/one', pick: { kind: 'path', directory: '/srv/one' } }],
   });
 
   expect(ctx.counts.exits).toBe(1);
@@ -3243,11 +3243,11 @@ test("it drops a remote daemon's completion of input typed over since, keeping t
   picker.applyKey(Buffer.from('b'));
 
   await ctx.daemon.answer('sources.complete', {
-    completions: [{ label: '~/ab-box', pick: { kind: 'path', dir: '/home/far/ab-box' } }],
+    completions: [{ label: '~/ab-box', pick: { kind: 'path', directory: '/home/far/ab-box' } }],
   });
 
   await ctx.daemon.answerOldest('sources.complete', {
-    completions: [{ label: '~/a-box', pick: { kind: 'path', dir: '/home/far/a-box' } }],
+    completions: [{ label: '~/a-box', pick: { kind: 'path', directory: '/home/far/a-box' } }],
   });
 
   const mark = ctx.terminal.countChunks();
@@ -3306,11 +3306,11 @@ test('it keeps the latest completion when an earlier one answers for input typed
   picker.applyKey(Buffer.from(KEYS.backspace));
 
   await ctx.daemon.answer('sources.complete', {
-    completions: [{ label: '~/a-new', pick: { kind: 'path', dir: '/home/far/a-new' } }],
+    completions: [{ label: '~/a-new', pick: { kind: 'path', directory: '/home/far/a-new' } }],
   });
 
   await ctx.daemon.answerOldest('sources.complete', {
-    completions: [{ label: '~/a-old', pick: { kind: 'path', dir: '/home/far/a-old' } }],
+    completions: [{ label: '~/a-old', pick: { kind: 'path', directory: '/home/far/a-old' } }],
   });
 
   picker.applyKey(Buffer.from(KEYS.enter));
@@ -3362,7 +3362,7 @@ test('it spawns in the directory a remote daemon completed', async () => {
   picker.applyKey(Buffer.from('~/ab'));
 
   await ctx.daemon.answer('sources.complete', {
-    completions: [{ label: '~/ab-box', pick: { kind: 'path', dir: '/home/far/ab-box' } }],
+    completions: [{ label: '~/ab-box', pick: { kind: 'path', directory: '/home/far/ab-box' } }],
   });
 
   picker.applyKey(Buffer.from(KEYS.enter));
@@ -3471,7 +3471,7 @@ test('it spawns in the directory a remote daemon reads a typed ~ path as when no
 
   picker.applyKey(Buffer.from(KEYS.enter));
 
-  await ctx.daemon.answer('sources.interpret', { kind: 'path', dir: '/home/far/work' });
+  await ctx.daemon.answer('sources.interpret', { kind: 'path', directory: '/home/far/work' });
 
   picker.applyKey(Buffer.from(`far-one${KEYS.enter}`));
   picker.applyKey(Buffer.from(KEYS.enter));

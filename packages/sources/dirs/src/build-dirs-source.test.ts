@@ -36,20 +36,23 @@ test('it lists the spawn history, then the roots, then zoxide, leaving out a gon
 
   expect(listed).toStrictEqual({
     candidates: [
-      { label: '~/recent', pick: { kind: 'path', dir: join(ctx.home, 'recent') } },
-      { label: '~/projects/app', pick: { kind: 'path', dir: join(ctx.home, 'projects', 'app') } },
-      { label: '~/zoxide-dir', pick: { kind: 'path', dir: join(ctx.home, 'zoxide-dir') } },
+      { label: '~/recent', pick: { kind: 'path', directory: join(ctx.home, 'recent') } },
+      {
+        label: '~/projects/app',
+        pick: { kind: 'path', directory: join(ctx.home, 'projects', 'app') },
+      },
+      { label: '~/zoxide-dir', pick: { kind: 'path', directory: join(ctx.home, 'zoxide-dir') } },
     ],
     scope: null,
   });
 });
 
 test.each([
-  ['/srv/app', { kind: 'path', dir: '/srv/app' }],
-  ['~/app', { kind: 'path', dir: '/home/tester/app' }],
-  [' /srv/app ', { kind: 'path', dir: '/srv/app' }],
-  ['./app', { kind: 'path', dir: '/home/tester/app' }],
-  ['../shared', { kind: 'path', dir: '/home/shared' }],
+  ['/srv/app', { kind: 'path', directory: '/srv/app' }],
+  ['~/app', { kind: 'path', directory: '/home/tester/app' }],
+  [' /srv/app ', { kind: 'path', directory: '/srv/app' }],
+  ['./app', { kind: 'path', directory: '/home/tester/app' }],
+  ['../shared', { kind: 'path', directory: '/home/shared' }],
   ['app', { kind: 'none' }],
 ] as const)('it reads typed %p as %p', async (input, expected) => {
   const source = buildDirsSource({
@@ -85,7 +88,7 @@ test("it completes a relative path under the client's directory", async () => {
   });
 
   expect(completions).toStrictEqual([
-    { label: '~/work/alpha', pick: { kind: 'path', dir: join(ctx.home, 'work', 'alpha') } },
+    { label: '~/work/alpha', pick: { kind: 'path', directory: join(ctx.home, 'work', 'alpha') } },
   ]);
 });
 
@@ -106,7 +109,7 @@ test('it completes a relative path under the home when the request holds no clie
   });
 
   expect(completions).toStrictEqual([
-    { label: '~/alpha', pick: { kind: 'path', dir: join(ctx.home, 'alpha') } },
+    { label: '~/alpha', pick: { kind: 'path', directory: join(ctx.home, 'alpha') } },
   ]);
 });
 

@@ -46,7 +46,7 @@ test('it lets exactly one of two daemons started at once serve a state directory
     reporterSocketPath: first.reporterSocketPath,
     eventsSocketPath: join(ctx.home, 'atc-events.sock'),
     listenPort: null,
-    protocol: 6,
+    protocol: 7,
   });
 
   expect(loser.readStderr()).toStartWith(

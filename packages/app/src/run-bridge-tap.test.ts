@@ -45,9 +45,9 @@ test('it removes the outbox file of a note the bridge took', async () => {
   expect(existsSync(join(ctx.outbox, 'r1.json'))).toBe(false);
 
   expect(bridge.requests).toStrictEqual([
-    { v: 1, id: 'tap.open', op: 'tap.open' },
+    { version: 1, id: 'tap.open', op: 'tap.open' },
     {
-      v: 1,
+      version: 1,
       id: 'note:r1',
       op: 'note',
       noteID: 'r1',
@@ -86,9 +86,9 @@ test('it removes no file for an answer to a note id it never sent', async () => 
   expect(existsSync(join(ctx.outbox, 'r1.json'))).toBe(true);
 
   expect(bridge.requests).toStrictEqual([
-    { v: 1, id: 'tap.open', op: 'tap.open' },
+    { version: 1, id: 'tap.open', op: 'tap.open' },
     {
-      v: 1,
+      version: 1,
       id: 'note:r1',
       op: 'note',
       noteID: 'r1',
@@ -107,9 +107,9 @@ test('it prints and acks an answer notice when the tap takes notices', async () 
       ? [
           { id: request['id'], ok: true },
           {
-            v: 4,
+            version: 4,
             ev: 'InboxNotice',
-            s: 's1',
+            sessionID: 's1',
             message: 'm-1',
             from: 's2',
             status: 'answered',
@@ -147,15 +147,15 @@ test('it prints and acks an answer notice when the tap takes notices', async () 
   ]);
 
   expect(bridge.requests).toStrictEqual([
-    { v: 1, id: 'tap.open', op: 'tap.open', notices: true },
+    { version: 1, id: 'tap.open', op: 'tap.open', notices: true },
     {
-      v: 1,
+      version: 1,
       id: 'note:r1',
       op: 'note',
       noteID: 'r1',
       payload: { kind: 'note', label: 'progress', text: 'hi' },
     },
-    { v: 1, id: 'notice-ack:m-1', op: 'tap.notice-ack', message: 'm-1' },
+    { version: 1, id: 'notice-ack:m-1', op: 'tap.notice-ack', message: 'm-1' },
   ]);
 });
 
@@ -165,9 +165,9 @@ test('it prints no answer notice when the tap takes none', async () => {
   const bridge = startStubSessionBridge(ctx.sock, (request) => [
     { id: request['id'], ok: true },
     {
-      v: 4,
+      version: 4,
       ev: 'InboxNotice',
-      s: 's1',
+      sessionID: 's1',
       message: 'm-1',
       from: 's2',
       status: 'unanswered',
@@ -208,9 +208,9 @@ test('it prints a message with the sender the daemon gave it', async () => {
       ? [
           { id: request['id'], ok: true },
           {
-            v: 4,
+            version: 4,
             ev: 'InboxMessage',
-            s: 's1',
+            sessionID: 's1',
             message: 'm-1',
             from: 'harbor-refactor',
             sender: { kind: 'session', session: 's2', name: 'harbor-refactor' },

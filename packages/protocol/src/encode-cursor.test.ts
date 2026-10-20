@@ -4,13 +4,11 @@ import { encodeCursor } from './encode-cursor';
 test('it encodes a transcript cursor as its golden wire text', () => {
   expect(
     encodeCursor({ kind: 'transcript', path: '/tmp/a b?.jsonl', offset: 12 }),
-  ).toMatchInlineSnapshot(`"eyJrIjoidHIiLCJwIjoiL3RtcC9hIGI_Lmpzb25sIiwibyI6MTJ9"`);
+  ).toMatchInlineSnapshot(`"WyJ0cmFuc2NyaXB0IiwiL3RtcC9hIGI_Lmpzb25sIiwxMl0"`);
 });
 
 test('it encodes an events cursor as its golden wire text', () => {
-  expect(encodeCursor({ kind: 'events', id: 42 })).toMatchInlineSnapshot(
-    `"eyJrIjoiZXYiLCJpIjo0Mn0"`,
-  );
+  expect(encodeCursor({ kind: 'events', id: 42 })).toMatchInlineSnapshot(`"WyJldmVudHMiLDQyXQ"`);
 });
 
 test('it encodes the same cursor to the same text every time', () => {

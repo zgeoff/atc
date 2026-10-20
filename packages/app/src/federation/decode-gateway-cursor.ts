@@ -24,7 +24,7 @@ export function decodeGatewayCursor(
     throw new DaemonError('bad_args', `'${raw}' is not an events cursor`);
   }
 
-  if (wire['v'] !== 1) {
+  if (wire['version'] !== 1) {
     throw new DaemonError('bad_args', 'the events cursor has a version this gateway does not read');
   }
 

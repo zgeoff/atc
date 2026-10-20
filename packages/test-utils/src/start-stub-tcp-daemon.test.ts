@@ -15,7 +15,7 @@ test('it answers a request with an ok that holds its method', async () => {
 
   const answer = await client.sendRequest('session.list');
 
-  expect(answer).toStrictEqual({ m: 'session.list' });
+  expect(answer).toStrictEqual({ method: 'session.list' });
 });
 
 test('it records the method of every request in arrival order', async () => {
@@ -63,7 +63,7 @@ test('it answers a request split across two writes once its line ends', async ()
 
   await answered.promise;
 
-  expect(answers).toStrictEqual(['{"i":"7","p":{"b":{"json":{"m":"daemon.ping"}}}}\n']);
+  expect(answers).toStrictEqual(['{"i":"7","p":{"b":{"json":{"method":"daemon.ping"}}}}\n']);
 });
 
 test('it counts each read it takes from a connection', async () => {

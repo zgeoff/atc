@@ -30,7 +30,7 @@ test('it forwards requests and answers of other methods unchanged', async () => 
 
   const answer = await client.sendRequest('session.list');
 
-  expect(answer).toStrictEqual({ m: 'session.list' });
+  expect(answer).toStrictEqual({ method: 'session.list' });
 });
 
 test('it closes the connection in place of the answer to a cut request that reached the target', async () => {
@@ -193,7 +193,7 @@ test('it forwards the answer once its cuts are spent', async () => {
   const answer = await fresh.sendRequest('session.spawn');
 
   expect(cutReply).rejects.toMatchObject({ code: 'internal' });
-  expect(answer).toStrictEqual({ m: 'session.spawn' });
+  expect(answer).toStrictEqual({ method: 'session.spawn' });
 });
 
 test('it swallows the answer to a cut request and leaves the connection open in hold mode', async () => {

@@ -15,21 +15,21 @@ export function buildSessionEvent(
     added: () => {
       const session = findDescriptor(manager, live.id);
 
-      return session === null ? null : { v: PROTOCOL_V, ev: 'SessionAdded', session };
+      return session === null ? null : { version: PROTOCOL_V, ev: 'SessionAdded', session };
     },
     state: () => {
       const session = findDescriptor(manager, live.id);
 
-      return session === null ? null : { v: PROTOCOL_V, ev: 'SessionState', session };
+      return session === null ? null : { version: PROTOCOL_V, ev: 'SessionState', session };
     },
     renamed: () => ({
-      v: PROTOCOL_V,
+      version: PROTOCOL_V,
       ev: 'SessionRenamed',
-      s: live.id,
+      sessionID: live.id,
       name: live.name,
       namedBy: live.namedBy,
     }),
-    removed: () => ({ v: PROTOCOL_V, ev: 'SessionRemoved', s: live.id }),
+    removed: () => ({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: live.id }),
   };
 
   return builders[kind]();

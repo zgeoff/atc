@@ -312,10 +312,10 @@ test('it prints nothing to stdout once it serves and each sign-in security event
 
   expect(errors.filter((line) => line.startsWith('atc security '))).toIncludeSameMembers([
     expect.stringMatching(
-      /^atc security \{"v":1,.*"kind":"authorize_started","outcome":"accepted"/u,
+      /^atc security \{"version":1,.*"kind":"authorize_started","outcome":"accepted"/u,
     ),
     expect.stringMatching(
-      /^atc security \{"v":1,.*"kind":"authorize_invalid".*"reason":"bad_host"/u,
+      /^atc security \{"version":1,.*"kind":"authorize_invalid".*"reason":"bad_host"/u,
     ),
   ]);
 });
@@ -381,7 +381,7 @@ test('it writes a probe from a Host it does not serve as a bad_host security eve
 
   expect(errors.filter((line) => line.startsWith('atc security '))).toIncludeSameMembers([
     expect.stringMatching(
-      /^atc security \{"v":1,.*"kind":"authorize_invalid","outcome":"rejected","reason":"bad_host","route":"\/healthz"/u,
+      /^atc security \{"version":1,.*"kind":"authorize_invalid","outcome":"rejected","reason":"bad_host","route":"\/healthz"/u,
     ),
   ]);
 });

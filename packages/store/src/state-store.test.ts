@@ -1054,6 +1054,7 @@ test('it runs every migration once on the first open of a fresh database', async
     '036_add_fleet_plugin_dirs',
     '037_drop_fleet_resume_interrupted_turns',
     '038_rename_runtime_auth_binding_host_columns',
+    '039_rename_workspace_materialization_dir_to_directory',
   ]);
 });
 
@@ -1248,6 +1249,85 @@ test('it finishes the host column rename and keeps the binding when a crash left
   });
 });
 
+test('it renames the workspace directory column and keeps the workspace of a database that stopped before the rename', async () => {
+  const temporaryDirectory = setupTempDir('atc-store-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
+
+  const older = new Database(dbPath);
+
+  registerTestCleanup(() => {
+    older.close();
+  });
+
+  const db = new Kysely<StateStoreSchema>({ dialect: buildSQLiteDialect(older) });
+
+  await new Migrator({
+    db,
+    provider: { getMigrations: () => Promise.resolve(MIGRATIONS) },
+  }).migrateTo('038_rename_runtime_auth_binding_host_columns');
+
+  older.run(
+    `INSERT INTO workspace_materialization (session_id, target, dir, source_kind, phase, repo_url, sha, ref, error_code, started_at, updated_at, materialized_at, withheld_env) VALUES ('s-ws', 'box', '/w/s-ws', 'path', 'ready', NULL, NULL, NULL, NULL, 1000, 2000, 2000, '[]')`,
+  );
+
+  older.close();
+
+  const upgraded = await StateStore.open(dbPath);
+
+  registerTestCleanup(() => upgraded.stop());
+
+  const row = await upgraded.readMaterialization(toSessionID('s-ws'));
+
+  expect(row).toStrictEqual({
+    sessionID: toSessionID('s-ws'),
+    target: 'box',
+    directory: '/w/s-ws',
+    sourceKind: 'path',
+    phase: 'ready',
+    repoURL: null,
+    sha: null,
+    ref: null,
+    errorCode: null,
+    startedAt: 1000,
+    updatedAt: 2000,
+    materializedAt: 2000,
+    withheldEnv: [],
+  });
+});
+
+test('it keeps the workspace when a crash left the directory column renamed but the step unrecorded', async () => {
+  const temporaryDirectory = setupTempDir('atc-store-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
+
+  const older = new Database(dbPath);
+
+  registerTestCleanup(() => {
+    older.close();
+  });
+
+  const db = new Kysely<StateStoreSchema>({ dialect: buildSQLiteDialect(older) });
+
+  await new Migrator({
+    db,
+    provider: { getMigrations: () => Promise.resolve(MIGRATIONS) },
+  }).migrateTo('038_rename_runtime_auth_binding_host_columns');
+
+  older.run(
+    `INSERT INTO workspace_materialization (session_id, target, dir, source_kind, phase, repo_url, sha, ref, error_code, started_at, updated_at, materialized_at, withheld_env) VALUES ('s-ws', 'box', '/w/s-ws', 'path', 'ready', NULL, NULL, NULL, NULL, 1000, 2000, 2000, '[]')`,
+  );
+
+  older.run('ALTER TABLE workspace_materialization RENAME COLUMN dir TO directory');
+  older.close();
+
+  const upgraded = await StateStore.open(dbPath);
+
+  registerTestCleanup(() => upgraded.stop());
+
+  const row = await upgraded.readMaterialization(toSessionID('s-ws'));
+
+  expect(row).toMatchObject({ sessionID: toSessionID('s-ws'), directory: '/w/s-ws' });
+});
+
 test('it re-runs no migration when it reopens a migrated database', async () => {
   const temporaryDirectory = setupTempDir('atc-store-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
@@ -1277,7 +1357,7 @@ test('it re-runs no migration when it reopens a migrated database', async () => 
     .all()
     .map((row) => row.timestamp);
 
-  expect(stamps).toStrictEqual(Array.from({ length: 38 }, () => 'sentinel'));
+  expect(stamps).toStrictEqual(Array.from({ length: 39 }, () => 'sentinel'));
 });
 
 test('it keeps the fleet of a migrated database across a reopen', async () => {
@@ -4581,7 +4661,7 @@ test('it upgrades a database from before runtime auth and keeps every existing r
     .query<{ name: string }, []>('SELECT name FROM kysely_migration ORDER BY name')
     .all()
     .map((row) => row.name)
-    .slice(-14, -11);
+    .slice(-15, -12);
 
   const fleet = await upgraded.loadFleet();
   const dirs = await upgraded.readSpawnDirs();

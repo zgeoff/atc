@@ -16,7 +16,7 @@ you, tell another tool which session just got attached. Configure them in the `h
 {
   "hooks": {
     "SessionAttached": [{ "command": "jq -r .session.cwd | xargs my-focus-script" }],
-    "SessionState": [{ "command": "notify-atc", "dir": "~/projects/ork", "timeout": 3000 }]
+    "SessionState": [{ "command": "notify-atc", "directory": "~/projects/ork", "timeout": 3000 }]
   }
 }
 ```
@@ -24,17 +24,17 @@ you, tell another tool which session just got attached. Configure them in the `h
 Each command runs through `/bin/sh -c` with the event's JSON on stdin and the event name in
 `$ATC_EVENT`.
 
-| Field     | Default  | Meaning                                                                                             |
-| --------- | -------- | --------------------------------------------------------------------------------------------------- |
-| `command` | required | The shell command to run. An entry without one is left out.                                         |
-| `dir`     | none     | Only fire for sessions whose repo root or working directory sits at or under this path (`~` works). |
-| `timeout` | `10000`  | Milliseconds before a still-running hook is killed.                                                 |
+| Field       | Default  | Meaning                                                                                             |
+| ----------- | -------- | --------------------------------------------------------------------------------------------------- |
+| `command`   | required | The shell command to run. An entry without one is left out.                                         |
+| `directory` | none     | Only fire for sessions whose repo root or working directory sits at or under this path (`~` works). |
+| `timeout`   | `10000`  | Milliseconds before a still-running hook is killed.                                                 |
 
 Hooks are observational and fire-and-forget: the daemon never waits on one, and a nonzero exit is
-logged and ignored — a broken hook cannot break the daemon or gate an event. The `dir` match uses
-the session as it was at the emit site, so a dir-scoped hook still fires for the removal of a
-matching session. Events that carry no session, such as `PermissionResolved`, skip `dir`-filtered
-entries.
+logged and ignored — a broken hook cannot break the daemon or gate an event. The `directory` match
+uses the session as it was at the emit site, so a directory-scoped hook still fires for the removal
+of a matching session. Events that carry no session, such as `PermissionResolved`, skip
+`directory`-filtered entries.
 
 ## `atc events`
 
