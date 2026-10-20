@@ -40,49 +40,50 @@ async function setupTest() {
     closeSync(readEnd);
   });
 
-  // The pipe starts full, whatever its size on the host, so the daemon's
-  // first line waits on a reader, and a reader takes these bytes first.
-  const filledBytes = writeUntilPipeFull(fifoPath);
-  const writeEnd = openSync(fifoPath, constants.O_WRONLY);
+  // Starts the daemon with the pipe as its stderr, and returns it with the
+  // port it listens on.
+  const startListenerDaemon = async () => {
+    const writeEnd = openSync(fifoPath, constants.O_WRONLY);
 
-  const closeWriteEnd = registerTestCleanup(() => {
-    closeSync(writeEnd);
-  });
+    const closeWriteEnd = registerTestCleanup(() => {
+      closeSync(writeEnd);
+    });
 
-  const proc = Bun.spawn(
-    [process.execPath, join(import.meta.dir, 'testing', 'run-listener-daemon.ts')],
-    {
-      env: { ATC_TEST_DIR: tmp.dir, HOME: tmp.dir },
-      stdout: 'pipe',
-      stderr: writeEnd,
-    },
-  );
+    const proc = Bun.spawn(
+      [process.execPath, join(import.meta.dir, 'testing', 'run-listener-daemon.ts')],
+      {
+        env: { ATC_TEST_DIR: tmp.dir, HOME: tmp.dir },
+        stdout: 'pipe',
+        stderr: writeEnd,
+      },
+    );
 
-  registerTestCleanup(async () => {
-    proc.kill('SIGKILL');
+    registerTestCleanup(async () => {
+      proc.kill('SIGKILL');
 
-    await proc.exited;
-  });
+      await proc.exited;
+    });
 
-  // The daemon holds its own copy of the write end, and the pipe reports
-  // its end only once every writer has closed.
-  closeWriteEnd();
+    // The daemon holds its own copy of the write end, and the pipe reports
+    // its end only once every writer has closed.
+    closeWriteEnd();
 
-  const first = await proc.stdout.getReader().read();
+    const first = await proc.stdout.getReader().read();
 
-  return {
-    dir: tmp.dir,
-    fifoPath,
-    filledBytes,
-    proc,
-    port: Number(new TextDecoder().decode(first.value).trim()),
+    return { proc, port: Number(new TextDecoder().decode(first.value).trim()) };
   };
+
+  return { dir: tmp.dir, fifoPath, startListenerDaemon };
 }
 
 test('it answers another client while a flood of refusals fills a stderr nobody reads', async () => {
   const ctx = await setupTest();
 
-  await sendLinesBeforeHandshake(ctx.port, 100);
+  writeUntilPipeFull(ctx.fifoPath);
+
+  const daemon = await ctx.startListenerDaemon();
+
+  await sendLinesBeforeHandshake(daemon.port, 100);
 
   const client = await openDaemonClient(join(ctx.dir, 'daemon.sock'));
 
@@ -100,9 +101,14 @@ test('it answers another client while a flood of refusals fills a stderr nobody 
 test('it logs how many lines it dropped once the stderr reader reads again', async () => {
   const ctx = await setupTest();
 
+  // Filled before the daemon starts, so a reader takes these bytes first.
+  const filledBytes = writeUntilPipeFull(ctx.fifoPath);
+
+  const daemon = await ctx.startListenerDaemon();
+
   const output: string[] = [];
 
-  await sendLinesBeforeHandshake(ctx.port, 100);
+  await sendLinesBeforeHandshake(daemon.port, 100);
 
   const reader = createReadStream(ctx.fifoPath, { encoding: 'utf8' });
 
@@ -115,14 +121,15 @@ test('it logs how many lines it dropped once the stderr reader reads again', asy
   // The log writes the count of the lines it dropped ahead of the next line
   // it writes, so each check sends one more refusal.
   await waitFor(async () => {
-    await sendLinesBeforeHandshake(ctx.port, 1);
+    await sendLinesBeforeHandshake(daemon.port, 1);
 
-    expect(output.join('').slice(ctx.filledBytes)).toMatch(/^atc log dropped=\d+$/mu);
+    expect(output.join('').slice(filledBytes)).toMatch(/^atc log dropped=\d+$/mu);
   });
 });
 
 test('it delivers every line to a stderr reader that keeps reading', async () => {
   const ctx = await setupTest();
+  const daemon = await ctx.startListenerDaemon();
 
   const output: string[] = [];
   const reader = createReadStream(ctx.fifoPath, { encoding: 'utf8' });
@@ -134,22 +141,22 @@ test('it delivers every line to a stderr reader that keeps reading', async () =>
   });
 
   await waitFor(() => {
-    expect(output.join('').slice(ctx.filledBytes)).toStartWith('atc tcp event=listening ');
+    expect(output.join('')).toStartWith('atc tcp event=listening ');
   });
 
   // The log holds 32 lines behind the ones it is writing and drops past
   // that, however fast its reader reads, so the refusals go out in bursts
   // of 16 lines and the reader takes each burst before the next.
   for (let sent = 16; sent <= 64; sent += 16) {
-    await sendLinesBeforeHandshake(ctx.port, 16);
+    await sendLinesBeforeHandshake(daemon.port, 16);
 
     await waitFor(() => {
-      expect(output.join('').slice(ctx.filledBytes).split('\n')).toHaveLength(sent + 2);
+      expect(output.join('').split('\n')).toHaveLength(sent + 2);
     });
   }
 
   await waitFor(() => {
-    expect(output.join('').slice(ctx.filledBytes).split('\n')).toStrictEqual([
+    expect(output.join('').split('\n')).toStrictEqual([
       expect.toStartWith('atc tcp event=listening '),
       ...Array.from(
         { length: 64 },
@@ -163,27 +170,36 @@ test('it delivers every line to a stderr reader that keeps reading', async () =>
 test('it exits cleanly on SIGTERM while a flood of refusals fills the unread stderr', async () => {
   const ctx = await setupTest();
 
-  await sendLinesBeforeHandshake(ctx.port, 100);
+  writeUntilPipeFull(ctx.fifoPath);
 
-  const running = Bun.peek.status(ctx.proc.exited);
+  const daemon = await ctx.startListenerDaemon();
 
-  ctx.proc.kill('SIGTERM');
+  await sendLinesBeforeHandshake(daemon.port, 100);
 
-  const exitCode = await ctx.proc.exited;
+  const running = Bun.peek.status(daemon.proc.exited);
+
+  daemon.proc.kill('SIGTERM');
+
+  const exitCode = await daemon.proc.exited;
 
   expect(running).toBe('pending');
   expect(exitCode).toBe(0);
-  expect(ctx.proc.signalCode).toBeNull();
+  expect(daemon.proc.signalCode).toBeNull();
 });
 
 test('it writes every line it holds at SIGTERM, and the count of the ones it dropped, to a stderr reader that starts to read after it', async () => {
   const ctx = await setupTest();
 
+  // Filled before the daemon starts, so a reader takes these bytes first.
+  const filledBytes = writeUntilPipeFull(ctx.fifoPath);
+
+  const daemon = await ctx.startListenerDaemon();
+
   const output: string[] = [];
 
-  await sendLinesBeforeHandshake(ctx.port, 100);
+  await sendLinesBeforeHandshake(daemon.port, 100);
 
-  ctx.proc.kill('SIGTERM');
+  daemon.proc.kill('SIGTERM');
 
   const reader = createReadStream(ctx.fifoPath, { encoding: 'utf8' });
 
@@ -197,13 +213,13 @@ test('it writes every line it holds at SIGTERM, and the count of the ones it dro
     reader.on('end', resolve);
   });
 
-  const exitCode = await ctx.proc.exited;
+  const exitCode = await daemon.proc.exited;
 
   await ended;
 
   // Every refusal arrives as a line of its own or is counted on a dropped
   // line.
-  const lines = output.join('').slice(ctx.filledBytes).split('\n');
+  const lines = output.join('').slice(filledBytes).split('\n');
 
   expect({
     exitCode,
