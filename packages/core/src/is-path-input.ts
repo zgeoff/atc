@@ -1,4 +1,4 @@
-import { isHomeRelative } from '@atc/core';
+import { isHomeRelative } from './is-home-relative';
 
 // only a path prefix makes typed input a path to complete and resolve, so a
 // name with a slash in it, such as a project under a root, still filters the

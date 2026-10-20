@@ -612,6 +612,69 @@ test('it completes a typed ~ path against the daemon home', async () => {
   });
 });
 
+test('it completes a typed relative path under the directory the client sends', async () => {
+  const daemon = await startTestDaemon({
+    prefix: 'atc-daemon-sources-',
+    options: (paths) => ({
+      adapter: buildMockAgentAdapter(),
+      principals: null,
+      sources: [
+        buildDirsSource({
+          roots: [],
+          readZoxideDirs: () => Promise.resolve([]),
+          homeDir: paths.directory,
+        }),
+      ],
+    }),
+  });
+
+  await mkdir(join(daemon.directory, 'client', 'gamma-work'), { recursive: true });
+  await mkdir(join(daemon.directory, 'gamma-home'));
+
+  const completed = await daemon.client.sendRequest('sources.complete', {
+    source: 'dirs',
+    input: './gam',
+    clientCwd: join(daemon.directory, 'client'),
+  });
+
+  expect(completed).toStrictEqual({
+    completions: [
+      {
+        label: '~/client/gamma-work',
+        pick: { kind: 'path', directory: join(daemon.directory, 'client', 'gamma-work') },
+      },
+    ],
+  });
+});
+
+test('it reads a typed relative path under the directory the client sends', async () => {
+  const daemon = await startTestDaemon({
+    prefix: 'atc-daemon-sources-',
+    options: (paths) => ({
+      adapter: buildMockAgentAdapter(),
+      principals: null,
+      sources: [
+        buildDirsSource({
+          roots: [],
+          readZoxideDirs: () => Promise.resolve([]),
+          homeDir: paths.directory,
+        }),
+      ],
+    }),
+  });
+
+  const interpreted = await daemon.client.sendRequest('sources.interpret', {
+    source: 'dirs',
+    input: './delta',
+    clientCwd: join(daemon.directory, 'client'),
+  });
+
+  expect(interpreted).toStrictEqual({
+    kind: 'path',
+    directory: join(daemon.directory, 'client', 'delta'),
+  });
+});
+
 test('it completes nothing through a source that does not complete', async () => {
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',

@@ -180,7 +180,7 @@ const picker = new SpawnPicker<MirrorSession>({
   log: logClientEvent,
   listingCache: openListingCache(host.listingCacheFile),
   getDaemonSocketPath: () => getBoot().socketPath,
-  now: clock.now,
+  clock,
 });
 
 function openPicker(resume: boolean) {

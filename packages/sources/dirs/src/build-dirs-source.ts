@@ -44,9 +44,12 @@ export function buildDirsSource(services: DirsSourceServices): SourceProvider {
         scope: null,
       };
     },
-    interpret(input) {
-      // a relative path resolves under the home, as a completion does.
-      const directory = resolvePathInput(input.trim(), services.homeDir, services.homeDir);
+    interpret(input, request) {
+      const directory = resolvePathInput(
+        input.trim(),
+        request.clientCwd ?? services.homeDir,
+        services.homeDir,
+      );
 
       const interpretation: SourceInterpretation =
         directory === null ? { kind: 'none' } : { kind: 'path', directory };
@@ -54,8 +57,6 @@ export function buildDirsSource(services: DirsSourceServices): SourceProvider {
       return Promise.resolve(interpretation);
     },
     complete(input, request) {
-      // a caller sends its cwd only when the daemon runs on the client's machine,
-      // so a relative path resolves under the home otherwise.
       const dirs = readPathCompletions(
         input,
         request.clientCwd ?? services.homeDir,

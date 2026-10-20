@@ -39,8 +39,9 @@ export interface SourceRequest {
   readonly readSpawnDirs: () => Promise<string[]>;
 }
 
-export interface SourceCompletionRequest extends SourceRequest {
-  // a hint a source reads only when the daemon runs on the client's machine.
+export interface SourceInputRequest extends SourceRequest {
+  // the directory the client runs in, which a client sends only when the
+  // daemon runs on its machine, so a relative path it types reads from there.
   readonly clientCwd?: string;
 }
 
@@ -51,7 +52,7 @@ export interface SourceProvider {
   readonly label: string;
   readonly kind: SourceKind;
   readonly list: (query: SourceQuery, request: SourceRequest) => Promise<SourceListing>;
-  readonly interpret: (input: string, request: SourceRequest) => Promise<SourceInterpretation>;
+  readonly interpret: (input: string, request: SourceInputRequest) => Promise<SourceInterpretation>;
 
   // The other URLs of the repository at a git URL the daemon's host could
   // not read, for a source that knows its host's URL forms; none when it
@@ -61,8 +62,5 @@ export interface SourceProvider {
   // Completions of partly typed input, best first, such as the directories
   // a typed path could continue to, each with the label the picker shows.
   // Absent: the source completes nothing.
-  readonly complete?: (
-    input: string,
-    request: SourceCompletionRequest,
-  ) => Promise<SourceCandidate[]>;
+  readonly complete?: (input: string, request: SourceInputRequest) => Promise<SourceCandidate[]>;
 }

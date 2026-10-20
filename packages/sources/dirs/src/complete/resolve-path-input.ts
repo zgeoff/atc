@@ -1,6 +1,5 @@
 import { resolve } from 'node:path';
-import { expandHome, isHomeRelative } from '@atc/core';
-import { isPathInput } from './is-path-input';
+import { expandHome, isHomeRelative, isPathInput } from '@atc/core';
 
 export function resolvePathInput(input: string, cwd: string, home: string): string | null {
   if (isHomeRelative(input)) {

@@ -79,6 +79,13 @@ const SOURCE_TEXT = z
   .string({ error: 'source text must be a string' })
   .max(4096, 'source text must be at most 4096 characters');
 
+// The directory the client runs in, which a source of directories reads a
+// relative path under when the daemon runs on the client's machine.
+const CLIENT_CWD = z
+  .string({ error: 'clientCwd must be an absolute path' })
+  .startsWith('/', 'clientCwd must be an absolute path')
+  .max(4096, 'clientCwd must be at most 4096 characters');
+
 export type SpawnWorkspaceSource = z.infer<typeof WORKSPACE_SOURCE>;
 
 // The refusal of a terminal size outside the range a terminal takes.
@@ -127,11 +134,21 @@ export const REQUEST_PARAM_SCHEMAS = {
   }),
 
   // What one source reads typed input as, for a spawn to the target.
-  'sources.interpret': z.object({ source: SOURCE_ID, input: SOURCE_TEXT, target: TARGET }),
+  'sources.interpret': z.object({
+    source: SOURCE_ID,
+    input: SOURCE_TEXT,
+    target: TARGET,
+    clientCwd: CLIENT_CWD.optional(),
+  }),
 
   // One source's completions of partly typed input, for a spawn to the
   // target.
-  'sources.complete': z.object({ source: SOURCE_ID, input: SOURCE_TEXT, target: TARGET }),
+  'sources.complete': z.object({
+    source: SOURCE_ID,
+    input: SOURCE_TEXT,
+    target: TARGET,
+    clientCwd: CLIENT_CWD.optional(),
+  }),
 
   // Whether the daemon's host can read a git workspace source the way a
   // spawn to the target would, with its refs and the commit a ref or sha

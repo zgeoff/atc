@@ -6,6 +6,7 @@ import { DaemonError } from '@atc/protocol/wire';
 import {
   KEYS,
   buildMockSessionDescriptor,
+  buildStubClock,
   buildStubDaemonRequests,
   buildStubTerminal,
 } from '@atc/test-utils';
@@ -27,6 +28,7 @@ function setupTest() {
   const host = buildStubPickerHost();
   const terminal = buildStubTerminal();
   const daemon = buildStubDaemonRequests({ countReactions: host.countReactions });
+  const clock = buildStubClock(1_000_000_000);
   const configPath = join(cwd, 'config.json');
 
   const deps = {
@@ -43,6 +45,7 @@ function setupTest() {
     home: resolveHomeDir(),
     configPath,
     onDropAnswer: host.onDropAnswer,
+    clock,
   };
 
   return {
@@ -53,6 +56,7 @@ function setupTest() {
     dropped: host.dropped,
     cwd,
     configPath,
+    clock,
   };
 }
 
@@ -2453,7 +2457,6 @@ test('it returns esc from a git source to the agent step when one target left no
 
 test('it shows the listing an earlier client kept at once, marked with its age, while it lists again', async () => {
   const ctx = setupTest();
-  const time = { now: 1_000_000_000 };
   const cacheFile = join(ctx.cwd, 'listing-cache.json');
 
   writeFileSync(
@@ -2473,7 +2476,6 @@ test('it shows the listing an earlier client kept at once, marked with its age, 
     getLastUsedAgent: () => 'claude',
     listingCache: openListingCache(cacheFile),
     getDaemonSocketPath: () => '/run/atc/atc.sock',
-    now: () => time.now,
   });
 
   earlier.open();
@@ -2497,8 +2499,7 @@ test('it shows the listing an earlier client kept at once, marked with its age, 
   });
 
   earlier.applyKey(Buffer.from(KEYS.ctrlRightBracket));
-
-  time.now += 5 * 60_000;
+  ctx.clock.advance(5 * 60_000);
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -2506,7 +2507,6 @@ test('it shows the listing an earlier client kept at once, marked with its age, 
     getLastUsedAgent: () => 'claude',
     listingCache: openListingCache(cacheFile),
     getDaemonSocketPath: () => '/run/atc/atc.sock',
-    now: () => time.now,
   });
 
   picker.open();
@@ -2539,7 +2539,6 @@ test('it shows the listing an earlier client kept at once, marked with its age, 
 
 test('it swaps the fresh listing in for the cached one when it answers, keeping the selected repository', async () => {
   const ctx = setupTest();
-  const time = { now: 1_000_000_000 };
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -2547,7 +2546,6 @@ test('it swaps the fresh listing in for the cached one when it answers, keeping 
     getLastUsedAgent: () => 'claude',
     listingCache: openListingCache(join(ctx.cwd, 'listing-cache.json')),
     getDaemonSocketPath: () => '/run/atc/atc.sock',
-    now: () => time.now,
   });
 
   writeFileSync(
@@ -2585,9 +2583,7 @@ test('it swaps the fresh listing in for the cached one when it answers, keeping 
   });
 
   picker.applyKey(Buffer.from(KEYS.ctrlRightBracket));
-
-  time.now += 60 * 60_000;
-
+  ctx.clock.advance(60 * 60_000);
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
@@ -2692,7 +2688,6 @@ test('it lists again on ctrl-r and shows a repository created since the last lis
 
 test('it waits on the listing when the kept one is older than a day', async () => {
   const ctx = setupTest();
-  const time = { now: 1_000_000_000 };
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -2700,7 +2695,6 @@ test('it waits on the listing when the kept one is older than a day', async () =
     getLastUsedAgent: () => 'claude',
     listingCache: openListingCache(join(ctx.cwd, 'listing-cache.json')),
     getDaemonSocketPath: () => '/run/atc/atc.sock',
-    now: () => time.now,
   });
 
   writeFileSync(
@@ -2735,9 +2729,7 @@ test('it waits on the listing when the kept one is older than a day', async () =
   });
 
   picker.applyKey(Buffer.from(KEYS.ctrlRightBracket));
-
-  time.now += 24 * 60 * 60_000 + 1;
-
+  ctx.clock.advance(24 * 60 * 60_000 + 1);
   picker.open();
 
   const mark = ctx.terminal.countChunks();
@@ -2970,7 +2962,6 @@ test('it shows nothing from the cache on the next open once a listing answers em
 
 test('it shows the listing asked for last on the next open when an earlier one answers after it', async () => {
   const ctx = setupTest();
-  const time = { now: 1_000_000_000 };
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -2978,7 +2969,6 @@ test('it shows the listing asked for last on the next open when an earlier one a
     getLastUsedAgent: () => 'claude',
     listingCache: openListingCache(join(ctx.cwd, 'listing-cache.json')),
     getDaemonSocketPath: () => '/run/atc/atc.sock',
-    now: () => time.now,
   });
 
   writeFileSync(
@@ -3007,8 +2997,7 @@ test('it shows the listing asked for last on the next open when an earlier one a
     sources: [{ id: 'github', label: 'GitHub repository', kind: 'git' }],
   });
 
-  time.now += 1000;
-
+  ctx.clock.advance(1000);
   picker.applyKey(Buffer.from(KEYS.ctrlR));
 
   await ctx.daemon.answer('sources.list', {
@@ -3240,7 +3229,9 @@ test("it drops a remote daemon's completion of input typed over since, keeping t
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
   picker.applyKey(Buffer.from('~/a'));
+  ctx.clock.advance(120);
   picker.applyKey(Buffer.from('b'));
+  ctx.clock.advance(120);
 
   await ctx.daemon.answer('sources.complete', {
     completions: [{ label: '~/ab-box', pick: { kind: 'path', directory: '/home/far/ab-box' } }],
@@ -3302,8 +3293,10 @@ test('it keeps the latest completion when an earlier one answers for input typed
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
   picker.applyKey(Buffer.from('~/a'));
+  ctx.clock.advance(120);
   picker.applyKey(Buffer.from('b'));
   picker.applyKey(Buffer.from(KEYS.backspace));
+  ctx.clock.advance(120);
 
   await ctx.daemon.answer('sources.complete', {
     completions: [{ label: '~/a-new', pick: { kind: 'path', directory: '/home/far/a-new' } }],
@@ -3360,6 +3353,7 @@ test('it spawns in the directory a remote daemon completed', async () => {
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
   picker.applyKey(Buffer.from('~/ab'));
+  ctx.clock.advance(120);
 
   await ctx.daemon.answer('sources.complete', {
     completions: [{ label: '~/ab-box', pick: { kind: 'path', directory: '/home/far/ab-box' } }],
@@ -3372,6 +3366,163 @@ test('it spawns in the directory a remote daemon completed', async () => {
   expect(ctx.daemon.collectSent('session.spawn')).toPartiallyContain({
     cwd: '/home/far/ab-box',
     name: 'far-one',
+  });
+});
+
+test('it asks the daemon once for a path typed in a burst of keys', async () => {
+  const ctx = setupTest();
+
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
+  );
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+
+  picker.applyKey(Buffer.from('.'));
+  ctx.clock.advance(119);
+  picker.applyKey(Buffer.from('/'));
+  ctx.clock.advance(119);
+  picker.applyKey(Buffer.from('w'));
+  ctx.clock.advance(120);
+
+  expect(ctx.daemon.collectSent('sources.complete')).toStrictEqual([
+    { source: 'dirs', input: './w', clientCwd: ctx.cwd },
+  ]);
+});
+
+test("it spawns in the directory a local daemon completed under the client's directory", async () => {
+  const ctx = setupTest();
+
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
+  );
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+
+  picker.applyKey(Buffer.from('./we'));
+  ctx.clock.advance(120);
+
+  await ctx.daemon.answer('sources.complete', {
+    completions: [{ label: '~/web', pick: { kind: 'path', directory: '/srv/near/web' } }],
+  });
+
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(`near-one${KEYS.enter}`));
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  expect(ctx.daemon.collectSent('sources.complete')).toStrictEqual([
+    { source: 'dirs', input: './we', clientCwd: ctx.cwd },
+  ]);
+
+  expect(ctx.daemon.collectSent('session.spawn')).toPartiallyContain({ cwd: '/srv/near/web' });
+});
+
+test("it asks a local daemon to read a typed relative path under the client's directory", async () => {
+  const ctx = setupTest();
+
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
+  );
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+
+  picker.applyKey(Buffer.from(`./new-work${KEYS.enter}`));
+
+  await ctx.daemon.answer('sources.interpret', { kind: 'path', directory: '/srv/near/new-work' });
+
+  picker.applyKey(Buffer.from(`near-two${KEYS.enter}`));
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  expect(ctx.daemon.collectSent('sources.interpret')).toStrictEqual([
+    { source: 'dirs', input: './new-work', clientCwd: ctx.cwd },
+  ]);
+
+  expect(ctx.daemon.collectSent('session.spawn')).toPartiallyContain({
+    cwd: '/srv/near/new-work',
   });
 });
 
@@ -3414,6 +3565,7 @@ test("it shows a remote daemon's refused completion in place of the hint", async
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
   picker.applyKey(Buffer.from('~/a'));
+  ctx.clock.advance(120);
 
   const mark = ctx.terminal.countChunks();
 
@@ -3466,6 +3618,7 @@ test('it spawns in the directory a remote daemon reads a typed ~ path as when no
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
   picker.applyKey(Buffer.from('~/work'));
+  ctx.clock.advance(120);
 
   await ctx.daemon.answer('sources.complete', { completions: [] });
 
@@ -3522,6 +3675,7 @@ test("it shows a remote daemon's refusal to read a typed ~ path", async () => {
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
   picker.applyKey(Buffer.from('~/work'));
+  ctx.clock.advance(120);
 
   await ctx.daemon.answer('sources.complete', { completions: [] });
 
@@ -3578,6 +3732,7 @@ test('it names the one target a remote principal may use in its directory reques
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
   picker.applyKey(Buffer.from('/srv/work'));
+  ctx.clock.advance(120);
 
   expect(ctx.daemon.collectSent('sources.list')).toStrictEqual([{ source: 'dirs', target: 'box' }]);
 
