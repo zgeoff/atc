@@ -395,6 +395,22 @@ test('it records hook events into the trail', async () => {
   ]);
 });
 
+test('it records a hook event whose payload is not an object with no message or session id', async () => {
+  const ctx = await setupTest();
+
+  await ctx.store.recordEvent({ atcId: toSessionID('s1'), event: 'Stop', payload: null });
+
+  const db = new Database(ctx.dbPath, { readonly: true });
+
+  registerTestCleanup(() => {
+    db.close();
+  });
+
+  const rows = db.query('SELECT atc_id, event, message, session_id FROM events').all();
+
+  expect(rows).toStrictEqual([{ atc_id: 's1', event: 'Stop', message: null, session_id: null }]);
+});
+
 test('it records a Grok session id from the camelCase payload key', async () => {
   const ctx = await setupTest();
 
