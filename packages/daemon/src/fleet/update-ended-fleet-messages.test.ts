@@ -8,8 +8,6 @@ import { buildMockFleetEntry, createMigratedStateDB } from '@atc/store/testing';
 import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { updateEndedFleetMessages } from './update-ended-fleet-messages';
 
-// A real state store, a manager whose `local` target alone runs on the
-// daemon's machine, and a recorder of the messages it marks.
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-ended-fleet-messages-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
