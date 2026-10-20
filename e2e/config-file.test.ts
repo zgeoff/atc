@@ -57,7 +57,7 @@ test('it refuses a spawn without a target when an existing config holds invalid 
     },
   });
 
-  const refused = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir });
+  const refused = daemon.client.sendRequest('session.spawn', { cwd: daemon.directory });
 
   expect(refused).rejects.toMatchObject({
     code: 'target_config_invalid',
@@ -92,7 +92,10 @@ test('it refuses a spawn on the local target when an existing config holds inval
     },
   });
 
-  const refused = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, target: 'local' });
+  const refused = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.directory,
+    target: 'local',
+  });
 
   expect(refused).rejects.toMatchObject({
     code: 'target_config_invalid',
@@ -127,7 +130,7 @@ test('it refuses a spawn without a target when the config path is a directory', 
     },
   });
 
-  const refused = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir });
+  const refused = daemon.client.sendRequest('session.spawn', { cwd: daemon.directory });
 
   expect(refused).rejects.toMatchObject({
     code: 'target_config_invalid',
@@ -162,7 +165,10 @@ test('it refuses a spawn on the local target when the config path is a directory
     },
   });
 
-  const refused = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, target: 'local' });
+  const refused = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.directory,
+    target: 'local',
+  });
 
   expect(refused).rejects.toMatchObject({
     code: 'target_config_invalid',
@@ -202,7 +208,7 @@ test.skipIf(process.getuid?.() === 0)(
       },
     });
 
-    const refused = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir });
+    const refused = daemon.client.sendRequest('session.spawn', { cwd: daemon.directory });
 
     expect(refused).rejects.toMatchObject({
       code: 'target_config_invalid',
@@ -244,7 +250,7 @@ test.skipIf(process.getuid?.() === 0)(
     });
 
     const refused = daemon.client.sendRequest('session.spawn', {
-      cwd: daemon.dir,
+      cwd: daemon.directory,
       target: 'local',
     });
 
@@ -287,7 +293,7 @@ test.each([
     },
   });
 
-  const refused = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir });
+  const refused = daemon.client.sendRequest('session.spawn', { cwd: daemon.directory });
 
   expect(refused).rejects.toMatchObject({
     code: 'target_config_invalid',
@@ -327,7 +333,10 @@ test.each([
     },
   });
 
-  const refused = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, target: 'local' });
+  const refused = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.directory,
+    target: 'local',
+  });
 
   expect(refused).rejects.toMatchObject({
     code: 'target_config_invalid',
@@ -362,7 +371,7 @@ test('it refuses a spawn without a target when a config file sets agents beside 
     },
   });
 
-  const untargeted = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir });
+  const untargeted = daemon.client.sendRequest('session.spawn', { cwd: daemon.directory });
 
   await untargeted.catch(() => null);
 
@@ -399,7 +408,10 @@ test('it refuses a spawn on the local target when a config file sets agents besi
     },
   });
 
-  const local = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, target: 'local' });
+  const local = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.directory,
+    target: 'local',
+  });
 
   await local.catch(() => null);
 
@@ -428,7 +440,11 @@ test('it refuses input to a restored local session without running a turn when t
       registerTestCleanup(() => store.stop());
 
       await store.writeFleet([
-        buildMockFleetEntry({ sessionID: toSessionID('s-old'), name: 'old work', cwd: paths.dir }),
+        buildMockFleetEntry({
+          sessionID: toSessionID('s-old'),
+          name: 'old work',
+          cwd: paths.directory,
+        }),
       ]);
 
       const loaded = loadConfig(SHIPPED_HARNESS_PLUGINS, ctx.configPath);
@@ -544,7 +560,7 @@ test('it spawns a session without a target on the local target when no config ex
     },
   });
 
-  const spawned = await daemon.client.sendRequest('session.spawn', { cwd: daemon.dir });
+  const spawned = await daemon.client.sendRequest('session.spawn', { cwd: daemon.directory });
 
   expect(getRecord(getRecord(spawned, 'session'), 'locator')['targetID']).toBe('local');
   expect(ctx.harnesses).toStrictEqual(['local']);
@@ -579,7 +595,10 @@ test('it refuses a spawn of an agent missing from this host with the config prob
     },
   });
 
-  const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, agent: 'codex' });
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.directory,
+    agent: 'codex',
+  });
 
   expect(spawn).rejects.toMatchObject({
     code: 'target_config_invalid',
@@ -622,7 +641,10 @@ test('it refuses a spawn of an agent missing from this host as not installed whe
     },
   });
 
-  const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, agent: 'codex' });
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.directory,
+    agent: 'codex',
+  });
 
   expect(spawn).rejects.toMatchObject({
     code: 'unsupported',
@@ -665,7 +687,7 @@ test.each([
     },
   });
 
-  const refusal = daemon.client.sendRequest('session.spawn', { ...params, cwd: daemon.dir });
+  const refusal = daemon.client.sendRequest('session.spawn', { ...params, cwd: daemon.directory });
 
   expect(refusal).rejects.toMatchObject({
     code: 'target_config_invalid',
@@ -785,7 +807,7 @@ test.each([
           buildMockFleetEntry({
             sessionID: toSessionID('s-old'),
             name: 'old work',
-            cwd: paths.dir,
+            cwd: paths.directory,
             target,
             targetIdentity: buildTargetIdentity('local-pty', {}),
           }),
@@ -825,7 +847,11 @@ test('it gives a principal legacy rights over a restored local session when no c
       registerTestCleanup(() => store.stop());
 
       await store.writeFleet([
-        buildMockFleetEntry({ sessionID: toSessionID('s-old'), name: 'old work', cwd: paths.dir }),
+        buildMockFleetEntry({
+          sessionID: toSessionID('s-old'),
+          name: 'old work',
+          cwd: paths.directory,
+        }),
       ]);
 
       const loaded = loadConfig(SHIPPED_HARNESS_PLUGINS, ctx.configPath);
@@ -873,7 +899,7 @@ test.each([
           buildMockFleetEntry({
             sessionID: toSessionID('s-old'),
             name: 'old work',
-            cwd: paths.dir,
+            cwd: paths.directory,
           }),
         ]);
 
@@ -912,7 +938,11 @@ test('it hides a restored local session from a principal when the config path is
       registerTestCleanup(() => store.stop());
 
       await store.writeFleet([
-        buildMockFleetEntry({ sessionID: toSessionID('s-old'), name: 'old work', cwd: paths.dir }),
+        buildMockFleetEntry({
+          sessionID: toSessionID('s-old'),
+          name: 'old work',
+          cwd: paths.directory,
+        }),
       ]);
 
       const loaded = loadConfig(SHIPPED_HARNESS_PLUGINS, ctx.configPath);

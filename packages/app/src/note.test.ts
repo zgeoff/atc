@@ -11,8 +11,8 @@ import invariant from 'tiny-invariant';
 import { runNote } from './note';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-note-');
-  const sock = join(tmp.path, 'reporter.sock');
+  const temporaryDirectory = setupTempDir('atc-note-');
+  const sock = join(temporaryDirectory.path, 'reporter.sock');
   const reporter = startStubReporterSocket(sock);
 
   return { sock, reporter };
@@ -226,9 +226,9 @@ test('it sends nothing for an unanswered envelope without a reason', async () =>
 });
 
 test('it exits 0 and prints undelivered when nothing listens at the socket', async () => {
-  const tmp = setupTempDir('atc-note-');
+  const temporaryDirectory = setupTempDir('atc-note-');
 
-  updateEnv('ATC_SOCKET', join(tmp.path, 'none.sock'));
+  updateEnv('ATC_SOCKET', join(temporaryDirectory.path, 'none.sock'));
   updateEnv('ATC_SESSION_ID', 's1');
 
   const codes: number[] = [];
@@ -384,9 +384,9 @@ test('it exits 0 for a note without text', async () => {
 });
 
 test('it clears a bridge note from the outbox once the bridge refuses it as forbidden', async () => {
-  const tmp = setupTempDir('atc-note-');
-  const sock = join(tmp.path, 'bridge.sock');
-  const outbox = join(tmp.path, 'outbox');
+  const temporaryDirectory = setupTempDir('atc-note-');
+  const sock = join(temporaryDirectory.path, 'bridge.sock');
+  const outbox = join(temporaryDirectory.path, 'outbox');
 
   mkdirSync(outbox);
 
@@ -432,9 +432,9 @@ test('it clears a bridge note from the outbox once the bridge refuses it as forb
 });
 
 test('it keeps a bridge note in the outbox when the bridge closes without answering', async () => {
-  const tmp = setupTempDir('atc-note-');
-  const sock = join(tmp.path, 'bridge.sock');
-  const outbox = join(tmp.path, 'outbox');
+  const temporaryDirectory = setupTempDir('atc-note-');
+  const sock = join(temporaryDirectory.path, 'bridge.sock');
+  const outbox = join(temporaryDirectory.path, 'outbox');
 
   mkdirSync(outbox);
 
@@ -490,9 +490,9 @@ test('it keeps a bridge note in the outbox when the bridge closes without answer
 });
 
 test('it prints delivered once the bridge takes a note', async () => {
-  const tmp = setupTempDir('atc-note-');
-  const sock = join(tmp.path, 'bridge.sock');
-  const outbox = join(tmp.path, 'outbox');
+  const temporaryDirectory = setupTempDir('atc-note-');
+  const sock = join(temporaryDirectory.path, 'bridge.sock');
+  const outbox = join(temporaryDirectory.path, 'outbox');
 
   mkdirSync(outbox);
   startStubSessionBridge(sock, (request) => [{ id: request['id'], ok: true }]);
@@ -520,9 +520,9 @@ test('it prints delivered once the bridge takes a note', async () => {
 });
 
 test('it prints undelivered and keeps a bridge answer in the outbox when the bridge refuses a stale binding', async () => {
-  const tmp = setupTempDir('atc-note-');
-  const sock = join(tmp.path, 'bridge.sock');
-  const outbox = join(tmp.path, 'outbox');
+  const temporaryDirectory = setupTempDir('atc-note-');
+  const sock = join(temporaryDirectory.path, 'bridge.sock');
+  const outbox = join(temporaryDirectory.path, 'outbox');
 
   mkdirSync(outbox);
 

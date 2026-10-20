@@ -26,29 +26,29 @@ export class TransportCaller implements FleetCaller {
   }
 
   async sendRequest(
-    m: string,
-    p?: Readonly<Record<string, unknown>>,
+    method: string,
+    requestParams?: Readonly<Record<string, unknown>>,
     principal?: Principal,
   ): Promise<Readonly<Record<string, unknown>>> {
     const opened = await this.transport.waitForConnection();
 
-    const keyed = PROCEDURE_TRAITS.get(m)?.keyed === true;
-    const params = keyed ? buildKeyedParams(p) : p;
+    const keyed = PROCEDURE_TRAITS.get(method)?.keyed === true;
+    const params = keyed ? buildKeyedParams(requestParams) : requestParams;
 
     try {
-      return await opened.sendRequest(m, params, principal?.id, principal?.name);
+      return await opened.sendRequest(method, params, principal?.id, principal?.name);
     } catch (error) {
       // only a read-only or keyed request is retried, since any other must not run twice.
       if (
         !this.transport.isLost(opened) ||
-        !(keyed || PROCEDURE_TRAITS.get(m)?.readOnly === true)
+        !(keyed || PROCEDURE_TRAITS.get(method)?.readOnly === true)
       ) {
         throw error;
       }
 
       const fresh = await this.transport.waitForConnection();
 
-      return fresh.sendRequest(m, params, principal?.id, principal?.name);
+      return fresh.sendRequest(method, params, principal?.id, principal?.name);
     }
   }
 
@@ -91,11 +91,11 @@ async function openHandshaken(
 // The request's params with its idempotency key, minting one when the caller
 // passed none.
 function buildKeyedParams(
-  p: Readonly<Record<string, unknown>> | undefined,
+  params: Readonly<Record<string, unknown>> | undefined,
 ): Readonly<Record<string, unknown>> {
-  if (typeof p?.['idempotencyKey'] === 'string') {
-    return p;
+  if (typeof params?.['idempotencyKey'] === 'string') {
+    return params;
   }
 
-  return { ...p, idempotencyKey: randomUUID() };
+  return { ...params, idempotencyKey: randomUUID() };
 }

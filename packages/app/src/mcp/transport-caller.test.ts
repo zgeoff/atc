@@ -42,14 +42,16 @@ test('it answers a read-only request sent right after the daemon restarts', asyn
 });
 
 test('it closes a connection whose handshake the daemon rejects', async () => {
-  const tmp = setupTempDir('atc-reconnecting-caller-');
+  const temporaryDirectory = setupTempDir('atc-reconnecting-caller-');
 
-  const mismatched = startStubLegacyDaemon(join(tmp.path, 'daemon.sock'), {
+  const mismatched = startStubLegacyDaemon(join(temporaryDirectory.path, 'daemon.sock'), {
     protocol: PROTOCOL_V + 1,
   });
 
-  const caller = new TransportCaller(join(tmp.path, 'daemon.sock'), 'atc/test-build', (path) =>
-    openDaemonClient(path),
+  const caller = new TransportCaller(
+    join(temporaryDirectory.path, 'daemon.sock'),
+    'atc/test-build',
+    (path) => openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -64,14 +66,16 @@ test('it closes a connection whose handshake the daemon rejects', async () => {
 });
 
 test('it opens a fresh connection for the request after one whose handshake the daemon rejected', async () => {
-  const tmp = setupTempDir('atc-reconnecting-caller-');
+  const temporaryDirectory = setupTempDir('atc-reconnecting-caller-');
 
-  const mismatched = startStubLegacyDaemon(join(tmp.path, 'daemon.sock'), {
+  const mismatched = startStubLegacyDaemon(join(temporaryDirectory.path, 'daemon.sock'), {
     protocol: PROTOCOL_V + 1,
   });
 
-  const caller = new TransportCaller(join(tmp.path, 'daemon.sock'), 'atc/test-build', (path) =>
-    openDaemonClient(path),
+  const caller = new TransportCaller(
+    join(temporaryDirectory.path, 'daemon.sock'),
+    'atc/test-build',
+    (path) => openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -99,11 +103,13 @@ test('it closes its connection and refuses later requests once stopped', async (
 });
 
 test('it retries a spawn on a fresh connection under the key it minted when the connection drops', async () => {
-  const tmp = setupTempDir('atc-reconnecting-caller-');
-  const dropping = startStubDroppingDaemon(join(tmp.path, 'daemon.sock'));
+  const temporaryDirectory = setupTempDir('atc-reconnecting-caller-');
+  const dropping = startStubDroppingDaemon(join(temporaryDirectory.path, 'daemon.sock'));
 
-  const caller = new TransportCaller(join(tmp.path, 'daemon.sock'), 'atc/test-build', (path) =>
-    openDaemonClient(path),
+  const caller = new TransportCaller(
+    join(temporaryDirectory.path, 'daemon.sock'),
+    'atc/test-build',
+    (path) => openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -115,11 +121,13 @@ test('it retries a spawn on a fresh connection under the key it minted when the 
 });
 
 test('it retries a message on a fresh connection under the key its caller passed', async () => {
-  const tmp = setupTempDir('atc-reconnecting-caller-');
-  const dropping = startStubDroppingDaemon(join(tmp.path, 'daemon.sock'));
+  const temporaryDirectory = setupTempDir('atc-reconnecting-caller-');
+  const dropping = startStubDroppingDaemon(join(temporaryDirectory.path, 'daemon.sock'));
 
-  const caller = new TransportCaller(join(tmp.path, 'daemon.sock'), 'atc/test-build', (path) =>
-    openDaemonClient(path),
+  const caller = new TransportCaller(
+    join(temporaryDirectory.path, 'daemon.sock'),
+    'atc/test-build',
+    (path) => openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -134,11 +142,13 @@ test('it retries a message on a fresh connection under the key its caller passed
 });
 
 test('it resends a keyed spawn unchanged, never as replay-only, so a daemon that never got it runs it', async () => {
-  const tmp = setupTempDir('atc-reconnecting-caller-');
-  const dropping = startStubDroppingDaemon(join(tmp.path, 'daemon.sock'));
+  const temporaryDirectory = setupTempDir('atc-reconnecting-caller-');
+  const dropping = startStubDroppingDaemon(join(temporaryDirectory.path, 'daemon.sock'));
 
-  const caller = new TransportCaller(join(tmp.path, 'daemon.sock'), 'atc/test-build', (path) =>
-    openDaemonClient(path),
+  const caller = new TransportCaller(
+    join(temporaryDirectory.path, 'daemon.sock'),
+    'atc/test-build',
+    (path) => openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -157,11 +167,13 @@ test('it resends a keyed spawn unchanged, never as replay-only, so a daemon that
 });
 
 test('it fails a request that is neither keyed nor read-only when its connection drops', () => {
-  const tmp = setupTempDir('atc-reconnecting-caller-');
-  const dropping = startStubDroppingDaemon(join(tmp.path, 'daemon.sock'));
+  const temporaryDirectory = setupTempDir('atc-reconnecting-caller-');
+  const dropping = startStubDroppingDaemon(join(temporaryDirectory.path, 'daemon.sock'));
 
-  const caller = new TransportCaller(join(tmp.path, 'daemon.sock'), 'atc/test-build', (path) =>
-    openDaemonClient(path),
+  const caller = new TransportCaller(
+    join(temporaryDirectory.path, 'daemon.sock'),
+    'atc/test-build',
+    (path) => openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -219,7 +231,7 @@ test("it sends a principal's name beside it, which labels the message the reques
 
   registerTestCleanup(() => caller.stop());
 
-  const spawned = await caller.sendRequest('session.spawn', { cwd: daemon.dir });
+  const spawned = await caller.sendRequest('session.spawn', { cwd: daemon.directory });
 
   const session = getRecord(spawned, 'session')['id'];
 

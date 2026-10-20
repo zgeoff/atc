@@ -33,7 +33,7 @@ async function setupTest() {
       // Every session runs this agent, which prints its pid, echoes each
       // line it reads with its pid, and exits 3 on `quit`, so a test sees
       // which process took its input.
-      const fakeClaude = createStubEchoClaude(paths.dir);
+      const fakeClaude = createStubEchoClaude(paths.directory);
 
       return {
         adapter: buildMockAgentAdapter({
@@ -55,7 +55,7 @@ async function setupTest() {
             identity: 'imp:test',
             provider: new ImpProvider(
               port,
-              { guestDir: join(paths.dir, 'g') },
+              { guestDir: join(paths.directory, 'g') },
               { reconnectDelaysMs: [0, 0, 0], version: '1.0.0' },
             ),
           },
@@ -72,7 +72,7 @@ async function setupTest() {
   return {
     client: daemon.client,
     events: daemon.events,
-    dir: daemon.dir,
+    dir: daemon.directory,
     dbPath: daemon.dbPath,
     socketPath: daemon.socketPath,
     build: daemon.build,

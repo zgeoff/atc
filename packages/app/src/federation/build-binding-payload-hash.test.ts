@@ -6,10 +6,10 @@ test('it hashes params to the hash a stored binding holds', () => {
     buildBindingPayloadHash({
       name: 'é',
       Zeta: 1,
-      alpha: { b: [{ Y: 1, x: 2 }], A: true },
+      alpha: { beta: [{ Yankee: 1, x: 2 }], Alpha: true },
       idempotencyKey: 'k',
     }),
-  ).toBe('0209c43032888ea0492c95773ac44684f1edd51e8666bb376e43bc85315bc402');
+  ).toBe('5b7f09bc878e5ec5b66ea41ac29e6b48df20c16cd5edeab4a23ff613cba87966');
 });
 
 test('it hashes params the same whatever their key order or idempotency key', () => {
@@ -25,7 +25,9 @@ test('it hashes params with another payload apart', () => {
 });
 
 test('it hashes params the same in either order of two keys a locale comparison ties', () => {
-  expect(buildBindingPayloadHash({ é: 1, é: 2 })).toBe(buildBindingPayloadHash({ é: 2, é: 1 }));
+  expect(buildBindingPayloadHash({ café: 1, café: 2 })).toBe(
+    buildBindingPayloadHash({ café: 2, café: 1 }),
+  );
 });
 
 test('it hashes a replay-only resend the same as its first send', () => {

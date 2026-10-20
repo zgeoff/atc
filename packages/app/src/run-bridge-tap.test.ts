@@ -5,15 +5,15 @@ import { setupTempDir, startStubSessionBridge } from '@atc/test-utils';
 import { runBridgeTap } from './run-bridge-tap';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-bridge-tap-');
-  const outbox = join(tmp.path, 'outbox');
+  const temporaryDirectory = setupTempDir('atc-bridge-tap-');
+  const outbox = join(temporaryDirectory.path, 'outbox');
 
   // The tap reads its notes from here, and each test writes one into it.
   mkdirSync(outbox);
 
   return {
-    dir: tmp.path,
-    sock: join(tmp.path, 'bridge.sock'),
+    directory: temporaryDirectory.path,
+    sock: join(temporaryDirectory.path, 'bridge.sock'),
     outbox,
   };
 }
@@ -64,7 +64,7 @@ test('it removes no file for an answer to a note id it never sent', async () => 
     { ev: 'InboxClosed' },
   ]);
 
-  writeFileSync(join(ctx.dir, 'victim.json'), '{}');
+  writeFileSync(join(ctx.directory, 'victim.json'), '{}');
 
   writeFileSync(
     join(ctx.outbox, 'r1.json'),
@@ -82,7 +82,7 @@ test('it removes no file for an answer to a note id it never sent', async () => 
   });
 
   expect(codes).toStrictEqual([0]);
-  expect(existsSync(join(ctx.dir, 'victim.json'))).toBe(true);
+  expect(existsSync(join(ctx.directory, 'victim.json'))).toBe(true);
   expect(existsSync(join(ctx.outbox, 'r1.json'))).toBe(true);
 
   expect(bridge.requests).toStrictEqual([

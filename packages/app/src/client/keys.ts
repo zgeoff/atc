@@ -99,8 +99,8 @@ function planKeyEdit(buf: Buffer, input: string, opts: Readonly<TextEditOptions>
 }
 
 function isPrintable(text: string): boolean {
-  for (const c of text) {
-    if (c < ' ' || c === '\u007F') {
+  for (const character of text) {
+    if (character < ' ' || character === '\u007F') {
       return false;
     }
   }

@@ -182,7 +182,7 @@ test('it spawns a session under an agent atc has no code for', async () => {
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     agent: 'acme',
     model: 'acme-large',
     cols: 80,

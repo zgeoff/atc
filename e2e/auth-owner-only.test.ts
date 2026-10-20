@@ -63,7 +63,7 @@ test.each([
 
   const daemon = await startTestDaemon({
     options: (paths) => {
-      const tokenFile = join(paths.dir, 'gateway-token');
+      const tokenFile = join(paths.directory, 'gateway-token');
 
       writeFileSync(tokenFile, `${'a'.repeat(32)}\n`);
 
@@ -125,7 +125,7 @@ test('it admits daemon.backup from the owner', async () => {
 
   const daemon = await startTestDaemon({ options: () => ({ adapter: ctx.adapter }) });
 
-  const path = join(daemon.dir, 'owner-backup.db');
+  const path = join(daemon.directory, 'owner-backup.db');
 
   expect(daemon.client.sendRequest('daemon.backup', { path })).resolves.toStrictEqual({
     path,
@@ -327,7 +327,7 @@ test.each([
 
   const daemon = await startTestDaemon({
     options: (paths) => {
-      const tokenFile = join(paths.dir, 'gateway-token');
+      const tokenFile = join(paths.directory, 'gateway-token');
 
       writeFileSync(tokenFile, `${'a'.repeat(32)}\n`);
 
@@ -351,7 +351,7 @@ test('it admits agents.list over TCP from a principal', async () => {
 
   const daemon = await startTestDaemon({
     options: (paths) => {
-      const tokenFile = join(paths.dir, 'gateway-token');
+      const tokenFile = join(paths.directory, 'gateway-token');
 
       writeFileSync(tokenFile, `${'a'.repeat(32)}\n`);
 
@@ -458,7 +458,7 @@ test('it admits events.read over TCP from a principal', async () => {
 
   const daemon = await startTestDaemon({
     options: (paths) => {
-      const tokenFile = join(paths.dir, 'gateway-token');
+      const tokenFile = join(paths.directory, 'gateway-token');
 
       writeFileSync(tokenFile, `${'a'.repeat(32)}\n`);
 
@@ -515,7 +515,7 @@ test.each([
 
   const daemon = await startTestDaemon({
     options: (paths) => {
-      const tokenFile = join(paths.dir, 'gateway-token');
+      const tokenFile = join(paths.directory, 'gateway-token');
 
       writeFileSync(tokenFile, `${'a'.repeat(32)}\n`);
 

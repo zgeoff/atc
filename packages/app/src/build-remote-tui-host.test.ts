@@ -28,19 +28,19 @@ test('it refuses a restart, since the daemon host restarts it', () => {
 });
 
 test('it boots the remote daemon with the build the invocation reads', async () => {
-  const tmp = setupTempDir('atc-remote-host-');
-  const tokenFile = join(tmp.path, 'box.token');
+  const temporaryDirectory = setupTempDir('atc-remote-host-');
+  const tokenFile = join(temporaryDirectory.path, 'box.token');
 
   writeFileSync(tokenFile, `${'a'.repeat(32)}\n`);
 
   const remote = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map([['laptop', ['local']]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });

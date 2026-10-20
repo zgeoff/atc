@@ -215,7 +215,9 @@ test('it has a rule for every id in a session.read answer, transcript text inclu
 
         // Every hook starts the session on the transcript in the directory.
         planHookEvents: () => ({
-          events: [{ kind: 'started', transcriptSource: join(paths.dir, 'transcript.jsonl') }],
+          events: [
+            { kind: 'started', transcriptSource: join(paths.directory, 'transcript.jsonl') },
+          ],
         }),
       }),
     }),
@@ -224,12 +226,12 @@ test('it has a rule for every id in a session.read answer, transcript text inclu
   const agentSessionID = randomUUID();
 
   writeFileSync(
-    join(ctx.dir, 'transcript.jsonl'),
+    join(ctx.directory, 'transcript.jsonl'),
     `${JSON.stringify({ type: 'user', sessionId: agentSessionID, message: { content: `resume ${agentSessionID}` } })}\n`,
   );
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     resume: `a-${randomUUID()}`,
   });
 
@@ -264,7 +266,7 @@ test('it has a rule for every id in a session.resumeCommand answer', async () =>
   });
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     resume: randomUUID(),
   });
 
@@ -316,7 +318,9 @@ test('it has a rule for every id in a note.get answer', async () => {
   const event = await waitFor(async () => {
     const page = await ctx.client.sendRequest('events.read', {});
 
-    const found = [page['events']].flat().find((e) => isRecord(e) && e['kind'] === 'note');
+    const found = [page['events']]
+      .flat()
+      .find((feedEvent) => isRecord(feedEvent) && feedEvent['kind'] === 'note');
 
     invariant(isRecord(found), 'no note event yet');
 
@@ -354,7 +358,7 @@ test('it has a rule for every id in an answer.get answer', async () => {
 
     const found = [page['events']]
       .flat()
-      .find((e) => isRecord(e) && e['kind'] === 'message-answered');
+      .find((feedEvent) => isRecord(feedEvent) && feedEvent['kind'] === 'message-answered');
 
     invariant(isRecord(found), 'no answered event yet');
 

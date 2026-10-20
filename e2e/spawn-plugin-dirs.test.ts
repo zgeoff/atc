@@ -522,7 +522,7 @@ test('it refuses plugin folders on a target that runs the agent on another machi
           identity: 'imp:test',
           provider: new ImpProvider(
             createStubImpPort(),
-            { guestDir: join(paths.dir, 'g') },
+            { guestDir: join(paths.directory, 'g') },
             { reconnectDelaysMs: [0, 0, 0], version: '1.0.0' },
           ),
         },
@@ -571,7 +571,7 @@ test("it refuses a spawn on a target that runs the agent on another machine when
           identity: 'imp:test',
           provider: new ImpProvider(
             port,
-            { guestDir: join(paths.dir, 'g') },
+            { guestDir: join(paths.directory, 'g') },
             { reconnectDelaysMs: [0, 0, 0], version: '1.0.0' },
           ),
         },

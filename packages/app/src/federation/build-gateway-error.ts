@@ -32,7 +32,7 @@ export function buildGatewayError(
 // The message with each quoted daemon id replaced, longest first so an id
 // that contains another is replaced whole.
 function buildQuotedMessage(message: string, ids: ReadonlyMap<string, string>): string {
-  const ordered = [...ids].toSorted(([a], [b]) => b.length - a.length);
+  const ordered = [...ids].toSorted(([leftID], [rightID]) => rightID.length - leftID.length);
 
   return ordered.reduce((text, [inner, outer]) => text.replaceAll(inner, outer), message);
 }

@@ -29,13 +29,13 @@ const GLYPH: Record<SessionState, string> = {
   exited: `${ESC}[90m✗${ESC}[0m`,
 };
 
-function out(s: string) {
-  process.stdout.write(s);
+function out(text: string) {
+  process.stdout.write(text);
 }
 
-function truncate(s: string, max: number): string {
+function truncate(text: string, max: number): string {
   // oxlint-disable-next-line no-control-regex -- stripping ANSI/newline control bytes is the point
-  const clean = s.replaceAll(/[\r\n\u001B]+/gu, ' ');
+  const clean = text.replaceAll(/[\r\n\u001B]+/gu, ' ');
 
   if (max <= 0) {
     return '';
@@ -73,7 +73,7 @@ export interface StatusView {
 }
 
 export function drawStatusBar(view: StatusView) {
-  const c = view.counts;
+  const counts = view.counts;
   const width = cols();
 
   const where =
@@ -82,22 +82,22 @@ export function drawStatusBar(view: StatusView) {
   const left = ` atc${where} ▏${view.focusedName ?? 'no session'} `;
   const parts: string[] = [];
 
-  if (c.needs_you > 0) {
+  if (counts.needs_you > 0) {
     const who = view.urgentName === null ? '' : `: ${view.urgentName}`;
 
-    parts.push(`● ${c.needs_you} need you${who}`);
+    parts.push(`● ${counts.needs_you} need you${who}`);
   }
 
-  if (c.done > 0) {
-    parts.push(`✓ ${c.done} done`);
+  if (counts.done > 0) {
+    parts.push(`✓ ${counts.done} done`);
   }
 
-  if (c.running > 0) {
-    parts.push(`◐ ${c.running} running`);
+  if (counts.running > 0) {
+    parts.push(`◐ ${counts.running} running`);
   }
 
-  if (c.exited > 0) {
-    parts.push(`✗ ${c.exited}`);
+  if (counts.exited > 0) {
+    parts.push(`✗ ${counts.exited}`);
   }
 
   if (view.waiting === true) {
@@ -111,7 +111,7 @@ export function drawStatusBar(view: StatusView) {
   const joined = parts.join(' ▏');
   const right = ` ${joined === '' ? 'idle' : joined} ▏${view.leaderLabel} `;
   const pad = Math.max(1, width - left.length - right.length);
-  const bg = c.needs_you > 0 ? `${ESC}[1;97;41m` : `${ESC}[30;47m`;
+  const bg = counts.needs_you > 0 ? `${ESC}[1;97;41m` : `${ESC}[30;47m`;
   const text = truncate(left + ' '.repeat(pad) + right, width).padEnd(width);
 
   out(ansi.saveCursor + ansi.moveTo(rows(), 1) + bg + text + ansi.reset + ansi.restoreCursor);
@@ -130,7 +130,7 @@ interface Row {
 let lastBoxExtent: BoxExtent | null = null;
 
 function drawBox(rowsList: readonly Row[], write: (chunk: string) => void) {
-  const boxWidth = Math.max(...rowsList.map((r) => r.width));
+  const boxWidth = Math.max(...rowsList.map((row) => row.width));
   const top = Math.max(1, Math.floor((rows() - 1 - rowsList.length) / 2));
   const left = Math.max(1, Math.floor((cols() - boxWidth) / 2));
   const extent: BoxExtent = { top, height: rowsList.length };
@@ -142,17 +142,20 @@ function drawBox(rowsList: readonly Row[], write: (chunk: string) => void) {
 
   lastBoxExtent = extent;
 
-  for (const [i, r] of rowsList.entries()) {
-    buf += ansi.moveTo(top + i, left) + r.styled;
+  for (const [index, row] of rowsList.entries()) {
+    buf += ansi.moveTo(top + index, left) + row.styled;
   }
 
   write(buf);
 }
 
 function boxTop(width: number, title: string): Row {
-  const t = ` ${title} `;
+  const framedTitle = ` ${title} `;
 
-  return { styled: `┌${t}${'─'.repeat(Math.max(0, width - 2 - t.length))}┐`, width };
+  return {
+    styled: `┌${framedTitle}${'─'.repeat(Math.max(0, width - 2 - framedTitle.length))}┐`,
+    width,
+  };
 }
 
 function boxDivider(width: number): Row {
@@ -170,9 +173,9 @@ function boxRow(width: number, styledContent: string, contentPlainLen: number): 
 }
 
 function dimRow(width: number, text: string): Row {
-  const t = truncate(text, width - 4);
+  const truncated = truncate(text, width - 4);
 
-  return boxRow(width, `${ESC}[90m${t}${ESC}[0m`, t.length);
+  return boxRow(width, `${ESC}[90m${truncated}${ESC}[0m`, truncated.length);
 }
 
 // Selection-dependent hints need the liveness facts of each row.
@@ -238,41 +241,47 @@ function resolveModelAlias(
 // pin, name, the flat view's directory, then the target, harness, model,
 // harness lifecycle, and last event columns the width plan allows.
 export function buildSessionRow(
-  s: Readonly<OverlaySessionView>,
+  session: Readonly<OverlaySessionView>,
   plan: Readonly<OverlayColumnPlan>,
   view: Readonly<OverlayView>,
   sel: boolean,
 ): Row {
-  const sub = s.parent !== null && view.sessions.some((x) => x.id === s.parent);
+  const sub = session.parent !== null && view.sessions.some((x) => x.id === session.parent);
 
   const name =
     plan.nameWidth >= 4 && sub
-      ? `↳ ${truncate(s.name, plan.nameWidth - 2)}`.padEnd(plan.nameWidth)
-      : truncate(s.name, plan.nameWidth).padEnd(plan.nameWidth);
+      ? `↳ ${truncate(session.name, plan.nameWidth - 2)}`.padEnd(plan.nameWidth)
+      : truncate(session.name, plan.nameWidth).padEnd(plan.nameWidth);
 
-  const dir =
-    plan.dirWidth > 0 ? truncate(formatDir(s.cwd), plan.dirWidth).padEnd(plan.dirWidth) : '';
+  const directory =
+    plan.dirWidth > 0 ? truncate(formatDir(session.cwd), plan.dirWidth).padEnd(plan.dirWidth) : '';
 
   const target =
-    plan.targetWidth > 0 ? truncate(s.target, plan.targetWidth).padEnd(plan.targetWidth) : '';
+    plan.targetWidth > 0 ? truncate(session.target, plan.targetWidth).padEnd(plan.targetWidth) : '';
 
-  const label = findMapValue(view.agentLabels, s.agent) ?? s.agent;
+  const label = findMapValue(view.agentLabels, session.agent) ?? session.agent;
   const harness = truncate(label, plan.harnessWidth).padEnd(plan.harnessWidth);
-  const resolved = s.model === null ? '' : resolveModelAlias(view.agentModels, s.agent, s.model);
+
+  const resolved =
+    session.model === null ? '' : resolveModelAlias(view.agentModels, session.agent, session.model);
 
   const model =
     plan.modelWidth > 0 ? truncate(resolved, plan.modelWidth).padEnd(plan.modelWidth) : '';
 
-  const lifecycle = truncate(s.harness, plan.lifecycleWidth).padEnd(plan.lifecycleWidth);
-  const event = truncate(s.lastMsg, plan.eventWidth).padEnd(plan.eventWidth);
-  const cells = [name, dir, target, harness, model, lifecycle, event].filter((cell) => cell !== '');
+  const lifecycle = truncate(session.harness, plan.lifecycleWidth).padEnd(plan.lifecycleWidth);
+  const event = truncate(session.lastMsg, plan.eventWidth).padEnd(plan.eventWidth);
+
+  const cells = [name, directory, target, harness, model, lifecycle, event].filter(
+    (cell) => cell !== '',
+  );
+
   const body = cells.join(' ');
   const styledBody = sel ? `${ESC}[7m${body}${ESC}[0m` : body;
-  const unread = s.unread ? `${ESC}[1;33m!${ESC}[0m` : ' ';
-  const pin = s.pinned ? `${ESC}[93m⋆${ESC}[0m` : ' ';
+  const unread = session.unread ? `${ESC}[1;33m!${ESC}[0m` : ' ';
+  const pin = session.pinned ? `${ESC}[93m⋆${ESC}[0m` : ' ';
 
   return {
-    styled: `${GLYPH[s.state]}${unread}${pin} ${styledBody}`,
+    styled: `${GLYPH[session.state]}${unread}${pin} ${styledBody}`,
     width: 4 + body.length,
   };
 }
@@ -291,21 +300,23 @@ export function drawOverlay(view: OverlayView, write: (chunk: string) => void = 
   // take the width of what is actually on screen.
   const harnessMax = Math.max(
     0,
-    ...view.sessions.map((s) => (findMapValue(view.agentLabels, s.agent) ?? s.agent).length),
+    ...view.sessions.map(
+      (session) => (findMapValue(view.agentLabels, session.agent) ?? session.agent).length,
+    ),
   );
 
   const modelMax = Math.max(
     0,
-    ...view.sessions.map((s) => {
-      if (s.model === null) {
+    ...view.sessions.map((session) => {
+      if (session.model === null) {
         return 0;
       }
 
-      return resolveModelAlias(view.agentModels, s.agent, s.model).length;
+      return resolveModelAlias(view.agentModels, session.agent, session.model).length;
     }),
   );
 
-  const targetMax = Math.max(0, ...view.sessions.map((s) => s.target.length));
+  const targetMax = Math.max(0, ...view.sessions.map((session) => session.target.length));
 
   const plan = planOverlayColumns({
     innerWidth: width - 4,
@@ -321,17 +332,17 @@ export function drawOverlay(view: OverlayView, write: (chunk: string) => void = 
   // indented and never opens a header.
   let lastKey: string | null = null;
 
-  for (const [i, s] of view.sessions.entries()) {
-    const sub = s.parent !== null && view.sessions.some((x) => x.id === s.parent);
-    const key = s.pinned ? PINNED_GROUP_KEY : s.repoRoot;
+  for (const [index, session] of view.sessions.entries()) {
+    const sub = session.parent !== null && view.sessions.some((x) => x.id === session.parent);
+    const key = session.pinned ? PINNED_GROUP_KEY : session.repoRoot;
 
     if (view.grouped && !sub && key !== lastKey) {
       lastKey = key;
 
-      rowsList.push(dimRow(width, `▸ ${s.pinned ? 'pinned' : formatDir(s.repoRoot)}`));
+      rowsList.push(dimRow(width, `▸ ${session.pinned ? 'pinned' : formatDir(session.repoRoot)}`));
     }
 
-    const row = buildSessionRow(s, plan, view, i === view.selected);
+    const row = buildSessionRow(session, plan, view, index === view.selected);
 
     rowsList.push(boxRow(width, row.styled, row.width));
   }
@@ -374,11 +385,11 @@ export function drawOverlay(view: OverlayView, write: (chunk: string) => void = 
 // A kill acts on the selected session's whole set, so the confirm counts
 // the live sub-sessions that go with it; a forget counts the dead ones.
 function formatKillConfirm(
-  s: OverlaySessionView | undefined,
+  session: OverlaySessionView | undefined,
   list: readonly OverlaySessionView[],
 ): string {
-  const children = s === undefined ? [] : list.filter((x) => x.parent === s.id);
-  const affected = children.filter((x) => x.alive === (s?.alive ?? false));
+  const children = session === undefined ? [] : list.filter((x) => x.parent === session.id);
+  const affected = children.filter((x) => x.alive === (session?.alive ?? false));
 
   if (affected.length === 0) {
     return 'kill selected session? y / n';
@@ -395,40 +406,40 @@ const GLOBAL_HINT = 'g groups · n new · ? keys';
 // lives behind ?. Grok has no headless handoff, so H is omitted there. A
 // sub-session's pin action targets its parent.
 export function buildOverlayHint(
-  s: OverlaySessionView | undefined,
+  session: OverlaySessionView | undefined,
   list: readonly OverlaySessionView[] = [],
 ): string {
-  if (s === undefined) {
+  if (session === undefined) {
     return GLOBAL_HINT;
   }
 
   const actions: string[] = [];
 
-  if (s.kind === 'headless' && s.alive) {
+  if (session.kind === 'headless' && session.alive) {
     actions.push('P reattach', 'K kill');
-  } else if (s.alive) {
+  } else if (session.alive) {
     actions.push('⏎ attach');
 
-    if (s.state === 'needs_you') {
+    if (session.state === 'needs_you') {
       actions.push('a ack');
     }
 
-    if (s.canEject) {
+    if (session.canEject) {
       actions.push('H headless');
     }
 
     actions.push('y yank', 'Y eject', 'K kill');
   } else {
-    if (s.resumable) {
+    if (session.resumable) {
       actions.push('P revive', 'y yank');
     }
 
     actions.push('K forget');
   }
 
-  const owner = pickPinTarget(s, list);
+  const owner = pickPinTarget(session, list);
   const pinVerb = owner.pinned ? 'p unpin' : 'p pin';
-  const pinAction = owner === s ? pinVerb : `${pinVerb} parent`;
+  const pinAction = owner === session ? pinVerb : `${pinVerb} parent`;
 
   actions.push(pinAction);
 
@@ -483,13 +494,13 @@ export function drawPicker(view: PickerView, write: (chunk: string) => void = ou
   const rowsList: Row[] = [boxTop(width, view.title)];
   const shown = view.items.slice(0, 10);
 
-  for (const [i, item] of shown.entries()) {
-    const sel = i === view.selected;
-    const t = truncate(item, width - 4);
-    const dim = view.dimmed?.has(i) === true;
-    const inverse = sel ? `${ESC}[7m${t.padEnd(width - 4)}${ESC}[0m` : t;
+  for (const [index, item] of shown.entries()) {
+    const sel = index === view.selected;
+    const truncated = truncate(item, width - 4);
+    const dim = view.dimmed?.has(index) === true;
+    const inverse = sel ? `${ESC}[7m${truncated.padEnd(width - 4)}${ESC}[0m` : truncated;
     const styled = dim ? `${ESC}[90m${inverse}${ESC}[0m` : inverse;
-    const plainLen = sel ? width - 4 : t.length;
+    const plainLen = sel ? width - 4 : truncated.length;
 
     rowsList.push(boxRow(width, styled, plainLen));
   }
@@ -539,10 +550,10 @@ export function drawHome(fleetCount = 0, leaderLabel = '^Space') {
 
   const top = Math.max(1, Math.floor((rows() - 1 - msgs.length) / 2));
 
-  for (const [i, m] of msgs.entries()) {
-    const left = Math.max(1, Math.floor((cols() - m.length) / 2));
-    const styled = i === 0 ? `${ESC}[1m${m}${ESC}[0m` : `${ESC}[90m${m}${ESC}[0m`;
+  for (const [index, line] of msgs.entries()) {
+    const left = Math.max(1, Math.floor((cols() - line.length) / 2));
+    const styled = index === 0 ? `${ESC}[1m${line}${ESC}[0m` : `${ESC}[90m${line}${ESC}[0m`;
 
-    out(ansi.moveTo(top + i, left) + styled);
+    out(ansi.moveTo(top + index, left) + styled);
   }
 }

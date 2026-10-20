@@ -6,10 +6,10 @@ export class GatewayError extends Error {
 
   constructor(
     code: 'daemon_unavailable' | 'daemon_unauthorized',
-    msg: string,
+    message: string,
     data: Readonly<Record<string, unknown>>,
   ) {
-    super(msg);
+    super(message);
 
     this.code = code;
     this.data = data;

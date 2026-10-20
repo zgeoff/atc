@@ -63,7 +63,7 @@ test('it refuses a remote Claude spawn when the host has no atc and the daemon h
   });
 
   const spawned = daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -111,7 +111,7 @@ test('it gives a remote Claude session settings, a statusline, and a mod that re
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -186,13 +186,13 @@ test("it takes a remote session's hook reports from a socket that serves that se
   });
 
   const first = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
 
   const second = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -254,7 +254,7 @@ test('it keeps a nested harness inside a remote session from rebinding that sess
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -322,7 +322,7 @@ test('it copies its own atc binary into an imp that has none', async () => {
     }),
   });
 
-  await daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, cols: 80, rows: 24 });
+  await daemon.client.sendRequest('session.spawn', { cwd: daemon.directory, cols: 80, rows: 24 });
 
   const installed = join(ctx.guestDir, 'bin', 'atc');
 
@@ -364,7 +364,7 @@ test('it refuses a remote spawn whose agent is not signed in on the host, before
   });
 
   const spawned = daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -411,7 +411,7 @@ test('it destroys the host of its own that a remote spawn readied when its agent
   });
 
   const spawned = daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -467,7 +467,7 @@ test('it answers outcome_unknown for a spawn whose agent is not signed in on a h
 
   expect(
     daemon.client.sendRequest('session.spawn', {
-      cwd: daemon.dir,
+      cwd: daemon.directory,
       cols: 80,
       rows: 24,
       idempotencyKey: 'k-1',
@@ -508,7 +508,7 @@ test('it keeps the key of a spawn whose agent is not signed in on a host it cann
     }),
   });
 
-  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const params = { cwd: daemon.directory, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
   ctx.port.setDestroyFailure('INTERNAL_SERVER_ERROR');
 
@@ -560,7 +560,7 @@ test('it revives a slept remote session whose transcript only its imp holds', as
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -623,7 +623,7 @@ test('it refuses a remote Claude spawn when the atc the target names is missing 
   rmSync(ctx.clis.atc);
 
   const spawned = daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -672,7 +672,7 @@ test('it refuses a remote spawn of an agent that never runs remotely, without bl
 
   expect(
     daemon.client.sendRequest('session.spawn', {
-      cwd: daemon.dir,
+      cwd: daemon.directory,
       cols: 80,
       rows: 24,
       agent: 'zai',

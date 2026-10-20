@@ -32,10 +32,10 @@ test('it records each request with the arguments the sender passed, in order', a
   );
 
   expect(caller.requests).toStrictEqual([
-    { m: 'session.list' },
+    { method: 'session.list' },
     {
-      m: 'session.spawn',
-      p: { cwd: '/tmp' },
+      method: 'session.spawn',
+      params: { cwd: '/tmp' },
       principal: { id: 'client-a', name: 'Lantern Notes' },
     },
   ]);
@@ -43,7 +43,7 @@ test('it records each request with the arguments the sender passed, in order', a
 
 test('it replies with what the answer gives for the request', () => {
   const caller = buildStubFleetCaller({
-    answer: (request) => ({ echoed: request.p?.['text'] }),
+    answer: (request) => ({ echoed: request.params?.['text'] }),
   });
 
   expect(caller.sendRequest('session.message', { text: 'hi' })).resolves.toStrictEqual({
@@ -72,5 +72,5 @@ test('it records a request whose answer throws', async () => {
 
   await caller.sendRequest('session.get', { session: 's1' }).catch(() => null);
 
-  expect(caller.requests).toStrictEqual([{ m: 'session.get', p: { session: 's1' } }]);
+  expect(caller.requests).toStrictEqual([{ method: 'session.get', params: { session: 's1' } }]);
 });

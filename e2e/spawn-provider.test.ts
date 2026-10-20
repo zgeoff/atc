@@ -25,7 +25,7 @@ test('it streams the output of a session harness on the local pty provider', asy
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -66,7 +66,7 @@ test('it types input into a session harness on the local pty provider', async ()
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -100,7 +100,7 @@ test('it kills a session harness on the local pty provider', async () => {
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -130,7 +130,7 @@ test('it refuses a spawn with unsupported_operation when the provider cannot spa
   });
 
   const spawned = daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -157,7 +157,7 @@ test('it refuses input with unsupported_operation when the provider takes no inp
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -184,7 +184,7 @@ test('it refuses a kill with unsupported_operation when the provider cannot end 
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -217,7 +217,7 @@ test('it refuses an attach with unsupported_operation when the provider streams 
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -248,7 +248,7 @@ test('it takes a resize from an attached client on a provider that cannot resize
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -287,7 +287,7 @@ test('it puts the host of a killed session to sleep on a provider that can suspe
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -330,7 +330,7 @@ test('it refuses a second kill with confirmation_required on a provider that can
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -379,7 +379,7 @@ test('it keeps a session running when its host refuses to sleep', async () => {
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });

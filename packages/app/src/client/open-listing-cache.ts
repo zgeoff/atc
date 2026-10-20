@@ -189,7 +189,7 @@ function writeListingUnderLock(file: string, key: string, listing: CachedListing
 
   const retained = [...listings]
     .filter(([, entry]) => listing.listedAt - entry.listedAt <= LISTING_CACHE_LIFETIME_MS)
-    .toSorted(([, a], [, b]) => b.listedAt - a.listedAt)
+    .toSorted(([, left], [, right]) => right.listedAt - left.listedAt)
     .slice(0, MAX_LISTINGS);
 
   const tmpFile = `${file}.${process.pid}.tmp`;

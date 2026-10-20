@@ -25,12 +25,12 @@ test('it shows the fleet of the remote daemon the flag selects and starts no loc
   // host.
   const remote = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map([['laptop', ['local']]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });
@@ -40,7 +40,7 @@ test('it shows the fleet of the remote daemon the flag selects and starts no loc
   }
 
   await remote.client.sendRequest('session.spawn', {
-    cwd: remote.dir,
+    cwd: remote.directory,
     agent: 'claude',
     name: 'on-the-box',
     cols: 80,
@@ -82,17 +82,17 @@ test("it lists only the remote daemon's directories and spawns in the first of t
   // is a path under the client's home.
   const remote = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map([['laptop', ['local']]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
         sources: [
           buildDirsSource({
             roots: [],
             readZoxideDirs: () => Promise.resolve([]),
-            homeDir: paths.dir,
+            homeDir: paths.directory,
           }),
         ],
       };
@@ -103,10 +103,10 @@ test("it lists only the remote daemon's directories and spawns in the first of t
     throw new Error('the remote daemon bound no TCP port');
   }
 
-  mkdirSync(join(remote.dir, 'alpha-box'));
+  mkdirSync(join(remote.directory, 'alpha-box'));
 
   await remote.client.sendRequest('session.spawn', {
-    cwd: join(remote.dir, 'alpha-box'),
+    cwd: join(remote.directory, 'alpha-box'),
     agent: 'claude',
     name: 'earlier',
     cols: 80,
@@ -153,7 +153,7 @@ test("it lists only the remote daemon's directories and spawns in the first of t
 
   ctx.tui.write(KEYS.enter);
 
-  const spawned = { name: 'far-one', cwd: join(remote.dir, 'alpha-box') };
+  const spawned = { name: 'far-one', cwd: join(remote.directory, 'alpha-box') };
 
   await waitFor(async () => {
     const listed = await remote.client.sendRequest('session.list');
@@ -167,17 +167,17 @@ test("it completes and resolves a typed ~ path on the remote daemon's host", asy
 
   const remote = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map([['laptop', ['local']]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
         sources: [
           buildDirsSource({
             roots: [],
             readZoxideDirs: () => Promise.resolve([]),
-            homeDir: paths.dir,
+            homeDir: paths.directory,
           }),
         ],
       };
@@ -190,7 +190,7 @@ test("it completes and resolves a typed ~ path on the remote daemon's host", asy
 
   // Only the remote daemon's host holds beta-box, so a completion read on
   // the client's host finds nothing.
-  mkdirSync(join(remote.dir, 'beta-box'));
+  mkdirSync(join(remote.directory, 'beta-box'));
   writeFileSync(ctx.tokenFile, `${'a'.repeat(32)}\n`);
 
   ctx.tui.writeConfig({
@@ -230,7 +230,7 @@ test("it completes and resolves a typed ~ path on the remote daemon's host", asy
 
   ctx.tui.write(KEYS.enter);
 
-  const spawned = { name: 'far-two', cwd: join(remote.dir, 'beta-box') };
+  const spawned = { name: 'far-two', cwd: join(remote.directory, 'beta-box') };
 
   await waitFor(async () => {
     const listed = await remote.client.sendRequest('session.list');
@@ -244,7 +244,7 @@ test('it exits with the refusal when a reconnect to the remote daemon is refused
 
   const remote = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
@@ -252,7 +252,7 @@ test('it exits with the refusal when a reconnect to the remote daemon is refused
         listen: {
           host: '127.0.0.1',
           port: 0,
-          tokenFile: join(paths.dir, 'gateway-token'),
+          tokenFile: join(paths.directory, 'gateway-token'),
           failureDelayMs: 0,
         },
       };
@@ -281,7 +281,7 @@ test('it exits with the refusal when a reconnect to the remote daemon is refused
 
   // The daemon drops the token the client holds, which closes its
   // connection, so the client's reconnect presents a token it refuses.
-  writeFileSync(join(remote.dir, 'gateway-token'), `${'b'.repeat(32)}\n`);
+  writeFileSync(join(remote.directory, 'gateway-token'), `${'b'.repeat(32)}\n`);
 
   remote.daemon.refreshTokens();
 

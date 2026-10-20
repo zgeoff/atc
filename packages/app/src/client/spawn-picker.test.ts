@@ -30,7 +30,8 @@ function setupTest() {
   const configPath = join(cwd, 'config.json');
 
   const deps = {
-    sendRequest: (m: string, p?: Readonly<Record<string, unknown>>) => daemon.sendRequest(m, p),
+    sendRequest: (method: string, params?: Readonly<Record<string, unknown>>) =>
+      daemon.sendRequest(method, params),
     isLeaderKey: (buf: Buffer) => buf.toString() === KEYS.ctrlRightBracket,
     scheduleStatus: host.scheduleStatus,
     showBase: host.showBase,

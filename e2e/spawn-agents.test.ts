@@ -15,7 +15,7 @@ test('it lists each registered agent with what it can do and the host it runs on
           agents: {
             claude: { kind: 'claude', bin: 'sh' },
             grok: { kind: 'grok', bin: 'sh' },
-            codex: { kind: 'codex', bin: join(paths.dir, 'missing', 'codex') },
+            codex: { kind: 'codex', bin: join(paths.directory, 'missing', 'codex') },
             zai: {
               kind: 'claude',
               bin: 'sh',
@@ -314,7 +314,7 @@ test('it refuses a registered agent whose binary is missing before spawning anyt
         parseConfig(SHIPPED_HARNESS_PLUGINS, {
           agents: {
             claude: { kind: 'claude', bin: 'sh' },
-            codex: { kind: 'codex', bin: join(paths.dir, 'missing', 'codex') },
+            codex: { kind: 'codex', bin: join(paths.directory, 'missing', 'codex') },
           },
         }),
         buildMockHostServices(),
@@ -322,7 +322,10 @@ test('it refuses a registered agent whose binary is missing before spawning anyt
     }),
   });
 
-  const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, agent: 'codex' });
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.directory,
+    agent: 'codex',
+  });
 
   await Promise.allSettled([spawn]);
 
@@ -361,7 +364,10 @@ test('it refuses to spawn an agent id the daemon never registered', async () => 
     }),
   });
 
-  const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, agent: 'gemini' });
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.directory,
+    agent: 'gemini',
+  });
 
   await Promise.allSettled([spawn]);
 
@@ -382,7 +388,7 @@ test('it refuses a model shaped like a flag before spawning anything', async () 
   });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     model: '--dangerously-skip-permissions',
   });
 
@@ -417,7 +423,7 @@ test('it refuses a gateway effort outside the levels the CLI accepts', async () 
   });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     agent: 'zai',
     effort: 'ultra',
   });
@@ -443,7 +449,7 @@ test('it refuses an option the agent takes no value for', async () => {
   });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     agent: 'grok',
     model: 'grok-4',
   });
@@ -470,7 +476,7 @@ test('it refuses a model that is not a string', async () => {
     }),
   });
 
-  const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, model: 7 });
+  const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.directory, model: 7 });
 
   expect(spawn).rejects.toMatchObject({
     code: 'bad_args',
@@ -501,7 +507,7 @@ test('it answers a spawn with the model it was spawned with', async () => {
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     agent: 'zai',
     model: 'opus',
     cols: 80,
@@ -534,7 +540,7 @@ test('it lists a spawned session with the model it was spawned with', async () =
   });
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     agent: 'zai',
     model: 'opus',
     cols: 80,
@@ -556,7 +562,7 @@ test('it lists a spawned session without a model key when it runs the default', 
     }),
   });
 
-  await daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, cols: 80, rows: 24 });
+  await daemon.client.sendRequest('session.spawn', { cwd: daemon.directory, cols: 80, rows: 24 });
 
   const list = await daemon.client.sendRequest('session.list');
 

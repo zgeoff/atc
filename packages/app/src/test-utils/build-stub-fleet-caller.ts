@@ -2,8 +2,8 @@ import type { Principal } from '@atc/protocol';
 import type { FleetCaller, FleetFeature } from '../mcp/types';
 
 interface StubFleetRequest {
-  readonly m: string;
-  readonly p?: Readonly<Record<string, unknown>>;
+  readonly method: string;
+  readonly params?: Readonly<Record<string, unknown>>;
   readonly principal?: Principal;
 }
 
@@ -29,10 +29,10 @@ export function buildStubFleetCaller(
 
   return {
     requests,
-    sendRequest: (m, p, principal) => {
+    sendRequest: (method, params, principal) => {
       const request: StubFleetRequest = {
-        m,
-        ...(p === undefined ? {} : { p }),
+        method,
+        ...(params === undefined ? {} : { params }),
         ...(principal === undefined ? {} : { principal }),
       };
 

@@ -9,8 +9,8 @@ export type FleetFeature = 'fleet.daemons';
 
 export interface FleetCaller {
   readonly sendRequest: (
-    m: string,
-    p?: Readonly<Record<string, unknown>>,
+    method: string,
+    params?: Readonly<Record<string, unknown>>,
     principal?: Principal,
   ) => Promise<Readonly<Record<string, unknown>>>;
   readonly readFeatures: () => Promise<ReadonlySet<FleetFeature>>;

@@ -23,7 +23,7 @@ interface MCPHTTPSetupOptions {
 }
 
 export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
-  const tmp = setupTempDir('atc-mcp-http-');
+  const temporaryDirectory = setupTempDir('atc-mcp-http-');
 
   // Registered after the directory, so it releases first: each part stops
   // before the one it depends on, and the directory goes last.
@@ -31,10 +31,10 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
 
   const teardown = registerTestCleanup(() => stack.disposeAsync());
 
-  stack.defer(tmp.teardown);
+  stack.defer(temporaryDirectory.teardown);
 
-  const socketPath = join(tmp.path, 'daemon.sock');
-  const stateDir = join(tmp.path, '.local', 'state', 'atc');
+  const socketPath = join(temporaryDirectory.path, 'daemon.sock');
+  const stateDir = join(temporaryDirectory.path, '.local', 'state', 'atc');
 
   mkdirSync(stateDir, { recursive: true });
 
@@ -45,12 +45,12 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
   const startTestDaemon = (principals: ReadonlyMap<string, readonly string[]> | null = null) =>
     startDaemon({
       socketPath,
-      reporterSocketPath: join(tmp.path, 'reporter.sock'),
+      reporterSocketPath: join(temporaryDirectory.path, 'reporter.sock'),
       build: 'atc/test-build',
       targets: [buildLocalTarget()],
       adapter: buildMockAgentAdapter(),
-      dbPath: join(tmp.path, 'state.db'),
-      statusPath: join(tmp.path, 'status.json'),
+      dbPath: join(temporaryDirectory.path, 'state.db'),
+      statusPath: join(temporaryDirectory.path, 'status.json'),
       principals,
     });
 
@@ -99,7 +99,7 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
   security.length = 0;
 
   return {
-    home: tmp.path,
+    home: temporaryDirectory.path,
     url: server.url,
     origin: server.origin,
     dbPath,

@@ -16,7 +16,7 @@ async function setupTest() {
   const sessionID = await spawnNamedSession(
     (method, params) => daemon.client.sendRequest(method, params),
     'one',
-    daemon.dir,
+    daemon.directory,
   );
 
   const tapClient = await daemon.openClient();
@@ -82,7 +82,7 @@ test('it takes the notice of a message the session sent when it asks for notices
   const sender = await spawnNamedSession(
     (method, params) => ctx.daemon.client.sendRequest(method, params),
     'sender',
-    ctx.daemon.dir,
+    ctx.daemon.directory,
   );
 
   const inside = await ctx.daemon.openClient({ session: sender });
@@ -117,7 +117,7 @@ test('it acks each notice it takes', async () => {
   const sender = await spawnNamedSession(
     (method, params) => ctx.daemon.client.sendRequest(method, params),
     'sender',
-    ctx.daemon.dir,
+    ctx.daemon.directory,
   );
 
   const inside = await ctx.daemon.openClient({ session: sender });
@@ -149,7 +149,7 @@ test('it takes no notice when it does not ask for notices', async () => {
   const sender = await spawnNamedSession(
     (method, params) => ctx.daemon.client.sendRequest(method, params),
     'sender',
-    ctx.daemon.dir,
+    ctx.daemon.directory,
   );
 
   const inside = await ctx.daemon.openClient({ session: sender });

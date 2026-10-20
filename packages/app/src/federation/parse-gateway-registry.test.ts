@@ -168,17 +168,17 @@ test('it refuses a registry that is not an object', () => {
 test('it takes a registry of 34 daemons with the longest names', () => {
   const names = Array.from(
     { length: 34 },
-    (_, i) => `${'d'.repeat(29)}${String(i).padStart(2, '0')}`,
+    (_, index) => `${'d'.repeat(29)}${String(index).padStart(2, '0')}`,
   );
 
   const parsed = parseGatewayRegistry(
     {
       daemons: Object.fromEntries(
-        names.map((name, i) => [
+        names.map((name, index) => [
           name,
           {
-            address: `100.64.0.${i + 1}:8415`,
-            daemonID: `${String(i).padStart(8, 'f')}-0000-4000-8000-000000000000`,
+            address: `100.64.0.${index + 1}:8415`,
+            daemonID: `${String(index).padStart(8, 'f')}-0000-4000-8000-000000000000`,
           },
         ]),
       ),
@@ -191,13 +191,13 @@ test('it takes a registry of 34 daemons with the longest names', () => {
     ok: true,
     registry: {
       daemons: new Map(
-        names.map((name, i) => [
+        names.map((name, index) => [
           name,
           {
             name,
-            address: { host: `100.64.0.${i + 1}`, port: 8415 },
-            daemonID: `${String(i).padStart(8, 'f')}-0000-4000-8000-000000000000`,
-            incarnation: String(i).padStart(8, 'f'),
+            address: { host: `100.64.0.${index + 1}`, port: 8415 },
+            daemonID: `${String(index).padStart(8, 'f')}-0000-4000-8000-000000000000`,
+            incarnation: String(index).padStart(8, 'f'),
             token: 't',
           },
         ]),
@@ -210,17 +210,17 @@ test('it takes a registry of 34 daemons with the longest names', () => {
 test('it refuses a registry of 35 daemons as over the limit of 34', () => {
   const names = Array.from(
     { length: 35 },
-    (_, i) => `${'d'.repeat(29)}${String(i).padStart(2, '0')}`,
+    (_, index) => `${'d'.repeat(29)}${String(index).padStart(2, '0')}`,
   );
 
   const parsed = parseGatewayRegistry(
     {
       daemons: Object.fromEntries(
-        names.map((name, i) => [
+        names.map((name, index) => [
           name,
           {
-            address: `100.64.0.${i + 1}:8415`,
-            daemonID: `${String(i).padStart(8, 'f')}-0000-4000-8000-000000000000`,
+            address: `100.64.0.${index + 1}:8415`,
+            daemonID: `${String(index).padStart(8, 'f')}-0000-4000-8000-000000000000`,
           },
         ]),
       ),

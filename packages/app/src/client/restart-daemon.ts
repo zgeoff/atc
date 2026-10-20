@@ -21,7 +21,7 @@ export interface RestartDaemonDeps<TLink> {
   readonly getBoot: () => DaemonBoot;
   readonly getClient: () => DaemonClient;
   readonly restartDaemonAt: (socketPath: string) => Promise<boolean>;
-  readonly sendQuiet: (m: string, p?: Readonly<Record<string, unknown>>) => Promise<void>;
+  readonly sendQuiet: (method: string, params?: Readonly<Record<string, unknown>>) => Promise<void>;
   readonly logClientEvent: (line: string) => void;
   readonly scheduleStatus: () => void;
   readonly ptyRows: () => number;

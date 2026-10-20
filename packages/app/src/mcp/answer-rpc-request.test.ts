@@ -28,14 +28,14 @@ async function setupTest() {
 
   registerTestCleanup(() => caller.stop());
 
-  return { caller, dir: daemon.dir };
+  return { caller, directory: daemon.directory };
 }
 
 test('it refuses a tool call whose scope the caller lacks and leaves the session running', async () => {
   const ctx = await setupTest();
 
   const spawned = await ctx.caller.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'claude',
     cols: 80,
     rows: 24,
@@ -69,7 +69,7 @@ test('it refuses a forget whose scope the caller lacks and leaves the session li
   const ctx = await setupTest();
 
   const spawned = await ctx.caller.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'claude',
     cols: 80,
     rows: 24,
@@ -127,7 +127,7 @@ test('it runs a menu read for a caller holding the scope that types into a termi
   const ctx = await setupTest();
 
   const spawned = await ctx.caller.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'claude',
     cols: 80,
     rows: 24,
@@ -160,7 +160,7 @@ test('it runs a tool call whose scope the caller holds', async () => {
   const ctx = await setupTest();
 
   const spawned = await ctx.caller.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'claude',
     cols: 80,
     rows: 24,
@@ -441,10 +441,12 @@ test('it lists the agents to a caller holding only the read scope', async () => 
 });
 
 test('it answers a tool list with an error when no daemon listens on the socket', async () => {
-  const tmp = setupTempDir('atc-answer-rpc-');
+  const temporaryDirectory = setupTempDir('atc-answer-rpc-');
 
-  const caller = new TransportCaller(join(tmp.path, 'daemon.sock'), 'atc/test-build', (path) =>
-    openDaemonClient(path),
+  const caller = new TransportCaller(
+    join(temporaryDirectory.path, 'daemon.sock'),
+    'atc/test-build',
+    (path) => openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());

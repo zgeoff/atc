@@ -24,7 +24,7 @@ async function setupTest<const Name extends string>(config: MergeEventsTestConfi
       });
 
       const spawned = await daemon.client.sendRequest('session.spawn', {
-        cwd: daemon.dir,
+        cwd: daemon.directory,
         resume: `a-${randomUUID()}`,
       });
 

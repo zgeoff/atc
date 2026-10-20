@@ -19,7 +19,10 @@ test('it keeps the last-used agent when a restored session reports its start', a
 
       const stopStore = registerTestCleanup(() => store.stop());
 
-      await store.writeFleet([buildMockFleetEntry({ sessionID, cwd: paths.dir, agent: 'grok' })]);
+      await store.writeFleet([
+        buildMockFleetEntry({ sessionID, cwd: paths.directory, agent: 'grok' }),
+      ]);
+
       await store.writeLastUsedAgent('claude');
 
       await stopStore();
@@ -83,7 +86,7 @@ test('it writes the last-used agent when a spawned session reports its start', a
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     agent: 'grok',
     cols: 80,
     rows: 24,

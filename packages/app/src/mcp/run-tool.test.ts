@@ -45,7 +45,7 @@ async function setupTest() {
     prefix: 'atc-run-tool-',
     options: (paths) => {
       // The token the listener takes, which a gateway's pool presents.
-      writeFileSync(join(paths.dir, 'token'), `${'c'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'token'), `${'c'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter({ planSpawn }),
@@ -64,7 +64,7 @@ async function setupTest() {
             identity: 'imp:test',
             provider: new ImpProvider(
               createStubImpPort(),
-              { guestDir: join(paths.dir, 'g') },
+              { guestDir: join(paths.directory, 'g') },
               { reconnectDelaysMs: [0, 0, 0], version: '1.0.0' },
             ),
           },
@@ -84,7 +84,7 @@ async function setupTest() {
           ['ops', ['box']],
           ['gw', ['local']],
         ]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'token') },
       };
     },
   });
@@ -95,7 +95,7 @@ async function setupTest() {
 
   registerTestCleanup(() => caller.stop());
 
-  return { caller, planSpawn, stubProvider, daemon, dir: daemon.dir };
+  return { caller, planSpawn, stubProvider, daemon, directory: daemon.directory };
 }
 
 test('it sends no sender of the call to the daemon, which labels the message itself', async () => {
@@ -110,8 +110,8 @@ test('it sends no sender of the call to the daemon, which labels the message its
 
   expect(caller.requests).toStrictEqual([
     {
-      m: 'session.message',
-      p: { session: 's1', text: 'hello' },
+      method: 'session.message',
+      params: { session: 's1', text: 'hello' },
     },
   ]);
 });
@@ -128,8 +128,8 @@ test('it forwards a message wait to the daemon', async () => {
 
   expect(caller.requests).toStrictEqual([
     {
-      m: 'message.get',
-      p: { message: 'm1', waitMs: 20_000 },
+      method: 'message.get',
+      params: { message: 'm1', waitMs: 20_000 },
     },
   ]);
 });
@@ -146,8 +146,8 @@ test('it forwards an events session filter to the daemon', async () => {
 
   expect(caller.requests).toStrictEqual([
     {
-      m: 'events.read',
-      p: { waitMs: 1000, session: 's1' },
+      method: 'events.read',
+      params: { waitMs: 1000, session: 's1' },
     },
   ]);
 });
@@ -165,7 +165,7 @@ test('it reads the whole text of each note of an events page by default', async 
     'note.get': { text: 'hi there', complete: true },
   };
 
-  const caller = buildStubFleetCaller({ answer: (request) => answers[request.m] ?? {} });
+  const caller = buildStubFleetCaller({ answer: (request) => answers[request.method] ?? {} });
 
   const read = await runTool(
     caller,
@@ -176,10 +176,10 @@ test('it reads the whole text of each note of an events page by default', async 
 
   expect(caller.requests).toStrictEqual([
     {
-      m: 'events.read',
-      p: { cursor: 'c0' },
+      method: 'events.read',
+      params: { cursor: 'c0' },
     },
-    { m: 'note.get', p: { note: 'c1' } },
+    { method: 'note.get', params: { note: 'c1' } },
   ]);
 
   expect(read.structured).toStrictEqual({
@@ -215,7 +215,7 @@ test('it returns the note previews as the events carry them when the call asks f
     'note.get': { text: 'hi there', complete: true },
   };
 
-  const caller = buildStubFleetCaller({ answer: (request) => answers[request.m] ?? {} });
+  const caller = buildStubFleetCaller({ answer: (request) => answers[request.method] ?? {} });
 
   const read = await runTool(
     caller,
@@ -224,7 +224,7 @@ test('it returns the note previews as the events carry them when the call asks f
     { callerSessionID: null },
   );
 
-  expect(caller.requests).toStrictEqual([{ m: 'events.read', p: {} }]);
+  expect(caller.requests).toStrictEqual([{ method: 'events.read', params: {} }]);
 
   expect(read.structured).toMatchObject({
     events: [
@@ -243,7 +243,7 @@ test.each([[{}], [{ previewOnly: true }]])(
   async (args) => {
     const caller = buildStubFleetCaller({
       answer: (request) =>
-        request.m === 'events.read'
+        request.method === 'events.read'
           ? {
               events: [
                 {
@@ -275,7 +275,7 @@ test.each([[{}], [{ previewOnly: true }]])(
 test('it reads a note by the handle of its event before stripping it', async () => {
   const caller = buildStubFleetCaller({
     answer: (request) =>
-      request.m === 'events.read'
+      request.method === 'events.read'
         ? {
             events: [
               {
@@ -297,8 +297,8 @@ test('it reads a note by the handle of its event before stripping it', async () 
   await runTool(caller, 'atc_events_read', {}, { callerSessionID: null });
 
   expect(caller.requests.at(-1)).toStrictEqual({
-    m: 'note.get',
-    p: { note: 'h1' },
+    method: 'note.get',
+    params: { note: 'h1' },
   });
 });
 
@@ -313,7 +313,11 @@ test("it returns a message's whole answer on its answered event by default", asy
 
   registerTestCleanup(() => caller.stop());
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (method, params) => daemon.client.sendRequest(method, params),
+    'one',
+    daemon.directory,
+  );
 
   const answer = 'The importer skips empty rows. '.repeat(40);
 
@@ -356,7 +360,11 @@ test('it returns the answer preview on an answered event when the call asks for 
 
   registerTestCleanup(() => caller.stop());
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (method, params) => daemon.client.sendRequest(method, params),
+    'one',
+    daemon.directory,
+  );
 
   const answer = 'The importer skips empty rows. '.repeat(40);
 
@@ -389,7 +397,7 @@ test('it returns the answer preview on an answered event when the call asks for 
   invariant(Array.isArray(events), 'no events');
 
   const answered: unknown = events.find(
-    (e: unknown) => isRecord(e) && e['kind'] === 'message-answered',
+    (feedEvent: unknown) => isRecord(feedEvent) && feedEvent['kind'] === 'message-answered',
   );
 
   expect(answered).toStrictEqual({
@@ -406,7 +414,7 @@ test('it returns the answer preview on an answered event when the call asks for 
 test('it reads an answer by the handle of its event and strips the handle', async () => {
   const caller = buildStubFleetCaller({
     answer: (request) =>
-      request.m === 'events.read'
+      request.method === 'events.read'
         ? {
             events: [
               {
@@ -429,8 +437,8 @@ test('it reads an answer by the handle of its event and strips the handle', asyn
   const read = await runTool(caller, 'atc_events_read', {}, { callerSessionID: null });
 
   expect(caller.requests.at(-1)).toStrictEqual({
-    m: 'answer.get',
-    p: { answer: 'handle-1' },
+    method: 'answer.get',
+    params: { answer: 'handle-1' },
   });
 
   expect(read.structured).toStrictEqual({
@@ -464,8 +472,8 @@ test('it sends a message under the key the call gives', async () => {
 
   expect(caller.requests).toStrictEqual([
     {
-      m: 'session.message',
-      p: { session: 's1', text: 'hello', idempotencyKey: 'k-1' },
+      method: 'session.message',
+      params: { session: 's1', text: 'hello', idempotencyKey: 'k-1' },
     },
   ]);
 });
@@ -483,7 +491,7 @@ test.each([
     { callerSessionID: null },
   );
 
-  expect(caller.requests.map((request) => request.p)).toStrictEqual([
+  expect(caller.requests.map((request) => request.params)).toStrictEqual([
     { session: 's1', text: 'hello', ...keyed },
   ]);
 });
@@ -492,25 +500,25 @@ test('it spawns top-level under a key of its own when the calling session is gon
   const ctx = await setupTest();
 
   const relay = buildStubFleetCaller({
-    answer: (request) => ctx.caller.sendRequest(request.m, request.p, request.principal),
+    answer: (request) => ctx.caller.sendRequest(request.method, request.params, request.principal),
   });
 
   await runTool(
     relay,
     'atc_session_spawn',
-    { cwd: ctx.dir, idempotencyKey: 'k-1' },
+    { cwd: ctx.directory, idempotencyKey: 'k-1' },
     { callerSessionID: 'gone' },
   );
 
   expect(relay.requests).toStrictEqual([
     {
-      m: 'session.spawn',
-      p: { cwd: ctx.dir, idempotencyKey: 'k-1', cols: 100, rows: 30, parent: 'gone' },
+      method: 'session.spawn',
+      params: { cwd: ctx.directory, idempotencyKey: 'k-1', cols: 100, rows: 30, parent: 'gone' },
     },
     {
-      m: 'session.spawn',
-      p: {
-        cwd: ctx.dir,
+      method: 'session.spawn',
+      params: {
+        cwd: ctx.directory,
         idempotencyKey:
           'top-level:7c35c5a1785d20704e44d5de4beb81c1fce91b6fe48ed7c3159af6f7f832078b',
         cols: 100,
@@ -537,7 +545,7 @@ test('it spawns nothing top-level when the gone session belongs to a spawn its k
         key: 'k-1',
         payloadHash: buildPayloadHash(
           REQUEST_PARAM_SCHEMAS['session.spawn'].parse({
-            cwd: paths.dir,
+            cwd: paths.directory,
             idempotencyKey: 'k-1',
             cols: 100,
             rows: 30,
@@ -552,7 +560,7 @@ test('it spawns nothing top-level when the gone session belongs to a spawn its k
         {
           sessionID: toSessionID('spawned-before-restart'),
           name: 'tmp',
-          cwd: paths.dir,
+          cwd: paths.directory,
           agent: 'claude',
           exited: true,
         },
@@ -571,13 +579,13 @@ test('it spawns nothing top-level when the gone session belongs to a spawn its k
   registerTestCleanup(() => caller.stop());
 
   const relay = buildStubFleetCaller({
-    answer: (request) => caller.sendRequest(request.m, request.p, request.principal),
+    answer: (request) => caller.sendRequest(request.method, request.params, request.principal),
   });
 
   const call = runTool(
     relay,
     'atc_session_spawn',
-    { cwd: daemon.dir, idempotencyKey: 'k-1' },
+    { cwd: daemon.directory, idempotencyKey: 'k-1' },
     { callerSessionID: 'parent' },
   );
 
@@ -588,8 +596,14 @@ test('it spawns nothing top-level when the gone session belongs to a spawn its k
 
   expect(relay.requests).toStrictEqual([
     {
-      m: 'session.spawn',
-      p: { cwd: daemon.dir, idempotencyKey: 'k-1', cols: 100, rows: 30, parent: 'parent' },
+      method: 'session.spawn',
+      params: {
+        cwd: daemon.directory,
+        idempotencyKey: 'k-1',
+        cols: 100,
+        rows: 30,
+        parent: 'parent',
+      },
     },
   ]);
 });
@@ -598,17 +612,17 @@ test('it derives a top-level fallback key within the daemon cap from the longest
   const ctx = await setupTest();
 
   const relay = buildStubFleetCaller({
-    answer: (request) => ctx.caller.sendRequest(request.m, request.p, request.principal),
+    answer: (request) => ctx.caller.sendRequest(request.method, request.params, request.principal),
   });
 
   await runTool(
     relay,
     'atc_session_spawn',
-    { cwd: ctx.dir, idempotencyKey: 'k'.repeat(180) },
+    { cwd: ctx.directory, idempotencyKey: 'k'.repeat(180) },
     { callerSessionID: 'gone' },
   );
 
-  expect(relay.requests.map((request) => request.p?.['idempotencyKey'])).toStrictEqual([
+  expect(relay.requests.map((request) => request.params?.['idempotencyKey'])).toStrictEqual([
     'k'.repeat(180),
     expect.stringMatching(/^top-level:[0-9a-f]{64}$/u),
   ]);
@@ -618,24 +632,24 @@ test('it derives the same top-level fallback key when the call is retried', asyn
   const ctx = await setupTest();
 
   const relay = buildStubFleetCaller({
-    answer: (request) => ctx.caller.sendRequest(request.m, request.p, request.principal),
+    answer: (request) => ctx.caller.sendRequest(request.method, request.params, request.principal),
   });
 
   await runTool(
     relay,
     'atc_session_spawn',
-    { cwd: ctx.dir, idempotencyKey: 'k'.repeat(180) },
+    { cwd: ctx.directory, idempotencyKey: 'k'.repeat(180) },
     { callerSessionID: 'gone' },
   );
 
   await runTool(
     relay,
     'atc_session_spawn',
-    { cwd: ctx.dir, idempotencyKey: 'k'.repeat(180) },
+    { cwd: ctx.directory, idempotencyKey: 'k'.repeat(180) },
     { callerSessionID: 'gone' },
   );
 
-  const keys = relay.requests.map((request) => request.p?.['idempotencyKey']);
+  const keys = relay.requests.map((request) => request.params?.['idempotencyKey']);
 
   expect(keys).toStrictEqual([
     'k'.repeat(180),
@@ -685,8 +699,8 @@ test('it spawns on the target the call gives', async () => {
 
   expect(caller.requests).toStrictEqual([
     {
-      m: 'session.spawn',
-      p: { cwd: '/tmp', target: 'box', cols: 100, rows: 30 },
+      method: 'session.spawn',
+      params: { cwd: '/tmp', target: 'box', cols: 100, rows: 30 },
     },
   ]);
 });
@@ -704,8 +718,8 @@ test('it spawns with the workspace the call gives', async () => {
 
   expect(caller.requests).toStrictEqual([
     {
-      m: 'session.spawn',
-      p: { cwd: '/tmp/ws', workspace, cols: 100, rows: 30 },
+      method: 'session.spawn',
+      params: { cwd: '/tmp/ws', workspace, cols: 100, rows: 30 },
     },
   ]);
 });
@@ -716,7 +730,7 @@ test('it spawns a git workspace without a cwd and returns the directory the daem
     options: (paths) => ({
       adapter: buildMockAgentAdapter(),
       gitTransports: ['file'],
-      homeDir: join(paths.dir, 'home'),
+      homeDir: join(paths.directory, 'home'),
     }),
   });
 
@@ -726,9 +740,9 @@ test('it spawns a git workspace without a cwd and returns the directory the daem
 
   registerTestCleanup(() => caller.stop());
 
-  const home = join(daemon.dir, 'home');
-  const upstream = join(daemon.dir, 'upstream.git');
-  const work = join(daemon.dir, 'work');
+  const home = join(daemon.directory, 'home');
+  const upstream = join(daemon.directory, 'upstream.git');
+  const work = join(daemon.directory, 'work');
 
   const env = {
     ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_'))),
@@ -787,7 +801,7 @@ test('it submits a session input line', async () => {
   );
 
   expect(caller.requests).toStrictEqual([
-    { m: 'session.submit', p: { session: 's1', text: 'hello' } },
+    { method: 'session.submit', params: { session: 's1', text: 'hello' } },
   ]);
 });
 
@@ -825,7 +839,7 @@ test('it reads the menu of a session when a choice call holds no menu token', as
   );
 
   expect(result.structured).toStrictEqual({ menu });
-  expect(caller.requests).toStrictEqual([{ m: 'session.menu', p: { session: 's1' } }]);
+  expect(caller.requests).toStrictEqual([{ method: 'session.menu', params: { session: 's1' } }]);
 });
 
 test('it sends a choice with its option, label and menu token', async () => {
@@ -842,8 +856,8 @@ test('it sends a choice with its option, label and menu token', async () => {
 
   expect(caller.requests).toStrictEqual([
     {
-      m: 'session.choose',
-      p: { session: 's1', menuToken: 'menu-of-the-test', option: 2, label: 'No' },
+      method: 'session.choose',
+      params: { session: 's1', menuToken: 'menu-of-the-test', option: 2, label: 'No' },
     },
   ]);
 });
@@ -891,8 +905,8 @@ test('it sends Escape on a menu with its menu token', async () => {
 
   expect(caller.requests).toStrictEqual([
     {
-      m: 'session.choose',
-      p: { session: 's1', menuToken: 'menu-of-the-test', key: 'escape' },
+      method: 'session.choose',
+      params: { session: 's1', menuToken: 'menu-of-the-test', key: 'escape' },
     },
   ]);
 });
@@ -923,8 +937,8 @@ test('it stops a session without ever removing it', async () => {
 
   expect(caller.requests).toStrictEqual([
     {
-      m: 'session.kill',
-      p: { session: 's1', stopOnly: true },
+      method: 'session.kill',
+      params: { session: 's1', stopOnly: true },
     },
   ]);
 
@@ -956,8 +970,8 @@ test('it detaches a session through an update with a null parent', async () => {
 
   expect(caller.requests).toStrictEqual([
     {
-      m: 'session.update',
-      p: { session: 's1', parent: null },
+      method: 'session.update',
+      params: { session: 's1', parent: null },
     },
   ]);
 });
@@ -976,8 +990,8 @@ test('it renames a session through an update', async () => {
 
   expect(caller.requests).toStrictEqual([
     {
-      m: 'session.update',
-      p: { session: 's1', name: 'from-mcp' },
+      method: 'session.update',
+      params: { session: 's1', name: 'from-mcp' },
     },
   ]);
 });
@@ -1035,8 +1049,8 @@ test('it forwards an explicit clone trust decision', async () => {
 
   expect(caller.requests).toStrictEqual([
     {
-      m: 'session.spawn',
-      p: { cwd: '/tmp/ws', workspace, trustClonedWorkspace: true, cols: 100, rows: 30 },
+      method: 'session.spawn',
+      params: { cwd: '/tmp/ws', workspace, trustClonedWorkspace: true, cols: 100, rows: 30 },
     },
   ]);
 });
@@ -1045,7 +1059,7 @@ test('it starts a stopped local session again with its agent session resumed', a
   const ctx = await setupTest();
 
   const spawned = await ctx.caller.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     target: 'local',
     resume: 'agent-session-1',
     cols: 80,
@@ -1080,7 +1094,7 @@ test('it wakes the imp of a session that a stop put to sleep and starts the sess
   const ctx = await setupTest();
 
   const spawned = await ctx.caller.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     target: 'box',
     resume: 'agent-session-1',
     cols: 80,
@@ -1112,7 +1126,7 @@ test('it refuses a remote client a stopped session on a target outside its reach
   const ctx = await setupTest();
 
   const spawned = await ctx.caller.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     target: 'local',
     resume: 'agent-session-1',
     cols: 80,
@@ -1142,7 +1156,7 @@ test('it lets a remote client wake a stopped session on a target in its reach', 
   const ctx = await setupTest();
 
   const spawned = await ctx.caller.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     target: 'box',
     resume: 'agent-session-1',
     cols: 80,
@@ -1173,7 +1187,7 @@ test('it starts a stopped pinned session again, since a pin guards only against 
   const ctx = await setupTest();
 
   const spawned = await ctx.caller.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     target: 'local',
     resume: 'agent-session-1',
     cols: 80,
@@ -1236,7 +1250,7 @@ test('it returns the adopted session for atc_session_adopt through the gateway',
 
   registerTestCleanup(() => pool.stop());
 
-  const store = GatewayStore.open(join(ctx.dir, 'gateway.db'));
+  const store = GatewayStore.open(join(ctx.directory, 'gateway.db'));
 
   registerTestCleanup(() => {
     store.stop();
@@ -1250,7 +1264,7 @@ test('it returns the adopted session for atc_session_adopt through the gateway',
   });
 
   const spawned = await caller.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     resume: `a-${randomUUID()}`,
   });
 
@@ -1307,7 +1321,7 @@ test('it refuses atc_session_auth_rebind through the gateway as unauthorized, si
 
   registerTestCleanup(() => pool.stop());
 
-  const store = GatewayStore.open(join(ctx.dir, 'gateway.db'));
+  const store = GatewayStore.open(join(ctx.directory, 'gateway.db'));
 
   registerTestCleanup(() => {
     store.stop();
@@ -1321,7 +1335,7 @@ test('it refuses atc_session_auth_rebind through the gateway as unauthorized, si
   });
 
   const spawned = await caller.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     resume: `a-${randomUUID()}`,
   });
 
@@ -1339,7 +1353,7 @@ test('it hands out a token and changes nothing for a live session on a host-dest
   const ctx = await setupTest();
 
   const spawned = await ctx.caller.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     target: 'imp',
     cols: 80,
     rows: 24,
@@ -1370,7 +1384,7 @@ test('it destroys the host and drops the live session when the second call carri
   const ctx = await setupTest();
 
   const spawned = await ctx.caller.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     target: 'imp',
     cols: 80,
     rows: 24,
@@ -1404,7 +1418,7 @@ test('it hands out a token for a dead session on a host-destroying target and ch
   const ctx = await setupTest();
 
   const spawned = await ctx.caller.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     target: 'imp',
     cols: 80,
     rows: 24,
@@ -1437,7 +1451,7 @@ test('it forgets a dead session on a local target in one call', async () => {
   const ctx = await setupTest();
 
   const spawned = await ctx.caller.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
   });
@@ -1464,7 +1478,7 @@ test('it stops and forgets a live session on a local target in one call when sto
   const ctx = await setupTest();
 
   const spawned = await ctx.caller.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
   });
@@ -1489,7 +1503,7 @@ test('it refuses a live session without stop and leaves it running', async () =>
   const ctx = await setupTest();
 
   const spawned = await ctx.caller.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     target: 'imp',
     cols: 80,
     rows: 24,
@@ -1515,7 +1529,7 @@ test('it refuses a pinned session and leaves it listed', async () => {
   const ctx = await setupTest();
 
   const spawned = await ctx.caller.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
   });
@@ -1542,7 +1556,7 @@ test('it refuses a sub-session of a pinned session and leaves both listed', asyn
   const ctx = await setupTest();
 
   const spawnedParent = await ctx.caller.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
   });
@@ -1550,7 +1564,7 @@ test('it refuses a sub-session of a pinned session and leaves both listed', asyn
   const parent = getRecord(spawnedParent, 'session')['id'];
 
   const spawnedChild = await ctx.caller.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
     parent,
@@ -1578,7 +1592,7 @@ test('it refuses a session a pin reaches just before the forget does', async () 
   const ctx = await setupTest();
 
   const spawned = await ctx.caller.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
   });
@@ -1591,7 +1605,7 @@ test('it refuses a session a pin reaches just before the forget does', async () 
     answer: async (request) => {
       await ctx.caller.sendRequest('session.update', { session: id, pinned: true });
 
-      return ctx.caller.sendRequest(request.m, request.p, request.principal);
+      return ctx.caller.sendRequest(request.method, request.params, request.principal);
     },
   });
 
@@ -1646,7 +1660,7 @@ test('it refuses a principal a session on a target it cannot use as no_such_sess
   registerTestCleanup(() => caller.stop());
 
   const spawned = await caller.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -1670,12 +1684,12 @@ test('it refuses a principal a session on a target it cannot use as no_such_sess
 });
 
 test('it rebinds the host of a session whose restore was refused for a changed auth selection', async () => {
-  const tmp = setupTempDir('atc-run-tool-auth-');
+  const temporaryDirectory = setupTempDir('atc-run-tool-auth-');
   const port = createStubImpPort();
 
   const provider = new ImpProvider(
     port,
-    { guestDir: join(tmp.path, 'g'), rebindChangedAuth: false },
+    { guestDir: join(temporaryDirectory.path, 'g'), rebindChangedAuth: false },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -1730,7 +1744,7 @@ test('it rebinds the host of a session whose restore was refused for a changed a
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: tmp.path,
+    cwd: temporaryDirectory.path,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -1764,12 +1778,12 @@ test('it rebinds the host of a session whose restore was refused for a changed a
 });
 
 test('it adopts a session whose restore was refused once its host is rebound', async () => {
-  const tmp = setupTempDir('atc-run-tool-auth-');
+  const temporaryDirectory = setupTempDir('atc-run-tool-auth-');
   const port = createStubImpPort();
 
   const provider = new ImpProvider(
     port,
-    { guestDir: join(tmp.path, 'g'), rebindChangedAuth: false },
+    { guestDir: join(temporaryDirectory.path, 'g'), rebindChangedAuth: false },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -1824,7 +1838,7 @@ test('it adopts a session whose restore was refused once its host is rebound', a
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: tmp.path,
+    cwd: temporaryDirectory.path,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -1855,12 +1869,12 @@ test('it adopts a session whose restore was refused once its host is rebound', a
 });
 
 test('it refuses a rebind from a remote client acting as a principal and binds nothing', async () => {
-  const tmp = setupTempDir('atc-run-tool-auth-');
+  const temporaryDirectory = setupTempDir('atc-run-tool-auth-');
   const port = createStubImpPort();
 
   const provider = new ImpProvider(
     port,
-    { guestDir: join(tmp.path, 'g'), rebindChangedAuth: false },
+    { guestDir: join(temporaryDirectory.path, 'g'), rebindChangedAuth: false },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -1918,7 +1932,7 @@ test('it refuses a rebind from a remote client acting as a principal and binds n
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: tmp.path,
+    cwd: temporaryDirectory.path,
     agent: 'glm',
     target: 'box',
     resume: 'a1',

@@ -843,7 +843,7 @@ test('it refuses a git source whose URL carries a token', async () => {
   });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(daemon.dir, 'box', 'ws'),
+    cwd: join(daemon.directory, 'box', 'ws'),
     target: 'box',
     workspace: { kind: 'git', url: 'https://x-access-token:tok-1@example.com/r.git', ref: 'main' },
   });
@@ -894,8 +894,8 @@ test('it keeps a workspace credential out of every row, the session, the fleet, 
 
   const fleet = await daemon.client.sendRequest('fleet.list');
 
-  const state = readdirSync(daemon.dir).filter((name) => name.startsWith('state.db'));
-  const stored = state.map((name) => readFileSync(join(daemon.dir, name)).toString('latin1'));
+  const state = readdirSync(daemon.directory).filter((name) => name.startsWith('state.db'));
+  const stored = state.map((name) => readFileSync(join(daemon.directory, name)).toString('latin1'));
 
   expect(state).not.toBeEmpty();
   expect(stored).toSatisfyAll((bytes: string) => !bytes.includes('tok-7d1e5a'));
@@ -945,8 +945,8 @@ test("it keeps a workspace credential out of a refusal that carries git's error,
 
   await spawn.catch(() => null);
 
-  const state = readdirSync(daemon.dir).filter((name) => name.startsWith('state.db'));
-  const stored = state.map((name) => readFileSync(join(daemon.dir, name)).toString('latin1'));
+  const state = readdirSync(daemon.directory).filter((name) => name.startsWith('state.db'));
+  const stored = state.map((name) => readFileSync(join(daemon.directory, name)).toString('latin1'));
 
   expect(spawn).rejects.toStrictEqual(
     new DaemonError('ref_not_found', "origin has no branch or tag '[credential]'", {
@@ -2396,12 +2396,12 @@ test('it refuses a directory outside git as the workspace of a target off the da
     }),
   });
 
-  const plain = join(daemon.dir, 'plain');
+  const plain = join(daemon.directory, 'plain');
 
   mkdirSync(plain);
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(daemon.dir, 'box', 'ws'),
+    cwd: join(daemon.directory, 'box', 'ws'),
     target: 'box',
     workspace: { kind: 'path', path: plain },
   });
@@ -2435,7 +2435,7 @@ test('it runs a local session in a directory outside git as it stands', async ()
     }),
   });
 
-  const plain = join(daemon.dir, 'plain');
+  const plain = join(daemon.directory, 'plain');
 
   mkdirSync(plain);
 
@@ -2597,12 +2597,12 @@ test('it refuses a local directory outside git as the workspace of a spawn elsew
     }),
   });
 
-  const plain = join(daemon.dir, 'plain');
+  const plain = join(daemon.directory, 'plain');
 
   mkdirSync(plain);
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(daemon.dir, 'elsewhere'),
+    cwd: join(daemon.directory, 'elsewhere'),
     target: 'local',
     workspace: { kind: 'path', path: plain },
   });
@@ -2610,7 +2610,7 @@ test('it refuses a local directory outside git as the workspace of a spawn elsew
   await spawn.catch(() => null);
 
   expect(spawn).rejects.toMatchObject({ code: 'bad_args', data: { phase: 'resolving' } });
-  expect(existsSync(join(daemon.dir, 'elsewhere'))).toBeFalse();
+  expect(existsSync(join(daemon.directory, 'elsewhere'))).toBeFalse();
 });
 
 test('it materializes a git source on the local target like on any other', async () => {
@@ -3110,22 +3110,22 @@ test("it runs git from the daemon's PATH for a git spawn on an allowed transport
 
   // A git first on the PATH records each run.
   createStubBin(
-    daemon.dir,
+    daemon.directory,
     'git',
-    `#!/bin/sh\necho ran >> '${join(daemon.dir, 'git-ran')}'\nexit 1\n`,
+    `#!/bin/sh\necho ran >> '${join(daemon.directory, 'git-ran')}'\nexit 1\n`,
   );
 
-  updateEnv('PATH', `${daemon.dir}:${process.env['PATH'] ?? ''}`);
+  updateEnv('PATH', `${daemon.directory}:${process.env['PATH'] ?? ''}`);
 
   await daemon.client
     .sendRequest('session.spawn', {
-      cwd: join(daemon.dir, 'box', 'ws'),
+      cwd: join(daemon.directory, 'box', 'ws'),
       target: 'box',
       workspace: { kind: 'git', url: 'https://example.com/app.git', ref: 'main' },
     })
     .catch(() => null);
 
-  expect(existsSync(join(daemon.dir, 'git-ran'))).toBeTrue();
+  expect(existsSync(join(daemon.directory, 'git-ran'))).toBeTrue();
 });
 
 test('it refuses a git source on a local transport before it runs git, transferring nothing', async () => {
@@ -3458,18 +3458,18 @@ test("it runs git from the daemon's PATH for a probe under a valid transport lis
 
   // A git first on the PATH records each run.
   createStubBin(
-    daemon.dir,
+    daemon.directory,
     'git',
-    `#!/bin/sh\necho ran >> '${join(daemon.dir, 'git-ran')}'\nexit 1\n`,
+    `#!/bin/sh\necho ran >> '${join(daemon.directory, 'git-ran')}'\nexit 1\n`,
   );
 
-  updateEnv('PATH', `${daemon.dir}:${process.env['PATH'] ?? ''}`);
+  updateEnv('PATH', `${daemon.directory}:${process.env['PATH'] ?? ''}`);
 
   await daemon.client
     .sendRequest('git.probe', { url: 'https://example.com/app.git', target: 'box' })
     .catch(() => null);
 
-  expect(existsSync(join(daemon.dir, 'git-ran'))).toBeTrue();
+  expect(existsSync(join(daemon.directory, 'git-ran'))).toBeTrue();
 });
 
 test('it refuses a probe under an invalid transport list before any git runs', async () => {
@@ -3503,12 +3503,12 @@ test('it refuses a probe under an invalid transport list before any git runs', a
   // A git first on the PATH records each run, so a refusal that runs git
   // leaves the record behind.
   createStubBin(
-    daemon.dir,
+    daemon.directory,
     'git',
-    `#!/bin/sh\necho ran >> '${join(daemon.dir, 'git-ran')}'\nexit 1\n`,
+    `#!/bin/sh\necho ran >> '${join(daemon.directory, 'git-ran')}'\nexit 1\n`,
   );
 
-  updateEnv('PATH', `${daemon.dir}:${process.env['PATH'] ?? ''}`);
+  updateEnv('PATH', `${daemon.directory}:${process.env['PATH'] ?? ''}`);
 
   const refused = daemon.client.sendRequest('git.probe', {
     url: 'https://example.com/app.git',
@@ -3523,7 +3523,7 @@ test('it refuses a probe under an invalid transport list before any git runs', a
       "workspaces.gitTransports in config.json is invalid, so the daemon runs no git: workspaces.gitTransports holds 'ext', which atc never allows because it runs a command or reads a descriptor on the daemon host; the daemon runs no git until it is fixed",
   });
 
-  expect(existsSync(join(daemon.dir, 'git-ran'))).toBeFalse();
+  expect(existsSync(join(daemon.directory, 'git-ran'))).toBeFalse();
   expect(box.calls).toStrictEqual([]);
 });
 
@@ -3558,15 +3558,15 @@ test('it refuses a git spawn under an invalid transport list before any git runs
   // A git first on the PATH records each run, so a refusal that runs git
   // leaves the record behind.
   createStubBin(
-    daemon.dir,
+    daemon.directory,
     'git',
-    `#!/bin/sh\necho ran >> '${join(daemon.dir, 'git-ran')}'\nexit 1\n`,
+    `#!/bin/sh\necho ran >> '${join(daemon.directory, 'git-ran')}'\nexit 1\n`,
   );
 
-  updateEnv('PATH', `${daemon.dir}:${process.env['PATH'] ?? ''}`);
+  updateEnv('PATH', `${daemon.directory}:${process.env['PATH'] ?? ''}`);
 
   const refused = daemon.client.sendRequest('session.spawn', {
-    cwd: join(daemon.dir, 'box', 'ws'),
+    cwd: join(daemon.directory, 'box', 'ws'),
     target: 'box',
     workspace: { kind: 'git', url: 'https://example.com/app.git', ref: 'main' },
   });
@@ -3579,7 +3579,7 @@ test('it refuses a git spawn under an invalid transport list before any git runs
       "workspaces.gitTransports in config.json is invalid, so the daemon runs no git: workspaces.gitTransports holds 'ext', which atc never allows because it runs a command or reads a descriptor on the daemon host; the daemon runs no git until it is fixed",
   });
 
-  expect(existsSync(join(daemon.dir, 'git-ran'))).toBeFalse();
+  expect(existsSync(join(daemon.directory, 'git-ran'))).toBeFalse();
   expect(box.calls).toStrictEqual([]);
 });
 
@@ -3704,11 +3704,11 @@ test('it spawns a local session under an invalid transport list', async () => {
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
   });
 
-  expect(spawned).toMatchObject({ session: { cwd: daemon.dir } });
+  expect(spawned).toMatchObject({ session: { cwd: daemon.directory } });
 });
 
 test('it spawns a local session in a directory outside git under an invalid transport list', async () => {
@@ -3737,13 +3737,13 @@ test('it spawns a local session in a directory outside git under an invalid tran
     }),
   });
 
-  mkdirSync(join(daemon.dir, 'loose'));
+  mkdirSync(join(daemon.directory, 'loose'));
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: join(daemon.dir, 'loose'),
+    cwd: join(daemon.directory, 'loose'),
     target: 'local',
-    workspace: { kind: 'path', path: join(daemon.dir, 'loose') },
+    workspace: { kind: 'path', path: join(daemon.directory, 'loose') },
   });
 
-  expect(spawned).toMatchObject({ session: { cwd: join(daemon.dir, 'loose') } });
+  expect(spawned).toMatchObject({ session: { cwd: join(daemon.directory, 'loose') } });
 });

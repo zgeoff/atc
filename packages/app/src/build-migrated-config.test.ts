@@ -171,7 +171,7 @@ test('it parses the migrated config into the entries the old keys gave', () => {
         args: ['--x'],
         label: 'Two',
         mark: 'T',
-        env: { A: 'b' },
+        env: { DEBUG: '1' },
         settings: { model: 'opus' },
         apiKeyHelper: 'op read x',
       },

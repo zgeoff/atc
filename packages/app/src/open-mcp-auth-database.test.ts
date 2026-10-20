@@ -7,8 +7,8 @@ import { openMCPAuthDatabase } from './open-mcp-auth-database';
 // A temp directory for the database, and a Kysely instance over the opened
 // file, destroyed before the file closes.
 function setupTest() {
-  const tmp = setupTempDir('atc-mcp-auth-database-');
-  const database = openMCPAuthDatabase(join(tmp.path, 'mcp-auth.db'));
+  const temporaryDirectory = setupTempDir('atc-mcp-auth-database-');
+  const database = openMCPAuthDatabase(join(temporaryDirectory.path, 'mcp-auth.db'));
 
   registerTestCleanup(() => {
     database.close();

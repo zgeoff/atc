@@ -16,7 +16,7 @@ const INBOX_MESSAGE_SCHEMA = z.looseObject({
   // A sender this build cannot read is left out, and the message still
   // goes out with its sender's name.
   sender: z.preprocess(
-    (v) => (MESSAGE_SENDER_SCHEMA.safeParse(v).success ? v : undefined),
+    (value) => (MESSAGE_SENDER_SCHEMA.safeParse(value).success ? value : undefined),
     MESSAGE_SENDER_SCHEMA.optional(),
   ),
   text: z.string(),
@@ -123,12 +123,12 @@ export async function runTap(
       return;
     }
 
-    const msg = parsed.data;
+    const message = parsed.data;
     const previous = written;
 
     written = (async () => {
       await previous;
-      await ackInboxMessage(client, session, msg.message, renderMessageLine(msg), io);
+      await ackInboxMessage(client, session, message.message, renderMessageLine(message), io);
     })();
   };
 

@@ -60,8 +60,8 @@ export type DroppedAnswer =
 // connection and the fleet mirror.
 export interface SpawnPickerDeps<TMirror> {
   readonly sendRequest: (
-    m: string,
-    p?: Readonly<Record<string, unknown>>,
+    method: string,
+    params?: Readonly<Record<string, unknown>>,
   ) => Promise<Readonly<Record<string, unknown>>>;
   readonly ptyRows: () => number;
   readonly isLeaderKey: (buf: Buffer) => boolean;
@@ -206,7 +206,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     targetRoots: new Map(),
   };
 
-  private dir = '';
+  private directory = '';
 
   // The daemon's execution targets, read when the agent is chosen, and the
   // one chosen; null spawns on the daemon's default target.
@@ -338,7 +338,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     // the selection falls to the first one that is.
     this.selected = Math.max(
       0,
-      this.picks.findIndex((p) => p.agent === this.deps.getLastUsedAgent()),
+      this.picks.findIndex((pick) => pick.agent === this.deps.getLastUsedAgent()),
     );
 
     this.agent = this.picks[this.selected]?.agent ?? this.deps.getLastUsedAgent();
@@ -485,7 +485,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       drawPicker(
         {
           title: `${verb}: agent`,
-          items: this.picks.map((p) => p.label),
+          items: this.picks.map((pick) => pick.label),
           selected: this.selected,
           input: this.input,
           hint: this.refusal ?? hint,
@@ -506,7 +506,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       drawPicker(
         {
           title: `${verb}: started`,
-          items: this.spawnedWarnings.flatMap((w) => splitToWidth(w, getPickerWidth() - 4)),
+          items: this.spawnedWarnings.flatMap((warning) =>
+            splitToWidth(warning, getPickerWidth() - 4),
+          ),
           selected: -1,
           input: '',
           hint: '⏎ attach · esc back',
@@ -514,7 +516,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
         this.deps.write,
       );
     } else if (this.step === 'name') {
-      const where = this.isGitFlow() ? this.formatDestination() : formatDir(this.dir);
+      const where = this.isGitFlow() ? this.formatDestination() : formatDir(this.directory);
 
       drawPicker(
         {
@@ -522,7 +524,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
           items: [],
           selected: -1,
           input: this.input,
-          placeholder: formatDirName(this.autoDestination ?? this.dir),
+          placeholder: formatDirName(this.autoDestination ?? this.directory),
           hint: this.refusal ?? `session name for ${where} · ⏎ accept · esc back`,
         },
         this.deps.write,
@@ -573,10 +575,10 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     // remote daemon's path shows the label the daemon gave it, or else as it
     // is.
     const items = this.collectDirItems().map(
-      (d) =>
-        this.completed?.labels.get(d) ??
-        this.dirLabels.get(d) ??
-        (this.deps.remoteDaemon === true ? d : formatDir(d)),
+      (directory) =>
+        this.completed?.labels.get(directory) ??
+        this.dirLabels.get(directory) ??
+        (this.deps.remoteDaemon === true ? directory : formatDir(directory)),
     );
 
     this.selected = Math.min(this.selected, Math.max(0, Math.min(items.length, 10) - 1));
@@ -600,7 +602,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.selected = Math.min(this.selected, this.targets.length - 1);
 
     const git = this.isGitFlow();
-    const what = git ? 'the repository' : formatDir(this.dir);
+    const what = git ? 'the repository' : formatDir(this.directory);
     let hint = `where ${what} runs · ↑↓ move · ⏎ select · esc back`;
 
     // A step with no target the source can run on says what is missing.
@@ -613,13 +615,13 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     drawPicker(
       {
         title: `${verb}: target`,
-        items: this.targets.map((t) => formatTargetPick(t)),
+        items: this.targets.map((target) => formatTargetPick(target)),
         selected: this.selected,
         input: '',
         hint: this.refusal ?? hint,
         dimmed: new Set(
-          this.targets.flatMap((t, i) =>
-            t.takesWorkspace || (!git && t.available && t.inPlace) ? [] : [i],
+          this.targets.flatMap((target, index) =>
+            target.takesWorkspace || (!git && target.available && target.inPlace) ? [] : [index],
           ),
         ),
       },
@@ -661,7 +663,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
           this.refusal ??
           listing ??
           `type to filter, or a git URL · ↑↓ move · ⏎ select · ^r refresh${this.formatTabHint()} · esc back`,
-        dimmed: new Set(items.flatMap((item, i) => (item.notice === true ? [i] : []))),
+        dimmed: new Set(items.flatMap((item, index) => (item.notice === true ? [index] : []))),
       },
       this.deps.write,
     );
@@ -778,7 +780,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   // when the input has come back to the text it completes.
   private async loadCompletions(input: string) {
     const own = this.findSource();
-    const source = own?.kind === 'path' ? own : this.sources.find((s) => s.kind === 'path');
+
+    const source =
+      own?.kind === 'path' ? own : this.sources.find((candidate) => candidate.kind === 'path');
 
     if (source === undefined) {
       return;
@@ -941,7 +945,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     this.selected = Math.max(
       0,
-      this.picks.findIndex((p) => p.agent === this.agent),
+      this.picks.findIndex((pick) => pick.agent === this.agent),
     );
 
     this.sourcesPending = false;
@@ -1087,8 +1091,8 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       : resolvePathInput(typed, this.deps.cwd, this.deps.home);
   }
 
-  private applyDir(dir: string) {
-    this.dir = dir;
+  private applyDir(directory: string) {
+    this.directory = directory;
     this.input = '';
 
     if (!this.openTargetStep()) {
@@ -1277,7 +1281,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     const own = this.deps.remoteDaemon === true ? [] : [this.deps.cwd];
 
-    this.dirs = [...new Set([...own, ...listed.map(([dir]) => dir)])];
+    this.dirs = [...new Set([...own, ...listed.map(([directory]) => directory)])];
     this.input = '';
     this.selected = 0;
     this.step = 'dir';
@@ -1302,7 +1306,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     }
 
     const eligible = this.collectEligibleTargets();
-    const target = this.target ?? eligible.find((t) => t.isDefault) ?? eligible[0];
+    const target = this.target ?? eligible.find((candidate) => candidate.isDefault) ?? eligible[0];
 
     return target === undefined ? {} : { target: target.id };
   }
@@ -1703,8 +1707,8 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   private async sendPending(
     kind: PendingRequest['kind'],
     label: string,
-    m: string,
-    p: Readonly<Record<string, unknown>>,
+    method: string,
+    params: Readonly<Record<string, unknown>>,
   ): Promise<
     | { readonly ok: true; readonly answer: Readonly<Record<string, unknown>> }
     | { readonly ok: false; readonly error: unknown }
@@ -1725,7 +1729,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       | { readonly ok: false; readonly error: unknown };
 
     try {
-      result = { ok: true, answer: await this.deps.sendRequest(m, p) };
+      result = { ok: true, answer: await this.deps.sendRequest(method, params) };
     } catch (error) {
       result = { ok: false, error };
     }
@@ -1954,15 +1958,15 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     // An empty destination takes the one the daemon picks on the target.
     if (typed === '' && this.autoDestination !== null) {
       this.destinationRepoURL = this.repo?.url ?? null;
-      this.dir = '';
+      this.directory = '';
 
       return true;
     }
 
     const inPlace = this.findEffectiveTarget()?.inPlace ?? true;
-    const dir = inPlace ? expandHome(typed, this.deps.home) : typed;
+    const directory = inPlace ? expandHome(typed, this.deps.home) : typed;
 
-    if (!dir.startsWith('/')) {
+    if (!directory.startsWith('/')) {
       this.refusal = inPlace
         ? 'the destination must be an absolute path'
         : 'the destination must be an absolute path on the target; ~ is not expanded there';
@@ -1970,15 +1974,15 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       return false;
     }
 
-    if (dir !== this.buildDestination()) {
-      this.destination = dir;
+    if (directory !== this.buildDestination()) {
+      this.destination = directory;
       this.destinationAttempt = 1;
       this.destinationEdited = true;
     }
 
     this.autoDestination = null;
     this.destinationRepoURL = this.repo?.url ?? null;
-    this.dir = this.buildDestination();
+    this.directory = this.buildDestination();
 
     return true;
   }
@@ -2001,7 +2005,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   // The target the spawn runs on: the chosen one, else the daemon's
   // default, else null when the daemon lists no targets.
   private findEffectiveTarget(): TargetPick | null {
-    return this.target ?? this.targets.find((t) => t.isDefault) ?? null;
+    return this.target ?? this.targets.find((target) => target.isDefault) ?? null;
   }
 
   // opens only when more than one target can run the source, or none can although the
@@ -2020,14 +2024,14 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     const preferred =
       this.target ??
       (this.isGitFlow()
-        ? (this.targets.find((t) => t.isDefault && t.takesWorkspace) ??
-          this.targets.find((t) => t.takesWorkspace))
+        ? (this.targets.find((target) => target.isDefault && target.takesWorkspace) ??
+          this.targets.find((target) => target.takesWorkspace))
         : undefined) ??
-      this.targets.find((t) => t.isDefault);
+      this.targets.find((target) => target.isDefault);
 
     this.selected = Math.max(
       0,
-      this.targets.findIndex((t) => t.id === preferred?.id),
+      this.targets.findIndex((target) => target.id === preferred?.id),
     );
 
     this.input = '';
@@ -2040,7 +2044,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   private collectEligibleTargets(): TargetPick[] {
     const git = this.isGitFlow();
 
-    return this.targets.filter((t) => findTargetRefusal(t, git) === null);
+    return this.targets.filter((target) => findTargetRefusal(target, git) === null);
   }
 
   // Reads the daemon's targets and sources once the agent is chosen, and
@@ -2068,12 +2072,15 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     // that reaches the broker.
     const brokered = isBrokerAgent(listed['agents'], this.agent);
     const listedTargets = collectTargetPicks(listed);
-    const picks = listedTargets.filter((t) => !brokered || t.brokerAuth);
+    const picks = listedTargets.filter((target) => !brokered || target.brokerAuth);
 
     // An adopt resumes a session from its history on this host, which a
     // fresh checkout elsewhere does not hold, so it is offered only the
     // targets that run here.
-    this.targets = this.resume ? picks.filter((t) => t.available && t.inPlace) : picks;
+    this.targets = this.resume
+      ? picks.filter((target) => target.available && target.inPlace)
+      : picks;
+
     this.targetGap = null;
 
     if (listedTargets.length > 0 && picks.length === 0) {
@@ -2105,7 +2112,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
   private async spawn(prompt: string) {
     const params = {
-      ...(this.isGitFlow() && this.autoDestination !== null ? {} : { cwd: this.dir }),
+      ...(this.isGitFlow() && this.autoDestination !== null ? {} : { cwd: this.directory }),
       name: this.name,
       prompt,
       cols: cols(),
@@ -2146,7 +2153,11 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     // screen takes over.
     if (Array.isArray(warnings) && warnings.length > 0) {
       this.spawned = session;
-      this.spawnedWarnings = warnings.filter((w): w is string => typeof w === 'string');
+
+      this.spawnedWarnings = warnings.filter(
+        (warning): warning is string => typeof warning === 'string',
+      );
+
       this.step = 'spawned';
 
       this.deps.write(ansi.clear);
@@ -2254,7 +2265,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       return target;
     }
 
-    return { ...target, workspace: { kind: 'path', path: this.dir } };
+    return { ...target, workspace: { kind: 'path', path: this.directory } };
   }
 }
 
@@ -2309,8 +2320,8 @@ function formatError(error: unknown): string {
 
 // Why the daemon gave no list, in the words the notice row uses.
 // How old a cached listing is, in whole minutes or hours.
-function formatAge(ms: number): string {
-  const minutes = Math.floor(ms / 60_000);
+function formatAge(ageMs: number): string {
+  const minutes = Math.floor(ageMs / 60_000);
 
   if (minutes < 1) {
     return 'under 1m';

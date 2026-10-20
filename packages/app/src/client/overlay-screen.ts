@@ -67,17 +67,21 @@ export class OverlayScreen {
       return sorted;
     }
 
-    const f = this.filter;
+    const query = this.filter;
 
     const matched = new Set(
       sorted
-        .filter((s) => findFuzzyScore(`${s.name} ${formatDir(s.cwd)}`, f) !== null)
-        .map((s) => s.id),
+        .filter(
+          (session) => findFuzzyScore(`${session.name} ${formatDir(session.cwd)}`, query) !== null,
+        )
+        .map((session) => session.id),
     );
 
     // A matching sub-session keeps its parent row, so it stays nested.
     return sorted.filter(
-      (s) => matched.has(s.id) || sorted.some((c) => c.parent === s.id && matched.has(c.id)),
+      (session) =>
+        matched.has(session.id) ||
+        sorted.some((child) => child.parent === session.id && matched.has(child.id)),
     );
   }
 
@@ -114,7 +118,10 @@ export class OverlayScreen {
 
       this.agentLabels = meta.labels;
       this.agentModels = meta.models;
-      this.availableTargets = collectTargetPicks(answer).filter((t) => t.available).length;
+
+      this.availableTargets = collectTargetPicks(answer).filter(
+        (target) => target.available,
+      ).length;
     } catch {
       return;
     }
@@ -129,7 +136,10 @@ export class OverlayScreen {
   open() {
     this.filter = null;
     void this.refreshAgents();
-    const focusedIndex = this.pickSessions().findIndex((s) => s.id === this.deps.findFocusedID());
+
+    const focusedIndex = this.pickSessions().findIndex(
+      (session) => session.id === this.deps.findFocusedID(),
+    );
 
     this.selected = Math.max(0, focusedIndex);
 

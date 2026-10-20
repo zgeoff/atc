@@ -30,7 +30,7 @@ test('it answers a forget on a host-destroying target with a token and destroys 
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -70,7 +70,7 @@ test('it destroys the host and forgets the session when the forget carries its t
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -111,7 +111,7 @@ test('it refuses a forget with internal and keeps the session when the host dest
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -149,7 +149,7 @@ test('it refuses a confirm token a forget already took', async () => {
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -202,7 +202,7 @@ test('it refuses a confirm token past its lifetime', async () => {
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -246,7 +246,7 @@ test('it takes a confirm token up to the last millisecond of its lifetime', asyn
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -282,13 +282,13 @@ test('it refuses a confirm token handed out for another session', async () => {
   });
 
   const first = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
 
   const second = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -322,7 +322,7 @@ test('it forgets a session on the local target at once without a token', async (
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -367,7 +367,7 @@ test('it refuses a forget that refuses a pinned session when a pin lands after t
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -405,7 +405,7 @@ test('it refuses a forget that refuses a pinned session of a sub-session of a pi
   });
 
   const spawnedParent = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -413,7 +413,7 @@ test('it refuses a forget that refuses a pinned session of a sub-session of a pi
   const parent = getRecord(spawnedParent, 'session')['id'];
 
   const spawnedChild = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
     parent,
@@ -449,7 +449,7 @@ test('it forgets a sub-session of a pinned session when its parent asks and keep
   });
 
   const spawnedParent = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -457,7 +457,7 @@ test('it forgets a sub-session of a pinned session when its parent asks and keep
   const parent = String(getRecord(spawnedParent, 'session')['id']);
 
   const spawnedChild = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
     parent,
@@ -497,7 +497,7 @@ test('it refuses a forget of a sub-session of a pinned session that another sess
   });
 
   const spawnedParent = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -505,7 +505,7 @@ test('it refuses a forget of a sub-session of a pinned session that another sess
   const parent = getRecord(spawnedParent, 'session')['id'];
 
   const spawnedChild = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
     parent,
@@ -514,7 +514,7 @@ test('it refuses a forget of a sub-session of a pinned session that another sess
   const child = getRecord(spawnedChild, 'session')['id'];
 
   const spawnedOther = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -553,7 +553,7 @@ test('it refuses a forget by its parent of a sub-session pinned on its own', asy
   });
 
   const spawnedParent = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -561,7 +561,7 @@ test('it refuses a forget by its parent of a sub-session pinned on its own', asy
   const parent = String(getRecord(spawnedParent, 'session')['id']);
 
   const spawnedChild = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
     parent,
@@ -601,7 +601,7 @@ test('it keeps a dead sub-session pinned on its own as a top-level session when 
   });
 
   const spawnedParent = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -609,7 +609,7 @@ test('it keeps a dead sub-session pinned on its own as a top-level session when 
   const parent = getRecord(spawnedParent, 'session')['id'];
 
   const spawnedChild = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
     parent,
@@ -649,7 +649,7 @@ test('it stops a sub-session of a pinned session when its parent asks', async ()
   });
 
   const spawnedParent = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -657,7 +657,7 @@ test('it stops a sub-session of a pinned session when its parent asks', async ()
   const parent = String(getRecord(spawnedParent, 'session')['id']);
 
   const spawnedChild = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
     parent,
@@ -687,7 +687,7 @@ test('it forgets a detached sub-session of a pinned session and keeps the former
   });
 
   const spawnedParent = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -695,7 +695,7 @@ test('it forgets a detached sub-session of a pinned session and keeps the former
   const parent = getRecord(spawnedParent, 'session')['id'];
 
   const spawnedChild = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
     parent,
@@ -734,7 +734,7 @@ test('it refuses an update whose parent is not null and leaves the sub-session u
   });
 
   const spawnedParent = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -742,7 +742,7 @@ test('it refuses an update whose parent is not null and leaves the sub-session u
   const parent = getRecord(spawnedParent, 'session')['id'];
 
   const spawnedChild = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
     parent,
@@ -775,7 +775,7 @@ test('it refuses a forget that refuses a live session when the session is live',
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -809,7 +809,7 @@ test('it forgets a dead unpinned session when the forget refuses pinned and live
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -845,7 +845,7 @@ test('it refuses a pinned session on a host-destroying target before it hands ou
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -886,7 +886,7 @@ test('it keeps a headless run going when the forget of its session fails to dest
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
     resume: 'agent-1',
@@ -915,13 +915,13 @@ test('it keeps a headless run going when the forget of its session fails to dest
   ).toStrictEqual([
     {
       request: {
-        cwd: daemon.dir,
+        cwd: daemon.directory,
         prompt:
           'Continue the task autonomously. Verify your work as you go and stop when it is complete.',
         resume: 'agent-1',
         sessionID: id,
-        recordPath: join(daemon.dir, 'records', `${String(id)}.json`),
-        reporterSocket: join(daemon.dir, 'reporter.sock'),
+        recordPath: join(daemon.directory, 'records', `${String(id)}.json`),
+        reporterSocket: join(daemon.directory, 'reporter.sock'),
       },
       stopped: false,
     },
@@ -950,7 +950,7 @@ test('it refuses a principal forget without a token of a session on a target it 
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -1024,7 +1024,7 @@ test('it refuses a principal forget with the owner token of a session on a targe
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -1073,7 +1073,7 @@ test('it refuses a principal forget with the owner token of a session that does 
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -1116,7 +1116,7 @@ test('it destroys the host when a principal that may use its target forgets with
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });

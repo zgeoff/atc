@@ -11,7 +11,10 @@ async function setupTest() {
   const daemon = await startTestDaemon({
     prefix: 'atc-menu-choice-',
     options: (paths) => {
-      const claude = buildStubMenuClaude(join(paths.dir, 'menu.json'), join(paths.dir, 'menu.log'));
+      const claude = buildStubMenuClaude(
+        join(paths.directory, 'menu.json'),
+        join(paths.directory, 'menu.log'),
+      );
 
       const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
         agents: { claude, grok: { bin: 'bash', args: ['-c', 'sleep 30'] } },
@@ -33,10 +36,10 @@ async function setupTest() {
   });
 
   const spawnMenu = async (spec: unknown) => {
-    writeFileSync(join(daemon.dir, 'menu.json'), JSON.stringify(spec));
+    writeFileSync(join(daemon.directory, 'menu.json'), JSON.stringify(spec));
 
     const spawned = await daemon.client.sendRequest('session.spawn', {
-      cwd: daemon.dir,
+      cwd: daemon.directory,
       agent: 'claude',
       cols: 80,
       rows: 24,
@@ -58,8 +61,8 @@ async function setupTest() {
   };
 
   const readLog = (): unknown[] =>
-    existsSync(join(daemon.dir, 'menu.log'))
-      ? readFileSync(join(daemon.dir, 'menu.log'), 'utf8')
+    existsSync(join(daemon.directory, 'menu.log'))
+      ? readFileSync(join(daemon.directory, 'menu.log'), 'utf8')
           .split('\n')
           .filter((line) => line !== '')
           .map((line): unknown => JSON.parse(line))
@@ -683,7 +686,7 @@ test('it reads afresh a long list after input from outside a menu read or choice
         window: 3,
       },
     ],
-    switchFile: join(ctx.daemon.dir, 'switch'),
+    switchFile: join(ctx.daemon.directory, 'switch'),
   });
 
   await ctx.daemon.client.sendRequest('session.input', { session: shown.session, d: 'x' });
@@ -692,7 +695,7 @@ test('it reads afresh a long list after input from outside a menu read or choice
     expect(ctx.readLog().at(-1)).toStrictEqual({ key: 'x' });
   });
 
-  writeFileSync(join(ctx.daemon.dir, 'switch'), '');
+  writeFileSync(join(ctx.daemon.directory, 'switch'), '');
 
   await waitFor(async () => {
     const screen = await ctx.daemon.client.sendRequest('session.screen', {
@@ -732,7 +735,7 @@ test('it reads afresh a long menu that opens again with the same text after clos
         window: 3,
       },
     ],
-    switchFile: join(ctx.daemon.dir, 'switch'),
+    switchFile: join(ctx.daemon.directory, 'switch'),
   });
 
   await ctx.daemon.client.sendRequest('session.choose', {
@@ -742,7 +745,7 @@ test('it reads afresh a long menu that opens again with the same text after clos
     label: 'Amber',
   });
 
-  writeFileSync(join(ctx.daemon.dir, 'switch'), '');
+  writeFileSync(join(ctx.daemon.directory, 'switch'), '');
 
   await waitFor(async () => {
     const screen = await ctx.daemon.client.sendRequest('session.screen', {
@@ -808,10 +811,10 @@ test('it refuses a choice on a menu that changed since the read and sends nothin
       { kind: 'numbered', text: ['Trust this folder?'], options: ['No, exit', 'Yes'] },
       { kind: 'numbered', text: ['Allow external imports?'], options: ['No, exit', 'Yes'] },
     ],
-    switchFile: join(ctx.daemon.dir, 'switch'),
+    switchFile: join(ctx.daemon.directory, 'switch'),
   });
 
-  writeFileSync(join(ctx.daemon.dir, 'switch'), '');
+  writeFileSync(join(ctx.daemon.directory, 'switch'), '');
 
   await waitFor(async () => {
     const answer = await ctx.daemon.client.sendRequest('session.menu', { session: shown.session });
@@ -863,10 +866,10 @@ test('it refuses Escape on a menu that changed since the read and sends nothing'
       { kind: 'plain', text: ['Pick a colour'], options: ['Amber', 'Teal'] },
       { kind: 'plain', text: ['Pick a shape'], options: ['Circle', 'Square'] },
     ],
-    switchFile: join(ctx.daemon.dir, 'switch'),
+    switchFile: join(ctx.daemon.directory, 'switch'),
   });
 
-  writeFileSync(join(ctx.daemon.dir, 'switch'), '');
+  writeFileSync(join(ctx.daemon.directory, 'switch'), '');
 
   await waitFor(async () => {
     const answer = await ctx.daemon.client.sendRequest('session.menu', { session: shown.session });
@@ -908,7 +911,7 @@ test('it refuses a choice of the option under the cursor once the session exits 
 
   const shown = await ctx.spawnMenu({
     menus: [{ kind: 'plain', text: ['Trust this folder?'], options: ['No, exit', 'Yes'] }],
-    exitFile: join(ctx.daemon.dir, 'exit'),
+    exitFile: join(ctx.daemon.directory, 'exit'),
   });
 
   const chosen = ctx.daemon.client.sendRequest('session.choose', {
@@ -918,7 +921,7 @@ test('it refuses a choice of the option under the cursor once the session exits 
     label: 'No, exit',
   });
 
-  writeFileSync(join(ctx.daemon.dir, 'exit'), '');
+  writeFileSync(join(ctx.daemon.directory, 'exit'), '');
 
   expect(chosen).rejects.toMatchObject({ code: 'session_dead' });
   expect(ctx.readLog()).toStrictEqual([]);
@@ -929,7 +932,7 @@ test('it refuses Escape once the session exits during the quiet wait', async () 
 
   const shown = await ctx.spawnMenu({
     menus: [{ kind: 'plain', text: ['Trust this folder?'], options: ['No, exit', 'Yes'] }],
-    exitFile: join(ctx.daemon.dir, 'exit'),
+    exitFile: join(ctx.daemon.directory, 'exit'),
   });
 
   const chosen = ctx.daemon.client.sendRequest('session.choose', {
@@ -938,7 +941,7 @@ test('it refuses Escape once the session exits during the quiet wait', async () 
     key: 'escape',
   });
 
-  writeFileSync(join(ctx.daemon.dir, 'exit'), '');
+  writeFileSync(join(ctx.daemon.directory, 'exit'), '');
 
   expect(chosen).rejects.toMatchObject({ code: 'session_dead' });
   expect(ctx.readLog()).toStrictEqual([]);
@@ -948,7 +951,7 @@ test('it refuses a menu read for an agent whose adapter reads no menus', async (
   const ctx = await setupTest();
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+    cwd: ctx.daemon.directory,
     agent: 'grok',
     cols: 80,
     rows: 24,

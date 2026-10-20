@@ -6,14 +6,14 @@ import invariant from 'tiny-invariant';
 import { runConfigMigrate } from './run-config-migrate';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-config-migrate-');
+  const temporaryDirectory = setupTempDir('atc-config-migrate-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it prints the migrated config and leaves the file alone without --write', () => {
   const ctx = setupTest();
-  const file = join(ctx.dir, 'config.json');
+  const file = join(ctx.directory, 'config.json');
   const original = JSON.stringify({ claudeBin: '/opt/claude', leader: 'ctrl-a' });
 
   writeFileSync(file, original);
@@ -48,7 +48,7 @@ test('it prints the migrated config and leaves the file alone without --write', 
 
 test('it backs the file up, rewrites it, and prints both paths with --write', () => {
   const ctx = setupTest();
-  const file = join(ctx.dir, 'config.json');
+  const file = join(ctx.directory, 'config.json');
   const original = JSON.stringify({ codexBin: '/opt/codex' });
 
   writeFileSync(file, original);
@@ -68,11 +68,13 @@ test('it backs the file up, rewrites it, and prints both paths with --write', ()
     },
   });
 
-  const [backupName, ...others] = readdirSync(ctx.dir).filter((name) => name !== 'config.json');
+  const [backupName, ...others] = readdirSync(ctx.directory).filter(
+    (name) => name !== 'config.json',
+  );
 
   invariant(backupName !== undefined, 'the migration wrote no backup');
 
-  const backup = join(ctx.dir, backupName);
+  const backup = join(ctx.directory, backupName);
 
   expect(backupName).toMatch(/^config\.json\.bak-\d{8}T\d{6}Z$/u);
 
@@ -92,7 +94,7 @@ test('it backs the file up, rewrites it, and prints both paths with --write', ()
 
 test('it says nothing to migrate and writes nothing for a file that uses agents', () => {
   const ctx = setupTest();
-  const file = join(ctx.dir, 'config.json');
+  const file = join(ctx.directory, 'config.json');
 
   writeFileSync(file, JSON.stringify({ agents: { claude: {} } }));
 
@@ -117,12 +119,12 @@ test('it says nothing to migrate and writes nothing for a file that uses agents'
     code: 0,
   });
 
-  expect(readdirSync(ctx.dir)).toStrictEqual(['config.json']);
+  expect(readdirSync(ctx.directory)).toStrictEqual(['config.json']);
 });
 
 test('it exits 1 and writes nothing for a file that sets agents beside an old key', () => {
   const ctx = setupTest();
-  const file = join(ctx.dir, 'config.json');
+  const file = join(ctx.directory, 'config.json');
   const original = JSON.stringify({ agents: {}, claudeBin: 'x' });
 
   writeFileSync(file, original);
@@ -148,13 +150,13 @@ test('it exits 1 and writes nothing for a file that sets agents beside an old ke
     code: 1,
   });
 
-  expect(readdirSync(ctx.dir)).toStrictEqual(['config.json']);
+  expect(readdirSync(ctx.directory)).toStrictEqual(['config.json']);
   expect(readFileSync(file, 'utf8')).toBe(original);
 });
 
 test('it notes each dropped gateway on stderr without printing a value', () => {
   const ctx = setupTest();
-  const file = join(ctx.dir, 'config.json');
+  const file = join(ctx.directory, 'config.json');
 
   writeFileSync(
     file,
@@ -185,7 +187,7 @@ test('it notes each dropped gateway on stderr without printing a value', () => {
 
 test('it exits 1 for a file that is not valid JSON', () => {
   const ctx = setupTest();
-  const file = join(ctx.dir, 'config.json');
+  const file = join(ctx.directory, 'config.json');
 
   writeFileSync(file, '{ "claudeBin": ');
 
@@ -213,7 +215,7 @@ test('it exits 1 for a file that is not valid JSON', () => {
 
 test('it exits 1 for a file that does not exist', () => {
   const ctx = setupTest();
-  const file = join(ctx.dir, 'config.json');
+  const file = join(ctx.directory, 'config.json');
   let stdout = '';
   let stderr = '';
 

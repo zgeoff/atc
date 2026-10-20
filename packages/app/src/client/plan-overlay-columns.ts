@@ -36,10 +36,10 @@ export interface OverlayColumnInput {
   readonly modelMax: number;
 }
 
-type ColumnKey = 'dir' | 'model' | 'event' | 'harness' | 'target' | 'name' | 'lifecycle';
+type ColumnKey = 'directory' | 'model' | 'event' | 'harness' | 'target' | 'name' | 'lifecycle';
 
 const PREFERRED: Readonly<Record<ColumnKey, number>> = {
-  dir: 18,
+  directory: 18,
   model: 14,
   event: EVENT_BASE_WIDTH,
   harness: 14,
@@ -52,7 +52,7 @@ const PREFERRED: Readonly<Record<ColumnKey, number>> = {
 // target, and harness stay legible after the directory, model, and last
 // event have given way.
 const FLOOR: Readonly<Record<ColumnKey, number>> = {
-  dir: 0,
+  directory: 0,
   model: 0,
   event: 0,
   harness: 3,
@@ -63,7 +63,7 @@ const FLOOR: Readonly<Record<ColumnKey, number>> = {
 
 export function planOverlayColumns(input: Readonly<OverlayColumnInput>): OverlayColumnPlan {
   const widths: Record<ColumnKey, number> = {
-    dir: input.grouped ? 0 : PREFERRED.dir,
+    directory: input.grouped ? 0 : PREFERRED.directory,
     model: pickWidth(input.modelMax, PREFERRED.model),
     event: PREFERRED.event,
     harness: pickWidth(input.harnessMax, PREFERRED.harness),
@@ -84,7 +84,7 @@ export function planOverlayColumns(input: Readonly<OverlayColumnInput>): Overlay
 
   return {
     nameWidth: widths.name,
-    dirWidth: widths.dir,
+    dirWidth: widths.directory,
     targetWidth: widths.target,
     harnessWidth: widths.harness,
     modelWidth: widths.model,
@@ -101,7 +101,7 @@ function pickWidth(contentMax: number, preferred: number): number {
 
 // from the first column crowded out to the last.
 const SHRINK_ORDER: readonly ColumnKey[] = [
-  'dir',
+  'directory',
   'model',
   'event',
   'harness',

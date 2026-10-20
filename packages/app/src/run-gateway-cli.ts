@@ -283,7 +283,7 @@ function pickStateDir(
   if (distinct.length > 1) {
     return {
       ok: false,
-      message: `--state-dir gives different directories: ${distinct.map((dir) => `'${dir}'`).join(', ')}`,
+      message: `--state-dir gives different directories: ${distinct.map((directory) => `'${directory}'`).join(', ')}`,
     };
   }
 

@@ -14,7 +14,7 @@ test('it answers the adapter command for a session on the daemon machine', async
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -23,7 +23,7 @@ test('it answers the adapter command for a session on the daemon machine', async
     session: getRecord(spawned, 'session')['id'],
   });
 
-  expect(answer).toStrictEqual({ command: `cd '${daemon.dir}' && claude --resume` });
+  expect(answer).toStrictEqual({ command: `cd '${daemon.directory}' && claude --resume` });
 });
 
 test('it refuses the command for a session on another machine as unsupported', async () => {
@@ -41,7 +41,7 @@ test('it refuses the command for a session on another machine as unsupported', a
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -65,7 +65,7 @@ test('it refuses the command for an agent that builds none as unsupported', asyn
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });

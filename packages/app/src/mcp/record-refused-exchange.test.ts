@@ -7,12 +7,12 @@ import { recordRefusedExchange } from './record-refused-exchange';
 import { SecurityEventLog } from './security-event-log';
 
 async function setupTest() {
-  const tmp = setupTempDir('atc-refused-exchange-');
+  const temporaryDirectory = setupTempDir('atc-refused-exchange-');
   const lines: string[] = [];
   const clock = buildStubClock(Date.now());
 
   const store = await openMCPAuth({
-    dbPath: join(tmp.path, 'mcp-auth.db'),
+    dbPath: join(temporaryDirectory.path, 'mcp-auth.db'),
     openDatabase: openMCPAuthDatabase,
     origin: null,
   });

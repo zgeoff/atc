@@ -26,8 +26,8 @@ import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { openGatewayCaller } from './open-gateway-caller';
 
 async function setupTest() {
-  const tmp = setupTempDir('atc-gateway-');
-  const authDBPath = join(tmp.path, 'mcp-auth.db');
+  const temporaryDirectory = setupTempDir('atc-gateway-');
+  const authDBPath = join(temporaryDirectory.path, 'mcp-auth.db');
 
   const auth = await openMCPAuth({
     dbPath: authDBPath,
@@ -48,8 +48,8 @@ async function setupTest() {
   // reads it from a file of its own, so a test can change one daemon's.
   const token = randomBytes(16).toString('hex');
 
-  writeFileSync(join(tmp.path, 'cloud-token'), `${token}\n`);
-  writeFileSync(join(tmp.path, 'pc-token'), `${token}\n`);
+  writeFileSync(join(temporaryDirectory.path, 'cloud-token'), `${token}\n`);
+  writeFileSync(join(temporaryDirectory.path, 'pc-token'), `${token}\n`);
 
   // The two daemons boot at once, since neither waits on the other.
   const [cloud, pc] = await Promise.all([
@@ -59,7 +59,11 @@ async function setupTest() {
         // Session messages need an adapter that takes them.
         adapter: buildMockAgentAdapter({ takesMessages: true }),
         principals: new Map([[claude.clientID, ['local']]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(tmp.path, 'cloud-token') },
+        listen: {
+          host: '127.0.0.1',
+          port: 0,
+          tokenFile: join(temporaryDirectory.path, 'cloud-token'),
+        },
       }),
     }),
     startTestDaemon({
@@ -68,7 +72,11 @@ async function setupTest() {
         // Session messages need an adapter that takes them.
         adapter: buildMockAgentAdapter({ takesMessages: true }),
         principals: new Map([[claude.clientID, ['local']]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(tmp.path, 'pc-token') },
+        listen: {
+          host: '127.0.0.1',
+          port: 0,
+          tokenFile: join(temporaryDirectory.path, 'pc-token'),
+        },
       }),
     }),
   ]);
@@ -121,7 +129,7 @@ async function setupTest() {
     },
     build: 'atc-gateway/test',
     openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
-    gatewayDBPath: join(tmp.path, 'gateway.db'),
+    gatewayDBPath: join(temporaryDirectory.path, 'gateway.db'),
 
     // Bounds a call asked of every daemon, so a daemon that never answers
     // cannot hold a test for the 5 s default. No test waits it out: a
@@ -182,7 +190,7 @@ async function setupTest() {
   return {
     url: server.url,
     origin: server.origin,
-    dir: tmp.path,
+    directory: temporaryDirectory.path,
     auth,
     authenticator,
     cloud,
@@ -200,12 +208,12 @@ test('it lists the sessions of both daemons under gateway ids with each daemon u
 
   await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
     name: 'atc_session_spawn',
-    arguments: { cwd: ctx.dir, name: 'on-cloud' },
+    arguments: { cwd: ctx.directory, name: 'on-cloud' },
   });
 
   await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
     name: 'atc_session_spawn',
-    arguments: { cwd: ctx.dir, name: 'on-pc', daemon: 'pc' },
+    arguments: { cwd: ctx.directory, name: 'on-pc', daemon: 'pc' },
   });
 
   const listed = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
@@ -233,7 +241,7 @@ test('it reads a session through its gateway id from the daemon that holds it', 
 
   const spawned = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
     name: 'atc_session_spawn',
-    arguments: { cwd: ctx.dir, name: 'on-pc', daemon: 'pc' },
+    arguments: { cwd: ctx.directory, name: 'on-pc', daemon: 'pc' },
   });
 
   const id = String(getRecord(spawned, 'structuredContent')['id']);
@@ -258,12 +266,12 @@ test('it replays a keyed spawn from the daemon the key was bound to when the ret
 
   const first = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
     name: 'atc_session_spawn',
-    arguments: { cwd: ctx.dir, name: 'keyed', daemon: 'pc', idempotencyKey: 'spawn-once' },
+    arguments: { cwd: ctx.directory, name: 'keyed', daemon: 'pc', idempotencyKey: 'spawn-once' },
   });
 
   const retried = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
     name: 'atc_session_spawn',
-    arguments: { cwd: ctx.dir, name: 'keyed', idempotencyKey: 'spawn-once' },
+    arguments: { cwd: ctx.directory, name: 'keyed', idempotencyKey: 'spawn-once' },
   });
 
   expect(getRecord(retried, 'structuredContent')['id']).toBe(
@@ -282,7 +290,7 @@ test("it labels a message a connector sends with the client's name and kind conn
 
   const spawned = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
     name: 'atc_session_spawn',
-    arguments: { cwd: ctx.dir },
+    arguments: { cwd: ctx.directory },
   });
 
   const session = String(getRecord(spawned, 'structuredContent')['id']);
@@ -311,7 +319,7 @@ test('it reads the events of both daemons in one page', async () => {
     ['cloud', 'pc'].map((daemon) =>
       sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
         name: 'atc_session_spawn',
-        arguments: { cwd: ctx.dir, daemon },
+        arguments: { cwd: ctx.directory, daemon },
       }),
     ),
   );
@@ -348,7 +356,7 @@ test('it resumes an events read after the events of its page', async () => {
     ['cloud', 'pc'].map((daemon) =>
       sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
         name: 'atc_session_spawn',
-        arguments: { cwd: ctx.dir, daemon },
+        arguments: { cwd: ctx.directory, daemon },
       }),
     ),
   );
@@ -407,7 +415,7 @@ test('it refuses a spawn on a stopped daemon as daemon_unavailable', async () =>
 
   const refused = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
     name: 'atc_session_spawn',
-    arguments: { cwd: ctx.dir, daemon: 'pc' },
+    arguments: { cwd: ctx.directory, daemon: 'pc' },
   });
 
   expect(refused).toStrictEqual({
@@ -419,7 +427,7 @@ test('it refuses a spawn on a stopped daemon as daemon_unavailable', async () =>
 test('it answers daemon_unauthorized for a daemon that refuses the gateway token', async () => {
   const ctx = await setupTest();
 
-  writeFileSync(join(ctx.dir, 'pc-token'), `${'x'.repeat(32)}\n`);
+  writeFileSync(join(ctx.directory, 'pc-token'), `${'x'.repeat(32)}\n`);
 
   ctx.pc.daemon.refreshTokens();
 
@@ -606,7 +614,7 @@ test('it holds a waiting events read open until one daemon has an event and retu
 
   const spawned = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
     name: 'atc_session_spawn',
-    arguments: { cwd: ctx.dir, daemon: 'pc' },
+    arguments: { cwd: ctx.directory, daemon: 'pc' },
   });
 
   const session = String(getRecord(spawned, 'structuredContent')['id']);
@@ -647,7 +655,7 @@ test('it returns the whole note text of either daemon without a note handle', as
     ['cloud', 'pc'].map((daemon) =>
       sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
         name: 'atc_session_spawn',
-        arguments: { cwd: ctx.dir, daemon },
+        arguments: { cwd: ctx.directory, daemon },
       }),
     ),
   );
@@ -698,7 +706,7 @@ test('it reads the whole notes of both daemons in one events read', async () => 
     ['cloud', 'pc'].map((daemon) =>
       sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
         name: 'atc_session_spawn',
-        arguments: { cwd: ctx.dir, daemon },
+        arguments: { cwd: ctx.directory, daemon },
       }),
     ),
   );
@@ -764,7 +772,7 @@ test('it resumes a note text read after the notes of its page', async () => {
     ['cloud', 'pc'].map((daemon) =>
       sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
         name: 'atc_session_spawn',
-        arguments: { cwd: ctx.dir, daemon },
+        arguments: { cwd: ctx.directory, daemon },
       }),
     ),
   );
@@ -833,7 +841,7 @@ test('it reads the whole notes of the daemons that answer and lists the one that
     ['cloud', 'pc'].map((daemon) =>
       sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
         name: 'atc_session_spawn',
-        arguments: { cwd: ctx.dir, daemon },
+        arguments: { cwd: ctx.directory, daemon },
       }),
     ),
   );
@@ -894,7 +902,7 @@ test('it stops a note text read across daemons at 64 KiB', async () => {
     ['cloud', 'pc'].map((daemon) =>
       sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
         name: 'atc_session_spawn',
-        arguments: { cwd: ctx.dir, daemon },
+        arguments: { cwd: ctx.directory, daemon },
       }),
     ),
   );
@@ -950,7 +958,7 @@ test('it reads the rest of a note text read stopped at 64 KiB at its cursor', as
     ['cloud', 'pc'].map((daemon) =>
       sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
         name: 'atc_session_spawn',
-        arguments: { cwd: ctx.dir, daemon },
+        arguments: { cwd: ctx.directory, daemon },
       }),
     ),
   );

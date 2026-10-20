@@ -17,8 +17,8 @@ function setupTest() {
 test('it replays the fleet as SessionAdded lines on connect', async () => {
   const ctx = await setupTest();
 
-  await spawnNamedSession((m, p) => ctx.client.sendRequest(m, p), 'one', ctx.dir);
-  await spawnNamedSession((m, p) => ctx.client.sendRequest(m, p), 'two', ctx.dir);
+  await spawnNamedSession((m, p) => ctx.client.sendRequest(m, p), 'one', ctx.directory);
+  await spawnNamedSession((m, p) => ctx.client.sendRequest(m, p), 'two', ctx.directory);
 
   const subscriber = await subscribeToSocketLines(ctx.eventsSocketPath);
   const initial = await subscriber.waitForLine(2);
@@ -29,7 +29,7 @@ test('it replays the fleet as SessionAdded lines on connect', async () => {
       message: {
         v: 6,
         ev: 'SessionAdded',
-        session: { name: 'one', cwd: ctx.dir, agent: 'claude', alive: true },
+        session: { name: 'one', cwd: ctx.directory, agent: 'claude', alive: true },
       },
     },
     {
@@ -37,7 +37,7 @@ test('it replays the fleet as SessionAdded lines on connect', async () => {
       message: {
         v: 6,
         ev: 'SessionAdded',
-        session: { name: 'two', cwd: ctx.dir, agent: 'claude', alive: true },
+        session: { name: 'two', cwd: ctx.directory, agent: 'claude', alive: true },
       },
     },
   ]);
@@ -45,7 +45,13 @@ test('it replays the fleet as SessionAdded lines on connect', async () => {
 
 test('it streams a live event after the replay', async () => {
   const ctx = await setupTest();
-  const sessionID = await spawnNamedSession((m, p) => ctx.client.sendRequest(m, p), 'one', ctx.dir);
+
+  const sessionID = await spawnNamedSession(
+    (m, p) => ctx.client.sendRequest(m, p),
+    'one',
+    ctx.directory,
+  );
+
   const subscriber = await subscribeToSocketLines(ctx.eventsSocketPath);
 
   await subscriber.waitForLine(1);
@@ -65,7 +71,7 @@ test('it ignores subscriber input and keeps streaming', async () => {
 
   subscriber.write('{"m":"session.kill"}\nnot even json\n');
 
-  await spawnNamedSession((m, p) => ctx.client.sendRequest(m, p), 'after-garbage', ctx.dir);
+  await spawnNamedSession((m, p) => ctx.client.sendRequest(m, p), 'after-garbage', ctx.directory);
 
   const streamed = await subscriber.waitForLine(1);
 

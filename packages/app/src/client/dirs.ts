@@ -21,15 +21,15 @@ export function pickMatches(items: readonly string[], filter: string): string[] 
     }
   }
 
-  return scored.toSorted((a, b) => b.score - a.score).map((x) => x.item);
+  return scored.toSorted((left, right) => right.score - left.score).map((x) => x.item);
 }
 
-export function formatDir(d: string): string {
-  return formatHomePath(d, resolveHomeDir());
+export function formatDir(directory: string): string {
+  return formatHomePath(directory, resolveHomeDir());
 }
 
-export function formatDirName(d: string): string {
-  return basename(d);
+export function formatDirName(directory: string): string {
+  return basename(directory);
 }
 
 const SEPARATORS = new Set(['/', '-', '_', '.', ' ']);

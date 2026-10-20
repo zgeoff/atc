@@ -4,8 +4,8 @@ import { setupTempDir, startStubReporterSocket, updateEnv } from '@atc/test-util
 import { runHookReport } from './hook-report';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-hook-report-');
-  const sock = join(tmp.path, 'reporter.sock');
+  const temporaryDirectory = setupTempDir('atc-hook-report-');
+  const sock = join(temporaryDirectory.path, 'reporter.sock');
   const reporter = startStubReporterSocket(sock);
 
   return { sock, reporter };

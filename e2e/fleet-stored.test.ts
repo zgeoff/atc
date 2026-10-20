@@ -14,18 +14,26 @@ test('it keeps every stored fleet row restorable when a spawn writes the fleet b
       registerTestCleanup(() => store.stop());
 
       await store.writeFleet([
-        buildMockFleetEntry({ sessionID: toSessionID('s-live-a'), name: 'live-a', cwd: paths.dir }),
-        buildMockFleetEntry({ sessionID: toSessionID('s-live-b'), name: 'live-b', cwd: paths.dir }),
+        buildMockFleetEntry({
+          sessionID: toSessionID('s-live-a'),
+          name: 'live-a',
+          cwd: paths.directory,
+        }),
+        buildMockFleetEntry({
+          sessionID: toSessionID('s-live-b'),
+          name: 'live-b',
+          cwd: paths.directory,
+        }),
         buildMockFleetEntry({
           sessionID: toSessionID('s-exited-a'),
           name: 'exited-a',
-          cwd: paths.dir,
+          cwd: paths.directory,
           exited: true,
         }),
         buildMockFleetEntry({
           sessionID: toSessionID('s-exited-b'),
           name: 'exited-b',
-          cwd: paths.dir,
+          cwd: paths.directory,
           exited: true,
         }),
       ]);
@@ -37,7 +45,7 @@ test('it keeps every stored fleet row restorable when a spawn writes the fleet b
   });
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     agent: 'claude',
     name: 'fresh',
     cols: 80,
@@ -67,11 +75,15 @@ test('it keeps every stored fleet row when a rename and a deliberate kill write 
       registerTestCleanup(() => store.stop());
 
       await store.writeFleet([
-        buildMockFleetEntry({ sessionID: toSessionID('s-live-a'), name: 'live-a', cwd: paths.dir }),
+        buildMockFleetEntry({
+          sessionID: toSessionID('s-live-a'),
+          name: 'live-a',
+          cwd: paths.directory,
+        }),
         buildMockFleetEntry({
           sessionID: toSessionID('s-exited-a'),
           name: 'exited-a',
-          cwd: paths.dir,
+          cwd: paths.directory,
           exited: true,
         }),
       ]);
@@ -83,7 +95,7 @@ test('it keeps every stored fleet row when a rename and a deliberate kill write 
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     agent: 'claude',
     name: 'fresh',
     cols: 80,

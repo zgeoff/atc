@@ -7,22 +7,22 @@ import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { readAgentPicks } from './read-agent-picks';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-picks-');
+  const temporaryDirectory = setupTempDir('atc-picks-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it lists only the agents whose configured binary resolves', () => {
   const ctx = setupTest();
 
-  createStubBin(ctx.dir, 'my-claude', '#!/bin/sh\nexit 0\n');
-  createStubBin(ctx.dir, 'my-codex', '#!/bin/sh\nexit 0\n');
+  createStubBin(ctx.directory, 'my-claude', '#!/bin/sh\nexit 0\n');
+  createStubBin(ctx.directory, 'my-codex', '#!/bin/sh\nexit 0\n');
 
   const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: {
-      claude: { bin: join(ctx.dir, 'my-claude') },
-      grok: { bin: join(ctx.dir, 'my-grok') },
-      codex: { bin: join(ctx.dir, 'my-codex') },
+      claude: { bin: join(ctx.directory, 'my-claude') },
+      grok: { bin: join(ctx.directory, 'my-grok') },
+      codex: { bin: join(ctx.directory, 'my-codex') },
     },
   });
 
@@ -35,8 +35,8 @@ test('it lists only the agents whose configured binary resolves', () => {
 test('it resolves a bare binary name off PATH', () => {
   const ctx = setupTest();
 
-  createStubBin(ctx.dir, 'grok', '#!/bin/sh\nexit 0\n');
-  updateEnv('PATH', ctx.dir);
+  createStubBin(ctx.directory, 'grok', '#!/bin/sh\nexit 0\n');
+  updateEnv('PATH', ctx.directory);
 
   const picks = readAgentPicks(parseConfig(SHIPPED_HARNESS_PLUGINS, {}));
 
@@ -46,12 +46,12 @@ test('it resolves a bare binary name off PATH', () => {
 test('it leaves out a binary that exists without the executable bit', () => {
   const ctx = setupTest();
 
-  writeFileSync(join(ctx.dir, 'my-codex'), '#!/bin/sh\nexit 0\n', { mode: 0o644 });
+  writeFileSync(join(ctx.directory, 'my-codex'), '#!/bin/sh\nexit 0\n', { mode: 0o644 });
 
   const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: {
-      claude: { bin: join(ctx.dir, 'my-claude') },
-      codex: { bin: join(ctx.dir, 'my-codex') },
+      claude: { bin: join(ctx.directory, 'my-claude') },
+      codex: { bin: join(ctx.directory, 'my-codex') },
     },
   });
 
@@ -61,18 +61,18 @@ test('it leaves out a binary that exists without the executable bit', () => {
 test('it lists agents in registry order with their labels', () => {
   const ctx = setupTest();
 
-  createStubBin(ctx.dir, 'my-claude', '#!/bin/sh\nexit 0\n');
+  createStubBin(ctx.directory, 'my-claude', '#!/bin/sh\nexit 0\n');
 
   const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: {
       zai: {
         kind: 'claude',
         label: 'GLM (z.ai)',
-        bin: join(ctx.dir, 'my-claude'),
+        bin: join(ctx.directory, 'my-claude'),
         baseURL: 'https://api.z.ai/api/anthropic',
       },
-      claude: { bin: join(ctx.dir, 'my-claude') },
-      'claude-b': { kind: 'claude', bin: join(ctx.dir, 'my-claude') },
+      claude: { bin: join(ctx.directory, 'my-claude') },
+      'claude-b': { kind: 'claude', bin: join(ctx.directory, 'my-claude') },
     },
   });
 
@@ -86,14 +86,14 @@ test('it lists agents in registry order with their labels', () => {
 test('it leaves out a configured backend whose binary does not resolve', () => {
   const ctx = setupTest();
 
-  createStubBin(ctx.dir, 'my-claude', '#!/bin/sh\nexit 0\n');
+  createStubBin(ctx.directory, 'my-claude', '#!/bin/sh\nexit 0\n');
 
   const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: {
-      claude: { bin: join(ctx.dir, 'my-claude') },
+      claude: { bin: join(ctx.directory, 'my-claude') },
       zai: {
         kind: 'claude',
-        bin: join(ctx.dir, 'missing-claude'),
+        bin: join(ctx.directory, 'missing-claude'),
         baseURL: 'https://api.z.ai/api/anthropic',
       },
     },
@@ -105,18 +105,18 @@ test('it leaves out a configured backend whose binary does not resolve', () => {
 test('it lists a gateway whose entry carries auth profiles', () => {
   const ctx = setupTest();
 
-  createStubBin(ctx.dir, 'my-claude', '#!/bin/sh\nexit 0\n');
+  createStubBin(ctx.directory, 'my-claude', '#!/bin/sh\nexit 0\n');
 
   const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     authProfiles: {
       glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
     },
     agents: {
-      claude: { bin: join(ctx.dir, 'my-claude') },
+      claude: { bin: join(ctx.directory, 'my-claude') },
       glm: {
         kind: 'claude',
         label: 'GLM',
-        bin: join(ctx.dir, 'my-claude'),
+        bin: join(ctx.directory, 'my-claude'),
         baseURL: 'https://api.z.ai/api/anthropic',
         auth: { profiles: ['glm'] },
       },

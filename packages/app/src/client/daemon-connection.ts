@@ -26,7 +26,7 @@ export interface DaemonConnectionDeps {
   readonly isDaemonRestarting: () => boolean;
   readonly scheduleStatus: () => void;
   readonly drawMode: () => void;
-  readonly sendQuiet: (m: string, p?: Readonly<Record<string, unknown>>) => Promise<void>;
+  readonly sendQuiet: (method: string, params?: Readonly<Record<string, unknown>>) => Promise<void>;
   readonly ptyRows: () => number;
   readonly quit: (code: number, message: string) => never;
   readonly logClientEvent: (line: string) => void;

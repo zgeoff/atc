@@ -49,7 +49,11 @@ test('it refuses a client a configured target other than local when the config h
   });
 
   expect(
-    daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, target: 'box' }, 'client-a'),
+    daemon.client.sendRequest(
+      'session.spawn',
+      { cwd: daemon.directory, target: 'box' },
+      'client-a',
+    ),
   ).rejects.toMatchObject({ code: 'target_forbidden', data: { target: 'box' } });
 
   expect(harnesses).toStrictEqual([]);
@@ -77,7 +81,7 @@ test('it lets a client spawn on the local target when the config has no principa
 
   await daemon.client.sendRequest(
     'session.spawn',
-    { cwd: daemon.dir, target: 'local' },
+    { cwd: daemon.directory, target: 'local' },
     'client-a',
   );
 
@@ -102,7 +106,11 @@ test('it refuses a client a local spawn when the local target holds other option
   });
 
   expect(
-    daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, target: 'local' }, 'client-a'),
+    daemon.client.sendRequest(
+      'session.spawn',
+      { cwd: daemon.directory, target: 'local' },
+      'client-a',
+    ),
   ).rejects.toMatchObject({ code: 'target_forbidden', data: { target: 'local' } });
 });
 
@@ -124,7 +132,7 @@ test('it refuses a client a spawn without a target when the local target holds o
   });
 
   expect(
-    daemon.client.sendRequest('session.spawn', { cwd: daemon.dir }, 'client-a'),
+    daemon.client.sendRequest('session.spawn', { cwd: daemon.directory }, 'client-a'),
   ).rejects.toMatchObject({ code: 'target_forbidden', data: { target: 'local' } });
 });
 
@@ -146,7 +154,7 @@ test('it hides from a client a session on a local target that holds other option
   });
 
   const idSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
   });
@@ -176,7 +184,7 @@ test('it lists a client no session on a local target that holds other options wh
   });
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
   });
@@ -204,7 +212,12 @@ test('it gives a client the implicit local target when the config has no targets
     },
   });
 
-  const spawned = await daemon.client.sendRequest('session.spawn', { cwd: daemon.dir }, 'client-a');
+  const spawned = await daemon.client.sendRequest(
+    'session.spawn',
+    { cwd: daemon.directory },
+    'client-a',
+  );
+
   const listed = await daemon.client.sendRequest('session.list', {}, 'client-a');
 
   expect(listed).toMatchObject({ sessions: [{ id: getRecord(spawned, 'session')['id'] }] });
@@ -238,7 +251,7 @@ test.each([
   });
 
   expect(
-    daemon.client.sendRequest('session.spawn', { cwd: daemon.dir }, principal),
+    daemon.client.sendRequest('session.spawn', { cwd: daemon.directory }, principal),
   ).rejects.toMatchObject({ code: 'target_forbidden' });
 
   expect(harnesses).toStrictEqual([]);
@@ -271,7 +284,7 @@ test.each([
   });
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
   });
@@ -586,7 +599,7 @@ test.each([
     });
 
     const hiddenSpawned = await daemon.client.sendRequest('session.spawn', {
-      cwd: daemon.dir,
+      cwd: daemon.directory,
       target: 'box',
       resume: `a-${randomUUID()}`,
     });
@@ -620,7 +633,12 @@ test.each([
 
     expect(listed).toStrictEqual({
       sessions: expect.toIncludeSamePartialMembers(
-        [hidden].map((id) => ({ id, name: basename(daemon.dir), alive: true, pinned: false })),
+        [hidden].map((id) => ({
+          id,
+          name: basename(daemon.directory),
+          alive: true,
+          pinned: false,
+        })),
       ),
     });
 
@@ -652,7 +670,7 @@ test('it answers a spawn under a session on a target outside the principal as un
   });
 
   const hiddenSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: `a-${randomUUID()}`,
   });
@@ -674,7 +692,7 @@ test('it answers a spawn under a session on a target outside the principal as un
     () =>
       daemon.client.sendRequest(
         'session.spawn',
-        { cwd: daemon.dir, target: 'local', parent: hidden },
+        { cwd: daemon.directory, target: 'local', parent: hidden },
         'narrow',
       ),
     hidden,
@@ -684,7 +702,7 @@ test('it answers a spawn under a session on a target outside the principal as un
     () =>
       daemon.client.sendRequest(
         'session.spawn',
-        { cwd: daemon.dir, target: 'local', parent: missing },
+        { cwd: daemon.directory, target: 'local', parent: missing },
         'narrow',
       ),
     missing,
@@ -696,7 +714,7 @@ test('it answers a spawn under a session on a target outside the principal as un
 
   expect(listed).toStrictEqual({
     sessions: expect.toIncludeSamePartialMembers(
-      [hidden].map((id) => ({ id, name: basename(daemon.dir), alive: true, pinned: false })),
+      [hidden].map((id) => ({ id, name: basename(daemon.directory), alive: true, pinned: false })),
     ),
   });
 
@@ -752,7 +770,7 @@ test.each([
     });
 
     const hiddenSpawned = await daemon.client.sendRequest('session.spawn', {
-      cwd: daemon.dir,
+      cwd: daemon.directory,
       target: 'local',
       resume: `a-${randomUUID()}`,
     });
@@ -760,7 +778,7 @@ test.each([
     const hidden = String(getRecord(hiddenSpawned, 'session')['id']);
 
     const childSpawned = await daemon.client.sendRequest('session.spawn', {
-      cwd: daemon.dir,
+      cwd: daemon.directory,
       target: 'box',
       resume: `a-${randomUUID()}`,
       parent: hidden,
@@ -797,7 +815,7 @@ test.each([
       sessions: expect.toIncludeSamePartialMembers(
         [hidden, child].map((id) => ({
           id,
-          name: basename(daemon.dir),
+          name: basename(daemon.directory),
           alive: true,
           pinned: false,
         })),
@@ -832,7 +850,7 @@ test('it answers a spawn under a parent whose sub-session is on a target outside
   });
 
   const hiddenSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
   });
@@ -840,7 +858,7 @@ test('it answers a spawn under a parent whose sub-session is on a target outside
   const hidden = String(getRecord(hiddenSpawned, 'session')['id']);
 
   const childSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: `a-${randomUUID()}`,
     parent: hidden,
@@ -863,7 +881,7 @@ test('it answers a spawn under a parent whose sub-session is on a target outside
     () =>
       daemon.client.sendRequest(
         'session.spawn',
-        { cwd: daemon.dir, target: 'local', parent: hidden },
+        { cwd: daemon.directory, target: 'local', parent: hidden },
         'narrow',
       ),
     hidden,
@@ -873,7 +891,7 @@ test('it answers a spawn under a parent whose sub-session is on a target outside
     () =>
       daemon.client.sendRequest(
         'session.spawn',
-        { cwd: daemon.dir, target: 'local', parent: missing },
+        { cwd: daemon.directory, target: 'local', parent: missing },
         'narrow',
       ),
     missing,
@@ -885,7 +903,12 @@ test('it answers a spawn under a parent whose sub-session is on a target outside
 
   expect(listed).toStrictEqual({
     sessions: expect.toIncludeSamePartialMembers(
-      [hidden, child].map((id) => ({ id, name: basename(daemon.dir), alive: true, pinned: false })),
+      [hidden, child].map((id) => ({
+        id,
+        name: basename(daemon.directory),
+        alive: true,
+        pinned: false,
+      })),
     ),
   });
 
@@ -941,7 +964,7 @@ test.each([
     });
 
     const rootSpawned = await daemon.client.sendRequest('session.spawn', {
-      cwd: daemon.dir,
+      cwd: daemon.directory,
       target: 'box',
       resume: `a-${randomUUID()}`,
     });
@@ -949,7 +972,7 @@ test.each([
     const root = String(getRecord(rootSpawned, 'session')['id']);
 
     const hiddenSpawned = await daemon.client.sendRequest('session.spawn', {
-      cwd: daemon.dir,
+      cwd: daemon.directory,
       target: 'local',
       resume: `a-${randomUUID()}`,
       parent: root,
@@ -986,7 +1009,7 @@ test.each([
       sessions: expect.toIncludeSamePartialMembers(
         [root, hidden].map((id) => ({
           id,
-          name: basename(daemon.dir),
+          name: basename(daemon.directory),
           alive: true,
           pinned: false,
         })),
@@ -1021,7 +1044,7 @@ test('it answers a spawn under a sub-session whose parent is on a target outside
   });
 
   const rootSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: `a-${randomUUID()}`,
   });
@@ -1029,7 +1052,7 @@ test('it answers a spawn under a sub-session whose parent is on a target outside
   const root = String(getRecord(rootSpawned, 'session')['id']);
 
   const hiddenSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
     parent: root,
@@ -1052,7 +1075,7 @@ test('it answers a spawn under a sub-session whose parent is on a target outside
     () =>
       daemon.client.sendRequest(
         'session.spawn',
-        { cwd: daemon.dir, target: 'local', parent: hidden },
+        { cwd: daemon.directory, target: 'local', parent: hidden },
         'narrow',
       ),
     hidden,
@@ -1062,7 +1085,7 @@ test('it answers a spawn under a sub-session whose parent is on a target outside
     () =>
       daemon.client.sendRequest(
         'session.spawn',
-        { cwd: daemon.dir, target: 'local', parent: missing },
+        { cwd: daemon.directory, target: 'local', parent: missing },
         'narrow',
       ),
     missing,
@@ -1074,7 +1097,12 @@ test('it answers a spawn under a sub-session whose parent is on a target outside
 
   expect(listed).toStrictEqual({
     sessions: expect.toIncludeSamePartialMembers(
-      [root, hidden].map((id) => ({ id, name: basename(daemon.dir), alive: true, pinned: false })),
+      [root, hidden].map((id) => ({
+        id,
+        name: basename(daemon.directory),
+        alive: true,
+        pinned: false,
+      })),
     ),
   });
 
@@ -1111,7 +1139,7 @@ test('it answers permission.respond for a request of a session outside the princ
   };
 
   const hiddenSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: `a-${randomUUID()}`,
   });
@@ -1173,7 +1201,7 @@ test('it refuses a principal a workspace spawn on a target it may not use for th
 
   const refused = daemon.client.sendRequest(
     'session.spawn',
-    { cwd: daemon.dir, target: 'box', workspace: { kind: 'path', path: daemon.dir } },
+    { cwd: daemon.directory, target: 'box', workspace: { kind: 'path', path: daemon.directory } },
     'narrow',
   );
 
@@ -1204,8 +1232,8 @@ test('it lists a principal only the directories of spawns on targets it may use'
     },
   });
 
-  const boxDir = join(daemon.dir, 'on-box');
-  const localDir = join(daemon.dir, 'on-local');
+  const boxDir = join(daemon.directory, 'on-box');
+  const localDir = join(daemon.directory, 'on-local');
 
   mkdirSync(boxDir);
   mkdirSync(localDir);
@@ -1248,7 +1276,7 @@ test('it lists a principal only the fleet entries of sessions on targets it may 
   });
 
   const shownSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
   });
@@ -1256,7 +1284,7 @@ test('it lists a principal only the fleet entries of sessions on targets it may 
   const shown = String(getRecord(shownSpawned, 'session')['id']);
 
   const hiddenSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: `a-${randomUUID()}`,
   });
@@ -1305,7 +1333,7 @@ test('it keeps the events of a hidden session from a principal whose exited sess
   const agentSessionID = `a-${randomUUID()}`;
 
   const earlier = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: agentSessionID,
   });
@@ -1315,7 +1343,7 @@ test('it keeps the events of a hidden session from a principal whose exited sess
   });
 
   const moved = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: agentSessionID,
   });
@@ -1373,7 +1401,7 @@ test('it keeps the messages of a hidden session from a principal whose exited se
   const agentSessionID = `a-${randomUUID()}`;
 
   const earlier = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: agentSessionID,
   });
@@ -1383,7 +1411,7 @@ test('it keeps the messages of a hidden session from a principal whose exited se
   });
 
   const moved = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: agentSessionID,
   });
@@ -1449,7 +1477,7 @@ test('it keeps the events of a hidden session from the full trail of a principal
   const agentSessionID = `a-${randomUUID()}`;
 
   const moved = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: agentSessionID,
   });
@@ -1458,7 +1486,7 @@ test('it keeps the events of a hidden session from the full trail of a principal
 
   const own = await daemon.client.sendRequest(
     'session.spawn',
-    { cwd: daemon.dir, target: 'local', resume: agentSessionID },
+    { cwd: daemon.directory, target: 'local', resume: agentSessionID },
     'narrow',
   );
 
@@ -1539,7 +1567,7 @@ test('it keeps the events of a hidden session from the trail a principal reads f
   const agentSessionID = `a-${randomUUID()}`;
 
   const moved = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: agentSessionID,
   });
@@ -1548,7 +1576,7 @@ test('it keeps the events of a hidden session from the trail a principal reads f
 
   const own = await daemon.client.sendRequest(
     'session.spawn',
-    { cwd: daemon.dir, target: 'local', resume: agentSessionID },
+    { cwd: daemon.directory, target: 'local', resume: agentSessionID },
     'narrow',
   );
 
@@ -1631,7 +1659,7 @@ test('it keeps the messages of a hidden session from a principal whose live sess
   const agentSessionID = `a-${randomUUID()}`;
 
   const moved = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: agentSessionID,
   });
@@ -1640,7 +1668,7 @@ test('it keeps the messages of a hidden session from a principal whose live sess
 
   await daemon.client.sendRequest(
     'session.spawn',
-    { cwd: daemon.dir, target: 'local', resume: agentSessionID },
+    { cwd: daemon.directory, target: 'local', resume: agentSessionID },
     'narrow',
   );
 
@@ -1703,7 +1731,7 @@ test('it keeps the activity of a hidden session out of the last activity of a pr
   const agentSessionID = `a-${randomUUID()}`;
 
   const moved = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: agentSessionID,
   });
@@ -1712,7 +1740,7 @@ test('it keeps the activity of a hidden session out of the last activity of a pr
 
   const own = await daemon.client.sendRequest(
     'session.spawn',
-    { cwd: daemon.dir, target: 'local', resume: agentSessionID },
+    { cwd: daemon.directory, target: 'local', resume: agentSessionID },
     'narrow',
   );
 
@@ -1769,7 +1797,7 @@ test("it lists a principal no message of a hidden session that one turn answered
   const agentSessionID = `a-${randomUUID()}`;
 
   const moved = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: agentSessionID,
   });
@@ -1778,7 +1806,7 @@ test("it lists a principal no message of a hidden session that one turn answered
 
   const own = await daemon.client.sendRequest(
     'session.spawn',
-    { cwd: daemon.dir, target: 'local', resume: agentSessionID },
+    { cwd: daemon.directory, target: 'local', resume: agentSessionID },
     'narrow',
   );
 
@@ -1851,7 +1879,7 @@ test('it keeps the activity of a forgotten hidden session out of a principal ses
   const agentSessionID = `a-${randomUUID()}`;
 
   const earlier = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: agentSessionID,
   });
@@ -1861,7 +1889,7 @@ test('it keeps the activity of a forgotten hidden session out of a principal ses
   await daemon.client.sendRequest('session.kill', { session: shown });
 
   const moved = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: agentSessionID,
   });
@@ -1923,7 +1951,7 @@ test.each([
     });
 
     const shownSpawned = await daemon.client.sendRequest('session.spawn', {
-      cwd: daemon.dir,
+      cwd: daemon.directory,
       target: 'local',
       resume: `a-${randomUUID()}`,
     });
@@ -1931,7 +1959,7 @@ test.each([
     const shown = String(getRecord(shownSpawned, 'session')['id']);
 
     const rootSpawned = await daemon.client.sendRequest('session.spawn', {
-      cwd: daemon.dir,
+      cwd: daemon.directory,
       target: rootTarget,
       resume: `a-${randomUUID()}`,
     });
@@ -1939,7 +1967,7 @@ test.each([
     const root = String(getRecord(rootSpawned, 'session')['id']);
 
     const childSpawned = await daemon.client.sendRequest('session.spawn', {
-      cwd: daemon.dir,
+      cwd: daemon.directory,
       target: childTarget,
       resume: `a-${randomUUID()}`,
       parent: root,
@@ -2004,7 +2032,7 @@ test.each([
     });
 
     const rootSpawned = await daemon.client.sendRequest('session.spawn', {
-      cwd: daemon.dir,
+      cwd: daemon.directory,
       target: rootTarget,
       resume: `a-${randomUUID()}`,
     });
@@ -2012,7 +2040,7 @@ test.each([
     const root = String(getRecord(rootSpawned, 'session')['id']);
 
     const childSpawned = await daemon.client.sendRequest('session.spawn', {
-      cwd: daemon.dir,
+      cwd: daemon.directory,
       target: childTarget,
       resume: `a-${randomUUID()}`,
       parent: root,
@@ -2029,7 +2057,7 @@ test.each([
     };
 
     const shownSpawned = await daemon.client.sendRequest('session.spawn', {
-      cwd: daemon.dir,
+      cwd: daemon.directory,
       target: 'local',
       resume: `a-${randomUUID()}`,
     });
@@ -2103,7 +2131,7 @@ test('it shows a principal a parent leaving when an out-of-reach sub-session joi
   });
 
   const joinedParentSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
   });
@@ -2111,7 +2139,7 @@ test('it shows a principal a parent leaving when an out-of-reach sub-session joi
   const joinedParent = String(getRecord(joinedParentSpawned, 'session')['id']);
 
   const forgotParentSpawned = await forgot.client.sendRequest('session.spawn', {
-    cwd: forgot.dir,
+    cwd: forgot.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
   });
@@ -2135,7 +2163,7 @@ test('it shows a principal a parent leaving when an out-of-reach sub-session joi
   };
 
   const childSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: `a-${randomUUID()}`,
     parent: joinedParent,
@@ -2205,7 +2233,7 @@ test('it pushes a principal that sees the whole tree only the removal of a forgo
   });
 
   const parentSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
   });
@@ -2213,7 +2241,7 @@ test('it pushes a principal that sees the whole tree only the removal of a forgo
   const parent = String(getRecord(parentSpawned, 'session')['id']);
 
   const childSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: `a-${randomUUID()}`,
     parent,
@@ -2270,7 +2298,7 @@ test('it takes the inbox tap from a principal connection whose tapped session le
   });
 
   const parentSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
   });
@@ -2293,7 +2321,7 @@ test('it takes the inbox tap from a principal connection whose tapped session le
   await client.sendRequest('session.tap', { session: parent });
 
   const childSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: `a-${randomUUID()}`,
     parent,
@@ -2349,7 +2377,7 @@ test('it hides from a principal a restored sub-session of a hidden parent', asyn
   });
 
   const hiddenParentSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: `a-${randomUUID()}`,
   });
@@ -2357,7 +2385,7 @@ test('it hides from a principal a restored sub-session of a hidden parent', asyn
   const hiddenParent = String(getRecord(hiddenParentSpawned, 'session')['id']);
 
   const hiddenChildSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
     parent: hiddenParent,
@@ -2366,7 +2394,7 @@ test('it hides from a principal a restored sub-session of a hidden parent', asyn
   const hiddenChild = String(getRecord(hiddenChildSpawned, 'session')['id']);
 
   const shownSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
   });
@@ -2438,7 +2466,7 @@ test('it kills only the sub-sessions a principal could see when the kill began',
   });
 
   const parentSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
   });
@@ -2457,7 +2485,7 @@ test('it kills only the sub-sessions a principal could see when the kill began',
   await host.entered;
 
   const childSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: `a-${randomUUID()}`,
     parent,
@@ -2503,7 +2531,7 @@ test('it spawns a principal that may see the parent beside the sub-session it as
   });
 
   const parentSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: `a-${randomUUID()}`,
   });
@@ -2511,7 +2539,7 @@ test('it spawns a principal that may see the parent beside the sub-session it as
   const parent = String(getRecord(parentSpawned, 'session')['id']);
 
   const childSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
     parent,
@@ -2521,7 +2549,7 @@ test('it spawns a principal that may see the parent beside the sub-session it as
 
   const spawned = await daemon.client.sendRequest(
     'session.spawn',
-    { cwd: daemon.dir, target: 'local', parent: child, resume: `a-${randomUUID()}` },
+    { cwd: daemon.directory, target: 'local', parent: child, resume: `a-${randomUUID()}` },
     'wide',
   );
 
@@ -2552,7 +2580,7 @@ test('it lets a principal forget a session on a target it may use', async () => 
   });
 
   const shownSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
   });
@@ -2589,7 +2617,7 @@ test('it answers a forget of a dead session with a dead sub-session out of reach
   });
 
   const parentSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
   });
@@ -2597,7 +2625,7 @@ test('it answers a forget of a dead session with a dead sub-session out of reach
   const parent = String(getRecord(parentSpawned, 'session')['id']);
 
   const childSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: `a-${randomUUID()}`,
     parent,
@@ -2651,7 +2679,7 @@ test('it leaves the events of a session outside the principal out of an unfilter
   });
 
   const shownSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
   });
@@ -2659,7 +2687,7 @@ test('it leaves the events of a session outside the principal out of an unfilter
   const shown = String(getRecord(shownSpawned, 'session')['id']);
 
   const hiddenSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: `a-${randomUUID()}`,
   });
@@ -2702,7 +2730,7 @@ test('it answers a note of a session outside the principal as a note that does n
   });
 
   const hiddenSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: `a-${randomUUID()}`,
   });
@@ -2764,7 +2792,7 @@ test('it answers an answer read of a session outside the principal as an answer 
   });
 
   const hiddenSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: `a-${randomUUID()}`,
   });
@@ -2833,7 +2861,7 @@ test('it gives a principal the answer of a session it may see', async () => {
   });
 
   const shownSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
   });
@@ -2892,7 +2920,7 @@ test('it gives a principal the note of a session it may see', async () => {
   });
 
   const shownSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
   });
@@ -2946,7 +2974,7 @@ test('it reads the whole text of only the notes of sessions a principal may see 
   registerTestCleanup(() => caller.stop());
 
   const shownSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
   });
@@ -2954,7 +2982,7 @@ test('it reads the whole text of only the notes of sessions a principal may see 
   const shown = String(getRecord(shownSpawned, 'session')['id']);
 
   const hiddenSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: `a-${randomUUID()}`,
   });
@@ -3024,7 +3052,7 @@ test('it reads the first of many large notes a principal may see while another c
   const slow = await startStubStalledClient(daemon.socketPath, 'atc/test-build');
 
   const shownSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
   });
@@ -3086,7 +3114,7 @@ test('it names a note by the session that sent it, never a hidden session that r
   const agentSessionID = `a-${randomUUID()}`;
 
   const moved = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: agentSessionID,
   });
@@ -3095,7 +3123,7 @@ test('it names a note by the session that sent it, never a hidden session that r
 
   const own = await daemon.client.sendRequest(
     'session.spawn',
-    { cwd: daemon.dir, target: 'local', resume: agentSessionID },
+    { cwd: daemon.directory, target: 'local', resume: agentSessionID },
     'narrow',
   );
 
@@ -3146,7 +3174,7 @@ test('it narrows a request on an owner connection to the principal it acts as', 
   });
 
   const shownSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
   });
@@ -3154,7 +3182,7 @@ test('it narrows a request on an owner connection to the principal it acts as', 
   const shown = String(getRecord(shownSpawned, 'session')['id']);
 
   const hiddenSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: `a-${randomUUID()}`,
   });
@@ -3193,7 +3221,7 @@ test('it lists a connection only the reach of the principal it acts as when a re
   });
 
   const shownSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
   });
@@ -3201,7 +3229,7 @@ test('it lists a connection only the reach of the principal it acts as when a re
   const shown = String(getRecord(shownSpawned, 'session')['id']);
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: `a-${randomUUID()}`,
   });
@@ -3242,7 +3270,7 @@ test('it refuses a connection a spawn on a target only a wider principal than it
   const client = await daemon.openClient({ principal: 'narrow' });
 
   expect(
-    client.sendRequest('session.spawn', { cwd: daemon.dir, target: 'box' }, 'wide'),
+    client.sendRequest('session.spawn', { cwd: daemon.directory, target: 'box' }, 'wide'),
   ).rejects.toMatchObject({ code: 'target_forbidden', data: { target: 'box' } });
 
   expect(client.sendRequest('daemon.ping')).resolves.toStrictEqual({});
@@ -3310,7 +3338,7 @@ test('it pushes a principal connection only the events of sessions it may see', 
   };
 
   const hiddenSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: `a-${randomUUID()}`,
   });
@@ -3318,7 +3346,7 @@ test('it pushes a principal connection only the events of sessions it may see', 
   const hidden = String(getRecord(hiddenSpawned, 'session')['id']);
 
   const shownSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
   });
@@ -3379,7 +3407,7 @@ test('it answers message.get for a message of a session outside the principal as
   });
 
   const hiddenSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: `a-${randomUUID()}`,
   });
@@ -3429,13 +3457,13 @@ test('it gives each principal a session of its own under the same idempotency ke
 
   const first = await daemon.client.sendRequest(
     'session.spawn',
-    { cwd: daemon.dir, idempotencyKey: 'k-1' },
+    { cwd: daemon.directory, idempotencyKey: 'k-1' },
     'client-a',
   );
 
   const other = await daemon.client.sendRequest(
     'session.spawn',
-    { cwd: daemon.dir, idempotencyKey: 'k-1' },
+    { cwd: daemon.directory, idempotencyKey: 'k-1' },
     'client-b',
   );
 
@@ -3467,19 +3495,19 @@ test("it answers a principal's retry under its idempotency key with its own sess
 
   const first = await daemon.client.sendRequest(
     'session.spawn',
-    { cwd: daemon.dir, idempotencyKey: 'k-1' },
+    { cwd: daemon.directory, idempotencyKey: 'k-1' },
     'client-a',
   );
 
   await daemon.client.sendRequest(
     'session.spawn',
-    { cwd: daemon.dir, idempotencyKey: 'k-1' },
+    { cwd: daemon.directory, idempotencyKey: 'k-1' },
     'client-b',
   );
 
   const retried = await daemon.client.sendRequest(
     'session.spawn',
-    { cwd: daemon.dir, idempotencyKey: 'k-1' },
+    { cwd: daemon.directory, idempotencyKey: 'k-1' },
     'client-a',
   );
 
@@ -3504,13 +3532,13 @@ test("it refuses a principal's retry under its idempotency key with another payl
     },
   });
 
-  const otherDir = join(daemon.dir, 'other');
+  const otherDir = join(daemon.directory, 'other');
 
   mkdirSync(otherDir);
 
   await daemon.client.sendRequest(
     'session.spawn',
-    { cwd: daemon.dir, idempotencyKey: 'k-1' },
+    { cwd: daemon.directory, idempotencyKey: 'k-1' },
     'client-a',
   );
 
@@ -3542,7 +3570,7 @@ test("it keeps a principal connection out of another principal's idempotency key
 
   const owned = await daemon.client.sendRequest(
     'session.spawn',
-    { cwd: daemon.dir, idempotencyKey: 'k-1' },
+    { cwd: daemon.directory, idempotencyKey: 'k-1' },
     'client-b',
   );
 
@@ -3550,7 +3578,7 @@ test("it keeps a principal connection out of another principal's idempotency key
 
   const reached = await client.sendRequest(
     'session.spawn',
-    { cwd: daemon.dir, idempotencyKey: 'k-1' },
+    { cwd: daemon.directory, idempotencyKey: 'k-1' },
     'client-b',
   );
 
@@ -3587,7 +3615,7 @@ test('it answers a kill of a session with a sub-session out of reach as for a se
   });
 
   const parentSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
   });
@@ -3595,7 +3623,7 @@ test('it answers a kill of a session with a sub-session out of reach as for a se
   const parent = String(getRecord(parentSpawned, 'session')['id']);
 
   const childSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: `a-${randomUUID()}`,
     parent,
@@ -3653,7 +3681,7 @@ test.each([
   });
 
   const parentSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
   });
@@ -3661,7 +3689,7 @@ test.each([
   const parent = String(getRecord(parentSpawned, 'session')['id']);
 
   const childSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: `a-${randomUUID()}`,
     parent,
@@ -3705,7 +3733,7 @@ test('it answers a second kill of a dead session with a dead sub-session out of 
   });
 
   const parentSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
   });
@@ -3713,7 +3741,7 @@ test('it answers a second kill of a dead session with a dead sub-session out of 
   const parent = String(getRecord(parentSpawned, 'session')['id']);
 
   const childSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: `a-${randomUUID()}`,
     parent,
@@ -3763,7 +3791,7 @@ test('it answers a second kill that would move a live sub-session out of reach a
   });
 
   const parentSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
   });
@@ -3771,7 +3799,7 @@ test('it answers a second kill that would move a live sub-session out of reach a
   const parent = String(getRecord(parentSpawned, 'session')['id']);
 
   const childSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: `a-${randomUUID()}`,
     parent,
@@ -3827,7 +3855,7 @@ test.each([
     });
 
     const parentSpawned = await daemon.client.sendRequest('session.spawn', {
-      cwd: daemon.dir,
+      cwd: daemon.directory,
       target: 'local',
       resume: `a-${randomUUID()}`,
     });
@@ -3835,7 +3863,7 @@ test.each([
     const parent = String(getRecord(parentSpawned, 'session')['id']);
 
     await daemon.client.sendRequest('session.spawn', {
-      cwd: daemon.dir,
+      cwd: daemon.directory,
       target: 'box',
       resume: `a-${randomUUID()}`,
       parent,
@@ -3854,7 +3882,7 @@ test.each([
     expect(refused).rejects.toMatchObject({ code: 'no_such_session' });
 
     expect(listed).toMatchObject({
-      sessions: [{ id: parent, name: basename(daemon.dir), pinned: false }, {}],
+      sessions: [{ id: parent, name: basename(daemon.directory), pinned: false }, {}],
     });
   },
 );
@@ -3884,7 +3912,7 @@ test('it refuses the replay of a held spawn key once the grant no longer reaches
 
   await daemon.client.sendRequest(
     'session.spawn',
-    { cwd: daemon.dir, target: 'box', idempotencyKey: 'k-1' },
+    { cwd: daemon.directory, target: 'box', idempotencyKey: 'k-1' },
     'wide',
   );
 
@@ -3910,7 +3938,7 @@ test('it refuses the replay of a held spawn key once the grant no longer reaches
     () =>
       daemon.client.sendRequest(
         'session.spawn',
-        { cwd: daemon.dir, target: 'box', idempotencyKey: 'k-1' },
+        { cwd: daemon.directory, target: 'box', idempotencyKey: 'k-1' },
         'wide',
       ),
     'k-1',
@@ -3920,7 +3948,7 @@ test('it refuses the replay of a held spawn key once the grant no longer reaches
     () =>
       daemon.client.sendRequest(
         'session.spawn',
-        { cwd: daemon.dir, target: 'box', idempotencyKey: 'k-1' },
+        { cwd: daemon.directory, target: 'box', idempotencyKey: 'k-1' },
         'narrow',
       ),
     'k-1',
@@ -3956,14 +3984,14 @@ test("it refuses the replay of a held spawn key once its session's tree leaves t
 
   const spawned = await daemon.client.sendRequest(
     'session.spawn',
-    { cwd: daemon.dir, target: 'local', idempotencyKey: 'k-1' },
+    { cwd: daemon.directory, target: 'local', idempotencyKey: 'k-1' },
     'narrow',
   );
 
   const parent = String(getRecord(spawned, 'session')['id']);
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: `a-${randomUUID()}`,
     parent,
@@ -3971,7 +3999,7 @@ test("it refuses the replay of a held spawn key once its session's tree leaves t
 
   const replayed = daemon.client.sendRequest(
     'session.spawn',
-    { cwd: daemon.dir, target: 'local', idempotencyKey: 'k-1' },
+    { cwd: daemon.directory, target: 'local', idempotencyKey: 'k-1' },
     'narrow',
   );
 
@@ -4010,14 +4038,14 @@ test("it refuses the replay of a held spawn key after a restart once its stored 
 
   const spawned = await daemon.client.sendRequest(
     'session.spawn',
-    { cwd: daemon.dir, target: 'local', idempotencyKey: 'k-1' },
+    { cwd: daemon.directory, target: 'local', idempotencyKey: 'k-1' },
     'narrow',
   );
 
   const parent = String(getRecord(spawned, 'session')['id']);
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: `a-${randomUUID()}`,
     parent,
@@ -4043,7 +4071,7 @@ test("it refuses the replay of a held spawn key after a restart once its stored 
 
   const replayed = daemon.client.sendRequest(
     'session.spawn',
-    { cwd: daemon.dir, target: 'local', idempotencyKey: 'k-1' },
+    { cwd: daemon.directory, target: 'local', idempotencyKey: 'k-1' },
     'narrow',
   );
 
@@ -4087,7 +4115,7 @@ test("it answers a principal's long poll on a session whose tree leaves its reac
   });
 
   const parentSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
   });
@@ -4116,7 +4144,7 @@ test("it answers a principal's long poll on a session whose tree leaves its reac
   });
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: `a-${randomUUID()}`,
     parent,
@@ -4165,13 +4193,13 @@ test("it keeps a hidden session's messages from a principal tapping a session th
   const agentSessionID = `a-${randomUUID()}`;
 
   const hiddenSpawn = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: agentSessionID,
   });
 
   const shownSpawn = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: agentSessionID,
   });
@@ -4259,7 +4287,7 @@ test('it refuses a principal an adopt of a session whose tree leaves its reach w
   });
 
   const parentSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
   });
@@ -4285,7 +4313,7 @@ test('it refuses a principal an adopt of a session whose tree leaves its reach w
   await host.entered;
 
   const childSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: `a-${randomUUID()}`,
     parent,
@@ -4352,7 +4380,7 @@ test('it refuses a principal a spawn under a parent whose tree leaves its reach 
   });
 
   const parentSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
   });
@@ -4371,7 +4399,7 @@ test('it refuses a principal a spawn under a parent whose tree leaves its reach 
     () =>
       daemon.client.sendRequest(
         'session.spawn',
-        { cwd: daemon.dir, target: 'local', parent, resume: `a-${randomUUID()}` },
+        { cwd: daemon.directory, target: 'local', parent, resume: `a-${randomUUID()}` },
         'narrow',
       ),
     parent,
@@ -4380,7 +4408,7 @@ test('it refuses a principal a spawn under a parent whose tree leaves its reach 
   await host.entered;
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: `a-${randomUUID()}`,
     parent,
@@ -4394,7 +4422,7 @@ test('it refuses a principal a spawn under a parent whose tree leaves its reach 
     () =>
       daemon.client.sendRequest(
         'session.spawn',
-        { cwd: daemon.dir, target: 'local', parent: missing, resume: `a-${randomUUID()}` },
+        { cwd: daemon.directory, target: 'local', parent: missing, resume: `a-${randomUUID()}` },
         'narrow',
       ),
     missing,
@@ -4432,7 +4460,7 @@ test('it answers the replay of a held spawn key with its session while the grant
 
   const first = await daemon.client.sendRequest(
     'session.spawn',
-    { cwd: daemon.dir, target: 'box', idempotencyKey: 'k-1' },
+    { cwd: daemon.directory, target: 'box', idempotencyKey: 'k-1' },
     'wide',
   );
 
@@ -4456,7 +4484,7 @@ test('it answers the replay of a held spawn key with its session while the grant
 
   const replayed = await daemon.client.sendRequest(
     'session.spawn',
-    { cwd: daemon.dir, target: 'box', idempotencyKey: 'k-1' },
+    { cwd: daemon.directory, target: 'box', idempotencyKey: 'k-1' },
     'wide',
   );
 
@@ -4489,7 +4517,7 @@ test("it refuses a narrow connection a spawn on a wider principal's target, with
 
   await daemon.client.sendRequest(
     'session.spawn',
-    { cwd: daemon.dir, target: 'box', idempotencyKey: 'k-1' },
+    { cwd: daemon.directory, target: 'box', idempotencyKey: 'k-1' },
     'wide',
   );
 
@@ -4499,7 +4527,7 @@ test("it refuses a narrow connection a spawn on a wider principal's target, with
     () =>
       client.sendRequest(
         'session.spawn',
-        { cwd: daemon.dir, target: 'box', idempotencyKey: 'k-1' },
+        { cwd: daemon.directory, target: 'box', idempotencyKey: 'k-1' },
         'wide',
       ),
     'k-1',
@@ -4544,13 +4572,13 @@ test('it runs one spawn for one key on a principal connection, whatever principa
 
   const first = await client.sendRequest(
     'session.spawn',
-    { cwd: daemon.dir, target: 'local', idempotencyKey: 'k-1' },
+    { cwd: daemon.directory, target: 'local', idempotencyKey: 'k-1' },
     'wide',
   );
 
   const second = await client.sendRequest(
     'session.spawn',
-    { cwd: daemon.dir, target: 'local', idempotencyKey: 'k-1' },
+    { cwd: daemon.directory, target: 'local', idempotencyKey: 'k-1' },
     'narrow',
   );
 
@@ -4580,7 +4608,7 @@ test("it refuses the replay of a forgotten session's spawn key once its target h
 
   const spawned = await daemon.client.sendRequest(
     'session.spawn',
-    { cwd: daemon.dir, name: 'secret-work', target: 'box', idempotencyKey: 'k-1' },
+    { cwd: daemon.directory, name: 'secret-work', target: 'box', idempotencyKey: 'k-1' },
     'p',
   );
 
@@ -4606,7 +4634,7 @@ test("it refuses the replay of a forgotten session's spawn key once its target h
 
   const replayed = daemon.client.sendRequest(
     'session.spawn',
-    { cwd: daemon.dir, name: 'secret-work', target: 'box', idempotencyKey: 'k-1' },
+    { cwd: daemon.directory, name: 'secret-work', target: 'box', idempotencyKey: 'k-1' },
     'p',
   );
 
@@ -4642,7 +4670,7 @@ test("it answers the replay of a forgotten session's spawn key with its session 
 
   const spawned = await daemon.client.sendRequest(
     'session.spawn',
-    { cwd: daemon.dir, name: 'secret-work', target: 'box', idempotencyKey: 'k-1' },
+    { cwd: daemon.directory, name: 'secret-work', target: 'box', idempotencyKey: 'k-1' },
     'p',
   );
 
@@ -4668,7 +4696,7 @@ test("it answers the replay of a forgotten session's spawn key with its session 
 
   const replayed = await daemon.client.sendRequest(
     'session.spawn',
-    { cwd: daemon.dir, name: 'secret-work', target: 'box', idempotencyKey: 'k-1' },
+    { cwd: daemon.directory, name: 'secret-work', target: 'box', idempotencyKey: 'k-1' },
     'p',
   );
 
@@ -4698,7 +4726,7 @@ test('it refuses a principal the replay of a held spawn key that records no targ
 
   const spawned = await daemon.client.sendRequest(
     'session.spawn',
-    { cwd: daemon.dir, name: 'secret-work', target: 'box', idempotencyKey: 'k-1' },
+    { cwd: daemon.directory, name: 'secret-work', target: 'box', idempotencyKey: 'k-1' },
     'p',
   );
 
@@ -4708,7 +4736,7 @@ test('it refuses a principal the replay of a held spawn key that records no targ
   await daemon.client.sendRequest('session.kill', { session: id });
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     idempotencyKey: 'k-owner',
   });
@@ -4740,7 +4768,7 @@ test('it refuses a principal the replay of a held spawn key that records no targ
 
   const replayed = daemon.client.sendRequest(
     'session.spawn',
-    { cwd: daemon.dir, name: 'secret-work', target: 'box', idempotencyKey: 'k-1' },
+    { cwd: daemon.directory, name: 'secret-work', target: 'box', idempotencyKey: 'k-1' },
     'p',
   );
 
@@ -4776,7 +4804,7 @@ test('it answers the owner the replay of a held spawn key that records no target
 
   const spawned = await daemon.client.sendRequest(
     'session.spawn',
-    { cwd: daemon.dir, name: 'secret-work', target: 'box', idempotencyKey: 'k-1' },
+    { cwd: daemon.directory, name: 'secret-work', target: 'box', idempotencyKey: 'k-1' },
     'p',
   );
 
@@ -4786,7 +4814,7 @@ test('it answers the owner the replay of a held spawn key that records no target
   await daemon.client.sendRequest('session.kill', { session: id });
 
   const owned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     idempotencyKey: 'k-owner',
   });
@@ -4817,7 +4845,7 @@ test('it answers the owner the replay of a held spawn key that records no target
   });
 
   const ownerReplayed = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     idempotencyKey: 'k-owner',
   });
@@ -4872,7 +4900,7 @@ test('it lists a principal its sessions in the order it gets when no hidden sess
   });
 
   const mixedFirstSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
   });
@@ -4880,7 +4908,7 @@ test('it lists a principal its sessions in the order it gets when no hidden sess
   const mixedFirst = String(getRecord(mixedFirstSpawned, 'session')['id']);
 
   const pinnedHiddenSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: `a-${randomUUID()}`,
   });
@@ -4888,7 +4916,7 @@ test('it lists a principal its sessions in the order it gets when no hidden sess
   const pinnedHidden = String(getRecord(pinnedHiddenSpawned, 'session')['id']);
 
   const mixedSecondSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
   });
@@ -4896,7 +4924,7 @@ test('it lists a principal its sessions in the order it gets when no hidden sess
   const mixedSecond = String(getRecord(mixedSecondSpawned, 'session')['id']);
 
   const needyHiddenSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: `a-${randomUUID()}`,
   });
@@ -4904,7 +4932,7 @@ test('it lists a principal its sessions in the order it gets when no hidden sess
   const needyHidden = String(getRecord(needyHiddenSpawned, 'session')['id']);
 
   const mixedThirdSpawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
   });
@@ -4912,7 +4940,7 @@ test('it lists a principal its sessions in the order it gets when no hidden sess
   const mixedThird = String(getRecord(mixedThirdSpawned, 'session')['id']);
 
   const cleanFirstSpawned = await clean.client.sendRequest('session.spawn', {
-    cwd: clean.dir,
+    cwd: clean.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
   });
@@ -4920,7 +4948,7 @@ test('it lists a principal its sessions in the order it gets when no hidden sess
   const cleanFirst = String(getRecord(cleanFirstSpawned, 'session')['id']);
 
   const cleanSecondSpawned = await clean.client.sendRequest('session.spawn', {
-    cwd: clean.dir,
+    cwd: clean.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
   });
@@ -4928,7 +4956,7 @@ test('it lists a principal its sessions in the order it gets when no hidden sess
   const cleanSecond = String(getRecord(cleanSecondSpawned, 'session')['id']);
 
   const cleanThirdSpawned = await clean.client.sendRequest('session.spawn', {
-    cwd: clean.dir,
+    cwd: clean.directory,
     target: 'local',
     resume: `a-${randomUUID()}`,
   });

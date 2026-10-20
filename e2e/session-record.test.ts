@@ -39,7 +39,7 @@ async function setupTest() {
     }),
   });
 
-  return { fixture, box, daemon, records: join(daemon.dir, 'records') };
+  return { fixture, box, daemon, records: join(daemon.directory, 'records') };
 }
 
 test('it publishes a record of the workspace and each checked entry and gives the session its path', async () => {
@@ -382,7 +382,7 @@ test('it places the stored record again when a restore revives the session', asy
     },
   });
 
-  const path = join(daemon.dir, 'records', 's-kept.json');
+  const path = join(daemon.directory, 'records', 's-kept.json');
 
   rmSync(path, { force: true });
 

@@ -10,7 +10,7 @@ test('it sends a request as the principal', async () => {
   );
 
   expect(caller.requests).toStrictEqual([
-    { m: 'session.list', principal: { id: 'client-a', name: 'Lantern Notes' } },
+    { method: 'session.list', principal: { id: 'client-a', name: 'Lantern Notes' } },
   ]);
 });
 
@@ -25,8 +25,8 @@ test('it sends a request as the principal over the principal the request asks fo
 
   expect(caller.requests).toStrictEqual([
     {
-      m: 'session.spawn',
-      p: { cwd: '/tmp' },
+      method: 'session.spawn',
+      params: { cwd: '/tmp' },
       principal: { id: 'client-a', name: 'Lantern Notes' },
     },
   ]);

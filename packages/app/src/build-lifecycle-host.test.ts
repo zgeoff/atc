@@ -24,13 +24,13 @@ test('it builds the paths, the /proc root, and the restore boot time from the en
 });
 
 test('it finds the user unit in the unit directories the environment gives', () => {
-  const tmp = setupTempDir('atc-lifecycle-host-');
-  const path = join(tmp.path, 'atc-daemon.service');
+  const temporaryDirectory = setupTempDir('atc-lifecycle-host-');
+  const path = join(temporaryDirectory.path, 'atc-daemon.service');
 
   writeFileSync(path, '[Service]\nExecStart=atc daemon\n');
 
   const host = buildLifecycleHost(
-    { HOME: '/home/u', SYSTEMD_UNIT_PATH: tmp.path },
+    { HOME: '/home/u', SYSTEMD_UNIT_PATH: temporaryDirectory.path },
     buildMockHostServices(),
   );
 

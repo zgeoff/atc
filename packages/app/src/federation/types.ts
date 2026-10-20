@@ -21,8 +21,8 @@ export interface GatewayChannel {
   // a request that rejects after this fired got no response
   onClose: () => void;
   readonly sendRequest: (
-    m: string,
-    p?: Readonly<Record<string, unknown>>,
+    method: string,
+    params?: Readonly<Record<string, unknown>>,
     as?: string,
     asName?: string,
   ) => Promise<Readonly<Record<string, unknown>>>;

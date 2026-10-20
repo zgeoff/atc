@@ -15,9 +15,12 @@ import { buildMockRemoteDaemon } from './test-utils/build-mock-remote-daemon';
 import { startTestDaemon } from './test-utils/start-test-daemon';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-remote-boot-');
+  const temporaryDirectory = setupTempDir('atc-remote-boot-');
 
-  return { dir: tmp.path, tokenFile: join(tmp.path, 'box.token') };
+  return {
+    directory: temporaryDirectory.path,
+    tokenFile: join(temporaryDirectory.path, 'box.token'),
+  };
 }
 
 test('it connects to a daemon over TCP as the entry principal and lists its fleet', async () => {
@@ -27,12 +30,12 @@ test('it connects to a daemon over TCP as the entry principal and lists its flee
 
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map([['laptop', ['local']]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });
@@ -42,7 +45,7 @@ test('it connects to a daemon over TCP as the entry principal and lists its flee
   }
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     agent: 'claude',
     name: 'on-the-box',
     cols: 80,
@@ -150,7 +153,7 @@ test('it rejects a token the daemon refuses as unauthorized', async () => {
 
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
@@ -158,7 +161,7 @@ test('it rejects a token the daemon refuses as unauthorized', async () => {
         listen: {
           host: '127.0.0.1',
           port: 0,
-          tokenFile: join(paths.dir, 'gateway-token'),
+          tokenFile: join(paths.directory, 'gateway-token'),
           failureDelayMs: 0,
         },
       };

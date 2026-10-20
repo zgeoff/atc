@@ -41,7 +41,7 @@ test('it answers the eject of a terminal session with an empty reply', async () 
   const ctx = await setupTest();
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+    cwd: ctx.daemon.directory,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
@@ -60,7 +60,7 @@ test('it ejects a terminal session into a headless run with its agent id', async
   const ctx = await setupTest();
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+    cwd: ctx.daemon.directory,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
@@ -79,12 +79,12 @@ test('it ejects a terminal session into a headless run with its agent id', async
   await waitFor(() => {
     expect(ctx.runs.map((run) => run.request)).toStrictEqual([
       {
-        cwd: ctx.daemon.dir,
+        cwd: ctx.daemon.directory,
         prompt: 'keep going',
         resume: toAgentSessionID('sess-123'),
         sessionID,
-        recordPath: join(ctx.daemon.dir, 'records', `${sessionID}.json`),
-        reporterSocket: join(ctx.daemon.dir, 'reporter.sock'),
+        recordPath: join(ctx.daemon.directory, 'records', `${sessionID}.json`),
+        reporterSocket: join(ctx.daemon.directory, 'reporter.sock'),
       },
     ]);
   });
@@ -141,7 +141,7 @@ test("it ejects a session into a headless run with the spawn's plugin folders, ~
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     resume: 'sess-123',
     pluginDirs: ['~/plugins/band'],
     cols: 80,
@@ -164,7 +164,7 @@ test('it lists an ejected session as a running headless session', async () => {
   const ctx = await setupTest();
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+    cwd: ctx.daemon.directory,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
@@ -194,7 +194,7 @@ test('it starts the headless run of an ejected workspace session without its wor
   updateEnv('ATC_TEST_WORKSPACE_CRED', 'fixture-not-a-secret');
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.daemon.dir, 'ws'),
+    cwd: join(ctx.daemon.directory, 'ws'),
     resume: 'sess-ws',
     workspace: {
       kind: 'git',
@@ -216,13 +216,13 @@ test('it starts the headless run of an ejected workspace session without its wor
   await waitFor(() => {
     expect(ctx.runs.map((run) => run.request)).toStrictEqual([
       {
-        cwd: join(ctx.daemon.dir, 'ws'),
+        cwd: join(ctx.daemon.directory, 'ws'),
         prompt: 'keep going',
         resume: toAgentSessionID('sess-ws'),
         sessionID,
         withheldEnv: ['ATC_TEST_WORKSPACE_CRED', 'GIT_ASKPASS', 'ATC_GIT_ASKPASS_SECRET'],
-        recordPath: join(ctx.daemon.dir, 'records', `${sessionID}.json`),
-        reporterSocket: join(ctx.daemon.dir, 'reporter.sock'),
+        recordPath: join(ctx.daemon.directory, 'records', `${sessionID}.json`),
+        reporterSocket: join(ctx.daemon.directory, 'reporter.sock'),
       },
     ]);
   });
@@ -232,7 +232,7 @@ test('it reports a finished headless turn as done', async () => {
   const ctx = await setupTest();
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+    cwd: ctx.daemon.directory,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
@@ -266,7 +266,7 @@ test('it reports a stuck headless turn as needs_you', async () => {
   const ctx = await setupTest();
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+    cwd: ctx.daemon.directory,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
@@ -302,7 +302,7 @@ test("it keeps a finished headless turn's whole final message as the latest resu
   const result = `Fixed the auth bug.\n\n${'The token refresh now retries once. '.repeat(10)}`;
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+    cwd: ctx.daemon.directory,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
@@ -336,7 +336,7 @@ test("it shows a finished headless turn's result as the session's latest detail"
   const ctx = await setupTest();
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+    cwd: ctx.daemon.directory,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
@@ -370,7 +370,7 @@ test("it records a headless turn's prompt in the event trail", async () => {
   const ctx = await setupTest();
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+    cwd: ctx.daemon.directory,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
@@ -402,7 +402,7 @@ test("it records a headless turn's finish in the event trail", async () => {
   const ctx = await setupTest();
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+    cwd: ctx.daemon.directory,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
@@ -443,7 +443,7 @@ test('it records a stuck headless turn as needs-input in the event trail', async
   const ctx = await setupTest();
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+    cwd: ctx.daemon.directory,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
@@ -488,7 +488,7 @@ test('it starts the next headless turn from session input once idle', async () =
   const ctx = await setupTest();
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+    cwd: ctx.daemon.directory,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
@@ -522,21 +522,21 @@ test('it starts the next headless turn from session input once idle', async () =
 
   expect(ctx.runs.map((started) => started.request)).toStrictEqual([
     {
-      cwd: ctx.daemon.dir,
+      cwd: ctx.daemon.directory,
       prompt:
         'Continue the task autonomously. Verify your work as you go and stop when it is complete.',
       resume: toAgentSessionID('sess-123'),
       sessionID,
-      recordPath: join(ctx.daemon.dir, 'records', `${sessionID}.json`),
-      reporterSocket: join(ctx.daemon.dir, 'reporter.sock'),
+      recordPath: join(ctx.daemon.directory, 'records', `${sessionID}.json`),
+      reporterSocket: join(ctx.daemon.directory, 'reporter.sock'),
     },
     {
-      cwd: ctx.daemon.dir,
+      cwd: ctx.daemon.directory,
       prompt: 'next task',
       resume: toAgentSessionID('sess-123'),
       sessionID,
-      recordPath: join(ctx.daemon.dir, 'records', `${sessionID}.json`),
-      reporterSocket: join(ctx.daemon.dir, 'reporter.sock'),
+      recordPath: join(ctx.daemon.directory, 'records', `${sessionID}.json`),
+      reporterSocket: join(ctx.daemon.directory, 'reporter.sock'),
     },
   ]);
 });
@@ -545,7 +545,7 @@ test('it refuses input to a headless session mid-run', async () => {
   const ctx = await setupTest();
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+    cwd: ctx.daemon.directory,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
@@ -571,7 +571,7 @@ test('it adopts a headless session back into a terminal', async () => {
   const ctx = await setupTest();
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+    cwd: ctx.daemon.directory,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
@@ -634,7 +634,7 @@ test('it stops the headless run of a session whose adopt is refused while its te
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
@@ -717,7 +717,7 @@ test('it keeps the headless run of a session whose adopt is refused for a plugin
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     resume: 'sess-123',
     pluginDirs: ['~/plugins/band'],
     cols: 80,
@@ -808,7 +808,7 @@ test("it keeps the headless run of a session whose adopt is refused for a plugin
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     resume: 'sess-123',
     cols: 80,
     rows: 24,
@@ -897,7 +897,7 @@ test('it keeps the terminal of a session whose eject is refused for a plugin fol
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     resume: 'sess-123',
     pluginDirs: ['~/plugins/band'],
     cols: 80,
@@ -976,7 +976,7 @@ test('it refuses the next headless turn from session input once its plugin folde
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     resume: 'sess-123',
     pluginDirs: ['~/plugins/band'],
     cols: 80,
@@ -1014,7 +1014,7 @@ test('it refuses to eject a session that never reported an agent session id', as
   const ctx = await setupTest();
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+    cwd: ctx.daemon.directory,
     name: 'no-id',
     cols: 80,
     rows: 24,
@@ -1034,7 +1034,7 @@ test('it reports eject as unsupported without a headless runner', async () => {
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
@@ -1061,14 +1061,14 @@ test('it refuses to eject a grok session', async () => {
             }),
             'grok',
           ),
-          join(paths.dir, 'grok-home'),
+          join(paths.directory, 'grok-home'),
         ),
       ],
     }),
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     name: 'grok-handoff',
     agent: 'grok',
     resume: 'grok-sess-1',
@@ -1103,7 +1103,7 @@ test('it starts no headless run for a refused grok eject', async () => {
             }),
             'grok',
           ),
-          join(paths.dir, 'grok-home'),
+          join(paths.directory, 'grok-home'),
         ),
       ],
       scheduleEjectSettle: scheduler.schedule,
@@ -1111,7 +1111,7 @@ test('it starts no headless run for a refused grok eject', async () => {
   });
 
   const grok = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     name: 'grok-handoff',
     agent: 'grok',
     resume: 'grok-sess-1',
@@ -1120,7 +1120,7 @@ test('it starts no headless run for a refused grok eject', async () => {
   });
 
   const claude = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
@@ -1151,7 +1151,7 @@ test("it stops a killed session's headless run", async () => {
   const ctx = await setupTest();
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+    cwd: ctx.daemon.directory,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
@@ -1180,7 +1180,7 @@ test('it refuses input for a killed headless session', async () => {
   const ctx = await setupTest();
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+    cwd: ctx.daemon.directory,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,

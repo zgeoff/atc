@@ -26,7 +26,7 @@ test('it adds the whole text of each note to its event and passes the rest of th
   };
 
   const caller = buildStubFleetCaller({
-    answer: (request) => texts[String(request.p?.['note'])] ?? {},
+    answer: (request) => texts[String(request.params?.['note'])] ?? {},
   });
 
   const page = await readEventTexts(caller, {
@@ -94,8 +94,8 @@ test('it adds the whole text of each note to its event and passes the rest of th
   });
 
   expect(caller.requests).toStrictEqual([
-    { m: 'note.get', p: { note: 'c1' } },
-    { m: 'note.get', p: { note: 'pc.0a1b2c3d.c3' } },
+    { method: 'note.get', params: { note: 'c1' } },
+    { method: 'note.get', params: { note: 'pc.0a1b2c3d.c3' } },
   ]);
 });
 
@@ -107,7 +107,7 @@ test('it stops the page before the first note whose text would carry it past 64 
   };
 
   const caller = buildStubFleetCaller({
-    answer: (request) => ({ text: texts[String(request.p?.['note'])], complete: true }),
+    answer: (request) => ({ text: texts[String(request.params?.['note'])], complete: true }),
   });
 
   const page = await readEventTexts(caller, {
@@ -153,9 +153,9 @@ test('it stops the page before the first note whose text would carry it past 64 
   });
 
   expect(caller.requests).toStrictEqual([
-    { m: 'note.get', p: { note: 'c1' } },
-    { m: 'note.get', p: { note: 'c2' } },
-    { m: 'note.get', p: { note: 'c4' } },
+    { method: 'note.get', params: { note: 'c1' } },
+    { method: 'note.get', params: { note: 'c2' } },
+    { method: 'note.get', params: { note: 'c4' } },
   ]);
 });
 
@@ -166,7 +166,7 @@ test('it adds the whole answer of each message-answered event, read by its handl
   };
 
   const caller = buildStubFleetCaller({
-    answer: (request) => answers[String(request.p?.['answer'])] ?? {},
+    answer: (request) => answers[String(request.params?.['answer'])] ?? {},
   });
 
   const page = await readEventTexts(caller, {
@@ -244,8 +244,8 @@ test('it adds the whole answer of each message-answered event, read by its handl
   });
 
   expect(caller.requests).toStrictEqual([
-    { m: 'answer.get', p: { answer: 'c1' } },
-    { m: 'answer.get', p: { answer: 'pc.0a1b2c3d.c3' } },
+    { method: 'answer.get', params: { answer: 'c1' } },
+    { method: 'answer.get', params: { answer: 'pc.0a1b2c3d.c3' } },
   ]);
 });
 
@@ -257,7 +257,7 @@ test('it stops the page before the first answer whose text would carry it past 6
   };
 
   const caller = buildStubFleetCaller({
-    answer: (request) => ({ text: answers[String(request.p?.['answer'])], complete: true }),
+    answer: (request) => ({ text: answers[String(request.params?.['answer'])], complete: true }),
   });
 
   const page = await readEventTexts(caller, {
@@ -304,7 +304,7 @@ test('it stops the page before the first answer whose text would carry it past 6
 test('it counts note texts and answers against one 64 KiB budget', async () => {
   const caller = buildStubFleetCaller({
     answer: (request) =>
-      request.m === 'note.get'
+      request.method === 'note.get'
         ? { text: 'n'.repeat(40_000), complete: true }
         : { text: 'a'.repeat(30_000), complete: true },
   });
@@ -452,7 +452,7 @@ test('it gives a note whose text read outlasts the deadline a timeout and stops 
 
   const page = await reading;
 
-  expect(caller.requests).toStrictEqual([{ m: 'note.get', p: { note: 'c1' } }]);
+  expect(caller.requests).toStrictEqual([{ method: 'note.get', params: { note: 'c1' } }]);
 
   expect(page).toStrictEqual({
     events: [

@@ -13,12 +13,12 @@ import { runSessionAction } from './run-session-action';
 import { startTestDaemon } from './test-utils/start-test-daemon';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-session-action-');
+  const temporaryDirectory = setupTempDir('atc-session-action-');
   const port = createStubImpPort();
 
   const provider = new ImpProvider(
     port,
-    { guestDir: join(tmp.path, 'g'), rebindChangedAuth: false },
+    { guestDir: join(temporaryDirectory.path, 'g'), rebindChangedAuth: false },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -26,7 +26,7 @@ function setupTest() {
     provider.dispose();
   });
 
-  return { dir: tmp.path, port, provider };
+  return { directory: temporaryDirectory.path, port, provider };
 }
 
 test('it prints the new revision, the adopt command and the sessions pending a restart after a rebind', async () => {
@@ -78,7 +78,7 @@ test('it prints the new revision, the adopt command and the sessions pending a r
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -156,7 +156,7 @@ test('it starts the terminal of a session whose host is rebound', async () => {
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -229,7 +229,7 @@ test('it prints the refusal with its code and exits 1 when the host still needs 
   ]);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',

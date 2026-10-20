@@ -11,27 +11,27 @@ import { openMCPAuthDatabase } from './open-mcp-auth-database';
 import { buildLocalTarget } from './test-utils/build-local-target';
 
 async function setupTest() {
-  const tmp = setupTempDir('atc-mcp-http-server-');
-  const socketPath = join(tmp.path, 'atc-daemon.sock');
+  const temporaryDirectory = setupTempDir('atc-mcp-http-server-');
+  const socketPath = join(temporaryDirectory.path, 'atc-daemon.sock');
 
   const daemon = await startDaemon({
     socketPath,
-    reporterSocketPath: join(tmp.path, 'reporter.sock'),
+    reporterSocketPath: join(temporaryDirectory.path, 'reporter.sock'),
     build: 'atc/test-build',
     targets: [buildLocalTarget()],
     adapter: buildMockAgentAdapter(),
-    dbPath: join(tmp.path, 'state.db'),
-    statusPath: join(tmp.path, 'status.json'),
+    dbPath: join(temporaryDirectory.path, 'state.db'),
+    statusPath: join(temporaryDirectory.path, 'status.json'),
   });
 
   registerTestCleanup(() => daemon.stop());
 
   return {
-    dbPath: join(tmp.path, 'mcp-auth.db'),
+    dbPath: join(temporaryDirectory.path, 'mcp-auth.db'),
     daemonPaths: {
       socketPath,
-      recordFile: join(tmp.path, 'daemon.json'),
-      pidFile: join(tmp.path, 'atc-daemon.pid'),
+      recordFile: join(temporaryDirectory.path, 'daemon.json'),
+      pidFile: join(temporaryDirectory.path, 'atc-daemon.pid'),
     },
   };
 }
@@ -549,7 +549,7 @@ test('it stops serving and exits 0 on SIGTERM', async () => {
 });
 
 test('it exits 1 with the reason when no daemon answers at its daemon paths', async () => {
-  const tmp = setupTempDir('atc-mcp-http-server-');
+  const temporaryDirectory = setupTempDir('atc-mcp-http-server-');
   const errors: string[] = [];
   const codes: number[] = [];
 
@@ -568,11 +568,11 @@ test('it exits 1 with the reason when no daemon answers at its daemon paths', as
         allowedHosts: [],
         trustForwardedFrom: [],
       }),
-      dbPath: join(tmp.path, 'mcp-auth.db'),
+      dbPath: join(temporaryDirectory.path, 'mcp-auth.db'),
       daemonPaths: {
-        socketPath: join(tmp.path, 'atc-daemon.sock'),
-        recordFile: join(tmp.path, 'daemon.json'),
-        pidFile: join(tmp.path, 'atc-daemon.pid'),
+        socketPath: join(temporaryDirectory.path, 'atc-daemon.sock'),
+        recordFile: join(temporaryDirectory.path, 'daemon.json'),
+        pidFile: join(temporaryDirectory.path, 'atc-daemon.pid'),
       },
       print: () => {},
       printError: (line) => {
@@ -586,7 +586,7 @@ test('it exits 1 with the reason when no daemon answers at its daemon paths', as
   );
 
   expect(errors).toStrictEqual([
-    `atc mcp --http: no atc daemon answered at ${join(tmp.path, 'atc-daemon.sock')}, and a boot given its own daemon paths does not start one; start \`atc daemon\` where it listens there first`,
+    `atc mcp --http: no atc daemon answered at ${join(temporaryDirectory.path, 'atc-daemon.sock')}, and a boot given its own daemon paths does not start one; start \`atc daemon\` where it listens there first`,
   ]);
 
   expect(codes).toStrictEqual([1]);

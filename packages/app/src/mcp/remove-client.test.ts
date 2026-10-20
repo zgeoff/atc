@@ -22,11 +22,13 @@ import { TransportCaller } from './transport-caller';
 // the way `atc clients` opens it. No test reaches the daemon, so the caller
 // points at a socket nothing listens on.
 async function setupTest() {
-  const tmp = setupTempDir('atc-remove-client-');
-  const dbPath = join(tmp.path, 'mcp-auth.db');
+  const temporaryDirectory = setupTempDir('atc-remove-client-');
+  const dbPath = join(temporaryDirectory.path, 'mcp-auth.db');
 
-  const caller = new TransportCaller(join(tmp.path, 'daemon.sock'), 'atc/test-build', (path) =>
-    openDaemonClient(path),
+  const caller = new TransportCaller(
+    join(temporaryDirectory.path, 'daemon.sock'),
+    'atc/test-build',
+    (path) => openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
