@@ -21,7 +21,7 @@ export interface SpawnHostAccess {
   // attempt n is that directory with `-n` appended
   readonly readyHost: (
     attempt: number,
-  ) => Promise<{ readonly host: SessionID; readonly dir: string }>;
-  readonly removeClaim: (dir: string) => Promise<boolean>;
+  ) => Promise<{ readonly host: SessionID; readonly directory: string }>;
+  readonly removeClaim: (directory: string) => Promise<boolean>;
   readonly timer: StepTimer;
 }

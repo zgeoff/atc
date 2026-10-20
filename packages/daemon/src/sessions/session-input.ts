@@ -15,7 +15,7 @@ import type { SessionManager } from './sessions';
 import { writeLineSteps } from './write-line-steps';
 
 interface SessionInputDeps {
-  readonly mgr: Pick<
+  readonly manager: Pick<
     SessionManager,
     'sessions' | 'findAdapter' | 'findProvider' | 'requireExecution' | 'findExecutionRefusal'
   >;
@@ -31,7 +31,7 @@ interface SessionInputDeps {
 }
 
 export class SessionInput {
-  private readonly mgr: SessionInputDeps['mgr'];
+  private readonly manager: SessionInputDeps['manager'];
 
   private readonly clock: Clock;
 
@@ -42,7 +42,7 @@ export class SessionInput {
   private readonly startHeadlessTurn: SessionInputDeps['startHeadlessTurn'];
 
   constructor(deps: SessionInputDeps) {
-    this.mgr = deps.mgr;
+    this.manager = deps.manager;
     this.clock = deps.clock;
     this.findRuntime = deps.findRuntime;
     this.menuTiming = deps.menuTiming;
@@ -52,16 +52,16 @@ export class SessionInput {
   // A headless turn runs only through the session's own target, never
   // anywhere else, and a dead session takes no input.
   writeSessionInput(sessionID: SessionID, data: string): 'busy' | 'ok' | 'missing' | 'dead' {
-    const s = this.mgr.sessions.find((x) => x.id === sessionID);
+    const session = this.manager.sessions.find((x) => x.id === sessionID);
 
-    if (s === undefined) {
+    if (session === undefined) {
       return 'missing';
     }
 
-    if (s.kind === 'headless') {
-      this.mgr.requireExecution(s, 'headless');
+    if (session.kind === 'headless') {
+      this.manager.requireExecution(session, 'headless');
 
-      if (s.state === 'exited') {
+      if (session.state === 'exited') {
         return 'dead';
       }
 
@@ -69,18 +69,18 @@ export class SessionInput {
         return 'busy';
       }
 
-      requireSessionPluginDirs(this.mgr, s);
+      requireSessionPluginDirs(this.manager, session);
 
       return this.startHeadlessTurn(sessionID, data.trimEnd()) ? 'ok' : 'dead';
     }
 
-    if (s.pty === null) {
+    if (session.pty === null) {
       return 'dead';
     }
 
-    this.mgr.requireExecution(s, 'input');
+    this.manager.requireExecution(session, 'input');
 
-    const pty = s.pty;
+    const pty = session.pty;
     const runtime = this.getRuntime(sessionID);
 
     // Input from outside a menu read or choice can open another list that
@@ -102,18 +102,18 @@ export class SessionInput {
     sessionID: SessionID,
     text: string,
   ): Promise<'busy' | 'ok' | 'missing' | 'dead' | 'permission_pending'> {
-    const s = this.mgr.sessions.find((x) => x.id === sessionID);
+    const session = this.manager.sessions.find((x) => x.id === sessionID);
 
-    if (s === undefined || s.kind === 'headless' || s.pty === null) {
+    if (session === undefined || session.kind === 'headless' || session.pty === null) {
       return Promise.resolve(this.writeSessionInput(sessionID, text));
     }
 
-    this.mgr.requireExecution(s, 'input');
+    this.manager.requireExecution(session, 'input');
 
     // Typed text would confirm the prompt's highlighted option. Attaching
     // or a screen judgment changes the state while the prompt stays open,
     // so only the flag decides.
-    if (s.permissionPending === true) {
+    if (session.permissionPending === true) {
       return Promise.resolve('permission_pending');
     }
 
@@ -124,15 +124,15 @@ export class SessionInput {
     // menu, so the kept menu is dropped.
     runtime.wholeMenu = null;
 
-    const adapter = this.mgr.findAdapter(s.agent);
+    const adapter = this.manager.findAdapter(session.agent);
     const steps = adapter?.planLineInput?.(text, { bracketedPaste }) ?? planTypedLineInput(text);
-    const pty = s.pty;
+    const pty = session.pty;
 
     const terminal = {
       write: (data: string) => {
         pty.write(data);
       },
-      isLive: () => this.mgr.sessions.find((x) => x.id === sessionID)?.pty === pty,
+      isLive: () => this.manager.sessions.find((x) => x.id === sessionID)?.pty === pty,
     };
 
     const typed = Promise.withResolvers<'ok' | 'dead'>();
@@ -141,7 +141,7 @@ export class SessionInput {
     // between the text and its submit key; a terminal that ends or is
     // replaced mid-line gets none of the rest
     runtime.input.schedule(() => {
-      const result = writeLineSteps(steps, terminal, (ms) => Bun.sleep(ms));
+      const result = writeLineSteps(steps, terminal, (delayMs) => Bun.sleep(delayMs));
 
       typed.resolve(result);
 
@@ -154,7 +154,7 @@ export class SessionInput {
   // A killed session keeps its last screen until a second kill removes it,
   // so a reader can still see what the agent printed before it died.
   readSessionScreen(id: SessionID): Promise<ScreenText | 'missing' | 'no_screen'> {
-    if (!this.mgr.sessions.some((x) => x.id === id)) {
+    if (!this.manager.sessions.some((x) => x.id === id)) {
       return Promise.resolve('missing');
     }
 
@@ -166,13 +166,13 @@ export class SessionInput {
   async readSessionMenu(
     id: SessionID,
   ): Promise<MenuView | null | 'missing' | 'no_screen' | 'unsupported'> {
-    const s = this.mgr.sessions.find((x) => x.id === id);
+    const session = this.manager.sessions.find((x) => x.id === id);
 
-    if (s === undefined) {
+    if (session === undefined) {
       return 'missing';
     }
 
-    const findMenu = this.mgr.findAdapter(s.agent)?.findMenu;
+    const findMenu = this.manager.findAdapter(session.agent)?.findMenu;
 
     if (findMenu === undefined) {
       return 'unsupported';
@@ -192,7 +192,10 @@ export class SessionInput {
     // A list that scrolls past the screen is read with arrow keys, so the
     // read holds the session's input queue as a choice does. A target that
     // takes no input reads the list as its screen shows it.
-    if (known?.scroll === undefined || this.mgr.findExecutionRefusal(s, 'input') !== null) {
+    if (
+      known?.scroll === undefined ||
+      this.manager.findExecutionRefusal(session, 'input') !== null
+    ) {
       return known === null ? null : buildMenuView(known);
     }
 
@@ -216,13 +219,13 @@ export class SessionInput {
     id: SessionID,
     choice: MenuChoice,
   ): Promise<MenuChoiceResult | 'missing' | 'dead' | 'unsupported'> {
-    const s = this.mgr.sessions.find((x) => x.id === id);
+    const session = this.manager.sessions.find((x) => x.id === id);
 
-    if (s === undefined) {
+    if (session === undefined) {
       return Promise.resolve('missing');
     }
 
-    const findMenu = this.mgr.findAdapter(s.agent)?.findMenu;
+    const findMenu = this.manager.findAdapter(session.agent)?.findMenu;
 
     if (findMenu === undefined) {
       return Promise.resolve('unsupported');
@@ -231,11 +234,11 @@ export class SessionInput {
     const runtime = this.getRuntime(id);
     const screen = runtime.screen;
 
-    if (s.kind === 'headless' || s.pty === null || screen === null) {
+    if (session.kind === 'headless' || session.pty === null || screen === null) {
       return Promise.resolve('dead');
     }
 
-    this.mgr.requireExecution(s, 'input');
+    this.manager.requireExecution(session, 'input');
 
     const terminal = this.buildMenuTerminal(id, findMenu);
     const applied = Promise.withResolvers<MenuChoiceResult>();
@@ -269,7 +272,7 @@ export class SessionInput {
     findMenu: (text: string, rows?: number) => ScreenMenu | null,
   ): MenuTerminal {
     const runtime = this.getRuntime(id);
-    const pty = this.mgr.sessions.find((x) => x.id === id)?.pty ?? null;
+    const pty = this.manager.sessions.find((x) => x.id === id)?.pty ?? null;
 
     return {
       readScreenMenu: async () => {
@@ -285,7 +288,7 @@ export class SessionInput {
       write: (data) => {
         pty?.write(data);
       },
-      isLive: () => pty !== null && this.mgr.sessions.find((x) => x.id === id)?.pty === pty,
+      isLive: () => pty !== null && this.manager.sessions.find((x) => x.id === id)?.pty === pty,
       findWholeMenu: () => runtime.wholeMenu,
       recordWholeMenu: (menu) => {
         runtime.wholeMenu = menu;

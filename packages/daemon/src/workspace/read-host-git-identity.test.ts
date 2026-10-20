@@ -5,8 +5,8 @@ import { setupTempDir, updateEnv } from '@atc/test-utils';
 import { readHostGitIdentity } from './read-host-git-identity';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-host-identity-');
-  const config = join(tmp.path, 'gitconfig');
+  const temporaryDirectory = setupTempDir('atc-host-identity-');
+  const config = join(temporaryDirectory.path, 'gitconfig');
 
   updateEnv('GIT_CONFIG_GLOBAL', config);
   updateEnv('GIT_CONFIG_NOSYSTEM', '1');

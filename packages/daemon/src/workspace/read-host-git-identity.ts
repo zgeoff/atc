@@ -23,7 +23,7 @@ async function readConfigValue(key: string): Promise<string | null> {
   try {
     // only the global config, from a neutral directory, so no repository's own config applies
     // whatever directory or repository the environment points git at
-    const proc = Bun.spawn(['git', 'config', '--global', '--get', key], {
+    const subprocess = Bun.spawn(['git', 'config', '--global', '--get', key], {
       cwd: tmpdir(),
       env: process.env,
       stdin: 'ignore',
@@ -31,7 +31,10 @@ async function readConfigValue(key: string): Promise<string | null> {
       stderr: 'ignore',
     });
 
-    const [stdout, exitCode] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
+    const [stdout, exitCode] = await Promise.all([
+      new Response(subprocess.stdout).text(),
+      subprocess.exited,
+    ]);
 
     const value = stdout.trim();
 

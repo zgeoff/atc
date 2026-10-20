@@ -132,7 +132,7 @@ export class SessionSpawner {
     requireInReach: () => void = () => {},
     autoDir = false,
     scope: DeclaredScope | null = null,
-    answer: ((s: Session) => void) | null = null,
+    answer: ((session: Session) => void) | null = null,
   ): Promise<Session> {
     const adapter = this.registry.findAdapter(agent);
 
@@ -272,12 +272,12 @@ export class SessionSpawner {
 
     // A spawn whose directory the daemon picked runs in the one it claimed,
     // as the host resolves it.
-    const dir = spawn.autoDir && prepared.root !== null ? prepared.root : cwd;
+    const directory = spawn.autoDir && prepared.root !== null ? prepared.root : cwd;
 
     // The repository is read once the workspace is in place, so a clone
     // inside another work tree is its own. A remote directory is not on
     // the daemon's machine, so it is its own root.
-    const repoRoot = provider.remote ? dir : resolveRepoRoot(dir);
+    const repoRoot = provider.remote ? directory : resolveRepoRoot(directory);
     const materialized = prepared.materialized;
     const readied: SpawnReadied = { attemptID: prepared.setup.attemptID, root: prepared.root };
     const plan = prepared.setup.plan;
@@ -304,7 +304,7 @@ export class SessionSpawner {
           : this.callbacks.startMessageBridge({
               adapter,
               session: id,
-              cwd: dir,
+              cwd: directory,
               env,
               withheldEnv,
               options: { prompt: spawn.prompt, resume: spawn.resume, ...spawn.overrides },
@@ -333,7 +333,7 @@ export class SessionSpawner {
           host: hostKey,
           bin: launch.bin,
           args: launch.args,
-          cwd: dir,
+          cwd: directory,
           env,
           withheldEnv,
           cols: spawn.cols,
@@ -346,8 +346,9 @@ export class SessionSpawner {
 
         const registered: Session = {
           id,
-          name: spawn.namedBy === 'auto' && dir !== cwd ? posix.basename(dir) : spawn.name,
-          cwd: dir,
+          name:
+            spawn.namedBy === 'auto' && directory !== cwd ? posix.basename(directory) : spawn.name,
+          cwd: directory,
           kind: 'pty',
           pty,
           state: 'running',
@@ -447,7 +448,8 @@ export class SessionSpawner {
     target: string,
     identity: string,
   ): SessionID {
-    const owner = parent === null ? undefined : this.registry.sessions.find((s) => s.id === parent);
+    const owner =
+      parent === null ? undefined : this.registry.sessions.find((session) => session.id === parent);
 
     if (
       owner === undefined ||

@@ -6,7 +6,7 @@ export interface MaterializeRequest {
   readonly target: string;
 
   // The directory on the target the workspace lands in; it must not exist.
-  readonly dir: string;
+  readonly directory: string;
   readonly source: SpawnWorkspaceSource;
 
   // Whether the target is the daemon's own host, where a directory outside

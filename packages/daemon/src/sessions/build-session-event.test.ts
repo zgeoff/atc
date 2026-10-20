@@ -8,26 +8,31 @@ import { buildSessionEvent } from './build-session-event';
 import { SessionManager } from './sessions';
 
 async function setupTest() {
-  const tmp = setupTempDir('atc-daemon-events-');
+  const temporaryDirectory = setupTempDir('atc-daemon-events-');
 
-  const store = await StateStore.open(join(tmp.path, 'state.db'));
+  const store = await StateStore.open(join(temporaryDirectory.path, 'state.db'));
 
   registerTestCleanup(() => store.stop());
 
-  const mgr = new SessionManager(buildMockAgentAdapter(), store, join(tmp.path, 'status.json'), []);
+  const manager = new SessionManager(
+    buildMockAgentAdapter(),
+    store,
+    join(temporaryDirectory.path, 'status.json'),
+    [],
+  );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
-  return { mgr };
+  return { manager };
 }
 
 test('it builds nothing for a SessionState notification whose id has no descriptor', async () => {
   const ctx = await setupTest();
 
   const event = buildSessionEvent(
-    ctx.mgr,
+    ctx.manager,
     'state',
     buildMockSession({ id: toSessionID('ghost-session') }),
   );
@@ -39,7 +44,7 @@ test('it builds nothing for a SessionAdded notification whose id has no descript
   const ctx = await setupTest();
 
   const event = buildSessionEvent(
-    ctx.mgr,
+    ctx.manager,
     'added',
     buildMockSession({ id: toSessionID('ghost-session') }),
   );

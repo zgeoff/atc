@@ -196,13 +196,13 @@ export class SpawnRollback {
   }
 
   async removeListedSpawn(id: SessionID, root: string | null): Promise<void> {
-    const s = this.registry.sessions.find((x) => x.id === id);
+    const session = this.registry.sessions.find((x) => x.id === id);
 
-    if (s === undefined) {
+    if (session === undefined) {
       return;
     }
 
-    const pty = s.pty;
+    const pty = session.pty;
 
     this.harnesses.startingSpawns.delete(id);
 
@@ -217,25 +217,25 @@ export class SpawnRollback {
     }
 
     // A harness other than the killed one would outlive the rollback.
-    if (s.pty !== null && s.pty !== pty) {
+    if (session.pty !== null && session.pty !== pty) {
       throw new Error(`session ${id} started another harness while its spawn rolled back`);
     }
 
-    s.pty = null;
+    session.pty = null;
 
     // the directory stays held once the session leaves the list, so no
     // other workspace lands in or around it before it goes
-    if (root !== null && s.hostKey !== id) {
+    if (root !== null && session.hostKey !== id) {
       this.claims.reservations.set(id, {
-        hostKey: s.hostKey,
-        target: s.target,
-        dir: s.cwd,
+        hostKey: session.hostKey,
+        target: session.target,
+        directory: session.cwd,
         resolved: root,
         kind: 'workspace',
       });
     }
 
-    this.registry.remove(s);
+    this.registry.remove(session);
     this.fleet.emitChange();
 
     await this.fleet.writeFleet();

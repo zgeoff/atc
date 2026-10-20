@@ -15,17 +15,17 @@ export function updateSession(
   id: SessionID,
   changes: SessionChanges,
 ): boolean | 'shared_host' | 'agent_named' {
-  const s = deps.registry.sessions.find((x) => x.id === id);
+  const session = deps.registry.sessions.find((x) => x.id === id);
 
-  if (s === undefined) {
+  if (session === undefined) {
     return false;
   }
 
   // the host owner's kill and forget would still end a sub-session in its
   // host, so it gets no detach or pin of its own
   if (
-    s.parent !== null &&
-    s.hostKey !== s.id &&
+    session.parent !== null &&
+    session.hostKey !== session.id &&
     (changes.parent === null || changes.pinned === true)
   ) {
     return 'shared_host';
@@ -33,31 +33,32 @@ export function updateSession(
 
   // detach before any pin applies, so the pin, kill, and forget no longer
   // follow the former parent
-  if (changes.parent === null && s.parent !== null) {
-    s.parent = null;
+  if (changes.parent === null && session.parent !== null) {
+    session.parent = null;
 
-    deps.callbacks.onEvent('state', s);
+    deps.callbacks.onEvent('state', session);
   }
 
-  const renameSkipped = changes.name !== undefined && changes.name !== '' && s.namedBy === 'agent';
+  const renameSkipped =
+    changes.name !== undefined && changes.name !== '' && session.namedBy === 'agent';
 
   if (changes.name !== undefined && changes.name !== '' && !renameSkipped) {
-    s.name = changes.name;
+    session.name = changes.name;
 
     // auto-summaries stop overwriting a user-strength name, while an
     // in-session rename still wins
-    s.namedBy = 'user';
+    session.namedBy = 'user';
 
-    deps.callbacks.onEvent('renamed', s);
+    deps.callbacks.onEvent('renamed', session);
   }
 
-  if (changes.pinned !== undefined && changes.pinned !== s.pinned) {
-    s.pinned = changes.pinned;
+  if (changes.pinned !== undefined && changes.pinned !== session.pinned) {
+    session.pinned = changes.pinned;
 
-    deps.callbacks.onEvent('state', s);
+    deps.callbacks.onEvent('state', session);
   }
 
-  void deps.fleet.tryWriteFleet(s.id);
+  void deps.fleet.tryWriteFleet(session.id);
   deps.fleet.writeStatus();
   deps.fleet.emitChange();
 

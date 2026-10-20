@@ -166,7 +166,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
     const harnesses = new Map<number, SessionID>();
 
-    for (const session of mgr.sessions) {
+    for (const session of manager.sessions) {
       if (session.pty?.pid !== undefined) {
         harnesses.set(session.pty.pid, session.id);
       }
@@ -184,7 +184,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       : startEventsServer({
           socketPath: opts.eventsSocketPath,
           collectSnapshot: () =>
-            mgr.collectDescriptors().map((session) => ({
+            manager.collectDescriptors().map((session) => ({
               v: PROTOCOL_V,
               ev: 'SessionAdded',
               session,
@@ -202,9 +202,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   };
 
   const findHookScope = (sessionID: SessionID): HookScope | null => {
-    const s = mgr.sessions.find((x) => x.id === sessionID);
+    const session = manager.sessions.find((x) => x.id === sessionID);
 
-    return s === undefined ? null : { cwd: s.cwd, repoRoot: s.repoRoot };
+    return session === undefined ? null : { cwd: session.cwd, repoRoot: session.repoRoot };
   };
 
   const permissions = new PermissionPrompts({ clock, emitEvent, findHookScope });
@@ -224,10 +224,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   // A spawned terminal starts on a fresh screen; a revived one keeps the
   // screen its session already had.
-  const onBoot: SessionManager['onBoot'] = (s, cols, rows) => {
-    endedProcesses.delete(s.id);
+  const onBoot: SessionManager['onBoot'] = (session, cols, rows) => {
+    endedProcesses.delete(session.id);
 
-    const runtime = runtimes.get(s.id);
+    const runtime = runtimes.get(session.id);
 
     if (runtime === undefined) {
       return;
@@ -238,54 +238,54 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     runtime.screen ??= new ScreenModel(cols, rows);
 
     // A bridge delivers only once its session lists and its terminal boots.
-    bridges.startDelivery(s.id);
+    bridges.startDelivery(session.id);
   };
 
-  const onProcessEnded: SessionManager['onProcessEnded'] = (s) => {
-    endedProcesses.add(s.id);
-    void bridges.stopBridge(s.id);
-    void messages.updateEndedSessionMessages(s);
+  const onProcessEnded: SessionManager['onProcessEnded'] = (session) => {
+    endedProcesses.add(session.id);
+    void bridges.stopBridge(session.id);
+    void messages.updateEndedSessionMessages(session);
   };
 
-  const onEvent: SessionManager['onEvent'] = (kind, s) => {
-    permissions.recordSessionEvent(kind, s);
+  const onEvent: SessionManager['onEvent'] = (kind, session) => {
+    permissions.recordSessionEvent(kind, session);
 
     if (kind === 'removed') {
-      endedProcesses.delete(s.id);
-      void bridges.stopBridge(s.id);
-      void messages.updateEndedSessionMessages(s, true);
+      endedProcesses.delete(session.id);
+      void bridges.stopBridge(session.id);
+      void messages.updateEndedSessionMessages(session, true);
     }
 
     if (kind === 'added') {
-      runtimes.set(s.id, new SessionRuntime());
+      runtimes.set(session.id, new SessionRuntime());
     }
 
     // A revive that dies before it ever announces itself must still release
     // the staggered restore, or a failed resume would hold up the fleet.
-    if (kind === 'state' && s.pty === null) {
-      runtimes.get(s.id)?.bootWaiter?.();
+    if (kind === 'state' && session.pty === null) {
+      runtimes.get(session.id)?.bootWaiter?.();
     }
 
     if (kind === 'removed') {
-      output.removeSession(s.id);
+      output.removeSession(session.id);
 
-      emitInboxClosed(taps.removeSession(s.id), s.id, 'removed');
-      runtimes.get(s.id)?.dispose();
-      runtimes.delete(s.id);
+      emitInboxClosed(taps.removeSession(session.id), session.id, 'removed');
+      runtimes.get(session.id)?.dispose();
+      runtimes.delete(session.id);
     }
 
-    const event = buildSessionEvent(mgr, kind, s);
+    const event = buildSessionEvent(manager, kind, session);
 
     if (event !== null) {
       // The scope comes from the session object rather than a descriptor
       // lookup, so dir-filtered hooks still fire for a removed session.
-      emitEvent(event, { cwd: s.cwd, repoRoot: s.repoRoot });
+      emitEvent(event, { cwd: session.cwd, repoRoot: session.repoRoot });
     }
   };
 
   // The manager takes every callback above when it is built, so no session
   // event arrives before its handler exists.
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     opts.adapter,
     store,
     opts.statusPath,
@@ -294,8 +294,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     targetErrors,
     {
       onBoot,
-      onOutput: (s, data) => {
-        output.recordOutput(s, data);
+      onOutput: (session, data) => {
+        output.recordOutput(session, data);
       },
       onProcessEnded,
       onEvent,
@@ -307,19 +307,19 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     },
   );
 
-  mgr.clock = clock;
+  manager.clock = clock;
 
   if (opts.log !== undefined) {
-    mgr.log = opts.log;
+    manager.log = opts.log;
   }
 
   if (opts.failedSpawnExitWaitMs !== undefined) {
-    mgr.failedSpawnExitWaitMs = opts.failedSpawnExitWaitMs;
+    manager.failedSpawnExitWaitMs = opts.failedSpawnExitWaitMs;
   }
 
   const services = startSessionServices({
     opts,
-    mgr,
+    manager,
     store,
     clock,
     stateDir,
@@ -348,7 +348,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   const ctx = buildDaemonContext({
     opts,
     store,
-    mgr,
+    manager,
     clock,
     targets,
     targetsByID,
@@ -369,7 +369,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     eventsServer?.stop();
     reporter.stop(true);
     revival.stop();
-    mgr.detachAll();
+    manager.detachAll();
 
     await Promise.all(
       targets.flatMap((target) => {
@@ -495,7 +495,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
     tcpListener.setTokens(null);
 
-    mgr.log(
+    manager.log(
       `atc daemon: token reload failed (${loaded.reason}); every TCP connection is closed and refused until a reload succeeds`,
     );
   };
@@ -542,7 +542,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   });
 
   await updateEndedFleetMessages({
-    mgr,
+    manager,
     store,
     messages,
     isRestoring: opts.restoreFleetOnRestart === true,

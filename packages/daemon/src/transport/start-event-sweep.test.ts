@@ -9,8 +9,8 @@ import { startEventSweep } from './start-event-sweep';
 // A real state store, a trail clock on a fixed day, and a sweep clock of
 // its own.
 async function setupTest() {
-  const tmp = setupTempDir('atc-event-sweep-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-event-sweep-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 

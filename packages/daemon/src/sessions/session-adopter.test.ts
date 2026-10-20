@@ -32,8 +32,8 @@ interface SetupTestConfig {
 // state store, with the test's agents and targets and a recorder for each
 // callback.
 async function setupTest(config: SetupTestConfig) {
-  const tmp = setupTempDir('atc-session-adopter-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-session-adopter-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -75,7 +75,7 @@ async function setupTest(config: SetupTestConfig) {
   const fleet = new SessionFleetWriter({
     registry,
     store,
-    statusPath: join(tmp.path, 'status.json'),
+    statusPath: join(temporaryDirectory.path, 'status.json'),
     callbacks,
   });
 
@@ -90,7 +90,7 @@ async function setupTest(config: SetupTestConfig) {
   const adopter = new SessionAdopter({ registry, fleet, harnesses, rollback, auth, callbacks });
 
   return {
-    dir: tmp.path,
+    directory: temporaryDirectory.path,
     callbacks,
     startMessageBridge,
     stopMessageBridge,
@@ -110,7 +110,7 @@ test('it never revives a restored entry whose agent id is unregistered as anothe
   const session = buildMockSession({
     id: toSessionID('s-z-1'),
     name: 'glm work',
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     kind: 'headless',
     state: 'running',
     lastMsg: "no adapter for 'zai'",
@@ -139,7 +139,7 @@ test('it starts a harness that resumes the agent session of a session without a 
 
   const session = buildMockSession({
     id: toSessionID('s-c-1'),
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     kind: 'headless',
     state: 'running',
     lastMsg: 'waiting to restore',
@@ -165,7 +165,7 @@ test('it starts a harness that resumes the agent session of a session without a 
     host: toSessionID('s-c-1'),
     bin: 'stub-harness',
     args: [],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: { ATC_SESSION_ID: 's-c-1' },
     withheldEnv: [],
     cols: 100,
@@ -190,7 +190,7 @@ test('it starts nothing for a session without an agent session id', async () => 
 
   const session = buildMockSession({
     id: toSessionID('s-c-1'),
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     kind: 'headless',
     state: 'running',
     agent: 'claude',
@@ -228,7 +228,7 @@ test('it starts nothing for a session that already has a terminal', async () => 
 
   const session = buildMockSession({
     id: toSessionID('s-c-1'),
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     pty: running,
     state: 'running',
     agentSessionID: toAgentSessionID('c-1'),
@@ -255,7 +255,7 @@ test('it starts nothing when the caller withdraws the revive', async () => {
 
   const session = buildMockSession({
     id: toSessionID('s-c-1'),
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     kind: 'headless',
     state: 'running',
     agentSessionID: toAgentSessionID('c-1'),
@@ -282,7 +282,7 @@ test('it starts one bridge and one terminal when a second revive lands while the
 
   const session = buildMockSession({
     id: toSessionID('s-c-1'),
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     kind: 'headless',
     state: 'running',
     agentSessionID: toAgentSessionID('c-1'),
@@ -332,7 +332,7 @@ test('it stops the message bridge when the revived terminal fails to start', asy
 
   const session = buildMockSession({
     id: toSessionID('s-c-1'),
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     kind: 'headless',
     state: 'running',
     agentSessionID: toAgentSessionID('c-1'),
@@ -363,18 +363,18 @@ test('it revives a session with the plugin folders its spawn kept', async () => 
     targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
   });
 
-  mkdirSync(join(ctx.dir, 'band'));
+  mkdirSync(join(ctx.directory, 'band'));
 
   const session = buildMockSession({
     id: toSessionID('s-c-1'),
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     kind: 'headless',
     state: 'running',
     agentSessionID: toAgentSessionID('c-1'),
     agent: 'claude',
     target: 'local',
     targetIdentity: 'local-pty:test',
-    pluginDirs: [join(ctx.dir, 'band')],
+    pluginDirs: [join(ctx.directory, 'band')],
   });
 
   ctx.registry.sessions.push(session);
@@ -384,7 +384,11 @@ test('it revives a session with the plugin folders its spawn kept', async () => 
 
   expect(adapter.spawns).toStrictEqual([
     {
-      opts: { prompt: '', resume: toAgentSessionID('c-1'), pluginDirs: [join(ctx.dir, 'band')] },
+      opts: {
+        prompt: '',
+        resume: toAgentSessionID('c-1'),
+        pluginDirs: [join(ctx.directory, 'band')],
+      },
       session: toSessionID('s-c-1'),
     },
   ]);
@@ -429,7 +433,7 @@ test("it refuses to revive a session whose agent's configured plugin folder is g
 
   const session = buildMockSession({
     id: toSessionID('s-c-1'),
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     kind: 'headless',
     state: 'running',
     agentSessionID: toAgentSessionID('c-1'),

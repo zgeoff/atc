@@ -19,7 +19,7 @@ async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'atc-clone-' });
 
   return {
-    dir: fixture.directory,
+    directory: fixture.directory,
     env: fixture.env,
     upstream: fixture.upstream,
     work: fixture.work,
@@ -38,14 +38,14 @@ test('it checks out the commit a branch points at, on that branch', async () => 
   const clone = await createWorkspaceClone({
     transports: ['https', 'ssh', 'http', 'file'],
     source: { kind: 'git', url: ctx.upstream, ref: 'main' },
-    dir: join(ctx.dir, 'clone'),
+    directory: join(ctx.directory, 'clone'),
   });
 
-  const head = await $`git rev-parse HEAD`.env(ctx.env).cwd(join(ctx.dir, 'clone')).text();
+  const head = await $`git rev-parse HEAD`.env(ctx.env).cwd(join(ctx.directory, 'clone')).text();
 
   const branch = await $`git symbolic-ref --short HEAD`
     .env(ctx.env)
-    .cwd(join(ctx.dir, 'clone'))
+    .cwd(join(ctx.directory, 'clone'))
     .text();
 
   expect(clone).toStrictEqual({ ok: true, sha: pushed, branch: 'main' });
@@ -72,10 +72,10 @@ test('it checks out the commit an annotated tag points at, detached', async () =
   const clone = await createWorkspaceClone({
     transports: ['https', 'ssh', 'http', 'file'],
     source: { kind: 'git', url: ctx.upstream, ref: 'v1' },
-    dir: join(ctx.dir, 'clone'),
+    directory: join(ctx.directory, 'clone'),
   });
 
-  const head = await $`git rev-parse HEAD`.env(ctx.env).cwd(join(ctx.dir, 'clone')).text();
+  const head = await $`git rev-parse HEAD`.env(ctx.env).cwd(join(ctx.directory, 'clone')).text();
 
   expect(clone).toStrictEqual({ ok: true, sha: pushed, branch: null });
   expect(head.trim()).toBe(pushed);
@@ -98,10 +98,10 @@ test('it checks out a full commit id detached', async () => {
   const clone = await createWorkspaceClone({
     transports: ['https', 'ssh', 'http', 'file'],
     source: { kind: 'git', url: ctx.upstream, ref: pushed },
-    dir: join(ctx.dir, 'clone'),
+    directory: join(ctx.directory, 'clone'),
   });
 
-  const head = await $`git rev-parse HEAD`.env(ctx.env).cwd(join(ctx.dir, 'clone')).text();
+  const head = await $`git rev-parse HEAD`.env(ctx.env).cwd(join(ctx.directory, 'clone')).text();
 
   expect(clone).toStrictEqual({ ok: true, sha: pushed, branch: null });
   expect(head.trim()).toBe(pushed);
@@ -113,14 +113,14 @@ test('it copies objects instead of hard-linking them from a local upstream', asy
   await createWorkspaceClone({
     transports: ['https', 'ssh', 'http', 'file'],
     source: { kind: 'git', url: ctx.upstream, ref: 'main' },
-    dir: join(ctx.dir, 'clone'),
+    directory: join(ctx.directory, 'clone'),
   });
 
-  const linked = await $`find ${join(ctx.dir, 'clone', '.git', 'objects')} -type f -links +1`
+  const linked = await $`find ${join(ctx.directory, 'clone', '.git', 'objects')} -type f -links +1`
     .env(ctx.env)
     .text();
 
-  const alternates = join(ctx.dir, 'clone', '.git', 'objects', 'info', 'alternates');
+  const alternates = join(ctx.directory, 'clone', '.git', 'objects', 'info', 'alternates');
 
   expect(linked).toBe('');
   expect(existsSync(alternates)).toBeFalse();
@@ -132,7 +132,7 @@ test('it refuses a ref the upstream does not have', async () => {
   const clone = await createWorkspaceClone({
     transports: ['https', 'ssh', 'http', 'file'],
     source: { kind: 'git', url: ctx.upstream, ref: 'missing' },
-    dir: join(ctx.dir, 'clone'),
+    directory: join(ctx.directory, 'clone'),
   });
 
   expect(clone).toStrictEqual({
@@ -158,7 +158,7 @@ test('it refuses a full commit id the upstream does not have and leaves no direc
   const clone = await createWorkspaceClone({
     transports: ['https', 'ssh', 'http', 'file'],
     source: { kind: 'git', url: ctx.upstream, ref: unpushed },
-    dir: join(ctx.dir, 'clone'),
+    directory: join(ctx.directory, 'clone'),
   });
 
   expect(clone).toStrictEqual({
@@ -167,7 +167,7 @@ test('it refuses a full commit id the upstream does not have and leaves no direc
     message: `origin has no commit ${unpushed}`,
   });
 
-  expect(existsSync(join(ctx.dir, 'clone'))).toBeFalse();
+  expect(existsSync(join(ctx.directory, 'clone'))).toBeFalse();
 });
 
 test('it refuses an upstream it cannot reach', async () => {
@@ -175,26 +175,26 @@ test('it refuses an upstream it cannot reach', async () => {
 
   const clone = await createWorkspaceClone({
     transports: ['https', 'ssh', 'http', 'file'],
-    source: { kind: 'git', url: join(ctx.dir, 'missing.git'), ref: 'main' },
-    dir: join(ctx.dir, 'clone'),
+    source: { kind: 'git', url: join(ctx.directory, 'missing.git'), ref: 'main' },
+    directory: join(ctx.directory, 'clone'),
   });
 
   expect(clone).toStrictEqual({
     ok: false,
     code: 'clone_failed',
-    message: expect.toInclude(join(ctx.dir, 'missing.git')),
+    message: expect.toInclude(join(ctx.directory, 'missing.git')),
   });
 });
 
 test('it refuses an env credential whose variable is unset', async () => {
   const ctx = await setupTest();
 
-  const server = startGitHTTPServer(ctx.dir, ctx.env);
+  const server = startGitHTTPServer(ctx.directory, ctx.env);
 
   const clone = await createWorkspaceClone({
     transports: ['https', 'ssh', 'http', 'file'],
     source: { kind: 'git', url: `${server.url}upstream.git`, ref: 'main' },
-    dir: join(ctx.dir, 'clone'),
+    directory: join(ctx.directory, 'clone'),
     credential: { kind: 'env', name: 'ATC_TEST_UNSET_GIT_TOKEN' },
   });
 
@@ -216,7 +216,7 @@ test.skipIf(process.platform !== 'linux')(
     // with.
     const processes: TreeProcess[] = [];
 
-    const server = startGitHTTPServer(ctx.dir, ctx.env, {
+    const server = startGitHTTPServer(ctx.directory, ctx.env, {
       onRequest: async () => {
         processes.push(...(await readProcessTree(process.pid)));
       },
@@ -233,11 +233,11 @@ test.skipIf(process.platform !== 'linux')(
     const clone = await createWorkspaceClone({
       transports: ['https', 'ssh', 'http', 'file'],
       source: { kind: 'git', url: `${server.url}upstream.git`, ref: 'main' },
-      dir: join(ctx.dir, 'clone'),
+      directory: join(ctx.directory, 'clone'),
       credential: { kind: 'env', name: 'ATC_TEST_GIT_TOKEN' },
     });
 
-    const config = await readFile(join(ctx.dir, 'clone', '.git', 'config'), 'utf8');
+    const config = await readFile(join(ctx.directory, 'clone', '.git', 'config'), 'utf8');
 
     const helpers = processes
       .map((entry) => entry.env['GIT_ASKPASS'])
@@ -291,7 +291,7 @@ test('it refuses a git source whose commit holds a gitlink and leaves no directo
   const clone = await createWorkspaceClone({
     transports: ['https', 'ssh', 'http', 'file'],
     source: { kind: 'git', url: ctx.upstream, ref: 'main' },
-    dir: join(ctx.dir, 'clone'),
+    directory: join(ctx.directory, 'clone'),
   });
 
   expect(clone).toStrictEqual({
@@ -300,7 +300,7 @@ test('it refuses a git source whose commit holds a gitlink and leaves no directo
     message: `${gitlink} uses submodules`,
   });
 
-  expect(existsSync(join(ctx.dir, 'clone'))).toBeFalse();
+  expect(existsSync(join(ctx.directory, 'clone'))).toBeFalse();
 });
 
 test('it refuses a git source that tracks LFS paths without running the host LFS filter', async () => {
@@ -323,21 +323,21 @@ test('it refuses a git source that tracks LFS paths without running the host LFS
     .text()
     .then((text) => text.trim());
 
-  const marker = join(ctx.dir, 'filter-ran');
+  const marker = join(ctx.directory, 'filter-ran');
 
-  createStubBin(ctx.dir, 'trap', buildStubRecordingFilter(marker));
+  createStubBin(ctx.directory, 'trap', buildStubRecordingFilter(marker));
 
   await writeFile(
-    join(ctx.dir, 'gitconfig'),
-    `[filter "lfs"]\n\tsmudge = ${join(ctx.dir, 'trap')}\n\tprocess = ${join(ctx.dir, 'trap')}\n\trequired = true\n`,
+    join(ctx.directory, 'gitconfig'),
+    `[filter "lfs"]\n\tsmudge = ${join(ctx.directory, 'trap')}\n\tprocess = ${join(ctx.directory, 'trap')}\n\trequired = true\n`,
   );
 
-  updateEnv('GIT_CONFIG_GLOBAL', join(ctx.dir, 'gitconfig'));
+  updateEnv('GIT_CONFIG_GLOBAL', join(ctx.directory, 'gitconfig'));
 
   const clone = await createWorkspaceClone({
     transports: ['https', 'ssh', 'http', 'file'],
     source: { kind: 'git', url: ctx.upstream, ref: 'main' },
-    dir: join(ctx.dir, 'clone'),
+    directory: join(ctx.directory, 'clone'),
   });
 
   expect(clone).toStrictEqual({
@@ -349,7 +349,7 @@ test('it refuses a git source that tracks LFS paths without running the host LFS
   });
 
   expect(existsSync(marker)).toBeFalse();
-  expect(existsSync(join(ctx.dir, 'clone'))).toBeFalse();
+  expect(existsSync(join(ctx.directory, 'clone'))).toBeFalse();
 });
 
 test('it checks out without running a filter from the host global git config', async () => {
@@ -361,26 +361,26 @@ test('it checks out without running a filter from the host global git config', a
     .text()
     .then((text) => text.trim());
 
-  const marker = join(ctx.dir, 'filter-ran');
+  const marker = join(ctx.directory, 'filter-ran');
 
-  createStubBin(ctx.dir, 'trap', buildStubRecordingFilter(marker));
+  createStubBin(ctx.directory, 'trap', buildStubRecordingFilter(marker));
 
-  await writeFile(join(ctx.dir, 'attributes'), '* filter=trap\n');
+  await writeFile(join(ctx.directory, 'attributes'), '* filter=trap\n');
 
   await writeFile(
-    join(ctx.dir, 'gitconfig'),
-    `[core]\n\tattributesFile = ${join(ctx.dir, 'attributes')}\n[filter "trap"]\n\tsmudge = ${join(ctx.dir, 'trap')}\n`,
+    join(ctx.directory, 'gitconfig'),
+    `[core]\n\tattributesFile = ${join(ctx.directory, 'attributes')}\n[filter "trap"]\n\tsmudge = ${join(ctx.directory, 'trap')}\n`,
   );
 
-  updateEnv('GIT_CONFIG_GLOBAL', join(ctx.dir, 'gitconfig'));
+  updateEnv('GIT_CONFIG_GLOBAL', join(ctx.directory, 'gitconfig'));
 
   const clone = await createWorkspaceClone({
     transports: ['https', 'ssh', 'http', 'file'],
     source: { kind: 'git', url: ctx.upstream, ref: 'main' },
-    dir: join(ctx.dir, 'clone'),
+    directory: join(ctx.directory, 'clone'),
   });
 
-  const readme = await readFile(join(ctx.dir, 'clone', 'README.md'), 'utf8');
+  const readme = await readFile(join(ctx.directory, 'clone', 'README.md'), 'utf8');
 
   expect(clone).toStrictEqual({ ok: true, sha: pushed, branch: 'main' });
   expect(existsSync(marker)).toBeFalse();

@@ -27,10 +27,10 @@ export function buildFleetEvents(
     // a row's atc id can predate a restore that gave its session a new one, so a session
     // holding the row's agent session id names it when no session holds its atc id
     const live =
-      sessions.find((s) => s.id === row.atcID) ??
+      sessions.find((session) => session.id === row.atcID) ??
       (row.agentSessionID === null
         ? undefined
-        : aliases.find((s) => s.agentSessionID === row.agentSessionID));
+        : aliases.find((session) => session.agentSessionID === row.agentSessionID));
 
     return {
       cursor: encodeCursor({ kind: 'events', id: row.id }),

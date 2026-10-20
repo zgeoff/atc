@@ -19,8 +19,8 @@ import { SessionManager } from './sessions';
 
 // a manager the test holds after this setup detaches before the store goes
 async function setupTest() {
-  const tmp = setupTempDir('atc-sessions-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-sessions-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -32,8 +32,8 @@ async function setupTest() {
   const recorder = buildStubLog();
 
   return {
-    dir: tmp.path,
-    statusPath: join(tmp.path, 'status.json'),
+    directory: temporaryDirectory.path,
+    statusPath: join(temporaryDirectory.path, 'status.json'),
     store,
     local,
     log: recorder.log,
@@ -43,7 +43,7 @@ async function setupTest() {
 test('it pins a sub-session on its own and leaves its parent unpinned', async () => {
   const ctx = await setupTest();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -59,12 +59,12 @@ test('it pins a sub-session on its own and leaves its parent unpinned', async ()
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
-  mgr.log = ctx.log;
+  manager.log = ctx.log;
 
-  const parent = mgr.restore(
+  const parent = manager.restore(
     buildMockFleetEntry({
       sessionID: toSessionID('s-c-parent'),
       name: 'wrangler',
@@ -74,7 +74,7 @@ test('it pins a sub-session on its own and leaves its parent unpinned', async ()
     }),
   );
 
-  const child = mgr.restore(
+  const child = manager.restore(
     buildMockFleetEntry({
       sessionID: toSessionID('s-c-child'),
       name: 'worker',
@@ -85,7 +85,7 @@ test('it pins a sub-session on its own and leaves its parent unpinned', async ()
     }),
   );
 
-  const pinned = mgr.updateSession(child.id, { pinned: true });
+  const pinned = manager.updateSession(child.id, { pinned: true });
 
   expect(pinned).toBeTrue();
   expect(child.pinned).toBeTrue();
@@ -95,7 +95,7 @@ test('it pins a sub-session on its own and leaves its parent unpinned', async ()
 test("it refuses to pin a sub-session that runs in its parent's host and leaves it unpinned", async () => {
   const ctx = await setupTest();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -111,12 +111,12 @@ test("it refuses to pin a sub-session that runs in its parent's host and leaves 
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
-  mgr.log = ctx.log;
+  manager.log = ctx.log;
 
-  mgr.restore(
+  manager.restore(
     buildMockFleetEntry({
       sessionID: toSessionID('s-c-parent'),
       name: 'wrangler',
@@ -126,7 +126,7 @@ test("it refuses to pin a sub-session that runs in its parent's host and leaves 
     }),
   );
 
-  const child = mgr.restore(
+  const child = manager.restore(
     buildMockFleetEntry({
       sessionID: toSessionID('s-c-child'),
       name: 'worker',
@@ -138,7 +138,7 @@ test("it refuses to pin a sub-session that runs in its parent's host and leaves 
     }),
   );
 
-  const pinned = mgr.updateSession(child.id, { pinned: true });
+  const pinned = manager.updateSession(child.id, { pinned: true });
 
   expect(pinned).toBe('shared_host');
   expect(child.pinned).toBeFalse();
@@ -147,7 +147,7 @@ test("it refuses to pin a sub-session that runs in its parent's host and leaves 
 test('it detaches a sub-session and leaves its former parent pinned', async () => {
   const ctx = await setupTest();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -163,12 +163,12 @@ test('it detaches a sub-session and leaves its former parent pinned', async () =
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
-  mgr.log = ctx.log;
+  manager.log = ctx.log;
 
-  const parent = mgr.restore(
+  const parent = manager.restore(
     buildMockFleetEntry({
       sessionID: toSessionID('s-c-parent'),
       name: 'wrangler',
@@ -179,7 +179,7 @@ test('it detaches a sub-session and leaves its former parent pinned', async () =
     }),
   );
 
-  const child = mgr.restore(
+  const child = manager.restore(
     buildMockFleetEntry({
       sessionID: toSessionID('s-c-child'),
       name: 'worker',
@@ -190,7 +190,7 @@ test('it detaches a sub-session and leaves its former parent pinned', async () =
     }),
   );
 
-  const detached = mgr.updateSession(child.id, { parent: null });
+  const detached = manager.updateSession(child.id, { parent: null });
 
   expect(detached).toBeTrue();
   expect(child.parent).toBeNull();
@@ -201,7 +201,7 @@ test('it detaches a sub-session and leaves its former parent pinned', async () =
 test("it refuses to detach a sub-session that runs in its parent's host and leaves it under the parent", async () => {
   const ctx = await setupTest();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -217,12 +217,12 @@ test("it refuses to detach a sub-session that runs in its parent's host and leav
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
-  mgr.log = ctx.log;
+  manager.log = ctx.log;
 
-  mgr.restore(
+  manager.restore(
     buildMockFleetEntry({
       sessionID: toSessionID('s-c-parent'),
       name: 'wrangler',
@@ -232,7 +232,7 @@ test("it refuses to detach a sub-session that runs in its parent's host and leav
     }),
   );
 
-  const child = mgr.restore(
+  const child = manager.restore(
     buildMockFleetEntry({
       sessionID: toSessionID('s-c-child'),
       name: 'worker',
@@ -244,7 +244,7 @@ test("it refuses to detach a sub-session that runs in its parent's host and leav
     }),
   );
 
-  const detached = mgr.updateSession(child.id, { parent: null, pinned: true });
+  const detached = manager.updateSession(child.id, { parent: null, pinned: true });
 
   expect(detached).toBe('shared_host');
   expect(child.parent).toBe(toSessionID('s-c-parent'));
@@ -254,7 +254,7 @@ test("it refuses to detach a sub-session that runs in its parent's host and leav
 test('it pins a sub-session in the update that detaches it', async () => {
   const ctx = await setupTest();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -270,12 +270,12 @@ test('it pins a sub-session in the update that detaches it', async () => {
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
-  mgr.log = ctx.log;
+  manager.log = ctx.log;
 
-  mgr.restore(
+  manager.restore(
     buildMockFleetEntry({
       sessionID: toSessionID('s-c-parent'),
       name: 'wrangler',
@@ -285,7 +285,7 @@ test('it pins a sub-session in the update that detaches it', async () => {
     }),
   );
 
-  const child = mgr.restore(
+  const child = manager.restore(
     buildMockFleetEntry({
       sessionID: toSessionID('s-c-child'),
       name: 'worker',
@@ -296,7 +296,7 @@ test('it pins a sub-session in the update that detaches it', async () => {
     }),
   );
 
-  const updated = mgr.updateSession(child.id, { parent: null, pinned: true });
+  const updated = manager.updateSession(child.id, { parent: null, pinned: true });
 
   expect(updated).toBeTrue();
   expect(child.pinned).toBeTrue();
@@ -305,7 +305,7 @@ test('it pins a sub-session in the update that detaches it', async () => {
 test('it persists a detached sub-session as top-level', async () => {
   const ctx = await setupTest();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -321,12 +321,12 @@ test('it persists a detached sub-session as top-level', async () => {
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
-  mgr.log = ctx.log;
+  manager.log = ctx.log;
 
-  mgr.restore(
+  manager.restore(
     buildMockFleetEntry({
       sessionID: toSessionID('s-c-parent'),
       name: 'wrangler',
@@ -336,7 +336,7 @@ test('it persists a detached sub-session as top-level', async () => {
     }),
   );
 
-  const child = mgr.restore(
+  const child = manager.restore(
     buildMockFleetEntry({
       sessionID: toSessionID('s-c-child'),
       name: 'worker',
@@ -347,9 +347,9 @@ test('it persists a detached sub-session as top-level', async () => {
     }),
   );
 
-  mgr.updateSession(child.id, { parent: null });
+  manager.updateSession(child.id, { parent: null });
 
-  await mgr.writeFleet();
+  await manager.writeFleet();
 
   const stored = await ctx.store.loadFleet();
 
@@ -380,7 +380,7 @@ test('it persists a detached sub-session as top-level', async () => {
 test('it pins a parent that has a sub-session', async () => {
   const ctx = await setupTest();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -396,12 +396,12 @@ test('it pins a parent that has a sub-session', async () => {
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
-  mgr.log = ctx.log;
+  manager.log = ctx.log;
 
-  const parent = mgr.restore(
+  const parent = manager.restore(
     buildMockFleetEntry({
       sessionID: toSessionID('s-c-parent'),
       name: 'wrangler',
@@ -411,7 +411,7 @@ test('it pins a parent that has a sub-session', async () => {
     }),
   );
 
-  mgr.restore(
+  manager.restore(
     buildMockFleetEntry({
       sessionID: toSessionID('s-c-child'),
       name: 'worker',
@@ -422,13 +422,13 @@ test('it pins a parent that has a sub-session', async () => {
     }),
   );
 
-  expect(mgr.updateSession(parent.id, { pinned: true })).toBeTrue();
+  expect(manager.updateSession(parent.id, { pinned: true })).toBeTrue();
 });
 
 test("it keeps a finished turn's last message as the session result", async () => {
   const ctx = await setupTest();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -448,24 +448,31 @@ test("it keeps a finished turn's last message as the session result", async () =
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
-  mgr.log = ctx.log;
+  manager.log = ctx.log;
 
-  const s = await mgr.spawn(ctx.dir, 'worker', 'go', 80, 24, toAgentSessionID('c-1'));
+  const session = await manager.spawn(
+    ctx.directory,
+    'worker',
+    'go',
+    80,
+    24,
+    toAgentSessionID('c-1'),
+  );
 
-  mgr.applyHook({ atcId: s.id, event: 'Stop', payload: {} });
+  manager.applyHook({ atcId: session.id, event: 'Stop', payload: {} });
 
-  await mgr.writeFleet();
+  await manager.writeFleet();
 
   const stored = await ctx.store.loadFleet();
 
   expect(stored).toStrictEqual([
     {
-      sessionID: s.id,
+      sessionID: session.id,
       name: 'worker',
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       agentSessionID: toAgentSessionID('c-1'),
       agent: 'claude',
       target: 'local',
@@ -480,7 +487,7 @@ test("it keeps a finished turn's last message as the session result", async () =
 test('it keeps a name the agent set and reports the rename it skipped', async () => {
   const ctx = await setupTest();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -501,30 +508,37 @@ test('it keeps a name the agent set and reports the rename it skipped', async ()
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
-  mgr.log = ctx.log;
+  manager.log = ctx.log;
 
-  const s = await mgr.spawn(ctx.dir, 'worker', 'go', 80, 24, toAgentSessionID('c-1'));
+  const session = await manager.spawn(
+    ctx.directory,
+    'worker',
+    'go',
+    80,
+    24,
+    toAgentSessionID('c-1'),
+  );
 
-  mgr.applyHook({ atcId: s.id, event: 'SessionStart', payload: {} });
+  manager.applyHook({ atcId: session.id, event: 'SessionStart', payload: {} });
 
   await waitFor(() => {
-    expect(s.namedBy).toBe('agent');
+    expect(session.namedBy).toBe('agent');
   });
 
-  const updated = mgr.updateSession(s.id, { name: 'typed', pinned: true });
+  const updated = manager.updateSession(session.id, { name: 'typed', pinned: true });
 
   expect(updated).toBe('agent_named');
-  expect(s.name).toBe('claude-named');
-  expect(s.pinned).toBeTrue();
+  expect(session.name).toBe('claude-named');
+  expect(session.pinned).toBeTrue();
 });
 
 test('it truncates a stored result past 16 KiB', async () => {
   const ctx = await setupTest();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -544,16 +558,23 @@ test('it truncates a stored result past 16 KiB', async () => {
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
-  mgr.log = ctx.log;
+  manager.log = ctx.log;
 
-  const s = await mgr.spawn(ctx.dir, 'worker', 'go', 80, 24, toAgentSessionID('c-1'));
+  const session = await manager.spawn(
+    ctx.directory,
+    'worker',
+    'go',
+    80,
+    24,
+    toAgentSessionID('c-1'),
+  );
 
-  mgr.applyHook({ atcId: s.id, event: 'Stop', payload: {} });
+  manager.applyHook({ atcId: session.id, event: 'Stop', payload: {} });
 
-  await mgr.writeFleet();
+  await manager.writeFleet();
 
   const [stored] = await ctx.store.loadFleet();
 
@@ -563,7 +584,7 @@ test('it truncates a stored result past 16 KiB', async () => {
 test('it persists the transcript path its hooks report', async () => {
   const ctx = await setupTest();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -591,24 +612,24 @@ test('it persists the transcript path its hooks report', async () => {
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
-  mgr.log = ctx.log;
+  manager.log = ctx.log;
 
-  const s = await mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  mgr.applyHook({ atcId: s.id, event: 'SessionStart', payload: {} });
+  manager.applyHook({ atcId: session.id, event: 'SessionStart', payload: {} });
 
-  await mgr.writeFleet();
+  await manager.writeFleet();
 
   const stored = await ctx.store.loadFleet();
 
   expect(stored).toStrictEqual([
     {
-      sessionID: s.id,
+      sessionID: session.id,
       name: 'worker',
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       agentSessionID: toAgentSessionID('c-2'),
       agent: 'claude',
       target: 'local',
@@ -622,7 +643,7 @@ test('it persists the transcript path its hooks report', async () => {
 test('it keeps a crashed sibling restorable as live when another session finishes a turn', async () => {
   const ctx = await setupTest();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -642,15 +663,30 @@ test('it keeps a crashed sibling restorable as live when another session finishe
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
-  mgr.log = ctx.log;
+  manager.log = ctx.log;
 
-  const finisher = await mgr.spawn(ctx.dir, 'finisher', 'go', 80, 24, toAgentSessionID('c-1'));
-  const crasher = await mgr.spawn(ctx.dir, 'crasher', 'go', 80, 24, toAgentSessionID('c-2'));
+  const finisher = await manager.spawn(
+    ctx.directory,
+    'finisher',
+    'go',
+    80,
+    24,
+    toAgentSessionID('c-1'),
+  );
 
-  await mgr.writeFleet();
+  const crasher = await manager.spawn(
+    ctx.directory,
+    'crasher',
+    'go',
+    80,
+    24,
+    toAgentSessionID('c-2'),
+  );
+
+  await manager.writeFleet();
 
   const [, crashed] = ctx.local.harnesses;
 
@@ -662,7 +698,7 @@ test('it keeps a crashed sibling restorable as live when another session finishe
     expect(crasher.state).toBe('exited');
   });
 
-  mgr.applyHook({ atcId: finisher.id, event: 'Stop', payload: {} });
+  manager.applyHook({ atcId: finisher.id, event: 'Stop', payload: {} });
 
   await waitFor(async () => {
     const stored = await ctx.store.loadFleet();
@@ -671,7 +707,7 @@ test('it keeps a crashed sibling restorable as live when another session finishe
       {
         sessionID: finisher.id,
         name: 'finisher',
-        cwd: ctx.dir,
+        cwd: ctx.directory,
         agentSessionID: toAgentSessionID('c-1'),
         agent: 'claude',
         target: 'local',
@@ -683,7 +719,7 @@ test('it keeps a crashed sibling restorable as live when another session finishe
       {
         sessionID: crasher.id,
         name: 'crasher',
-        cwd: ctx.dir,
+        cwd: ctx.directory,
         agentSessionID: toAgentSessionID('c-2'),
         agent: 'claude',
         target: 'local',
@@ -698,7 +734,7 @@ test('it keeps a crashed sibling restorable as live when another session finishe
 test('it lets go of each harness when disposed', async () => {
   const ctx = await setupTest();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -714,15 +750,15 @@ test('it lets go of each harness when disposed', async () => {
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
-  mgr.log = ctx.log;
+  manager.log = ctx.log;
 
-  await mgr.spawn(ctx.dir, 'worker', '', 80, 24);
-  await mgr.spawn(ctx.dir, 'helper', '', 80, 24);
+  await manager.spawn(ctx.directory, 'worker', '', 80, 24);
+  await manager.spawn(ctx.directory, 'helper', '', 80, 24);
 
-  mgr[Symbol.dispose]();
+  manager[Symbol.dispose]();
 
   expect(ctx.local.harnesses.map((harness) => harness.isDetached())).toStrictEqual([true, true]);
 });
@@ -730,7 +766,7 @@ test('it lets go of each harness when disposed', async () => {
 test('it allows a second disposal', async () => {
   const ctx = await setupTest();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -746,26 +782,26 @@ test('it allows a second disposal', async () => {
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
-  mgr.log = ctx.log;
+  manager.log = ctx.log;
 
-  await mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  await manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  mgr[Symbol.dispose]();
+  manager[Symbol.dispose]();
 
   expect(() => {
-    mgr[Symbol.dispose]();
+    manager[Symbol.dispose]();
   }).not.toThrow();
 });
 
 test('it gives the boot handler it was built with the first spawn on the harness start', async () => {
   const ctx = await setupTest();
 
-  const onBoot = mock<(s: Session, cols: number, rows: number) => void>();
+  const onBoot = mock<(session: Session, cols: number, rows: number) => void>();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -783,20 +819,20 @@ test('it gives the boot handler it was built with the first spawn on the harness
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
-  const s = await mgr.spawn(ctx.dir, 'lighthouse', '', 100, 30);
+  const session = await manager.spawn(ctx.directory, 'lighthouse', '', 100, 30);
 
-  expect(onBoot).toHaveBeenCalledExactlyOnceWith(s, 100, 30);
+  expect(onBoot).toHaveBeenCalledExactlyOnceWith(session, 100, 30);
 });
 
 test('it gives the event handler it was built with a session restored at daemon boot', async () => {
   const ctx = await setupTest();
 
-  const onEvent = mock<(kind: SessionEventKind, s: Session) => void>();
+  const onEvent = mock<(kind: SessionEventKind, session: Session) => void>();
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -814,10 +850,10 @@ test('it gives the event handler it was built with a session restored at daemon 
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
-  const restored = mgr.restore(
+  const restored = manager.restore(
     buildMockFleetEntry({
       sessionID: toSessionID('s-harbor'),
       name: 'harbor',

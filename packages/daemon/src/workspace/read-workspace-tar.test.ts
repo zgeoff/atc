@@ -10,7 +10,7 @@ async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'atc-tar-' });
 
   return {
-    dir: fixture.directory,
+    directory: fixture.directory,
     env: fixture.env,
     work: fixture.work,
   };
@@ -25,17 +25,17 @@ test('it streams a tar that unpacks to the same checkout and commit', async () =
     .text()
     .then((text) => text.trim());
 
-  const unpacked = join(ctx.dir, 'unpacked');
+  const unpacked = join(ctx.directory, 'unpacked');
 
   await mkdir(unpacked);
 
   const tar = readWorkspaceTar(ctx.work);
 
-  await Bun.write(join(ctx.dir, 'workspace.tar'), new Response(tar.stream));
+  await Bun.write(join(ctx.directory, 'workspace.tar'), new Response(tar.stream));
 
   const outcome = await tar.done;
 
-  await $`tar -x -f ${join(ctx.dir, 'workspace.tar')} -C ${unpacked}`.env(ctx.env).quiet();
+  await $`tar -x -f ${join(ctx.directory, 'workspace.tar')} -C ${unpacked}`.env(ctx.env).quiet();
 
   const unpackedHead = await $`git rev-parse HEAD`.env(ctx.env).cwd(unpacked).text();
   const readme = await readFile(join(unpacked, 'README.md'), 'utf8');
@@ -48,7 +48,7 @@ test('it streams a tar that unpacks to the same checkout and commit', async () =
 test('it reports a directory tar cannot read', async () => {
   const ctx = await setupTest();
 
-  const tar = readWorkspaceTar(join(ctx.dir, 'missing'));
+  const tar = readWorkspaceTar(join(ctx.directory, 'missing'));
 
   await new Response(tar.stream).arrayBuffer();
 
@@ -57,7 +57,7 @@ test('it reports a directory tar cannot read', async () => {
   expect(outcome).toStrictEqual({
     ok: false,
     code: 'tar_failed',
-    message: expect.toInclude(join(ctx.dir, 'missing')),
+    message: expect.toInclude(join(ctx.directory, 'missing')),
   });
 });
 
@@ -66,29 +66,29 @@ test('it reports a directory tar cannot read', async () => {
 test('it archives a tracked symlink as a link when the host asks tar to dereference', async () => {
   const ctx = await setupTest();
 
-  await writeFile(join(ctx.dir, 'outside.txt'), 'atc-outside-marker-7f3a\n');
-  await symlink(join(ctx.dir, 'outside.txt'), join(ctx.work, 'link'));
+  await writeFile(join(ctx.directory, 'outside.txt'), 'atc-outside-marker-7f3a\n');
+  await symlink(join(ctx.directory, 'outside.txt'), join(ctx.work, 'link'));
 
   await $`git add link`.env(ctx.env).cwd(ctx.work).quiet();
   await $`git commit --quiet -m link`.env(ctx.env).cwd(ctx.work).quiet();
 
   await writeFile(
-    join(ctx.dir, 'archive.ts'),
-    `import { readWorkspaceTar } from ${JSON.stringify(join(import.meta.dir, 'read-workspace-tar.ts'))};\nconst tar = readWorkspaceTar(${JSON.stringify(ctx.work)});\nawait Bun.write(${JSON.stringify(join(ctx.dir, 'workspace.tar'))}, new Response(tar.stream));\nconsole.log(JSON.stringify(await tar.done));\n`,
+    join(ctx.directory, 'archive.ts'),
+    `import { readWorkspaceTar } from ${JSON.stringify(join(import.meta.dir, 'read-workspace-tar.ts'))};\nconst tar = readWorkspaceTar(${JSON.stringify(ctx.work)});\nawait Bun.write(${JSON.stringify(join(ctx.directory, 'workspace.tar'))}, new Response(tar.stream));\nconsole.log(JSON.stringify(await tar.done));\n`,
   );
 
-  const outcome = await $`${process.execPath} ${join(ctx.dir, 'archive.ts')}`
+  const outcome = await $`${process.execPath} ${join(ctx.directory, 'archive.ts')}`
     .env({ ...ctx.env, TAR_OPTIONS: '--dereference' })
     .text();
 
-  const unpacked = join(ctx.dir, 'unpacked');
+  const unpacked = join(ctx.directory, 'unpacked');
 
   await mkdir(unpacked);
 
-  await $`tar -x -f ${join(ctx.dir, 'workspace.tar')} -C ${unpacked}`.env(ctx.env).quiet();
+  await $`tar -x -f ${join(ctx.directory, 'workspace.tar')} -C ${unpacked}`.env(ctx.env).quiet();
 
   const link = await lstat(join(unpacked, 'link'));
-  const archive = await readFile(join(ctx.dir, 'workspace.tar'), 'latin1');
+  const archive = await readFile(join(ctx.directory, 'workspace.tar'), 'latin1');
 
   expect(outcome).toBe('{"ok":true}\n');
   expect(link.isSymbolicLink()).toBeTrue();
@@ -104,19 +104,19 @@ test('it archives every tracked file when the host asks tar to exclude some', as
   await $`git commit --quiet -m notes`.env(ctx.env).cwd(ctx.work).quiet();
 
   await writeFile(
-    join(ctx.dir, 'archive.ts'),
-    `import { readWorkspaceTar } from ${JSON.stringify(join(import.meta.dir, 'read-workspace-tar.ts'))};\nconst tar = readWorkspaceTar(${JSON.stringify(ctx.work)});\nawait Bun.write(${JSON.stringify(join(ctx.dir, 'workspace.tar'))}, new Response(tar.stream));\nconsole.log(JSON.stringify(await tar.done));\n`,
+    join(ctx.directory, 'archive.ts'),
+    `import { readWorkspaceTar } from ${JSON.stringify(join(import.meta.dir, 'read-workspace-tar.ts'))};\nconst tar = readWorkspaceTar(${JSON.stringify(ctx.work)});\nawait Bun.write(${JSON.stringify(join(ctx.directory, 'workspace.tar'))}, new Response(tar.stream));\nconsole.log(JSON.stringify(await tar.done));\n`,
   );
 
-  const outcome = await $`${process.execPath} ${join(ctx.dir, 'archive.ts')}`
+  const outcome = await $`${process.execPath} ${join(ctx.directory, 'archive.ts')}`
     .env({ ...ctx.env, TAR_OPTIONS: '--exclude=*.txt' })
     .text();
 
-  const unpacked = join(ctx.dir, 'unpacked');
+  const unpacked = join(ctx.directory, 'unpacked');
 
   await mkdir(unpacked);
 
-  await $`tar -x -f ${join(ctx.dir, 'workspace.tar')} -C ${unpacked}`.env(ctx.env).quiet();
+  await $`tar -x -f ${join(ctx.directory, 'workspace.tar')} -C ${unpacked}`.env(ctx.env).quiet();
 
   const notes = await readFile(join(unpacked, 'notes.txt'), 'utf8');
 

@@ -21,8 +21,8 @@ interface SetupTestConfig {
 // A session manager with the stub harness as its one agent, a real state
 // store, and the catalog over both.
 async function setupTest(config: SetupTestConfig) {
-  const tmp = setupTempDir('atc-spawn-catalog-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-spawn-catalog-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -30,20 +30,20 @@ async function setupTest(config: SetupTestConfig) {
 
   registerTestCleanup(() => store.stop());
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     null,
     store,
-    join(tmp.path, 'status.json'),
+    join(temporaryDirectory.path, 'status.json'),
     [buildStubHarnessAdapter()],
     config.targets,
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
   const catalog = new SpawnCatalog({
-    mgr,
+    manager,
     store,
     build: 'atc/test',
     targets: config.targets,

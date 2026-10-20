@@ -87,7 +87,7 @@ async function updateGrantPhases(
   const phase = update.phase;
 
   for (const secret of secrets) {
-    const grant = grants.find((g) => g.secret === secret);
+    const grant = grants.find((candidate) => candidate.secret === secret);
 
     await ledger.store.upsertAuthGrant(
       {

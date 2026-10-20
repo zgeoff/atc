@@ -7,7 +7,7 @@ import type { SessionRuntime } from './session-runtime';
 import type { SessionManager } from './sessions';
 
 interface SessionForgetterDeps {
-  readonly mgr: Pick<
+  readonly manager: Pick<
     SessionManager,
     | 'sessions'
     | 'collectChildren'
@@ -23,14 +23,14 @@ interface SessionForgetterDeps {
 }
 
 export class SessionForgetter {
-  private readonly mgr: SessionForgetterDeps['mgr'];
+  private readonly manager: SessionForgetterDeps['manager'];
 
   private readonly findRuntime: SessionForgetterDeps['findRuntime'];
 
   private readonly tokens: SessionForgetterDeps['tokens'];
 
   constructor(deps: SessionForgetterDeps) {
-    this.mgr = deps.mgr;
+    this.manager = deps.manager;
     this.findRuntime = deps.findRuntime;
     this.tokens = deps.tokens;
   }
@@ -38,21 +38,21 @@ export class SessionForgetter {
   // Every live session of the tree must take the kill on its target before
   // any of them is killed.
   async killSession(id: SessionID, stopOnly: boolean): Promise<KillOutcome> {
-    const s = this.mgr.sessions.find((x) => x.id === id);
+    const session = this.manager.sessions.find((x) => x.id === id);
 
-    if (s === undefined) {
+    if (session === undefined) {
       return 'missing';
     }
 
-    for (const live of [s, ...this.mgr.collectChildren(id)]) {
+    for (const live of [session, ...this.manager.collectChildren(id)]) {
       if (live.pty !== null) {
-        this.mgr.requireExecution(live, this.mgr.pickKillCapability(live));
+        this.manager.requireExecution(live, this.manager.pickKillCapability(live));
       }
     }
 
-    const set = [s, ...this.mgr.collectChildren(id)];
+    const set = [session, ...this.manager.collectChildren(id)];
 
-    const outcome = await this.mgr.kill(id, stopOnly);
+    const outcome = await this.manager.kill(id, stopOnly);
 
     this.stopEndedHeadlessRuns(set);
 
@@ -67,16 +67,18 @@ export class SessionForgetter {
     refuse: ForgetRefusals,
     caller: SessionID | null,
   ): Promise<ForgetResult | 'missing'> {
-    const s = this.mgr.sessions.find((x) => x.id === id);
+    const session = this.manager.sessions.find((x) => x.id === id);
 
-    if (s === undefined) {
+    if (session === undefined) {
       return 'missing';
     }
 
-    const owned = caller !== null && caller !== id && this.mgr.isCallerTree(caller, id);
-    const inheritsPin = !owned && this.mgr.sessions.some((x) => x.id === s.parent && x.pinned);
+    const owned = caller !== null && caller !== id && this.manager.isCallerTree(caller, id);
 
-    if (refuse.pinned && (s.pinned || inheritsPin)) {
+    const inheritsPin =
+      !owned && this.manager.sessions.some((x) => x.id === session.parent && x.pinned);
+
+    if (refuse.pinned && (session.pinned || inheritsPin)) {
       throw new DaemonError(
         'session_pinned',
         `session ${id} is pinned, or is a sub-session of a pinned session and the caller is not its parent; unpin it before forgetting it`,
@@ -84,14 +86,17 @@ export class SessionForgetter {
       );
     }
 
-    if (refuse.live && (s.pty !== null || (s.kind === 'headless' && s.state !== 'exited'))) {
+    if (
+      refuse.live &&
+      (session.pty !== null || (session.kind === 'headless' && session.state !== 'exited'))
+    ) {
       throw new DaemonError('session_live', `session ${id} is live; stop it before forgetting it`, {
         session: id,
       });
     }
 
-    if (this.mgr.findProvider(s)?.capabilities.destroy === true) {
-      this.mgr.requireExecution(s, 'destroy');
+    if (this.manager.findProvider(session)?.capabilities.destroy === true) {
+      this.manager.requireExecution(session, 'destroy');
 
       if (confirmToken === undefined) {
         return this.tokens.mintToken(id);
@@ -100,9 +105,9 @@ export class SessionForgetter {
       this.tokens.claimToken(id, confirmToken);
     }
 
-    const set = [s, ...this.mgr.collectChildren(id)];
+    const set = [session, ...this.manager.collectChildren(id)];
 
-    const destroyed = await this.mgr.forget(id);
+    const destroyed = await this.manager.forget(id);
 
     this.stopEndedHeadlessRuns(set);
 
@@ -113,9 +118,9 @@ export class SessionForgetter {
   // with its runtime, and a promoted sub-session, or any session of a failed
   // kill or forget, keeps working
   private stopEndedHeadlessRuns(set: readonly Session[]): void {
-    for (const s of set) {
-      if (s.state === 'exited') {
-        this.findRuntime(s.id)?.stopHeadlessRun();
+    for (const session of set) {
+      if (session.state === 'exited') {
+        this.findRuntime(session.id)?.stopHeadlessRun();
       }
     }
   }

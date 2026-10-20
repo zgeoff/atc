@@ -14,7 +14,7 @@ import { checkRepositoryAccess } from '../workspace/check-repository-access';
 import { requireGitTransports } from '../workspace/require-git-transports';
 
 interface SpawnCatalogDeps {
-  readonly mgr: Pick<SessionManager, 'collectAdapters'>;
+  readonly manager: Pick<SessionManager, 'collectAdapters'>;
   readonly store: Pick<StateStore, 'readSpawnDirs'>;
 
   // The build string the daemon answers its handshake with.
@@ -34,7 +34,7 @@ interface SpawnCatalogDeps {
 type AgentList = ReturnType<DaemonContext['collectAgents']>;
 
 export class SpawnCatalog {
-  private readonly mgr: SpawnCatalogDeps['mgr'];
+  private readonly manager: SpawnCatalogDeps['manager'];
 
   private readonly store: SpawnCatalogDeps['store'];
 
@@ -56,7 +56,7 @@ export class SpawnCatalog {
   private readonly configRevision: string;
 
   constructor(deps: SpawnCatalogDeps) {
-    this.mgr = deps.mgr;
+    this.manager = deps.manager;
     this.store = deps.store;
     this.build = deps.build;
     this.targets = deps.targets;
@@ -80,7 +80,7 @@ export class SpawnCatalog {
         build: this.build,
       },
       agents: buildAgentList(
-        this.mgr.collectAdapters(),
+        this.manager.collectAdapters(),
         (bin) => Bun.which(bin) !== null,
         this.targets.flatMap((target) =>
           target.provider === null
@@ -111,9 +111,9 @@ export class SpawnCatalog {
   async readSpawnDirs(access: TargetAccess | null): Promise<string[]> {
     const dirs = await this.store.readSpawnDirs();
 
-    const reached = dirs.filter((dir) => access === null || access.canUse(dir.grant));
+    const reached = dirs.filter((directory) => access === null || access.canUse(directory.grant));
 
-    return [...new Set(reached.map((dir) => dir.cwd))];
+    return [...new Set(reached.map((directory) => directory.cwd))];
   }
 
   findSource(id: string): SourceProvider | null {

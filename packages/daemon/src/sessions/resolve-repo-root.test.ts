@@ -5,20 +5,20 @@ import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { resolveRepoRoot } from './resolve-repo-root';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-repo-root-');
+  const temporaryDirectory = setupTempDir('atc-repo-root-');
 
   // A test may leave a directory unreadable, and nothing can remove a tree
   // it cannot read, so every mode is restored before the tree is removed.
   registerTestCleanup(async () => {
-    await Bun.spawn(['chmod', '-R', 'u+rwx', tmp.path]).exited;
+    await Bun.spawn(['chmod', '-R', 'u+rwx', temporaryDirectory.path]).exited;
   });
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it resolves a directory inside a repository to the repository root', () => {
   const ctx = setupTest();
-  const repo = join(ctx.dir, 'repo');
+  const repo = join(ctx.directory, 'repo');
 
   mkdirSync(join(repo, '.git'), { recursive: true });
   writeFileSync(join(repo, '.git', 'HEAD'), 'ref: refs/heads/main\n');
@@ -29,7 +29,7 @@ test('it resolves a directory inside a repository to the repository root', () =>
 
 test('it resolves a linked worktree to the main repository root', () => {
   const ctx = setupTest();
-  const repo = join(ctx.dir, 'repo');
+  const repo = join(ctx.directory, 'repo');
   const worktree = join(repo, '.worktrees', 'feature');
 
   mkdirSync(join(repo, '.git'), { recursive: true });
@@ -42,7 +42,7 @@ test('it resolves a linked worktree to the main repository root', () => {
 
 test('it resolves a directory outside any repository to itself', () => {
   const ctx = setupTest();
-  const loose = join(ctx.dir, 'loose');
+  const loose = join(ctx.directory, 'loose');
 
   mkdirSync(loose, { recursive: true });
 
@@ -51,10 +51,10 @@ test('it resolves a directory outside any repository to itself', () => {
 
 test('it keeps a submodule-style .git file directory as its own root', () => {
   const ctx = setupTest();
-  const mod = join(ctx.dir, 'mod');
+  const mod = join(ctx.directory, 'mod');
 
   mkdirSync(mod, { recursive: true });
-  writeFileSync(join(mod, '.git'), `gitdir: ${join(ctx.dir, '.git', 'modules', 'mod')}\n`);
+  writeFileSync(join(mod, '.git'), `gitdir: ${join(ctx.directory, '.git', 'modules', 'mod')}\n`);
 
   expect(resolveRepoRoot(mod)).toBe(mod);
 });
@@ -63,9 +63,9 @@ test('it keeps a submodule-style .git file directory as its own root', () => {
 // directories, and reading it as a root clusters every session under `/tmp`.
 test('it walks past a .git directory that holds no HEAD', () => {
   const ctx = setupTest();
-  const loose = join(ctx.dir, 'loose');
+  const loose = join(ctx.directory, 'loose');
 
-  mkdirSync(join(ctx.dir, '.git'), { recursive: true });
+  mkdirSync(join(ctx.directory, '.git'), { recursive: true });
   mkdirSync(loose, { recursive: true });
 
   expect(resolveRepoRoot(loose)).toBe(loose);
@@ -73,7 +73,7 @@ test('it walks past a .git directory that holds no HEAD', () => {
 
 test('it resolves a directory under an unreadable ancestor to itself', () => {
   const ctx = setupTest();
-  const locked = join(ctx.dir, 'locked');
+  const locked = join(ctx.directory, 'locked');
   const cwd = join(locked, 'work');
 
   mkdirSync(cwd, { recursive: true });
@@ -84,7 +84,7 @@ test('it resolves a directory under an unreadable ancestor to itself', () => {
 
 test('it resolves a nested repository with an unreadable .git to itself, not the outer repository', () => {
   const ctx = setupTest();
-  const outer = join(ctx.dir, 'outer');
+  const outer = join(ctx.directory, 'outer');
   const inner = join(outer, 'inner');
 
   mkdirSync(join(outer, '.git'), { recursive: true });

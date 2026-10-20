@@ -37,9 +37,9 @@ export class ScreenModel {
     // so these handlers track it for the replay
     for (const final of ['h', 'l'] as const) {
       this.term.parser.registerCsiHandler({ prefix: '?', final }, (params) => {
-        for (const p of params) {
-          if (typeof p === 'number' && REPLAYED_DEC_MODES.has(p)) {
-            this.decModes.set(p, final === 'h');
+        for (const parameter of params) {
+          if (typeof parameter === 'number' && REPLAYED_DEC_MODES.has(parameter)) {
+            this.decModes.set(parameter, final === 'h');
           }
         }
 

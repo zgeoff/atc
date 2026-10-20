@@ -28,10 +28,10 @@ test('it finds no branch for a detached checkout', async () => {
 });
 
 test('it finds no branch for a directory outside git', async () => {
-  const tmp = setupTempDir('atc-host-branch-plain-');
+  const temporaryDirectory = setupTempDir('atc-host-branch-plain-');
   const provider = buildStubMemoryProvider({ kind: 'local-pty', runCommand: runLocalCommand });
 
-  const branch = await readHostBranch(provider, 's-1', tmp.path);
+  const branch = await readHostBranch(provider, 's-1', temporaryDirectory.path);
 
   expect(branch).toBeNull();
 });

@@ -195,12 +195,12 @@ async function readMenuView(terminal: MenuTerminal): Promise<MenuView | null> {
   return menu === null ? null : buildMenuView(menu);
 }
 
-function isSameMenu(a: MenuView | null, b: MenuView | null): boolean {
-  if (a === null || b === null) {
-    return a === b;
+function isSameMenu(left: MenuView | null, right: MenuView | null): boolean {
+  if (left === null || right === null) {
+    return left === right;
   }
 
-  return a.menuToken === b.menuToken && getHighlighted(a) === getHighlighted(b);
+  return left.menuToken === right.menuToken && getHighlighted(left) === getHighlighted(right);
 }
 
 function getHighlighted(menu: MenuView): number {

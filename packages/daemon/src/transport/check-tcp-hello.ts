@@ -80,8 +80,8 @@ export async function checkTCPHello(
   };
 }
 
-function findBearerToken(p: Readonly<Record<string, unknown>> | undefined): string | null {
-  const auth = p?.['auth'];
+function findBearerToken(params: Readonly<Record<string, unknown>> | undefined): string | null {
+  const auth = params?.['auth'];
 
   if (!isRecord(auth) || auth['scheme'] !== 'bearer' || typeof auth['token'] !== 'string') {
     return null;

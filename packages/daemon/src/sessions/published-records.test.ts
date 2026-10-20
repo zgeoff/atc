@@ -19,13 +19,13 @@ import { PLACE_COPY, PublishedRecords, REFRESH_COPY } from './published-records'
 async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'atc-records-' });
 
-  const tmp = setupTempDir('atc-records-state-');
+  const temporaryDirectory = setupTempDir('atc-records-state-');
 
-  const store = await StateStore.open(join(tmp.path, 'atc.db'));
+  const store = await StateStore.open(join(temporaryDirectory.path, 'atc.db'));
 
   registerTestCleanup(() => store.stop());
 
-  const localDir = join(tmp.path, 'records');
+  const localDir = join(temporaryDirectory.path, 'records');
 
   const records = new PublishedRecords({
     store,
@@ -51,7 +51,7 @@ test('it publishes a read-only copy in the local directory and returns its path'
       target: 'local',
       provider: ctx.provider,
       host: session,
-      dir: ctx.fixture.work,
+      directory: ctx.fixture.work,
       workspace: null,
     },
     null,
@@ -91,7 +91,7 @@ test('it holds the record it publishes in the state store', async () => {
       target: 'local',
       provider: ctx.provider,
       host: session,
-      dir: ctx.fixture.work,
+      directory: ctx.fixture.work,
       workspace: null,
     },
     null,
@@ -114,7 +114,7 @@ test("it records a materialized workspace's repository and commit", async () => 
       target: 'local',
       provider: ctx.provider,
       host: session,
-      dir: ctx.fixture.work,
+      directory: ctx.fixture.work,
       workspace: {
         repoURL: 'https://github.com/me/app.git',
         sha: ctx.fixture.sha,
@@ -149,7 +149,7 @@ test('it records no branch for a directory outside git', async () => {
       target: 'local',
       provider: ctx.provider,
       host: session,
-      dir: plain,
+      directory: plain,
       workspace: null,
     },
     null,
@@ -179,7 +179,7 @@ test('it records the checked scope a spawn declares', async () => {
       target: 'local',
       provider: ctx.provider,
       host: session,
-      dir: ctx.fixture.work,
+      directory: ctx.fixture.work,
       workspace: null,
     },
     { worktrees: [{ path: worktree }], branches: [{ name: 'fix' }], pullRequests: [] },
@@ -204,7 +204,7 @@ test('it refuses a spawn whose declared scope fails its check and records nothin
       target: 'local',
       provider: ctx.provider,
       host: session,
-      dir: ctx.fixture.work,
+      directory: ctx.fixture.work,
       workspace: null,
     },
     { worktrees: [], branches: [{ name: 'gone' }], pullRequests: [] },
@@ -233,7 +233,7 @@ test('it places the stored copy again when a revive finds it gone', async () => 
     target: 'local',
     provider: ctx.provider,
     host: session,
-    dir: ctx.fixture.work,
+    directory: ctx.fixture.work,
     workspace: null,
   };
 
@@ -261,7 +261,7 @@ test('it records a fresh record when a revive finds a session without one', asyn
     target: 'local',
     provider: ctx.provider,
     host: session,
-    dir: ctx.fixture.work,
+    directory: ctx.fixture.work,
     workspace: null,
   });
 
@@ -294,7 +294,7 @@ test('it adds a checked scope, raises the revision, and rewrites the copy', asyn
     target: 'local',
     provider: ctx.provider,
     host: session,
-    dir: ctx.fixture.work,
+    directory: ctx.fixture.work,
     workspace: null,
   };
 
@@ -327,7 +327,7 @@ test('it keeps the record and its revision when an added scope holds nothing new
     target: 'local',
     provider: ctx.provider,
     host: session,
-    dir: ctx.fixture.work,
+    directory: ctx.fixture.work,
     workspace: null,
   };
 
@@ -356,7 +356,7 @@ test('it leaves the record as it was when an added entry fails its check', async
     target: 'local',
     provider: ctx.provider,
     host: session,
-    dir: ctx.fixture.work,
+    directory: ctx.fixture.work,
     workspace: null,
   };
 
@@ -394,7 +394,7 @@ test('it applies two additions to one record one after the other', async () => {
     target: 'local',
     provider: ctx.provider,
     host: session,
-    dir: ctx.fixture.work,
+    directory: ctx.fixture.work,
     workspace: null,
   };
 
@@ -435,7 +435,7 @@ test('it removes the record and its local copy', async () => {
       target: 'local',
       provider: ctx.provider,
       host: session,
-      dir: ctx.fixture.work,
+      directory: ctx.fixture.work,
       workspace: null,
     },
     null,
@@ -460,7 +460,7 @@ test('it rewrites the copy on a retry after a failed copy write left the store a
     target: 'local',
     provider: ctx.provider,
     host: session,
-    dir: ctx.fixture.work,
+    directory: ctx.fixture.work,
     workspace: null,
   };
 

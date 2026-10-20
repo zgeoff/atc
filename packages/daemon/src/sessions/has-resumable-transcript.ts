@@ -8,14 +8,14 @@ interface ResumeSource {
   readonly findProvider: SessionManager['findProvider'];
 }
 
-export function hasResumableTranscript(mgr: ResumeSource, id: SessionID): boolean {
-  const s = mgr.sessions.find((x) => x.id === id);
+export function hasResumableTranscript(manager: ResumeSource, id: SessionID): boolean {
+  const session = manager.sessions.find((x) => x.id === id);
 
-  if (s === undefined) {
+  if (session === undefined) {
     return false;
   }
 
-  const adapter = mgr.findAdapter(s.agent);
+  const adapter = manager.findAdapter(session.agent);
 
   if (adapter === null) {
     return false;
@@ -23,12 +23,14 @@ export function hasResumableTranscript(mgr: ResumeSource, id: SessionID): boolea
 
   // A remote session's transcript lives in its host, out of the daemon's
   // reach, so the agent's session id alone makes it resumable.
-  if (mgr.findProvider(s)?.remote === true) {
-    return s.agentSessionID !== undefined;
+  if (manager.findProvider(session)?.remote === true) {
+    return session.agentSessionID !== undefined;
   }
 
   return adapter.canResume({
-    ...(s.agentSessionID === undefined ? {} : { agentSessionID: s.agentSessionID }),
-    ...(s.transcriptSource === undefined ? {} : { transcriptSource: s.transcriptSource }),
+    ...(session.agentSessionID === undefined ? {} : { agentSessionID: session.agentSessionID }),
+    ...(session.transcriptSource === undefined
+      ? {}
+      : { transcriptSource: session.transcriptSource }),
   });
 }

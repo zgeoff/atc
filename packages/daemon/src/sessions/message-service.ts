@@ -35,7 +35,7 @@ import type { SessionManager } from './sessions';
 import type { TapRegistry } from './tap-registry';
 
 interface MessageServiceDeps {
-  readonly mgr: Pick<SessionManager, 'sessions' | 'findAdapter' | 'isLocalTarget'>;
+  readonly manager: Pick<SessionManager, 'sessions' | 'findAdapter' | 'isLocalTarget'>;
   readonly store: Pick<
     StateStore,
     | 'recordTrailEntry'
@@ -75,7 +75,7 @@ type MessageView = NonNullable<Awaited<ReturnType<DaemonContext['readMessage']>>
 // every status change lands in the trail before it is broadcast; a keyed send writes at most
 // once per key, and a retry answers with the message's current status
 export class MessageService {
-  private readonly mgr: MessageServiceDeps['mgr'];
+  private readonly manager: MessageServiceDeps['manager'];
 
   private readonly store: MessageServiceDeps['store'];
 
@@ -104,7 +104,7 @@ export class MessageService {
   private lastMessageWrite: Promise<void> = Promise.resolve();
 
   constructor(deps: MessageServiceDeps) {
-    this.mgr = deps.mgr;
+    this.manager = deps.manager;
     this.store = deps.store;
     this.clock = deps.clock;
     this.ledger = deps.ledger;
@@ -119,9 +119,9 @@ export class MessageService {
     this.inboxSource = {
       taps: deps.taps,
       findLinkedOwner: (sessionID) => {
-        const s = this.mgr.sessions.find((x) => x.id === sessionID);
+        const session = this.manager.sessions.find((x) => x.id === sessionID);
 
-        return s === undefined ? null : buildMessageOwner(s);
+        return session === undefined ? null : buildMessageOwner(session);
       },
       readPendingMessages: (owner) => this.store.readPendingMessages(owner),
       readPendingNotices: (senderSession) => this.store.readPendingNotices(senderSession),
@@ -151,9 +151,9 @@ export class MessageService {
   // a client reading the trail on the broadcast finds the change already
   // there.
   async recordMessageStatus(sessionID: SessionID, record: MessageRecord): Promise<void> {
-    const s = this.mgr.sessions.find((x) => x.id === sessionID);
+    const session = this.manager.sessions.find((x) => x.id === sessionID);
 
-    await this.recordTrailEntry(buildMessageTrailEntry(sessionID, s?.agentSessionID, record));
+    await this.recordTrailEntry(buildMessageTrailEntry(sessionID, session?.agentSessionID, record));
 
     this.emitEvent(buildSessionMessageEvent(sessionID, record), this.findHookScope(sessionID));
   }
@@ -167,7 +167,7 @@ export class MessageService {
       return;
     }
 
-    const sender = this.mgr.sessions.find((x) => x.id === record.senderSession);
+    const sender = this.manager.sessions.find((x) => x.id === record.senderSession);
 
     await this.recordTrailEntry(
       buildNoticeTrailEntry(record.senderSession, sender?.agentSessionID, record, kind),
@@ -228,18 +228,18 @@ export class MessageService {
 
   // While another live session resumes the same agent session, the store
   // cannot tell which process holds a message, so none is marked.
-  async updateEndedSessionMessages(s: Session, gone = false): Promise<void> {
+  async updateEndedSessionMessages(session: Session, gone = false): Promise<void> {
     const shared =
-      s.agentSessionID !== undefined &&
-      this.mgr.sessions.some(
+      session.agentSessionID !== undefined &&
+      this.manager.sessions.some(
         (x) =>
-          x.id !== s.id &&
-          x.agentSessionID === s.agentSessionID &&
+          x.id !== session.id &&
+          x.agentSessionID === session.agentSessionID &&
           (x.pty !== null || (x.kind === 'headless' && x.state !== 'exited')),
       );
 
     if (!shared) {
-      await this.updateEndedMessages(s.id, buildMessageOwner(s), gone);
+      await this.updateEndedMessages(session.id, buildMessageOwner(session), gone);
     }
   }
 
@@ -254,7 +254,7 @@ export class MessageService {
     callerSession: SessionID | null,
   ): Promise<DaemonAnswer<'session.message'> | MessageRefusal> {
     const requireInReach = () => {
-      if (access !== null && !isTreeInReach(this.mgr.sessions, sessionID, access)) {
+      if (access !== null && !isTreeInReach(this.manager.sessions, sessionID, access)) {
         throw new MessageRefusedError('missing');
       }
     };
@@ -362,13 +362,13 @@ export class MessageService {
     access: TargetAccess | null,
     notices: boolean,
   ): 'ok' | 'missing' | 'unsupported' {
-    const s = this.mgr.sessions.find((x) => x.id === sessionID);
+    const session = this.manager.sessions.find((x) => x.id === sessionID);
 
-    if (s === undefined) {
+    if (session === undefined) {
       return 'missing';
     }
 
-    if (this.mgr.findAdapter(s.agent)?.takesMessages !== true) {
+    if (this.manager.findAdapter(session.agent)?.takesMessages !== true) {
       return 'unsupported';
     }
 
@@ -403,13 +403,13 @@ export class MessageService {
     messageID: MessageID,
     access: TargetAccess | null,
   ): Promise<MessageRecord | 'not_tapping' | 'unknown'> {
-    const s = this.mgr.sessions.find((x) => x.id === sessionID);
+    const session = this.manager.sessions.find((x) => x.id === sessionID);
 
-    if (s === undefined || !this.taps.isTap(sessionID, client)) {
+    if (session === undefined || !this.taps.isTap(sessionID, client)) {
       return 'not_tapping';
     }
 
-    const owner = access === null ? buildMessageOwner(s) : { atcID: s.id };
+    const owner = access === null ? buildMessageOwner(session) : { atcID: session.id };
 
     const delivered = await this.store.updateMessageDelivered(messageID, owner, this.clock.now());
 
@@ -421,10 +421,14 @@ export class MessageService {
       // a tap can outlive its process, so an ack can land after the end marked its messages; a
       // process is surely gone once its exit was seen or a local session has no terminal, while a
       // remote host that lost the connection or went to sleep may still run it
-      const live = s.pty !== null || (s.kind === 'headless' && s.state !== 'exited');
+      const live =
+        session.pty !== null || (session.kind === 'headless' && session.state !== 'exited');
 
-      if (!live && (this.isProcessEnded(s.id) || this.mgr.isLocalTarget(s.target))) {
-        await this.updateEndedSessionMessages(s);
+      if (
+        !live &&
+        (this.isProcessEnded(session.id) || this.manager.isLocalTarget(session.target))
+      ) {
+        await this.updateEndedSessionMessages(session);
 
         const settled = await this.store.readMessage(messageID, owner);
 
@@ -444,7 +448,10 @@ export class MessageService {
     sessionID: SessionID,
     messageID: MessageID,
   ): Promise<MessageRecord | 'not_tapping' | 'unknown'> {
-    if (!this.mgr.sessions.some((x) => x.id === sessionID) || !this.taps.isTap(sessionID, client)) {
+    if (
+      !this.manager.sessions.some((x) => x.id === sessionID) ||
+      !this.taps.isTap(sessionID, client)
+    ) {
       return 'not_tapping';
     }
 
@@ -471,17 +478,17 @@ export class MessageService {
 
   // Why the session refuses a message right now, or null when it takes one.
   private findMessageRefusal(sessionID: SessionID): MessageRefusal | null {
-    const s = this.mgr.sessions.find((x) => x.id === sessionID);
+    const session = this.manager.sessions.find((x) => x.id === sessionID);
 
-    if (s === undefined) {
+    if (session === undefined) {
       return 'missing';
     }
 
-    if (!(s.pty !== null || (s.kind === 'headless' && s.state !== 'exited'))) {
+    if (!(session.pty !== null || (session.kind === 'headless' && session.state !== 'exited'))) {
       return 'dead';
     }
 
-    if (this.mgr.findAdapter(s.agent)?.takesMessages !== true) {
+    if (this.manager.findAdapter(session.agent)?.takesMessages !== true) {
       return 'unsupported';
     }
 
@@ -509,17 +516,17 @@ export class MessageService {
       return null;
     }
 
-    const s = this.mgr.sessions.find((x) => x.id === callerSession);
+    const session = this.manager.sessions.find((x) => x.id === callerSession);
 
-    if (s === undefined || this.mgr.findAdapter(s.agent)?.takesMessages !== true) {
+    if (session === undefined || this.manager.findAdapter(session.agent)?.takesMessages !== true) {
       return null;
     }
 
-    if (access !== null && !isTreeInReach(this.mgr.sessions, s.id, access)) {
+    if (access !== null && !isTreeInReach(this.manager.sessions, session.id, access)) {
       return null;
     }
 
-    return s.id;
+    return session.id;
   }
 
   // only the write itself can reject: every later step swallows its own failure, so a rejection
@@ -532,7 +539,7 @@ export class MessageService {
     requireWriteInReach: () => void,
     senderSession: SessionID | null,
   ): Promise<MessageRecord> {
-    const s = this.mgr.sessions.find((x) => x.id === sessionID);
+    const session = this.manager.sessions.find((x) => x.id === sessionID);
     const previousWrite = this.lastMessageWrite;
     const written = Promise.withResolvers<void>();
 
@@ -541,12 +548,12 @@ export class MessageService {
     await previousWrite;
 
     // A session sender's name is the one it holds as its message is written.
-    const sender = buildMessageSender(caller, this.mgr.sessions);
+    const sender = buildMessageSender(caller, this.manager.sessions);
 
     const record: MessageRecord = {
       id,
       atcID: sessionID,
-      ...(s?.agentSessionID === undefined ? {} : { agentSessionID: s.agentSessionID }),
+      ...(session?.agentSessionID === undefined ? {} : { agentSessionID: session.agentSessionID }),
       from: sender.name,
       sender,
       text,
@@ -607,8 +614,8 @@ export class MessageService {
     }
 
     const owner =
-      this.mgr.sessions.find((x) => x.id === record.atcID) ??
-      this.mgr.sessions.find(
+      this.manager.sessions.find((x) => x.id === record.atcID) ??
+      this.manager.sessions.find(
         (x) => record.agentSessionID !== undefined && x.agentSessionID === record.agentSessionID,
       );
 

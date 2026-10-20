@@ -35,5 +35,5 @@ export interface SpawnRequest {
 
   // Builds the caller's answer once the harness started, as the spawn's
   // last step, so a failure there unwinds the spawn too.
-  readonly answer: ((s: Session) => void) | null;
+  readonly answer: ((session: Session) => void) | null;
 }

@@ -56,67 +56,67 @@ export class SessionHarnesses {
     this.callbacks = deps.callbacks;
   }
 
-  attachHarness(s: Session, pty: HarnessHandle, hostLifecycle: boolean): void {
-    s.vm = hostLifecycle ? 'awake' : 'none';
-    s.attachment = hostLifecycle ? 'attached' : 'local';
+  attachHarness(session: Session, pty: HarnessHandle, hostLifecycle: boolean): void {
+    session.vm = hostLifecycle ? 'awake' : 'none';
+    session.attachment = hostLifecycle ? 'attached' : 'local';
 
-    pty.onData((d) => {
-      this.callbacks.onOutput(s, d);
+    pty.onData((data) => {
+      this.callbacks.onOutput(session, data);
     });
 
     pty.onAttachment?.((attachment) => {
-      if (s.pty !== pty || s.attachment === attachment) {
+      if (session.pty !== pty || session.attachment === attachment) {
         return;
       }
 
-      s.attachment = attachment;
+      session.attachment = attachment;
 
-      if (attachment === 'attached' && this.isAuthOutdated(s)) {
-        s.lastMsg = formatAuthNotice(this.authRevisions.get(s.hostKey) ?? 0);
+      if (attachment === 'attached' && this.isAuthOutdated(session)) {
+        session.lastMsg = formatAuthNotice(this.authRevisions.get(session.hostKey) ?? 0);
       }
 
-      this.callbacks.onEvent('state', s);
+      this.callbacks.onEvent('state', session);
       this.fleet.emitChange();
     });
 
     pty.onExit((exit) => {
-      if (s.pty !== pty) {
+      if (session.pty !== pty) {
         return;
       }
 
-      s.pty = null;
+      session.pty = null;
 
       if (hostLifecycle) {
-        s.attachment = 'detached';
+        session.attachment = 'detached';
       }
 
       const transition = HARNESS_EXIT_TRANSITIONS[exit.reason ?? 'exited'];
 
       // a session mid-handoff keeps its headless state, since its terminal
       // dying is expected there
-      if (s.kind === 'pty' && s.state !== 'exited') {
-        s.state = 'exited';
-        s.unread = this.registry.focusedId !== s.id;
+      if (session.kind === 'pty' && session.state !== 'exited') {
+        session.state = 'exited';
+        session.unread = this.registry.focusedId !== session.id;
 
-        s.lastMsg = transition.takesDetail
+        session.lastMsg = transition.takesDetail
           ? (exit.detail ?? transition.message)
           : transition.message;
       }
 
       if (transition.suspends) {
-        s.vm = 'asleep';
-        s.suspended = true;
+        session.vm = 'asleep';
+        session.suspended = true;
       }
 
-      this.callbacks.onEvent('state', s);
+      this.callbacks.onEvent('state', session);
       this.fleet.emitChange();
 
       if (transition.writesFleet) {
-        void this.fleet.tryWriteFleet(s.id);
+        void this.fleet.tryWriteFleet(session.id);
       }
 
       if (transition.endsProcess) {
-        this.callbacks.onProcessEnded(s);
+        this.callbacks.onProcessEnded(session);
       }
     });
   }
@@ -125,28 +125,28 @@ export class SessionHarnesses {
   // that process launched under; the fleet write lets a restore after a
   // daemon restart find it
   updateLaunchRevision(
-    s: Session,
+    session: Session,
     revision: number,
     heldRevision: number | null,
     created: boolean,
   ): void {
-    const launched = created ? revision : (s.authRevision ?? heldRevision ?? revision);
+    const launched = created ? revision : (session.authRevision ?? heldRevision ?? revision);
 
-    if (s.authRevision !== launched) {
-      s.authRevision = launched;
-      void this.fleet.tryWriteFleet(s.id);
+    if (session.authRevision !== launched) {
+      session.authRevision = launched;
+      void this.fleet.tryWriteFleet(session.id);
     }
 
-    if (s.pty !== null && this.isAuthOutdated(s)) {
-      s.lastMsg = formatAuthNotice(this.authRevisions.get(s.hostKey) ?? revision);
+    if (session.pty !== null && this.isAuthOutdated(session)) {
+      session.lastMsg = formatAuthNotice(this.authRevisions.get(session.hostKey) ?? revision);
 
-      this.callbacks.onEvent('state', s);
+      this.callbacks.onEvent('state', session);
       this.fleet.emitChange();
     }
   }
 
   async waitForAuthStart(
-    s: Session,
+    session: Session,
     provider: ExecutionProvider,
     pty: HarnessHandle,
   ): Promise<HarnessStart | undefined> {
@@ -155,10 +155,14 @@ export class SessionHarnesses {
     } catch (error) {
       // a spawn with a checkout still to remove leaves the sleep to its
       // rollback, which needs the host awake
-      const hasCheckout = (this.startingSpawns.get(s.id)?.root ?? null) !== null;
+      const hasCheckout = (this.startingSpawns.get(session.id)?.root ?? null) !== null;
 
-      if (!hasCheckout && this.isHostIdle(s.hostKey, s.target) && provider.capabilities.suspend) {
-        await this.trySuspendIdleHost(provider, s.hostKey, s.target);
+      if (
+        !hasCheckout &&
+        this.isHostIdle(session.hostKey, session.target) &&
+        provider.capabilities.suspend
+      ) {
+        await this.trySuspendIdleHost(provider, session.hostKey, session.target);
       }
 
       throw error;
@@ -234,9 +238,13 @@ export class SessionHarnesses {
 
   // Whether a session's harness launched under an older revision than the
   // one its host's binding held at the latest launch there.
-  isAuthOutdated(s: Session): boolean {
-    const revision = this.authRevisions.get(s.hostKey);
+  isAuthOutdated(session: Session): boolean {
+    const revision = this.authRevisions.get(session.hostKey);
 
-    return s.authRevision !== undefined && revision !== undefined && s.authRevision < revision;
+    return (
+      session.authRevision !== undefined &&
+      revision !== undefined &&
+      session.authRevision < revision
+    );
   }
 }

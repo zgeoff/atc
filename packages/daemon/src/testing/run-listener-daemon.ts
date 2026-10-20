@@ -14,13 +14,13 @@ const LOG_BATCH_LINES = 16;
 // It has no execution target, so it serves the protocol and spawns nothing. It prints the port it
 // bound once it listens, and SIGTERM stops it.
 async function main() {
-  const dir = process.env['ATC_TEST_DIR'] ?? '';
+  const directory = process.env['ATC_TEST_DIR'] ?? '';
 
   const stderrLog = await startStderrLog(STDERR_FD, systemClock, LOG_BATCH_LINES);
 
   const handle = await startDaemon({
-    socketPath: join(dir, 'daemon.sock'),
-    reporterSocketPath: join(dir, 'reporter.sock'),
+    socketPath: join(directory, 'daemon.sock'),
+    reporterSocketPath: join(directory, 'reporter.sock'),
     build: 'atc/test-build',
     targets: [],
     adapter: buildMockAgentAdapter({
@@ -28,12 +28,12 @@ async function main() {
       planHookEvents: () => ({ events: [{ kind: 'prompt-submitted' }] }),
       planResumeCommand: () => 'claude --resume',
     }),
-    dbPath: join(dir, 'state.db'),
-    statusPath: join(dir, 'status.json'),
+    dbPath: join(directory, 'state.db'),
+    statusPath: join(directory, 'status.json'),
     listen: {
       host: '127.0.0.1',
       port: 0,
-      tokenFile: join(dir, 'gateway-token'),
+      tokenFile: join(directory, 'gateway-token'),
       failureDelayMs: 0,
       refusalLogIntervalMs: 0,
     },

@@ -11,7 +11,7 @@ async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'atc-path-source-' });
 
   return {
-    dir: fixture.directory,
+    directory: fixture.directory,
     env: fixture.env,
     upstream: fixture.upstream,
     work: fixture.work,
@@ -281,46 +281,46 @@ test('it resolves a dirty checkout to HEAD with a warning when dirt is allowed',
 test('it refuses a directory outside any git repository', async () => {
   const ctx = await setupTest();
 
-  await mkdir(join(ctx.dir, 'loose'));
+  await mkdir(join(ctx.directory, 'loose'));
 
-  const resolved = await resolvePathSource(join(ctx.dir, 'loose'), {
+  const resolved = await resolvePathSource(join(ctx.directory, 'loose'), {
     transports: ['https', 'ssh', 'file'],
   });
 
   expect(resolved).toStrictEqual({
     ok: false,
     code: 'not_a_git_repo',
-    message: `${join(ctx.dir, 'loose')} is not inside a git work tree`,
+    message: `${join(ctx.directory, 'loose')} is not inside a git work tree`,
   });
 });
 
 test('it refuses a path that does not exist', async () => {
   const ctx = await setupTest();
 
-  const resolved = await resolvePathSource(join(ctx.dir, 'missing'), {
+  const resolved = await resolvePathSource(join(ctx.directory, 'missing'), {
     transports: ['https', 'ssh', 'file'],
   });
 
   expect(resolved).toStrictEqual({
     ok: false,
     code: 'not_a_git_repo',
-    message: `${join(ctx.dir, 'missing')} is not a directory`,
+    message: `${join(ctx.directory, 'missing')} is not a directory`,
   });
 });
 
 test('it refuses a repository with no commits', async () => {
   const ctx = await setupTest();
 
-  await $`git init --quiet --template= ${join(ctx.dir, 'empty')}`.env(ctx.env).quiet();
+  await $`git init --quiet --template= ${join(ctx.directory, 'empty')}`.env(ctx.env).quiet();
 
-  const resolved = await resolvePathSource(join(ctx.dir, 'empty'), {
+  const resolved = await resolvePathSource(join(ctx.directory, 'empty'), {
     transports: ['https', 'ssh', 'file'],
   });
 
   expect(resolved).toStrictEqual({
     ok: false,
     code: 'no_commits',
-    message: `${join(ctx.dir, 'empty')} has no commit to check out`,
+    message: `${join(ctx.directory, 'empty')} has no commit to check out`,
   });
 });
 
@@ -456,9 +456,9 @@ test('it resolves the checkout it is given when a git hook exports another GIT_D
     .text()
     .then((text) => text.trim());
 
-  await $`git init --quiet --template= ${join(ctx.dir, 'other')}`.env(ctx.env).quiet();
+  await $`git init --quiet --template= ${join(ctx.directory, 'other')}`.env(ctx.env).quiet();
 
-  updateEnv('GIT_DIR', join(ctx.dir, 'other', '.git'));
+  updateEnv('GIT_DIR', join(ctx.directory, 'other', '.git'));
 
   const resolved = await resolvePathSource(ctx.work, { transports: ['https', 'ssh', 'file'] });
 

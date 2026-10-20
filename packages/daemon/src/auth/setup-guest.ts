@@ -21,7 +21,7 @@ interface GuestSetup {
   readonly provider: ExecutionProvider;
   readonly hostKey: SessionID;
   readonly target: string;
-  readonly dir: string;
+  readonly directory: string;
   readonly planned: GuestSpawnPlan['files'];
   readonly timer: StepTimer;
 }
@@ -33,7 +33,7 @@ export async function setupGuest(deps: GuestSetupDeps, guest: GuestSetup): Promi
   const provider = guest.provider;
   const hostKey = guest.hostKey;
   const target = guest.target;
-  const dir = guest.dir;
+  const directory = guest.directory;
   const planned = guest.planned;
   const timer = guest.timer;
 
@@ -70,7 +70,7 @@ export async function setupGuest(deps: GuestSetupDeps, guest: GuestSetup): Promi
 
   if (files.length > 0) {
     await timer.withStep('settings-transfer', () =>
-      provider.transferArchive(buildTarArchive(files), dir, hostKey),
+      provider.transferArchive(buildTarArchive(files), directory, hostKey),
     );
   }
 }

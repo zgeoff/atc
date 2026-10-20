@@ -159,7 +159,7 @@ export async function setupSpawn(
                   target,
                   provider,
                   host: hostKey,
-                  dir: recordDir,
+                  directory: recordDir,
                   workspace: built.materialized?.workspace ?? null,
                   ...(built.materialized === null ? {} : { branch: built.materialized.branch }),
                 },

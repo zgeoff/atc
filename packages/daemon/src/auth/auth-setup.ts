@@ -259,7 +259,7 @@ export class AuthSetup {
     }
 
     const guest = provider.guest ?? { directory: '/tmp/atc', atc: null };
-    const dir = `${guest.directory}/sessions/${id}`;
+    const directory = `${guest.directory}/sessions/${id}`;
 
     // A launch on a bound host verifies the binding before it plans, since
     // a target that rebinds a changed selection moves the binding to the
@@ -273,10 +273,10 @@ export class AuthSetup {
 
     const paths: GuestPaths =
       auth === null
-        ? { atc: guest.atc, directory: dir }
+        ? { atc: guest.atc, directory }
         : {
             atc: guest.atc,
-            directory: dir,
+            directory,
             auth: await timer.withStep('auth-plan', () =>
               this.planGuestAuth(auth, verified?.binding.revision ?? 1),
             ),
@@ -316,7 +316,7 @@ export class AuthSetup {
     try {
       await setupGuest(
         { store: this.store, callbacks: this.callbacks, harnesses: this.harnesses },
-        { adapter, provider, hostKey, target, dir, planned: plan.files, timer },
+        { adapter, provider, hostKey, target, directory, planned: plan.files, timer },
       );
 
       if (auth !== null && cwd !== null) {
@@ -460,58 +460,58 @@ export class AuthSetup {
   // launches on the host stay blocked until a rebind; a running harness keeps running while
   // impd fails its later requests
   async revokeAuth(id: SessionID): Promise<boolean> {
-    const s = this.registry.sessions.find((x) => x.id === id);
+    const session = this.registry.sessions.find((x) => x.id === id);
 
-    if (s === undefined) {
+    if (session === undefined) {
       return false;
     }
 
     await this.requireAuthBinder().revokeBinding(
-      this.registry.findProvider(s)?.brokerAuth ?? null,
-      s.hostKey,
+      this.registry.findProvider(session)?.brokerAuth ?? null,
+      session.hostKey,
     );
 
     return true;
   }
 
   async updateAuth(id: SessionID): Promise<AuthRebound | null> {
-    const s = this.registry.sessions.find((x) => x.id === id);
+    const session = this.registry.sessions.find((x) => x.id === id);
 
-    if (s === undefined) {
+    if (session === undefined) {
       return null;
     }
 
-    const adapter = this.registry.findAdapter(s.agent);
+    const adapter = this.registry.findAdapter(session.agent);
 
     if (adapter === null) {
-      throw new DaemonError('unsupported_operation', `no adapter for agent '${s.agent}'`, {
-        agent: s.agent,
+      throw new DaemonError('unsupported_operation', `no adapter for agent '${session.agent}'`, {
+        agent: session.agent,
       });
     }
 
-    const provider = this.registry.requireExecution(s, 'spawn').provider;
-    const auth = this.resolveHarnessAuth(adapter, provider, s.target);
+    const provider = this.registry.requireExecution(session, 'spawn').provider;
+    const auth = this.resolveHarnessAuth(adapter, provider, session.target);
 
     if (auth === null) {
       throw new DaemonError(
         'unsupported_operation',
-        `agent '${s.agent}' takes no credential from impd's broker`,
-        { agent: s.agent, problem: 'no_auth_selection' },
+        `agent '${session.agent}' takes no credential from impd's broker`,
+        { agent: session.agent, problem: 'no_auth_selection' },
       );
     }
 
     const revision = await this.requireAuthBinder().updateBinding(
       auth.host,
-      s.hostKey,
+      session.hostKey,
       auth.binding,
     );
 
-    this.harnesses.authRevisions.set(s.hostKey, revision);
+    this.harnesses.authRevisions.set(session.hostKey, revision);
 
     // a harness keeps the settings it launched with, so each one under an older revision shows
     // that the new one applies at its next launch
     const pending = this.registry.sessions.filter(
-      (other) => other.hostKey === s.hostKey && this.harnesses.isAuthOutdated(other),
+      (other) => other.hostKey === session.hostKey && this.harnesses.isAuthOutdated(other),
     );
 
     for (const other of pending) {

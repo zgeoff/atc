@@ -13,8 +13,8 @@ import { SessionManager } from './sessions';
 // A session manager on one `local` target over the in-memory provider and
 // a real state store.
 async function setupTest() {
-  const tmp = setupTempDir('atc-get-descriptor-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-get-descriptor-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -22,10 +22,10 @@ async function setupTest() {
 
   registerTestCleanup(() => store.stop());
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     null,
     store,
-    join(tmp.path, 'status.json'),
+    join(temporaryDirectory.path, 'status.json'),
     [buildStubHarnessAdapter()],
     [
       buildMockExecutionTarget({
@@ -39,23 +39,23 @@ async function setupTest() {
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
-  return { dir: tmp.path, mgr };
+  return { directory: temporaryDirectory.path, manager };
 }
 
 test('it gets the descriptor of a session the manager holds', async () => {
   const ctx = await setupTest();
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  expect(getDescriptor(ctx.mgr, s.id)).toMatchObject({ id: s.id, name: 'worker' });
+  expect(getDescriptor(ctx.manager, session.id)).toMatchObject({ id: session.id, name: 'worker' });
 });
 
 test('it throws for a session the manager does not hold', async () => {
   const ctx = await setupTest();
 
-  expect(() => getDescriptor(ctx.mgr, toSessionID('s-gone'))).toThrowWithMessage(
+  expect(() => getDescriptor(ctx.manager, toSessionID('s-gone'))).toThrowWithMessage(
     Error,
     /descriptor for unknown session s-gone/u,
   );

@@ -104,12 +104,12 @@ export class SpawnRequests {
 
       // A git workspace without a cwd lands where the daemon picks on the
       // target.
-      const dir =
+      const directory =
         cwd === undefined && data.workspace?.kind === 'git'
           ? ctx.buildDefaultWorkspaceDir(target, data.workspace)
           : cwd;
 
-      if (dir === undefined) {
+      if (directory === undefined) {
         throw new DaemonError('bad_args', 'session.spawn requires a cwd');
       }
 
@@ -123,7 +123,7 @@ export class SpawnRequests {
       // A workspace is created, filled, and removed at the one directory
       // the host resolves cwd to, which a dot segment or a control
       // character would make differ from the path as written.
-      if (data.workspace !== undefined && !isPlainWorkspaceDir(dir)) {
+      if (data.workspace !== undefined && !isPlainWorkspaceDir(directory)) {
         throw new DaemonError(
           'bad_args',
           'a spawn with a workspace requires a cwd without . or .. segments or control characters',
@@ -143,8 +143,8 @@ export class SpawnRequests {
       }
 
       return {
-        cwd: dir,
-        name: data.name === '' ? basename(dir) : data.name,
+        cwd: directory,
+        name: data.name === '' ? basename(directory) : data.name,
         prompt: data.prompt,
         cols: data.cols,
         rows: data.rows,
@@ -278,9 +278,10 @@ export class SpawnRequests {
   }
 }
 
-function isPlainWorkspaceDir(dir: string): boolean {
+function isPlainWorkspaceDir(directory: string): boolean {
   return (
-    !CONTROL_CHARACTER.test(dir) && !dir.split('/').some((part) => part === '.' || part === '..')
+    !CONTROL_CHARACTER.test(directory) &&
+    !directory.split('/').some((part) => part === '.' || part === '..')
   );
 }
 

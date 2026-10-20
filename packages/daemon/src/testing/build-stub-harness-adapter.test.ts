@@ -84,7 +84,7 @@ test('it records each hook line with the state passed back for it', () => {
   adapter.planHookEvents({ atcId: toSessionID('s-1'), event: 'Stop', payload: {} }, 4);
 
   expect(adapter.hookReads).toStrictEqual([
-    { hook: { atcId: toSessionID('s-1'), event: 'Stop', payload: {} }, prev: 4 },
+    { hook: { atcId: toSessionID('s-1'), event: 'Stop', payload: {} }, previous: 4 },
   ]);
 });
 

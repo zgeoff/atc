@@ -6,7 +6,7 @@ import { restoreFleet } from './restore-fleet';
 import type { RestoreSettled } from './restore-fleet';
 
 interface FleetRestorerDeps {
-  readonly mgr: SessionManager;
+  readonly manager: SessionManager;
   readonly store: StateStore;
   readonly clock: Clock;
   readonly findRuntime: (sessionID: SessionID) => SessionRuntime | undefined;
@@ -53,7 +53,7 @@ export class FleetRestorer {
     void (async () => {
       try {
         const result = await restoreFleet({
-          mgr: this.deps.mgr,
+          manager: this.deps.manager,
           store: this.deps.store,
           findRuntime: this.deps.findRuntime,
           cols,
@@ -119,7 +119,7 @@ export class FleetRestorer {
   }
 
   private logRestoreFailure(error: unknown): void {
-    this.deps.mgr.log(
+    this.deps.manager.log(
       `atc could not restore the fleet (${error instanceof Error ? error.message : String(error)})`,
     );
   }

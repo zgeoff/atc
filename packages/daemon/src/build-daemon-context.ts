@@ -12,7 +12,7 @@ import type { SessionServices } from './start-session-services';
 export interface DaemonContextDeps {
   readonly opts: DaemonOptions;
   readonly store: StateStore;
-  readonly mgr: SessionManager;
+  readonly manager: SessionManager;
   readonly clock: Clock;
   readonly targets: readonly ExecutionTarget[];
   readonly targetsByID: ReadonlyMap<string, ExecutionTarget>;
@@ -32,7 +32,7 @@ const QUIT_FLUSH_DELAY_MS = 80;
 export function buildDaemonContext(deps: DaemonContextDeps): DaemonContext {
   const opts = deps.opts;
   const store = deps.store;
-  const mgr = deps.mgr;
+  const manager = deps.manager;
   const clock = deps.clock;
   const targets = deps.targets;
   const targetsByID = deps.targetsByID;
@@ -54,21 +54,23 @@ export function buildDaemonContext(deps: DaemonContextDeps): DaemonContext {
     build: opts.build,
     daemonID: store.daemonID,
     idempotencyRetentionMs: deps.idempotencyRetentionMs,
-    collectSessions: () => mgr.collectDescriptors(),
+    collectSessions: () => manager.collectDescriptors(),
     readSpawnDirs: (access) => catalog.readSpawnDirs(access),
     collectAgents: () => catalog.collectAgents(),
     readFleet: () => store.loadFleet(),
     loadLastUsedAgent: () => store.loadLastUsedAgent(),
-    findAdapter: (kind) => mgr.findAdapter(kind),
+    findAdapter: (kind) => manager.findAdapter(kind),
     buildTargetAccess: (principal) => buildTargetAccess(principals, targetsByID, principal),
     hasListedPrincipal: (principal) => principals?.has(principal) ?? false,
     findSessionGrant: (id) => {
-      const s = mgr.sessions.find((x) => x.id === id);
+      const session = manager.sessions.find((x) => x.id === id);
 
-      return s === undefined ? null : { target: s.target, targetIdentity: s.targetIdentity };
+      return session === undefined
+        ? null
+        : { target: session.target, targetIdentity: session.targetIdentity };
     },
     findTargetIdentity: (target) => targets.find((x) => x.id === target)?.identity ?? null,
-    canSeeSession: (id, access) => isTreeInReach(mgr.sessions, id, access),
+    canSeeSession: (id, access) => isTreeInReach(manager.sessions, id, access),
     isSessionVisible: () => true,
     findPermissionSession: (request) => permissions.findSessionID(request),
     resolveSpawnParent: (id) => spawns.resolveSpawnParent(id),
@@ -86,9 +88,9 @@ export function buildDaemonContext(deps: DaemonContextDeps): DaemonContext {
     collectAlternateGitURLs: (url) => catalog.collectAlternateGitURLs(url),
     checkRepositoryAccess: (request) => catalog.checkRepositoryAccess(request),
     spawnSession: (plan, keyed, access) => spawns.spawnSession(plan, keyed, access),
-    updateSession: (id, changes) => mgr.updateSession(id, changes),
-    updateSessionScope: (id, scope) => mgr.updateScope(id, scope),
-    isCallerTree: (id, caller) => mgr.isCallerTree(id, caller),
+    updateSession: (id, changes) => manager.updateSession(id, changes),
+    updateSessionScope: (id, scope) => manager.updateScope(id, scope),
+    isCallerTree: (id, caller) => manager.isCallerTree(id, caller),
     quitDaemon: () => {
       clock.schedule(() => {
         void (async () => {
@@ -101,20 +103,20 @@ export function buildDaemonContext(deps: DaemonContextDeps): DaemonContext {
     killSession: (id, stopOnly) => forgetter.killSession(id, stopOnly),
     forgetSession: (id, confirmToken, refuse, caller) =>
       forgetter.forgetSession(id, confirmToken, refuse, caller),
-    revokeSessionAuth: (id) => mgr.revokeAuth(id),
-    updateSessionAuth: (id) => mgr.updateAuth(id),
+    revokeSessionAuth: (id) => manager.revokeAuth(id),
+    updateSessionAuth: (id) => manager.updateAuth(id),
     ejectSession: (id, prompt) => handoff.yankSession(id, prompt),
     adoptSession: (id, cols, rows, access) => handoff.adoptSession(id, cols, rows, access),
     ackSession: (id) => {
-      if (!mgr.sessions.some((s) => s.id === id)) {
+      if (!manager.sessions.some((session) => session.id === id)) {
         return false;
       }
 
-      mgr.ack(id);
+      manager.ack(id);
 
       return true;
     },
-    planResumeCommand: (id) => mgr.planResumeCommand(id),
+    planResumeCommand: (id) => manager.planResumeCommand(id),
 
     readSessionScreen: (id) => input.readSessionScreen(id),
     readSessionMenu: (id) => input.readSessionMenu(id),

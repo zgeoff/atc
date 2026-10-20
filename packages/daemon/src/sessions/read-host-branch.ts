@@ -4,13 +4,13 @@ import { runHostGit } from '../workspace/run-host-git';
 export async function readHostBranch(
   provider: ExecutionProvider,
   host: string,
-  dir: string,
+  directory: string,
 ): Promise<string | null> {
   if (provider.remote && !provider.capabilities.run) {
     return null;
   }
 
-  const head = await runHostGit(provider, host, dir, [
+  const head = await runHostGit(provider, host, directory, [
     'symbolic-ref',
     '--quiet',
     '--short',

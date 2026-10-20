@@ -7,11 +7,14 @@ import type { SessionRegistry } from './session-registry';
 // the spawn. A session whose provider is gone counts as remote.
 export function requireSessionPluginDirs(
   registry: Pick<SessionRegistry, 'findAdapter' | 'findProvider'>,
-  s: Session,
+  session: Session,
 ): void {
   requirePluginDirsOnTarget(
-    [...(registry.findAdapter(s.agent)?.profile?.pluginDirs ?? []), ...(s.pluginDirs ?? [])],
-    s.target,
-    registry.findProvider(s)?.remote !== false,
+    [
+      ...(registry.findAdapter(session.agent)?.profile?.pluginDirs ?? []),
+      ...(session.pluginDirs ?? []),
+    ],
+    session.target,
+    registry.findProvider(session)?.remote !== false,
   );
 }

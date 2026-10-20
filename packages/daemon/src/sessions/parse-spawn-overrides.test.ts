@@ -495,7 +495,7 @@ test.each([
   ['a path with a newline', '/opt/plugins/band\n'],
   ['a path with an escape byte', '/opt/plugins/band\u001B[2J'],
   ['a path of 4097 characters', `/${'p'.repeat(4096)}`],
-])('it refuses %s in pluginDirs as bad_args', (_label, dir) => {
+])('it refuses %s in pluginDirs as bad_args', (_label, directory) => {
   const [claude] = buildAgentList(
     [
       buildMockAgentAdapter({
@@ -540,11 +540,13 @@ test.each([
 
   invariant(claude !== undefined, 'the agent list holds no claude entry');
 
-  expect(parseSpawnOverrides(claude, { pluginDirs: ['/opt/plugins/ok', dir] })).toStrictEqual({
-    ok: false,
-    code: 'bad_args',
-    message: 'each pluginDirs entry must be 1 to 4096 characters without control characters',
-  });
+  expect(parseSpawnOverrides(claude, { pluginDirs: ['/opt/plugins/ok', directory] })).toStrictEqual(
+    {
+      ok: false,
+      code: 'bad_args',
+      message: 'each pluginDirs entry must be 1 to 4096 characters without control characters',
+    },
+  );
 });
 
 test('it accepts a 4096-character absolute path in pluginDirs', () => {
@@ -592,10 +594,10 @@ test('it accepts a 4096-character absolute path in pluginDirs', () => {
 
   invariant(claude !== undefined, 'the agent list holds no claude entry');
 
-  const dir = `/${'p'.repeat(4095)}`;
+  const directory = `/${'p'.repeat(4095)}`;
 
-  expect(parseSpawnOverrides(claude, { pluginDirs: [dir] })).toStrictEqual({
+  expect(parseSpawnOverrides(claude, { pluginDirs: [directory] })).toStrictEqual({
     ok: true,
-    overrides: { pluginDirs: [dir] },
+    overrides: { pluginDirs: [directory] },
   });
 });

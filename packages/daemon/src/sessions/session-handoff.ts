@@ -9,7 +9,7 @@ import type { SessionRuntime } from './session-runtime';
 import type { SessionManager } from './sessions';
 
 interface SessionHandoffDeps {
-  readonly mgr: Pick<
+  readonly manager: Pick<
     SessionManager,
     | 'sessions'
     | 'findAdapter'
@@ -34,7 +34,7 @@ interface SessionHandoffDeps {
 }
 
 export class SessionHandoff {
-  private readonly mgr: SessionHandoffDeps['mgr'];
+  private readonly manager: SessionHandoffDeps['manager'];
 
   private readonly findRuntime: SessionHandoffDeps['findRuntime'];
 
@@ -47,7 +47,7 @@ export class SessionHandoff {
   private readonly scheduleResize: SessionHandoffDeps['scheduleResize'];
 
   constructor(deps: SessionHandoffDeps) {
-    this.mgr = deps.mgr;
+    this.manager = deps.manager;
     this.findRuntime = deps.findRuntime;
     this.ejectSettleMs = deps.ejectSettleMs;
     this.scheduleEjectSettle = deps.scheduleEjectSettle;
@@ -56,29 +56,29 @@ export class SessionHandoff {
   }
 
   yankSession(id: SessionID, prompt: string): 'ok' | 'missing' | 'unsupported' | 'no_transcript' {
-    const s = this.mgr.sessions.find((x) => x.id === id);
+    const session = this.manager.sessions.find((x) => x.id === id);
 
-    if (s === undefined) {
+    if (session === undefined) {
       return 'missing';
     }
 
-    const adapter = this.mgr.findAdapter(s.agent);
+    const adapter = this.manager.findAdapter(session.agent);
 
     if (adapter === null || adapter.headlessRunner === null) {
       return 'unsupported';
     }
 
-    if (!hasResumableTranscript(this.mgr, id)) {
+    if (!hasResumableTranscript(this.manager, id)) {
       return 'no_transcript';
     }
 
-    this.mgr.requireExecution(s, 'kill');
-    this.mgr.requireExecution(s, 'headless');
+    this.manager.requireExecution(session, 'kill');
+    this.manager.requireExecution(session, 'headless');
 
     // Refused before the terminal stops, so a refusal leaves it running.
-    requireSessionPluginDirs(this.mgr, s);
+    requireSessionPluginDirs(this.manager, session);
 
-    const yanked = this.mgr.yankHeadless(id);
+    const yanked = this.manager.yankHeadless(id);
 
     if (yanked === null) {
       return 'missing';
@@ -110,27 +110,27 @@ export class SessionHandoff {
     rows: number,
     access: TargetAccess | null,
   ): Promise<'ok' | 'missing' | 'no_transcript'> {
-    if (!hasResumableTranscript(this.mgr, id)) {
+    if (!hasResumableTranscript(this.manager, id)) {
       return 'no_transcript';
     }
 
-    const listed = this.mgr.sessions.find((s) => s.id === id);
+    const listed = this.manager.sessions.find((session) => session.id === id);
 
     // Refused before the headless run stops, so a refusal leaves it as
     // it was.
     if (listed !== undefined) {
-      this.mgr.requireAgentTarget(listed.agent, listed.target);
+      this.manager.requireAgentTarget(listed.agent, listed.target);
 
-      requireSessionPluginDirs(this.mgr, listed);
+      requireSessionPluginDirs(this.manager, listed);
     }
 
     this.findRuntime(id)?.stopHeadlessRun();
 
-    const adopted = await this.mgr.adoptTerminal(
+    const adopted = await this.manager.adoptTerminal(
       id,
       cols,
       rows,
-      () => access === null || isTreeInReach(this.mgr.sessions, id, access),
+      () => access === null || isTreeInReach(this.manager.sessions, id, access),
     );
 
     if (adopted === null) {

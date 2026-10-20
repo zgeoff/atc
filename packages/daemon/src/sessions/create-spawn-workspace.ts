@@ -43,7 +43,7 @@ export async function createSpawnWorkspace(
   const hostKey = spawn.hostKey;
   const target = spawn.target;
   const timer = spawn.timer;
-  const dir = spawn.cwd;
+  const directory = spawn.cwd;
   let landed: string | null = null;
   let hostHome: string | null = null;
 
@@ -57,13 +57,13 @@ export async function createSpawnWorkspace(
 
             // A directory the daemon picked on a remote target is relative
             // to the home there, which only the readied host can resolve.
-            hostHome ??= posix.isAbsolute(dir)
+            hostHome ??= posix.isAbsolute(directory)
               ? ''
               : await timer.withStep('host-home', () =>
                   deps.claims.resolveHostHome(provider, hostKey),
                 );
 
-            const base = posix.isAbsolute(dir) ? dir : posix.join(hostHome, dir);
+            const base = posix.isAbsolute(directory) ? directory : posix.join(hostHome, directory);
             const candidate = attempt === 1 ? base : `${base}-${attempt}`;
 
             const landing = await timer.withStep('dir-claim', () =>
@@ -81,7 +81,7 @@ export async function createSpawnWorkspace(
 
             landed = landing;
 
-            return { host: hostKey, dir: landing };
+            return { host: hostKey, directory: landing };
           },
           removeClaim: (landing) =>
             deps.claims.removeClaimedDir(provider, id, hostKey, target, landing),

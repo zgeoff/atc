@@ -44,24 +44,24 @@ export class PermissionPrompts {
     );
   }
 
-  recordSessionEvent(kind: SessionEventKind, s: Session): void {
+  recordSessionEvent(kind: SessionEventKind, session: Session): void {
     if (kind === 'removed') {
-      this.registry.answerAll(s.id, 'dismissed');
-      this.lastStates.delete(s.id);
+      this.registry.answerAll(session.id, 'dismissed');
+      this.lastStates.delete(session.id);
 
       return;
     }
 
-    const prev = this.lastStates.get(s.id);
+    const previous = this.lastStates.get(session.id);
 
-    this.lastStates.set(s.id, s.state);
+    this.lastStates.set(session.id, session.state);
 
-    if (s.state === 'needs_you' && prev !== 'needs_you') {
-      this.registry.open(s.id, s.lastMsg, false);
+    if (session.state === 'needs_you' && previous !== 'needs_you') {
+      this.registry.open(session.id, session.lastMsg, false);
     }
 
-    if (prev === 'needs_you' && s.state !== 'needs_you') {
-      this.registry.answerAll(s.id, 'dismissed');
+    if (previous === 'needs_you' && session.state !== 'needs_you') {
+      this.registry.answerAll(session.id, 'dismissed');
     }
   }
 

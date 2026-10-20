@@ -8,7 +8,7 @@ import type { WorkspaceSource } from './workspace-source';
 
 interface CloneRequest {
   readonly source: Extract<WorkspaceSource, { readonly kind: 'git' }>;
-  readonly dir: string;
+  readonly directory: string;
   readonly credential?: GitCredential;
 
   // The transports git may fetch over.
@@ -70,7 +70,7 @@ async function createCloneAtRef(
       '--template=',
       '--',
       request.source.url,
-      request.dir,
+      request.directory,
     ],
     { env, transports: request.transports },
   );
@@ -88,28 +88,28 @@ async function createCloneAtRef(
       '--quiet',
       ...(target.branch === null ? ['--detach', target.sha] : ['-B', target.branch, target.sha]),
     ],
-    { cwd: request.dir, isolated: true },
+    { cwd: request.directory, isolated: true },
   );
 
   if (checkout.exitCode !== 0) {
     // A pinned commit that no upstream ref reaches never arrives in the
     // clone, so its checkout fails on a commit the upstream does not have.
     const present = await runGit(['cat-file', '-e', `${target.sha}^{commit}`], {
-      cwd: request.dir,
+      cwd: request.directory,
       isolated: true,
     });
 
-    await rm(request.dir, { recursive: true, force: true });
+    await rm(request.directory, { recursive: true, force: true });
 
     return present.exitCode === 0
       ? { ok: false, code: 'clone_failed', message: checkout.stderr.trim() }
       : { ok: false, code: 'ref_not_found', message: `origin has no commit ${target.sha}` };
   }
 
-  const complete = await checkWorkspaceCompleteness(request.dir, target.sha);
+  const complete = await checkWorkspaceCompleteness(request.directory, target.sha);
 
   if (!complete.ok) {
-    await rm(request.dir, { recursive: true, force: true });
+    await rm(request.directory, { recursive: true, force: true });
 
     return complete;
   }

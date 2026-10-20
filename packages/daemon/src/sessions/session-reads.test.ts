@@ -21,8 +21,8 @@ interface SetupTestConfig {
 // A session manager on one `local` target over the in-memory provider, a
 // real state store and published records, and the reads over them.
 async function setupTest(config: SetupTestConfig) {
-  const tmp = setupTempDir('atc-session-reads-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-session-reads-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -30,10 +30,10 @@ async function setupTest(config: SetupTestConfig) {
 
   registerTestCleanup(() => store.stop());
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     null,
     store,
-    join(tmp.path, 'status.json'),
+    join(temporaryDirectory.path, 'status.json'),
     [config.adapter],
     [
       buildMockExecutionTarget({
@@ -47,32 +47,36 @@ async function setupTest(config: SetupTestConfig) {
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
   const records = new PublishedRecords({
     store,
     daemonID: store.daemonID,
-    localDir: join(tmp.path, 'records'),
+    localDir: join(temporaryDirectory.path, 'records'),
     ghBin: 'gh',
     now: () => 1_000_000,
   });
 
-  const reads = new SessionReads({ mgr, store, records });
+  const reads = new SessionReads({ manager, store, records });
 
-  return { dir: tmp.path, store, mgr, reads };
+  return { directory: temporaryDirectory.path, store, manager, reads };
 }
 
 test('it reads the record of a session with the time of its last trail row', async () => {
   const ctx = await setupTest({ adapter: buildStubHarnessAdapter() });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', 'tidy the docs', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', 'tidy the docs', 80, 24);
 
-  await ctx.store.recordEvent({ atcId: s.id, event: 'Stop', payload: {} }, null, 1_700_000_000_000);
+  await ctx.store.recordEvent(
+    { atcId: session.id, event: 'Stop', payload: {} },
+    null,
+    1_700_000_000_000,
+  );
 
-  const record = await ctx.reads.readSessionRecord(s.id, null);
+  const record = await ctx.reads.readSessionRecord(session.id, null);
 
   expect(record).toMatchObject({
-    session: { id: s.id, name: 'worker' },
+    session: { id: session.id, name: 'worker' },
     prompt: 'tidy the docs',
     lastActivityAt: 1_700_000_000_000,
     pending: null,
@@ -83,28 +87,28 @@ test('it reads the record of a session with the time of its last trail row', asy
 
 test('it reads the creation time as the last activity of a session with no trail rows', async () => {
   const ctx = await setupTest({ adapter: buildStubHarnessAdapter() });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
-  const record = await ctx.reads.readSessionRecord(s.id, null);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+  const record = await ctx.reads.readSessionRecord(session.id, null);
 
-  expect(record).toMatchObject({ lastActivityAt: s.createdAt });
+  expect(record).toMatchObject({ lastActivityAt: session.createdAt });
 });
 
 test('it reads the message a session waits on as pending', async () => {
   const ctx = await setupTest({ adapter: buildStubHarnessAdapter() });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  ctx.mgr.updateAttention(s.id, 'needs_you', 'Allow the edit?');
+  ctx.manager.updateAttention(session.id, 'needs_you', 'Allow the edit?');
 
-  const record = await ctx.reads.readSessionRecord(s.id, null);
+  const record = await ctx.reads.readSessionRecord(session.id, null);
 
   expect(record).toMatchObject({ pending: { message: 'Allow the edit?' } });
 });
 
 test('it counts the trail rows of the agent session the session resumed', async () => {
   const ctx = await setupTest({ adapter: buildStubHarnessAdapter() });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  s.agentSessionID = toAgentSessionID('a-1');
+  session.agentSessionID = toAgentSessionID('a-1');
 
   await ctx.store.recordEvent(
     { atcId: toSessionID('s-earlier'), event: 'Stop', payload: { session_id: 'a-1' } },
@@ -112,16 +116,16 @@ test('it counts the trail rows of the agent session the session resumed', async 
     1_700_000_000_000,
   );
 
-  const record = await ctx.reads.readSessionRecord(s.id, null);
+  const record = await ctx.reads.readSessionRecord(session.id, null);
 
   expect(record).toMatchObject({ lastActivityAt: 1_700_000_000_000 });
 });
 
 test('it counts only the own trail rows of the session under an access', async () => {
   const ctx = await setupTest({ adapter: buildStubHarnessAdapter() });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  s.agentSessionID = toAgentSessionID('a-1');
+  session.agentSessionID = toAgentSessionID('a-1');
 
   await ctx.store.recordEvent(
     { atcId: toSessionID('s-earlier'), event: 'Stop', payload: { session_id: 'a-1' } },
@@ -131,9 +135,9 @@ test('it counts only the own trail rows of the session under an access', async (
 
   const access = new TargetAccess([{ target: 'local', targetIdentity: 'local-pty:test' }]);
 
-  const record = await ctx.reads.readSessionRecord(s.id, access);
+  const record = await ctx.reads.readSessionRecord(session.id, access);
 
-  expect(record).toMatchObject({ lastActivityAt: s.createdAt });
+  expect(record).toMatchObject({ lastActivityAt: session.createdAt });
 });
 
 test('it reads no record for a session the manager does not hold', async () => {
@@ -151,15 +155,15 @@ test('it pages the transcript of a session through its agent', async () => {
     },
   });
 
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  const path = join(ctx.dir, 'transcript.jsonl');
+  const path = join(ctx.directory, 'transcript.jsonl');
 
   await Bun.write(path, 'first turn\nsecond turn\n');
 
-  s.transcriptPath = path;
+  session.transcriptPath = path;
 
-  const read = await ctx.reads.loadSessionTranscript(s.id, null, 10);
+  const read = await ctx.reads.loadSessionTranscript(session.id, null, 10);
 
   expect(read).toMatchObject({
     path,
@@ -181,16 +185,16 @@ test('it reads an empty page for a session with no transcript yet', async () => 
     },
   });
 
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
-  const read = await ctx.reads.loadSessionTranscript(s.id, null, 10);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+  const read = await ctx.reads.loadSessionTranscript(session.id, null, 10);
 
   expect(read).toStrictEqual({ path: '', page: { rows: [], offset: 0, more: false } });
 });
 
 test('it refuses a transcript read for an agent that parses none', async () => {
   const ctx = await setupTest({ adapter: buildStubHarnessAdapter() });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
-  const read = await ctx.reads.loadSessionTranscript(s.id, null, 10);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+  const read = await ctx.reads.loadSessionTranscript(session.id, null, 10);
 
   expect(read).toBe('unsupported');
 });

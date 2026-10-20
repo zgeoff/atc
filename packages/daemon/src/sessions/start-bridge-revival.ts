@@ -11,7 +11,7 @@ import type { SessionManager } from './sessions';
 import type { TapRegistry } from './tap-registry';
 
 interface BridgeRevivalDeps {
-  readonly mgr: Pick<SessionManager, 'sessions' | 'findAdapter' | 'requireExecution' | 'log'>;
+  readonly manager: Pick<SessionManager, 'sessions' | 'findAdapter' | 'requireExecution' | 'log'>;
   readonly taps: Pick<TapRegistry<TapClient>, 'hasTap' | 'subscribeToDetach'>;
   readonly clock: Clock;
 
@@ -20,7 +20,7 @@ interface BridgeRevivalDeps {
   readonly isProcessEnded: (sessionID: SessionID) => boolean;
 
   // Lands a note in the session's events.
-  readonly applyNote: (e: HookEvent) => Promise<void>;
+  readonly applyNote: (hookEvent: HookEvent) => Promise<void>;
 }
 
 export interface BridgeRevival {
@@ -32,7 +32,7 @@ interface BridgeWrite {
   readonly session: Session;
   readonly provider: ExecutionProvider;
   readonly files: readonly { readonly path: string; readonly content: string }[];
-  readonly dir: string;
+  readonly directory: string;
 }
 
 // A running remote session whose tap stays gone gets its bridge mod written
@@ -67,18 +67,21 @@ export function startBridgeRevival(deps: BridgeRevivalDeps): BridgeRevival {
     },
   };
 
-  const findSession = (sessionID: SessionID) => deps.mgr.sessions.find((x) => x.id === sessionID);
+  const findSession = (sessionID: SessionID) =>
+    deps.manager.sessions.find((x) => x.id === sessionID);
 
   // Creates, stores and starts the machine of a session that has none.
   const startSessionActor = (sessionID: SessionID) => {
     const machine = BRIDGE_REVIVAL_MACHINE.provide({
       guards: {
         isGone: () => {
-          const s = findSession(sessionID);
+          const session = findSession(sessionID);
 
           // a sleeping host has no terminal, yet its session is not gone
           return (
-            s === undefined || deps.isProcessEnded(sessionID) || (s.pty === null && !s.suspended)
+            session === undefined ||
+            deps.isProcessEnded(sessionID) ||
+            (session.pty === null && !session.suspended)
           );
         },
         hasTap: () => deps.taps.hasTap(sessionID),
@@ -108,14 +111,14 @@ export function startBridgeRevival(deps: BridgeRevivalDeps): BridgeRevival {
   };
 
   const findBridgeWrite = (sessionID: SessionID): BridgeWrite | null => {
-    const s = findSession(sessionID);
+    const session = findSession(sessionID);
 
-    if (s === undefined) {
+    if (session === undefined) {
       return null;
     }
 
-    const adapter = deps.mgr.findAdapter(s.agent);
-    const provider = findTransferProvider(s);
+    const adapter = deps.manager.findAdapter(session.agent);
+    const provider = findTransferProvider(session);
     const guest = provider?.guest;
 
     if (
@@ -132,13 +135,13 @@ export function startBridgeRevival(deps: BridgeRevivalDeps): BridgeRevival {
       ([path, content]) => ({ path, content }),
     );
 
-    return { session: s, provider, files, dir: `${guest.directory}/sessions/${s.id}` };
+    return { session, provider, files, directory: `${guest.directory}/sessions/${session.id}` };
   };
 
   // A target that refuses transfers, or that left the config, takes no write.
-  const findTransferProvider = (s: Session): ExecutionProvider | null => {
+  const findTransferProvider = (session: Session): ExecutionProvider | null => {
     try {
-      return deps.mgr.requireExecution(s, 'transfer').provider;
+      return deps.manager.requireExecution(session, 'transfer').provider;
     } catch {
       return null;
     }
@@ -152,7 +155,7 @@ export function startBridgeRevival(deps: BridgeRevivalDeps): BridgeRevival {
         await transferBridge(write);
       }
     } catch (error) {
-      deps.mgr.log(
+      deps.manager.log(
         `session ${sessionID}: writing its atc-bridge mod again failed: ${String(error)}`,
       );
     }
@@ -161,14 +164,20 @@ export function startBridgeRevival(deps: BridgeRevivalDeps): BridgeRevival {
   };
 
   const transferBridge = async (write: BridgeWrite) => {
-    const s = write.session;
+    const session = write.session;
 
-    await write.provider.transferArchive(buildTarArchive(write.files), write.dir, s.hostKey);
+    await write.provider.transferArchive(
+      buildTarArchive(write.files),
+      write.directory,
+      session.hostKey,
+    );
 
-    deps.mgr.log(`session ${s.id}: its atc-bridge tap was gone, so atc wrote the mod again`);
+    deps.manager.log(
+      `session ${session.id}: its atc-bridge tap was gone, so atc wrote the mod again`,
+    );
 
     await deps.applyNote({
-      atcId: s.id,
+      atcId: session.id,
       event: 'Note',
       payload: {
         kind: 'note',

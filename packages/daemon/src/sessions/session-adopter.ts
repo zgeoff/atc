@@ -119,7 +119,7 @@ export class SessionAdopter {
   // logged rather than thrown.
   private async tryAdoptSibling(
     sibling: Session,
-    s: Session,
+    session: Session,
     cols: number,
     rows: number,
   ): Promise<void> {
@@ -127,7 +127,7 @@ export class SessionAdopter {
       await this.adoptTerminal(sibling.id, cols, rows);
     } catch (error) {
       this.callbacks.log(
-        `atc could not revive session ${sibling.id} beside ${s.id} (${error instanceof Error ? error.message : String(error)})`,
+        `atc could not revive session ${sibling.id} beside ${session.id} (${error instanceof Error ? error.message : String(error)})`,
       );
     }
   }
@@ -141,16 +141,21 @@ export class SessionAdopter {
     rows: number,
     canProceed: () => boolean = () => true,
   ): Promise<Session | null> {
-    const s = this.registry.sessions.find((x) => x.id === id);
+    const session = this.registry.sessions.find((x) => x.id === id);
 
-    if (!s || s.pty !== null || s.agentSessionID === undefined || this.adopting.has(id)) {
+    if (
+      !session ||
+      session.pty !== null ||
+      session.agentSessionID === undefined ||
+      this.adopting.has(id)
+    ) {
       return null;
     }
 
     // Only a harness that sleeps inside its host restarts when it launched
     // under an older revision: one that runs, such as a harness a restore
     // finds after a daemon restart, may be inside a turn a restart ends.
-    const wasAsleep = s.suspended;
+    const wasAsleep = session.suspended;
 
     const settled = await this.rollback.probeRollbackSettled(id);
 
@@ -158,54 +163,54 @@ export class SessionAdopter {
       return null;
     }
 
-    const adapter = this.registry.findAdapter(s.agent);
+    const adapter = this.registry.findAdapter(session.agent);
 
     if (adapter === null) {
       return null;
     }
 
-    const provider = this.registry.requireExecution(s, 'spawn').provider;
+    const provider = this.registry.requireExecution(session, 'spawn').provider;
 
     // the config's folders may have changed since the spawn, so a revive
     // checks them again rather than starting the session without them
     requirePluginDirsOnTarget(
-      [...(adapter.profile?.pluginDirs ?? []), ...(s.pluginDirs ?? [])],
-      s.target,
+      [...(adapter.profile?.pluginDirs ?? []), ...(session.pluginDirs ?? [])],
+      session.target,
       provider.remote,
     );
 
-    const auth = this.auth.resolveHarnessAuth(adapter, provider, s.target);
+    const auth = this.auth.resolveHarnessAuth(adapter, provider, session.target);
     const timer = createStepTimer(this.callbacks.now);
 
     const authSetup: HarnessAuthSetup | null =
-      auth === null ? null : { ...auth, mode: 'verify', targetIdentity: s.targetIdentity };
+      auth === null ? null : { ...auth, mode: 'verify', targetIdentity: session.targetIdentity };
 
     this.adopting.add(id);
 
     let plan: HarnessPlan;
     let recordPath: string | null;
-    const resume = s.agentSessionID;
+    const resume = session.agentSessionID;
 
     // The record is placed again while the host still counts as readying,
     // so a host that lost its copy, such as one that booted cold, has it
     // back before the harness starts.
     try {
-      const setup = await this.harnesses.withHostReadying(s.hostKey, async () => {
+      const setup = await this.harnesses.withHostReadying(session.hostKey, async () => {
         const planned = await this.auth.setupHarnessOnHost(
           adapter,
           provider,
-          s.id,
-          s.hostKey,
-          s.target,
+          session.id,
+          session.hostKey,
+          session.target,
           {
             prompt: '',
             resume,
-            ...(s.model === undefined ? {} : { model: s.model }),
-            ...(s.effort === undefined ? {} : { effort: s.effort }),
-            ...(s.pluginDirs === undefined ? {} : { pluginDirs: s.pluginDirs }),
+            ...(session.model === undefined ? {} : { model: session.model }),
+            ...(session.effort === undefined ? {} : { effort: session.effort }),
+            ...(session.pluginDirs === undefined ? {} : { pluginDirs: session.pluginDirs }),
           },
           authSetup,
-          s.cwd,
+          session.cwd,
           false,
           timer,
         );
@@ -217,12 +222,12 @@ export class SessionAdopter {
             ? null
             : await timer.withStep('record', () =>
                 records.restoreCopy({
-                  session: s.id,
-                  target: s.target,
+                  session: session.id,
+                  target: session.target,
                   provider,
-                  host: s.hostKey,
-                  dir: s.cwd,
-                  workspace: s.workspace ?? null,
+                  host: session.hostKey,
+                  directory: session.cwd,
+                  workspace: session.workspace ?? null,
                 }),
               );
 
@@ -248,8 +253,8 @@ export class SessionAdopter {
       // wakes.
       if (
         !canProceed() ||
-        s.pty !== null ||
-        !this.registry.sessions.includes(s) ||
+        session.pty !== null ||
+        !this.registry.sessions.includes(session) ||
         this.rollback.rollingBack.has(id) ||
         this.rollback.unconfirmedKills.has(id)
       ) {
@@ -262,34 +267,34 @@ export class SessionAdopter {
       if (!provider.remote) {
         const bridged = await this.callbacks.startMessageBridge({
           adapter,
-          session: s.id,
-          cwd: s.cwd,
+          session: session.id,
+          cwd: session.cwd,
           env: {
             ...plan.env,
             ...buildSessionEnv({
-              sessionID: s.id,
+              sessionID: session.id,
               socket: socketPath,
               ...(recordPath === null ? {} : { sessionRecord: recordPath }),
             }),
           },
-          withheldEnv: s.withheldEnv,
+          withheldEnv: session.withheldEnv,
           options: {
             prompt: '',
             resume,
-            ...(s.model === undefined ? {} : { model: s.model }),
-            ...(s.effort === undefined ? {} : { effort: s.effort }),
-            ...(s.pluginDirs === undefined ? {} : { pluginDirs: s.pluginDirs }),
+            ...(session.model === undefined ? {} : { model: session.model }),
+            ...(session.effort === undefined ? {} : { effort: session.effort }),
+            ...(session.pluginDirs === undefined ? {} : { pluginDirs: session.pluginDirs }),
           },
         });
 
         if (
           !canProceed() ||
-          s.pty !== null ||
-          !this.registry.sessions.includes(s) ||
+          session.pty !== null ||
+          !this.registry.sessions.includes(session) ||
           this.rollback.rollingBack.has(id) ||
           this.rollback.unconfirmedKills.has(id)
         ) {
-          await this.callbacks.stopMessageBridge(s.id);
+          await this.callbacks.stopMessageBridge(session.id);
 
           return null;
         }
@@ -302,9 +307,9 @@ export class SessionAdopter {
       // A terminal that fails to start leaves no message bridge running
       // without it.
       try {
-        pty = this.startHarness(s, launch);
+        pty = this.startHarness(session, launch);
       } catch (error) {
-        await this.callbacks.stopMessageBridge(s.id);
+        await this.callbacks.stopMessageBridge(session.id);
 
         throw error;
       }
@@ -315,28 +320,28 @@ export class SessionAdopter {
     let start = await timer.withStep('harness-start', () =>
       auth === null
         ? Promise.resolve(undefined)
-        : this.harnesses.waitForAuthStart(s, provider, pty),
+        : this.harnesses.waitForAuthStart(session, provider, pty),
     );
 
     const outdated =
       plan.admission !== null &&
       start?.created === false &&
       wasAsleep &&
-      isLaunchOutdated(s, plan.admission.revision, plan.heldRevision);
+      isLaunchOutdated(session, plan.admission.revision, plan.heldRevision);
 
-    const restartable = outdated ? await this.probeHarnessRestartable(s, pty) : false;
+    const restartable = outdated ? await this.probeHarnessRestartable(session, pty) : false;
 
     if (restartable) {
-      pty = await this.restartOutdatedHarness(s, pty, launch, canProceed);
+      pty = await this.restartOutdatedHarness(session, pty, launch, canProceed);
 
       start = await timer.withStep('harness-restart', () =>
-        this.harnesses.waitForAuthStart(s, provider, pty),
+        this.harnesses.waitForAuthStart(session, provider, pty),
       );
     }
 
     if (plan.admission !== null) {
       this.harnesses.updateLaunchRevision(
-        s,
+        session,
         plan.admission.revision,
         plan.heldRevision,
         start?.created ?? true,
@@ -345,69 +350,79 @@ export class SessionAdopter {
 
     if (provider.remote) {
       this.callbacks.log(
-        `atc: wake of session ${s.id} on target '${s.target}' took ${timer.formatSteps()}`,
+        `atc: wake of session ${session.id} on target '${session.target}' took ${timer.formatSteps()}`,
       );
     }
 
     for (const asleep of this.registry.sessions) {
-      if (asleep.hostKey === s.hostKey && asleep.target === s.target && asleep.suspended) {
-        await this.tryAdoptSibling(asleep, s, cols, rows);
+      if (
+        asleep.hostKey === session.hostKey &&
+        asleep.target === session.target &&
+        asleep.suspended
+      ) {
+        await this.tryAdoptSibling(asleep, session, cols, rows);
       }
     }
 
-    return s;
+    return session;
   }
 
   // Starts the harness that revives a session, or attaches the one its
   // host still runs, and follows it as the session's terminal.
-  private startHarness(s: Session, launch: HarnessLaunch): HarnessHandle {
+  private startHarness(session: Session, launch: HarnessLaunch): HarnessHandle {
     const plan = launch.plan;
     const provider = launch.provider;
-    const binding = this.harnesses.mintBridgeBinding(s.id, s.target, s.targetIdentity, s.hostKey);
+
+    const binding = this.harnesses.mintBridgeBinding(
+      session.id,
+      session.target,
+      session.targetIdentity,
+      session.hostKey,
+    );
 
     const pty = provider.spawnHarness({
-      session: s.id,
-      host: s.hostKey,
+      session: session.id,
+      host: session.hostKey,
       bin: plan.bin,
       args: plan.args,
-      cwd: s.cwd,
+      cwd: session.cwd,
       env: {
         ...plan.env,
         ...buildSessionEnv({
-          sessionID: s.id,
+          sessionID: session.id,
           socket: socketPath,
           ...(launch.recordPath === null ? {} : { sessionRecord: launch.recordPath }),
         }),
       },
-      withheldEnv: s.withheldEnv,
+      withheldEnv: session.withheldEnv,
       cols: launch.cols,
       rows: launch.rows,
-      ...this.auth.buildBrokerSpec(s.hostKey, plan.admission),
+      ...this.auth.buildBrokerSpec(session.hostKey, plan.admission),
       onRelay: (relay) => {
         this.callbacks.onRelay(binding, relay);
       },
     });
 
-    s.bridgeEpoch = binding.epoch;
-    s.pty = pty;
-    s.kind = 'pty';
-    s.state = 'running';
-    s.lastMsg = 'revived';
+    session.bridgeEpoch = binding.epoch;
+    session.pty = pty;
+    session.kind = 'pty';
+    session.state = 'running';
+    session.lastMsg = 'revived';
 
-    this.registry.unrestored.delete(s.id);
+    this.registry.unrestored.delete(session.id);
 
     if (plan.admission === null) {
-      delete s.authRevision;
+      delete session.authRevision;
     }
 
-    s.repoRoot = provider.remote ? s.cwd : resolveRepoRoot(s.cwd);
-    s.desired = 'run';
-    s.suspended = false;
+    session.repoRoot = provider.remote ? session.cwd : resolveRepoRoot(session.cwd);
+    session.desired = 'run';
+    session.suspended = false;
 
-    this.harnesses.attachHarness(s, pty, this.registry.hasHostLifecycle(s.target));
-    this.callbacks.onBoot(s, launch.cols, launch.rows);
-    void this.fleet.tryWriteFleet(s.id);
-    this.callbacks.onEvent('state', s);
+    this.harnesses.attachHarness(session, pty, this.registry.hasHostLifecycle(session.target));
+    this.callbacks.onBoot(session, launch.cols, launch.rows);
+    void this.fleet.tryWriteFleet(session.id);
+    this.callbacks.onEvent('state', session);
     this.fleet.emitChange();
 
     return pty;
@@ -416,12 +431,12 @@ export class SessionAdopter {
   // the harness is still the session's terminal, or ended on its own with
   // an exit its host reported, as one that ended while its host slept does;
   // a stop, a sleep, or another revive that took the session leaves it
-  private async probeHarnessRestartable(s: Session, pty: HarnessHandle): Promise<boolean> {
-    if (s.pty === pty) {
+  private async probeHarnessRestartable(session: Session, pty: HarnessHandle): Promise<boolean> {
+    if (session.pty === pty) {
       return true;
     }
 
-    if (s.pty !== null) {
+    if (session.pty !== null) {
       return false;
     }
 
@@ -429,11 +444,11 @@ export class SessionAdopter {
 
     return (
       exited &&
-      s.pty === null &&
-      s.desired === 'run' &&
-      !s.suspended &&
-      !this.adopting.has(s.id) &&
-      this.registry.sessions.includes(s)
+      session.pty === null &&
+      session.desired === 'run' &&
+      !session.suspended &&
+      !this.adopting.has(session.id) &&
+      this.registry.sessions.includes(session)
     );
   }
 
@@ -441,19 +456,19 @@ export class SessionAdopter {
   // under; the host counts as readying throughout, so it is never idle
   // between the two harnesses and no other revive of the session starts
   private async restartOutdatedHarness(
-    s: Session,
+    session: Session,
     outdated: HarnessHandle,
     launch: HarnessLaunch,
     canProceed: () => boolean,
   ): Promise<HarnessHandle> {
-    this.adopting.add(s.id);
+    this.adopting.add(session.id);
 
     try {
-      return await this.harnesses.withHostReadying(s.hostKey, () =>
-        this.restartHarnessOnHost(s, outdated, launch, canProceed),
+      return await this.harnesses.withHostReadying(session.hostKey, () =>
+        this.restartHarnessOnHost(session, outdated, launch, canProceed),
       );
     } finally {
-      this.adopting.delete(s.id);
+      this.adopting.delete(session.id);
     }
   }
 
@@ -461,53 +476,53 @@ export class SessionAdopter {
   // is gone; a stop, a rollback, or a change out of the caller's reach
   // while the kill waits starts nothing
   private async restartHarnessOnHost(
-    s: Session,
+    session: Session,
     outdated: HarnessHandle,
     launch: HarnessLaunch,
     canProceed: () => boolean,
   ): Promise<HarnessHandle> {
     // The outdated harness stops being the session's terminal first, so
     // its exit leaves the session as it is.
-    s.pty = null;
+    session.pty = null;
 
     const settled = Promise.withResolvers<void>();
-    const restart: HarnessRestart = { session: s, stopped: false, settled: settled.promise };
+    const restart: HarnessRestart = { session, stopped: false, settled: settled.promise };
 
-    this.restarts.set(s.id, restart);
+    this.restarts.set(session.id, restart);
 
     let exited = false;
 
     try {
-      exited = await this.rollback.killHarness(s.id, outdated);
+      exited = await this.rollback.killHarness(session.id, outdated);
 
       if (
         exited &&
         !restart.stopped &&
         canProceed() &&
-        s.pty === null &&
-        this.registry.sessions.includes(s) &&
-        !this.rollback.rollingBack.has(s.id)
+        session.pty === null &&
+        this.registry.sessions.includes(session) &&
+        !this.rollback.rollingBack.has(session.id)
       ) {
-        return this.startHarness(s, launch);
+        return this.startHarness(session, launch);
       }
     } finally {
       // every path that starts no harness, a throwing kill included, writes
       // the session stopped to the fleet before the adopt answers, so a
       // restore after a daemon restart does not revive it
       try {
-        if (s.pty === null) {
-          s.state = 'exited';
-          s.lastMsg = 'killed';
-          s.desired = 'stop';
+        if (session.pty === null) {
+          session.state = 'exited';
+          session.lastMsg = 'killed';
+          session.desired = 'stop';
 
-          this.callbacks.onEvent('state', s);
+          this.callbacks.onEvent('state', session);
 
-          await this.fleet.tryWriteFleet(s.id);
+          await this.fleet.tryWriteFleet(session.id);
 
           this.fleet.emitChange();
         }
       } finally {
-        this.restarts.delete(s.id);
+        this.restarts.delete(session.id);
         settled.resolve();
       }
     }
@@ -515,19 +530,23 @@ export class SessionAdopter {
     if (!exited) {
       throw new DaemonError(
         'session_dead',
-        `session ${s.id} still runs a harness from an older auth revision that did not exit after its kill; adopt it again once that process is gone`,
-        { session: s.id },
+        `session ${session.id} still runs a harness from an older auth revision that did not exit after its kill; adopt it again once that process is gone`,
+        { session: session.id },
       );
     }
 
-    throw new DaemonError('no_such_session', `session ${s.id} changed during its restart`, {
-      session: s.id,
+    throw new DaemonError('no_such_session', `session ${session.id} changed during its restart`, {
+      session: session.id,
     });
   }
 }
 
 // the held revision is the host's from before the revive, used when the
 // session recorded none at its latest launch
-function isLaunchOutdated(s: Session, revision: number, heldRevision: number | null): boolean {
-  return (s.authRevision ?? heldRevision ?? revision) < revision;
+function isLaunchOutdated(
+  session: Session,
+  revision: number,
+  heldRevision: number | null,
+): boolean {
+  return (session.authRevision ?? heldRevision ?? revision) < revision;
 }

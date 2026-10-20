@@ -108,7 +108,8 @@ function findPluginDirsRefusal(
   }
 
   const problem =
-    dirs.map((dir) => findPluginDirProblem(dir)).find((found) => found !== null) ?? null;
+    dirs.map((directory) => findPluginDirProblem(directory)).find((found) => found !== null) ??
+    null;
 
   return problem === null ? null : { ok: false, code: 'bad_args', message: problem };
 }

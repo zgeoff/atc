@@ -80,7 +80,7 @@ export interface StubMemoryProvider extends ExecutionProvider {
   // Every archive unpacked and every command run, in order.
   readonly transfers: {
     readonly archive: Uint8Array;
-    readonly dir: string;
+    readonly directory: string;
     readonly host?: string;
   }[];
   readonly commands: CommandSpec[];
@@ -94,7 +94,7 @@ export function buildStubMemoryProvider(config: StubMemoryProviderConfig = {}): 
   const prepared: HostRequest[] = [];
   const suspended: string[] = [];
   const destroyed: string[] = [];
-  const transfers: { archive: Uint8Array; dir: string; host?: string }[] = [];
+  const transfers: { archive: Uint8Array; directory: string; host?: string }[] = [];
   const commands: CommandSpec[] = [];
   let disposals = 0;
 
@@ -141,12 +141,12 @@ export function buildStubMemoryProvider(config: StubMemoryProviderConfig = {}): 
 
       return harness;
     },
-    transferArchive: (archive, dir, host) => {
-      const transfer = host === undefined ? { archive, dir } : { archive, dir, host };
+    transferArchive: (archive, directory, host) => {
+      const transfer = host === undefined ? { archive, directory } : { archive, directory, host };
 
       transfers.push(transfer);
 
-      return config.transferArchive?.(archive, dir, host) ?? Promise.resolve();
+      return config.transferArchive?.(archive, directory, host) ?? Promise.resolve();
     },
     runCommand: (spec) => {
       commands.push(spec);

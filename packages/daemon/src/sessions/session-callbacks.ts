@@ -16,21 +16,21 @@ export interface MessageBridgeLaunch {
 }
 
 export interface SessionCallbacks {
-  readonly onOutput: (s: Session, data: string) => void;
+  readonly onOutput: (session: Session, data: string) => void;
   readonly onChange: () => void;
 
   // Called as a harness starts, before its first output can arrive, with
   // the terminal size it starts at.
-  readonly onBoot: (s: Session, cols: number, rows: number) => void;
+  readonly onBoot: (session: Session, cols: number, rows: number) => void;
 
   // Takes each connection a harness's processes open through a provider's
   // own relay, with the binding of the harness start that opened it.
   readonly onRelay: (binding: BridgeBinding, relay: HarnessRelay) => void;
-  readonly onEvent: (kind: SessionEventKind, s: Session) => void;
+  readonly onEvent: (kind: SessionEventKind, session: Session) => void;
 
   // Called when a session's process is known to have ended: it exited or
   // it was killed.
-  readonly onProcessEnded: (s: Session) => void;
+  readonly onProcessEnded: (session: Session) => void;
 
   // Starts the bridge that takes a local session's messages, when its agent
   // has one, and resolves with the plan that starts the terminal against

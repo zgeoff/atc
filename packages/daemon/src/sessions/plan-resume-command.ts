@@ -12,30 +12,31 @@ export function planResumeCommand(
   registry: Pick<SessionRegistry, 'sessions' | 'isLocalTarget' | 'findAdapter'>,
   id: SessionID,
 ): ResumeCommand {
-  const s = registry.sessions.find((x) => x.id === id);
+  const session = registry.sessions.find((x) => x.id === id);
 
-  if (!s) {
+  if (!session) {
     return { refusal: 'missing' };
   }
 
   // its folder, and any settings file the command would pass, sit on a
   // different machine than the one the command would run on
-  if (!registry.isLocalTarget(s.target)) {
+  if (!registry.isLocalTarget(session.target)) {
     return {
       refusal: 'unsupported',
-      reason: `session '${id}' runs on target '${s.target}', so it cannot resume outside atc on this machine`,
+      reason: `session '${id}' runs on target '${session.target}', so it cannot resume outside atc on this machine`,
     };
   }
 
   const command =
-    registry.findAdapter(s.agent)?.planResumeCommand(s.cwd, s.agentSessionID, s.pluginDirs ?? []) ??
-    null;
+    registry
+      .findAdapter(session.agent)
+      ?.planResumeCommand(session.cwd, session.agentSessionID, session.pluginDirs ?? []) ?? null;
 
   // e.g. a gateway that signs in through impd's broker alone
   if (command === null) {
     return {
       refusal: 'unsupported',
-      reason: `agent '${s.agent}' of session '${id}' cannot resume outside atc`,
+      reason: `agent '${session.agent}' of session '${id}' cannot resume outside atc`,
     };
   }
 

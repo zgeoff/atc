@@ -18,10 +18,13 @@ type CompletenessFinding =
 const LFS_PATHS_SHOWN = 5;
 
 export async function checkWorkspaceCompleteness(
-  dir: string,
+  directory: string,
   sha: string,
 ): Promise<CompletenessFinding> {
-  const tree = await runGit(['ls-tree', '-r', '--full-tree', sha], { cwd: dir, isolated: true });
+  const tree = await runGit(['ls-tree', '-r', '--full-tree', sha], {
+    cwd: directory,
+    isolated: true,
+  });
 
   if (tree.exitCode !== 0) {
     return {
@@ -38,10 +41,10 @@ export async function checkWorkspaceCompleteness(
     return { ok: false, code: 'has_submodules', message: `${sha} uses submodules` };
   }
 
-  const tracked = await runGit(['ls-files', '-z'], { cwd: dir, isolated: true });
+  const tracked = await runGit(['ls-files', '-z'], { cwd: directory, isolated: true });
 
   const attributes = await runGit(['check-attr', '--stdin', '-z', 'filter'], {
-    cwd: dir,
+    cwd: directory,
     input: tracked.stdout,
     isolated: true,
   });

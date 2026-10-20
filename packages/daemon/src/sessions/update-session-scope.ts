@@ -14,9 +14,9 @@ export async function updateSessionScope(
   id: SessionID,
   scope: DeclaredScope,
 ): Promise<PublishedRecord | 'missing'> {
-  const s = deps.registry.sessions.find((x) => x.id === id);
+  const session = deps.registry.sessions.find((x) => x.id === id);
 
-  if (s === undefined) {
+  if (session === undefined) {
     return 'missing';
   }
 
@@ -24,24 +24,24 @@ export async function updateSessionScope(
     throw new DaemonError('unsupported', 'this daemon publishes no session records');
   }
 
-  const provider = deps.registry.requireExecution(s, 'spawn').provider;
+  const provider = deps.registry.requireExecution(session, 'spawn').provider;
 
   // the scope checks run on the session's host
-  if (provider.remote && s.vm !== 'awake') {
+  if (provider.remote && session.vm !== 'awake') {
     throw new DaemonError(
       'host_unavailable',
       `the host of session ${id} is not awake; revive the session before adding to its scope`,
-      { provider: provider.kind, problem: 'host_asleep', host: s.hostKey },
+      { provider: provider.kind, problem: 'host_asleep', host: session.hostKey },
     );
   }
 
   const subject = {
-    session: s.id,
-    target: s.target,
+    session: session.id,
+    target: session.target,
     provider,
-    host: s.hostKey,
-    dir: s.cwd,
-    workspace: s.workspace ?? null,
+    host: session.hostKey,
+    directory: session.cwd,
+    workspace: session.workspace ?? null,
   };
 
   const record = await deps.records.updateScope(subject, scope);

@@ -22,8 +22,8 @@ interface SetupTestConfig {
 }
 
 async function setupTest(config: SetupTestConfig) {
-  const tmp = setupTempDir('atc-session-input-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-session-input-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -35,54 +35,61 @@ async function setupTest(config: SetupTestConfig) {
 
   const provider = buildStubMemoryProvider({ kind: 'local-pty' });
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     null,
     store,
-    join(tmp.path, 'status.json'),
+    join(temporaryDirectory.path, 'status.json'),
     [config.adapter],
     [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
     [],
     {
-      onEvent: (kind, s) => {
+      onEvent: (kind, session) => {
         if (kind === 'added') {
-          runtimes.set(s.id, new SessionRuntime());
+          runtimes.set(session.id, new SessionRuntime());
         }
       },
-      onBoot: (s, cols, rows) => {
-        const runtime = runtimes.get(s.id);
+      onBoot: (session, cols, rows) => {
+        const runtime = runtimes.get(session.id);
 
         if (runtime !== undefined) {
           runtime.screen ??= new ScreenModel(cols, rows);
         }
       },
-      onOutput: (s, data) => {
-        runtimes.get(s.id)?.screen?.record(data);
+      onOutput: (session, data) => {
+        runtimes.get(session.id)?.screen?.record(data);
       },
     },
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
   const startHeadlessTurn = mock<(sessionID: SessionID, prompt: string) => boolean>(() => true);
 
   const input = new SessionInput({
-    mgr,
+    manager,
     clock: buildStubClock(1_000_000),
     findRuntime: (id) => runtimes.get(id),
     menuTiming: MENU_TIMING,
     startHeadlessTurn,
   });
 
-  return { dir: tmp.path, provider, mgr, runtimes, startHeadlessTurn, input };
+  return {
+    directory: temporaryDirectory.path,
+    provider,
+    manager,
+    runtimes,
+    startHeadlessTurn,
+    input,
+  };
 }
 
 test('it writes raw input to the terminal of the session', async () => {
   const ctx = await setupTest({ adapter: buildStubHarnessAdapter() });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  const written = ctx.input.writeSessionInput(s.id, 'y');
+  const written = ctx.input.writeSessionInput(session.id, 'y');
   const [harness] = ctx.provider.harnesses;
 
   invariant(harness);
@@ -99,7 +106,7 @@ test('it refuses input for a session the manager does not hold', async () => {
 
 test('it refuses input for a session whose terminal has ended', async () => {
   const ctx = await setupTest({ adapter: buildStubHarnessAdapter() });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
   const [harness] = ctx.provider.harnesses;
 
@@ -108,41 +115,41 @@ test('it refuses input for a session whose terminal has ended', async () => {
   harness.emitExit({ exitCode: 1 });
 
   await waitFor(() => {
-    expect(ctx.mgr.sessions.find((x) => x.id === s.id)?.pty).toBeNull();
+    expect(ctx.manager.sessions.find((x) => x.id === session.id)?.pty).toBeNull();
   });
 
-  expect(ctx.input.writeSessionInput(s.id, 'y')).toBe('dead');
+  expect(ctx.input.writeSessionInput(session.id, 'y')).toBe('dead');
 });
 
 test('it starts a headless turn with the input as its prompt', async () => {
   const ctx = await setupTest({ adapter: buildStubHarnessAdapter() });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  s.agentSessionID = toAgentSessionID('a-1');
+  session.agentSessionID = toAgentSessionID('a-1');
 
-  ctx.mgr.yankHeadless(s.id);
+  ctx.manager.yankHeadless(session.id);
 
-  const written = ctx.input.writeSessionInput(s.id, 'run the linter\n');
+  const written = ctx.input.writeSessionInput(session.id, 'run the linter\n');
 
   expect(written).toBe('ok');
-  expect(ctx.startHeadlessTurn).toHaveBeenCalledExactlyOnceWith(s.id, 'run the linter');
+  expect(ctx.startHeadlessTurn).toHaveBeenCalledExactlyOnceWith(session.id, 'run the linter');
 });
 
 test('it refuses input for a headless session whose turn still runs', async () => {
   const ctx = await setupTest({ adapter: buildStubHarnessAdapter() });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  s.agentSessionID = toAgentSessionID('a-1');
+  session.agentSessionID = toAgentSessionID('a-1');
 
-  ctx.mgr.yankHeadless(s.id);
+  ctx.manager.yankHeadless(session.id);
 
-  const runtime = ctx.runtimes.get(s.id);
+  const runtime = ctx.runtimes.get(session.id);
 
   invariant(runtime);
 
   runtime.headlessRun = { stop: () => {} };
 
-  const written = ctx.input.writeSessionInput(s.id, 'run the linter');
+  const written = ctx.input.writeSessionInput(session.id, 'run the linter');
 
   expect(written).toBe('busy');
   expect(ctx.startHeadlessTurn).not.toHaveBeenCalled();
@@ -150,20 +157,20 @@ test('it refuses input for a headless session whose turn still runs', async () =
 
 test('it refuses input for a headless session whose turn cannot start', async () => {
   const ctx = await setupTest({ adapter: buildStubHarnessAdapter() });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  s.agentSessionID = toAgentSessionID('a-1');
+  session.agentSessionID = toAgentSessionID('a-1');
 
-  ctx.mgr.yankHeadless(s.id);
+  ctx.manager.yankHeadless(session.id);
   ctx.startHeadlessTurn.mockReturnValue(false);
 
-  expect(ctx.input.writeSessionInput(s.id, 'run the linter')).toBe('dead');
+  expect(ctx.input.writeSessionInput(session.id, 'run the linter')).toBe('dead');
 });
 
 test('it types a line and its submit key into the terminal', async () => {
   const ctx = await setupTest({ adapter: buildStubHarnessAdapter() });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
-  const written = await ctx.input.writeSessionLine(s.id, 'fix the build');
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+  const written = await ctx.input.writeSessionLine(session.id, 'fix the build');
 
   const [harness] = ctx.provider.harnesses;
 
@@ -178,9 +185,9 @@ test('it types a line as the agent plans it', async () => {
     adapter: { ...buildStubHarnessAdapter(), planLineInput: (text) => [text, '\r'] },
   });
 
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  await ctx.input.writeSessionLine(s.id, 'fix the build');
+  await ctx.input.writeSessionLine(session.id, 'fix the build');
 
   const [harness] = ctx.provider.harnesses;
 
@@ -191,11 +198,11 @@ test('it types a line as the agent plans it', async () => {
 
 test('it refuses a line while a permission prompt is pending', async () => {
   const ctx = await setupTest({ adapter: buildStubHarnessAdapter() });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  s.permissionPending = true;
+  session.permissionPending = true;
 
-  const written = await ctx.input.writeSessionLine(s.id, 'fix the build');
+  const written = await ctx.input.writeSessionLine(session.id, 'fix the build');
 
   const [harness] = ctx.provider.harnesses;
 
@@ -214,7 +221,7 @@ test('it refuses a line for a session the manager does not hold', async () => {
 
 test('it reads the screen of the session as text', async () => {
   const ctx = await setupTest({ adapter: buildStubHarnessAdapter() });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
   const [harness] = ctx.provider.harnesses;
 
@@ -222,7 +229,7 @@ test('it reads the screen of the session as text', async () => {
 
   harness.emitData('all checks green');
 
-  const screen = await ctx.input.readSessionScreen(s.id);
+  const screen = await ctx.input.readSessionScreen(session.id);
 
   invariant(typeof screen === 'object');
 
@@ -255,7 +262,7 @@ test('it reads the menu the screen of the session shows', async () => {
     },
   });
 
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
   const [harness] = ctx.provider.harnesses;
 
@@ -263,7 +270,7 @@ test('it reads the menu the screen of the session shows', async () => {
 
   harness.emitData('Apply the patch?');
 
-  const menu = await ctx.input.readSessionMenu(s.id);
+  const menu = await ctx.input.readSessionMenu(session.id);
 
   expect(menu).toMatchObject({
     text: 'Apply the patch?',
@@ -279,16 +286,16 @@ test('it reads no menu when the screen shows none', async () => {
     adapter: { ...buildStubHarnessAdapter(), findMenu: () => null },
   });
 
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
-  const menu = await ctx.input.readSessionMenu(s.id);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+  const menu = await ctx.input.readSessionMenu(session.id);
 
   expect(menu).toBeNull();
 });
 
 test('it refuses a menu read for an agent that finds no menus', async () => {
   const ctx = await setupTest({ adapter: buildStubHarnessAdapter() });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
-  const menu = await ctx.input.readSessionMenu(s.id);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+  const menu = await ctx.input.readSessionMenu(session.id);
 
   expect(menu).toBe('unsupported');
 });
@@ -305,9 +312,9 @@ test('it refuses a menu choice whose token matches no menu on the screen', async
     adapter: { ...buildStubHarnessAdapter(), findMenu: () => null },
   });
 
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  const chosen = ctx.input.applySessionMenuChoice(s.id, {
+  const chosen = ctx.input.applySessionMenuChoice(session.id, {
     menuToken: 'm-stale',
     option: 1,
     label: 'Yes',
@@ -323,9 +330,9 @@ test('it refuses a menu choice whose token matches no menu on the screen', async
 
 test('it refuses a menu choice for an agent that finds no menus', async () => {
   const ctx = await setupTest({ adapter: buildStubHarnessAdapter() });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  const chosen = await ctx.input.applySessionMenuChoice(s.id, {
+  const chosen = await ctx.input.applySessionMenuChoice(session.id, {
     menuToken: 'm-stale',
     key: 'escape',
   });
@@ -338,7 +345,7 @@ test('it refuses a menu choice for a session whose terminal has ended', async ()
     adapter: { ...buildStubHarnessAdapter(), findMenu: () => null },
   });
 
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
   const [harness] = ctx.provider.harnesses;
 
@@ -347,10 +354,10 @@ test('it refuses a menu choice for a session whose terminal has ended', async ()
   harness.emitExit({ exitCode: 1 });
 
   await waitFor(() => {
-    expect(ctx.mgr.sessions.find((x) => x.id === s.id)?.pty).toBeNull();
+    expect(ctx.manager.sessions.find((x) => x.id === session.id)?.pty).toBeNull();
   });
 
-  const chosen = await ctx.input.applySessionMenuChoice(s.id, {
+  const chosen = await ctx.input.applySessionMenuChoice(session.id, {
     menuToken: 'm-stale',
     key: 'escape',
   });

@@ -2,8 +2,13 @@ import type { RecordedScope } from '@atc/protocol';
 import type { CheckedScope } from './check-session-scope';
 
 export function mergeRecordedScope(recorded: RecordedScope, added: CheckedScope): RecordedScope {
-  const worktrees = mergeEntries(recorded.worktrees, added.worktrees, (w) => w.path);
-  const branches = mergeEntries(recorded.branches, added.branches, (b) => `${b.repo}\n${b.name}`);
+  const worktrees = mergeEntries(recorded.worktrees, added.worktrees, (worktree) => worktree.path);
+
+  const branches = mergeEntries(
+    recorded.branches,
+    added.branches,
+    (branch) => `${branch.repo}\n${branch.name}`,
+  );
 
   const pullRequests = mergeEntries(
     recorded.pullRequests,

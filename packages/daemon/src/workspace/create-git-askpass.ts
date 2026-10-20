@@ -52,15 +52,15 @@ export async function createGitAskpass(
     };
   }
 
-  const dir = await mkdtemp(join(tmpdir(), 'atc-askpass-'));
+  const directory = await mkdtemp(join(tmpdir(), 'atc-askpass-'));
 
-  const helper = join(dir, 'askpass');
+  const helper = join(directory, 'askpass');
 
   // A helper that cannot be written leaves no directory behind.
   try {
     await writeFile(helper, ASKPASS_SCRIPT, { mode: 0o700 });
   } catch (error) {
-    await rm(dir, { recursive: true, force: true });
+    await rm(directory, { recursive: true, force: true });
 
     throw error;
   }
@@ -72,7 +72,7 @@ export async function createGitAskpass(
     env: { GIT_ASKPASS: helper, [ASKPASS_SECRET_VAR]: secret },
     args: ['-c', 'credential.helper='],
     [Symbol.asyncDispose]: async () => {
-      await rm(dir, { recursive: true, force: true });
+      await rm(directory, { recursive: true, force: true });
     },
   };
 }

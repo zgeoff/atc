@@ -21,7 +21,7 @@ import type { SpawnHostAccess, SpawnMaterializer } from './spawn-materializer';
 import { SpawnReplay } from './spawn-replay';
 
 interface SpawnServiceDeps {
-  readonly mgr: Pick<
+  readonly manager: Pick<
     SessionManager,
     | 'sessions'
     | 'collectDescriptors'
@@ -61,7 +61,7 @@ interface SpawnServiceDeps {
 }
 
 export class SpawnService {
-  private readonly mgr: SpawnServiceDeps['mgr'];
+  private readonly manager: SpawnServiceDeps['manager'];
 
   private readonly store: SpawnServiceDeps['store'];
 
@@ -82,7 +82,7 @@ export class SpawnService {
   private readonly replay: SpawnReplay;
 
   constructor(deps: SpawnServiceDeps) {
-    this.mgr = deps.mgr;
+    this.manager = deps.manager;
     this.store = deps.store;
     this.clock = deps.clock;
     this.ledger = deps.ledger;
@@ -92,7 +92,7 @@ export class SpawnService {
     this.workspaceRoots = deps.workspaceRoots;
     this.homeDir = deps.homeDir;
 
-    this.replay = new SpawnReplay({ mgr: deps.mgr, store: deps.store });
+    this.replay = new SpawnReplay({ manager: deps.manager, store: deps.store });
   }
 
   spawnSession(
@@ -100,14 +100,14 @@ export class SpawnService {
     keyed: KeyedRequest | null,
     access: TargetAccess | null,
   ): Promise<DaemonAnswer<'session.spawn'>> {
-    const startInReach = (p: SpawnParams, id: SessionID) =>
-      this.startSpawn(p, id, () => {
+    const startInReach = (params: SpawnParams, id: SessionID) =>
+      this.startSpawn(params, id, () => {
         if (
           access !== null &&
-          p.parent !== null &&
-          !isTreeInReach(this.mgr.sessions, p.parent, access)
+          params.parent !== null &&
+          !isTreeInReach(this.manager.sessions, params.parent, access)
         ) {
-          throw new DaemonError('no_such_session', `no session '${p.parent}'`);
+          throw new DaemonError('no_such_session', `no session '${params.parent}'`);
         }
       });
 
@@ -122,12 +122,14 @@ export class SpawnService {
       keyed,
       effectRef,
       start: () => startInReach(plan(), effectRef),
-      settle: () => this.mgr.writeFleet(),
+      settle: () => this.manager.writeFleet(),
       replay: (record) => this.replay.loadReplay(record, access),
       findEffectTarget: () => {
-        const s = this.mgr.sessions.find((x) => x.id === effectRef);
+        const session = this.manager.sessions.find((x) => x.id === effectRef);
 
-        return s === undefined ? null : { target: s.target, targetIdentity: s.targetIdentity };
+        return session === undefined
+          ? null
+          : { target: session.target, targetIdentity: session.targetIdentity };
       },
     });
   }
@@ -135,7 +137,7 @@ export class SpawnService {
   // The session a spawn under the given session lands under: that session,
   // or its own parent for a sub-session, so a set stays one level deep.
   resolveSpawnParent(id: SessionID): SessionID | 'missing' {
-    const owner = this.mgr.sessions.find((x) => x.id === id);
+    const owner = this.manager.sessions.find((x) => x.id === id);
 
     if (owner === undefined) {
       return 'missing';
@@ -149,7 +151,7 @@ export class SpawnService {
   // without a target when the config gives no default.
   resolveSpawnTarget(requested: string | undefined): string {
     const target = requested ?? this.defaultTarget;
-    const refusal = this.mgr.findExecutionRefusal({ target, targetIdentity: null }, 'spawn');
+    const refusal = this.manager.findExecutionRefusal({ target, targetIdentity: null }, 'spawn');
 
     if (refusal !== null) {
       throw refusal;
@@ -165,8 +167,8 @@ export class SpawnService {
   // Throws the refusal for a target that cannot both transfer an archive
   // and run a command.
   requireWorkspaceTarget(target: string): void {
-    this.mgr.requireExecution({ target, targetIdentity: null }, 'transfer');
-    this.mgr.requireExecution({ target, targetIdentity: null }, 'run');
+    this.manager.requireExecution({ target, targetIdentity: null }, 'transfer');
+    this.manager.requireExecution({ target, targetIdentity: null }, 'run');
   }
 
   buildDefaultWorkspaceDir(
@@ -175,13 +177,14 @@ export class SpawnService {
   ): string {
     return buildDefaultWorkspaceDir(source, {
       root: this.workspaceRoots?.targetRoots.get(target) ?? this.workspaceRoots?.root ?? null,
-      remote: this.mgr.requireExecution({ target, targetIdentity: null }, 'run').provider.remote,
+      remote: this.manager.requireExecution({ target, targetIdentity: null }, 'run').provider
+        .remote,
       home: this.homeDir ?? resolveHomeDir(),
     });
   }
 
   requireAgentTarget(agent: AgentID, target: string): void {
-    this.mgr.requireAgentTarget(agent, target);
+    this.manager.requireAgentTarget(agent, target);
   }
 
   // returns the requested folders in their normal form, which the session
@@ -192,11 +195,11 @@ export class SpawnService {
     requested: readonly string[],
   ): string[] {
     const home = this.homeDir ?? resolveHomeDir();
-    const expanded = requested.map((dir) => normalizePluginDir(dir, home));
+    const expanded = requested.map((directory) => normalizePluginDir(directory, home));
     const dirs = [...configured, ...expanded];
 
     if (dirs.length > 0) {
-      const provider = this.mgr.requireExecution(
+      const provider = this.manager.requireExecution(
         { target, targetIdentity: null },
         'spawn',
       ).provider;
@@ -211,11 +214,11 @@ export class SpawnService {
   // start leaves nothing running and a keyed retry spawns once. When an
   // undo fails too, the session may still stand, and the throw says so.
   private async startSpawn(
-    p: SpawnParams,
+    params: SpawnParams,
     id: SessionID,
     requireInReach: () => void,
   ): Promise<DaemonAnswer<'session.spawn'>> {
-    const source = p.workspace;
+    const source = params.workspace;
     let warnings: readonly string[] = [];
 
     const materialize: SpawnMaterializer | null =
@@ -223,7 +226,7 @@ export class SpawnService {
         ? null
         : async (host, targetIdentity) => {
             const prepared = await this.materializeSpawnWorkspace(
-              p,
+              params,
               id,
               source,
               host,
@@ -239,7 +242,7 @@ export class SpawnService {
             return prepared;
           };
 
-    const session = await this.startSpawnedSession(p, id, materialize, requireInReach);
+    const session = await this.startSpawnedSession(params, id, materialize, requireInReach);
 
     return warnings.length === 0 ? { session } : { session, warnings };
   }
@@ -248,29 +251,30 @@ export class SpawnService {
   // source resolves, under the target identity the spawn bound, and every
   // provider call passes the execution gate against that binding.
   private async materializeSpawnWorkspace(
-    p: SpawnParams,
+    params: SpawnParams,
     id: SessionID,
     source: SpawnWorkspaceSource,
     host: SpawnHostAccess,
     targetIdentity: string,
   ) {
-    const binding = { target: p.target, targetIdentity };
-    const bound = this.mgr.requireExecution(binding, 'run');
+    const binding = { target: params.target, targetIdentity };
+    const bound = this.manager.requireExecution(binding, 'run');
 
     return materializeWorkspace(
       {
         sessionID: id,
-        target: p.target,
-        dir: p.cwd,
+        target: params.target,
+        directory: params.cwd,
         source,
         inPlace: bound.provider.kind === 'local-pty',
-        autoDir: p.autoDir,
+        autoDir: params.autoDir,
       },
       {
-        requireProvider: (capability) => this.mgr.requireExecution(binding, capability).provider,
+        requireProvider: (capability) =>
+          this.manager.requireExecution(binding, capability).provider,
         store: this.store,
         log: (line) => {
-          this.mgr.log(line);
+          this.manager.log(line);
         },
         readyHost: host.readyHost,
         removeClaim: host.removeClaim,
@@ -290,44 +294,44 @@ export class SpawnService {
   // the answer is built as the spawn's last step, so a failure there takes
   // the spawn back like any other step's
   private async startSpawnedSession(
-    p: SpawnParams,
+    params: SpawnParams,
     id: SessionID,
     materialize: SpawnMaterializer | null,
     requireInReach: () => void,
   ): Promise<SessionDescriptor> {
     const answered: { descriptor: SessionDescriptor | null } = { descriptor: null };
 
-    await this.mgr.spawn(
-      p.cwd,
-      p.name,
-      p.prompt,
-      p.cols,
-      p.rows,
-      p.resume,
-      p.namedBy,
-      p.agent,
-      p.parent,
-      p.overrides,
+    await this.manager.spawn(
+      params.cwd,
+      params.name,
+      params.prompt,
+      params.cols,
+      params.rows,
+      params.resume,
+      params.namedBy,
+      params.agent,
+      params.parent,
+      params.overrides,
       id,
-      p.target,
+      params.target,
       materialize,
       requireInReach,
-      p.autoDir,
-      p.scope,
-      (s) => {
-        const runtime = this.findRuntime(s.id);
+      params.autoDir,
+      params.scope,
+      (session) => {
+        const runtime = this.findRuntime(session.id);
 
         if (runtime !== undefined) {
           runtime.pendingLastUsed = true;
         }
 
         void this.store.recordSpawnDir(
-          s.cwd,
-          { target: s.target, targetIdentity: s.targetIdentity },
+          session.cwd,
+          { target: session.target, targetIdentity: session.targetIdentity },
           this.clock.now(),
         );
 
-        answered.descriptor = this.getDescriptor(s.id);
+        answered.descriptor = this.getDescriptor(session.id);
       },
     );
 
@@ -339,12 +343,12 @@ export class SpawnService {
   }
 
   private getDescriptor(id: SessionID): SessionDescriptor {
-    const d = this.mgr.collectDescriptors().find((x) => x.id === id);
+    const descriptor = this.manager.collectDescriptors().find((x) => x.id === id);
 
-    if (d === undefined) {
+    if (descriptor === undefined) {
       throw new Error(`descriptor for unknown session ${id}`);
     }
 
-    return d;
+    return descriptor;
   }
 }

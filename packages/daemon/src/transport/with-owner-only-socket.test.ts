@@ -7,14 +7,14 @@ import { withOwnerOnlySocket } from './with-owner-only-socket';
 // A socket path in a fresh temp directory, under a umask that grants every
 // bit, so a mode the helper did not set shows in the socket.
 function setupTest() {
-  const tmp = setupTempDir('atc-owner-only-socket-');
+  const temporaryDirectory = setupTempDir('atc-owner-only-socket-');
   const previous = process.umask(0o000);
 
   registerTestCleanup(() => {
     process.umask(previous);
   });
 
-  return { socketPath: join(tmp.path, 'test.sock') };
+  return { socketPath: join(temporaryDirectory.path, 'test.sock') };
 }
 
 test('it leaves a socket bound under a permissive umask readable and writable by its owner alone', () => {

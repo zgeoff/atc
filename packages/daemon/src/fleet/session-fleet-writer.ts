@@ -41,12 +41,12 @@ export class SessionFleetWriter {
   // its place and renamed over it, so a reader that opens it mid-write still sees the
   // whole previous file, never a truncated or empty one
   writeStatus() {
-    const c = this.registry.countStates();
-    const urgent = this.registry.sortSessions().find((s) => s.state === 'needs_you');
+    const counts = this.registry.countStates();
+    const urgent = this.registry.sortSessions().find((session) => session.state === 'needs_you');
     const tmpPath = `${this.statusPath}.${process.pid}.tmp`;
 
     try {
-      writeFileSync(tmpPath, JSON.stringify({ ...c, urgent: urgent?.name ?? null }));
+      writeFileSync(tmpPath, JSON.stringify({ ...counts, urgent: urgent?.name ?? null }));
       renameSync(tmpPath, this.statusPath);
     } catch {
       try {
@@ -61,31 +61,32 @@ export class SessionFleetWriter {
   async writeFleet(): Promise<void> {
     const fleet: FleetEntry[] = [];
 
-    for (const s of this.registry.sessions) {
-      const live = s.pty !== null || (s.kind === 'headless' && s.state !== 'exited');
+    for (const session of this.registry.sessions) {
+      const live =
+        session.pty !== null || (session.kind === 'headless' && session.state !== 'exited');
 
       fleet.push({
-        sessionID: s.id,
-        name: s.name,
-        cwd: s.cwd,
-        ...(s.agentSessionID === undefined ? {} : { agentSessionID: s.agentSessionID }),
-        agent: s.agent,
-        ...(s.pinned ? { pinned: true } : {}),
-        lastAttachedAt: s.lastAttachedAt,
+        sessionID: session.id,
+        name: session.name,
+        cwd: session.cwd,
+        ...(session.agentSessionID === undefined ? {} : { agentSessionID: session.agentSessionID }),
+        agent: session.agent,
+        ...(session.pinned ? { pinned: true } : {}),
+        lastAttachedAt: session.lastAttachedAt,
         ...(live ? {} : { exited: true }),
-        ...(s.parent === null ? {} : { parent: s.parent }),
-        ...(s.prompt === undefined ? {} : { prompt: s.prompt }),
-        ...(s.result === undefined ? {} : { result: s.result }),
-        ...(s.transcriptPath === undefined ? {} : { transcriptPath: s.transcriptPath }),
-        ...(s.model === undefined ? {} : { model: s.model }),
-        ...(s.effort === undefined ? {} : { effort: s.effort }),
-        ...(s.pluginDirs === undefined ? {} : { pluginDirs: s.pluginDirs }),
-        target: s.target,
-        targetIdentity: s.targetIdentity,
-        ...(s.desired === 'run' ? {} : { desired: s.desired }),
-        ...(s.hostKey === s.id ? {} : { hostKey: s.hostKey }),
-        ...(s.authRevision === undefined ? {} : { authRevision: s.authRevision }),
-        ...(!live && s.suspended ? { suspended: true } : {}),
+        ...(session.parent === null ? {} : { parent: session.parent }),
+        ...(session.prompt === undefined ? {} : { prompt: session.prompt }),
+        ...(session.result === undefined ? {} : { result: session.result }),
+        ...(session.transcriptPath === undefined ? {} : { transcriptPath: session.transcriptPath }),
+        ...(session.model === undefined ? {} : { model: session.model }),
+        ...(session.effort === undefined ? {} : { effort: session.effort }),
+        ...(session.pluginDirs === undefined ? {} : { pluginDirs: session.pluginDirs }),
+        target: session.target,
+        targetIdentity: session.targetIdentity,
+        ...(session.desired === 'run' ? {} : { desired: session.desired }),
+        ...(session.hostKey === session.id ? {} : { hostKey: session.hostKey }),
+        ...(session.authRevision === undefined ? {} : { authRevision: session.authRevision }),
+        ...(!live && session.suspended ? { suspended: true } : {}),
       });
     }
 

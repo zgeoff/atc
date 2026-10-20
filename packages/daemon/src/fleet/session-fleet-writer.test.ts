@@ -19,8 +19,8 @@ import { SessionFleetWriter } from './session-fleet-writer';
 // A real state store, an empty registry the test fills with sessions, a
 // recorder of logged lines, and the writer over all three.
 async function setupTest() {
-  const tmp = setupTempDir('atc-fleet-writer-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-fleet-writer-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -38,7 +38,7 @@ async function setupTest() {
     callbacks: { onEvent: mock<() => void>() },
   });
 
-  const statusPath = join(tmp.path, 'status.json');
+  const statusPath = join(temporaryDirectory.path, 'status.json');
 
   const writer = new SessionFleetWriter({
     registry,
@@ -47,7 +47,15 @@ async function setupTest() {
     callbacks: { onChange: mock<() => void>(), log: recorder.log, findRecords: () => null },
   });
 
-  return { dir: tmp.path, dbPath, statusPath, store, registry, writer, lines: recorder.lines };
+  return {
+    directory: temporaryDirectory.path,
+    dbPath,
+    statusPath,
+    store,
+    registry,
+    writer,
+    lines: recorder.lines,
+  };
 }
 
 test('it persists a sub-session link by the parent atc session id', async () => {
@@ -350,12 +358,12 @@ test('it replaces the status file through a temporary file and a rename', async 
 
   // A second name for the old file stands in for a reader that opened it
   // before the write: an in-place write would change what it reads.
-  linkSync(ctx.statusPath, join(ctx.dir, 'status.before'));
+  linkSync(ctx.statusPath, join(ctx.directory, 'status.before'));
 
   ctx.registry.sessions.push(buildMockSession({ name: 'busy', state: 'running' }));
   ctx.writer.writeStatus();
 
-  const before = await readFile(join(ctx.dir, 'status.before'), 'utf8');
+  const before = await readFile(join(ctx.directory, 'status.before'), 'utf8');
   const status = await readFile(ctx.statusPath, 'utf8');
 
   expect(before).toBe('{"needs_you":2}');
@@ -368,7 +376,7 @@ test('it replaces the status file through a temporary file and a rename', async 
     urgent: null,
   });
 
-  expect(readdirSync(ctx.dir)).toSatisfyAll((name: string) => !name.endsWith('.tmp'));
+  expect(readdirSync(ctx.directory)).toSatisfyAll((name: string) => !name.endsWith('.tmp'));
 });
 
 test('it writes no urgent session to the status file when none needs the user', async () => {

@@ -23,8 +23,8 @@ import type { RestoreSettled } from './restore-fleet';
 // real state store, and the restorer over them. No session holds a
 // runtime, so a stagger waits on no boot.
 async function setupTest() {
-  const tmp = setupTempDir('atc-fleet-restorer-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-fleet-restorer-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -32,10 +32,10 @@ async function setupTest() {
 
   registerTestCleanup(() => store.stop());
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     null,
     store,
-    join(tmp.path, 'status.json'),
+    join(temporaryDirectory.path, 'status.json'),
     [buildStubHarnessAdapter()],
     [
       buildMockExecutionTarget({
@@ -49,12 +49,12 @@ async function setupTest() {
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
   const recorder = buildStubLog();
 
-  mgr.log = recorder.log;
+  manager.log = recorder.log;
 
   // No session gets a runtime.
   const runtimes = new Map<SessionID, SessionRuntime>();
@@ -63,7 +63,7 @@ async function setupTest() {
   const onRestoreSkipped = mock<(reason: 'disabled' | 'empty') => void>();
 
   const restorer = new FleetRestorer({
-    mgr,
+    manager,
     store,
     clock: buildStubClock(1_000_000),
     findRuntime: (id) => runtimes.get(id),
@@ -74,9 +74,9 @@ async function setupTest() {
   });
 
   return {
-    dir: tmp.path,
+    directory: temporaryDirectory.path,
     store,
-    mgr,
+    manager,
     lines: recorder.lines,
     onRestoreSettled,
     onRestoreSkipped,
@@ -88,14 +88,14 @@ test('it registers the stored sessions and reports the restore once it settles',
   const ctx = await setupTest();
 
   await ctx.store.writeFleet([
-    buildMockFleetEntry({ sessionID: toSessionID('s-1'), cwd: ctx.dir, exited: true }),
-    buildMockFleetEntry({ sessionID: toSessionID('s-2'), cwd: ctx.dir, exited: true }),
+    buildMockFleetEntry({ sessionID: toSessionID('s-1'), cwd: ctx.directory, exited: true }),
+    buildMockFleetEntry({ sessionID: toSessionID('s-2'), cwd: ctx.directory, exited: true }),
   ]);
 
   const restored = await ctx.restorer.runFleetRestore(80, 24);
 
   expect(restored).toBe(2);
-  expect(ctx.mgr.sessions.map((s) => s.id)).toIncludeSameMembers(['s-1', 's-2']);
+  expect(ctx.manager.sessions.map((session) => session.id)).toIncludeSameMembers(['s-1', 's-2']);
 
   await waitFor(() => {
     expect(ctx.onRestoreSettled).toHaveBeenCalledExactlyOnceWith({
@@ -109,7 +109,7 @@ test('it joins a restore requested while another one runs', async () => {
   const ctx = await setupTest();
 
   await ctx.store.writeFleet([
-    buildMockFleetEntry({ sessionID: toSessionID('s-1'), cwd: ctx.dir, exited: true }),
+    buildMockFleetEntry({ sessionID: toSessionID('s-1'), cwd: ctx.directory, exited: true }),
   ]);
 
   const first = ctx.restorer.runFleetRestore(80, 24);
@@ -119,7 +119,7 @@ test('it joins a restore requested while another one runs', async () => {
 
   await first;
 
-  expect(ctx.mgr.sessions).toHaveLength(1);
+  expect(ctx.manager.sessions).toHaveLength(1);
 });
 
 test('it reports a restore that fails as failed and rejects', async () => {
@@ -143,13 +143,13 @@ test('it skips the boot restore when the option is off', async () => {
   const ctx = await setupTest();
 
   await ctx.store.writeFleet([
-    buildMockFleetEntry({ sessionID: toSessionID('s-1'), cwd: ctx.dir, exited: true }),
+    buildMockFleetEntry({ sessionID: toSessionID('s-1'), cwd: ctx.directory, exited: true }),
   ]);
 
   await ctx.restorer.startBootRestore(false);
 
   expect(ctx.onRestoreSkipped).toHaveBeenCalledExactlyOnceWith('disabled');
-  expect(ctx.mgr.sessions).toBeEmpty();
+  expect(ctx.manager.sessions).toBeEmpty();
 });
 
 test('it skips the boot restore of an empty stored fleet', async () => {
@@ -178,7 +178,7 @@ test('it restores the stored fleet at boot when the option is on', async () => {
   const ctx = await setupTest();
 
   await ctx.store.writeFleet([
-    buildMockFleetEntry({ sessionID: toSessionID('s-1'), cwd: ctx.dir, exited: true }),
+    buildMockFleetEntry({ sessionID: toSessionID('s-1'), cwd: ctx.directory, exited: true }),
   ]);
 
   await ctx.restorer.startBootRestore(true);

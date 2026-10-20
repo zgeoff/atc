@@ -19,7 +19,7 @@ interface SanitizeRefusal {
 // strips everything that could authenticate as, or run code for, the host the clone was made
 // on, before the clone leaves that host
 export async function sanitizeWorkspaceClone(
-  dir: string,
+  directory: string,
   url: string,
 ): Promise<SanitizeRefusal | SanitizedClone> {
   const normalized = normalizeGitURL(url);
@@ -28,7 +28,7 @@ export async function sanitizeWorkspaceClone(
     return normalized;
   }
 
-  const gitDir = join(dir, '.git');
+  const gitDir = join(directory, '.git');
   const configFile = join(gitDir, 'config');
 
   for (const key of await readCredentialKeys(configFile)) {
@@ -54,11 +54,11 @@ export async function sanitizeWorkspaceClone(
   await rm(join(gitDir, 'logs'), { recursive: true, force: true });
 
   for (const file of ['.git-credentials', '.netrc']) {
-    await rm(join(dir, file), { force: true });
+    await rm(join(directory, file), { force: true });
     await rm(join(gitDir, file), { force: true });
   }
 
-  return verifyClone(dir, configFile, normalized.url);
+  return verifyClone(directory, configFile, normalized.url);
 }
 
 // Every credential key the repository config holds.
@@ -69,11 +69,11 @@ async function readCredentialKeys(configFile: string): Promise<string[]> {
 }
 
 async function verifyClone(
-  dir: string,
+  directory: string,
   configFile: string,
   url: string,
 ): Promise<SanitizeRefusal | SanitizedClone> {
-  const log = await runGit(['log', '-1', '--format=%H'], { cwd: dir });
+  const log = await runGit(['log', '-1', '--format=%H'], { cwd: directory });
 
   if (log.exitCode !== 0) {
     return {

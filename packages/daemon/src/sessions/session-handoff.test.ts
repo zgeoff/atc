@@ -24,8 +24,8 @@ interface SetupTestConfig {
 // real state store, and the handoff over them; each session the manager
 // announces gets the runtime the daemon gives it.
 async function setupTest(config: SetupTestConfig) {
-  const tmp = setupTempDir('atc-session-handoff-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-session-handoff-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -39,31 +39,31 @@ async function setupTest(config: SetupTestConfig) {
 
   const provider = buildStubMemoryProvider({ kind: 'local-pty' });
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     null,
     store,
-    join(tmp.path, 'status.json'),
+    join(temporaryDirectory.path, 'status.json'),
     [config.adapter],
     [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
     [],
     {
-      onEvent: (kind, s) => {
+      onEvent: (kind, session) => {
         if (kind === 'added') {
-          runtimes.set(s.id, new SessionRuntime());
+          runtimes.set(session.id, new SessionRuntime());
         }
       },
     },
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
   const startHeadlessTurn = mock<(sessionID: SessionID, prompt: string) => boolean>(() => true);
   const scheduleResize = mock<(sessionID: SessionID) => void>();
 
   const handoff = new SessionHandoff({
-    mgr,
+    manager,
     findRuntime: (id) => runtimes.get(id),
     ejectSettleMs: 4000,
     scheduleEjectSettle: clock.schedule,
@@ -72,10 +72,10 @@ async function setupTest(config: SetupTestConfig) {
   });
 
   return {
-    dir: tmp.path,
+    directory: temporaryDirectory.path,
     clock,
     provider,
-    mgr,
+    manager,
     runtimes,
     startHeadlessTurn,
     scheduleResize,
@@ -88,29 +88,29 @@ test('it ends the terminal of an ejected session and starts its turn once the ej
     adapter: { ...buildStubHarnessAdapter(), headlessRunner: mock<HeadlessRunner>() },
   });
 
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  s.agentSessionID = toAgentSessionID('a-1');
+  session.agentSessionID = toAgentSessionID('a-1');
 
-  const ejected = ctx.handoff.yankSession(s.id, 'finish the review');
+  const ejected = ctx.handoff.yankSession(session.id, 'finish the review');
 
   ctx.clock.advance(4000);
 
   expect(ejected).toBe('ok');
-  expect(s.kind).toBe('headless');
+  expect(session.kind).toBe('headless');
 
   await waitFor(() => {
-    expect(ctx.startHeadlessTurn).toHaveBeenCalledExactlyOnceWith(s.id, 'finish the review');
+    expect(ctx.startHeadlessTurn).toHaveBeenCalledExactlyOnceWith(session.id, 'finish the review');
   });
 });
 
 test('it refuses to eject a session whose agent runs no headless turns', async () => {
   const ctx = await setupTest({ adapter: buildStubHarnessAdapter() });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  s.agentSessionID = toAgentSessionID('a-1');
+  session.agentSessionID = toAgentSessionID('a-1');
 
-  expect(ctx.handoff.yankSession(s.id, 'finish the review')).toBe('unsupported');
+  expect(ctx.handoff.yankSession(session.id, 'finish the review')).toBe('unsupported');
 });
 
 test('it refuses to eject a session whose conversation its agent cannot resume', async () => {
@@ -122,12 +122,12 @@ test('it refuses to eject a session whose conversation its agent cannot resume',
     },
   });
 
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  const ejected = ctx.handoff.yankSession(s.id, 'finish the review');
+  const ejected = ctx.handoff.yankSession(session.id, 'finish the review');
 
   expect(ejected).toBe('no_transcript');
-  expect(s.kind).toBe('pty');
+  expect(session.kind).toBe('pty');
 });
 
 test('it refuses to eject a session the manager does not hold', async () => {
@@ -138,9 +138,9 @@ test('it refuses to eject a session the manager does not hold', async () => {
 
 test('it starts a terminal that resumes an ended session and sizes it for its clients', async () => {
   const ctx = await setupTest({ adapter: buildStubHarnessAdapter() });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  s.agentSessionID = toAgentSessionID('a-1');
+  session.agentSessionID = toAgentSessionID('a-1');
 
   const [harness] = ctx.provider.harnesses;
 
@@ -149,25 +149,25 @@ test('it starts a terminal that resumes an ended session and sizes it for its cl
   harness.emitExit({ exitCode: 0 });
 
   await waitFor(() => {
-    expect(s.pty).toBeNull();
+    expect(session.pty).toBeNull();
   });
 
-  const adopted = await ctx.handoff.adoptSession(s.id, 100, 30, null);
+  const adopted = await ctx.handoff.adoptSession(session.id, 100, 30, null);
 
   expect(adopted).toBe('ok');
   expect(ctx.provider.harnesses).toHaveLength(2);
-  expect(ctx.scheduleResize).toHaveBeenCalledExactlyOnceWith(s.id);
+  expect(ctx.scheduleResize).toHaveBeenCalledExactlyOnceWith(session.id);
 });
 
 test('it stops the headless run of a session it adopts', async () => {
   const ctx = await setupTest({ adapter: buildStubHarnessAdapter() });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  s.agentSessionID = toAgentSessionID('a-1');
+  session.agentSessionID = toAgentSessionID('a-1');
 
-  ctx.mgr.yankHeadless(s.id);
+  ctx.manager.yankHeadless(session.id);
 
-  const runtime = ctx.runtimes.get(s.id);
+  const runtime = ctx.runtimes.get(session.id);
 
   invariant(runtime);
 
@@ -175,22 +175,22 @@ test('it stops the headless run of a session it adopts', async () => {
 
   runtime.headlessRun = { stop };
 
-  await ctx.handoff.adoptSession(s.id, 100, 30, null);
+  await ctx.handoff.adoptSession(session.id, 100, 30, null);
 
   expect(stop).toHaveBeenCalledOnce();
 });
 
 test('it refuses to adopt a session outside the access', async () => {
   const ctx = await setupTest({ adapter: buildStubHarnessAdapter() });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  s.agentSessionID = toAgentSessionID('a-1');
+  session.agentSessionID = toAgentSessionID('a-1');
 
-  ctx.mgr.yankHeadless(s.id);
+  ctx.manager.yankHeadless(session.id);
 
   const access = new TargetAccess([{ target: 'imp', targetIdentity: 'imp:elsewhere' }]);
 
-  const adopted = await ctx.handoff.adoptSession(s.id, 100, 30, access);
+  const adopted = await ctx.handoff.adoptSession(session.id, 100, 30, access);
 
   expect(adopted).toBe('missing');
   expect(ctx.provider.harnesses).toHaveLength(1);
@@ -201,8 +201,8 @@ test('it refuses to adopt a session whose conversation its agent cannot resume',
     adapter: { ...buildStubHarnessAdapter(), canResume: () => false },
   });
 
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
-  const adopted = await ctx.handoff.adoptSession(s.id, 100, 30, null);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+  const adopted = await ctx.handoff.adoptSession(session.id, 100, 30, null);
 
   expect(adopted).toBe('no_transcript');
 });

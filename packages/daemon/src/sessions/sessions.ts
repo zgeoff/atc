@@ -64,24 +64,24 @@ type SessionManagerEvents = Partial<
 >;
 
 export class SessionManager {
-  readonly onOutput: (s: Session, data: string) => void;
+  readonly onOutput: (session: Session, data: string) => void;
 
   readonly onChange: () => void;
 
   // Called as a harness starts, before its first output can arrive, with
   // the terminal size it starts at.
-  readonly onBoot: (s: Session, cols: number, rows: number) => void;
+  readonly onBoot: (session: Session, cols: number, rows: number) => void;
 
   // Takes each connection a harness's processes open through a provider's
   // own relay, with the binding of the harness start that opened it.
   readonly onRelay: (binding: BridgeBinding, relay: HarnessRelay) => void;
 
-  readonly onEvent: (kind: SessionEventKind, s: Session) => void;
+  readonly onEvent: (kind: SessionEventKind, session: Session) => void;
 
   // Called when a session's process is known to have ended: it exited or
   // it was killed. A host that lost the connection or went to sleep may
   // still run the process, so neither calls it.
-  readonly onProcessEnded: (s: Session) => void;
+  readonly onProcessEnded: (session: Session) => void;
 
   // Starts the bridge that takes a local session's messages, when its agent
   // has one; with none given, every session starts without one.
@@ -240,8 +240,8 @@ export class SessionManager {
     return this.rollback.failedSpawnExitWaitMs;
   }
 
-  set failedSpawnExitWaitMs(ms: number) {
-    this.rollback.failedSpawnExitWaitMs = ms;
+  set failedSpawnExitWaitMs(waitMs: number) {
+    this.rollback.failedSpawnExitWaitMs = waitMs;
   }
 
   requireExecution(
@@ -258,8 +258,8 @@ export class SessionManager {
     return this.registry.findExecutionRefusal(binding, capability);
   }
 
-  findProvider(s: Session): ExecutionProvider | null {
-    return this.registry.findProvider(s);
+  findProvider(session: Session): ExecutionProvider | null {
+    return this.registry.findProvider(session);
   }
 
   findAdapter(id: AgentID): AgentAdapter | null {
@@ -310,12 +310,12 @@ export class SessionManager {
     this.restorer.removeUnrestoredMark(id);
   }
 
-  updateRestoreRefusal(s: Session, reason: string, code: string | null): void {
-    this.restorer.updateRestoreRefusal(s, reason, code);
+  updateRestoreRefusal(session: Session, reason: string, code: string | null): void {
+    this.restorer.updateRestoreRefusal(session, reason, code);
   }
 
-  updateRestoredIdentity(s: Session, identity: string): void {
-    this.restorer.updateRestoredIdentity(s, identity);
+  updateRestoredIdentity(session: Session, identity: string): void {
+    this.restorer.updateRestoredIdentity(session, identity);
   }
 
   requireAgentTarget(agent: AgentID, target: string): void {
@@ -356,7 +356,7 @@ export class SessionManager {
     requireInReach: () => void = () => {},
     autoDir = false,
     scope: DeclaredScope | null = null,
-    answer: ((s: Session) => void) | null = null,
+    answer: ((session: Session) => void) | null = null,
   ): Promise<Session> {
     return this.spawner.spawn(
       cwd,
@@ -387,8 +387,8 @@ export class SessionManager {
     return this.killer.forget(id);
   }
 
-  pickKillCapability(s: Session): ExecutionCapability {
-    return this.killer.pickKillCapability(s);
+  pickKillCapability(session: Session): ExecutionCapability {
+    return this.killer.pickKillCapability(session);
   }
 
   writeStatus(): void {
@@ -402,24 +402,24 @@ export class SessionManager {
   // Hands a live terminal session off to a headless run: the terminal dies,
   // the record lives on as a headless session and keeps its screen history.
   yankHeadless(id: SessionID): Session | null {
-    const s = this.registry.sessions.find((x) => x.id === id);
+    const session = this.registry.sessions.find((x) => x.id === id);
 
-    if (!s || s.pty === null || s.agentSessionID === undefined) {
+    if (!session || session.pty === null || session.agentSessionID === undefined) {
       return null;
     }
 
-    const pty = s.pty;
+    const pty = session.pty;
 
-    s.pty = null;
-    s.kind = 'headless';
-    s.state = 'running';
-    s.lastMsg = 'ejected to headless';
+    session.pty = null;
+    session.kind = 'headless';
+    session.state = 'running';
+    session.lastMsg = 'ejected to headless';
 
     pty.kill();
-    this.onEvent('state', s);
+    this.onEvent('state', session);
     this.fleet.emitChange();
 
-    return s;
+    return session;
   }
 
   updateScope(id: SessionID, scope: DeclaredScope): Promise<PublishedRecord | 'missing'> {
@@ -436,61 +436,61 @@ export class SessionManager {
 
   // A result, when given, becomes the session's latest result the way a
   // terminal turn's final message does.
-  updateSurfaceState(id: SessionID, state: SessionState, msg: string, result?: string) {
-    const s = this.registry.sessions.find((x) => x.id === id);
+  updateSurfaceState(id: SessionID, state: SessionState, message: string, result?: string) {
+    const session = this.registry.sessions.find((x) => x.id === id);
 
-    if (!s || s.kind !== 'headless') {
+    if (!session || session.kind !== 'headless') {
       return;
     }
 
-    s.state = state;
-    s.lastMsg = msg;
-    s.unread = this.registry.focusedId !== s.id;
+    session.state = state;
+    session.lastMsg = message;
+    session.unread = this.registry.focusedId !== session.id;
 
     if (result !== undefined) {
-      s.result = truncateToBytes(result, 16_384);
-      s.lastDetail = truncateDetail(result);
-      void this.fleet.tryUpdateFleetEntry(s.id, { result: s.result });
+      session.result = truncateToBytes(result, 16_384);
+      session.lastDetail = truncateDetail(result);
+      void this.fleet.tryUpdateFleetEntry(session.id, { result: session.result });
     }
 
-    this.onEvent('state', s);
+    this.onEvent('state', session);
     this.fleet.emitChange();
   }
 
   // The detector-stack screen tier reports through here: only flips between
   // running and needs_you — hook-driven done/exited states always win.
-  updateAttention(id: SessionID, state: 'needs_you' | 'running', msg: string) {
-    const s = this.registry.sessions.find((x) => x.id === id);
+  updateAttention(id: SessionID, state: 'needs_you' | 'running', message: string) {
+    const session = this.registry.sessions.find((x) => x.id === id);
 
-    if (!s || s.pty === null || s.state === state) {
+    if (!session || session.pty === null || session.state === state) {
       return;
     }
 
-    if (s.state !== 'running' && s.state !== 'needs_you') {
+    if (session.state !== 'running' && session.state !== 'needs_you') {
       return;
     }
 
-    s.state = state;
-    s.lastMsg = msg;
+    session.state = state;
+    session.lastMsg = message;
 
     if (state === 'needs_you') {
-      s.unread = this.registry.focusedId !== s.id;
+      session.unread = this.registry.focusedId !== session.id;
     }
 
-    this.onEvent('state', s);
+    this.onEvent('state', session);
     this.fleet.emitChange();
   }
 
   get focused(): Session | null {
-    return this.registry.sessions.find((s) => s.id === this.registry.focusedId) ?? null;
+    return this.registry.sessions.find((session) => session.id === this.registry.focusedId) ?? null;
   }
 
   collectDescriptors(): SessionDescriptor[] {
     return collectSessionDescriptors(this.registry, this.store);
   }
 
-  applyHook(e: HookEvent, prev?: unknown): HookPlan | null {
-    return this.hooks.applyHook(e, prev);
+  applyHook(hookEvent: HookEvent, previous?: unknown): HookPlan | null {
+    return this.hooks.applyHook(hookEvent, previous);
   }
 
   planResumeCommand(id: SessionID): ResumeCommand {
@@ -498,34 +498,34 @@ export class SessionManager {
   }
 
   attach(id: SessionID) {
-    const s = this.registry.sessions.find((x) => x.id === id);
+    const session = this.registry.sessions.find((x) => x.id === id);
 
-    if (!s) {
+    if (!session) {
       return;
     }
 
-    s.unread = false;
-    s.lastAttachedAt = this.clock.now();
-    void this.fleet.tryWriteFleet(s.id);
+    session.unread = false;
+    session.lastAttachedAt = this.clock.now();
+    void this.fleet.tryWriteFleet(session.id);
 
     // Attaching answers the attention request: a still-pending prompt
     // re-flags it via the next notification.
-    if (s.state === 'needs_you') {
-      s.state = 'running';
-      s.lastMsg = 'attached';
+    if (session.state === 'needs_you') {
+      session.state = 'running';
+      session.lastMsg = 'attached';
     }
 
-    this.onEvent('state', s);
+    this.onEvent('state', session);
     this.fleet.emitChange();
   }
 
   ack(id: SessionID) {
-    const s = this.registry.sessions.find((x) => x.id === id);
+    const session = this.registry.sessions.find((x) => x.id === id);
 
-    if (s) {
-      s.unread = false;
+    if (session) {
+      session.unread = false;
 
-      this.onEvent('state', s);
+      this.onEvent('state', session);
     }
 
     this.fleet.emitChange();
@@ -535,8 +535,8 @@ export class SessionManager {
   // machine ends with it, and one on a remote host runs on for the next
   // daemon to attach.
   detachAll() {
-    for (const s of this.registry.sessions) {
-      s.pty?.detach();
+    for (const session of this.registry.sessions) {
+      session.pty?.detach();
     }
   }
 

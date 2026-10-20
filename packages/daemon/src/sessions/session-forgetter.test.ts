@@ -21,8 +21,8 @@ interface SetupTestConfig {
 }
 
 async function setupTest(config: SetupTestConfig) {
-  const tmp = setupTempDir('atc-session-forgetter-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-session-forgetter-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -39,63 +39,63 @@ async function setupTest(config: SetupTestConfig) {
     capabilities: { suspend: config.destroy, destroy: config.destroy },
   });
 
-  const mgr = new SessionManager(
+  const manager = new SessionManager(
     null,
     store,
-    join(tmp.path, 'status.json'),
+    join(temporaryDirectory.path, 'status.json'),
     [buildStubHarnessAdapter()],
     [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
     [],
     {
-      onEvent: (kind, s) => {
+      onEvent: (kind, session) => {
         if (kind === 'added') {
-          runtimes.set(s.id, new SessionRuntime());
+          runtimes.set(session.id, new SessionRuntime());
         }
       },
     },
   );
 
   registerTestCleanup(() => {
-    mgr.detachAll();
+    manager.detachAll();
   });
 
   // A destroy logs the host it removed.
-  mgr.log = buildStubLog().log;
+  manager.log = buildStubLog().log;
 
   const forgetter = new SessionForgetter({
-    mgr,
+    manager,
     findRuntime: (id) => runtimes.get(id),
     tokens: new ConfirmTokens({ now: () => clock.now(), lifetimeMs: 60_000 }),
   });
 
-  return { dir: tmp.path, provider, mgr, runtimes, forgetter };
+  return { directory: temporaryDirectory.path, provider, manager, runtimes, forgetter };
 }
 
 test('it forgets a session at once on a target that cannot destroy its host', async () => {
   const ctx = await setupTest({ destroy: false });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  await ctx.forgetter.killSession(s.id, false);
+  await ctx.forgetter.killSession(session.id, false);
 
   const forgotten = await ctx.forgetter.forgetSession(
-    s.id,
+    session.id,
     undefined,
     { pinned: false, live: false },
     null,
   );
 
   expect(forgotten).toStrictEqual({ forgotten: true, destroyed: false });
-  expect(ctx.mgr.sessions).toBeEmpty();
+  expect(ctx.manager.sessions).toBeEmpty();
 });
 
 test('it answers a forget on a host-destroying target with a token and destroys nothing', async () => {
   const ctx = await setupTest({ destroy: true });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  await ctx.forgetter.killSession(s.id, false);
+  await ctx.forgetter.killSession(session.id, false);
 
   const answer = await ctx.forgetter.forgetSession(
-    s.id,
+    session.id,
     undefined,
     { pinned: false, live: false },
     null,
@@ -103,17 +103,17 @@ test('it answers a forget on a host-destroying target with a token and destroys 
 
   expect(answer).toMatchObject({ expiresAt: 1_060_000 });
   expect(ctx.provider.destroyed).toBeEmpty();
-  expect(ctx.mgr.sessions).toHaveLength(1);
+  expect(ctx.manager.sessions).toHaveLength(1);
 });
 
 test('it destroys the host and forgets the session when the forget carries its token', async () => {
   const ctx = await setupTest({ destroy: true });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  await ctx.forgetter.killSession(s.id, false);
+  await ctx.forgetter.killSession(session.id, false);
 
   const answer = await ctx.forgetter.forgetSession(
-    s.id,
+    session.id,
     undefined,
     { pinned: false, live: false },
     null,
@@ -122,7 +122,7 @@ test('it destroys the host and forgets the session when the forget carries its t
   invariant(typeof answer === 'object' && 'confirmToken' in answer);
 
   const forgotten = await ctx.forgetter.forgetSession(
-    s.id,
+    session.id,
     answer.confirmToken,
     { pinned: false, live: false },
     null,
@@ -134,12 +134,12 @@ test('it destroys the host and forgets the session when the forget carries its t
 
 test('it refuses a pinned session when the caller asks it to', async () => {
   const ctx = await setupTest({ destroy: false });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  s.pinned = true;
+  session.pinned = true;
 
   const forgotten = ctx.forgetter.forgetSession(
-    s.id,
+    session.id,
     undefined,
     { pinned: true, live: false },
     null,
@@ -150,10 +150,10 @@ test('it refuses a pinned session when the caller asks it to', async () => {
 
 test('it forgets a sub-session of a pinned session when its parent asks', async () => {
   const ctx = await setupTest({ destroy: false });
-  const parent = await ctx.mgr.spawn(ctx.dir, 'lead', '', 80, 24);
+  const parent = await ctx.manager.spawn(ctx.directory, 'lead', '', 80, 24);
 
-  const child = await ctx.mgr.spawn(
-    ctx.dir,
+  const child = await ctx.manager.spawn(
+    ctx.directory,
     'helper',
     '',
     80,
@@ -180,10 +180,10 @@ test('it forgets a sub-session of a pinned session when its parent asks', async 
 
 test('it refuses a sub-session of a pinned session that another caller asks to forget', async () => {
   const ctx = await setupTest({ destroy: false });
-  const parent = await ctx.mgr.spawn(ctx.dir, 'lead', '', 80, 24);
+  const parent = await ctx.manager.spawn(ctx.directory, 'lead', '', 80, 24);
 
-  const child = await ctx.mgr.spawn(
-    ctx.dir,
+  const child = await ctx.manager.spawn(
+    ctx.directory,
     'helper',
     '',
     80,
@@ -208,10 +208,10 @@ test('it refuses a sub-session of a pinned session that another caller asks to f
 
 test('it refuses a live session when the caller asks it to', async () => {
   const ctx = await setupTest({ destroy: false });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
   const forgotten = ctx.forgetter.forgetSession(
-    s.id,
+    session.id,
     undefined,
     { pinned: false, live: true },
     null,
@@ -235,11 +235,11 @@ test('it answers a forget of a session the manager does not hold as missing', as
 
 test('it stops a live session that a kill asks to stop', async () => {
   const ctx = await setupTest({ destroy: false });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
-  const outcome = await ctx.forgetter.killSession(s.id, true);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+  const outcome = await ctx.forgetter.killSession(session.id, true);
 
   expect(outcome).toBe('stopped');
-  expect(s.pty).toBeNull();
+  expect(session.pty).toBeNull();
 });
 
 test('it answers a kill of a session the manager does not hold as missing', async () => {
@@ -250,9 +250,9 @@ test('it answers a kill of a session the manager does not hold as missing', asyn
 
 test('it stops the headless run of a session a kill ends', async () => {
   const ctx = await setupTest({ destroy: false });
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  const runtime = ctx.runtimes.get(s.id);
+  const runtime = ctx.runtimes.get(session.id);
 
   invariant(runtime);
 
@@ -260,7 +260,7 @@ test('it stops the headless run of a session a kill ends', async () => {
 
   runtime.headlessRun = { stop };
 
-  await ctx.forgetter.killSession(s.id, true);
+  await ctx.forgetter.killSession(session.id, true);
 
   expect(stop).toHaveBeenCalledOnce();
 });
