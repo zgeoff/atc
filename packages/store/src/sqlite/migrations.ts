@@ -18,18 +18,18 @@ export const MIGRATIONS: Record<string, Migration> = {
       await db.schema
         .createTable('fleet')
         .ifNotExists()
-        .addColumn('claude_id', 'text', (c) => c.primaryKey())
-        .addColumn('name', 'text', (c) => c.notNull())
-        .addColumn('cwd', 'text', (c) => c.notNull())
+        .addColumn('claude_id', 'text', (column) => column.primaryKey())
+        .addColumn('name', 'text', (column) => column.notNull())
+        .addColumn('cwd', 'text', (column) => column.notNull())
         .execute();
 
       await db.schema
         .createTable('events')
         .ifNotExists()
-        .addColumn('id', 'integer', (c) => c.primaryKey().autoIncrement())
-        .addColumn('ts', 'text', (c) => c.notNull())
-        .addColumn('atc_id', 'text', (c) => c.notNull())
-        .addColumn('event', 'text', (c) => c.notNull())
+        .addColumn('id', 'integer', (column) => column.primaryKey().autoIncrement())
+        .addColumn('ts', 'text', (column) => column.notNull())
+        .addColumn('atc_id', 'text', (column) => column.notNull())
+        .addColumn('event', 'text', (column) => column.notNull())
         .addColumn('message', 'text')
         .addColumn('session_id', 'text')
         .execute();
@@ -37,15 +37,15 @@ export const MIGRATIONS: Record<string, Migration> = {
       await db.schema
         .createTable('spawn_history')
         .ifNotExists()
-        .addColumn('cwd', 'text', (c) => c.primaryKey())
-        .addColumn('last_spawn', 'integer', (c) => c.notNull())
+        .addColumn('cwd', 'text', (column) => column.primaryKey())
+        .addColumn('last_spawn', 'integer', (column) => column.notNull())
         .execute();
 
       await db.schema
         .createTable('prefs')
         .ifNotExists()
-        .addColumn('key', 'text', (c) => c.primaryKey())
-        .addColumn('value', 'text', (c) => c.notNull())
+        .addColumn('key', 'text', (column) => column.primaryKey())
+        .addColumn('value', 'text', (column) => column.notNull())
         .execute();
     },
   },
@@ -58,7 +58,7 @@ export const MIGRATIONS: Record<string, Migration> = {
     async up(db: Kysely<StateStoreSchema>) {
       await db.schema
         .alterTable('fleet')
-        .addColumn('pinned', 'integer', (c) => c.notNull().defaultTo(0))
+        .addColumn('pinned', 'integer', (column) => column.notNull().defaultTo(0))
         .execute();
     },
   },
@@ -71,7 +71,7 @@ export const MIGRATIONS: Record<string, Migration> = {
     async up(db: Kysely<StateStoreSchema>) {
       await db.schema
         .alterTable('fleet')
-        .addColumn('agent', 'text', (c) => c.notNull().defaultTo('claude'))
+        .addColumn('agent', 'text', (column) => column.notNull().defaultTo('claude'))
         .execute();
     },
   },
@@ -79,7 +79,7 @@ export const MIGRATIONS: Record<string, Migration> = {
     async up(db: Kysely<StateStoreSchema>) {
       await db.schema
         .alterTable('fleet')
-        .addColumn('exited', 'integer', (c) => c.notNull().defaultTo(0))
+        .addColumn('exited', 'integer', (column) => column.notNull().defaultTo(0))
         .execute();
     },
   },
@@ -129,13 +129,13 @@ export const MIGRATIONS: Record<string, Migration> = {
       await db.schema
         .createTable('messages')
         .ifNotExists()
-        .addColumn('id', 'text', (c) => c.primaryKey())
-        .addColumn('atc_id', 'text', (c) => c.notNull())
+        .addColumn('id', 'text', (column) => column.primaryKey())
+        .addColumn('atc_id', 'text', (column) => column.notNull())
         .addColumn('agent_session_id', 'text')
-        .addColumn('sender', 'text', (c) => c.notNull())
-        .addColumn('text', 'text', (c) => c.notNull())
-        .addColumn('status', 'text', (c) => c.notNull())
-        .addColumn('sent_at', 'integer', (c) => c.notNull())
+        .addColumn('sender', 'text', (column) => column.notNull())
+        .addColumn('text', 'text', (column) => column.notNull())
+        .addColumn('status', 'text', (column) => column.notNull())
+        .addColumn('sent_at', 'integer', (column) => column.notNull())
         .addColumn('delivered_at', 'integer')
         .addColumn('answered_at', 'integer')
         .addColumn('answer', 'text')
@@ -200,15 +200,15 @@ export const MIGRATIONS: Record<string, Migration> = {
       await db.schema
         .createTable('idempotency')
         .ifNotExists()
-        .addColumn('principal', 'text', (c) => c.notNull())
-        .addColumn('operation', 'text', (c) => c.notNull())
-        .addColumn('key', 'text', (c) => c.notNull())
-        .addColumn('payload_hash', 'text', (c) => c.notNull())
-        .addColumn('state', 'text', (c) => c.notNull())
-        .addColumn('effect_ref', 'text', (c) => c.notNull())
+        .addColumn('principal', 'text', (column) => column.notNull())
+        .addColumn('operation', 'text', (column) => column.notNull())
+        .addColumn('key', 'text', (column) => column.notNull())
+        .addColumn('payload_hash', 'text', (column) => column.notNull())
+        .addColumn('state', 'text', (column) => column.notNull())
+        .addColumn('effect_ref', 'text', (column) => column.notNull())
         .addColumn('result', 'text')
-        .addColumn('created_at', 'integer', (c) => c.notNull())
-        .addColumn('updated_at', 'integer', (c) => c.notNull())
+        .addColumn('created_at', 'integer', (column) => column.notNull())
+        .addColumn('updated_at', 'integer', (column) => column.notNull())
         .addPrimaryKeyConstraint('idempotency_pk', ['principal', 'operation', 'key'])
         .execute();
 
@@ -241,17 +241,17 @@ export const MIGRATIONS: Record<string, Migration> = {
       await db.schema
         .createTable('workspace_materialization')
         .ifNotExists()
-        .addColumn('session_id', 'text', (c) => c.primaryKey())
-        .addColumn('target', 'text', (c) => c.notNull())
-        .addColumn('dir', 'text', (c) => c.notNull())
-        .addColumn('source_kind', 'text', (c) => c.notNull())
-        .addColumn('phase', 'text', (c) => c.notNull())
+        .addColumn('session_id', 'text', (column) => column.primaryKey())
+        .addColumn('target', 'text', (column) => column.notNull())
+        .addColumn('dir', 'text', (column) => column.notNull())
+        .addColumn('source_kind', 'text', (column) => column.notNull())
+        .addColumn('phase', 'text', (column) => column.notNull())
         .addColumn('repo_url', 'text')
         .addColumn('sha', 'text')
         .addColumn('ref', 'text')
         .addColumn('error_code', 'text')
-        .addColumn('started_at', 'integer', (c) => c.notNull())
-        .addColumn('updated_at', 'integer', (c) => c.notNull())
+        .addColumn('started_at', 'integer', (column) => column.notNull())
+        .addColumn('updated_at', 'integer', (column) => column.notNull())
         .addColumn('materialized_at', 'integer')
         .addColumn('withheld_env', 'text')
         .execute();
@@ -299,36 +299,36 @@ export const MIGRATIONS: Record<string, Migration> = {
       await db.schema
         .createTable('runtime_auth_binding')
         .ifNotExists()
-        .addColumn('host_key', 'text', (c) => c.primaryKey())
-        .addColumn('target', 'text', (c) => c.notNull())
-        .addColumn('target_identity', 'text', (c) => c.notNull())
-        .addColumn('imp_name', 'text', (c) => c.notNull())
+        .addColumn('host_key', 'text', (column) => column.primaryKey())
+        .addColumn('target', 'text', (column) => column.notNull())
+        .addColumn('target_identity', 'text', (column) => column.notNull())
+        .addColumn('imp_name', 'text', (column) => column.notNull())
         .addColumn('imp_id', 'text')
-        .addColumn('revision', 'integer', (c) => c.notNull())
-        .addColumn('binding_hash', 'text', (c) => c.notNull())
-        .addColumn('binding_json', 'text', (c) => c.notNull())
-        .addColumn('state', 'text', (c) => c.notNull())
-        .addColumn('attempt_id', 'text', (c) => c.notNull())
-        .addColumn('imp_created_by_attempt', 'integer', (c) => c.notNull().defaultTo(0))
+        .addColumn('revision', 'integer', (column) => column.notNull())
+        .addColumn('binding_hash', 'text', (column) => column.notNull())
+        .addColumn('binding_json', 'text', (column) => column.notNull())
+        .addColumn('state', 'text', (column) => column.notNull())
+        .addColumn('attempt_id', 'text', (column) => column.notNull())
+        .addColumn('imp_created_by_attempt', 'integer', (column) => column.notNull().defaultTo(0))
         .addColumn('rebind_revision', 'integer')
         .addColumn('rebind_binding_hash', 'text')
         .addColumn('rebind_binding_json', 'text')
         .addColumn('rebind_attempt_id', 'text')
-        .addColumn('created_at', 'integer', (c) => c.notNull())
-        .addColumn('updated_at', 'integer', (c) => c.notNull())
+        .addColumn('created_at', 'integer', (column) => column.notNull())
+        .addColumn('updated_at', 'integer', (column) => column.notNull())
         .addColumn('revoked_at', 'integer')
         .execute();
 
       await db.schema
         .createTable('runtime_auth_grant')
         .ifNotExists()
-        .addColumn('host_key', 'text', (c) => c.notNull())
-        .addColumn('secret', 'text', (c) => c.notNull())
-        .addColumn('revision', 'integer', (c) => c.notNull())
-        .addColumn('attempt_id', 'text', (c) => c.notNull())
-        .addColumn('preexisting', 'integer', (c) => c.notNull())
-        .addColumn('phase', 'text', (c) => c.notNull())
-        .addColumn('updated_at', 'integer', (c) => c.notNull())
+        .addColumn('host_key', 'text', (column) => column.notNull())
+        .addColumn('secret', 'text', (column) => column.notNull())
+        .addColumn('revision', 'integer', (column) => column.notNull())
+        .addColumn('attempt_id', 'text', (column) => column.notNull())
+        .addColumn('preexisting', 'integer', (column) => column.notNull())
+        .addColumn('phase', 'text', (column) => column.notNull())
+        .addColumn('updated_at', 'integer', (column) => column.notNull())
         .addPrimaryKeyConstraint('runtime_auth_grant_pk', ['host_key', 'secret'])
         .execute();
     },
@@ -346,10 +346,10 @@ export const MIGRATIONS: Record<string, Migration> = {
       await db.schema
         .createTable('published_record')
         .ifNotExists()
-        .addColumn('session_id', 'text', (c) => c.primaryKey())
-        .addColumn('record', 'text', (c) => c.notNull())
-        .addColumn('revision', 'integer', (c) => c.notNull())
-        .addColumn('updated_at', 'integer', (c) => c.notNull())
+        .addColumn('session_id', 'text', (column) => column.primaryKey())
+        .addColumn('record', 'text', (column) => column.notNull())
+        .addColumn('revision', 'integer', (column) => column.notNull())
+        .addColumn('updated_at', 'integer', (column) => column.notNull())
         .execute();
     },
   },

@@ -120,10 +120,10 @@ test('it starts a daemon on the state directory of one killed with SIGKILL', asy
 
   await revived.sendHello('atc/test');
 
-  expect(Bun.peek.status(daemon.proc.exited)).toBe('pending');
+  expect(Bun.peek.status(daemon.subprocess.exited)).toBe('pending');
 
   expect(readDaemonRecord(join(daemon.stateDir, 'daemon.json'))).toStrictEqual({
-    pid: daemon.proc.pid,
+    pid: daemon.subprocess.pid,
     socketPath: daemon.socketPath,
     reporterSocketPath: daemon.reporterSocketPath,
     eventsSocketPath: join(ctx.home, 'atc-events.sock'),

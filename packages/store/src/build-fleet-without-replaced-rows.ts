@@ -54,7 +54,9 @@ export function buildFleetWithoutReplacedRows(entries: readonly FleetEntry[]): F
       const at = seen.indexOf(current);
 
       if (at !== -1) {
-        return seen.slice(at).toSorted((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0))[0];
+        return seen
+          .slice(at)
+          .toSorted((left, right) => (order.get(left) ?? 0) - (order.get(right) ?? 0))[0];
       }
 
       seen.push(current);

@@ -29,10 +29,10 @@ export async function startCodexAppServerBridge(
   request: MessageBridgeRequest,
   launch: CodexAppServerLaunch,
 ): Promise<MessageBridge> {
-  mkdirSync(request.dir, { recursive: true, mode: 0o700 });
+  mkdirSync(request.directory, { recursive: true, mode: 0o700 });
 
-  const socket = join(request.dir, 'codex.sock');
-  const pidFile = join(request.dir, 'app-server.pid');
+  const socket = join(request.directory, 'codex.sock');
+  const pidFile = join(request.directory, 'app-server.pid');
   const env = readCleanEnv(request.env, request.withheldEnv);
   const bin = Bun.which(launch.bin, { PATH: env['PATH'] ?? '', cwd: request.cwd }) ?? launch.bin;
   const listenArgs = ['app-server', '--listen', `unix://${socket}`];
@@ -56,7 +56,7 @@ export async function startCodexAppServerBridge(
         env,
         stdin: 'ignore',
         stdout: 'ignore',
-        stderr: Bun.file(join(request.dir, 'app-server.log')),
+        stderr: Bun.file(join(request.directory, 'app-server.log')),
       });
 
       writeFileSync(pidFile, String(server.pid));
@@ -85,7 +85,7 @@ export async function startCodexAppServerBridge(
     host: request.host,
     openConnection,
     resumeThread,
-    unconfirmedFile: join(request.dir, 'unconfirmed-sends.json'),
+    unconfirmedFile: join(request.directory, 'unconfirmed-sends.json'),
     ...(request.options.model === undefined ? {} : { model: request.options.model }),
     ...(launch.retryMs === undefined ? {} : { retryMs: launch.retryMs }),
   });

@@ -258,8 +258,8 @@ export class AuthSetup {
       };
     }
 
-    const guest = provider.guest ?? { dir: '/tmp/atc', atc: null };
-    const dir = `${guest.dir}/sessions/${id}`;
+    const guest = provider.guest ?? { directory: '/tmp/atc', atc: null };
+    const dir = `${guest.directory}/sessions/${id}`;
 
     // A launch on a bound host verifies the binding before it plans, since
     // a target that rebinds a changed selection moves the binding to the

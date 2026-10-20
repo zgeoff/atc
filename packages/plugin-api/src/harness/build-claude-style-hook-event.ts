@@ -29,13 +29,13 @@ export interface ClaudeStyleHookRules<P extends ClaudeStyleHookPayload> {
 }
 
 export function buildClaudeStyleHookEvent<P extends ClaudeStyleHookPayload>(
-  e: HookEvent,
+  hookEvent: HookEvent,
   rules: ClaudeStyleHookRules<P>,
 ): AdapterEvent {
-  const payload = rules.parsePayload(e.payload);
+  const payload = rules.parsePayload(hookEvent.payload);
   const base = buildHeartbeatEvent(payload.session_id);
   const named: AdapterEvent = { ...base, ...rules.buildSources(payload) };
-  const hook = findClaudeStyleHook(e.event, rules.hooks);
+  const hook = findClaudeStyleHook(hookEvent.event, rules.hooks);
 
   if (hook === null) {
     return base;

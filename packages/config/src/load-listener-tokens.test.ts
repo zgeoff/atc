@@ -5,14 +5,14 @@ import { setupTempDir } from '@atc/test-utils';
 import { loadListenerTokens } from './load-listener-tokens';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-listener-tokens-');
+  const temporaryDirectory = setupTempDir('atc-listener-tokens-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it loads one token with a final newline', () => {
   const ctx = setupTest();
-  const path = join(ctx.dir, 'gateway-token');
+  const path = join(ctx.directory, 'gateway-token');
 
   writeFileSync(path, `${'a'.repeat(32)}\n`);
 
@@ -21,7 +21,7 @@ test('it loads one token with a final newline', () => {
 
 test('it loads two tokens and trims the whitespace around each', () => {
   const ctx = setupTest();
-  const path = join(ctx.dir, 'gateway-token');
+  const path = join(ctx.directory, 'gateway-token');
 
   writeFileSync(path, `${'a'.repeat(32)}\r\n  ${'b'.repeat(48)}  `);
 
@@ -33,7 +33,7 @@ test('it loads two tokens and trims the whitespace around each', () => {
 
 test('it refuses a file that does not exist', () => {
   const ctx = setupTest();
-  const path = join(ctx.dir, 'missing');
+  const path = join(ctx.directory, 'missing');
 
   expect(loadListenerTokens(path)).toStrictEqual({
     ok: false,
@@ -48,7 +48,7 @@ test.each([
   ['a second final newline', `${'a'.repeat(32)}\n\n`],
 ])('it refuses %s', (_label, content) => {
   const ctx = setupTest();
-  const path = join(ctx.dir, 'gateway-token');
+  const path = join(ctx.directory, 'gateway-token');
 
   writeFileSync(path, content);
 
@@ -60,7 +60,7 @@ test.each([
 
 test('it refuses a third token', () => {
   const ctx = setupTest();
-  const path = join(ctx.dir, 'gateway-token');
+  const path = join(ctx.directory, 'gateway-token');
 
   writeFileSync(path, `${'a'.repeat(32)}\n${'b'.repeat(32)}\n${'c'.repeat(32)}\n`);
 

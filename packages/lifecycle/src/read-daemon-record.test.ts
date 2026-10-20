@@ -6,9 +6,9 @@ import { readDaemonRecord } from './read-daemon-record';
 
 // A temp directory to hold the record.
 function setupTest() {
-  const tmp = setupTempDir('atc-daemon-record-');
+  const temporaryDirectory = setupTempDir('atc-daemon-record-');
 
-  return { recordPath: join(tmp.path, 'daemon.json') };
+  return { recordPath: join(temporaryDirectory.path, 'daemon.json') };
 }
 
 test('it reads the protocol version the daemon wrote', () => {

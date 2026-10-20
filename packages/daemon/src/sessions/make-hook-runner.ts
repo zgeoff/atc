@@ -31,7 +31,7 @@ export function makeHookRunner(hooks: HooksConfig, options: HookRunnerOptions = 
 
   return (event, scope) => {
     const matched = (hooks[event.ev] ?? []).filter(
-      (entry) => entry.dir === undefined || isInScope(entry.dir, scope),
+      (entry) => entry.directory === undefined || isInScope(entry.directory, scope),
     );
 
     if (matched.length === 0) {

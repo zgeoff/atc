@@ -1057,7 +1057,7 @@ test('it starts a revived harness after a restart without the workspace credenti
         {
           sessionID: toSessionID('s-ws'),
           target: 'box',
-          dir: dest,
+          directory: dest,
           sourceKind: 'git',
           withheldEnv: ['ATC_TEST_WORKSPACE_CRED', 'GIT_ASKPASS', 'ATC_GIT_ASKPASS_SECRET'],
         },

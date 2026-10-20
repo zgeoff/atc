@@ -5,22 +5,22 @@ import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { probeDaemonProcess } from './probe-daemon-process';
 
 function setupTest() {
-  const dir = setupTempDir('is-daemon-process-').path;
-  const cli = join(dir, 'checkout', 'src', 'cli.ts');
+  const directory = setupTempDir('is-daemon-process-').path;
+  const cli = join(directory, 'checkout', 'src', 'cli.ts');
 
   // A checkout entry that a process started as `cli.ts daemon` runs, so its
   // command line reads as the daemon's: it prints once it runs, then idles.
-  mkdirSync(join(dir, 'checkout', 'src'), { recursive: true });
+  mkdirSync(join(directory, 'checkout', 'src'), { recursive: true });
   writeFileSync(cli, "process.stdout.write('ready\\n');\nsetInterval(() => {}, 1000);\n");
 
-  return { dir, cli };
+  return { directory, cli };
 }
 
 test('it accepts a daemon process whose home holds this state directory', async () => {
   const ctx = setupTest();
 
   const daemon = Bun.spawn([process.execPath, ctx.cli, 'daemon'], {
-    env: { HOME: join(ctx.dir, 'home'), PATH: process.env['PATH'] ?? '/usr/bin:/bin' },
+    env: { HOME: join(ctx.directory, 'home'), PATH: process.env['PATH'] ?? '/usr/bin:/bin' },
     stdout: 'pipe',
     stderr: 'ignore',
   });
@@ -37,7 +37,7 @@ test('it accepts a daemon process whose home holds this state directory', async 
 
   const accepted = probeDaemonProcess(
     daemon.pid,
-    join(ctx.dir, 'home', '.local', 'state', 'atc'),
+    join(ctx.directory, 'home', '.local', 'state', 'atc'),
     '/proc',
   );
 
@@ -48,7 +48,7 @@ test('it rejects a daemon process of another home', async () => {
   const ctx = setupTest();
 
   const daemon = Bun.spawn([process.execPath, ctx.cli, 'daemon'], {
-    env: { HOME: join(ctx.dir, 'home'), PATH: process.env['PATH'] ?? '/usr/bin:/bin' },
+    env: { HOME: join(ctx.directory, 'home'), PATH: process.env['PATH'] ?? '/usr/bin:/bin' },
     stdout: 'pipe',
     stderr: 'ignore',
   });
@@ -65,7 +65,7 @@ test('it rejects a daemon process of another home', async () => {
 
   const accepted = probeDaemonProcess(
     daemon.pid,
-    join(ctx.dir, 'other', '.local', 'state', 'atc'),
+    join(ctx.directory, 'other', '.local', 'state', 'atc'),
     '/proc',
   );
 
@@ -76,7 +76,7 @@ test('it rejects a live process that is not an atc daemon', () => {
   const ctx = setupTest();
 
   expect(
-    probeDaemonProcess(process.pid, join(ctx.dir, 'home', '.local', 'state', 'atc'), '/proc'),
+    probeDaemonProcess(process.pid, join(ctx.directory, 'home', '.local', 'state', 'atc'), '/proc'),
   ).toBeFalse();
 });
 

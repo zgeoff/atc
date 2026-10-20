@@ -15,10 +15,10 @@ import {
 import { verifyRestoredFleet } from './verify-restored-fleet';
 
 async function setupTest() {
-  const tmp = setupTempDir('atc-verify-restored-fleet-');
-  const daemon = startStubRestoreDaemon(join(tmp.path, 'daemon.sock'));
+  const temporaryDirectory = setupTempDir('atc-verify-restored-fleet-');
+  const daemon = startStubRestoreDaemon(join(temporaryDirectory.path, 'daemon.sock'));
 
-  const client = await openDaemonClient(join(tmp.path, 'daemon.sock'));
+  const client = await openDaemonClient(join(temporaryDirectory.path, 'daemon.sock'));
 
   registerTestCleanup(() => {
     client.stop();

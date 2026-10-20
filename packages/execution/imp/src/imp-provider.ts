@@ -151,7 +151,7 @@ export class ImpProvider implements ExecutionProvider {
     // Hooks always run `bin/atc`, since a session's hooks are planned before
     // its imp is readied and the readying decides what that path holds.
     this.guest = {
-      dir,
+      directory: dir,
       atc: target.guestATC === undefined && atcBinary === null ? null : `${dir}/bin/atc`,
     };
 
@@ -310,7 +310,7 @@ export class ImpProvider implements ExecutionProvider {
         : openReporter(
             {
               port: this.port,
-              guestDir: this.guest.dir,
+              guestDir: this.guest.directory,
               reconnectDelaysMs: this.reconnectDelaysMs,
             },
             host,

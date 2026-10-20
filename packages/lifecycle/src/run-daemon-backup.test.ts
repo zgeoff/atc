@@ -6,10 +6,13 @@ import { runDaemonBackup } from './run-daemon-backup';
 import { buildMockLifecycleHost } from './testing/build-mock-lifecycle-host';
 
 function setupTest() {
-  const tmp = setupTempDir('run-daemon-backup-');
+  const temporaryDirectory = setupTempDir('run-daemon-backup-');
 
   const host = buildMockLifecycleHost({
-    paths: resolvePaths({ HOME: tmp.path, XDG_RUNTIME_DIR: tmp.path }),
+    paths: resolvePaths({
+      HOME: temporaryDirectory.path,
+      XDG_RUNTIME_DIR: temporaryDirectory.path,
+    }),
   });
 
   return { host };

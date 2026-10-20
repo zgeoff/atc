@@ -6,9 +6,9 @@ import { loadClaudeStatusLine } from './load-claude-statusline';
 
 // A home folder for the Claude settings a test writes.
 function setupTest() {
-  const tmp = setupTempDir('atc-claude-statusline-');
+  const temporaryDirectory = setupTempDir('atc-claude-statusline-');
 
-  return { home: tmp.path };
+  return { home: temporaryDirectory.path };
 }
 
 test("it reads the statusline from the home's Claude config folder", () => {

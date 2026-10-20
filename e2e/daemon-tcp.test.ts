@@ -55,7 +55,7 @@ test('it closes a TCP connection whose token a SIGHUP reload removed', async () 
 
   writeFileSync(ctx.tokenFile, `${'b'.repeat(32)}\n`);
 
-  daemon.proc.kill('SIGHUP');
+  daemon.subprocess.kill('SIGHUP');
 
   await closed.promise;
 
@@ -104,7 +104,7 @@ test('it accepts a TCP handshake with a token a SIGHUP reload kept', async () =>
 
   writeFileSync(ctx.tokenFile, `${'b'.repeat(32)}\n`);
 
-  daemon.proc.kill('SIGHUP');
+  daemon.subprocess.kill('SIGHUP');
 
   // The connection on the removed token closes once the reload has applied.
   await reloaded.promise;

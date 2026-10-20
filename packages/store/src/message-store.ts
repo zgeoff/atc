@@ -165,7 +165,9 @@ export class MessageStore {
       .returningAll()
       .execute();
 
-    return rows.map((row) => toMessageRecord(row)).toSorted((a, b) => a.sentAt - b.sentAt);
+    return rows
+      .map((row) => toMessageRecord(row))
+      .toSorted((left, right) => left.sentAt - right.sentAt);
   }
 
   // One statement, so a reader sees all of one turn's messages settled or
@@ -197,7 +199,9 @@ export class MessageStore {
       .returningAll()
       .execute();
 
-    return rows.map((row) => toMessageRecord(row)).toSorted((a, b) => a.sentAt - b.sentAt);
+    return rows
+      .map((row) => toMessageRecord(row))
+      .toSorted((left, right) => left.sentAt - right.sentAt);
   }
 
   // For a session whose process ended, so no turn is left to settle its
@@ -221,7 +225,9 @@ export class MessageStore {
       .returningAll()
       .execute();
 
-    return rows.map((row) => toMessageRecord(row)).toSorted((a, b) => a.sentAt - b.sentAt);
+    return rows
+      .map((row) => toMessageRecord(row))
+      .toSorted((left, right) => left.sentAt - right.sentAt);
   }
 
   // For a session that is gone for good, so no process will take its
@@ -245,7 +251,9 @@ export class MessageStore {
       .returningAll()
       .execute();
 
-    return rows.map((row) => toMessageRecord(row)).toSorted((a, b) => a.sentAt - b.sentAt);
+    return rows
+      .map((row) => toMessageRecord(row))
+      .toSorted((left, right) => left.sentAt - right.sentAt);
   }
 
   // For a session whose process ended with the daemon and that a restore
@@ -260,7 +268,9 @@ export class MessageStore {
       .returningAll()
       .execute();
 
-    return rows.map((row) => toMessageRecord(row)).toSorted((a, b) => a.sentAt - b.sentAt);
+    return rows
+      .map((row) => toMessageRecord(row))
+      .toSorted((left, right) => left.sentAt - right.sentAt);
   }
 
   // The answer notices queued for the sender session and not yet taken by

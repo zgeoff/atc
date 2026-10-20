@@ -13,7 +13,7 @@ export interface WorkspaceMaterialization {
   readonly target: string;
 
   // The directory on the target the workspace is materialized into.
-  readonly dir: string;
+  readonly directory: string;
   readonly sourceKind: 'path' | 'git';
   readonly phase: MaterializationPhase;
 
@@ -42,7 +42,7 @@ export interface MaterializationUpdate {
 
   // The directory the workspace landed in, once a directory the daemon
   // picked is claimed.
-  readonly dir?: string;
+  readonly directory?: string;
   readonly repoURL?: string;
   readonly sha?: string;
   readonly ref?: string | null;

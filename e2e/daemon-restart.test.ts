@@ -64,7 +64,7 @@ test('it restarts the daemon in place and restores a saved fleet of two live ses
   const client = await daemon.openClient();
   const hello = await client.sendHello('atc/test');
 
-  const oldPID = daemon.proc.pid;
+  const oldPID = daemon.subprocess.pid;
 
   const seed = await StateStore.open(join(daemon.stateDir, 'atc.db'));
 
@@ -224,7 +224,7 @@ test('it leaves the daemon running when the token file for the replacement canno
 
   await client.sendHello('atc/test');
 
-  const oldPID = daemon.proc.pid;
+  const oldPID = daemon.subprocess.pid;
 
   const restart = await runATC({
     command: ctx.atc,
@@ -366,7 +366,7 @@ test('it completes a restart run from inside a hosted session after the session 
 
   await client.sendHello('atc/test');
 
-  const oldPID = daemon.proc.pid;
+  const oldPID = daemon.subprocess.pid;
 
   const seed = await StateStore.open(join(daemon.stateDir, 'atc.db'));
 
@@ -445,7 +445,7 @@ test('it restarts through the unit when the daemon is the unit main process, han
 
   await client.sendHello('atc/test');
 
-  const oldPID = daemon.proc.pid;
+  const oldPID = daemon.subprocess.pid;
 
   ctx.fake.writeMainPID(oldPID);
   ctx.fake.writeUnitCgroup(oldPID, 'atc-daemon.service');
@@ -539,9 +539,9 @@ test('it replaces a daemon on another protocol version and prints its refusal', 
 
   await client.sendHello('atc/test');
 
-  daemon.proc.kill();
+  daemon.subprocess.kill();
 
-  await daemon.proc.exited;
+  await daemon.subprocess.exited;
 
   rmSync(daemon.socketPath, { force: true });
 
@@ -612,7 +612,7 @@ test('it prints the preflight and stops the daemon nowhere on a dry run', async 
 
   await client.sendHello('atc/test');
 
-  const oldPID = daemon.proc.pid;
+  const oldPID = daemon.subprocess.pid;
 
   const restart = await runATC({
     command: ctx.atc,
@@ -628,7 +628,7 @@ test('it prints the preflight and stops the daemon nowhere on a dry run', async 
   expect(restart.stdout).toInclude(`daemon: pid ${oldPID}`);
   expect(restart.stdout).toInclude('the interrupted turn does not continue');
   expect(readDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.pid).toBe(oldPID);
-  expect(Bun.peek.status(daemon.proc.exited)).toBe('pending');
+  expect(Bun.peek.status(daemon.subprocess.exited)).toBe('pending');
 });
 
 test('it refuses a --listen without a token file before it stops the daemon', async () => {
@@ -654,7 +654,7 @@ test('it refuses a --listen without a token file before it stops the daemon', as
 
   await client.sendHello('atc/test');
 
-  const oldPID = daemon.proc.pid;
+  const oldPID = daemon.subprocess.pid;
 
   const restart = await runATC({
     command: ctx.atc,
@@ -673,5 +673,5 @@ test('it refuses a --listen without a token file before it stops the daemon', as
   );
 
   expect(readDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.pid).toBe(oldPID);
-  expect(Bun.peek.status(daemon.proc.exited)).toBe('pending');
+  expect(Bun.peek.status(daemon.subprocess.exited)).toBe('pending');
 });

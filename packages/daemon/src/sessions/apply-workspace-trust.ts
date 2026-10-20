@@ -29,7 +29,7 @@ export async function applyWorkspaceTrust(
   }
 
   const files = Object.entries(planned).map(([path, content]) => ({ path, content }));
-  const dir = `${provider.guest.dir}/sessions/${spawn.id}`;
+  const dir = `${provider.guest.directory}/sessions/${spawn.id}`;
 
   await spawn.timer.withStep('trust-transfer', () =>
     provider.transferArchive(buildTarArchive(files), dir, spawn.hostKey),

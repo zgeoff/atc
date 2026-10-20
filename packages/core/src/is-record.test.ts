@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { isRecord } from './is-record';
 
 test.each([
-  ['an object', { a: 1 }, true],
+  ['an object', { count: 1 }, true],
   ['an array', [1], true],
   ['null', null, false],
   ['a string', 'a', false],

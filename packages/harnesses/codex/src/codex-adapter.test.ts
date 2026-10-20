@@ -241,7 +241,7 @@ test("it starts the session's App Server and plans the terminal on the bridge's 
     env: {},
     withheldEnv: [],
     options: { prompt: 'fix the bug', resume: false, model: 'gpt-b' },
-    dir: join(ctx.dir, 'bridge'),
+    directory: join(ctx.dir, 'bridge'),
     host: buildStubMessageBridgeHost().host,
   });
 
@@ -874,7 +874,7 @@ test('it refuses a resume through the session picker on an App Server', () => {
       env: {},
       withheldEnv: [],
       options: { prompt: '', resume: true },
-      dir: join(ctx.dir, 'bridge'),
+      directory: join(ctx.dir, 'bridge'),
       host: buildStubMessageBridgeHost().host,
     }),
   ).rejects.toMatchObject({ code: 'unsupported' });

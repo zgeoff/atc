@@ -28,11 +28,11 @@ export function readBuild(source: BuildSource): string {
   return `atc/${source.version}+${Math.round(stamp).toString(36)}`;
 }
 
-function readNewestTSMtime(dir: string): number {
+function readNewestTSMtime(directory: string): number {
   let stamp = 0;
 
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const entryPath = join(dir, entry.name);
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const entryPath = join(directory, entry.name);
 
     if (entry.isDirectory()) {
       stamp = Math.max(stamp, readNewestTSMtime(entryPath));

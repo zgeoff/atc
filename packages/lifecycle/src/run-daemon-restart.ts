@@ -141,7 +141,7 @@ function startWorkerInUnit(
     )
     .map(([key, value]) => `--setenv=${key}=${value}`);
 
-  const proc = Bun.spawn(
+  const subprocess = Bun.spawn(
     [
       'systemd-run',
       '--user',
@@ -158,7 +158,7 @@ function startWorkerInUnit(
     { env, stdin: 'ignore', stdout: 'ignore', stderr: 'inherit' },
   );
 
-  return proc.exited;
+  return subprocess.exited;
 }
 
 // How long the follower waits for the worker to report its pid before it

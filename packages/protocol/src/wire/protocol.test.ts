@@ -7,7 +7,7 @@ test('#decodeMessage decodes a request with its params', () => {
 
   expect(decoded).toStrictEqual({
     kind: 'request',
-    msg: { v: 1, id: 7, m: 'session.spawn', p: { cwd: '/x' } },
+    message: { v: 1, id: 7, m: 'session.spawn', p: { cwd: '/x' } },
   });
 });
 
@@ -16,7 +16,7 @@ test('#decodeMessage decodes a request without params', () => {
 
   expect(decoded).toStrictEqual({
     kind: 'request',
-    msg: { v: 1, id: 2, m: 'daemon.ping' },
+    message: { v: 1, id: 2, m: 'daemon.ping' },
   });
 });
 
@@ -25,7 +25,7 @@ test('#decodeMessage decodes an ok response', () => {
 
   expect(decoded).toStrictEqual({
     kind: 'response',
-    msg: { v: 1, id: 7, ok: { session: 's7' } },
+    message: { v: 1, id: 7, ok: { session: 's7' } },
   });
 });
 
@@ -34,7 +34,7 @@ test('#decodeMessage decodes an err response with a known code', () => {
 
   expect(decoded).toStrictEqual({
     kind: 'response',
-    msg: { v: 1, id: 7, err: { code: 'no_such_session', msg: 'gone' } },
+    message: { v: 1, id: 7, err: { code: 'no_such_session', msg: 'gone' } },
   });
 });
 
@@ -43,7 +43,7 @@ test('#decodeMessage decodes an event and keeps unknown fields', () => {
 
   expect(decoded).toStrictEqual({
     kind: 'event',
-    msg: { v: 1, ev: 'SessionOutput', s: 's7', seq: 41, d: 'hi' },
+    message: { v: 1, ev: 'SessionOutput', s: 's7', seq: 41, d: 'hi' },
   });
 });
 
@@ -52,7 +52,7 @@ test('#decodeMessage keeps unknown request fields out of the decoded message', (
 
   expect(decoded).toStrictEqual({
     kind: 'request',
-    msg: { v: 1, id: 3, m: 'daemon.ping' },
+    message: { v: 1, id: 3, m: 'daemon.ping' },
   });
 });
 
@@ -72,7 +72,7 @@ test('#decodeMessage decodes an unknown error code as internal and keeps its mes
 
   expect(decoded).toStrictEqual({
     kind: 'response',
-    msg: { v: 4, id: 1, err: { code: 'internal', msg: 'x' } },
+    message: { v: 4, id: 1, err: { code: 'internal', msg: 'x' } },
   });
 });
 
@@ -84,7 +84,7 @@ test.each<[string, ErrorCode]>([
 
   expect(decoded).toStrictEqual({
     kind: 'response',
-    msg: { v: 4, id: 1, err: { code: expected, msg: 'x' } },
+    message: { v: 4, id: 1, err: { code: expected, msg: 'x' } },
   });
 });
 
@@ -95,7 +95,7 @@ test('#decodeMessage keeps the data an error carries', () => {
 
   expect(decoded).toStrictEqual({
     kind: 'response',
-    msg: { v: 4, id: 1, err: { code: 'stale_epoch', msg: 'x', data: { epoch: 2 } } },
+    message: { v: 4, id: 1, err: { code: 'stale_epoch', msg: 'x', data: { epoch: 2 } } },
   });
 });
 
@@ -110,14 +110,14 @@ test('#decodeMessage decodes an encoded message back to the original', () => {
 
   expect(decodeMessage(line.trimEnd())).toStrictEqual({
     kind: 'request',
-    msg: { v: 1, id: 9, m: 'daemon.hello', p: { client: 'atc/0.1.0' } },
+    message: { v: 1, id: 9, m: 'daemon.hello', p: { client: 'atc/0.1.0' } },
   });
 });
 
 test('#decodeMessage decodes the principal a request acts as', () => {
   expect(decodeMessage('{"v":4,"id":3,"m":"session.list","as":"client-a"}')).toStrictEqual({
     kind: 'request',
-    msg: { v: 4, id: 3, m: 'session.list', as: 'client-a' },
+    message: { v: 4, id: 3, m: 'session.list', as: 'client-a' },
   });
 });
 
@@ -136,7 +136,7 @@ test('#decodeMessage decodes the name of the principal beside it', () => {
     decodeMessage('{"v":4,"id":3,"m":"session.list","as":"client-a","asName":"Lantern Notes"}'),
   ).toStrictEqual({
     kind: 'request',
-    msg: { v: 4, id: 3, m: 'session.list', as: 'client-a', asName: 'Lantern Notes' },
+    message: { v: 4, id: 3, m: 'session.list', as: 'client-a', asName: 'Lantern Notes' },
   });
 });
 

@@ -4,7 +4,10 @@ import { z } from 'zod';
 // contributes its good ones.
 export function buildOptionalStringArray() {
   return z.preprocess(
-    (v) => (Array.isArray(v) ? v.filter((a): a is string => typeof a === 'string') : undefined),
+    (value) =>
+      Array.isArray(value)
+        ? value.filter((item): item is string => typeof item === 'string')
+        : undefined,
     z.array(z.string()).optional(),
   );
 }

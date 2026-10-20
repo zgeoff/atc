@@ -11,26 +11,26 @@ export function sortSessionViews<T extends SortableSessionView>(list: readonly T
     exited: 3,
   };
 
-  const ranked = [...list].toSorted((a, b) => {
-    if (a.pinned !== b.pinned) {
-      return a.pinned ? -1 : 1;
+  const ranked = [...list].toSorted((left, right) => {
+    if (left.pinned !== right.pinned) {
+      return left.pinned ? -1 : 1;
     }
 
-    const recency = b.lastAttachedAt - a.lastAttachedAt || b.createdAt - a.createdAt;
+    const recency = right.lastAttachedAt - left.lastAttachedAt || right.createdAt - left.createdAt;
 
-    return a.pinned ? recency : rank[a.state] - rank[b.state] || recency;
+    return left.pinned ? recency : rank[left.state] - rank[right.state] || recency;
   });
 
-  const listed = new Set(ranked.map((s) => s.id));
+  const listed = new Set(ranked.map((session) => session.id));
 
   const sorted: T[] = [];
 
-  for (const s of ranked) {
-    if (s.parent !== null && listed.has(s.parent)) {
+  for (const session of ranked) {
+    if (session.parent !== null && listed.has(session.parent)) {
       continue;
     }
 
-    sorted.push(s, ...ranked.filter((child) => child.parent === s.id));
+    sorted.push(session, ...ranked.filter((child) => child.parent === session.id));
   }
 
   return sorted;

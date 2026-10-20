@@ -7,8 +7,8 @@ import { openSQLite } from './open-sqlite';
 import { withImmediateTransaction } from './with-immediate-transaction';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-immediate-');
-  const sqlite = openSQLite(join(tmp.path, 'state.db'));
+  const temporaryDirectory = setupTempDir('atc-immediate-');
+  const sqlite = openSQLite(join(temporaryDirectory.path, 'state.db'));
 
   const db = new Kysely<Record<string, never>>({ dialect: buildSQLiteDialect(sqlite) });
 

@@ -14,7 +14,7 @@ import { readPidFilePID } from '../read-pid-file-pid';
 import { stopDaemonProcess } from '../stop-daemon-process';
 
 export function setupMCPHome() {
-  const tmp = setupTempDir('atc-mcp-');
+  const temporaryDirectory = setupTempDir('atc-mcp-');
 
   // Registered after the home, so it releases first: the daemon and the
   // stand-ins stop before the home that records them is removed.
@@ -22,9 +22,9 @@ export function setupMCPHome() {
 
   const teardown = registerTestCleanup(() => stack.disposeAsync());
 
-  stack.defer(tmp.teardown);
+  stack.defer(temporaryDirectory.teardown);
 
-  const home = tmp.path;
+  const home = temporaryDirectory.path;
 
   stack.defer(async () => {
     const pid = readPidFilePID(join(home, 'atc-daemon.pid'));

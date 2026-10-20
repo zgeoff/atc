@@ -31,7 +31,7 @@ test('it applies the kind, remoteness, capabilities, guest, and broker the confi
     kind: 'imp',
     remote: true,
     capabilities: { suspend: true, input: false },
-    guest: { dir: '/guest', atc: null },
+    guest: { directory: '/guest', atc: null },
     brokerAuth: broker,
   });
 
@@ -39,7 +39,7 @@ test('it applies the kind, remoteness, capabilities, guest, and broker the confi
   expect(provider.remote).toBeTrue();
   expect(provider.capabilities.suspend).toBeTrue();
   expect(provider.capabilities.input).toBeFalse();
-  expect(provider.guest).toStrictEqual({ dir: '/guest', atc: null });
+  expect(provider.guest).toStrictEqual({ directory: '/guest', atc: null });
   expect(provider.brokerAuth).toBe(broker);
 });
 

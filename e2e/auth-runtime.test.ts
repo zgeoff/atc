@@ -1008,7 +1008,7 @@ test('it refuses to adopt a local session with a workspace once its agent takes 
   registerTestCleanup(() => store.stop());
 
   await store.createMaterialization(
-    { sessionID: id, target: 'local', dir: ctx.dir, sourceKind: 'path', withheldEnv: [] },
+    { sessionID: id, target: 'local', directory: ctx.dir, sourceKind: 'path', withheldEnv: [] },
     Date.now(),
   );
 
@@ -1112,7 +1112,7 @@ test('it restores a local session with a workspace without a terminal once its a
   registerTestCleanup(() => store.stop());
 
   await store.createMaterialization(
-    { sessionID: id, target: 'local', dir: ctx.dir, sourceKind: 'path', withheldEnv: [] },
+    { sessionID: id, target: 'local', directory: ctx.dir, sourceKind: 'path', withheldEnv: [] },
     Date.now(),
   );
 

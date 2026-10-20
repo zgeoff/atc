@@ -24,7 +24,7 @@ interface DaemonProcessConfig {
 }
 
 interface DaemonBoot {
-  readonly proc: Subprocess;
+  readonly subprocess: Subprocess;
   readonly stderrPath: string;
 }
 
@@ -51,7 +51,7 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
 
     const stderrPath = join(stderrDir, `boot-${boots}.stderr`);
 
-    const proc = Bun.spawn([...config.command, 'daemon', ...(config.args ?? [])], {
+    const subprocess = Bun.spawn([...config.command, 'daemon', ...(config.args ?? [])], {
       env: Object.fromEntries(
         Object.entries({
           ...process.env,
@@ -65,7 +65,7 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
       stderr: Bun.file(stderrPath),
     });
 
-    return { proc, stderrPath };
+    return { subprocess, stderrPath };
   };
 
   let current = boot();
@@ -77,13 +77,13 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
       client.stop();
     }
 
-    current.proc.kill('SIGKILL');
+    current.subprocess.kill('SIGKILL');
 
-    await current.proc.exited;
+    await current.subprocess.exited;
 
     const recorded = readDaemonRecord(join(stateDir, 'daemon.json'));
 
-    if (recorded !== null && recorded.pid !== current.proc.pid) {
+    if (recorded !== null && recorded.pid !== current.subprocess.pid) {
       try {
         process.kill(recorded.pid, 'SIGKILL');
       } catch {}
@@ -114,7 +114,7 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
   };
 
   const openClient = async (): Promise<DaemonClient> => {
-    const watched = current.proc;
+    const watched = current.subprocess;
     let settled = false;
     const isSettled = () => settled;
     const isWatchedExited = () => watched.exitCode !== null || watched.signalCode !== null;
@@ -191,8 +191,8 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
     reporterSocketPath: join(config.home, 'atc.sock'),
     stateDir,
     stderrDir,
-    get proc(): Subprocess {
-      return current.proc;
+    get subprocess(): Subprocess {
+      return current.subprocess;
     },
     readStderr,
     openClient,
@@ -201,9 +201,9 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
         throw new Error('a stopped daemon process cannot restart');
       }
 
-      current.proc.kill(signal);
+      current.subprocess.kill(signal);
 
-      await current.proc.exited;
+      await current.subprocess.exited;
 
       current = boot();
     },

@@ -8,8 +8,8 @@ import { PROTOCOL_V } from '../wire/protocol';
 import { openDaemonClient } from './open-daemon-client';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-daemon-client-');
-  const socketPath = join(tmp.path, 'daemon.sock');
+  const temporaryDirectory = setupTempDir('atc-daemon-client-');
+  const socketPath = join(temporaryDirectory.path, 'daemon.sock');
   const received: string[] = [];
 
   return { socketPath, received };

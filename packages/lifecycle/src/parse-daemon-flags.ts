@@ -11,9 +11,9 @@ export function parseDaemonFlags(args: readonly string[]): DaemonFlags {
 }
 
 function findFlagValue(args: readonly string[], flag: string): string | null {
-  for (const [i, arg] of args.entries()) {
+  for (const [index, arg] of args.entries()) {
     if (arg === flag) {
-      return args[i + 1] ?? null;
+      return args[index + 1] ?? null;
     }
 
     if (arg.startsWith(`${flag}=`)) {

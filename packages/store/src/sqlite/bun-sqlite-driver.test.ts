@@ -6,9 +6,9 @@ import { CompiledQuery } from 'kysely';
 import { BunSqliteDriver } from './bun-sqlite-driver';
 
 async function setupTest() {
-  const tmp = setupTempDir('atc-driver-');
+  const temporaryDirectory = setupTempDir('atc-driver-');
 
-  const sqlite = new Database(join(tmp.path, 'state.db'), { create: true });
+  const sqlite = new Database(join(temporaryDirectory.path, 'state.db'), { create: true });
 
   registerTestCleanup(() => {
     sqlite.close();

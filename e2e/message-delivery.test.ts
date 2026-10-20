@@ -918,7 +918,7 @@ test('it broadcasts SessionMessage on the events socket', async () => {
 
   expect(decoded).toStrictEqual({
     kind: 'event',
-    msg: {
+    message: {
       v: 6,
       ev: 'SessionMessage',
       s: id,
@@ -958,7 +958,7 @@ test('it runs SessionMessage hooks with the event on stdin', async () => {
 
   expect(decoded).toStrictEqual({
     kind: 'event',
-    msg: {
+    message: {
       v: 6,
       ev: 'SessionMessage',
       s: id,
@@ -1053,7 +1053,7 @@ test('it broadcasts SessionNote on the events socket', async () => {
 
   expect(decoded).toStrictEqual({
     kind: 'event',
-    msg: {
+    message: {
       v: 6,
       ev: 'SessionNote',
       s: id,
@@ -1095,7 +1095,7 @@ test('it runs SessionNote hooks with the event on stdin', async () => {
 
   expect(decoded).toStrictEqual({
     kind: 'event',
-    msg: {
+    message: {
       v: 6,
       ev: 'SessionNote',
       s: id,

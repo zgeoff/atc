@@ -70,7 +70,7 @@ export async function materializeWorkspace(
     {
       sessionID: request.sessionID,
       target: request.target,
-      dir: request.dir,
+      directory: request.dir,
       sourceKind: source.kind,
       withheldEnv,
     },
@@ -175,7 +175,7 @@ async function runMaterialization(
   await recordPhase(request, deps, updateProgress, 'cloning', {
     repoURL,
     ref,
-    ...(request.autoDir === true ? { dir: landing.dir } : {}),
+    ...(request.autoDir === true ? { directory: landing.dir } : {}),
   });
 
   const cloned = await createCheckout(

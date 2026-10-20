@@ -6,7 +6,7 @@ import { normalizeConfigDir } from './normalize-config-dir';
 
 export interface HookEntry {
   readonly command: string;
-  readonly dir?: string;
+  readonly directory?: string;
   readonly timeout?: number;
 }
 
@@ -48,7 +48,7 @@ export function collectHooks(raw: unknown, home: string = resolveHomeDir()): Hoo
         command: parsed.data.command,
         ...(parsed.data.dir === undefined
           ? {}
-          : { dir: normalizeConfigDir(parsed.data.dir, home) }),
+          : { directory: normalizeConfigDir(parsed.data.dir, home) }),
         ...(parsed.data.timeout === undefined ? {} : { timeout: parsed.data.timeout }),
       });
     }
@@ -63,7 +63,8 @@ export function collectHooks(raw: unknown, home: string = resolveHomeDir()): Hoo
 
 function buildOptionalPositiveNumber() {
   return z.preprocess(
-    (v) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : undefined),
+    (value) =>
+      typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined,
     z.number().optional(),
   );
 }

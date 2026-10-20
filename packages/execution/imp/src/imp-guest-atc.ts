@@ -63,7 +63,7 @@ export class ImpGuestATC {
     }
 
     const ready = await this.port.runCommand(name, {
-      argv: ['sh', '-c', READY_GUEST_DIR_SCRIPT, 'sh', this.guest.dir, this.guest.atc ?? ''],
+      argv: ['sh', '-c', READY_GUEST_DIR_SCRIPT, 'sh', this.guest.directory, this.guest.atc ?? ''],
     });
 
     if (ready.code === 0 || !installATC) {
@@ -88,7 +88,7 @@ export class ImpGuestATC {
     image: string,
     log: (line: string) => void,
   ): Promise<void> {
-    const dir = this.guest.dir;
+    const dir = this.guest.directory;
     const known = this.imageATCVersions.has(name);
     let imageVersion = this.imageATCVersions.get(name) ?? null;
     let copiedVersion: string | null = null;
@@ -185,13 +185,20 @@ export class ImpGuestATC {
   // imp without gzip refuses the copy before it reads any input.
   private async copyATCBinary(name: string, atcBinary: string): Promise<void> {
     const unpacked = await this.port.runCommand(name, {
-      argv: ['sh', '-c', INSTALL_GUEST_ATC_SCRIPT, 'sh', this.guest.dir, String(NO_GZIP_CODE)],
+      argv: [
+        'sh',
+        '-c',
+        INSTALL_GUEST_ATC_SCRIPT,
+        'sh',
+        this.guest.directory,
+        String(NO_GZIP_CODE),
+      ],
       stdin: await readGuestATCArchive(atcBinary),
     });
 
     if (unpacked.code === NO_GZIP_CODE) {
       throw new Error(
-        `imp ${name} has no gzip, which installing atc in ${this.guest.dir} needs; install gzip in its image`,
+        `imp ${name} has no gzip, which installing atc in ${this.guest.directory} needs; install gzip in its image`,
       );
     }
 

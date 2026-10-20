@@ -6,9 +6,9 @@ import { buildDirsSource } from './build-dirs-source';
 
 // A temp directory that stands for the daemon user's home.
 function setupTest() {
-  const tmp = setupTempDir('atc-dirs-source-');
+  const temporaryDirectory = setupTempDir('atc-dirs-source-');
 
-  return { home: tmp.path };
+  return { home: temporaryDirectory.path };
 }
 
 test('it lists the spawn history, then the roots, then zoxide, leaving out a gone directory and a repeat', async () => {

@@ -5,9 +5,9 @@ import { buildStubHarnessPlugins, setupTempDir } from '@atc/test-utils';
 import { loadConfig, parseConfig, renderDefaultConfig } from './config';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-config-');
+  const temporaryDirectory = setupTempDir('atc-config-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('#parseConfig leaves every target unusable, local included, and grants no principal a target when the root is not an object', () => {
@@ -221,7 +221,7 @@ test('#parseConfig collects the configured hooks map', () => {
   });
 
   expect(config.hooks).toStrictEqual({
-    SessionAttached: [{ command: 'ork focus', dir: '/w', timeout: 2000 }],
+    SessionAttached: [{ command: 'ork focus', directory: '/w', timeout: 2000 }],
   });
 });
 
@@ -245,7 +245,7 @@ test('#parseConfig expands a leading tilde in a hook dir to the home', () => {
   );
 
   expect(config.hooks).toStrictEqual({
-    SessionAttached: [{ command: 'ork focus', dir: '/home/someone/w' }],
+    SessionAttached: [{ command: 'ork focus', directory: '/home/someone/w' }],
   });
 });
 
@@ -885,9 +885,14 @@ test('#renderDefaultConfig writes an agents map with the claude entry and no old
 
 test('#loadConfig writes the default config when the file is missing', () => {
   const ctx = setupTest();
-  const file = join(ctx.dir, 'config.json');
+  const file = join(ctx.directory, 'config.json');
 
-  loadConfig(buildStubHarnessPlugins(), file, join(ctx.dir, 'home'), join(ctx.dir, 'state'));
+  loadConfig(
+    buildStubHarnessPlugins(),
+    file,
+    join(ctx.directory, 'home'),
+    join(ctx.directory, 'state'),
+  );
 
   expect(JSON.parse(readFileSync(file, 'utf8'))).toStrictEqual({
     agents: { claude: {} },
@@ -910,12 +915,12 @@ test('#loadConfig leaves only the config file in its directory after it writes t
 
   loadConfig(
     buildStubHarnessPlugins(),
-    join(ctx.dir, 'atc', 'config.json'),
-    join(ctx.dir, 'home'),
-    join(ctx.dir, 'state'),
+    join(ctx.directory, 'atc', 'config.json'),
+    join(ctx.directory, 'home'),
+    join(ctx.directory, 'state'),
   );
 
-  expect(readdirSync(join(ctx.dir, 'atc'))).toStrictEqual(['config.json']);
+  expect(readdirSync(join(ctx.directory, 'atc'))).toStrictEqual(['config.json']);
 });
 
 test('#loadConfig returns the defaults when the file is missing', () => {
@@ -924,9 +929,9 @@ test('#loadConfig returns the defaults when the file is missing', () => {
   expect(
     loadConfig(
       buildStubHarnessPlugins(),
-      join(ctx.dir, 'config.json'),
-      join(ctx.dir, 'home'),
-      join(ctx.dir, 'state'),
+      join(ctx.directory, 'config.json'),
+      join(ctx.directory, 'home'),
+      join(ctx.directory, 'state'),
     ),
   ).toStrictEqual({
     agents: [
@@ -970,7 +975,7 @@ test('#loadConfig returns the defaults when the file is missing', () => {
 
 test('#loadConfig reads an existing file against the home it is given', () => {
   const ctx = setupTest();
-  const file = join(ctx.dir, 'config.json');
+  const file = join(ctx.directory, 'config.json');
 
   writeFileSync(
     file,
@@ -978,7 +983,12 @@ test('#loadConfig reads an existing file against the home it is given', () => {
   );
 
   expect(
-    loadConfig(buildStubHarnessPlugins(), file, join(ctx.dir, 'home'), join(ctx.dir, 'state')),
+    loadConfig(
+      buildStubHarnessPlugins(),
+      file,
+      join(ctx.directory, 'home'),
+      join(ctx.directory, 'state'),
+    ),
   ).toStrictEqual({
     agents: [
       {
@@ -993,7 +1003,7 @@ test('#loadConfig reads an existing file against the home it is given', () => {
     ],
     agentErrors: [],
     defaultAgent: 'claude',
-    dirs: { roots: [join(ctx.dir, 'home', 'projects')] },
+    dirs: { roots: [join(ctx.directory, 'home', 'projects')] },
     workspaces: {
       githubOwner: null,
       sources: null,
@@ -1021,31 +1031,47 @@ test('#loadConfig reads an existing file against the home it is given', () => {
 
 test('#loadConfig creates the state directory it is given', () => {
   const ctx = setupTest();
-  const state = join(ctx.dir, 'state', 'atc');
+  const state = join(ctx.directory, 'state', 'atc');
 
-  loadConfig(buildStubHarnessPlugins(), join(ctx.dir, 'config.json'), join(ctx.dir, 'home'), state);
+  loadConfig(
+    buildStubHarnessPlugins(),
+    join(ctx.directory, 'config.json'),
+    join(ctx.directory, 'home'),
+    state,
+  );
 
   expect(readdirSync(state)).toBeEmpty();
 });
 
 test('#loadConfig never overwrites an existing file it cannot use', () => {
   const ctx = setupTest();
-  const file = join(ctx.dir, 'config.json');
+  const file = join(ctx.directory, 'config.json');
 
   writeFileSync(file, '{ "agents": ');
-  loadConfig(buildStubHarnessPlugins(), file, join(ctx.dir, 'home'), join(ctx.dir, 'state'));
+
+  loadConfig(
+    buildStubHarnessPlugins(),
+    file,
+    join(ctx.directory, 'home'),
+    join(ctx.directory, 'state'),
+  );
 
   expect(readFileSync(file, 'utf8')).toBe('{ "agents": ');
 });
 
 test('#loadConfig leaves every target unusable when the file cannot be read', () => {
   const ctx = setupTest();
-  const file = join(ctx.dir, 'config.json');
+  const file = join(ctx.directory, 'config.json');
 
   mkdirSync(file);
 
   expect(
-    loadConfig(buildStubHarnessPlugins(), file, join(ctx.dir, 'home'), join(ctx.dir, 'state')),
+    loadConfig(
+      buildStubHarnessPlugins(),
+      file,
+      join(ctx.directory, 'home'),
+      join(ctx.directory, 'state'),
+    ),
   ).toStrictEqual({
     agents: [
       {
@@ -1088,12 +1114,17 @@ test('#loadConfig leaves every target unusable when the file cannot be read', ()
 
 test('#loadConfig leaves every target unusable when the file is not valid JSON', () => {
   const ctx = setupTest();
-  const file = join(ctx.dir, 'config.json');
+  const file = join(ctx.directory, 'config.json');
 
   writeFileSync(file, '{ "agents": ');
 
   expect(
-    loadConfig(buildStubHarnessPlugins(), file, join(ctx.dir, 'home'), join(ctx.dir, 'state')),
+    loadConfig(
+      buildStubHarnessPlugins(),
+      file,
+      join(ctx.directory, 'home'),
+      join(ctx.directory, 'state'),
+    ),
   ).toStrictEqual({
     agents: [
       {

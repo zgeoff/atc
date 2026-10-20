@@ -122,7 +122,7 @@ const FIELD_CHECKS: ReadonlyMap<string, FieldCheck> = new Map([
   [
     'pluginDirs',
     {
-      schema: z.array(z.string().refine((dir) => findPluginDirProblem(dir) === null)),
+      schema: z.array(z.string().refine((directory) => findPluginDirProblem(directory) === null)),
       problem:
         'pluginDirs must be an array of absolute paths or paths that start with ~/, each without a .. segment or control characters',
     },
@@ -182,6 +182,6 @@ function isStringRecord(value: unknown): value is Record<string, string> {
   return (
     isRecord(value) &&
     !Array.isArray(value) &&
-    Object.values(value).every((v) => typeof v === 'string')
+    Object.values(value).every((fieldValue) => typeof fieldValue === 'string')
   );
 }

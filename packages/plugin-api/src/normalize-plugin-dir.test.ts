@@ -10,8 +10,8 @@ test.each([
   ['~/plugins/band', '/home/sam/plugins/band'],
   ['~/plugins/band/', '/home/sam/plugins/band'],
   ['~/', '/home/sam'],
-])('it gives %s as %s', (dir, normalized) => {
-  expect(normalizePluginDir(dir, '/home/sam')).toBe(normalized);
+])('it gives %s as %s', (directory, normalized) => {
+  expect(normalizePluginDir(directory, '/home/sam')).toBe(normalized);
 });
 
 test('it gives a path under a home with a trailing slash without a doubled slash', () => {

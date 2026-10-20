@@ -54,8 +54,8 @@ test('it runs a dir hook when the session repo root or cwd sits at or under the 
   const run = makeHookRunner(
     {
       SessionAttached: [
-        { command: `touch '${join(ctx.dir, 'exact')}'`, dir: '/w/repo' },
-        { command: `touch '${join(ctx.dir, 'above')}'`, dir: '/w' },
+        { command: `touch '${join(ctx.dir, 'exact')}'`, directory: '/w/repo' },
+        { command: `touch '${join(ctx.dir, 'above')}'`, directory: '/w' },
       ],
     },
     ctx.options,
@@ -75,7 +75,7 @@ test('it skips a dir hook when the session path only shares a string prefix', as
   const run = makeHookRunner(
     {
       SessionAttached: [
-        { command: `touch '${join(ctx.dir, 'trap')}'`, dir: '/w/b' },
+        { command: `touch '${join(ctx.dir, 'trap')}'`, directory: '/w/b' },
         { command: `touch '${join(ctx.dir, 'control')}'` },
       ],
     },
@@ -100,7 +100,7 @@ test('it skips dir hooks for an event that carries no session', async () => {
   const run = makeHookRunner(
     {
       PermissionResolved: [
-        { command: `touch '${join(ctx.dir, 'trap')}'`, dir: '/w' },
+        { command: `touch '${join(ctx.dir, 'trap')}'`, directory: '/w' },
         { command: `touch '${join(ctx.dir, 'control')}'` },
       ],
     },

@@ -20,7 +20,7 @@ test('it lets exactly one of two daemons started at once serve a state directory
 
   const loserIndex = await Promise.race(
     daemons.map(async (daemon, index) => {
-      await daemon.proc.exited;
+      await daemon.subprocess.exited;
 
       return index;
     }),
@@ -37,11 +37,11 @@ test('it lets exactly one of two daemons started at once serve a state directory
 
   await client.sendHello('atc/test');
 
-  expect(loser.proc.exitCode).toBe(1);
-  expect(Bun.peek.status(winner.proc.exited)).toBe('pending');
+  expect(loser.subprocess.exitCode).toBe(1);
+  expect(Bun.peek.status(winner.subprocess.exited)).toBe('pending');
 
   expect(readDaemonRecord(join(first.stateDir, 'daemon.json'))).toStrictEqual({
-    pid: winner.proc.pid,
+    pid: winner.subprocess.pid,
     socketPath: first.socketPath,
     reporterSocketPath: first.reporterSocketPath,
     eventsSocketPath: join(ctx.home, 'atc-events.sock'),
@@ -64,12 +64,12 @@ test('it refuses a second daemon with the pid and socket of the daemon that serv
 
   const refused = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
-  const code = await refused.proc.exited;
+  const code = await refused.subprocess.exited;
 
   expect(code).toBe(1);
 
   expect(refused.readStderr()).toBe(
-    `atc daemon: another daemon already serves ${serving.stateDir} (pid ${serving.proc.pid}, socket ${serving.socketPath})\n`,
+    `atc daemon: another daemon already serves ${serving.stateDir} (pid ${serving.subprocess.pid}, socket ${serving.socketPath})\n`,
   );
 });
 

@@ -8,9 +8,9 @@ import {
 } from './register-refused-sqlite-name';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-refused-sqlite-');
+  const temporaryDirectory = setupTempDir('atc-refused-sqlite-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it refuses a path whose file name is registered', () => {
@@ -19,11 +19,11 @@ test('it refuses a path whose file name is registered', () => {
   onTestFinished(registerRefusedSQLiteName('refused.db'));
 
   expect(() => {
-    requireOpenableSQLitePath(join(ctx.dir, 'refused.db'));
+    requireOpenableSQLitePath(join(ctx.directory, 'refused.db'));
   }).toThrow(
     expect.objectContaining({
       code: 'sqlite_refused',
-      message: `atc: this process never opens refused.db, so it refuses ${join(ctx.dir, 'refused.db')}`,
+      message: `atc: this process never opens refused.db, so it refuses ${join(ctx.directory, 'refused.db')}`,
     }),
   );
 });
@@ -34,30 +34,30 @@ test('it refuses the registered name written in another case', () => {
   onTestFinished(registerRefusedSQLiteName('refused.db'));
 
   expect(() => {
-    requireOpenableSQLitePath(join(ctx.dir, 'REFUSED.DB'));
+    requireOpenableSQLitePath(join(ctx.directory, 'REFUSED.DB'));
   }).toThrow(expect.objectContaining({ code: 'sqlite_refused' }));
 });
 
 test('it refuses a symlink to a file with the registered name', () => {
   const ctx = setupTest();
 
-  writeFileSync(join(ctx.dir, 'refused.db'), '');
-  symlinkSync(join(ctx.dir, 'refused.db'), join(ctx.dir, 'other.db'));
+  writeFileSync(join(ctx.directory, 'refused.db'), '');
+  symlinkSync(join(ctx.directory, 'refused.db'), join(ctx.directory, 'other.db'));
   onTestFinished(registerRefusedSQLiteName('refused.db'));
 
   expect(() => {
-    requireOpenableSQLitePath(join(ctx.dir, 'other.db'));
+    requireOpenableSQLitePath(join(ctx.directory, 'other.db'));
   }).toThrow(expect.objectContaining({ code: 'sqlite_refused' }));
 });
 
 test('it refuses a symlink to a missing file with the registered name', () => {
   const ctx = setupTest();
 
-  symlinkSync(join(ctx.dir, 'refused.db'), join(ctx.dir, 'other.db'));
+  symlinkSync(join(ctx.directory, 'refused.db'), join(ctx.directory, 'other.db'));
   onTestFinished(registerRefusedSQLiteName('refused.db'));
 
   expect(() => {
-    requireOpenableSQLitePath(join(ctx.dir, 'other.db'));
+    requireOpenableSQLitePath(join(ctx.directory, 'other.db'));
   }).toThrow(expect.objectContaining({ code: 'sqlite_refused' }));
 });
 
@@ -67,7 +67,7 @@ test('it allows a path with another file name', () => {
   onTestFinished(registerRefusedSQLiteName('refused.db'));
 
   expect(() => {
-    requireOpenableSQLitePath(join(ctx.dir, 'state.db'));
+    requireOpenableSQLitePath(join(ctx.directory, 'state.db'));
   }).not.toThrow();
 });
 
@@ -78,6 +78,6 @@ test('it allows the registered name again once the release runs', () => {
   release();
 
   expect(() => {
-    requireOpenableSQLitePath(join(ctx.dir, 'refused.db'));
+    requireOpenableSQLitePath(join(ctx.directory, 'refused.db'));
   }).not.toThrow();
 });

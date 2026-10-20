@@ -52,8 +52,8 @@ test('it parks what a paused reader cannot take instead of refusing it', async (
 
   ctx.socket.data = { queue };
 
-  const accepted = Array.from({ length: 10_000 }, (_, i) =>
-    queue.send(`{"v":1,"ev":"SessionOutput","s":"s1","seq":${i},"d":"${'x'.repeat(120)}"}\n`),
+  const accepted = Array.from({ length: 10_000 }, (_, index) =>
+    queue.send(`{"v":1,"ev":"SessionOutput","s":"s1","seq":${index},"d":"${'x'.repeat(120)}"}\n`),
   );
 
   expect(accepted).toSatisfyAll((ok: boolean) => ok);
@@ -69,7 +69,7 @@ test('it delivers every byte to a slow reader without loss', async () => {
 
   const lines = Array.from(
     { length: 10_000 },
-    (_, i) => `{"v":1,"ev":"SessionOutput","s":"s1","seq":${i},"d":"${'x'.repeat(120)}"}\n`,
+    (_, index) => `{"v":1,"ev":"SessionOutput","s":"s1","seq":${index},"d":"${'x'.repeat(120)}"}\n`,
   );
 
   const expected = lines.join('');
@@ -139,7 +139,7 @@ test('it preserves payload order across short writes and drains', async () => {
 
   ctx.socket.data = { queue };
 
-  const lines = Array.from({ length: 5000 }, (_, i) => `line-${i}\n`);
+  const lines = Array.from({ length: 5000 }, (_, index) => `line-${index}\n`);
 
   for (const line of lines) {
     queue.send(line);
@@ -165,5 +165,5 @@ test('it preserves payload order across short writes and drains', async () => {
     .split('\n')
     .map((line) => Number(line.slice('line-'.length)));
 
-  expect(numbers).toStrictEqual(Array.from({ length: 5000 }, (_, i) => i));
+  expect(numbers).toStrictEqual(Array.from({ length: 5000 }, (_, index) => index));
 });

@@ -124,9 +124,9 @@ export interface EventMsg {
 }
 
 export type DecodedMsg =
-  | { readonly kind: 'request'; readonly msg: RequestMsg }
-  | { readonly kind: 'response'; readonly msg: ResponseMsg }
-  | { readonly kind: 'event'; readonly msg: EventMsg }
+  | { readonly kind: 'request'; readonly message: RequestMsg }
+  | { readonly kind: 'response'; readonly message: ResponseMsg }
+  | { readonly kind: 'event'; readonly message: EventMsg }
   | { readonly kind: 'malformed'; readonly reason: string };
 
 export function decodeMessage(line: string): DecodedMsg {
@@ -143,7 +143,7 @@ export function decodeMessage(line: string): DecodedMsg {
   }
 
   if (typeof parsed['ev'] === 'string') {
-    return { kind: 'event', msg: { ...parsed, v: parsed['v'], ev: parsed['ev'] } };
+    return { kind: 'event', message: { ...parsed, v: parsed['v'], ev: parsed['ev'] } };
   }
 
   if (typeof parsed['id'] !== 'number') {
@@ -151,7 +151,7 @@ export function decodeMessage(line: string): DecodedMsg {
   }
 
   if (typeof parsed['m'] === 'string') {
-    const p = parsed['p'];
+    const params = parsed['p'];
     const as = parsed['as'];
 
     // A principal that is not a string would otherwise drop out and leave the
@@ -174,11 +174,11 @@ export function decodeMessage(line: string): DecodedMsg {
 
     return {
       kind: 'request',
-      msg: {
+      message: {
         v: parsed['v'],
         id: parsed['id'],
         m: parsed['m'],
-        ...(isRecord(p) ? { p } : {}),
+        ...(isRecord(params) ? { p: params } : {}),
         ...(as === undefined ? {} : { as }),
         ...(asName === undefined ? {} : { asName }),
       },
@@ -191,7 +191,7 @@ export function decodeMessage(line: string): DecodedMsg {
   if (isRecord(ok) || err !== null) {
     return {
       kind: 'response',
-      msg: {
+      message: {
         v: parsed['v'],
         id: parsed['id'],
         ...(isRecord(ok) ? { ok } : {}),
@@ -203,8 +203,8 @@ export function decodeMessage(line: string): DecodedMsg {
   return { kind: 'malformed', reason: 'no m, ok, or err' };
 }
 
-export function encodeMessage(msg: EventMsg | RequestMsg | ResponseMsg): string {
-  return `${JSON.stringify(msg)}\n`;
+export function encodeMessage(message: EventMsg | RequestMsg | ResponseMsg): string {
+  return `${JSON.stringify(message)}\n`;
 }
 
 function parseProtocolError(value: unknown): ProtocolError | null {

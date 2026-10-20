@@ -153,7 +153,8 @@ function buildDaemonClient(conn: ClientConnection): DaemonClient {
         ...(options.session === undefined ? {} : { session: options.session }),
         ...(options.principal === undefined ? {} : { principal: options.principal }),
       }),
-    sendRequest: (m, p, as, asName) => sendClientRequest(conn, client, m, p, as, asName),
+    sendRequest: (method, params, as, asName) =>
+      sendClientRequest(conn, client, method, params, as, asName),
     stop: () => {
       conn.socket?.end();
       drainPending(conn, 'client closed');
@@ -175,22 +176,22 @@ function isClientClosed(conn: ClientConnection): boolean {
 async function sendClientRequest(
   conn: ClientConnection,
   client: DaemonClient,
-  m: string,
-  p?: Readonly<Record<string, unknown>>,
+  method: string,
+  requestParams?: Readonly<Record<string, unknown>>,
   as?: string,
   asName?: string,
 ): Promise<Readonly<Record<string, unknown>>> {
-  const hello = m === 'daemon.hello';
+  const hello = method === 'daemon.hello';
   const principal = as ?? client.principal;
   const context = { as: principal, asName: principal === undefined ? undefined : asName };
-  const params = hello ? { protocol: PROTOCOL_V, ...p } : (p ?? {});
+  const params = hello ? { protocol: PROTOCOL_V, ...requestParams } : (requestParams ?? {});
 
-  const answer: unknown = await conn.link.call(m.split('.'), params, { context });
+  const answer: unknown = await conn.link.call(method.split('.'), params, { context });
 
   const ok = isRecord(answer) ? answer : {};
 
   try {
-    client.onAnswer(m, ok);
+    client.onAnswer(method, ok);
   } catch (error) {
     throw new DaemonError('internal', String(error));
   }

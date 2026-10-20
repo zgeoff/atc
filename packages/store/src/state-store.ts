@@ -146,11 +146,11 @@ export class StateStore {
   }
 
   recordEvent(
-    e: HookEvent,
+    hookEvent: HookEvent,
     ev: Readonly<AdapterEvent> | null = null,
     at: number = systemClock.now(),
   ): Promise<void> {
-    return this.trail.recordEvent(e, ev, at);
+    return this.trail.recordEvent(hookEvent, ev, at);
   }
 
   recordTrailEntry(entry: TrailEntry): Promise<boolean> {
@@ -377,7 +377,7 @@ export class StateStore {
   createMaterialization(
     row: Pick<
       WorkspaceMaterialization,
-      'sessionID' | 'target' | 'dir' | 'sourceKind' | 'withheldEnv'
+      'sessionID' | 'target' | 'directory' | 'sourceKind' | 'withheldEnv'
     >,
     at: number,
   ): Promise<void> {

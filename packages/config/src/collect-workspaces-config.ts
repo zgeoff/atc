@@ -44,8 +44,8 @@ export function collectWorkspacesConfig(raw: unknown): CollectedWorkspacesConfig
       gitTransports: transports.transports,
       root: typeof root === 'string' && root !== '' ? root : null,
       targetRoots: new Map(
-        Object.entries(targets).flatMap(([id, dir]) =>
-          typeof dir === 'string' && dir !== '' ? [[id, dir] as const] : [],
+        Object.entries(targets).flatMap(([id, directory]) =>
+          typeof directory === 'string' && directory !== '' ? [[id, directory] as const] : [],
         ),
       ),
     },
