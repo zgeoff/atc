@@ -16,7 +16,10 @@ const writeAsync = promisify(write);
 // Each write goes through the asynchronous node:fs write on Bun's thread pool, so a reader that
 // stops reading stalls only the log. A dropped or failed line is counted, and the next write
 // starts with `atc log dropped=N`. A write to a full pipe nobody reads never returns.
-export function createStderrSink(fd: number): Sink & AsyncDisposable & Drainable {
+export function createStderrSink(
+  fd: number,
+  batchLines: number = BATCH_LINES,
+): Sink & AsyncDisposable & Drainable {
   const encoder = new TextEncoder();
 
   let dropped = 0;
@@ -53,7 +56,7 @@ export function createStderrSink(fd: number): Sink & AsyncDisposable & Drainable
     formatter: formatLogLine,
     encoder,
     nonBlocking: {
-      bufferSize: BATCH_LINES,
+      bufferSize: batchLines,
       flushInterval: FLUSH_INTERVAL_MS,
       onDrop: (event) => {
         dropped += event.count;
