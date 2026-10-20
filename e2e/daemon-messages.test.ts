@@ -373,3 +373,83 @@ test('it names a message event sent before SessionStart by the restored session'
     },
   ]);
 });
+
+test('it keeps a message answered through the answer command across a daemon restart that revives its session', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+      restoreFleetOnRestart: true,
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  const events: DaemonEvent[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
+
+  writeFileSync(join(ctx.home, 'fake-claude-tap'), '');
+
+  const spawned = await client.sendRequest('session.spawn', {
+    cwd: ctx.home,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getString(getRecord(spawned, 'session'), 'id');
+
+  const sent = await client.sendRequest('session.message', {
+    session: id,
+    text: 'tidy the release notes',
+  });
+
+  const messageID = getString(sent, 'message');
+
+  await waitForEvent(events, { ev: 'SessionMessage', status: 'delivered' });
+
+  // The answer tool of the atc-bridge mod runs this command.
+  await runATC({
+    command: ctx.atc,
+    args: ['answer', '--message', messageID],
+    home: ctx.home,
+    env: { ATC_SOCKET: daemon.reporterSocketPath, ATC_SESSION_ID: id },
+    stdin: 'the notes are tidy',
+  });
+
+  await waitForEvent(events, { ev: 'SessionMessage', status: 'answered' });
+
+  await daemon.restart('SIGTERM');
+
+  const revived = await daemon.openClient();
+
+  await revived.sendHello('atc/test');
+
+  // The inbox drains in sent order, so a later message that reaches the
+  // revived tap shows the tap was handed everything before it.
+  const later = await revived.sendRequest('session.message', {
+    session: id,
+    text: 'list the open branches',
+  });
+
+  const tapped = await waitFor(() => {
+    const read = readFileSync(join(ctx.home, 'tap.jsonl'), 'utf8');
+
+    expect(read).toInclude(getString(later, 'message'));
+
+    return read;
+  });
+
+  const read = await revived.sendRequest('message.get', { message: messageID });
+
+  expect(read).toMatchObject({ status: 'answered', answer: 'the notes are tidy' });
+  expect(tapped.split('\n').filter((line) => line.includes(messageID))).toHaveLength(1);
+});

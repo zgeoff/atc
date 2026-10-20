@@ -1,11 +1,8 @@
 import type { MessageStatus } from './message-record';
 
-// The moves a message's status may make, which every status write in the store follows. A tap's
-// ack delivers a queued message, a turn settles a queued or delivered one once, and a restore puts
-// a delivered one back to queued for the revived process. A settled message never moves again.
 const MESSAGE_TRANSITIONS: Readonly<Record<MessageStatus, readonly MessageStatus[]>> = {
   queued: ['delivered', 'answered', 'unanswered'],
-  delivered: ['queued', 'answered', 'unanswered'],
+  delivered: ['answered', 'unanswered'],
   answered: [],
   unanswered: [],
 };

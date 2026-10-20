@@ -131,21 +131,18 @@ process, so no report about those messages can arrive, and nothing promises a re
 still queued stays queued for the session's next process. When a person removes the session, it is
 gone for good, so the daemon marks its queued messages `unanswered` too.
 
-Every local process ends with the daemon that started it. A daemon that restores the fleet as it
-starts puts each message a revived session held delivered back to queued, before the restore runs.
-The revived process's tap then takes the message again under the same id, and its sender gets one
-answer. The revived agent may already hold the message in its conversation, so a second delivery can
-repeat work the ended turn started, but a lost message leaves its sender waiting on an answer that
-never comes.
+Every local process ends with the daemon that started it, so a daemon that starts marks the
+delivered messages of each fleet session on its own machine `unanswered` with the reason
+`session_ended`, before any restore runs. A session the restore revives gets the same mark, and its
+new process never takes those messages again. The revived agent may already hold a message in its
+conversation, or may already have answered it, so a second delivery would repeat the work and send
+its sender a second answer. A message still queued stays queued, and the revived process's tap takes
+it.
 
-A daemon that does not restore the fleet marks the delivered messages of each fleet session on its
-own machine `unanswered` with the reason `session_ended`, and so does a restore for a session it
-cannot revive: an exited entry, an entry with no agent session id to resume, or one whose target or
-agent this daemon lacks. The daemon marks them the same way when it fails to put them back to
-queued, and logs the failure. The mod writes the answer notice of a message marked `session_ended`
-with a body that asks its sender to send the message again. When a live fleet row on a remote target
-holds the same agent session id, the daemon touches only the messages sent to the local session's
-own atc id, because that row's session may still run there and hold its own.
+The mod writes the answer notice of a message marked `session_ended` with a body that asks its
+sender to send the message again. When a live fleet row on a remote target holds the same agent
+session id, the daemon touches only the messages sent to the local session's own atc id, because
+that row's session may still run there and hold its own.
 
 Three ends mark nothing, because the process may still run:
 

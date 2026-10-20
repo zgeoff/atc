@@ -49,7 +49,6 @@ interface MessageServiceDeps {
     | 'updateNoticeDelivered'
     | 'updateDeliveredMessagesUnanswered'
     | 'updateUnsettledMessagesUnanswered'
-    | 'updateDeliveredMessagesQueued'
   >;
   readonly clock: Clock;
   readonly ledger: Pick<IdempotencyLedger, 'run'>;
@@ -213,17 +212,6 @@ export class MessageService {
         await this.recordAnswerNotice(record);
       }
     } catch {}
-  }
-
-  // A session that a restore revives takes again each message its ended
-  // process held delivered, once the revived process's tap attaches. Rejects
-  // when the store refuses the requeue, so the caller can close them instead.
-  async updateRevivedMessages(sessionID: SessionID, owner: MessageOwner): Promise<void> {
-    const queued = await this.store.updateDeliveredMessagesQueued(owner);
-
-    for (const record of queued) {
-      await this.recordMessageStatus(sessionID, record);
-    }
   }
 
   // While another live session resumes the same agent session, the store

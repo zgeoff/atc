@@ -385,7 +385,7 @@ test('it hands no second answer notice when the answer is reported again after a
   expect(tap.notices).toHaveLength(1);
 });
 
-test('it hands a message delivered before a restart to the revived recipient and one answer notice to its sender', async () => {
+test('it marks a message delivered before a restart unanswered for its sender and never hands it to the revived recipient', async () => {
   const ctx = await setupTest(undefined, { restoreFleetOnRestart: true });
 
   // An agent session id makes each session revivable after the restart.
@@ -429,26 +429,28 @@ test('it hands a message delivered before a restart to the revived recipient and
   const afterClient = await ctx.daemon.openClient();
   const after = await startStubTap(afterClient, ctx.recipient);
 
+  // The inbox drains in sent order, so a later message that arrives alone
+  // shows the revived tap was handed nothing before it.
+  const later = await ctx.daemon.client.sendRequest('session.message', {
+    session: ctx.recipient,
+    text: 'archive the build logs',
+  });
+
   await waitFor(() => {
     expect<unknown[]>(after.messages).toStrictEqual([
       {
         ev: 'InboxMessage',
         sessionID: ctx.recipient,
-        message: getString(sent, 'message'),
-        from: 'sender',
-        sender: { kind: 'session', session: ctx.sender, name: 'sender' },
-        text: 'rotate the staging keys',
+        message: getString(later, 'message'),
+        from: 'owner',
+        sender: { kind: 'owner', name: 'owner' },
+        text: 'archive the build logs',
         sentAt: expect.any(Number),
       },
     ]);
   });
 
-  await ctx.daemon.sendHookLines({
-    atcId: ctx.recipient,
-    event: 'Note',
-    payload: { kind: 'answered', message: sent['message'], answer: 'the keys are rotated' },
-  });
-
+  const read = await ctx.daemon.client.sendRequest('message.get', { message: sent['message'] });
   const tapClient = await ctx.daemon.openClient();
   const tap = await startStubTap(tapClient, ctx.sender, { notices: true });
 
@@ -459,19 +461,14 @@ test('it hands a message delivered before a restart to the revived recipient and
         sessionID: ctx.sender,
         message: getString(sent, 'message'),
         from: ctx.recipient,
-        status: 'answered',
-        answer: 'the keys are rotated',
+        status: 'unanswered',
+        reason: 'session_ended',
         at: expect.any(Number),
       },
     ]);
   });
 
-  // A second tap replays nothing the first one took.
-  const replayClient = await ctx.daemon.openClient();
-  const replay = await startStubTap(replayClient, ctx.sender, { notices: true });
-
-  expect(replay.notices).toStrictEqual([]);
-  expect(tap.notices).toHaveLength(1);
+  expect(read).toMatchObject({ status: 'unanswered', unansweredReason: 'session_ended' });
   expect(before.messages).toHaveLength(1);
 });
 
