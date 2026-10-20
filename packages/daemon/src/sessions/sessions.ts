@@ -294,10 +294,6 @@ export class SessionManager {
     return this.restorer.resolveRestoredEntry(entry);
   }
 
-  isRevivable(entry: FleetEntry): boolean {
-    return this.restorer.isRevivable(entry);
-  }
-
   restore(entry: FleetEntry): Session {
     return this.restorer.restore(entry);
   }

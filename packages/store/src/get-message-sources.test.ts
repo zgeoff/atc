@@ -5,7 +5,7 @@ test.each([
   ['delivered', ['queued']],
   ['answered', ['queued', 'delivered']],
   ['unanswered', ['queued', 'delivered']],
-  ['queued', ['delivered']],
+  ['queued', []],
 ] as const)('it lets a message move to %s from %p', (to, sources) => {
   expect(getMessageSources(to)).toStrictEqual([...sources]);
 });

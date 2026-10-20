@@ -256,23 +256,6 @@ export class MessageStore {
       .toSorted((left, right) => left.sentAt - right.sentAt);
   }
 
-  // For a session whose process ended with the daemon and that a restore
-  // revives: each message it held delivered goes back to queued, so the
-  // revived process takes it again.
-  async updateDeliveredMessagesQueued(owner: MessageOwner): Promise<MessageRecord[]> {
-    const rows = await this.db
-      .updateTable('messages')
-      .set({ status: 'queued', delivered_at: null })
-      .where('status', 'in', getMessageSources('queued'))
-      .where((eb) => buildOwnerFilter(eb, owner))
-      .returningAll()
-      .execute();
-
-    return rows
-      .map((row) => toMessageRecord(row))
-      .toSorted((left, right) => left.sentAt - right.sentAt);
-  }
-
   // The answer notices queued for the sender session and not yet taken by
   // its tap, oldest first.
   async readPendingNotices(senderSession: SessionID): Promise<MessageRecord[]> {

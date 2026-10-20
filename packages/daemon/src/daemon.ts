@@ -541,12 +541,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     protocol: PROTOCOL_V,
   });
 
-  await updateEndedFleetMessages({
-    manager,
-    store,
-    messages,
-    isRestoring: opts.restoreFleetOnRestart === true,
-  });
+  await updateEndedFleetMessages({ manager, store, messages });
 
   await restorer.startBootRestore(opts.restoreFleetOnRestart === true);
 

@@ -306,10 +306,6 @@ export class StateStore {
     return this.messages.updateUnsettledMessagesUnanswered(owner, reason, at);
   }
 
-  updateDeliveredMessagesQueued(owner: MessageOwner): Promise<MessageRecord[]> {
-    return this.messages.updateDeliveredMessagesQueued(owner);
-  }
-
   readPendingNotices(senderSession: SessionID): Promise<MessageRecord[]> {
     return this.messages.readPendingNotices(senderSession);
   }

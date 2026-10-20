@@ -1,4 +1,3 @@
-import { Database } from 'bun:sqlite';
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { toAgentSessionID, toMessageID, toSessionID } from '@atc/core';
@@ -352,7 +351,7 @@ test('it reads a message under the live session it was sent to', async () => {
   });
 });
 
-test('it marks a delivered message unanswered for its sender when the store refuses its requeue at boot', async () => {
+test('it marks a delivered message of a revivable session unanswered for its sender at boot and queues it for no tap', async () => {
   const ctx = await setupTest({ takesMessages: true });
   const sender = await ctx.manager.spawn(ctx.directory, 'sender', '', 80, 24);
   const recipient = await ctx.manager.spawn(ctx.directory, 'recipient', '', 80, 24);
@@ -384,34 +383,17 @@ test('it marks a delivered message unanswered for its sender when the store refu
     }),
   ]);
 
-  // The store's own database refuses the move back to queued, as a failed
-  // write would.
-  const db = new Database(join(ctx.directory, 'state.db'));
-
-  db.run(
-    "CREATE TRIGGER refuse_requeue BEFORE UPDATE OF status ON messages WHEN OLD.status = 'delivered' AND NEW.status = 'queued' BEGIN SELECT RAISE(ABORT, 'requeue refused'); END",
-  );
-
-  db.close();
-
-  const log = mock<(line: string) => void>();
-
-  ctx.manager.log = log;
-
   await updateEndedFleetMessages({
     manager: ctx.manager,
     store: ctx.store,
     messages: ctx.messages,
-    isRestoring: true,
   });
 
   const stored = await ctx.store.readMessageByID(toMessageID(answer.message));
   const notices = await ctx.store.readPendingNotices(sender.id);
-
-  expect(log).toHaveBeenCalledExactlyOnceWith(
-    `atc could not requeue the messages of session ${recipient.id} for its revive (requeue refused); it marks them unanswered`,
-  );
+  const pending = await ctx.store.readPendingMessages({ atcID: recipient.id });
 
   expect(stored).toMatchObject({ status: 'unanswered', unansweredReason: 'session_ended' });
   expect(notices.map((record) => record.id)).toStrictEqual([toMessageID(answer.message)]);
+  expect(pending).toStrictEqual([]);
 });
