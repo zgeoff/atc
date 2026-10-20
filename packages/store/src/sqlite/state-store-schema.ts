@@ -116,7 +116,7 @@ interface IdempotencyTable {
 interface WorkspaceMaterializationTable {
   session_id: string;
   target: string;
-  dir: string;
+  directory: string;
   source_kind: 'path' | 'git';
   phase: MaterializationPhase;
   repo_url: string | null;

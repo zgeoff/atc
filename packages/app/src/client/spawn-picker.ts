@@ -838,7 +838,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     const labels = new Map(
       candidates.flatMap((candidate) =>
-        candidate.pick.kind === 'path' ? [[candidate.pick.dir, candidate.label] as const] : [],
+        candidate.pick.kind === 'path'
+          ? [[candidate.pick.directory, candidate.label] as const]
+          : [],
       ),
     );
 
@@ -1265,7 +1267,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.pathListingSeq = null;
 
     const listed = candidates.flatMap((candidate) =>
-      candidate.pick.kind === 'path' ? [[candidate.pick.dir, candidate.label] as const] : [],
+      candidate.pick.kind === 'path' ? [[candidate.pick.directory, candidate.label] as const] : [],
     );
 
     this.sourceIndex = index;
@@ -1660,7 +1662,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     if (reading.kind === 'path') {
       this.sourceIndex = index;
 
-      this.applyDir(reading.dir);
+      this.applyDir(reading.directory);
 
       return;
     }

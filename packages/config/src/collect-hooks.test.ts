@@ -5,7 +5,7 @@ test('it collects hook entries keyed by wire-event name', () => {
   const hooks = collectHooks({
     SessionAttached: [{ command: 'notify-send attached' }],
     SessionRemoved: [
-      { command: 'ork sync', dir: '/home/me/projects/ork', timeout: 5000 },
+      { command: 'ork sync', directory: '/home/me/projects/ork', timeout: 5000 },
       { command: 'log-removal' },
     ],
   });
@@ -28,7 +28,7 @@ test.each([[null], [undefined], [[]], ['garbage'], [42]])(
 
 test('it skips entries without a command and drops an event name left with none', () => {
   const hooks = collectHooks({
-    SessionAttached: [{ command: '' }, { dir: '/x' }, 'garbage', { command: 'keep-me' }],
+    SessionAttached: [{ command: '' }, { directory: '/x' }, 'garbage', { command: 'keep-me' }],
     SessionState: [{ timeout: 100 }],
     SessionRemoved: 'not-an-array',
   });
@@ -38,7 +38,7 @@ test('it skips entries without a command and drops an event name left with none'
 
 test('it drops wrong-typed dir and timeout fields but keeps the entry', () => {
   const hooks = collectHooks({
-    SessionAttached: [{ command: 'run-me', dir: 42, timeout: 'soon' }],
+    SessionAttached: [{ command: 'run-me', directory: 42, timeout: 'soon' }],
     SessionDetached: [{ command: 'run-me-too', timeout: -5 }],
   });
 
@@ -52,9 +52,9 @@ test('it expands a leading tilde and trims trailing slashes in dir', () => {
   const hooks = collectHooks(
     {
       SessionAttached: [
-        { command: 'a', dir: '~/projects/ork/' },
-        { command: 'b', dir: '~' },
-        { command: 'c', dir: '/opt/x//' },
+        { command: 'a', directory: '~/projects/ork/' },
+        { command: 'b', directory: '~' },
+        { command: 'c', directory: '/opt/x//' },
       ],
     },
     '/home/someone',

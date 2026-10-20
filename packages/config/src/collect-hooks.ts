@@ -17,7 +17,7 @@ export type HooksConfig = Readonly<Record<string, readonly HookEntry[]>>;
 // with the default for it.
 const HOOK_ENTRY_SCHEMA = z.object({
   command: buildOptionalNonEmptyString(),
-  dir: buildOptionalNonEmptyString(),
+  directory: buildOptionalNonEmptyString(),
   timeout: buildOptionalPositiveNumber(),
 });
 
@@ -46,9 +46,9 @@ export function collectHooks(raw: unknown, home: string = resolveHomeDir()): Hoo
 
       entries.push({
         command: parsed.data.command,
-        ...(parsed.data.dir === undefined
+        ...(parsed.data.directory === undefined
           ? {}
-          : { directory: normalizeConfigDir(parsed.data.dir, home) }),
+          : { directory: normalizeConfigDir(parsed.data.directory, home) }),
         ...(parsed.data.timeout === undefined ? {} : { timeout: parsed.data.timeout }),
       });
     }

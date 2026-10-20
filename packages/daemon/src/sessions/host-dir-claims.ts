@@ -87,7 +87,7 @@ export class HostDirClaims {
       throw new DaemonError(
         'workspace_overlap',
         `a failed workspace spawn is removing its directory on the host of session ${hostKey}; spawn again once it is done`,
-        { phase: 'resolving', dir: directory, session: hostKey },
+        { phase: 'resolving', directory, session: hostKey },
       );
     }
 
@@ -109,7 +109,7 @@ export class HostDirClaims {
         throw new DaemonError(
           'workspace_overlap',
           `${directory} overlaps ${reservation.directory}, where session ${other} is still building its workspace on the same host`,
-          { phase: 'resolving', dir: directory, session: other },
+          { phase: 'resolving', directory, session: other },
         );
       }
     }
@@ -134,7 +134,7 @@ export class HostDirClaims {
         throw new DaemonError(
           'workspace_overlap',
           `${directory} overlaps ${removal.directory}, which the failed workspace spawn of session ${removal.id} is removing on the daemon host; spawn again once it is done`,
-          { phase: 'resolving', dir: directory, session: removal.id },
+          { phase: 'resolving', directory, session: removal.id },
         );
       }
     }
@@ -347,7 +347,7 @@ export class HostDirClaims {
       throw new DaemonError(
         'workspace_overlap',
         `${directory} overlaps ${other[1]}, the directory of session ${other[0]} on the same host; a workspace there lands beside it`,
-        { phase: 'resolving', dir: directory, session: other[0] },
+        { phase: 'resolving', directory, session: other[0] },
       );
     }
   }
@@ -489,7 +489,7 @@ export class HostDirClaims {
       throw new DaemonError(
         'host_unavailable',
         `${hostKey === null ? 'the daemon host' : `the host of session ${hostKey}`} cannot resolve ${directory}: ${result.stderr.trim()}`,
-        { phase: 'resolving', dir: directory },
+        { phase: 'resolving', directory },
       );
     }
 

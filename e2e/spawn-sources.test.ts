@@ -80,12 +80,15 @@ test('it lists the spawn history, then the roots, then zoxide, as directories on
     source: 'dirs',
     scope: null,
     candidates: [
-      { label: '~/work', pick: { kind: 'path', dir: join(daemon.directory, 'work') } },
+      { label: '~/work', pick: { kind: 'path', directory: join(daemon.directory, 'work') } },
       {
         label: '~/roots/proj',
-        pick: { kind: 'path', dir: join(daemon.directory, 'roots', 'proj') },
+        pick: { kind: 'path', directory: join(daemon.directory, 'roots', 'proj') },
       },
-      { label: '~/zoxide-dir', pick: { kind: 'path', dir: join(daemon.directory, 'zoxide-dir') } },
+      {
+        label: '~/zoxide-dir',
+        pick: { kind: 'path', directory: join(daemon.directory, 'zoxide-dir') },
+      },
     ],
   });
 });
@@ -144,8 +147,8 @@ test('it lists the owner the directories spawned on every target', async () => {
   const listed = await daemon.client.sendRequest('sources.list', { source: 'dirs', target: 'box' });
 
   expect(listed['candidates']).toIncludeSameMembers([
-    { label: '~/work', pick: { kind: 'path', dir: join(daemon.directory, 'work') } },
-    { label: '~/box-dir', pick: { kind: 'path', dir: join(daemon.directory, 'box-dir') } },
+    { label: '~/work', pick: { kind: 'path', directory: join(daemon.directory, 'work') } },
+    { label: '~/box-dir', pick: { kind: 'path', directory: join(daemon.directory, 'box-dir') } },
   ]);
 });
 
@@ -204,7 +207,7 @@ test('it lists a principal only the directories spawned on targets it may use', 
   const listed = await alice.sendRequest('sources.list', { source: 'dirs', target: 'box' });
 
   expect(listed['candidates']).toStrictEqual([
-    { label: '~/box-dir', pick: { kind: 'path', dir: join(daemon.directory, 'box-dir') } },
+    { label: '~/box-dir', pick: { kind: 'path', directory: join(daemon.directory, 'box-dir') } },
   ]);
 });
 
@@ -448,7 +451,7 @@ test('it lists directories for a target that cannot take a workspace', async () 
     candidates: [
       {
         label: '~/roots/proj',
-        pick: { kind: 'path', dir: join(daemon.directory, 'roots', 'proj') },
+        pick: { kind: 'path', directory: join(daemon.directory, 'roots', 'proj') },
       },
     ],
   });
@@ -520,7 +523,7 @@ test.each([
   ['git', '/srv/git/app.git', { kind: 'git', url: '/srv/git/app.git' }],
   ['git', 'git@example.com:acme/app.git', { kind: 'git', url: 'git@example.com:acme/app.git' }],
   ['git', 'acme/app', { kind: 'none' }],
-  ['dirs', '/srv/work', { kind: 'path', dir: '/srv/work' }],
+  ['dirs', '/srv/work', { kind: 'path', directory: '/srv/work' }],
   ['dirs', 'work', { kind: 'none' }],
 ] as const)('it reads %s input %p as %p', async (source, input, expected) => {
   const daemon = await startTestDaemon({
@@ -572,7 +575,7 @@ test('it reads a leading ~ in directory input as the daemon home', async () => {
     input: '~/work',
   });
 
-  expect(interpreted).toStrictEqual({ kind: 'path', dir: join(daemon.directory, 'work') });
+  expect(interpreted).toStrictEqual({ kind: 'path', directory: join(daemon.directory, 'work') });
 });
 
 test('it completes a typed ~ path against the daemon home', async () => {
@@ -601,7 +604,10 @@ test('it completes a typed ~ path against the daemon home', async () => {
 
   expect(completed).toStrictEqual({
     completions: [
-      { label: '~/alpha-work', pick: { kind: 'path', dir: join(daemon.directory, 'alpha-work') } },
+      {
+        label: '~/alpha-work',
+        pick: { kind: 'path', directory: join(daemon.directory, 'alpha-work') },
+      },
     ],
   });
 });
@@ -707,7 +713,10 @@ test('it completes a principal a path for a target it may use', async () => {
 
   expect(completed).toStrictEqual({
     completions: [
-      { label: '~/alpha-work', pick: { kind: 'path', dir: join(daemon.directory, 'alpha-work') } },
+      {
+        label: '~/alpha-work',
+        pick: { kind: 'path', directory: join(daemon.directory, 'alpha-work') },
+      },
     ],
   });
 });

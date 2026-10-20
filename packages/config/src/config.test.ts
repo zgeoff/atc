@@ -217,7 +217,7 @@ test.each([
 
 test('#parseConfig collects the configured hooks map', () => {
   const config = parseConfig(buildStubHarnessPlugins(), {
-    hooks: { SessionAttached: [{ command: 'ork focus', dir: '/w', timeout: 2000 }] },
+    hooks: { SessionAttached: [{ command: 'ork focus', directory: '/w', timeout: 2000 }] },
   });
 
   expect(config.hooks).toStrictEqual({
@@ -239,7 +239,7 @@ test('#parseConfig collects the configured directory roots, expanding a leading 
 test('#parseConfig expands a leading tilde in a hook dir to the home', () => {
   const config = parseConfig(
     buildStubHarnessPlugins(),
-    { hooks: { SessionAttached: [{ command: 'ork focus', dir: '~/w' }] } },
+    { hooks: { SessionAttached: [{ command: 'ork focus', directory: '~/w' }] } },
     '/c.json',
     '/home/someone',
   );

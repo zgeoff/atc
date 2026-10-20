@@ -1561,7 +1561,7 @@ test("it refuses a sub-session workspace inside its parent's directory before cl
 
   expect(spawn).rejects.toMatchObject({
     code: 'workspace_overlap',
-    data: { session: parentID, dir: join(ctx.work, 'new') },
+    data: { session: parentID, directory: join(ctx.work, 'new') },
   });
 
   expect(ctx.port.calls.filter((call) => call.startsWith('exec.run'))).toStrictEqual([]);
@@ -2046,7 +2046,11 @@ test('it refuses a workspace spawn inside another one still materializing on the
 
   await Promise.allSettled([outerSpawn, innerSettled]);
 
-  expect(innerSpawn).rejects.toMatchObject({ code: 'workspace_overlap', data: { dir: inner } });
+  expect(innerSpawn).rejects.toMatchObject({
+    code: 'workspace_overlap',
+    data: { directory: inner },
+  });
+
   expect(outerSpawn).resolves.toContainKey('session');
 
   expect(
@@ -2340,7 +2344,7 @@ test('it refuses a plain sub-session inside a workspace still materializing on t
 
   expect(refused).rejects.toMatchObject({
     code: 'workspace_overlap',
-    data: { dir: join(outer, 'b') },
+    data: { directory: join(outer, 'b') },
   });
 
   expect(outerSpawn).resolves.toContainKey('session');
@@ -4022,7 +4026,10 @@ test("it refuses a workspace destination that a symlink places inside its parent
 
   await spawn.catch(() => null);
 
-  expect(spawn).rejects.toMatchObject({ code: 'workspace_overlap', data: { dir: destination } });
+  expect(spawn).rejects.toMatchObject({
+    code: 'workspace_overlap',
+    data: { directory: destination },
+  });
 
   expect(
     ctx.port.calls.filter(
@@ -4102,7 +4109,10 @@ test("it refuses a workspace destination inside its parent's relative directory 
 
   await spawn.catch(() => null);
 
-  expect(spawn).rejects.toMatchObject({ code: 'workspace_overlap', data: { dir: destination } });
+  expect(spawn).rejects.toMatchObject({
+    code: 'workspace_overlap',
+    data: { directory: destination },
+  });
 
   expect(
     ctx.port.calls.filter(
