@@ -9,5 +9,5 @@ description:
 # atc code style
 
 The shared `code-style` skill holds the module layout, the acronym rule, state lifecycles, and the
-function-verb taxonomy. This skill holds only what atc adds to it, and it never relaxes a rule
+role table of function verbs. This skill holds only what atc adds to it, and it never relaxes a rule
 there.
