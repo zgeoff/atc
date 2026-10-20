@@ -165,9 +165,9 @@ test('it refuses a registry that is not an object', () => {
   });
 });
 
-test('it takes a registry of 34 daemons with the longest names', () => {
+test('it takes a registry of 36 daemons with the longest names', () => {
   const names = Array.from(
-    { length: 34 },
+    { length: 36 },
     (_, index) => `${'d'.repeat(29)}${String(index).padStart(2, '0')}`,
   );
 
@@ -207,9 +207,9 @@ test('it takes a registry of 34 daemons with the longest names', () => {
   });
 });
 
-test('it refuses a registry of 35 daemons as over the limit of 34', () => {
+test('it refuses a registry of 37 daemons as over the limit of 36', () => {
   const names = Array.from(
-    { length: 35 },
+    { length: 37 },
     (_, index) => `${'d'.repeat(29)}${String(index).padStart(2, '0')}`,
   );
 
@@ -232,7 +232,7 @@ test('it refuses a registry of 35 daemons as over the limit of 34', () => {
   expect(parsed).toStrictEqual({
     ok: false,
     errors: [
-      'the registry lists 35 daemons, over the limit of 34, the most whose events cursor fits 4096 bytes',
+      'the registry lists 37 daemons, over the limit of 36, the most whose events cursor fits 4096 bytes',
     ],
   });
 });

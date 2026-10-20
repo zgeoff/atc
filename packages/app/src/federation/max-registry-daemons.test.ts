@@ -6,8 +6,8 @@ import { decodeGatewayCursor } from './decode-gateway-cursor';
 import { encodeGatewayCursor } from './encode-gateway-cursor';
 import { MAX_REGISTRY_DAEMONS } from './max-registry-daemons';
 
-test('it lets a registry list 34 daemons', () => {
-  expect(MAX_REGISTRY_DAEMONS).toBe(34);
+test('it lets a registry list 36 daemons', () => {
+  expect(MAX_REGISTRY_DAEMONS).toBe(36);
 });
 
 test('it decodes the worst-case events cursor of the most daemons a registry lists, each with the longest name', () => {

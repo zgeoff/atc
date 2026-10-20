@@ -54,10 +54,10 @@ test("it interleaves daemons by timestamp and keeps a daemon's own order when it
         page: {
           kind: 'read',
           events: [
-            { cursor: 'eyJrIjoiZXYiLCJpIjoxfQ', at: 10, session: 's1', kind: 'state' },
-            { cursor: 'eyJrIjoiZXYiLCJpIjoyfQ', at: 5, session: 's1', kind: 'state' },
+            { cursor: 'WyJldmVudHMiLDFd', at: 10, session: 's1', kind: 'state' },
+            { cursor: 'WyJldmVudHMiLDJd', at: 5, session: 's1', kind: 'state' },
           ],
-          cursor: 'eyJrIjoiZXYiLCJpIjoyfQ',
+          cursor: 'WyJldmVudHMiLDJd',
           more: false,
         },
       },
@@ -66,8 +66,8 @@ test("it interleaves daemons by timestamp and keeps a daemon's own order when it
         before: { cursor: null },
         page: {
           kind: 'read',
-          events: [{ cursor: 'eyJrIjoiZXYiLCJpIjoxMX0', at: 7, session: 's9', kind: 'state' }],
-          cursor: 'eyJrIjoiZXYiLCJpIjoxMX0',
+          events: [{ cursor: 'WyJldmVudHMiLDExXQ', at: 7, session: 's9', kind: 'state' }],
+          cursor: 'WyJldmVudHMiLDExXQ',
           more: false,
         },
       },
@@ -79,21 +79,21 @@ test("it interleaves daemons by timestamp and keeps a daemon's own order when it
   expect(merged.events).toStrictEqual([
     {
       cursor:
-        'eyJ2IjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJjbG91ZC4wZjZjMmE4ZSI6ImV5SnJJam9pWlhZaUxDSnBJam93ZlEiLCJwYy45YTFiMmMzZCI6ImV5SnJJam9pWlhZaUxDSnBJam94TVgwIn19',
+        'eyJ2ZXJzaW9uIjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJjbG91ZC4wZjZjMmE4ZSI6Ild5SmxkbVZ1ZEhNaUxEQmQiLCJwYy45YTFiMmMzZCI6Ild5SmxkbVZ1ZEhNaUxERXhYUSJ9fQ',
       at: 7,
       session: 'pc.9a1b2c3d.s9',
       kind: 'state',
     },
     {
       cursor:
-        'eyJ2IjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJjbG91ZC4wZjZjMmE4ZSI6ImV5SnJJam9pWlhZaUxDSnBJam94ZlEiLCJwYy45YTFiMmMzZCI6ImV5SnJJam9pWlhZaUxDSnBJam94TVgwIn19',
+        'eyJ2ZXJzaW9uIjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJjbG91ZC4wZjZjMmE4ZSI6Ild5SmxkbVZ1ZEhNaUxERmQiLCJwYy45YTFiMmMzZCI6Ild5SmxkbVZ1ZEhNaUxERXhYUSJ9fQ',
       at: 10,
       session: 'cloud.0f6c2a8e.s1',
       kind: 'state',
     },
     {
       cursor:
-        'eyJ2IjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJjbG91ZC4wZjZjMmE4ZSI6ImV5SnJJam9pWlhZaUxDSnBJam95ZlEiLCJwYy45YTFiMmMzZCI6ImV5SnJJam9pWlhZaUxDSnBJam94TVgwIn19',
+        'eyJ2ZXJzaW9uIjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJjbG91ZC4wZjZjMmE4ZSI6Ild5SmxkbVZ1ZEhNaUxESmQiLCJwYy45YTFiMmMzZCI6Ild5SmxkbVZ1ZEhNaUxERXhYUSJ9fQ',
       at: 5,
       session: 'cloud.0f6c2a8e.s1',
       kind: 'state',
@@ -111,8 +111,8 @@ test('it gives events of one timestamp to the daemon whose name sorts first', ()
         before: { cursor: null },
         page: {
           kind: 'read',
-          events: [{ cursor: 'eyJrIjoiZXYiLCJpIjoxMX0', at: 7, session: 's9' }],
-          cursor: 'eyJrIjoiZXYiLCJpIjoxMX0',
+          events: [{ cursor: 'WyJldmVudHMiLDExXQ', at: 7, session: 's9' }],
+          cursor: 'WyJldmVudHMiLDExXQ',
           more: false,
         },
       },
@@ -121,8 +121,8 @@ test('it gives events of one timestamp to the daemon whose name sorts first', ()
         before: { cursor: null },
         page: {
           kind: 'read',
-          events: [{ cursor: 'eyJrIjoiZXYiLCJpIjoxfQ', at: 7, session: 's1' }],
-          cursor: 'eyJrIjoiZXYiLCJpIjoxfQ',
+          events: [{ cursor: 'WyJldmVudHMiLDFd', at: 7, session: 's1' }],
+          cursor: 'WyJldmVudHMiLDFd',
           more: false,
         },
       },
@@ -134,13 +134,13 @@ test('it gives events of one timestamp to the daemon whose name sorts first', ()
   expect(merged.events).toStrictEqual([
     {
       cursor:
-        'eyJ2IjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJwYy45YTFiMmMzZCI6ImV5SnJJam9pWlhZaUxDSnBJam94TUgwIiwiY2xvdWQuMGY2YzJhOGUiOiJleUpySWpvaVpYWWlMQ0pwSWpveGZRIn19',
+        'eyJ2ZXJzaW9uIjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJwYy45YTFiMmMzZCI6Ild5SmxkbVZ1ZEhNaUxERXdYUSIsImNsb3VkLjBmNmMyYThlIjoiV3lKbGRtVnVkSE1pTERGZCJ9fQ',
       at: 7,
       session: 'cloud.0f6c2a8e.s1',
     },
     {
       cursor:
-        'eyJ2IjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJwYy45YTFiMmMzZCI6ImV5SnJJam9pWlhZaUxDSnBJam94TVgwIiwiY2xvdWQuMGY2YzJhOGUiOiJleUpySWpvaVpYWWlMQ0pwSWpveGZRIn19',
+        'eyJ2ZXJzaW9uIjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJwYy45YTFiMmMzZCI6Ild5SmxkbVZ1ZEhNaUxERXhYUSIsImNsb3VkLjBmNmMyYThlIjoiV3lKbGRtVnVkSE1pTERGZCJ9fQ',
       at: 7,
       session: 'pc.9a1b2c3d.s9',
     },
@@ -164,10 +164,10 @@ test('it advances each daemon only past the events that made the page and reads 
         page: {
           kind: 'read',
           events: [
-            { cursor: 'eyJrIjoiZXYiLCJpIjoxfQ', at: 1, session: 's1' },
-            { cursor: 'eyJrIjoiZXYiLCJpIjozfQ', at: 3, session: 's1' },
+            { cursor: 'WyJldmVudHMiLDFd', at: 1, session: 's1' },
+            { cursor: 'WyJldmVudHMiLDNd', at: 3, session: 's1' },
           ],
-          cursor: 'eyJrIjoiZXYiLCJpIjozfQ',
+          cursor: 'WyJldmVudHMiLDNd',
           more: false,
         },
       },
@@ -177,10 +177,10 @@ test('it advances each daemon only past the events that made the page and reads 
         page: {
           kind: 'read',
           events: [
-            { cursor: 'eyJrIjoiZXYiLCJpIjoxMn0', at: 2, session: 's9' },
-            { cursor: 'eyJrIjoiZXYiLCJpIjoxNH0', at: 4, session: 's9' },
+            { cursor: 'WyJldmVudHMiLDEyXQ', at: 2, session: 's9' },
+            { cursor: 'WyJldmVudHMiLDE0XQ', at: 4, session: 's9' },
           ],
-          cursor: 'eyJrIjoiZXYiLCJpIjoxNH0',
+          cursor: 'WyJldmVudHMiLDE0XQ',
           more: false,
         },
       },
@@ -192,13 +192,13 @@ test('it advances each daemon only past the events that made the page and reads 
   expect(merged.events).toStrictEqual([
     {
       cursor:
-        'eyJ2IjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJjbG91ZC4wZjZjMmE4ZSI6ImV5SnJJam9pWlhZaUxDSnBJam94ZlEiLCJwYy45YTFiMmMzZCI6ImV5SnJJam9pWlhZaUxDSnBJam94TVgwIn19',
+        'eyJ2ZXJzaW9uIjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJjbG91ZC4wZjZjMmE4ZSI6Ild5SmxkbVZ1ZEhNaUxERmQiLCJwYy45YTFiMmMzZCI6Ild5SmxkbVZ1ZEhNaUxERXhYUSJ9fQ',
       at: 1,
       session: 'cloud.0f6c2a8e.s1',
     },
     {
       cursor:
-        'eyJ2IjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJjbG91ZC4wZjZjMmE4ZSI6ImV5SnJJam9pWlhZaUxDSnBJam94ZlEiLCJwYy45YTFiMmMzZCI6ImV5SnJJam9pWlhZaUxDSnBJam94TW4wIn19',
+        'eyJ2ZXJzaW9uIjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJjbG91ZC4wZjZjMmE4ZSI6Ild5SmxkbVZ1ZEhNaUxERmQiLCJwYy45YTFiMmMzZCI6Ild5SmxkbVZ1ZEhNaUxERXlYUSJ9fQ',
       at: 2,
       session: 'pc.9a1b2c3d.s9',
     },
@@ -208,8 +208,8 @@ test('it advances each daemon only past the events that made the page and reads 
 
   expect(decodeGatewayCursor(merged.cursor, 'f', registry)).toStrictEqual(
     new Map([
-      ['cloud', 'eyJrIjoiZXYiLCJpIjoxfQ'],
-      ['pc', 'eyJrIjoiZXYiLCJpIjoxMn0'],
+      ['cloud', 'WyJldmVudHMiLDFd'],
+      ['pc', 'WyJldmVudHMiLDEyXQ'],
     ]),
   );
 });
@@ -230,8 +230,8 @@ test('it gives each event the cursor that resumes right after it', () => {
         before: { cursor: 'c0' },
         page: {
           kind: 'read',
-          events: [{ cursor: 'eyJrIjoiZXYiLCJpIjoxfQ', at: 1, session: 's1' }],
-          cursor: 'eyJrIjoiZXYiLCJpIjoxfQ',
+          events: [{ cursor: 'WyJldmVudHMiLDFd', at: 1, session: 's1' }],
+          cursor: 'WyJldmVudHMiLDFd',
           more: false,
         },
       },
@@ -240,8 +240,8 @@ test('it gives each event the cursor that resumes right after it', () => {
         before: { cursor: 'p0' },
         page: {
           kind: 'read',
-          events: [{ cursor: 'eyJrIjoiZXYiLCJpIjoxMn0', at: 2, session: 's9' }],
-          cursor: 'eyJrIjoiZXYiLCJpIjoxMn0',
+          events: [{ cursor: 'WyJldmVudHMiLDEyXQ', at: 2, session: 's9' }],
+          cursor: 'WyJldmVudHMiLDEyXQ',
           more: false,
         },
       },
@@ -252,8 +252,8 @@ test('it gives each event the cursor that resumes right after it', () => {
 
   expect(decodeGatewayCursor(String(merged.events[0]?.['cursor']), 'f', registry)).toStrictEqual(
     new Map([
-      ['cloud', 'eyJrIjoiZXYiLCJpIjoxfQ'],
-      ['pc', 'eyJrIjoiZXYiLCJpIjoxMX0'],
+      ['cloud', 'WyJldmVudHMiLDFd'],
+      ['pc', 'WyJldmVudHMiLDExXQ'],
     ]),
   );
 });
@@ -356,8 +356,8 @@ test('it resumes a daemon whose every event was cut right before its first event
         before: { cursor: null },
         page: {
           kind: 'read',
-          events: [{ cursor: 'eyJrIjoiZXYiLCJpIjoxfQ', at: 1, session: 's1' }],
-          cursor: 'eyJrIjoiZXYiLCJpIjoxfQ',
+          events: [{ cursor: 'WyJldmVudHMiLDFd', at: 1, session: 's1' }],
+          cursor: 'WyJldmVudHMiLDFd',
           more: false,
         },
       },
@@ -366,8 +366,8 @@ test('it resumes a daemon whose every event was cut right before its first event
         before: { cursor: null },
         page: {
           kind: 'read',
-          events: [{ cursor: 'eyJrIjoiZXYiLCJpIjo3fQ', at: 2, session: 's9' }],
-          cursor: 'eyJrIjoiZXYiLCJpIjo3fQ',
+          events: [{ cursor: 'WyJldmVudHMiLDdd', at: 2, session: 's9' }],
+          cursor: 'WyJldmVudHMiLDdd',
           more: false,
         },
       },
@@ -378,8 +378,8 @@ test('it resumes a daemon whose every event was cut right before its first event
 
   expect(decodeGatewayCursor(merged.cursor, 'f', registry)).toStrictEqual(
     new Map([
-      ['cloud', 'eyJrIjoiZXYiLCJpIjoxfQ'],
-      ['pc', 'eyJrIjoiZXYiLCJpIjo2fQ'],
+      ['cloud', 'WyJldmVudHMiLDFd'],
+      ['pc', 'WyJldmVudHMiLDZd'],
     ]),
   );
 });
@@ -394,7 +394,7 @@ test('it rewrites the session and message of each event for its daemon', () => {
           kind: 'read',
           events: [
             {
-              cursor: 'eyJrIjoiZXYiLCJpIjoxfQ',
+              cursor: 'WyJldmVudHMiLDFd',
               at: 1,
               session: 's1',
               message: 'm-1',
@@ -402,7 +402,7 @@ test('it rewrites the session and message of each event for its daemon', () => {
               detail: 'answered',
             },
           ],
-          cursor: 'eyJrIjoiZXYiLCJpIjoxfQ',
+          cursor: 'WyJldmVudHMiLDFd',
           more: true,
         },
       },
@@ -414,7 +414,7 @@ test('it rewrites the session and message of each event for its daemon', () => {
   expect(merged.events).toStrictEqual([
     {
       cursor:
-        'eyJ2IjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJjbG91ZC4wZjZjMmE4ZSI6ImV5SnJJam9pWlhZaUxDSnBJam94ZlEifX0',
+        'eyJ2ZXJzaW9uIjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJjbG91ZC4wZjZjMmE4ZSI6Ild5SmxkbVZ1ZEhNaUxERmQifX0',
       at: 1,
       session: 'cloud.0f6c2a8e.s1',
       message: 'cloud.0f6c2a8e.m-1',
@@ -765,7 +765,7 @@ test("it gives a note event its daemon's own cursor as a qualified note handle b
           kind: 'read',
           events: [
             {
-              cursor: 'eyJrIjoiZXYiLCJpIjo3fQ',
+              cursor: 'WyJldmVudHMiLDdd',
               at: 1,
               session: 's1',
               kind: 'note',
@@ -773,7 +773,7 @@ test("it gives a note event its daemon's own cursor as a qualified note handle b
               detail: 'done',
             },
           ],
-          cursor: 'eyJrIjoiZXYiLCJpIjo3fQ',
+          cursor: 'WyJldmVudHMiLDdd',
           more: false,
         },
       },
@@ -785,13 +785,13 @@ test("it gives a note event its daemon's own cursor as a qualified note handle b
   expect(merged.events).toStrictEqual([
     {
       cursor:
-        'eyJ2IjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJwYy45YTFiMmMzZCI6ImV5SnJJam9pWlhZaUxDSnBJam8zZlEifX0',
+        'eyJ2ZXJzaW9uIjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJwYy45YTFiMmMzZCI6Ild5SmxkbVZ1ZEhNaUxEZGQifX0',
       at: 1,
       session: 'pc.9a1b2c3d.s1',
       kind: 'note',
       label: 'decision',
       detail: 'done',
-      note: 'pc.9a1b2c3d.eyJrIjoiZXYiLCJpIjo3fQ',
+      note: 'pc.9a1b2c3d.WyJldmVudHMiLDdd',
     },
   ]);
 });
@@ -806,7 +806,7 @@ test("it gives a message-answered event its daemon's own cursor as a qualified a
           kind: 'read',
           events: [
             {
-              cursor: 'eyJrIjoiZXYiLCJpIjo3fQ',
+              cursor: 'WyJldmVudHMiLDdd',
               at: 1,
               session: 's1',
               kind: 'message-answered',
@@ -814,7 +814,7 @@ test("it gives a message-answered event its daemon's own cursor as a qualified a
               detail: 'done',
             },
           ],
-          cursor: 'eyJrIjoiZXYiLCJpIjo3fQ',
+          cursor: 'WyJldmVudHMiLDdd',
           more: false,
         },
       },
@@ -826,13 +826,13 @@ test("it gives a message-answered event its daemon's own cursor as a qualified a
   expect(merged.events).toStrictEqual([
     {
       cursor:
-        'eyJ2IjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJwYy45YTFiMmMzZCI6ImV5SnJJam9pWlhZaUxDSnBJam8zZlEifX0',
+        'eyJ2ZXJzaW9uIjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJwYy45YTFiMmMzZCI6Ild5SmxkbVZ1ZEhNaUxEZGQifX0',
       at: 1,
       session: 'pc.9a1b2c3d.s1',
       kind: 'message-answered',
       message: 'pc.9a1b2c3d.m-1',
       detail: 'done',
-      answer: 'pc.9a1b2c3d.eyJrIjoiZXYiLCJpIjo3fQ',
+      answer: 'pc.9a1b2c3d.WyJldmVudHMiLDdd',
     },
   ]);
 });

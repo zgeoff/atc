@@ -18,15 +18,15 @@ test('it decodes each registry daemon position an encoded cursor holds', () => {
   const cursor = encodeGatewayCursor(
     filter,
     new Map([
-      ['cloud.0f6c2a8e', 'eyJrIjoiZXYiLCJpIjo0fQ'],
-      ['pc.9a1b2c3d', 'eyJrIjoiZXYiLCJpIjowfQ'],
+      ['cloud.0f6c2a8e', 'WyJldmVudHMiLDRd'],
+      ['pc.9a1b2c3d', 'WyJldmVudHMiLDBd'],
     ]),
   );
 
   expect(decodeGatewayCursor(cursor, filter, registry)).toStrictEqual(
     new Map([
-      ['cloud', 'eyJrIjoiZXYiLCJpIjo0fQ'],
-      ['pc', 'eyJrIjoiZXYiLCJpIjowfQ'],
+      ['cloud', 'WyJldmVudHMiLDRd'],
+      ['pc', 'WyJldmVudHMiLDBd'],
     ]),
   );
 });
@@ -86,7 +86,7 @@ test('it refuses a cursor of another version with bad_args', () => {
     defaultDaemon: 'cloud',
   };
 
-  const cursor = Buffer.from(JSON.stringify({ v: 2, filter: 'f', daemons: {} })).toString(
+  const cursor = Buffer.from(JSON.stringify({ version: 2, filter: 'f', daemons: {} })).toString(
     'base64url',
   );
 
@@ -106,7 +106,7 @@ test('it refuses a cursor read under other filters with bad_args', () => {
     defaultDaemon: 'cloud',
   };
 
-  const cursor = Buffer.from(JSON.stringify({ v: 1, filter: 'other', daemons: {} })).toString(
+  const cursor = Buffer.from(JSON.stringify({ version: 1, filter: 'other', daemons: {} })).toString(
     'base64url',
   );
 
@@ -127,7 +127,7 @@ test('it refuses a part with a stale incarnation with bad_args', () => {
   };
 
   const cursor = Buffer.from(
-    JSON.stringify({ v: 1, filter: 'f', daemons: { 'cloud.11111111': 'c' } }),
+    JSON.stringify({ version: 1, filter: 'f', daemons: { 'cloud.11111111': 'c' } }),
   ).toString('base64url');
 
   expect(() => decodeGatewayCursor(cursor, 'f', registry)).toThrow(
@@ -147,7 +147,7 @@ test('it refuses a part whose position is not a cursor with bad_args', () => {
   };
 
   const cursor = Buffer.from(
-    JSON.stringify({ v: 1, filter: 'f', daemons: { 'cloud.0f6c2a8e': 7 } }),
+    JSON.stringify({ version: 1, filter: 'f', daemons: { 'cloud.0f6c2a8e': 7 } }),
   ).toString('base64url');
 
   expect(() => decodeGatewayCursor(cursor, 'f', registry)).toThrow(
@@ -167,7 +167,7 @@ test('it refuses a part without an incarnation with bad_args', () => {
   };
 
   const cursor = Buffer.from(
-    JSON.stringify({ v: 1, filter: 'f', daemons: { cloud: 'c' } }),
+    JSON.stringify({ version: 1, filter: 'f', daemons: { cloud: 'c' } }),
   ).toString('base64url');
 
   expect(() => decodeGatewayCursor(cursor, 'f', registry)).toThrow(

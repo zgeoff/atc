@@ -47,7 +47,7 @@ test('it answers a status read with the state of the session it is bound to', as
     ctx.daemon,
   );
 
-  ctx.stub.sendLine({ v: 1, id: 'r1', op: 'status.read' });
+  ctx.stub.sendLine({ version: 1, id: 'r1', op: 'status.read' });
 
   await waitFor(() => {
     expect(ctx.stub.written).toStrictEqual([
@@ -73,7 +73,7 @@ test('it answers stale_binding and closes once the session it is bound to is gon
     ctx.daemon,
   );
 
-  ctx.stub.sendLine({ v: 1, id: 'r1', op: 'status.read' });
+  ctx.stub.sendLine({ version: 1, id: 'r1', op: 'status.read' });
 
   await waitFor(() => {
     expect(ctx.stub.isClosed()).toBeTrue();
@@ -107,7 +107,7 @@ test('it answers stale_binding and closes once the session started a newer harne
     ctx.daemon,
   );
 
-  ctx.stub.sendLine({ v: 1, id: 'r1', op: 'tap.open' });
+  ctx.stub.sendLine({ version: 1, id: 'r1', op: 'tap.open' });
 
   await waitFor(() => {
     expect(ctx.stub.isClosed()).toBeTrue();
@@ -141,7 +141,7 @@ test('it answers stale_binding and closes for a session bound to another target 
     ctx.daemon,
   );
 
-  ctx.stub.sendLine({ v: 1, id: 'r1', op: 'status.read' });
+  ctx.stub.sendLine({ version: 1, id: 'r1', op: 'status.read' });
 
   await waitFor(() => {
     expect(ctx.stub.isClosed()).toBeTrue();
@@ -258,7 +258,7 @@ test('it answers a note before it closes the relay of a guest that ended after s
   );
 
   ctx.stub.sendLine({
-    v: 1,
+    version: 1,
     id: 'note:n1',
     op: 'note',
     noteID: 'n1',
@@ -341,7 +341,7 @@ test("it answers forbidden and closes for a request to add to its own session's 
   );
 
   ctx.stub.sendLine({
-    v: 1,
+    version: 1,
     id: 'r1',
     op: 'session.scope.add',
     session: 's1',
@@ -382,8 +382,8 @@ test('it opens a tap that takes answer notices when the open asks for them', asy
     { ...ctx.daemon, attachTap },
   );
 
-  ctx.stub.sendLine({ v: 1, id: 'r1', op: 'tap.open', notices: true });
-  ctx.stub.sendLine({ v: 1, id: 'r2', op: 'tap.open' });
+  ctx.stub.sendLine({ version: 1, id: 'r1', op: 'tap.open', notices: true });
+  ctx.stub.sendLine({ version: 1, id: 'r2', op: 'tap.open' });
 
   await waitFor(() => {
     expect(ctx.stub.written).toStrictEqual([
@@ -435,7 +435,7 @@ test('it acks an answer notice of its session through the notice ack', async () 
     { ...ctx.daemon, ackNotice },
   );
 
-  ctx.stub.sendLine({ v: 1, id: 'n1', op: 'tap.notice-ack', message: 'm-7' });
+  ctx.stub.sendLine({ version: 1, id: 'n1', op: 'tap.notice-ack', message: 'm-7' });
 
   await waitFor(() => {
     expect(ctx.stub.written).toStrictEqual([{ id: 'n1', ok: true, status: 'answered' }]);

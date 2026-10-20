@@ -29,7 +29,7 @@ export function formatSecurityEvent(
   event: SecurityEvent | SuppressedSecurityEvent,
   at: number,
 ): string {
-  const head = { v: 1, ts: new Date(at).toISOString(), kind: event.kind };
+  const head = { version: 1, ts: new Date(at).toISOString(), kind: event.kind };
 
   if (event.kind === 'suppressed') {
     return `atc security ${JSON.stringify({ ...head, reason: event.reason, count: event.count })}`;

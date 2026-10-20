@@ -167,8 +167,8 @@ PKCE values.
 The line holds only the fields of the security-event contract, and the formatter picks each one by
 name, so a value added to an event never reaches the line by accident:
 
-- `v`, `ts`, `kind`, `outcome` and `reason`, with `method` on `owner_auth`: `passkey` for a sign-in
-  and `enrollment_token` for an enrollment.
+- `version`, `ts`, `kind`, `outcome` and `reason`, with `method` on `owner_auth`: `passkey` for a
+  sign-in and `enrollment_token` for an enrollment.
 - `route`: the request's path when it is one atc serves, else `other`, and never a query.
 - `client` with its id and name, only for a client atc holds, and `redirectHost` only once
   better-auth validated the redirect URI.

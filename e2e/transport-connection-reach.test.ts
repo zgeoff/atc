@@ -315,13 +315,13 @@ test('it answers note.get whose session leaves the view during the read as for a
   );
 
   conn.applyChunk(
-    `${JSON.stringify({ i: '2', p: { u: '/note/get', b: { json: { note: 'eyJrIjoiZXYiLCJpIjoxfQ' } } } })}\n`,
+    `${JSON.stringify({ i: '2', p: { u: '/note/get', b: { json: { note: 'WyJldmVudHMiLDFd' } } } })}\n`,
   );
 
   const missing = await peer.waitForAnswer('2');
 
   conn.applyChunk(
-    `${JSON.stringify({ i: '3', p: { u: '/note/get', b: { json: { note: 'eyJrIjoiZXYiLCJpIjoxfQ' } } } })}\n`,
+    `${JSON.stringify({ i: '3', p: { u: '/note/get', b: { json: { note: 'WyJldmVudHMiLDFd' } } } })}\n`,
   );
 
   const held = peer.waitForAnswer('3');
@@ -333,7 +333,7 @@ test('it answers note.get whose session leaves the view during the read as for a
   note.resolve({
     owner: toSessionID('s-held'),
     view: {
-      note: 'eyJrIjoiZXYiLCJpIjoxfQ',
+      note: 'WyJldmVudHMiLDFd',
       at: 0,
       session: 's-held',
       name: 'secret',
@@ -376,13 +376,13 @@ test('it answers note.get whose sender leaves the view during the read as for a 
   );
 
   conn.applyChunk(
-    `${JSON.stringify({ i: '2', p: { u: '/note/get', b: { json: { note: 'eyJrIjoiZXYiLCJpIjoxfQ' } } } })}\n`,
+    `${JSON.stringify({ i: '2', p: { u: '/note/get', b: { json: { note: 'WyJldmVudHMiLDFd' } } } })}\n`,
   );
 
   const missing = await peer.waitForAnswer('2');
 
   conn.applyChunk(
-    `${JSON.stringify({ i: '3', p: { u: '/note/get', b: { json: { note: 'eyJrIjoiZXYiLCJpIjoxfQ' } } } })}\n`,
+    `${JSON.stringify({ i: '3', p: { u: '/note/get', b: { json: { note: 'WyJldmVudHMiLDFd' } } } })}\n`,
   );
 
   const held = peer.waitForAnswer('3');
@@ -394,7 +394,7 @@ test('it answers note.get whose sender leaves the view during the read as for a 
   note.resolve({
     owner: toSessionID('s-held'),
     view: {
-      note: 'eyJrIjoiZXYiLCJpIjoxfQ',
+      note: 'WyJldmVudHMiLDFd',
       at: 0,
       session: 's-shown',
       name: 'shown',
