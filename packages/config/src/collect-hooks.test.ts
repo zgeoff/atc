@@ -36,7 +36,13 @@ test('it skips entries without a command and drops an event name left with none'
   expect(hooks).toStrictEqual({ SessionAttached: [{ command: 'keep-me' }] });
 });
 
-test('it drops wrong-typed dir and timeout fields but keeps the entry', () => {
+test('it keeps an entry that gives the old dir key with no directory, so it runs for every session', () => {
+  const raw: unknown = JSON.parse('{"SessionAttached":[{"command":"run","dir":"/a"}]}');
+
+  expect(collectHooks(raw)).toStrictEqual({ SessionAttached: [{ command: 'run' }] });
+});
+
+test('it drops wrong-typed directory and timeout fields but keeps the entry', () => {
   const hooks = collectHooks({
     SessionAttached: [{ command: 'run-me', directory: 42, timeout: 'soon' }],
     SessionDetached: [{ command: 'run-me-too', timeout: -5 }],
@@ -48,7 +54,7 @@ test('it drops wrong-typed dir and timeout fields but keeps the entry', () => {
   });
 });
 
-test('it expands a leading tilde and trims trailing slashes in dir', () => {
+test('it expands a leading tilde and trims trailing slashes in directory', () => {
   const hooks = collectHooks(
     {
       SessionAttached: [
