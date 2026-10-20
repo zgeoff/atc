@@ -21,7 +21,7 @@ interface SetupTestConfig {
 
 async function setupTest(config: SetupTestConfig) {
   const tmp = setupTempDir('atc-screen-detection-');
-  const dbPath = join(tmp.dir, 'state.db');
+  const dbPath = join(tmp.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -38,7 +38,7 @@ async function setupTest(config: SetupTestConfig) {
   const mgr = new SessionManager(
     null,
     store,
-    join(tmp.dir, 'status.json'),
+    join(tmp.path, 'status.json'),
     [...config.adapters],
     [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
     [],
@@ -75,7 +75,7 @@ async function setupTest(config: SetupTestConfig) {
     onDetectSkipped,
   });
 
-  return { dir: tmp.dir, clock, provider, mgr, onDetectSkipped };
+  return { dir: tmp.path, clock, provider, mgr, onDetectSkipped };
 }
 
 test('it moves a session waiting at a prompt to needs_you once its output goes quiet', async () => {

@@ -7,15 +7,15 @@ import { setupTempDir } from './setup-temp-dir';
 // A temp directory for each test's two-test fixture file, and the
 // repository root, where the bunfig preload applies to a nested `bun test`.
 function setupTest() {
-  const tmp = setupTempDir('atc-isolate-home-');
+  const temporaryDirectory = setupTempDir('atc-isolate-home-');
   const repo = join(import.meta.dir, '..', '..', '..');
 
-  return { dir: tmp.dir, repo };
+  return { directory: temporaryDirectory.path, repo };
 }
 
 test("it resolves every atc config and state path inside the run's own home", async () => {
   const ctx = setupTest();
-  const fixture = join(ctx.dir, 'state-paths.test.ts');
+  const fixture = join(ctx.directory, 'state-paths.test.ts');
 
   writeFileSync(
     fixture,
@@ -48,7 +48,7 @@ test('it resolves the databases under the home', () => {
 
 test("it resolves every atc socket and the daemon record inside the run's own runtime directory", async () => {
   const ctx = setupTest();
-  const fixture = join(ctx.dir, 'runtime-paths.test.ts');
+  const fixture = join(ctx.directory, 'runtime-paths.test.ts');
 
   writeFileSync(
     fixture,
@@ -81,7 +81,7 @@ test('it resolves the events socket and the daemon record under the runtime dire
 
 test("it resolves the grok and codex homes inside the run's own home", async () => {
   const ctx = setupTest();
-  const fixture = join(ctx.dir, 'agent-homes.test.ts');
+  const fixture = join(ctx.directory, 'agent-homes.test.ts');
 
   writeFileSync(
     fixture,
@@ -114,7 +114,7 @@ test('it resolves the codex home under the home', () => {
 
 test("it resolves the Claude config folder inside the run's own home", async () => {
   const ctx = setupTest();
-  const fixture = join(ctx.dir, 'claude-home.test.ts');
+  const fixture = join(ctx.directory, 'claude-home.test.ts');
 
   writeFileSync(
     fixture,
@@ -138,7 +138,7 @@ test('it runs without an inherited Claude config folder', () => {
     cwd: ctx.repo,
     env: {
       ...process.env,
-      CLAUDE_CONFIG_DIR: join(ctx.dir, 'claude'),
+      CLAUDE_CONFIG_DIR: join(ctx.directory, 'claude'),
     },
   });
 
@@ -150,7 +150,7 @@ test('it runs without an inherited Claude config folder', () => {
 
 test('it runs with no enclosing atc session to report to', async () => {
   const ctx = setupTest();
-  const fixture = join(ctx.dir, 'no-session.test.ts');
+  const fixture = join(ctx.directory, 'no-session.test.ts');
 
   writeFileSync(
     fixture,
@@ -171,7 +171,7 @@ test('it runs without the session socket', () => {
     env: {
       ...process.env,
       ATC_SESSION_ID: 's1-enclosing',
-      ATC_SOCKET: join(ctx.dir, 'atc.sock'),
+      ATC_SOCKET: join(ctx.directory, 'atc.sock'),
     },
   });
 
@@ -183,7 +183,7 @@ test('it runs without the session socket', () => {
 
 test("it resolves the XDG config, data, state, and cache homes inside the run's own home", async () => {
   const ctx = setupTest();
-  const fixture = join(ctx.dir, 'xdg.test.ts');
+  const fixture = join(ctx.directory, 'xdg.test.ts');
 
   writeFileSync(
     fixture,
@@ -221,12 +221,12 @@ test('it sets the XDG state and cache homes under the home', () => {
 
 test('it runs git in a test without the git config of the host XDG config home', async () => {
   const ctx = setupTest();
-  const host = join(ctx.dir, 'host-xdg');
+  const host = join(ctx.directory, 'host-xdg');
 
   mkdirSync(join(host, 'git'), { recursive: true });
   writeFileSync(join(host, 'git', 'config'), '[atc]\n\tcanary = host\n');
 
-  const fixture = join(ctx.dir, 'git-config.test.ts');
+  const fixture = join(ctx.directory, 'git-config.test.ts');
 
   writeFileSync(
     fixture,
@@ -260,7 +260,7 @@ test('it finds no host canary key at all', async () => {
 
 test("it writes a gateway's generated settings file inside the run's own home", async () => {
   const ctx = setupTest();
-  const fixture = join(ctx.dir, 'gateway-settings.test.ts');
+  const fixture = join(ctx.directory, 'gateway-settings.test.ts');
 
   writeFileSync(
     fixture,
@@ -278,7 +278,7 @@ test('it writes the settings file under the home', () => {
     { atcArgv: ['atc'] },
   );
 
-  adapter.planResumeCommand('${ctx.dir}', undefined, []);
+  adapter.planResumeCommand('${ctx.directory}', undefined, []);
 
   expect(realpathSync(join(stateDir, 'hook-settings-isolation-probe.json'))).toStartWith(
     realpathSync(join(process.env['ATC_TEST_HOME'] ?? '', 'home')) + sep,
@@ -304,7 +304,7 @@ test('it holds the state directory under the home', () => {
 
 test("it writes the atc-bridge mod inside the run's own home by default", async () => {
   const ctx = setupTest();
-  const fixture = join(ctx.dir, 'atc-bridge.test.ts');
+  const fixture = join(ctx.directory, 'atc-bridge.test.ts');
 
   writeFileSync(
     fixture,
@@ -340,7 +340,7 @@ test('it writes the mod again to the same directory', () => {
 
 test("it puts back an environment override before the run's next test", async () => {
   const ctx = setupTest();
-  const fixture = join(ctx.dir, 'restore.test.ts');
+  const fixture = join(ctx.directory, 'restore.test.ts');
 
   writeFileSync(
     fixture,
@@ -372,7 +372,7 @@ test('it starts without the override', () => {
 
 test('it stops a bare bun test before any test runs', async () => {
   const ctx = setupTest();
-  const fixture = join(ctx.dir, 'bare.test.ts');
+  const fixture = join(ctx.directory, 'bare.test.ts');
 
   writeFileSync(
     fixture,
@@ -408,7 +408,7 @@ test('it reports the second test ran', () => {
 
 test('it refuses to run under a test-home marker whose paths do not match it', async () => {
   const ctx = setupTest();
-  const fixture = join(ctx.dir, 'stale.test.ts');
+  const fixture = join(ctx.directory, 'stale.test.ts');
 
   writeFileSync(
     fixture,
@@ -428,7 +428,7 @@ test('it reports the second test ran', () => {
     cwd: ctx.repo,
     env: {
       ...process.env,
-      ATC_TEST_HOME: join(ctx.dir, 'stale-marker'),
+      ATC_TEST_HOME: join(ctx.directory, 'stale-marker'),
     },
   });
 
@@ -445,7 +445,7 @@ test('it reports the second test ran', () => {
 
 test('it refuses to run under a test-home marker beside an enclosing atc session', async () => {
   const ctx = setupTest();
-  const fixture = join(ctx.dir, 'session.test.ts');
+  const fixture = join(ctx.directory, 'session.test.ts');
 
   writeFileSync(
     fixture,
@@ -482,7 +482,7 @@ test('it reports the second test ran', () => {
 
 test('it accepts the test home the package script sets up under a temp directory ending in a slash', async () => {
   const ctx = setupTest();
-  const fixture = join(ctx.dir, 'slash.test.ts');
+  const fixture = join(ctx.directory, 'slash.test.ts');
 
   writeFileSync(
     fixture,
@@ -500,7 +500,7 @@ test('it reports the second test ran', () => {
 
   const nested = await runCommand(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
     cwd: ctx.repo,
-    env: { ...process.env, TMPDIR: `${ctx.dir}/` },
+    env: { ...process.env, TMPDIR: `${ctx.directory}/` },
   });
 
   expect({ exitCode: nested.exitCode, stdout: nested.stdout, stderr: nested.stderr }).toStrictEqual(

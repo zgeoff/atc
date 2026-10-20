@@ -10,9 +10,9 @@ import { waitFor } from './wait-for';
 // A temp directory for the spec and the log, and a start that runs the
 // stand-in on a spec in a terminal of its own, gathering what it prints.
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-menu-claude-');
-  const specPath = join(tmp.dir, 'menu.json');
-  const logPath = join(tmp.dir, 'menu.log');
+  const temporaryDirectory = setupTempDir('atc-stub-menu-claude-');
+  const specPath = join(temporaryDirectory.path, 'menu.json');
+  const logPath = join(temporaryDirectory.path, 'menu.log');
 
   const startMenu = async (spec: unknown) => {
     writeFileSync(specPath, JSON.stringify(spec));
@@ -20,7 +20,7 @@ function setupTest() {
     const pty = spawn(
       process.execPath,
       [join(import.meta.dir, 'run-stub-menu-claude.ts'), specPath, logPath, '--settings', 'x'],
-      { name: 'xterm-256color', cols: 80, rows: 24, cwd: tmp.dir },
+      { name: 'xterm-256color', cols: 80, rows: 24, cwd: temporaryDirectory.path },
     );
 
     registerTestCleanup(() => {
@@ -48,7 +48,7 @@ function setupTest() {
           .map((line): unknown => JSON.parse(line))
       : [];
 
-  return { dir: tmp.dir, startMenu, readLog };
+  return { directory: temporaryDirectory.path, startMenu, readLog };
 }
 
 test('it draws a numbered menu with the cursor on the first option', async () => {
@@ -375,10 +375,10 @@ test('it shows the second menu once the switch file appears', async () => {
       { kind: 'plain', text: ['Pick a colour'], options: ['Amber', 'Teal'] },
       { kind: 'plain', text: ['Pick a shape'], options: ['Circle', 'Square'] },
     ],
-    switchFile: join(ctx.dir, 'switch'),
+    switchFile: join(ctx.directory, 'switch'),
   });
 
-  writeFileSync(join(ctx.dir, 'switch'), '');
+  writeFileSync(join(ctx.directory, 'switch'), '');
 
   await waitFor(() => {
     expect(menu.output.text).toInclude('❯ Circle');
@@ -390,7 +390,7 @@ test('it exits without printing once the exit file appears', async () => {
 
   const menu = await ctx.startMenu({
     menus: [{ kind: 'plain', text: ['Pick a colour'], options: ['Amber', 'Teal'] }],
-    exitFile: join(ctx.dir, 'exit'),
+    exitFile: join(ctx.directory, 'exit'),
   });
 
   const exited = new Promise<number>((resolve) => {
@@ -401,7 +401,7 @@ test('it exits without printing once the exit file appears', async () => {
 
   menu.output.text = '';
 
-  writeFileSync(join(ctx.dir, 'exit'), '');
+  writeFileSync(join(ctx.directory, 'exit'), '');
 
   const exitCode = await exited;
 

@@ -8,7 +8,7 @@ import { readSourceFiles } from './read-source-files';
 function setupTest() {
   const tmp = setupTempDir('collect-source-files-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it lists source modules in sorted order, skipping installed packages and other files', () => {

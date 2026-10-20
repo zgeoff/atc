@@ -13,7 +13,7 @@ import { runPasskeys } from './passkeys';
 // it, to arrange and read rows through.
 async function setupTest() {
   const tmp = setupTempDir('atc-passkeys-');
-  const dbPath = join(tmp.dir, 'state', 'mcp-auth.db');
+  const dbPath = join(tmp.path, 'state', 'mcp-auth.db');
 
   await runPasskeys(
     { kind: 'list' },

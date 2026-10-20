@@ -33,7 +33,7 @@ interface SetupTestConfig {
 
 async function setupTest(config: SetupTestConfig) {
   const tmp = setupTempDir('atc-hook-intake-');
-  const dbPath = join(tmp.dir, 'state.db');
+  const dbPath = join(tmp.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -50,7 +50,7 @@ async function setupTest(config: SetupTestConfig) {
   const mgr = new SessionManager(
     null,
     store,
-    join(tmp.dir, 'status.json'),
+    join(tmp.path, 'status.json'),
     [adapter],
     [
       buildMockExecutionTarget({
@@ -120,7 +120,7 @@ async function setupTest(config: SetupTestConfig) {
   });
 
   return {
-    dir: tmp.dir,
+    dir: tmp.path,
     store,
     adapter,
     mgr,

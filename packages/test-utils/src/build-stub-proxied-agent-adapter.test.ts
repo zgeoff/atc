@@ -8,7 +8,7 @@ test('it plans a guest spawn that sets a proxy variable under a binding', () => 
     { prompt: '', resume: false },
     {
       atc: null,
-      dir: '/guest/sessions/s1',
+      directory: '/guest/sessions/s1',
       auth: {
         revision: 1,
         env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },

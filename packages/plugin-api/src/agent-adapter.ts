@@ -43,7 +43,7 @@ export interface GuestPaths {
   readonly atc: string | null;
 
   // the folder the session's own files unpack into.
-  readonly dir: string;
+  readonly directory: string;
 
   // given when the harness takes its credential from impd's broker.
   readonly auth?: {

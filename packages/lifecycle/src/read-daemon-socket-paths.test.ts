@@ -6,7 +6,7 @@ import { readDaemonSocketPaths } from './read-daemon-socket-paths';
 
 // A temp directory for the daemon's files.
 function setupTest() {
-  const dir = setupTempDir('collect-daemon-socket-paths-').dir;
+  const dir = setupTempDir('collect-daemon-socket-paths-').path;
 
   return { dir };
 }

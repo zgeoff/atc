@@ -45,7 +45,7 @@ async function setupTest() {
 test('it publishes a record of the workspace and each checked entry and gives the session its path', async () => {
   const ctx = await setupTest();
 
-  const worktree = join(ctx.fixture.dir, 'fix-login');
+  const worktree = join(ctx.fixture.directory, 'fix-login');
 
   await $`git worktree add --quiet -b fix-login ${worktree}`
     .env(ctx.fixture.env)
@@ -118,7 +118,7 @@ test('it refuses a spawn whose scope holds a free-form key and starts nothing', 
 test('it refuses a spawn whose worktree is not a git worktree and leaves no record', async () => {
   const ctx = await setupTest();
 
-  const plain = join(ctx.fixture.dir, 'plain');
+  const plain = join(ctx.fixture.directory, 'plain');
 
   mkdirSync(plain);
 

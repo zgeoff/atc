@@ -11,10 +11,10 @@ test('it keeps every default an override leaves out', () => {
 test('it merges a nested object key by key', () => {
   expect(
     mergeDeep<{ env: Record<string, string>; label: string }>(
-      { env: { A: '1', B: '2' }, label: 'x' },
-      { env: { B: '3', C: '4' } },
+      { env: { HOME: '1', LANG: '2' }, label: 'x' },
+      { env: { LANG: '3', TERM: '4' } },
     ),
-  ).toStrictEqual({ env: { A: '1', B: '3', C: '4' }, label: 'x' });
+  ).toStrictEqual({ env: { HOME: '1', LANG: '3', TERM: '4' }, label: 'x' });
 });
 
 test('it merges at every depth', () => {
@@ -40,11 +40,11 @@ test('it adds an override key the defaults lack', () => {
 });
 
 test('it leaves the defaults unchanged', () => {
-  const defaults = { env: { A: '1' } };
+  const defaults = { env: { HOME: '1' } };
 
-  mergeDeep(defaults, { env: { A: '2' } });
+  mergeDeep(defaults, { env: { HOME: '2' } });
 
-  expect(defaults).toStrictEqual({ env: { A: '1' } });
+  expect(defaults).toStrictEqual({ env: { HOME: '1' } });
 });
 
 test('it takes a whole value for a key the defaults leave out', () => {

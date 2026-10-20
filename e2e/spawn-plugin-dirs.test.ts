@@ -22,15 +22,15 @@ import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemo
 // that logs each start's arguments.
 function setupTest() {
   const tmp = setupTempDir('atc-spawn-plugin-dirs-');
-  const home = join(tmp.dir, 'home');
+  const home = join(tmp.path, 'home');
 
   mkdirSync(home);
 
   return {
-    dir: tmp.dir,
+    dir: tmp.path,
     home,
-    fakeClaude: createStubRecordingClaude(join(tmp.dir, 'bin')),
-    starts: join(tmp.dir, 'bin', 'claude-starts.log'),
+    fakeClaude: createStubRecordingClaude(join(tmp.path, 'bin')),
+    starts: join(tmp.path, 'bin', 'claude-starts.log'),
   };
 }
 

@@ -16,7 +16,7 @@ import { runCommand } from './run-command';
 function setupTest() {
   const tmp = setupTempDir('atc-run-command-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it returns the exit code and the trimmed output of a command', async () => {

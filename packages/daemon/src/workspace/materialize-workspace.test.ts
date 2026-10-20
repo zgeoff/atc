@@ -21,8 +21,8 @@ import { VERIFY_SCRIPT } from './verify-target-head';
 
 async function setupTest() {
   const tmp = setupTempDir('atc-materialize-');
-  const scratch = join(tmp.dir, 'scratch');
-  const dbPath = join(tmp.dir, 'state.db');
+  const scratch = join(tmp.path, 'scratch');
+  const dbPath = join(tmp.path, 'state.db');
 
   // The staging root must exist for a clone to stage in it.
   mkdirSync(scratch);

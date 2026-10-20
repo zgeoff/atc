@@ -27,7 +27,7 @@ import { openGatewayCaller } from './open-gateway-caller';
 
 async function setupTest() {
   const tmp = setupTempDir('atc-gateway-');
-  const authDBPath = join(tmp.dir, 'mcp-auth.db');
+  const authDBPath = join(tmp.path, 'mcp-auth.db');
 
   const auth = await openMCPAuth({
     dbPath: authDBPath,
@@ -48,8 +48,8 @@ async function setupTest() {
   // reads it from a file of its own, so a test can change one daemon's.
   const token = randomBytes(16).toString('hex');
 
-  writeFileSync(join(tmp.dir, 'cloud-token'), `${token}\n`);
-  writeFileSync(join(tmp.dir, 'pc-token'), `${token}\n`);
+  writeFileSync(join(tmp.path, 'cloud-token'), `${token}\n`);
+  writeFileSync(join(tmp.path, 'pc-token'), `${token}\n`);
 
   // The two daemons boot at once, since neither waits on the other.
   const [cloud, pc] = await Promise.all([
@@ -59,7 +59,7 @@ async function setupTest() {
         // Session messages need an adapter that takes them.
         adapter: buildMockAgentAdapter({ takesMessages: true }),
         principals: new Map([[claude.clientID, ['local']]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(tmp.dir, 'cloud-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(tmp.path, 'cloud-token') },
       }),
     }),
     startTestDaemon({
@@ -68,7 +68,7 @@ async function setupTest() {
         // Session messages need an adapter that takes them.
         adapter: buildMockAgentAdapter({ takesMessages: true }),
         principals: new Map([[claude.clientID, ['local']]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(tmp.dir, 'pc-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(tmp.path, 'pc-token') },
       }),
     }),
   ]);
@@ -121,7 +121,7 @@ async function setupTest() {
     },
     build: 'atc-gateway/test',
     openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
-    gatewayDBPath: join(tmp.dir, 'gateway.db'),
+    gatewayDBPath: join(tmp.path, 'gateway.db'),
 
     // Bounds a call asked of every daemon, so a daemon that never answers
     // cannot hold a test for the 5 s default. No test waits it out: a
@@ -182,7 +182,7 @@ async function setupTest() {
   return {
     url: server.url,
     origin: server.origin,
-    dir: tmp.dir,
+    dir: tmp.path,
     auth,
     authenticator,
     cloud,

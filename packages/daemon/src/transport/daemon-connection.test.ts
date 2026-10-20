@@ -15,7 +15,7 @@ import { DaemonConnection } from './daemon-connection';
 function setupTest() {
   const tmp = setupTempDir('atc-daemon-connection-');
 
-  return { socketPath: join(tmp.dir, 'daemon.sock') };
+  return { socketPath: join(tmp.path, 'daemon.sock') };
 }
 
 test('it answers a peer client request with what its procedure returns', async () => {

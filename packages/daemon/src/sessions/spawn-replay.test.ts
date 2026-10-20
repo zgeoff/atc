@@ -19,7 +19,7 @@ import { SpawnReplay } from './spawn-replay';
 // real state store, and the replay that reads both.
 async function setupTest() {
   const tmp = setupTempDir('atc-spawn-replay-');
-  const dbPath = join(tmp.dir, 'state.db');
+  const dbPath = join(tmp.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -30,7 +30,7 @@ async function setupTest() {
   const mgr = new SessionManager(
     null,
     store,
-    join(tmp.dir, 'status.json'),
+    join(tmp.path, 'status.json'),
     [buildStubHarnessAdapter()],
     [
       buildMockExecutionTarget({

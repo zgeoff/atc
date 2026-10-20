@@ -12,9 +12,9 @@ import { waitFor } from './wait-for';
 // A temp directory to hold the listener's socket, removed once the test
 // finishes.
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-answering-');
+  const temporaryDirectory = setupTempDir('atc-stub-answering-');
 
-  return { path: join(tmp.dir, 'answering.sock') };
+  return { path: join(temporaryDirectory.path, 'answering.sock') };
 }
 
 test('it records the first read and answers it with one line', async () => {

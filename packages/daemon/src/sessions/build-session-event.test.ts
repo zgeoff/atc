@@ -10,11 +10,11 @@ import { SessionManager } from './sessions';
 async function setupTest() {
   const tmp = setupTempDir('atc-daemon-events-');
 
-  const store = await StateStore.open(join(tmp.dir, 'state.db'));
+  const store = await StateStore.open(join(tmp.path, 'state.db'));
 
   registerTestCleanup(() => store.stop());
 
-  const mgr = new SessionManager(buildMockAgentAdapter(), store, join(tmp.dir, 'status.json'), []);
+  const mgr = new SessionManager(buildMockAgentAdapter(), store, join(tmp.path, 'status.json'), []);
 
   registerTestCleanup(() => {
     mgr.detachAll();

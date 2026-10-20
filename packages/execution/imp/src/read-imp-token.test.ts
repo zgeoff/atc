@@ -7,7 +7,7 @@ import { readImpToken } from './read-imp-token';
 function setupTest() {
   const tmp = setupTempDir('atc-read-imp-token-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it reads a token file without its one trailing newline', () => {

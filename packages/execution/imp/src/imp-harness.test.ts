@@ -18,7 +18,7 @@ function setupTest() {
   const tmp = setupTempDir('atc-imp-harness-');
   const port = createStubImpPort();
 
-  return { dir: tmp.dir, port };
+  return { dir: tmp.path, port };
 }
 
 test('it reconnects after impd drops a send and resumes after the last byte it has', async () => {

@@ -17,15 +17,15 @@ import {
 function setupTest() {
   const tmp = setupTempDir('atc-e2e-codex-shared-');
   const atc = resolveATCCommand();
-  const configDir = join(tmp.dir, '.config', 'atc');
+  const configDir = join(tmp.path, '.config', 'atc');
 
   mkdirSync(configDir, { recursive: true });
 
   return {
-    home: tmp.dir,
+    home: tmp.path,
     atc,
     configPath: join(configDir, 'config.json'),
-    codex: createStubSharedServerCodex(tmp.dir, { atc, composer: createStubComposer(tmp.dir) }),
+    codex: createStubSharedServerCodex(tmp.path, { atc, composer: createStubComposer(tmp.path) }),
   };
 }
 

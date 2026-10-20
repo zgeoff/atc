@@ -9,7 +9,7 @@ import { readStoredFleetFile } from './read-stored-fleet-file';
 function setupTest() {
   const tmp = setupTempDir('read-stored-fleet-file-');
 
-  return { dbPath: join(tmp.dir, 'atc.db') };
+  return { dbPath: join(tmp.path, 'atc.db') };
 }
 
 test('it reads the rows this state directory owns with their exit status', () => {

@@ -7,7 +7,7 @@ function setupTest() {
 
   return {
     atc: resolveATCCommand(),
-    env: { PATH: process.env['PATH'] ?? '', HOME: home.dir },
+    env: { PATH: process.env['PATH'] ?? '', HOME: home.path },
   };
 }
 

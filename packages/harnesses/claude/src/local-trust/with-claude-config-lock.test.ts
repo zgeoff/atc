@@ -16,7 +16,7 @@ import { withClaudeConfigLock } from './with-claude-config-lock';
 function setupTest() {
   const tmp = setupTempDir('atc-claude-lock-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it holds the lock directory while the callback runs and removes it after', async () => {

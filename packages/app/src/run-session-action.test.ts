@@ -18,7 +18,7 @@ function setupTest() {
 
   const provider = new ImpProvider(
     port,
-    { guestDir: join(tmp.dir, 'g'), rebindChangedAuth: false },
+    { guestDir: join(tmp.path, 'g'), rebindChangedAuth: false },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -26,7 +26,7 @@ function setupTest() {
     provider.dispose();
   });
 
-  return { dir: tmp.dir, port, provider };
+  return { dir: tmp.path, port, provider };
 }
 
 test('it prints the new revision, the adopt command and the sessions pending a restart after a rebind', async () => {

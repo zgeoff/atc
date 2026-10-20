@@ -10,7 +10,7 @@ import { writeHookSettings } from './write-hook-settings';
 function setupTest() {
   const tmp = setupTempDir('atc-hook-settings-');
 
-  return { stateDir: join(tmp.dir, 'state'), home: join(tmp.dir, 'home') };
+  return { stateDir: join(tmp.path, 'state'), home: join(tmp.path, 'home') };
 }
 
 test('it writes one settings file per agent id into the state folder', () => {

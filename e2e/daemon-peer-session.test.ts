@@ -13,16 +13,16 @@ import {
 
 function setupTest() {
   const tmp = setupTempDir('atc-e2e-peer-');
-  const configDir = join(tmp.dir, '.config', 'atc');
+  const configDir = join(tmp.path, '.config', 'atc');
 
   mkdirSync(configDir, { recursive: true });
 
   return {
-    home: tmp.dir,
+    home: tmp.path,
     atc: resolveATCCommand(),
     configPath: join(configDir, 'config.json'),
     probe: join(import.meta.dir, '..', 'packages', 'test-utils', 'src', 'run-stub-peer-probe.ts'),
-    outPath: join(tmp.dir, 'probe.json'),
+    outPath: join(tmp.path, 'probe.json'),
   };
 }
 

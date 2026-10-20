@@ -12,9 +12,9 @@ import { waitFor } from './wait-for';
 
 // A temp directory to hold the daemon's socket.
 function setupTest() {
-  const tmp = setupTempDir('atc-legacy-');
+  const temporaryDirectory = setupTempDir('atc-legacy-');
 
-  return { socketPath: join(tmp.dir, 'daemon.sock') };
+  return { socketPath: join(temporaryDirectory.path, 'daemon.sock') };
 }
 
 test('it drops a connection on the selected request after answering the handshake', async () => {
@@ -32,8 +32,11 @@ test('it drops a connection on the selected request after answering the handshak
   expect(client.sendRequest('session.list')).rejects.toThrowWithMessage(Error, 'connection closed');
 
   expect(daemon.requests).toStrictEqual([
-    { m: 'daemon.hello', p: { client: 'atc/test-build', protocol: 6, auth: { scheme: 'none' } } },
-    { m: 'session.list', p: {} },
+    {
+      method: 'daemon.hello',
+      params: { client: 'atc/test-build', protocol: 6, auth: { scheme: 'none' } },
+    },
+    { method: 'session.list', params: {} },
   ]);
 });
 
@@ -78,8 +81,11 @@ test('it answers a method with the reply it was given and records the request', 
   expect(got).toStrictEqual({ message: 'm-1', status: 'queued' });
 
   expect(daemon.requests).toStrictEqual([
-    { m: 'daemon.hello', p: { client: 'atc/test-build', protocol: 6, auth: { scheme: 'none' } } },
-    { m: 'message.get', p: { message: 'm-1', waitMs: 5000 } },
+    {
+      method: 'daemon.hello',
+      params: { client: 'atc/test-build', protocol: 6, auth: { scheme: 'none' } },
+    },
+    { method: 'message.get', params: { message: 'm-1', waitMs: 5000 } },
   ]);
 });
 

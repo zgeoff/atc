@@ -22,7 +22,7 @@ interface SetupTestConfig {
 // real state store and published records, and the reads over them.
 async function setupTest(config: SetupTestConfig) {
   const tmp = setupTempDir('atc-session-reads-');
-  const dbPath = join(tmp.dir, 'state.db');
+  const dbPath = join(tmp.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -33,7 +33,7 @@ async function setupTest(config: SetupTestConfig) {
   const mgr = new SessionManager(
     null,
     store,
-    join(tmp.dir, 'status.json'),
+    join(tmp.path, 'status.json'),
     [config.adapter],
     [
       buildMockExecutionTarget({
@@ -53,14 +53,14 @@ async function setupTest(config: SetupTestConfig) {
   const records = new PublishedRecords({
     store,
     daemonID: store.daemonID,
-    localDir: join(tmp.dir, 'records'),
+    localDir: join(tmp.path, 'records'),
     ghBin: 'gh',
     now: () => 1_000_000,
   });
 
   const reads = new SessionReads({ mgr, store, records });
 
-  return { dir: tmp.dir, store, mgr, reads };
+  return { dir: tmp.path, store, mgr, reads };
 }
 
 test('it reads the record of a session with the time of its last trail row', async () => {

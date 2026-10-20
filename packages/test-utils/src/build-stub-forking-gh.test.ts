@@ -9,19 +9,19 @@ import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-forking-gh-');
+  const temporaryDirectory = setupTempDir('atc-stub-forking-gh-');
 
-  return { dir: tmp.dir };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it records its own ID and the ID of a child that is still running', async () => {
   const ctx = setupTest();
-  const pidsFile = join(ctx.dir, 'pids');
-  const gh = createStubBin(ctx.dir, 'gh', buildStubForkingGH(pidsFile));
-  const proc = Bun.spawn([gh, 'repo', 'list'], { detached: true });
+  const pidsFile = join(ctx.directory, 'pids');
+  const gh = createStubBin(ctx.directory, 'gh', buildStubForkingGH(pidsFile));
+  const subprocess = Bun.spawn([gh, 'repo', 'list'], { detached: true });
 
   registerTestCleanup(() => {
-    process.kill(-proc.pid, 'SIGKILL');
+    process.kill(-subprocess.pid, 'SIGKILL');
   });
 
   const pids = await waitFor(() => readFile(pidsFile, 'utf8'));
@@ -30,53 +30,53 @@ test('it records its own ID and the ID of a child that is still running', async 
 
   invariant(child !== undefined, 'the stand-in recorded no child');
 
-  expect(own).toBe(proc.pid);
+  expect(own).toBe(subprocess.pid);
   expect(process.kill(child, 0)).toBe(true);
 });
 
 test('it keeps running after it records the IDs', async () => {
   const ctx = setupTest();
-  const pidsFile = join(ctx.dir, 'pids');
-  const gh = createStubBin(ctx.dir, 'gh', buildStubForkingGH(pidsFile));
-  const proc = Bun.spawn([gh, 'repo', 'list'], { detached: true });
+  const pidsFile = join(ctx.directory, 'pids');
+  const gh = createStubBin(ctx.directory, 'gh', buildStubForkingGH(pidsFile));
+  const subprocess = Bun.spawn([gh, 'repo', 'list'], { detached: true });
 
   // kill(1) exits nonzero without throwing once the test's own kill has
   // emptied the group.
   registerTestCleanup(async () => {
-    await Bun.spawn(['kill', '-KILL', '--', `-${proc.pid}`]).exited;
+    await Bun.spawn(['kill', '-KILL', '--', `-${subprocess.pid}`]).exited;
   });
 
   await waitFor(() => readFile(pidsFile, 'utf8'));
 
   // A stand-in that had already exited by itself dies of no signal.
-  process.kill(-proc.pid, 'SIGKILL');
+  process.kill(-subprocess.pid, 'SIGKILL');
 
-  await proc.exited;
+  await subprocess.exited;
 
-  expect(proc.signalCode).toBe('SIGKILL');
+  expect(subprocess.signalCode).toBe('SIGKILL');
 });
 
 test('it stops its child too when its process group is killed', async () => {
   const ctx = setupTest();
-  const pidsFile = join(ctx.dir, 'pids');
-  const gh = createStubBin(ctx.dir, 'gh', buildStubForkingGH(pidsFile));
-  const proc = Bun.spawn([gh, 'repo', 'list'], { detached: true });
+  const pidsFile = join(ctx.directory, 'pids');
+  const gh = createStubBin(ctx.directory, 'gh', buildStubForkingGH(pidsFile));
+  const subprocess = Bun.spawn([gh, 'repo', 'list'], { detached: true });
 
   // kill(1) exits nonzero without throwing once the test's own kill has
   // emptied the group.
   registerTestCleanup(async () => {
-    await Bun.spawn(['kill', '-KILL', '--', `-${proc.pid}`]).exited;
+    await Bun.spawn(['kill', '-KILL', '--', `-${subprocess.pid}`]).exited;
   });
 
   const pids = await waitFor(() => readFile(pidsFile, 'utf8'));
 
   const child = Number(pids.trim().split('\n')[1]);
 
-  process.kill(-proc.pid, 'SIGKILL');
+  process.kill(-subprocess.pid, 'SIGKILL');
 
-  await proc.exited;
+  await subprocess.exited;
 
-  expect({ exitCode: proc.exitCode, signalCode: proc.signalCode }).toStrictEqual({
+  expect({ exitCode: subprocess.exitCode, signalCode: subprocess.signalCode }).toStrictEqual({
     exitCode: null,
     signalCode: 'SIGKILL',
   });

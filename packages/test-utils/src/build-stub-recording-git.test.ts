@@ -7,14 +7,19 @@ import { runCommand } from './run-command';
 import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-recording-git-');
+  const temporaryDirectory = setupTempDir('atc-stub-recording-git-');
 
-  return { dir: tmp.dir };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it records each run and exits 0 without output', async () => {
   const ctx = setupTest();
-  const git = createStubBin(ctx.dir, 'git', buildStubRecordingGit(join(ctx.dir, 'git-ran')));
+
+  const git = createStubBin(
+    ctx.directory,
+    'git',
+    buildStubRecordingGit(join(ctx.directory, 'git-ran')),
+  );
 
   await runCommand([git, 'ls-remote', 'https://example.invalid/app.git']);
 
@@ -25,5 +30,5 @@ test('it records each run and exits 0 without output', async () => {
     stdout: '',
   });
 
-  expect(readFileSync(join(ctx.dir, 'git-ran'), 'utf8')).toBe('ran\nran\n');
+  expect(readFileSync(join(ctx.directory, 'git-ran'), 'utf8')).toBe('ran\nran\n');
 });

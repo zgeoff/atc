@@ -7,7 +7,7 @@ import { readPidFilePID } from './read-pid-file-pid';
 function setupTest() {
   const tmp = setupTempDir('atc-pid-file-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it reads the pid a pid file holds', () => {

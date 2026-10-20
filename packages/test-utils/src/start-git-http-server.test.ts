@@ -12,20 +12,20 @@ import { waitFor } from './wait-for';
 async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'atc-git-http-' });
 
-  return { dir: fixture.dir, env: { ...fixture.env, GIT_TERMINAL_PROMPT: '0' } };
+  return { directory: fixture.directory, env: { ...fixture.env, GIT_TERMINAL_PROMPT: '0' } };
 }
 
 test('it clones a served repository for a client that authenticates and records the header', async () => {
   const ctx = await setupTest();
 
-  const server = startGitHTTPServer(ctx.dir, ctx.env);
+  const server = startGitHTTPServer(ctx.directory, ctx.env);
 
   const url = new URL('upstream.git', server.url);
 
   url.username = 'x-access-token';
   url.password = 'fixture-not-a-secret';
 
-  const clone = await $`git clone --quiet ${url.href} ${join(ctx.dir, 'clone')}`
+  const clone = await $`git clone --quiet ${url.href} ${join(ctx.directory, 'clone')}`
     .env(ctx.env)
     .nothrow()
     .quiet();
@@ -42,12 +42,13 @@ test('it clones a served repository for a client that authenticates and records 
 test('it refuses a client that does not authenticate', async () => {
   const ctx = await setupTest();
 
-  const server = startGitHTTPServer(ctx.dir, ctx.env);
+  const server = startGitHTTPServer(ctx.directory, ctx.env);
 
-  const clone = await $`git clone --quiet ${`${server.url}upstream.git`} ${join(ctx.dir, 'c')}`
-    .env(ctx.env)
-    .nothrow()
-    .quiet();
+  const clone =
+    await $`git clone --quiet ${`${server.url}upstream.git`} ${join(ctx.directory, 'c')}`
+      .env(ctx.env)
+      .nothrow()
+      .quiet();
 
   expect(clone.exitCode).not.toBe(0);
   expect(server.authorizations).toStrictEqual([]);
@@ -59,10 +60,10 @@ test('it holds an authenticated request for the delay it is given', async () => 
   const release = Promise.withResolvers<void>();
   const waits: number[] = [];
 
-  const server = startGitHTTPServer(ctx.dir, ctx.env, {
+  const server = startGitHTTPServer(ctx.directory, ctx.env, {
     delayMs: 400,
-    wait: (ms) => {
-      waits.push(ms);
+    wait: (delayMs) => {
+      waits.push(delayMs);
 
       return release.promise;
     },
@@ -101,10 +102,10 @@ test('it serves a held request once its delay is over', async () => {
   const release = Promise.withResolvers<void>();
   const waits: number[] = [];
 
-  const server = startGitHTTPServer(ctx.dir, ctx.env, {
+  const server = startGitHTTPServer(ctx.directory, ctx.env, {
     delayMs: 400,
-    wait: (ms) => {
-      waits.push(ms);
+    wait: (delayMs) => {
+      waits.push(delayMs);
 
       return release.promise;
     },
@@ -143,7 +144,7 @@ test('it calls back once for each authenticated request', async () => {
 
   let calls = 0;
 
-  const hooked = startGitHTTPServer(ctx.dir, ctx.env, {
+  const hooked = startGitHTTPServer(ctx.directory, ctx.env, {
     onRequest: () => {
       calls += 1;
     },
@@ -171,7 +172,7 @@ test('it holds a request while the callback is still pending', async () => {
   // at once.
   const waits = [gate.promise];
 
-  const hooked = startGitHTTPServer(ctx.dir, ctx.env, {
+  const hooked = startGitHTTPServer(ctx.directory, ctx.env, {
     onRequest: async () => {
       entered.resolve(null);
 
@@ -206,7 +207,7 @@ test('it answers a held request once the callback resolves', async () => {
   const entered = Promise.withResolvers<null>();
   const gate = Promise.withResolvers<null>();
 
-  const hooked = startGitHTTPServer(ctx.dir, ctx.env, {
+  const hooked = startGitHTTPServer(ctx.directory, ctx.env, {
     onRequest: async () => {
       entered.resolve(null);
 

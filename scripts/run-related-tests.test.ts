@@ -8,9 +8,9 @@ import { readRelatedTests, runRelatedTests } from './run-related-tests';
 function setupTest() {
   const tmp = setupTempDir('run-related-tests-');
 
-  mkdirSync(join(tmp.dir, 'src'));
+  mkdirSync(join(tmp.path, 'src'));
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it selects a test file that exists', () => {

@@ -30,7 +30,7 @@ function setupTest() {
   const tmp = setupTempDir('atc-stub-imp-port-');
   const port = createStubImpPort();
 
-  return { port, dir: tmp.dir };
+  return { port, dir: tmp.path };
 }
 
 test('it writes a read-only file under the imp’s folder and returns its path', async () => {
@@ -1443,7 +1443,7 @@ test('it reports a command that exited while a child it left holds its output op
 
   await port.createImp({ name: 'imp-a' });
 
-  const marker = join(tmp.dir, 'pids');
+  const marker = join(tmp.path, 'pids');
 
   void port.runCommand('imp-a', {
     argv: ['sh', '-c', 'sleep 30 & echo "$$" > "$1"', 'sh', marker],
@@ -1513,7 +1513,7 @@ test('it reports nothing for a running command the port stop cuts short', async 
 
   await port.createImp({ name: 'imp-a' });
 
-  const marker = join(tmp.dir, 'started');
+  const marker = join(tmp.path, 'started');
 
   void port.runCommand('imp-a', {
     argv: ['sh', '-c', 'touch "$1"; exec sleep 30', 'sh', marker],
@@ -4199,7 +4199,7 @@ test('it stops every forward once the test finishes without a stop', () => {
   // The directory registers first, so its removal runs after the check
   // below and only the forward's own stop can take the socket away first.
   const tmp = setupTempDir('atc-stub-imp-port-');
-  const guestPath = join(tmp.dir, 'guest.sock');
+  const guestPath = join(tmp.path, 'guest.sock');
   let left: boolean | null = null;
 
   // Runs after the port's own release, which registers later; it records

@@ -16,11 +16,13 @@ import { setupTempDir } from './setup-temp-dir';
 // `atc passkeys` opens it. Enrollment never reaches the daemon, so the
 // caller points at a socket nothing listens on and never dials it.
 async function setupTest() {
-  const tmp = setupTempDir('atc-run-passkey-enrollment-');
-  const dbPath = join(tmp.dir, 'mcp-auth.db');
+  const temporaryDirectory = setupTempDir('atc-run-passkey-enrollment-');
+  const dbPath = join(temporaryDirectory.path, 'mcp-auth.db');
 
-  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    openDaemonClient(path),
+  const caller = new TransportCaller(
+    join(temporaryDirectory.path, 'daemon.sock'),
+    'atc/test-build',
+    (path) => openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());

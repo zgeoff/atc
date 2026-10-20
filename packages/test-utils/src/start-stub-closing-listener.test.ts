@@ -10,9 +10,9 @@ import { startStubClosingListener } from './start-stub-closing-listener';
 // A temp directory to hold the listener's socket, removed once the test
 // finishes.
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-closing-');
+  const temporaryDirectory = setupTempDir('atc-stub-closing-');
 
-  return { path: join(tmp.dir, 'closing.sock') };
+  return { path: join(temporaryDirectory.path, 'closing.sock') };
 }
 
 test('it ends a connection as soon as it opens without sending anything', async () => {

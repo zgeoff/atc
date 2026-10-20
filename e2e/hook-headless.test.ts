@@ -95,7 +95,7 @@ test("it ejects a session into a headless run with the spawn's plugin folders, ~
   const scheduler = buildStubTimeoutScheduler();
   const home = setupTempDir('atc-headless-home-');
 
-  mkdirSync(join(home.dir, 'plugins', 'band'), { recursive: true });
+  mkdirSync(join(home.path, 'plugins', 'band'), { recursive: true });
 
   const daemon = await startTestDaemon({
     prefix: 'atc-headless-',
@@ -135,7 +135,7 @@ test("it ejects a session into a headless run with the spawn's plugin folders, ~
           },
         },
       }),
-      homeDir: home.dir,
+      homeDir: home.path,
       scheduleEjectSettle: scheduler.schedule,
     }),
   });
@@ -157,7 +157,7 @@ test("it ejects a session into a headless run with the spawn's plugin folders, ~
 
   const run = await headless.waitForRun(0);
 
-  expect(run.request.pluginDirs).toStrictEqual([join(home.dir, 'plugins', 'band')]);
+  expect(run.request.pluginDirs).toStrictEqual([join(home.path, 'plugins', 'band')]);
 });
 
 test('it lists an ejected session as a running headless session', async () => {
@@ -671,7 +671,7 @@ test('it keeps the headless run of a session whose adopt is refused for a plugin
   const scheduler = buildStubTimeoutScheduler();
   const home = setupTempDir('atc-headless-home-');
 
-  mkdirSync(join(home.dir, 'plugins', 'band'), { recursive: true });
+  mkdirSync(join(home.path, 'plugins', 'band'), { recursive: true });
 
   const daemon = await startTestDaemon({
     prefix: 'atc-headless-',
@@ -711,7 +711,7 @@ test('it keeps the headless run of a session whose adopt is refused for a plugin
           },
         },
       }),
-      homeDir: home.dir,
+      homeDir: home.path,
       scheduleEjectSettle: scheduler.schedule,
     }),
   });
@@ -732,7 +732,7 @@ test('it keeps the headless run of a session whose adopt is refused for a plugin
 
   await headless.waitForRun(0);
 
-  rmSync(join(home.dir, 'plugins', 'band'), { recursive: true });
+  rmSync(join(home.path, 'plugins', 'band'), { recursive: true });
 
   const adopted = daemon.client.sendRequest('session.adopt', {
     session: sessionID,
@@ -746,7 +746,7 @@ test('it keeps the headless run of a session whose adopt is refused for a plugin
 
   expect(adopted).rejects.toMatchObject({
     code: 'bad_args',
-    message: `plugin folder '${join(home.dir, 'plugins', 'band')}' does not exist`,
+    message: `plugin folder '${join(home.path, 'plugins', 'band')}' does not exist`,
   });
 
   expect(headless.runs.map((run) => run.stopped)).toStrictEqual([false]);
@@ -761,7 +761,7 @@ test("it keeps the headless run of a session whose adopt is refused for a plugin
   const scheduler = buildStubTimeoutScheduler();
   const home = setupTempDir('atc-headless-home-');
 
-  mkdirSync(join(home.dir, 'plugins', 'shared'), { recursive: true });
+  mkdirSync(join(home.path, 'plugins', 'shared'), { recursive: true });
 
   const daemon = await startTestDaemon({
     prefix: 'atc-headless-',
@@ -799,10 +799,10 @@ test("it keeps the headless run of a session whose adopt is refused for a plugin
               note: null,
             },
           },
-          pluginDirs: [join(home.dir, 'plugins', 'shared')],
+          pluginDirs: [join(home.path, 'plugins', 'shared')],
         },
       }),
-      homeDir: home.dir,
+      homeDir: home.path,
       scheduleEjectSettle: scheduler.schedule,
     }),
   });
@@ -822,7 +822,7 @@ test("it keeps the headless run of a session whose adopt is refused for a plugin
 
   await headless.waitForRun(0);
 
-  rmSync(join(home.dir, 'plugins', 'shared'), { recursive: true });
+  rmSync(join(home.path, 'plugins', 'shared'), { recursive: true });
 
   const adopted = daemon.client.sendRequest('session.adopt', {
     session: sessionID,
@@ -836,7 +836,7 @@ test("it keeps the headless run of a session whose adopt is refused for a plugin
 
   expect(adopted).rejects.toMatchObject({
     code: 'bad_args',
-    message: `plugin folder '${join(home.dir, 'plugins', 'shared')}' does not exist`,
+    message: `plugin folder '${join(home.path, 'plugins', 'shared')}' does not exist`,
   });
 
   expect(headless.runs.map((run) => run.stopped)).toStrictEqual([false]);
@@ -851,7 +851,7 @@ test('it keeps the terminal of a session whose eject is refused for a plugin fol
   const scheduler = buildStubTimeoutScheduler();
   const home = setupTempDir('atc-headless-home-');
 
-  mkdirSync(join(home.dir, 'plugins', 'band'), { recursive: true });
+  mkdirSync(join(home.path, 'plugins', 'band'), { recursive: true });
 
   const daemon = await startTestDaemon({
     prefix: 'atc-headless-',
@@ -891,7 +891,7 @@ test('it keeps the terminal of a session whose eject is refused for a plugin fol
           },
         },
       }),
-      homeDir: home.dir,
+      homeDir: home.path,
       scheduleEjectSettle: scheduler.schedule,
     }),
   });
@@ -906,7 +906,7 @@ test('it keeps the terminal of a session whose eject is refused for a plugin fol
 
   const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
 
-  rmSync(join(home.dir, 'plugins', 'band'), { recursive: true });
+  rmSync(join(home.path, 'plugins', 'band'), { recursive: true });
 
   const ejected = daemon.client.sendRequest('session.eject', {
     session: sessionID,
@@ -919,7 +919,7 @@ test('it keeps the terminal of a session whose eject is refused for a plugin fol
 
   expect(ejected).rejects.toMatchObject({
     code: 'bad_args',
-    message: `plugin folder '${join(home.dir, 'plugins', 'band')}' does not exist`,
+    message: `plugin folder '${join(home.path, 'plugins', 'band')}' does not exist`,
   });
 
   expect(listed['sessions']).toMatchObject([{ id: sessionID, kind: 'pty', alive: true }]);
@@ -930,7 +930,7 @@ test('it refuses the next headless turn from session input once its plugin folde
   const scheduler = buildStubTimeoutScheduler();
   const home = setupTempDir('atc-headless-home-');
 
-  mkdirSync(join(home.dir, 'plugins', 'band'), { recursive: true });
+  mkdirSync(join(home.path, 'plugins', 'band'), { recursive: true });
 
   const daemon = await startTestDaemon({
     prefix: 'atc-headless-',
@@ -970,7 +970,7 @@ test('it refuses the next headless turn from session input once its plugin folde
           },
         },
       }),
-      homeDir: home.dir,
+      homeDir: home.path,
       scheduleEjectSettle: scheduler.schedule,
     }),
   });
@@ -993,7 +993,7 @@ test('it refuses the next headless turn from session input once its plugin folde
 
   run.events.onDone('wrapped up cleanly');
 
-  rmSync(join(home.dir, 'plugins', 'band'), { recursive: true });
+  rmSync(join(home.path, 'plugins', 'band'), { recursive: true });
 
   const input = daemon.client.sendRequest('session.input', {
     session: sessionID,
@@ -1004,7 +1004,7 @@ test('it refuses the next headless turn from session input once its plugin folde
 
   expect(input).rejects.toMatchObject({
     code: 'bad_args',
-    message: `plugin folder '${join(home.dir, 'plugins', 'band')}' does not exist`,
+    message: `plugin folder '${join(home.path, 'plugins', 'band')}' does not exist`,
   });
 
   expect(headless.runs).toHaveLength(1);

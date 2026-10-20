@@ -17,7 +17,7 @@ import { RuntimeAuthBinder } from './runtime-auth-binder';
 // provider, and a broker stand-in that enforces no authority for the contract's own guarantees
 async function setupTest() {
   const tmp = setupTempDir('atc-auth-binder-');
-  const dbPath = join(tmp.dir, 'state.db');
+  const dbPath = join(tmp.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 

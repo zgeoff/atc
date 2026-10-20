@@ -24,7 +24,7 @@ await createTelemetry({ baseURL: 'http://127.0.0.1' });`,
       cwd: join(import.meta.dir, '..'),
       env: {
         PATH: process.env['PATH'] ?? '',
-        HOME: home.dir,
+        HOME: home.path,
         NODE_ENV: 'production',
         BETTER_AUTH_TELEMETRY: '1',
         BETTER_AUTH_TELEMETRY_ENDPOINT: collector.url,

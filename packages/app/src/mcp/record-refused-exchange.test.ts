@@ -12,7 +12,7 @@ async function setupTest() {
   const clock = buildStubClock(Date.now());
 
   const store = await openMCPAuth({
-    dbPath: join(tmp.dir, 'mcp-auth.db'),
+    dbPath: join(tmp.path, 'mcp-auth.db'),
     openDatabase: openMCPAuthDatabase,
     origin: null,
   });

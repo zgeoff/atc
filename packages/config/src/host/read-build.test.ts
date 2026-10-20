@@ -7,7 +7,7 @@ import { readBuild } from './read-build';
 function setupTest() {
   const tmp = setupTempDir('atc-get-build-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it changes the build string when a .ts file in a nested directory changes', () => {

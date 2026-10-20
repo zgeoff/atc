@@ -8,7 +8,7 @@ import { runCommand, setupTempDir } from '@atc/test-utils';
 function setupTest() {
   const tmp = setupTempDir('atc-with-test-home-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it keeps a host XDG git config away from a command it runs', async () => {

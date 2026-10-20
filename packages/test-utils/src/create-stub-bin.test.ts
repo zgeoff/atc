@@ -7,20 +7,20 @@ import { runCommand } from './run-command';
 import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-bin-');
+  const temporaryDirectory = setupTempDir('atc-stub-bin-');
 
-  return { dir: tmp.dir };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it returns the script path under the directory', () => {
   const ctx = setupTest();
 
-  expect(createStubBin(ctx.dir, 'gh', '#!/bin/sh\n')).toBe(join(ctx.dir, 'gh'));
+  expect(createStubBin(ctx.directory, 'gh', '#!/bin/sh\n')).toBe(join(ctx.directory, 'gh'));
 });
 
 test('it writes a script that runs as a command', async () => {
   const ctx = setupTest();
-  const path = createStubBin(ctx.dir, 'gh', '#!/bin/sh\necho "fake gh $1"\n');
+  const path = createStubBin(ctx.directory, 'gh', '#!/bin/sh\necho "fake gh $1"\n');
 
   const result = await runCommand([path, 'auth']);
 
@@ -29,14 +29,14 @@ test('it writes a script that runs as a command', async () => {
 
 test('it marks the script executable for every user', () => {
   const ctx = setupTest();
-  const path = createStubBin(ctx.dir, 'gh', '#!/bin/sh\n');
+  const path = createStubBin(ctx.directory, 'gh', '#!/bin/sh\n');
 
   expect(statSync(path).mode & 0o777).toBe(0o755);
 });
 
 test('it creates a missing directory', async () => {
   const ctx = setupTest();
-  const path = createStubBin(join(ctx.dir, 'bin', 'nested'), 'zoxide', '#!/bin/sh\necho z\n');
+  const path = createStubBin(join(ctx.directory, 'bin', 'nested'), 'zoxide', '#!/bin/sh\necho z\n');
 
   const run = await runCommand([path]);
 
@@ -45,11 +45,11 @@ test('it creates a missing directory', async () => {
 
 test('it replaces an existing file and makes it executable', async () => {
   const ctx = setupTest();
-  const path = join(ctx.dir, 'codex');
+  const path = join(ctx.directory, 'codex');
 
   writeFileSync(path, 'stale');
   chmodSync(path, 0o644);
-  createStubBin(ctx.dir, 'codex', '#!/bin/sh\necho fresh\n');
+  createStubBin(ctx.directory, 'codex', '#!/bin/sh\necho fresh\n');
 
   const run = await runCommand([path]);
 
@@ -58,7 +58,7 @@ test('it replaces an existing file and makes it executable', async () => {
 
 test('it replaces a file that a running process executes', async () => {
   const ctx = setupTest();
-  const path = join(ctx.dir, 'agent');
+  const path = join(ctx.directory, 'agent');
 
   // A running binary holds its file against writes, as a session that a
   // test daemon's earlier boot started holds its agent.
@@ -71,7 +71,7 @@ test('it replaces a file that a running process executes', async () => {
     running.kill();
   });
 
-  createStubBin(ctx.dir, 'agent', '#!/bin/sh\necho fresh\n');
+  createStubBin(ctx.directory, 'agent', '#!/bin/sh\necho fresh\n');
 
   const run = await runCommand([path]);
 

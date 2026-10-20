@@ -11,9 +11,9 @@ import { waitFor } from './wait-for';
 
 // A temp directory to hold the stub bridge's socket.
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-bridge-');
+  const temporaryDirectory = setupTempDir('atc-stub-bridge-');
 
-  return { path: join(tmp.dir, 'bridge.sock') };
+  return { path: join(temporaryDirectory.path, 'bridge.sock') };
 }
 
 test('it answers a tap.open request with ok under its id without asking the responder', async () => {

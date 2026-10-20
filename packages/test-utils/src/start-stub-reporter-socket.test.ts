@@ -11,9 +11,9 @@ import { waitFor } from './wait-for';
 
 // A temp directory to hold the reporter's socket.
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-reporter-');
+  const temporaryDirectory = setupTempDir('atc-stub-reporter-');
 
-  return { path: join(tmp.dir, 'reporter.sock') };
+  return { path: join(temporaryDirectory.path, 'reporter.sock') };
 }
 
 test('it collects each line a sender writes without its newline', async () => {

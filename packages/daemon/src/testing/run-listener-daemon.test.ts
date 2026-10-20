@@ -11,10 +11,10 @@ async function setupTest() {
   const tmp = setupTempDir('atc-run-listener-');
 
   // The listener refuses to start without a token file.
-  writeFileSync(join(tmp.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+  writeFileSync(join(tmp.path, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
   const proc = Bun.spawn([process.execPath, join(import.meta.dir, 'run-listener-daemon.ts')], {
-    env: { ...process.env, ATC_TEST_DIR: tmp.dir },
+    env: { ...process.env, ATC_TEST_DIR: tmp.path },
     stdout: 'pipe',
     stderr: 'pipe',
   });
@@ -37,7 +37,7 @@ async function setupTest() {
 
   const printed = new TextDecoder().decode(read.value);
 
-  return { proc, printed, stderr, dir: tmp.dir };
+  return { proc, printed, stderr, dir: tmp.path };
 }
 
 test('it prints the loopback port its TCP listener bound', async () => {

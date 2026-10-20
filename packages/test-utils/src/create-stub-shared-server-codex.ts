@@ -14,14 +14,14 @@ interface StubSharedServerCodexConfig {
 // keeps that start's environment, so every start without --no-daemon reports
 // with the session id and socket the first start recorded.
 export function createStubSharedServerCodex(
-  dir: string,
+  directory: string,
   config: StubSharedServerCodexConfig,
 ): string {
   const report = `${config.atc.map((part) => `"${part}"`).join(' ')} hook-report --agent codex`;
-  const server = join(dir, 'codex-shared-server.env');
+  const server = join(directory, 'codex-shared-server.env');
 
   return createStubBin(
-    dir,
+    directory,
     'fake-codex',
     `#!/usr/bin/env bash
 echo "FAKE_CODEX_UP args: $*"

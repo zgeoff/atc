@@ -10,7 +10,7 @@ import { z } from 'zod';
 function setupTest() {
   const tmp = setupTempDir('atc-e2e-tcp-');
 
-  return { home: tmp.dir, atc: resolveATCCommand(), tokenFile: join(tmp.dir, 'gateway-token') };
+  return { home: tmp.path, atc: resolveATCCommand(), tokenFile: join(tmp.path, 'gateway-token') };
 }
 
 test('it closes a TCP connection whose token a SIGHUP reload removed', async () => {

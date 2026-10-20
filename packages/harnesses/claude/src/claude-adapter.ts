@@ -200,18 +200,18 @@ export class ClaudeAdapter implements AgentAdapter {
     const argv = [guest.atc];
 
     if (guest.auth !== undefined) {
-      return this.planSubscriptionGuestSpawn(opts, guest.dir, guest.auth, argv);
+      return this.planSubscriptionGuestSpawn(opts, guest.directory, guest.auth, argv);
     }
 
-    const scratch = `${guest.dir}/${SESSION_SCRATCH_FOLDER}`;
+    const scratch = `${guest.directory}/${SESSION_SCRATCH_FOLDER}`;
 
     const launch = buildScratchLaunch(scratch, [
       this.entry.bin,
       ...buildClaudeArgs(this.entry.args, opts, {
         leadArgs: this.buildModeArgs(opts),
         scratch,
-        settings: `${guest.dir}/settings.json`,
-        pluginDir: `${guest.dir}/atc-bridge`,
+        settings: `${guest.directory}/settings.json`,
+        pluginDir: `${guest.directory}/atc-bridge`,
         pluginDirs: [],
       }),
     ]);

@@ -5,7 +5,7 @@ import { buildStubHostProvider } from './build-stub-host-provider';
 function setupTest() {
   const tmp = setupTempDir('atc-stub-host-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it declares every capability of a local terminal plus sleeping and destroying a host', () => {

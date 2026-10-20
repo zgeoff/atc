@@ -1,17 +1,17 @@
 import { createStubBin } from './create-stub-bin';
 import { readSourceEntry } from './read-source-entry';
 
-export function createStubGuestCLIs(dir: string) {
+export function createStubGuestCLIs(directory: string) {
   const cliPath = readSourceEntry('atc');
 
   const atc = createStubBin(
-    dir,
+    directory,
     'atc',
     `#!/bin/sh\nexec "${process.execPath}" "${cliPath}" "$@"\n`,
   );
 
   const claude = createStubBin(
-    dir,
+    directory,
     'claude',
     `#!/usr/bin/env bash
 echo "UP:$$"

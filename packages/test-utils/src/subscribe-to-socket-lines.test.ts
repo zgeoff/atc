@@ -12,8 +12,8 @@ import { subscribeToSocketLines } from './subscribe-to-socket-lines';
 import { waitFor } from './wait-for';
 
 async function setupTest(config: Parameters<typeof subscribeToSocketLines>[1] = {}) {
-  const tmp = setupTempDir('atc-sock-lines-');
-  const path = join(tmp.dir, 'lines.sock');
+  const temporaryDirectory = setupTempDir('atc-sock-lines-');
+  const path = join(temporaryDirectory.path, 'lines.sock');
   const listener = startStubRecordingListener(path);
 
   const subscriber = await subscribeToSocketLines(path, config);
@@ -80,8 +80,8 @@ test('it sends a payload larger than one socket write whole', async () => {
 
 test('it throws on a write while the unsent bytes fill the queue', async () => {
   // A server that accepts connections and never reads them.
-  const tmp = setupTempDir('atc-sock-lines-');
-  const stalledPath = join(tmp.dir, 'stalled.sock');
+  const temporaryDirectory = setupTempDir('atc-sock-lines-');
+  const stalledPath = join(temporaryDirectory.path, 'stalled.sock');
 
   await startStubStalledListener(stalledPath);
 

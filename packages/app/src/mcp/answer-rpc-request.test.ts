@@ -443,7 +443,7 @@ test('it lists the agents to a caller holding only the read scope', async () => 
 test('it answers a tool list with an error when no daemon listens on the socket', async () => {
   const tmp = setupTempDir('atc-answer-rpc-');
 
-  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+  const caller = new TransportCaller(join(tmp.path, 'daemon.sock'), 'atc/test-build', (path) =>
     openDaemonClient(path),
   );
 

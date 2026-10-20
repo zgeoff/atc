@@ -6,7 +6,7 @@ import { resolveATCCommand, runATC, setupTempDir } from '@atc/test-utils';
 function setupTest() {
   const tmp = setupTempDir('atc-e2e-hook-files-');
 
-  return { home: tmp.dir };
+  return { home: tmp.path };
 }
 
 test('it prints Codex hook entries that report under the codex agent', async () => {

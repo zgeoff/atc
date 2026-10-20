@@ -9,9 +9,9 @@ import type { StubPeerAnswer, StubPeerRequest } from './start-stub-peer-daemon';
 import { waitFor } from './wait-for';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-peer-');
+  const temporaryDirectory = setupTempDir('atc-stub-peer-');
 
-  return { socketPath: join(tmp.dir, 'daemon.sock') };
+  return { socketPath: join(temporaryDirectory.path, 'daemon.sock') };
 }
 
 test('it answers a request with the answer the caller gives', async () => {

@@ -295,7 +295,7 @@ test('it runs a tool call whose scope the token holds', async () => {
 
 test('it shows a remote MCP client the sessions of the targets the principals grant to its client id', async () => {
   const tmp = setupTempDir('atc-mcp-http-');
-  const dbPath = join(tmp.dir, 'mcp-auth.db');
+  const dbPath = join(tmp.path, 'mcp-auth.db');
 
   const store = await openMCPAuth({ dbPath, openDatabase: openMCPAuthDatabase, origin: null });
 
@@ -394,7 +394,7 @@ test('it shows a remote MCP client the sessions of the targets the principals gr
 
 test('it shows a remote MCP client no sessions when the principals grant the targets to another client id', async () => {
   const tmp = setupTempDir('atc-mcp-http-');
-  const dbPath = join(tmp.dir, 'mcp-auth.db');
+  const dbPath = join(tmp.path, 'mcp-auth.db');
 
   const store = await openMCPAuth({ dbPath, openDatabase: openMCPAuthDatabase, origin: null });
 
@@ -1842,7 +1842,7 @@ test.each([
 ])('it refuses to listen on %p with the public URL %p', (host, publicURL) => {
   const tmp = setupTempDir('atc-mcp-http-');
 
-  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+  const caller = new TransportCaller(join(tmp.path, 'daemon.sock'), 'atc/test-build', (path) =>
     openDaemonClient(path),
   );
 
@@ -1856,7 +1856,7 @@ test.each([
     publicURL,
     allowedHosts: [],
     trustForwardedFrom: [],
-    dbPath: join(tmp.dir, 'mcp-auth.db'),
+    dbPath: join(tmp.path, 'mcp-auth.db'),
     openAuthDatabase: openMCPAuthDatabase,
     printRequest: () => {},
     printSecurity: () => {},
@@ -1868,7 +1868,7 @@ test.each([
 test('it listens beyond loopback behind an https public URL', async () => {
   const tmp = setupTempDir('atc-mcp-http-');
 
-  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+  const caller = new TransportCaller(join(tmp.path, 'daemon.sock'), 'atc/test-build', (path) =>
     openDaemonClient(path),
   );
 
@@ -1882,7 +1882,7 @@ test('it listens beyond loopback behind an https public URL', async () => {
     publicURL: 'https://mcp.example.com',
     allowedHosts: [],
     trustForwardedFrom: [],
-    dbPath: join(tmp.dir, 'mcp-auth.db'),
+    dbPath: join(tmp.path, 'mcp-auth.db'),
     openAuthDatabase: openMCPAuthDatabase,
     printRequest: () => {},
     printSecurity: () => {},

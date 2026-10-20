@@ -27,7 +27,7 @@ function setupTest() {
 
   const box = new ImpProvider(
     port,
-    { guestDir: join(tmp.dir, 'g') },
+    { guestDir: join(tmp.path, 'g') },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -36,11 +36,11 @@ function setupTest() {
   });
 
   return {
-    dir: tmp.dir,
+    dir: tmp.path,
     port,
     settles,
-    fakeClaude: createStubRecordingClaude(tmp.dir),
-    marker: join(tmp.dir, 'claude-starts.log'),
+    fakeClaude: createStubRecordingClaude(tmp.path),
+    marker: join(tmp.path, 'claude-starts.log'),
     local: new LocalPTYProvider(),
     box,
     onRestoreSettled: (settled: RestoreSettled) => {

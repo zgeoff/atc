@@ -14,7 +14,7 @@ interface GitHTTPServerOptions {
   readonly delayMs?: number;
 
   // Waits out the delay; a timer unless given.
-  readonly wait?: (ms: number) => Promise<void>;
+  readonly wait?: (delayMs: number) => Promise<void>;
 
   // Runs, and is awaited, while each authenticated request is held.
   readonly onRequest?: () => Promise<void> | void;

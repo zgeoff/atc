@@ -22,9 +22,9 @@ import { TransportCaller } from './transport-caller';
 // points at a socket nothing listens on.
 async function setupTest() {
   const tmp = setupTempDir('atc-collect-grants-');
-  const dbPath = join(tmp.dir, 'mcp-auth.db');
+  const dbPath = join(tmp.path, 'mcp-auth.db');
 
-  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+  const caller = new TransportCaller(join(tmp.path, 'daemon.sock'), 'atc/test-build', (path) =>
     openDaemonClient(path),
   );
 

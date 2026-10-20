@@ -9,7 +9,7 @@ function setupTest() {
   const tmp = setupTempDir('run-daemon-backup-');
 
   const host = buildMockLifecycleHost({
-    paths: resolvePaths({ HOME: tmp.dir, XDG_RUNTIME_DIR: tmp.dir }),
+    paths: resolvePaths({ HOME: tmp.path, XDG_RUNTIME_DIR: tmp.path }),
   });
 
   return { host };
@@ -32,8 +32,8 @@ test('it sends the path to the daemon and prints what the daemon wrote', async (
   expect(code).toBe(0);
 
   expect(daemon.requests).toContainEqual({
-    m: 'daemon.backup',
-    p: { path: '/srv/backups/atc.db' },
+    method: 'daemon.backup',
+    params: { path: '/srv/backups/atc.db' },
   });
 
   expect(io.print).toHaveBeenCalledExactlyOnceWith(

@@ -10,36 +10,36 @@ function setupTest() {
 
 test('it treats an installed inactive user unit as managed', () => {
   const ctx = setupTest();
-  const path = join(ctx.dir, 'atc-daemon.service');
+  const path = join(ctx.path, 'atc-daemon.service');
 
   writeFileSync(path, '[Service]\nExecStart=atc daemon\n');
 
-  expect(readManagedDaemonUnit({ SYSTEMD_UNIT_PATH: ctx.dir })).toBe(path);
+  expect(readManagedDaemonUnit({ SYSTEMD_UNIT_PATH: ctx.path })).toBe(path);
 });
 
 test('it leaves an unrelated unit outside daemon ownership', () => {
   const ctx = setupTest();
 
-  writeFileSync(join(ctx.dir, 'other.service'), '[Service]\nExecStart=true\n');
+  writeFileSync(join(ctx.path, 'other.service'), '[Service]\nExecStart=true\n');
 
-  expect(readManagedDaemonUnit({ SYSTEMD_UNIT_PATH: ctx.dir })).toBeNull();
+  expect(readManagedDaemonUnit({ SYSTEMD_UNIT_PATH: ctx.path })).toBeNull();
 });
 
 test('it preserves ownership when a user unit is masked', () => {
   const ctx = setupTest();
-  const path = join(ctx.dir, 'atc-daemon.service');
+  const path = join(ctx.path, 'atc-daemon.service');
 
   symlinkSync('/dev/null', path);
 
-  expect(readManagedDaemonUnit({ SYSTEMD_UNIT_PATH: ctx.dir })).toBe(path);
+  expect(readManagedDaemonUnit({ SYSTEMD_UNIT_PATH: ctx.path })).toBe(path);
 });
 
 test('it finds a unit in the user config directory of the home it is given', () => {
   const ctx = setupTest();
-  const path = join(ctx.dir, '.config', 'systemd', 'user', 'atc-daemon.service');
+  const path = join(ctx.path, '.config', 'systemd', 'user', 'atc-daemon.service');
 
-  mkdirSync(join(ctx.dir, '.config', 'systemd', 'user'), { recursive: true });
+  mkdirSync(join(ctx.path, '.config', 'systemd', 'user'), { recursive: true });
   writeFileSync(path, '[Service]\nExecStart=atc daemon\n');
 
-  expect(readManagedDaemonUnit({ HOME: ctx.dir })).toBe(path);
+  expect(readManagedDaemonUnit({ HOME: ctx.path })).toBe(path);
 });

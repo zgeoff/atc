@@ -8,7 +8,7 @@ import { loadClaudeConfigBundle } from './load-claude-config-bundle';
 function setupTest() {
   const tmp = setupTempDir('atc-claude-bundle-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it ships the allow-listed files and folders of the host config folder', () => {

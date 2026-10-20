@@ -8,7 +8,7 @@ import { loadTranscriptPage } from './load-transcript-page';
 function setupTest() {
   const tmp = setupTempDir('atc-transcript-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it reads every row from the start of a transcript', async () => {

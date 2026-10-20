@@ -7,7 +7,7 @@ import invariant from 'tiny-invariant';
 function setupTest() {
   const tmp = setupTempDir('atc-e2e-config-migrate-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it backs the file up, rewrites it, and prints both paths with --write', async () => {

@@ -24,7 +24,7 @@ import type { RestoreSettled } from './restore-fleet';
 // runtime, so a stagger waits on no boot.
 async function setupTest() {
   const tmp = setupTempDir('atc-fleet-restorer-');
-  const dbPath = join(tmp.dir, 'state.db');
+  const dbPath = join(tmp.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -35,7 +35,7 @@ async function setupTest() {
   const mgr = new SessionManager(
     null,
     store,
-    join(tmp.dir, 'status.json'),
+    join(tmp.path, 'status.json'),
     [buildStubHarnessAdapter()],
     [
       buildMockExecutionTarget({
@@ -74,7 +74,7 @@ async function setupTest() {
   });
 
   return {
-    dir: tmp.dir,
+    dir: tmp.path,
     store,
     mgr,
     lines: recorder.lines,

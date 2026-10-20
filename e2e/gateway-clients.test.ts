@@ -8,7 +8,7 @@ function setupTest() {
   const tmp = setupTempDir('atc-gateway-bin-');
 
   return {
-    dir: tmp.dir,
+    dir: tmp.path,
     command: resolveGatewayCommand(process.env['ATC_GATEWAY_BIN']),
 
     // Bun's transpiler cache would write under HOME when the source entry runs.
@@ -16,7 +16,7 @@ function setupTest() {
       PATH: process.env['PATH'] ?? '',
 
       // Nothing creates this home, so a write under it shows in the directory listing.
-      HOME: join(tmp.dir, 'home'),
+      HOME: join(tmp.path, 'home'),
       BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0',
     },
   };

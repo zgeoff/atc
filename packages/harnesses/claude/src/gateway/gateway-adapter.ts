@@ -249,14 +249,14 @@ export class GatewayAdapter implements AgentAdapter {
     const refusedEnv = approvedAPIKey === null ? [] : [BEARER_PAIRING.variable];
 
     const launch = buildClaudeGuestLaunch(
-      guest.dir,
+      guest.directory,
       [
         this.gateway.bin,
         ...buildClaudeArgs(args, opts, {
           leadArgs: this.buildGuestModeArgs(args),
-          scratch: `${guest.dir}/${SESSION_SCRATCH_FOLDER}`,
-          settings: `${guest.dir}/${settingsPath}`,
-          pluginDir: `${guest.dir}/atc-bridge`,
+          scratch: `${guest.directory}/${SESSION_SCRATCH_FOLDER}`,
+          settings: `${guest.directory}/${settingsPath}`,
+          pluginDir: `${guest.directory}/atc-bridge`,
           pluginDirs: [],
         }),
       ],

@@ -23,7 +23,7 @@ import { GatewayAdapter } from './gateway-adapter';
 function setupTest() {
   const tmp = setupTempDir('atc-gateway-adapter-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it answers to the id its backend was configured under', () => {
@@ -1018,7 +1018,7 @@ test("it starts a brokered guest with the auth's own arguments in place of the g
     { prompt: 'hi', resume: false },
     {
       atc: '/opt/atc/bin/atc',
-      dir: '/tmp/atc/sessions/s1',
+      directory: '/tmp/atc/sessions/s1',
       auth: {
         revision: 1,
         env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
@@ -1082,7 +1082,7 @@ test('it plans a brokered guest spawn with its own settings file, Claude config 
     { prompt: '', resume: false },
     {
       atc: '/opt/atc/bin/atc',
-      dir: '/tmp/atc/sessions/s1',
+      directory: '/tmp/atc/sessions/s1',
       auth: {
         revision: 3,
         env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
@@ -1250,7 +1250,7 @@ test("it keeps the gateway's permission hook and mode in a brokered guest's sett
     { prompt: '', resume: toAgentSessionID('a1') },
     {
       atc: '/opt/atc/bin/atc',
-      dir: '/tmp/atc/sessions/s1',
+      directory: '/tmp/atc/sessions/s1',
       auth: {
         revision: 1,
         env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
@@ -1397,7 +1397,7 @@ test.each([
       { prompt: '', resume: false },
       {
         atc: '/opt/atc/bin/atc',
-        dir: '/tmp/atc/sessions/s1',
+        directory: '/tmp/atc/sessions/s1',
         auth: { revision: 1, env: placeholderEnv, profileEnv: {} },
       },
     ),
@@ -1471,7 +1471,7 @@ test('it carries an extra placeholder variable and the gateway args into a broke
     { prompt: '', resume: false },
     {
       atc: '/opt/atc/bin/atc',
-      dir: '/tmp/atc/sessions/s1',
+      directory: '/tmp/atc/sessions/s1',
       auth: {
         revision: 1,
         env: {
@@ -1622,7 +1622,7 @@ test("it refuses a brokered guest spawn whose profile sets a header other than a
       { prompt: '', resume: false },
       {
         atc: '/opt/atc/bin/atc',
-        dir: '/tmp/atc/sessions/s1',
+        directory: '/tmp/atc/sessions/s1',
         auth: {
           revision: 1,
           env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
@@ -1653,7 +1653,7 @@ test('it refuses a brokered guest spawn on a host that gave it no broker binding
   expect(() =>
     adapter.planGuestSpawn(
       { prompt: '', resume: false },
-      { atc: '/opt/atc/bin/atc', dir: '/tmp/atc/sessions/s1' },
+      { atc: '/opt/atc/bin/atc', directory: '/tmp/atc/sessions/s1' },
     ),
   ).toThrow(expect.objectContaining({ code: 'auth_target_unsupported', data: { agent: 'glm' } }));
 });
@@ -1674,7 +1674,7 @@ test('it plans no guest spawn for a gateway whose credential helper runs on the 
     { prompt: '', resume: false },
     {
       atc: '/opt/atc/bin/atc',
-      dir: '/tmp/atc/sessions/s1',
+      directory: '/tmp/atc/sessions/s1',
       auth: {
         revision: 1,
         env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
@@ -1705,7 +1705,7 @@ test('it plans no brokered guest spawn on a host without atc', () => {
     { prompt: '', resume: false },
     {
       atc: null,
-      dir: '/tmp/atc/sessions/s1',
+      directory: '/tmp/atc/sessions/s1',
       auth: {
         revision: 1,
         env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
@@ -1750,7 +1750,7 @@ test('it keeps a credential held on the daemon side out of every file, argument 
     { prompt: '', resume: false },
     {
       atc: '/opt/atc/bin/atc',
-      dir: '/tmp/atc/sessions/s1',
+      directory: '/tmp/atc/sessions/s1',
       auth: {
         revision: 1,
         env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
@@ -1791,7 +1791,7 @@ test("it seeds a brokered guest's Claude config with the onboarding state when t
     { prompt: '', resume: false },
     {
       atc: '/opt/atc/bin/atc',
-      dir: ctx.dir,
+      directory: ctx.dir,
       auth: {
         revision: 1,
         env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
@@ -1846,7 +1846,7 @@ test("it keeps the state an earlier run left in a brokered guest's Claude config
     { prompt: '', resume: toAgentSessionID('a1') },
     {
       atc: '/opt/atc/bin/atc',
-      dir: ctx.dir,
+      directory: ctx.dir,
       auth: {
         revision: 2,
         env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
@@ -1906,7 +1906,7 @@ test('it starts a brokered guest in the permission mode its configured arguments
     { prompt: '', resume: false },
     {
       atc: '/opt/atc/bin/atc',
-      dir: '/tmp/atc/sessions/s1',
+      directory: '/tmp/atc/sessions/s1',
       auth: {
         revision: 1,
         env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
@@ -1959,7 +1959,7 @@ test("it starts a fresh spawn of a brokered guest in Claude's manual mode when t
     { prompt: '', resume: false },
     {
       atc: '/opt/atc/bin/atc',
-      dir: '/tmp/atc/sessions/s1',
+      directory: '/tmp/atc/sessions/s1',
       auth: {
         revision: 1,
         env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
@@ -2012,7 +2012,7 @@ test("it starts a resume of a brokered guest in Claude's manual mode when the ga
     { prompt: '', resume: toAgentSessionID('a1') },
     {
       atc: '/opt/atc/bin/atc',
-      dir: '/tmp/atc/sessions/s1',
+      directory: '/tmp/atc/sessions/s1',
       auth: {
         revision: 1,
         env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
@@ -2225,7 +2225,7 @@ test('it plans a brokered guest spawn of an API key gateway that sends only the 
     { prompt: '', resume: false },
     {
       atc: '/opt/atc/bin/atc',
-      dir: '/tmp/atc/sessions/s1',
+      directory: '/tmp/atc/sessions/s1',
       auth: { revision: 1, env: { ANTHROPIC_API_KEY: 'broker-placeholder' }, profileEnv: {} },
     },
   );
@@ -2327,7 +2327,7 @@ test.each([
       { prompt: '', resume: false },
       {
         atc: '/opt/atc/bin/atc',
-        dir: ctx.dir,
+        directory: ctx.dir,
         auth: {
           revision: 1,
           env: { ANTHROPIC_API_KEY: 'broker-placeholder' },
@@ -2423,7 +2423,7 @@ test("it sets a profile's variables in a brokered guest's settings env and spawn
     { prompt: '', resume: false },
     {
       atc: '/opt/atc/bin/atc',
-      dir: '/tmp/atc/sessions/s1',
+      directory: '/tmp/atc/sessions/s1',
       auth: {
         revision: 3,
         env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },

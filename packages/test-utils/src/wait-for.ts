@@ -5,7 +5,7 @@ interface WaitForOptions {
 
   readonly now?: () => number;
 
-  readonly wait?: (ms: number) => Promise<void>;
+  readonly wait?: (delayMs: number) => Promise<void>;
 }
 
 export async function waitFor<T>(

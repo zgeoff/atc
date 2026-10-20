@@ -9,16 +9,16 @@ import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-gh-');
+  const temporaryDirectory = setupTempDir('atc-stub-gh-');
 
-  return { dir: tmp.dir };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it prints the reply of the first argument verbatim and exits with its code', async () => {
   const ctx = setupTest();
 
   const gh = createStubBin(
-    ctx.dir,
+    ctx.directory,
     'gh',
     buildStubGH({
       replies: {
@@ -41,7 +41,7 @@ test('it prints nothing and exits 0 for a command without a reply', async () => 
   const ctx = setupTest();
 
   const gh = createStubBin(
-    ctx.dir,
+    ctx.directory,
     'gh',
     buildStubGH({ replies: { config: { stdout: 'ssh\n' } } }),
   );
@@ -57,8 +57,8 @@ test('it prints nothing and exits 0 for a command without a reply', async () => 
 
 test('it records the arguments of each run as one line', async () => {
   const ctx = setupTest();
-  const argvFile = join(ctx.dir, "it's argv");
-  const gh = createStubBin(ctx.dir, 'gh', buildStubGH({ replies: {}, argvFile }));
+  const argvFile = join(ctx.directory, "it's argv");
+  const gh = createStubBin(ctx.directory, 'gh', buildStubGH({ replies: {}, argvFile }));
 
   await runCommand([gh, 'repo', 'list', 'acme']);
   await runCommand([gh, 'config', 'get', 'git_protocol']);
@@ -68,21 +68,27 @@ test('it records the arguments of each run as one line', async () => {
 
 test('it keeps a hanging command running until it is killed', async () => {
   const ctx = setupTest();
-  const argvFile = join(ctx.dir, 'argv');
-  const gh = createStubBin(ctx.dir, 'gh', buildStubGH({ replies: { repo: 'hang' }, argvFile }));
-  const proc = Bun.spawn([gh, 'repo', 'list']);
+  const argvFile = join(ctx.directory, 'argv');
+
+  const gh = createStubBin(
+    ctx.directory,
+    'gh',
+    buildStubGH({ replies: { repo: 'hang' }, argvFile }),
+  );
+
+  const subprocess = Bun.spawn([gh, 'repo', 'list']);
 
   registerTestCleanup(() => {
-    proc.kill('SIGKILL');
+    subprocess.kill('SIGKILL');
   });
 
   await waitFor(() => {
     expect(readFileSync(argvFile, 'utf8')).toBe('repo list\n');
   });
 
-  proc.kill('SIGKILL');
+  subprocess.kill('SIGKILL');
 
-  await proc.exited;
+  await subprocess.exited;
 
-  expect(proc.signalCode).toBe('SIGKILL');
+  expect(subprocess.signalCode).toBe('SIGKILL');
 });

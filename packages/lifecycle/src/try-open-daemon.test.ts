@@ -15,7 +15,7 @@ import { tryOpenDaemon } from './try-open-daemon';
 
 // A temp directory for the sockets.
 function setupTest() {
-  const dir = setupTempDir('try-open-daemon-').dir;
+  const dir = setupTempDir('try-open-daemon-').path;
 
   return { dir };
 }

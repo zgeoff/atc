@@ -7,7 +7,7 @@ import { GatewayStore } from './gateway-store';
 
 function setupTest() {
   const tmp = setupTempDir('atc-gateway-store-');
-  const path = join(tmp.dir, 'gateway.db');
+  const path = join(tmp.path, 'gateway.db');
   const store = GatewayStore.open(path);
 
   registerTestCleanup(() => {

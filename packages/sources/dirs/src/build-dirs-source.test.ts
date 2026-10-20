@@ -8,7 +8,7 @@ import { buildDirsSource } from './build-dirs-source';
 function setupTest() {
   const tmp = setupTempDir('atc-dirs-source-');
 
-  return { home: tmp.dir };
+  return { home: tmp.path };
 }
 
 test('it lists the spawn history, then the roots, then zoxide, leaving out a gone directory and a repeat', async () => {

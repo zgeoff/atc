@@ -12,35 +12,40 @@ import { updateEnv } from './update-env';
 import { waitFor } from './wait-for';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-tui-grok-');
+  const temporaryDirectory = setupTempDir('atc-stub-tui-grok-');
 
   // The reporter the script reports through sends its lines here.
-  const reporter = startStubReporterSocket(join(tmp.dir, 'report.sock'));
-  const bin = createStubBin(tmp.dir, 'grok', buildStubTUIGrok(readSourceEntry('atc')));
+  const reporter = startStubReporterSocket(join(temporaryDirectory.path, 'report.sock'));
 
-  return { dir: tmp.dir, bin, lines: reporter.lines };
+  const bin = createStubBin(
+    temporaryDirectory.path,
+    'grok',
+    buildStubTUIGrok(readSourceEntry('atc')),
+  );
+
+  return { directory: temporaryDirectory.path, bin, lines: reporter.lines };
 }
 
 test('it prints its marker with its arguments and then its hooks-done marker', async () => {
   const ctx = setupTest();
 
-  const proc = Bun.spawn([ctx.bin, '--no-leader'], {
+  const subprocess = Bun.spawn([ctx.bin, '--no-leader'], {
     env: {
-      HOME: ctx.dir,
+      HOME: ctx.directory,
       PATH: '/usr/bin:/bin',
-      ATC_SOCKET: join(ctx.dir, 'report.sock'),
+      ATC_SOCKET: join(ctx.directory, 'report.sock'),
       ATC_SESSION_ID: 's-1',
     },
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     stdin: 'pipe',
     stdout: 'pipe',
   });
 
   registerTestCleanup(() => {
-    proc.kill();
+    subprocess.kill();
   });
 
-  const output = startOutputCapture(proc.stdout);
+  const output = startOutputCapture(subprocess.stdout);
 
   await waitFor(() => {
     expect(output.read()).toBe('FAKE_GROK_UP args: --no-leader\nFAKE_GROK_HOOKS_DONE\n');
@@ -50,20 +55,20 @@ test('it prints its marker with its arguments and then its hooks-done marker', a
 test('it reports its session start and then a permission prompt through the reporter', async () => {
   const ctx = setupTest();
 
-  const proc = Bun.spawn([ctx.bin], {
+  const subprocess = Bun.spawn([ctx.bin], {
     env: {
-      HOME: ctx.dir,
+      HOME: ctx.directory,
       PATH: '/usr/bin:/bin',
-      ATC_SOCKET: join(ctx.dir, 'report.sock'),
+      ATC_SOCKET: join(ctx.directory, 'report.sock'),
       ATC_SESSION_ID: 's-1',
     },
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     stdin: 'pipe',
     stdout: 'ignore',
   });
 
   registerTestCleanup(() => {
-    proc.kill();
+    subprocess.kill();
   });
 
   await waitFor(() => {
@@ -74,7 +79,7 @@ test('it reports its session start and then a permission prompt through the repo
     {
       atcId: 's-1',
       event: 'SessionStart',
-      payload: { hookEventName: 'session_start', sessionId: 'fake-grok-1', cwd: ctx.dir },
+      payload: { hookEventName: 'session_start', sessionId: 'fake-grok-1', cwd: ctx.directory },
     },
     {
       atcId: 's-1',
@@ -93,24 +98,24 @@ test('it reports the events file in place of the permission prompt', async () =>
   const ctx = setupTest();
 
   writeFileSync(
-    join(ctx.dir, 'fake-grok-events.jsonl'),
+    join(ctx.directory, 'fake-grok-events.jsonl'),
     `${JSON.stringify({ hookEventName: 'stop', sessionId: 'fake-grok-1', reason: 'end_turn' })}\n`,
   );
 
-  const proc = Bun.spawn([ctx.bin], {
+  const subprocess = Bun.spawn([ctx.bin], {
     env: {
-      HOME: ctx.dir,
+      HOME: ctx.directory,
       PATH: '/usr/bin:/bin',
-      ATC_SOCKET: join(ctx.dir, 'report.sock'),
+      ATC_SOCKET: join(ctx.directory, 'report.sock'),
       ATC_SESSION_ID: 's-1',
     },
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     stdin: 'pipe',
     stdout: 'ignore',
   });
 
   registerTestCleanup(() => {
-    proc.kill();
+    subprocess.kill();
   });
 
   const second = await waitFor(() => {
@@ -129,30 +134,30 @@ test('it reports the events file in place of the permission prompt', async () =>
 test('it reports nothing when the hold-start file exists', async () => {
   const ctx = setupTest();
 
-  writeFileSync(join(ctx.dir, 'fake-grok-hold-start'), '');
+  writeFileSync(join(ctx.directory, 'fake-grok-hold-start'), '');
 
-  const proc = Bun.spawn([ctx.bin], {
+  const subprocess = Bun.spawn([ctx.bin], {
     env: {
-      HOME: ctx.dir,
+      HOME: ctx.directory,
       PATH: '/usr/bin:/bin',
-      ATC_SOCKET: join(ctx.dir, 'report.sock'),
+      ATC_SOCKET: join(ctx.directory, 'report.sock'),
       ATC_SESSION_ID: 's-1',
     },
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     stdin: 'pipe',
     stdout: 'pipe',
   });
 
   registerTestCleanup(() => {
-    proc.kill();
+    subprocess.kill();
   });
 
-  const output = startOutputCapture(proc.stdout);
+  const output = startOutputCapture(subprocess.stdout);
 
   // The script reports before it starts echoing its input, so an echo comes
   // only after any report it would have sent.
-  void proc.stdin.write('ping\n');
-  void proc.stdin.flush();
+  void subprocess.stdin.write('ping\n');
+  void subprocess.stdin.flush();
 
   await waitFor(() => {
     expect(output.read()).toInclude('GOT:ping');
@@ -164,33 +169,33 @@ test('it reports nothing when the hold-start file exists', async () => {
 test('it defers its session start until the defer file goes', async () => {
   const ctx = setupTest();
 
-  writeFileSync(join(ctx.dir, 'fake-grok-defer-start'), '');
+  writeFileSync(join(ctx.directory, 'fake-grok-defer-start'), '');
 
-  const proc = Bun.spawn([ctx.bin], {
+  const subprocess = Bun.spawn([ctx.bin], {
     env: {
-      HOME: ctx.dir,
+      HOME: ctx.directory,
       PATH: '/usr/bin:/bin',
-      ATC_SOCKET: join(ctx.dir, 'report.sock'),
+      ATC_SOCKET: join(ctx.directory, 'report.sock'),
       ATC_SESSION_ID: 's-1',
     },
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     stdin: 'pipe',
     stdout: 'pipe',
   });
 
   registerTestCleanup(() => {
-    proc.kill();
+    subprocess.kill();
   });
 
-  const output = startOutputCapture(proc.stdout);
+  const output = startOutputCapture(subprocess.stdout);
 
   await waitFor(() => {
-    expect(join(ctx.dir, 'fake-grok-start-deferred')).toSatisfy(existsSync);
+    expect(join(ctx.directory, 'fake-grok-start-deferred')).toSatisfy(existsSync);
   });
 
   const reportedWhileDeferred = [...ctx.lines];
 
-  rmSync(join(ctx.dir, 'fake-grok-defer-start'));
+  rmSync(join(ctx.directory, 'fake-grok-defer-start'));
 
   await waitFor(() => {
     expect(output.read()).toInclude('FAKE_GROK_HOOKS_DONE');
@@ -203,7 +208,7 @@ test('it defers its session start until the defer file goes', async () => {
     {
       atcId: 's-1',
       event: 'SessionStart',
-      payload: { hookEventName: 'session_start', sessionId: 'fake-grok-1', cwd: ctx.dir },
+      payload: { hookEventName: 'session_start', sessionId: 'fake-grok-1', cwd: ctx.directory },
     },
     {
       atcId: 's-1',
@@ -224,13 +229,13 @@ test('it reports through the CLI entry it is given, with none in the environment
 
   updateEnv('ATC_CLI_ENTRY', undefined);
 
-  const bin = createStubBin(ctx.dir, 'given-entry', buildStubTUIGrok(entry));
+  const bin = createStubBin(ctx.directory, 'given-entry', buildStubTUIGrok(entry));
 
-  const proc = Bun.spawn([bin], {
+  const subprocess = Bun.spawn([bin], {
     env: {
-      HOME: ctx.dir,
+      HOME: ctx.directory,
       PATH: '/usr/bin:/bin',
-      ATC_SOCKET: join(ctx.dir, 'report.sock'),
+      ATC_SOCKET: join(ctx.directory, 'report.sock'),
       ATC_SESSION_ID: 's-given',
     },
     stdin: 'pipe',
@@ -238,7 +243,7 @@ test('it reports through the CLI entry it is given, with none in the environment
   });
 
   registerTestCleanup(() => {
-    proc.kill();
+    subprocess.kill();
   });
 
   await waitFor(() => {

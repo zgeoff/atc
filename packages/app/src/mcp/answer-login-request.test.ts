@@ -21,13 +21,13 @@ import { TransportCaller } from './transport-caller';
 
 async function setupTest() {
   const tmp = setupTempDir('atc-answer-login-');
-  const dbPath = join(tmp.dir, 'mcp-auth.db');
+  const dbPath = join(tmp.path, 'mcp-auth.db');
   const requests: string[] = [];
   const security: string[] = [];
   const clock = buildStubClock(Date.now());
 
   // sign-in never reaches the daemon, so nothing listens on this socket.
-  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+  const caller = new TransportCaller(join(tmp.path, 'daemon.sock'), 'atc/test-build', (path) =>
     openDaemonClient(path),
   );
 

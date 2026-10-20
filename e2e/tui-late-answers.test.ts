@@ -71,7 +71,10 @@ test('it cancels a probe in flight on esc and drops its answer', async () => {
   // Every authenticated request waits on the server until the test
   // releases the gate.
   const gate = Promise.withResolvers<void>();
-  const server = startGitHTTPServer(fixture.dir, fixture.env, { onRequest: () => gate.promise });
+
+  const server = startGitHTTPServer(fixture.directory, fixture.env, {
+    onRequest: () => gate.promise,
+  });
 
   // The home's git config supplies the basic auth the server asks for, so
   // the probe's request reaches the hold.
@@ -171,7 +174,7 @@ test('it leaves the picker when esc stops waiting on a spawn, and the spawn list
   // gate, and then wait until it releases the gate.
   const gate = Promise.withResolvers<void>();
   let hold = Promise.resolve();
-  const server = startGitHTTPServer(fixture.dir, fixture.env, { onRequest: () => hold });
+  const server = startGitHTTPServer(fixture.directory, fixture.env, { onRequest: () => hold });
 
   // The home's git config supplies the basic auth the server asks for.
   writeFileSync(
@@ -315,7 +318,7 @@ test('it keeps a probe started on a git source after a tab in that flow, spawnin
   // gate, and then wait until it releases the gate.
   const gate = Promise.withResolvers<void>();
   let hold = Promise.resolve();
-  const server = startGitHTTPServer(fixture.dir, fixture.env, { onRequest: () => hold });
+  const server = startGitHTTPServer(fixture.directory, fixture.env, { onRequest: () => hold });
 
   // The home's git config supplies the basic auth the server asks for.
   writeFileSync(

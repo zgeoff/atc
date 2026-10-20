@@ -15,8 +15,8 @@ import { waitFor } from './wait-for';
 // read of each connection with one line and records each connection and that
 // first read.
 async function setupTest() {
-  const tmp = setupTempDir('atc-stub-stalled-client-');
-  const path = join(tmp.dir, 'daemon.sock');
+  const temporaryDirectory = setupTempDir('atc-stub-stalled-client-');
+  const path = join(temporaryDirectory.path, 'daemon.sock');
 
   const listener = await startStubAnsweringListener(path);
 

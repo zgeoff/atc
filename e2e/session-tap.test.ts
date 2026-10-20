@@ -19,20 +19,20 @@ async function setupTest() {
   // The tap dials this path, so the daemon listens exactly there; the
   // adapter takes messages, so a session has an inbox to tap.
   const daemon = await startDaemon({
-    socketPath: join(tmp.dir, 'atc-daemon.sock'),
-    reporterSocketPath: join(tmp.dir, 'reporter.sock'),
+    socketPath: join(tmp.path, 'atc-daemon.sock'),
+    reporterSocketPath: join(tmp.path, 'reporter.sock'),
     build: 'atc/test-build',
     adapter: buildMockAgentAdapter({ takesMessages: true }),
     targets: [buildLocalTarget()],
-    dbPath: join(tmp.dir, 'state.db'),
-    statusPath: join(tmp.dir, 'status.json'),
+    dbPath: join(tmp.path, 'state.db'),
+    statusPath: join(tmp.path, 'status.json'),
   });
 
   registerTestCleanup(() => daemon.stop());
 
   const events: DaemonEvent[] = [];
 
-  const actor = await openDaemonClient(join(tmp.dir, 'atc-daemon.sock'));
+  const actor = await openDaemonClient(join(tmp.path, 'atc-daemon.sock'));
 
   registerTestCleanup(() => {
     actor.stop();
@@ -45,8 +45,8 @@ async function setupTest() {
   await actor.sendHello('atc/test-build');
 
   return {
-    dir: tmp.dir,
-    env: { ...process.env, XDG_RUNTIME_DIR: tmp.dir, HOME: tmp.dir },
+    dir: tmp.path,
+    env: { ...process.env, XDG_RUNTIME_DIR: tmp.path, HOME: tmp.path },
     actor,
     events,
   };

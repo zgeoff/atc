@@ -8,7 +8,7 @@ import { probeTranscriptResumable } from './probe-transcript-resumable';
 function setupTest() {
   const tmp = setupTempDir('atc-resume-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it resumes when no transcript was reported', () => {

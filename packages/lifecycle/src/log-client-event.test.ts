@@ -7,7 +7,7 @@ import { logClientEvent } from './log-client-event';
 function setupTest() {
   const tmp = setupTempDir('atc-client-log-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it appends each line to the file the variable holds', () => {

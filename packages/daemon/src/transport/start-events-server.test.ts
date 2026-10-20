@@ -18,7 +18,7 @@ function setupTest() {
   const snapshots: (readonly EventMsg[])[] = [];
 
   return {
-    socketPath: join(tmp.dir, 'events.sock'),
+    socketPath: join(tmp.path, 'events.sock'),
     snapshots,
     collectSnapshot: () => {
       const snapshot: readonly EventMsg[] = [];

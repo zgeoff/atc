@@ -20,7 +20,7 @@ import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemo
 
 function setupTest() {
   const tmp = setupTempDir('atc-daemon-config-file-');
-  const configDir = join(tmp.dir, 'config');
+  const configDir = join(tmp.path, 'config');
 
   mkdirSync(configDir);
 
@@ -29,7 +29,7 @@ function setupTest() {
   const harnesses: string[] = [];
 
   return {
-    dir: tmp.dir,
+    dir: tmp.path,
     configPath: join(configDir, 'config.json'),
     claude,
     harnesses,

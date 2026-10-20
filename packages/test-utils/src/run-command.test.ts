@@ -6,9 +6,9 @@ import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-run-command-');
+  const temporaryDirectory = setupTempDir('atc-run-command-');
 
-  return { dir: tmp.dir };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it resolves with the exit code and output of a command', async () => {
@@ -29,13 +29,13 @@ test('it runs a command in its directory with its environment and input', async 
   const result = await runCommand(
     ['/bin/bash', '-c', 'printf "%s|%s|%s" "$PWD" "$ONLY" "$(cat)"'],
     {
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       env: { ONLY: 'set' },
       stdin: 'fed',
     },
   );
 
-  expect(result.stdout).toBe(`${ctx.dir}|set|fed`);
+  expect(result.stdout).toBe(`${ctx.directory}|set|fed`);
 });
 
 test('it takes standard input as bytes', async () => {
@@ -61,7 +61,7 @@ test('it kills a command still running when the test finishes', () => {
 
 test('it kills a child the command left holding its output when the test finishes', async () => {
   const ctx = setupTest();
-  const pidPath = join(ctx.dir, 'child.pid');
+  const pidPath = join(ctx.directory, 'child.pid');
   const run = runCommand(['bash', '-c', `sleep 30 & echo $! > '${pidPath}'; exit 0`]);
 
   await waitFor(() => {

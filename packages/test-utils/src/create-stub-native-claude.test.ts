@@ -5,23 +5,23 @@ import { runCommand } from './run-command';
 import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-native-claude-');
+  const temporaryDirectory = setupTempDir('atc-stub-native-claude-');
 
-  return { dir: tmp.dir };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it returns the program path under the directory, which it creates', async () => {
   const ctx = setupTest();
 
-  const path = await createStubNativeClaude(join(ctx.dir, 'bin'), 'claude');
+  const path = await createStubNativeClaude(join(ctx.directory, 'bin'), 'claude');
 
-  expect(path).toBe(join(ctx.dir, 'bin', 'claude'));
+  expect(path).toBe(join(ctx.directory, 'bin', 'claude'));
 });
 
 test('it builds a program that prints the DYLD_ATC_TEST value it starts with', async () => {
   const ctx = setupTest();
 
-  const path = await createStubNativeClaude(ctx.dir, 'claude');
+  const path = await createStubNativeClaude(ctx.directory, 'claude');
 
   const result = await runCommand([path, '--settings', 'ignored'], {
     env: { DYLD_ATC_TEST: 'synthetic' },
@@ -33,7 +33,7 @@ test('it builds a program that prints the DYLD_ATC_TEST value it starts with', a
 test('it builds a program that prints unset when it starts without DYLD_ATC_TEST', async () => {
   const ctx = setupTest();
 
-  const path = await createStubNativeClaude(ctx.dir, 'claude');
+  const path = await createStubNativeClaude(ctx.directory, 'claude');
   const result = await runCommand([path], { env: {} });
 
   expect(result.stdout).toBe('FAKE_NATIVE_DYLD:[unset]\n');

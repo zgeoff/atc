@@ -8,7 +8,7 @@ import { readSystemdVersion } from './read-systemd-version';
 function setupTest() {
   const tmp = setupTempDir('atc-systemd-version-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it reads the release from the shared library name a program links', () => {

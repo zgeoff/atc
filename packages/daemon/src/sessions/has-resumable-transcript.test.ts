@@ -23,7 +23,7 @@ interface SetupTestConfig {
 // a real state store.
 async function setupTest(config: SetupTestConfig) {
   const tmp = setupTempDir('atc-resumable-transcript-');
-  const dbPath = join(tmp.dir, 'state.db');
+  const dbPath = join(tmp.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -34,7 +34,7 @@ async function setupTest(config: SetupTestConfig) {
   const mgr = new SessionManager(
     null,
     store,
-    join(tmp.dir, 'status.json'),
+    join(tmp.path, 'status.json'),
     [config.adapter],
     [
       buildMockExecutionTarget({
@@ -54,7 +54,7 @@ async function setupTest(config: SetupTestConfig) {
   // A remote spawn logs its step times.
   mgr.log = buildStubLog().log;
 
-  return { dir: tmp.dir, mgr };
+  return { dir: tmp.path, mgr };
 }
 
 test('it asks the agent whether it can resume the conversation of a local session', async () => {

@@ -25,15 +25,15 @@ import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemo
 function setupTest() {
   const tmp = setupTempDir('atc-gateway-guest-auth-');
   const port = createStubImpPort();
-  const fakeClaude = createStubRecordingClaude(tmp.dir);
+  const fakeClaude = createStubRecordingClaude(tmp.path);
 
   // The imp provider hands the guest this atc binary, which prints the
   // daemon's version, so the guest's hooks run it.
-  const guestATC = createStubBin(tmp.dir, 'atc', '#!/bin/sh\necho 1.0.0\n');
+  const guestATC = createStubBin(tmp.path, 'atc', '#!/bin/sh\necho 1.0.0\n');
 
   const provider = new ImpProvider(
     port,
-    { guestDir: join(tmp.dir, 'g'), guestATC },
+    { guestDir: join(tmp.path, 'g'), guestATC },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -42,7 +42,7 @@ function setupTest() {
   });
 
   return {
-    dir: tmp.dir,
+    dir: tmp.path,
     port,
     fakeClaude,
     targets: [

@@ -9,7 +9,7 @@ import { ImpProvider } from './imp-provider';
 function setupTest() {
   const tmp = setupTempDir('atc-build-imp-provider-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it builds no provider for an imp target without a url', () => {

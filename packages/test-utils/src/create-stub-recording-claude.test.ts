@@ -7,28 +7,28 @@ import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-recording-claude-');
+  const temporaryDirectory = setupTempDir('atc-stub-recording-claude-');
 
-  return { dir: tmp.dir };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it returns the path of the stub under the directory', () => {
   const ctx = setupTest();
 
-  expect(createStubRecordingClaude(ctx.dir)).toBe(join(ctx.dir, 'fake-claude'));
+  expect(createStubRecordingClaude(ctx.directory)).toBe(join(ctx.directory, 'fake-claude'));
 });
 
 test('it writes no start log before it runs', () => {
   const ctx = setupTest();
 
-  createStubRecordingClaude(ctx.dir);
+  createStubRecordingClaude(ctx.directory);
 
-  expect(existsSync(join(ctx.dir, 'claude-starts.log'))).toBeFalse();
+  expect(existsSync(join(ctx.directory, 'claude-starts.log'))).toBeFalse();
 });
 
 test('it records the arguments of a start one per line, then an empty line', async () => {
   const ctx = setupTest();
-  const bin = createStubRecordingClaude(ctx.dir);
+  const bin = createStubRecordingClaude(ctx.directory);
   const run = Bun.spawn([bin, '--a', 'two words']);
 
   registerTestCleanup(() => {
@@ -36,14 +36,16 @@ test('it records the arguments of a start one per line, then an empty line', asy
   });
 
   await waitFor(() => {
-    expect(readFileSync(join(ctx.dir, 'claude-starts.log'), 'utf8')).toBe('--a\ntwo words\n\n');
+    expect(readFileSync(join(ctx.directory, 'claude-starts.log'), 'utf8')).toBe(
+      '--a\ntwo words\n\n',
+    );
   });
 });
 
 test('it appends a later start after an earlier one', async () => {
   const ctx = setupTest();
-  const bin = createStubRecordingClaude(ctx.dir);
-  const log = join(ctx.dir, 'claude-starts.log');
+  const bin = createStubRecordingClaude(ctx.directory);
+  const log = join(ctx.directory, 'claude-starts.log');
   const first = Bun.spawn([bin, '--a']);
 
   registerTestCleanup(() => {
@@ -67,7 +69,7 @@ test('it appends a later start after an earlier one', async () => {
 
 test('it is still running after it records its start', async () => {
   const ctx = setupTest();
-  const bin = createStubRecordingClaude(ctx.dir);
+  const bin = createStubRecordingClaude(ctx.directory);
   const run = Bun.spawn([bin]);
 
   registerTestCleanup(() => {
@@ -75,7 +77,7 @@ test('it is still running after it records its start', async () => {
   });
 
   await waitFor(() => {
-    expect(existsSync(join(ctx.dir, 'claude-starts.log'))).toBeTrue();
+    expect(existsSync(join(ctx.directory, 'claude-starts.log'))).toBeTrue();
   });
 
   run.kill();

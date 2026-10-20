@@ -3,8 +3,8 @@ import { startStubPeerDaemon } from './start-stub-peer-daemon';
 import type { StubPeerAnswer, StubPeerRequest } from './start-stub-peer-daemon';
 
 interface ReceivedRequest {
-  readonly m: string;
-  readonly p: Readonly<Record<string, unknown>> | undefined;
+  readonly method: string;
+  readonly params: Readonly<Record<string, unknown>> | undefined;
 }
 
 // A TCP address to listen on in place of a unix socket; port 0 lets the
@@ -59,7 +59,7 @@ export function startStubLegacyDaemon(
         return 'silent';
       }
 
-      requests.push({ m: request.method, p: request.params });
+      requests.push({ method: request.method, params: request.params });
 
       if (request.method === options.closeOnRequest) {
         return 'close';

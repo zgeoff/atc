@@ -9,7 +9,7 @@ import { loadTestSkips } from './load-test-skips';
 function setupTest() {
   const tmp = setupTempDir('load-test-skips-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it loads each entry of a skip list', () => {

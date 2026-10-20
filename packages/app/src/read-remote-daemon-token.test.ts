@@ -9,7 +9,7 @@ import { buildMockRemoteDaemon } from './test-utils/build-mock-remote-daemon';
 function setupTest() {
   const tmp = setupTempDir('atc-remote-token-');
 
-  return { dir: tmp.dir, tokenFile: join(tmp.dir, 'box.token') };
+  return { dir: tmp.path, tokenFile: join(tmp.path, 'box.token') };
 }
 
 test('it reads the token a file holds, without its final newline', async () => {

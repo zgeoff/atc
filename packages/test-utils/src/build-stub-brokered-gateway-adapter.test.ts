@@ -8,7 +8,7 @@ test('it plans a guest spawn under a binding that sleeps behind the binding vari
     { prompt: '', resume: false },
     {
       atc: null,
-      dir: '/guest/sessions/s1',
+      directory: '/guest/sessions/s1',
       auth: {
         revision: 3,
         env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
@@ -33,7 +33,7 @@ test('it plans a guest spawn without a binding that sleeps with only its config 
 
   const plan = adapter.planGuestSpawn?.(
     { prompt: '', resume: false },
-    { atc: null, dir: '/guest/sessions/s1' },
+    { atc: null, directory: '/guest/sessions/s1' },
   );
 
   expect(plan).toStrictEqual({

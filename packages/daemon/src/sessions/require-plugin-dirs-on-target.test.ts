@@ -7,7 +7,7 @@ import { requirePluginDirsOnTarget } from './require-plugin-dirs-on-target';
 function setupTest() {
   const tmp = setupTempDir('atc-plugin-dirs-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it accepts a folder', () => {

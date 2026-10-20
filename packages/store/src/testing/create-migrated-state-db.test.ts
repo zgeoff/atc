@@ -8,7 +8,7 @@ import { createMigratedStateDB } from './create-migrated-state-db';
 function setupTest() {
   const tmp = setupTempDir('atc-migrated-state-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it creates a database the store opens without running a migration', async () => {

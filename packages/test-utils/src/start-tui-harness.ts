@@ -24,7 +24,7 @@ interface TUIHarnessOptions {
 
   // Waits out the interval between a wait's retries; a real sleep unless
   // set.
-  readonly wait?: (ms: number) => Promise<void>;
+  readonly wait?: (delayMs: number) => Promise<void>;
 }
 
 // The width the client's terminal opens at. The picker box takes the
@@ -36,7 +36,7 @@ export function startTUIHarness(options: TUIHarnessOptions = {}) {
   const now = options.now ?? Date.now;
   const wait = options.wait ?? Bun.sleep;
   const cliPath = readSourceEntry('atc');
-  const tmp = setupTempDir('atc-tui-');
+  const temporaryDirectory = setupTempDir('atc-tui-');
 
   // Registered after the home, so it releases first: the client and its
   // daemon stop before their home is removed.
@@ -44,11 +44,11 @@ export function startTUIHarness(options: TUIHarnessOptions = {}) {
 
   const stop = registerTestCleanup(() => owned.disposeAsync());
 
-  owned.defer(tmp.teardown);
+  owned.defer(temporaryDirectory.teardown);
 
   // The client boots with this home as its cwd and lists it first in the
   // picker, so the path is resolved the way the client reports it.
-  const home = realpathSync(tmp.dir);
+  const home = realpathSync(temporaryDirectory.path);
   const configPath = join(home, '.config', 'atc', 'config.json');
   const clientLogPath = join(home, 'client.log');
   const fakeClaude = createStubBin(home, 'fake-claude', buildStubTUIClaude(cliPath));
@@ -166,7 +166,7 @@ export function startTUIHarness(options: TUIHarnessOptions = {}) {
       out = '';
     },
 
-    async waitFor(needle: string, ms = 4000): Promise<void> {
+    async waitFor(needle: string, timeoutMs = 4000): Promise<void> {
       const start = now();
 
       // The client gives its daemon 8 seconds before it draws an error; the extra
@@ -196,7 +196,7 @@ export function startTUIHarness(options: TUIHarnessOptions = {}) {
           }
         },
         {
-          timeoutMs: Math.max(0, Math.max(start, firstAt) + ms - now()),
+          timeoutMs: Math.max(0, Math.max(start, firstAt) + timeoutMs - now()),
           intervalMs: 50,
           now,
           wait,
@@ -216,7 +216,7 @@ export function startTUIHarness(options: TUIHarnessOptions = {}) {
       return readClientLog(clientLogPath).length;
     },
 
-    async waitForClientLog(line: string, mark: number, ms = 5000): Promise<void> {
+    async waitForClientLog(line: string, mark: number, timeoutMs = 5000): Promise<void> {
       await waitFor(
         () => {
           const written = readClientLog(clientLogPath).slice(mark);
@@ -227,7 +227,7 @@ export function startTUIHarness(options: TUIHarnessOptions = {}) {
             );
           }
         },
-        { timeoutMs: ms, now, wait },
+        { timeoutMs, now, wait },
       );
     },
 

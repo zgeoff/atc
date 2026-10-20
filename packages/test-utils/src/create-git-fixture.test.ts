@@ -71,13 +71,13 @@ test('it lays the upstream and the work clone out in its directory', async () =>
   const fixture = await createGitFixture({ prefix: 'atc-layout-' });
 
   expect({
-    name: basename(fixture.dir),
+    name: basename(fixture.directory),
     upstream: fixture.upstream,
     work: fixture.work,
   }).toStrictEqual({
     name: expect.toStartWith('atc-layout-'),
-    upstream: join(fixture.dir, 'upstream.git'),
-    work: join(fixture.dir, 'work'),
+    upstream: join(fixture.directory, 'upstream.git'),
+    work: join(fixture.directory, 'work'),
   });
 });
 
@@ -86,7 +86,7 @@ test('it removes its directory once removed', async () => {
 
   fixture.remove();
 
-  expect(existsSync(fixture.dir)).toBeFalse();
+  expect(existsSync(fixture.directory)).toBeFalse();
 });
 
 test('it refuses to build its template outside the test home', async () => {
@@ -111,6 +111,6 @@ test('it removes its directory once the test finishes without a remove', async (
   const fixture = await createGitFixture();
 
   onTestFinished(() => {
-    expect(existsSync(fixture.dir)).toBeFalse();
+    expect(existsSync(fixture.directory)).toBeFalse();
   });
 });

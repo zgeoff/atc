@@ -7,7 +7,7 @@ import { runGit } from './run-git';
 function setupTest() {
   const tmp = setupTempDir('atc-run-git-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it drops git config that the host environment injects', async () => {

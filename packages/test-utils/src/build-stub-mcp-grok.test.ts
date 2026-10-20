@@ -11,14 +11,19 @@ import { updateEnv } from './update-env';
 import { waitFor } from './wait-for';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-mcp-grok-');
+  const temporaryDirectory = setupTempDir('atc-stub-mcp-grok-');
 
   // The reporter the script reports through sends its lines here.
-  const reporter = startStubReporterSocket(join(tmp.dir, 'report.sock'));
-  const bin = createStubBin(tmp.dir, 'grok', buildStubMCPGrok(readSourceEntry('atc')));
+  const reporter = startStubReporterSocket(join(temporaryDirectory.path, 'report.sock'));
+
+  const bin = createStubBin(
+    temporaryDirectory.path,
+    'grok',
+    buildStubMCPGrok(readSourceEntry('atc')),
+  );
 
   return {
-    dir: tmp.dir,
+    directory: temporaryDirectory.path,
     bin,
     lines: reporter.lines,
   };
@@ -27,19 +32,19 @@ function setupTest() {
 test('it prints its marker and arguments', async () => {
   const ctx = setupTest();
 
-  const proc = Bun.spawn([ctx.bin, '--model', 'grok-5'], {
-    env: { HOME: ctx.dir, PATH: '/usr/bin:/bin' },
+  const subprocess = Bun.spawn([ctx.bin, '--model', 'grok-5'], {
+    env: { HOME: ctx.directory, PATH: '/usr/bin:/bin' },
     stdin: 'pipe',
     stdout: 'pipe',
   });
 
   registerTestCleanup(() => {
-    proc.kill();
+    subprocess.kill();
   });
 
-  void proc.stdin.end();
+  void subprocess.stdin.end();
 
-  const output = await new Response(proc.stdout).text();
+  const output = await new Response(subprocess.stdout).text();
 
   expect(output).toBe('FAKE_GROK_UP args: --model grok-5\n');
 });
@@ -47,31 +52,31 @@ test('it prints its marker and arguments', async () => {
 test('it records its pid in the home', async () => {
   const ctx = setupTest();
 
-  const proc = Bun.spawn([ctx.bin], {
-    env: { HOME: ctx.dir, PATH: '/usr/bin:/bin' },
+  const subprocess = Bun.spawn([ctx.bin], {
+    env: { HOME: ctx.directory, PATH: '/usr/bin:/bin' },
     stdin: 'pipe',
     stdout: 'pipe',
   });
 
   registerTestCleanup(() => {
-    proc.kill();
+    subprocess.kill();
   });
 
-  void proc.stdin.end();
+  void subprocess.stdin.end();
 
-  await proc.exited;
+  await subprocess.exited;
 
-  expect(readFileSync(join(ctx.dir, 'stub-pids'), 'utf8')).toBe(`${proc.pid}\n`);
+  expect(readFileSync(join(ctx.directory, 'stub-pids'), 'utf8')).toBe(`${subprocess.pid}\n`);
 });
 
 test('it stays up after reporting, echoing its input back until the input closes', async () => {
   const ctx = setupTest();
 
-  const proc = Bun.spawn([ctx.bin], {
+  const subprocess = Bun.spawn([ctx.bin], {
     env: {
-      HOME: ctx.dir,
+      HOME: ctx.directory,
       PATH: '/usr/bin:/bin',
-      ATC_SOCKET: join(ctx.dir, 'report.sock'),
+      ATC_SOCKET: join(ctx.directory, 'report.sock'),
       ATC_SESSION_ID: 's-1',
     },
     stdin: 'pipe',
@@ -79,19 +84,19 @@ test('it stays up after reporting, echoing its input back until the input closes
   });
 
   registerTestCleanup(() => {
-    proc.kill();
+    subprocess.kill();
   });
 
   await waitFor(() => {
     expect(ctx.lines).toBeArrayOfSize(1);
   });
 
-  void proc.stdin.write('ping\n');
-  void proc.stdin.end();
+  void subprocess.stdin.write('ping\n');
+  void subprocess.stdin.end();
 
-  const output = await new Response(proc.stdout).text();
+  const output = await new Response(subprocess.stdout).text();
 
-  expect({ output, exitCode: await proc.exited }).toStrictEqual({
+  expect({ output, exitCode: await subprocess.exited }).toStrictEqual({
     output: 'FAKE_GROK_UP args: \nping\n',
     exitCode: 0,
   });
@@ -100,19 +105,19 @@ test('it stays up after reporting, echoing its input back until the input closes
 test('it reports session_start with its session id and working directory through the reporter', async () => {
   const ctx = setupTest();
 
-  const proc = Bun.spawn([ctx.bin], {
-    cwd: ctx.dir,
+  const subprocess = Bun.spawn([ctx.bin], {
+    cwd: ctx.directory,
     env: {
-      HOME: ctx.dir,
+      HOME: ctx.directory,
       PATH: '/usr/bin:/bin',
-      ATC_SOCKET: join(ctx.dir, 'report.sock'),
+      ATC_SOCKET: join(ctx.directory, 'report.sock'),
       ATC_SESSION_ID: 's-1',
     },
     stdout: 'ignore',
   });
 
   registerTestCleanup(() => {
-    proc.kill();
+    subprocess.kill();
   });
 
   const line = await waitFor(() => {
@@ -121,12 +126,12 @@ test('it reports session_start with its session id and working directory through
     return ctx.lines[0];
   });
 
-  await proc.exited;
+  await subprocess.exited;
 
   expect(JSON.parse(line ?? '')).toStrictEqual({
     atcId: 's-1',
     event: 'SessionStart',
-    payload: { hookEventName: 'session_start', sessionId: 'fake-grok-1', cwd: ctx.dir },
+    payload: { hookEventName: 'session_start', sessionId: 'fake-grok-1', cwd: ctx.directory },
   });
 });
 
@@ -136,13 +141,13 @@ test('it reports through the CLI entry it is given, with none in the environment
 
   updateEnv('ATC_CLI_ENTRY', undefined);
 
-  const bin = createStubBin(ctx.dir, 'given-entry', buildStubMCPGrok(entry));
+  const bin = createStubBin(ctx.directory, 'given-entry', buildStubMCPGrok(entry));
 
-  const proc = Bun.spawn([bin], {
+  const subprocess = Bun.spawn([bin], {
     env: {
-      HOME: ctx.dir,
+      HOME: ctx.directory,
       PATH: '/usr/bin:/bin',
-      ATC_SOCKET: join(ctx.dir, 'report.sock'),
+      ATC_SOCKET: join(ctx.directory, 'report.sock'),
       ATC_SESSION_ID: 's-given',
     },
     stdin: 'pipe',
@@ -150,7 +155,7 @@ test('it reports through the CLI entry it is given, with none in the environment
   });
 
   registerTestCleanup(() => {
-    proc.kill();
+    subprocess.kill();
   });
 
   await waitFor(() => {

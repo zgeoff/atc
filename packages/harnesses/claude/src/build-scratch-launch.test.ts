@@ -8,7 +8,7 @@ import { buildScratchLaunch } from './build-scratch-launch';
 function setupTest() {
   const tmp = setupTempDir('atc-scratch-launch-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it creates the scratch folder, readable by its owner alone, and runs the CLI with its own arguments', async () => {

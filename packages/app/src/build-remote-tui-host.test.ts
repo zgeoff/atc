@@ -29,7 +29,7 @@ test('it refuses a restart, since the daemon host restarts it', () => {
 
 test('it boots the remote daemon with the build the invocation reads', async () => {
   const tmp = setupTempDir('atc-remote-host-');
-  const tokenFile = join(tmp.dir, 'box.token');
+  const tokenFile = join(tmp.path, 'box.token');
 
   writeFileSync(tokenFile, `${'a'.repeat(32)}\n`);
 

@@ -32,15 +32,15 @@ function setupTest() {
   const port = createStubImpPort();
 
   const fakeClaude = createStubBrokeredClaude(
-    temporaryDirectory.dir,
+    temporaryDirectory.path,
     'https://api.github.com/user',
   );
 
-  const guestATC = createStubBin(temporaryDirectory.dir, 'atc', '#!/bin/sh\necho 1.0.0\n');
+  const guestATC = createStubBin(temporaryDirectory.path, 'atc', '#!/bin/sh\necho 1.0.0\n');
 
   const provider = new ImpProvider(
     port,
-    { guestDir: join(temporaryDirectory.dir, 'g'), guestATC },
+    { guestDir: join(temporaryDirectory.path, 'g'), guestATC },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -49,7 +49,7 @@ function setupTest() {
   });
 
   return {
-    dir: temporaryDirectory.dir,
+    dir: temporaryDirectory.path,
     port,
     fakeClaude,
     targets: [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider }],

@@ -21,8 +21,8 @@ import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemo
 
 async function setupTest() {
   const tmp = setupTempDir('atc-imp-bridge-');
-  const clis = createStubGuestCLIs(join(tmp.dir, 'bin'));
-  const guestDir = join(tmp.dir, 'g');
+  const clis = createStubGuestCLIs(join(tmp.path, 'bin'));
+  const guestDir = join(tmp.path, 'g');
   const port = createStubImpPort();
   const config = parseConfig(SHIPPED_HARNESS_PLUGINS, { agents: { claude: { bin: clis.claude } } });
 
@@ -51,7 +51,7 @@ async function setupTest() {
     }),
   });
 
-  return { daemon, port, dir: tmp.dir, guestDir };
+  return { daemon, port, dir: tmp.path, guestDir };
 }
 
 test("it delivers a message to a remote session's tap", async () => {

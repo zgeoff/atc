@@ -7,7 +7,7 @@ import { resolveHeadlessExecutable } from './resolve-headless-executable';
 function setupTest() {
   const tmp = setupTempDir('atc-headless-exec-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it leaves the SDK on its own CLI copy under a source run', () => {

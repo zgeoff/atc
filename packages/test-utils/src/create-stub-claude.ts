@@ -11,11 +11,11 @@ interface StubClaudeConfig {
 // Like the real CLI, the stand-in runs the SessionStart hook command from the
 // --settings file through a shell, so a session reports with the command line
 // atc wrote for its agent.
-export function createStubClaude(dir: string, config: StubClaudeConfig): string {
+export function createStubClaude(directory: string, config: StubClaudeConfig): string {
   const atc = config.atc.map((part) => `"${part}"`).join(' ');
 
   return createStubBin(
-    dir,
+    directory,
     'fake-claude',
     `#!/usr/bin/env bash
 echo "FAKE_CLAUDE_UP args: $@"

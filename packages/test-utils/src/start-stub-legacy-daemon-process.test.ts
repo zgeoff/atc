@@ -8,17 +8,20 @@ import { setupTempDir } from './setup-temp-dir';
 import { startStubLegacyDaemonProcess } from './start-stub-legacy-daemon-process';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-legacy-process-');
+  const temporaryDirectory = setupTempDir('atc-legacy-process-');
 
-  return { dir: tmp.dir, socketPath: join(tmp.dir, 'daemon.sock') };
+  return {
+    directory: temporaryDirectory.path,
+    socketPath: join(temporaryDirectory.path, 'daemon.sock'),
+  };
 }
 
 test('it resolves once the daemon has recorded its own pid', async () => {
   const ctx = setupTest();
 
-  const daemon = await startStubLegacyDaemonProcess(ctx.socketPath, ctx.dir);
+  const daemon = await startStubLegacyDaemonProcess(ctx.socketPath, ctx.directory);
 
-  const record: unknown = JSON.parse(readFileSync(join(ctx.dir, 'daemon.json'), 'utf8'));
+  const record: unknown = JSON.parse(readFileSync(join(ctx.directory, 'daemon.json'), 'utf8'));
 
   expect(record).toMatchObject({ pid: daemon.pid, socketPath: ctx.socketPath });
 });
@@ -26,7 +29,7 @@ test('it resolves once the daemon has recorded its own pid', async () => {
 test('it starts a daemon on the protocol after the current one', async () => {
   const ctx = setupTest();
 
-  await startStubLegacyDaemonProcess(ctx.socketPath, ctx.dir);
+  await startStubLegacyDaemonProcess(ctx.socketPath, ctx.directory);
 
   const client = await openDaemonClient(ctx.socketPath);
 
@@ -43,7 +46,7 @@ test('it starts a daemon on the protocol after the current one', async () => {
 test('it starts a daemon on the line protocol when told to speak it', async () => {
   const ctx = setupTest();
 
-  await startStubLegacyDaemonProcess(ctx.socketPath, ctx.dir, 'line');
+  await startStubLegacyDaemonProcess(ctx.socketPath, ctx.directory, 'line');
 
   const client = await openDaemonClient(ctx.socketPath);
 

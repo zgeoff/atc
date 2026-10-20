@@ -2,11 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { chmodSync, mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-export function createStubBin(dir: string, name: string, script: string): string {
-  const path = join(dir, name);
-  const staged = join(dir, `.${name}.${randomUUID()}`);
+export function createStubBin(directory: string, name: string, script: string): string {
+  const path = join(directory, name);
+  const staged = join(directory, `.${name}.${randomUUID()}`);
 
-  mkdirSync(dir, { recursive: true });
+  mkdirSync(directory, { recursive: true });
   writeFileSync(staged, script);
   chmodSync(staged, 0o755);
 

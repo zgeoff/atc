@@ -318,7 +318,7 @@ test('it keeps a claimed directory on the host when the host home cannot be reso
 
 test('it keeps a claimed directory on the host when a stale relative directory is a symlink whose target lay inside it', async () => {
   const tmp = setupTempDir('atc-host-dir-claims-');
-  const home = join(tmp.dir, 'home');
+  const home = join(tmp.path, 'home');
   const workspace = join(home, 'work', 'a');
 
   mkdirSync(workspace, { recursive: true });

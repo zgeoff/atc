@@ -7,7 +7,7 @@ import { createStderrSink } from './create-stderr-sink';
 // Faked timers let a test decide when the sink reports the records it dropped.
 function setupTest() {
   const tmp = setupTempDir('atc-stderr-sink-');
-  const outputPath = join(tmp.dir, 'stderr');
+  const outputPath = join(tmp.path, 'stderr');
   const fd = openSync(outputPath, 'w');
 
   onTestFinished(() => {

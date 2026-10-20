@@ -17,7 +17,7 @@ import { EventTrail } from './event-trail';
 // real state store, a stub clock, and the trail over them.
 async function setupTest() {
   const tmp = setupTempDir('atc-event-trail-');
-  const dbPath = join(tmp.dir, 'state.db');
+  const dbPath = join(tmp.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -28,7 +28,7 @@ async function setupTest() {
   const mgr = new SessionManager(
     null,
     store,
-    join(tmp.dir, 'status.json'),
+    join(tmp.path, 'status.json'),
     [buildStubHarnessAdapter()],
     [
       buildMockExecutionTarget({

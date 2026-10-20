@@ -8,19 +8,19 @@ import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-harness-guest-');
+  const temporaryDirectory = setupTempDir('atc-stub-harness-guest-');
 
-  return { dir: tmp.dir };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it creates the script and the burst pipe under the directory', async () => {
   const ctx = setupTest();
 
-  const guest = await createStubHarnessGuest(ctx.dir);
+  const guest = await createStubHarnessGuest(ctx.directory);
 
   expect(guest).toStrictEqual({
-    path: join(ctx.dir, 'harness'),
-    burstPath: join(ctx.dir, 'burst'),
+    path: join(ctx.directory, 'harness'),
+    burstPath: join(ctx.directory, 'burst'),
   });
 
   expect(statSync(guest.path).mode & 0o111).toBe(0o111);
@@ -30,22 +30,22 @@ test('it creates the script and the burst pipe under the directory', async () =>
 test('it prints its pid on start, echoes each line, and exits 3 on quit', async () => {
   const ctx = setupTest();
 
-  const guest = await createStubHarnessGuest(ctx.dir);
+  const guest = await createStubHarnessGuest(ctx.directory);
 
-  const proc = Bun.spawn([guest.path], { stdin: 'pipe', stdout: 'pipe', stderr: 'ignore' });
+  const subprocess = Bun.spawn([guest.path], { stdin: 'pipe', stdout: 'pipe', stderr: 'ignore' });
 
   registerTestCleanup(() => {
-    proc.kill('SIGKILL');
+    subprocess.kill('SIGKILL');
   });
 
-  void proc.stdin.write('one\nquit\n');
+  void subprocess.stdin.write('one\nquit\n');
 
-  await proc.stdin.end();
+  await subprocess.stdin.end();
 
-  const stdout = await new Response(proc.stdout).text();
+  const stdout = await new Response(subprocess.stdout).text();
 
-  expect({ stdout, code: await proc.exited }).toStrictEqual({
-    stdout: `UP:${proc.pid} START:\nGOT:one\n`,
+  expect({ stdout, code: await subprocess.exited }).toStrictEqual({
+    stdout: `UP:${subprocess.pid} START:\nGOT:one\n`,
     code: 3,
   });
 });
@@ -53,13 +53,13 @@ test('it prints its pid on start, echoes each line, and exits 3 on quit', async 
 test('it prints the terminal size it starts at', async () => {
   const ctx = setupTest();
 
-  const guest = await createStubHarnessGuest(ctx.dir);
+  const guest = await createStubHarnessGuest(ctx.directory);
 
   const decoder = new TextDecoder();
 
   const output: string[] = [];
 
-  const proc = Bun.spawn([guest.path], {
+  const subprocess = Bun.spawn([guest.path], {
     terminal: {
       cols: 100,
       rows: 30,
@@ -70,25 +70,25 @@ test('it prints the terminal size it starts at', async () => {
   });
 
   registerTestCleanup(() => {
-    proc.kill('SIGKILL');
-    proc.terminal?.close();
+    subprocess.kill('SIGKILL');
+    subprocess.terminal?.close();
   });
 
   await waitFor(() => {
-    expect(output.join('')).toInclude(`UP:${proc.pid} START:30 100\r\n`);
+    expect(output.join('')).toInclude(`UP:${subprocess.pid} START:30 100\r\n`);
   });
 });
 
 test('it prints the terminal size again on size', async () => {
   const ctx = setupTest();
 
-  const guest = await createStubHarnessGuest(ctx.dir);
+  const guest = await createStubHarnessGuest(ctx.directory);
 
   const decoder = new TextDecoder();
 
   const output: string[] = [];
 
-  const proc = Bun.spawn([guest.path], {
+  const subprocess = Bun.spawn([guest.path], {
     terminal: {
       cols: 100,
       rows: 30,
@@ -99,11 +99,11 @@ test('it prints the terminal size again on size', async () => {
   });
 
   registerTestCleanup(() => {
-    proc.kill('SIGKILL');
-    proc.terminal?.close();
+    subprocess.kill('SIGKILL');
+    subprocess.terminal?.close();
   });
 
-  proc.terminal?.write('size\n');
+  subprocess.terminal?.write('size\n');
 
   await waitFor(() => {
     expect(output.join('')).toInclude('SIZE:30 100\r\nGOT:size\r\n');
@@ -113,16 +113,16 @@ test('it prints the terminal size again on size', async () => {
 test('it prints the burst on later once a line reaches the burst pipe', async () => {
   const ctx = setupTest();
 
-  const guest = await createStubHarnessGuest(ctx.dir);
+  const guest = await createStubHarnessGuest(ctx.directory);
 
   const output: string[] = [];
-  const proc = Bun.spawn([guest.path], { stdin: 'pipe', stdout: 'pipe', stderr: 'ignore' });
+  const subprocess = Bun.spawn([guest.path], { stdin: 'pipe', stdout: 'pipe', stderr: 'ignore' });
 
   registerTestCleanup(() => {
-    proc.kill('SIGKILL');
+    subprocess.kill('SIGKILL');
   });
 
-  const read = proc.stdout.pipeThrough(new TextDecoderStream()).pipeTo(
+  const read = subprocess.stdout.pipeThrough(new TextDecoderStream()).pipeTo(
     new WritableStream({
       write: (chunk) => {
         output.push(chunk);
@@ -130,9 +130,9 @@ test('it prints the burst on later once a line reaches the burst pipe', async ()
     }),
   );
 
-  void proc.stdin.write('later\n');
+  void subprocess.stdin.write('later\n');
 
-  await proc.stdin.end();
+  await subprocess.stdin.end();
 
   await waitFor(() => {
     invariant(output.join('').includes('GOT:later\n'));
@@ -146,9 +146,9 @@ test('it prints the burst on later once a line reaches the burst pipe', async ()
 
   await read;
 
-  expect(beforeBurst).toBe(`UP:${proc.pid} START:\nGOT:later\n`);
+  expect(beforeBurst).toBe(`UP:${subprocess.pid} START:\nGOT:later\n`);
 
   expect(output.join('')).toBe(
-    `UP:${proc.pid} START:\nGOT:later\n${'x'.repeat(300_000)}\nBURST_DONE\n`,
+    `UP:${subprocess.pid} START:\nGOT:later\n${'x'.repeat(300_000)}\nBURST_DONE\n`,
   );
 });

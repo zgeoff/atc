@@ -20,7 +20,7 @@ function setupTest() {
 
   registerTestCleanup(() => provider.dispose());
 
-  return { dir: tmp.dir, provider };
+  return { dir: tmp.path, provider };
 }
 
 test('it runs a harness in a pseudo-terminal that echoes typed input back', async () => {

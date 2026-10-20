@@ -9,11 +9,11 @@ interface StubGrokConfig {
   readonly composer: string;
 }
 
-export function createStubGrok(dir: string, config: StubGrokConfig): string {
+export function createStubGrok(directory: string, config: StubGrokConfig): string {
   const report = `${config.atc.map((part) => `"${part}"`).join(' ')} hook-report --agent grok`;
 
   return createStubBin(
-    dir,
+    directory,
     'fake-grok',
     `#!/usr/bin/env bash
 echo "FAKE_GROK_UP args: $@"

@@ -11,9 +11,9 @@ function setupTest() {
   const tmp = setupTempDir('atc-claude-launch-files-');
 
   return {
-    stateDir: join(tmp.dir, 'state'),
-    homeDir: join(tmp.dir, 'home'),
-    bridgeTarget: join(tmp.dir, 'atc-bridge'),
+    stateDir: join(tmp.path, 'state'),
+    homeDir: join(tmp.path, 'home'),
+    bridgeTarget: join(tmp.path, 'atc-bridge'),
   };
 }
 

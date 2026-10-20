@@ -16,16 +16,16 @@ import { buildMockLifecycleHost } from './testing/build-mock-lifecycle-host';
 
 function setupTest() {
   const tmp = setupTempDir('atc-boot-daemon-');
-  const stateDir = join(tmp.dir, '.local', 'state', 'atc');
+  const stateDir = join(tmp.path, '.local', 'state', 'atc');
 
   // The daemon and the client both expect the state directory to exist.
   mkdirSync(stateDir, { recursive: true });
 
   return {
-    dir: tmp.dir,
+    dir: tmp.path,
     stateDir,
-    sockPath: join(tmp.dir, 'atc-daemon.sock'),
-    paths: resolvePaths({ HOME: tmp.dir, XDG_RUNTIME_DIR: tmp.dir }),
+    sockPath: join(tmp.path, 'atc-daemon.sock'),
+    paths: resolvePaths({ HOME: tmp.path, XDG_RUNTIME_DIR: tmp.path }),
     legacyDaemon: join(
       import.meta.dir,
       '..',

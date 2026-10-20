@@ -10,8 +10,8 @@ import { startStubRestoreDaemon } from './start-stub-restore-daemon';
 
 // A temp directory holding the stub daemon's socket, with the daemon started.
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-restore-daemon-');
-  const socketPath = join(tmp.dir, 'daemon.sock');
+  const temporaryDirectory = setupTempDir('atc-stub-restore-daemon-');
+  const socketPath = join(temporaryDirectory.path, 'daemon.sock');
   const daemon = startStubRestoreDaemon(socketPath);
 
   return { socketPath, daemon };

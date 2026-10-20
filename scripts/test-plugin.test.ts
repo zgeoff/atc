@@ -10,7 +10,7 @@ import { z } from 'zod';
 function setupTest() {
   const tmp = setupTempDir('test-plugin-');
 
-  return { dir: tmp.dir, repo: join(import.meta.dir, '..') };
+  return { dir: tmp.path, repo: join(import.meta.dir, '..') };
 }
 
 test('it tests a plugin in a workspace of its manifest closure and the test helpers', async () => {

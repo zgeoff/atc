@@ -9,11 +9,11 @@ import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-held-zoxide-');
-  const zoxide = createStubBin(tmp.dir, 'zoxide', buildStubHeldZoxide());
+  const temporaryDirectory = setupTempDir('atc-stub-held-zoxide-');
+  const zoxide = createStubBin(temporaryDirectory.path, 'zoxide', buildStubHeldZoxide());
 
   return {
-    dir: tmp.dir,
+    directory: temporaryDirectory.path,
     zoxide,
   };
 }
@@ -22,7 +22,7 @@ test('it lists no directories at once when no hold file exists', async () => {
   const ctx = setupTest();
 
   const result = await runCommand([ctx.zoxide, 'query', '-l'], {
-    env: { HOME: ctx.dir, PATH: '/usr/bin:/bin' },
+    env: { HOME: ctx.directory, PATH: '/usr/bin:/bin' },
   });
 
   expect({ exitCode: result.exitCode, stdout: result.stdout }).toStrictEqual({
@@ -34,25 +34,25 @@ test('it lists no directories at once when no hold file exists', async () => {
 test('it holds the listing until the hold file goes', async () => {
   const ctx = setupTest();
 
-  writeFileSync(join(ctx.dir, 'zoxide-hold'), '');
+  writeFileSync(join(ctx.directory, 'zoxide-hold'), '');
 
-  const proc = Bun.spawn([ctx.zoxide, 'query', '-l'], {
-    env: { HOME: ctx.dir, PATH: '/usr/bin:/bin' },
+  const subprocess = Bun.spawn([ctx.zoxide, 'query', '-l'], {
+    env: { HOME: ctx.directory, PATH: '/usr/bin:/bin' },
   });
 
   registerTestCleanup(() => {
-    proc.kill();
+    subprocess.kill();
   });
 
   await waitFor(() => {
-    expect(existsSync(join(ctx.dir, 'zoxide-held'))).toBe(true);
+    expect(existsSync(join(ctx.directory, 'zoxide-held'))).toBe(true);
   });
 
-  const statusWhileHeld = Bun.peek.status(proc.exited);
+  const statusWhileHeld = Bun.peek.status(subprocess.exited);
 
-  rmSync(join(ctx.dir, 'zoxide-hold'));
+  rmSync(join(ctx.directory, 'zoxide-hold'));
 
-  const exitCode = await proc.exited;
+  const exitCode = await subprocess.exited;
 
   expect(statusWhileHeld).toBe('pending');
   expect(exitCode).toBe(0);

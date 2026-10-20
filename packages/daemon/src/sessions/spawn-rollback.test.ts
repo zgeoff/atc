@@ -19,7 +19,7 @@ import { SpawnRollback } from './spawn-rollback';
 // directory claims and harness bookkeeping, and a recorder of logged lines.
 async function setupTest() {
   const tmp = setupTempDir('atc-spawn-rollback-');
-  const dbPath = join(tmp.dir, 'state.db');
+  const dbPath = join(tmp.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -51,7 +51,7 @@ async function setupTest() {
   const fleet = new SessionFleetWriter({
     registry,
     store,
-    statusPath: join(tmp.dir, 'status.json'),
+    statusPath: join(tmp.path, 'status.json'),
     callbacks,
   });
 

@@ -5,9 +5,9 @@ import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-failing-adapter-');
+  const temporaryDirectory = setupTempDir('atc-failing-adapter-');
 
-  return { dir: tmp.dir };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it plans the first spawn with the first plan', async () => {
@@ -129,7 +129,7 @@ test('it finds no headless runner once the failing reads the config holds are sp
 
 test('it fails the first read only once a process has written its pid to the ready pipe', async () => {
   const ctx = setupTest();
-  const path = join(ctx.dir, 'ready');
+  const path = join(ctx.directory, 'ready');
 
   const stub = await createStubFailingAgentAdapter({
     firstPlan: { bin: 'first', args: [] },
@@ -158,7 +158,7 @@ test('it fails the first read only once a process has written its pid to the rea
 
 test('it throws from the first read when no process writes the ready pipe in time', async () => {
   const ctx = setupTest();
-  const path = join(ctx.dir, 'ready');
+  const path = join(ctx.directory, 'ready');
 
   const stub = await createStubFailingAgentAdapter({
     firstPlan: { bin: 'first', args: [] },

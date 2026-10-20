@@ -18,17 +18,17 @@ import { buildLocalTarget } from './test-utils/build-local-target';
 
 async function setupTest() {
   const tmp = setupTempDir('atc-tap-');
-  const socketPath = join(tmp.dir, 'atc-daemon.sock');
+  const socketPath = join(tmp.path, 'atc-daemon.sock');
 
   // The adapter takes messages, so a session has an inbox to tap.
   const daemon = await startDaemon({
     socketPath,
-    reporterSocketPath: join(tmp.dir, 'reporter.sock'),
+    reporterSocketPath: join(tmp.path, 'reporter.sock'),
     build: 'atc/test-build',
     targets: [buildLocalTarget()],
     adapter: buildMockAgentAdapter({ takesMessages: true }),
-    dbPath: join(tmp.dir, 'state.db'),
-    statusPath: join(tmp.dir, 'status.json'),
+    dbPath: join(tmp.path, 'state.db'),
+    statusPath: join(tmp.path, 'status.json'),
   });
 
   registerTestCleanup(() => daemon.stop());
@@ -47,7 +47,7 @@ async function setupTest() {
 
   await actor.sendHello('atc/test-build');
 
-  return { dir: tmp.dir, socketPath, actor, events, daemon };
+  return { dir: tmp.path, socketPath, actor, events, daemon };
 }
 
 test('it writes each pending message as an NDJSON line and acks it', async () => {
@@ -107,7 +107,7 @@ test('it exits 1 with a hint when no daemon listens', async () => {
   const errors: string[] = [];
   const codes: number[] = [];
 
-  await runTap('s1', join(tmp.dir, 'no-daemon', 'atc-daemon.sock'), {
+  await runTap('s1', join(tmp.path, 'no-daemon', 'atc-daemon.sock'), {
     writeStdout: () => Promise.resolve(),
     printError: (line) => {
       errors.push(line);
@@ -120,7 +120,7 @@ test('it exits 1 with a hint when no daemon listens', async () => {
   expect({ codes, errors }).toStrictEqual({
     codes: [1],
     errors: [
-      `atc tap: no daemon at ${join(tmp.dir, 'no-daemon', 'atc-daemon.sock')} — start atc first`,
+      `atc tap: no daemon at ${join(tmp.path, 'no-daemon', 'atc-daemon.sock')} — start atc first`,
     ],
   });
 });
@@ -217,8 +217,8 @@ test('it exits 0 when another tap replaces it', async () => {
 
 test('it taps through the session bridge inside a remote host', async () => {
   const tmp = setupTempDir('atc-tap-');
-  const sock = join(tmp.dir, 'bridge.sock');
-  const outbox = join(tmp.dir, 'outbox');
+  const sock = join(tmp.path, 'bridge.sock');
+  const outbox = join(tmp.path, 'outbox');
 
   // The bridge closes the inbox once it answers the note the tap sends.
   const bridge = startStubSessionBridge(sock, (request) => [
@@ -239,7 +239,7 @@ test('it taps through the session bridge inside a remote host', async () => {
 
   const codes: number[] = [];
 
-  await runTap('s1', join(tmp.dir, 'atc-daemon.sock'), {
+  await runTap('s1', join(tmp.path, 'atc-daemon.sock'), {
     writeStdout: () => Promise.resolve(),
     printError: () => {},
     exit: (code) => {

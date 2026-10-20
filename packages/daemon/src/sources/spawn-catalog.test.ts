@@ -22,7 +22,7 @@ interface SetupTestConfig {
 // store, and the catalog over both.
 async function setupTest(config: SetupTestConfig) {
   const tmp = setupTempDir('atc-spawn-catalog-');
-  const dbPath = join(tmp.dir, 'state.db');
+  const dbPath = join(tmp.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -33,7 +33,7 @@ async function setupTest(config: SetupTestConfig) {
   const mgr = new SessionManager(
     null,
     store,
-    join(tmp.dir, 'status.json'),
+    join(tmp.path, 'status.json'),
     [buildStubHarnessAdapter()],
     config.targets,
   );

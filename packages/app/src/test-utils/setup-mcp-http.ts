@@ -33,8 +33,8 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
 
   stack.defer(tmp.teardown);
 
-  const socketPath = join(tmp.dir, 'daemon.sock');
-  const stateDir = join(tmp.dir, '.local', 'state', 'atc');
+  const socketPath = join(tmp.path, 'daemon.sock');
+  const stateDir = join(tmp.path, '.local', 'state', 'atc');
 
   mkdirSync(stateDir, { recursive: true });
 
@@ -45,12 +45,12 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
   const startTestDaemon = (principals: ReadonlyMap<string, readonly string[]> | null = null) =>
     startDaemon({
       socketPath,
-      reporterSocketPath: join(tmp.dir, 'reporter.sock'),
+      reporterSocketPath: join(tmp.path, 'reporter.sock'),
       build: 'atc/test-build',
       targets: [buildLocalTarget()],
       adapter: buildMockAgentAdapter(),
-      dbPath: join(tmp.dir, 'state.db'),
-      statusPath: join(tmp.dir, 'status.json'),
+      dbPath: join(tmp.path, 'state.db'),
+      statusPath: join(tmp.path, 'status.json'),
       principals,
     });
 
@@ -99,7 +99,7 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
   security.length = 0;
 
   return {
-    home: tmp.dir,
+    home: tmp.path,
     url: server.url,
     origin: server.origin,
     dbPath,

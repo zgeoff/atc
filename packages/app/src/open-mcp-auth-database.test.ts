@@ -8,7 +8,7 @@ import { openMCPAuthDatabase } from './open-mcp-auth-database';
 // file, destroyed before the file closes.
 function setupTest() {
   const tmp = setupTempDir('atc-mcp-auth-database-');
-  const database = openMCPAuthDatabase(join(tmp.dir, 'mcp-auth.db'));
+  const database = openMCPAuthDatabase(join(tmp.path, 'mcp-auth.db'));
 
   registerTestCleanup(() => {
     database.close();

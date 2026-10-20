@@ -7,13 +7,13 @@ import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
 async function setupTest() {
-  const tmp = setupTempDir('atc-stub-composer-');
+  const temporaryDirectory = setupTempDir('atc-stub-composer-');
 
-  const pty = spawn(process.execPath, [createStubComposer(tmp.dir)], {
+  const pty = spawn(process.execPath, [createStubComposer(temporaryDirectory.path)], {
     name: 'xterm-256color',
     cols: 80,
     rows: 24,
-    cwd: tmp.dir,
+    cwd: temporaryDirectory.path,
   });
 
   registerTestCleanup(() => {

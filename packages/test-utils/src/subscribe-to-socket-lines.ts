@@ -23,7 +23,7 @@ interface SocketLinesOptions {
 
   // Waits out the interval between a line wait's polls; a real sleep when
   // absent.
-  readonly wait?: (ms: number) => Promise<void>;
+  readonly wait?: (delayMs: number) => Promise<void>;
 }
 
 export async function subscribeToSocketLines(

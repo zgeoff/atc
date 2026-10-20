@@ -63,7 +63,7 @@ export function buildStubBrokeredAgentAdapter(
               `${config.ignoresHangup?.() === true ? "trap '' HUP; " : ''}echo "revision ${String(guest.auth.revision)}"; exec sleep 30`,
             ],
             files: {},
-            env: { ...guest.auth.env, CLAUDE_CONFIG_DIR: `${guest.dir}/claude-config` },
+            env: { ...guest.auth.env, CLAUDE_CONFIG_DIR: `${guest.directory}/claude-config` },
           },
     findAuthSelection: () => {
       if (!config.isSelected()) {

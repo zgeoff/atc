@@ -23,7 +23,7 @@ interface SetupTestConfig {
 
 async function setupTest(config: SetupTestConfig) {
   const tmp = setupTempDir('atc-session-input-');
-  const dbPath = join(tmp.dir, 'state.db');
+  const dbPath = join(tmp.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -38,7 +38,7 @@ async function setupTest(config: SetupTestConfig) {
   const mgr = new SessionManager(
     null,
     store,
-    join(tmp.dir, 'status.json'),
+    join(tmp.path, 'status.json'),
     [config.adapter],
     [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
     [],
@@ -75,7 +75,7 @@ async function setupTest(config: SetupTestConfig) {
     startHeadlessTurn,
   });
 
-  return { dir: tmp.dir, provider, mgr, runtimes, startHeadlessTurn, input };
+  return { dir: tmp.path, provider, mgr, runtimes, startHeadlessTurn, input };
 }
 
 test('it writes raw input to the terminal of the session', async () => {

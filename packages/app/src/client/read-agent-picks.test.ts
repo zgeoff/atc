@@ -9,7 +9,7 @@ import { readAgentPicks } from './read-agent-picks';
 function setupTest() {
   const tmp = setupTempDir('atc-picks-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it lists only the agents whose configured binary resolves', () => {

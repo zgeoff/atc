@@ -7,17 +7,17 @@ import { runCommand } from './run-command';
 import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-signed-in-gh-');
-  const gh = createStubBin(tmp.dir, 'gh', buildStubSignedInGH());
+  const temporaryDirectory = setupTempDir('atc-stub-signed-in-gh-');
+  const gh = createStubBin(temporaryDirectory.path, 'gh', buildStubSignedInGH());
 
-  return { dir: tmp.dir, gh };
+  return { directory: temporaryDirectory.path, gh };
 }
 
 test('it prints https for the git protocol', async () => {
   const ctx = setupTest();
 
   const result = await runCommand([ctx.gh, 'config', 'get', 'git_protocol'], {
-    env: { HOME: ctx.dir, PATH: '/usr/bin:/bin' },
+    env: { HOME: ctx.directory, PATH: '/usr/bin:/bin' },
   });
 
   expect(result.stdout).toBe('https\n');
@@ -36,7 +36,7 @@ test("it lists the signed-in account's one public repository", async () => {
       '--json',
       'nameWithOwner,description,isPrivate,url,sshUrl',
     ],
-    { env: { HOME: ctx.dir, PATH: '/usr/bin:/bin' } },
+    { env: { HOME: ctx.directory, PATH: '/usr/bin:/bin' } },
   );
 
   expect(JSON.parse(result.stdout)).toStrictEqual([
@@ -64,7 +64,7 @@ test("it lists an owner's one private repository", async () => {
       '--json',
       'nameWithOwner,description,isPrivate,url,sshUrl',
     ],
-    { env: { HOME: ctx.dir, PATH: '/usr/bin:/bin' } },
+    { env: { HOME: ctx.directory, PATH: '/usr/bin:/bin' } },
   );
 
   expect(JSON.parse(result.stdout)).toStrictEqual([
@@ -82,14 +82,14 @@ test('it records each command line it runs in the home', async () => {
   const ctx = setupTest();
 
   await runCommand([ctx.gh, 'repo', 'list', '--limit', '100'], {
-    env: { HOME: ctx.dir, PATH: '/usr/bin:/bin' },
+    env: { HOME: ctx.directory, PATH: '/usr/bin:/bin' },
   });
 
   await runCommand([ctx.gh, 'config', 'get', 'git_protocol'], {
-    env: { HOME: ctx.dir, PATH: '/usr/bin:/bin' },
+    env: { HOME: ctx.directory, PATH: '/usr/bin:/bin' },
   });
 
-  expect(readFileSync(join(ctx.dir, 'gh-argv'), 'utf8')).toBe(
+  expect(readFileSync(join(ctx.directory, 'gh-argv'), 'utf8')).toBe(
     'repo list --limit 100\nconfig get git_protocol\n',
   );
 });

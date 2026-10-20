@@ -11,7 +11,7 @@ import { buildAgentAdapters } from './build-agent-adapters';
 function setupTest() {
   const tmp = setupTempDir('agent-adapters-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it builds two claude adapters with distinct ids and spawn plans from one registry', () => {

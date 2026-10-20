@@ -18,7 +18,7 @@ interface SetupConfig {
 // recorders of the messages it marks and requeues and the lines it logs.
 async function setupTest(config: SetupConfig) {
   const tmp = setupTempDir('atc-ended-fleet-messages-');
-  const dbPath = join(tmp.dir, 'state.db');
+  const dbPath = join(tmp.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 

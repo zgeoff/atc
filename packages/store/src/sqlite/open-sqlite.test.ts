@@ -8,7 +8,7 @@ import { registerRefusedSQLiteName } from './register-refused-sqlite-name';
 function setupTest() {
   const tmp = setupTempDir('atc-open-sqlite-');
 
-  return { dbPath: join(tmp.dir, 'test.db') };
+  return { dbPath: join(tmp.path, 'test.db') };
 }
 
 test('it creates the file and opens it in write-ahead-log mode', () => {

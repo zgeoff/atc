@@ -12,7 +12,7 @@ import { GUEST_CLONE_SCRIPT, createGuestClone } from './create-guest-clone';
 async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'atc-guest-clone-' });
 
-  const dir = join(fixture.dir, 'ws');
+  const dir = join(fixture.directory, 'ws');
 
   mkdirSync(dir);
 

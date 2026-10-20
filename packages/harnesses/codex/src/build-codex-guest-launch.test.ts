@@ -9,7 +9,7 @@ import { buildCodexGuestLaunch } from './build-codex-guest-launch';
 function setupTest() {
   const tmp = setupTempDir('atc-codex-launch-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it copies the staged sign-in, config, and hooks into the Codex home and runs the CLI there', async () => {

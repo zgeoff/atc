@@ -17,19 +17,19 @@ test('it runs a command on this machine and records it', async () => {
 
   const result = await provider.runCommand({
     argv: ['bash', '-c', 'pwd; echo oops >&2; exit 3'],
-    cwd: tmp.dir,
+    cwd: tmp.path,
   });
 
-  expect(result).toStrictEqual({ exitCode: 3, stdout: `${tmp.dir}\n`, stderr: 'oops\n' });
+  expect(result).toStrictEqual({ exitCode: 3, stdout: `${tmp.path}\n`, stderr: 'oops\n' });
 
   expect(provider.commands).toStrictEqual([
-    { argv: ['bash', '-c', 'pwd; echo oops >&2; exit 3'], cwd: tmp.dir },
+    { argv: ['bash', '-c', 'pwd; echo oops >&2; exit 3'], cwd: tmp.path },
   ]);
 });
 
 test('it unpacks an archive into a directory it creates, past the TAR_OPTIONS the test inherited', async () => {
   const tmp = setupTempDir('atc-stub-local-');
-  const source = join(tmp.dir, 'source');
+  const source = join(tmp.path, 'source');
   const provider = buildStubLocalProvider();
 
   mkdirSync(join(source, 'nested'), { recursive: true });
@@ -47,9 +47,9 @@ test('it unpacks an archive into a directory it creates, past the TAR_OPTIONS th
 
   updateEnv('TAR_OPTIONS', '--exclude=file.txt');
 
-  await provider.transferArchive(archive, join(tmp.dir, 'dest', 'deeper'));
+  await provider.transferArchive(archive, join(tmp.path, 'dest', 'deeper'));
 
-  expect(readFileSync(join(tmp.dir, 'dest', 'deeper', 'nested', 'file.txt'), 'utf8')).toBe(
+  expect(readFileSync(join(tmp.path, 'dest', 'deeper', 'nested', 'file.txt'), 'utf8')).toBe(
     'packed contents',
   );
 });
@@ -60,7 +60,7 @@ test('it rejects an archive tar cannot read', () => {
 
   const transfer = provider.transferArchive(
     new TextEncoder().encode('not a tar archive'),
-    join(tmp.dir, 'dest'),
+    join(tmp.path, 'dest'),
   );
 
   expect(transfer).rejects.toThrow(/tar exited/u);

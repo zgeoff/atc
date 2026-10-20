@@ -32,7 +32,7 @@ export async function runATC(run: Readonly<ATCRun>): Promise<ATCResult> {
     }).filter((entry): entry is [string, string] => entry[1] !== undefined),
   );
 
-  const proc = Bun.spawn([...run.command, ...run.args], {
+  const subprocess = Bun.spawn([...run.command, ...run.args], {
     env,
     ...(run.cwd === undefined ? {} : { cwd: run.cwd }),
     stdin: run.stdin === undefined ? 'ignore' : new TextEncoder().encode(run.stdin),
@@ -41,9 +41,9 @@ export async function runATC(run: Readonly<ATCRun>): Promise<ATCResult> {
   });
 
   const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
+    new Response(subprocess.stdout).text(),
+    new Response(subprocess.stderr).text(),
+    subprocess.exited,
   ]);
 
   return { exitCode, stdout, stderr };

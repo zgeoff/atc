@@ -39,7 +39,7 @@ function setupTest() {
   const tmp = setupTempDir('atc-imp-provider-');
   const port = createStubImpPort();
 
-  return { dir: tmp.dir, port };
+  return { dir: tmp.path, port };
 }
 
 test('it keeps an existing-host check refused when impd errors after the credential check', async () => {

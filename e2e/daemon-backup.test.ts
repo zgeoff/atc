@@ -16,10 +16,10 @@ import {
 
 function setupTest() {
   const atc = resolveATCCommand();
-  const work = setupTempDir('atc-e2e-backup-work-').dir;
+  const work = setupTempDir('atc-e2e-backup-work-').path;
 
   const createHome = (prefix: string) => {
-    const home = setupTempDir(prefix).dir;
+    const home = setupTempDir(prefix).path;
     const composer = createStubComposer(home);
     const configDir = join(home, '.config', 'atc');
 

@@ -22,7 +22,7 @@ interface SetupConfig {
 // no runtime auth binder, a forget destroys a host through its provider
 async function setupTest(config: SetupConfig) {
   const tmp = setupTempDir('atc-session-killer-');
-  const dbPath = join(tmp.dir, 'state.db');
+  const dbPath = join(tmp.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -50,7 +50,7 @@ async function setupTest(config: SetupConfig) {
   const fleet = new SessionFleetWriter({
     registry,
     store,
-    statusPath: join(tmp.dir, 'status.json'),
+    statusPath: join(tmp.path, 'status.json'),
     callbacks,
   });
 

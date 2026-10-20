@@ -5,21 +5,21 @@ import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-app-server-codex-');
+  const temporaryDirectory = setupTempDir('atc-stub-app-server-codex-');
 
-  return { dir: tmp.dir };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it prints its arguments and keeps running as the terminal', async () => {
   const ctx = setupTest();
-  const stub = createStubAppServerCodex(ctx.dir);
-  const proc = Bun.spawn([stub, '--remote', 'unix:///tmp/codex.sock'], { stdout: 'pipe' });
+  const stub = createStubAppServerCodex(ctx.directory);
+  const subprocess = Bun.spawn([stub, '--remote', 'unix:///tmp/codex.sock'], { stdout: 'pipe' });
 
   onTestFinished(() => {
-    proc.kill();
+    subprocess.kill();
   });
 
-  const reader = proc.stdout.getReader();
+  const reader = subprocess.stdout.getReader();
 
   const first = await reader.read();
 
@@ -27,17 +27,17 @@ test('it prints its arguments and keeps running as the terminal', async () => {
     'FAKE_CODEX_UP args: --remote unix:///tmp/codex.sock\n',
   );
 
-  expect(proc.exitCode).toBeNull();
+  expect(subprocess.exitCode).toBeNull();
 });
 
 test('it serves the stand-in App Server on the socket it listens on', async () => {
   const ctx = setupTest();
-  const stub = createStubAppServerCodex(ctx.dir);
-  const socket = join(ctx.dir, 'codex.sock');
-  const proc = Bun.spawn([stub, 'app-server', '--listen', `unix://${socket}`]);
+  const stub = createStubAppServerCodex(ctx.directory);
+  const socket = join(ctx.directory, 'codex.sock');
+  const subprocess = Bun.spawn([stub, 'app-server', '--listen', `unix://${socket}`]);
 
   onTestFinished(() => {
-    proc.kill();
+    subprocess.kill();
   });
 
   const ws = await waitFor(
@@ -64,8 +64,8 @@ test('it serves the stand-in App Server on the socket it listens on', async () =
   const answered = new Promise<unknown>((resolve) => {
     ws.addEventListener(
       'message',
-      (e) => {
-        const value: unknown = JSON.parse(String(e.data));
+      (messageEvent) => {
+        const value: unknown = JSON.parse(String(messageEvent.data));
 
         resolve(value);
       },

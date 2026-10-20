@@ -7,7 +7,7 @@ import { buildHarnessArgv } from './build-harness-argv';
 function setupTest() {
   const tmp = setupTempDir('atc-harness-argv-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it unsets the names and starts the program after the separator', () => {

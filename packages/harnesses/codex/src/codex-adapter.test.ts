@@ -19,7 +19,7 @@ import { CODEX_PLUGIN } from './codex-plugin';
 function setupTest() {
   const tmp = setupTempDir('atc-codex-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it spawns a fresh codex command with the prompt', () => {
@@ -323,7 +323,7 @@ test('it plans a remote spawn with auth but without the broker as a local spawn 
     { prompt: 'go', resume: false },
     {
       atc: null,
-      dir: '/tmp/atc/sessions/s1',
+      directory: '/tmp/atc/sessions/s1',
     },
   );
 
@@ -351,7 +351,7 @@ test('it plans a spawn behind the broker with a Codex home of its own and hooks 
     { prompt: 'go', resume: toAgentSessionID('c-1') },
     {
       atc: '/opt/atc',
-      dir: '/tmp/atc/sessions/s1',
+      directory: '/tmp/atc/sessions/s1',
       auth: {
         revision: 2,
         env: {},
@@ -483,7 +483,7 @@ test("it keeps its own Codex home over a profile's variables", () => {
     { prompt: 'go', resume: false },
     {
       atc: '/opt/atc',
-      dir: '/tmp/atc/sessions/s1',
+      directory: '/tmp/atc/sessions/s1',
       auth: {
         revision: 1,
         env: {},
@@ -531,7 +531,7 @@ test("it writes the sign-in file from the oauth secret's claims and account id",
     { prompt: '', resume: false },
     {
       atc: '/opt/atc',
-      dir: '/tmp/atc/sessions/s1',
+      directory: '/tmp/atc/sessions/s1',
       auth: {
         revision: 1,
         env: {},
@@ -591,7 +591,7 @@ test('it reports every hook through the atc inside the host', () => {
     { prompt: '', resume: false },
     {
       atc: '/opt/atc',
-      dir: '/tmp/atc/sessions/s1',
+      directory: '/tmp/atc/sessions/s1',
       auth: {
         revision: 1,
         env: {},
@@ -668,7 +668,7 @@ test('it plans no spawn behind the broker on a host without atc', () => {
     { prompt: '', resume: false },
     {
       atc: null,
-      dir: '/tmp/atc/sessions/s1',
+      directory: '/tmp/atc/sessions/s1',
       auth: {
         revision: 1,
         env: {},
@@ -716,7 +716,7 @@ test.each<['needs_login' | 'pending']>([['needs_login'], ['pending']])(
         { prompt: '', resume: false },
         {
           atc: '/opt/atc',
-          dir: '/tmp/atc/sessions/s1',
+          directory: '/tmp/atc/sessions/s1',
           auth: {
             revision: 1,
             env: {},
@@ -769,7 +769,7 @@ test('it refuses a spawn whose sign-in impd does not list', () => {
       { prompt: '', resume: false },
       {
         atc: '/opt/atc',
-        dir: '/tmp/atc/sessions/s1',
+        directory: '/tmp/atc/sessions/s1',
         auth: { revision: 1, env: {}, profileEnv: {}, oauth: {} },
       },
     );
@@ -810,7 +810,7 @@ test.each([
       { prompt: '', resume: false },
       {
         atc: '/opt/atc',
-        dir: '/tmp/atc/sessions/s1',
+        directory: '/tmp/atc/sessions/s1',
         auth: {
           revision: 1,
           env: {},

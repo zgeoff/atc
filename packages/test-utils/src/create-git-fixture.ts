@@ -13,11 +13,11 @@ export async function createGitFixture(config: GitFixtureConfig = {}) {
 
   const template = await resolveTemplate();
 
-  const tmp = setupTempDir(config.prefix ?? 'atc-git-fixture-');
-  const upstream = join(tmp.dir, 'upstream.git');
-  const work = join(tmp.dir, 'work');
+  const temporaryDirectory = setupTempDir(config.prefix ?? 'atc-git-fixture-');
+  const upstream = join(temporaryDirectory.path, 'upstream.git');
+  const work = join(temporaryDirectory.path, 'work');
 
-  cpSync(template.dir, tmp.dir, { recursive: true });
+  cpSync(template.directory, temporaryDirectory.path, { recursive: true });
 
   // The copied clone's config still holds the template's upstream as its
   // origin; it is pointed at this fixture's own upstream instead, so a push
@@ -27,18 +27,18 @@ export async function createGitFixture(config: GitFixtureConfig = {}) {
   writeFileSync(
     gitConfig,
     readFileSync(gitConfig, 'utf8').replace(
-      `url = ${join(template.dir, 'upstream.git')}`,
+      `url = ${join(template.directory, 'upstream.git')}`,
       `url = ${upstream}`,
     ),
   );
 
   return {
-    dir: tmp.dir,
+    directory: temporaryDirectory.path,
     env,
     upstream,
     work,
     sha: template.sha,
-    remove: tmp.teardown,
+    remove: temporaryDirectory.teardown,
   };
 }
 
@@ -56,7 +56,7 @@ function buildGitEnv(
 }
 
 interface GitTemplate {
-  readonly dir: string;
+  readonly directory: string;
   readonly sha: string;
 }
 
@@ -80,9 +80,9 @@ async function createTemplate(): Promise<GitTemplate> {
     throw new Error('a git fixture needs the test home; run `bun run test`');
   }
 
-  const dir = mkdtempSync(join(home, 'git-fixture-template-'));
-  const upstream = join(dir, 'upstream.git');
-  const work = join(dir, 'work');
+  const directory = mkdtempSync(join(home, 'git-fixture-template-'));
+  const upstream = join(directory, 'upstream.git');
+  const work = join(directory, 'work');
 
   await $`git init --quiet --bare --template= --initial-branch=main ${upstream}`.env(env).quiet();
   await $`git clone --quiet --template= ${upstream} ${work}`.env(env).quiet();
@@ -99,5 +99,5 @@ async function createTemplate(): Promise<GitTemplate> {
 
   const head = await $`git rev-parse HEAD`.env(env).cwd(work).quiet().text();
 
-  return { dir, sha: head.trim() };
+  return { directory, sha: head.trim() };
 }

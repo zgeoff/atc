@@ -6,7 +6,7 @@ import { readSourceEntry, runCommand, setupTempDir } from '@atc/test-utils';
 function setupTest() {
   const tmp = setupTempDir('atc-statusline-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it chains the user statusline and appends the fleet segment', async () => {

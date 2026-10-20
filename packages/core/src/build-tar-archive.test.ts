@@ -7,7 +7,7 @@ import { buildTarArchive } from './build-tar-archive';
 function setupTest() {
   const tmp = setupTempDir('atc-tar-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it packs files that tar unpacks with their content, parent directories, and modes', async () => {

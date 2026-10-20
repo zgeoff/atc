@@ -7,18 +7,18 @@ import { runCommand } from './run-command';
 import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-recording-filter-');
+  const temporaryDirectory = setupTempDir('atc-stub-recording-filter-');
 
-  return { dir: tmp.dir };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it records each run and passes its input through unchanged', async () => {
   const ctx = setupTest();
 
   const filter = createStubBin(
-    ctx.dir,
+    ctx.directory,
     'trap',
-    buildStubRecordingFilter(join(ctx.dir, 'filter-ran')),
+    buildStubRecordingFilter(join(ctx.directory, 'filter-ran')),
   );
 
   await runCommand([filter], { stdin: Buffer.from('first\n') });
@@ -30,5 +30,5 @@ test('it records each run and passes its input through unchanged', async () => {
     stdout: 'hello\n',
   });
 
-  expect(readFileSync(join(ctx.dir, 'filter-ran'), 'utf8')).toBe('ran\nran\n');
+  expect(readFileSync(join(ctx.directory, 'filter-ran'), 'utf8')).toBe('ran\nran\n');
 });

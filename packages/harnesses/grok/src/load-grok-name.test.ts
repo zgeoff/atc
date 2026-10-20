@@ -9,7 +9,7 @@ import { loadGrokName } from './load-grok-name';
 function setupTest() {
   const tmp = setupTempDir('atc-grok-name-');
 
-  return { home: tmp.dir };
+  return { home: tmp.path };
 }
 
 test('it loads a manual title over a user-typed name', async () => {

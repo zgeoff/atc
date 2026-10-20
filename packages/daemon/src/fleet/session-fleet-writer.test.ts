@@ -20,7 +20,7 @@ import { SessionFleetWriter } from './session-fleet-writer';
 // recorder of logged lines, and the writer over all three.
 async function setupTest() {
   const tmp = setupTempDir('atc-fleet-writer-');
-  const dbPath = join(tmp.dir, 'state.db');
+  const dbPath = join(tmp.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -38,7 +38,7 @@ async function setupTest() {
     callbacks: { onEvent: mock<() => void>() },
   });
 
-  const statusPath = join(tmp.dir, 'status.json');
+  const statusPath = join(tmp.path, 'status.json');
 
   const writer = new SessionFleetWriter({
     registry,
@@ -47,7 +47,7 @@ async function setupTest() {
     callbacks: { onChange: mock<() => void>(), log: recorder.log, findRecords: () => null },
   });
 
-  return { dir: tmp.dir, dbPath, statusPath, store, registry, writer, lines: recorder.lines };
+  return { dir: tmp.path, dbPath, statusPath, store, registry, writer, lines: recorder.lines };
 }
 
 test('it persists a sub-session link by the parent atc session id', async () => {

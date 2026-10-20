@@ -16,7 +16,7 @@ import { startDaemonProcess } from './start-daemon-process';
 function setupTest() {
   const tmp = setupTempDir('atc-daemon-process-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it starts a daemon that answers a handshake on the socket in the home', async () => {

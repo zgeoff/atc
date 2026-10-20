@@ -14,7 +14,7 @@ import { SessionManager } from './sessions';
 // a real state store.
 async function setupTest() {
   const tmp = setupTempDir('atc-get-descriptor-');
-  const dbPath = join(tmp.dir, 'state.db');
+  const dbPath = join(tmp.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -25,7 +25,7 @@ async function setupTest() {
   const mgr = new SessionManager(
     null,
     store,
-    join(tmp.dir, 'status.json'),
+    join(tmp.path, 'status.json'),
     [buildStubHarnessAdapter()],
     [
       buildMockExecutionTarget({
@@ -42,7 +42,7 @@ async function setupTest() {
     mgr.detachAll();
   });
 
-  return { dir: tmp.dir, mgr };
+  return { dir: tmp.path, mgr };
 }
 
 test('it gets the descriptor of a session the manager holds', async () => {

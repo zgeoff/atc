@@ -36,7 +36,7 @@ interface SetupTestConfig {
 // session it announces.
 async function setupTest(config: SetupTestConfig) {
   const tmp = setupTempDir('atc-spawn-service-');
-  const dbPath = join(tmp.dir, 'state.db');
+  const dbPath = join(tmp.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -49,7 +49,7 @@ async function setupTest(config: SetupTestConfig) {
   const mgr = new SessionManager(
     null,
     store,
-    join(tmp.dir, 'status.json'),
+    join(tmp.path, 'status.json'),
     [buildStubHarnessAdapter()],
     config.targets,
     [],
@@ -80,7 +80,7 @@ async function setupTest(config: SetupTestConfig) {
     homeDir: '/home/wrangler',
   });
 
-  return { dir: tmp.dir, store, mgr, runtimes, spawns };
+  return { dir: tmp.path, store, mgr, runtimes, spawns };
 }
 
 test('it spawns a session on the target given and answers with its descriptor', async () => {
@@ -555,7 +555,7 @@ test.each([
   async (_label, flags, expected) => {
     const git = await createGitFixture({ prefix: 'atc-spawn-service-git-' });
 
-    const gitConfig = join(git.dir, 'daemon.gitconfig');
+    const gitConfig = join(git.directory, 'daemon.gitconfig');
 
     writeFileSync(gitConfig, '[user]\n\tname = Example Builder\n\temail = builder@example.com\n');
     updateEnv('GIT_CONFIG_GLOBAL', gitConfig);

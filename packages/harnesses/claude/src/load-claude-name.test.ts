@@ -8,7 +8,7 @@ import { loadClaudeName } from './load-claude-name';
 function setupTest() {
   const tmp = setupTempDir('atc-claude-name-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it names the session after the last custom title, as named by the agent', async () => {

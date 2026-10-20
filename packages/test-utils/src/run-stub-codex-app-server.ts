@@ -6,10 +6,10 @@ import {
 } from './start-stub-codex-app-server';
 
 function main(argv: readonly string[]): void {
-  const [dir, command, flag, listen] = argv;
+  const [directory, command, flag, listen] = argv;
 
   if (
-    dir === undefined ||
+    directory === undefined ||
     command !== 'app-server' ||
     flag !== '--listen' ||
     listen === undefined ||
@@ -19,14 +19,14 @@ function main(argv: readonly string[]): void {
     process.exit(2);
   }
 
-  const scenarioPath = join(dir, 'app-server-scenario.json');
+  const scenarioPath = join(directory, 'app-server-scenario.json');
 
   const scenario = existsSync(scenarioPath)
     ? STUB_CODEX_APP_SERVER_SCENARIO_SCHEMA.parse(JSON.parse(readFileSync(scenarioPath, 'utf8')))
     : {};
 
   const server = startStubCodexAppServer(listen.slice('unix://'.length), scenario, (request) => {
-    appendFileSync(join(dir, 'app-server-requests.jsonl'), `${JSON.stringify(request)}\n`);
+    appendFileSync(join(directory, 'app-server-requests.jsonl'), `${JSON.stringify(request)}\n`);
   });
 
   process.on('SIGTERM', () => {

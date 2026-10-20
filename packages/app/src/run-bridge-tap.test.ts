@@ -6,14 +6,14 @@ import { runBridgeTap } from './run-bridge-tap';
 
 function setupTest() {
   const tmp = setupTempDir('atc-bridge-tap-');
-  const outbox = join(tmp.dir, 'outbox');
+  const outbox = join(tmp.path, 'outbox');
 
   // The tap reads its notes from here, and each test writes one into it.
   mkdirSync(outbox);
 
   return {
-    dir: tmp.dir,
-    sock: join(tmp.dir, 'bridge.sock'),
+    dir: tmp.path,
+    sock: join(tmp.path, 'bridge.sock'),
     outbox,
   };
 }

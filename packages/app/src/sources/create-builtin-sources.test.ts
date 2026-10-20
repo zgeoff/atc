@@ -8,7 +8,7 @@ import { createBuiltinSources } from './create-builtin-sources';
 function setupTest() {
   const temp = setupTempDir('atc-builtin-sources-');
 
-  return { homeDir: temp.dir, gh: join(temp.dir, 'gh') };
+  return { homeDir: temp.path, gh: join(temp.path, 'gh') };
 }
 
 test('it leaves GitHub out when gh is not on the host', () => {

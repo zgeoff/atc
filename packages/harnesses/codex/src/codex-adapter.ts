@@ -216,7 +216,7 @@ export class CodexAdapter implements AgentAdapter {
 
     // the flag outranks a trusted clone's own config, which could move the
     // sign-in out of the file atc writes
-    const launch = buildCodexGuestLaunch(guest.dir, authDir, [
+    const launch = buildCodexGuestLaunch(guest.directory, authDir, [
       plan.bin,
       HOOK_TRUST_FLAG,
       '-c',

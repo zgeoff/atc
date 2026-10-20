@@ -48,8 +48,8 @@ test('it emits nothing through the run hooks', () => {
       onDone: (result) => {
         emitted.push(`done ${result}`);
       },
-      onNeedsYou: (msg) => {
-        emitted.push(`needs-you ${msg}`);
+      onNeedsYou: (message) => {
+        emitted.push(`needs-you ${message}`);
       },
     },
   );

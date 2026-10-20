@@ -9,7 +9,10 @@ import type {
 type StubMessageStatus = 'queued' | 'delivered' | 'answered' | 'unanswered';
 
 export function buildStubMessageBridgeHost(initial: readonly UnsettledMessage[] = []) {
-  const statuses = new Map<string, StubMessageStatus>(initial.map((m) => [m.id, m.status]));
+  const statuses = new Map<string, StubMessageStatus>(
+    initial.map((message) => [message.id, message.status]),
+  );
+
   const texts = new Map<string, BridgedMessage>();
   const notices = new Map<string, BridgedNotice>();
   const noticeStatuses = new Map<string, 'queued' | 'delivered'>();

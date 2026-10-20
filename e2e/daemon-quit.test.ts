@@ -4,7 +4,7 @@ import { resolveATCCommand, setupTempDir } from '@atc/test-utils';
 
 async function setupTest() {
   const tmp = setupTempDir('atc-e2e-quit-');
-  const daemon = startDaemonProcess({ command: resolveATCCommand(), home: tmp.dir });
+  const daemon = startDaemonProcess({ command: resolveATCCommand(), home: tmp.path });
 
   const client = await daemon.openClient();
 

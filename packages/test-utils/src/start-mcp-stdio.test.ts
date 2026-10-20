@@ -7,9 +7,9 @@ import { startMCPStdio } from './start-mcp-stdio';
 // A home for the stand-in server each test writes and starts there. The
 // cases that start the real server run end to end.
 function setupTest() {
-  const tmp = setupTempDir('atc-mcp-stdio-');
+  const temporaryDirectory = setupTempDir('atc-mcp-stdio-');
 
-  return { home: tmp.dir };
+  return { home: temporaryDirectory.path };
 }
 
 test('it rejects a tool call whose response holds no result', async () => {

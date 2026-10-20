@@ -8,7 +8,7 @@ import { runConfigMigrate } from './run-config-migrate';
 function setupTest() {
   const tmp = setupTempDir('atc-config-migrate-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it prints the migrated config and leaves the file alone without --write', () => {

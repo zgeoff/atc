@@ -13,7 +13,7 @@ async function setupTest() {
   const opened = Promise.withResolvers<Socket<{ queue: OutboundQueue }>>();
 
   const server = Bun.listen<{ queue: OutboundQueue }>({
-    unix: join(temp.dir, 'q.sock'),
+    unix: join(temp.path, 'q.sock'),
     socket: {
       open(socket) {
         opened.resolve(socket);
@@ -30,7 +30,7 @@ async function setupTest() {
     server.stop(true);
   });
 
-  const client = connect(join(temp.dir, 'q.sock'));
+  const client = connect(join(temp.path, 'q.sock'));
 
   registerTestCleanup(() => {
     client.destroy();

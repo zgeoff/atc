@@ -7,7 +7,7 @@ import { requireListenTokens } from './require-listen-tokens';
 function setupTest() {
   const tmp = setupTempDir('atc-listen-tokens-');
 
-  return { dir: tmp.dir };
+  return { dir: tmp.path };
 }
 
 test('it loads the tokens of a loopback listener', async () => {
