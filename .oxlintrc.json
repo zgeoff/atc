@@ -47,9 +47,6 @@
     "max-lines": "off",
     // GEO-1197 trims the 60 functions over the shared four-parameter limit
     "max-params": "off",
-    // the source holds short and abbreviated value names, such as i and dir
-    "id-length": "off",
-    "zgeoff/no-abbreviated-names": "off",
     // the source branches on unions with switch statements
     "zgeoff/no-switch": "off"
   },
