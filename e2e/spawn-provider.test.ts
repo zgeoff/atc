@@ -74,7 +74,7 @@ test('it types input into a session harness on the local pty provider', async ()
   const id = getRecord(spawned, 'session')['id'];
 
   await daemon.client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
-  await daemon.client.sendRequest('session.input', { session: id, d: 'ping\r' });
+  await daemon.client.sendRequest('session.input', { session: id, data: 'ping\r' });
 
   await waitFor(() => {
     expect(
@@ -164,7 +164,7 @@ test('it refuses input with unsupported_operation when the provider takes no inp
 
   const input = daemon.client.sendRequest('session.input', {
     session: getRecord(spawned, 'session')['id'],
-    d: 'ping\r',
+    data: 'ping\r',
   });
 
   expect(input).rejects.toMatchObject({ code: 'unsupported_operation' });

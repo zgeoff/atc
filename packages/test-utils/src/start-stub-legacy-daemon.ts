@@ -90,7 +90,7 @@ function pickLegacyAnswer(
     return {
       err: {
         code: 'protocol_mismatch',
-        msg: `${String(client)} speaks protocol v${String(asked)}, daemon atc/legacy-build speaks v${protocol}; restart the daemon so both run the same build`,
+        message: `${String(client)} speaks protocol v${String(asked)}, daemon atc/legacy-build speaks v${protocol}; restart the daemon so both run the same build`,
       },
     };
   }
@@ -98,6 +98,6 @@ function pickLegacyAnswer(
   const answer = answers[request.method];
 
   return answer === undefined
-    ? { err: { code: 'unknown_method', msg: `unknown method '${request.method}'` } }
+    ? { err: { code: 'unknown_method', message: `unknown method '${request.method}'` } }
     : { ok: answer };
 }

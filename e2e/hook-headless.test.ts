@@ -515,7 +515,7 @@ test('it starts the next headless turn from session input once idle', async () =
 
   const answered = await ctx.daemon.client.sendRequest('session.input', {
     session: sessionID,
-    d: 'next task\n',
+    data: 'next task\n',
   });
 
   expect(answered).toStrictEqual({});
@@ -563,7 +563,7 @@ test('it refuses input to a headless session mid-run', async () => {
   });
 
   expect(
-    ctx.daemon.client.sendRequest('session.input', { session: sessionID, d: 'hasty\n' }),
+    ctx.daemon.client.sendRequest('session.input', { session: sessionID, data: 'hasty\n' }),
   ).rejects.toMatchObject({ code: 'too_slow' });
 });
 
@@ -997,7 +997,7 @@ test('it refuses the next headless turn from session input once its plugin folde
 
   const input = daemon.client.sendRequest('session.input', {
     session: sessionID,
-    d: 'next task\n',
+    data: 'next task\n',
   });
 
   await input.catch(() => null);
@@ -1200,6 +1200,6 @@ test('it refuses input for a killed headless session', async () => {
   await ctx.daemon.client.sendRequest('session.kill', { session: sessionID });
 
   expect(
-    ctx.daemon.client.sendRequest('session.input', { session: sessionID, d: 'anything\n' }),
+    ctx.daemon.client.sendRequest('session.input', { session: sessionID, data: 'anything\n' }),
   ).rejects.toMatchObject({ code: 'no_such_session' });
 });

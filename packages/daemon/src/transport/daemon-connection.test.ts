@@ -872,9 +872,7 @@ test('it ends a connection that sends a line-protocol request, without an answer
 
   const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
 
-  conn.applyChunk(
-    `${JSON.stringify({ v: 5, id: 1, m: 'daemon.hello', p: { client: 'atc/old' } })}\n`,
-  );
+  conn.applyChunk('{"v":5,"id":1,"m":"daemon.hello","p":{"client":"atc/old"}}\n');
 
   expect(peer.hasEnded()).toBeTrue();
   expect(peer.collectFrames()).toStrictEqual([]);
@@ -890,9 +888,7 @@ test('it records a line-protocol request before a TCP handshake as an unexpected
     recordRefusedPrincipal: () => {},
   });
 
-  conn.applyChunk(
-    `${JSON.stringify({ v: 5, id: 1, m: 'daemon.hello', p: { client: 'atc/old' } })}\n`,
-  );
+  conn.applyChunk('{"v":5,"id":1,"m":"daemon.hello","p":{"client":"atc/old"}}\n');
 
   expect(recordFailure).toHaveBeenCalledExactlyOnceWith('unexpected_line');
   expect(peer.hasEnded()).toBeTrue();

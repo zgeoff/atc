@@ -292,7 +292,7 @@ test('it revives the fleet one boot at a time, gated on SessionStart', async () 
 
   invariant(booting !== undefined, 'no restored session has a terminal');
 
-  await client.sendRequest('session.input', { session: booting['id'], d: KEYS.enter });
+  await client.sendRequest('session.input', { session: booting['id'], data: KEYS.enter });
 
   await waitForEvent(events, {
     ev: 'SessionState',

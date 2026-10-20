@@ -555,7 +555,7 @@ test.each([
   ['session.read', {}],
   ['session.screen', {}],
   ['session.attach', { cols: 80, rows: 24 }],
-  ['session.input', { d: 'go\r' }],
+  ['session.input', { data: 'go\r' }],
   ['session.submit', { text: 'go' }],
   ['session.message', { from: 'remote', text: 'hello' }],
   ['session.kill', {}],
@@ -726,7 +726,7 @@ test.each([
   ['session.read', {}],
   ['session.screen', {}],
   ['session.attach', { cols: 80, rows: 24 }],
-  ['session.input', { d: 'go\r' }],
+  ['session.input', { data: 'go\r' }],
   ['session.submit', { text: 'go' }],
   ['session.message', { from: 'remote', text: 'hello' }],
   ['session.kill', {}],
@@ -920,7 +920,7 @@ test.each([
   ['session.read', {}],
   ['session.screen', {}],
   ['session.attach', { cols: 80, rows: 24 }],
-  ['session.input', { d: 'go\r' }],
+  ['session.input', { data: 'go\r' }],
   ['session.submit', { text: 'go' }],
   ['session.message', { from: 'remote', text: 'hello' }],
   ['session.kill', {}],
@@ -4252,7 +4252,7 @@ test("it keeps a hidden session's messages from a principal tapping a session th
   const owner = await daemon.client.sendRequest('message.get', { message });
 
   expect(events.filter((event) => event.ev === 'InboxMessage')).toMatchObject([
-    { s: shown, text: 'shown message' },
+    { sessionID: shown, text: 'shown message' },
   ]);
 
   expect(acked).toStrictEqual(unknown);

@@ -24,7 +24,7 @@ export type StubPeerAnswer =
   | {
       readonly err: {
         readonly code: string;
-        readonly msg: string;
+        readonly message: string;
         readonly data?: Readonly<Record<string, unknown>>;
       };
     }
@@ -146,7 +146,7 @@ function buildStubPeerResponse(answer: StubPeerAnswer): Promise<StandardResponse
   }
 
   const error = new ORPCError<string, unknown>(answer.err.code, {
-    message: answer.err.msg,
+    message: answer.err.message,
     data: answer.err.data,
   });
 

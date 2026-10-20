@@ -2661,7 +2661,7 @@ test('it writes an accepted start, an owner sign-in, and an allowed consent as s
     JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
   ).toStrictEqual([
     {
-      v: 1,
+      version: 1,
       ts: new Date(ctx.clock.now()).toISOString(),
       kind: 'authorize_started',
       outcome: 'accepted',
@@ -2673,7 +2673,7 @@ test('it writes an accepted start, an owner sign-in, and an allowed consent as s
       userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
     },
     {
-      v: 1,
+      version: 1,
       ts: new Date(ctx.clock.now()).toISOString(),
       kind: 'owner_auth',
       outcome: 'succeeded',
@@ -2685,7 +2685,7 @@ test('it writes an accepted start, an owner sign-in, and an allowed consent as s
       userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
     },
     {
-      v: 1,
+      version: 1,
       ts: new Date(ctx.clock.now()).toISOString(),
       kind: 'consent',
       outcome: 'allowed',
@@ -2760,7 +2760,7 @@ test('it writes a start refused by the limit on starts as rate_limited', async (
   expect(ctx.security).toBeArrayOfSize(11);
 
   expect(JSON.parse(ctx.security.at(-1)?.slice('atc security '.length) ?? '')).toStrictEqual({
-    v: 1,
+    version: 1,
     ts: new Date(ctx.clock.now()).toISOString(),
     kind: 'authorize_started',
     outcome: 'rejected',
@@ -2803,7 +2803,7 @@ test('it writes an authorization better-auth refuses with its error code', async
     JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
   ).toStrictEqual([
     {
-      v: 1,
+      version: 1,
       ts: new Date(ctx.clock.now()).toISOString(),
       kind: 'authorize_invalid',
       outcome: 'rejected',
@@ -2839,7 +2839,7 @@ test('it writes an authorization for an unknown client as invalid_client without
     JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
   ).toStrictEqual([
     {
-      v: 1,
+      version: 1,
       ts: new Date(ctx.clock.now()).toISOString(),
       kind: 'authorize_invalid',
       outcome: 'rejected',
@@ -2875,7 +2875,7 @@ test('it writes a code exchange better-auth refuses as token_exchange with its e
     JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
   ).toStrictEqual([
     {
-      v: 1,
+      version: 1,
       ts: new Date(ctx.clock.now()).toISOString(),
       kind: 'token_exchange',
       outcome: 'rejected',
@@ -2904,7 +2904,7 @@ test('it writes a token exchange for an unknown client without the client', asyn
     JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
   ).toStrictEqual([
     {
-      v: 1,
+      version: 1,
       ts: new Date(ctx.clock.now()).toISOString(),
       kind: 'token_exchange',
       outcome: 'rejected',
@@ -2928,7 +2928,7 @@ test('it writes a token exchange with a grant type atc does not offer as unsuppo
     JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
   ).toStrictEqual([
     {
-      v: 1,
+      version: 1,
       ts: new Date(ctx.clock.now()).toISOString(),
       kind: 'token_exchange',
       outcome: 'rejected',
@@ -2986,7 +2986,7 @@ test('it writes an MCP request with a bearer token atc never issued as invalid_t
     JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
   ).toStrictEqual([
     {
-      v: 1,
+      version: 1,
       ts: new Date(ctx.clock.now()).toISOString(),
       kind: 'bearer',
       outcome: 'rejected',
@@ -3011,7 +3011,7 @@ test('it writes an MCP request whose Authorization header is not a bearer token 
     JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
   ).toStrictEqual([
     {
-      v: 1,
+      version: 1,
       ts: new Date(ctx.clock.now()).toISOString(),
       kind: 'bearer',
       outcome: 'rejected',
@@ -3099,7 +3099,7 @@ test('it writes a token bound to the resource of an earlier public URL as invali
     JSON.parse(`[${security.map((line) => line.slice('atc security '.length)).join(',')}]`),
   ).toStrictEqual([
     {
-      v: 1,
+      version: 1,
       ts: expect.toBeString(),
       kind: 'bearer',
       outcome: 'rejected',
@@ -3168,7 +3168,7 @@ test('it writes a request whose Host header it does not serve as bad_host', asyn
     JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
   ).toStrictEqual([
     {
-      v: 1,
+      version: 1,
       ts: new Date(ctx.clock.now()).toISOString(),
       kind: 'authorize_invalid',
       outcome: 'rejected',
@@ -3197,7 +3197,7 @@ test('it writes a form post from another origin as bad_origin', async () => {
     JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
   ).toStrictEqual([
     {
-      v: 1,
+      version: 1,
       ts: new Date(ctx.clock.now()).toISOString(),
       kind: 'authorize_invalid',
       outcome: 'rejected',
@@ -3222,7 +3222,7 @@ test('it writes an MCP request from a browser on another origin as bad_origin', 
     JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
   ).toStrictEqual([
     {
-      v: 1,
+      version: 1,
       ts: new Date(ctx.clock.now()).toISOString(),
       kind: 'authorize_invalid',
       outcome: 'rejected',
@@ -3248,7 +3248,7 @@ test('it writes a sign-in posted for an approval that no longer waits as an expi
     JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
   ).toStrictEqual([
     {
-      v: 1,
+      version: 1,
       ts: new Date(ctx.clock.now()).toISOString(),
       kind: 'owner_auth',
       outcome: 'failed',
@@ -3312,7 +3312,7 @@ test('it writes an allow sent with no scope ticked as a denied consent with none
   });
 
   expect(JSON.parse(ctx.security.at(-1)?.slice('atc security '.length) ?? '')).toStrictEqual({
-    v: 1,
+    version: 1,
     ts: new Date(ctx.clock.now()).toISOString(),
     kind: 'consent',
     outcome: 'denied',
@@ -3391,7 +3391,7 @@ test('it writes one suppressed event with the dropped count once a burst past th
   expect(ctx.security.slice(0, 20)).toSatisfyAll((line: string) => line.includes('"bad_host"'));
 
   expect(JSON.parse(ctx.security[20]?.slice('atc security '.length) ?? '')).toStrictEqual({
-    v: 1,
+    version: 1,
     ts: new Date(ctx.clock.now()).toISOString(),
     kind: 'suppressed',
     reason: 'authorize_invalid',

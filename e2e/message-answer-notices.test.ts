@@ -150,7 +150,7 @@ test('it hands the sending session an unanswered notice when the recipient sessi
     message: sent['message'],
   });
 
-  await ctx.daemon.client.sendRequest('session.input', { session: ctx.recipient, d: 'end\r' });
+  await ctx.daemon.client.sendRequest('session.input', { session: ctx.recipient, data: 'end\r' });
 
   await waitFor(() => {
     expect<unknown[]>(tap.notices).toStrictEqual([
@@ -505,7 +505,7 @@ test('it keeps the answer notice of an exited sender queued and hands it over on
     text: 'review the diff',
   });
 
-  await ctx.daemon.client.sendRequest('session.input', { session: ctx.sender, d: 'end\r' });
+  await ctx.daemon.client.sendRequest('session.input', { session: ctx.sender, data: 'end\r' });
 
   await waitFor(async () => {
     const listed = await ctx.daemon.client.sendRequest('session.list');

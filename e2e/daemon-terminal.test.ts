@@ -95,7 +95,7 @@ test('it streams pty output to an attached client with increasing seq', async ()
   const id = getString(getRecord(ok, 'session'), 'id');
 
   await client.sendRequest('session.attach', { session: id, cols: 100, rows: 30 });
-  await client.sendRequest('session.input', { session: id, d: `hello${KEYS.enter}` });
+  await client.sendRequest('session.input', { session: id, data: `hello${KEYS.enter}` });
 
   await waitForEvent(events, { ev: 'SessionOutput', data: expect.stringContaining('GOT:hello') });
 
@@ -146,7 +146,7 @@ test('it stops streaming to a detached client while others keep receiving', asyn
   await client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
   await leaver.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
   await leaver.sendRequest('session.detach', { session: id });
-  await client.sendRequest('session.input', { session: id, d: `ping${KEYS.enter}` });
+  await client.sendRequest('session.input', { session: id, data: `ping${KEYS.enter}` });
 
   await waitForEvent(events, { ev: 'SessionOutput', data: expect.stringContaining('GOT:ping') });
 
@@ -199,7 +199,7 @@ test('it resizes the pty to the smallest dims across attached clients', async ()
 
   const shrunk = await waitForEvent(events, { ev: 'SessionResized', cols: 90 });
 
-  expect(shrunk).toMatchObject({ s: id, cols: 90, rows: 28 });
+  expect(shrunk).toMatchObject({ sessionID: id, cols: 90, rows: 28 });
 });
 
 test('it resizes the pty before the attach replay reaches the client', async () => {
@@ -275,7 +275,7 @@ test('it reads the current screen of a session as plain text without attaching',
     expect(read['text']).toInclude('FAKE_CLAUDE_UP');
   });
 
-  await client.sendRequest('session.input', { session: id, d: `hello${KEYS.enter}` });
+  await client.sendRequest('session.input', { session: id, data: `hello${KEYS.enter}` });
 
   const screen = await waitFor(async () => {
     const read = await client.sendRequest('session.screen', { session: id });
@@ -806,7 +806,7 @@ test('it holds input sent while a codex slash command line pauses until the line
 
   const line = client.sendRequest('session.submit', { session: id, text: '/goal finish it' });
 
-  await client.sendRequest('session.input', { session: id, d: 'x' });
+  await client.sendRequest('session.input', { session: id, data: 'x' });
 
   const lineWhenInputAnswered = Bun.peek.status(line);
 
@@ -942,7 +942,7 @@ test('it submits a claude composer draft on an empty line without adding a line 
     expect(read['text']).toInclude('FAKE_COMPOSER_READY');
   });
 
-  await client.sendRequest('session.input', { session: id, d: 'draft' });
+  await client.sendRequest('session.input', { session: id, data: 'draft' });
 
   await waitForEvent(events, {
     ev: 'SessionOutput',
@@ -1003,7 +1003,7 @@ test('it writes raw input to a codex session byte for byte', async () => {
     data: expect.stringContaining('FAKE_COMPOSER_READY'),
   });
 
-  await client.sendRequest('session.input', { session: id, d: `abc${KEYS.up}x${KEYS.enter}` });
+  await client.sendRequest('session.input', { session: id, data: `abc${KEYS.up}x${KEYS.enter}` });
 
   const received = await waitFor(() => {
     const output = events

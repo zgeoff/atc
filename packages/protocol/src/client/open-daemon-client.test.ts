@@ -23,7 +23,7 @@ test('it refuses every waiting request with a protocol mismatch when the daemon 
     socket: {
       data(socket) {
         socket.write(
-          `${JSON.stringify({ v: 4, id: 0, err: { code: 'bad_args', msg: 'malformed line: missing v' } })}\n`,
+          '{"v":4,"id":0,"err":{"code":"bad_args","msg":"malformed line: missing v"}}\n',
         );
 
         socket.end();
@@ -177,7 +177,7 @@ test('it closes the connection with the reason when the daemon refuses its event
   const answers: Readonly<Record<string, StubPeerAnswer>> = {
     'daemon.hello': { ok: {} },
     'events.subscribe': {
-      err: { code: 'unauthorized', msg: 'a request over TCP must act as a principal' },
+      err: { code: 'unauthorized', message: 'a request over TCP must act as a principal' },
     },
   };
 

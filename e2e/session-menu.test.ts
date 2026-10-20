@@ -689,7 +689,7 @@ test('it reads afresh a long list after input from outside a menu read or choice
     switchFile: join(ctx.daemon.directory, 'switch'),
   });
 
-  await ctx.daemon.client.sendRequest('session.input', { session: shown.session, d: 'x' });
+  await ctx.daemon.client.sendRequest('session.input', { session: shown.session, data: 'x' });
 
   await waitFor(() => {
     expect(ctx.readLog().at(-1)).toStrictEqual({ key: 'x' });

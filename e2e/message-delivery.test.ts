@@ -3189,7 +3189,7 @@ test('it gates a revived session on its own tap, not the tap its previous proces
   const tap = await daemon.openClient();
 
   await tap.sendRequest('session.tap', { session: id });
-  await daemon.client.sendRequest('session.input', { session: id, d: 'end\r' });
+  await daemon.client.sendRequest('session.input', { session: id, data: 'end\r' });
 
   await waitFor(async () => {
     const listed = await daemon.client.sendRequest('session.list');
@@ -3261,7 +3261,7 @@ test('it queues a message to a revived session before it reports SessionStart ag
     expect(listed['sessions']).toPartiallyContain({ id, agentSessionID: 'agent-1' });
   });
 
-  await daemon.client.sendRequest('session.input', { session: id, d: 'end\r' });
+  await daemon.client.sendRequest('session.input', { session: id, data: 'end\r' });
 
   await waitFor(async () => {
     const listed = await daemon.client.sendRequest('session.list');
@@ -3301,7 +3301,7 @@ test('it marks a delivered message unanswered as session_ended when the process 
 
   await tap.sendRequest('session.tap', { session: id });
   await tap.sendRequest('message.ack', { session: id, message: sent['message'] });
-  await daemon.client.sendRequest('session.input', { session: id, d: 'end\r' });
+  await daemon.client.sendRequest('session.input', { session: id, data: 'end\r' });
 
   await waitFor(() => {
     expect<unknown[]>(daemon.events).toContainEqual({
@@ -3472,7 +3472,7 @@ test('it marks a message unanswered as session_ended when its tap acks it after 
   const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
 
   await tap.sendRequest('session.tap', { session: id });
-  await daemon.client.sendRequest('session.input', { session: id, d: 'end\r' });
+  await daemon.client.sendRequest('session.input', { session: id, data: 'end\r' });
 
   await waitFor(async () => {
     const listed = await daemon.client.sendRequest('session.list');
@@ -3503,7 +3503,7 @@ test('it keeps a queued message queued when the process exits', async () => {
 
   const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
 
-  await daemon.client.sendRequest('session.input', { session: id, d: 'end\r' });
+  await daemon.client.sendRequest('session.input', { session: id, data: 'end\r' });
 
   await waitFor(async () => {
     const listed = await daemon.client.sendRequest('session.list');

@@ -77,7 +77,7 @@ test('it flips the session back to working once the prompt is answered', async (
     );
   });
 
-  await daemon.client.sendRequest('session.input', { session: id, d: 'go\n' });
+  await daemon.client.sendRequest('session.input', { session: id, data: 'go\n' });
 
   await waitFor(() => {
     expect(daemon.events).toSatisfyAny(

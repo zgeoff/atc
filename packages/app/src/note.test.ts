@@ -422,7 +422,7 @@ test('it clears a bridge note from the outbox once the bridge refuses it as forb
 
   expect(bridge.requests).toStrictEqual([
     {
-      v: 1,
+      version: 1,
       id: expect.toBeString(),
       op: 'note',
       noteID: expect.toBeString(),
@@ -475,7 +475,7 @@ test('it keeps a bridge note in the outbox when the bridge closes without answer
 
   expect(bridge.requests).toStrictEqual([
     {
-      v: 1,
+      version: 1,
       id: expect.toBeString(),
       op: 'note',
       noteID: name.slice(0, -'.json'.length),

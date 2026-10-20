@@ -41,7 +41,7 @@ export function applyInputKey(buf: Buffer, deps: InputKeyDeps) {
       if (focusedID !== null) {
         void deps.sendQuiet('session.input', {
           session: focusedID,
-          d: deps.stdinDecoder.decode(buf, { stream: true }),
+          data: deps.stdinDecoder.decode(buf, { stream: true }),
         });
       }
 

@@ -29,7 +29,7 @@ export function startStubTCPDaemon(): StubTCPDaemon {
 
         seen.push(request.method);
 
-        return { ok: { m: request.method } };
+        return { ok: { method: request.method } };
       },
     },
   );

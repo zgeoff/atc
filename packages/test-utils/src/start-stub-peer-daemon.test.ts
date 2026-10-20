@@ -57,7 +57,7 @@ test('it refuses a request with the code, message and data the caller gives', as
 
   startStubPeerDaemon(ctx.socketPath, {
     answer: () => ({
-      err: { code: 'scope_invalid', msg: 'the scope does not read', data: { entry: 2 } },
+      err: { code: 'scope_invalid', message: 'the scope does not read', data: { entry: 2 } },
     }),
   });
 

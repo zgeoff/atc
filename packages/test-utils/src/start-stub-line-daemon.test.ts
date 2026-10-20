@@ -38,11 +38,9 @@ test('it answers a peer handshake with the malformed-line error of protocol v4 a
 
   await ended.promise;
 
-  expect(JSON.parse(received)).toStrictEqual({
-    v: 4,
-    id: 0,
-    err: { code: 'bad_args', msg: 'malformed line: missing v' },
-  });
+  expect(received).toBe(
+    '{"v":4,"id":0,"err":{"code":"bad_args","msg":"malformed line: missing v"}}\n',
+  );
 });
 
 test('it records each line it reads', async () => {

@@ -2132,6 +2132,6 @@ test('it pushes a TCP connection whose handshake gives a principal the removal o
   await waitFor(() => {
     expect<readonly unknown[]>(
       pushed.filter((event) => event.ev === 'SessionRemoved'),
-    ).toStrictEqual([expect.objectContaining({ s: parent })]);
+    ).toStrictEqual([expect.objectContaining({ sessionID: parent })]);
   });
 });

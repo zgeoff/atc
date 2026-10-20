@@ -67,7 +67,7 @@ test("it delivers a message to a remote session's tap", async () => {
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  await ctx.daemon.client.sendRequest('session.input', { session: id, d: `tap ${tapLog}\r` });
+  await ctx.daemon.client.sendRequest('session.input', { session: id, data: `tap ${tapLog}\r` });
 
   const sent = await ctx.daemon.client.sendRequest('session.message', {
     session: id,
@@ -95,7 +95,7 @@ test('it records the answer a remote session reports to a message its tap took',
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  await ctx.daemon.client.sendRequest('session.input', { session: id, d: `tap ${tapLog}\r` });
+  await ctx.daemon.client.sendRequest('session.input', { session: id, data: `tap ${tapLog}\r` });
 
   const sent = await ctx.daemon.client.sendRequest('session.message', {
     session: id,
@@ -112,7 +112,7 @@ test('it records the answer a remote session reports to a message its tap took',
 
   await ctx.daemon.client.sendRequest('session.input', {
     session: id,
-    d: `answer ${messageID} the answer\r`,
+    data: `answer ${messageID} the answer\r`,
   });
 
   await waitFor(async () => {
@@ -183,7 +183,7 @@ test('it answers an op the bridge does not offer with forbidden and closes the c
     socket.end();
   });
 
-  socket.writeLine({ v: 1, id: 'list', op: 'session.list' });
+  socket.writeLine({ version: 1, id: 'list', op: 'session.list' });
 
   await socket.closed;
 
@@ -205,10 +205,10 @@ test('it delivers a message sent after a sleep and a wake to the tap that ran be
 
   await ctx.daemon.client.sendRequest('session.input', {
     session: id,
-    d: 'start agent-remote-1\r',
+    data: 'start agent-remote-1\r',
   });
 
-  await ctx.daemon.client.sendRequest('session.input', { session: id, d: `tap ${tapLog}\r` });
+  await ctx.daemon.client.sendRequest('session.input', { session: id, data: `tap ${tapLog}\r` });
 
   const before = await ctx.daemon.client.sendRequest('session.message', {
     session: id,
@@ -266,7 +266,7 @@ test('it delivers a message and a note held back while the bridge was unreachabl
   const id = String(getRecord(spawned, 'session')['id']);
 
   await ctx.daemon.client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
-  await ctx.daemon.client.sendRequest('session.input', { session: id, d: `tap ${tapLog}\r` });
+  await ctx.daemon.client.sendRequest('session.input', { session: id, data: `tap ${tapLog}\r` });
 
   const first = await ctx.daemon.client.sendRequest('session.message', {
     session: id,
@@ -285,7 +285,7 @@ test('it delivers a message and a note held back while the bridge was unreachabl
     text: 'held',
   });
 
-  await ctx.daemon.client.sendRequest('session.input', { session: id, d: 'note while away\r' });
+  await ctx.daemon.client.sendRequest('session.input', { session: id, data: 'note while away\r' });
 
   await waitFor(() => {
     expect(
@@ -331,7 +331,7 @@ test('it prints a message whose ack was lost once, and acks it again when the ta
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  await ctx.daemon.client.sendRequest('session.input', { session: id, d: `tap ${tapLog}\r` });
+  await ctx.daemon.client.sendRequest('session.input', { session: id, data: `tap ${tapLog}\r` });
 
   const ready = await ctx.daemon.client.sendRequest('session.message', {
     session: id,
@@ -409,15 +409,15 @@ test("it records a remote session's note, needs-input and turn-done after impd c
 
   await ctx.daemon.client.sendRequest('session.input', {
     session: id,
-    d: 'note after the forward closed\r',
+    data: 'note after the forward closed\r',
   });
 
   await ctx.daemon.client.sendRequest('session.input', {
     session: id,
-    d: 'notify Claude needs your permission to use Bash\r',
+    data: 'notify Claude needs your permission to use Bash\r',
   });
 
-  await ctx.daemon.client.sendRequest('session.input', { session: id, d: 'stop\r' });
+  await ctx.daemon.client.sendRequest('session.input', { session: id, data: 'stop\r' });
 
   await waitFor(async () => {
     const read = await ctx.daemon.client.sendRequest('events.read', { session: id });
