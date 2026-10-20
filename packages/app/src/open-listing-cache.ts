@@ -13,29 +13,12 @@ import { join } from 'node:path';
 import { isRecord, systemClock, waitUntil } from '@atc/core';
 import type { Clock } from '@atc/core';
 import { probeProcessAlive } from '@atc/lifecycle';
-
-interface CachedListing {
-  readonly candidates: readonly unknown[];
-  readonly scope: string | null;
-
-  // when the request went out, so a slow answer never outranks a later request.
-  readonly listedAt: number;
-}
-
-export interface ListingCache {
-  readonly readListing: (key: string, now: number) => CachedListing | null;
-
-  // resolves once the listing is kept or given up on, and never rejects.
-  readonly writeListing: (key: string, listing: CachedListing) => Promise<void>;
-}
+import { LISTING_CACHE_LIFETIME_MS } from '@atc/tui';
+import type { CachedListing, ListingCache } from '@atc/tui';
 
 interface ListingCacheOptions {
   readonly clock?: Clock;
 }
-
-// How long a kept listing is shown before the picker waits for a fresh
-// one: a day.
-export const LISTING_CACHE_LIFETIME_MS = 24 * 60 * 60 * 1000;
 
 // How long a write waits for the lock before it gives up, and how often
 // it tries again meanwhile.

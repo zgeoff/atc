@@ -1,10 +1,9 @@
-import { loadConfig } from '@atc/config';
+import type { Config } from '@atc/config';
 import type { AgentID } from '@atc/core';
 import { ansi } from '@atc/core';
 import { sortGroupedSessionViews, sortSessionViews } from '@atc/protocol';
 import type { DaemonBoot } from '@atc/protocol';
 import type { DaemonClient } from '@atc/protocol/client';
-import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import type { ClientMode } from './build-client-machine';
 import { collectTargetPicks } from './collect-target-picks';
 import { findFuzzyScore, formatDir } from './dirs';
@@ -23,6 +22,7 @@ export type OverlayConfirm = 'none' | 'kill' | 'destroy';
 export interface OverlayScreenDeps {
   readonly mirror: FleetMirror;
   readonly bootMetadata: AgentMetadata;
+  readonly readConfig: () => Config;
   readonly findFocusedID: () => string | null;
   readonly getMode: () => ClientMode;
   readonly getConfirm: () => OverlayConfirm;
@@ -114,7 +114,7 @@ export class OverlayScreen {
     try {
       const answer = await this.deps.getClient().sendRequest('agents.list');
 
-      const meta = resolveAgentMetadata(loadConfig(SHIPPED_HARNESS_PLUGINS), answer);
+      const meta = resolveAgentMetadata(this.deps.readConfig(), answer);
 
       this.agentLabels = meta.labels;
       this.agentModels = meta.models;

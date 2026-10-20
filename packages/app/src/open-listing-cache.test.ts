@@ -3,7 +3,8 @@ import { mkdirSync, mkdtempSync, readdirSync, rmSync, utimesSync, writeFileSync 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildStubSkipClock, runCommand, waitFor } from '@atc/test-utils';
-import { LISTING_CACHE_LIFETIME_MS, openListingCache } from './open-listing-cache';
+import { LISTING_CACHE_LIFETIME_MS } from '@atc/tui';
+import { openListingCache } from './open-listing-cache';
 
 function setupTest() {
   const directory = mkdtempSync(join(tmpdir(), 'atc-listing-cache-'));

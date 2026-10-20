@@ -21,6 +21,7 @@
     "@atc/source-git": "workspace:*",
     "@atc/source-github": "workspace:*",
     "@atc/store": "workspace:*",
+    "@atc/tui": "workspace:*",
     "@better-auth/mcp": "catalog:",
     "@better-auth/oauth-provider": "catalog:",
     "@simplewebauthn/server": "catalog:",
@@ -31,7 +32,6 @@
     "kysely": "catalog:",
     "reflect-metadata": "catalog:",
     "ts-pattern": "catalog:",
-    "xstate": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

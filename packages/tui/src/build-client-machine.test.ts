@@ -1,7 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { createActor } from 'xstate';
-import { buildStubClientScreens } from '../test-utils/build-stub-client-screens';
 import { buildClientMachine } from './build-client-machine';
+import { buildStubClientScreens } from './testing/build-stub-client-screens';
 
 function setupTest() {
   const screens = buildStubClientScreens();

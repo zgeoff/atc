@@ -1,9 +1,8 @@
-import { loadConfig } from '@atc/config';
+import type { Config } from '@atc/config';
 import type { Clock } from '@atc/core';
 import type { DaemonBoot } from '@atc/protocol';
 import type { DaemonClient } from '@atc/protocol/client';
 import type { DaemonTransport } from '@atc/protocol/wire/transport';
-import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import type { ClientActor } from './build-client-machine';
 import type { FleetMirror } from './fleet-mirror';
 import type { OverlayScreen } from './overlay-screen';
@@ -21,6 +20,7 @@ export interface RestartDaemonDeps<TLink> {
   readonly getBoot: () => DaemonBoot;
   readonly getClient: () => DaemonClient;
   readonly restartDaemonAt: (socketPath: string) => Promise<boolean>;
+  readonly readConfig: () => Config;
   readonly sendQuiet: (method: string, params?: Readonly<Record<string, unknown>>) => Promise<void>;
   readonly logClientEvent: (line: string) => void;
   readonly scheduleStatus: () => void;
@@ -54,7 +54,7 @@ export async function restartDaemon<TLink>(deps: RestartDaemonDeps<TLink>) {
 
   // a new daemon may map aliases and targets differently, so rows fall back to the config
   // baseline, and the target column hides, until its own answer arrives.
-  const baseline = resolveAgentMetadata(loadConfig(SHIPPED_HARNESS_PLUGINS), {});
+  const baseline = resolveAgentMetadata(deps.readConfig(), {});
 
   deps.overlay.agentLabels = baseline.labels;
   deps.overlay.agentModels = baseline.models;

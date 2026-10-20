@@ -1,6 +1,28 @@
 import { expect, test } from 'bun:test';
 import { KEYS } from '@atc/test-utils';
-import { planTextEdit } from './keys';
+import { KEY, planTextEdit } from './keys';
+import type { TextEdit } from './keys';
+
+test.each<[string, string, number]>([
+  ['ctrlC', KEYS.ctrlC, KEY.ctrlC],
+  ['tab', KEYS.tab, KEY.tab],
+  ['ctrlR', KEYS.ctrlR, KEY.ctrlR],
+])('it reads the byte the test key %s types', (_name, key, byte) => {
+  expect([...Buffer.from(key)]).toStrictEqual([byte]);
+});
+
+test.each<[string, string, TextEdit]>([
+  ['esc', KEYS.esc, { kind: 'cancel' }],
+  ['enter', KEYS.enter, { kind: 'submit', value: 'typed' }],
+  ['backspace', KEYS.backspace, { kind: 'input', value: 'type' }],
+  ['ctrlU', KEYS.ctrlU, { kind: 'input', value: '' }],
+  ['up', KEYS.up, { kind: 'move', delta: -1 }],
+  ['down', KEYS.down, { kind: 'move', delta: 1 }],
+])('it reads the test key %s as the edit a text-entry screen takes', (_name, key, expected) => {
+  expect(
+    planTextEdit(Buffer.from(key), 'typed', { isLeaderKey: () => false, moves: true }),
+  ).toStrictEqual(expected);
+});
 
 test('it submits the whole pasted line when the paste ends in a newline', () => {
   const edit = planTextEdit(Buffer.from(`fleettest${KEYS.enter}`), '', {

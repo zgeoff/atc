@@ -1,25 +1,45 @@
 import { expect, test } from 'bun:test';
-import { writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolvePaths } from '@atc/config/host';
 import { buildMockLifecycleHost } from '@atc/lifecycle/testing';
 import { buildMockAgentAdapter, setupTempDir } from '@atc/test-utils';
-import { buildRemoteTUIHost } from './build-remote-tui-host';
+import { createRemoteTUIHost } from './create-remote-tui-host';
 import { buildMockRemoteDaemon } from './test-utils/build-mock-remote-daemon';
 import { startTestDaemon } from './test-utils/start-test-daemon';
 
-test('it holds the daemon name and a listing cache of the daemon own beside the local one', () => {
-  const host = buildRemoteTUIHost(
-    buildMockLifecycleHost({ paths: resolvePaths({ HOME: '/home/a' }) }),
+test('it holds the daemon name', () => {
+  const host = createRemoteTUIHost(
+    buildMockLifecycleHost(),
     buildMockRemoteDaemon({ name: 'box' }),
   );
 
   expect(host.daemonName).toBe('box');
-  expect(host.listingCacheFile).toBe('/home/a/.local/state/atc/listing-cache-box.json');
+});
+
+test("it keeps the daemon's listings in a cache of its own beside the local one", async () => {
+  const temporaryDirectory = setupTempDir('atc-remote-host-');
+  const paths = resolvePaths({ HOME: temporaryDirectory.path });
+  const stateDirectory = join(temporaryDirectory.path, '.local', 'state', 'atc');
+
+  mkdirSync(stateDirectory, { recursive: true });
+
+  const host = createRemoteTUIHost(
+    buildMockLifecycleHost({ paths }),
+    buildMockRemoteDaemon({ name: 'box' }),
+  );
+
+  await host.listingCache.writeListing('github', { candidates: [], scope: 'acme', listedAt: 1 });
+
+  expect(existsSync(join(stateDirectory, 'listing-cache-box.json'))).toBeTrue();
+  expect(existsSync(join(stateDirectory, 'listing-cache.json'))).toBeFalse();
 });
 
 test('it refuses a restart, since the daemon host restarts it', () => {
-  const host = buildRemoteTUIHost(buildMockLifecycleHost(), buildMockRemoteDaemon({ name: 'box' }));
+  const host = createRemoteTUIHost(
+    buildMockLifecycleHost(),
+    buildMockRemoteDaemon({ name: 'box' }),
+  );
 
   expect(host.restartDaemon('127.0.0.1:7420')).rejects.toThrowWithMessage(
     Error,
@@ -49,7 +69,7 @@ test('it boots the remote daemon with the build the invocation reads', async () 
     throw new Error('the remote daemon bound no TCP port');
   }
 
-  const host = buildRemoteTUIHost(
+  const host = createRemoteTUIHost(
     buildMockLifecycleHost({ invocation: { readBuild: () => 'atc/remote-host-test' } }),
     buildMockRemoteDaemon({
       name: 'box',

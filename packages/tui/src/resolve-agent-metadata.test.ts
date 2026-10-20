@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test';
 import { parseConfig } from '@atc/config';
-import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
+import { buildStubHarnessPlugins } from '@atc/test-utils';
 import { resolveAgentMetadata } from './resolve-agent-metadata';
 
 test('it labels the built-in agents by name', () => {
-  const meta = resolveAgentMetadata(parseConfig(SHIPPED_HARNESS_PLUGINS, {}), {});
+  const meta = resolveAgentMetadata(parseConfig(buildStubHarnessPlugins(), {}), {});
 
   expect(meta).toStrictEqual({
     labels: { claude: 'Claude', grok: 'Grok', codex: 'Codex' },
@@ -14,7 +14,7 @@ test('it labels the built-in agents by name', () => {
 
 test('it labels a configured gateway by its configured label', () => {
   const meta = resolveAgentMetadata(
-    parseConfig(SHIPPED_HARNESS_PLUGINS, {
+    parseConfig(buildStubHarnessPlugins(), {
       agents: {
         claude: {},
         grok: {},
@@ -33,7 +33,7 @@ test('it labels a configured gateway by its configured label', () => {
 
 test('it labels a gateway without a label by its id', () => {
   const meta = resolveAgentMetadata(
-    parseConfig(SHIPPED_HARNESS_PLUGINS, {
+    parseConfig(buildStubHarnessPlugins(), {
       agents: {
         claude: {},
         grok: {},
@@ -52,7 +52,7 @@ test('it labels a gateway without a label by its id', () => {
 
 test('it lets the agents.list answer win over the config label', () => {
   const meta = resolveAgentMetadata(
-    parseConfig(SHIPPED_HARNESS_PLUGINS, {
+    parseConfig(buildStubHarnessPlugins(), {
       agents: {
         claude: {},
         grok: {},
@@ -71,7 +71,7 @@ test('it lets the agents.list answer win over the config label', () => {
 
 test('it keeps the config label when the answer entry carries none', () => {
   const meta = resolveAgentMetadata(
-    parseConfig(SHIPPED_HARNESS_PLUGINS, {
+    parseConfig(buildStubHarnessPlugins(), {
       agents: {
         claude: {},
         grok: {},
@@ -89,7 +89,7 @@ test('it keeps the config label when the answer entry carries none', () => {
 });
 
 test('it reads an agents.list model alias map', () => {
-  const meta = resolveAgentMetadata(parseConfig(SHIPPED_HARNESS_PLUGINS, {}), {
+  const meta = resolveAgentMetadata(parseConfig(buildStubHarnessPlugins(), {}), {
     agents: [{ id: 'zai', models: { opus: 'glm-5.3' } }],
   });
 
@@ -100,7 +100,7 @@ test('it reads an agents.list model alias map', () => {
 });
 
 test('it keeps the non-string values of an agents.list model map out', () => {
-  const meta = resolveAgentMetadata(parseConfig(SHIPPED_HARNESS_PLUGINS, {}), {
+  const meta = resolveAgentMetadata(parseConfig(buildStubHarnessPlugins(), {}), {
     agents: [{ id: 'zai', models: { opus: 7, sonnet: 'glm-5.2' } }],
   });
 
@@ -111,7 +111,7 @@ test('it keeps the non-string values of an agents.list model map out', () => {
 });
 
 test('it reports no model map for an agent whose answer entry has none', () => {
-  const meta = resolveAgentMetadata(parseConfig(SHIPPED_HARNESS_PLUGINS, {}), {
+  const meta = resolveAgentMetadata(parseConfig(buildStubHarnessPlugins(), {}), {
     agents: [{ id: 'claude' }],
   });
 
@@ -123,7 +123,7 @@ test('it reports no model map for an agent whose answer entry has none', () => {
 
 test('it falls back to the config alone when the answer holds no agents array', () => {
   const meta = resolveAgentMetadata(
-    parseConfig(SHIPPED_HARNESS_PLUGINS, {
+    parseConfig(buildStubHarnessPlugins(), {
       agents: {
         claude: {},
         grok: {},
@@ -141,7 +141,7 @@ test('it falls back to the config alone when the answer holds no agents array', 
 });
 
 test('it leaves a __proto__ agent id out instead of changing the prototype', () => {
-  const meta = resolveAgentMetadata(parseConfig(SHIPPED_HARNESS_PLUGINS, {}), {
+  const meta = resolveAgentMetadata(parseConfig(buildStubHarnessPlugins(), {}), {
     agents: [{ id: '__proto__', label: 'Sneaky', models: { opus: 'sneaky-model' } }],
   });
 
@@ -157,7 +157,7 @@ test('it leaves a __proto__ agent id out instead of changing the prototype', () 
 test('it leaves a __proto__ model alias out of the map', () => {
   const models: unknown = JSON.parse('{"opus":"glm-5.3","__proto__":"sneaky-model"}');
 
-  const meta = resolveAgentMetadata(parseConfig(SHIPPED_HARNESS_PLUGINS, {}), {
+  const meta = resolveAgentMetadata(parseConfig(buildStubHarnessPlugins(), {}), {
     agents: [{ id: 'zai', models }],
   });
 
@@ -168,7 +168,7 @@ test('it leaves a __proto__ model alias out of the map', () => {
 });
 
 test('it keeps an agent with the id constructor as an entry of its own', () => {
-  const meta = resolveAgentMetadata(parseConfig(SHIPPED_HARNESS_PLUGINS, {}), {
+  const meta = resolveAgentMetadata(parseConfig(buildStubHarnessPlugins(), {}), {
     agents: [{ id: 'constructor', label: 'Ctor', models: { opus: 'ctor-model' } }],
   });
 
