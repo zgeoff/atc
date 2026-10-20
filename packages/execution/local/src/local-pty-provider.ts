@@ -143,20 +143,22 @@ export class LocalPTYProvider implements ExecutionProvider {
 
   // Options the host passes to GNU tar through `TAR_OPTIONS` are ignored,
   // since one could leave tracked files out of the unpacked checkout.
-  readonly transferArchive = async (archive: Uint8Array, dir: string): Promise<void> => {
-    await mkdir(dir, { recursive: true });
+  readonly transferArchive = async (archive: Uint8Array, directory: string): Promise<void> => {
+    await mkdir(directory, { recursive: true });
 
     const { TAR_OPTIONS: _ignored, ...env } = process.env;
 
     const result = await this.runCommandWithInput(
-      ['tar', '-x', '-f', '-', '-C', dir],
-      dir,
+      ['tar', '-x', '-f', '-', '-C', directory],
+      directory,
       archive,
       env,
     );
 
     if (result.exitCode !== 0) {
-      throw new Error(`tar exited ${result.exitCode} unpacking into ${dir}: ${result.stderr}`);
+      throw new Error(
+        `tar exited ${result.exitCode} unpacking into ${directory}: ${result.stderr}`,
+      );
     }
   };
 
@@ -183,7 +185,7 @@ export class LocalPTYProvider implements ExecutionProvider {
     input: Uint8Array | null,
     env?: Readonly<Record<string, string | undefined>>,
   ): Promise<CommandResult> {
-    const proc = Bun.spawn([...argv], {
+    const subprocess = Bun.spawn([...argv], {
       cwd,
       ...(env === undefined ? {} : { env: { ...env } }),
       stdin: input ?? 'ignore',
@@ -192,9 +194,9 @@ export class LocalPTYProvider implements ExecutionProvider {
     });
 
     const [stdout, stderr, exitCode] = await Promise.all([
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text(),
-      proc.exited,
+      new Response(subprocess.stdout).text(),
+      new Response(subprocess.stderr).text(),
+      subprocess.exited,
     ]);
 
     return { exitCode, stdout, stderr };

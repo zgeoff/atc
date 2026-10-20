@@ -45,11 +45,11 @@ export function collectCodexAuth(
     return { profiles: null, errors: [`auth: ${resolution.problem.message}`] };
   }
 
-  const secret = resolution.resolved.secrets.find((s) =>
-    s.rules.some((rule) => rule.host === CHATGPT_HOST),
+  const secret = resolution.resolved.secrets.find((candidate) =>
+    candidate.rules.some((rule) => rule.host === CHATGPT_HOST),
   );
 
-  const rule = secret?.rules.find((r) => r.host === CHATGPT_HOST);
+  const rule = secret?.rules.find((candidate) => candidate.host === CHATGPT_HOST);
 
   if (secret?.kind !== 'oauth' || rule?.header !== 'authorization' || rule.scheme !== 'bearer') {
     return {

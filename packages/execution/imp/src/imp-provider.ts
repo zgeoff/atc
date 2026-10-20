@@ -146,13 +146,13 @@ export class ImpProvider implements ExecutionProvider {
     this.reconnectDelaysMs = options.reconnectDelaysMs ?? RECONNECT_DELAYS_MS;
 
     const atcBinary = options.atcBinary === undefined ? findOwnLinuxBinary() : options.atcBinary;
-    const dir = target.guestDir ?? GUEST_DIR;
+    const directory = target.guestDir ?? GUEST_DIR;
 
     // Hooks always run `bin/atc`, since a session's hooks are planned before
     // its imp is readied and the readying decides what that path holds.
     this.guest = {
-      directory: dir,
-      atc: target.guestATC === undefined && atcBinary === null ? null : `${dir}/bin/atc`,
+      directory,
+      atc: target.guestATC === undefined && atcBinary === null ? null : `${directory}/bin/atc`,
     };
 
     this.guestATC = new ImpGuestATC({
@@ -355,7 +355,7 @@ export class ImpProvider implements ExecutionProvider {
     );
   };
 
-  readonly transferArchive = async (archive: Uint8Array, dir: string, host?: string) => {
+  readonly transferArchive = async (archive: Uint8Array, directory: string, host?: string) => {
     // The archive crosses the network, so it goes gzipped: imp-base ships gzip and
     // no faster decompressor, and nothing falls back to an uncompressed upload.
     const compressed = await gzipAsync(archive, { level: GZIP_LEVEL });
@@ -364,18 +364,18 @@ export class ImpProvider implements ExecutionProvider {
     // root, and root's tar keeps those owners, which git there then refuses
     // as dubious ownership, so the unpacked files take the guest user's owner.
     const result = await this.runOnHost(host, {
-      argv: ['sh', '-c', UNPACK_SCRIPT, 'sh', dir, String(NO_GZIP_CODE)],
+      argv: ['sh', '-c', UNPACK_SCRIPT, 'sh', directory, String(NO_GZIP_CODE)],
       stdin: compressed,
     });
 
     if (result.code === NO_GZIP_CODE) {
       throw new Error(
-        `imp ${this.getImpName(host ?? '')} has no gzip, which unpacking the archive into ${dir} needs; install gzip in its image`,
+        `imp ${this.getImpName(host ?? '')} has no gzip, which unpacking the archive into ${directory} needs; install gzip in its image`,
       );
     }
 
     if (result.code !== 0) {
-      throw new Error(`tar exited ${result.code ?? 'by a signal'} unpacking into ${dir}`);
+      throw new Error(`tar exited ${result.code ?? 'by a signal'} unpacking into ${directory}`);
     }
   };
 

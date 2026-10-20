@@ -255,8 +255,8 @@ export class ClaudeAdapter implements AgentAdapter {
   }
 
   // Claude keeps no state across a session's hook lines.
-  planHookEvents(e: HookEvent): HookPlan {
-    return { events: [buildClaudeHookEvent(e)] };
+  planHookEvents(hookEvent: HookEvent): HookPlan {
+    return { events: [buildClaudeHookEvent(hookEvent)] };
   }
 
   // the generated settings file sits on the daemon's machine, so it travels only for an entry
@@ -288,7 +288,7 @@ export class ClaudeAdapter implements AgentAdapter {
 
   private planSubscriptionGuestSpawn(
     opts: SpawnOptions,
-    dir: string,
+    directory: string,
     auth: NonNullable<GuestPaths['auth']>,
     argv: readonly string[],
   ): GuestSpawnPlan {
@@ -304,7 +304,7 @@ export class ClaudeAdapter implements AgentAdapter {
     const settingsPath = `${revisionFolder}/settings.json`;
     const mcpServers = this.entry.mcpServers ?? [];
     const mcpPath = `${revisionFolder}/mcp.json`;
-    const mcpArgs = mcpServers.length === 0 ? [] : ['--mcp-config', `${dir}/${mcpPath}`];
+    const mcpArgs = mcpServers.length === 0 ? [] : ['--mcp-config', `${directory}/${mcpPath}`];
     const bundleKey = randomUUID();
 
     // when the profiles send a ChatGPT sign-in too, the Codex CLI the session runs as a tool signs
@@ -312,7 +312,7 @@ export class ClaudeAdapter implements AgentAdapter {
     const codexHome = planCodexHome(
       this.authProfiles,
       this.entry.auth?.profiles ?? [],
-      dir,
+      directory,
       revisionFolder,
       auth.oauth ?? {},
     );
@@ -320,14 +320,14 @@ export class ClaudeAdapter implements AgentAdapter {
     // the configured arguments drop their permission mode, so the mode the session's own user
     // settings set applies
     const launch = buildClaudeGuestLaunch(
-      dir,
+      directory,
       [
         this.entry.bin,
         ...buildClaudeArgs(buildArgsWithoutFlags(this.entry.args, ['--permission-mode']), opts, {
           leadArgs: mcpArgs,
-          scratch: `${dir}/${SESSION_SCRATCH_FOLDER}`,
-          settings: `${dir}/${settingsPath}`,
-          pluginDir: `${dir}/atc-bridge`,
+          scratch: `${directory}/${SESSION_SCRATCH_FOLDER}`,
+          settings: `${directory}/${settingsPath}`,
+          pluginDir: `${directory}/atc-bridge`,
           pluginDirs: [],
         }),
       ],

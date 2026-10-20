@@ -6,15 +6,15 @@ import invariant from 'tiny-invariant';
 import { buildScratchLaunch } from './build-scratch-launch';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-scratch-launch-');
+  const temporaryDirectory = setupTempDir('atc-scratch-launch-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it creates the scratch folder, readable by its owner alone, and runs the CLI with its own arguments', async () => {
   const ctx = setupTest();
-  const scratch = join(ctx.dir, 'scratch');
-  const out = join(ctx.dir, 'argv.txt');
+  const scratch = join(ctx.directory, 'scratch');
+  const out = join(ctx.directory, 'argv.txt');
 
   const launch = buildScratchLaunch(scratch, [
     'sh',
@@ -33,7 +33,7 @@ test('it creates the scratch folder, readable by its owner alone, and runs the C
 
 test('it takes an existing scratch folder back to its owner alone', async () => {
   const ctx = setupTest();
-  const scratch = join(ctx.dir, 'scratch');
+  const scratch = join(ctx.directory, 'scratch');
   const launch = buildScratchLaunch(scratch, ['true']);
 
   mkdirSync(scratch);

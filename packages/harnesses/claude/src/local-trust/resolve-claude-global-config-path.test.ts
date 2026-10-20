@@ -6,9 +6,9 @@ import { resolveClaudeGlobalConfigPath } from './resolve-claude-global-config-pa
 
 // The folder that stands in for the user's home or the Claude config folder.
 function setupTest() {
-  const tmp = setupTempDir('atc-claude-config-path-');
+  const temporaryDirectory = setupTempDir('atc-claude-config-path-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it resolves the config in the home directory when no config folder is set', () => {
@@ -16,34 +16,36 @@ test('it resolves the config in the home directory when no config folder is set'
 
   updateEnv('CLAUDE_CONFIG_DIR', undefined);
 
-  expect(resolveClaudeGlobalConfigPath(ctx.dir)).toBe(join(ctx.dir, '.claude.json'));
+  expect(resolveClaudeGlobalConfigPath(ctx.directory)).toBe(join(ctx.directory, '.claude.json'));
 });
 
 test('it resolves the config in the home directory when the home config folder holds a legacy config', () => {
   const ctx = setupTest();
 
   updateEnv('CLAUDE_CONFIG_DIR', undefined);
-  mkdirSync(join(ctx.dir, '.claude'));
-  writeFileSync(join(ctx.dir, '.claude', '.config.json'), '{}');
+  mkdirSync(join(ctx.directory, '.claude'));
+  writeFileSync(join(ctx.directory, '.claude', '.config.json'), '{}');
 
-  expect(resolveClaudeGlobalConfigPath(ctx.dir)).toBe(join(ctx.dir, '.claude.json'));
+  expect(resolveClaudeGlobalConfigPath(ctx.directory)).toBe(join(ctx.directory, '.claude.json'));
 });
 
 test('it resolves the config inside the config folder the environment sets', () => {
   const ctx = setupTest();
 
-  updateEnv('CLAUDE_CONFIG_DIR', join(ctx.dir, 'config'));
+  updateEnv('CLAUDE_CONFIG_DIR', join(ctx.directory, 'config'));
 
-  expect(resolveClaudeGlobalConfigPath(join(ctx.dir, 'home'))).toBe(
-    join(ctx.dir, 'config', '.claude.json'),
+  expect(resolveClaudeGlobalConfigPath(join(ctx.directory, 'home'))).toBe(
+    join(ctx.directory, 'config', '.claude.json'),
   );
 });
 
 test('it resolves the config inside the config folder the environment sets when that folder holds a legacy config', () => {
   const ctx = setupTest();
 
-  updateEnv('CLAUDE_CONFIG_DIR', ctx.dir);
-  writeFileSync(join(ctx.dir, '.config.json'), '{}');
+  updateEnv('CLAUDE_CONFIG_DIR', ctx.directory);
+  writeFileSync(join(ctx.directory, '.config.json'), '{}');
 
-  expect(resolveClaudeGlobalConfigPath(join(ctx.dir, 'home'))).toBe(join(ctx.dir, '.claude.json'));
+  expect(resolveClaudeGlobalConfigPath(join(ctx.directory, 'home'))).toBe(
+    join(ctx.directory, '.claude.json'),
+  );
 });

@@ -16,12 +16,12 @@ export async function loadClaudeName(
 
   try {
     // the transcript can run to many megabytes, so grep picks the two line types out of it
-    const proc = Bun.spawn(['grep', '-E', '"type":"(custom-title|summary)"', source], {
+    const subprocess = Bun.spawn(['grep', '-E', '"type":"(custom-title|summary)"', source], {
       stdout: 'pipe',
       stderr: 'ignore',
     });
 
-    text = await new Response(proc.stdout).text();
+    text = await new Response(subprocess.stdout).text();
   } catch {
     return null;
   }

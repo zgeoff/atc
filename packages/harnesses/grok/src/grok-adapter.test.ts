@@ -9,9 +9,9 @@ import { GROK_PLUGIN } from './grok-plugin';
 
 // A Grok home of the test's own, where the adapter looks for session summaries.
 function setupTest() {
-  const tmp = setupTempDir('atc-grok-home-');
+  const temporaryDirectory = setupTempDir('atc-grok-home-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it plans a new spawn without resume or -p and appends --no-leader', () => {
@@ -78,7 +78,10 @@ test('it yanks an uncaptured session as plain grok', () => {
 test('it plans hook events from the state the previous line left, naming sessions in its own home', () => {
   const ctx = setupTest();
 
-  const adapter = new GrokAdapter(getAgentEntry(parseConfig([GROK_PLUGIN], {}), 'grok'), ctx.dir);
+  const adapter = new GrokAdapter(
+    getAgentEntry(parseConfig([GROK_PLUGIN], {}), 'grok'),
+    ctx.directory,
+  );
 
   const plan = adapter.planHookEvents(
     {
@@ -94,7 +97,7 @@ test('it plans hook events from the state the previous line left, naming session
       {
         kind: 'turn-done',
         agentSessionID: toAgentSessionID('g1'),
-        nameSource: join(ctx.dir, 'sessions', '%2Ftmp', 'g1', 'summary.json'),
+        nameSource: join(ctx.directory, 'sessions', '%2Ftmp', 'g1', 'summary.json'),
       },
     ],
     next: { lastKind: 'turn-done', latestPromptID: 'p1' },
@@ -103,13 +106,13 @@ test('it plans hook events from the state the previous line left, naming session
 
 test('it loads a name from the summary of a session in its own home', async () => {
   const ctx = setupTest();
-  const file = join(ctx.dir, 'summary.json');
+  const file = join(ctx.directory, 'summary.json');
 
   writeFileSync(file, JSON.stringify({ generated_title: 'auto title' }));
 
   const update = await new GrokAdapter(
     getAgentEntry(parseConfig([GROK_PLUGIN], {}), 'grok'),
-    ctx.dir,
+    ctx.directory,
   ).loadName(file, 'auto');
 
   expect(update).toStrictEqual({ name: 'auto title' });

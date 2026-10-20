@@ -16,7 +16,7 @@ export async function readThreadTurns(
   thread: string | null,
   unsettled: readonly UnsettledMessage[],
 ): Promise<AppServerTurn[]> {
-  const open = new Set(unsettled.map((m) => m.id));
+  const open = new Set(unsettled.map((message) => message.id));
 
   const turns: AppServerTurn[] = [];
   let cursor: string | null = null;

@@ -54,7 +54,7 @@ export async function answerToolCall(answer: ToolCallAnswer): Promise<void> {
   if (call.data.tool === 'note') {
     const label = typeof args['label'] === 'string' ? args['label'] : 'progress';
 
-    if (!NOTE_LABELS.some((l) => l === label)) {
+    if (!NOTE_LABELS.some((candidate) => candidate === label)) {
       sendRefusal(`note label must be ${NOTE_LABELS.join(', ')}`);
 
       return;

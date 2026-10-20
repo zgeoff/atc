@@ -44,7 +44,9 @@ export function parseClaudeTranscriptLine(line: string): TranscriptRow | null {
 
   const tools = blocks.flatMap((block) =>
     match(block)
-      .with({ type: 'tool_use' }, (b) => [{ name: b.name, input: formatToolInput(b.input) }])
+      .with({ type: 'tool_use' }, (toolUse) => [
+        { name: toolUse.name, input: formatToolInput(toolUse.input) },
+      ])
       .with({ type: 'text' }, () => [])
       .exhaustive(),
   );
@@ -98,7 +100,7 @@ function formatToolInput(input: unknown): string {
   }
 
   const fields = parsed.data;
-  const key = TOOL_INPUT_KEYS.find((k) => typeof fields[k] === 'string');
+  const key = TOOL_INPUT_KEYS.find((candidate) => typeof fields[candidate] === 'string');
   const summary = key === undefined ? JSON.stringify(fields) : String(fields[key]);
 
   return truncate(summary, 200);

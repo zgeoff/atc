@@ -9,14 +9,14 @@ import type { HookSettingsProfile } from './build-hook-settings';
 export function writeHookSettings(
   profile: HookSettingsProfile,
   cliArgv: readonly string[],
-  dir: string = stateDir,
+  directory: string = stateDir,
   homeDir?: string,
 ): string {
-  const file = join(dir, `hook-settings-${profile.id}.json`);
+  const file = join(directory, `hook-settings-${profile.id}.json`);
   const padding = loadClaudeStatusLine(homeDir).padding ?? 0;
   const settings = buildHookSettings(profile, padding, cliArgv);
 
-  mkdirSync(dir, { recursive: true });
+  mkdirSync(directory, { recursive: true });
   writeFileSync(file, JSON.stringify(settings, null, 2));
 
   return file;

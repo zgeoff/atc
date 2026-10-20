@@ -43,8 +43,8 @@ export class AppServerConnection {
   private constructor(ws: WebSocket) {
     this.ws = ws;
 
-    ws.addEventListener('message', (e) => {
-      this.applyLine(String(e.data));
+    ws.addEventListener('message', (messageEvent) => {
+      this.applyLine(String(messageEvent.data));
     });
 
     ws.addEventListener('close', () => {
@@ -133,32 +133,32 @@ export class AppServerConnection {
       return;
     }
 
-    const msg = parsed.data;
+    const message = parsed.data;
 
-    if (msg.method !== undefined && msg.id !== undefined) {
-      this.onRequest({ id: msg.id, method: msg.method, params: msg.params });
-
-      return;
-    }
-
-    if (msg.method !== undefined) {
-      this.onNotification({ method: msg.method, params: msg.params });
+    if (message.method !== undefined && message.id !== undefined) {
+      this.onRequest({ id: message.id, method: message.method, params: message.params });
 
       return;
     }
 
-    if (typeof msg.id !== 'number') {
+    if (message.method !== undefined) {
+      this.onNotification({ method: message.method, params: message.params });
+
       return;
     }
 
-    const entry = this.waiting.get(msg.id);
+    if (typeof message.id !== 'number') {
+      return;
+    }
 
-    this.waiting.delete(msg.id);
+    const entry = this.waiting.get(message.id);
 
-    if (msg.error === undefined) {
-      entry?.resolve(msg.result);
+    this.waiting.delete(message.id);
+
+    if (message.error === undefined) {
+      entry?.resolve(message.result);
     } else {
-      entry?.reject(new AppServerError(msg.error.code, msg.error.message));
+      entry?.reject(new AppServerError(message.error.code, message.error.message));
     }
   }
 }

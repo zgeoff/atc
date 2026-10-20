@@ -5,9 +5,9 @@ import { runCommand, setupTempDir } from '@atc/test-utils';
 import { buildHomeRelativeCommand } from './build-home-relative-command';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-home-relative-command-');
+  const temporaryDirectory = setupTempDir('atc-home-relative-command-');
 
-  return { home: realpathSync(tmp.path) };
+  return { home: realpathSync(temporaryDirectory.path) };
 }
 
 test('it passes a command with an absolute directory through as it stands', () => {

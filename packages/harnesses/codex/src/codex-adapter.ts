@@ -302,8 +302,8 @@ export class CodexAdapter implements AgentAdapter {
     return found?.secret ?? null;
   }
 
-  planHookEvents(e: HookEvent, prev: unknown): HookPlan {
-    return planCodexHookEvents(e, prev);
+  planHookEvents(hookEvent: HookEvent, previous: unknown): HookPlan {
+    return planCodexHookEvents(hookEvent, previous);
   }
 
   // Codex records session titles in the session index of its home.

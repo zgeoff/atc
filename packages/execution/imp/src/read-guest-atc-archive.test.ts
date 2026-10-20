@@ -6,14 +6,14 @@ import { setupTempDir } from '@atc/test-utils';
 import { readGuestATCArchive } from './read-guest-atc-archive';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-guest-atc-archive-');
+  const temporaryDirectory = setupTempDir('atc-guest-atc-archive-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it reads a gzipped tar that holds the binary as an executable bin/atc', async () => {
   const ctx = setupTest();
-  const atcBinary = join(ctx.dir, 'atc');
+  const atcBinary = join(ctx.directory, 'atc');
 
   await Bun.write(atcBinary, '#!/bin/sh\necho 1.0.0\n');
 
@@ -28,7 +28,7 @@ test('it reads a gzipped tar that holds the binary as an executable bin/atc', as
 
 test('it returns the bytes of the first read when the binary changes on disk', async () => {
   const ctx = setupTest();
-  const atcBinary = join(ctx.dir, 'atc');
+  const atcBinary = join(ctx.directory, 'atc');
 
   await Bun.write(atcBinary, '#!/bin/sh\necho 1.0.0\n');
 
@@ -43,7 +43,7 @@ test('it returns the bytes of the first read when the binary changes on disk', a
 
 test('it reads the binary again after a read that failed', async () => {
   const ctx = setupTest();
-  const atcBinary = join(ctx.dir, 'atc');
+  const atcBinary = join(ctx.directory, 'atc');
 
   await readGuestATCArchive(atcBinary).catch(() => null);
 
@@ -61,5 +61,5 @@ test('it reads the binary again after a read that failed', async () => {
 test('it rejects a read of a binary that does not exist', () => {
   const ctx = setupTest();
 
-  expect(readGuestATCArchive(join(ctx.dir, 'missing-atc'))).rejects.toThrow();
+  expect(readGuestATCArchive(join(ctx.directory, 'missing-atc'))).rejects.toThrow();
 });

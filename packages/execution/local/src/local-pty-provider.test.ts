@@ -14,13 +14,13 @@ import { LocalPTYProvider } from './local-pty-provider';
 import { SessionScopes } from './session-scopes';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-local-pty-');
+  const temporaryDirectory = setupTempDir('atc-local-pty-');
 
   const provider = new LocalPTYProvider();
 
   registerTestCleanup(() => provider.dispose());
 
-  return { dir: tmp.path, provider };
+  return { directory: temporaryDirectory.path, provider };
 }
 
 test('it runs a harness in a pseudo-terminal that echoes typed input back', async () => {
@@ -32,7 +32,7 @@ test('it runs a harness in a pseudo-terminal that echoes typed input back', asyn
     host: 's1',
     bin: 'bash',
     args: ['-c', 'echo READY; read -r line; echo "GOT:$line"; sleep 30'],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: { PATH: '/usr/bin:/bin' },
     cols: 80,
     rows: 24,
@@ -66,7 +66,7 @@ test('it gives the pid of the harness process the pseudo-terminal runs', async (
     host: 's1',
     bin: 'bash',
     args: ['-c', 'echo "PID:$$"; sleep 30'],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: { PATH: '/usr/bin:/bin' },
     cols: 80,
     rows: 24,
@@ -99,7 +99,7 @@ test('it starts a harness with TERM xterm-256color when the daemon has no TERM',
     host: 's1',
     bin: 'bash',
     args: ['-c', 'echo "TERM:[$TERM]"; sleep 30'],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: { PATH: '/usr/bin:/bin' },
     cols: 80,
     rows: 24,
@@ -135,7 +135,7 @@ test.each([
     host: 's1',
     bin: 'bash',
     args: ['-c', 'echo "TERM:[$TERM]"; sleep 30'],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: { PATH: '/usr/bin:/bin' },
     cols: 80,
     rows: 24,
@@ -166,7 +166,7 @@ test('it keeps a TERM the caller sets for the harness over a dumb daemon TERM', 
     host: 's1',
     bin: 'bash',
     args: ['-c', 'echo "TERM:[$TERM]"; sleep 30'],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: { PATH: '/usr/bin:/bin', TERM: 'tmux-256color' },
     cols: 80,
     rows: 24,
@@ -198,7 +198,7 @@ test('it keeps a withheld variable out of a harness it gives a TERM', async () =
     host: 's1',
     bin: 'bash',
     args: ['-c', 'echo "ENV:[$TERM|$ATC_TEST_WITHHELD]"; sleep 30'],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: { PATH: '/usr/bin:/bin' },
     withheldEnv: ['ATC_TEST_WITHHELD'],
     cols: 80,
@@ -227,7 +227,7 @@ test('it reports the exit of a killed harness', async () => {
     host: 's1',
     bin: 'sleep',
     args: ['30'],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: { PATH: '/usr/bin:/bin' },
     cols: 80,
     rows: 24,
@@ -254,7 +254,7 @@ test('it confirms the exit of a killed harness once its process is gone', async 
     host: 's1',
     bin: 'sleep',
     args: ['30'],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: { PATH: '/usr/bin:/bin' },
     cols: 80,
     rows: 24,
@@ -279,7 +279,7 @@ test('it ends a harness it lets go of, since the daemon machine keeps no detache
     host: 's1',
     bin: 'sleep',
     args: ['30'],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: { PATH: '/usr/bin:/bin' },
     cols: 80,
     rows: 24,
@@ -308,9 +308,9 @@ test('it reports no exit for a killed harness whose process ignores the kill', a
     args: [
       '-c',
       `trap 'echo hup > "$0"' HUP; echo "PID:$$:"; while :; do sleep 1 & wait $!; done`,
-      join(ctx.dir, 'hup'),
+      join(ctx.directory, 'hup'),
     ],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: { PATH: '/usr/bin:/bin' },
     cols: 80,
     rows: 24,
@@ -337,7 +337,7 @@ test('it reports no exit for a killed harness whose process ignores the kill', a
   harness.kill();
 
   await waitFor(() => {
-    expect(readFileSync(join(ctx.dir, 'hup'), 'utf8')).toBe('hup\n');
+    expect(readFileSync(join(ctx.directory, 'hup'), 'utf8')).toBe('hup\n');
   });
 
   const exited = await harness.waitForExit(0);
@@ -357,9 +357,9 @@ test('it ends a harness that ignores its kill with a forced kill', async () => {
     args: [
       '-c',
       `trap 'echo hup > "$0"' HUP; echo READY; while :; do sleep 1 & wait $!; done`,
-      join(ctx.dir, 'hup'),
+      join(ctx.directory, 'hup'),
     ],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: { PATH: '/usr/bin:/bin' },
     cols: 80,
     rows: 24,
@@ -382,7 +382,7 @@ test('it ends a harness that ignores its kill with a forced kill', async () => {
   harness.kill();
 
   await waitFor(() => {
-    expect(readFileSync(join(ctx.dir, 'hup'), 'utf8')).toBe('hup\n');
+    expect(readFileSync(join(ctx.directory, 'hup'), 'utf8')).toBe('hup\n');
   });
 
   harness.killForced?.();
@@ -401,7 +401,7 @@ test('it resizes the terminal a running harness reads its size from', async () =
     host: 's1',
     bin: 'bash',
     args: ['-c', 'echo READY; read -r line; echo "SIZE:$(stty size)"; sleep 30'],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: { PATH: '/usr/bin:/bin' },
     cols: 80,
     rows: 24,
@@ -429,7 +429,7 @@ test('it resizes the terminal a running harness reads its size from', async () =
 
 test('it unpacks a tar archive into a directory it creates', async () => {
   const ctx = setupTest();
-  const source = join(ctx.dir, 'source');
+  const source = join(ctx.directory, 'source');
 
   mkdirSync(join(source, 'nested'), { recursive: true });
   writeFileSync(join(source, 'nested', 'file.txt'), 'packed contents');
@@ -444,9 +444,9 @@ test('it unpacks a tar archive into a directory it creates', async () => {
 
   const [archive] = await Promise.all([new Response(tar.stdout).bytes(), tar.exited]);
 
-  await ctx.provider.transferArchive(archive, join(ctx.dir, 'dest', 'deeper'));
+  await ctx.provider.transferArchive(archive, join(ctx.directory, 'dest', 'deeper'));
 
-  expect(readFileSync(join(ctx.dir, 'dest', 'deeper', 'nested', 'file.txt'), 'utf8')).toBe(
+  expect(readFileSync(join(ctx.directory, 'dest', 'deeper', 'nested', 'file.txt'), 'utf8')).toBe(
     'packed contents',
   );
 });
@@ -456,7 +456,7 @@ test('it rejects an archive tar cannot read', () => {
 
   const transfer = ctx.provider.transferArchive(
     new TextEncoder().encode('not a tar archive'),
-    join(ctx.dir, 'dest'),
+    join(ctx.directory, 'dest'),
   );
 
   expect(transfer).rejects.toThrow(/tar exited/u);
@@ -467,10 +467,10 @@ test('it runs a command in a directory and returns its exit code and output', as
 
   const result = await ctx.provider.runCommand({
     argv: ['bash', '-c', 'pwd; echo oops >&2; exit 3'],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
   });
 
-  expect(result).toStrictEqual({ exitCode: 3, stdout: `${ctx.dir}\n`, stderr: 'oops\n' });
+  expect(result).toStrictEqual({ exitCode: 3, stdout: `${ctx.directory}\n`, stderr: 'oops\n' });
 });
 
 test('it refuses to start a harness that requires a credential broker, which it has none of', () => {
@@ -482,7 +482,7 @@ test('it refuses to start a harness that requires a credential broker, which it 
       host: 's1',
       bin: 'true',
       args: [],
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       env: {},
       cols: 80,
       rows: 24,
@@ -519,11 +519,11 @@ harness.kill();
 console.log(output);
 `;
 
-  const proc = Bun.spawn([process.execPath, '-e', inner], {
-    cwd: ctx.dir,
+  const subprocess = Bun.spawn([process.execPath, '-e', inner], {
+    cwd: ctx.directory,
     env: {
       PATH: '/usr/bin:/bin',
-      HOME: ctx.dir,
+      HOME: ctx.directory,
       ATC_TEST_KEPT: 'synthetic',
       ATC_TEST_WITHHELD: 'synthetic',
       ATC_TEST_DELETED: 'synthetic',
@@ -534,10 +534,13 @@ console.log(output);
   });
 
   registerTestCleanup(() => {
-    proc.kill('SIGKILL');
+    subprocess.kill('SIGKILL');
   });
 
-  const [stdout, exitCode] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
+  const [stdout, exitCode] = await Promise.all([
+    new Response(subprocess.stdout).text(),
+    subprocess.exited,
+  ]);
 
   expect(exitCode).toBe(0);
   expect(stdout).toInclude('KEPT:[synthetic] WITHHELD:[] DELETED:[] PARENT:[]');
@@ -552,7 +555,7 @@ test('it fails the spawn of a program the harness PATH does not hold', () => {
       host: 's1',
       bin: 'atc-test-no-such-program',
       args: [],
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       env: { PATH: '/usr/bin:/bin' },
       cols: 80,
       rows: 24,
@@ -563,20 +566,24 @@ test('it fails the spawn of a program the harness PATH does not hold', () => {
 test('it runs a harness whose program path holds an equals sign', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.dir, 'agent=dir'));
+  mkdirSync(join(ctx.directory, 'agent=dir'));
 
-  writeFileSync(join(ctx.dir, 'agent=dir', 'agent'), '#!/bin/sh\necho "RAN:[$1]"\nsleep 30\n', {
-    mode: 0o755,
-  });
+  writeFileSync(
+    join(ctx.directory, 'agent=dir', 'agent'),
+    '#!/bin/sh\necho "RAN:[$1]"\nsleep 30\n',
+    {
+      mode: 0o755,
+    },
+  );
 
   const output: string[] = [];
 
   const harness = ctx.provider.spawnHarness({
     session: 's1',
     host: 's1',
-    bin: join(ctx.dir, 'agent=dir', 'agent'),
+    bin: join(ctx.directory, 'agent=dir', 'agent'),
     args: ['first arg'],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: { PATH: '/usr/bin:/bin' },
     cols: 80,
     rows: 24,
@@ -618,7 +625,7 @@ test('it starts a harness in a scope of its own bound to the daemon service', as
     host: 's1',
     bin: 'bash',
     args: ['-c', 'echo READY; sleep 30'],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: { PATH: '/usr/bin:/bin' },
     cols: 80,
     rows: 24,
@@ -661,7 +668,7 @@ test('it stops the scope of each harness it started as it is disposed', async ()
     host: 's1',
     bin: 'sleep',
     args: ['30'],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: { PATH: '/usr/bin:/bin' },
     cols: 80,
     rows: 24,

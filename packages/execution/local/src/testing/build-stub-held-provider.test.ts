@@ -4,9 +4,9 @@ import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { buildStubHeldProvider } from './build-stub-held-provider';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-held-provider-');
+  const temporaryDirectory = setupTempDir('atc-stub-held-provider-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it records the host of each preparation in the order it began', () => {
@@ -47,7 +47,7 @@ test('it records each harness it starts', () => {
     host: 's1',
     bin: 'true',
     args: [],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: {},
     cols: 80,
     rows: 24,

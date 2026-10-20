@@ -7,19 +7,19 @@ import { buildClaudeGuestLaunch } from './build-claude-guest-launch';
 
 // The guest folder a launch stages its bundle under and runs in.
 function setupTest() {
-  const tmp = setupTempDir('atc-claude-launch-');
+  const temporaryDirectory = setupTempDir('atc-claude-launch-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test("it replaces the config folder's bundle with the one each launch stages", async () => {
   const ctx = setupTest();
-  const first = buildClaudeGuestLaunch(ctx.dir, ['true'], [], 'k1');
-  const second = buildClaudeGuestLaunch(ctx.dir, ['true'], [], 'k2');
-  const config = join(ctx.dir, 'claude-config');
-  const staged = join(ctx.dir, 'claude-config-bundle');
+  const first = buildClaudeGuestLaunch(ctx.directory, ['true'], [], 'k1');
+  const second = buildClaudeGuestLaunch(ctx.directory, ['true'], [], 'k2');
+  const config = join(ctx.directory, 'claude-config');
+  const staged = join(ctx.directory, 'claude-config-bundle');
 
-  writeFileSync(join(ctx.dir, 'claude-config-seed.json'), '{"hasCompletedOnboarding":true}');
+  writeFileSync(join(ctx.directory, 'claude-config-seed.json'), '{"hasCompletedOnboarding":true}');
   mkdirSync(join(staged, 'k1', 'skills', 'old-skill'), { recursive: true });
   writeFileSync(join(staged, 'k1', 'skills', 'old-skill', 'SKILL.md'), 'old');
   writeFileSync(join(staged, 'k1', 'settings.json'), '{"model":"opus"}');
@@ -50,11 +50,11 @@ test("it replaces the config folder's bundle with the one each launch stages", a
 
 test("it replaces the config folder's credentials file with the staged one and its mode", async () => {
   const ctx = setupTest();
-  const launch = buildClaudeGuestLaunch(ctx.dir, ['true'], [], 'k1');
-  const config = join(ctx.dir, 'claude-config');
-  const staged = join(ctx.dir, 'claude-config-bundle', 'k1');
+  const launch = buildClaudeGuestLaunch(ctx.directory, ['true'], [], 'k1');
+  const config = join(ctx.directory, 'claude-config');
+  const staged = join(ctx.directory, 'claude-config-bundle', 'k1');
 
-  writeFileSync(join(ctx.dir, 'claude-config-seed.json'), '{"hasCompletedOnboarding":true}');
+  writeFileSync(join(ctx.directory, 'claude-config-seed.json'), '{"hasCompletedOnboarding":true}');
   mkdirSync(config, { recursive: true });
   writeFileSync(join(config, '.credentials.json'), '{"written":"by the CLI"}', { mode: 0o644 });
   mkdirSync(staged, { recursive: true });
@@ -69,11 +69,11 @@ test("it replaces the config folder's credentials file with the staged one and i
 
 test('it never copies a bundle an earlier launch staged and left behind', async () => {
   const ctx = setupTest();
-  const launch = buildClaudeGuestLaunch(ctx.dir, ['true'], [], 'current');
-  const config = join(ctx.dir, 'claude-config');
-  const staged = join(ctx.dir, 'claude-config-bundle');
+  const launch = buildClaudeGuestLaunch(ctx.directory, ['true'], [], 'current');
+  const config = join(ctx.directory, 'claude-config');
+  const staged = join(ctx.directory, 'claude-config-bundle');
 
-  writeFileSync(join(ctx.dir, 'claude-config-seed.json'), '{"hasCompletedOnboarding":true}');
+  writeFileSync(join(ctx.directory, 'claude-config-seed.json'), '{"hasCompletedOnboarding":true}');
   mkdirSync(join(staged, 'failed', 'skills', 'removed-skill'), { recursive: true });
   writeFileSync(join(staged, 'failed', 'skills', 'removed-skill', 'SKILL.md'), 'removed');
   mkdirSync(join(staged, 'current', 'skills', 'kept-skill'), { recursive: true });
@@ -89,11 +89,11 @@ test('it never copies a bundle an earlier launch staged and left behind', async 
 
 test("it keeps the config folder's bundle when a launch stages none", async () => {
   const ctx = setupTest();
-  const launch = buildClaudeGuestLaunch(ctx.dir, ['true']);
-  const config = join(ctx.dir, 'claude-config');
+  const launch = buildClaudeGuestLaunch(ctx.directory, ['true']);
+  const config = join(ctx.directory, 'claude-config');
 
   writeFileSync(
-    join(ctx.dir, 'claude-config-seed.json'),
+    join(ctx.directory, 'claude-config-seed.json'),
     '{"hasCompletedOnboarding":true,"hasSeenAutoModeOutsideReadPrompt":true}',
   );
 
@@ -112,10 +112,10 @@ test("it keeps the config folder's bundle when a launch stages none", async () =
 
 test('it creates the scratch folder, readable by its owner alone, before the CLI runs', async () => {
   const ctx = setupTest();
-  const scratch = join(ctx.dir, 'scratch');
-  const launch = buildClaudeGuestLaunch(ctx.dir, ['test', '-d', scratch]);
+  const scratch = join(ctx.directory, 'scratch');
+  const launch = buildClaudeGuestLaunch(ctx.directory, ['test', '-d', scratch]);
 
-  writeFileSync(join(ctx.dir, 'claude-config-seed.json'), '{}');
+  writeFileSync(join(ctx.directory, 'claude-config-seed.json'), '{}');
 
   const run = await runCommand([launch.bin, ...launch.args]);
 
@@ -125,10 +125,10 @@ test('it creates the scratch folder, readable by its owner alone, before the CLI
 
 test('it takes an existing scratch folder back to its owner alone', async () => {
   const ctx = setupTest();
-  const scratch = join(ctx.dir, 'scratch');
-  const launch = buildClaudeGuestLaunch(ctx.dir, ['true']);
+  const scratch = join(ctx.directory, 'scratch');
+  const launch = buildClaudeGuestLaunch(ctx.directory, ['true']);
 
-  writeFileSync(join(ctx.dir, 'claude-config-seed.json'), '{}');
+  writeFileSync(join(ctx.directory, 'claude-config-seed.json'), '{}');
   mkdirSync(scratch);
   chmodSync(scratch, 0o755);
 
@@ -140,10 +140,10 @@ test('it takes an existing scratch folder back to its owner alone', async () => 
 
 test('it starts the CLI with a warning when it cannot mark the outside-read offer seen', async () => {
   const ctx = setupTest();
-  const launch = buildClaudeGuestLaunch(ctx.dir, ['true']);
-  const config = join(ctx.dir, 'claude-config');
+  const launch = buildClaudeGuestLaunch(ctx.directory, ['true']);
+  const config = join(ctx.directory, 'claude-config');
 
-  writeFileSync(join(ctx.dir, 'claude-config-seed.json'), '{}');
+  writeFileSync(join(ctx.directory, 'claude-config-seed.json'), '{}');
   mkdirSync(config);
   writeFileSync(join(config, '.claude.json'), '\n{"numStartups":1}\n');
 
@@ -167,9 +167,9 @@ test('it gives the CLI the scratch folder as its temporary folder and the config
 
 test('it runs the CLI with its own arguments after the setup steps', async () => {
   const ctx = setupTest();
-  const out = join(ctx.dir, 'argv.txt');
+  const out = join(ctx.directory, 'argv.txt');
 
-  const launch = buildClaudeGuestLaunch(ctx.dir, [
+  const launch = buildClaudeGuestLaunch(ctx.directory, [
     'sh',
     '-c',
     String.raw`printf "%s\n" "$@" > "$0"`,
@@ -178,7 +178,7 @@ test('it runs the CLI with its own arguments after the setup steps', async () =>
     'a dir',
   ]);
 
-  writeFileSync(join(ctx.dir, 'claude-config-seed.json'), '{}');
+  writeFileSync(join(ctx.directory, 'claude-config-seed.json'), '{}');
 
   const run = await runCommand([launch.bin, ...launch.args]);
 
@@ -188,10 +188,10 @@ test('it runs the CLI with its own arguments after the setup steps', async () =>
 
 test('it runs the CLI without the variables it unsets', async () => {
   const ctx = setupTest();
-  const out = join(ctx.dir, 'env.txt');
+  const out = join(ctx.directory, 'env.txt');
 
   const launch = buildClaudeGuestLaunch(
-    ctx.dir,
+    ctx.directory,
     [
       'sh',
       '-c',
@@ -203,7 +203,7 @@ test('it runs the CLI without the variables it unsets', async () => {
     ['CODEX_API_KEY', 'OPENAI_API_KEY'],
   );
 
-  writeFileSync(join(ctx.dir, 'claude-config-seed.json'), '{}');
+  writeFileSync(join(ctx.directory, 'claude-config-seed.json'), '{}');
 
   const run = await runCommand([launch.bin, ...launch.args], {
     env: {
@@ -220,10 +220,10 @@ test('it runs the CLI without the variables it unsets', async () => {
 
 test("it adds the outside-read offer's seen mark to the config an earlier run left", async () => {
   const ctx = setupTest();
-  const launch = buildClaudeGuestLaunch(ctx.dir, ['true']);
-  const config = join(ctx.dir, 'claude-config');
+  const launch = buildClaudeGuestLaunch(ctx.directory, ['true']);
+  const config = join(ctx.directory, 'claude-config');
 
-  writeFileSync(join(ctx.dir, 'claude-config-seed.json'), '{}');
+  writeFileSync(join(ctx.directory, 'claude-config-seed.json'), '{}');
   mkdirSync(config);
 
   writeFileSync(
@@ -246,10 +246,10 @@ test("it adds the outside-read offer's seen mark to the config an earlier run le
 
 test('it turns a false outside-read offer mark true in the config an earlier run left', async () => {
   const ctx = setupTest();
-  const launch = buildClaudeGuestLaunch(ctx.dir, ['true']);
-  const config = join(ctx.dir, 'claude-config');
+  const launch = buildClaudeGuestLaunch(ctx.directory, ['true']);
+  const config = join(ctx.directory, 'claude-config');
 
-  writeFileSync(join(ctx.dir, 'claude-config-seed.json'), '{}');
+  writeFileSync(join(ctx.directory, 'claude-config-seed.json'), '{}');
   mkdirSync(config);
 
   writeFileSync(
@@ -268,10 +268,10 @@ test('it turns a false outside-read offer mark true in the config an earlier run
 
 test('it turns a false outside-read offer mark true when a space precedes its colon', async () => {
   const ctx = setupTest();
-  const launch = buildClaudeGuestLaunch(ctx.dir, ['true']);
-  const config = join(ctx.dir, 'claude-config');
+  const launch = buildClaudeGuestLaunch(ctx.directory, ['true']);
+  const config = join(ctx.directory, 'claude-config');
 
-  writeFileSync(join(ctx.dir, 'claude-config-seed.json'), '{}');
+  writeFileSync(join(ctx.directory, 'claude-config-seed.json'), '{}');
   mkdirSync(config);
   writeFileSync(join(config, '.claude.json'), '{"hasSeenAutoModeOutsideReadPrompt" : false}');
 
@@ -286,10 +286,10 @@ test('it turns a false outside-read offer mark true when a space precedes its co
 
 test("it adds the outside-read offer's seen mark to an empty config an earlier run left", async () => {
   const ctx = setupTest();
-  const launch = buildClaudeGuestLaunch(ctx.dir, ['true']);
-  const config = join(ctx.dir, 'claude-config');
+  const launch = buildClaudeGuestLaunch(ctx.directory, ['true']);
+  const config = join(ctx.directory, 'claude-config');
 
-  writeFileSync(join(ctx.dir, 'claude-config-seed.json'), '{}');
+  writeFileSync(join(ctx.directory, 'claude-config-seed.json'), '{}');
   mkdirSync(config);
   writeFileSync(join(config, '.claude.json'), '{}\n');
 

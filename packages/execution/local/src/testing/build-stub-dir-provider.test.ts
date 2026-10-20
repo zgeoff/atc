@@ -7,27 +7,27 @@ import { buildStubDirProvider } from './build-stub-dir-provider';
 
 // A temp directory the provider's transfers and commands run in.
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-dir-provider-');
+  const temporaryDirectory = setupTempDir('atc-stub-dir-provider-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it unpacks a transferred archive into the directory it is given and records it', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.dir, 'src'));
-  writeFileSync(join(ctx.dir, 'src', 'hello.txt'), 'hello\n');
+  mkdirSync(join(ctx.directory, 'src'));
+  writeFileSync(join(ctx.directory, 'src', 'hello.txt'), 'hello\n');
 
-  const archive = await $`tar -c -f - -C ${join(ctx.dir, 'src')} .`.arrayBuffer();
+  const archive = await $`tar -c -f - -C ${join(ctx.directory, 'src')} .`.arrayBuffer();
 
   const provider = buildStubDirProvider();
 
-  await provider.transferArchive(new Uint8Array(archive), join(ctx.dir, 'host', 'ws'));
+  await provider.transferArchive(new Uint8Array(archive), join(ctx.directory, 'host', 'ws'));
 
-  expect(readFileSync(join(ctx.dir, 'host', 'ws', 'hello.txt'), 'utf8')).toBe('hello\n');
+  expect(readFileSync(join(ctx.directory, 'host', 'ws', 'hello.txt'), 'utf8')).toBe('hello\n');
 
   expect(provider.calls).toStrictEqual([
-    { op: 'transfer', dir: join(ctx.dir, 'host', 'ws'), bytes: archive.byteLength },
+    { op: 'transfer', directory: join(ctx.directory, 'host', 'ws'), bytes: archive.byteLength },
   ]);
 });
 
@@ -35,29 +35,29 @@ test('it runs a command in its working directory and records it', async () => {
   const ctx = setupTest();
   const provider = buildStubDirProvider();
 
-  const result = await provider.runCommand({ argv: ['pwd'], cwd: ctx.dir });
+  const result = await provider.runCommand({ argv: ['pwd'], cwd: ctx.directory });
 
-  expect(result).toStrictEqual({ exitCode: 0, stdout: `${ctx.dir}\n`, stderr: '' });
-  expect(provider.calls).toStrictEqual([{ op: 'run', argv: ['pwd'], cwd: ctx.dir }]);
+  expect(result).toStrictEqual({ exitCode: 0, stdout: `${ctx.directory}\n`, stderr: '' });
+  expect(provider.calls).toStrictEqual([{ op: 'run', argv: ['pwd'], cwd: ctx.directory }]);
 });
 
 test('it runs the after-transfer step on the unpacked directory before the transfer resolves', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.dir, 'src'));
-  writeFileSync(join(ctx.dir, 'src', 'hello.txt'), 'hello\n');
+  mkdirSync(join(ctx.directory, 'src'));
+  writeFileSync(join(ctx.directory, 'src', 'hello.txt'), 'hello\n');
 
-  const archive = await $`tar -c -f - -C ${join(ctx.dir, 'src')} .`.arrayBuffer();
+  const archive = await $`tar -c -f - -C ${join(ctx.directory, 'src')} .`.arrayBuffer();
 
   const provider = buildStubDirProvider({
-    afterTransfer: async (dir) => {
-      await Bun.write(join(dir, 'hello.txt'), 'changed\n');
+    afterTransfer: async (directory) => {
+      await Bun.write(join(directory, 'hello.txt'), 'changed\n');
     },
   });
 
-  await provider.transferArchive(new Uint8Array(archive), join(ctx.dir, 'ws'));
+  await provider.transferArchive(new Uint8Array(archive), join(ctx.directory, 'ws'));
 
-  expect(readFileSync(join(ctx.dir, 'ws', 'hello.txt'), 'utf8')).toBe('changed\n');
+  expect(readFileSync(join(ctx.directory, 'ws', 'hello.txt'), 'utf8')).toBe('changed\n');
 });
 
 test('it declares the capabilities it is told it lacks as missing', () => {
@@ -82,12 +82,12 @@ test('it rejects an archive tar cannot unpack', () => {
 
   const transfer = buildStubDirProvider().transferArchive(
     new Uint8Array([1, 2, 3]),
-    join(ctx.dir, 'ws'),
+    join(ctx.directory, 'ws'),
   );
 
   expect(transfer).rejects.toThrowWithMessage(
     Error,
-    new RegExp(`^tar exited [1-9]\\d* unpacking into ${join(ctx.dir, 'ws')}: \\S`, 'u'),
+    new RegExp(`^tar exited [1-9]\\d* unpacking into ${join(ctx.directory, 'ws')}: \\S`, 'u'),
   );
 });
 
@@ -118,8 +118,8 @@ test('it starts a harness on a local terminal and records its spec', async () =>
     host: 's1',
     bin: 'true',
     args: [],
-    cwd: ctx.dir,
-    env: { A: '1' },
+    cwd: ctx.directory,
+    env: { DEBUG: '1' },
     cols: 80,
     rows: 24,
   };

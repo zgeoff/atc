@@ -7,9 +7,9 @@ import { createImpProvider } from './create-imp-provider';
 import { ImpProvider } from './imp-provider';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-build-imp-provider-');
+  const temporaryDirectory = setupTempDir('atc-build-imp-provider-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it builds no provider for an imp target without a url', () => {
@@ -87,7 +87,7 @@ test('it reports a target whose tokenEnv is not a non-empty string, without a pr
 
 test('it builds an imp provider for a target whose token file holds a token', () => {
   const ctx = setupTest();
-  const tokenPath = join(ctx.dir, 'imp-token');
+  const tokenPath = join(ctx.directory, 'imp-token');
 
   writeFileSync(tokenPath, 'file-token\n');
 
@@ -104,7 +104,7 @@ test('it builds an imp provider for a target whose token file holds a token', ()
 
 test('it reports a target that gives both tokenEnv and tokenFile, without a provider', () => {
   const ctx = setupTest();
-  const tokenPath = join(ctx.dir, 'imp-token');
+  const tokenPath = join(ctx.directory, 'imp-token');
 
   writeFileSync(tokenPath, 'file-token\n');
 
@@ -123,7 +123,7 @@ test('it reports a target that gives both tokenEnv and tokenFile, without a prov
 
 test('it reports a target whose token file is empty, without a provider', () => {
   const ctx = setupTest();
-  const tokenPath = join(ctx.dir, 'imp-token');
+  const tokenPath = join(ctx.directory, 'imp-token');
 
   writeFileSync(tokenPath, '\n');
 
@@ -145,14 +145,14 @@ test('it reports a target whose token file is missing, without a provider', () =
 
   const built = createImpProvider(
     'box',
-    { url: 'http://127.0.0.1:9', tokenFile: join(ctx.dir, 'imp-token') },
+    { url: 'http://127.0.0.1:9', tokenFile: join(ctx.directory, 'imp-token') },
     '1.0.0',
     {},
   );
 
   expect(built).toStrictEqual({
     provider: null,
-    problem: `target "box" reads its impd token from a file it cannot use: cannot read the impd token file ${join(ctx.dir, 'imp-token')}: ENOENT`,
+    problem: `target "box" reads its impd token from a file it cannot use: cannot read the impd token file ${join(ctx.directory, 'imp-token')}: ENOENT`,
   });
 });
 

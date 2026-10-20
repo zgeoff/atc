@@ -22,18 +22,21 @@ export function planLeftThreadRecovery(
   turns: readonly AppServerTurn[] | null,
 ): LeftThreadRecovery {
   if (turns === null) {
-    return { acks: [], settlements: [], stranded: messages.map((m) => m.id), kept: [] };
+    return { acks: [], settlements: [], stranded: messages.map((message) => message.id), kept: [] };
   }
 
   const recovery = planThreadRecovery(messages, turns);
   const stranded = [...recovery.carried.keys()];
 
-  const held = new Set([...recovery.settlements.flatMap((s) => s.messages), ...stranded]);
+  const held = new Set([
+    ...recovery.settlements.flatMap((settlement) => settlement.messages),
+    ...stranded,
+  ]);
 
   return {
     acks: recovery.acks,
     settlements: recovery.settlements,
     stranded,
-    kept: messages.filter((m) => !held.has(m.id)),
+    kept: messages.filter((message) => !held.has(message.id)),
   };
 }

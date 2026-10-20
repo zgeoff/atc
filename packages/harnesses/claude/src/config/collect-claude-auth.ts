@@ -64,7 +64,7 @@ export function collectClaudeAuth(
 
   const rule = resolution.resolved.secrets
     .flatMap((secret) => secret.rules)
-    .find((r) => r.host === ANTHROPIC_API_HOST);
+    .find((candidate) => candidate.host === ANTHROPIC_API_HOST);
 
   if (rule?.header !== 'authorization' || rule.scheme !== 'bearer') {
     return {

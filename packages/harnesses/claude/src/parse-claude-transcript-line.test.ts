@@ -41,13 +41,13 @@ test('it reads assistant text and summarises its tool uses', () => {
 test('it summarises a tool use with no known input key as its JSON', () => {
   const line = JSON.stringify({
     type: 'assistant',
-    message: { content: [{ type: 'tool_use', id: 't1', name: 'Odd', input: { a: 1 } }] },
+    message: { content: [{ type: 'tool_use', id: 't1', name: 'Odd', input: { count: 1 } }] },
   });
 
   expect(parseClaudeTranscriptLine(line)).toStrictEqual({
     role: 'assistant',
     text: '',
-    tools: [{ name: 'Odd', input: '{"a":1}' }],
+    tools: [{ name: 'Odd', input: '{"count":1}' }],
     at: null,
   });
 });

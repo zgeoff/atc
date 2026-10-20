@@ -6,9 +6,9 @@ import { LocalPTYProvider } from '../local-pty-provider';
 import { buildStubExecutionProvider } from './build-stub-execution-provider';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-provider-');
+  const temporaryDirectory = setupTempDir('atc-stub-provider-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it builds a provider with the capabilities of a local pseudo-terminal', () => {
@@ -52,12 +52,12 @@ test('it reports the host as remote once the config marks it so', () => {
 
 test('it rejects every command with the configured failure without running it', async () => {
   const ctx = setupTest();
-  const marker = join(ctx.dir, 'ran');
+  const marker = join(ctx.directory, 'ran');
 
   const failure = new Error('the host runs no commands');
 
   const provider = buildStubExecutionProvider({ commandFailure: failure });
-  const run = provider.runCommand({ argv: ['touch', marker], cwd: ctx.dir });
+  const run = provider.runCommand({ argv: ['touch', marker], cwd: ctx.directory });
 
   await Promise.allSettled([run]);
 
@@ -69,9 +69,9 @@ test('it runs a command on this machine', () => {
   const ctx = setupTest();
   const provider = buildStubExecutionProvider();
 
-  expect(provider.runCommand({ argv: ['pwd'], cwd: ctx.dir })).resolves.toStrictEqual({
+  expect(provider.runCommand({ argv: ['pwd'], cwd: ctx.directory })).resolves.toStrictEqual({
     exitCode: 0,
-    stdout: `${ctx.dir}\n`,
+    stdout: `${ctx.directory}\n`,
     stderr: '',
   });
 });
@@ -157,7 +157,7 @@ test('it reports a harness spec and starts the harness on a local terminal', asy
     host: 's1',
     bin: 'sh',
     args: ['-c', 'exit 7'],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: {},
     cols: 80,
     rows: 24,
@@ -200,7 +200,7 @@ test('it aborts the spawn with the error the spawn report throws, before the loc
       host: 's1',
       bin: 'sh',
       args: ['-c', 'exit 0'],
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       env: {},
       cols: 80,
       rows: 24,
@@ -220,7 +220,7 @@ test('it refuses a spec that requires a broker through the local start when the 
       host: 's1',
       bin: 'sh',
       args: ['-c', 'exit 0'],
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       env: {},
       cols: 80,
       rows: 24,
@@ -245,7 +245,7 @@ test('it streams the output of a harness it starts on a local terminal', async (
     host: 's1',
     bin: 'sh',
     args: ['-c', 'echo harness-up; exec sleep 30'],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: {},
     cols: 80,
     rows: 24,

@@ -7,9 +7,9 @@ import { loadGrokName } from './load-grok-name';
 // A Grok home of the test's own, where summaries sit under each working
 // directory's session folder.
 function setupTest() {
-  const tmp = setupTempDir('atc-grok-name-');
+  const temporaryDirectory = setupTempDir('atc-grok-name-');
 
-  return { home: tmp.path };
+  return { home: temporaryDirectory.path };
 }
 
 test('it loads a manual title over a user-typed name', async () => {

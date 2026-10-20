@@ -6,12 +6,12 @@ import { buildATCBridgeFiles } from './build-atc-bridge-files';
 // the folder is never cleared, since Claude Code keeps its own type files there
 export function writeATCBridge(
   argv: readonly string[],
-  dir: string = join(stateDir, 'atc-bridge'),
+  directory: string = join(stateDir, 'atc-bridge'),
 ): string {
   const files = buildATCBridgeFiles(argv);
 
   for (const [path, content] of Object.entries(files)) {
-    const file = join(dir, path);
+    const file = join(directory, path);
 
     // any write reloads the mod in every running session
     if (tryReadFileText(file) === content) {
@@ -22,7 +22,7 @@ export function writeATCBridge(
     writeFileSync(file, content);
   }
 
-  return dir;
+  return directory;
 }
 
 function tryReadFileText(file: string): string | null {

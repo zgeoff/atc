@@ -82,8 +82,8 @@ export class GrokAdapter implements AgentAdapter {
     };
   }
 
-  planHookEvents(e: HookEvent, prev: unknown): HookPlan {
-    return planGrokHookEvents(e, prev, this.resolveHome());
+  planHookEvents(hookEvent: HookEvent, previous: unknown): HookPlan {
+    return planGrokHookEvents(hookEvent, previous, this.resolveHome());
   }
 
   loadName(source: string, namedBy: 'user' | 'auto' | 'agent'): Promise<NameUpdate | null> {

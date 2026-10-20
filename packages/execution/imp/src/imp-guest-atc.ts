@@ -88,24 +88,24 @@ export class ImpGuestATC {
     image: string,
     log: (line: string) => void,
   ): Promise<void> {
-    const dir = this.guest.directory;
+    const directory = this.guest.directory;
     const known = this.imageATCVersions.has(name);
     let imageVersion = this.imageATCVersions.get(name) ?? null;
     let copiedVersion: string | null = null;
 
     if (known && imageVersion === this.version) {
       const linked = await this.port.runCommand(name, {
-        argv: ['sh', '-c', LINK_GUEST_ATC_SCRIPT, 'sh', dir, image],
+        argv: ['sh', '-c', LINK_GUEST_ATC_SCRIPT, 'sh', directory, image],
       });
 
       if (linked.code !== 0) {
         throw new Error(
-          `linking ${dir}/bin/atc to ${image} in ${name} exited ${linked.code ?? 'by a signal'}`,
+          `linking ${directory}/bin/atc to ${image} in ${name} exited ${linked.code ?? 'by a signal'}`,
         );
       }
     } else if (known) {
       const ready = await this.port.runCommand(name, {
-        argv: ['sh', '-c', CHECK_GUEST_ATC_SCRIPT, 'sh', dir],
+        argv: ['sh', '-c', CHECK_GUEST_ATC_SCRIPT, 'sh', directory],
       });
 
       copiedVersion = ready.code === 0 ? this.version : null;
@@ -116,7 +116,7 @@ export class ImpGuestATC {
           '-c',
           READ_GUEST_ATC_SCRIPT,
           'sh',
-          dir,
+          directory,
           image,
           this.version,
           this.imageATC?.signature ?? '',
@@ -157,7 +157,7 @@ export class ImpGuestATC {
       this.imageATCVersions.set(name, imageVersion);
 
       log(
-        `imp ${name} runs hooks through the daemon's atc ${this.version}, already at ${dir}/bin/atc: ${found}`,
+        `imp ${name} runs hooks through the daemon's atc ${this.version}, already at ${directory}/bin/atc: ${found}`,
       );
 
       return;
@@ -176,7 +176,7 @@ export class ImpGuestATC {
     this.imageATCVersions.set(name, imageVersion);
 
     log(
-      `imp ${name} runs hooks through the daemon's atc ${this.version}, copied to ${dir}/bin/atc: ${found}`,
+      `imp ${name} runs hooks through the daemon's atc ${this.version}, copied to ${directory}/bin/atc: ${found}`,
     );
   }
 

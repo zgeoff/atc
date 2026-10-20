@@ -106,7 +106,7 @@ test('it materializes a path source at its pushed HEAD on the target and verifie
       argv: ['sh', '-c', expect.toStartWith('mkdir -p'), 'sh', join(ctx.dir, 'box'), dest],
       cwd: '/',
     },
-    { op: 'transfer', dir: dest, bytes: expect.toBeNumber() },
+    { op: 'transfer', directory: dest, bytes: expect.toBeNumber() },
     {
       op: 'run',
       argv: [

@@ -13,12 +13,12 @@ import type { AppServerNotification } from './app-server-connection';
 import { AppServerError } from './app-server-error';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-app-server-bridge-');
-  const socket = join(tmp.path, 'codex.sock');
+  const temporaryDirectory = setupTempDir('atc-app-server-bridge-');
+  const socket = join(temporaryDirectory.path, 'codex.sock');
 
   return {
     socket,
-    unconfirmedFile: join(tmp.path, 'unconfirmed-sends.json'),
+    unconfirmedFile: join(temporaryDirectory.path, 'unconfirmed-sends.json'),
     openConnection: () => AppServerConnection.open(`ws+unix://${socket}`),
   };
 }
@@ -94,7 +94,7 @@ test('it starts the thread with the atc tools and writes its rollout before it r
 
   expect(thread).toBe('thread-1');
 
-  expect(server.requests.map((r) => r.method)).toStrictEqual([
+  expect(server.requests.map((request) => request.method)).toStrictEqual([
     'initialize',
     'thread/start',
     'thread/inject_items',
@@ -154,9 +154,9 @@ test('it keeps every stored message as it was and sends nothing when the history
   bridge.startDelivery();
 
   await waitFor(() => {
-    expect(server.requests.filter((r) => r.method === 'thread/turns/list').length).toBeGreaterThan(
-      2,
-    );
+    expect(
+      server.requests.filter((request) => request.method === 'thread/turns/list').length,
+    ).toBeGreaterThan(2);
   });
 
   expect([...stub.statuses]).toStrictEqual([
@@ -209,7 +209,7 @@ test('it resends no accepted message when its turn completes while the connectio
     expect(stub.attaches).toBe(2);
   });
 
-  expect(server.requests.filter((r) => r.method === 'turn/start')).toHaveLength(1);
+  expect(server.requests.filter((request) => request.method === 'turn/start')).toHaveLength(1);
 
   expect(stub.notes).toStrictEqual([
     { kind: 'answered', messages: ['m-1'], answer: 'answered once', turn: 'turn-2' },
@@ -268,7 +268,7 @@ test('it settles a message the server took before the daemon marked it, and send
     expect(stub.statuses.get('m-1')).toBe('answered');
   });
 
-  expect(server.requests.filter((r) => r.method === 'turn/start')).toHaveLength(1);
+  expect(server.requests.filter((request) => request.method === 'turn/start')).toHaveLength(1);
 
   expect(stub.notes).toStrictEqual([
     { kind: 'answered', messages: ['m-1'], answer: 'done earlier', turn: 'turn-2' },
@@ -559,7 +559,7 @@ test('it leaves a message the App Server refuses unanswered and keeps the connec
     { kind: 'unanswered', messages: ['m-2'], reason: 'error' },
   ]);
 
-  expect(server.requests.filter((r) => r.method === 'initialize')).toHaveLength(1);
+  expect(server.requests.filter((request) => request.method === 'initialize')).toHaveLength(1);
 });
 
 test('it keeps a message the overloaded App Server turns away queued and delivers it on a later send', async () => {
@@ -607,7 +607,7 @@ test('it keeps a message the overloaded App Server turns away queued and deliver
     { kind: 'answered', messages: ['m-1'], answer: 'the build passes', turn: 'turn-2' },
   ]);
 
-  expect(server.requests.filter((r) => r.method === 'initialize')).toHaveLength(1);
+  expect(server.requests.filter((request) => request.method === 'initialize')).toHaveLength(1);
 });
 
 test('it sends a message the daemon hands over during an overload wait only after the overloaded one', async () => {
@@ -651,7 +651,7 @@ test('it sends a message the daemon hands over during an overload wait only afte
 
   expect(stub.statuses.get('m-1')).toBe('answered');
 
-  expect(server.requests.filter((r) => r.method === 'turn/start')).toMatchObject([
+  expect(server.requests.filter((request) => request.method === 'turn/start')).toMatchObject([
     { params: { clientUserMessageId: 'm-1' } },
     { params: { clientUserMessageId: 'm-1' } },
     { params: { clientUserMessageId: 'm-2' } },
@@ -692,12 +692,12 @@ test('it moves to the thread the terminal shows without waiting out an overload'
   bridge.updateThread(moved);
 
   await waitFor(() => {
-    expect(server.requests.findLast((r) => r.method === 'turn/start')).toMatchObject({
+    expect(server.requests.findLast((request) => request.method === 'turn/start')).toMatchObject({
       params: { threadId: moved, clientUserMessageId: 'm-1' },
     });
   });
 
-  expect(server.requests.filter((r) => r.method === 'thread/resume')).toMatchObject([
+  expect(server.requests.filter((request) => request.method === 'thread/resume')).toMatchObject([
     { params: { threadId: moved } },
   ]);
 
@@ -778,11 +778,11 @@ test('it moves when the terminal moves while an overloaded send waits for its an
 
   expect(stub.statuses.get('m-1')).toBe('answered');
 
-  expect(server.requests.filter((r) => r.method === 'thread/resume')).toMatchObject([
+  expect(server.requests.filter((request) => request.method === 'thread/resume')).toMatchObject([
     { params: { threadId: moved } },
   ]);
 
-  expect(server.requests.filter((r) => r.method === 'turn/start')).toMatchObject([
+  expect(server.requests.filter((request) => request.method === 'turn/start')).toMatchObject([
     { params: { threadId: 'thread-1', clientUserMessageId: 'm-1' } },
     { params: { threadId: moved, clientUserMessageId: 'm-1' } },
     { params: { threadId: moved, clientUserMessageId: 'm-1' } },
@@ -829,7 +829,8 @@ test('it keeps a notice the overloaded App Server turns away queued and delivers
 
   expect(
     server.requests.filter(
-      (r) => r.method === 'turn/start' && JSON.stringify(r.params).includes('"notice:m-0"'),
+      (request) =>
+        request.method === 'turn/start' && JSON.stringify(request.params).includes('"notice:m-0"'),
     ),
   ).toHaveLength(3);
 });
@@ -863,11 +864,13 @@ test('it starts the thread and each turn on the model the spawn asked for', asyn
     expect(stub.statuses.get('m-1')).toBe('answered');
   });
 
-  expect(server.requests.find((r) => r.method === 'thread/start')?.params).toMatchObject({
+  expect(
+    server.requests.find((request) => request.method === 'thread/start')?.params,
+  ).toMatchObject({
     model: 'gpt-test-large',
   });
 
-  expect(server.requests.find((r) => r.method === 'turn/start')?.params).toMatchObject({
+  expect(server.requests.find((request) => request.method === 'turn/start')?.params).toMatchObject({
     clientUserMessageId: 'm-1',
     model: 'gpt-test-large',
   });
@@ -896,7 +899,9 @@ test('it resumes the thread it was given on the model the spawn asked for', asyn
 
   await bridge.open();
 
-  expect(server.requests.find((r) => r.method === 'thread/resume')?.params).toMatchObject({
+  expect(
+    server.requests.find((request) => request.method === 'thread/resume')?.params,
+  ).toMatchObject({
     threadId: thread,
     model: 'gpt-test-large',
   });
@@ -930,9 +935,9 @@ test('it leaves the model to the server when the spawn asked for none', async ()
     expect(stub.statuses.get('m-1')).toBe('answered');
   });
 
-  expect(server.requests.filter((r) => JSON.stringify(r.params).includes('"model"'))).toStrictEqual(
-    [],
-  );
+  expect(
+    server.requests.filter((request) => JSON.stringify(request.params).includes('"model"')),
+  ).toStrictEqual([]);
 });
 
 test('it delivers a message to the thread the terminal moved to and none to the old one', async () => {
@@ -968,12 +973,12 @@ test('it delivers a message to the thread the terminal moved to and none to the 
     expect(stub.statuses.get('m-1')).toBe('answered');
   });
 
-  const turnStarts = server.requests.filter((r) => r.method === 'turn/start');
+  const turnStarts = server.requests.filter((request) => request.method === 'turn/start');
 
   expect(first).not.toBe(moved);
   expect(turnStarts).toMatchObject([{ params: { threadId: moved, clientUserMessageId: 'm-1' } }]);
 
-  expect(server.requests.filter((r) => r.method === 'thread/resume')).toMatchObject([
+  expect(server.requests.filter((request) => request.method === 'thread/resume')).toMatchObject([
     { params: { threadId: moved } },
   ]);
 
@@ -1025,7 +1030,7 @@ test('it leaves a message unanswered and sends it nowhere else when the terminal
     { kind: 'unanswered', messages: ['m-1'], reason: 'thread_switched' },
   ]);
 
-  expect(server.requests.filter((r) => r.method === 'turn/start')).toHaveLength(1);
+  expect(server.requests.filter((request) => request.method === 'turn/start')).toHaveLength(1);
 });
 
 test('it changes nothing when the thread it is given is the one it serves', async () => {
@@ -1063,7 +1068,7 @@ test('it changes nothing when the thread it is given is the one it serves', asyn
   });
 
   expect(stub.attaches).toBe(1);
-  expect(server.requests.map((r) => r.method)).not.toContain('thread/resume');
+  expect(server.requests.map((request) => request.method)).not.toContain('thread/resume');
 });
 
 test('it sends a message the old thread took nowhere else when the terminal moves before the answer to its send', async () => {
@@ -1170,7 +1175,7 @@ test('it sends a message the old thread took nowhere else when the terminal move
     { kind: 'unanswered', messages: ['m-1'], reason: 'thread_switched' },
   ]);
 
-  expect(server.requests.filter((r) => r.method === 'turn/start')).toMatchObject([
+  expect(server.requests.filter((request) => request.method === 'turn/start')).toMatchObject([
     { params: { threadId: 'thread-1', clientUserMessageId: 'm-1' } },
   ]);
 });
@@ -1226,13 +1231,13 @@ test('it sends a message the old thread took nowhere else when the connection dr
     { kind: 'unanswered', messages: ['m-1'], reason: 'thread_switched' },
   ]);
 
-  expect(server.requests.filter((r) => r.method === 'turn/start')).toMatchObject([
+  expect(server.requests.filter((request) => request.method === 'turn/start')).toMatchObject([
     { params: { threadId: first, clientUserMessageId: 'm-1' } },
   ]);
 
-  expect(server.requests.filter((r) => r.method === 'thread/turns/list')).toMatchObject([
-    { params: { threadId: first } },
-  ]);
+  expect(server.requests.filter((request) => request.method === 'thread/turns/list')).toMatchObject(
+    [{ params: { threadId: first } }],
+  );
 });
 
 test('it sends a message the old thread took nowhere else when the daemon restarts on the thread the terminal moved to before the reconnect', async () => {
@@ -1309,13 +1314,13 @@ test('it sends a message the old thread took nowhere else when the daemon restar
     { kind: 'unanswered', messages: ['m-1'], reason: 'thread_switched' },
   ]);
 
-  expect(server.requests.filter((r) => r.method === 'turn/start')).toMatchObject([
+  expect(server.requests.filter((request) => request.method === 'turn/start')).toMatchObject([
     { params: { threadId: first, clientUserMessageId: 'm-1' } },
   ]);
 
-  expect(server.requests.filter((r) => r.method === 'thread/turns/list')).toMatchObject([
-    { params: { threadId: first } },
-  ]);
+  expect(server.requests.filter((request) => request.method === 'thread/turns/list')).toMatchObject(
+    [{ params: { threadId: first } }],
+  );
 });
 
 test('it delivers a message the old thread never took to the thread the terminal moved to when the connection drops before the answer to its send', async () => {
@@ -1369,7 +1374,7 @@ test('it delivers a message the old thread never took to the thread the terminal
     { kind: 'answered', messages: ['m-1'], answer: 'the lint is clean', turn: expect.any(String) },
   ]);
 
-  expect(server.requests.filter((r) => r.method === 'turn/start')).toMatchObject([
+  expect(server.requests.filter((request) => request.method === 'turn/start')).toMatchObject([
     { params: { threadId: first, clientUserMessageId: 'm-1' } },
     { params: { threadId: moved, clientUserMessageId: 'm-1' } },
   ]);
@@ -1428,7 +1433,7 @@ test('it leaves a message unanswered and sends it nowhere else when the old thre
     { kind: 'unanswered', messages: ['m-1'], reason: 'thread_switched' },
   ]);
 
-  expect(server.requests.filter((r) => r.method === 'turn/start')).toMatchObject([
+  expect(server.requests.filter((request) => request.method === 'turn/start')).toMatchObject([
     { params: { threadId: first, clientUserMessageId: 'm-1' } },
   ]);
 });
@@ -1477,18 +1482,19 @@ test('it keeps a message queued and sends it nowhere while the history of the ol
   bridge.updateThread(moved);
 
   await waitFor(() => {
-    expect(server.requests.filter((r) => r.method === 'thread/turns/list')).toHaveLength(2);
+    expect(
+      server.requests.filter((request) => request.method === 'thread/turns/list'),
+    ).toHaveLength(2);
   });
 
-  expect(server.requests.filter((r) => r.method === 'thread/turns/list')).toMatchObject([
-    { params: { threadId: first } },
-    { params: { threadId: first } },
-  ]);
+  expect(server.requests.filter((request) => request.method === 'thread/turns/list')).toMatchObject(
+    [{ params: { threadId: first } }, { params: { threadId: first } }],
+  );
 
   expect(stub.statuses.get('m-1')).toBe('queued');
   expect(stub.notes).toStrictEqual([]);
 
-  expect(server.requests.filter((r) => r.method === 'turn/start')).toMatchObject([
+  expect(server.requests.filter((request) => request.method === 'turn/start')).toMatchObject([
     { params: { threadId: first, clientUserMessageId: 'm-1' } },
   ]);
 });

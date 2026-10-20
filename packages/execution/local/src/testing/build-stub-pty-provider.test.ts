@@ -4,9 +4,9 @@ import { LocalPTYProvider } from '../local-pty-provider';
 import { buildStubPTYProvider } from './build-stub-pty-provider';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-stub-pty-provider-');
+  const temporaryDirectory = setupTempDir('atc-stub-pty-provider-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it reports the local provider kind and capabilities by default', () => {
@@ -38,7 +38,7 @@ test('it reports each spec and runs the harness on a real terminal', async () =>
     host: 's-1',
     bin: 'printf',
     args: ['stub-harness-ran'],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: {},
     cols: 80,
     rows: 24,

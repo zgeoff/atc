@@ -29,7 +29,7 @@ export function buildClaudeArgs(
     paths.settings,
     '--plugin-dir',
     paths.pluginDir,
-    ...[...new Set(paths.pluginDirs)].flatMap((dir) => ['--plugin-dir', dir]),
+    ...[...new Set(paths.pluginDirs)].flatMap((directory) => ['--plugin-dir', directory]),
     ...(opts.resume === true ? ['--resume'] : []),
     ...(typeof opts.resume === 'string' ? ['--resume', opts.resume] : []),
     ...(opts.prompt === '' ? [] : [opts.prompt]),

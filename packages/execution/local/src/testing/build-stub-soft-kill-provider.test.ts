@@ -3,9 +3,9 @@ import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { buildStubSoftKillProvider } from './build-stub-soft-kill-provider';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-soft-kill-');
+  const temporaryDirectory = setupTempDir('atc-soft-kill-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it declares the capabilities of a local terminal', () => {
@@ -31,7 +31,7 @@ test('it starts a harness that has no forced kill', () => {
     host: 's-1',
     bin: 'sleep',
     args: ['30'],
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: {},
     cols: 80,
     rows: 24,
