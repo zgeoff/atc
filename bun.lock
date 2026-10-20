@@ -43,7 +43,7 @@
     },
     "packages/app": {
       "name": "@atc/app",
-      "version": "6.0.0",
+      "version": "6.0.1",
       "dependencies": {
         "@atc/config": "workspace:*",
         "@atc/core": "workspace:*",

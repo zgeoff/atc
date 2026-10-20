@@ -2,10 +2,11 @@
 
 ## [6.0.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@6.0.0...@zgeoff/atc@6.0.1) (2026-10-20)
 
-
 ### Bug Fixes
 
-* **geo-1498:** mark a revived session's delivered messages unanswered ([#845](https://github.com/zgeoff/atc/issues/845)) ([eb2d9f2](https://github.com/zgeoff/atc/commit/eb2d9f24497f4664c655b91426d420848a5f29cb))
+- **geo-1498:** mark a revived session's delivered messages unanswered
+  ([#845](https://github.com/zgeoff/atc/issues/845))
+  ([eb2d9f2](https://github.com/zgeoff/atc/commit/eb2d9f24497f4664c655b91426d420848a5f29cb))
 
 ## [6.0.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@5.0.0...@zgeoff/atc@6.0.0) (2026-10-20)
 
