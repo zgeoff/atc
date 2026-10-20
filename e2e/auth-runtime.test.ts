@@ -96,7 +96,7 @@ test('it provisions the host of a spawn before readying it and starts the harnes
 
   registerTestCleanup(() => store.stop());
 
-  const binding = await store.findAuthBinding(toSessionID(id));
+  const binding = await store.readAuthBinding(toSessionID(id));
 
   const calls = ctx.port.calls.filter((call) => !call.startsWith('leases.renew'));
 
@@ -469,7 +469,7 @@ test('it starts a brokered harness with the variables its guest plan holds besid
   invariant(start?.kind === 'start', 'expected the harness start');
 
   expect(start.env).toMatchObject({
-    ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
+    ANTHROPIC_AUTH_TOKEN: 'broker-placeholder',
     CLAUDE_CONFIG_DIR: expect.toEndWith(`/sessions/${id}/claude-config`),
     ATC_SESSION_ID: id,
   });
@@ -595,7 +595,7 @@ test('it refuses a spawn on an impd older than 2.2.0 after reads alone', async (
   expect(spawn).rejects.toMatchObject({
     code: 'host_unavailable',
     message:
-      'impd refused a runtime auth call: impd 2.1.0 is older than 2.2.0, the oldest impd this atc supports; upgrade impd',
+      'the imp credential broker refused a runtime auth call: impd 2.1.0 is older than 2.2.0, the oldest impd this atc supports; upgrade impd',
     data: { provider: 'imp', problem: 'impd_outdated' },
   });
 
@@ -664,7 +664,7 @@ test('it refuses a spawn whose broker is not ready, takes back its imp, and list
 
   registerTestCleanup(() => store.stop());
 
-  const bindings = await store.collectAuthBindings();
+  const bindings = await store.readAuthBindings();
   const listed = await daemon.client.sendRequest('session.list');
 
   // The imp the spawn created and then destroyed, in call order.
@@ -802,7 +802,7 @@ test('it starts an agent that takes the broker credential only where a broker is
 
   registerTestCleanup(() => store.stop());
 
-  const binding = await store.findAuthBinding(toSessionID(id));
+  const binding = await store.readAuthBinding(toSessionID(id));
 
   expect(ctx.port.calls).toStrictEqual([]);
   expect(binding).toBeNull();
@@ -1024,7 +1024,7 @@ test('it refuses to adopt a local session with a workspace once its agent takes 
     Date.now(),
   );
 
-  const recorded = await store.findMaterialization(id);
+  const recorded = await store.readMaterialization(id);
 
   authSelected = true;
 
@@ -1035,7 +1035,7 @@ test('it refuses to adopt a local session with a workspace once its agent takes 
 
   await adopt.catch(() => null);
 
-  const materialization = await store.findMaterialization(id);
+  const materialization = await store.readMaterialization(id);
   const got = await daemon.client.sendRequest('session.get', { session: id });
 
   expect(adopt).rejects.toMatchObject({
@@ -1128,14 +1128,14 @@ test('it restores a local session with a workspace without a terminal once its a
     Date.now(),
   );
 
-  const recorded = await store.findMaterialization(id);
+  const recorded = await store.readMaterialization(id);
 
   authSelected = true;
 
   await daemon.restart();
   await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  const materialization = await store.findMaterialization(id);
+  const materialization = await store.readMaterialization(id);
   const got = await daemon.client.sendRequest('session.get', { session: id });
 
   expect(getRecord(got, 'session')).toContainEntries([
@@ -2575,7 +2575,7 @@ test('it provisions concurrent spawns each in an imp of its own with only its ow
 
   registerTestCleanup(() => store.stop());
 
-  const bindings = await store.collectAuthBindings();
+  const bindings = await store.readAuthBindings();
 
   expect<readonly unknown[]>(imps).toStrictEqual([
     expect.stringMatching(/^atc-[\da-f]{20}$/u),
@@ -3468,7 +3468,7 @@ test('it forgets a bound session by destroying its imp and dropping its binding,
 
   registerTestCleanup(() => store.stop());
 
-  const bindings = await store.collectAuthBindings();
+  const bindings = await store.readAuthBindings();
   const secrets = await ctx.port.readSecrets();
 
   expect(ctx.port.collectImpNames()).toStrictEqual([]);
@@ -3845,7 +3845,7 @@ test('it restores every session on a host whose agent added a profile on a targe
 
   registerTestCleanup(() => store.stop());
 
-  const binding = await store.findAuthBinding(toSessionID(parentID));
+  const binding = await store.readAuthBinding(toSessionID(parentID));
 
   expect(listed).toStrictEqual({
     sessions: expect.toIncludeSameMembers([
@@ -4230,7 +4230,7 @@ test('it refuses to restore a session whose agent dropped the broker credential 
 
   registerTestCleanup(() => store.stop());
 
-  const binding = await store.findAuthBinding(toSessionID(id));
+  const binding = await store.readAuthBinding(toSessionID(id));
 
   const adopted = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 

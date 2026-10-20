@@ -60,8 +60,8 @@ async function setupTest(config: SetupTestConfig) {
     log: mock<() => void>(),
     now: () => 0,
     getClock: () => systemClock,
-    getAuthBinder: () => null,
-    getRecords: () => null,
+    findAuthBinder: () => null,
+    findRecords: () => null,
   };
 
   const registry = new SessionRegistry({

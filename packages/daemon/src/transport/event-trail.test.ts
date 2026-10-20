@@ -174,7 +174,7 @@ test('it reads a note by its trail id with the session that sent it', async () =
     ),
   );
 
-  const [row] = await ctx.store.collectLatestEvents(1, null);
+  const [row] = await ctx.store.readLatestEvents(1, null);
   const read = await ctx.trail.readNote(row?.id ?? -1, null);
 
   expect(read).toMatchObject({ owner: 's-1', view: { label: 'progress', text: 'halfway there' } });

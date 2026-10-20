@@ -2,6 +2,7 @@ import type { AgentEntry } from '@atc/config';
 import {
   LEGACY_AGENT_KEYS,
   REMOVED_CONFIG_KEYS,
+  buildCurrentPlaceholderConfig,
   collectAuthProfiles,
   formatJSONKind,
   formatMixedAgentKeys,
@@ -30,14 +31,17 @@ const LEGACY_KEYS_SCHEMA = z.object({
   authProfiles: z.unknown().optional(),
 });
 
-export function buildMigratedConfig(raw: unknown): MigratedConfig {
-  if (!isRecord(raw) || Array.isArray(raw)) {
+export function buildMigratedConfig(file: unknown): MigratedConfig {
+  if (!isRecord(file) || Array.isArray(file)) {
     return {
       kind: 'unusable',
-      detail: `the root is ${formatJSONKind(raw)}, not an object`,
+      detail: `the root is ${formatJSONKind(file)}, not an object`,
     };
   }
 
+  // the migrated file holds atc's own placeholder, so the parse below keeps
+  // each entry that holds the deprecated one
+  const raw = buildCurrentPlaceholderConfig(file).config;
   const present = Object.keys(raw).filter((key) => LEGACY_AGENT_KEYS.includes(key));
   const removed = REMOVED_CONFIG_KEYS.filter((key) => Object.hasOwn(raw, key));
 
@@ -182,6 +186,8 @@ function renderAgentEntry(entry: AgentEntry): Record<string, unknown> {
   return rendered;
 }
 
+const BUILT_IN_COUNT = 3;
+
 // One note per gateway the old parse left out, with the reason.
 function collectDroppedGateways(
   raw: unknown,
@@ -203,20 +209,18 @@ function collectDroppedGateways(
     }
 
     notes.push(
-      `atc config migrate: gateways.${id} is left out: ${findDropReason(id, entry, errors)}`,
+      `atc config migrate: gateways.${id} is left out: ${pickDropReason(id, entry, errors)}`,
     );
   }
 
   return notes;
 }
 
-const BUILT_IN_COUNT = 3;
-
 function isDropped(id: string, kept: ReadonlySet<string>): boolean {
   return id === '__proto__' || !kept.has(id);
 }
 
-function findDropReason(id: string, entry: unknown, errors: readonly string[]): string {
+function pickDropReason(id: string, entry: unknown, errors: readonly string[]): string {
   if (id === '') {
     return 'its id is empty';
   }

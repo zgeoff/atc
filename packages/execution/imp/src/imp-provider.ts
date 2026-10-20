@@ -84,6 +84,14 @@ export class ImpProvider implements ExecutionProvider {
 
   readonly remote = true;
 
+  // An imp fetches from the repository host over its own network, and its
+  // image holds no git identity, so a checkout takes the daemon host's.
+  readonly cloneOnTarget = true;
+
+  readonly hostGitIdentity = true;
+
+  readonly guestWorkspaceTrust = true;
+
   readonly capabilities: ExecutionCapabilities = {
     spawn: true,
     attach: true,

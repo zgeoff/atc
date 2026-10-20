@@ -14,7 +14,7 @@ interface EventTrailDeps {
   readonly mgr: Pick<SessionManager, 'sessions' | 'collectDescriptors'>;
   readonly store: Pick<
     StateStore,
-    'collectLatestEvents' | 'collectEventsAfter' | 'findNote' | 'findAnswer'
+    'readLatestEvents' | 'readEventsAfter' | 'readNote' | 'readAnswer'
   >;
   readonly clock: Clock;
 
@@ -64,8 +64,8 @@ export class EventTrail {
       // more follow; the latest events have nothing after them.
       const rows =
         afterID === null
-          ? await this.store.collectLatestEvents(limit, scope)
-          : await this.store.collectEventsAfter(afterID, limit + 1, scope);
+          ? await this.store.readLatestEvents(limit, scope)
+          : await this.store.readEventsAfter(afterID, limit + 1, scope);
 
       if (
         access !== null &&
@@ -98,7 +98,7 @@ export class EventTrail {
   // names a note whose own session left the access while the query
   // waited.
   async readNote(id: number, access: TargetAccess | null): Promise<NoteRead> {
-    const stored = await this.store.findNote(id, this.buildEventScope(null, access));
+    const stored = await this.store.readNote(id, this.buildEventScope(null, access));
 
     if (stored === null) {
       return null;
@@ -114,7 +114,7 @@ export class EventTrail {
   }
 
   async readAnswer(id: number, access: TargetAccess | null): Promise<AnswerRead> {
-    const stored = await this.store.findAnswer(id, this.buildEventScope(null, access));
+    const stored = await this.store.readAnswer(id, this.buildEventScope(null, access));
 
     if (stored === null) {
       return null;

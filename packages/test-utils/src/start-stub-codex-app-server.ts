@@ -1,5 +1,5 @@
 import { rmSync } from 'node:fs';
-import type { ServerWebSocket } from 'bun';
+import type { Server, ServerWebSocket } from 'bun';
 import { z } from 'zod';
 
 export const STUB_CODEX_APP_SERVER_SCENARIO_SCHEMA = z.object({
@@ -283,8 +283,7 @@ export function startStubCodexAppServer(
 
   const server = Bun.serve({
     unix: socket,
-    fetch: (req, srv) =>
-      srv.upgrade(req) ? undefined : new Response('upgrade required', { status: 426 }),
+    fetch: answerUpgrade,
     websocket: {
       open: (ws) => {
         opened += 1;
@@ -371,4 +370,9 @@ export function startStubCodexAppServer(
 
 function sendLine(ws: ServerWebSocket, value: unknown): void {
   ws.send(JSON.stringify(value));
+}
+
+// The App Server speaks only over a WebSocket, so a plain request is refused.
+function answerUpgrade(request: Request, bunServer: Server<undefined>) {
+  return bunServer.upgrade(request) ? undefined : new Response('upgrade required', { status: 426 });
 }

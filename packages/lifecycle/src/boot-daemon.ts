@@ -8,12 +8,12 @@ import type { DaemonClient } from '@atc/protocol/client';
 import { readSessionEnv } from '@atc/protocol/session';
 import { DaemonError, PROTOCOL_V } from '@atc/protocol/wire';
 import { buildHostDaemonPaths } from './build-host-daemon-paths';
-import { collectDaemonSocketPaths } from './collect-daemon-socket-paths';
-import { findDaemonPID } from './find-daemon-pid';
-import { findDaemonRecord } from './find-daemon-record';
-import { findRestartUnit } from './find-restart-unit';
-import { isProcessAlive } from './is-process-alive';
 import type { LifecycleHost } from './lifecycle-host';
+import { probeProcessAlive } from './probe-process-alive';
+import { readDaemonPID } from './read-daemon-pid';
+import { readDaemonRecord } from './read-daemon-record';
+import { readDaemonSocketPaths } from './read-daemon-socket-paths';
+import { readRestartUnit } from './read-restart-unit';
 import { restartDaemonProcess } from './restart-daemon-process';
 import { spawnATCDetached } from './spawn-atc-detached';
 
@@ -106,7 +106,7 @@ export async function bootDaemonClient(
 
       const mismatch: ProtocolMismatch = {
         socketPath: opened.socketPath,
-        daemonPID: findDaemonPID(opened.socketPath, {
+        daemonPID: readDaemonPID(opened.socketPath, {
           paths,
           stateDir: host.paths.stateDir,
           procRoot: host.procRoot,
@@ -126,7 +126,7 @@ export async function bootDaemonClient(
         throw new DaemonError('protocol_mismatch', formatProtocolMismatch(mismatch));
       }
 
-      const unit = await findRestartUnit(mismatch.daemonPID, host);
+      const unit = await readRestartUnit(mismatch.daemonPID, host);
 
       await restartDaemonProcess(
         { pid: mismatch.daemonPID, unit },
@@ -158,7 +158,7 @@ async function openOrBootDaemon(
   }
 
   if (!canStart) {
-    throw new Error(formatGivenPathsFailure(paths));
+    throw new Error(readGivenPathsFailure(paths));
   }
 
   await bootDaemonOnce(paths, clock, atcArgv);
@@ -166,76 +166,16 @@ async function openOrBootDaemon(
   const booted = await tryOpenKnownDaemon(paths);
 
   if (booted === null) {
-    throw new Error(formatBootFailure(paths));
+    throw new Error(readBootFailure(paths));
   }
 
   return booted;
 }
 
-// The time a waiting boot gives up, and the length of its wait for the
-// error text.
-interface DaemonWait {
-  readonly deadline: number;
-  readonly timeoutMs: number;
-  readonly clock: Clock;
-  readonly paths: DaemonPaths;
-
-  // Called on every miss; the boot reports only the first to its caller.
-  readonly onWait: () => void;
-}
-
-async function waitForDaemon(wait: DaemonWait): Promise<OpenedDaemon> {
-  for (;;) {
-    const opened = await tryOpenKnownDaemon(wait.paths);
-
-    if (opened !== null) {
-      return opened;
-    }
-
-    wait.onWait();
-
-    if (wait.clock.now() >= wait.deadline) {
-      throw new Error(formatWaitFailure(wait));
-    }
-
-    const polled = Promise.withResolvers<void>();
-
-    wait.clock.schedule(polled.resolve, 100);
-
-    await polled.promise;
-  }
-}
-
-// the deadline rejects so a daemon that takes the connection but never
-// answers cannot hold the wait open.
-async function waitForHello(
-  sendHello: () => Promise<Readonly<Record<string, unknown>>>,
-  wait: DaemonWait,
-): Promise<Readonly<Record<string, unknown>>> {
-  if (wait.deadline === Number.POSITIVE_INFINITY) {
-    return sendHello();
-  }
-
-  const expired = Promise.withResolvers<never>();
-
-  const cancel = wait.clock.schedule(
-    () => {
-      expired.reject(new Error(formatWaitFailure(wait)));
-    },
-    Math.max(0, wait.deadline - wait.clock.now()),
-  );
-
-  try {
-    return await Promise.race([sendHello(), expired.promise]);
-  } finally {
-    cancel();
-  }
-}
-
 // Opens the first socket a running daemon may answer on that takes the
 // connection, sending no handshake.
 async function tryOpenKnownDaemon(paths: DaemonPaths): Promise<OpenedDaemon | null> {
-  for (const socketPath of collectDaemonSocketPaths(paths)) {
+  for (const socketPath of readDaemonSocketPaths(paths)) {
     try {
       return { client: await openDaemonClient(socketPath), socketPath };
     } catch {
@@ -246,9 +186,24 @@ async function tryOpenKnownDaemon(paths: DaemonPaths): Promise<OpenedDaemon | nu
   return null;
 }
 
-// How long a boot waits for a daemon to answer. It covers a daemon that
-// waits out the state lock of one still shutting down.
-const BOOT_DEADLINE_MS = 8000;
+// A boot given its own paths starts no daemon, since `atc daemon` would
+// listen at this process's paths instead, so the message says so.
+function readGivenPathsFailure(paths: DaemonPaths): string {
+  return (
+    readUnreachableDaemon(paths) ??
+    `no atc daemon answered at ${paths.socketPath}, and a boot given its own daemon paths does not start one; start \`atc daemon\` where it listens there first`
+  );
+}
+
+function readUnreachableDaemon(paths: DaemonPaths): string | null {
+  const record = readDaemonRecord(paths.recordFile);
+
+  if (record !== null && probeProcessAlive(record.pid)) {
+    return `the atc daemon (pid ${record.pid}) is running, but its socket ${record.socketPath} is unreachable from here`;
+  }
+
+  return null;
+}
 
 // One boot in flight per clock and daemon socket, which every boot of this
 // process on that clock for that socket shares.
@@ -277,6 +232,10 @@ function bootDaemonOnce(
 
   return flight();
 }
+
+// How long a boot waits for a daemon to answer. It covers a daemon that
+// waits out the state lock of one still shutting down.
+const BOOT_DEADLINE_MS = 8000;
 
 async function bootDaemon(
   paths: DaemonPaths,
@@ -307,44 +266,85 @@ async function bootDaemon(
   );
 }
 
+function spawnDaemonDetached(atcArgv: readonly string[]): ChildProcess {
+  return spawnATCDetached(atcArgv, ['daemon']);
+}
+
 // A live daemon this process cannot reach, such as one whose runtime
 // directory a sandbox hides, needs a different fix than one that never
 // started, so the message tells them apart.
-function formatBootFailure(paths: DaemonPaths): string {
+function readBootFailure(paths: DaemonPaths): string {
   return (
-    formatUnreachableDaemon(paths) ??
+    readUnreachableDaemon(paths) ??
     'the atc daemon did not come up; try `atc daemon` for its output'
   );
 }
 
-// A boot given its own paths starts no daemon, since `atc daemon` would
-// listen at this process's paths instead, so the message says so.
-function formatGivenPathsFailure(paths: DaemonPaths): string {
-  return (
-    formatUnreachableDaemon(paths) ??
-    `no atc daemon answered at ${paths.socketPath}, and a boot given its own daemon paths does not start one; start \`atc daemon\` where it listens there first`
-  );
+// The time a waiting boot gives up, and the length of its wait for the
+// error text.
+interface DaemonWait {
+  readonly deadline: number;
+  readonly timeoutMs: number;
+  readonly clock: Clock;
+  readonly paths: DaemonPaths;
+
+  // Called on every miss; the boot reports only the first to its caller.
+  readonly onWait: () => void;
 }
 
-function formatUnreachableDaemon(paths: DaemonPaths): string | null {
-  const record = findDaemonRecord(paths.recordFile);
+async function waitForDaemon(wait: DaemonWait): Promise<OpenedDaemon> {
+  for (;;) {
+    const opened = await tryOpenKnownDaemon(wait.paths);
 
-  if (record !== null && isProcessAlive(record.pid)) {
-    return `the atc daemon (pid ${record.pid}) is running, but its socket ${record.socketPath} is unreachable from here`;
+    if (opened !== null) {
+      return opened;
+    }
+
+    wait.onWait();
+
+    if (wait.clock.now() >= wait.deadline) {
+      throw new Error(readWaitFailure(wait));
+    }
+
+    const polled = Promise.withResolvers<void>();
+
+    wait.clock.schedule(polled.resolve, 100);
+
+    await polled.promise;
   }
-
-  return null;
 }
 
 // A waiting caller was told not to start a daemon, so the message says so
 // and points at starting the managed one.
-function formatWaitFailure(wait: DaemonWait): string {
+function readWaitFailure(wait: DaemonWait): string {
   return (
-    formatUnreachableDaemon(wait.paths) ??
+    readUnreachableDaemon(wait.paths) ??
     `no atc daemon answered at ${wait.paths.socketPath} within ${wait.timeoutMs / 1000}s, and this process does not start one; start \`atc daemon\` (or the service that runs it) first`
   );
 }
 
-function spawnDaemonDetached(atcArgv: readonly string[]): ChildProcess {
-  return spawnATCDetached(atcArgv, ['daemon']);
+// the deadline rejects so a daemon that takes the connection but never
+// answers cannot hold the wait open.
+async function waitForHello(
+  sendHello: () => Promise<Readonly<Record<string, unknown>>>,
+  wait: DaemonWait,
+): Promise<Readonly<Record<string, unknown>>> {
+  if (wait.deadline === Number.POSITIVE_INFINITY) {
+    return sendHello();
+  }
+
+  const expired = Promise.withResolvers<never>();
+
+  const cancel = wait.clock.schedule(
+    () => {
+      expired.reject(new Error(readWaitFailure(wait)));
+    },
+    Math.max(0, wait.deadline - wait.clock.now()),
+  );
+
+  try {
+    return await Promise.race([sendHello(), expired.promise]);
+  } finally {
+    cancel();
+  }
 }

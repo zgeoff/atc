@@ -6,12 +6,18 @@ import type { AgentAdapter } from '@atc/plugin-api';
 import { EffectRemainsError } from '@atc/plugin-api';
 import { StateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/testing';
-import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import {
+  buildStubBrokeredGatewayAdapter,
+  registerTestCleanup,
+  setupTempDir,
+} from '@atc/test-utils';
 import { AuthSetup } from '../auth/auth-setup';
+import { RuntimeAuthBinder } from '../auth/runtime-auth-binder';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { SessionFleetWriter } from '../fleet/session-fleet-writer';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildMockSession } from '../testing/build-mock-session';
+import { buildStubCredentialBroker } from '../testing/build-stub-credential-broker';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { runLocalCommand } from '../testing/run-local-command';
@@ -55,6 +61,8 @@ async function setupTest(config: SetupTestConfig) {
     now: () => 0,
   });
 
+  const authBinder = new RuntimeAuthBinder(store);
+
   const stopMessageBridge = mock(() => Promise.resolve());
   const onBoot = mock<() => void>();
 
@@ -72,8 +80,8 @@ async function setupTest(config: SetupTestConfig) {
     log: mock<() => void>(),
     now: () => 0,
     getClock: () => systemClock,
-    getAuthBinder: () => null,
-    getRecords: () => records,
+    findAuthBinder: () => authBinder,
+    findRecords: () => records,
   };
 
   const registry = new SessionRegistry({
@@ -238,6 +246,84 @@ test('it rejects a spawn that trusts a cloned workspace without a workspace sour
   expect(ctx.registry.sessions).toStrictEqual([]);
 });
 
+test('it takes clone trust for a brokered agent on a remote target that can trust a clone', async () => {
+  const provider = buildStubMemoryProvider({
+    kind: 'cloud',
+    remote: true,
+    brokerAuth: buildStubCredentialBroker(),
+    guestWorkspaceTrust: true,
+  });
+
+  const ctx = await setupTest({
+    adapters: [{ ...buildStubBrokeredGatewayAdapter(), planGuestWorkspaceTrust: () => ({}) }],
+    targets: [
+      buildMockExecutionTarget({ id: 'far', kind: 'cloud', identity: 'cloud:test', provider }),
+    ],
+
+    // the spawn reaches its steps only once it took the trust
+    runSteps: () => Promise.reject(new Error('the spawn steps started')),
+  });
+
+  const spawned = ctx.spawner.spawn(
+    ctx.dir,
+    'clone',
+    '',
+    80,
+    24,
+    false,
+    'auto',
+    'glm',
+    null,
+    { trustClonedWorkspace: true },
+    toSessionID('s-trust'),
+    'far',
+    () => Promise.resolve(null),
+  );
+
+  expect(spawned).rejects.toThrowWithMessage(Error, 'the spawn steps started');
+});
+
+test.each([
+  ['false', { guestWorkspaceTrust: false }],
+  ['absent', {}],
+])(
+  'it refuses clone trust for a brokered agent on a remote target whose trust flag is %s',
+  async (_label, flags) => {
+    const provider = buildStubMemoryProvider({
+      kind: 'cloud',
+      remote: true,
+      brokerAuth: buildStubCredentialBroker(),
+      ...flags,
+    });
+
+    const ctx = await setupTest({
+      adapters: [{ ...buildStubBrokeredGatewayAdapter(), planGuestWorkspaceTrust: () => ({}) }],
+      targets: [
+        buildMockExecutionTarget({ id: 'far', kind: 'cloud', identity: 'cloud:test', provider }),
+      ],
+      runSteps: () => Promise.reject(new Error('the spawn steps started')),
+    });
+
+    const spawned = ctx.spawner.spawn(
+      ctx.dir,
+      'clone',
+      '',
+      80,
+      24,
+      false,
+      'auto',
+      'glm',
+      null,
+      { trustClonedWorkspace: true },
+      toSessionID('s-trust'),
+      'far',
+      () => Promise.resolve(null),
+    );
+
+    expect(spawned).rejects.toMatchObject({ code: 'unsupported' });
+  },
+);
+
 test('it rejects a spawn whose harness its provider cannot start and lists nothing', async () => {
   const provider = buildStubMemoryProvider({
     kind: 'local-pty',
@@ -285,7 +371,7 @@ test('it drops the stored record of a spawn whose record copy fails to land', as
 
   await spawned.catch(() => null);
 
-  const stored = await ctx.store.findPublishedRecord(toSessionID('s-copy'));
+  const stored = await ctx.store.readPublishedRecord(toSessionID('s-copy'));
 
   expect(spawned).rejects.toThrow();
   expect(stored).toBeNull();

@@ -15,7 +15,7 @@ export class AttachRegistry<TClient> {
     this.bySession.set(sessionID, clients);
   }
 
-  detach(sessionID: SessionID, client: TClient): boolean {
+  removeClient(sessionID: SessionID, client: TClient): boolean {
     const clients = this.bySession.get(sessionID);
     const removed = clients?.delete(client) ?? false;
 

@@ -95,7 +95,7 @@ export class GrokAdapter implements AgentAdapter {
   }
 
   // Shell command that re-opens this session outside atc (or anywhere).
-  buildResumeCommand(cwd: string, agentSessionID: AgentSessionID | undefined): string | null {
+  planResumeCommand(cwd: string, agentSessionID: AgentSessionID | undefined): string | null {
     const resume = agentSessionID === undefined ? 'grok' : `grok --resume ${agentSessionID}`;
 
     return `cd ${toShellArg(cwd)} && ${resume}`;

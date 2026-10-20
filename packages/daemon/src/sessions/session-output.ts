@@ -104,7 +104,7 @@ export class SessionOutput {
       return;
     }
 
-    const replay = `${ansi.clear}${await runtime.screen.renderReplay()}`;
+    const replay = `${ansi.clear}${await runtime.screen.captureReplay()}`;
     const seq = runtime.seq;
 
     for (let i = 0; i < replay.length; i += MAX_CHUNK) {
@@ -149,7 +149,7 @@ export class SessionOutput {
   }
 
   detachSession(client: OutputClient, sessionID: SessionID): void {
-    if (!this.attachments.detach(sessionID, client)) {
+    if (!this.attachments.removeClient(sessionID, client)) {
       return;
     }
 

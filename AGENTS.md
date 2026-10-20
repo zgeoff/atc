@@ -12,7 +12,7 @@ The rules a task needs are not repeated here. Load the skill for the work before
 | Skill                | Load before                                                                                      |
 | -------------------- | ------------------------------------------------------------------------------------------------ |
 | `code-style`         | writing, reviewing, or renaming any TypeScript — the function-verb taxonomy and the comment rule |
-| `project-code-style` | the same, beside `code-style` — atc's own verbs and exempt names                                 |
+| `project-code-style` | the same, beside `code-style` — the place for atc's additions to it                              |
 | `testing`            | designing, writing, or reviewing tests                                                           |
 | `project-testing`    | the same, beside `testing` — atc's test home and PTY harness                                     |
 | `docs-writing`       | writing or editing any committed prose: `docs/`, READMEs, this file, skills                      |

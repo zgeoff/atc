@@ -2,13 +2,13 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { readJSONRecord } from '@atc/test-utils';
-import { collectClients } from '../mcp/collect-clients';
-import { collectPasskeys } from '../mcp/collect-passkeys';
+import { readClientViews } from '../mcp/read-client-views';
+import { readPasskeyViews } from '../mcp/read-passkey-views';
 import { setupMCPHTTP } from './setup-mcp-http';
 
 test("it enrolls the owner's passkey on the authenticator it returns", async () => {
   const server = await setupMCPHTTP();
-  const passkeys = await collectPasskeys(server.store.db);
+  const passkeys = await readPasskeyViews(server.store.db);
 
   expect(passkeys).toStrictEqual([
     { id: server.authenticator.credentialID, createdAt: expect.toBeString(), lastUsedAt: null },
@@ -35,7 +35,7 @@ test('it keeps the authorization database where atc keeps it under the home dire
 test('it adds a client the store lists under its name and redirect URIs', async () => {
   const server = await setupMCPHTTP();
   const clientID = await server.createClient('dots', ['https://dots.example/cb']);
-  const clients = await collectClients(server.store.db);
+  const clients = await readClientViews(server.store.db);
 
   expect(clients).toStrictEqual([
     {

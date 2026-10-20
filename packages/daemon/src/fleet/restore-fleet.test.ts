@@ -19,6 +19,7 @@ import type { Session } from '../sessions/session';
 import { SessionRuntime } from '../sessions/session-runtime';
 import { SessionManager } from '../sessions/sessions';
 import { startHeadlessTurn } from '../sessions/start-headless-turn';
+import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { buildStubRestoreImpProvider } from '../testing/build-stub-restore-imp-provider';
 import { runLocalCommand } from '../testing/run-local-command';
@@ -628,7 +629,19 @@ test('it restores sessions stored before the providers moved into packages by ta
         },
       },
     ],
-    (config) => ({ provider: buildStubMemoryProvider({ kind: config.provider }), problem: null }),
+    (config) => ({
+      provider: buildStubMemoryProvider({ kind: config.provider }),
+      problem: null,
+      identityRule: new Map([
+        [
+          'imp',
+          {
+            version: 'reach-v1',
+            ignoredOptions: ['image', 'memoryMib', 'guestATC', 'rebindChangedAuth'],
+          },
+        ],
+      ]).get(config.provider),
+    }),
   );
 
   onTestFinished(async () => {
@@ -687,7 +700,19 @@ test('it refuses a stored session whose target config revision differs from the 
         },
       },
     ],
-    (config) => ({ provider: buildStubMemoryProvider({ kind: config.provider }), problem: null }),
+    (config) => ({
+      provider: buildStubMemoryProvider({ kind: config.provider }),
+      problem: null,
+      identityRule: new Map([
+        [
+          'imp',
+          {
+            version: 'reach-v1',
+            ignoredOptions: ['image', 'memoryMib', 'guestATC', 'rebindChangedAuth'],
+          },
+        ],
+      ]).get(config.provider),
+    }),
   );
 
   onTestFinished(async () => {
@@ -731,7 +756,19 @@ test('it restores a stored session on its own target config revision after anoth
         options: { url: 'http://impd.example:7272', tokenEnv: 'FIXTURE_IMP_TOKEN' },
       },
     ],
-    (config) => ({ provider: buildStubMemoryProvider({ kind: config.provider }), problem: null }),
+    (config) => ({
+      provider: buildStubMemoryProvider({ kind: config.provider }),
+      problem: null,
+      identityRule: new Map([
+        [
+          'imp',
+          {
+            version: 'reach-v1',
+            ignoredOptions: ['image', 'memoryMib', 'guestATC', 'rebindChangedAuth'],
+          },
+        ],
+      ]).get(config.provider),
+    }),
   );
 
   onTestFinished(async () => {
@@ -1554,7 +1591,8 @@ test('it never adopts a terminal for a live headless run a later restore finds l
 
 test('it restores and persists a live legacy cloud session after an image change', async () => {
   const options = { url: 'http://impd', image: 'new' };
-  const identity = buildTargetIdentity('imp', options);
+  const identityRule = { version: 'reach-v1', ignoredOptions: ['image'] };
+  const identity = buildTargetIdentity('imp', options, identityRule);
 
   const ctx = await setupTest();
 
@@ -1563,7 +1601,16 @@ test('it restores and persists a live legacy cloud session after an image change
     ctx.store,
     ctx.statusPath,
     [],
-    [{ id: 'cloud', kind: 'imp', options, identity, provider: ctx.impProvider }],
+    [
+      buildMockExecutionTarget({
+        id: 'cloud',
+        kind: 'imp',
+        options,
+        identity,
+        identityRule,
+        provider: ctx.impProvider,
+      }),
+    ],
   );
 
   registerTestCleanup(() => {
@@ -1613,7 +1660,8 @@ test('it restores and persists a live legacy cloud session after an image change
 
 test('it keeps a cloud session usable after the image changes under a versioned binding', async () => {
   const options = { url: 'http://impd', image: 'new' };
-  const identity = buildTargetIdentity('imp', options);
+  const identityRule = { version: 'reach-v1', ignoredOptions: ['image'] };
+  const identity = buildTargetIdentity('imp', options, identityRule);
 
   const ctx = await setupTest();
 
@@ -1622,7 +1670,16 @@ test('it keeps a cloud session usable after the image changes under a versioned 
     ctx.store,
     ctx.statusPath,
     [],
-    [{ id: 'cloud', kind: 'imp', options, identity, provider: ctx.impProvider }],
+    [
+      buildMockExecutionTarget({
+        id: 'cloud',
+        kind: 'imp',
+        options,
+        identity,
+        identityRule,
+        provider: ctx.impProvider,
+      }),
+    ],
   );
 
   registerTestCleanup(() => {
@@ -1632,7 +1689,7 @@ test('it keeps a cloud session usable after the image changes under a versioned 
   const entry = buildMockFleetEntry({
     cwd: ctx.dir,
     target: 'cloud',
-    targetIdentity: buildTargetIdentity('imp', { url: 'http://impd', image: 'old' }),
+    targetIdentity: buildTargetIdentity('imp', { url: 'http://impd', image: 'old' }, identityRule),
   });
 
   ctx.impProvider.createHost(entry.sessionID);
@@ -1663,7 +1720,8 @@ test('it keeps a cloud session usable after the image changes under a versioned 
 
 test('it leaves a missing legacy imp refused instead of creating a replacement', async () => {
   const options = { url: 'http://impd', image: 'new' };
-  const identity = buildTargetIdentity('imp', options);
+  const identityRule = { version: 'reach-v1', ignoredOptions: ['image'] };
+  const identity = buildTargetIdentity('imp', options, identityRule);
 
   const ctx = await setupTest();
 
@@ -1672,7 +1730,16 @@ test('it leaves a missing legacy imp refused instead of creating a replacement',
     ctx.store,
     ctx.statusPath,
     [],
-    [{ id: 'cloud', kind: 'imp', options, identity, provider: ctx.impProvider }],
+    [
+      buildMockExecutionTarget({
+        id: 'cloud',
+        kind: 'imp',
+        options,
+        identity,
+        identityRule,
+        provider: ctx.impProvider,
+      }),
+    ],
   );
 
   registerTestCleanup(() => {
@@ -1713,7 +1780,8 @@ test('it leaves a missing legacy imp refused instead of creating a replacement',
 
 test('it restores a listed legacy session when its imp becomes reachable on a later restore', async () => {
   const options = { url: 'http://impd', image: 'new' };
-  const identity = buildTargetIdentity('imp', options);
+  const identityRule = { version: 'reach-v1', ignoredOptions: ['image'] };
+  const identity = buildTargetIdentity('imp', options, identityRule);
 
   const ctx = await setupTest();
 
@@ -1722,7 +1790,16 @@ test('it restores a listed legacy session when its imp becomes reachable on a la
     ctx.store,
     ctx.statusPath,
     [],
-    [{ id: 'cloud', kind: 'imp', options, identity, provider: ctx.impProvider }],
+    [
+      buildMockExecutionTarget({
+        id: 'cloud',
+        kind: 'imp',
+        options,
+        identity,
+        identityRule,
+        provider: ctx.impProvider,
+      }),
+    ],
   );
 
   registerTestCleanup(() => {
@@ -1775,7 +1852,8 @@ test('it restores a listed legacy session when its imp becomes reachable on a la
 
 test('it lists the adoption refusal in place of a stale binding refusal once the host check succeeds', async () => {
   const options = { url: 'http://impd', image: 'new' };
-  const identity = buildTargetIdentity('imp', options);
+  const identityRule = { version: 'reach-v1', ignoredOptions: ['image'] };
+  const identity = buildTargetIdentity('imp', options, identityRule);
 
   const ctx = await setupTest();
 
@@ -1784,7 +1862,16 @@ test('it lists the adoption refusal in place of a stale binding refusal once the
     ctx.store,
     ctx.statusPath,
     [],
-    [{ id: 'cloud', kind: 'imp', options, identity, provider: ctx.impProvider }],
+    [
+      buildMockExecutionTarget({
+        id: 'cloud',
+        kind: 'imp',
+        options,
+        identity,
+        identityRule,
+        provider: ctx.impProvider,
+      }),
+    ],
   );
 
   registerTestCleanup(() => {

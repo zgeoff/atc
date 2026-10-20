@@ -389,7 +389,7 @@ test("it keeps the gateway's arguments, its permission mode included, in the com
     },
   );
 
-  const command = adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'), []);
+  const command = adapter.planResumeCommand('/work/repo', toAgentSessionID('sess-1'), []);
 
   expect(command).toBe(
     `cd '/work/repo' && /opt/gw/bin/claude '--permission-mode' 'default' --settings '${join(ctx.dir, 'state', 'hook-settings-manual-resume.json')}' --resume sess-1`,
@@ -415,7 +415,7 @@ test("it keeps a gateway's configured plugin folders and the session's own in th
     },
   );
 
-  const command = adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'), [
+  const command = adapter.planResumeCommand('/work/repo', toAgentSessionID('sess-1'), [
     '/srv/plugins/band',
   ]);
 
@@ -644,7 +644,7 @@ test("it keeps the gateway's settings default mode in the command that resumes i
     },
   );
 
-  const command = adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'), []);
+  const command = adapter.planResumeCommand('/work/repo', toAgentSessionID('sess-1'), []);
 
   expect(command).toBe(
     `cd '/work/repo' && /opt/gw/bin/claude '--permission-mode' 'default' --settings '${join(ctx.dir, 'state', 'hook-settings-resume-settings.json')}' --resume sess-1`,
@@ -706,7 +706,7 @@ test('it resumes a gateway outside atc in its explicit permission-mode argument 
     },
   );
 
-  const command = adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'), []);
+  const command = adapter.planResumeCommand('/work/repo', toAgentSessionID('sess-1'), []);
 
   expect(command).toBe(
     `cd '/work/repo' && claude '--permission-mode' 'plan' --settings '${join(ctx.dir, 'state', 'hook-settings-restore-flag.json')}' --resume sess-1`,
@@ -721,7 +721,7 @@ test("it refuses to start a gateway with auth on the daemon's machine", () => {
       baseURL: 'https://api.z.ai/api/anthropic',
       auth: {
         profiles: ['glm'],
-        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
       },
     }),
     parseConfig([CLAUDE_PLUGIN], {}),
@@ -752,7 +752,7 @@ test('it gives a gateway with auth no resume command', () => {
     { headlessRun: buildStubClaudeHeadlessRun() },
   );
 
-  expect(adapter.buildResumeCommand('/work', toAgentSessionID('a1'), [])).toBeNull();
+  expect(adapter.planResumeCommand('/work', toAgentSessionID('a1'), [])).toBeNull();
 });
 
 test("it starts a gateway with auth and a credential helper on the daemon's machine under that helper", () => {
@@ -768,7 +768,7 @@ test("it starts a gateway with auth and a credential helper on the daemon's mach
       env: {},
       auth: {
         profiles: ['glm'],
-        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
         args: ['--plugin-dir', '/opt/auto-mode/mods/auto-mode'],
       },
     }),
@@ -879,7 +879,7 @@ test('it writes no broker placeholder into the local settings of a gateway with 
       env: {},
       auth: {
         profiles: ['glm'],
-        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
       },
     }),
     parseConfig([CLAUDE_PLUGIN], {}),
@@ -894,7 +894,7 @@ test('it writes no broker placeholder into the local settings of a gateway with 
   adapter.planSpawn({ prompt: '', resume: false });
 
   expect(readFileSync(join(ctx.dir, 'state', 'hook-settings-glm-local.json'), 'utf8')).not.toMatch(
-    /imp-broker-placeholder|ANTHROPIC_AUTH_TOKEN/u,
+    /broker-placeholder|ANTHROPIC_AUTH_TOKEN/u,
   );
 });
 
@@ -913,7 +913,7 @@ test('it lets a gateway with auth and a credential helper start on a target with
       apiKeyHelper: '/home/me/bin/glm-key',
       auth: {
         profiles: ['glm'],
-        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
       },
     }),
     config,
@@ -987,7 +987,7 @@ test('it resumes a gateway with auth and a credential helper outside atc through
     },
   );
 
-  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'), [])).toBe(
+  expect(adapter.planResumeCommand('/work/repo', toAgentSessionID('sess-1'), [])).toBe(
     `cd '/work/repo' && claude --settings '${join(ctx.dir, 'state', 'hook-settings-glm.json')}' --resume sess-1`,
   );
 });
@@ -1002,7 +1002,7 @@ test("it starts a brokered guest with the auth's own arguments in place of the g
       apiKeyHelper: '/home/me/bin/glm-key',
       auth: {
         profiles: ['glm'],
-        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
         args: ['--plugin-dir', '/opt/auto-mode/mods/auto-mode', '--permission-mode', 'acceptEdits'],
       },
     }),
@@ -1021,7 +1021,7 @@ test("it starts a brokered guest with the auth's own arguments in place of the g
       dir: '/tmp/atc/sessions/s1',
       auth: {
         revision: 1,
-        env: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
         profileEnv: {},
       },
     },
@@ -1071,7 +1071,7 @@ test('it plans a brokered guest spawn with its own settings file, Claude config 
       env: { ANTHROPIC_DEFAULT_SONNET_MODEL: 'glm-4.6' },
       auth: {
         profiles: ['glm'],
-        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
       },
     }),
     config,
@@ -1085,7 +1085,7 @@ test('it plans a brokered guest spawn with its own settings file, Claude config 
       dir: '/tmp/atc/sessions/s1',
       auth: {
         revision: 3,
-        env: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
         profileEnv: {},
       },
     },
@@ -1131,7 +1131,7 @@ test('it plans a brokered guest spawn with its own settings file, Claude config 
     env: {
       CLAUDE_CONFIG_DIR: '/tmp/atc/sessions/s1/claude-config',
       TMPDIR: '/tmp/atc/sessions/s1/scratch',
-      ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
+      ANTHROPIC_AUTH_TOKEN: 'broker-placeholder',
     },
   });
 
@@ -1201,7 +1201,7 @@ test('it plans a brokered guest spawn with its own settings file, Claude config 
     env: {
       ANTHROPIC_DEFAULT_SONNET_MODEL: 'glm-4.6',
       ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic',
-      ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
+      ANTHROPIC_AUTH_TOKEN: 'broker-placeholder',
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
     },
   });
@@ -1239,7 +1239,7 @@ test("it keeps the gateway's permission hook and mode in a brokered guest's sett
       settings: { permissions: { defaultMode: 'default' }, hooks: { PermissionRequest: [hook] } },
       auth: {
         profiles: ['glm'],
-        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
       },
     }),
     config,
@@ -1253,7 +1253,7 @@ test("it keeps the gateway's permission hook and mode in a brokered guest's sett
       dir: '/tmp/atc/sessions/s1',
       auth: {
         revision: 1,
-        env: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
         profileEnv: {},
       },
     },
@@ -1359,23 +1359,23 @@ test("it keeps the gateway's permission hook and mode in a brokered guest's sett
     },
     env: {
       ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic',
-      ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
+      ANTHROPIC_AUTH_TOKEN: 'broker-placeholder',
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
     },
   });
 });
 
 test.each([
-  [{ ANTHROPIC_API_KEY: 'imp-broker-placeholder' }],
+  [{ ANTHROPIC_API_KEY: 'broker-placeholder' }],
   [{}],
-  [{ ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder', ANTHROPIC_API_KEY: 'imp-broker-placeholder' }],
+  [{ ANTHROPIC_AUTH_TOKEN: 'broker-placeholder', ANTHROPIC_API_KEY: 'broker-placeholder' }],
   [
     {
-      ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
-      CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
+      ANTHROPIC_AUTH_TOKEN: 'broker-placeholder',
+      CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder',
     },
   ],
-  [{ ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder', CLAUDE_CONFIG_DIR: 'imp-broker-placeholder' }],
+  [{ ANTHROPIC_AUTH_TOKEN: 'broker-placeholder', CLAUDE_CONFIG_DIR: 'broker-placeholder' }],
   [{ ANTHROPIC_AUTH_TOKEN: 'sk-real' }],
 ])('it refuses a brokered guest spawn whose placeholders are %p', (placeholderEnv) => {
   const adapter = new GatewayAdapter(
@@ -1416,8 +1416,8 @@ test('it allows the start of a gateway with auth that sets an extra placeholder 
       auth: {
         profiles: ['glm', 'jev'],
         placeholderEnv: {
-          ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
-          TYPESAFE_API_KEY: 'imp-broker-placeholder',
+          ANTHROPIC_AUTH_TOKEN: 'broker-placeholder',
+          TYPESAFE_API_KEY: 'broker-placeholder',
         },
       },
     }),
@@ -1448,8 +1448,8 @@ test('it carries an extra placeholder variable and the gateway args into a broke
       auth: {
         profiles: ['glm', 'jev'],
         placeholderEnv: {
-          ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
-          TYPESAFE_API_KEY: 'imp-broker-placeholder',
+          ANTHROPIC_AUTH_TOKEN: 'broker-placeholder',
+          TYPESAFE_API_KEY: 'broker-placeholder',
         },
       },
     }),
@@ -1475,8 +1475,8 @@ test('it carries an extra placeholder variable and the gateway args into a broke
       auth: {
         revision: 1,
         env: {
-          ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
-          TYPESAFE_API_KEY: 'imp-broker-placeholder',
+          ANTHROPIC_AUTH_TOKEN: 'broker-placeholder',
+          TYPESAFE_API_KEY: 'broker-placeholder',
         },
         profileEnv: {},
       },
@@ -1520,8 +1520,8 @@ test('it carries an extra placeholder variable and the gateway args into a broke
   expect(plan.env).toStrictEqual({
     CLAUDE_CONFIG_DIR: '/tmp/atc/sessions/s1/claude-config',
     TMPDIR: '/tmp/atc/sessions/s1/scratch',
-    ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
-    TYPESAFE_API_KEY: 'imp-broker-placeholder',
+    ANTHROPIC_AUTH_TOKEN: 'broker-placeholder',
+    TYPESAFE_API_KEY: 'broker-placeholder',
   });
 
   expect(settings).toStrictEqual({
@@ -1589,8 +1589,8 @@ test('it carries an extra placeholder variable and the gateway args into a broke
     },
     env: {
       ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic',
-      ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
-      TYPESAFE_API_KEY: 'imp-broker-placeholder',
+      ANTHROPIC_AUTH_TOKEN: 'broker-placeholder',
+      TYPESAFE_API_KEY: 'broker-placeholder',
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
     },
   });
@@ -1610,7 +1610,7 @@ test("it refuses a brokered guest spawn whose profile sets a header other than a
       baseURL: 'https://api.z.ai/api/anthropic',
       auth: {
         profiles: ['glm'],
-        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
       },
     }),
     config,
@@ -1625,7 +1625,7 @@ test("it refuses a brokered guest spawn whose profile sets a header other than a
         dir: '/tmp/atc/sessions/s1',
         auth: {
           revision: 1,
-          env: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+          env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
           profileEnv: {},
         },
       },
@@ -1643,7 +1643,7 @@ test('it refuses a brokered guest spawn on a host that gave it no broker binding
       baseURL: 'https://api.z.ai/api/anthropic',
       auth: {
         profiles: ['glm'],
-        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
       },
     }),
     parseConfig([CLAUDE_PLUGIN], {}),
@@ -1677,7 +1677,7 @@ test('it plans no guest spawn for a gateway whose credential helper runs on the 
       dir: '/tmp/atc/sessions/s1',
       auth: {
         revision: 1,
-        env: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
         profileEnv: {},
       },
     },
@@ -1694,7 +1694,7 @@ test('it plans no brokered guest spawn on a host without atc', () => {
       baseURL: 'https://api.z.ai/api/anthropic',
       auth: {
         profiles: ['glm'],
-        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
       },
     }),
     parseConfig([CLAUDE_PLUGIN], {}),
@@ -1708,7 +1708,7 @@ test('it plans no brokered guest spawn on a host without atc', () => {
       dir: '/tmp/atc/sessions/s1',
       auth: {
         revision: 1,
-        env: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
         profileEnv: {},
       },
     },
@@ -1739,7 +1739,7 @@ test('it keeps a credential held on the daemon side out of every file, argument 
       settings: { apiKeyHelper: `echo ${canary}`, env: { ANTHROPIC_API_KEY: canary } },
       auth: {
         profiles: ['glm'],
-        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
       },
     }),
     config,
@@ -1753,7 +1753,7 @@ test('it keeps a credential held on the daemon side out of every file, argument 
       dir: '/tmp/atc/sessions/s1',
       auth: {
         revision: 1,
-        env: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
         profileEnv: {},
       },
     },
@@ -1780,7 +1780,7 @@ test("it seeds a brokered guest's Claude config with the onboarding state when t
       baseURL: 'https://api.z.ai/api/anthropic',
       auth: {
         profiles: ['glm'],
-        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
       },
     }),
     config,
@@ -1794,7 +1794,7 @@ test("it seeds a brokered guest's Claude config with the onboarding state when t
       dir: ctx.dir,
       auth: {
         revision: 1,
-        env: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
         profileEnv: {},
       },
     },
@@ -1835,7 +1835,7 @@ test("it keeps the state an earlier run left in a brokered guest's Claude config
       baseURL: 'https://api.z.ai/api/anthropic',
       auth: {
         profiles: ['glm'],
-        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
       },
     }),
     config,
@@ -1849,7 +1849,7 @@ test("it keeps the state an earlier run left in a brokered guest's Claude config
       dir: ctx.dir,
       auth: {
         revision: 2,
-        env: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
         profileEnv: {},
       },
     },
@@ -1891,7 +1891,7 @@ test('it starts a brokered guest in the permission mode its configured arguments
       baseURL: 'https://api.z.ai/api/anthropic',
       auth: {
         profiles: ['glm'],
-        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
       },
     }),
     parseConfig([CLAUDE_PLUGIN], {
@@ -1909,7 +1909,7 @@ test('it starts a brokered guest in the permission mode its configured arguments
       dir: '/tmp/atc/sessions/s1',
       auth: {
         revision: 1,
-        env: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
         profileEnv: {},
       },
     },
@@ -1944,7 +1944,7 @@ test("it starts a fresh spawn of a brokered guest in Claude's manual mode when t
       baseURL: 'https://api.z.ai/api/anthropic',
       auth: {
         profiles: ['glm'],
-        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
       },
     }),
     parseConfig([CLAUDE_PLUGIN], {
@@ -1962,7 +1962,7 @@ test("it starts a fresh spawn of a brokered guest in Claude's manual mode when t
       dir: '/tmp/atc/sessions/s1',
       auth: {
         revision: 1,
-        env: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
         profileEnv: {},
       },
     },
@@ -1997,7 +1997,7 @@ test("it starts a resume of a brokered guest in Claude's manual mode when the ga
       baseURL: 'https://api.z.ai/api/anthropic',
       auth: {
         profiles: ['glm'],
-        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
       },
     }),
     parseConfig([CLAUDE_PLUGIN], {
@@ -2015,7 +2015,7 @@ test("it starts a resume of a brokered guest in Claude's manual mode when the ga
       dir: '/tmp/atc/sessions/s1',
       auth: {
         revision: 1,
-        env: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
         profileEnv: {},
       },
     },
@@ -2058,7 +2058,7 @@ test('it selects the credential a gateway with auth takes from the broker, with 
       baseURL: 'https://api.z.ai/api/anthropic',
       auth: {
         profiles: ['glm'],
-        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
       },
     }),
     config,
@@ -2071,7 +2071,7 @@ test('it selects the credential a gateway with auth takes from the broker, with 
       baseURL: 'https://api.z.ai/api/anthropic',
       auth: {
         profiles: ['glm'],
-        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
       },
     },
     profiles: config.authProfiles,
@@ -2101,7 +2101,7 @@ test('it allows the start of a gateway with auth whose placeholder pairs with th
       baseURL: 'https://api.z.ai/api/anthropic',
       auth: {
         profiles: ['glm'],
-        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
       },
     }),
     parseConfig([CLAUDE_PLUGIN], {
@@ -2123,7 +2123,7 @@ test('it refuses every start of a gateway with auth whose API key placeholder me
       baseURL: 'https://api.z.ai/api/anthropic',
       auth: {
         profiles: ['glm'],
-        placeholderEnv: { ANTHROPIC_API_KEY: 'imp-broker-placeholder' },
+        placeholderEnv: { ANTHROPIC_API_KEY: 'broker-placeholder' },
       },
     }),
     parseConfig([CLAUDE_PLUGIN], {
@@ -2148,7 +2148,7 @@ test('it allows the start of a gateway with auth whose API key placeholder pairs
       baseURL: 'https://api.meta.ai',
       auth: {
         profiles: ['muse'],
-        placeholderEnv: { ANTHROPIC_API_KEY: 'imp-broker-placeholder' },
+        placeholderEnv: { ANTHROPIC_API_KEY: 'broker-placeholder' },
       },
     }),
     parseConfig([CLAUDE_PLUGIN], {
@@ -2163,19 +2163,19 @@ test('it allows the start of a gateway with auth whose API key placeholder pairs
 });
 
 test.each([
-  [{ ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' }, { header: 'x-api-key', scheme: 'raw' }],
-  [{ ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' }, { header: 'authorization', scheme: 'raw' }],
-  [{ ANTHROPIC_API_KEY: 'imp-broker-placeholder' }, { header: 'x-api-key', scheme: 'bearer' }],
-  [{ ANTHROPIC_API_KEY: 'imp-broker-placeholder' }, { header: 'authorization', scheme: 'raw' }],
+  [{ ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' }, { header: 'x-api-key', scheme: 'raw' }],
+  [{ ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' }, { header: 'authorization', scheme: 'raw' }],
+  [{ ANTHROPIC_API_KEY: 'broker-placeholder' }, { header: 'x-api-key', scheme: 'bearer' }],
+  [{ ANTHROPIC_API_KEY: 'broker-placeholder' }, { header: 'authorization', scheme: 'raw' }],
   [
-    { ANTHROPIC_API_KEY: 'imp-broker-placeholder', ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+    { ANTHROPIC_API_KEY: 'broker-placeholder', ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
     { header: 'x-api-key', scheme: 'raw' },
   ],
   [{ ANTHROPIC_API_KEY: 'sk-real' }, { header: 'x-api-key', scheme: 'raw' }],
   [
     {
-      ANTHROPIC_API_KEY: 'imp-broker-placeholder',
-      CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
+      ANTHROPIC_API_KEY: 'broker-placeholder',
+      CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder',
     },
     { header: 'x-api-key', scheme: 'raw' },
   ],
@@ -2210,7 +2210,7 @@ test('it plans a brokered guest spawn of an API key gateway that sends only the 
       baseURL: 'https://api.meta.ai',
       auth: {
         profiles: ['muse'],
-        placeholderEnv: { ANTHROPIC_API_KEY: 'imp-broker-placeholder' },
+        placeholderEnv: { ANTHROPIC_API_KEY: 'broker-placeholder' },
       },
     }),
     parseConfig([CLAUDE_PLUGIN], {
@@ -2226,7 +2226,7 @@ test('it plans a brokered guest spawn of an API key gateway that sends only the 
     {
       atc: '/opt/atc/bin/atc',
       dir: '/tmp/atc/sessions/s1',
-      auth: { revision: 1, env: { ANTHROPIC_API_KEY: 'imp-broker-placeholder' }, profileEnv: {} },
+      auth: { revision: 1, env: { ANTHROPIC_API_KEY: 'broker-placeholder' }, profileEnv: {} },
     },
   );
 
@@ -2244,13 +2244,13 @@ test('it plans a brokered guest spawn of an API key gateway that sends only the 
   expect(plan.env).toStrictEqual({
     CLAUDE_CONFIG_DIR: '/tmp/atc/sessions/s1/claude-config',
     TMPDIR: '/tmp/atc/sessions/s1/scratch',
-    ANTHROPIC_API_KEY: 'imp-broker-placeholder',
+    ANTHROPIC_API_KEY: 'broker-placeholder',
   });
 
   expect(settings).toMatchObject({
     env: {
       ANTHROPIC_BASE_URL: 'https://api.meta.ai',
-      ANTHROPIC_API_KEY: 'imp-broker-placeholder',
+      ANTHROPIC_API_KEY: 'broker-placeholder',
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
     },
   });
@@ -2260,7 +2260,7 @@ test('it plans a brokered guest spawn of an API key gateway that sends only the 
   expect(seed).toStrictEqual({
     hasCompletedOnboarding: true,
     hasSeenAutoModeOutsideReadPrompt: true,
-    customApiKeyResponses: { approved: ['p-broker-placeholder'], rejected: [] },
+    customApiKeyResponses: { approved: ['broker-placeholder'], rejected: [] },
   });
 });
 
@@ -2272,7 +2272,7 @@ test('it seeds the approval of the API key placeholder beside the clone trust of
       baseURL: 'https://api.meta.ai',
       auth: {
         profiles: ['muse'],
-        placeholderEnv: { ANTHROPIC_API_KEY: 'imp-broker-placeholder' },
+        placeholderEnv: { ANTHROPIC_API_KEY: 'broker-placeholder' },
       },
     }),
     parseConfig([CLAUDE_PLUGIN], {
@@ -2290,7 +2290,7 @@ test('it seeds the approval of the API key placeholder beside the clone trust of
   expect(JSON.parse(seedFile)).toStrictEqual({
     hasCompletedOnboarding: true,
     hasSeenAutoModeOutsideReadPrompt: true,
-    customApiKeyResponses: { approved: ['p-broker-placeholder'], rejected: [] },
+    customApiKeyResponses: { approved: ['broker-placeholder'], rejected: [] },
     projects: {
       '/work/repo': { hasTrustDialogAccepted: true, enableAllProjectMcpServers: true },
     },
@@ -2312,7 +2312,7 @@ test.each([
         baseURL: 'https://api.meta.ai',
         auth: {
           profiles: ['muse'],
-          placeholderEnv: { ANTHROPIC_API_KEY: 'imp-broker-placeholder' },
+          placeholderEnv: { ANTHROPIC_API_KEY: 'broker-placeholder' },
         },
       }),
       parseConfig([CLAUDE_PLUGIN], {
@@ -2330,7 +2330,7 @@ test.each([
         dir: ctx.dir,
         auth: {
           revision: 1,
-          env: { ANTHROPIC_API_KEY: 'imp-broker-placeholder' },
+          env: { ANTHROPIC_API_KEY: 'broker-placeholder' },
           profileEnv: {},
         },
       },
@@ -2360,7 +2360,7 @@ test('it refuses every start of a gateway with auth whose env sets a proxy varia
       settings: { env: { https_proxy: 'http://proxy.example:3128' } },
       auth: {
         profiles: ['glm'],
-        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
       },
     }),
     parseConfig([CLAUDE_PLUGIN], {
@@ -2398,7 +2398,7 @@ test("it sets a profile's variables in a brokered guest's settings env and spawn
       baseURL: 'https://api.z.ai/api/anthropic',
       auth: {
         profiles: ['glm', 'op'],
-        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
       },
     }),
     parseConfig([CLAUDE_PLUGIN], {
@@ -2411,7 +2411,7 @@ test("it sets a profile's variables in a brokered guest's settings env and spawn
           scheme: 'bearer',
           env: {
             OP_CONNECT_HOST: 'https://op-connect.example.com',
-            OP_CONNECT_TOKEN: 'imp-broker-placeholder',
+            OP_CONNECT_TOKEN: 'broker-placeholder',
           },
         },
       },
@@ -2426,10 +2426,10 @@ test("it sets a profile's variables in a brokered guest's settings env and spawn
       dir: '/tmp/atc/sessions/s1',
       auth: {
         revision: 3,
-        env: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
         profileEnv: {
           OP_CONNECT_HOST: 'https://op-connect.example.com',
-          OP_CONNECT_TOKEN: 'imp-broker-placeholder',
+          OP_CONNECT_TOKEN: 'broker-placeholder',
         },
       },
     },
@@ -2448,8 +2448,8 @@ test("it sets a profile's variables in a brokered guest's settings env and spawn
     CLAUDE_CONFIG_DIR: '/tmp/atc/sessions/s1/claude-config',
     TMPDIR: '/tmp/atc/sessions/s1/scratch',
     OP_CONNECT_HOST: 'https://op-connect.example.com',
-    OP_CONNECT_TOKEN: 'imp-broker-placeholder',
-    ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
+    OP_CONNECT_TOKEN: 'broker-placeholder',
+    ANTHROPIC_AUTH_TOKEN: 'broker-placeholder',
   });
 
   expect(settings).toStrictEqual({
@@ -2518,8 +2518,8 @@ test("it sets a profile's variables in a brokered guest's settings env and spawn
     env: {
       ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic',
       OP_CONNECT_HOST: 'https://op-connect.example.com',
-      OP_CONNECT_TOKEN: 'imp-broker-placeholder',
-      ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
+      OP_CONNECT_TOKEN: 'broker-placeholder',
+      ANTHROPIC_AUTH_TOKEN: 'broker-placeholder',
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
     },
   });
@@ -2533,7 +2533,7 @@ test('it refuses a local plan of a gateway whose profile sets variables', () => 
       baseURL: 'https://api.z.ai/api/anthropic',
       auth: {
         profiles: ['glm', 'op'],
-        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
       },
     }),
     parseConfig([CLAUDE_PLUGIN], {
@@ -2546,7 +2546,7 @@ test('it refuses a local plan of a gateway whose profile sets variables', () => 
           scheme: 'bearer',
           env: {
             OP_CONNECT_HOST: 'https://op-connect.example.com',
-            OP_CONNECT_TOKEN: 'imp-broker-placeholder',
+            OP_CONNECT_TOKEN: 'broker-placeholder',
           },
         },
       },

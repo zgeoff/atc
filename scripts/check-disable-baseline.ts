@@ -4,15 +4,15 @@
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { z } from 'zod';
-import { collectSourceFiles } from './collect-source-files';
 import { collectTokens } from './collect-tokens';
+import { readSourceFiles } from './read-source-files';
 
 function main(): void {
   const root = resolve(process.argv[2] ?? join(import.meta.dir, '..'));
   const text = readFileSync(join(root, BASELINE_FILE), 'utf8');
   const baseline = BASELINE_SCHEMA.parse(JSON.parse(text)).importRuleDisables;
 
-  const found = SOURCE_DIRS.flatMap((dir) => collectSourceFiles(root, dir)).flatMap((file) =>
+  const found = SOURCE_DIRS.flatMap((dir) => readSourceFiles(root, dir)).flatMap((file) =>
     collectDirectives(readFileSync(join(root, file), 'utf8')).map((line) => `${file}:${line}`),
   );
 

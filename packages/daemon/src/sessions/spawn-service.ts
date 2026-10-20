@@ -279,13 +279,10 @@ export class SpawnService {
         gitTransports: this.gitTransports,
         clock: this.clock,
 
-        // An imp fetches from the repository host over its own network,
-        // so its workspace never crosses the daemon's link.
-        cloneOnTarget: bound.provider.kind === 'imp',
-
-        // An imp image holds no git identity, so its checkout takes the
-        // daemon host's; a local target reads the user's own config.
-        ...(bound.provider.kind === 'imp' ? { gitIdentity: await readHostGitIdentity() } : {}),
+        cloneOnTarget: bound.provider.cloneOnTarget === true,
+        ...(bound.provider.hostGitIdentity === true
+          ? { gitIdentity: await readHostGitIdentity() }
+          : {}),
       },
     );
   }

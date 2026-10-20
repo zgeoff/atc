@@ -7,8 +7,8 @@ import type { TapGeneration, TapRegistry } from './tap-registry';
 export interface InboxSource {
   readonly taps: TapRegistry<TapClient>;
   readonly findLinkedOwner: (sessionID: SessionID) => MessageOwner | null;
-  readonly collectPendingMessages: (owner: MessageOwner) => Promise<MessageRecord[]>;
-  readonly collectPendingNotices: (senderSession: SessionID) => Promise<MessageRecord[]>;
+  readonly readPendingMessages: (owner: MessageOwner) => Promise<MessageRecord[]>;
+  readonly readPendingNotices: (senderSession: SessionID) => Promise<MessageRecord[]>;
 }
 
 export async function drainInbox(sessionID: SessionID, source: InboxSource): Promise<void> {
@@ -29,7 +29,7 @@ export async function drainInbox(sessionID: SessionID, source: InboxSource): Pro
   try {
     // one item per call, and the tap's ack drains again, so the backlog never outgrows the
     // connection's outbound queue; nothing is sent before this read, so the tap's ok goes first
-    const pending = await source.collectPendingMessages(owner);
+    const pending = await source.readPendingMessages(owner);
 
     for (const record of pending) {
       if (sendInboxMessage(sessionID, record, tap, source.taps)) {
@@ -41,7 +41,7 @@ export async function drainInbox(sessionID: SessionID, source: InboxSource): Pro
       return;
     }
 
-    const notices = await source.collectPendingNotices(sessionID);
+    const notices = await source.readPendingNotices(sessionID);
 
     for (const record of notices) {
       if (sendInboxNotice(sessionID, record, tap, source.taps)) {

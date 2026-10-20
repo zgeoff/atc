@@ -19,11 +19,6 @@ const TranscriptLineSchema = z.object({
   message: z.object({ content: ContentSchema }),
 });
 
-const ContentBlockSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('text'), text: z.string() }),
-  z.object({ type: z.literal('tool_use'), name: z.string(), input: z.unknown().optional() }),
-]);
-
 export function parseClaudeTranscriptLine(line: string): TranscriptRow | null {
   let raw: unknown;
 
@@ -68,6 +63,11 @@ export function parseClaudeTranscriptLine(line: string): TranscriptRow | null {
     at: Number.isNaN(parsedAt) ? null : parsedAt,
   };
 }
+
+const ContentBlockSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('text'), text: z.string() }),
+  z.object({ type: z.literal('tool_use'), name: z.string(), input: z.unknown().optional() }),
+]);
 
 function collectContentBlocks(content: readonly unknown[]): z.infer<typeof ContentBlockSchema>[] {
   return content.flatMap((block) => {

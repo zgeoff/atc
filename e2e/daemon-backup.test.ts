@@ -18,7 +18,7 @@ function setupTest() {
   const atc = resolveATCCommand();
   const work = setupTempDir('atc-e2e-backup-work-').dir;
 
-  const buildHome = (prefix: string) => {
+  const createHome = (prefix: string) => {
     const home = setupTempDir(prefix).dir;
     const composer = createStubComposer(home);
     const configDir = join(home, '.config', 'atc');
@@ -36,8 +36,8 @@ function setupTest() {
   return {
     atc,
     work,
-    source: buildHome('atc-e2e-backup-source-'),
-    fresh: buildHome('atc-e2e-backup-fresh-'),
+    source: createHome('atc-e2e-backup-source-'),
+    fresh: createHome('atc-e2e-backup-fresh-'),
   };
 }
 

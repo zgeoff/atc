@@ -69,6 +69,34 @@ export function readClaudeEntry(args: ClaudeEntryArgs): AgentEntryRead {
   };
 }
 
+const OVERRIDE_REASON = ', which would override or route around the subscription sign-in';
+
+// What a stock entry with `auth` sets that would override the subscription
+// sign-in or route the CLI around impd's broker.
+function collectSubscriptionProblems(entry: AgentEntry): string[] {
+  const settingsEnv = entry.settings?.['env'];
+
+  const settingsKeys =
+    isRecord(settingsEnv) && !Array.isArray(settingsEnv) ? Object.keys(settingsEnv) : [];
+
+  const problems = [
+    ...Object.keys(entry.env)
+      .filter((key) => isSubscriptionOverrideVariable(key))
+      .map((key) => `env must not set ${key}${OVERRIDE_REASON}`),
+    ...settingsKeys
+      .filter((key) => isSubscriptionOverrideVariable(key))
+      .map((key) => `settings.env must not set ${key}${OVERRIDE_REASON}`),
+  ];
+
+  if (entry.settings?.['apiKeyHelper'] !== undefined) {
+    problems.push(
+      'settings.apiKeyHelper must not be set, which would override the subscription sign-in',
+    );
+  }
+
+  return problems;
+}
+
 // The variables a stock entry sets that its selected profiles also set.
 function collectEntryProfileEnvProblems(
   entry: AgentEntry,
@@ -120,31 +148,3 @@ function collectPlaceholderOverrideProblems(
       ),
   );
 }
-
-// What a stock entry with `auth` sets that would override the subscription
-// sign-in or route the CLI around impd's broker.
-function collectSubscriptionProblems(entry: AgentEntry): string[] {
-  const settingsEnv = entry.settings?.['env'];
-
-  const settingsKeys =
-    isRecord(settingsEnv) && !Array.isArray(settingsEnv) ? Object.keys(settingsEnv) : [];
-
-  const problems = [
-    ...Object.keys(entry.env)
-      .filter((key) => isSubscriptionOverrideVariable(key))
-      .map((key) => `env must not set ${key}${OVERRIDE_REASON}`),
-    ...settingsKeys
-      .filter((key) => isSubscriptionOverrideVariable(key))
-      .map((key) => `settings.env must not set ${key}${OVERRIDE_REASON}`),
-  ];
-
-  if (entry.settings?.['apiKeyHelper'] !== undefined) {
-    problems.push(
-      'settings.apiKeyHelper must not be set, which would override the subscription sign-in',
-    );
-  }
-
-  return problems;
-}
-
-const OVERRIDE_REASON = ', which would override or route around the subscription sign-in';

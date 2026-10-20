@@ -1,6 +1,6 @@
 import { isRecord } from '@atc/core';
 import { normalizeClientName } from '../shared/normalize-client-name';
-import { findClientName } from './find-client-name';
+import { readClientName } from './read-client-name';
 import type { HTTPServerContext, Requester, TokenExchangeReason } from './types';
 
 interface RefusedExchange {
@@ -23,7 +23,7 @@ export async function recordRefusedExchange(
 
   const reason = isTokenExchangeError(code) ? code : 'other';
   const clientID = findClientID(exchange);
-  const storedName = clientID === null ? null : await findClientName(ctx.store.db, clientID);
+  const storedName = clientID === null ? null : await readClientName(ctx.store.db, clientID);
 
   ctx.security.record({
     kind: 'token_exchange',

@@ -26,13 +26,18 @@ host's side, to requests an imp sends to the backend. The config holds secret na
       "baseURL": "https://api.z.ai/api/anthropic",
       "auth": {
         "profiles": ["glm"],
-        "placeholderEnv": { "ANTHROPIC_AUTH_TOKEN": "imp-broker-placeholder" }
+        "placeholderEnv": { "ANTHROPIC_AUTH_TOKEN": "broker-placeholder" }
       },
       "env": { "ANTHROPIC_DEFAULT_SONNET_MODEL": "glm-4.6" }
     }
   }
 }
 ```
+
+A variable that stands in for a credential holds `broker-placeholder`. impd sets the credential
+header on each request it brokers, whatever the header held, so the placeholder only gets a tool
+past its own check for a credential. atc reads `imp-broker-placeholder` as `broker-placeholder`, and
+the daemon prints a deprecation warning when it starts with a config that holds that value.
 
 Each profile in `authProfiles` holds a reference to a secret impd holds and the rule impd applies
 with it:
@@ -46,6 +51,9 @@ with it:
 | `kind`         | The kind of secret impd holds: `custom`, the default, `oauth`, or `github`.               |
 | `env`          | Variables a `custom` profile sets in a session that reaches it. See below.                |
 | `dependencies` | Profiles a session selecting this one needs beside it, such as a permission classifier's. |
+
+An imp target is unusable while any profile's `secret` or `header` breaks impd's name rules, since
+impd refuses that profile. The daemon prints the reason for each imp target when it starts.
 
 A `github` profile gives a session HTTPS git and the GitHub API. It holds `secret`, `kind` and
 `dependencies` only, so it takes no `env`, since impd's `github` kind sets the rules:
@@ -71,8 +79,9 @@ select the profile beside the model's:
 ```
 
 impd sets `GH_TOKEN` and `GITHUB_TOKEN` to `imp-broker-placeholder` in the session, so `gh` and
-`git` run with no sign-in, and the token stays on the host. If impd changes the hosts of its
-`github` kind, a launch fails with `auth_secret_mismatch` until atc's rules match again.
+`git` run with no sign-in, and the token stays on the host. atc takes the hosts and headers of a
+`github` secret from impd when a session launches. The launch fails with `auth_secret_mismatch` when
+another selected profile sends its secret to one of those hosts.
 
 ## Profile variables
 
@@ -92,7 +101,7 @@ Then add a profile that sets the variables, and select it in an agent's `auth.pr
       "scheme": "bearer",
       "env": {
         "OP_CONNECT_HOST": "https://op-connect.example.com",
-        "OP_CONNECT_TOKEN": "imp-broker-placeholder"
+        "OP_CONNECT_TOKEN": "broker-placeholder"
       }
     }
   },
@@ -103,10 +112,10 @@ Then add a profile that sets the variables, and select it in an agent's `auth.pr
 ```
 
 `op` sends the placeholder as the bearer token, and the broker swaps in the real token on requests
-to that host. A value must be exactly `imp-broker-placeholder` or `https://` followed by the
-profile's own `host`, with no path and no port, so a credential is never written into the config. A
-name uses capital letters, digits and underscores, and starts with a letter or underscore. atc
-leaves out a profile, and refuses an entry that selects it, when its `env` sets:
+to that host. A value must be exactly `broker-placeholder` or `https://` followed by the profile's
+own `host`, with no path and no port, so a credential is never written into the config. A name uses
+capital letters, digits and underscores, and starts with a letter or underscore. atc leaves out a
+profile, and refuses an entry that selects it, when its `env` sets:
 
 - A proxy or CA variable, any variable that overrides the subscription sign-in, `PATH`, or `HOME`.
 - `CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDE_CONFIG_DIR`, or a name starting with `ANTHROPIC_`, `CLAUDE_`,

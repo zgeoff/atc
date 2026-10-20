@@ -7,6 +7,24 @@ export interface SuppressedSecurityEvent {
   readonly count: number;
 }
 
+// The paths an event may hold as its route.
+const ROUTES: ReadonlySet<string> = new Set([
+  '/',
+  '/mcp',
+  '/oauth2/authorize',
+  '/oauth2/token',
+  '/oauth2/revoke',
+  '/login',
+  '/enroll',
+  '/consent',
+  '/error',
+  '/healthz',
+  '/readyz',
+  '/.well-known/oauth-authorization-server',
+  '/.well-known/oauth-protected-resource',
+  '/.well-known/oauth-protected-resource/mcp',
+]);
+
 export function formatSecurityEvent(
   event: SecurityEvent | SuppressedSecurityEvent,
   at: number,
@@ -58,24 +76,6 @@ export function formatSecurityEvent(
 
   return `atc security ${JSON.stringify(fields)}`;
 }
-
-// The paths an event may hold as its route.
-const ROUTES: ReadonlySet<string> = new Set([
-  '/',
-  '/mcp',
-  '/oauth2/authorize',
-  '/oauth2/token',
-  '/oauth2/revoke',
-  '/login',
-  '/enroll',
-  '/consent',
-  '/error',
-  '/healthz',
-  '/readyz',
-  '/.well-known/oauth-authorization-server',
-  '/.well-known/oauth-protected-resource',
-  '/.well-known/oauth-protected-resource/mcp',
-]);
 
 function toEventText(value: string, maxLength: number): string {
   return normalizeClientName(value, '', maxLength);

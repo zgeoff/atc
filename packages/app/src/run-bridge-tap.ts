@@ -7,46 +7,9 @@ import { z } from 'zod';
 import { renderMessageLine } from './render-message-line';
 import { renderNoticeLine } from './render-notice-line';
 
-const INBOX_MESSAGE_SCHEMA = z.looseObject({
-  ev: z.literal('InboxMessage'),
-  message: z.string(),
-  from: z.string(),
-
-  // A sender this build cannot read is left out, and the message still
-  // goes out with its sender's name.
-  sender: z.preprocess(
-    (v) => (MESSAGE_SENDER_SCHEMA.safeParse(v).success ? v : undefined),
-    MESSAGE_SENDER_SCHEMA.optional(),
-  ),
-  text: z.string(),
-  sentAt: z.number(),
-});
-
-const INBOX_NOTICE_SCHEMA = z.looseObject({
-  ev: z.literal('InboxNotice'),
-  message: z.string(),
-  from: z.string(),
-  status: z.enum(['answered', 'unanswered']),
-  answer: z.string().optional(),
-  reason: z.string().optional(),
-});
-
-const OUTBOX_NOTE_SCHEMA = z.object({
-  noteID: z.string().min(1),
-  payload: z.record(z.string(), z.unknown()),
-});
-
 // The wait before the first reconnect, doubling up to the longest.
 const FIRST_RETRY_MS = 250;
 const LONGEST_RETRY_MS = 5000;
-
-// How many message and notice ids the tap remembers having printed.
-const SEEN_LIMIT = 10_000;
-
-// How one connection to the bridge ended: the inbox closed for good, the
-// bridge refused the tap, or the connection dropped after or before it
-// opened the tap.
-type TapEnd = 'closed' | 'refused' | 'lost' | 'unreachable';
 
 // Where the tap prints and how it exits: stdout, stderr, and the process by
 // default.
@@ -103,6 +66,35 @@ export async function runBridgeTap(
     wait = Math.min(wait * 2, LONGEST_RETRY_MS);
   }
 }
+
+// How one connection to the bridge ended: the inbox closed for good, the
+// bridge refused the tap, or the connection dropped after or before it
+// opened the tap.
+type TapEnd = 'closed' | 'refused' | 'lost' | 'unreachable';
+
+const INBOX_MESSAGE_SCHEMA = z.looseObject({
+  ev: z.literal('InboxMessage'),
+  message: z.string(),
+  from: z.string(),
+
+  // A sender this build cannot read is left out, and the message still
+  // goes out with its sender's name.
+  sender: z.preprocess(
+    (v) => (MESSAGE_SENDER_SCHEMA.safeParse(v).success ? v : undefined),
+    MESSAGE_SENDER_SCHEMA.optional(),
+  ),
+  text: z.string(),
+  sentAt: z.number(),
+});
+
+const INBOX_NOTICE_SCHEMA = z.looseObject({
+  ev: z.literal('InboxNotice'),
+  message: z.string(),
+  from: z.string(),
+  status: z.enum(['answered', 'unanswered']),
+  answer: z.string().optional(),
+  reason: z.string().optional(),
+});
 
 async function runTapConnection(
   socketPath: string,
@@ -246,6 +238,26 @@ async function runTapConnection(
   return end;
 }
 
+// How many message and notice ids the tap remembers having printed.
+const SEEN_LIMIT = 10_000;
+
+function updateSeenIDs(seen: Set<string>, id: string): void {
+  seen.add(id);
+
+  for (const oldest of seen) {
+    if (seen.size <= SEEN_LIMIT) {
+      break;
+    }
+
+    seen.delete(oldest);
+  }
+}
+
+const OUTBOX_NOTE_SCHEMA = z.object({
+  noteID: z.string().min(1),
+  payload: z.record(z.string(), z.unknown()),
+});
+
 // Sends every note the outbox holds, and returns the file behind each
 // request id it sent; a file that is no note is removed, since no answer
 // would ever clear it.
@@ -289,16 +301,4 @@ function sendOutboxNotes(socket: BridgeSocket, outbox: string): Map<string, stri
   }
 
   return sent;
-}
-
-function updateSeenIDs(seen: Set<string>, id: string): void {
-  seen.add(id);
-
-  for (const oldest of seen) {
-    if (seen.size <= SEEN_LIMIT) {
-      break;
-    }
-
-    seen.delete(oldest);
-  }
 }

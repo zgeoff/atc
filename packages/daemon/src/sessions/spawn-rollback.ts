@@ -19,7 +19,7 @@ interface SpawnRollbackDeps {
     SessionHarnesses,
     'readying' | 'startingSpawns' | 'isHostIdle' | 'trySuspendIdleHost'
   >;
-  readonly callbacks: Pick<SessionCallbacks, 'log' | 'getAuthBinder'>;
+  readonly callbacks: Pick<SessionCallbacks, 'log' | 'findAuthBinder'>;
 }
 
 export class SpawnRollback {
@@ -186,7 +186,7 @@ export class SpawnRollback {
     attemptID: string | null,
   ): Promise<void> {
     const host = provider.brokerAuth;
-    const binder = this.callbacks.getAuthBinder();
+    const binder = this.callbacks.findAuthBinder();
 
     if (attemptID === null || host === undefined || binder === null) {
       return;
@@ -274,7 +274,7 @@ export class SpawnRollback {
     return pty.waitForExit(this.failedSpawnExitWaitMs);
   }
 
-  async isRollbackSettled(id: SessionID): Promise<boolean> {
+  async probeRollbackSettled(id: SessionID): Promise<boolean> {
     if (this.rollingBack.has(id)) {
       return false;
     }

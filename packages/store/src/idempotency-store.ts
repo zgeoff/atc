@@ -51,7 +51,7 @@ export class IdempotencyStore {
 
   // The record a key holds under its principal and operation, or null when
   // the ledger holds none.
-  async findIdempotencyKey(
+  async readIdempotencyKey(
     id: Pick<IdempotencyRecord, 'principal' | 'operation' | 'key'>,
   ): Promise<IdempotencyRecord | null> {
     const row = await this.db

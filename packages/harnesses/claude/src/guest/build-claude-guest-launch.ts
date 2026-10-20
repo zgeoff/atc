@@ -3,64 +3,6 @@ import { SESSION_SCRATCH_FOLDER } from '../session-scratch-folder';
 import { CLAUDE_CONFIG_BUNDLE_FOLDER } from './claude-config-bundle-folder';
 import { CLAUDE_CONFIG_SEED_FILE } from './claude-config-seed-file';
 
-// the shell seeds the config only when it holds no `.claude.json`, so a resumed session keeps
-// the state the CLI wrote, a folder trust a person accepted included
-export function buildClaudeGuestLaunch(
-  guestDir: string,
-  argv: readonly string[],
-  refusedEnv: readonly string[] = [],
-  bundleKey = 'none',
-  unsetEnv: readonly string[] = [],
-): SpawnPlan & {
-  readonly env: { readonly CLAUDE_CONFIG_DIR: string; readonly TMPDIR: string };
-} {
-  const configDir = `${guestDir}/${CLAUDE_CONFIG_FOLDER}`;
-  const scratch = `${guestDir}/${SESSION_SCRATCH_FOLDER}`;
-  const guards = refusedEnv.map((name) => buildEnvGuard(name)).join('');
-  const unsets = buildUnsetStep(unsetEnv);
-
-  return {
-    bin: 'sh',
-    args: [
-      '-c',
-      `${guards}${unsets}${SEED_CONFIG_SCRIPT}`,
-      'sh',
-      configDir,
-      `${guestDir}/${CLAUDE_CONFIG_SEED_FILE}`,
-      `${guestDir}/${CLAUDE_CONFIG_BUNDLE_FOLDER}`,
-      `${guestDir}/${CLAUDE_CONFIG_BUNDLE_FOLDER}/${bundleKey}`,
-      scratch,
-      ...argv,
-    ],
-    env: { CLAUDE_CONFIG_DIR: configDir, TMPDIR: scratch },
-  };
-}
-
-const ENV_NAME = /^[A-Z_][A-Z0-9_]*$/u;
-
-// A shell step that stops the launch when the variable is set, empty or
-// not, with a line that says which variable and why.
-function buildEnvGuard(name: string): string {
-  if (!ENV_NAME.test(name)) {
-    throw new Error(`refused variable ${name} is not an environment variable name`);
-  }
-
-  return `[ -z "\${${name}+x}" ] || { echo "atc: ${name} is set in this host's environment and overrides the sign-in atc gives this session, so Claude does not start" >&2; exit ${REFUSED_EXIT}; }; `;
-}
-
-// A shell step that unsets the variables, or nothing when there are none.
-function buildUnsetStep(names: readonly string[]): string {
-  const invalid = names.find((name) => !ENV_NAME.test(name));
-
-  if (invalid !== undefined) {
-    throw new Error(`unset variable ${invalid} is not an environment variable name`);
-  }
-
-  return names.length === 0 ? '' : `unset ${names.join(' ')}; `;
-}
-
-// sysexits' EX_CONFIG: a configuration error.
-const REFUSED_EXIT = 78;
 const CLAUDE_CONFIG_FOLDER = 'claude-config';
 
 // The key the CLI's global config holds once its one-time offer to block
@@ -105,3 +47,62 @@ const SEED_CONFIG_SCRIPT = [
   'shift 5',
   'exec "$@"',
 ].join(' && ');
+
+// the shell seeds the config only when it holds no `.claude.json`, so a resumed session keeps
+// the state the CLI wrote, a folder trust a person accepted included
+export function buildClaudeGuestLaunch(
+  guestDir: string,
+  argv: readonly string[],
+  refusedEnv: readonly string[] = [],
+  bundleKey = 'none',
+  unsetEnv: readonly string[] = [],
+): SpawnPlan & {
+  readonly env: { readonly CLAUDE_CONFIG_DIR: string; readonly TMPDIR: string };
+} {
+  const configDir = `${guestDir}/${CLAUDE_CONFIG_FOLDER}`;
+  const scratch = `${guestDir}/${SESSION_SCRATCH_FOLDER}`;
+  const guards = refusedEnv.map((name) => buildEnvGuard(name)).join('');
+  const unsets = buildUnsetStep(unsetEnv);
+
+  return {
+    bin: 'sh',
+    args: [
+      '-c',
+      `${guards}${unsets}${SEED_CONFIG_SCRIPT}`,
+      'sh',
+      configDir,
+      `${guestDir}/${CLAUDE_CONFIG_SEED_FILE}`,
+      `${guestDir}/${CLAUDE_CONFIG_BUNDLE_FOLDER}`,
+      `${guestDir}/${CLAUDE_CONFIG_BUNDLE_FOLDER}/${bundleKey}`,
+      scratch,
+      ...argv,
+    ],
+    env: { CLAUDE_CONFIG_DIR: configDir, TMPDIR: scratch },
+  };
+}
+
+const ENV_NAME = /^[A-Z_][A-Z0-9_]*$/u;
+
+// sysexits' EX_CONFIG: a configuration error.
+const REFUSED_EXIT = 78;
+
+// A shell step that stops the launch when the variable is set, empty or
+// not, with a line that says which variable and why.
+function buildEnvGuard(name: string): string {
+  if (!ENV_NAME.test(name)) {
+    throw new Error(`refused variable ${name} is not an environment variable name`);
+  }
+
+  return `[ -z "\${${name}+x}" ] || { echo "atc: ${name} is set in this host's environment and overrides the sign-in atc gives this session, so Claude does not start" >&2; exit ${REFUSED_EXIT}; }; `;
+}
+
+// A shell step that unsets the variables, or nothing when there are none.
+function buildUnsetStep(names: readonly string[]): string {
+  const invalid = names.find((name) => !ENV_NAME.test(name));
+
+  if (invalid !== undefined) {
+    throw new Error(`unset variable ${invalid} is not an environment variable name`);
+  }
+
+  return names.length === 0 ? '' : `unset ${names.join(' ')}; `;
+}

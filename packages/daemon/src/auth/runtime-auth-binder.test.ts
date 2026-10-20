@@ -81,8 +81,8 @@ test('it provisions a host through the gate, a new imp and each grant, in that o
     'createGrant atc-s1 glm',
   ]);
 
-  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
-  const grants = await ctx.store.collectAuthGrants(toSessionID('s1'));
+  const binding = await ctx.store.readAuthBinding(toSessionID('s1'));
+  const grants = await ctx.store.readAuthGrants(toSessionID('s1'));
   const imp = await ctx.host.readHost('atc-s1');
 
   invariant(imp);
@@ -229,7 +229,7 @@ test('it refuses an outdated impd as an unavailable host and records nothing', a
 
   const calls = [...ctx.host.calls];
 
-  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+  const binding = await ctx.store.readAuthBinding(toSessionID('s1'));
 
   expect(calls).toStrictEqual(['verifyVersion', 'readIdentity', 'readSecrets', 'readHost atc-s1']);
   expect(binding).toBeNull();
@@ -267,7 +267,7 @@ test('it refuses a token that reaches every imp and records nothing', async () =
 
   const calls = [...ctx.host.calls];
 
-  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+  const binding = await ctx.store.readAuthBinding(toSessionID('s1'));
 
   expect(calls).toStrictEqual(['verifyVersion', 'readIdentity', 'readSecrets', 'readHost atc-s1']);
   expect(binding).toBeNull();
@@ -314,7 +314,7 @@ test('it refuses a secret whose rules differ from the binding and creates no imp
 
   const calls = [...ctx.host.calls];
 
-  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+  const binding = await ctx.store.readAuthBinding(toSessionID('s1'));
 
   expect(calls).toStrictEqual(['verifyVersion', 'readIdentity', 'readSecrets', 'readHost atc-s1']);
   expect(binding).toBeNull();
@@ -366,7 +366,7 @@ test('it refuses an imp that already holds the name and grants nothing to it', a
   const calls = [...ctx.host.calls];
 
   const grants = await ctx.host.readGrants('atc-s1');
-  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+  const binding = await ctx.store.readAuthBinding(toSessionID('s1'));
 
   expect(calls).toStrictEqual([
     'createHost atc-s1',
@@ -428,7 +428,7 @@ test('it takes back the imp a refused grant left and drops the record', async ()
 
   const imps = ctx.host.collectHostNames();
 
-  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+  const binding = await ctx.store.readAuthBinding(toSessionID('s1'));
 
   expect(ctx.host.calls).toStrictEqual([
     'verifyVersion',
@@ -902,8 +902,8 @@ test('it revokes every grant through the identity checks alone, without reading 
   const calls = [...ctx.host.calls];
 
   const grants = await ctx.host.readGrants('atc-s1');
-  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
-  const rows = await ctx.store.collectAuthGrants(toSessionID('s1'));
+  const binding = await ctx.store.readAuthBinding(toSessionID('s1'));
+  const rows = await ctx.store.readAuthGrants(toSessionID('s1'));
 
   expect(calls).toStrictEqual(['readIdentity', 'readHost atc-s1', 'removeGrant atc-s1 glm']);
   expect(grants).toStrictEqual([]);
@@ -1021,8 +1021,8 @@ test('it records the block of a revoke and keeps it pending when impd cannot be 
     data: { pending: ['glm'] },
   });
 
-  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
-  const rows = await ctx.store.collectAuthGrants(toSessionID('s1'));
+  const binding = await ctx.store.readAuthBinding(toSessionID('s1'));
+  const rows = await ctx.store.readAuthGrants(toSessionID('s1'));
 
   expect(binding).toMatchObject({ state: 'revocation_pending', revokedAt: null });
   expect(rows).toMatchObject([{ secret: 'glm', phase: 'revocation_pending' }]);
@@ -1072,7 +1072,7 @@ test('it counts a grant a secret rebind already dropped as revoked though the to
 
   await ctx.binder.revokeBinding(ctx.host, toSessionID('s1'));
 
-  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+  const binding = await ctx.store.readAuthBinding(toSessionID('s1'));
 
   expect(binding).toMatchObject({ state: 'revoked' });
 });
@@ -1129,7 +1129,7 @@ test('it keeps a revoke pending when the token cannot revoke a grant impd still 
   expect(revoked).rejects.toMatchObject({ code: 'auth_revocation_pending' });
 
   const grants = await ctx.host.readGrants('atc-s1');
-  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+  const binding = await ctx.store.readAuthBinding(toSessionID('s1'));
 
   expect(grants).toStrictEqual(['glm']);
   expect(binding).toMatchObject({ state: 'revocation_pending' });
@@ -1196,7 +1196,7 @@ test('it rebinds a host to the next revision, granting the new secret and revoki
   const calls = [...ctx.host.calls];
 
   const grants = await ctx.host.readGrants('atc-s1');
-  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+  const binding = await ctx.store.readAuthBinding(toSessionID('s1'));
 
   expect(revision).toBe(2);
 
@@ -1312,7 +1312,7 @@ test('it removes only the grants a failed rebind added and keeps the imp at the 
 
   const calls = [...ctx.host.calls];
 
-  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+  const binding = await ctx.store.readAuthBinding(toSessionID('s1'));
 
   const imps = ctx.host.collectHostNames();
 
@@ -1401,8 +1401,8 @@ test('it takes back one attempt without touching the imp or grants of another ho
   const imps = ctx.host.collectHostNames();
 
   const grants = await ctx.host.readGrants('atc-s2');
-  const firstBinding = await ctx.store.findAuthBinding(toSessionID('s1'));
-  const secondBinding = await ctx.store.findAuthBinding(toSessionID('s2'));
+  const firstBinding = await ctx.store.readAuthBinding(toSessionID('s1'));
+  const secondBinding = await ctx.store.readAuthBinding(toSessionID('s2'));
 
   expect(calls).toStrictEqual([
     'readIdentity',
@@ -1514,7 +1514,7 @@ test('it forgets a bound host by destroying its imp and dropping the record', as
   const imps = ctx.host.collectHostNames();
   const secretNames = secrets.map((secret) => secret.name);
 
-  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+  const binding = await ctx.store.readAuthBinding(toSessionID('s1'));
 
   expect(forgotten).toBeTrue();
 
@@ -1578,7 +1578,7 @@ test('it refuses to forget a host whose imp was made again and leaves that imp a
 
   const imps = ctx.host.collectHostNames();
 
-  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+  const binding = await ctx.store.readAuthBinding(toSessionID('s1'));
 
   expect(imps).toStrictEqual(['atc-s1']);
   expect(binding).toMatchObject({ state: 'revocation_pending' });
@@ -1636,8 +1636,8 @@ test('it takes back a provisioning attempt no fleet entry lists as a daemon star
 
   const imps = ctx.host.collectHostNames();
 
-  const firstBinding = await ctx.store.findAuthBinding(toSessionID('s1'));
-  const secondBinding = await ctx.store.findAuthBinding(toSessionID('s2'));
+  const firstBinding = await ctx.store.readAuthBinding(toSessionID('s1'));
+  const secondBinding = await ctx.store.readAuthBinding(toSessionID('s2'));
 
   expect(logged).toStrictEqual([]);
   expect(imps).toStrictEqual(['atc-s2']);
@@ -1715,7 +1715,7 @@ test('it fails a rebind a stopped daemon left in flight and revokes only the gra
   );
 
   const grants = await ctx.host.readGrants('atc-s1');
-  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+  const binding = await ctx.store.readAuthBinding(toSessionID('s1'));
 
   expect(grants).toStrictEqual(['glm']);
   expect(binding).toMatchObject({ state: 'rebind_failed', revision: 1 });
@@ -1775,7 +1775,7 @@ test('it rebinds a provisioned host whose spawn listed but never recorded its st
     }),
   );
 
-  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+  const binding = await ctx.store.readAuthBinding(toSessionID('s1'));
 
   expect(revision).toBe(2);
   expect(binding).toMatchObject({ state: 'ready', revision: 2, rebind: null });
@@ -1885,7 +1885,7 @@ test('it refuses to take back an attempt through a target whose imp prefix chang
 
   const imps = ctx.host.collectHostNames().toSorted();
 
-  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+  const binding = await ctx.store.readAuthBinding(toSessionID('s1'));
 
   expect(imps).toStrictEqual(['atc-new-s1', 'atc-s1']);
   expect(binding).toMatchObject({ state: 'rollback_pending' });
@@ -2043,7 +2043,7 @@ test('it retries the removal of the grants a failed rebind added on a later star
   );
 
   const grants = await ctx.host.readGrants('atc-s1');
-  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+  const binding = await ctx.store.readAuthBinding(toSessionID('s1'));
 
   expect(grantsWhileUnreachable).toStrictEqual(['glm', 'judge']);
   expect(grants).toStrictEqual(['glm']);
@@ -2112,7 +2112,7 @@ test('it hands a launch over before a revoke that arrives during its admission, 
 
   await Promise.all(revoked);
 
-  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+  const binding = await ctx.store.readAuthBinding(toSessionID('s1'));
 
   expect(order).toStrictEqual(['sent', 'revoked']);
   expect(binding).toMatchObject({ state: 'revoked' });
@@ -2611,7 +2611,7 @@ test('it fails a rebind that cannot revoke a secret the new binding drops as rev
     data: { host: 's1', pending: ['glm'] },
   });
 
-  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+  const binding = await ctx.store.readAuthBinding(toSessionID('s1'));
 
   expect(binding).toMatchObject({ state: 'rebind_failed', revision: 1, bindingHash: 'h1' });
 });
@@ -2654,8 +2654,8 @@ test('it revokes a host whose grants an earlier revoke already removed, as revok
 
   await ctx.binder.revokeBinding(ctx.broker, toSessionID('s1'));
 
-  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
-  const rows = await ctx.store.collectAuthGrants(toSessionID('s1'));
+  const binding = await ctx.store.readAuthBinding(toSessionID('s1'));
+  const rows = await ctx.store.readAuthGrants(toSessionID('s1'));
 
   expect(ctx.broker.calls).toStrictEqual([
     'readIdentity',
@@ -2707,7 +2707,7 @@ test('it forgets a bound host by destroying it through the broker and dropping t
   const calls = [...ctx.broker.calls];
 
   const host = await ctx.broker.readHost('atc-s1');
-  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+  const binding = await ctx.store.readAuthBinding(toSessionID('s1'));
 
   expect(forgotten).toBeTrue();
 
@@ -2759,7 +2759,7 @@ test('it forgets a bound host that the broker no longer holds as done, destroyin
   ctx.broker.calls.length = 0;
 
   const forgotten = await ctx.binder.forgetBinding(ctx.broker, toSessionID('s1'));
-  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+  const binding = await ctx.store.readAuthBinding(toSessionID('s1'));
 
   expect(forgotten).toBeTrue();
   expect(ctx.broker.calls).toStrictEqual(['readIdentity', 'readHost atc-s1', 'readHost atc-s1']);
@@ -2807,7 +2807,7 @@ test('it refuses to forget a host the broker made again under the recorded name 
   expect(forgotten).rejects.toMatchObject({ code: 'auth_revocation_pending' });
 
   const host = await ctx.broker.readHost('atc-s1');
-  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+  const binding = await ctx.store.readAuthBinding(toSessionID('s1'));
 
   expect(host).toStrictEqual(remade);
   expect(binding).toMatchObject({ state: 'revocation_pending' });
@@ -3079,7 +3079,7 @@ test('it refuses a changed selection at a verify given a rebind when the imp los
   expect(verified).rejects.toMatchObject({ code: 'auth_grant_missing' });
 
   const grants = await ctx.host.readGrants('atc-s1');
-  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+  const binding = await ctx.store.readAuthBinding(toSessionID('s1'));
 
   expect(grants).toStrictEqual([]);
   expect(binding).toMatchObject({ state: 'ready', revision: 1, bindingHash: 'h1' });
@@ -3223,7 +3223,7 @@ test('it leaves a rebind that fails at a verify blocked as a failed rebind at th
 
   expect(verified).rejects.toMatchObject({ code: 'auth_revocation_pending' });
 
-  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+  const binding = await ctx.store.readAuthBinding(toSessionID('s1'));
 
   expect(binding).toMatchObject({ state: 'rebind_failed', revision: 1, bindingHash: 'h1' });
 });

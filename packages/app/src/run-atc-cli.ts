@@ -1,9 +1,9 @@
 import { define, lazy } from 'gunshi';
 import { integer } from 'gunshi/combinators';
 import pkg from '../package.json';
-import { buildDaemonCommand } from './build-daemon-command';
-import type { DaemonCommandIO } from './build-daemon-command';
 import type { runClients } from './clients';
+import { createDaemonCommand } from './create-daemon-command';
+import type { DaemonCommandIO } from './create-daemon-command';
 import type { runNote } from './note';
 import type { runPasskeys } from './passkeys';
 import { makeMissingCommandRun, runCommandLine } from './run-command-line';
@@ -35,6 +35,29 @@ export interface ATCCLIIO extends CommandLineIO, DaemonCommandIO {
   readonly runNote: (...args: Readonly<Parameters<typeof runNote>>) => Promise<void>;
   readonly runStatusline: (agent: string) => Promise<void>;
 }
+
+const ATC_DESCRIPTION = 'Terminal control tower for coding-agent sessions';
+
+const TUI_ARGS = {
+  daemon: {
+    type: 'string',
+    description: "Connect to this daemon from the config's daemons map instead of the local daemon",
+  },
+} as const;
+
+const SESSION_ID_ARG = {
+  id: { type: 'positional', description: 'The atc session id' },
+} as const;
+
+// The commands a wrangled session runs, which must exit 0 whatever their
+// command line holds.
+const REPORTER_COMMANDS: ReadonlySet<string> = new Set([
+  'hook-report',
+  'statusline',
+  'note',
+  'answer',
+  'unanswered',
+]);
 
 export async function runATCCLI(argv: readonly string[], io: ATCCLIIO): Promise<void> {
   const entry = define({
@@ -247,7 +270,7 @@ export async function runATCCLI(argv: readonly string[], io: ATCCLIIO): Promise<
     run: makeMissingCommandRun(io),
   });
 
-  const daemon = buildDaemonCommand(io);
+  const daemon = createDaemonCommand(io);
 
   const backup = lazy(
     () => async (ctx) => {
@@ -419,26 +442,3 @@ export async function runATCCLI(argv: readonly string[], io: ATCCLIIO): Promise<
     io,
   );
 }
-
-const ATC_DESCRIPTION = 'Terminal control tower for coding-agent sessions';
-
-const TUI_ARGS = {
-  daemon: {
-    type: 'string',
-    description: "Connect to this daemon from the config's daemons map instead of the local daemon",
-  },
-} as const;
-
-const SESSION_ID_ARG = {
-  id: { type: 'positional', description: 'The atc session id' },
-} as const;
-
-// The commands a wrangled session runs, which must exit 0 whatever their
-// command line holds.
-const REPORTER_COMMANDS: ReadonlySet<string> = new Set([
-  'hook-report',
-  'statusline',
-  'note',
-  'answer',
-  'unanswered',
-]);

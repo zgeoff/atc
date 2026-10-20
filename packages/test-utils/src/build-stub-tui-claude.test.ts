@@ -3,10 +3,12 @@ import { existsSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildStubTUIClaude } from './build-stub-tui-claude';
 import { createStubBin } from './create-stub-bin';
+import { readSourceEntry } from './read-source-entry';
 import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { startOutputCapture } from './start-output-capture';
 import { startStubReporterSocket } from './start-stub-reporter-socket';
+import { updateEnv } from './update-env';
 import { waitFor } from './wait-for';
 
 function setupTest() {
@@ -14,7 +16,7 @@ function setupTest() {
 
   // The reporter the script reports through sends its lines here.
   const reporter = startStubReporterSocket(join(tmp.dir, 'report.sock'));
-  const bin = createStubBin(tmp.dir, 'claude', buildStubTUIClaude());
+  const bin = createStubBin(tmp.dir, 'claude', buildStubTUIClaude(readSourceEntry('atc')));
 
   return { dir: tmp.dir, bin, lines: reporter.lines };
 }
@@ -229,4 +231,35 @@ test('it holds a resumed run until the hold file goes, printing nothing before',
 
   expect(printedWhileHeld).toBe('');
   expect(printedAfter).toBe('FAKE_CLAUDE_UP args: --resume fake-1\n');
+});
+
+test('it reports through the CLI entry it is given, with none in the environment', async () => {
+  const ctx = setupTest();
+  const entry = readSourceEntry('atc');
+
+  updateEnv('ATC_CLI_ENTRY', undefined);
+
+  const bin = createStubBin(ctx.dir, 'given-entry', buildStubTUIClaude(entry));
+
+  const proc = Bun.spawn([bin], {
+    env: {
+      HOME: ctx.dir,
+      PATH: '/usr/bin:/bin',
+      ATC_SOCKET: join(ctx.dir, 'report.sock'),
+      ATC_SESSION_ID: 's-given',
+    },
+    stdin: 'pipe',
+    stdout: 'ignore',
+  });
+
+  registerTestCleanup(() => {
+    proc.kill();
+  });
+
+  await waitFor(() => {
+    expect(ctx.lines.map((line): unknown => JSON.parse(line))).toPartiallyContain({
+      atcId: 's-given',
+      event: 'SessionStart',
+    });
+  });
 });

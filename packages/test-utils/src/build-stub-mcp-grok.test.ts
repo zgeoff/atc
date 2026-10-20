@@ -3,9 +3,11 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildStubMCPGrok } from './build-stub-mcp-grok';
 import { createStubBin } from './create-stub-bin';
+import { readSourceEntry } from './read-source-entry';
 import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { startStubReporterSocket } from './start-stub-reporter-socket';
+import { updateEnv } from './update-env';
 import { waitFor } from './wait-for';
 
 function setupTest() {
@@ -13,7 +15,7 @@ function setupTest() {
 
   // The reporter the script reports through sends its lines here.
   const reporter = startStubReporterSocket(join(tmp.dir, 'report.sock'));
-  const bin = createStubBin(tmp.dir, 'grok', buildStubMCPGrok());
+  const bin = createStubBin(tmp.dir, 'grok', buildStubMCPGrok(readSourceEntry('atc')));
 
   return {
     dir: tmp.dir,
@@ -125,5 +127,36 @@ test('it reports session_start with its session id and working directory through
     atcId: 's-1',
     event: 'SessionStart',
     payload: { hookEventName: 'session_start', sessionId: 'fake-grok-1', cwd: ctx.dir },
+  });
+});
+
+test('it reports through the CLI entry it is given, with none in the environment', async () => {
+  const ctx = setupTest();
+  const entry = readSourceEntry('atc');
+
+  updateEnv('ATC_CLI_ENTRY', undefined);
+
+  const bin = createStubBin(ctx.dir, 'given-entry', buildStubMCPGrok(entry));
+
+  const proc = Bun.spawn([bin], {
+    env: {
+      HOME: ctx.dir,
+      PATH: '/usr/bin:/bin',
+      ATC_SOCKET: join(ctx.dir, 'report.sock'),
+      ATC_SESSION_ID: 's-given',
+    },
+    stdin: 'pipe',
+    stdout: 'ignore',
+  });
+
+  registerTestCleanup(() => {
+    proc.kill();
+  });
+
+  await waitFor(() => {
+    expect(ctx.lines.map((line): unknown => JSON.parse(line))).toPartiallyContain({
+      atcId: 's-given',
+      event: 'SessionStart',
+    });
   });
 });

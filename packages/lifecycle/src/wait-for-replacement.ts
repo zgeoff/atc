@@ -1,8 +1,8 @@
 import { waitUntil } from '@atc/core';
 import type { DaemonClient } from '@atc/protocol/client';
-import { findDaemonRecord } from './find-daemon-record';
-import { isProcessAlive } from './is-process-alive';
 import type { LifecycleHost } from './lifecycle-host';
+import { probeProcessAlive } from './probe-process-alive';
+import { readDaemonRecord } from './read-daemon-record';
 import { tryOpenDaemon } from './try-open-daemon';
 
 type ReplacementOutcome =
@@ -30,9 +30,9 @@ export async function waitForReplacement(
 
   await waitUntil(
     async () => {
-      const record = findDaemonRecord(host.paths.daemonRecordFile);
+      const record = readDaemonRecord(host.paths.daemonRecordFile);
 
-      if (record === null || record.pid === oldPID || !isProcessAlive(record.pid)) {
+      if (record === null || record.pid === oldPID || !probeProcessAlive(record.pid)) {
         return false;
       }
 

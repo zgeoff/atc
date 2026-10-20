@@ -23,7 +23,7 @@ export type OverlayConfirm = 'none' | 'kill' | 'destroy';
 export interface OverlayScreenDeps {
   readonly mirror: FleetMirror;
   readonly bootMetadata: AgentMetadata;
-  readonly getFocusedID: () => string | null;
+  readonly findFocusedID: () => string | null;
   readonly getMode: () => ClientMode;
   readonly getConfirm: () => OverlayConfirm;
   readonly getClient: () => DaemonClient;
@@ -129,7 +129,7 @@ export class OverlayScreen {
   open() {
     this.filter = null;
     void this.refreshAgents();
-    const focusedIndex = this.pickSessions().findIndex((s) => s.id === this.deps.getFocusedID());
+    const focusedIndex = this.pickSessions().findIndex((s) => s.id === this.deps.findFocusedID());
 
     this.selected = Math.max(0, focusedIndex);
 

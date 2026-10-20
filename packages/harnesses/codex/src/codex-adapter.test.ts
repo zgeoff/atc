@@ -192,7 +192,7 @@ test('it does not resume when the reported rollout is gone', () => {
 test('it builds a codex resume command with a captured id', () => {
   const adapter = new CodexAdapter(getAgentEntry(parseConfig([CODEX_PLUGIN], {}), 'codex'));
 
-  expect(adapter.buildResumeCommand("/tmp/it's", toAgentSessionID('c-1'))).toBe(
+  expect(adapter.planResumeCommand("/tmp/it's", toAgentSessionID('c-1'))).toBe(
     String.raw`cd '/tmp/it'\''s' && codex resume c-1`,
   );
 });
@@ -200,7 +200,7 @@ test('it builds a codex resume command with a captured id', () => {
 test('it builds a codex resume command with the picker when no id was captured', () => {
   const adapter = new CodexAdapter(getAgentEntry(parseConfig([CODEX_PLUGIN], {}), 'codex'));
 
-  expect(adapter.buildResumeCommand('/tmp', undefined)).toBe(`cd '/tmp' && codex resume`);
+  expect(adapter.planResumeCommand('/tmp', undefined)).toBe(`cd '/tmp' && codex resume`);
 });
 
 test('it refuses inbox messages without an App Server', () => {
@@ -403,9 +403,9 @@ test('it plans a spawn behind the broker with a Codex home of its own and hooks 
           OPENAI_API_KEY: null,
           tokens: {
             id_token:
-              'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJlbWFpbCI6InNvbWVvbmVAZXhhbXBsZS5jb20iLCJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiNWYwYzFkN2UtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDBjMGRlIn19.aW1wLWJyb2tlci1wbGFjZWhvbGRlcg',
-            access_token: 'imp-broker-placeholder',
-            refresh_token: 'imp-broker-placeholder',
+              'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJlbWFpbCI6InNvbWVvbmVAZXhhbXBsZS5jb20iLCJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiNWYwYzFkN2UtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDBjMGRlIn19.YnJva2VyLXBsYWNlaG9sZGVy',
+            access_token: 'broker-placeholder',
+            refresh_token: 'broker-placeholder',
             account_id: '5f0c1d7e-0000-4000-8000-00000000c0de',
           },
           last_refresh: '2099-01-01T00:00:00Z',
@@ -561,9 +561,9 @@ test("it writes the sign-in file from the oauth secret's claims and account id",
     OPENAI_API_KEY: null,
     tokens: {
       id_token:
-        'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJlbWFpbCI6InNvbWVvbmVAZXhhbXBsZS5jb20iLCJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiNWYwYzFkN2UtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDBjMGRlIn19.aW1wLWJyb2tlci1wbGFjZWhvbGRlcg',
-      access_token: 'imp-broker-placeholder',
-      refresh_token: 'imp-broker-placeholder',
+        'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJlbWFpbCI6InNvbWVvbmVAZXhhbXBsZS5jb20iLCJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiNWYwYzFkN2UtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDBjMGRlIn19.YnJva2VyLXBsYWNlaG9sZGVy',
+      access_token: 'broker-placeholder',
+      refresh_token: 'broker-placeholder',
       account_id: '5f0c1d7e-0000-4000-8000-00000000c0de',
     },
     last_refresh: '2099-01-01T00:00:00Z',

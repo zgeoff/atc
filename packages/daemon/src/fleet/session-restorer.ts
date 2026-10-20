@@ -8,6 +8,7 @@ import type { Session } from '../sessions/session';
 import type { SessionCallbacks } from '../sessions/session-callbacks';
 import { LOCAL_TARGET_IDENTITY } from '../sessions/session-registry';
 import type { SessionRegistry } from '../sessions/session-registry';
+import { isUnconfirmedBinding } from './is-unconfirmed-binding';
 import { resolveRestoredTargetIdentity } from './resolve-restored-target-identity';
 import type { SessionFleetWriter } from './session-fleet-writer';
 
@@ -211,7 +212,14 @@ export class SessionRestorer {
     const targetIdentity = entry.targetIdentity ?? LOCAL_TARGET_IDENTITY;
     const refusal = this.registry.findExecutionRefusal({ target, targetIdentity }, 'spawn');
 
-    return refusal === null ? null : formatTargetRefusal(refusal.code, target, targetIdentity);
+    if (refusal === null) {
+      return null;
+    }
+
+    const bound = this.registry.targets.get(target);
+    const isUnconfirmed = bound !== undefined && isUnconfirmedBinding(bound, targetIdentity);
+
+    return formatTargetRefusal(refusal.code, target, isUnconfirmed);
   }
 
   // The host state a restored session lists with: asleep when the harness
@@ -227,7 +235,7 @@ export class SessionRestorer {
 }
 
 // A target refusal as a session's last message, short enough for a list row.
-function formatTargetRefusal(code: ErrorCode, target: string, identity: string): string {
+function formatTargetRefusal(code: ErrorCode, target: string, isUnconfirmed: boolean): string {
   if (code === 'target_config_invalid') {
     return `target '${target}' misconfigured`;
   }
@@ -237,7 +245,7 @@ function formatTargetRefusal(code: ErrorCode, target: string, identity: string):
   }
 
   if (code === 'target_changed') {
-    if (/^imp:[\da-f]{16}$/u.test(identity)) {
+    if (isUnconfirmed) {
       return `target '${target}' binding unverified`;
     }
 

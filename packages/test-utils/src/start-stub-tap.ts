@@ -1,22 +1,38 @@
 import type { DaemonEvent } from '@atc/protocol';
 import type { DaemonClient } from '@atc/protocol/client';
 
-export async function startStubTap(client: DaemonClient, session: string) {
+interface StubTapOptions {
+  // Whether the tap also takes the answer notices of the messages the session
+  // sent, as the bridge's tap does; it takes none when absent.
+  readonly notices?: boolean;
+}
+
+export async function startStubTap(
+  client: DaemonClient,
+  session: string,
+  options: StubTapOptions = {},
+) {
   const messages: Extract<DaemonEvent, { ev: 'InboxMessage' }>[] = [];
+  const notices: Extract<DaemonEvent, { ev: 'InboxNotice' }>[] = [];
   const closed: Extract<DaemonEvent, { ev: 'InboxClosed' }>[] = [];
 
   // An ack that a closing connection never answers changes nothing the
   // caller reads.
-  const sendAck = async (message: unknown) => {
+  const sendAck = async (method: string, message: unknown) => {
     try {
-      await client.sendRequest('message.ack', { session, message });
+      await client.sendRequest(method, { session, message });
     } catch {}
   };
 
   client.onEvent = (event) => {
     if (event.ev === 'InboxMessage') {
       messages.push(event);
-      void sendAck(event.message);
+      void sendAck('message.ack', event.message);
+    }
+
+    if (event.ev === 'InboxNotice') {
+      notices.push(event);
+      void sendAck('notice.ack', event.message);
     }
 
     if (event.ev === 'InboxClosed') {
@@ -24,7 +40,9 @@ export async function startStubTap(client: DaemonClient, session: string) {
     }
   };
 
-  await client.sendRequest('session.tap', { session });
+  const tapParams = options.notices === true ? { session, notices: true } : { session };
 
-  return { messages, closed };
+  await client.sendRequest('session.tap', tapParams);
+
+  return { messages, notices, closed };
 }

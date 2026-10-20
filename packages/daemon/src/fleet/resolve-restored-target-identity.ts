@@ -1,5 +1,6 @@
 import type { FleetEntry } from '@atc/store';
 import type { ExecutionTarget } from './build-execution-targets';
+import { isUnconfirmedBinding } from './is-unconfirmed-binding';
 
 export async function resolveRestoredTargetIdentity(
   target: ExecutionTarget | undefined,
@@ -7,11 +8,11 @@ export async function resolveRestoredTargetIdentity(
 ): Promise<string | undefined> {
   const identity = entry.targetIdentity;
 
-  // only an unversioned imp binding is confirmed against an existing host
+  // only an unversioned binding is confirmed against an existing host
   if (
-    target?.kind !== 'imp' ||
+    target === undefined ||
     identity === undefined ||
-    !/^imp:[\da-f]{16}$/u.test(identity) ||
+    !isUnconfirmedBinding(target, identity) ||
     target.provider?.checkExistingHost === undefined
   ) {
     return identity;

@@ -37,18 +37,11 @@ export function collectAuthProfiles(raw: unknown): AuthProfiles {
   return { profiles, errors };
 }
 
-// impd's secret name rule: an imp name's form, so a secret name is never a
-// path or a flag.
-const SECRET_NAME = /^[a-z][a-z0-9-]{0,30}$/u;
-
-// impd's broker host rule: a lowercase hostname as a CONNECT carries it, with
-// no port and no wildcard, whose last label starts with a letter so an IP
-// address never matches.
+// A lowercase hostname as a CONNECT carries it, with no port and no
+// wildcard, whose last label starts with a letter so an IP address never
+// matches.
 const BROKER_HOST = /^(?:[a-z0-9][a-z0-9-]{0,62}\.)+[a-z][a-z0-9-]{0,62}$/u;
 const BROKER_HOST_MAX = 253;
-
-// impd's header name rule.
-const HEADER_NAME = /^[a-z0-9-]{1,64}$/u;
 
 // The profile an entry holds, or the first rule it breaks.
 function parseAuthProfile(name: string, entry: unknown): AuthProfile | string {
@@ -67,8 +60,8 @@ function parseAuthProfile(name: string, entry: unknown): AuthProfile | string {
     return 'kind must be custom, oauth, or github, the kinds atc binds';
   }
 
-  if (typeof secret !== 'string' || !SECRET_NAME.test(secret)) {
-    return 'secret must be a lowercase letter followed by up to 30 lowercase letters, digits or hyphens';
+  if (typeof secret !== 'string' || secret === '') {
+    return 'secret must be the name of a broker secret';
   }
 
   if (
@@ -82,11 +75,11 @@ function parseAuthProfile(name: string, entry: unknown): AuthProfile | string {
     const extra = ['host', 'header', 'scheme', 'user'].find((key) => entry[key] !== undefined);
 
     if (extra !== undefined) {
-      return `${extra} cannot be set on a github profile, whose hosts and headers impd's github kind fixes`;
+      return `${extra} cannot be set on a github profile, whose hosts and headers the broker's github secret fixes`;
     }
 
     if (entry['env'] !== undefined) {
-      return "env cannot be set on a github profile, whose placeholders impd's github kind sets";
+      return "env cannot be set on a github profile, whose placeholders the broker's github secret sets";
     }
 
     return { name, secret, kind, env: {}, dependencies: dependencies ?? [] };
@@ -96,8 +89,8 @@ function parseAuthProfile(name: string, entry: unknown): AuthProfile | string {
     return 'host must be a lowercase hostname such as api.example.com';
   }
 
-  if (typeof header !== 'string' || !HEADER_NAME.test(header)) {
-    return 'header must be a lowercase header name such as authorization';
+  if (typeof header !== 'string' || header === '') {
+    return 'header must be a header name such as authorization';
   }
 
   if (scheme !== 'bearer' && scheme !== 'raw') {
@@ -127,9 +120,6 @@ function parseAuthProfile(name: string, entry: unknown): AuthProfile | string {
 }
 
 const ENV_NAME = /^[A-Z_][A-Z0-9_]*$/u;
-const RESERVED_ENV_PREFIXES = ['ANTHROPIC_', 'CLAUDE_', 'ATC_', 'CODEX_', 'OPENAI_'];
-
-const RESERVED_ENV_NAMES: ReadonlySet<string> = new Set(['PATH', 'HOME']);
 
 function parseProfileEnv(raw: unknown, host: string): Record<string, string> | string {
   if (raw === undefined) {
@@ -148,7 +138,7 @@ function parseProfileEnv(raw: unknown, host: string): Record<string, string> | s
     }
 
     if (isReservedEnvName(key)) {
-      return `env.${key} cannot be set: atc or impd sets or reserves it`;
+      return `env.${key} cannot be set: atc or the broker sets or reserves it`;
     }
 
     // only the placeholder the broker swaps a credential in for, or the
@@ -163,6 +153,10 @@ function parseProfileEnv(raw: unknown, host: string): Record<string, string> | s
 
   return env;
 }
+
+const RESERVED_ENV_PREFIXES = ['ANTHROPIC_', 'CLAUDE_', 'ATC_', 'CODEX_', 'OPENAI_'];
+
+const RESERVED_ENV_NAMES: ReadonlySet<string> = new Set(['PATH', 'HOME']);
 
 function isReservedEnvName(key: string): boolean {
   return (

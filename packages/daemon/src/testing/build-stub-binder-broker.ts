@@ -96,6 +96,7 @@ export function buildStubBinderBroker(hostPrefix = 'atc-'): StubBinderBroker {
 
     if (identity.scope !== 'manage') {
       return new CredentialBrokerError('forbidden', 'the caller cannot manage grants', {
+        provider: 'imp',
         brokerCode: 'FORBIDDEN',
         data: { reason: 'scope' },
       });
@@ -105,12 +106,13 @@ export function buildStubBinderBroker(hostPrefix = 'atc-'): StubBinderBroker {
       return new CredentialBrokerError(
         'forbidden',
         `host ${hostName} is outside the caller's patterns`,
-        { brokerCode: 'FORBIDDEN', data: { reason: 'imp_out_of_scope' } },
+        { provider: 'imp', brokerCode: 'FORBIDDEN', data: { reason: 'imp_out_of_scope' } },
       );
     }
 
     if (patterns !== null && (!identity.grantable.includes(secret) || staleGrantable.has(secret))) {
       return new CredentialBrokerError('forbidden', `the caller cannot grant ${secret}`, {
+        provider: 'imp',
         brokerCode: 'FORBIDDEN',
         data: { reason: 'not_grantable' },
       });
@@ -167,7 +169,7 @@ export function buildStubBinderBroker(hostPrefix = 'atc-'): StubBinderBroker {
             throw new CredentialBrokerError(
               'refused',
               'the broker is older than the oldest this atc supports',
-              { brokerCode: 'IMPD_OUTDATED' },
+              { provider: 'imp', brokerCode: 'IMPD_OUTDATED' },
             );
           }
         }),
@@ -199,7 +201,7 @@ export function buildStubBinderBroker(hostPrefix = 'atc-'): StubBinderBroker {
             throw new CredentialBrokerError(
               toBrokerCode(removalFailure),
               'impd did not remove the grant',
-              { brokerCode: removalFailure },
+              { provider: 'imp', brokerCode: removalFailure },
             );
           }
 
@@ -223,6 +225,7 @@ export function buildStubBinderBroker(hostPrefix = 'atc-'): StubBinderBroker {
 
           if (hosts.has(name)) {
             throw new CredentialBrokerError('refused', `host ${name} already exists`, {
+              provider: 'imp',
               brokerCode: 'CONFLICT',
               data: { kind: 'imp', name },
             });
@@ -300,6 +303,7 @@ export function buildStubBinderBroker(hostPrefix = 'atc-'): StubBinderBroker {
 
 function buildNotFound(kind: 'host' | 'secret', name: string): CredentialBrokerError {
   return new CredentialBrokerError('not_found', `no ${kind} ${name}`, {
+    provider: 'imp',
     brokerCode: 'NOT_FOUND',
     data: { kind, name },
   });

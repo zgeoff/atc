@@ -1,6 +1,10 @@
 import { isRecord } from '@atc/core';
 import { DEFAULT_GIT_TRANSPORTS } from './default-git-transports';
 
+export interface InvalidGitTransports {
+  readonly invalid: string;
+}
+
 // a root is kept as written; whether it fits its target, such as `~` on a
 // remote target, is checked where the target is known.
 export interface WorkspacesConfig {
@@ -9,10 +13,6 @@ export interface WorkspacesConfig {
   readonly gitTransports: readonly string[] | InvalidGitTransports;
   readonly root: string | null;
   readonly targetRoots: ReadonlyMap<string, string>;
-}
-
-export interface InvalidGitTransports {
-  readonly invalid: string;
 }
 
 interface CollectedWorkspacesConfig {

@@ -142,27 +142,18 @@ export function mergeEventPages(
   };
 }
 
-// the daemon's own cursor of the event, which the daemon reads the text by, kept apart from
-// the merged feed cursor that replaces it
-function findTextHandle(
-  event: Readonly<Record<string, unknown>>,
-  daemon: Pick<RegistryDaemon, 'name' | 'incarnation'>,
-): Readonly<Record<string, string>> {
+// The daemon cursor that resumes a read right before an event, from the
+// event's own cursor. Throws for an event whose cursor is not a daemon's
+// events cursor, which no daemon sends.
+function buildPositionBefore(event: Readonly<Record<string, unknown>>): string {
   const raw = event['cursor'];
+  const decoded = typeof raw === 'string' ? decodeCursor(raw) : null;
 
-  if (typeof raw !== 'string') {
-    return {};
+  if (decoded === null || decoded.kind !== 'events') {
+    throw new Error('a daemon event holds no events cursor');
   }
 
-  if (event['kind'] === 'note') {
-    return { note: buildGatewayID(daemon, raw) };
-  }
-
-  if (event['kind'] === 'message-answered') {
-    return { answer: buildGatewayID(daemon, raw) };
-  }
-
-  return {};
+  return encodeCursor({ kind: 'events', id: decoded.id - 1 });
 }
 
 // The queue whose next event goes out next: the one with the earliest
@@ -200,16 +191,25 @@ function pickNextQueue<
   return best;
 }
 
-// The daemon cursor that resumes a read right before an event, from the
-// event's own cursor. Throws for an event whose cursor is not a daemon's
-// events cursor, which no daemon sends.
-function buildPositionBefore(event: Readonly<Record<string, unknown>>): string {
+// the daemon's own cursor of the event, which the daemon reads the text by, kept apart from
+// the merged feed cursor that replaces it
+function findTextHandle(
+  event: Readonly<Record<string, unknown>>,
+  daemon: Pick<RegistryDaemon, 'name' | 'incarnation'>,
+): Readonly<Record<string, string>> {
   const raw = event['cursor'];
-  const decoded = typeof raw === 'string' ? decodeCursor(raw) : null;
 
-  if (decoded === null || decoded.kind !== 'events') {
-    throw new Error('a daemon event holds no events cursor');
+  if (typeof raw !== 'string') {
+    return {};
   }
 
-  return encodeCursor({ kind: 'events', id: decoded.id - 1 });
+  if (event['kind'] === 'note') {
+    return { note: buildGatewayID(daemon, raw) };
+  }
+
+  if (event['kind'] === 'message-answered') {
+    return { answer: buildGatewayID(daemon, raw) };
+  }
+
+  return {};
 }

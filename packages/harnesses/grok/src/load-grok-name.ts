@@ -4,6 +4,19 @@ import { buildOptionalString } from '@atc/core/schema';
 import type { NameUpdate } from '@atc/plugin-api';
 import { z } from 'zod';
 
+export function loadGrokName(
+  home: string,
+  source: string,
+  namedBy: 'user' | 'auto' | 'agent',
+): Promise<NameUpdate | null> {
+  // grok files a session under the directory it started in, so a gone `source` falls back to the
+  // same session id under any directory in `home`
+  const summary = readSummary(source) ?? readSummary(readGrokSummary(home, source));
+  const update = summary === null ? null : buildNameUpdate(summary, namedBy);
+
+  return Promise.resolve(update);
+}
+
 // The fields of a session's summary.json a name comes from. A wrong-typed
 // title or summary reads as absent.
 const SUMMARY_SCHEMA = z.object({
@@ -14,17 +27,40 @@ const SUMMARY_SCHEMA = z.object({
 
 type GrokSummary = z.infer<typeof SUMMARY_SCHEMA>;
 
-export function loadGrokName(
-  home: string,
-  source: string,
-  namedBy: 'user' | 'auto' | 'agent',
-): Promise<NameUpdate | null> {
-  // grok files a session under the directory it started in, so a gone `source` falls back to the
-  // same session id under any directory in `home`
-  const summary = readSummary(source) ?? readSummary(findGrokSummary(home, source));
-  const update = summary === null ? null : buildNameUpdate(summary, namedBy);
+function readSummary(source: string | null): GrokSummary | null {
+  if (source === null) {
+    return null;
+  }
 
-  return Promise.resolve(update);
+  try {
+    const parsed = SUMMARY_SCHEMA.safeParse(JSON.parse(readFileSync(source, 'utf8')));
+
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
+function readGrokSummary(home: string, source: string): string | null {
+  const sessionID = source.split('/').at(-2);
+
+  if (sessionID === undefined || sessionID === '') {
+    return null;
+  }
+
+  const root = join(home, 'sessions');
+
+  try {
+    const groups = readdirSync(root);
+
+    return (
+      groups
+        .map((group) => join(root, group, sessionID, 'summary.json'))
+        .find((candidate) => existsSync(candidate)) ?? null
+    );
+  } catch {
+    return null;
+  }
 }
 
 function buildNameUpdate(
@@ -48,40 +84,4 @@ function buildNameUpdate(
   }
 
   return null;
-}
-
-function readSummary(source: string | null): GrokSummary | null {
-  if (source === null) {
-    return null;
-  }
-
-  try {
-    const parsed = SUMMARY_SCHEMA.safeParse(JSON.parse(readFileSync(source, 'utf8')));
-
-    return parsed.success ? parsed.data : null;
-  } catch {
-    return null;
-  }
-}
-
-function findGrokSummary(home: string, source: string): string | null {
-  const sessionID = source.split('/').at(-2);
-
-  if (sessionID === undefined || sessionID === '') {
-    return null;
-  }
-
-  const root = join(home, 'sessions');
-
-  try {
-    const groups = readdirSync(root);
-
-    return (
-      groups
-        .map((group) => join(root, group, sessionID, 'summary.json'))
-        .find((candidate) => existsSync(candidate)) ?? null
-    );
-  } catch {
-    return null;
-  }
 }

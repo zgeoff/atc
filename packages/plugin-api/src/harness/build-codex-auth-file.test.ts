@@ -23,9 +23,9 @@ test('it writes a ChatGPT sign-in whose tokens are the placeholder and whose ref
     OPENAI_API_KEY: null,
     tokens: {
       id_token:
-        'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJlbWFpbCI6InNvbWVvbmVAZXhhbXBsZS5jb20iLCJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiNWYwYzFkN2UtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDBjMGRlIiwiY2hhdGdwdF9wbGFuX3R5cGUiOiJwcm8ifX0.aW1wLWJyb2tlci1wbGFjZWhvbGRlcg',
-      access_token: 'imp-broker-placeholder',
-      refresh_token: 'imp-broker-placeholder',
+        'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJlbWFpbCI6InNvbWVvbmVAZXhhbXBsZS5jb20iLCJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiNWYwYzFkN2UtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDBjMGRlIiwiY2hhdGdwdF9wbGFuX3R5cGUiOiJwcm8ifX0.YnJva2VyLXBsYWNlaG9sZGVy',
+      access_token: 'broker-placeholder',
+      refresh_token: 'broker-placeholder',
       account_id: '5f0c1d7e-0000-4000-8000-00000000c0de',
     },
     last_refresh: '2099-01-01T00:00:00Z',
@@ -75,7 +75,7 @@ test('it writes an unsigned ID token of three segments that holds only the email
         chatgpt_plan_type: 'pro',
       },
     },
-    signature: 'imp-broker-placeholder',
+    signature: 'broker-placeholder',
   });
 });
 

@@ -4,8 +4,8 @@ import { normalizeClientName } from '../shared/normalize-client-name';
 import { APPROVAL_WINDOW_SECONDS } from './approval-window-seconds';
 import { buildConsentBinding } from './build-consent-binding';
 import { buildPageResponse } from './build-page-response';
-import { findClientName } from './find-client-name';
-import { findOwnerSessionID } from './find-owner-session-id';
+import { readClientName } from './read-client-name';
+import { readOwnerSessionID } from './read-owner-session-id';
 import { renderConsentPage } from './render-consent-page';
 import type { HTTPServerContext, Requester, SecurityOutcome } from './types';
 import { verifyOAuthQuery } from './verify-oauth-query';
@@ -41,7 +41,7 @@ export async function answerConsentRequest(
     const redirectURI = params.get('redirect_uri') ?? '';
     const requested = (params.get('scope') ?? '').split(' ');
 
-    const storedName = await findClientName(ctx.store.db, params.get('client_id') ?? '');
+    const storedName = await readClientName(ctx.store.db, params.get('client_id') ?? '');
 
     const page = renderConsentPage({
       oauthQuery,
@@ -109,7 +109,7 @@ export async function answerConsentRequest(
   const clientID = params.get('client_id') ?? '';
   const redirectURI = params.get('redirect_uri') ?? '';
 
-  const storedName = await findClientName(ctx.store.db, clientID);
+  const storedName = await readClientName(ctx.store.db, clientID);
 
   ctx.security.record({
     ...pickConsentOutcome(issuedCode, allow && !accept),
@@ -159,7 +159,7 @@ async function verifyConsentRequest(
     return null;
   }
 
-  const sessionID = await findOwnerSessionID(ctx, cookie);
+  const sessionID = await readOwnerSessionID(ctx, cookie);
 
   const approved = sessionID === null ? null : ctx.approvals.findApproved(sessionID);
 

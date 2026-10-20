@@ -10,10 +10,6 @@ const LOST_COLD_BOOTS_SCHEMA = z.object({ coldBoots: z.array(z.unknown()) });
 const GENERATION_SCHEMA = z.object({ executionGeneration: z.string() });
 const EXIT_CODE_SCHEMA = z.object({ exitCode: z.number() });
 
-// A boot whose id is not text still holds its place in the order.
-const COLD_BOOT_SCHEMA = z.object({ bootId: z.unknown().optional() });
-const CAUSE_SCHEMA = z.object({ cause: z.string() });
-
 // In the same boot, the kept previous generation gives the exit. Across a cold
 // boot, the first boot after the daemon's own gives the cause, unknown when
 // impd no longer lists the daemon's boot.
@@ -42,6 +38,10 @@ export function buildLostExit(
     ? { exitCode: 1, reason: 'ended', detail: 'ended, cause unknown' }
     : { exitCode: 1, reason: 'ended', detail: `imp rebooted (${next.cause})` };
 }
+
+// A boot whose id is not text still holds its place in the order.
+const COLD_BOOT_SCHEMA = z.object({ bootId: z.unknown().optional() });
+const CAUSE_SCHEMA = z.object({ cause: z.string() });
 
 // impd's cold boots, newest first, as far as each one reads.
 function collectColdBoots(

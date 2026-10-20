@@ -3,10 +3,10 @@ import { join } from 'node:path';
 import {
   buildStubMessageBridgeHost,
   setupTempDir,
+  startCodexTerminalThread,
   startStubCodexAppServer,
   waitFor,
 } from '@atc/test-utils';
-import { z } from 'zod';
 import { AppServerBridge } from './app-server-bridge';
 import { AppServerConnection } from './app-server-connection';
 import type { AppServerNotification } from './app-server-connection';
@@ -419,10 +419,10 @@ test('it answers an atc.answer that a resumed thread calls before its recovery e
     cwd: '/work/repo',
     host: {
       ...stub.host,
-      collectUnsettledMessages: async () => {
+      readUnsettledMessages: async () => {
         await recovery.promise;
 
-        return stub.host.collectUnsettledMessages();
+        return stub.host.readUnsettledMessages();
       },
     },
     openConnection: ctx.openConnection,
@@ -687,7 +687,7 @@ test('it moves to the thread the terminal shows without waiting out an overload'
     expect(server.requests).toPartiallyContain({ method: 'turn/start' });
   });
 
-  const moved = await startTerminalThread(ctx.socket);
+  const moved = await startCodexTerminalThread(ctx.socket);
 
   bridge.updateThread(moved);
 
@@ -767,7 +767,7 @@ test('it moves when the terminal moves while an overloaded send waits for its an
 
   stub.queueMessage({ id: 'm-2', from: 'planner', text: 'and the changelog' });
 
-  const moved = await startTerminalThread(ctx.socket);
+  const moved = await startCodexTerminalThread(ctx.socket);
 
   bridge.updateThread(moved);
   answer.resolve(undefined);
@@ -879,7 +879,7 @@ test('it resumes the thread it was given on the model the spawn asked for', asyn
 
   onTestFinished(() => server.stop());
 
-  const thread = await startTerminalThread(ctx.socket);
+  const thread = await startCodexTerminalThread(ctx.socket);
 
   const bridge = new AppServerBridge({
     session: 's-1',
@@ -935,25 +935,6 @@ test('it leaves the model to the server when the spawn asked for none', async ()
   );
 });
 
-// Starts a thread on the stand-in from a client of its own, as the terminal
-// does when it opens a new conversation, and resolves with the thread's id.
-async function startTerminalThread(socket: string): Promise<string> {
-  const terminal = await AppServerConnection.open(`ws+unix://${socket}`);
-
-  onTestFinished(() => {
-    terminal.dispose();
-  });
-
-  await terminal.sendRequest('initialize', {
-    clientInfo: { name: 'terminal', title: null, version: '1' },
-    capabilities: { experimentalApi: true },
-  });
-
-  const result = await terminal.sendRequest('thread/start', {});
-
-  return z.object({ thread: z.object({ id: z.string() }) }).parse(result).thread.id;
-}
-
 test('it delivers a message to the thread the terminal moved to and none to the old one', async () => {
   const ctx = setupTest();
   const server = startStubCodexAppServer(ctx.socket, { reply: 'the lint is clean' });
@@ -978,7 +959,7 @@ test('it delivers a message to the thread the terminal moved to and none to the 
 
   bridge.startDelivery();
 
-  const moved = await startTerminalThread(ctx.socket);
+  const moved = await startCodexTerminalThread(ctx.socket);
 
   bridge.updateThread(moved);
   stub.queueMessage({ id: 'm-1', from: 'planner', text: 'run the lint' });
@@ -1030,7 +1011,7 @@ test('it leaves a message unanswered and sends it nowhere else when the terminal
     expect(stub.statuses.get('m-1')).toBe('delivered');
   });
 
-  const moved = await startTerminalThread(ctx.socket);
+  const moved = await startCodexTerminalThread(ctx.socket);
 
   bridge.updateThread(moved);
 
@@ -1116,6 +1097,7 @@ test('it sends a message the old thread took nowhere else when the terminal move
       let onNotification = conn.onNotification;
 
       Object.defineProperty(conn, 'onNotification', {
+        // oxlint-disable-next-line zgeoff/verb-contract -- a property descriptor names its accessor get
         get: () => (notification: AppServerNotification) => {
           void (async () => {
             if (held) {
@@ -1173,7 +1155,7 @@ test('it sends a message the old thread took nowhere else when the terminal move
 
   await taken.promise;
 
-  const moved = await startTerminalThread(ctx.socket);
+  const moved = await startCodexTerminalThread(ctx.socket);
 
   bridge.updateThread(moved);
   answer.resolve(undefined);
@@ -1228,7 +1210,7 @@ test('it sends a message the old thread took nowhere else when the connection dr
 
   bridge.startDelivery();
 
-  const moved = await startTerminalThread(ctx.socket);
+  const moved = await startCodexTerminalThread(ctx.socket);
 
   stub.queueMessage({ id: 'm-1', from: 'planner', text: 'check the build' });
 
@@ -1289,7 +1271,7 @@ test('it sends a message the old thread took nowhere else when the daemon restar
 
   before.startDelivery();
 
-  const moved = await startTerminalThread(ctx.socket);
+  const moved = await startCodexTerminalThread(ctx.socket);
 
   stub.queueMessage({ id: 'm-1', from: 'planner', text: 'check the build' });
 
@@ -1371,7 +1353,7 @@ test('it delivers a message the old thread never took to the thread the terminal
 
   bridge.startDelivery();
 
-  const moved = await startTerminalThread(ctx.socket);
+  const moved = await startCodexTerminalThread(ctx.socket);
 
   stub.queueMessage({ id: 'm-1', from: 'planner', text: 'run the lint' });
 
@@ -1428,7 +1410,7 @@ test('it leaves a message unanswered and sends it nowhere else when the old thre
 
   bridge.startDelivery();
 
-  const moved = await startTerminalThread(ctx.socket);
+  const moved = await startCodexTerminalThread(ctx.socket);
 
   stub.queueMessage({ id: 'm-1', from: 'planner', text: 'check the build' });
 
@@ -1486,7 +1468,7 @@ test('it keeps a message queued and sends it nowhere while the history of the ol
 
   bridge.startDelivery();
 
-  const moved = await startTerminalThread(ctx.socket);
+  const moved = await startCodexTerminalThread(ctx.socket);
 
   stub.queueMessage({ id: 'm-1', from: 'planner', text: 'check the build' });
 
@@ -1540,7 +1522,7 @@ test('it settles a later message with the turn it left running when the terminal
     expect(stub.statuses.get('m-1')).toBe('delivered');
   });
 
-  const moved = await startTerminalThread(ctx.socket);
+  const moved = await startCodexTerminalThread(ctx.socket);
 
   bridge.updateThread(moved);
 

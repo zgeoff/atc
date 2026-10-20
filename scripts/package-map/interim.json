@@ -1,6 +1,6 @@
 {
   "scripts/probe-pty-env.ts": "(scripts, root)",
-  "src/client/collect-agent-picks.ts": "tui",
+  "src/client/read-agent-picks.ts": "tui",
   "src/federation/build-daemon-outdated-error.ts": "gateway",
   "src/federation/require-serving-daemon.ts": "gateway",
   "src/mcp/require-daemon-features.ts": "mcp",

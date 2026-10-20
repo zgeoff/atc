@@ -14,7 +14,7 @@ test('it counts each reaction and keeps the kind of each dropped answer in order
 
   host.scheduleStatus();
   host.scheduleStatus();
-  host.toBase();
+  host.showBase();
 
   await host.attach();
 

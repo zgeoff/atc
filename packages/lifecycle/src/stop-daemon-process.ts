@@ -1,8 +1,6 @@
 import type { Clock } from '@atc/core';
 import { waitUntil } from '@atc/core';
-import { isProcessAlive } from './is-process-alive';
-
-const EXIT_WAIT_MS = 10_000;
+import { probeProcessAlive } from './probe-process-alive';
 
 export async function stopDaemonProcess(pid: number, clock: Clock): Promise<'exited' | 'killed'> {
   try {
@@ -28,8 +26,10 @@ export async function stopDaemonProcess(pid: number, clock: Clock): Promise<'exi
   return 'killed';
 }
 
+const EXIT_WAIT_MS = 10_000;
+
 function waitForExit(pid: number, clock: Clock): Promise<boolean> {
-  return waitUntil(() => !isProcessAlive(pid), {
+  return waitUntil(() => !probeProcessAlive(pid), {
     clock,
     intervalMs: 50,
     deadlineMs: clock.now() + EXIT_WAIT_MS,

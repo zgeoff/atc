@@ -1,14 +1,18 @@
 import { expect, test } from 'bun:test';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { systemClock, toSessionID } from '@atc/core';
 import type { SessionID } from '@atc/core';
+import type { CommandSpec } from '@atc/plugin-api';
 import { StateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/testing';
-import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { createGitFixture, registerTestCleanup, setupTempDir, updateEnv } from '@atc/test-utils';
+import { $ } from 'bun';
 import { TargetAccess } from '../auth/target-access';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
+import { buildStubLocalProvider } from '../testing/build-stub-local-provider';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { IdempotencyLedger } from '../transport/idempotency-ledger';
 import { SessionRuntime } from './session-runtime';
@@ -22,6 +26,9 @@ interface SetupTestConfig {
     root: string | null;
     targetRoots: ReadonlyMap<string, string>;
   }>;
+
+  // The transports a workspace may clone over; https and ssh when absent.
+  readonly gitTransports?: readonly string[];
 }
 
 // A session manager over the targets given, with the stub harness as its
@@ -67,7 +74,7 @@ async function setupTest(config: SetupTestConfig) {
     clock: systemClock,
     ledger,
     findRuntime: (id) => runtimes.get(id),
-    gitTransports: ['https', 'ssh'],
+    gitTransports: config.gitTransports ?? ['https', 'ssh'],
     defaultTarget: config.defaultTarget,
     ...(config.workspaceRoots === undefined ? {} : { workspaceRoots: config.workspaceRoots }),
     homeDir: '/home/wrangler',
@@ -143,7 +150,7 @@ test('it records the directory of a spawned session in the spawn history', async
     null,
   );
 
-  const dirs = await ctx.store.collectSpawnDirs();
+  const dirs = await ctx.store.readSpawnDirs();
 
   expect(dirs).toStrictEqual([
     { cwd: ctx.dir, grant: { target: 'local', targetIdentity: 'local-pty:test' } },
@@ -456,3 +463,147 @@ test('it lands a git workspace under the daemon home when no root applies', asyn
 
   expect(dir).toBe('/home/wrangler/.local/share/atc/workspaces/widgets');
 });
+
+test('it clones a workspace on the daemon side for a remote target that does not clone on its host', async () => {
+  const git = await createGitFixture({ prefix: 'atc-spawn-service-git-' });
+
+  const provider = buildStubLocalProvider({ kind: 'cloud', remote: true, cloneOnTarget: false });
+
+  const ctx = await setupTest({
+    targets: [buildMockExecutionTarget({ id: 'far', identity: 'cloud:test', provider })],
+    defaultTarget: 'far',
+    gitTransports: ['file'],
+  });
+
+  const dir = join(ctx.dir, 'ws');
+
+  await ctx.spawns.spawnSession(
+    () => ({
+      cwd: dir,
+      name: 'builder',
+      prompt: '',
+      cols: 100,
+      rows: 30,
+      resume: false,
+      namedBy: 'user',
+      agent: 'claude',
+      parent: null,
+      overrides: {},
+      target: 'far',
+      workspace: { kind: 'git', url: git.upstream, ref: 'main' },
+      scope: null,
+      autoDir: false,
+    }),
+    null,
+    null,
+  );
+
+  expect(provider.transfers).toPartiallyContain({ dir });
+
+  expect(provider.commands).toSatisfyAll(
+    (command: CommandSpec) => !command.argv.join(' ').includes('clone'),
+  );
+});
+
+test('it clones a workspace inside the host for a remote target that clones on its host', async () => {
+  const git = await createGitFixture({ prefix: 'atc-spawn-service-git-' });
+
+  const provider = buildStubLocalProvider({ kind: 'cloud', remote: true, cloneOnTarget: true });
+
+  const ctx = await setupTest({
+    targets: [buildMockExecutionTarget({ id: 'far', identity: 'cloud:test', provider })],
+    defaultTarget: 'far',
+    gitTransports: ['file'],
+  });
+
+  const dir = join(ctx.dir, 'ws');
+
+  await ctx.spawns.spawnSession(
+    () => ({
+      cwd: dir,
+      name: 'builder',
+      prompt: '',
+      cols: 100,
+      rows: 30,
+      resume: false,
+      namedBy: 'user',
+      agent: 'claude',
+      parent: null,
+      overrides: {},
+      target: 'far',
+      workspace: { kind: 'git', url: git.upstream, ref: 'main' },
+      scope: null,
+      autoDir: false,
+    }),
+    null,
+    null,
+  );
+
+  expect(provider.transfers).not.toPartiallyContain({ dir });
+
+  expect(provider.commands).toSatisfyAny((command: CommandSpec) =>
+    command.argv.join(' ').includes('clone'),
+  );
+});
+
+test.each([
+  ['true', { hostGitIdentity: true }, 'Example Builder <builder@example.com>'],
+  ['false', { hostGitIdentity: false }, ' <>'],
+  ['absent', {}, ' <>'],
+])(
+  'it writes the git identity a remote checkout takes when the identity flag is %s',
+  async (_label, flags, expected) => {
+    const git = await createGitFixture({ prefix: 'atc-spawn-service-git-' });
+
+    const gitConfig = join(git.dir, 'daemon.gitconfig');
+
+    writeFileSync(gitConfig, '[user]\n\tname = Example Builder\n\temail = builder@example.com\n');
+    updateEnv('GIT_CONFIG_GLOBAL', gitConfig);
+    updateEnv('GIT_CONFIG_NOSYSTEM', '1');
+
+    const provider = buildStubLocalProvider({
+      kind: 'cloud',
+      remote: true,
+      cloneOnTarget: false,
+      ...flags,
+    });
+
+    const ctx = await setupTest({
+      targets: [buildMockExecutionTarget({ id: 'far', identity: 'cloud:test', provider })],
+      defaultTarget: 'far',
+      gitTransports: ['file'],
+    });
+
+    const dir = join(ctx.dir, 'ws');
+
+    await ctx.spawns.spawnSession(
+      () => ({
+        cwd: dir,
+        name: 'builder',
+        prompt: '',
+        cols: 100,
+        rows: 30,
+        resume: false,
+        namedBy: 'user',
+        agent: 'claude',
+        parent: null,
+        overrides: {},
+        target: 'far',
+        workspace: { kind: 'git', url: git.upstream, ref: 'main' },
+        scope: null,
+        autoDir: false,
+      }),
+      null,
+      null,
+    );
+
+    // the checkout's own config file, read by path, so no git variable in
+    // this process's environment picks another repository
+    const checkoutConfig = join(dir, '.git', 'config');
+
+    const name = await $`git config --file ${checkoutConfig} --get user.name`.nothrow().text();
+    const email = await $`git config --file ${checkoutConfig} --get user.email`.nothrow().text();
+
+    expect(`${name.trim()} <${email.trim()}>`).toBe(expected);
+  },
+);

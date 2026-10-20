@@ -3,8 +3,8 @@ import { join } from 'node:path';
 import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { createPasskey } from './mcp/create-passkey';
-import { findEnrollmentToken } from './mcp/find-enrollment-token';
 import { openMCPAuth } from './mcp/open-mcp-auth';
+import { readEnrollmentToken } from './mcp/read-enrollment-token';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
 import { runPasskeys } from './passkeys';
 
@@ -53,7 +53,7 @@ test('it prints an enrollment token the server accepts until it expires 15 minut
     "It enrolls one passkey and expires at 2026-10-14T12:15:00.000Z. Open /enroll on the server's public URL in your browser and type it there.",
   );
 
-  const found = await findEnrollmentToken(
+  const found = await readEnrollmentToken(
     ctx.store.db,
     token ?? '',
     Date.UTC(2026, 9, 14, 12, 14, 59),

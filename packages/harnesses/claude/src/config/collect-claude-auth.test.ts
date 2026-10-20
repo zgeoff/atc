@@ -93,7 +93,7 @@ test("it reads a placeholder that stands in for a selected non-Anthropic profile
   ).toStrictEqual({
     auth: {
       profiles: ['claude', 'jev'],
-      placeholderEnv: { TYPESAFE_API_KEY: 'imp-broker-placeholder' },
+      placeholderEnv: { TYPESAFE_API_KEY: 'broker-placeholder' },
       mcpServers: [],
     },
     errors: [],
@@ -142,7 +142,7 @@ test.each([
     'claudeAuth.placeholderEnv.TYPESAFE_BASE_URL: profile base sets TYPESAFE_BASE_URL, which the placeholder would replace',
   ],
   [
-    { TYPESAFE_API_KEY: 'imp-broker-placeholder' },
+    { TYPESAFE_API_KEY: 'broker-placeholder' },
     'claudeAuth.placeholderEnv.TYPESAFE_API_KEY: a placeholder must be an object with the profile whose credential it stands in for',
   ],
   [

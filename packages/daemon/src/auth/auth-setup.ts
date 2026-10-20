@@ -91,7 +91,7 @@ interface AuthSetupDeps {
   readonly harnesses: Pick<SessionHarnesses, 'authRevisions' | 'isAuthOutdated' | 'isHostIdle'>;
   readonly rollback: Pick<SpawnRollback, 'destroyFailedSpawnHost'>;
   readonly store: Pick<FleetStore, 'daemonID'>;
-  readonly callbacks: Pick<SessionCallbacks, 'onEvent' | 'log' | 'getAuthBinder'>;
+  readonly callbacks: Pick<SessionCallbacks, 'onEvent' | 'log' | 'findAuthBinder'>;
 }
 
 export class AuthSetup {
@@ -134,7 +134,7 @@ export class AuthSetup {
       return;
     }
 
-    if (host === undefined || this.callbacks.getAuthBinder() === null) {
+    if (host === undefined || this.callbacks.findAuthBinder() === null) {
       throw buildBrokerTargetRefusal(agent, target);
     }
   }
@@ -158,7 +158,7 @@ export class AuthSetup {
       return null;
     }
 
-    if (host === undefined || this.callbacks.getAuthBinder() === null) {
+    if (host === undefined || this.callbacks.findAuthBinder() === null) {
       throw buildBrokerTargetRefusal(adapter.id, target);
     }
 
@@ -178,7 +178,7 @@ export class AuthSetup {
   // holds: both without runtime auth, or both bound to the same hash, and
   // then only while that binding is ready.
   async requireSharedBinding(hostKey: SessionID, binding: AuthBinding | null): Promise<void> {
-    const found = await this.callbacks.getAuthBinder()?.findBinding(hostKey);
+    const found = await this.callbacks.findAuthBinder()?.readBinding(hostKey);
 
     const held = found ?? null;
 
@@ -372,8 +372,8 @@ export class AuthSetup {
   // binding, whatever its state: the imp may hold grants atc could not
   // confirm gone, and only a rebind or a forget of the host clears it.
   private async requireUnboundHost(agent: string, hostKey: SessionID): Promise<void> {
-    const binder = this.callbacks.getAuthBinder();
-    const held = binder === null ? null : await binder.findBinding(hostKey);
+    const binder = this.callbacks.findAuthBinder();
+    const held = binder === null ? null : await binder.readBinding(hostKey);
 
     if (held !== null) {
       throw new DaemonError(
@@ -424,7 +424,7 @@ export class AuthSetup {
 
     const binder = this.requireAuthBinder();
 
-    const held = await binder.findBinding(hostKey);
+    const held = await binder.readBinding(hostKey);
     const row = await binder.verifyBinding(auth.host, hostKey, auth.binding, rebind);
 
     this.harnesses.authRevisions.set(hostKey, row.revision);
@@ -528,7 +528,7 @@ export class AuthSetup {
   }
 
   requireAuthBinder(): RuntimeAuthBinder {
-    const binder = this.callbacks.getAuthBinder();
+    const binder = this.callbacks.findAuthBinder();
 
     if (binder === null) {
       throw new DaemonError('unsupported_operation', 'this daemon binds no runtime auth', {

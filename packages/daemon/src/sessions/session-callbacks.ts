@@ -53,9 +53,9 @@ export interface SessionCallbacks {
 
   // The binder of each host's runtime auth, or null when the daemon has
   // none and refuses every start that needs one.
-  readonly getAuthBinder: () => RuntimeAuthBinder | null;
+  readonly findAuthBinder: () => RuntimeAuthBinder | null;
 
   // Where each session's record is published, or null when sessions start
   // without one.
-  readonly getRecords: () => PublishedRecords | null;
+  readonly findRecords: () => PublishedRecords | null;
 }

@@ -1,9 +1,9 @@
 import { readlinkSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { buildOwnDaemonProcess } from './build-own-daemon-process';
 import { collectRestartEnv } from './collect-restart-env';
 import type { DaemonProcess } from './daemon-process';
 import { parseDaemonFlags } from './parse-daemon-flags';
+import { readOwnDaemonProcess } from './read-own-daemon-process';
 import { readProcProcess } from './read-proc-process';
 
 export function readDaemonProcess(pid: number, procRoot: string): DaemonProcess {
@@ -11,7 +11,7 @@ export function readDaemonProcess(pid: number, procRoot: string): DaemonProcess 
 
   // an unreadable entry, as on macOS, falls back to this process's own start.
   if (proc === null) {
-    return buildOwnDaemonProcess();
+    return readOwnDaemonProcess();
   }
 
   return {

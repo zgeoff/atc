@@ -44,7 +44,7 @@ async function setupTest() {
     registry,
     store,
     statusPath,
-    callbacks: { onChange: mock<() => void>(), log: recorder.log, getRecords: () => null },
+    callbacks: { onChange: mock<() => void>(), log: recorder.log, findRecords: () => null },
   });
 
   return { dir: tmp.dir, dbPath, statusPath, store, registry, writer, lines: recorder.lines };

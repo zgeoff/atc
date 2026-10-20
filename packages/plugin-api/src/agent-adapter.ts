@@ -327,7 +327,7 @@ export interface AgentAdapter {
   readonly canResume: (session: ResumeCheck) => boolean;
 
   // The last argument holds the plugin folders the session's spawn asked for.
-  readonly buildResumeCommand: (
+  readonly planResumeCommand: (
     cwd: string,
     agentSessionID: AgentSessionID | undefined,
     pluginDirs: readonly string[],

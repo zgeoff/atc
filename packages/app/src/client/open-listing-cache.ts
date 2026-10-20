@@ -12,7 +12,7 @@ import {
 import { join } from 'node:path';
 import { isRecord, systemClock, waitUntil } from '@atc/core';
 import type { Clock } from '@atc/core';
-import { isProcessAlive } from '@atc/lifecycle';
+import { probeProcessAlive } from '@atc/lifecycle';
 
 interface CachedListing {
   readonly candidates: readonly unknown[];
@@ -23,7 +23,7 @@ interface CachedListing {
 }
 
 export interface ListingCache {
-  readonly findListing: (key: string, now: number) => CachedListing | null;
+  readonly readListing: (key: string, now: number) => CachedListing | null;
 
   // resolves once the listing is kept or given up on, and never rejects.
   readonly writeListing: (key: string, listing: CachedListing) => Promise<void>;
@@ -50,7 +50,7 @@ export function openListingCache(file: string, options: ListingCacheOptions = {}
   const lockPath = `${file}.lock`;
 
   return {
-    findListing(key, now) {
+    readListing(key, now) {
       // each read opens the file again, so clients that share it see each other's listings.
       const listing = loadListings(file).get(key);
 
@@ -85,6 +85,44 @@ export function openListingCache(file: string, options: ListingCacheOptions = {}
       }
     },
   };
+}
+
+// The listings the file holds, leaving out each entry that does not parse.
+function loadListings(file: string): Map<string, CachedListing> {
+  let raw: unknown;
+
+  try {
+    raw = JSON.parse(readFileSync(file, 'utf8'));
+  } catch {
+    return new Map();
+  }
+
+  const listings = isRecord(raw) ? raw['listings'] : undefined;
+
+  if (!isRecord(listings)) {
+    return new Map();
+  }
+
+  return new Map(
+    Object.entries(listings).flatMap(([key, entry]) => {
+      const listing = parseListing(entry);
+
+      return listing === null ? [] : [[key, listing] as const];
+    }),
+  );
+}
+
+function parseListing(entry: unknown): CachedListing | null {
+  if (
+    !isRecord(entry) ||
+    !Array.isArray(entry['candidates']) ||
+    typeof entry['listedAt'] !== 'number' ||
+    !(entry['scope'] === null || typeof entry['scope'] === 'string')
+  ) {
+    return null;
+  }
+
+  return { candidates: entry['candidates'], scope: entry['scope'], listedAt: entry['listedAt'] };
 }
 
 // a rename never replaces a directory that holds a file, so it fails while another write
@@ -123,7 +161,7 @@ function removeStaleLock(lockPath: string): void {
     for (const name of readdirSync(lockPath)) {
       const pid = Number(name.split('-')[0]);
 
-      if (!(Number.isInteger(pid) && pid > 0 && isProcessAlive(pid))) {
+      if (!(Number.isInteger(pid) && pid > 0 && probeProcessAlive(pid))) {
         unlinkSync(join(lockPath, name));
       }
     }
@@ -174,42 +212,4 @@ function releaseLock(lockPath: string, token: string): void {
     unlinkSync(join(lockPath, token));
     rmdirSync(lockPath);
   } catch {}
-}
-
-// The listings the file holds, leaving out each entry that does not parse.
-function loadListings(file: string): Map<string, CachedListing> {
-  let raw: unknown;
-
-  try {
-    raw = JSON.parse(readFileSync(file, 'utf8'));
-  } catch {
-    return new Map();
-  }
-
-  const listings = isRecord(raw) ? raw['listings'] : undefined;
-
-  if (!isRecord(listings)) {
-    return new Map();
-  }
-
-  return new Map(
-    Object.entries(listings).flatMap(([key, entry]) => {
-      const listing = parseListing(entry);
-
-      return listing === null ? [] : [[key, listing] as const];
-    }),
-  );
-}
-
-function parseListing(entry: unknown): CachedListing | null {
-  if (
-    !isRecord(entry) ||
-    !Array.isArray(entry['candidates']) ||
-    typeof entry['listedAt'] !== 'number' ||
-    !(entry['scope'] === null || typeof entry['scope'] === 'string')
-  ) {
-    return null;
-  }
-
-  return { candidates: entry['candidates'], scope: entry['scope'], listedAt: entry['listedAt'] };
 }

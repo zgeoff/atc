@@ -74,7 +74,7 @@ interface SessionSpawnerDeps {
     | 'log'
     | 'now'
     | 'getClock'
-    | 'getRecords'
+    | 'findRecords'
     | 'startMessageBridge'
     | 'stopMessageBridge'
   >;
@@ -160,7 +160,7 @@ export class SessionSpawner {
         !provider.remote && auth === null && adapter.updateLocalWorkspaceTrust !== undefined;
 
       const isGuestTrust =
-        provider.kind === 'imp' &&
+        provider.guestWorkspaceTrust === true &&
         provider.remote &&
         auth !== null &&
         adapter.planGuestWorkspaceTrust !== undefined;
@@ -168,7 +168,7 @@ export class SessionSpawner {
       if (!isLocalTrust && !isGuestTrust) {
         throw new DaemonError(
           'unsupported',
-          'trustClonedWorkspace requires stock Claude on the local target, or stock Claude, a Claude gateway, or Codex signed in through the broker on an imp target',
+          'trustClonedWorkspace requires stock Claude on the local target, or stock Claude, a Claude gateway, or Codex signed in through the broker on a remote target that can trust a clone',
         );
       }
     }
@@ -397,7 +397,7 @@ export class SessionSpawner {
       this.callbacks.onBoot(session, spawn.cols, spawn.rows);
     });
 
-    // a start impd refuses throws here, after the session listed, and the
+    // a start the host refuses throws here, after the session listed, and the
     // unwind takes the session back; a shared host nothing else runs on
     // sleeps first, and a host of its own goes with the take-back
     await steps.run('harness-start', () =>

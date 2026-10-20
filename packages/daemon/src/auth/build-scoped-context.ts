@@ -15,8 +15,6 @@ type NarrowedMember = {
   [K in keyof ContextMemberScopes]: ContextMemberScopes[K] extends 'narrowed' ? K : never;
 }[keyof ContextMemberScopes];
 
-type SharedMember = Exclude<keyof DaemonContext, NarrowedMember>;
-
 // a session outside the access answers as an unknown session does, so a
 // refusal never shows the principal that it exists; a spawn may use only a
 // target the access holds, a held key's replayed answer included
@@ -43,14 +41,14 @@ export function buildScopedContext(
 
   // The target a session is bound to: the live session's, else its fleet
   // row's, else null for a session the daemon holds nowhere.
-  const findGrant = async (id: SessionID): Promise<TargetGrant | null> => {
+  const readGrant = async (id: SessionID): Promise<TargetGrant | null> => {
     const live = ctx.findSessionGrant(id);
 
     if (live !== null) {
       return live;
     }
 
-    const fleet = await ctx.collectFleet();
+    const fleet = await ctx.readFleet();
 
     const entry = fleet.find((row) => row.sessionID === id);
 
@@ -64,7 +62,7 @@ export function buildScopedContext(
   // Throws the refusal a fresh spawn to the session's target gets when a
   // held key's refusal carries a session out of reach.
   const requireSessionInReach = async (id: SessionID): Promise<void> => {
-    const grant = await findGrant(id);
+    const grant = await readGrant(id);
 
     if (grant !== null && !access.canUse(grant)) {
       throw buildTargetForbiddenError(grant.target);
@@ -84,18 +82,19 @@ export function buildScopedContext(
         // An agent can spawn only on the targets the principal may use, so
         // its spawn flags follow those targets alone.
         agents: list.agents.map((agent) => {
-          const spawnTargets = agent.spawnTargets.filter(canUseTarget);
-          const spawn = spawnTargets.length > 0;
+          const listedTargets = agent.spawnTargets;
+          const usableTargets = listedTargets.filter((target) => canUseTarget(target));
+          const spawn = usableTargets.length > 0;
 
           const takesPluginDirs = list.targets.some(
-            (target) => !target.remote && spawnTargets.includes(target.id),
+            (target) => !target.remote && usableTargets.includes(target.id),
           );
 
           const pluginDirs = agent.spawnOptions.pluginDirs;
 
           return {
             ...agent,
-            spawnTargets,
+            spawnTargets: usableTargets,
             capabilities: { ...agent.capabilities, spawn },
             spawnOptions: {
               model: {
@@ -130,10 +129,10 @@ export function buildScopedContext(
         }),
       };
     },
-    collectSpawnDirs: (outer) => {
+    readSpawnDirs: (outer) => {
       const merged = outer === null ? access : outer.merge(access);
 
-      return ctx.collectSpawnDirs(merged);
+      return ctx.readSpawnDirs(merged);
     },
     resolveSpawnParent: (id) => (canSee(id) ? ctx.resolveSpawnParent(id) : 'missing'),
     resolveSpawnTarget: (requested) => {
@@ -179,8 +178,8 @@ export function buildScopedContext(
     updateSessionScope: (id, scope) =>
       canSee(id) ? ctx.updateSessionScope(id, scope) : Promise.resolve('missing' as const),
     ackSession: (id) => canSee(id) && ctx.ackSession(id),
-    buildResumeCommand: (id) =>
-      canSee(id) ? ctx.buildResumeCommand(id) : { refusal: 'missing' as const },
+    planResumeCommand: (id) =>
+      canSee(id) ? ctx.planResumeCommand(id) : { refusal: 'missing' as const },
     readSessionScreen: (id) =>
       canSee(id) ? ctx.readSessionScreen(id) : Promise.resolve('missing' as const),
     readSessionMenu: (id) =>
@@ -276,6 +275,8 @@ function requireTarget(canUseTarget: (target: string) => boolean, target: string
     throw buildTargetForbiddenError(target);
   }
 }
+
+type SharedMember = Exclude<keyof DaemonContext, NarrowedMember>;
 
 // The daemon's own members that the principal's context keeps as they are.
 // A member the daemon leaves unset stays unset.

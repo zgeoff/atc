@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { getSourceEntry, runCommand, setupTempDir } from '@atc/test-utils';
+import { readSourceEntry, runCommand, setupTempDir } from '@atc/test-utils';
 
 function setupTest() {
   const tmp = setupTempDir('atc-statusline-');
@@ -26,7 +26,7 @@ test('it chains the user statusline and appends the fleet segment', async () => 
     JSON.stringify({ needs_you: 2, running: 1, done: 0, exited: 0, urgent: 'auth-bug' }),
   );
 
-  const proc = await runCommand([process.execPath, getSourceEntry('atc'), 'statusline'], {
+  const proc = await runCommand([process.execPath, readSourceEntry('atc'), 'statusline'], {
     stdin: JSON.stringify({ session_id: 'sl-1' }),
     env: { ...process.env, HOME: ctx.dir, PATH: '/usr/sbin:/usr/bin:/bin' },
   });
@@ -50,7 +50,7 @@ test.each([
     JSON.stringify({ statusLine: { type: 'command', command: row.command } }),
   );
 
-  const proc = await runCommand([process.execPath, getSourceEntry('atc'), 'statusline'], {
+  const proc = await runCommand([process.execPath, readSourceEntry('atc'), 'statusline'], {
     stdin: JSON.stringify({ session_id: 'sl-1' }),
     env: { ...process.env, HOME: ctx.dir, PATH: '/usr/sbin:/usr/bin:/bin' },
   });
@@ -74,7 +74,7 @@ test('it chains the user statusline from the Claude config folder CLAUDE_CONFIG_
     JSON.stringify({ statusLine: { type: 'command', command: 'echo CONFIG-DIR-SEGMENT' } }),
   );
 
-  const proc = await runCommand([process.execPath, getSourceEntry('atc'), 'statusline'], {
+  const proc = await runCommand([process.execPath, readSourceEntry('atc'), 'statusline'], {
     stdin: JSON.stringify({ session_id: 'sl-2' }),
     env: {
       ...process.env,

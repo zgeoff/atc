@@ -23,7 +23,7 @@ test('it builds a target with an in-memory provider for each local-pty entry and
     id: 'box',
     kind: 'imp',
     options: { size: 2 },
-    identity: 'imp:reach-v1:7028e13f78f6f7ad',
+    identity: 'imp:7028e13f78f6f7ad',
     provider: null,
   });
 });

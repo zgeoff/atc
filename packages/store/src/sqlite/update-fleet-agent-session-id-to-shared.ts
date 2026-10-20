@@ -1,6 +1,6 @@
 import { sql } from 'kysely';
 import type { Kysely } from 'kysely';
-import type { ColumnInfoRow } from './collect-fleet-columns';
+import type { ColumnInfoRow } from './read-fleet-columns';
 import type { StateStoreSchema } from './state-store-schema';
 
 interface FullColumnInfoRow extends ColumnInfoRow {

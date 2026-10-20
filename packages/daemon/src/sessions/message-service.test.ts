@@ -105,7 +105,7 @@ test('it queues a message to a live session that takes messages', async () => {
 
   invariant(typeof answer === 'object');
 
-  const stored = await ctx.store.findMessageByID(toMessageID(answer.message));
+  const stored = await ctx.store.readMessageByID(toMessageID(answer.message));
 
   expect(answer.message).toStartWith('m-');
   expect(answer.status).toBe('queued');
@@ -196,7 +196,7 @@ test('it answers a retried keyed send with the first message and writes it once'
     null,
   );
 
-  const pending = await ctx.store.collectPendingMessages({ atcID: s.id });
+  const pending = await ctx.store.readPendingMessages({ atcID: s.id });
 
   expect(second).toStrictEqual(first);
   expect(pending).toHaveLength(1);
@@ -307,7 +307,7 @@ test('it marks each delivered message unanswered when the process of its session
   await ctx.messages.ackMessage(tap, s.id, toMessageID(answer.message), null);
   await ctx.messages.updateEndedSessionMessages(s);
 
-  const stored = await ctx.store.findMessageByID(toMessageID(answer.message));
+  const stored = await ctx.store.readMessageByID(toMessageID(answer.message));
 
   expect(stored?.status).toBe('unanswered');
 });
@@ -396,8 +396,8 @@ test('it marks a delivered message unanswered for its sender when the store refu
     isRestoring: true,
   });
 
-  const stored = await ctx.store.findMessageByID(toMessageID(answer.message));
-  const notices = await ctx.store.collectPendingNotices(sender.id);
+  const stored = await ctx.store.readMessageByID(toMessageID(answer.message));
+  const notices = await ctx.store.readPendingNotices(sender.id);
 
   expect(log).toHaveBeenCalledExactlyOnceWith(
     `atc could not requeue the messages of session ${recipient.id} for its revive (requeue refused); it marks them unanswered`,

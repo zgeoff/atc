@@ -152,20 +152,20 @@ test('it forwards an events session filter to the daemon', async () => {
   ]);
 });
 
-const NOTE_PAGE: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
-  'events.read': {
-    events: [
-      { cursor: 'c1', at: 1, session: 's1', name: null, kind: 'note', detail: 'hi', label: 'l' },
-      { cursor: 'c2', at: 2, session: 's1', name: null, kind: 'turn-done', detail: null },
-    ],
-    cursor: 'c2',
-    more: false,
-  },
-  'note.get': { text: 'hi there', complete: true },
-};
-
 test('it reads the whole text of each note of an events page by default', async () => {
-  const caller = buildStubFleetCaller({ answer: (request) => NOTE_PAGE[request.m] ?? {} });
+  const answers: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
+    'events.read': {
+      events: [
+        { cursor: 'c1', at: 1, session: 's1', name: null, kind: 'note', detail: 'hi', label: 'l' },
+        { cursor: 'c2', at: 2, session: 's1', name: null, kind: 'turn-done', detail: null },
+      ],
+      cursor: 'c2',
+      more: false,
+    },
+    'note.get': { text: 'hi there', complete: true },
+  };
+
+  const caller = buildStubFleetCaller({ answer: (request) => answers[request.m] ?? {} });
 
   const read = await runTool(
     caller,
@@ -203,7 +203,19 @@ test('it reads the whole text of each note of an events page by default', async 
 });
 
 test('it returns the note previews as the events carry them when the call asks for previews only', async () => {
-  const caller = buildStubFleetCaller({ answer: (request) => NOTE_PAGE[request.m] ?? {} });
+  const answers: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
+    'events.read': {
+      events: [
+        { cursor: 'c1', at: 1, session: 's1', name: null, kind: 'note', detail: 'hi', label: 'l' },
+        { cursor: 'c2', at: 2, session: 's1', name: null, kind: 'turn-done', detail: null },
+      ],
+      cursor: 'c2',
+      more: false,
+    },
+    'note.get': { text: 'hi there', complete: true },
+  };
+
+  const caller = buildStubFleetCaller({ answer: (request) => answers[request.m] ?? {} });
 
   const read = await runTool(
     caller,

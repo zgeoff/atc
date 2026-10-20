@@ -4,16 +4,16 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
 import { dirname, join, normalize, resolve } from 'node:path';
-import type { ImportZonesOptions } from '@zgeoff/oxlint-config-next/import-zones';
-import { collectRefusingEdges, importZonesSchema } from '@zgeoff/oxlint-config-next/import-zones';
+import type { ImportZonesOptions } from '@zgeoff/oxlint-config/import-zones';
+import { collectRefusingEdges, importZonesSchema } from '@zgeoff/oxlint-config/import-zones';
 import { z } from 'zod';
 import type { ImportList } from './collect-imports';
 import { collectImports } from './collect-imports';
-import { collectSourceFiles } from './collect-source-files';
+import { readSourceFiles } from './read-source-files';
 
 function main(): void {
   const root = resolve(process.argv[2] ?? join(import.meta.dir, '..'));
-  const packages = collectPackages(root);
+  const packages = readPackages(root);
   const findings: string[] = [];
   let fileCount = 0;
 
@@ -22,8 +22,8 @@ function main(): void {
 
     const files =
       pkg.dir === '.'
-        ? ROOT_DIRS.flatMap((dir) => collectSourceFiles(root, dir))
-        : collectSourceFiles(root, pkg.dir);
+        ? ROOT_DIRS.flatMap((dir) => readSourceFiles(root, dir))
+        : readSourceFiles(root, pkg.dir);
 
     fileCount += files.length;
 
@@ -48,7 +48,7 @@ function main(): void {
 
   // the mods belong to no workspace package, but the confinement rules that
   // lint:mods applies read only quoted specifiers too
-  const mods = collectSourceFiles(root, 'mods');
+  const mods = readSourceFiles(root, 'mods');
 
   fileCount += mods.length;
 
@@ -105,7 +105,7 @@ interface WorkspacePackage {
   readonly manifest: Manifest;
 }
 
-function collectPackages(root: string): WorkspacePackage[] {
+function readPackages(root: string): WorkspacePackage[] {
   const manifest = readManifest(root, '.');
 
   const dirs = new Set<string>();
@@ -217,7 +217,7 @@ function checkPreloads(root: string, packages: readonly WorkspacePackage[]): str
         );
       }
 
-      for (const [file, loads] of collectStaticLoads(root, entry)) {
+      for (const [file, loads] of readStaticLoads(root, entry)) {
         findings.push(
           ...loads.flatMap((specifier) => {
             const preload = findPreload(root, preloads, file, specifier);
@@ -293,7 +293,7 @@ const MODULE_SUFFIXES = [
 
 const SOURCE_FILE = /\.(?:ts|tsx|js|mjs)$/u;
 
-function collectStaticLoads(root: string, entry: string): Map<string, readonly string[]> {
+function readStaticLoads(root: string, entry: string): Map<string, readonly string[]> {
   const reached = new Map<string, readonly string[]>();
 
   const pending = [entry];
@@ -439,7 +439,7 @@ function checkSpecifier(
 ): string[] {
   if (specifier.startsWith('.')) {
     const target = normalize(join(dirname(file), specifier));
-    const owner = findOwner(packages, target);
+    const owner = getOwner(packages, target);
 
     if (
       owner === pkg ||
@@ -501,7 +501,7 @@ const APP_TESTS: ReadonlySet<string> = new Set([
   'packages/test-utils/src/start-tui-harness.test.ts',
 ]);
 
-function findOwner(packages: readonly WorkspacePackage[], path: string): WorkspacePackage {
+function getOwner(packages: readonly WorkspacePackage[], path: string): WorkspacePackage {
   const owners = packages.filter(
     (candidate) => candidate.dir !== '.' && path.startsWith(`${candidate.dir}/`),
   );

@@ -8,6 +8,14 @@ interface CodexSignIn {
   readonly accountID: string;
 }
 
+// The ID token claim that holds the ChatGPT account and plan.
+const OPENAI_AUTH_CLAIM = 'https://api.openai.com/auth';
+
+// The ID token claims that hold a ChatGPT account id.
+const ID_CLAIMS_SCHEMA = z.object({
+  [OPENAI_AUTH_CLAIM]: z.object({ chatgpt_account_id: z.string().min(1) }),
+});
+
 export function findCodexSignIn(state: GuestOAuthState | undefined): CodexSignIn | null {
   if (state?.status !== 'ready' || state.idClaims === null) {
     return null;
@@ -24,11 +32,3 @@ export function findCodexSignIn(state: GuestOAuthState | undefined): CodexSignIn
     accountID: claims.data[OPENAI_AUTH_CLAIM].chatgpt_account_id,
   };
 }
-
-// The ID token claim that holds the ChatGPT account and plan.
-const OPENAI_AUTH_CLAIM = 'https://api.openai.com/auth';
-
-// The ID token claims that hold a ChatGPT account id.
-const ID_CLAIMS_SCHEMA = z.object({
-  [OPENAI_AUTH_CLAIM]: z.object({ chatgpt_account_id: z.string().min(1) }),
-});

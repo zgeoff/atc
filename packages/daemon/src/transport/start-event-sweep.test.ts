@@ -47,7 +47,7 @@ test('it removes the trail rows past their age when it starts', async () => {
 
   registerTestCleanup(stop);
 
-  const rows = await ctx.store.collectLatestEvents(10, null);
+  const rows = await ctx.store.readLatestEvents(10, null);
 
   expect(rows).toHaveLength(1);
 });
@@ -72,7 +72,7 @@ test('it removes the trail rows past their age again once an hour', async () => 
   ctx.sweepClock.advance(60 * 60 * 1000);
 
   await waitFor(async () => {
-    const rows = await ctx.store.collectLatestEvents(10, null);
+    const rows = await ctx.store.readLatestEvents(10, null);
 
     expect(rows).toBeEmpty();
   });

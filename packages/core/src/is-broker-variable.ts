@@ -1,10 +1,3 @@
-// impd lets a variable the caller sets win, so a caller's own value would route
-// around the broker or mask a failed CA install. Some clients read proxy and
-// CA variables in either case.
-export function isBrokerVariable(key: string): boolean {
-  return BROKER_VARIABLES.has(key.toUpperCase());
-}
-
 const BROKER_VARIABLES: ReadonlySet<string> = new Set([
   'HTTPS_PROXY',
   'HTTP_PROXY',
@@ -18,3 +11,10 @@ const BROKER_VARIABLES: ReadonlySet<string> = new Set([
   'REQUESTS_CA_BUNDLE',
   'CURL_CA_BUNDLE',
 ]);
+
+// impd lets a variable the caller sets win, so a caller's own value would route
+// around the broker or mask a failed CA install. Some clients read proxy and
+// CA variables in either case.
+export function isBrokerVariable(key: string): boolean {
+  return BROKER_VARIABLES.has(key.toUpperCase());
+}

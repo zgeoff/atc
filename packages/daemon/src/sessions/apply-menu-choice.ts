@@ -78,31 +78,6 @@ export async function applyMenuChoice(
   return { pressed: 'enter', ...(await readSettledWholeMenu(terminal, settled, waits)) };
 }
 
-async function readSettledWholeMenu(
-  terminal: MenuTerminal,
-  settled: MenuView | null,
-  waits: MenuWaits,
-): Promise<{ readonly menu: MenuView | null; readonly partial?: true }> {
-  if (settled === null) {
-    return { menu: null };
-  }
-
-  try {
-    // the whole list, so a list longer than the screen returns the token the next choice carries
-    const whole = await readWholeMenuView(terminal, waits);
-
-    return { menu: whole };
-  } catch (error) {
-    if (error instanceof DaemonError) {
-      // the key has gone through, so this answers rather than refuses; the failed read may have
-      // moved the cursor with its arrow keys, so the screen is read again
-      return { menu: await readMenuView(terminal), partial: true };
-    }
-
-    throw error;
-  }
-}
-
 // The whole menu as a client reads it, scrolling a list that has not been
 // read whole before.
 async function readWholeMenuView(
@@ -111,46 +86,6 @@ async function readWholeMenuView(
 ): Promise<MenuView | null> {
   const menu = await readWholeMenu(terminal, waits);
 
-  return menu === null ? null : buildMenuView(menu);
-}
-
-// The menu the screen shows, through the whole menu atc last read when the
-// screen shows part of it, as a client reads it. It presses no key, so it
-// can poll the screen while the cursor moves.
-async function readMenuView(terminal: MenuTerminal): Promise<MenuView | null> {
-  const menu = await readKnownMenu(terminal);
-
-  return menu === null ? null : buildMenuView(menu);
-}
-
-// one screen read gives both the checked menu and the baseline the next key's response is
-// measured against, so the key reaches the screen the check passed
-async function readCheckedMenu(
-  terminal: MenuTerminal,
-  choice: MenuChoice,
-): Promise<{ readonly menu: MenuView; readonly screen: MenuView }> {
-  const shown = await terminal.readScreenMenu();
-
-  const known = terminal.findWholeMenu();
-  const whole = shown === null || known === null ? null : expandScreenMenu(shown, known);
-
-  terminal.recordWholeMenu(whole);
-
-  const menu = requireMatchingMenu(buildViewOrNull(whole ?? shown), choice);
-
-  return { menu, screen: shown === null ? menu : buildMenuView(shown) };
-}
-
-// Presses Enter or Escape. Either key can open another list with the same
-// text and the same rows in view as the kept whole menu, so the kept menu
-// is dropped first and the menu the key leaves is read afresh.
-function sendKeyFromScreen(terminal: MenuTerminal, key: string): void {
-  terminal.recordWholeMenu(null);
-
-  sendMenuKey(terminal, key);
-}
-
-function buildViewOrNull(menu: ScreenMenu | null): MenuView | null {
   return menu === null ? null : buildMenuView(menu);
 }
 
@@ -185,6 +120,116 @@ function requireMatchingMenu(menu: MenuView | null, choice: MenuChoice): MenuVie
   }
 
   return menu;
+}
+
+// one screen read gives both the checked menu and the baseline the next key's response is
+// measured against, so the key reaches the screen the check passed
+async function readCheckedMenu(
+  terminal: MenuTerminal,
+  choice: MenuChoice,
+): Promise<{ readonly menu: MenuView; readonly screen: MenuView }> {
+  const shown = await terminal.readScreenMenu();
+
+  const known = terminal.findWholeMenu();
+  const whole = shown === null || known === null ? null : expandScreenMenu(shown, known);
+
+  terminal.recordWholeMenu(whole);
+
+  const menu = requireMatchingMenu(buildViewOrNull(whole ?? shown), choice);
+
+  return { menu, screen: shown === null ? menu : buildMenuView(shown) };
+}
+
+function buildViewOrNull(menu: ScreenMenu | null): MenuView | null {
+  return menu === null ? null : buildMenuView(menu);
+}
+
+// Presses Enter or Escape. Either key can open another list with the same
+// text and the same rows in view as the kept whole menu, so the kept menu
+// is dropped first and the menu the key leaves is read afresh.
+function sendKeyFromScreen(terminal: MenuTerminal, key: string): void {
+  terminal.recordWholeMenu(null);
+
+  sendMenuKey(terminal, key);
+}
+
+// The menu once the screen stops changing after the key: a new one, the
+// same one with a ticked box, or none. A screen that never changes settles
+// as it stands once `settleMs` passes.
+async function waitForSettledMenu(
+  terminal: MenuTerminal,
+  before: MenuView,
+  waits: MenuWaits,
+): Promise<MenuView | null> {
+  const clock = waits.clock;
+  const deadline = clock.now() + waits.timing.settleMs;
+
+  let last = await readMenuView(terminal);
+
+  let lastChangeAt = isSameMenu(last, before) ? null : clock.now();
+
+  while (clock.now() < deadline) {
+    if (lastChangeAt !== null && clock.now() - lastChangeAt >= waits.timing.stableMs) {
+      return last;
+    }
+
+    await waitForMenuPoll(waits);
+
+    const now = await readMenuView(terminal);
+
+    if (!isSameMenu(now, last)) {
+      last = now;
+      lastChangeAt = clock.now();
+    }
+  }
+
+  return last;
+}
+
+// The menu the screen shows, through the whole menu atc last read when the
+// screen shows part of it, as a client reads it. It presses no key, so it
+// can poll the screen while the cursor moves.
+async function readMenuView(terminal: MenuTerminal): Promise<MenuView | null> {
+  const menu = await readKnownMenu(terminal);
+
+  return menu === null ? null : buildMenuView(menu);
+}
+
+function isSameMenu(a: MenuView | null, b: MenuView | null): boolean {
+  if (a === null || b === null) {
+    return a === b;
+  }
+
+  return a.menuToken === b.menuToken && getHighlighted(a) === getHighlighted(b);
+}
+
+function getHighlighted(menu: MenuView): number {
+  return menu.options.find((option) => option.highlighted)?.option ?? 0;
+}
+
+async function readSettledWholeMenu(
+  terminal: MenuTerminal,
+  settled: MenuView | null,
+  waits: MenuWaits,
+): Promise<{ readonly menu: MenuView | null; readonly partial?: true }> {
+  if (settled === null) {
+    return { menu: null };
+  }
+
+  try {
+    // the whole list, so a list longer than the screen returns the token the next choice carries
+    const whole = await readWholeMenuView(terminal, waits);
+
+    return { menu: whole };
+  } catch (error) {
+    if (error instanceof DaemonError) {
+      // the key has gone through, so this answers rather than refuses; the failed read may have
+      // moved the cursor with its arrow keys, so the screen is read again
+      return { menu: await readMenuView(terminal), partial: true };
+    }
+
+    throw error;
+  }
 }
 
 // Each step presses the arrow toward the option and waits for the cursor to
@@ -249,49 +294,4 @@ async function waitForMove(
   }
 
   return null;
-}
-
-// The menu once the screen stops changing after the key: a new one, the
-// same one with a ticked box, or none. A screen that never changes settles
-// as it stands once `settleMs` passes.
-async function waitForSettledMenu(
-  terminal: MenuTerminal,
-  before: MenuView,
-  waits: MenuWaits,
-): Promise<MenuView | null> {
-  const clock = waits.clock;
-  const deadline = clock.now() + waits.timing.settleMs;
-
-  let last = await readMenuView(terminal);
-
-  let lastChangeAt = isSameMenu(last, before) ? null : clock.now();
-
-  while (clock.now() < deadline) {
-    if (lastChangeAt !== null && clock.now() - lastChangeAt >= waits.timing.stableMs) {
-      return last;
-    }
-
-    await waitForMenuPoll(waits);
-
-    const now = await readMenuView(terminal);
-
-    if (!isSameMenu(now, last)) {
-      last = now;
-      lastChangeAt = clock.now();
-    }
-  }
-
-  return last;
-}
-
-function isSameMenu(a: MenuView | null, b: MenuView | null): boolean {
-  if (a === null || b === null) {
-    return a === b;
-  }
-
-  return a.menuToken === b.menuToken && getHighlighted(a) === getHighlighted(b);
-}
-
-function getHighlighted(menu: MenuView): number {
-  return menu.options.find((option) => option.highlighted)?.option ?? 0;
 }

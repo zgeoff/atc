@@ -11,7 +11,7 @@ export function buildStubPickerHost() {
     scheduleStatus: (): void => {
       counts.renders += 1;
     },
-    toBase: (): void => {
+    showBase: (): void => {
       counts.exits += 1;
     },
     attach: (): Promise<void> => {

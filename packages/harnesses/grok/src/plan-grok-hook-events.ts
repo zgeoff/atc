@@ -129,6 +129,10 @@ function buildGrokEvent(
     .exhaustive();
 }
 
+function buildGrokNameSource(home: string, sessionID: string, cwd: string): string {
+  return join(home, 'sessions', encodeURIComponent(cwd), sessionID, 'summary.json');
+}
+
 // A permission prompt waits on a person. An idle notice right after one
 // shows only that the prompt is still open; any other idle notice means the
 // turn finished.
@@ -145,10 +149,6 @@ function buildNotificationEvent(
       kind: state?.lastKind === 'needs-input' ? 'heartbeat' : 'turn-done',
     }))
     .otherwise(() => ({ ...base }));
-}
-
-function buildGrokNameSource(home: string, sessionID: string, cwd: string): string {
-  return join(home, 'sessions', encodeURIComponent(cwd), sessionID, 'summary.json');
 }
 
 // The kinds that change what a session waits on, which a later idle notice

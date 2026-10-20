@@ -52,7 +52,7 @@ function main() {
   const state = {
     menu: first,
     cursor: first.cursor ?? 0,
-    top: findWindowTop(first, first.cursor ?? 0),
+    top: getWindowTop(first, first.cursor ?? 0),
     checked: [...(first.checked ?? [])],
     open: true,
     held: (spec.holdMs ?? 0) > 0,
@@ -72,7 +72,7 @@ function main() {
   const openMenu = (menu: StubMenu) => {
     state.menu = menu;
     state.cursor = menu.cursor ?? 0;
-    state.top = findWindowTop(menu, state.cursor);
+    state.top = getWindowTop(menu, state.cursor);
     state.checked = [...(menu.checked ?? [])];
     state.open = true;
 
@@ -169,7 +169,7 @@ function main() {
 
       state.held = false;
       state.cursor = first.cursor ?? 0;
-      state.top = findWindowTop(first, state.cursor);
+      state.top = getWindowTop(first, state.cursor);
 
       if (state.open) {
         draw();
@@ -204,7 +204,7 @@ function main() {
 
 // The first option a windowed menu shows when its cursor starts on
 // `cursor`: the top of the list, or the row that puts the cursor last.
-function findWindowTop(menu: StubMenu, cursor: number): number {
+function getWindowTop(menu: StubMenu, cursor: number): number {
   const size = menu.window ?? menu.options.length;
 
   return Math.max(0, Math.min(cursor, menu.options.length - 1) - size + 1);

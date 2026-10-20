@@ -209,7 +209,7 @@ test('it keeps the permission mode its configured arguments set in the command t
     buildMockHostServices(),
   );
 
-  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'), [])).toBe(
+  expect(adapter.planResumeCommand('/work/repo', toAgentSessionID('sess-1'), [])).toBe(
     "cd '/work/repo' && claude --permission-mode 'plan' --resume sess-1",
   );
 });
@@ -691,7 +691,7 @@ test('it quotes a configured binary path with spaces in the resume command', () 
     buildMockHostServices(),
   );
 
-  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'), [])).toBe(
+  expect(adapter.planResumeCommand('/work/repo', toAgentSessionID('sess-1'), [])).toBe(
     "cd '/work/repo' && '/opt/Claude Code/claude' --resume sess-1",
   );
 });
@@ -710,7 +710,7 @@ test('it carries the settings file in the resume command of an entry with its ow
     { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
   );
 
-  const command = adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'), []);
+  const command = adapter.planResumeCommand('/work/repo', toAgentSessionID('sess-1'), []);
 
   const settings: unknown = JSON.parse(
     readFileSync(join(ctx.dir, 'state', 'hook-settings-claude.json'), 'utf8'),
@@ -823,7 +823,7 @@ test('it resumes a stock session outside atc without a permission-mode argument'
     buildMockHostServices(),
   );
 
-  expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'), [])).toBe(
+  expect(adapter.planResumeCommand('/work/repo', toAgentSessionID('sess-1'), [])).toBe(
     "cd '/work/repo' && claude --resume sess-1",
   );
 });
@@ -840,7 +840,7 @@ test("it keeps the config's plugin folders and the session's own in the command 
   );
 
   expect(
-    adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'), ['/srv/plugins/band']),
+    adapter.planResumeCommand('/work/repo', toAgentSessionID('sess-1'), ['/srv/plugins/band']),
   ).toBe(
     "cd '/work/repo' && claude --plugin-dir '/opt/plugins/shared' --plugin-dir '/srv/plugins/band' --resume sess-1",
   );
@@ -904,7 +904,7 @@ test('it selects the subscription token on the Anthropic API with the placeholde
       baseURL: 'https://api.anthropic.com',
       auth: {
         profiles: ['claude'],
-        placeholderEnv: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
+        placeholderEnv: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
       },
     },
     profiles: config.authProfiles,
@@ -951,8 +951,8 @@ test("it selects the entry's own placeholders beside the subscription token's", 
       auth: {
         profiles: ['claude', 'jev'],
         placeholderEnv: {
-          TYPESAFE_API_KEY: 'imp-broker-placeholder',
-          CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
+          TYPESAFE_API_KEY: 'broker-placeholder',
+          CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder',
         },
       },
     },
@@ -995,7 +995,7 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
       dir: '/tmp/atc/sessions/s1',
       auth: {
         revision: 2,
-        env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
+        env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
         profileEnv: {},
       },
     },
@@ -1036,7 +1036,7 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
     env: {
       CLAUDE_CONFIG_DIR: '/tmp/atc/sessions/s1/claude-config',
       TMPDIR: '/tmp/atc/sessions/s1/scratch',
-      CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
+      CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder',
     },
   });
 
@@ -1104,7 +1104,7 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
       padding: 0,
     },
     env: {
-      CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
+      CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder',
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
     },
   });
@@ -1162,7 +1162,7 @@ test("it ships the host's Claude config as the session's user settings and keeps
       dir: '/tmp/atc/sessions/s1',
       auth: {
         revision: 1,
-        env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
+        env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
         profileEnv: {},
       },
     },
@@ -1264,7 +1264,7 @@ test("it ships the host's Claude config as the session's user settings and keeps
       padding: 2,
     },
     env: {
-      CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
+      CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder',
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
     },
   });
@@ -1325,7 +1325,7 @@ test('it gives a subscription guest spawn its MCP servers with the placeholder i
       dir: '/tmp/atc/sessions/s1',
       auth: {
         revision: 3,
-        env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
+        env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
         profileEnv: {},
       },
     },
@@ -1366,7 +1366,7 @@ test('it gives a subscription guest spawn its MCP servers with the placeholder i
       linear: {
         type: 'http',
         url: 'https://mcp.linear.app/mcp',
-        headers: { authorization: 'Bearer imp-broker-placeholder' },
+        headers: { authorization: 'Bearer broker-placeholder' },
       },
     },
   });
@@ -1530,7 +1530,7 @@ test.each([
         dir: '/tmp/atc/sessions/s1',
         auth: {
           revision: 1,
-          env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
+          env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
           profileEnv: {},
         },
       },
@@ -1564,7 +1564,7 @@ test('it refuses a subscription guest spawn whose entry env overrides the sign-i
         dir: '/tmp/atc/sessions/s1',
         auth: {
           revision: 1,
-          env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
+          env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
           profileEnv: {},
         },
       },
@@ -1600,7 +1600,7 @@ test('it refuses a subscription guest spawn whose entry settings env overrides t
         dir: '/tmp/atc/sessions/s1',
         auth: {
           revision: 1,
-          env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
+          env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
           profileEnv: {},
         },
       },
@@ -1645,7 +1645,7 @@ test('it refuses to start a subscription session in a host whose environment set
       dir: ctx.dir,
       auth: {
         revision: 1,
-        env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
+        env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
         profileEnv: {},
       },
     },
@@ -1712,7 +1712,7 @@ test.each([
         dir: ctx.dir,
         auth: {
           revision: 1,
-          env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
+          env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
           profileEnv: {},
         },
       },
@@ -1760,7 +1760,7 @@ test('it starts a subscription session with a seeded config folder in a host who
       dir: ctx.dir,
       auth: {
         revision: 1,
-        env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
+        env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
         profileEnv: {},
       },
     },
@@ -1835,7 +1835,7 @@ test("it sets a profile's variables in a subscription guest's settings env and s
         scheme: 'bearer',
         env: {
           OP_CONNECT_HOST: 'https://op-connect.example.com',
-          OP_CONNECT_TOKEN: 'imp-broker-placeholder',
+          OP_CONNECT_TOKEN: 'broker-placeholder',
         },
       },
     },
@@ -1856,10 +1856,10 @@ test("it sets a profile's variables in a subscription guest's settings env and s
       dir: '/tmp/atc/sessions/s1',
       auth: {
         revision: 2,
-        env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
+        env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
         profileEnv: {
           OP_CONNECT_HOST: 'https://op-connect.example.com',
-          OP_CONNECT_TOKEN: 'imp-broker-placeholder',
+          OP_CONNECT_TOKEN: 'broker-placeholder',
         },
       },
     },
@@ -1878,8 +1878,8 @@ test("it sets a profile's variables in a subscription guest's settings env and s
     CLAUDE_CONFIG_DIR: '/tmp/atc/sessions/s1/claude-config',
     TMPDIR: '/tmp/atc/sessions/s1/scratch',
     OP_CONNECT_HOST: 'https://op-connect.example.com',
-    OP_CONNECT_TOKEN: 'imp-broker-placeholder',
-    CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
+    OP_CONNECT_TOKEN: 'broker-placeholder',
+    CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder',
   });
 
   expect(settings).toStrictEqual({
@@ -1947,8 +1947,8 @@ test("it sets a profile's variables in a subscription guest's settings env and s
     },
     env: {
       OP_CONNECT_HOST: 'https://op-connect.example.com',
-      OP_CONNECT_TOKEN: 'imp-broker-placeholder',
-      CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
+      OP_CONNECT_TOKEN: 'broker-placeholder',
+      CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder',
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
     },
   });
@@ -1972,7 +1972,7 @@ test("it leaves a profile's variables out of the local plan of an entry with a p
         scheme: 'bearer',
         env: {
           OP_CONNECT_HOST: 'https://op-connect.example.com',
-          OP_CONNECT_TOKEN: 'imp-broker-placeholder',
+          OP_CONNECT_TOKEN: 'broker-placeholder',
         },
       },
     },
@@ -2108,7 +2108,7 @@ test('it plans a Codex home in the binding revision when the profiles send a rea
       dir: '/tmp/atc/sessions/s1',
       auth: {
         revision: 2,
-        env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
+        env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
         profileEnv: {},
         oauth: {
           'codex-chatgpt': {
@@ -2139,7 +2139,7 @@ test('it plans a Codex home in the binding revision when the profiles send a rea
     CLAUDE_CONFIG_DIR: '/tmp/atc/sessions/s1/claude-config',
     TMPDIR: '/tmp/atc/sessions/s1/scratch',
     CODEX_HOME: '/tmp/atc/sessions/s1/auth-r2/codex-home',
-    CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
+    CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder',
   });
 
   expect(plan.args[1]).toInclude('unset OPENAI_API_KEY CODEX_API_KEY CODEX_ACCESS_TOKEN; ');
@@ -2154,9 +2154,9 @@ test('it plans a Codex home in the binding revision when the profiles send a rea
     OPENAI_API_KEY: null,
     tokens: {
       id_token:
-        'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJlbWFpbCI6InNvbWVvbmVAZXhhbXBsZS5jb20iLCJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiNWYwYzFkN2UtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDBjMGRlIn19.aW1wLWJyb2tlci1wbGFjZWhvbGRlcg',
-      access_token: 'imp-broker-placeholder',
-      refresh_token: 'imp-broker-placeholder',
+        'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJlbWFpbCI6InNvbWVvbmVAZXhhbXBsZS5jb20iLCJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiNWYwYzFkN2UtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDBjMGRlIn19.YnJva2VyLXBsYWNlaG9sZGVy',
+      access_token: 'broker-placeholder',
+      refresh_token: 'broker-placeholder',
       account_id: '5f0c1d7e-0000-4000-8000-00000000c0de',
     },
     last_refresh: '2099-01-01T00:00:00Z',
@@ -2199,7 +2199,7 @@ test('it plans no Codex home when the ChatGPT sign-in in impd is not ready', () 
       dir: '/tmp/atc/sessions/s1',
       auth: {
         revision: 2,
-        env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
+        env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
         profileEnv: {},
         oauth: { 'codex-chatgpt': { status: 'needs_login', idClaims: null } },
       },
@@ -2211,7 +2211,7 @@ test('it plans no Codex home when the ChatGPT sign-in in impd is not ready', () 
   expect(plan.env).toStrictEqual({
     CLAUDE_CONFIG_DIR: '/tmp/atc/sessions/s1/claude-config',
     TMPDIR: '/tmp/atc/sessions/s1/scratch',
-    CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
+    CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder',
   });
 
   const [, script] = plan.args;
@@ -2258,7 +2258,7 @@ test('it plans no Codex home when a ChatGPT profile sets no bearer authorization
       dir: '/tmp/atc/sessions/s1',
       auth: {
         revision: 2,
-        env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
+        env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
         profileEnv: {},
         oauth: {
           'codex-chatgpt': {
@@ -2279,7 +2279,7 @@ test('it plans no Codex home when a ChatGPT profile sets no bearer authorization
   expect(plan.env).toStrictEqual({
     CLAUDE_CONFIG_DIR: '/tmp/atc/sessions/s1/claude-config',
     TMPDIR: '/tmp/atc/sessions/s1/scratch',
-    CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
+    CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder',
   });
 
   expect(Object.keys(plan.files).filter((path) => path.includes('codex-home'))).toBeEmpty();

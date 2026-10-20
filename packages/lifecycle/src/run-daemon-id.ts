@@ -1,6 +1,6 @@
 import { buildHostDaemonPaths } from './build-host-daemon-paths';
-import { collectDaemonSocketPaths } from './collect-daemon-socket-paths';
 import type { LifecycleHost } from './lifecycle-host';
+import { readDaemonSocketPaths } from './read-daemon-socket-paths';
 import { tryOpenDaemon } from './try-open-daemon';
 
 // How long the handshake may take.
@@ -10,7 +10,7 @@ export async function runDaemonID(host: LifecycleHost): Promise<void> {
   const paths = buildHostDaemonPaths(host);
 
   const probe = await tryOpenDaemon(
-    collectDaemonSocketPaths(paths),
+    readDaemonSocketPaths(paths),
     {
       build: host.invocation.readBuild(),
       deadline: host.clock.now() + PROBE_DEADLINE_MS,

@@ -10,10 +10,10 @@ import {
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { openMCPAuthDatabase } from '../open-mcp-auth-database';
-import { collectClients } from './collect-clients';
-import { collectGrants } from './collect-grants';
 import { createEnrollmentToken } from './create-enrollment-token';
 import { openMCPAuth } from './open-mcp-auth';
+import { readClientViews } from './read-client-views';
+import { readGrantViews } from './read-grant-views';
 import { removeClient } from './remove-client';
 import { startMCPHTTPServer } from './start-mcp-http-server';
 import { TransportCaller } from './transport-caller';
@@ -70,7 +70,7 @@ test('it removes a client and reports it removed', async () => {
   const removed = await removeClient(ctx.store.db, created.clientID);
 
   expect(removed).toBeTrue();
-  expect(collectClients(ctx.store.db)).resolves.toStrictEqual([]);
+  expect(readClientViews(ctx.store.db)).resolves.toStrictEqual([]);
 });
 
 test('it reports an unknown client id as not removed', async () => {
@@ -113,7 +113,7 @@ test("it never removes another client's tokens, consent or grant use", async () 
     });
   }
 
-  const grants = await collectGrants(ctx.store.db);
+  const grants = await readGrantViews(ctx.store.db);
 
   await ctx.store.db
     .insertInto('atc_grant_use')

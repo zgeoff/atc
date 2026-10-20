@@ -3,14 +3,18 @@
 // so the call may or may not have taken effect.
 type CredentialBrokerCode = 'not_found' | 'forbidden' | 'unauthorized' | 'unreachable' | 'refused';
 
-// The broker's own code for a failure, and the data it gave.
+// The kind of the execution provider whose broker failed, the broker's own
+// code for the failure, and the data it gave.
 interface CredentialBrokerErrorOptions {
+  readonly provider: string;
   readonly brokerCode: string;
   readonly data?: unknown;
 }
 
 export class CredentialBrokerError extends Error {
   readonly code: CredentialBrokerCode;
+
+  readonly provider: string;
 
   readonly brokerCode: string;
 
@@ -20,6 +24,7 @@ export class CredentialBrokerError extends Error {
     super(message);
 
     this.code = code;
+    this.provider = options.provider;
     this.brokerCode = options.brokerCode;
     this.data = options.data;
     this.name = 'CredentialBrokerError';

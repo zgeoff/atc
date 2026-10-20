@@ -2,6 +2,19 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runCommand } from './run-command';
 
+const NATIVE_SOURCE = `#include <stdio.h>
+#include <stdlib.h>
+
+int main(void) {
+  const char *value = getenv("DYLD_ATC_TEST");
+  printf("FAKE_NATIVE_DYLD:[%s]\\n", value == NULL ? "unset" : value);
+  fflush(stdout);
+  while (getchar() != EOF) {
+  }
+  return 0;
+}
+`;
+
 // A native program keeps its DYLD_ variables on macOS, where a script loses
 // them on the way into its protected interpreter.
 export async function createStubNativeClaude(dir: string, name: string): Promise<string> {
@@ -26,16 +39,3 @@ export async function createStubNativeClaude(dir: string, name: string): Promise
 
   return path;
 }
-
-const NATIVE_SOURCE = `#include <stdio.h>
-#include <stdlib.h>
-
-int main(void) {
-  const char *value = getenv("DYLD_ATC_TEST");
-  printf("FAKE_NATIVE_DYLD:[%s]\\n", value == NULL ? "unset" : value);
-  fflush(stdout);
-  while (getchar() != EOF) {
-  }
-  return 0;
-}
-`;

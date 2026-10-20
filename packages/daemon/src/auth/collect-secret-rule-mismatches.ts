@@ -19,7 +19,8 @@ type SecretRuleMismatch =
       readonly reason: 'rules';
       readonly expected: readonly BrokerSecretRule[];
       readonly actual: readonly BrokerSecretRule[];
-    };
+    }
+  | { readonly secret: string; readonly reason: 'host'; readonly host: string };
 
 export function collectSecretRuleMismatches(
   expected: readonly ExpectedSecret[],
@@ -28,6 +29,10 @@ export function collectSecretRuleMismatches(
   const held = new Map(secrets.map((secret) => [secret.name, secret]));
 
   const mismatches: SecretRuleMismatch[] = [];
+
+  // the host each matched secret sends a credential to, from the rules the
+  // broker holds
+  const hostOwners = new Map<string, string>();
 
   for (const want of expected) {
     const actual = held.get(want.secret);
@@ -41,13 +46,25 @@ export function collectSecretRuleMismatches(
         expected: want.kind,
         actual: actual.kind,
       });
-    } else if (!hasSameRules(want.rules, actual.rules)) {
+    } else if (actual.kind !== 'github' && !hasSameRules(want.rules, actual.rules)) {
+      // the broker owns a github secret's rules, so only its kind is checked
       mismatches.push({
         secret: want.secret,
         reason: 'rules',
         expected: want.rules,
         actual: actual.rules,
       });
+    } else {
+      // two secrets on one host leave the broker to pick the credential
+      const shared = actual.rules.find((rule) => hostOwners.has(rule.host));
+
+      if (shared === undefined) {
+        for (const rule of actual.rules) {
+          hostOwners.set(rule.host, want.secret);
+        }
+      } else {
+        mismatches.push({ secret: want.secret, reason: 'host', host: shared.host });
+      }
     }
   }
 

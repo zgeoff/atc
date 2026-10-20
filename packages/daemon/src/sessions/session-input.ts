@@ -160,7 +160,7 @@ export class SessionInput {
 
     const screen = this.findRuntime(id)?.screen ?? null;
 
-    return screen === null ? Promise.resolve('no_screen') : screen.renderText();
+    return screen === null ? Promise.resolve('no_screen') : screen.captureText();
   }
 
   async readSessionMenu(
@@ -277,7 +277,7 @@ export class SessionInput {
           return null;
         }
 
-        const shown = await runtime.screen.renderText();
+        const shown = await runtime.screen.captureText();
 
         return findMenu(shown.text, shown.rows);
       },

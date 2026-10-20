@@ -63,6 +63,33 @@ export async function runStatusline(agent: string): Promise<void> {
   process.exit(0);
 }
 
+// A user statusline that is atc's own injected command would chain into
+// itself; the injected command ends with the bare subcommand, or with the
+// subcommand and its agent flag, its value after a space or an `=`.
+function isSelfCommand(cmd: string): boolean {
+  return cmd.includes('statusline.ts') || /\sstatusline(?:\s+--agent[\s=].*)?$/u.test(cmd);
+}
+
+// Inside a remote host the status file is out of reach, and the session
+// bridge returns the session's own state alone, never the rest of the fleet.
+async function readOwnSegment(sock: string): Promise<string> {
+  const status = await sendBridgeRequest(sock, 'status.read', {}, 500);
+
+  if (status === null || status['ok'] !== true) {
+    return '';
+  }
+
+  if (status['state'] === 'needs_you') {
+    return '\u001B[1;31m● needs you\u001B[0m';
+  }
+
+  if (status['state'] === 'done') {
+    return '\u001B[32m✓ done\u001B[0m';
+  }
+
+  return status['state'] === 'running' ? '\u001B[36m◐ running\u001B[0m' : '';
+}
+
 // The fleet segment, from the status file the daemon writes beside it.
 function readFleetSegment(): string {
   let segment = '';
@@ -96,31 +123,4 @@ function readFleetSegment(): string {
   } catch {}
 
   return segment;
-}
-
-// Inside a remote host the status file is out of reach, and the session
-// bridge returns the session's own state alone, never the rest of the fleet.
-async function readOwnSegment(sock: string): Promise<string> {
-  const status = await sendBridgeRequest(sock, 'status.read', {}, 500);
-
-  if (status === null || status['ok'] !== true) {
-    return '';
-  }
-
-  if (status['state'] === 'needs_you') {
-    return '\u001B[1;31m● needs you\u001B[0m';
-  }
-
-  if (status['state'] === 'done') {
-    return '\u001B[32m✓ done\u001B[0m';
-  }
-
-  return status['state'] === 'running' ? '\u001B[36m◐ running\u001B[0m' : '';
-}
-
-// A user statusline that is atc's own injected command would chain into
-// itself; the injected command ends with the bare subcommand, or with the
-// subcommand and its agent flag, its value after a space or an `=`.
-function isSelfCommand(cmd: string): boolean {
-  return cmd.includes('statusline.ts') || /\sstatusline(?:\s+--agent[\s=].*)?$/u.test(cmd);
 }

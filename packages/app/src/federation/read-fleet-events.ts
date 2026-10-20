@@ -30,6 +30,17 @@ const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
 const MAX_WAIT_MS = 30_000;
 
+// What every daemon read of one call shares.
+interface DaemonRead {
+  readonly deps: FleetEventsDeps;
+  readonly principal: Principal;
+  readonly limit: number;
+
+  // The daemon's own id of the session a filtered read asks about.
+  readonly sessionID: string | null;
+  readonly requestIDs: ReadonlyMap<string, string>;
+}
+
 export async function readFleetEvents(
   deps: FleetEventsDeps,
   params: Readonly<Record<string, unknown>>,
@@ -75,25 +86,10 @@ export async function readFleetEvents(
   return { ...mergeEventPages(waited, filter, limit) };
 }
 
-// What every daemon read of one call shares.
-interface DaemonRead {
-  readonly deps: FleetEventsDeps;
-  readonly principal: Principal;
-  readonly limit: number;
+function toBounded(value: unknown, fallback: number, min: number, max: number): number {
+  const given = typeof value === 'number' && Number.isFinite(value) ? Math.trunc(value) : fallback;
 
-  // The daemon's own id of the session a filtered read asks about.
-  readonly sessionID: string | null;
-  readonly requestIDs: ReadonlyMap<string, string>;
-}
-
-function getDaemon(registry: GatewayRegistry, name: string): RegistryDaemon {
-  const daemon = registry.daemons.get(name);
-
-  if (daemon === undefined) {
-    throw new Error(`no daemon '${name}' in the registry`);
-  }
-
-  return daemon;
+  return Math.min(Math.max(given, min), max);
 }
 
 // One daemon's part of the merge, from where the plan starts it. Only a
@@ -147,41 +143,9 @@ async function readDaemonPart(
   }
 
   const page = await sendEventsRead(read, daemon, { limit: read.limit });
-  const olderUnread = await hasOlderEvents(read, daemon, page.events);
+  const olderUnread = await probeOlderEvents(read, daemon, page.events);
 
   return { daemon, before: { cursor: null }, page, unstarted: { olderUnread } };
-}
-
-// Whether the daemon holds an event older than the first of a page of its
-// latest events, read as the first event after the start of its trail.
-async function hasOlderEvents(
-  read: DaemonRead,
-  daemon: RegistryDaemon,
-  events: readonly Readonly<Record<string, unknown>>[],
-): Promise<boolean> {
-  const [first] = events;
-  const firstID = first === undefined ? null : findEventID(first);
-
-  if (firstID === null) {
-    return false;
-  }
-
-  const oldest = await sendEventsRead(read, daemon, {
-    limit: 1,
-    cursor: encodeCursor({ kind: 'events', id: 0 }),
-  });
-
-  const [oldestEvent] = oldest.events;
-  const oldestID = oldestEvent === undefined ? null : findEventID(oldestEvent);
-
-  return oldestID !== null && oldestID < firstID;
-}
-
-function findEventID(event: Readonly<Record<string, unknown>>): number | null {
-  const raw = event['cursor'];
-  const decoded = typeof raw === 'string' ? decodeCursor(raw) : null;
-
-  return decoded !== null && decoded.kind === 'events' ? decoded.id : null;
 }
 
 // One events.read to one daemon as the call's principal, with the
@@ -213,6 +177,48 @@ async function sendEventsRead(
     cursor: typeof answer['cursor'] === 'string' ? answer['cursor'] : '',
     more: answer['more'] === true,
   };
+}
+
+// Whether the daemon holds an event older than the first of a page of its
+// latest events, read as the first event after the start of its trail.
+async function probeOlderEvents(
+  read: DaemonRead,
+  daemon: RegistryDaemon,
+  events: readonly Readonly<Record<string, unknown>>[],
+): Promise<boolean> {
+  const [first] = events;
+  const firstID = first === undefined ? null : findEventID(first);
+
+  if (firstID === null) {
+    return false;
+  }
+
+  const oldest = await sendEventsRead(read, daemon, {
+    limit: 1,
+    cursor: encodeCursor({ kind: 'events', id: 0 }),
+  });
+
+  const [oldestEvent] = oldest.events;
+  const oldestID = oldestEvent === undefined ? null : findEventID(oldestEvent);
+
+  return oldestID !== null && oldestID < firstID;
+}
+
+function findEventID(event: Readonly<Record<string, unknown>>): number | null {
+  const raw = event['cursor'];
+  const decoded = typeof raw === 'string' ? decodeCursor(raw) : null;
+
+  return decoded !== null && decoded.kind === 'events' ? decoded.id : null;
+}
+
+function getDaemon(registry: GatewayRegistry, name: string): RegistryDaemon {
+  const daemon = registry.daemons.get(name);
+
+  if (daemon === undefined) {
+    throw new Error(`no daemon '${name}' in the registry`);
+  }
+
+  return daemon;
 }
 
 // Reads again, waiting, each daemon whose page came back empty, and settles
@@ -254,10 +260,4 @@ async function waitForFirstEvents(
   await Promise.race([firstEvents.promise, Promise.all(reads)]);
 
   return sources.map((source) => waited.get(source) ?? source);
-}
-
-function toBounded(value: unknown, fallback: number, min: number, max: number): number {
-  const given = typeof value === 'number' && Number.isFinite(value) ? Math.trunc(value) : fallback;
-
-  return Math.min(Math.max(given, min), max);
 }

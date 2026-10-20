@@ -81,18 +81,6 @@ test('it reads fleet events through a tool call', async () => {
   expect(read.structured?.['events']).toPartiallyContain({ kind: 'started', session });
 });
 
-function findNote(events: unknown): Record<string, unknown> {
-  invariant(Array.isArray(events), 'the events read holds no events');
-
-  const found: unknown = events.find(
-    (candidate: unknown) => isRecord(candidate) && candidate['kind'] === 'note',
-  );
-
-  invariant(isRecord(found), 'the events read holds no note event');
-
-  return found;
-}
-
 test('it returns the whole text of a note its event previews, and the preview on request', async () => {
   const ctx = await setupTest();
 
@@ -114,8 +102,13 @@ test('it returns the whole text of a note its event previews, and the preview on
 
   const preview = await ctx.mcp.sendToolCall('atc_events_read', { previewOnly: true });
 
-  const fullNote = findNote(full);
-  const previewNote = findNote(preview.structured?.['events']);
+  invariant(Array.isArray(full), 'the events read holds no events');
+
+  const fullNote: unknown = full.find(
+    (candidate: unknown) => isRecord(candidate) && candidate['kind'] === 'note',
+  );
+
+  invariant(isRecord(fullNote), 'the events read holds no note event');
 
   expect(fullNote).toStrictEqual({
     cursor: expect.toBeString(),
@@ -129,7 +122,7 @@ test('it returns the whole text of a note its event previews, and the preview on
     complete: true,
   });
 
-  expect(previewNote).toStrictEqual({
+  expect(preview.structured?.['events']).toContainEqual({
     cursor: fullNote['cursor'],
     at: fullNote['at'],
     session: fullNote['session'],

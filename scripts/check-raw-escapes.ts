@@ -3,12 +3,12 @@
 // the escape sequences the TUI writes stay legible only as `\u001B` escapes.
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { collectSourceFiles } from './collect-source-files';
+import { readSourceFiles } from './read-source-files';
 
 function main(): void {
   const root = resolve(process.argv[2] ?? join(import.meta.dir, '..'));
 
-  const found = SOURCE_DIRS.flatMap((dir) => collectSourceFiles(root, dir)).flatMap((file) =>
+  const found = SOURCE_DIRS.flatMap((dir) => readSourceFiles(root, dir)).flatMap((file) =>
     collectRawEscapes(readFileSync(join(root, file), 'utf8')).map(
       (position) => `${file}:${position}`,
     ),

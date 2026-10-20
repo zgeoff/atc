@@ -36,8 +36,8 @@ async function setupTest() {
     onOutput: mock<() => void>(),
     onProcessEnded: mock<() => void>(),
     log: recorder.log,
-    getRecords: () => null,
-    getAuthBinder: () => null,
+    findRecords: () => null,
+    findAuthBinder: () => null,
   };
 
   const registry = new SessionRegistry({
@@ -169,7 +169,7 @@ test('it rejects, keeps the session listed, and keeps the rollback unsettled whe
   // settlement check then reads the recorded kill.
   ctx.rollback.rollingBack.delete(toSessionID('s-stuck'));
 
-  const settled = await ctx.rollback.isRollbackSettled(toSessionID('s-stuck'));
+  const settled = await ctx.rollback.probeRollbackSettled(toSessionID('s-stuck'));
 
   expect(ctx.rollback.unconfirmedKills.has(toSessionID('s-stuck'))).toBeTrue();
   expect(ctx.registry.sessions).toStrictEqual([session]);

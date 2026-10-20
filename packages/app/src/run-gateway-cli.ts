@@ -44,6 +44,19 @@ const PROCESS_IO: GatewayCLIIO = {
   },
 };
 
+// The flag every command takes for the directory holding `gateway.db` and
+// `mcp-auth.db`. It may repeat, and every value must give the same
+// directory.
+const STATE_DIR_ARG = {
+  'state-dir': {
+    type: 'string',
+    multiple: true,
+    description: 'Directory for gateway.db and mcp-auth.db (default $ATC_GATEWAY_STATE_DIR)',
+  },
+} as const;
+
+const GATEWAY_DESCRIPTION = 'Serve the atc MCP tools over HTTP for the daemons a registry lists';
+
 export async function runGatewayCLI(
   argv: readonly string[],
   env: Readonly<Record<string, string | undefined>>,
@@ -250,19 +263,6 @@ export async function runGatewayCLI(
     io,
   );
 }
-
-// The flag every command takes for the directory holding `gateway.db` and
-// `mcp-auth.db`. It may repeat, and every value must give the same
-// directory.
-const STATE_DIR_ARG = {
-  'state-dir': {
-    type: 'string',
-    multiple: true,
-    description: 'Directory for gateway.db and mcp-auth.db (default $ATC_GATEWAY_STATE_DIR)',
-  },
-} as const;
-
-const GATEWAY_DESCRIPTION = 'Serve the atc MCP tools over HTTP for the daemons a registry lists';
 
 type PickedStateDir =
   | { readonly ok: true; readonly stateDir: string }

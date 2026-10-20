@@ -152,7 +152,7 @@ test('it lists queued and delivered messages as unsettled', async () => {
 
   await stub.host.applyNote({ kind: 'answered', message: 'm-1', answer: 'done' });
 
-  const unsettled = await stub.host.collectUnsettledMessages();
+  const unsettled = await stub.host.readUnsettledMessages();
 
   expect(unsettled).toStrictEqual([{ id: 'm-2', status: 'queued' }]);
 });

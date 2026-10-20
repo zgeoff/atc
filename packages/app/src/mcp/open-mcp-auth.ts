@@ -9,7 +9,7 @@ import { getMigrations } from 'better-auth/db/migration';
 import { Kysely, sql } from 'kysely';
 import { GRANT_SCOPES } from '../shared/grant-scope';
 import { APPROVAL_WINDOW_SECONDS } from './approval-window-seconds';
-import { buildOwnerPlugin } from './build-owner-plugin';
+import { createOwnerPlugin } from './create-owner-plugin';
 import { deriveTokenHash } from './derive-token-hash';
 import type { MCPAuthDatabase } from './mcp-auth-database';
 import type { MCPAuthSchema } from './mcp-auth-schema';
@@ -91,7 +91,7 @@ export async function openMCPAuth(options: MCPAuthOptions) {
     // The provider's own endpoint types do not satisfy the plugin type under
     // exactOptionalPropertyTypes, so atc reaches them over HTTP-shaped requests.
     // oxlint-disable-next-line no-unsafe-type-assertion -- the plugin is a BetterAuthPlugin at runtime; only its endpoint option types disagree with the stricter compiler settings
-    plugins: [provider as BetterAuthPlugin, buildOwnerPlugin()],
+    plugins: [provider as BetterAuthPlugin, createOwnerPlugin()],
   });
 
   const migrations = await getMigrations(auth.options);

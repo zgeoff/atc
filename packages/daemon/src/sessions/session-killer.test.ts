@@ -35,8 +35,8 @@ async function setupTest(config: SetupConfig) {
     onProcessEnded: mock<() => void>(),
     onChange: mock<() => void>(),
     log: mock<() => void>(),
-    getAuthBinder: () => null,
-    getRecords: () => null,
+    findAuthBinder: () => null,
+    findRecords: () => null,
   };
 
   const registry = new SessionRegistry({

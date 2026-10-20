@@ -8,10 +8,10 @@ import type { ErrorCode } from '@atc/protocol/wire';
 import type { MaterializationPhase } from '@atc/store';
 import { claimLanding } from './claim-landing';
 import { createCheckout } from './create-checkout';
-import { findCredentialSecret } from './find-credential-secret';
 import type { MaterializationProgress, ProgressTracker } from './materialization-progress';
 import type { Landing, MaterializeDeps } from './materialize-deps';
 import type { MaterializeRequest } from './materialize-request';
+import { readCredentialSecret } from './read-credential-secret';
 import type { GitIdentity } from './read-host-git-identity';
 import { recordPhase } from './record-phase';
 import { requireGitTransports } from './require-git-transports';
@@ -20,8 +20,6 @@ import { resolveSource } from './resolve-source';
 import { runGit } from './run-git';
 import { toDaemonError } from './to-daemon-error';
 import { verifyTargetHead } from './verify-target-head';
-
-type MaterializedWorkspace = { readonly kind: 'in_place' } | ReadyWorkspace;
 
 interface ReadyWorkspace {
   readonly kind: 'ready';
@@ -35,6 +33,8 @@ interface ReadyWorkspace {
   readonly withheldEnv: readonly string[];
 }
 
+type MaterializedWorkspace = { readonly kind: 'in_place' } | ReadyWorkspace;
+
 export async function materializeWorkspace(
   request: MaterializeRequest,
   deps: MaterializeDeps,
@@ -42,7 +42,7 @@ export async function materializeWorkspace(
   const source = request.source;
 
   const outside =
-    source.kind === 'path' && request.inPlace ? await isOutsideWorkTree(source.path) : false;
+    source.kind === 'path' && request.inPlace ? await probeOutsideWorkTree(source.path) : false;
 
   if (source.kind === 'path' && outside) {
     if (resolve(source.path) !== resolve(request.dir)) {
@@ -56,7 +56,7 @@ export async function materializeWorkspace(
     return { kind: 'in_place' };
   }
 
-  const secret = findCredentialSecret(source);
+  const secret = readCredentialSecret(source);
   const withheldEnv = buildWithheldEnv(source);
   const progress: MaterializationProgress = { phase: 'resolving', landing: null, claimed: false };
 
@@ -117,21 +117,10 @@ export async function materializeWorkspace(
   }
 }
 
-// a harness inherits the daemon's environment, so the session withholds from every harness
-// it starts the git source's credential variable and the askpass variables the clone hands
-// its network commands
-const ASKPASS_ENV = ['GIT_ASKPASS', 'ATC_GIT_ASKPASS_SECRET'];
-
-function buildWithheldEnv(source: SpawnWorkspaceSource): string[] {
-  return source.kind === 'git' && source.credentialRef !== undefined
-    ? [source.credentialRef.name, ...ASKPASS_ENV]
-    : [...ASKPASS_ENV];
-}
-
 // only git's own answer that no repository holds the path proves it is outside one: any other
 // failure, such as a broken config or an untrusted repository, refuses the spawn rather than
 // run it in place unchecked
-async function isOutsideWorkTree(path: string): Promise<boolean> {
+async function probeOutsideWorkTree(path: string): Promise<boolean> {
   const inside = await runGit(['rev-parse', '--is-inside-work-tree'], { cwd: path }).catch(
     requireStartFailure,
   );
@@ -149,6 +138,17 @@ async function isOutsideWorkTree(path: string): Promise<boolean> {
     `git cannot inspect ${path}: ${inside.stderr.trim().split('\n')[0] ?? ''}`,
     { phase: 'resolving' },
   );
+}
+
+// a harness inherits the daemon's environment, so the session withholds from every harness
+// it starts the git source's credential variable and the askpass variables the clone hands
+// its network commands
+const ASKPASS_ENV = ['GIT_ASKPASS', 'ATC_GIT_ASKPASS_SECRET'];
+
+function buildWithheldEnv(source: SpawnWorkspaceSource): string[] {
+  return source.kind === 'git' && source.credentialRef !== undefined
+    ? [source.credentialRef.name, ...ASKPASS_ENV]
+    : [...ASKPASS_ENV];
 }
 
 async function runMaterialization(
@@ -216,6 +216,10 @@ async function runMaterialization(
   };
 }
 
+function toRedacted(text: string, secret: string): string {
+  return text.replaceAll(secret, '[credential]');
+}
+
 // Writes the identity into the checkout's own config file, passing each
 // value as its own argument so no shell reads it.
 async function writeGitIdentity(
@@ -272,10 +276,6 @@ function toScrubbedRefusal(
         );
 
   return new DaemonError(refusal.code, toRedacted(refusal.message, secret), data);
-}
-
-function toRedacted(text: string, secret: string): string {
-  return text.replaceAll(secret, '[credential]');
 }
 
 // a directory left behind blocks the next materialization into it with `workspace_exists`

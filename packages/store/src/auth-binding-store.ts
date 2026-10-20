@@ -88,7 +88,7 @@ export class AuthBindingStore {
       .execute();
   }
 
-  async findAuthBinding(hostKey: SessionID): Promise<RuntimeAuthBinding | null> {
+  async readAuthBinding(hostKey: SessionID): Promise<RuntimeAuthBinding | null> {
     const row = await this.db
       .selectFrom('runtime_auth_binding')
       .selectAll()
@@ -99,7 +99,7 @@ export class AuthBindingStore {
   }
 
   // Every host's binding, by host key.
-  async collectAuthBindings(): Promise<RuntimeAuthBinding[]> {
+  async readAuthBindings(): Promise<RuntimeAuthBinding[]> {
     const rows = await this.db
       .selectFrom('runtime_auth_binding')
       .selectAll()
@@ -136,7 +136,7 @@ export class AuthBindingStore {
   }
 
   // A host's grant rows, by secret name.
-  async collectAuthGrants(hostKey: SessionID): Promise<RuntimeAuthGrant[]> {
+  async readAuthGrants(hostKey: SessionID): Promise<RuntimeAuthGrant[]> {
     const rows = await this.db
       .selectFrom('runtime_auth_grant')
       .selectAll()

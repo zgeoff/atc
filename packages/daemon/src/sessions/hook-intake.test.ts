@@ -142,7 +142,7 @@ test('it records a hook line in the trail under the event its adapter planned', 
   ctx.hooks.applyHookEvent({ atcId: s.id, event: 'Stop', payload: {} });
 
   await waitFor(async () => {
-    const rows = await ctx.store.collectLatestEvents(10, null);
+    const rows = await ctx.store.readLatestEvents(10, null);
 
     expect(rows).toMatchObject([{ atcID: s.id, kind: 'turn-done' }]);
   });
@@ -219,7 +219,7 @@ test('it records a note from a listed session and broadcasts it', async () => {
     payload: { kind: 'note', label: 'progress', text: 'halfway there' },
   });
 
-  const rows = await ctx.store.collectLatestEvents(10, null);
+  const rows = await ctx.store.readLatestEvents(10, null);
 
   expect(rows).toMatchObject([{ atcID: s.id, kind: 'note' }]);
   expect(ctx.emitted).toPartiallyContain({ ev: 'SessionNote', s: s.id });
@@ -251,7 +251,7 @@ test('it answers the messages a turn answer names', async () => {
     payload: { kind: 'answered', messages: ['m-1'], answer: 'all green' },
   });
 
-  const stored = await ctx.store.findMessageByID(toMessageID('m-1'));
+  const stored = await ctx.store.readMessageByID(toMessageID('m-1'));
 
   expect(stored).toMatchObject({ status: 'answered', answer: 'all green' });
 });
@@ -276,7 +276,7 @@ test('it records a headless turn in the trail under a synthetic event', async ()
   ctx.hooks.recordHeadlessTurnEvent(s.id, { kind: 'turn-done' });
 
   await waitFor(async () => {
-    const rows = await ctx.store.collectLatestEvents(10, null);
+    const rows = await ctx.store.readLatestEvents(10, null);
 
     expect(rows).toMatchObject([{ atcID: s.id, kind: 'turn-done' }]);
   });

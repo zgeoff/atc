@@ -19,16 +19,16 @@ import {
   SOURCE_INTERPRETATION_SCHEMA,
 } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
-import { collectPathCompletions, isPathInput, resolvePathInput } from '@atc/source-dirs';
+import { isPathInput, readPathCompletions, resolvePathInput } from '@atc/source-dirs';
 import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
-import { collectAgentPicks } from './collect-agent-picks';
-import type { AgentPick } from './collect-agent-picks';
 import { collectTargetPicks } from './collect-target-picks';
 import type { TargetPick } from './collect-target-picks';
 import { formatDir, formatDirName, pickMatches } from './dirs';
 import { KEY, planTextEdit } from './keys';
 import type { ListingCache } from './open-listing-cache';
 import { pickRefusalStep } from './pick-refusal-step';
+import { readAgentPicks } from './read-agent-picks';
+import type { AgentPick } from './read-agent-picks';
 import { resolveWorkspaceRoot } from './resolve-workspace-root';
 import { splitToWidth } from './split-to-width';
 import { cols, drawPicker, getPickerWidth } from './ui';
@@ -67,7 +67,7 @@ export interface SpawnPickerDeps<TMirror> {
   readonly isLeaderKey: (buf: Buffer) => boolean;
   readonly getLastUsedAgent: () => AgentID;
   readonly scheduleStatus: () => void;
-  readonly toBase: () => void;
+  readonly showBase: () => void;
   readonly attach: (sessionID: string) => Promise<void>;
   readonly toMirrorSession: (value: unknown) => TMirror | null;
   readonly upsertMirror: (session: Readonly<TMirror>) => void;
@@ -292,7 +292,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   // before the flow attaches it.
   private spawned: TMirror | null = null;
 
-  private spawnWarnings: readonly string[] = [];
+  private spawnedWarnings: readonly string[] = [];
 
   private requestSeq = 0;
 
@@ -311,7 +311,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     const config = loadConfig(SHIPPED_HARNESS_PLUGINS, this.deps.configPath);
 
-    this.picks = collectAgentPicks(config);
+    this.picks = readAgentPicks(config);
     this.workspaces = config.workspaces;
     this.input = '';
     this.sources = [];
@@ -506,7 +506,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       drawPicker(
         {
           title: `${verb}: started`,
-          items: this.spawnWarnings.flatMap((w) => splitToWidth(w, getPickerWidth() - 4)),
+          items: this.spawnedWarnings.flatMap((w) => splitToWidth(w, getPickerWidth() - 4)),
           selected: -1,
           input: '',
           hint: '⏎ attach · esc back',
@@ -551,7 +551,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   // still on its way.
   private quitFlow() {
     this.stopFlow();
-    this.deps.toBase();
+    this.deps.showBase();
   }
 
   // Ends the flow's generation: no request it sent changes anything when
@@ -1145,7 +1145,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       return this.completed?.input === this.input ? [...this.completed.labels.keys()] : [];
     }
 
-    return collectPathCompletions(this.input, this.deps.cwd, this.deps.home);
+    return readPathCompletions(this.input, this.deps.cwd, this.deps.home);
   }
 
   // The git source step's rows: the other URL form after a failed probe,
@@ -1391,7 +1391,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       return;
     }
 
-    const cached = cache.findListing(this.buildListingKey(source.id, scope), this.getNow());
+    const cached = cache.readListing(this.buildListingKey(source.id, scope), this.getNow());
 
     // A source that lists nothing, such as a typed git URL, has nothing
     // to show from the cache.
@@ -2146,7 +2146,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     // screen takes over.
     if (Array.isArray(warnings) && warnings.length > 0) {
       this.spawned = session;
-      this.spawnWarnings = warnings.filter((w): w is string => typeof w === 'string');
+      this.spawnedWarnings = warnings.filter((w): w is string => typeof w === 'string');
       this.step = 'spawned';
 
       this.deps.write(ansi.clear);
@@ -2171,7 +2171,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     const session = this.spawned;
 
     this.spawned = null;
-    this.spawnWarnings = [];
+    this.spawnedWarnings = [];
     this.step = 'agent';
 
     if (edit.kind === 'submit' && session !== null) {
@@ -2180,7 +2180,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       return;
     }
 
-    this.deps.toBase();
+    this.deps.showBase();
   }
 
   // a refused git workspace spawn returns to the step that can fix it; any other refusal

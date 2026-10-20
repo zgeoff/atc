@@ -94,6 +94,75 @@ export function collectImports(source: string): ImportList {
   };
 }
 
+function findLoadParen(tokens: readonly Token[], i: number): number | null {
+  const token = tokens[i];
+  const previous = tokens[i - 1]?.kind;
+
+  if (
+    token === undefined ||
+    previous === SyntaxKind.DotToken ||
+    previous === SyntaxKind.QuestionDotToken
+  ) {
+    return null;
+  }
+
+  if (token.kind === SyntaxKind.ImportKeyword) {
+    if (tokens[i + 1]?.kind === SyntaxKind.OpenParenToken) {
+      return i + 1;
+    }
+
+    return hasTexts(tokens, i + 1, ['.', 'meta', '.', 'resolve', '(']) ? i + 5 : null;
+  }
+
+  if (token.kind === SyntaxKind.RequireKeyword) {
+    return tokens[i + 1]?.kind === SyntaxKind.OpenParenToken ? i + 1 : null;
+  }
+
+  if (
+    token.text === 'Bun' &&
+    (hasTexts(tokens, i + 1, ['.', 'resolveSync', '(']) ||
+      hasTexts(tokens, i + 1, ['.', 'resolve', '(']))
+  ) {
+    return i + 3;
+  }
+
+  if (token.kind === SyntaxKind.NewKeyword && hasTexts(tokens, i + 1, ['URL', '('])) {
+    const close = getCloseParen(tokens, i + 2);
+
+    for (let j = i + 3; j < close; j += 1) {
+      if (hasTexts(tokens, j, ['import', '.', 'meta', '.', 'url'])) {
+        return i + 2;
+      }
+    }
+  }
+
+  return null;
+}
+
+function hasTexts(tokens: readonly Token[], start: number, texts: readonly string[]): boolean {
+  return texts.every((text, offset) => tokens[start + offset]?.text === text);
+}
+
+function getCloseParen(tokens: readonly Token[], open: number): number {
+  let depth = 0;
+
+  for (let j = open; j < tokens.length; j += 1) {
+    const kind = tokens[j]?.kind;
+
+    if (kind === SyntaxKind.OpenParenToken) {
+      depth += 1;
+    } else if (kind === SyntaxKind.CloseParenToken) {
+      depth -= 1;
+
+      if (depth === 0) {
+        return j;
+      }
+    }
+  }
+
+  return tokens.length;
+}
+
 // A `type` that is itself the imported name, as in `import type from`, does
 // not make the statement type-only
 function isTypeOnlyStatement(tokens: readonly Token[], i: number): boolean {
@@ -149,75 +218,6 @@ function isResolveForm(tokens: readonly Token[], i: number): boolean {
     token?.kind === SyntaxKind.NewKeyword ||
     (token?.kind === SyntaxKind.ImportKeyword && tokens[i + 1]?.kind === SyntaxKind.DotToken)
   );
-}
-
-function findLoadParen(tokens: readonly Token[], i: number): number | null {
-  const token = tokens[i];
-  const previous = tokens[i - 1]?.kind;
-
-  if (
-    token === undefined ||
-    previous === SyntaxKind.DotToken ||
-    previous === SyntaxKind.QuestionDotToken
-  ) {
-    return null;
-  }
-
-  if (token.kind === SyntaxKind.ImportKeyword) {
-    if (tokens[i + 1]?.kind === SyntaxKind.OpenParenToken) {
-      return i + 1;
-    }
-
-    return hasTexts(tokens, i + 1, ['.', 'meta', '.', 'resolve', '(']) ? i + 5 : null;
-  }
-
-  if (token.kind === SyntaxKind.RequireKeyword) {
-    return tokens[i + 1]?.kind === SyntaxKind.OpenParenToken ? i + 1 : null;
-  }
-
-  if (
-    token.text === 'Bun' &&
-    (hasTexts(tokens, i + 1, ['.', 'resolveSync', '(']) ||
-      hasTexts(tokens, i + 1, ['.', 'resolve', '(']))
-  ) {
-    return i + 3;
-  }
-
-  if (token.kind === SyntaxKind.NewKeyword && hasTexts(tokens, i + 1, ['URL', '('])) {
-    const close = findCloseParen(tokens, i + 2);
-
-    for (let j = i + 3; j < close; j += 1) {
-      if (hasTexts(tokens, j, ['import', '.', 'meta', '.', 'url'])) {
-        return i + 2;
-      }
-    }
-  }
-
-  return null;
-}
-
-function hasTexts(tokens: readonly Token[], start: number, texts: readonly string[]): boolean {
-  return texts.every((text, offset) => tokens[start + offset]?.text === text);
-}
-
-function findCloseParen(tokens: readonly Token[], open: number): number {
-  let depth = 0;
-
-  for (let j = open; j < tokens.length; j += 1) {
-    const kind = tokens[j]?.kind;
-
-    if (kind === SyntaxKind.OpenParenToken) {
-      depth += 1;
-    } else if (kind === SyntaxKind.CloseParenToken) {
-      depth -= 1;
-
-      if (depth === 0) {
-        return j;
-      }
-    }
-  }
-
-  return tokens.length;
 }
 
 function getLineNumber(source: string, offset: number): number {

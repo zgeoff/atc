@@ -1,9 +1,9 @@
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { systemClock } from '@atc/core';
-import { collectPasskeys } from './mcp/collect-passkeys';
 import { createEnrollmentToken } from './mcp/create-enrollment-token';
 import { openMCPAuth } from './mcp/open-mcp-auth';
+import { readPasskeyViews } from './mcp/read-passkey-views';
 import { removePasskey } from './mcp/remove-passkey';
 import { resetPasskeys } from './mcp/reset-passkeys';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
@@ -91,7 +91,7 @@ export async function runPasskeys(
       return;
     }
 
-    const passkeys = await collectPasskeys(store.db);
+    const passkeys = await readPasskeyViews(store.db);
 
     if (passkeys.length === 0) {
       io.print(`No passkeys. Enroll one with: ${target.command} enroll`);

@@ -13,12 +13,12 @@ import { waitUntil } from '@atc/core';
 import { readSessionEnv } from '@atc/protocol/session';
 import { buildATCCommand } from './build-atc-command';
 import { collectRestartEnv } from './collect-restart-env';
-import { collectRestartPlan } from './collect-restart-plan';
 import { formatRestartPreflight } from './format-restart-preflight';
-import { isProcessAlive } from './is-process-alive';
 import type { LifecycleHost } from './lifecycle-host';
 import { parseRestartResult } from './parse-restart-result';
 import { parseWorkerPID } from './parse-worker-pid';
+import { probeProcessAlive } from './probe-process-alive';
+import { readRestartPlan } from './read-restart-plan';
 import { spawnATCDetached } from './spawn-atc-detached';
 
 interface DaemonRestartOptions {
@@ -27,12 +27,6 @@ interface DaemonRestartOptions {
   readonly timeoutSeconds: number | null;
   readonly dryRun: boolean;
 }
-
-const LOG_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
-
-// How long the follower waits for the worker to report its pid before it
-// gives up on a worker that never started.
-const WORKER_START_WAIT_MS = 30_000;
 
 // a restart hands the work to a detached worker because the restart can
 // end the process that asked for it.
@@ -45,7 +39,7 @@ export async function runDaemonRestart(
   const invocation = host.invocation;
   const callerSession = readSessionEnv(process.env).sessionID ?? null;
 
-  const plan = await collectRestartPlan(host, callerSession);
+  const plan = await readRestartPlan(host, callerSession);
 
   if (options.dryRun) {
     for (const line of formatRestartPreflight(plan)) {
@@ -87,6 +81,26 @@ export async function runDaemonRestart(
   console.log(`progress: ${logPath}`);
 
   return printRunLog(runID, logPath, workerPID, clock);
+}
+
+const LOG_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+
+function removeStaleRestartLogs(restartsDir: string, clock: Clock): void {
+  const cutoff = clock.now() - LOG_RETENTION_MS;
+
+  for (const entry of readdirSync(restartsDir)) {
+    if (!entry.endsWith('.log')) {
+      continue;
+    }
+
+    const path = join(restartsDir, entry);
+
+    try {
+      if (statSync(path).mtimeMs < cutoff) {
+        rmSync(path, { force: true });
+      }
+    } catch {}
+  }
 }
 
 function mintRunID(clock: Clock): string {
@@ -147,6 +161,10 @@ function startWorkerInUnit(
   return proc.exited;
 }
 
+// How long the follower waits for the worker to report its pid before it
+// gives up on a worker that never started.
+const WORKER_START_WAIT_MS = 30_000;
+
 async function printRunLog(
   runID: string,
   logPath: string,
@@ -199,7 +217,7 @@ async function printRunLog(
       // One more read after the worker is gone, in case its last lines
       // landed between the read above and its exit.
       vanished =
-        (workerPID !== null && !isProcessAlive(workerPID)) ||
+        (workerPID !== null && !probeProcessAlive(workerPID)) ||
         (workerPID === null && clock.now() - startedAt > WORKER_START_WAIT_MS);
 
       return false;
@@ -210,12 +228,6 @@ async function printRunLog(
   return settled.code ?? printVanishedWorker(logPath);
 }
 
-function printVanishedWorker(logPath: string): number {
-  console.error(`atc daemon restart: the restart worker ended without a result; see ${logPath}`);
-
-  return 1;
-}
-
 function readLog(logPath: string): string {
   try {
     return readFileSync(logPath, 'utf8');
@@ -224,20 +236,8 @@ function readLog(logPath: string): string {
   }
 }
 
-function removeStaleRestartLogs(restartsDir: string, clock: Clock): void {
-  const cutoff = clock.now() - LOG_RETENTION_MS;
+function printVanishedWorker(logPath: string): number {
+  console.error(`atc daemon restart: the restart worker ended without a result; see ${logPath}`);
 
-  for (const entry of readdirSync(restartsDir)) {
-    if (!entry.endsWith('.log')) {
-      continue;
-    }
-
-    const path = join(restartsDir, entry);
-
-    try {
-      if (statSync(path).mtimeMs < cutoff) {
-        rmSync(path, { force: true });
-      }
-    } catch {}
-  }
+  return 1;
 }

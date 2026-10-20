@@ -20,7 +20,7 @@ test('it lists the spawn history, then the roots, then zoxide, leaving out a gon
 
   const source = buildDirsSource({
     roots: [join(ctx.home, 'projects')],
-    collectZoxideDirs: () =>
+    readZoxideDirs: () =>
       Promise.resolve([
         join(ctx.home, 'zoxide-dir'),
         join(ctx.home, 'recent'),
@@ -31,7 +31,7 @@ test('it lists the spawn history, then the roots, then zoxide, leaving out a gon
 
   const listed = await source.list(
     {},
-    { target: 'local', collectSpawnDirs: () => Promise.resolve([join(ctx.home, 'recent')]) },
+    { target: 'local', readSpawnDirs: () => Promise.resolve([join(ctx.home, 'recent')]) },
   );
 
   expect(listed).toStrictEqual({
@@ -54,13 +54,13 @@ test.each([
 ] as const)('it reads typed %p as %p', async (input, expected) => {
   const source = buildDirsSource({
     roots: [],
-    collectZoxideDirs: () => Promise.resolve([]),
+    readZoxideDirs: () => Promise.resolve([]),
     homeDir: '/home/tester',
   });
 
   const interpretation = await source.interpret(input, {
     target: 'local',
-    collectSpawnDirs: () => Promise.resolve([]),
+    readSpawnDirs: () => Promise.resolve([]),
   });
 
   expect(interpretation).toStrictEqual(expected);
@@ -74,13 +74,13 @@ test("it completes a relative path under the client's directory", async () => {
 
   const source = buildDirsSource({
     roots: [],
-    collectZoxideDirs: () => Promise.resolve([]),
+    readZoxideDirs: () => Promise.resolve([]),
     homeDir: ctx.home,
   });
 
   const completions = await source.complete?.('./al', {
     target: 'local',
-    collectSpawnDirs: () => Promise.resolve([]),
+    readSpawnDirs: () => Promise.resolve([]),
     clientCwd: join(ctx.home, 'work'),
   });
 
@@ -96,13 +96,13 @@ test('it completes a relative path under the home when the request holds no clie
 
   const source = buildDirsSource({
     roots: [],
-    collectZoxideDirs: () => Promise.resolve([]),
+    readZoxideDirs: () => Promise.resolve([]),
     homeDir: ctx.home,
   });
 
   const completions = await source.complete?.('./al', {
     target: 'local',
-    collectSpawnDirs: () => Promise.resolve([]),
+    readSpawnDirs: () => Promise.resolve([]),
   });
 
   expect(completions).toStrictEqual([
@@ -115,13 +115,13 @@ test('it completes input that is not a path to nothing', async () => {
 
   const source = buildDirsSource({
     roots: [],
-    collectZoxideDirs: () => Promise.resolve([]),
+    readZoxideDirs: () => Promise.resolve([]),
     homeDir: ctx.home,
   });
 
   const completions = await source.complete?.('alpha', {
     target: 'local',
-    collectSpawnDirs: () => Promise.resolve([]),
+    readSpawnDirs: () => Promise.resolve([]),
   });
 
   expect(completions).toStrictEqual([]);

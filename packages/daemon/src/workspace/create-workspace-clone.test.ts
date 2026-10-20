@@ -4,9 +4,9 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   buildStubRecordingFilter,
-  collectProcessTree,
   createGitFixture,
   createStubBin,
+  readProcessTree,
   startGitHTTPServer,
   updateEnv,
 } from '@atc/test-utils';
@@ -218,7 +218,7 @@ test.skipIf(process.platform !== 'linux')(
 
     const server = startGitHTTPServer(ctx.dir, ctx.env, {
       onRequest: async () => {
-        processes.push(...(await collectProcessTree(process.pid)));
+        processes.push(...(await readProcessTree(process.pid)));
       },
     });
 

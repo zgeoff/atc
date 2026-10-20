@@ -2,9 +2,9 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { openMCPAuthDatabase } from '../open-mcp-auth-database';
-import { collectPasskeys } from './collect-passkeys';
 import { createPasskey } from './create-passkey';
 import { openMCPAuth } from './open-mcp-auth';
+import { readPasskeyViews } from './read-passkey-views';
 
 // A temp directory that holds an authorization database, opened the way
 // the server opens it.
@@ -77,7 +77,7 @@ test('it stores nothing for a token that is spent', async () => {
 
   expect(created).toBeFalse();
 
-  const passkeys = await collectPasskeys(ctx.db);
+  const passkeys = await readPasskeyViews(ctx.db);
 
   expect(passkeys).toBeEmpty();
 });
@@ -105,7 +105,7 @@ test('it stores nothing for a token that expired', async () => {
 
   expect(created).toBeFalse();
 
-  const passkeys = await collectPasskeys(ctx.db);
+  const passkeys = await readPasskeyViews(ctx.db);
 
   expect(passkeys).toBeEmpty();
 });

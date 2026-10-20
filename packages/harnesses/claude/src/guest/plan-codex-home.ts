@@ -9,6 +9,11 @@ interface CodexHomePlan {
   readonly unsetEnv: readonly string[];
 }
 
+const CODEX_HOME_FOLDER = 'codex-home';
+
+// Variables Codex takes a credential from ahead of its sign-in file.
+const CREDENTIAL_VARIABLES = ['OPENAI_API_KEY', 'CODEX_API_KEY', 'CODEX_ACCESS_TOKEN'];
+
 // the home replaces the image's own Codex home, its settings included; without a ready
 // chatgpt.com sign-in Codex keeps the image's sign-in
 export function planCodexHome(
@@ -39,11 +44,6 @@ export function planCodexHome(
     unsetEnv: CREDENTIAL_VARIABLES,
   };
 }
-
-const CODEX_HOME_FOLDER = 'codex-home';
-
-// Variables Codex takes a credential from ahead of its sign-in file.
-const CREDENTIAL_VARIABLES = ['OPENAI_API_KEY', 'CODEX_API_KEY', 'CODEX_ACCESS_TOKEN'];
 
 // The host Codex sends its ChatGPT sign-in to.
 const CHATGPT_HOST = 'chatgpt.com';

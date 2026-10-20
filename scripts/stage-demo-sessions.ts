@@ -4,13 +4,13 @@
 import { resolvePaths } from '@atc/config/host';
 import { isRecord } from '@atc/core';
 import { openDaemonClient } from '@atc/protocol/client';
-import { buildHostServices } from '../packages/app/src/build-host-services';
+import { createHostServices } from '../packages/app/src/create-host-services';
 
 const [mode, cwd, name = '', prompt = ''] = process.argv.slice(2);
 
 const client = await openDaemonClient(resolvePaths(process.env).daemonSocketPath);
 
-await client.sendHello(buildHostServices().build);
+await client.sendHello(createHostServices().build);
 
 if (mode === 'spawn' && cwd !== undefined) {
   const ok = await client.sendRequest('session.spawn', { cwd, name, prompt, cols: 98, rows: 28 });

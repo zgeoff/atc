@@ -1,35 +1,47 @@
 <!--
-Issues live in Linear. When the PR works on one, scope the title with
-its ID in lower case, `feat(geo-123): add the retry budget`, and start
-the body with one line that states the relationship:
+Start the body with one line that links the issue the PR works on, and
+omit the line when the PR has none:
 
-Fixes GEO-123          merging completes the issue
-Contributes to GEO-123 the PR delivers part of it; work remains
-Related to GEO-123     context only
+Fixes GEO-123           merging completes the Linear issue
+Contributes to GEO-123  the PR delivers part of it; work remains
+Related to GEO-123      context only
+Fixes #45               merging closes the GitHub issue
 
-Omit the line when the PR has no issue.
+For a Linear issue, scope the title with its ID in lower case:
+`feat(geo-123): add the retry budget`.
 -->
 
 ## Description
 
 <!--
-Lead paragraph: ≤2 sentences, what changed and why. Then bullets:
-one line each, no **bold-label:** prefixes, no semicolon chains.
-Cover decisions, deviations, and tradeoffs — not a diff inventory;
-if the diff shows it plainly, don't restate it. Whole section ≤150
-words. No narrative about prior attempts or review cycles.
+A lead of 2 sentences or fewer: what changed and why. Then bullets of
+one line each, with no **bold-label:** prefixes and no semicolon chains.
+Cover decisions, deviations and tradeoffs, not an inventory of the diff:
+if the diff shows it plainly, don't restate it. Keep this section to 150
+words or fewer, with no story of earlier attempts or review rounds.
+-->
+
+## Not changed
+
+<!--
+One line each for what a reviewer could expect this PR to change but it
+leaves alone, such as a caller that keeps the old behavior or a part left
+to a follow-up issue. Write `None.` when nothing fits.
 -->
 
 ## Testing
 
-- [ ] `bun run typecheck` passes
-- [ ] `bun run test` passes
-- [ ] `bun run lint` passes
-- [ ] New tests added for new functionality
+<!--
+List each check you ran, as the exact command and its result. Name a
+test file only when this PR adds or changes it. Say which check you
+could not run, and why.
+-->
+
+- [ ] New or changed code has a test, or this section holds the reason it has none
 
 ## Context
 
 <!--
-Only what the diff can't show (external constraints, follow-up plans).
-Delete this section by default.
+Only what the diff can't show, such as an external constraint.
+Delete this section when nothing fits.
 -->

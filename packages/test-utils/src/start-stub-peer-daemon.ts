@@ -52,8 +52,6 @@ interface StubPeerConnection {
   readonly peer: ServerPeer;
 }
 
-const SERIALIZER = new StandardRPCSerializer(new StandardRPCJsonSerializer());
-
 // A daemon stand-in that speaks oRPC peer messages, one JSON message per
 // line, and answers each request as the caller's answer function says.
 export function startStubPeerDaemon(
@@ -121,6 +119,8 @@ export function startStubPeerDaemon(
     stop,
   };
 }
+
+const SERIALIZER = new StandardRPCSerializer(new StandardRPCJsonSerializer());
 
 function readStubPeerRequest(request: StandardRequest): StubPeerRequest {
   const params: unknown = SERIALIZER.deserialize(request.body);

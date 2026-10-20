@@ -73,38 +73,6 @@ export async function runNote(
   io.exit(0);
 }
 
-async function sendBridgeNote(
-  sock: string,
-  outbox: string,
-  payload: Readonly<Record<string, string | readonly string[]>>,
-): Promise<boolean> {
-  // an id of its own, so a resent note lands once
-  const noteID = randomUUID();
-  const file = outbox === '' ? null : join(outbox, `${noteID}.json`);
-
-  // the outbox holds the note until the bridge takes or refuses it, so the
-  // session's tap sends it again after a dropped connection
-  if (file !== null) {
-    try {
-      mkdirSync(outbox, { recursive: true });
-      writeFileSync(file, JSON.stringify({ noteID, payload }));
-    } catch {}
-  }
-
-  const answer = await sendBridgeRequest(sock, 'note', { noteID, payload }, 2000);
-
-  // a refused note is final too, so it is never resent
-  const isFinal = answer?.['ok'] === true || answer?.['code'] === 'forbidden';
-
-  if (isFinal && file !== null) {
-    rmSync(file, { force: true });
-  }
-
-  // Only a note the bridge took counts as delivered. A caller may then send
-  // an answer again, which changes nothing once atc holds one.
-  return answer?.['ok'] === true;
-}
-
 function buildNotePayload(
   kind: string,
   options: NoteOptions,
@@ -138,4 +106,36 @@ function buildNotePayload(
   }
 
   return null;
+}
+
+async function sendBridgeNote(
+  sock: string,
+  outbox: string,
+  payload: Readonly<Record<string, string | readonly string[]>>,
+): Promise<boolean> {
+  // an id of its own, so a resent note lands once
+  const noteID = randomUUID();
+  const file = outbox === '' ? null : join(outbox, `${noteID}.json`);
+
+  // the outbox holds the note until the bridge takes or refuses it, so the
+  // session's tap sends it again after a dropped connection
+  if (file !== null) {
+    try {
+      mkdirSync(outbox, { recursive: true });
+      writeFileSync(file, JSON.stringify({ noteID, payload }));
+    } catch {}
+  }
+
+  const answer = await sendBridgeRequest(sock, 'note', { noteID, payload }, 2000);
+
+  // a refused note is final too, so it is never resent
+  const isFinal = answer?.['ok'] === true || answer?.['code'] === 'forbidden';
+
+  if (isFinal && file !== null) {
+    rmSync(file, { force: true });
+  }
+
+  // Only a note the bridge took counts as delivered. A caller may then send
+  // an answer again, which changes nothing once atc holds one.
+  return answer?.['ok'] === true;
 }

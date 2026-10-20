@@ -22,7 +22,7 @@ export async function removeRebindGrants(
   const hostName = removal.hostName;
   const attemptID = removal.attemptID;
 
-  const grants = await ledger.store.collectAuthGrants(hostKey);
+  const grants = await ledger.store.readAuthGrants(hostKey);
 
   const added = grants.filter(
     (grant) =>

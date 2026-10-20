@@ -1,0 +1,11 @@
+import { readFileSync } from 'node:fs';
+
+export function readPidFilePID(pidFile: string): number | null {
+  try {
+    const pid = Number(readFileSync(pidFile, 'utf8'));
+
+    return Number.isInteger(pid) && pid > 1 ? pid : null;
+  } catch {
+    return null;
+  }
+}

@@ -4,11 +4,11 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { collectImports } from './collect-imports';
-import { collectSourceFiles } from './collect-source-files';
+import { readSourceFiles } from './read-source-files';
 
 function main(): void {
   const root = resolve(process.argv[2] ?? join(import.meta.dir, '..'));
-  const files = collectSourceFiles(root, SOURCE_ROOT);
+  const files = readSourceFiles(root, SOURCE_ROOT);
 
   const known = new Set(files);
   const graph = new Map<string, string[]>();

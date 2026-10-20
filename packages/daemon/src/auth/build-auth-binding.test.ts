@@ -10,7 +10,7 @@ test('it plans a binding of the resolved secrets, the placeholders and the base 
       baseURL: 'https://api.z.ai/api/anthropic',
       auth: {
         profiles: ['glm'],
-        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
       },
     },
     new Map([
@@ -48,7 +48,7 @@ test('it plans a binding of the resolved secrets, the placeholders and the base 
           rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
         },
       ],
-      placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+      placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
       profileEnv: {},
       hash: planned.binding.hash,
     },
@@ -233,13 +233,13 @@ test('it hashes the secrets alone when the profiles set no variables', () => {
 });
 
 test.each([
-  [{}, { OP_CONNECT_TOKEN: 'imp-broker-placeholder' }],
+  [{}, { OP_CONNECT_TOKEN: 'broker-placeholder' }],
   [{}, { OP_CONNECT_HOST: 'https://op-connect.example.com' }],
   [
-    { OP_CONNECT_TOKEN: 'imp-broker-placeholder' },
+    { OP_CONNECT_TOKEN: 'broker-placeholder' },
     { OP_CONNECT_HOST: 'https://op-connect.example.com' },
   ],
-  [{ OP_CONNECT_TOKEN: 'imp-broker-placeholder' }, { OP_CONNECT_TOKEN: 'another-placeholder' }],
+  [{ OP_CONNECT_TOKEN: 'broker-placeholder' }, { OP_CONNECT_TOKEN: 'another-placeholder' }],
 ])('it moves the hash when the profile variables change from %o to %o', (before, after) => {
   const op = buildMockAuthProfile({ name: 'op' });
 
@@ -283,7 +283,7 @@ test('it carries the merged profile variables in the binding', () => {
           host: 'op-connect.example.com',
           header: 'authorization',
           scheme: 'bearer',
-          env: { OP_CONNECT_TOKEN: 'imp-broker-placeholder' },
+          env: { OP_CONNECT_TOKEN: 'broker-placeholder' },
           dependencies: [],
         },
       ],
@@ -293,7 +293,7 @@ test('it carries the merged profile variables in the binding', () => {
   invariant('binding' in planned, 'expected the selection to resolve');
 
   expect(planned.binding.hash).toMatchInlineSnapshot(
-    `"af4458764454478f6dff733aa62c3808a236544c04a3291e08dde6083ab28fb7"`,
+    `"3ca135b025275a5f9e5d8ecf8f838a8069cbab923f163df3ead753d4347d3f72"`,
   );
 
   expect(planned).toStrictEqual({
@@ -309,7 +309,7 @@ test('it carries the merged profile variables in the binding', () => {
         },
       ],
       placeholderEnv: {},
-      profileEnv: { OP_CONNECT_TOKEN: 'imp-broker-placeholder' },
+      profileEnv: { OP_CONNECT_TOKEN: 'broker-placeholder' },
       hash: planned.binding.hash,
     },
   });

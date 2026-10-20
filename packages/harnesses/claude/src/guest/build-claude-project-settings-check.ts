@@ -3,6 +3,9 @@ import type { ProjectSettingsCheck } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import { z } from 'zod';
 
+const LOCAL_SETTINGS_FILE = '.claude/settings.local.json';
+const UNPARSEABLE = '(unparseable)';
+
 // a file that is not a JSON object refuses too, since what the CLI would take from it is
 // unknown; a refusal names the setting, never its value
 export function buildClaudeProjectSettingsCheck(agent: string): ProjectSettingsCheck {
@@ -30,9 +33,6 @@ export function buildClaudeProjectSettingsCheck(agent: string): ProjectSettingsC
     },
   };
 }
-
-const LOCAL_SETTINGS_FILE = '.claude/settings.local.json';
-const UNPARSEABLE = '(unparseable)';
 
 // The two keys of a project settings file that can carry a sign-in
 // override. An `env` that is not an object sets no variable.

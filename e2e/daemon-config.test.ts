@@ -109,6 +109,65 @@ test('it leaves every target unusable and names the migrate command for a config
   ]);
 });
 
+test('it leaves each imp target unusable and the local target usable for a profile whose secret name impd refuses', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { kind: 'claude', bin: ctx.claude } },
+      authProfiles: {
+        notes: {
+          secret: 'Notes_Key',
+          host: 'notes.example.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        },
+      },
+      targets: {
+        local: { provider: 'local-pty' },
+        cloud: { provider: 'imp', url: 'http://127.0.0.1:9', tokenEnv: 'EXAMPLE_TOKEN' },
+        lab: { provider: 'imp', url: 'http://127.0.0.1:9', tokenEnv: 'EXAMPLE_TOKEN' },
+      },
+    }),
+  );
+
+  const daemon = startDaemonProcess({
+    command: ctx.atc,
+    home: ctx.home,
+    env: { EXAMPLE_TOKEN: 'fixture-token' },
+  });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  const listed = await client.sendRequest('agents.list');
+
+  expect(
+    getRecords(listed, 'targets').map((target) => [target['id'], target['available']]),
+  ).toStrictEqual([
+    ['local', true],
+    ['cloud', false],
+    ['lab', false],
+  ]);
+
+  expect(listed['targetErrors']).toStrictEqual([
+    {
+      scope: 'target',
+      target: 'cloud',
+      problem:
+        'target "cloud" cannot use authProfiles.notes: its secret must be a lowercase letter followed by up to 30 lowercase letters, digits or hyphens, the secret names impd accepts',
+    },
+    {
+      scope: 'target',
+      target: 'lab',
+      problem:
+        'target "lab" cannot use authProfiles.notes: its secret must be a lowercase letter followed by up to 30 lowercase letters, digits or hyphens, the secret names impd accepts',
+    },
+  ]);
+});
+
 test('it lists exactly the agents of an agents map and prints no old-key line', async () => {
   const ctx = setupTest();
 

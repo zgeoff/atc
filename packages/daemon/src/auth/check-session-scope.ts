@@ -9,7 +9,7 @@ import type {
 } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
 import { z } from 'zod';
-import { findHostBranch } from '../sessions/find-host-branch';
+import { readHostBranch } from '../sessions/read-host-branch';
 import { runHostGit } from '../workspace/run-host-git';
 
 interface ScopeCheckRequest {
@@ -27,9 +27,6 @@ export interface CheckedScope {
   readonly branches: readonly RecordedBranch[];
   readonly pullRequests: readonly RecordedPullRequest[];
 }
-
-// How long one gh call may take before the entry it checks is refused.
-const GH_TIMEOUT_MS = 20_000;
 
 export async function checkSessionScope(
   request: ScopeCheckRequest,
@@ -68,7 +65,7 @@ export async function checkSessionScope(
     const entry = `scope.pullRequests[${index}]`;
     let repo = pr.repo;
 
-    repo ??= await findGitHubRepo(request, entry);
+    repo ??= await readGitHubRepo(request, entry);
 
     const checked = await checkPullRequest(entry, repo, pr.number, ghBin);
 
@@ -76,6 +73,10 @@ export async function checkSessionScope(
   }
 
   return { worktrees, branches, pullRequests };
+}
+
+function buildScopeRefusal(entry: string, reason: string): DaemonError {
+  return new DaemonError('scope_invalid', `${entry} ${reason}`, { entry });
 }
 
 async function checkWorktree(
@@ -99,7 +100,7 @@ async function checkWorktree(
     );
   }
 
-  return { path, branch: await findHostBranch(request.provider, request.host, path) };
+  return { path, branch: await readHostBranch(request.provider, request.host, path) };
 }
 
 async function checkBranch(
@@ -137,7 +138,7 @@ async function checkBranch(
 
 // The GitHub repository a pull request defaults to: that of the workspace's
 // origin.
-async function findGitHubRepo(request: ScopeCheckRequest, entry: string): Promise<string> {
+async function readGitHubRepo(request: ScopeCheckRequest, entry: string): Promise<string> {
   let url = request.repoURL;
 
   if (url === null && (!request.provider.remote || request.provider.capabilities.run)) {
@@ -174,6 +175,9 @@ const PULL_REQUEST_SCHEMA = z.object({
   head: z.object({ ref: z.string() }),
   base: z.object({ repo: BASE_REPO_SCHEMA }),
 });
+
+// How long one gh call may take before the entry it checks is refused.
+const GH_TIMEOUT_MS = 20_000;
 
 async function checkPullRequest(
   entry: string,
@@ -218,8 +222,4 @@ function tryParseJSON(text: string): unknown {
   } catch {
     return null;
   }
-}
-
-function buildScopeRefusal(entry: string, reason: string): DaemonError {
-  return new DaemonError('scope_invalid', `${entry} ${reason}`, { entry });
 }

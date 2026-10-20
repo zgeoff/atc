@@ -157,24 +157,6 @@ function scheduleEvent(state: FeedState, event: EventMsg, bytes: number): void {
   state.wake?.resolve();
 }
 
-// Each session that dropped output is reported once the backlog drains,
-// ahead of the repaint that resynchronizes it.
-function emitDesyncs(
-  state: FeedState,
-  options: EventFeedOptions,
-  emit: (event: EventMsg) => void,
-): void {
-  for (const [sessionID, dropped] of state.desynced) {
-    state.desynced.delete(sessionID);
-
-    if (options.canSeeOutput(sessionID)) {
-      emit({ v: PROTOCOL_V, ev: 'SessionDesync', s: sessionID, dropped });
-
-      options.resync(sessionID);
-    }
-  }
-}
-
 async function* drainBacklog(
   state: FeedState,
   signal: AbortSignal,
@@ -218,4 +200,22 @@ async function waitForEvent(state: FeedState, signal: AbortSignal): Promise<void
   signal.removeEventListener('abort', onAbort);
 
   state.wake = null;
+}
+
+// Each session that dropped output is reported once the backlog drains,
+// ahead of the repaint that resynchronizes it.
+function emitDesyncs(
+  state: FeedState,
+  options: EventFeedOptions,
+  emit: (event: EventMsg) => void,
+): void {
+  for (const [sessionID, dropped] of state.desynced) {
+    state.desynced.delete(sessionID);
+
+    if (options.canSeeOutput(sessionID)) {
+      emit({ v: PROTOCOL_V, ev: 'SessionDesync', s: sessionID, dropped });
+
+      options.resync(sessionID);
+    }
+  }
 }

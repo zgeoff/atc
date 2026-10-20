@@ -53,7 +53,7 @@ function parseAgentEntry(
     return { problems: ['the entry must be an object'] };
   }
 
-  const found = findPlugin(args.id, args.raw['kind'], args.plugins);
+  const found = pickPlugin(args.id, args.raw['kind'], args.plugins);
 
   if ('problem' in found) {
     return { problems: [found.problem] };
@@ -81,7 +81,7 @@ function parseAgentEntry(
 // The plugin an entry's kind selects, or the problem that refuses it. An
 // absent kind is the id for an id that is a plugin's own, and a problem
 // for any other.
-function findPlugin(
+function pickPlugin(
   id: string,
   kind: unknown,
   plugins: readonly AgentConfigPlugin[],

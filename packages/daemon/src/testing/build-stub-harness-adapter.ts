@@ -61,6 +61,6 @@ export function buildStubHarnessAdapter(config: StubHarnessAdapterConfig = {}): 
     },
     loadName: () => Promise.resolve(null),
     canResume: () => true,
-    buildResumeCommand: () => null,
+    planResumeCommand: () => null,
   };
 }

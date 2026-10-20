@@ -9,7 +9,7 @@ test('it signs in with the broker placeholder and no refresh token or expiry', (
 
   expect(JSON.parse(new TextDecoder().decode(file.content))).toStrictEqual({
     claudeAiOauth: {
-      accessToken: 'imp-broker-placeholder',
+      accessToken: 'broker-placeholder',
       refreshToken: null,
       expiresAt: null,
       scopes: ['user:inference'],

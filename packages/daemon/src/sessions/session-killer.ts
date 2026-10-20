@@ -14,7 +14,7 @@ interface SessionKillerDeps {
   readonly fleet: Pick<SessionFleetWriter, 'emitChange' | 'writeFleet'>;
   readonly callbacks: Pick<
     SessionCallbacks,
-    'onEvent' | 'onProcessEnded' | 'log' | 'getAuthBinder'
+    'onEvent' | 'onProcessEnded' | 'log' | 'findAuthBinder'
   >;
 
   // Stops a revive's restart that waits on the kill of its outdated
@@ -129,7 +129,7 @@ export class SessionKiller {
     }
 
     if (destroys) {
-      const binder = this.callbacks.getAuthBinder();
+      const binder = this.callbacks.findAuthBinder();
 
       const bound =
         binder === null

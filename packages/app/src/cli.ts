@@ -230,9 +230,9 @@ function resolveHostServices(): Promise<HostServices> {
 }
 
 async function loadHostServices(): Promise<HostServices> {
-  const services = await import('./build-host-services');
+  const services = await import('./create-host-services');
 
-  return services.buildHostServices();
+  return services.createHostServices();
 }
 
 // Reads the flags the restart commands share, and stops the command on one
@@ -303,9 +303,9 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
   const adapterBuilder = await import('./agents/build-agent-adapters');
   const headless = await import('@atc/harness-claude');
   const targets = await import('@atc/daemon');
-  const providers = await import('./plugins/build-shipped-execution-provider');
+  const providers = await import('./plugins/create-shipped-execution-provider');
   const sourceOrder = await import('@atc/daemon');
-  const builtinSources = await import('./sources/collect-builtin-sources');
+  const builtinSources = await import('./sources/create-builtin-sources');
   const home = await import('@atc/config/host');
   const sqlite = await import('@atc/store/sqlite');
 
@@ -321,7 +321,7 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
   const cfg = config.loadConfig(harnessPlugins.SHIPPED_HARNESS_PLUGINS);
 
   const built = targets.buildExecutionTargets(cfg.targets, (target) =>
-    providers.buildShippedExecutionProvider(target, hostServices, process.env),
+    providers.createShippedExecutionProvider(target, hostServices, process.env, cfg.authProfiles),
   );
 
   const targetErrors = [...cfg.targetErrors, ...built.errors];
@@ -340,6 +340,7 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
     ...cfg.workspaceErrors,
     ...cfg.authProfileErrors,
     ...cfg.agentErrors,
+    ...cfg.deprecations,
   ]) {
     console.error(`atc daemon: config: ${problem}`);
   }
@@ -351,7 +352,7 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
   }
 
   const sources = sourceOrder.buildSources(
-    builtinSources.collectBuiltinSources({
+    builtinSources.createBuiltinSources({
       roots: cfg.dirs.roots,
       githubOwner: cfg.workspaces.githubOwner,
       ghBin: 'gh',

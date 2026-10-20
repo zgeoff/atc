@@ -1,5 +1,12 @@
 import type { MessageBridge, MessageBridgeRequest } from '@atc/plugin-api';
 
+interface StubMessageBridge extends MessageBridge {
+  // Each thread the daemon moved the bridge to, in order.
+  readonly threads: string[];
+  readonly countDeliveryStarts: () => number;
+  readonly countStops: () => number;
+}
+
 interface StubMessageBridges {
   // Every start the daemon asked for, in order.
   readonly requests: MessageBridgeRequest[];
@@ -7,13 +14,6 @@ interface StubMessageBridges {
   // Every bridge started, in order.
   readonly bridges: StubMessageBridge[];
   readonly startMessageBridge: (request: MessageBridgeRequest) => Promise<StubMessageBridge>;
-}
-
-interface StubMessageBridge extends MessageBridge {
-  // Each thread the daemon moved the bridge to, in order.
-  readonly threads: string[];
-  readonly countDeliveryStarts: () => number;
-  readonly countStops: () => number;
 }
 
 export function buildStubMessageBridges(): StubMessageBridges {

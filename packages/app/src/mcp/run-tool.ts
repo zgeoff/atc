@@ -256,73 +256,11 @@ export function runTool(
     .otherwise(() => Promise.reject(new Error(`unknown tool '${name}'`)));
 }
 
-// A page without the per-event note and answer handles, which only a text
-// read takes and no tool offers to a caller.
-function buildPageWithoutTextHandles(
-  page: Readonly<Record<string, unknown>>,
-): Readonly<Record<string, unknown>> {
-  const events: unknown = page['events'];
-
-  if (!Array.isArray(events)) {
-    return page;
-  }
-
-  return {
-    ...page,
-    events: events.map((event: unknown) => {
-      if (!isRecord(event)) {
-        return event;
-      }
-
-      const { note: _note, answer: _answer, ...rest } = event;
-
-      return rest;
-    }),
-  };
-}
-
 function buildObjectResult(value: unknown): ToolResult {
   return {
     text: JSON.stringify(value, null, 2),
     structured: isRecord(value) ? value : null,
   };
-}
-
-// The refusals of a forget, worded for an MCP client.
-const SESSION_PINNED_REFUSAL =
-  'session_pinned: the session is pinned, or is a sub-session of a pinned session and the call does not come from inside its parent. Unpin it, or detach the sub-session with parent null, through atc_session_update before forgetting it.';
-
-const SESSION_LIVE_REFUSAL =
-  'session_live: the session is live. Pass stop: true to stop and forget it.';
-
-// the daemon checks pinned and live in the same step that forgets, so a pin or
-// revive that lands just before the forget still refuses it.
-async function sendGuardedForget(
-  caller: FleetCaller,
-  params: Readonly<Record<string, unknown>>,
-  stops: boolean,
-): Promise<Readonly<Record<string, unknown>>> {
-  try {
-    return await caller.sendRequest('session.forget', {
-      ...params,
-      refusePinned: true,
-      refuseLive: !stops,
-    });
-  } catch (error) {
-    if (!(error instanceof Error) || !('code' in error)) {
-      throw error;
-    }
-
-    if (error.code === 'session_pinned') {
-      throw new Error(SESSION_PINNED_REFUSAL, { cause: error });
-    }
-
-    if (error.code === 'session_live') {
-      throw new Error(SESSION_LIVE_REFUSAL, { cause: error });
-    }
-
-    throw error;
-  }
 }
 
 // the inherited id can point at a session another daemon hosts, or one this
@@ -364,4 +302,66 @@ function buildTopLevelParams(
   const digest = createHash('sha256').update(key).digest('hex');
 
   return { ...params, idempotencyKey: `top-level:${digest}` };
+}
+
+// The refusals of a forget, worded for an MCP client.
+const SESSION_PINNED_REFUSAL =
+  'session_pinned: the session is pinned, or is a sub-session of a pinned session and the call does not come from inside its parent. Unpin it, or detach the sub-session with parent null, through atc_session_update before forgetting it.';
+
+const SESSION_LIVE_REFUSAL =
+  'session_live: the session is live. Pass stop: true to stop and forget it.';
+
+// the daemon checks pinned and live in the same step that forgets, so a pin or
+// revive that lands just before the forget still refuses it.
+async function sendGuardedForget(
+  caller: FleetCaller,
+  params: Readonly<Record<string, unknown>>,
+  stops: boolean,
+): Promise<Readonly<Record<string, unknown>>> {
+  try {
+    return await caller.sendRequest('session.forget', {
+      ...params,
+      refusePinned: true,
+      refuseLive: !stops,
+    });
+  } catch (error) {
+    if (!(error instanceof Error) || !('code' in error)) {
+      throw error;
+    }
+
+    if (error.code === 'session_pinned') {
+      throw new Error(SESSION_PINNED_REFUSAL, { cause: error });
+    }
+
+    if (error.code === 'session_live') {
+      throw new Error(SESSION_LIVE_REFUSAL, { cause: error });
+    }
+
+    throw error;
+  }
+}
+
+// A page without the per-event note and answer handles, which only a text
+// read takes and no tool offers to a caller.
+function buildPageWithoutTextHandles(
+  page: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, unknown>> {
+  const events: unknown = page['events'];
+
+  if (!Array.isArray(events)) {
+    return page;
+  }
+
+  return {
+    ...page,
+    events: events.map((event: unknown) => {
+      if (!isRecord(event)) {
+        return event;
+      }
+
+      const { note: _note, answer: _answer, ...rest } = event;
+
+      return rest;
+    }),
+  };
 }

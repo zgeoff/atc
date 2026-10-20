@@ -1,8 +1,8 @@
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { collectClients } from './mcp/collect-clients';
 import { isAllowedRedirectURI } from './mcp/is-allowed-redirect-uri';
 import { openMCPAuth } from './mcp/open-mcp-auth';
+import { readClientViews } from './mcp/read-client-views';
 import { removeClient } from './mcp/remove-client';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
 import { normalizeClientName } from './shared/normalize-client-name';
@@ -100,7 +100,7 @@ export async function runClients(
       return;
     }
 
-    const clients = await collectClients(store.db);
+    const clients = await readClientViews(store.db);
 
     if (clients.length === 0) {
       io.print(`No clients. Add one with: ${target.command} add <name> --redirect-uri <uri>`);

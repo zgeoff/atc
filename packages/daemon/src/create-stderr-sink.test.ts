@@ -20,7 +20,7 @@ function setupTest() {
     jest.useRealTimers();
   });
 
-  return { outputPath, sink: createStderrSink(fd) };
+  return { fd, outputPath, sink: createStderrSink(fd) };
 }
 
 test('it writes each record as one line and leaves the descriptor open when it is disposed', async () => {
@@ -127,6 +127,40 @@ test('it writes the dropped line last when it drops records that no later write 
           `atc tcp event=handshake_refused peer=127.0.0.1 reason=unexpected_line count=${String(index + 518)}\n`,
       ),
       'atc log dropped=5\n',
+    ].join(''),
+  );
+});
+
+// Given a batch of 4, the sink starts to write once it holds 4 records and
+// then holds 8 more at most, so a burst of 13 records drops the 5th.
+test('it holds a batch it is given in place of the default one', async () => {
+  const ctx = setupTest();
+  const sink = createStderrSink(ctx.fd, 4);
+
+  for (let count = 1; count <= 13; count++) {
+    const line = `atc tcp event=handshake_refused peer=127.0.0.1 reason=unexpected_line count=${String(count)}`;
+
+    sink({
+      category: ['atc', 'tcp'],
+      level: 'info',
+      message: ['', line, ''],
+      rawMessage: '{line}',
+      timestamp: 0,
+      properties: { line },
+    });
+  }
+
+  jest.advanceTimersByTime(100);
+
+  await sink[Symbol.asyncDispose]();
+
+  expect(readFileSync(ctx.outputPath, 'utf8')).toBe(
+    [
+      'atc log dropped=1\n',
+      ...[1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13].map(
+        (count) =>
+          `atc tcp event=handshake_refused peer=127.0.0.1 reason=unexpected_line count=${String(count)}\n`,
+      ),
     ].join(''),
   );
 });

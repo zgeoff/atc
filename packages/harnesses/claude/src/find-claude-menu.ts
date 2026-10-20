@@ -2,33 +2,15 @@ import type { ScreenMenu, ScreenMenuOption, ScreenMenuScroll } from '@atc/plugin
 
 const POINTER = '❯ ';
 
-// The marks a list that shows only part of its options draws in the
-// cursor's column, beside its first row and its last.
-const MORE_ABOVE = '↑ ';
-const MORE_BELOW = '↓ ';
-
 // Claude Code shows at most five options of a list at a time, and fewer on a
 // terminal too short for five below its dialog's eight rows of chrome, as
 // many as fit at one, two or three rows per option.
 const LIST_WINDOW = 5;
 const DIALOG_CHROME_ROWS = 8;
-const ROWS_PER_OPTION = [1, 2, 3];
 
 // A terminal tall enough for the full window at three rows per option, for
 // a caller that does not give the terminal's height.
 const TALL_ROWS = DIALOG_CHROME_ROWS + LIST_WINDOW * 3;
-
-// A dialog's top border, or the rule above and below the prompt box.
-const RULE = /^\s*[─━═╌]{8,}\s*$/u;
-const NUMBERED = /^\d+\.\s+(?<label>.*)$/u;
-const BOX = /^\[(?<box>.)\]\s+(?<label>.*)$/u;
-
-// The mark a picker puts beside the value already in effect.
-const CURRENT_MARK = /^✔\s+/u;
-
-// The most lines above the options a menu's text takes, so a screen with no
-// border above the menu never makes the text the whole screen.
-const MAX_TEXT_LINES = 24;
 
 // a menu is the last `❯` line with options indented to its column; the prompt box, whose `❯`
 // line sits under a rule, is no menu, and neither is a single option
@@ -91,6 +73,11 @@ function isPointerLine(line: string): boolean {
   );
 }
 
+// The marks a list that shows only part of its options draws in the
+// cursor's column, beside its first row and its last.
+const MORE_ABOVE = '↑ ';
+const MORE_BELOW = '↓ ';
+
 // A line beside the cursor's: blank up to the cursor's column, two blank
 // columns or a scroll mark where the cursor would be, then text.
 function isOptionLine(line: string | undefined, column: number): boolean {
@@ -104,6 +91,13 @@ function isOptionLine(line: string | undefined, column: number): boolean {
     (mark.trim() === '' || mark === MORE_ABOVE || mark === MORE_BELOW) &&
     line.slice(column + POINTER.length).trim() !== ''
   );
+}
+
+// A dialog's top border, or the rule above and below the prompt box.
+const RULE = /^\s*[─━═╌]{8,}\s*$/u;
+
+function isRule(line: string | undefined): boolean {
+  return line !== undefined && RULE.test(line);
 }
 
 // The prompt box: a cursor line straight under a rule, then indented or
@@ -129,14 +123,13 @@ function isPromptBox(lines: readonly string[], at: number): boolean {
   return false;
 }
 
-function isRule(line: string | undefined): boolean {
-  return line !== undefined && RULE.test(line);
-}
-
 interface ParsedOptions {
   readonly options: readonly ScreenMenuOption[];
   readonly highlighted: number;
 }
+
+const NUMBERED = /^\d+\.\s+(?<label>.*)$/u;
+const BOX = /^\[(?<box>.)\]\s+(?<label>.*)$/u;
 
 function parseOptions(rows: readonly string[], pointerRow: number): ParsedOptions | null {
   const pointed = rows[pointerRow]?.trimStart() ?? '';
@@ -190,6 +183,9 @@ function parseBoxOption(row: string): ScreenMenuOption {
   return { label: (boxed.groups?.['label'] ?? '').trim(), checked: boxed.groups?.['box'] !== ' ' };
 }
 
+// The mark a picker puts beside the value already in effect.
+const CURRENT_MARK = /^✔\s+/u;
+
 function parsePlainOption(row: string): ScreenMenuOption {
   return { label: row.trim().replace(CURRENT_MARK, ''), checked: null };
 }
@@ -203,6 +199,8 @@ function findScroll(rows: readonly string[], column: number): ScreenMenuScroll |
 
   return above || below ? { above, below } : null;
 }
+
+const ROWS_PER_OPTION = [1, 2, 3];
 
 // both marks absent when the list fills a window Claude Code could draw on a screen this tall
 // and the cursor sits on its last row, where it hides the mark of options below; the list is
@@ -219,6 +217,10 @@ function findHiddenScroll(parsed: ParsedOptions, height: number): ScreenMenuScro
     ? { above: false, below: false }
     : null;
 }
+
+// The most lines above the options a menu's text takes, so a screen with no
+// border above the menu never makes the text the whole screen.
+const MAX_TEXT_LINES = 24;
 
 // The lines above the options up to the nearest rule, without the blank
 // lines at either end and without their common indent.

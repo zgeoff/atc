@@ -4,7 +4,7 @@ import type { DaemonClient } from '@atc/protocol/client';
 import { readSessionEnv } from '@atc/protocol/session';
 import { DaemonError, MESSAGE_SENDER_SCHEMA } from '@atc/protocol/wire';
 import { z } from 'zod';
-import { buildHostServices } from './build-host-services';
+import { createHostServices } from './create-host-services';
 import { renderMessageLine } from './render-message-line';
 import { renderNoticeLine } from './render-notice-line';
 import { runBridgeTap } from './run-bridge-tap';
@@ -30,8 +30,6 @@ const INBOX_NOTICE_SCHEMA = z.looseObject({
   answer: z.string().optional(),
   reason: z.string().optional(),
 });
-
-type InboxNotice = z.output<typeof INBOX_NOTICE_SCHEMA>;
 
 // Where the tap prints and how it exits: stdout, stderr, and the process by
 // default.
@@ -135,7 +133,7 @@ export async function runTap(
   };
 
   try {
-    await client.sendHello(buildHostServices().build, {
+    await client.sendHello(createHostServices().build, {
       session: readSessionEnv(process.env).sessionID,
     });
 
@@ -161,28 +159,7 @@ interface RequestSender {
   readonly sendRequest: DaemonClient['sendRequest'];
 }
 
-async function ackInboxMessage(
-  client: RequestSender,
-  session: string,
-  message: string,
-  line: string,
-  io: TapIO,
-): Promise<void> {
-  try {
-    await io.writeStdout(line);
-  } catch {
-    io.exit(1);
-
-    return;
-  }
-
-  try {
-    // acks only once the line is written
-    await client.sendRequest('message.ack', { session, message });
-  } catch (error) {
-    io.printError(`atc tap: ${formatError(error)}`);
-  }
-}
+type InboxNotice = z.output<typeof INBOX_NOTICE_SCHEMA>;
 
 async function ackInboxNotice(
   client: RequestSender,
@@ -207,4 +184,27 @@ async function ackInboxNotice(
 
 function formatError(error: unknown): string {
   return error instanceof DaemonError ? `${error.code}: ${error.message}` : String(error);
+}
+
+async function ackInboxMessage(
+  client: RequestSender,
+  session: string,
+  message: string,
+  line: string,
+  io: TapIO,
+): Promise<void> {
+  try {
+    await io.writeStdout(line);
+  } catch {
+    io.exit(1);
+
+    return;
+  }
+
+  try {
+    // acks only once the line is written
+    await client.sendRequest('message.ack', { session, message });
+  } catch (error) {
+    io.printError(`atc tap: ${formatError(error)}`);
+  }
 }

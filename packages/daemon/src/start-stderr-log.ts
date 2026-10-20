@@ -5,10 +5,6 @@ import { createStderrSink } from './create-stderr-sink';
 
 const STDERR_FD = 2;
 
-// How long a stopping log waits for the lines it still holds to be written,
-// so an unread stderr delays the exit no longer.
-const STOP_TIMEOUT_MS = 1000;
-
 export interface StderrLog {
   readonly stop: () => Promise<void>;
 }
@@ -19,9 +15,10 @@ export interface StderrLog {
 export async function startStderrLog(
   fd: number = STDERR_FD,
   clock: Clock = systemClock,
+  batchLines?: number,
 ): Promise<StderrLog> {
   await configure({
-    sinks: { stderr: createStderrSink(fd) },
+    sinks: { stderr: createStderrSink(fd, batchLines) },
     loggers: [
       { category: ['atc'], sinks: ['stderr'], lowestLevel: 'info' },
       { category: ['logtape', 'meta'], sinks: [] },
@@ -40,6 +37,10 @@ export async function startStderrLog(
     },
   };
 }
+
+// How long a stopping log waits for the lines it still holds to be written,
+// so an unread stderr delays the exit no longer.
+const STOP_TIMEOUT_MS = 1000;
 
 async function stopLog(clock: Clock): Promise<void> {
   const timedOut = Promise.withResolvers<void>();

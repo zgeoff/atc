@@ -82,7 +82,7 @@ test('it refuses an outdated impd as an unavailable host before it lists any sec
 
   expect(loaded).rejects.toMatchObject({
     code: 'host_unavailable',
-    data: { provider: 'imp', problem: 'impd_outdated' },
+    data: { provider: 'stub-remote', problem: 'impd_outdated' },
   });
 
   await loaded.catch(() => {});
@@ -152,6 +152,6 @@ test('it turns a call impd fails into an unavailable host', () => {
 
   expect(loaded).rejects.toMatchObject({
     code: 'host_unavailable',
-    data: { provider: 'imp', problem: 'unreachable' },
+    data: { provider: 'stub-remote', problem: 'unreachable' },
   });
 });

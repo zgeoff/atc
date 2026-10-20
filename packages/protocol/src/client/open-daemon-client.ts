@@ -14,25 +14,6 @@ import { CLIENT_MACHINE } from './client-machine';
 import type { CallContext, DaemonClient, DaemonProcedures } from './daemon-client';
 import { toDaemonError } from './to-daemon-error';
 
-// What one client connection holds: its lifecycle, the peer that pairs
-// requests with responses, and the socket and queue once it connects.
-interface ClientConnection {
-  readonly actor: Actor<typeof CLIENT_MACHINE>;
-  readonly lines: LineDecoder;
-  readonly peer: ClientPeer;
-  readonly link: StandardRPCLink<CallContext>;
-  readonly procedures: DaemonProcedures;
-  queue: OutboundQueue | null;
-  socket: { readonly end: () => void } | null;
-  events: AbortController | null;
-
-  // The lines read so far, each handed to the peer after the one before.
-  inbound: Promise<void>;
-
-  // The principal a call acts as when it gives none: the client's own.
-  findDefaultPrincipal: () => string | null;
-}
-
 const QUEUE_BYTES = 8 * 1024 * 1024;
 
 // Connects to the daemon at a unix socket path, or at a TCP address.
@@ -58,6 +39,25 @@ export async function openDaemonClient(
   }
 
   return client;
+}
+
+// What one client connection holds: its lifecycle, the peer that pairs
+// requests with responses, and the socket and queue once it connects.
+interface ClientConnection {
+  readonly actor: Actor<typeof CLIENT_MACHINE>;
+  readonly lines: LineDecoder;
+  readonly peer: ClientPeer;
+  readonly link: StandardRPCLink<CallContext>;
+  readonly procedures: DaemonProcedures;
+  queue: OutboundQueue | null;
+  socket: { readonly end: () => void } | null;
+  events: AbortController | null;
+
+  // The lines read so far, each handed to the peer after the one before.
+  inbound: Promise<void>;
+
+  // The principal a call acts as when it gives none: the client's own.
+  findDefaultPrincipal: () => string | null;
 }
 
 function createClientConnection(): ClientConnection {
@@ -115,6 +115,23 @@ function createClientConnection(): ClientConnection {
   return conn;
 }
 
+function requireOpenConnection(conn: ClientConnection): void {
+  const closedReason = conn.actor.getSnapshot().context.closedReason;
+
+  if (closedReason !== null) {
+    throw new DaemonError('internal', closedReason);
+  }
+}
+
+function buildPrincipalHeaders(context: CallContext): Record<string, string> {
+  return {
+    ...(context.as === undefined ? {} : { [PRINCIPAL_HEADERS.as]: context.as }),
+    ...(context.as === undefined || context.asName === undefined
+      ? {}
+      : { [PRINCIPAL_HEADERS.asName]: context.asName }),
+  };
+}
+
 function buildDaemonClient(conn: ClientConnection): DaemonClient {
   const client: DaemonClient = {
     onEvent: () => {},
@@ -148,33 +165,8 @@ function buildDaemonClient(conn: ClientConnection): DaemonClient {
   return client;
 }
 
-// The lines that arrived before the close settle their requests first, so
-// a refusal the daemon wrote before it ended reaches its caller.
-function buildSocketHandlers(conn: ClientConnection, client: DaemonClient): SocketHandler {
-  return {
-    data(_s, buf) {
-      applyChunk(conn, buf);
-    },
-    drain() {
-      conn.queue?.drain();
-    },
-    close() {
-      sendClose(conn, 'connection closed');
-
-      void (async () => {
-        await conn.inbound;
-
-        drainPending(conn, 'connection closed');
-
-        try {
-          client.onClose();
-        } catch (error) {
-          console.error(`atc: the daemon client's close handler failed: ${String(error)}`);
-        }
-      })();
-    },
-    error() {},
-  };
+function isClientClosed(conn: ClientConnection): boolean {
+  return conn.actor.getSnapshot().matches('closed');
 }
 
 // A request with a principal acts as that principal and carries its name.
@@ -261,6 +253,58 @@ async function readClientEvents(
   conn.socket?.end();
 }
 
+function drainPending(
+  conn: ClientConnection,
+  reason: string,
+  code: 'internal' | 'protocol_mismatch' = 'internal',
+): void {
+  sendClose(conn, reason);
+  conn.events?.abort();
+  conn.peer.close({ reason: new DaemonError(code, reason) });
+}
+
+// A closed client's machine has stopped, and takes no event.
+function sendClose(conn: ClientConnection, reason: string): void {
+  if (!isClientClosed(conn)) {
+    conn.actor.send({ type: 'CLOSE', reason });
+  }
+}
+
+function findHelloPrincipal(params: Readonly<Record<string, unknown>>): string | undefined {
+  const principal = params['principal'];
+
+  return typeof principal === 'string' ? principal : undefined;
+}
+
+// The lines that arrived before the close settle their requests first, so
+// a refusal the daemon wrote before it ended reaches its caller.
+function buildSocketHandlers(conn: ClientConnection, client: DaemonClient): SocketHandler {
+  return {
+    data(_s, buf) {
+      applyChunk(conn, buf);
+    },
+    drain() {
+      conn.queue?.drain();
+    },
+    close() {
+      sendClose(conn, 'connection closed');
+
+      void (async () => {
+        await conn.inbound;
+
+        drainPending(conn, 'connection closed');
+
+        try {
+          client.onClose();
+        } catch (error) {
+          console.error(`atc: the daemon client's close handler failed: ${String(error)}`);
+        }
+      })();
+    },
+    error() {},
+  };
+}
+
 // A line from a daemon that speaks the older line protocol carries a
 // version and no message id; it refuses the client, so every request still
 // waiting rejects with the mismatch.
@@ -282,6 +326,16 @@ function applyChunk(conn: ClientConnection, buf: Uint8Array): void {
   }
 }
 
+function isLineProtocolAnswer(line: string): boolean {
+  try {
+    const parsed: unknown = JSON.parse(line);
+
+    return isRecord(parsed) && typeof parsed['v'] === 'number' && parsed['i'] === undefined;
+  } catch {
+    return false;
+  }
+}
+
 async function applyLineAfter(
   conn: ClientConnection,
   previous: Promise<void>,
@@ -293,59 +347,5 @@ async function applyLineAfter(
     await conn.peer.message(line);
   } catch {
     conn.socket?.end();
-  }
-}
-
-function drainPending(
-  conn: ClientConnection,
-  reason: string,
-  code: 'internal' | 'protocol_mismatch' = 'internal',
-): void {
-  sendClose(conn, reason);
-  conn.events?.abort();
-  conn.peer.close({ reason: new DaemonError(code, reason) });
-}
-
-// A closed client's machine has stopped, and takes no event.
-function sendClose(conn: ClientConnection, reason: string): void {
-  if (!isClientClosed(conn)) {
-    conn.actor.send({ type: 'CLOSE', reason });
-  }
-}
-
-function requireOpenConnection(conn: ClientConnection): void {
-  const closedReason = conn.actor.getSnapshot().context.closedReason;
-
-  if (closedReason !== null) {
-    throw new DaemonError('internal', closedReason);
-  }
-}
-
-function isClientClosed(conn: ClientConnection): boolean {
-  return conn.actor.getSnapshot().matches('closed');
-}
-
-function findHelloPrincipal(params: Readonly<Record<string, unknown>>): string | undefined {
-  const principal = params['principal'];
-
-  return typeof principal === 'string' ? principal : undefined;
-}
-
-function buildPrincipalHeaders(context: CallContext): Record<string, string> {
-  return {
-    ...(context.as === undefined ? {} : { [PRINCIPAL_HEADERS.as]: context.as }),
-    ...(context.as === undefined || context.asName === undefined
-      ? {}
-      : { [PRINCIPAL_HEADERS.asName]: context.asName }),
-  };
-}
-
-function isLineProtocolAnswer(line: string): boolean {
-  try {
-    const parsed: unknown = JSON.parse(line);
-
-    return isRecord(parsed) && typeof parsed['v'] === 'number' && parsed['i'] === undefined;
-  } catch {
-    return false;
   }
 }

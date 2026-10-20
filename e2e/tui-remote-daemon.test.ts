@@ -91,7 +91,7 @@ test("it lists only the remote daemon's directories and spawns in the first of t
         sources: [
           buildDirsSource({
             roots: [],
-            collectZoxideDirs: () => Promise.resolve([]),
+            readZoxideDirs: () => Promise.resolve([]),
             homeDir: paths.dir,
           }),
         ],
@@ -176,7 +176,7 @@ test("it completes and resolves a typed ~ path on the remote daemon's host", asy
         sources: [
           buildDirsSource({
             roots: [],
-            collectZoxideDirs: () => Promise.resolve([]),
+            readZoxideDirs: () => Promise.resolve([]),
             homeDir: paths.dir,
           }),
         ],

@@ -433,7 +433,7 @@ test('it notes recency for a Grok session id', async () => {
     payload: { hookEventName: 'session_start', sessionId: 'g1' },
   });
 
-  const recency = await ctx.store.collectFleetRecency();
+  const recency = await ctx.store.readFleetRecency();
 
   expect(recency).toStrictEqual(new Map([[toAgentSessionID('g1'), expect.toBeDateString()]]));
 });
@@ -455,7 +455,7 @@ test('it notes the latest event timestamp per agent session', async () => {
       "('2026-08-14T00:00:04.000Z', 's3', 'SessionStart', NULL, NULL)",
   );
 
-  const recency = await ctx.store.collectFleetRecency();
+  const recency = await ctx.store.readFleetRecency();
 
   expect(recency).toStrictEqual(
     new Map([
@@ -480,7 +480,7 @@ test('it returns an empty recency map when no event carries a session id', async
       "('2026-08-14T00:00:02.000Z', 's2', 'SessionStart', NULL, NULL)",
   );
 
-  const recency = await ctx.store.collectFleetRecency();
+  const recency = await ctx.store.readFleetRecency();
 
   expect(recency).toStrictEqual(new Map());
 });
@@ -492,7 +492,7 @@ test('it lists spawn directories most recent first without duplicates', async ()
   await ctx.store.recordSpawnDir('/b', { target: 'local', targetIdentity: 'local-pty:x' }, 2000);
   await ctx.store.recordSpawnDir('/a', { target: 'local', targetIdentity: 'local-pty:x' }, 3000);
 
-  const dirs = await ctx.store.collectSpawnDirs();
+  const dirs = await ctx.store.readSpawnDirs();
 
   expect(dirs).toStrictEqual([
     { cwd: '/a', grant: { target: 'local', targetIdentity: 'local-pty:x' } },
@@ -507,7 +507,7 @@ test('it lists a spawn directory once for each target it was spawned on', async 
   await ctx.store.recordSpawnDir('/a', { target: 'box', targetIdentity: 'remote:y' }, 2000);
   await ctx.store.recordSpawnDir('/a', { target: 'box', targetIdentity: 'remote:z' }, 3000);
 
-  const dirs = await ctx.store.collectSpawnDirs();
+  const dirs = await ctx.store.readSpawnDirs();
 
   expect(dirs).toStrictEqual([
     { cwd: '/a', grant: { target: 'box', targetIdentity: 'remote:z' } },
@@ -540,7 +540,7 @@ test('it carries spawn directories from before their target was recorded over as
 
   registerTestCleanup(() => store.stop());
 
-  const dirs = await store.collectSpawnDirs();
+  const dirs = await store.readSpawnDirs();
 
   expect(dirs).toStrictEqual([
     {
@@ -1178,7 +1178,7 @@ test('it reads a runtime auth binding bound before the host column rename as the
 
   registerTestCleanup(() => upgraded.stop());
 
-  const binding = await upgraded.findAuthBinding(toSessionID('s1'));
+  const binding = await upgraded.readAuthBinding(toSessionID('s1'));
 
   expect(binding).toStrictEqual({
     hostKey: toSessionID('s1'),
@@ -1227,7 +1227,7 @@ test('it finishes the host column rename and keeps the binding when a crash left
 
   registerTestCleanup(() => upgraded.stop());
 
-  const binding = await upgraded.findAuthBinding(toSessionID('s1'));
+  const binding = await upgraded.readAuthBinding(toSessionID('s1'));
 
   expect(binding).toStrictEqual({
     hostKey: toSessionID('s1'),
@@ -1440,7 +1440,7 @@ test('it records a hook event with its normalized kind and detail', async () => 
     { kind: 'turn-done', detail: 'all green' },
   );
 
-  const events = await ctx.store.collectLatestEvents(10);
+  const events = await ctx.store.readLatestEvents(10);
 
   expect(events).toStrictEqual([
     {
@@ -1462,7 +1462,7 @@ test('it falls back to the hook message for an event recorded without a detail',
     { kind: 'needs-input' },
   );
 
-  const events = await ctx.store.collectLatestEvents(10);
+  const events = await ctx.store.readLatestEvents(10);
 
   expect(events).toStrictEqual([
     {
@@ -1491,7 +1491,7 @@ test('it leaves heartbeats and unclassified events out of the event reads', asyn
     { kind: 'started' },
   );
 
-  const events = await ctx.store.collectLatestEvents(10);
+  const events = await ctx.store.readLatestEvents(10);
 
   expect(events).toStrictEqual([
     {
@@ -1523,11 +1523,11 @@ test('it collects events after an id oldest first, up to the limit', async () =>
     { kind: 'ended', detail: 'three' },
   );
 
-  const [first] = await ctx.store.collectLatestEvents(10);
+  const [first] = await ctx.store.readLatestEvents(10);
 
   invariant(first !== undefined, 'expected events');
 
-  const after = await ctx.store.collectEventsAfter(first.id, 1);
+  const after = await ctx.store.readEventsAfter(first.id, 1);
 
   expect(after).toStrictEqual([
     {
@@ -1559,7 +1559,7 @@ test('it collects the latest events oldest first', async () => {
     { kind: 'ended', detail: 'three' },
   );
 
-  const latest = await ctx.store.collectLatestEvents(2);
+  const latest = await ctx.store.readLatestEvents(2);
 
   expect(latest).toStrictEqual([
     {
@@ -1637,7 +1637,7 @@ test('it ignores an update for a session with no fleet row', async () => {
 test('it serves the trail read after an id from an index', async () => {
   const ctx = await setupTest();
 
-  await ctx.store.collectEventsAfter(5, 5);
+  await ctx.store.readEventsAfter(5, 5);
 
   const query = ctx.queries.at(-1);
 
@@ -1651,7 +1651,7 @@ test('it serves the trail read after an id from an index', async () => {
 test('it serves the latest trail read from an index', async () => {
   const ctx = await setupTest();
 
-  await ctx.store.collectLatestEvents(5);
+  await ctx.store.readLatestEvents(5);
 
   const query = ctx.queries.at(-1);
 
@@ -1932,14 +1932,14 @@ test('it collects the rows after a cursor that a prune keeps', async () => {
     Date.parse('2026-02-10T00:00:00.000Z'),
   );
 
-  const [latest] = await ctx.store.collectLatestEvents(1);
-  const [cursor] = await ctx.store.collectEventsAfter(0, 1);
+  const [latest] = await ctx.store.readLatestEvents(1);
+  const [cursor] = await ctx.store.readEventsAfter(0, 1);
 
   invariant(latest !== undefined && cursor !== undefined, 'expected events');
 
   await ctx.store.removeExpiredEvents(Date.parse('2026-01-31T00:00:00.000Z'));
 
-  const after = await ctx.store.collectEventsAfter(cursor.id, 10);
+  const after = await ctx.store.readEventsAfter(cursor.id, 10);
 
   expect(after).toStrictEqual([
     {
@@ -1975,7 +1975,7 @@ test('it lists a queued message as pending for the session it was sent to', asyn
 
   await ctx.store.writeMessage(record);
 
-  const pending = await ctx.store.collectPendingMessages({ atcID: record.atcID });
+  const pending = await ctx.store.readPendingMessages({ atcID: record.atcID });
 
   expect(pending).toStrictEqual([record]);
 });
@@ -2005,7 +2005,7 @@ test('it lists pending messages in the order they were sent', async () => {
   await ctx.store.writeMessage(second);
   await ctx.store.writeMessage(third);
 
-  const pending = await ctx.store.collectPendingMessages({ atcID: toSessionID('s1') });
+  const pending = await ctx.store.readPendingMessages({ atcID: toSessionID('s1') });
 
   expect(pending).toStrictEqual([first, second, third]);
 });
@@ -2020,7 +2020,7 @@ test('it finds pending messages by agent session id under a new atc id', async (
 
   await ctx.store.writeMessage(record);
 
-  const pending = await ctx.store.collectPendingMessages({
+  const pending = await ctx.store.readPendingMessages({
     atcID: toSessionID('s2'),
     agentSessionID: toAgentSessionID('a1'),
   });
@@ -2055,7 +2055,7 @@ test('it lists queued and delivered messages as unsettled, oldest first', async 
   await ctx.store.updateMessageDelivered(delivered.id, { atcID: toSessionID('s1') }, 2000);
   await ctx.store.updateMessagesAnswered([answered.id], { atcID: toSessionID('s1') }, 'ok', 2000);
 
-  const unsettled = await ctx.store.collectUnsettledMessages({ atcID: toSessionID('s1') });
+  const unsettled = await ctx.store.readUnsettledMessages({ atcID: toSessionID('s1') });
 
   expect(unsettled).toStrictEqual([
     { ...delivered, status: 'delivered', deliveredAt: 2000 },
@@ -2100,7 +2100,7 @@ test('it drops a delivered message from the pending list', async () => {
   await ctx.store.writeMessage(record);
   await ctx.store.updateMessageDelivered(record.id, { atcID: record.atcID }, 2000);
 
-  const pending = await ctx.store.collectPendingMessages({ atcID: record.atcID });
+  const pending = await ctx.store.readPendingMessages({ atcID: record.atcID });
 
   expect(pending).toStrictEqual([]);
 });
@@ -2210,7 +2210,7 @@ test('it keeps an unanswered message unanswered after a refused answer', async (
   await ctx.store.updateMessagesUnanswered([record.id], { atcID: record.atcID }, 'error', 3000);
   await ctx.store.updateMessagesAnswered([record.id], { atcID: record.atcID }, 'done', 4000);
 
-  const found = await ctx.store.findMessage(record.id, { atcID: record.atcID });
+  const found = await ctx.store.readMessage(record.id, { atcID: record.atcID });
 
   expect(found?.status).toBe('unanswered');
 });
@@ -2287,7 +2287,7 @@ test('it puts every delivered message of a session back to queued', async () => 
   await ctx.store.updateMessagesAnswered([answered.id], { atcID: toSessionID('s1') }, 'done', 2500);
 
   const queued = await ctx.store.updateDeliveredMessagesQueued({ atcID: toSessionID('s1') });
-  const pending = await ctx.store.collectPendingMessages({ atcID: toSessionID('s1') });
+  const pending = await ctx.store.readPendingMessages({ atcID: toSessionID('s1') });
 
   expect(queued).toStrictEqual([delivered]);
   expect(pending).toStrictEqual([delivered]);
@@ -2333,7 +2333,7 @@ test('it stores the sender session of a message', async () => {
 
   await ctx.store.writeMessage(record);
 
-  const stored = await ctx.store.findMessageByID(record.id);
+  const stored = await ctx.store.readMessageByID(record.id);
 
   expect(stored).toStrictEqual(record);
 });
@@ -2349,7 +2349,7 @@ test.each([
 
   await ctx.store.writeMessage(record);
 
-  const stored = await ctx.store.findMessageByID(record.id);
+  const stored = await ctx.store.readMessageByID(record.id);
 
   expect(stored).toStrictEqual(record);
 });
@@ -2367,7 +2367,7 @@ test('it reads a message stored without a sender kind with its sender name alone
     "INSERT INTO messages (id, atc_id, sender, text, status, sent_at) VALUES ('m-old', 's1', 'mcp', 'hi', 'queued', 1)",
   );
 
-  const stored = await ctx.store.findMessageByID(toMessageID('m-old'));
+  const stored = await ctx.store.readMessageByID(toMessageID('m-old'));
 
   expect(stored).toStrictEqual({
     id: toMessageID('m-old'),
@@ -2488,7 +2488,7 @@ test('it keeps the answer notice of a message answered before a store reopen', a
 
   registerTestCleanup(() => second.stop());
 
-  const pending = await second.collectPendingNotices(sender);
+  const pending = await second.readPendingNotices(sender);
 
   expect(pending).toStrictEqual([
     {
@@ -2522,7 +2522,7 @@ test('it queues no second answer notice for a message answered again after a sto
     4000,
   );
 
-  const pending = await second.collectPendingNotices(sender);
+  const pending = await second.readPendingNotices(sender);
 
   expect(again).toStrictEqual([]);
   expect(pending.map((x) => [x.id, x.noticeQueuedAt])).toStrictEqual([[record.id, 3000]]);
@@ -2554,7 +2554,7 @@ test('it lists the queued answer notices of a sender until its tap takes them', 
   await ctx.store.updateMessagesUnanswered([first.id], { atcID: first.atcID }, 'interrupted', 5000);
   await ctx.store.updateMessagesUnanswered([other.id], { atcID: other.atcID }, 'interrupted', 5000);
 
-  const pending = await ctx.store.collectPendingNotices(sender);
+  const pending = await ctx.store.readPendingNotices(sender);
 
   expect(pending.map((x) => x.id)).toStrictEqual([second.id, first.id]);
 
@@ -2562,7 +2562,7 @@ test('it lists the queued answer notices of a sender until its tap takes them', 
 
   expect(delivered?.noticeDeliveredAt).toBe(6000);
 
-  const after = await ctx.store.collectPendingNotices(sender);
+  const after = await ctx.store.readPendingNotices(sender);
 
   expect(after.map((x) => x.id)).toStrictEqual([first.id]);
 });
@@ -2676,7 +2676,7 @@ test('it gives messages sent before SessionStart their agent session id', async 
   await ctx.store.writeMessage(record);
   await ctx.store.updateMessageOwner(toSessionID('s1'), undefined, toAgentSessionID('a1'));
 
-  const found = await ctx.store.findMessage(record.id, {
+  const found = await ctx.store.readMessage(record.id, {
     atcID: toSessionID('s2'),
     agentSessionID: toAgentSessionID('a1'),
   });
@@ -2700,7 +2700,7 @@ test('it moves messages to a changed agent session id', async () => {
     toAgentSessionID('a2'),
   );
 
-  const found = await ctx.store.findMessage(record.id, {
+  const found = await ctx.store.readMessage(record.id, {
     atcID: toSessionID('s3'),
     agentSessionID: toAgentSessionID('a2'),
   });
@@ -2720,7 +2720,7 @@ test('it keeps messages across a store reopen', async () => {
 
   registerTestCleanup(() => second.stop());
 
-  const pending = await second.collectPendingMessages({ atcID: record.atcID });
+  const pending = await second.readPendingMessages({ atcID: record.atcID });
 
   expect(pending).toStrictEqual([record]);
 });
@@ -2732,7 +2732,7 @@ test('it finds a message for its own session', async () => {
 
   await ctx.store.writeMessage(record);
 
-  const own = await ctx.store.findMessage(record.id, { atcID: record.atcID });
+  const own = await ctx.store.readMessage(record.id, { atcID: record.atcID });
 
   expect(own).toStrictEqual(record);
 });
@@ -2744,7 +2744,7 @@ test('it finds no message for another session', async () => {
 
   await ctx.store.writeMessage(record);
 
-  const other = await ctx.store.findMessage(record.id, { atcID: toSessionID('s2') });
+  const other = await ctx.store.readMessage(record.id, { atcID: toSessionID('s2') });
 
   expect(other).toBeNull();
 });
@@ -2752,7 +2752,7 @@ test('it finds no message for another session', async () => {
 test('it serves the pending messages of an atc id from an index', async () => {
   const ctx = await setupTest();
 
-  await ctx.store.collectPendingMessages({ atcID: toSessionID('s1') });
+  await ctx.store.readPendingMessages({ atcID: toSessionID('s1') });
 
   const query = ctx.queries.at(-1);
 
@@ -2766,7 +2766,7 @@ test('it serves the pending messages of an atc id from an index', async () => {
 test('it serves the pending messages of an agent session id from an index', async () => {
   const ctx = await setupTest();
 
-  await ctx.store.collectPendingMessages({
+  await ctx.store.readPendingMessages({
     atcID: toSessionID('s1'),
     agentSessionID: toAgentSessionID('a1'),
   });
@@ -2787,7 +2787,7 @@ test('it finds a message by its id alone', async () => {
 
   await ctx.store.writeMessage(record);
 
-  const found = await ctx.store.findMessageByID(record.id);
+  const found = await ctx.store.readMessageByID(record.id);
 
   expect(found).toStrictEqual(record);
 });
@@ -2797,7 +2797,7 @@ test('it finds no message for an unknown id', async () => {
 
   await ctx.store.writeMessage(buildMockMessageRecord({ id: toMessageID('m-1') }));
 
-  const missing = await ctx.store.findMessageByID(toMessageID('m-2'));
+  const missing = await ctx.store.readMessageByID(toMessageID('m-2'));
 
   expect(missing).toBeNull();
 });
@@ -2814,7 +2814,7 @@ test('it records a message status change into the trail with its message id', as
     detail: 'hello',
   });
 
-  const events = await ctx.store.collectLatestEvents(10);
+  const events = await ctx.store.readLatestEvents(10);
 
   expect(events).toStrictEqual([
     {
@@ -2842,7 +2842,7 @@ test('it records a note into the trail with its label', async () => {
     text: 'need review',
   });
 
-  const events = await ctx.store.collectLatestEvents(10);
+  const events = await ctx.store.readLatestEvents(10);
 
   expect(events).toStrictEqual([
     {
@@ -2882,7 +2882,7 @@ test('it stores a note resent under the same note id once', async () => {
     noteID: 'r-1',
   });
 
-  const events = await ctx.store.collectLatestEvents(10);
+  const events = await ctx.store.readLatestEvents(10);
 
   expect(first).toBeTrue();
   expect(resent).toBeFalse();
@@ -2923,7 +2923,7 @@ test('it stores every note that carries no note id', async () => {
     text: 'need review',
   });
 
-  const events = await ctx.store.collectLatestEvents(10);
+  const events = await ctx.store.readLatestEvents(10);
 
   expect(second).toBeTrue();
 
@@ -2962,11 +2962,11 @@ test("it finds a note's whole text by its trail id", async () => {
     text: 'pick one of three options',
   });
 
-  const [event] = await ctx.store.collectLatestEvents(1);
+  const [event] = await ctx.store.readLatestEvents(1);
 
   invariant(event !== undefined, 'no event');
 
-  const note = await ctx.store.findNote(event.id);
+  const note = await ctx.store.readNote(event.id);
 
   expect(note).toStrictEqual({
     id: event.id,
@@ -2987,11 +2987,11 @@ test('it misses a trail id whose row is not a note', async () => {
     { kind: 'started' },
   );
 
-  const [event] = await ctx.store.collectLatestEvents(1);
+  const [event] = await ctx.store.readLatestEvents(1);
 
   invariant(event !== undefined, 'no event');
 
-  const note = await ctx.store.findNote(event.id);
+  const note = await ctx.store.readNote(event.id);
 
   expect(note).toBeNull();
 });
@@ -3009,11 +3009,11 @@ test('it finds a note of a session inside the scope', async () => {
     text: 'shown',
   });
 
-  const [event] = await ctx.store.collectLatestEvents(1);
+  const [event] = await ctx.store.readLatestEvents(1);
 
   invariant(event);
 
-  const note = await ctx.store.findNote(event.id, {
+  const note = await ctx.store.readNote(event.id, {
     atcIDs: [toSessionID('s1')],
     agentSessionIDs: [],
   });
@@ -3042,11 +3042,11 @@ test('it misses a note of a session outside the scope', async () => {
     text: 'hidden',
   });
 
-  const [event] = await ctx.store.collectLatestEvents(1);
+  const [event] = await ctx.store.readLatestEvents(1);
 
   invariant(event !== undefined, 'no event');
 
-  const note = await ctx.store.findNote(event.id, {
+  const note = await ctx.store.readNote(event.id, {
     atcIDs: [toSessionID('s2')],
     agentSessionIDs: [],
   });
@@ -3082,11 +3082,11 @@ test('it finds the preview of a note recorded without its whole text', async () 
 
   registerTestCleanup(() => store.stop());
 
-  const [event] = await store.collectLatestEvents(1);
+  const [event] = await store.readLatestEvents(1);
 
   invariant(event !== undefined, 'no event');
 
-  const note = await store.findNote(event.id);
+  const note = await store.readNote(event.id);
 
   expect(note).toStrictEqual({
     id: event.id,
@@ -3112,11 +3112,11 @@ test('it finds the whole answer of a message-answered entry by its trail id', as
     text: 'the preview and the rest of the answer',
   });
 
-  const [event] = await ctx.store.collectLatestEvents(1);
+  const [event] = await ctx.store.readLatestEvents(1);
 
   invariant(event !== undefined, 'no event');
 
-  const answer = await ctx.store.findAnswer(event.id);
+  const answer = await ctx.store.readAnswer(event.id);
 
   expect(answer).toStrictEqual({
     id: event.id,
@@ -3141,11 +3141,11 @@ test('it finds no answer at the trail id of an entry that is not an answered mes
     detail: 'hello',
   });
 
-  const [event] = await ctx.store.collectLatestEvents(1);
+  const [event] = await ctx.store.readLatestEvents(1);
 
   invariant(event !== undefined, 'no event');
 
-  const answer = await ctx.store.findAnswer(event.id);
+  const answer = await ctx.store.readAnswer(event.id);
 
   expect(answer).toBeNull();
 });
@@ -3188,7 +3188,7 @@ test('it adds an empty answer text to the answered rows of a database from befor
 
   invariant(row !== undefined, 'no row');
 
-  const answer = await upgraded.findAnswer(row.id);
+  const answer = await upgraded.readAnswer(row.id);
 
   expect(rows).toStrictEqual([{ id: row.id, answer_text: null }]);
 
@@ -3225,7 +3225,7 @@ test('it reads the trail in order across hook events and message entries', async
     { kind: 'turn-done' },
   );
 
-  const events = await ctx.store.collectLatestEvents(10);
+  const events = await ctx.store.readLatestEvents(10);
 
   expect(events).toStrictEqual([
     {
@@ -3280,7 +3280,7 @@ test('it stamps trail entries recorded before the agent session id was known', a
 
   await ctx.store.updateTrailOwner(toSessionID('s1'), toAgentSessionID('c1'));
 
-  const events = await ctx.store.collectLatestEvents(10);
+  const events = await ctx.store.readLatestEvents(10);
 
   expect(events).toStrictEqual([
     {
@@ -3362,11 +3362,11 @@ test('it lists the other messages answered in the same turn as siblings', async 
     't-1',
   );
 
-  const oldest = await ctx.store.findMessage(one.id, { atcID: toSessionID('s1') });
+  const oldest = await ctx.store.readMessage(one.id, { atcID: toSessionID('s1') });
 
   invariant(oldest !== null, 'oldest message missing');
 
-  const siblings = await ctx.store.collectTurnSiblings(oldest);
+  const siblings = await ctx.store.readTurnSiblings(oldest);
 
   expect(siblings).toStrictEqual([{ id: two.id, atcID: toSessionID('s1') }]);
 });
@@ -3388,11 +3388,11 @@ test('it lists no siblings for a message its turn left unanswered beside another
     't-1',
   );
 
-  const unanswered = await ctx.store.findMessage(one.id, { atcID: toSessionID('s1') });
+  const unanswered = await ctx.store.readMessage(one.id, { atcID: toSessionID('s1') });
 
   invariant(unanswered !== null, 'unanswered message missing');
 
-  const siblings = await ctx.store.collectTurnSiblings(unanswered);
+  const siblings = await ctx.store.readTurnSiblings(unanswered);
 
   expect(siblings).toStrictEqual([]);
 });
@@ -3412,7 +3412,7 @@ test('it keeps the turn of a message its turn left unanswered', async () => {
     't-1',
   );
 
-  const unanswered = await ctx.store.findMessage(one.id, { atcID: toSessionID('s1') });
+  const unanswered = await ctx.store.readMessage(one.id, { atcID: toSessionID('s1') });
 
   expect(unanswered?.turn).toBe('t-1');
 });
@@ -3442,11 +3442,11 @@ test('it leaves an unanswered message of the same turn out of the siblings of an
     't-1',
   );
 
-  const answered = await ctx.store.findMessage(answeredOne.id, { atcID: toSessionID('s1') });
+  const answered = await ctx.store.readMessage(answeredOne.id, { atcID: toSessionID('s1') });
 
   invariant(answered !== null, 'answered message missing');
 
-  const siblings = await ctx.store.collectTurnSiblings(answered);
+  const siblings = await ctx.store.readTurnSiblings(answered);
 
   expect(siblings).toStrictEqual([]);
 });
@@ -3484,11 +3484,11 @@ test('it lists the other messages of one turn in send order when they share a se
     't-1',
   );
 
-  const answered = await ctx.store.findMessage(first.id, { atcID: toSessionID('s1') });
+  const answered = await ctx.store.readMessage(first.id, { atcID: toSessionID('s1') });
 
   invariant(answered !== null, 'first message missing');
 
-  const siblings = await ctx.store.collectTurnSiblings(answered);
+  const siblings = await ctx.store.readTurnSiblings(answered);
 
   expect(siblings).toStrictEqual([
     { id: toMessageID('m-b'), atcID: toSessionID('s1') },
@@ -3908,8 +3908,8 @@ test('it reconciles an interrupted spawn key by whether its session reached the 
   await ctx.store.claimIdempotencyKey({ ...claim, key: 'lost', effectRef: 's-lost' });
   await ctx.store.writeFleet([buildMockFleetEntry({ sessionID: toSessionID('s-landed') })]);
 
-  const landedBefore = await ctx.store.findIdempotencyKey({ ...claim, key: 'landed' });
-  const lostBefore = await ctx.store.findIdempotencyKey({ ...claim, key: 'lost' });
+  const landedBefore = await ctx.store.readIdempotencyKey({ ...claim, key: 'landed' });
+  const lostBefore = await ctx.store.readIdempotencyKey({ ...claim, key: 'lost' });
 
   await ctx.store.reconcileIdempotencyKeys(5000);
 
@@ -4159,7 +4159,7 @@ test('it records a workspace materialization through its phases', async () => {
     3000,
   );
 
-  const row = await ctx.store.findMaterialization(toSessionID('s-ws'));
+  const row = await ctx.store.readMaterialization(toSessionID('s-ws'));
 
   expect(row).toStrictEqual({
     sessionID: toSessionID('s-ws'),
@@ -4264,10 +4264,10 @@ test('it fails every materialization a stopped daemon left short of ready', asyn
     1000,
   );
 
-  const resolvingBefore = await ctx.store.findMaterialization(toSessionID('s-resolving'));
-  const cloningBefore = await ctx.store.findMaterialization(toSessionID('s-cloning'));
-  const transferringBefore = await ctx.store.findMaterialization(toSessionID('s-transferring'));
-  const verifyingBefore = await ctx.store.findMaterialization(toSessionID('s-verifying'));
+  const resolvingBefore = await ctx.store.readMaterialization(toSessionID('s-resolving'));
+  const cloningBefore = await ctx.store.readMaterialization(toSessionID('s-cloning'));
+  const transferringBefore = await ctx.store.readMaterialization(toSessionID('s-transferring'));
+  const verifyingBefore = await ctx.store.readMaterialization(toSessionID('s-verifying'));
 
   await ctx.store.stop();
 
@@ -4277,12 +4277,12 @@ test('it fails every materialization a stopped daemon left short of ready', asyn
 
   await second.reconcileMaterializations(5000);
 
-  const resolving = await second.findMaterialization(toSessionID('s-resolving'));
-  const cloning = await second.findMaterialization(toSessionID('s-cloning'));
-  const transferring = await second.findMaterialization(toSessionID('s-transferring'));
-  const verifying = await second.findMaterialization(toSessionID('s-verifying'));
-  const ready = await second.findMaterialization(toSessionID('s-ready'));
-  const failed = await second.findMaterialization(toSessionID('s-failed'));
+  const resolving = await second.readMaterialization(toSessionID('s-resolving'));
+  const cloning = await second.readMaterialization(toSessionID('s-cloning'));
+  const transferring = await second.readMaterialization(toSessionID('s-transferring'));
+  const verifying = await second.readMaterialization(toSessionID('s-verifying'));
+  const ready = await second.readMaterialization(toSessionID('s-ready'));
+  const failed = await second.readMaterialization(toSessionID('s-failed'));
 
   expect(resolvingBefore?.phase).toBe('resolving');
   expect(cloningBefore?.phase).toBe('cloning');
@@ -4523,7 +4523,7 @@ test('it refuses to read a workspace whose withheld variables are malformed', as
 
   writer.run('UPDATE workspace_materialization SET withheld_env = \'{"APP_GIT_TOKEN":true}\'');
 
-  expect(ctx.store.findMaterialization(toSessionID('s-ready'))).rejects.toThrowWithMessage(
+  expect(ctx.store.readMaterialization(toSessionID('s-ready'))).rejects.toThrowWithMessage(
     Error,
     "the workspace of session 's-ready' holds a malformed list of withheld variables",
   );
@@ -4576,8 +4576,8 @@ test('it upgrades a database from before runtime auth and keeps every existing r
     .slice(-14, -11);
 
   const fleet = await upgraded.loadFleet();
-  const dirs = await upgraded.collectSpawnDirs();
-  const binding = await upgraded.findAuthBinding(toSessionID('s1'));
+  const dirs = await upgraded.readSpawnDirs();
+  const binding = await upgraded.readAuthBinding(toSessionID('s1'));
 
   expect(fleet).toStrictEqual([entry]);
 
@@ -4654,7 +4654,7 @@ test('it records a runtime auth binding as provisioning at its first revision', 
     1000,
   );
 
-  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+  const binding = await ctx.store.readAuthBinding(toSessionID('s1'));
 
   expect(binding).toStrictEqual({
     hostKey: toSessionID('s1'),
@@ -4711,7 +4711,7 @@ test('it keeps the old revision of a binding whose rebind failed beside the fail
     3000,
   );
 
-  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+  const binding = await ctx.store.readAuthBinding(toSessionID('s1'));
 
   expect(binding).toStrictEqual({
     hostKey: toSessionID('s1'),
@@ -4759,7 +4759,7 @@ test('it marks a binding revoked with the time of the revocation', async () => {
     2000,
   );
 
-  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+  const binding = await ctx.store.readAuthBinding(toSessionID('s1'));
 
   expect(binding).toStrictEqual({
     hostKey: toSessionID('s1'),
@@ -4819,7 +4819,7 @@ test('it writes a grant row per secret and moves it through its phases in place'
     2000,
   );
 
-  const grants = await ctx.store.collectAuthGrants(toSessionID('s1'));
+  const grants = await ctx.store.readAuthGrants(toSessionID('s1'));
 
   expect(grants).toStrictEqual([
     {
@@ -4898,10 +4898,10 @@ test('it removes a binding and its grants and leaves another host untouched', as
 
   await ctx.store.removeAuthBinding(toSessionID('s1'));
 
-  const removed = await ctx.store.findAuthBinding(toSessionID('s1'));
-  const removedGrants = await ctx.store.collectAuthGrants(toSessionID('s1'));
-  const kept = await ctx.store.findAuthBinding(toSessionID('s2'));
-  const keptGrants = await ctx.store.collectAuthGrants(toSessionID('s2'));
+  const removed = await ctx.store.readAuthBinding(toSessionID('s1'));
+  const removedGrants = await ctx.store.readAuthGrants(toSessionID('s1'));
+  const kept = await ctx.store.readAuthBinding(toSessionID('s2'));
+  const keptGrants = await ctx.store.readAuthGrants(toSessionID('s2'));
 
   expect(removed).toBeNull();
   expect(removedGrants).toStrictEqual([]);
@@ -4964,7 +4964,7 @@ test('it reconciles a grant a stopped daemon left granting as uncertain and leav
     1000,
   );
 
-  const grantsBefore = await ctx.store.collectAuthGrants(toSessionID('s1'));
+  const grantsBefore = await ctx.store.readAuthGrants(toSessionID('s1'));
 
   await ctx.store.stop();
 
@@ -4974,7 +4974,7 @@ test('it reconciles a grant a stopped daemon left granting as uncertain and leav
 
   await second.reconcileAuthBindings(5000);
 
-  const grants = await second.collectAuthGrants(toSessionID('s1'));
+  const grants = await second.readAuthGrants(toSessionID('s1'));
 
   expect(grantsBefore.find((grant) => grant.secret === 'glm')?.phase).toBe('granting');
 
@@ -5029,7 +5029,7 @@ test('it collects every host binding by host key', async () => {
     1000,
   );
 
-  const bindings = await ctx.store.collectAuthBindings();
+  const bindings = await ctx.store.readAuthBindings();
 
   expect(bindings).toStrictEqual([
     {
@@ -5096,7 +5096,7 @@ test('it round-trips a published record', async () => {
 
   await ctx.store.writePublishedRecord(record);
 
-  const stored = await ctx.store.findPublishedRecord(toSessionID('s-record'));
+  const stored = await ctx.store.readPublishedRecord(toSessionID('s-record'));
 
   expect(stored).toStrictEqual(record);
 });
@@ -5110,7 +5110,7 @@ test('it replaces the published record of a session on a second write', async ()
 
   await ctx.store.writePublishedRecord(later);
 
-  const stored = await ctx.store.findPublishedRecord(toSessionID('s-record'));
+  const stored = await ctx.store.readPublishedRecord(toSessionID('s-record'));
 
   expect(stored).toStrictEqual(later);
 });
@@ -5124,8 +5124,8 @@ test("it removes one session's published record and keeps another's", async () =
   await ctx.store.writePublishedRecord(kept);
   await ctx.store.removePublishedRecord(toSessionID('s-gone'));
 
-  const gone = await ctx.store.findPublishedRecord(toSessionID('s-gone'));
-  const stored = await ctx.store.findPublishedRecord(toSessionID('s-kept'));
+  const gone = await ctx.store.readPublishedRecord(toSessionID('s-gone'));
+  const stored = await ctx.store.readPublishedRecord(toSessionID('s-kept'));
 
   expect(gone).toBeNull();
   expect(stored).toStrictEqual(kept);

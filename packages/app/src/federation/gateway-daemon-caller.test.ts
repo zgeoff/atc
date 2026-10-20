@@ -19,9 +19,6 @@ import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { GatewayDaemonCaller } from './gateway-daemon-caller';
 import type { RegistryDaemon } from './types';
 
-// The principal every request in these tests acts as.
-const GW = { id: 'gw', name: 'Lantern Notes' };
-
 async function setupTest() {
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-caller-',
@@ -71,7 +68,7 @@ test('it answers a request through a daemon whose handshake returns the pinned i
 
   registerTestCleanup(() => caller.stop());
 
-  const listed = await caller.sendRequest('session.list', {}, GW);
+  const listed = await caller.sendRequest('session.list', {}, { id: 'gw', name: 'Lantern Notes' });
 
   expect(listed).toStrictEqual({ sessions: [] });
 });
@@ -120,7 +117,7 @@ test('it refuses a daemon behind another state identity as daemon_changed and se
   const spawned = caller.sendRequest(
     'session.spawn',
     { cwd: ctx.daemon.dir, resume: `a-${randomUUID()}` },
-    GW,
+    { id: 'gw', name: 'Lantern Notes' },
   );
 
   expect(spawned).rejects.toMatchObject({
@@ -147,7 +144,9 @@ test('it refuses a daemon that rejects the token as daemon_unauthorized', async 
 
   registerTestCleanup(() => caller.stop());
 
-  expect(caller.sendRequest('session.list', {}, GW)).rejects.toMatchObject({
+  expect(
+    caller.sendRequest('session.list', {}, { id: 'gw', name: 'Lantern Notes' }),
+  ).rejects.toMatchObject({
     code: 'daemon_unauthorized',
     data: { daemon: 'cloud' },
   });
@@ -167,7 +166,9 @@ test('it refuses a daemon nothing listens for as daemon_unavailable', () => {
 
   registerTestCleanup(() => caller.stop());
 
-  expect(caller.sendRequest('session.list', {}, GW)).rejects.toMatchObject({
+  expect(
+    caller.sendRequest('session.list', {}, { id: 'gw', name: 'Lantern Notes' }),
+  ).rejects.toMatchObject({
     code: 'daemon_unavailable',
     message: "daemon 'cloud' is unreachable",
     data: { daemon: 'cloud' },
@@ -190,7 +191,9 @@ test("it passes a daemon's own error through with its code", async () => {
 
   registerTestCleanup(() => caller.stop());
 
-  expect(caller.sendRequest('session.get', { session: 'nope' }, GW)).rejects.toMatchObject({
+  expect(
+    caller.sendRequest('session.get', { session: 'nope' }, { id: 'gw', name: 'Lantern Notes' }),
+  ).rejects.toMatchObject({
     code: 'no_such_session',
     message: "no session 'nope'",
   });
@@ -222,7 +225,7 @@ test('it retries a keyed spawn whose response was lost once on the same daemon, 
   const spawned = await caller.sendRequest(
     'session.spawn',
     { cwd: ctx.daemon.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-1' },
-    GW,
+    { id: 'gw', name: 'Lantern Notes' },
   );
 
   expect(proxy.countRequests()).toBe(2);
@@ -258,7 +261,7 @@ test('it answers outcome_unknown for an unkeyed spawn whose response was lost', 
   const spawned = caller.sendRequest(
     'session.spawn',
     { cwd: ctx.daemon.dir, resume: `a-${randomUUID()}` },
-    GW,
+    { id: 'gw', name: 'Lantern Notes' },
   );
 
   expect(spawned).rejects.toMatchObject({ code: 'outcome_unknown', data: { daemon: 'cloud' } });
@@ -291,7 +294,7 @@ test('it answers outcome_unknown for a keyed spawn whose retry also lost its res
   const spawned = caller.sendRequest(
     'session.spawn',
     { cwd: ctx.daemon.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-2' },
-    GW,
+    { id: 'gw', name: 'Lantern Notes' },
   );
 
   expect(spawned).rejects.toMatchObject({ code: 'outcome_unknown', data: { daemon: 'cloud' } });
@@ -333,7 +336,7 @@ test('it retries a keyed spawn whose response timed out on a fresh connection', 
   const spawning = caller.sendRequest(
     'session.spawn',
     { cwd: ctx.daemon.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-3' },
-    GW,
+    { id: 'gw', name: 'Lantern Notes' },
   );
 
   // The daemon has run the spawn whose response the proxy holds, so the
@@ -376,7 +379,7 @@ test('it refuses a daemon that never answers the handshake as daemon_unavailable
 
   registerTestCleanup(() => caller.stop());
 
-  const listed = caller.sendRequest('session.list', {}, GW);
+  const listed = caller.sendRequest('session.list', {}, { id: 'gw', name: 'Lantern Notes' });
 
   expect(clock.collectPending()).toStrictEqual([300]);
 
@@ -422,7 +425,7 @@ test('it resends a keyed spawn replay-only, so a resend after the daemon swept t
   const spawned = caller.sendRequest(
     'session.spawn',
     { cwd: ctx.daemon.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-swept' },
-    GW,
+    { id: 'gw', name: 'Lantern Notes' },
   );
 
   await opener.waitForHeld();
@@ -462,7 +465,9 @@ test('it holds concurrent first requests until the handshake answers, so the dae
   registerTestCleanup(() => caller.stop());
 
   const answers = await Promise.all(
-    Array.from({ length: 5 }, () => caller.sendRequest('session.list', {}, GW)),
+    Array.from({ length: 5 }, () =>
+      caller.sendRequest('session.list', {}, { id: 'gw', name: 'Lantern Notes' }),
+    ),
   );
 
   expect(answers).toStrictEqual(Array.from({ length: 5 }, () => ({ sessions: [] })));
@@ -497,15 +502,15 @@ test('it gives a long poll its own waitMs on top of the response time on the sam
   const spawned = await caller.sendRequest(
     'session.spawn',
     { cwd: ctx.daemon.dir, resume: `a-${randomUUID()}` },
-    GW,
+    { id: 'gw', name: 'Lantern Notes' },
   );
 
-  const caughtUp = await caller.sendRequest('events.read', {}, GW);
+  const caughtUp = await caller.sendRequest('events.read', {}, { id: 'gw', name: 'Lantern Notes' });
 
   const waiting = caller.sendRequest(
     'events.read',
     { cursor: caughtUp['cursor'], waitMs: 1500 },
-    GW,
+    { id: 'gw', name: 'Lantern Notes' },
   );
 
   // Once the poll is out, a message writes the event that ends its wait.
@@ -516,7 +521,7 @@ test('it gives a long poll its own waitMs on top of the response time on the sam
   await caller.sendRequest(
     'session.message',
     { session: getRecord(spawned, 'session')['id'], from: 'tester', text: 'wake' },
-    GW,
+    { id: 'gw', name: 'Lantern Notes' },
   );
 
   const waited = await waiting;
@@ -558,7 +563,7 @@ test('it sends the name of the principal beside it', async () => {
   const sent = await caller.sendRequest(
     'session.message',
     { session: sessionID, text: 'check the tide tables', from: 'impostor' },
-    GW,
+    { id: 'gw', name: 'Lantern Notes' },
   );
 
   const got = await ctx.daemon.client.sendRequest('message.get', { message: sent['message'] });

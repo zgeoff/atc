@@ -15,7 +15,7 @@ export interface DaemonEventDeps {
   readonly overlay: OverlayScreen;
   readonly clock: Clock;
   readonly getMode: () => ClientMode;
-  readonly getFocusedID: () => string | null;
+  readonly findFocusedID: () => string | null;
   readonly setFocusedID: (sessionID: string | null) => void;
   readonly setLastUsedAgent: (agent: AgentID) => void;
   readonly findFocused: () => MirrorSession | null;
@@ -33,7 +33,7 @@ export function applyDaemonEvent(raw: RawDaemonEvent, deps: DaemonEventDeps) {
 
   match(event)
     .with({ ev: 'SessionOutput' }, (e) => {
-      if (deps.getMode() === 'attached' && e.s === deps.getFocusedID()) {
+      if (deps.getMode() === 'attached' && e.s === deps.findFocusedID()) {
         process.stdout.write(e.d);
       }
     })
@@ -73,7 +73,7 @@ export function applyDaemonEvent(raw: RawDaemonEvent, deps: DaemonEventDeps) {
 
       mirror.doneAt.delete(e.s);
 
-      if (deps.getFocusedID() === e.s) {
+      if (deps.findFocusedID() === e.s) {
         deps.setFocusedID(null);
       }
 

@@ -27,7 +27,7 @@ test('it lists the sources it offers in order in agents.list', async () => {
       sources: [
         buildDirsSource({
           roots: [],
-          collectZoxideDirs: () => Promise.resolve([]),
+          readZoxideDirs: () => Promise.resolve([]),
           homeDir: paths.dir,
         }),
         buildGitHubSource({ run: runCommand, bin: join(paths.dir, 'gh'), owner: null }),
@@ -56,7 +56,7 @@ test('it lists the spawn history, then the roots, then zoxide, as directories on
       sources: [
         buildDirsSource({
           roots: [join(paths.dir, 'roots')],
-          collectZoxideDirs: () =>
+          readZoxideDirs: () =>
             Promise.resolve([join(paths.dir, 'zoxide-dir'), join(paths.dir, 'gone')]),
           homeDir: paths.dir,
         }),
@@ -114,7 +114,7 @@ test('it lists the owner the directories spawned on every target', async () => {
       sources: [
         buildDirsSource({
           roots: [],
-          collectZoxideDirs: () => Promise.resolve([]),
+          readZoxideDirs: () => Promise.resolve([]),
           homeDir: paths.dir,
         }),
       ],
@@ -173,7 +173,7 @@ test('it lists a principal only the directories spawned on targets it may use', 
       sources: [
         buildDirsSource({
           roots: [],
-          collectZoxideDirs: () => Promise.resolve([]),
+          readZoxideDirs: () => Promise.resolve([]),
           homeDir: paths.dir,
         }),
       ],
@@ -417,7 +417,7 @@ test('it lists directories for a target that cannot take a workspace', async () 
       sources: [
         buildDirsSource({
           roots: [join(paths.dir, 'roots')],
-          collectZoxideDirs: () => Promise.resolve([]),
+          readZoxideDirs: () => Promise.resolve([]),
           homeDir: paths.dir,
         }),
       ],
@@ -467,7 +467,7 @@ test('it refuses a principal a source listing for the default target it may not 
       sources: [
         buildDirsSource({
           roots: [],
-          collectZoxideDirs: () => Promise.resolve([]),
+          readZoxideDirs: () => Promise.resolve([]),
           homeDir: paths.dir,
         }),
       ],
@@ -519,7 +519,7 @@ test.each([
       sources: [
         buildDirsSource({
           roots: [],
-          collectZoxideDirs: () => Promise.resolve([]),
+          readZoxideDirs: () => Promise.resolve([]),
           homeDir: paths.dir,
         }),
         buildGitHubSource({ run: runCommand, bin: join(paths.dir, 'gh'), owner: null }),
@@ -546,7 +546,7 @@ test('it reads a leading ~ in directory input as the daemon home', async () => {
       sources: [
         buildDirsSource({
           roots: [],
-          collectZoxideDirs: () => Promise.resolve([]),
+          readZoxideDirs: () => Promise.resolve([]),
           homeDir: paths.dir,
         }),
       ],
@@ -570,7 +570,7 @@ test('it completes a typed ~ path against the daemon home', async () => {
       sources: [
         buildDirsSource({
           roots: [],
-          collectZoxideDirs: () => Promise.resolve([]),
+          readZoxideDirs: () => Promise.resolve([]),
           homeDir: paths.dir,
         }),
       ],
@@ -635,7 +635,7 @@ test('it refuses a principal a completion for the default target it may not use'
       sources: [
         buildDirsSource({
           roots: [],
-          collectZoxideDirs: () => Promise.resolve([]),
+          readZoxideDirs: () => Promise.resolve([]),
           homeDir: paths.dir,
         }),
       ],
@@ -674,7 +674,7 @@ test('it completes a principal a path for a target it may use', async () => {
       sources: [
         buildDirsSource({
           roots: [],
-          collectZoxideDirs: () => Promise.resolve([]),
+          readZoxideDirs: () => Promise.resolve([]),
           homeDir: paths.dir,
         }),
       ],

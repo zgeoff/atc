@@ -1,14 +1,14 @@
 import { resolve } from 'node:path';
 import { loadListenerTokens } from '@atc/config';
 import { readStoredFleetFile } from '@atc/store';
-import { buildOwnDaemonProcess } from './build-own-daemon-process';
 import { buildRestartFailure } from './build-restart-failure';
-import { collectRestartPlan } from './collect-restart-plan';
 import { formatRestartPreflight } from './format-restart-preflight';
 import type { LifecycleHost } from './lifecycle-host';
 import type { RestartResult } from './parse-restart-result';
 import { readDaemonProcess } from './read-daemon-process';
 import { readFleetSnapshot } from './read-fleet-snapshot';
+import { readOwnDaemonProcess } from './read-own-daemon-process';
+import { readRestartPlan } from './read-restart-plan';
 import { restartDaemonProcess } from './restart-daemon-process';
 import { startReplacementDaemon } from './start-replacement-daemon';
 import { verifyRestoredFleet } from './verify-restored-fleet';
@@ -28,7 +28,7 @@ export async function restartDaemon(
   host: LifecycleHost,
   options: RestartOptions,
 ): Promise<RestartResult> {
-  const plan = await collectRestartPlan(host, options.callerSession);
+  const plan = await readRestartPlan(host, options.callerSession);
 
   const clientBuild = host.invocation.readBuild();
 
@@ -75,7 +75,7 @@ export async function restartDaemon(
     expectedBuild = clientBuild;
 
     const old =
-      plan.pid === null ? buildOwnDaemonProcess() : readDaemonProcess(plan.pid, host.procRoot);
+      plan.pid === null ? readOwnDaemonProcess() : readDaemonProcess(plan.pid, host.procRoot);
 
     if (plan.pid !== null && !old.fromProc) {
       console.log(

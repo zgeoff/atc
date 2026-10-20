@@ -2,6 +2,13 @@ import { DEFAULT_GIT_TRANSPORTS } from '@atc/config';
 import { DaemonError } from '@atc/protocol/wire';
 import { REPOSITORY_ENV_VARS } from './repository-env-vars';
 
+interface OpenOutputWatch {
+  // Arms the bound to fire after the delay, and returns the function that
+  // disarms it.
+  readonly schedule: (fire: () => void, afterMs: number) => () => void;
+  readonly report: (line: string) => void;
+}
+
 interface GitRunOptions {
   readonly cwd?: string;
   readonly env?: Readonly<Record<string, string>>;
@@ -22,13 +29,6 @@ interface GitRunOptions {
   // Bounds the wait for the output of a git that has exited; a 30 s timer
   // and a line on stderr when unset.
   readonly openOutputWatch?: OpenOutputWatch;
-}
-
-interface OpenOutputWatch {
-  // Arms the bound to fire after the delay, and returns the function that
-  // disarms it.
-  readonly schedule: (fire: () => void, afterMs: number) => () => void;
-  readonly report: (line: string) => void;
 }
 
 interface GitRun {
@@ -59,6 +59,21 @@ const ISOLATED_ENV = {
   GIT_LFS_SKIP_SMUDGE: '1',
 };
 
+const DEFAULT_OPEN_OUTPUT_WATCH: OpenOutputWatch = {
+  schedule: (fire, afterMs) => {
+    const timer = setTimeout(fire, afterMs);
+
+    timer.unref();
+
+    return () => {
+      clearTimeout(timer);
+    };
+  },
+  report: (line) => {
+    console.error(line);
+  },
+};
+
 export async function runGit(
   args: readonly string[],
   options: GitRunOptions = {},
@@ -68,7 +83,7 @@ export async function runGit(
   const proc = Bun.spawn(['git', ...(isolated ? ISOLATED_ARGS : []), ...args], {
     ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
     env: {
-      ...collectHostEnv(),
+      ...readHostEnv(),
       ...options.env,
       ...(isolated ? ISOLATED_ENV : {}),
 
@@ -146,22 +161,18 @@ export async function runGit(
   return { exitCode, stdout, stderr, timedOut: false };
 }
 
+function readHostEnv(): Record<string, string | undefined> {
+  return Object.fromEntries(
+    Object.entries(process.env).filter(
+      ([name]) =>
+        !REPOSITORY_ENV_VARS.has(name) &&
+        !name.startsWith('GIT_CONFIG_KEY_') &&
+        !name.startsWith('GIT_CONFIG_VALUE_'),
+    ),
+  );
+}
+
 const OPEN_OUTPUT_BOUND_MS = 30_000;
-
-const DEFAULT_OPEN_OUTPUT_WATCH: OpenOutputWatch = {
-  schedule: (fire, afterMs) => {
-    const timer = setTimeout(fire, afterMs);
-
-    timer.unref();
-
-    return () => {
-      clearTimeout(timer);
-    };
-  },
-  report: (line) => {
-    console.error(line);
-  },
-};
 
 // the hangup of output whose writer is gone may never arrive, so past the bound the run
 // reports which git it waited on, kills git's process group, and fails
@@ -213,15 +224,4 @@ function findSubcommand(args: readonly string[]): string | undefined {
   }
 
   return undefined;
-}
-
-function collectHostEnv(): Record<string, string | undefined> {
-  return Object.fromEntries(
-    Object.entries(process.env).filter(
-      ([name]) =>
-        !REPOSITORY_ENV_VARS.has(name) &&
-        !name.startsWith('GIT_CONFIG_KEY_') &&
-        !name.startsWith('GIT_CONFIG_VALUE_'),
-    ),
-  );
 }
