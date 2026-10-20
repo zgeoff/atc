@@ -117,7 +117,7 @@ test('it starts the bridge of the agent a launch runs and answers with its plan'
   expect(plan).toStrictEqual({ bin: 'stub-bridge', args: [] });
 
   expect(ctx.stub.requests).toMatchObject([
-    { session: s.id, cwd: ctx.dir, dir: join(ctx.dir, 'state', 'sessions', s.id, 'codex') },
+    { session: s.id, cwd: ctx.dir, directory: join(ctx.dir, 'state', 'sessions', s.id, 'codex') },
   ]);
 });
 
