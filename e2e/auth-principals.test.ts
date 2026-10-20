@@ -4605,7 +4605,7 @@ test("it refuses the replay of a forgotten session's spawn key once its target h
         targets: buildStubTargets(targets.targets, { spawned: harnesses }),
         defaultTarget: targets.defaultTarget,
         targetErrors: targets.errors,
-        principals: collectPrincipals({ p: { targets: ['box'] } }).principals,
+        principals: collectPrincipals({ ci: { targets: ['box'] } }).principals,
       };
     },
   });
@@ -4613,7 +4613,7 @@ test("it refuses the replay of a forgotten session's spawn key once its target h
   const spawned = await daemon.client.sendRequest(
     'session.spawn',
     { cwd: daemon.directory, name: 'secret-work', target: 'box', idempotencyKey: 'k-1' },
-    'p',
+    'ci',
   );
 
   const id = String(getRecord(spawned, 'session')['id']);
@@ -4632,14 +4632,14 @@ test("it refuses the replay of a forgotten session's spawn key once its target h
       targets: buildStubTargets(targets.targets, { spawned: harnesses }),
       defaultTarget: targets.defaultTarget,
       targetErrors: targets.errors,
-      principals: collectPrincipals({ p: { targets: ['box'] } }).principals,
+      principals: collectPrincipals({ ci: { targets: ['box'] } }).principals,
     };
   });
 
   const replayed = daemon.client.sendRequest(
     'session.spawn',
     { cwd: daemon.directory, name: 'secret-work', target: 'box', idempotencyKey: 'k-1' },
-    'p',
+    'ci',
   );
 
   expect(replayed).rejects.toThrowWithMessage(
@@ -4667,7 +4667,7 @@ test("it answers the replay of a forgotten session's spawn key with its session 
         targets: buildStubTargets(targets.targets, { spawned: harnesses }),
         defaultTarget: targets.defaultTarget,
         targetErrors: targets.errors,
-        principals: collectPrincipals({ p: { targets: ['box'] } }).principals,
+        principals: collectPrincipals({ ci: { targets: ['box'] } }).principals,
       };
     },
   });
@@ -4675,7 +4675,7 @@ test("it answers the replay of a forgotten session's spawn key with its session 
   const spawned = await daemon.client.sendRequest(
     'session.spawn',
     { cwd: daemon.directory, name: 'secret-work', target: 'box', idempotencyKey: 'k-1' },
-    'p',
+    'ci',
   );
 
   const id = String(getRecord(spawned, 'session')['id']);
@@ -4694,14 +4694,14 @@ test("it answers the replay of a forgotten session's spawn key with its session 
       targets: buildStubTargets(targets.targets, { spawned: harnesses }),
       defaultTarget: targets.defaultTarget,
       targetErrors: targets.errors,
-      principals: collectPrincipals({ p: { targets: ['box'] } }).principals,
+      principals: collectPrincipals({ ci: { targets: ['box'] } }).principals,
     };
   });
 
   const replayed = await daemon.client.sendRequest(
     'session.spawn',
     { cwd: daemon.directory, name: 'secret-work', target: 'box', idempotencyKey: 'k-1' },
-    'p',
+    'ci',
   );
 
   expect(replayed).toMatchObject({ session: { id, name: 'secret-work' } });
@@ -4723,7 +4723,7 @@ test('it refuses a principal the replay of a held spawn key that records no targ
         targets: buildStubTargets(targets.targets, { spawned: harnesses }),
         defaultTarget: targets.defaultTarget,
         targetErrors: targets.errors,
-        principals: collectPrincipals({ p: { targets: ['box'] } }).principals,
+        principals: collectPrincipals({ ci: { targets: ['box'] } }).principals,
       };
     },
   });
@@ -4731,7 +4731,7 @@ test('it refuses a principal the replay of a held spawn key that records no targ
   const spawned = await daemon.client.sendRequest(
     'session.spawn',
     { cwd: daemon.directory, name: 'secret-work', target: 'box', idempotencyKey: 'k-1' },
-    'p',
+    'ci',
   );
 
   const id = String(getRecord(spawned, 'session')['id']);
@@ -4766,14 +4766,14 @@ test('it refuses a principal the replay of a held spawn key that records no targ
       targets: buildStubTargets(targets.targets, { spawned: harnesses }),
       defaultTarget: targets.defaultTarget,
       targetErrors: targets.errors,
-      principals: collectPrincipals({ p: { targets: ['box'] } }).principals,
+      principals: collectPrincipals({ ci: { targets: ['box'] } }).principals,
     };
   });
 
   const replayed = daemon.client.sendRequest(
     'session.spawn',
     { cwd: daemon.directory, name: 'secret-work', target: 'box', idempotencyKey: 'k-1' },
-    'p',
+    'ci',
   );
 
   expect(replayed).rejects.toThrowWithMessage(
@@ -4801,7 +4801,7 @@ test('it answers the owner the replay of a held spawn key that records no target
         targets: buildStubTargets(targets.targets, { spawned: harnesses }),
         defaultTarget: targets.defaultTarget,
         targetErrors: targets.errors,
-        principals: collectPrincipals({ p: { targets: ['box'] } }).principals,
+        principals: collectPrincipals({ ci: { targets: ['box'] } }).principals,
       };
     },
   });
@@ -4809,7 +4809,7 @@ test('it answers the owner the replay of a held spawn key that records no target
   const spawned = await daemon.client.sendRequest(
     'session.spawn',
     { cwd: daemon.directory, name: 'secret-work', target: 'box', idempotencyKey: 'k-1' },
-    'p',
+    'ci',
   );
 
   const id = String(getRecord(spawned, 'session')['id']);
@@ -4844,7 +4844,7 @@ test('it answers the owner the replay of a held spawn key that records no target
       targets: buildStubTargets(targets.targets, { spawned: harnesses }),
       defaultTarget: targets.defaultTarget,
       targetErrors: targets.errors,
-      principals: collectPrincipals({ p: { targets: ['box'] } }).principals,
+      principals: collectPrincipals({ ci: { targets: ['box'] } }).principals,
     };
   });
 

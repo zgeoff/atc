@@ -1,7 +1,7 @@
 // oxlint-disable zgeoff/test-beside-module -- pins the xstate behaviour the spawn picker and imp-harness machines rely on, moved with the picker (GEO-403)
 import { expect, mock, onTestFinished, test } from 'bun:test';
 import invariant from 'tiny-invariant';
-import { assign, createActor, fromPromise, setup } from 'xstate';
+import { assign, createActor, fromPromise, setup, spawnChild, stopChild } from 'xstate';
 
 function setupTest() {
   const requests: PromiseWithResolvers<string>[] = [];
@@ -25,20 +25,20 @@ function setupTest() {
     states: {
       idle: { on: { LOAD: 'loading' } },
       loading: {
-        invoke: {
-          id: 'request',
-          src: 'request',
-          onDone: {
+        entry: spawnChild('request', { id: 'request' }),
+        exit: stopChild('request'),
+        on: {
+          'xstate.done.actor.request': {
             target: 'loaded',
             actions: [
-              assign({ result: (args) => args.event.output }),
+              assign({ result: (args) => String(args.event['output']) }),
               (args) => {
-                onDone(args.event.output);
+                onDone(String(args.event['output']));
               },
             ],
           },
+          LEAVE: 'idle',
         },
-        on: { LEAVE: 'idle' },
       },
       loaded: {},
     },
