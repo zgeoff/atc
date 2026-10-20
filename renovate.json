@@ -1,11 +1,4 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["github>zgeoff/tools"],
-  "packageRules": [
-    {
-      "description": "0.6 bans every type assertion, so @zgeoff/oxlint-config is held below 0.6 until GEO-1468's cast-ban PR for this repo takes 0.6.x and removes this rule.",
-      "matchPackageNames": ["@zgeoff/oxlint-config"],
-      "allowedVersions": "<0.6"
-    }
-  ]
+  "extends": ["github>zgeoff/tools"]
 }

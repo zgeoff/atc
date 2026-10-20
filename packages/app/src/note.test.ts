@@ -46,7 +46,9 @@ test('it forwards an answered envelope with the final text from stdin', async ()
   expect(codes).toStrictEqual([0]);
   expect(printed).toStrictEqual(['delivered\n']);
 
-  expect(JSON.parse(line) as unknown).toStrictEqual({
+  const report: unknown = JSON.parse(line);
+
+  expect(report).toStrictEqual({
     atcId: 's1',
     event: 'Note',
     payload: { kind: 'answered', message: 'm-1', answer: 'all done' },
@@ -77,7 +79,9 @@ test('it forwards an answered envelope with the turn that carried the message', 
 
   expect(codes).toStrictEqual([0]);
 
-  expect(JSON.parse(line) as unknown).toStrictEqual({
+  const report: unknown = JSON.parse(line);
+
+  expect(report).toStrictEqual({
     atcId: 's1',
     event: 'Note',
     payload: { kind: 'answered', message: 'm-1', answer: 'all done', turn: 't-7' },
@@ -108,7 +112,9 @@ test('it forwards one answered envelope for every message a turn answered', asyn
 
   expect(codes).toStrictEqual([0]);
 
-  expect(JSON.parse(line) as unknown).toStrictEqual({
+  const report: unknown = JSON.parse(line);
+
+  expect(report).toStrictEqual({
     atcId: 's1',
     event: 'Note',
     payload: { kind: 'answered', messages: ['m-1', 'm-2'], answer: 'both done', turn: 't-7' },
@@ -139,7 +145,9 @@ test('it forwards an unanswered envelope with the messages, reason, and turn', a
 
   expect(codes).toStrictEqual([0]);
 
-  expect(JSON.parse(line) as unknown).toStrictEqual({
+  const report: unknown = JSON.parse(line);
+
+  expect(report).toStrictEqual({
     atcId: 's1',
     event: 'Note',
     payload: { kind: 'unanswered', messages: ['m-1', 'm-2'], reason: 'interrupted', turn: 't-7' },
@@ -170,7 +178,9 @@ test('it forwards an unanswered envelope without a turn', async () => {
 
   expect(codes).toStrictEqual([0]);
 
-  expect(JSON.parse(line) as unknown).toStrictEqual({
+  const report: unknown = JSON.parse(line);
+
+  expect(report).toStrictEqual({
     atcId: 's1',
     event: 'Note',
     payload: { kind: 'unanswered', messages: ['m-1'], reason: 'not_started' },
@@ -322,7 +332,9 @@ test('it forwards a note with its label and the text from stdin', async () => {
 
   expect(codes).toStrictEqual([0]);
 
-  expect(JSON.parse(line) as unknown).toStrictEqual({
+  const report: unknown = JSON.parse(line);
+
+  expect(report).toStrictEqual({
     atcId: 's1',
     event: 'Note',
     payload: { kind: 'note', label: 'blocked', text: 'need review' },
@@ -353,7 +365,9 @@ test('it labels a note progress when no label is given', async () => {
 
   expect(codes).toStrictEqual([0]);
 
-  expect(JSON.parse(line) as unknown).toStrictEqual({
+  const report: unknown = JSON.parse(line);
+
+  expect(report).toStrictEqual({
     atcId: 's1',
     event: 'Note',
     payload: { kind: 'note', label: 'progress', text: 'halfway there' },

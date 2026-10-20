@@ -3,7 +3,7 @@ import { toAgentSessionID, toMessageID, toSessionID } from '@atc/core';
 import { MESSAGE_SENDER_SCHEMA } from '@atc/protocol/wire';
 import type { MessageSender } from '@atc/protocol/wire';
 import { sql } from 'kysely';
-import type { Expression, ExpressionBuilder, Kysely, RawBuilder, SqlBool } from 'kysely';
+import type { Expression, ExpressionBuilder, Kysely, SqlBool } from 'kysely';
 import { getMessageSources } from './get-message-sources';
 import type { MessageOwner } from './message-owner';
 import type { MessageRecord, TurnSibling } from './message-record';
@@ -152,13 +152,13 @@ export class MessageStore {
 
     const rows = await this.db
       .updateTable('messages')
-      .set({
+      .set((eb) => ({
         status: 'answered',
         answered_at: at,
         answer,
         turn_id: turn,
-        notice_queued_at: buildNoticeQueuedAt(at),
-      })
+        notice_queued_at: buildNoticeQueuedAt(eb, at),
+      }))
       .where('id', 'in', ids)
       .where('status', 'in', getMessageSources('answered'))
       .where((eb) => buildOwnerFilter(eb, owner))
@@ -186,13 +186,13 @@ export class MessageStore {
 
     const rows = await this.db
       .updateTable('messages')
-      .set({
+      .set((eb) => ({
         status: 'unanswered',
         unanswered_at: at,
         unanswered_reason: reason,
         turn_id: turn,
-        notice_queued_at: buildNoticeQueuedAt(at),
-      })
+        notice_queued_at: buildNoticeQueuedAt(eb, at),
+      }))
       .where('id', 'in', ids)
       .where('status', 'in', getMessageSources('unanswered'))
       .where((eb) => buildOwnerFilter(eb, owner))
@@ -214,12 +214,12 @@ export class MessageStore {
   ): Promise<MessageRecord[]> {
     const rows = await this.db
       .updateTable('messages')
-      .set({
+      .set((eb) => ({
         status: 'unanswered',
         unanswered_at: at,
         unanswered_reason: reason,
-        notice_queued_at: buildNoticeQueuedAt(at),
-      })
+        notice_queued_at: buildNoticeQueuedAt(eb, at),
+      }))
       .where('status', 'in', getMessageSources('unanswered', ['delivered']))
       .where((eb) => buildOwnerFilter(eb, owner))
       .returningAll()
@@ -240,12 +240,12 @@ export class MessageStore {
   ): Promise<MessageRecord[]> {
     const rows = await this.db
       .updateTable('messages')
-      .set({
+      .set((eb) => ({
         status: 'unanswered',
         unanswered_at: at,
         unanswered_reason: reason,
-        notice_queued_at: buildNoticeQueuedAt(at),
-      })
+        notice_queued_at: buildNoticeQueuedAt(eb, at),
+      }))
       .where('status', 'in', getMessageSources('unanswered'))
       .where((eb) => buildOwnerFilter(eb, owner))
       .returningAll()
@@ -399,6 +399,10 @@ function buildMessageSender(
 // The time a settling statement queues a message's answer notice at: the
 // settle time for a message that has a sender session, else none, since
 // no session waits on its outcome.
-function buildNoticeQueuedAt(at: number): RawBuilder<number | null> {
-  return sql<number | null>`case when ${sql.ref('sender_session')} is not null then ${at} end`;
+function buildNoticeQueuedAt(
+  eb: ExpressionBuilder<StateStoreSchema, 'messages'>,
+  at: number,
+): Expression<number | null> {
+  // oxlint-disable-next-line promise/prefer-await-to-then -- Kysely's CASE builder names its branch method then; it returns no promise
+  return eb.case().when('sender_session', 'is not', null).then(at).end();
 }

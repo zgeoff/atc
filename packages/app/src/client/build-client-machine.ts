@@ -1,3 +1,4 @@
+import { machineTypes } from '@zgeoff/std';
 import { assign, setup } from 'xstate';
 import type { Actor } from 'xstate';
 
@@ -51,13 +52,7 @@ export interface ClientMachineDeps {
 
 export function buildClientMachine(deps: ClientMachineDeps) {
   return setup({
-    types: {
-      // oxlint-disable-next-line no-unsafe-type-assertion -- xstate's typed-setup contract: this value is never read, it only carries the context type past the type layer
-      context: {} as ClientMachineContext,
-
-      // oxlint-disable-next-line no-unsafe-type-assertion -- xstate's typed-setup contract: this value is never read, it only carries the event union past the type layer
-      events: {} as ClientMachineEvent,
-    },
+    types: machineTypes<{ context: ClientMachineContext; events: ClientMachineEvent }>(),
     actions: {
       openHome: () => {
         deps.openHome();

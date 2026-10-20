@@ -1,6 +1,7 @@
 import type { SessionID } from '@atc/core';
 import { toSessionID } from '@atc/core';
 import { DaemonError } from '@atc/protocol/wire';
+import { pick } from '@zgeoff/std';
 import type { DaemonContext } from '../daemon-context';
 import type { KeyedRequest } from '../transport/idempotency-ledger';
 import { buildGrantFromFleetEntry } from './build-grant-from-fleet-entry';
@@ -266,7 +267,9 @@ export function buildScopedContext(
         : Promise.resolve('unknown' as const),
   };
 
-  return { ...collectSharedMembers(ctx), ...narrowed };
+  const shared = Object.keys(CONTEXT_MEMBER_SCOPES).filter((member) => isSharedMember(member));
+
+  return { ...pick(ctx, shared), ...narrowed };
 }
 
 // Throws the refusal of a spawn to a target the access leaves out.
@@ -278,21 +281,12 @@ function requireTarget(canUseTarget: (target: string) => boolean, target: string
 
 type SharedMember = Exclude<keyof DaemonContext, NarrowedMember>;
 
-// The daemon's own members that the principal's context keeps as they are.
-// A member the daemon leaves unset stays unset.
-function collectSharedMembers(ctx: DaemonContext): Pick<DaemonContext, SharedMember> {
-  const shared = Object.fromEntries(
-    Object.entries(CONTEXT_MEMBER_SCOPES)
-      .filter(([member, scope]) => scope !== 'narrowed' && member in ctx)
-      .map(([member]) => [member, isContextMember(member) ? ctx[member] : undefined]),
-  );
-
-  // oxlint-disable-next-line no-unsafe-type-assertion -- the scope table holds a key for every member, and each shared value comes from the daemon's context under its own key
-  return shared as Pick<DaemonContext, SharedMember>;
+// Whether the key is a member of the daemon's context that the principal's
+// context keeps as it is, as the scope table holds a key for each member.
+function isSharedMember(member: string): member is SharedMember {
+  return isContextMember(member) && CONTEXT_MEMBER_SCOPES[member] !== 'narrowed';
 }
 
-// Whether the key is a member of the daemon's context, as the scope table
-// holds a key for each one.
 function isContextMember(member: string): member is keyof DaemonContext {
   return Object.hasOwn(CONTEXT_MEMBER_SCOPES, member);
 }

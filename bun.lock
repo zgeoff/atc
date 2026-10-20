@@ -63,6 +63,8 @@
         "@better-auth/mcp": "catalog:",
         "@better-auth/oauth-provider": "catalog:",
         "@simplewebauthn/server": "catalog:",
+        "@zgeoff/kysely-bun-sqlite": "catalog:",
+        "@zgeoff/std": "catalog:",
         "better-auth": "catalog:",
         "gunshi": "catalog:",
         "kysely": "catalog:",
@@ -91,6 +93,7 @@
     "packages/core": {
       "name": "@atc/core",
       "dependencies": {
+        "@zgeoff/std": "catalog:",
         "type-fest": "catalog:",
         "zod": "catalog:",
       },
@@ -114,6 +117,7 @@
         "@orpc/standard-server-peer": "catalog:",
         "@xterm/addon-serialize": "catalog:",
         "@xterm/headless": "catalog:",
+        "@zgeoff/std": "catalog:",
         "lru-cache": "catalog:",
         "ts-pattern": "catalog:",
         "xstate": "catalog:",
@@ -133,6 +137,7 @@
         "@atc/plugin-api": "workspace:*",
         "@atc/protocol": "workspace:*",
         "@impz/client": "catalog:",
+        "@zgeoff/std": "catalog:",
         "ts-pattern": "catalog:",
         "xstate": "catalog:",
         "zod": "catalog:",
@@ -174,6 +179,7 @@
         "@atc/test-utils": "workspace:*",
         "@faker-js/faker": "catalog:",
         "@types/proper-lockfile": "catalog:",
+        "@zgeoff/std": "catalog:",
         "proper-lockfile": "catalog:",
         "tiny-invariant": "catalog:",
       },
@@ -218,6 +224,7 @@
       "devDependencies": {
         "@atc/test-utils": "workspace:*",
         "@faker-js/faker": "catalog:",
+        "@zgeoff/std": "catalog:",
         "tiny-invariant": "catalog:",
       },
     },
@@ -241,6 +248,7 @@
         "@orpc/client": "catalog:",
         "@orpc/contract": "catalog:",
         "@orpc/standard-server-peer": "catalog:",
+        "@zgeoff/std": "catalog:",
         "xstate": "catalog:",
         "zod": "catalog:",
       },
@@ -287,12 +295,14 @@
         "@atc/config": "workspace:*",
         "@atc/core": "workspace:*",
         "@atc/protocol": "workspace:*",
+        "@zgeoff/kysely-bun-sqlite": "catalog:",
         "kysely": "catalog:",
         "zod": "catalog:",
       },
       "devDependencies": {
         "@atc/test-utils": "workspace:*",
         "@faker-js/faker": "catalog:",
+        "@zgeoff/std": "catalog:",
         "tiny-invariant": "catalog:",
       },
     },
@@ -307,6 +317,8 @@
         "@orpc/client": "catalog:",
         "@orpc/standard-server": "catalog:",
         "@orpc/standard-server-peer": "catalog:",
+        "@zgeoff/kysely-bun-sqlite": "catalog:",
+        "@zgeoff/std": "catalog:",
         "bun-pty": "catalog:",
         "kysely": "catalog:",
         "type-fest": "catalog:",
@@ -356,8 +368,10 @@
     "@xterm/headless": "6.0.0",
     "@zgeoff/bun-test-extended": "0.2.1",
     "@zgeoff/format-codemod": "0.3.1",
-    "@zgeoff/oxlint-config": "0.5.2",
+    "@zgeoff/kysely-bun-sqlite": "0.3.0",
+    "@zgeoff/oxlint-config": "0.6.1",
     "@zgeoff/skill-gate": "0.2.3",
+    "@zgeoff/std": "0.3.0",
     "better-auth": "1.7.7",
     "bun-pty": "0.5.1",
     "gunshi": "1.0.0-rc.1",
@@ -869,9 +883,13 @@
 
     "@zgeoff/format-codemod": ["@zgeoff/format-codemod@0.3.1", "", { "dependencies": { "gunshi": "1.0.0-rc.1", "oxc-parser": "0.154.0" }, "bin": { "format-codemod": "dist/cli.js" } }, "sha512-upt1uvxiSrWdDyLJxnCpZ+4cTaObNvH38bMqlfOXSsTcRByHK2YM1FeRE/utdqrJ39im4TKw1cPjtSrIprY4yg=="],
 
-    "@zgeoff/oxlint-config": ["@zgeoff/oxlint-config@0.5.2", "", { "dependencies": { "@stylistic/eslint-plugin": "5.10.0" }, "peerDependencies": { "oxlint": ">=1.78.0" } }, "sha512-cUW6nPI6b2+iDBiRnqJb0edKpZ7nBlNpKNV3UpwRtuthkTNQkecsBEC9nH3rwM7S1nUUAFoV2wkiHJZwoBUHSw=="],
+    "@zgeoff/kysely-bun-sqlite": ["@zgeoff/kysely-bun-sqlite@0.3.0", "", { "peerDependencies": { "kysely": ">=0.29.5 <0.30.0" } }, "sha512-LJ8sc8xpEDa0aYBNA4raORnSit3SUXpVLK+F5qImnw4TDKBjgK2b5l3qNja99K2ITXF6Bpr6dAoMB6UDmdJ6EQ=="],
+
+    "@zgeoff/oxlint-config": ["@zgeoff/oxlint-config@0.6.1", "", { "dependencies": { "@stylistic/eslint-plugin": "5.10.0" }, "peerDependencies": { "oxlint": ">=1.78.0" } }, "sha512-MPMbLnNEFfuwJ+SGDFWI2Lp+qapss8k40vSn+yQk41SiV2SB38kLErcAPwAN/R4FQj4kp1Mp08alQ3ImCOFURw=="],
 
     "@zgeoff/skill-gate": ["@zgeoff/skill-gate@0.2.3", "", {}, "sha512-0L9xF2NtNHBvm0Z7PDoXsF5bOwpY9/Dep2b4IgzmWCCXtNUpsz/SOiGsQk7t4PxvaOg/f2kmOOYu3TgoThwXxg=="],
+
+    "@zgeoff/std": ["@zgeoff/std@0.3.0", "", {}, "sha512-I9LBwkMr8uuNCAQ9/tIoObp09b8ixnNDp1f85T9Mm1Ox10nWbVrbiqoWkf+hATCt4iyYxvYIVXl4eUFLwZaU/g=="],
 
     "accepts": ["accepts@2.0.0", "", { "dependencies": { "mime-types": "^3.0.0", "negotiator": "^1.0.0" } }, "sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng=="],
 

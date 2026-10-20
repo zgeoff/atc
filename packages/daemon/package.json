@@ -21,6 +21,7 @@
     "@orpc/standard-server-peer": "catalog:",
     "@xterm/addon-serialize": "catalog:",
     "@xterm/headless": "catalog:",
+    "@zgeoff/std": "catalog:",
     "lru-cache": "catalog:",
     "ts-pattern": "catalog:",
     "xstate": "catalog:",

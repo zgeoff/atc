@@ -2,8 +2,7 @@ import { sql } from 'kysely';
 import type { Kysely } from 'kysely';
 import type { Migration } from 'kysely/migration';
 import { createSessionOwners } from './create-session-owners';
-import { readFleetColumns } from './read-fleet-columns';
-import type { ColumnInfoRow } from './read-fleet-columns';
+import { readTableColumns } from './read-table-columns';
 import type { StateStoreSchema } from './state-store-schema';
 import { updateFleetAgentSessionIDToShared } from './update-fleet-agent-session-id-to-shared';
 import { updateFleetKeyToSessionID } from './update-fleet-key-to-session-id';
@@ -181,7 +180,7 @@ export const MIGRATIONS: Record<string, Migration> = {
     async up(db: Kysely<StateStoreSchema>) {
       // The ledger records this step only after it returns, so a crash in
       // between leaves a rebuilt table behind a ledger that still lacks it.
-      const columns = await readFleetColumns(db);
+      const columns = await readTableColumns(db, 'fleet');
 
       if (columns.has('session_id')) {
         return;
@@ -285,9 +284,9 @@ export const MIGRATIONS: Record<string, Migration> = {
     async up(db: Kysely<StateStoreSchema>) {
       // The ledger records this step only after it returns, so a crash in
       // between leaves a rebuilt table behind a ledger that still lacks it.
-      const columns = await sql<ColumnInfoRow>`PRAGMA table_info(spawn_history)`.execute(db);
+      const columns = await readTableColumns(db, 'spawn_history');
 
-      if (columns.rows.some((column) => column.name === 'target')) {
+      if (columns.has('target')) {
         return;
       }
 
@@ -358,9 +357,7 @@ export const MIGRATIONS: Record<string, Migration> = {
       // Each step can run again after a crash: a column renames only while
       // it still carries the old name, and every value update matches the
       // old value alone.
-      const columns = await sql<ColumnInfoRow>`PRAGMA table_info(events)`.execute(db);
-
-      const names = new Set(columns.rows.map((column) => column.name));
+      const names = await readTableColumns(db, 'events');
 
       if (names.has('report_id')) {
         await sql`ALTER TABLE events RENAME COLUMN report_id TO note_id`.execute(db);
@@ -457,7 +454,7 @@ export const MIGRATIONS: Record<string, Migration> = {
     async up(db: Kysely<StateStoreSchema>) {
       // Nothing reads the column. The drop runs only while it is there, so
       // the step can run again after a crash.
-      const columns = await readFleetColumns(db);
+      const columns = await readTableColumns(db, 'fleet');
 
       if (columns.has('resume_interrupted_turns')) {
         await db.schema.alterTable('fleet').dropColumn('resume_interrupted_turns').execute();
@@ -468,9 +465,7 @@ export const MIGRATIONS: Record<string, Migration> = {
     async up(db: Kysely<StateStoreSchema>) {
       // A column renames only while it still carries the old name, so the
       // step can run again after a crash.
-      const columns = await sql<ColumnInfoRow>`PRAGMA table_info(runtime_auth_binding)`.execute(db);
-
-      const names = new Set(columns.rows.map((column) => column.name));
+      const names = await readTableColumns(db, 'runtime_auth_binding');
 
       if (names.has('imp_name')) {
         await sql`ALTER TABLE runtime_auth_binding RENAME COLUMN imp_name TO host_name`.execute(db);
@@ -491,10 +486,9 @@ export const MIGRATIONS: Record<string, Migration> = {
     async up(db: Kysely<StateStoreSchema>) {
       // The column renames only while it still carries the old name, so the
       // step can run again after a crash.
-      const columns =
-        await sql<ColumnInfoRow>`PRAGMA table_info(workspace_materialization)`.execute(db);
+      const columns = await readTableColumns(db, 'workspace_materialization');
 
-      if (columns.rows.some((column) => column.name === 'dir')) {
+      if (columns.has('dir')) {
         await sql`ALTER TABLE workspace_materialization RENAME COLUMN dir TO directory`.execute(db);
       }
     },

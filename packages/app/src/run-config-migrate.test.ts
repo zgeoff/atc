@@ -87,7 +87,9 @@ test('it backs the file up, rewrites it, and prints both paths with --write', ()
   expect(others).toStrictEqual([]);
   expect(readFileSync(backup, 'utf8')).toBe(original);
 
-  expect(JSON.parse(readFileSync(file, 'utf8')) as unknown).toStrictEqual({
+  const migrated: unknown = JSON.parse(readFileSync(file, 'utf8'));
+
+  expect(migrated).toStrictEqual({
     agents: { claude: {}, grok: {}, codex: { bin: '/opt/codex' } },
   });
 });

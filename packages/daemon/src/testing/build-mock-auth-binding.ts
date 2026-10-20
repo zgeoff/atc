@@ -1,7 +1,7 @@
 import { toAgentID } from '@atc/core';
-import { mergeDeep } from '@atc/test-utils';
 import type { MockOverrides } from '@atc/test-utils';
 import { faker } from '@faker-js/faker';
+import { mergeDeep } from '@zgeoff/std';
 import type { AuthBinding } from '../auth/build-auth-binding';
 
 export function buildMockAuthBinding(

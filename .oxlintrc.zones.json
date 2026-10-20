@@ -264,7 +264,7 @@
           // tests and e2e journeys open a state database to check what a run wrote
           {
             "name": "confinement",
-            "modules": ["bun:sqlite", "kysely"],
+            "modules": ["bun:sqlite", "kysely", "@zgeoff/kysely-bun-sqlite"],
             "allow": ["store", "app", "tests"]
           },
           {

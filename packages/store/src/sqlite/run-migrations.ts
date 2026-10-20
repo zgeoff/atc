@@ -30,9 +30,8 @@ export async function runMigrations(db: Kysely<StateStoreSchema>): Promise<void>
 }
 
 async function probeTable(db: Kysely<StateStoreSchema>, name: string): Promise<boolean> {
-  const result = await sql<{
-    name: string;
-  }>`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ${name}`.execute(db);
+  const result =
+    await sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ${name}`.execute(db);
 
   return result.rows.length > 0;
 }

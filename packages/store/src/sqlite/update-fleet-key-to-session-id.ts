@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import type { Kysely } from 'kysely';
+import { z } from 'zod';
 import type { StateStoreSchema } from './state-store-schema';
 
-interface FleetIDRow {
-  old_rowid: number;
-  agent_session_id: string | null;
-}
+const FLEET_ID_ROWS_SCHEMA = z.array(
+  z.object({ old_rowid: z.number(), agent_session_id: z.string().nullable() }),
+);
 
 // Gives every row a minted atc session id and moves the sub-session link
 // from the parent's agent session id to the parent's atc session id. A link
@@ -18,10 +18,9 @@ export async function updateFleetKeyToSessionID(db: Kysely<StateStoreSchema>): P
     db,
   );
 
-  const rows =
-    await sql<FleetIDRow>`SELECT rowid AS old_rowid, agent_session_id FROM fleet`.execute(db);
+  const result = await sql`SELECT rowid AS old_rowid, agent_session_id FROM fleet`.execute(db);
 
-  for (const row of rows.rows) {
+  for (const row of FLEET_ID_ROWS_SCHEMA.parse(result.rows)) {
     await sql`INSERT INTO fleet_ids (old_rowid, agent_session_id, session_id) VALUES (${row.old_rowid}, ${row.agent_session_id}, ${randomUUID()})`.execute(
       db,
     );

@@ -1,12 +1,12 @@
 import type { AgentEntry } from '@atc/protocol';
 import { faker } from '@faker-js/faker';
-import { mergeDeep } from './merge-deep';
+import { mergeDeep } from '@zgeoff/std';
 import type { MockOverrides } from './mock-overrides';
 
 type ListedAgentOverrides = MockOverrides<AgentEntry, keyof AgentEntry>;
 
 export function buildMockListedAgent(overrides: ListedAgentOverrides = {}): AgentEntry {
-  return mergeDeep<AgentEntry, keyof AgentEntry>(
+  return mergeDeep<AgentEntry>(
     {
       id: faker.string.alpha({ length: 8, casing: 'lower' }),
       label: faker.company.name(),

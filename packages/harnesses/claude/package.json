@@ -21,6 +21,7 @@
     "@atc/test-utils": "workspace:*",
     "@faker-js/faker": "catalog:",
     "@types/proper-lockfile": "catalog:",
+    "@zgeoff/std": "catalog:",
     "proper-lockfile": "catalog:",
     "tiny-invariant": "catalog:"
   }

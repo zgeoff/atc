@@ -1,6 +1,6 @@
 import type { AuthProfile } from '@atc/plugin-api';
 import { faker } from '@faker-js/faker';
-import { mergeDeep } from './merge-deep';
+import { mergeDeep } from '@zgeoff/std';
 import type { MockOverrides } from './mock-overrides';
 
 type HeaderAuthProfile = Extract<AuthProfile, { readonly host: string }>;

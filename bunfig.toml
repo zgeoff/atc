@@ -16,6 +16,7 @@ minimumReleaseAgeExcludes = [
   "@impz/client",
   "@zgeoff/bun-test-extended",
   "@zgeoff/format-codemod",
+  "@zgeoff/kysely-bun-sqlite",
   "@zgeoff/oxlint-config",
   "@zgeoff/skill-gate",
   "@zgeoff/std",

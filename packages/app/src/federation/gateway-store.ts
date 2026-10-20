@@ -1,5 +1,6 @@
 import { Database } from 'bun:sqlite';
 import { DaemonError } from '@atc/protocol/wire';
+import { z } from 'zod';
 
 export type BindingOutcome = 'pending' | 'completed' | 'uncertain';
 
@@ -25,20 +26,22 @@ export interface KeyBinding {
   readonly claimID: string;
 }
 
-interface BindingRow {
-  readonly principal: string;
-  readonly operation: string;
-  readonly key: string;
-  readonly daemon: string;
-  readonly daemon_id: string;
-  readonly retention_ms: number | null;
-  readonly payload_hash: string;
-  readonly outcome: string;
-  readonly outcome_at: number;
-  readonly sent_at: number | null;
-  readonly effect_ref: string | null;
-  readonly claim_id: string;
-}
+const BINDING_ROW_SCHEMA = z.object({
+  principal: z.string(),
+  operation: z.string(),
+  key: z.string(),
+  daemon: z.string(),
+  daemon_id: z.string(),
+  retention_ms: z.number().nullable(),
+  payload_hash: z.string(),
+  outcome: z.string(),
+  outcome_at: z.number(),
+  sent_at: z.number().nullable(),
+  effect_ref: z.string().nullable(),
+  claim_id: z.string(),
+});
+
+type BindingRow = z.infer<typeof BINDING_ROW_SCHEMA>;
 
 export class GatewayStore {
   private readonly db: Database;
@@ -113,13 +116,13 @@ export class GatewayStore {
 
   findBinding(principal: string, operation: string, key: string): KeyBinding | null {
     const row = this.db
-      .query<BindingRow, { principal: string; operation: string; key: string }>(
+      .query(
         `SELECT * FROM key_binding
          WHERE principal = $principal AND operation = $operation AND key = $key`,
       )
       .get({ principal, operation, key });
 
-    return row === null ? null : toKeyBinding(row);
+    return row === null ? null : toKeyBinding(BINDING_ROW_SCHEMA.parse(row));
   }
 
   claimFirstSend(principal: string, operation: string, key: string, now: number): boolean {

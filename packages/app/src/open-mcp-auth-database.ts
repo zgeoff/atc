@@ -1,4 +1,5 @@
-import { buildSQLiteDialect, openSQLite } from '@atc/store/sqlite';
+import { openSQLite } from '@atc/store/sqlite';
+import { buildSQLiteDialect } from '@zgeoff/kysely-bun-sqlite';
 import type { MCPAuthDatabase } from './mcp/mcp-auth-database';
 
 export function openMCPAuthDatabase(path: string): MCPAuthDatabase {

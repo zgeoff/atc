@@ -1,6 +1,6 @@
-import { mergeDeep } from '@atc/test-utils';
 import type { MockOverrides } from '@atc/test-utils';
 import { faker } from '@faker-js/faker';
+import { mergeDeep } from '@zgeoff/std';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 
 export function buildMockExecutionTarget(

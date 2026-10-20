@@ -65,7 +65,7 @@ exec cat
 
     await client.sendRequest('session.input', { session: id, data: 'go\r' });
 
-    const outcome = await waitFor(() => JSON.parse(readFileSync(ctx.outPath, 'utf8')) as unknown);
+    const outcome = await waitFor((): unknown => JSON.parse(readFileSync(ctx.outPath, 'utf8')));
 
     expect(outcome).toStrictEqual({ code: 'unauthorized' });
   },
@@ -108,7 +108,7 @@ exec cat
 
     await client.sendRequest('session.input', { session: id, data: 'go\r' });
 
-    const outcome = await waitFor(() => JSON.parse(readFileSync(ctx.outPath, 'utf8')) as unknown);
+    const outcome = await waitFor((): unknown => JSON.parse(readFileSync(ctx.outPath, 'utf8')));
 
     const name = getString(getRecord(spawned, 'session'), 'name');
 
@@ -154,7 +154,7 @@ exec cat
 
     await client.sendRequest('session.input', { session: id, data: 'go\r' });
 
-    const outcome = await waitFor(() => JSON.parse(readFileSync(ctx.outPath, 'utf8')) as unknown);
+    const outcome = await waitFor((): unknown => JSON.parse(readFileSync(ctx.outPath, 'utf8')));
 
     expect(outcome).toStrictEqual({ from: name, sender: { kind: 'session', session: id, name } });
   },
@@ -196,7 +196,7 @@ exec cat
 
     await client.sendRequest('session.input', { session: id, data: 'go\r' });
 
-    const outcome = await waitFor(() => JSON.parse(readFileSync(ctx.outPath, 'utf8')) as unknown);
+    const outcome = await waitFor((): unknown => JSON.parse(readFileSync(ctx.outPath, 'utf8')));
 
     expect(outcome).toStrictEqual({ code: 'unauthorized' });
   },
@@ -240,7 +240,7 @@ exec cat
 
     await client.sendRequest('session.input', { session: id, data: 'go\r' });
 
-    const line = await waitFor(() => JSON.parse(readFileSync(ctx.outPath, 'utf8')) as unknown);
+    const line = await waitFor((): unknown => JSON.parse(readFileSync(ctx.outPath, 'utf8')));
 
     expect(line).toMatchObject({ ev: 'SessionAdded', session: { id } });
   },
@@ -283,7 +283,7 @@ exec cat
 
     await client.sendRequest('session.input', { session: id, data: 'go\r' });
 
-    const outcome = await waitFor(() => JSON.parse(readFileSync(ctx.outPath, 'utf8')) as unknown);
+    const outcome = await waitFor((): unknown => JSON.parse(readFileSync(ctx.outPath, 'utf8')));
 
     expect(outcome).toStrictEqual({ ok: true });
   },

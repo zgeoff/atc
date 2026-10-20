@@ -55,11 +55,11 @@ export class FleetMirror {
       }
     }
 
-    const answer = await getClient()
+    const answer: Readonly<Record<string, unknown>> = await getClient()
       .sendRequest('fleet.list')
       .catch(() => ({}) as const);
 
-    const entries = (answer as Record<string, unknown>)['fleet'];
+    const entries = answer['fleet'];
 
     this.count = Array.isArray(entries) ? entries.length : 0;
   }

@@ -1,3 +1,4 @@
+import { machineTypes } from '@zgeoff/std';
 import { assign, setup } from 'xstate';
 
 type ClientEvent =
@@ -13,13 +14,7 @@ interface ClientContext {
 // event subscription starts. It holds state only; the client performs every
 // effect and reads its state back from here.
 export const CLIENT_MACHINE = setup({
-  types: {
-    // oxlint-disable-next-line no-unsafe-type-assertion -- xstate's typed-setup contract: this value is never read, it only carries the context type past the type layer
-    context: {} as ClientContext,
-
-    // oxlint-disable-next-line no-unsafe-type-assertion -- xstate's typed-setup contract: this value is never read, it only carries the event union past the type layer
-    events: {} as ClientEvent,
-  },
+  types: machineTypes<{ context: ClientContext; events: ClientEvent }>(),
   actions: {
     recordReason: assign({
       closedReason: (args) => (args.event.type === 'CLOSE' ? args.event.reason : null),

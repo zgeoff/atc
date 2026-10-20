@@ -1,5 +1,5 @@
 import type { Clock, SessionID } from '@atc/core';
-import { truncateToBytes } from '@atc/core';
+import { isRecord, truncateToBytes } from '@atc/core';
 import type { HarnessRelay } from '@atc/plugin-api';
 import type { AdapterEvent } from '@atc/protocol';
 import type { HookEvent } from '@atc/protocol/session';
@@ -205,7 +205,7 @@ export class HookIntake {
   // resent note land once; a resent answer changes nothing, since only an
   // unanswered message takes one.
   async applyNote(hookEvent: HookEvent, noteID?: string): Promise<void> {
-    const note = parseNote(hookEvent.payload);
+    const note = isRecord(hookEvent.payload) ? parseNote(hookEvent.payload) : null;
 
     if (note === null) {
       return;

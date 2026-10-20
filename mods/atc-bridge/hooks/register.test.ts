@@ -620,7 +620,7 @@ test('it registers the note tool with a label input', async (engine, on) => {
   on('tool.register', ($, e) => {
     registered.push({
       name: e.name,
-      properties: Object.keys(e.inputSchema['properties'] as object),
+      properties: Object.keys(e.inputSchema['properties'] ?? {}),
       required: e.inputSchema['required'],
     });
 

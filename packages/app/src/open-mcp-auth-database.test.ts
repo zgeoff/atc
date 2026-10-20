@@ -24,7 +24,7 @@ function setupTest() {
 test('it opens the database with foreign keys enforced', async () => {
   const ctx = setupTest();
 
-  const pragma = await sql<{ foreign_keys: number }>`pragma foreign_keys`.execute(ctx.db);
+  const pragma = await sql`pragma foreign_keys`.execute(ctx.db);
 
   expect(pragma.rows).toStrictEqual([{ foreign_keys: 1 }]);
 });
@@ -32,7 +32,7 @@ test('it opens the database with foreign keys enforced', async () => {
 test('it opens the database to wait for another process lock before failing', async () => {
   const ctx = setupTest();
 
-  const pragma = await sql<{ timeout: number }>`pragma busy_timeout`.execute(ctx.db);
+  const pragma = await sql`pragma busy_timeout`.execute(ctx.db);
 
   expect(pragma.rows).toStrictEqual([{ timeout: 5000 }]);
 });

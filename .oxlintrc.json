@@ -153,7 +153,6 @@
         "packages/store/src/materialization-store.ts",
         "packages/store/src/message-store.ts",
         "packages/store/src/published-record-store.ts",
-        "packages/store/src/sqlite/bun-sqlite-driver.ts",
         "packages/store/src/state-store.ts"
       ],
       "rules": { "zgeoff/no-class": "off" }

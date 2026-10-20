@@ -1,3 +1,4 @@
+import { machineTypes } from '@zgeoff/std';
 import { setup } from 'xstate';
 
 type EventFeedEvent =
@@ -9,10 +10,7 @@ type EventFeedEvent =
 // does. The machine holds state only; the feed performs every effect and
 // reads its state back.
 export const EVENT_FEED_MACHINE = setup({
-  types: {
-    // oxlint-disable-next-line no-unsafe-type-assertion -- xstate's typed-setup contract: this value is never read, it only carries the event union past the type layer
-    events: {} as EventFeedEvent,
-  },
+  types: machineTypes<{ events: EventFeedEvent }>(),
 }).createMachine({
   id: 'event-feed',
   initial: 'collecting',

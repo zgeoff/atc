@@ -82,7 +82,7 @@ test('it hands the sending session an answer notice with the answer once the rec
         from: ctx.recipient,
         status: 'answered',
         answer: 'the build is green',
-        at: expect.any(Number) as unknown,
+        at: expect.any(Number),
       },
     ]);
   });
@@ -120,7 +120,7 @@ test('it hands the sending session an unanswered notice with the reason when the
         from: ctx.recipient,
         status: 'unanswered',
         reason: 'interrupted',
-        at: expect.any(Number) as unknown,
+        at: expect.any(Number),
       },
     ]);
   });
@@ -161,7 +161,7 @@ test('it hands the sending session an unanswered notice when the recipient sessi
         from: ctx.recipient,
         status: 'unanswered',
         reason: 'session_ended',
-        at: expect.any(Number) as unknown,
+        at: expect.any(Number),
       },
     ]);
   });
@@ -191,7 +191,7 @@ test('it hands the sending session one unanswered notice when the recipient of a
         from: ctx.recipient,
         status: 'unanswered',
         reason: 'session_ended',
-        at: expect.any(Number) as unknown,
+        at: expect.any(Number),
       },
     ]);
   });
@@ -306,7 +306,7 @@ test('it hands one answer notice after a restart when the daemon stopped right a
         from: ctx.recipient,
         status: 'answered',
         answer: 'the release is tagged',
-        at: expect.any(Number) as unknown,
+        at: expect.any(Number),
       },
     ]);
   });
@@ -438,7 +438,7 @@ test('it hands a message delivered before a restart to the revived recipient and
         from: 'sender',
         sender: { kind: 'session', session: ctx.sender, name: 'sender' },
         text: 'rotate the staging keys',
-        sentAt: expect.any(Number) as unknown,
+        sentAt: expect.any(Number),
       },
     ]);
   });
@@ -461,7 +461,7 @@ test('it hands a message delivered before a restart to the revived recipient and
         from: ctx.recipient,
         status: 'answered',
         answer: 'the keys are rotated',
-        at: expect.any(Number) as unknown,
+        at: expect.any(Number),
       },
     ]);
   });

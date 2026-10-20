@@ -1,3 +1,4 @@
+import { machineTypes } from '@zgeoff/std';
 import { assign, setup } from 'xstate';
 
 type BridgeRevivalEvent = { readonly type: 'TAP_LEFT' } | { readonly type: 'WRITE_ENDED' };
@@ -17,13 +18,7 @@ const MAX_DELAY_MS = 30 * 60_000;
 // provides the guards, which read the session, and the write, which it
 // performs; each write doubles the wait before the next check.
 export const BRIDGE_REVIVAL_MACHINE = setup({
-  types: {
-    // oxlint-disable-next-line no-unsafe-type-assertion -- xstate's typed-setup contract: this value is never read, it only carries the context type past the type layer
-    context: {} as BridgeRevivalContext,
-
-    // oxlint-disable-next-line no-unsafe-type-assertion -- xstate's typed-setup contract: this value is never read, it only carries the event union past the type layer
-    events: {} as BridgeRevivalEvent,
-  },
+  types: machineTypes<{ context: BridgeRevivalContext; events: BridgeRevivalEvent }>(),
   guards: {
     isLostAgain: (args) => args.context.isLostAgain,
     isGone: () => false,
