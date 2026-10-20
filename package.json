@@ -44,7 +44,7 @@
       "@zgeoff/oxlint-config": "0.5.2",
       "@zgeoff/skill-gate": "0.2.3",
       "better-auth": "1.7.7",
-      "bun-pty": "0.4.11",
+      "bun-pty": "0.5.1",
       "gunshi": "1.0.0-rc.1",
       "knip": "6.41.0",
       "kysely": "0.29.6",
