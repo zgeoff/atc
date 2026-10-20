@@ -21,11 +21,11 @@ import { getLogger, reset } from '@logtape/logtape';
 import { startStderrLog } from './start-stderr-log';
 
 async function setupTest() {
-  const tmp = setupTempDir('atc-non-blocking-log-');
-  const fifoPath = join(tmp.path, 'stderr');
+  const temporaryDirectory = setupTempDir('atc-non-blocking-log-');
+  const fifoPath = join(temporaryDirectory.path, 'stderr');
 
   // The listener refuses to start without a token file.
-  writeFileSync(join(tmp.path, 'gateway-token'), `${'a'.repeat(32)}\n`);
+  writeFileSync(join(temporaryDirectory.path, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
   // stderr is a named pipe because a pipe from the spawn itself never fills: the
   // runtime reads it as it fills
@@ -49,31 +49,31 @@ async function setupTest() {
       closeSync(writeEnd);
     });
 
-    const proc = Bun.spawn(
+    const subprocess = Bun.spawn(
       [process.execPath, join(import.meta.dir, 'testing', 'run-listener-daemon.ts')],
       {
-        env: { ATC_TEST_DIR: tmp.path, HOME: tmp.path },
+        env: { ATC_TEST_DIR: temporaryDirectory.path, HOME: temporaryDirectory.path },
         stdout: 'pipe',
         stderr: writeEnd,
       },
     );
 
     registerTestCleanup(async () => {
-      proc.kill('SIGKILL');
+      subprocess.kill('SIGKILL');
 
-      await proc.exited;
+      await subprocess.exited;
     });
 
     // The daemon holds its own copy of the write end, and the pipe reports
     // its end only once every writer has closed.
     closeWriteEnd();
 
-    const first = await proc.stdout.getReader().read();
+    const first = await subprocess.stdout.getReader().read();
 
-    return { proc, port: Number(new TextDecoder().decode(first.value).trim()) };
+    return { subprocess, port: Number(new TextDecoder().decode(first.value).trim()) };
   };
 
-  return { dir: tmp.path, fifoPath, startListenerDaemon };
+  return { directory: temporaryDirectory.path, fifoPath, startListenerDaemon };
 }
 
 test('it answers another client while a flood of refusals fills a stderr nobody reads', async () => {
@@ -85,7 +85,7 @@ test('it answers another client while a flood of refusals fills a stderr nobody 
 
   await sendLinesBeforeHandshake(daemon.port, 100);
 
-  const client = await openDaemonClient(join(ctx.dir, 'daemon.sock'));
+  const client = await openDaemonClient(join(ctx.directory, 'daemon.sock'));
 
   onTestFinished(() => {
     client.stop();
@@ -176,15 +176,15 @@ test('it exits cleanly on SIGTERM while a flood of refusals fills the unread std
 
   await sendLinesBeforeHandshake(daemon.port, 100);
 
-  const running = Bun.peek.status(daemon.proc.exited);
+  const running = Bun.peek.status(daemon.subprocess.exited);
 
-  daemon.proc.kill('SIGTERM');
+  daemon.subprocess.kill('SIGTERM');
 
-  const exitCode = await daemon.proc.exited;
+  const exitCode = await daemon.subprocess.exited;
 
   expect(running).toBe('pending');
   expect(exitCode).toBe(0);
-  expect(daemon.proc.signalCode).toBeNull();
+  expect(daemon.subprocess.signalCode).toBeNull();
 });
 
 test('it writes every line it holds at SIGTERM, and the count of the ones it dropped, to a stderr reader that starts to read after it', async () => {
@@ -199,7 +199,7 @@ test('it writes every line it holds at SIGTERM, and the count of the ones it dro
 
   await sendLinesBeforeHandshake(daemon.port, 100);
 
-  daemon.proc.kill('SIGTERM');
+  daemon.subprocess.kill('SIGTERM');
 
   const reader = createReadStream(ctx.fifoPath, { encoding: 'utf8' });
 
@@ -213,7 +213,7 @@ test('it writes every line it holds at SIGTERM, and the count of the ones it dro
     reader.on('end', resolve);
   });
 
-  const exitCode = await daemon.proc.exited;
+  const exitCode = await daemon.subprocess.exited;
 
   await ended;
 
@@ -248,8 +248,8 @@ test('it writes every line it holds at SIGTERM, and the count of the ones it dro
 });
 
 test('it resolves a second stop that overlaps the first only once every line it holds is written', async () => {
-  const tmp = setupTempDir('atc-stderr-log-');
-  const outputPath = join(tmp.path, 'stderr');
+  const temporaryDirectory = setupTempDir('atc-stderr-log-');
+  const outputPath = join(temporaryDirectory.path, 'stderr');
   const fd = openSync(outputPath, 'w');
 
   onTestFinished(() => {
