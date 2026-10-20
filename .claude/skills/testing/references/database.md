@@ -59,12 +59,12 @@ its data exists boots in the test body, after the test creates that data.
 ## Persisted test data
 
 A composite or persistence helper writes rows, and it takes its defaults from the matching
-plain-data factory, so defaults live in one place. A row composite's doc comment names the scenario
-that the service's own operations cannot reach, such as another user's rows, a back-dated
-`createdAt`, or a known one-time-password secret. That comment is the test of whether a direct write
-belongs in the composite at all. A composite that cannot name one should be a call to the service. A
-composite's own test asserts the persisted row with `toMatchObject`, because the database computes
-some of its fields, and asserts that overrides apply.
+plain-data factory, so defaults live in one place. A row composite holds a `//` comment that names
+the scenario that the service's own operations cannot reach, such as another user's rows, a
+back-dated `createdAt`, or a known one-time-password secret. That comment is the test of whether a
+direct write belongs in the composite at all. A composite that cannot name one should be a call to
+the service. A composite's own test asserts the persisted row with `toMatchObject`, because the
+database computes some of its fields, and asserts that overrides apply.
 
 ## Reading results back
 

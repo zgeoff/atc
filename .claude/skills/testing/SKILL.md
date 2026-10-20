@@ -30,8 +30,9 @@ Each line links the section that explains it.
 
 - [Regimes](#regimes): the furthest edge a package's code reaches picks its regime and the reference
   to open.
-- [Principles](#principles): visible beats concise, every test stands alone, and a stand-in sits
-  only at an edge the test cannot cross.
+- [Principles](#principles): visible beats concise, every test stands alone, each changed behaviour
+  has a test that fails without the change, and a stand-in sits only at an edge the test cannot
+  cross.
 - [Structure and naming](#structure-and-naming): flat `test()` calls titled "it …", one act per
   test, and no `describe`.
 - [Loops](#loops): replace a loop of assertions with `test.each` or one collection matcher.
@@ -126,6 +127,10 @@ These decide a case that the rules below leave open.
 - **Behaviour is the contract.** A test pins what the unit does for its callers. A refactor that
   keeps that behaviour, such as a renamed private helper or a reworked loop, leaves every test
   green.
+- **A test fails without its change.** Each behaviour a change adds or changes gets a test that runs
+  the changed path from the unit's entry and fails when the change is reverted. A test that calls
+  only a helper the change left alone, checks only its own stand-in, or compares values it defined
+  itself passes either way.
 - **Real first, stand-ins at the edge.** Each stand-in marks a spot where the test and production
   can disagree. Use one only for what the test cannot reach, and make it faithful: real status
   codes, real payload shapes, and the production types.
