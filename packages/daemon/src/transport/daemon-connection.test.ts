@@ -330,7 +330,7 @@ test.each([
     const refusal: unknown = expect.objectContaining({ code });
 
     await waitFor(() => {
-      expect(lines).toContainEqual(expect.objectContaining({ id: '2', body: refusal }));
+      expect<unknown[]>(lines).toContainEqual(expect.objectContaining({ id: '2', body: refusal }));
     });
 
     expect(quit).not.toHaveBeenCalled();

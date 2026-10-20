@@ -66,16 +66,13 @@ test('it answers a wait for a message once a later write completes it', async ()
   expect(answered).toStrictEqual({ status: 400, headers: {}, body: { code: 'bad_args' } });
 });
 
-test('it fails a wait whose message ends a stream, not a response', async () => {
+test('it fails a wait whose message ends a stream, not a response', () => {
   const stub = buildStubPeerSocket();
   const answer = stub.waitForAnswer('1');
 
   stub.socket.write(new TextEncoder().encode('{"i":"1","t":4}\n'));
 
-  await expect(answer).rejects.toThrowWithMessage(
-    TypeError,
-    'message 1 is an abort, not a response',
-  );
+  expect(answer).rejects.toThrowWithMessage(TypeError, 'message 1 is an abort, not a response');
 });
 
 test('it leaves a wait pending while only other messages are written', async () => {

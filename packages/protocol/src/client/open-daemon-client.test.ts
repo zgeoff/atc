@@ -2,8 +2,15 @@ import { expect, mock, onTestFinished, spyOn, test } from 'bun:test';
 import { createServer } from 'node:net';
 import type { Socket } from 'node:net';
 import { join } from 'node:path';
-import { buildPeerRequestLine, setupTempDir, startStubPeerDaemon, waitFor } from '@atc/test-utils';
+import {
+  buildPeerRequestLine,
+  getString,
+  setupTempDir,
+  startStubPeerDaemon,
+  waitFor,
+} from '@atc/test-utils';
 import type { StubPeerAnswer, StubPeerRequest } from '@atc/test-utils';
+import { z } from 'zod';
 import { PROTOCOL_V } from '../wire/protocol';
 import { openDaemonClient } from './open-daemon-client';
 
@@ -78,16 +85,15 @@ test('it sends the principal a request acts as, and its name, as headers', async
   });
 
   // The request id is the client's own choice, so the expected line takes it.
-  expect(ctx.received).toStrictEqual(
-    ctx.received.map((line) =>
-      buildPeerRequestLine(
-        String(JSON.parse(line)['i']),
-        '/session/list',
-        {},
-        { 'x-atc-as': 'ci', 'x-atc-as-name': 'Build bot' },
-      ).trimEnd(),
-    ),
-  );
+  const expected = ctx.received.map((line) => {
+    const parsed: unknown = JSON.parse(line);
+    const request = z.record(z.string(), z.unknown()).parse(parsed);
+    const headers = { 'x-atc-as': 'ci', 'x-atc-as-name': 'Build bot' };
+
+    return buildPeerRequestLine(getString(request, 'i'), '/session/list', {}, headers).trimEnd();
+  });
+
+  expect(ctx.received).toStrictEqual(expected);
 });
 
 test('it rejects a request sent after the connection ended', async () => {
