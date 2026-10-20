@@ -39,7 +39,7 @@
       "@types/proper-lockfile": "4.1.4",
       "@xterm/addon-serialize": "0.14.0",
       "@xterm/headless": "6.0.0",
-      "@zgeoff/bun-test-extended": "0.2.0",
+      "@zgeoff/bun-test-extended": "0.2.1",
       "@zgeoff/format-codemod": "0.3.1",
       "@zgeoff/oxlint-config": "0.5.2",
       "@zgeoff/skill-gate": "0.2.3",
