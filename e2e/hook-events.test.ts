@@ -26,7 +26,7 @@ test('it replays the fleet as SessionAdded lines on connect', async () => {
   expect(initial.map((line) => decodeMessage(line))).toMatchObject([
     {
       kind: 'event',
-      msg: {
+      message: {
         v: 6,
         ev: 'SessionAdded',
         session: { name: 'one', cwd: ctx.dir, agent: 'claude', alive: true },
@@ -34,7 +34,7 @@ test('it replays the fleet as SessionAdded lines on connect', async () => {
     },
     {
       kind: 'event',
-      msg: {
+      message: {
         v: 6,
         ev: 'SessionAdded',
         session: { name: 'two', cwd: ctx.dir, agent: 'claude', alive: true },
@@ -55,7 +55,7 @@ test('it streams a live event after the replay', async () => {
 
   expect(streamed.map((line) => decodeMessage(line))).toPartiallyContain({
     kind: 'event',
-    msg: { v: 6, ev: 'SessionRenamed', s: sessionID, name: 'renamed-one', namedBy: 'user' },
+    message: { v: 6, ev: 'SessionRenamed', s: sessionID, name: 'renamed-one', namedBy: 'user' },
   });
 });
 
@@ -70,6 +70,6 @@ test('it ignores subscriber input and keeps streaming', async () => {
   const streamed = await subscriber.waitForLine(1);
 
   expect(streamed.map((line) => decodeMessage(line))).toMatchObject([
-    { kind: 'event', msg: { v: 6, ev: 'SessionAdded', session: { name: 'after-garbage' } } },
+    { kind: 'event', message: { v: 6, ev: 'SessionAdded', session: { name: 'after-garbage' } } },
   ]);
 });
