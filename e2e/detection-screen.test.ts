@@ -25,7 +25,7 @@ test('it flags a hook-less agent waiting at a prompt via the screen detector', a
     }),
   });
 
-  await daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, cols: 60, rows: 12 });
+  await daemon.client.sendRequest('session.spawn', { cwd: daemon.directory, cols: 60, rows: 12 });
 
   await waitFor(() => {
     expect(
@@ -57,7 +57,7 @@ test('it flips the session back to working once the prompt is answered', async (
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 60,
     rows: 12,
   });
@@ -108,7 +108,7 @@ test('it opens a permission request from a screen-detected prompt', async () => 
     }),
   });
 
-  await daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, cols: 60, rows: 12 });
+  await daemon.client.sendRequest('session.spawn', { cwd: daemon.directory, cols: 60, rows: 12 });
 
   await waitFor(() => {
     expect(daemon.events.find((e) => e.ev === 'PermissionRequested')).toMatchObject({
@@ -138,7 +138,7 @@ test('it never flags a prompt as needing input when the adapter has no screen de
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 60,
     rows: 12,
   });
@@ -191,7 +191,7 @@ test('it never flags a prompt as needing input when another agent has a screen d
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 60,
     rows: 12,
   });

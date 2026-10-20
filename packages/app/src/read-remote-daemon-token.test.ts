@@ -7,9 +7,12 @@ import { readRemoteDaemonToken } from './read-remote-daemon-token';
 import { buildMockRemoteDaemon } from './test-utils/build-mock-remote-daemon';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-remote-token-');
+  const temporaryDirectory = setupTempDir('atc-remote-token-');
 
-  return { dir: tmp.path, tokenFile: join(tmp.path, 'box.token') };
+  return {
+    directory: temporaryDirectory.path,
+    tokenFile: join(temporaryDirectory.path, 'box.token'),
+  };
 }
 
 test('it reads the token a file holds, without its final newline', async () => {
@@ -41,7 +44,7 @@ test('it reads the token a command prints', async () => {
 
 test('it rejects a token file it cannot read, with the daemon and the path', () => {
   const ctx = setupTest();
-  const missing = join(ctx.dir, 'missing.token');
+  const missing = join(ctx.directory, 'missing.token');
 
   expect(
     readRemoteDaemonToken(
@@ -96,8 +99,8 @@ test('it rejects a command that exits non-zero, without its output in the messag
 
 test('it stops a command whose child keeps its output open once the deadline passes', async () => {
   const ctx = setupTest();
-  const pidsFile = join(ctx.dir, 'pids');
-  const bin = createStubBin(ctx.dir, 'forking-helper', buildStubForkingGH(pidsFile));
+  const pidsFile = join(ctx.directory, 'pids');
+  const bin = createStubBin(ctx.directory, 'forking-helper', buildStubForkingGH(pidsFile));
   const started = performance.now();
 
   const rejection = await readRemoteDaemonToken(
@@ -137,7 +140,7 @@ test('it stops a command whose child keeps its output open once the deadline pas
 
 test('it stops a command that exits while its child keeps its output open once the deadline passes', async () => {
   const ctx = setupTest();
-  const pidFile = join(ctx.dir, 'child.pid');
+  const pidFile = join(ctx.directory, 'child.pid');
 
   const rejection = await readRemoteDaemonToken(
     buildMockRemoteDaemon({
@@ -171,7 +174,7 @@ test('it stops a command that exits while its child keeps its output open once t
 
 test('it reads the token of a command whose child keeps stderr open after it exits', async () => {
   const ctx = setupTest();
-  const pidFile = join(ctx.dir, 'child.pid');
+  const pidFile = join(ctx.directory, 'child.pid');
 
   const token = await readRemoteDaemonToken(
     buildMockRemoteDaemon({
@@ -207,7 +210,7 @@ test('it rejects a command that a signal kills with its exit code', () => {
 
 test('it rejects a command that cannot start', () => {
   const ctx = setupTest();
-  const helper = join(ctx.dir, 'no-such-helper');
+  const helper = join(ctx.directory, 'no-such-helper');
 
   expect(
     readRemoteDaemonToken(

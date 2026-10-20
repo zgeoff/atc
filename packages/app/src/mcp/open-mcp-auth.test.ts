@@ -7,9 +7,12 @@ import { openMCPAuth } from './open-mcp-auth';
 
 // A temp directory for the store.
 function setupTest() {
-  const tmp = setupTempDir('atc-mcp-auth-');
+  const temporaryDirectory = setupTempDir('atc-mcp-auth-');
 
-  return { dir: tmp.path, dbPath: join(tmp.path, 'mcp-auth.db') };
+  return {
+    directory: temporaryDirectory.path,
+    dbPath: join(temporaryDirectory.path, 'mcp-auth.db'),
+  };
 }
 
 test('it sends no telemetry when the environment turns it on', async () => {
@@ -32,7 +35,7 @@ await store.close();`,
     {
       env: {
         PATH: process.env['PATH'] ?? '',
-        HOME: ctx.dir,
+        HOME: ctx.directory,
         NODE_ENV: 'production',
         BETTER_AUTH_TELEMETRY: '1',
         BETTER_AUTH_TELEMETRY_ENDPOINT: collector.url,

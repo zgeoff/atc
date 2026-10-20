@@ -60,7 +60,7 @@ test("it delivers a message to a remote session's tap", async () => {
   const tapLog = join(ctx.dir, 'tap.log');
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+    cwd: ctx.daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -88,7 +88,7 @@ test('it records the answer a remote session reports to a message its tap took',
   const tapLog = join(ctx.dir, 'tap.log');
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+    cwd: ctx.daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -126,7 +126,7 @@ test("it answers a status read on a remote session's bridge with that session's 
   const ctx = await setupTest();
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+    cwd: ctx.daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -159,7 +159,7 @@ test('it answers an op the bridge does not offer with forbidden and closes the c
   const ctx = await setupTest();
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+    cwd: ctx.daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -196,7 +196,7 @@ test('it delivers a message sent after a sleep and a wake to the tap that ran be
   const tapLog = join(ctx.dir, 'tap.log');
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+    cwd: ctx.daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -258,7 +258,7 @@ test('it delivers a message and a note held back while the bridge was unreachabl
   const tapLog = join(ctx.dir, 'tap.log');
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+    cwd: ctx.daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -324,7 +324,7 @@ test('it prints a message whose ack was lost once, and acks it again when the ta
   const tapLog = join(ctx.dir, 'tap.log');
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+    cwd: ctx.daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -379,7 +379,7 @@ test("it records a remote session's note, needs-input and turn-done after impd c
   const ctx = await setupTest();
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+    cwd: ctx.daemon.directory,
     cols: 80,
     rows: 24,
   });

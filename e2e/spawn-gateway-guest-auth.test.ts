@@ -100,7 +100,7 @@ test('it starts a brokered gateway on an imp under the settings file of its bind
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     agent: 'glm',
     target: 'box',
   });
@@ -182,7 +182,7 @@ test('it revives a suspended session after a rebind as a fresh guest process und
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -254,7 +254,7 @@ test('it revives a suspended session after a rebind as a fresh guest process whe
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -341,7 +341,7 @@ test('it refuses to revive a revoked session and starts no harness under its old
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     agent: 'glm',
     target: 'box',
     resume: 'a1',
@@ -408,7 +408,7 @@ test('it starts a brokered gateway with the placeholder and its own Claude confi
   updateEnv('ANTHROPIC_AUTH_TOKEN', canary);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     agent: 'glm',
     target: 'box',
   });
@@ -495,7 +495,7 @@ test('it refuses a brokered gateway whose env sets a proxy variable before any i
   });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     agent: 'proxied',
     target: 'box',
   });
@@ -629,13 +629,13 @@ test('it refuses a brokered gateway with an unsupported placeholder before mater
     }),
   });
 
-  const cwd = join(daemon.dir, 'ws');
+  const cwd = join(daemon.directory, 'ws');
 
   const spawn = daemon.client.sendRequest('session.spawn', {
     cwd,
     agent: 'keyed',
     target: 'box',
-    workspace: { kind: 'path', path: join(daemon.dir, 'source') },
+    workspace: { kind: 'path', path: join(daemon.directory, 'source') },
   });
 
   await Promise.allSettled([spawn]);
@@ -694,13 +694,13 @@ test('it refuses a brokered gateway on the local target before materializing its
     }),
   });
 
-  const cwd = join(daemon.dir, 'ws');
+  const cwd = join(daemon.directory, 'ws');
 
   const spawn = daemon.client.sendRequest('session.spawn', {
     cwd,
     agent: 'glm',
     target: 'local',
-    workspace: { kind: 'path', path: join(daemon.dir, 'source') },
+    workspace: { kind: 'path', path: join(daemon.directory, 'source') },
   });
 
   await Promise.allSettled([spawn]);

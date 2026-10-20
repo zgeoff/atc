@@ -56,7 +56,7 @@ test('it spawns a session on the target the spawn names and records it in the fl
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
   });
 
@@ -98,7 +98,7 @@ test('it spawns a session without a target on the local target when the config s
     }),
   });
 
-  const spawned = await daemon.client.sendRequest('session.spawn', { cwd: daemon.dir });
+  const spawned = await daemon.client.sendRequest('session.spawn', { cwd: daemon.directory });
 
   expect(getRecord(spawned, 'session')['locator']).toStrictEqual({
     daemonID: expect.toBeString(),
@@ -120,7 +120,10 @@ test('it refuses a spawn to a target the config does not hold with unknown_targe
     }),
   });
 
-  const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, target: 'nope' });
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.directory,
+    target: 'nope',
+  });
 
   expect(spawn).rejects.toMatchObject({ code: 'unknown_target', data: { target: 'nope' } });
   expect(daemon.client.sendRequest('session.list')).resolves.toStrictEqual({ sessions: [] });
@@ -144,7 +147,10 @@ test('it refuses a spawn to a target this daemon has no provider for with target
     }),
   });
 
-  const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, target: 'box' });
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.directory,
+    target: 'box',
+  });
 
   expect(spawn).rejects.toMatchObject({
     code: 'target_unavailable',
@@ -170,7 +176,10 @@ test('it refuses a spawn to the local target when the targets map leaves it out'
     }),
   });
 
-  const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, target: 'local' });
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.directory,
+    target: 'local',
+  });
 
   expect(spawn).rejects.toMatchObject({ code: 'unknown_target' });
   expect(ctx.harnesses).toStrictEqual([]);
@@ -188,7 +197,7 @@ test('it refuses a spawn without a target, and starts no terminal, for a malform
     }),
   });
 
-  const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir });
+  const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.directory });
 
   expect(spawn).rejects.toMatchObject({
     code: 'target_config_invalid',
@@ -211,7 +220,10 @@ test('it refuses a spawn to local, and starts no terminal, for a malformed targe
     }),
   });
 
-  const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, target: 'local' });
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.directory,
+    target: 'local',
+  });
 
   expect(spawn).rejects.toMatchObject({ code: 'target_config_invalid', data: { target: 'local' } });
   expect(ctx.harnesses).toStrictEqual([]);
@@ -234,7 +246,10 @@ test('it refuses a spawn to a malformed target entry', async () => {
     }),
   });
 
-  const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, target: 'box' });
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.directory,
+    target: 'box',
+  });
 
   expect(spawn).rejects.toMatchObject({ code: 'target_config_invalid', data: { target: 'box' } });
   expect(ctx.harnesses).toStrictEqual([]);
@@ -257,7 +272,7 @@ test('it spawns on a well-formed target beside a malformed target entry', async 
     }),
   });
 
-  const spawned = await daemon.client.sendRequest('session.spawn', { cwd: daemon.dir });
+  const spawned = await daemon.client.sendRequest('session.spawn', { cwd: daemon.directory });
 
   expect(getRecord(spawned, 'session')['locator']).toStrictEqual({
     daemonID: expect.toBeString(),
@@ -285,7 +300,7 @@ test('it refuses a spawn without a target, and starts no terminal, for an unknow
     }),
   });
 
-  const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir });
+  const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.directory });
 
   expect(spawn).rejects.toMatchObject({
     code: 'target_config_invalid',
@@ -412,7 +427,7 @@ test.each([
         await store.writeFleet([
           buildMockFleetEntry({
             sessionID: toSessionID('s-box'),
-            cwd: paths.dir,
+            cwd: paths.directory,
             agentSessionID: toAgentSessionID('a-box'),
             target: 'box',
             targetIdentity: boundIdentity,
@@ -452,7 +467,7 @@ test('it refuses input to a restored headless session on local once the targets 
       await store.writeFleet([
         buildMockFleetEntry({
           sessionID: toSessionID('s-old'),
-          cwd: paths.dir,
+          cwd: paths.directory,
           agentSessionID: toAgentSessionID('a-old'),
         }),
       ]);
@@ -508,7 +523,7 @@ test('it refuses input to a restored headless session whose provider runs no hea
       await store.writeFleet([
         buildMockFleetEntry({
           sessionID: toSessionID('s-box'),
-          cwd: paths.dir,
+          cwd: paths.directory,
           agentSessionID: toAgentSessionID('a-box'),
           target: 'box',
 
@@ -557,7 +572,7 @@ test('it refuses input to a killed headless session on a working target, without
       await store.writeFleet([
         buildMockFleetEntry({
           sessionID: toSessionID('s-old'),
-          cwd: paths.dir,
+          cwd: paths.directory,
           agentSessionID: toAgentSessionID('a-old'),
           exited: true,
         }),
@@ -594,7 +609,7 @@ test('it runs a local headless turn through the runner once per request', async 
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     resume: 'a-1',
   });
 
@@ -669,7 +684,7 @@ test.each([
     });
 
     const spawned = await daemon.client.sendRequest('session.spawn', {
-      cwd: daemon.dir,
+      cwd: daemon.directory,
       target: 'box',
       resume: 'a-box',
     });
@@ -746,7 +761,7 @@ test.each([
     });
 
     const spawned = await daemon.client.sendRequest('session.spawn', {
-      cwd: daemon.dir,
+      cwd: daemon.directory,
       target: 'box',
       resume: 'a-box',
     });
@@ -822,7 +837,7 @@ test.each([
     });
 
     const spawned = await daemon.client.sendRequest('session.spawn', {
-      cwd: daemon.dir,
+      cwd: daemon.directory,
       target: 'box',
       resume: 'a-box',
     });
@@ -880,7 +895,7 @@ test('it revives a session on its target after a restart with the config unchang
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     resume: 'a-box',
   });
@@ -931,7 +946,7 @@ test('it spawns a new session on the default a restart changed', async () => {
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     resume: 'a-old',
   });
 
@@ -957,7 +972,7 @@ test('it spawns a new session on the default a restart changed', async () => {
 
   await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  const fresh = await daemon.client.sendRequest('session.spawn', { cwd: daemon.dir });
+  const fresh = await daemon.client.sendRequest('session.spawn', { cwd: daemon.directory });
 
   expect(getRecord(fresh, 'session')['locator']).toStrictEqual({
     daemonID: expect.toBeString(),
@@ -986,7 +1001,7 @@ test('it keeps a restored session on its target after a restart changed the defa
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     resume: 'a-old',
   });
 
@@ -1031,7 +1046,7 @@ test('it revives a restored session without a stored target on the implicit loca
       await store.writeFleet([
         buildMockFleetEntry({
           sessionID: toSessionID('s-old'),
-          cwd: paths.dir,
+          cwd: paths.directory,
           agentSessionID: toAgentSessionID('a-old'),
         }),
       ]);

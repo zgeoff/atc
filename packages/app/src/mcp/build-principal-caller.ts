@@ -3,7 +3,7 @@ import type { FleetCaller } from './types';
 
 export function buildPrincipalCaller(caller: FleetCaller, principal: Principal): FleetCaller {
   return {
-    sendRequest: (m, p) => caller.sendRequest(m, p, principal),
+    sendRequest: (method, params) => caller.sendRequest(method, params, principal),
     readFeatures: () => caller.readFeatures(),
   };
 }

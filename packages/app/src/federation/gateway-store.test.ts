@@ -6,8 +6,8 @@ import { buildBindingPayloadHash } from './build-binding-payload-hash';
 import { GatewayStore } from './gateway-store';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-gateway-store-');
-  const path = join(tmp.path, 'gateway.db');
+  const temporaryDirectory = setupTempDir('atc-gateway-store-');
+  const path = join(temporaryDirectory.path, 'gateway.db');
   const store = GatewayStore.open(path);
 
   registerTestCleanup(() => {
@@ -90,7 +90,7 @@ test('#claimBinding accepts a retry whose payload holds two keys a locale compar
       operation: 'session.spawn',
       key: 'k',
       daemon: 'cloud',
-      payloadHash: buildBindingPayloadHash({ env: { é: 'precomposed', é: 'decomposed' } }),
+      payloadHash: buildBindingPayloadHash({ env: { café: 'precomposed', café: 'decomposed' } }),
     }),
     0,
   );
@@ -101,7 +101,7 @@ test('#claimBinding accepts a retry whose payload holds two keys a locale compar
       operation: 'session.spawn',
       key: 'k',
       daemon: 'pc',
-      payloadHash: buildBindingPayloadHash({ env: { é: 'decomposed', é: 'precomposed' } }),
+      payloadHash: buildBindingPayloadHash({ env: { café: 'decomposed', café: 'precomposed' } }),
     }),
     10,
   );

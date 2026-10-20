@@ -20,7 +20,7 @@ export interface OverlayKeyDeps {
   readonly isLeaderKey: (buf: Buffer) => boolean;
   readonly showBase: () => void;
   readonly attach: (sessionID: string) => Promise<void>;
-  readonly sendQuiet: (m: string, p?: Readonly<Record<string, unknown>>) => Promise<void>;
+  readonly sendQuiet: (method: string, params?: Readonly<Record<string, unknown>>) => Promise<void>;
   readonly restartDaemonOnce: () => Promise<void>;
   readonly logClientEvent: (line: string) => void;
   readonly quit: () => void;
@@ -238,8 +238,8 @@ function applyOverlayFilterKey(buf: Buffer, deps: OverlayKeyDeps): boolean {
   const text = buf.toString();
   let printable = text.length > 0;
 
-  for (const c of text) {
-    if (c < ' ' || c === '\u007F') {
+  for (const character of text) {
+    if (character < ' ' || character === '\u007F') {
       printable = false;
       break;
     }

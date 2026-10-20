@@ -6,13 +6,13 @@ import { buildStubSkipClock, runCommand, waitFor } from '@atc/test-utils';
 import { LISTING_CACHE_LIFETIME_MS, openListingCache } from './open-listing-cache';
 
 function setupTest() {
-  const dir = mkdtempSync(join(tmpdir(), 'atc-listing-cache-'));
+  const directory = mkdtempSync(join(tmpdir(), 'atc-listing-cache-'));
 
   onTestFinished(() => {
-    rmSync(dir, { recursive: true, force: true });
+    rmSync(directory, { recursive: true, force: true });
   });
 
-  return { dir, file: join(dir, 'listing-cache.json') };
+  return { directory, file: join(directory, 'listing-cache.json') };
 }
 
 test('it finds a listing that a cache opened earlier on the same file wrote', async () => {
@@ -147,15 +147,15 @@ test('it keeps the 32 newest listings and drops the rest', async () => {
   const ctx = setupTest();
   const cache = openListingCache(ctx.file);
 
-  for (let i = 0; i < 33; i += 1) {
-    await cache.writeListing(`key-${i}`, {
+  for (let index = 0; index < 33; index += 1) {
+    await cache.writeListing(`key-${index}`, {
       candidates: [{ label: 'acme/app' }],
       scope: null,
-      listedAt: i,
+      listedAt: index,
     });
   }
 
-  const kept = Array.from({ length: 33 }, (_, i) => cache.readListing(`key-${i}`, 33));
+  const kept = Array.from({ length: 33 }, (_, index) => cache.readListing(`key-${index}`, 33));
 
   expect(kept.filter((listing) => listing === null)).toHaveLength(1);
   expect(kept[0]).toBeNull();
@@ -195,7 +195,7 @@ test('it leaves out an entry that does not parse and keeps the rest', () => {
 
 test('it keeps nothing and leaves no temporary file when the folder cannot be written', async () => {
   const ctx = setupTest();
-  const file = join(ctx.dir, 'missing', 'listing-cache.json');
+  const file = join(ctx.directory, 'missing', 'listing-cache.json');
   const cache = openListingCache(file);
 
   await cache.writeListing('github', {
@@ -205,7 +205,7 @@ test('it keeps nothing and leaves no temporary file when the folder cannot be wr
   });
 
   expect(cache.readListing('github', 1_000_000)).toBeNull();
-  expect(readdirSync(ctx.dir)).toStrictEqual([]);
+  expect(readdirSync(ctx.directory)).toStrictEqual([]);
 });
 
 test('it keeps every write from writers in several processes, and the latest request for a key', async () => {
@@ -219,8 +219,8 @@ test('it keeps every write from writers in several processes, and the latest req
       '-e',
       `const { openListingCache } = await import(${JSON.stringify(join(import.meta.dir, 'open-listing-cache.ts'))});
 const cache = openListingCache(${JSON.stringify(ctx.file)});
-await Bun.write(${JSON.stringify(join(ctx.dir, `ready-${writer}`))}, '');
-while (!(await Bun.file(${JSON.stringify(join(ctx.dir, 'go'))}).exists())) {
+await Bun.write(${JSON.stringify(join(ctx.directory, `ready-${writer}`))}, '');
+while (!(await Bun.file(${JSON.stringify(join(ctx.directory, 'go'))}).exists())) {
   await Bun.sleep(1);
 }
 for (let round = 0; round < 6; round += 1) {
@@ -239,10 +239,15 @@ for (let round = 0; round < 6; round += 1) {
   );
 
   await waitFor(() => {
-    expect(readdirSync(ctx.dir)).toIncludeAllMembers(['ready-0', 'ready-1', 'ready-2', 'ready-3']);
+    expect(readdirSync(ctx.directory)).toIncludeAllMembers([
+      'ready-0',
+      'ready-1',
+      'ready-2',
+      'ready-3',
+    ]);
   });
 
-  writeFileSync(join(ctx.dir, 'go'), '');
+  writeFileSync(join(ctx.directory, 'go'), '');
 
   const runs = await Promise.all(writers);
 
@@ -251,14 +256,14 @@ for (let round = 0; round < 6; round += 1) {
   expect(runs.map((run) => run.exitCode)).toStrictEqual([0, 0, 0, 0]);
 
   expect(
-    Array.from({ length: 24 }, (_, i) =>
-      cache.readListing(`writer-${Math.floor(i / 6)}-${i % 6}`, 2_000_100),
+    Array.from({ length: 24 }, (_, index) =>
+      cache.readListing(`writer-${Math.floor(index / 6)}-${index % 6}`, 2_000_100),
     ),
   ).toStrictEqual(
-    Array.from({ length: 24 }, (_, i) => ({
-      candidates: [{ label: `acme/app-${Math.floor(i / 6)}-${i % 6}` }],
+    Array.from({ length: 24 }, (_, index) => ({
+      candidates: [{ label: `acme/app-${Math.floor(index / 6)}-${index % 6}` }],
       scope: null,
-      listedAt: 1_000_000 + (i % 6),
+      listedAt: 1_000_000 + (index % 6),
     })),
   );
 
@@ -293,7 +298,7 @@ test('it takes over a lock that a writer which exited left behind', async () => 
     listedAt: 1_000_000,
   });
 
-  expect(readdirSync(ctx.dir)).toStrictEqual(['listing-cache.json']);
+  expect(readdirSync(ctx.directory)).toStrictEqual(['listing-cache.json']);
 });
 
 test('it keeps nothing and leaves an old lock alone while the writer holding it still runs', async () => {
@@ -314,7 +319,7 @@ test('it keeps nothing and leaves an old lock alone while the writer holding it 
   });
 
   expect(openListingCache(ctx.file).readListing('github', 1_000_000)).toBeNull();
-  expect(readdirSync(ctx.dir)).toStrictEqual(['listing-cache.json.lock']);
+  expect(readdirSync(ctx.directory)).toStrictEqual(['listing-cache.json.lock']);
   expect(readdirSync(lockPath)).toStrictEqual([`${process.pid}-live-writer`]);
 });
 
@@ -338,8 +343,8 @@ test('it keeps every write when writers in several processes take over one stale
       '-e',
       `const { openListingCache } = await import(${JSON.stringify(join(import.meta.dir, 'open-listing-cache.ts'))});
 const cache = openListingCache(${JSON.stringify(ctx.file)});
-await Bun.write(${JSON.stringify(join(ctx.dir, `ready-${writer}`))}, '');
-while (!(await Bun.file(${JSON.stringify(join(ctx.dir, 'go'))}).exists())) {
+await Bun.write(${JSON.stringify(join(ctx.directory, `ready-${writer}`))}, '');
+while (!(await Bun.file(${JSON.stringify(join(ctx.directory, 'go'))}).exists())) {
   await Bun.sleep(1);
 }
 for (let round = 0; round < 6; round += 1) {
@@ -353,10 +358,15 @@ for (let round = 0; round < 6; round += 1) {
   );
 
   await waitFor(() => {
-    expect(readdirSync(ctx.dir)).toIncludeAllMembers(['ready-0', 'ready-1', 'ready-2', 'ready-3']);
+    expect(readdirSync(ctx.directory)).toIncludeAllMembers([
+      'ready-0',
+      'ready-1',
+      'ready-2',
+      'ready-3',
+    ]);
   });
 
-  writeFileSync(join(ctx.dir, 'go'), '');
+  writeFileSync(join(ctx.directory, 'go'), '');
 
   const runs = await Promise.all(writers);
 
@@ -365,14 +375,14 @@ for (let round = 0; round < 6; round += 1) {
   expect(runs.map((run) => run.exitCode)).toStrictEqual([0, 0, 0, 0]);
 
   expect(
-    Array.from({ length: 24 }, (_, i) =>
-      cache.readListing(`writer-${Math.floor(i / 6)}-${i % 6}`, 1_000_100),
+    Array.from({ length: 24 }, (_, index) =>
+      cache.readListing(`writer-${Math.floor(index / 6)}-${index % 6}`, 1_000_100),
     ),
   ).toStrictEqual(
-    Array.from({ length: 24 }, (_, i) => ({
-      candidates: [{ label: `acme/app-${Math.floor(i / 6)}-${i % 6}` }],
+    Array.from({ length: 24 }, (_, index) => ({
+      candidates: [{ label: `acme/app-${Math.floor(index / 6)}-${index % 6}` }],
       scope: null,
-      listedAt: 1_000_000 + (i % 6),
+      listedAt: 1_000_000 + (index % 6),
     })),
   );
 });

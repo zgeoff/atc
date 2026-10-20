@@ -32,48 +32,48 @@ export function applyDaemonEvent(raw: RawDaemonEvent, deps: DaemonEventDeps) {
   const mirror = deps.mirror;
 
   match(event)
-    .with({ ev: 'SessionOutput' }, (e) => {
-      if (deps.getMode() === 'attached' && e.s === deps.findFocusedID()) {
-        process.stdout.write(e.d);
+    .with({ ev: 'SessionOutput' }, (output) => {
+      if (deps.getMode() === 'attached' && output.s === deps.findFocusedID()) {
+        process.stdout.write(output.d);
       }
     })
-    .with({ ev: 'SessionAdded' }, (e) => {
-      mirror.upsert(e.session);
+    .with({ ev: 'SessionAdded' }, (added) => {
+      mirror.upsert(added.session);
 
       refreshScreens(deps);
     })
-    .with({ ev: 'SessionState' }, (e) => {
-      const existing = mirror.sessions.find((x) => x.id === e.session.id);
+    .with({ ev: 'SessionState' }, (changed) => {
+      const existing = mirror.sessions.find((x) => x.id === changed.session.id);
 
       if (existing !== undefined) {
-        if (e.session.state === 'done' && existing.state !== 'done') {
-          mirror.doneAt.set(e.session.id, deps.clock.now());
+        if (changed.session.state === 'done' && existing.state !== 'done') {
+          mirror.doneAt.set(changed.session.id, deps.clock.now());
         }
 
-        if (e.session.resumable && !existing.resumable) {
-          deps.setLastUsedAgent(e.session.agent);
+        if (changed.session.resumable && !existing.resumable) {
+          deps.setLastUsedAgent(changed.session.agent);
         }
       }
 
-      mirror.upsert(e.session);
+      mirror.upsert(changed.session);
 
       refreshScreens(deps);
     })
-    .with({ ev: 'SessionRenamed' }, (e) => {
-      const s = mirror.sessions.find((x) => x.id === e.s);
+    .with({ ev: 'SessionRenamed' }, (renamed) => {
+      const session = mirror.sessions.find((x) => x.id === renamed.s);
 
-      if (s !== undefined) {
-        s.name = e.name;
+      if (session !== undefined) {
+        session.name = renamed.name;
       }
 
       refreshScreens(deps);
     })
-    .with({ ev: 'SessionRemoved' }, (e) => {
-      mirror.sessions = mirror.sessions.filter((x) => x.id !== e.s);
+    .with({ ev: 'SessionRemoved' }, (removed) => {
+      mirror.sessions = mirror.sessions.filter((x) => x.id !== removed.s);
 
-      mirror.doneAt.delete(e.s);
+      mirror.doneAt.delete(removed.s);
 
-      if (deps.findFocusedID() === e.s) {
+      if (deps.findFocusedID() === removed.s) {
         deps.setFocusedID(null);
       }
 
@@ -100,9 +100,9 @@ function refreshScreens(deps: DaemonEventDeps) {
   }
 
   // Focused session died under us: surface the list instead of a dead screen.
-  const f = deps.findFocused();
+  const focused = deps.findFocused();
 
-  if (currentMode === 'attached' && f !== null && f.state === 'exited') {
+  if (currentMode === 'attached' && focused !== null && focused.state === 'exited') {
     deps.service.send({ type: 'OVERLAY' });
   }
 

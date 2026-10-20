@@ -10,10 +10,10 @@ import { verifyPasskeyRegistration } from './verify-passkey-registration';
 // An authorization database, opened the way the server opens it, with the
 // passkey of `authenticator` enrolled for the RP ID `atc.example`.
 async function setupTest() {
-  const tmp = setupTempDir('atc-verify-passkey-assertion-');
+  const temporaryDirectory = setupTempDir('atc-verify-passkey-assertion-');
 
   const store = await openMCPAuth({
-    dbPath: join(tmp.path, 'mcp-auth.db'),
+    dbPath: join(temporaryDirectory.path, 'mcp-auth.db'),
     openDatabase: openMCPAuthDatabase,
     origin: null,
   });

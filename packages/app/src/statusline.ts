@@ -34,17 +34,17 @@ export async function runStatusline(agent: string): Promise<void> {
     const cmd = loadClaudeStatusLine().command;
 
     if (cmd !== undefined && cmd !== '' && !isSelfCommand(cmd)) {
-      const proc = Bun.spawn(['bash', '-c', cmd], {
+      const subprocess = Bun.spawn(['bash', '-c', cmd], {
         stdin: new TextEncoder().encode(raw),
         stdout: 'pipe',
         stderr: 'ignore',
       });
 
       const timer = setTimeout(() => {
-        proc.kill();
+        subprocess.kill();
       }, 1500);
 
-      const text = await new Response(proc.stdout).text();
+      const text = await new Response(subprocess.stdout).text();
 
       chained = text.trimEnd();
 

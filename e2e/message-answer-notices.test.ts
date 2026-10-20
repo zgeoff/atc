@@ -48,8 +48,8 @@ async function setupTest(
   const send = (m: string, p?: Readonly<Record<string, unknown>>) =>
     daemon.client.sendRequest(m, p);
 
-  const sender = await spawnNamedSession(send, 'sender', daemon.dir);
-  const recipient = await spawnNamedSession(send, 'recipient', daemon.dir);
+  const sender = await spawnNamedSession(send, 'sender', daemon.directory);
+  const recipient = await spawnNamedSession(send, 'recipient', daemon.directory);
 
   // Its handshake holds the sender's id, as an `atc mcp` started in that session sends it.
   const inside = await daemon.openClient({ session: sender });

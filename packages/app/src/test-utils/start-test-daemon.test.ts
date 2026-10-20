@@ -26,18 +26,18 @@ test('it keeps every socket and state path inside its directory', async () => {
     harness.dbPath,
     harness.statusPath,
   ]).toStrictEqual([
-    join(harness.dir, 'daemon.sock'),
-    join(harness.dir, 'reporter.sock'),
-    join(harness.dir, 'events.sock'),
-    join(harness.dir, 'state.db'),
-    join(harness.dir, 'status.json'),
+    join(harness.directory, 'daemon.sock'),
+    join(harness.directory, 'reporter.sock'),
+    join(harness.directory, 'events.sock'),
+    join(harness.directory, 'state.db'),
+    join(harness.directory, 'status.json'),
   ]);
 });
 
 test('it names the directory by the prefix', async () => {
   const harness = await startTestDaemon({ prefix: 'atc-named-' });
 
-  expect(basename(harness.dir)).toStartWith('atc-named-');
+  expect(basename(harness.directory)).toStartWith('atc-named-');
 });
 
 test('it hands the options builder the daemon paths', async () => {
@@ -53,7 +53,7 @@ test('it hands the options builder the daemon paths', async () => {
 
   expect(seen).toStrictEqual([
     {
-      dir: harness.dir,
+      directory: harness.directory,
       socketPath: harness.socketPath,
       reporterSocketPath: harness.reporterSocketPath,
       eventsSocketPath: harness.eventsSocketPath,
@@ -79,7 +79,7 @@ test('it boots the daemon with the adapters the options give', async () => {
 test('it serves a TCP handshake on the listener the options ask for', async () => {
   const harness = await startTestDaemon({
     options: (paths) => {
-      const tokenFile = join(paths.dir, 'tokens');
+      const tokenFile = join(paths.directory, 'tokens');
 
       writeFileSync(tokenFile, 'a-gateway-token-of-at-least-32-bytes\n');
 
@@ -106,7 +106,7 @@ test('it refuses a TCP client when the daemon has no listener', async () => {
 test('it collects the daemon log lines', async () => {
   const harness = await startTestDaemon({
     options: (paths) => {
-      const tokenFile = join(paths.dir, 'tokens');
+      const tokenFile = join(paths.directory, 'tokens');
 
       writeFileSync(tokenFile, 'a-gateway-token-of-at-least-32-bytes\n');
 
@@ -151,7 +151,7 @@ test('it leaves the log to the options when they set one', async () => {
 
   const harness = await startTestDaemon({
     options: (paths) => {
-      const tokenFile = join(paths.dir, 'tokens');
+      const tokenFile = join(paths.directory, 'tokens');
 
       writeFileSync(tokenFile, 'a-gateway-token-of-at-least-32-bytes\n');
 
@@ -203,7 +203,7 @@ test('it collects the events the main client receives', async () => {
     options: () => ({ adapter: buildMockAgentAdapter() }),
   });
 
-  await harness.client.sendRequest('session.spawn', { cwd: harness.dir, name: 'alpha' });
+  await harness.client.sendRequest('session.spawn', { cwd: harness.directory, name: 'alpha' });
 
   await waitFor(() => {
     expect(harness.events).toPartiallyContain({ ev: 'SessionAdded' });
@@ -220,7 +220,11 @@ test('it collects the events the new main client receives after a restart in the
   const events = harness.events;
 
   await harness.restart();
-  await harness.client.sendRequest('session.spawn', { cwd: harness.dir, name: 'after-restart' });
+
+  await harness.client.sendRequest('session.spawn', {
+    cwd: harness.directory,
+    name: 'after-restart',
+  });
 
   await waitFor(() => {
     expect(events).toPartiallyContain({ ev: 'SessionAdded' });
@@ -264,7 +268,7 @@ test('it delivers hook lines to the session they report on', async () => {
   });
 
   const spawned = await harness.client.sendRequest('session.spawn', {
-    cwd: harness.dir,
+    cwd: harness.directory,
     name: 'alpha',
   });
 
@@ -298,7 +302,7 @@ test('it delivers every hook line of a large batch', async () => {
   });
 
   const spawned = await harness.client.sendRequest('session.spawn', {
-    cwd: harness.dir,
+    cwd: harness.directory,
     name: 'alpha',
   });
 
@@ -398,7 +402,7 @@ test('it keeps the stored fleet across a restart', async () => {
   });
 
   const spawned = await harness.client.sendRequest('session.spawn', {
-    cwd: harness.dir,
+    cwd: harness.directory,
     name: 'alpha',
   });
 
@@ -470,7 +474,7 @@ test('it stops the running daemon and removes its directory once disposed', asyn
   await harness.dispose();
 
   expect(closed.promise).resolves.toBeUndefined();
-  expect(existsSync(harness.dir)).toBeFalse();
+  expect(existsSync(harness.directory)).toBeFalse();
 });
 
 test('it stops the daemon a restart booted once disposed', async () => {
@@ -501,14 +505,14 @@ test('it removes its directory when the daemon fails to boot', () => {
   expect(
     startTestDaemon({
       options: (paths) => {
-        dirs.push(paths.dir);
+        dirs.push(paths.directory);
 
-        return { listen: { host: '8.8.8.8', port: 0, tokenFile: join(paths.dir, 'tokens') } };
+        return { listen: { host: '8.8.8.8', port: 0, tokenFile: join(paths.directory, 'tokens') } };
       },
     }),
   ).rejects.toMatchObject({ code: 'listen_refused' });
 
-  expect(dirs).toSatisfyAll((dir: string) => !existsSync(dir));
+  expect(dirs).toSatisfyAll((directory: string) => !existsSync(directory));
   expect(dirs).toHaveLength(1);
 });
 
@@ -524,7 +528,7 @@ test('it stops the daemon and removes its directory once the test finishes witho
       expect(closes).toStrictEqual(['closed']);
     });
 
-    expect(existsSync(harness.dir)).toBeFalse();
+    expect(existsSync(harness.directory)).toBeFalse();
   });
 
   // A client the harness does not track, so only the daemon's stop closes

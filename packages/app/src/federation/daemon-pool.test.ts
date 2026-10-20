@@ -8,10 +8,10 @@ import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { DaemonPool } from './daemon-pool';
 
 async function setupTest() {
-  const tmp = setupTempDir('atc-daemon-pool-');
+  const temporaryDirectory = setupTempDir('atc-daemon-pool-');
 
   // The token both listeners take, which every pool here presents.
-  writeFileSync(join(tmp.path, 'token'), `${'a'.repeat(32)}\n`);
+  writeFileSync(join(temporaryDirectory.path, 'token'), `${'a'.repeat(32)}\n`);
 
   const cloud = await startTestDaemon({
     prefix: 'atc-daemon-pool-cloud-',
@@ -20,7 +20,7 @@ async function setupTest() {
 
       // Lets the pool's principal use the local target.
       principals: new Map([['gw', ['local']]]),
-      listen: { host: '127.0.0.1', port: 0, tokenFile: join(tmp.path, 'token') },
+      listen: { host: '127.0.0.1', port: 0, tokenFile: join(temporaryDirectory.path, 'token') },
     }),
   });
 
@@ -31,7 +31,7 @@ async function setupTest() {
 
       // Lets the pool's principal use the local target.
       principals: new Map([['gw', ['local']]]),
-      listen: { host: '127.0.0.1', port: 0, tokenFile: join(tmp.path, 'token') },
+      listen: { host: '127.0.0.1', port: 0, tokenFile: join(temporaryDirectory.path, 'token') },
     }),
   });
 
@@ -90,7 +90,7 @@ test('it gives each registry daemon its own caller that reaches only that daemon
   registerTestCleanup(() => pool.stop());
 
   await ctx.cloud.client.sendRequest('session.spawn', {
-    cwd: ctx.cloud.dir,
+    cwd: ctx.cloud.directory,
     name: 'on-cloud',
     cols: 80,
     rows: 24,

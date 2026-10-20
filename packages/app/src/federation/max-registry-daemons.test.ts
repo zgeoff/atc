@@ -11,10 +11,10 @@ test('it lets a registry list 34 daemons', () => {
 });
 
 test('it decodes the worst-case events cursor of the most daemons a registry lists, each with the longest name', () => {
-  const daemons = Array.from({ length: MAX_REGISTRY_DAEMONS }, (_, i) =>
+  const daemons = Array.from({ length: MAX_REGISTRY_DAEMONS }, (_, index) =>
     buildMockRegistryDaemon({
-      name: `${'d'.repeat(29)}${String(i).padStart(2, '0')}`,
-      incarnation: String(i).padStart(8, 'f'),
+      name: `${'d'.repeat(29)}${String(index).padStart(2, '0')}`,
+      incarnation: String(index).padStart(8, 'f'),
     }),
   );
 
@@ -37,10 +37,10 @@ test('it decodes the worst-case events cursor of the most daemons a registry lis
 });
 
 test('it refuses the worst-case events cursor of one daemon more than a registry lists as too long', () => {
-  const daemons = Array.from({ length: MAX_REGISTRY_DAEMONS + 1 }, (_, i) =>
+  const daemons = Array.from({ length: MAX_REGISTRY_DAEMONS + 1 }, (_, index) =>
     buildMockRegistryDaemon({
-      name: `${'d'.repeat(29)}${String(i).padStart(2, '0')}`,
-      incarnation: String(i).padStart(8, 'f'),
+      name: `${'d'.repeat(29)}${String(index).padStart(2, '0')}`,
+      incarnation: String(index).padStart(8, 'f'),
     }),
   );
 

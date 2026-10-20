@@ -5,9 +5,9 @@ import invariant from 'tiny-invariant';
 import { runClients } from './clients';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-clients-');
+  const temporaryDirectory = setupTempDir('atc-clients-');
 
-  return { dbPath: join(tmp.path, 'state', 'mcp-auth.db') };
+  return { dbPath: join(temporaryDirectory.path, 'state', 'mcp-auth.db') };
 }
 
 test('it adds a client and prints its client ID', async () => {

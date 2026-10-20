@@ -9,9 +9,9 @@ import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { buildAgentAdapters } from './build-agent-adapters';
 
 function setupTest() {
-  const tmp = setupTempDir('agent-adapters-');
+  const temporaryDirectory = setupTempDir('agent-adapters-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it builds two claude adapters with distinct ids and spawn plans from one registry', () => {
@@ -25,9 +25,9 @@ test('it builds two claude adapters with distinct ids and spawn plans from one r
   });
 
   const [first, second] = buildAgentAdapters(config, buildMockHostServices(), null, {
-    stateDir: join(ctx.dir, 'state'),
-    homeDir: join(ctx.dir, 'home'),
-    bridgeTarget: join(ctx.dir, 'atc-bridge'),
+    stateDir: join(ctx.directory, 'state'),
+    homeDir: join(ctx.directory, 'home'),
+    bridgeTarget: join(ctx.directory, 'atc-bridge'),
   });
 
   invariant(
@@ -46,9 +46,9 @@ test('it builds two claude adapters with distinct ids and spawn plans from one r
     args: [
       '--a',
       '--settings',
-      join(ctx.dir, 'state', 'hook-settings-claude.json'),
+      join(ctx.directory, 'state', 'hook-settings-claude.json'),
       '--plugin-dir',
-      join(ctx.dir, 'atc-bridge'),
+      join(ctx.directory, 'atc-bridge'),
     ],
   });
 
@@ -57,9 +57,9 @@ test('it builds two claude adapters with distinct ids and spawn plans from one r
     args: [
       '--b',
       '--settings',
-      join(ctx.dir, 'state', 'hook-settings-claude-b.json'),
+      join(ctx.directory, 'state', 'hook-settings-claude-b.json'),
       '--plugin-dir',
-      join(ctx.dir, 'atc-bridge'),
+      join(ctx.directory, 'atc-bridge'),
     ],
   });
 });
@@ -67,10 +67,10 @@ test('it builds two claude adapters with distinct ids and spawn plans from one r
 test('it hands a gateway entry the settings folder, home and mod folder it is given', () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.dir, 'home', '.claude'), { recursive: true });
+  mkdirSync(join(ctx.directory, 'home', '.claude'), { recursive: true });
 
   writeFileSync(
-    join(ctx.dir, 'home', '.claude', 'settings.json'),
+    join(ctx.directory, 'home', '.claude', 'settings.json'),
     JSON.stringify({ statusLine: { type: 'command', command: 'mine', padding: 3 } }),
   );
 
@@ -83,9 +83,9 @@ test('it hands a gateway entry the settings folder, home and mod folder it is gi
     buildMockHostServices({ atcArgv: ['/opt/atc/bin/atc'] }),
     null,
     {
-      stateDir: join(ctx.dir, 'state'),
-      homeDir: join(ctx.dir, 'home'),
-      bridgeTarget: join(ctx.dir, 'atc-bridge'),
+      stateDir: join(ctx.directory, 'state'),
+      homeDir: join(ctx.directory, 'home'),
+      bridgeTarget: join(ctx.directory, 'atc-bridge'),
     },
   );
 
@@ -94,16 +94,16 @@ test('it hands a gateway entry the settings folder, home and mod folder it is gi
   const plan = gateway.planSpawn({ prompt: '', resume: false });
 
   const settings: unknown = JSON.parse(
-    readFileSync(join(ctx.dir, 'state', 'hook-settings-zai.json'), 'utf8'),
+    readFileSync(join(ctx.directory, 'state', 'hook-settings-zai.json'), 'utf8'),
   );
 
   expect(plan).toStrictEqual({
     bin: 'gw',
     args: [
       '--settings',
-      join(ctx.dir, 'state', 'hook-settings-zai.json'),
+      join(ctx.directory, 'state', 'hook-settings-zai.json'),
       '--plugin-dir',
-      join(ctx.dir, 'atc-bridge'),
+      join(ctx.directory, 'atc-bridge'),
     ],
   });
 

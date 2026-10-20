@@ -4,11 +4,11 @@ import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { runEvents } from './events';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-events-cli-');
+  const temporaryDirectory = setupTempDir('atc-events-cli-');
   const out: string[] = [];
 
   return {
-    socketPath: join(tmp.path, 'events.sock'),
+    socketPath: join(temporaryDirectory.path, 'events.sock'),
     out,
     writeOut: (buf: Buffer) => {
       out.push(buf.toString());

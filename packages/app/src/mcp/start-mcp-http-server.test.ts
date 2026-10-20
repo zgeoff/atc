@@ -34,7 +34,7 @@ async function setupTest() {
     options: () => ({ adapter: buildMockAgentAdapter() }),
   });
 
-  const dbPath = join(daemon.dir, 'mcp-auth.db');
+  const dbPath = join(daemon.directory, 'mcp-auth.db');
   const requests: string[] = [];
   const security: string[] = [];
 
@@ -87,7 +87,7 @@ async function setupTest() {
   security.length = 0;
 
   return {
-    dir: daemon.dir,
+    directory: daemon.directory,
     socketPath: daemon.socketPath,
     dbPath,
     url: server.url,
@@ -294,8 +294,8 @@ test('it runs a tool call whose scope the token holds', async () => {
 });
 
 test('it shows a remote MCP client the sessions of the targets the principals grant to its client id', async () => {
-  const tmp = setupTempDir('atc-mcp-http-');
-  const dbPath = join(tmp.path, 'mcp-auth.db');
+  const temporaryDirectory = setupTempDir('atc-mcp-http-');
+  const dbPath = join(temporaryDirectory.path, 'mcp-auth.db');
 
   const store = await openMCPAuth({ dbPath, openDatabase: openMCPAuthDatabase, origin: null });
 
@@ -341,7 +341,7 @@ test('it shows a remote MCP client the sessions of the targets the principals gr
 
   await runPasskeyEnrollment(server, enrollment.token, authenticator);
 
-  const spawned = await caller.sendRequest('session.spawn', { cwd: daemon.dir });
+  const spawned = await caller.sendRequest('session.spawn', { cwd: daemon.directory });
 
   const authorized = await runMCPAuthorization(
     { url: server.url, origin: server.origin, authenticator },
@@ -393,8 +393,8 @@ test('it shows a remote MCP client the sessions of the targets the principals gr
 });
 
 test('it shows a remote MCP client no sessions when the principals grant the targets to another client id', async () => {
-  const tmp = setupTempDir('atc-mcp-http-');
-  const dbPath = join(tmp.path, 'mcp-auth.db');
+  const temporaryDirectory = setupTempDir('atc-mcp-http-');
+  const dbPath = join(temporaryDirectory.path, 'mcp-auth.db');
 
   const store = await openMCPAuth({ dbPath, openDatabase: openMCPAuthDatabase, origin: null });
 
@@ -440,7 +440,7 @@ test('it shows a remote MCP client no sessions when the principals grant the tar
 
   await runPasskeyEnrollment(server, enrollment.token, authenticator);
 
-  await caller.sendRequest('session.spawn', { cwd: daemon.dir });
+  await caller.sendRequest('session.spawn', { cwd: daemon.directory });
 
   const authorized = await runMCPAuthorization(
     { url: server.url, origin: server.origin, authenticator },
@@ -532,7 +532,7 @@ test('it refuses a tool call for a scope the operator left unticked with insuffi
       jsonrpc: '2.0',
       id: 2,
       method: 'tools/call',
-      params: { name: 'atc_session_spawn', arguments: { cwd: ctx.dir } },
+      params: { name: 'atc_session_spawn', arguments: { cwd: ctx.directory } },
     }),
   });
 
@@ -1464,7 +1464,7 @@ test('it serves a request whose Host header is a configured allowed host', async
     publicURL: null,
     allowedHosts: ['pc.tailnet.example'],
     trustForwardedFrom: [],
-    dbPath: join(ctx.dir, 'allowing-mcp-auth.db'),
+    dbPath: join(ctx.directory, 'allowing-mcp-auth.db'),
     openAuthDatabase: openMCPAuthDatabase,
     printRequest: () => {},
     printSecurity: () => {},
@@ -1840,10 +1840,12 @@ test.each([
   ['0.0.0.0', 'http://localhost:8414'],
   ['192.168.1.10', null],
 ])('it refuses to listen on %p with the public URL %p', (host, publicURL) => {
-  const tmp = setupTempDir('atc-mcp-http-');
+  const temporaryDirectory = setupTempDir('atc-mcp-http-');
 
-  const caller = new TransportCaller(join(tmp.path, 'daemon.sock'), 'atc/test-build', (path) =>
-    openDaemonClient(path),
+  const caller = new TransportCaller(
+    join(temporaryDirectory.path, 'daemon.sock'),
+    'atc/test-build',
+    (path) => openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -1856,7 +1858,7 @@ test.each([
     publicURL,
     allowedHosts: [],
     trustForwardedFrom: [],
-    dbPath: join(tmp.path, 'mcp-auth.db'),
+    dbPath: join(temporaryDirectory.path, 'mcp-auth.db'),
     openAuthDatabase: openMCPAuthDatabase,
     printRequest: () => {},
     printSecurity: () => {},
@@ -1866,10 +1868,12 @@ test.each([
 });
 
 test('it listens beyond loopback behind an https public URL', async () => {
-  const tmp = setupTempDir('atc-mcp-http-');
+  const temporaryDirectory = setupTempDir('atc-mcp-http-');
 
-  const caller = new TransportCaller(join(tmp.path, 'daemon.sock'), 'atc/test-build', (path) =>
-    openDaemonClient(path),
+  const caller = new TransportCaller(
+    join(temporaryDirectory.path, 'daemon.sock'),
+    'atc/test-build',
+    (path) => openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -1882,7 +1886,7 @@ test('it listens beyond loopback behind an https public URL', async () => {
     publicURL: 'https://mcp.example.com',
     allowedHosts: [],
     trustForwardedFrom: [],
-    dbPath: join(tmp.path, 'mcp-auth.db'),
+    dbPath: join(temporaryDirectory.path, 'mcp-auth.db'),
     openAuthDatabase: openMCPAuthDatabase,
     printRequest: () => {},
     printSecurity: () => {},

@@ -12,8 +12,8 @@ import { runPasskeys } from './passkeys';
 // opens, with the database opened a second time the way the server opens
 // it, to arrange and read rows through.
 async function setupTest() {
-  const tmp = setupTempDir('atc-passkeys-');
-  const dbPath = join(tmp.path, 'state', 'mcp-auth.db');
+  const temporaryDirectory = setupTempDir('atc-passkeys-');
+  const dbPath = join(temporaryDirectory.path, 'state', 'mcp-auth.db');
 
   await runPasskeys(
     { kind: 'list' },

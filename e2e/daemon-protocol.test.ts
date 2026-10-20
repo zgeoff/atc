@@ -90,10 +90,15 @@ test('it answers session.kill for an unknown session with no_such_session', asyn
 
 test('it stops a live session and its sub-sessions on a stop-only kill', async () => {
   const ctx = await setupTest();
-  const parent = await spawnNamedSession((m, p) => ctx.client.sendRequest(m, p), 'one', ctx.dir);
+
+  const parent = await spawnNamedSession(
+    (m, p) => ctx.client.sendRequest(m, p),
+    'one',
+    ctx.directory,
+  );
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     parent,
     cols: 80,
     rows: 24,
@@ -116,7 +121,7 @@ test('it stops a live session and its sub-sessions on a stop-only kill', async (
 
 test('it leaves an exited session in the list on a stop-only kill', async () => {
   const ctx = await setupTest();
-  const id = await spawnNamedSession((m, p) => ctx.client.sendRequest(m, p), 'one', ctx.dir);
+  const id = await spawnNamedSession((m, p) => ctx.client.sendRequest(m, p), 'one', ctx.directory);
 
   await ctx.client.sendRequest('session.kill', { session: id, stopOnly: true });
 
@@ -129,7 +134,7 @@ test('it leaves an exited session in the list on a stop-only kill', async () => 
 
 test('it removes an exited session on a second kill without stopOnly', async () => {
   const ctx = await setupTest();
-  const id = await spawnNamedSession((m, p) => ctx.client.sendRequest(m, p), 'one', ctx.dir);
+  const id = await spawnNamedSession((m, p) => ctx.client.sendRequest(m, p), 'one', ctx.directory);
   const first = await ctx.client.sendRequest('session.kill', { session: id });
   const second = await ctx.client.sendRequest('session.kill', { session: id });
   const listed = await ctx.client.sendRequest('session.list');
@@ -179,7 +184,12 @@ test('it rejects session.spawn without a cwd as bad_args', async () => {
 
 test('it reports agent claude when session.spawn omits agent', async () => {
   const ctx = await setupTest();
-  const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, cols: 80, rows: 24 });
+
+  const ok = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.directory,
+    cols: 80,
+    rows: 24,
+  });
 
   expect(ok['session']).toMatchObject({ agent: 'claude' });
 });
@@ -188,18 +198,28 @@ test('it answers session.spawn with an unknown parent as no_such_session', async
   const ctx = await setupTest();
 
   expect(
-    ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, parent: 'ghost', cols: 80, rows: 24 }),
+    ctx.client.sendRequest('session.spawn', {
+      cwd: ctx.directory,
+      parent: 'ghost',
+      cols: 80,
+      rows: 24,
+    }),
   ).rejects.toMatchObject({ code: 'no_such_session' });
 });
 
 test('it nests a spawn under its parent', async () => {
   const ctx = await setupTest();
-  const top = await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, cols: 80, rows: 24 });
+
+  const top = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.directory,
+    cols: 80,
+    rows: 24,
+  });
 
   const topID = getRecord(top, 'session')['id'];
 
   const child = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     parent: topID,
     cols: 80,
     rows: 24,
@@ -210,19 +230,24 @@ test('it nests a spawn under its parent', async () => {
 
 test('it lands a spawn under a sub-session beside that sub-session, under its parent', async () => {
   const ctx = await setupTest();
-  const top = await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, cols: 80, rows: 24 });
+
+  const top = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.directory,
+    cols: 80,
+    rows: 24,
+  });
 
   const topID = getRecord(top, 'session')['id'];
 
   const child = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     parent: topID,
     cols: 80,
     rows: 24,
   });
 
   const grandchild = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     parent: getRecord(child, 'session')['id'],
     cols: 80,
     rows: 24,
@@ -233,10 +258,15 @@ test('it lands a spawn under a sub-session beside that sub-session, under its pa
 
 test('it pins a sub-session on its own', async () => {
   const ctx = await setupTest();
-  const top = await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, cols: 80, rows: 24 });
+
+  const top = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.directory,
+    cols: 80,
+    rows: 24,
+  });
 
   const child = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     parent: getRecord(top, 'session')['id'],
     cols: 80,
     rows: 24,
@@ -254,7 +284,7 @@ test('it pins a sub-session on its own', async () => {
 test('it refuses session.spawn with agent grok as unsupported and records no session', async () => {
   const ctx = await setupTest();
 
-  const spawn = ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, agent: 'grok' });
+  const spawn = ctx.client.sendRequest('session.spawn', { cwd: ctx.directory, agent: 'grok' });
 
   await Promise.allSettled([spawn]);
 
@@ -279,14 +309,14 @@ test('it spawns a grok session when a grok adapter is registered', async () => {
             }),
             'grok',
           ),
-          join(paths.dir, 'grok-home'),
+          join(paths.directory, 'grok-home'),
         ),
       ],
     }),
   });
 
   const ok = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'grok',
     cols: 80,
     rows: 24,
@@ -308,14 +338,14 @@ test('it yanks a grok session spawned with an id as a resume of that id', async 
             }),
             'grok',
           ),
-          join(paths.dir, 'grok-home'),
+          join(paths.directory, 'grok-home'),
         ),
       ],
     }),
   });
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'grok',
     resume: 'g-1',
     cols: 80,
@@ -326,7 +356,7 @@ test('it yanks a grok session spawned with an id as a resume of that id', async 
     session: getRecord(spawned, 'session')['id'],
   });
 
-  expect(resumed).toStrictEqual({ command: `cd '${ctx.dir}' && grok --resume g-1` });
+  expect(resumed).toStrictEqual({ command: `cd '${ctx.directory}' && grok --resume g-1` });
 });
 
 test('it yanks a grok session spawned without an id as a plain start', async () => {
@@ -342,14 +372,14 @@ test('it yanks a grok session spawned without an id as a plain start', async () 
             }),
             'grok',
           ),
-          join(paths.dir, 'grok-home'),
+          join(paths.directory, 'grok-home'),
         ),
       ],
     }),
   });
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'grok',
     cols: 80,
     rows: 24,
@@ -359,7 +389,7 @@ test('it yanks a grok session spawned without an id as a plain start', async () 
     session: getRecord(spawned, 'session')['id'],
   });
 
-  expect(welcome).toStrictEqual({ command: `cd '${ctx.dir}' && grok` });
+  expect(welcome).toStrictEqual({ command: `cd '${ctx.directory}' && grok` });
 });
 
 test('it revives a grok session from a captured id when summary.json is missing', async () => {
@@ -375,14 +405,14 @@ test('it revives a grok session from a captured id when summary.json is missing'
             }),
             'grok',
           ),
-          join(paths.dir, 'grok-home'),
+          join(paths.directory, 'grok-home'),
         ),
       ],
     }),
   });
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'grok',
     resume: 'g-revive',
     cols: 80,
@@ -421,14 +451,14 @@ test('it keeps last-used on a spawn that has not reported SessionStart', async (
             }),
             'grok',
           ),
-          join(paths.dir, 'grok-home'),
+          join(paths.directory, 'grok-home'),
         ),
       ],
     }),
   });
 
   await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'grok',
     cols: 80,
     rows: 24,
@@ -440,7 +470,7 @@ test('it keeps last-used on a spawn that has not reported SessionStart', async (
   await waitFor(async () => {
     const listed = await ctx.client.sendRequest('dirs.list');
 
-    expect(listed).toStrictEqual({ dirs: [ctx.dir] });
+    expect(listed).toStrictEqual({ dirs: [ctx.directory] });
   });
 
   const probe = await openDaemonClient(ctx.socketPath);
@@ -475,7 +505,7 @@ test('it spawns claude when a spawn omits agent after another agent was last use
               }),
               'grok',
             ),
-            join(paths.dir, 'grok-home'),
+            join(paths.directory, 'grok-home'),
           ),
         ],
       };
@@ -483,7 +513,7 @@ test('it spawns claude when a spawn omits agent after another agent was last use
   });
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
   });
@@ -495,7 +525,7 @@ test('it rejects session.spawn with an unregistered agent id as unsupported', as
   const ctx = await setupTest();
 
   expect(
-    ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, agent: 'gemini' }),
+    ctx.client.sendRequest('session.spawn', { cwd: ctx.directory, agent: 'gemini' }),
   ).rejects.toMatchObject({ code: 'unsupported' });
 });
 
@@ -503,14 +533,19 @@ test('it rejects session.spawn with an empty agent id as bad_args', async () => 
   const ctx = await setupTest();
 
   expect(
-    ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, agent: '' }),
+    ctx.client.sendRequest('session.spawn', { cwd: ctx.directory, agent: '' }),
   ).rejects.toMatchObject({ code: 'bad_args' });
 });
 
 test('it broadcasts SessionAttached with the session descriptor when a client attaches', async () => {
   const ctx = await setupTest();
   const actor = await ctx.openClient();
-  const sessionID = await spawnNamedSession((m, p) => actor.sendRequest(m, p), 'focus-me', ctx.dir);
+
+  const sessionID = await spawnNamedSession(
+    (m, p) => actor.sendRequest(m, p),
+    'focus-me',
+    ctx.directory,
+  );
 
   await actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
 
@@ -527,7 +562,7 @@ test('it broadcasts SessionAttached with the session descriptor when a client at
     session: {
       id: sessionID,
       name: 'focus-me',
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       agent: 'claude',
       kind: 'pty',
       alive: true,
@@ -539,7 +574,12 @@ test('it broadcasts SessionAttached with the session descriptor when a client at
 test('it broadcasts SessionDetached when an attached client detaches', async () => {
   const ctx = await setupTest();
   const actor = await ctx.openClient();
-  const sessionID = await spawnNamedSession((m, p) => actor.sendRequest(m, p), 'focus-me', ctx.dir);
+
+  const sessionID = await spawnNamedSession(
+    (m, p) => actor.sendRequest(m, p),
+    'focus-me',
+    ctx.directory,
+  );
 
   await actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
   await actor.sendRequest('session.detach', { session: sessionID });
@@ -558,7 +598,12 @@ test('it broadcasts SessionDetached when an attached client detaches', async () 
 test('it broadcasts SessionDetached when an attached client disconnects', async () => {
   const ctx = await setupTest();
   const actor = await ctx.openClient();
-  const sessionID = await spawnNamedSession((m, p) => actor.sendRequest(m, p), 'focus-me', ctx.dir);
+
+  const sessionID = await spawnNamedSession(
+    (m, p) => actor.sendRequest(m, p),
+    'focus-me',
+    ctx.directory,
+  );
 
   await actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
 
@@ -582,7 +627,12 @@ test('it broadcasts SessionDetached when an attached client disconnects', async 
 test('it broadcasts no SessionDetached for a detach without an attach', async () => {
   const ctx = await setupTest();
   const actor = await ctx.openClient();
-  const sessionID = await spawnNamedSession((m, p) => actor.sendRequest(m, p), 'focus-me', ctx.dir);
+
+  const sessionID = await spawnNamedSession(
+    (m, p) => actor.sendRequest(m, p),
+    'focus-me',
+    ctx.directory,
+  );
 
   await actor.sendRequest('session.detach', { session: sessionID });
   await actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
@@ -604,7 +654,7 @@ test('it runs a configured hook with the same event JSON a watching client recei
       hooks: {
         SessionAttached: [
           {
-            command: `cat > '${join(paths.dir, 'hook.out')}'; printf '%s\n' "$ATC_EVENT" >> '${join(paths.dir, 'hook.out')}'`,
+            command: `cat > '${join(paths.directory, 'hook.out')}'; printf '%s\n' "$ATC_EVENT" >> '${join(paths.directory, 'hook.out')}'`,
           },
         ],
       },
@@ -612,7 +662,12 @@ test('it runs a configured hook with the same event JSON a watching client recei
   });
 
   const actor = await ctx.openClient();
-  const sessionID = await spawnNamedSession((m, p) => actor.sendRequest(m, p), 'focus-me', ctx.dir);
+
+  const sessionID = await spawnNamedSession(
+    (m, p) => actor.sendRequest(m, p),
+    'focus-me',
+    ctx.directory,
+  );
 
   await actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
 
@@ -625,7 +680,7 @@ test('it runs a configured hook with the same event JSON a watching client recei
   });
 
   const text = await waitFor(() => {
-    const written = readFileSync(join(ctx.dir, 'hook.out'), 'utf8');
+    const written = readFileSync(join(ctx.directory, 'hook.out'), 'utf8');
 
     invariant(written.endsWith('SessionAttached\n'), 'hook output still incomplete');
 
@@ -656,7 +711,7 @@ test("it reads a spawned session's prompt through session.get", async () => {
   const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     prompt: 'fix the auth bug',
     cols: 80,
     rows: 24,
@@ -690,7 +745,12 @@ test('it answers session.read for an unknown session with no_such_session', asyn
 
 test('it answers session.read with unsupported for an agent atc cannot read the transcript of', async () => {
   const ctx = await setupTest();
-  const id = await spawnNamedSession((m, p) => ctx.client.sendRequest(m, p), 'worker', ctx.dir);
+
+  const id = await spawnNamedSession(
+    (m, p) => ctx.client.sendRequest(m, p),
+    'worker',
+    ctx.directory,
+  );
 
   expect(ctx.client.sendRequest('session.read', { session: id })).rejects.toMatchObject({
     code: 'unsupported',
@@ -717,7 +777,7 @@ test('it rejects an events cursor passed to session.read with bad_args', async (
 test('it rejects a transcript cursor passed to events.read with bad_args', async () => {
   const ctx = await setupTest();
 
-  const cursor = encodeCursor({ kind: 'transcript', path: join(ctx.dir, 'x'), offset: 0 });
+  const cursor = encodeCursor({ kind: 'transcript', path: join(ctx.directory, 'x'), offset: 0 });
 
   expect(ctx.client.sendRequest('events.read', { cursor })).rejects.toMatchObject({
     code: 'bad_args',
@@ -825,7 +885,12 @@ test('it locates a spawned session on this daemon at the local target', async ()
   });
 
   const hello = await probe.sendHello(ctx.build);
-  const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, cols: 80, rows: 24 });
+
+  const ok = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.directory,
+    cols: 80,
+    rows: 24,
+  });
 
   expect(ok['session']).toMatchObject({
     locator: { daemonID: hello['daemonID'], targetID: 'local' },
@@ -836,7 +901,7 @@ test('it answers a kill whose fleet write meets a moved ownership epoch with sta
   const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     cols: 80,
     rows: 24,
   });

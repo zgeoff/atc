@@ -80,7 +80,7 @@ const INBOX_MESSAGE_SCHEMA = z.looseObject({
   // A sender this build cannot read is left out, and the message still
   // goes out with its sender's name.
   sender: z.preprocess(
-    (v) => (MESSAGE_SENDER_SCHEMA.safeParse(v).success ? v : undefined),
+    (value) => (MESSAGE_SENDER_SCHEMA.safeParse(value).success ? value : undefined),
     MESSAGE_SENDER_SCHEMA.optional(),
   ),
   text: z.string(),
@@ -193,13 +193,13 @@ async function runTapConnection(
       return;
     }
 
-    const msg = INBOX_MESSAGE_SCHEMA.safeParse(line);
+    const parsedMessage = INBOX_MESSAGE_SCHEMA.safeParse(line);
 
-    if (!msg.success) {
+    if (!parsedMessage.success) {
       return;
     }
 
-    const message = msg.data;
+    const message = parsedMessage.data;
 
     schedulePrint(`message:${message.message}`, renderMessageLine(message), {
       v: 1,

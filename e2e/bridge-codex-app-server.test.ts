@@ -53,7 +53,7 @@ test('it delivers a message to a Codex session through its App Server and stores
   );
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+    cwd: ctx.daemon.directory,
     agent: 'codex',
     cols: 80,
     rows: 24,
@@ -106,7 +106,7 @@ test('it keeps the stored message states when a history read fails during recove
   );
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+    cwd: ctx.daemon.directory,
     agent: 'codex',
     cols: 80,
     rows: 24,
@@ -163,7 +163,7 @@ test('it resends no accepted message when its turn completes while the connectio
   );
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+    cwd: ctx.daemon.directory,
     agent: 'codex',
     cols: 80,
     rows: 24,
@@ -193,7 +193,7 @@ test('it starts the terminal against the session App Server on the bridge thread
   const ctx = await setupTest();
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+    cwd: ctx.daemon.directory,
     agent: 'codex',
     cols: 80,
     rows: 24,
@@ -221,7 +221,7 @@ test('it leaves each message the App Server refuses unanswered and goes on to th
   );
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+    cwd: ctx.daemon.directory,
     agent: 'codex',
     cols: 80,
     rows: 24,
@@ -262,7 +262,7 @@ test('it delivers a message to the thread a hook shows the terminal moved to and
   );
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+    cwd: ctx.daemon.directory,
     agent: 'codex',
     cols: 80,
     rows: 24,
@@ -277,7 +277,7 @@ test('it delivers a message to the thread a hook shows the terminal moved to and
     expect(JSON.stringify(read)).toInclude('FAKE_CODEX_UP');
   });
 
-  const socket = join(ctx.daemon.dir, 'sessions', id, 'codex', 'codex.sock');
+  const socket = join(ctx.daemon.directory, 'sessions', id, 'codex', 'codex.sock');
 
   await ctx.daemon.sendHookLines({
     atcId: id,
@@ -328,7 +328,7 @@ test('it keeps delivering to the thread the terminal moved to when a turn of the
   );
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+    cwd: ctx.daemon.directory,
     agent: 'codex',
     cols: 80,
     rows: 24,
@@ -343,7 +343,7 @@ test('it keeps delivering to the thread the terminal moved to when a turn of the
     expect(JSON.stringify(read)).toInclude('FAKE_CODEX_UP');
   });
 
-  const socket = join(ctx.daemon.dir, 'sessions', id, 'codex', 'codex.sock');
+  const socket = join(ctx.daemon.directory, 'sessions', id, 'codex', 'codex.sock');
 
   await ctx.daemon.sendHookLines({
     atcId: id,
@@ -393,7 +393,7 @@ test('it raises no attention for an approval a turn of the old thread asks for a
   const ctx = await setupTest();
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+    cwd: ctx.daemon.directory,
     agent: 'codex',
     cols: 80,
     rows: 24,
@@ -408,7 +408,7 @@ test('it raises no attention for an approval a turn of the old thread asks for a
     expect(JSON.stringify(read)).toInclude('FAKE_CODEX_UP');
   });
 
-  const socket = join(ctx.daemon.dir, 'sessions', id, 'codex', 'codex.sock');
+  const socket = join(ctx.daemon.directory, 'sessions', id, 'codex', 'codex.sock');
 
   await ctx.daemon.sendHookLines({
     atcId: id,

@@ -13,7 +13,7 @@ test('it writes the bridge mod again and notes it in the feed for a remote sessi
     options: (paths) => {
       const provider = {
         ...buildStubExecutionProvider({ kind: 'imp-like', remote: true }),
-        guest: { directory: join(paths.dir, 'guest'), atc: '/opt/atc/bin/atc' },
+        guest: { directory: join(paths.directory, 'guest'), atc: '/opt/atc/bin/atc' },
       };
 
       return {
@@ -31,7 +31,7 @@ test('it writes the bridge mod again and notes it in the feed for a remote sessi
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -56,7 +56,7 @@ test('it writes the bridge mod again and notes it in the feed for a remote sessi
 
   expect(
     readFileSync(
-      join(daemon.dir, 'guest', 'sessions', id, 'atc-bridge', 'hooks', 'atc-cli.ts'),
+      join(daemon.directory, 'guest', 'sessions', id, 'atc-bridge', 'hooks', 'atc-cli.ts'),
       'utf8',
     ),
   ).toBe('export const ATC_CLI = ["/opt/atc/bin/atc"];\n');

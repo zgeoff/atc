@@ -9,10 +9,10 @@ import { readPasskeyViews } from './read-passkey-views';
 // A temp directory that holds an authorization database, opened the way
 // the server opens it.
 async function setupTest() {
-  const tmp = setupTempDir('atc-create-passkey-');
+  const temporaryDirectory = setupTempDir('atc-create-passkey-');
 
   const store = await openMCPAuth({
-    dbPath: join(tmp.path, 'mcp-auth.db'),
+    dbPath: join(temporaryDirectory.path, 'mcp-auth.db'),
     openDatabase: openMCPAuthDatabase,
     origin: null,
   });

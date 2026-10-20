@@ -83,32 +83,46 @@ export function parseDaemonEvent(raw: RawDaemonEvent): DaemonEvent | null {
   }
 
   return match(parsed.data)
-    .with({ ev: 'SessionAdded' }, { ev: 'SessionState' }, (d) => {
-      const session = toMirrorSession(d.session);
+    .with({ ev: 'SessionAdded' }, { ev: 'SessionState' }, (payload) => {
+      const session = toMirrorSession(payload.session);
 
-      return session === null ? null : { ev: d.ev, session };
+      return session === null ? null : { ev: payload.ev, session };
     })
-    .with({ ev: 'SessionRenamed' }, (d) => ({
-      ev: d.ev,
-      s: d.s,
-      name: d.name,
-      namedBy: d.namedBy,
+    .with({ ev: 'SessionRenamed' }, (payload) => ({
+      ev: payload.ev,
+      s: payload.s,
+      name: payload.name,
+      namedBy: payload.namedBy,
     }))
-    .with({ ev: 'SessionRemoved' }, (d) => ({ ev: d.ev, s: d.s }))
-    .with({ ev: 'SessionResized' }, (d) => ({ ev: d.ev, s: d.s, cols: d.cols, rows: d.rows }))
-    .with({ ev: 'SessionOutput' }, (d) => ({ ev: d.ev, s: d.s, seq: d.seq, d: d.d }))
-    .with({ ev: 'SessionDesync' }, (d) => ({ ev: d.ev, s: d.s, dropped: d.dropped }))
-    .with({ ev: 'PermissionRequested' }, (d) => ({
-      ev: d.ev,
-      request: d.request,
-      s: d.s,
-      message: d.message,
-      respondable: d.respondable,
+    .with({ ev: 'SessionRemoved' }, (payload) => ({ ev: payload.ev, s: payload.s }))
+    .with({ ev: 'SessionResized' }, (payload) => ({
+      ev: payload.ev,
+      s: payload.s,
+      cols: payload.cols,
+      rows: payload.rows,
     }))
-    .with({ ev: 'PermissionResolved' }, (d) => ({
-      ev: d.ev,
-      request: d.request,
-      decision: d.decision,
+    .with({ ev: 'SessionOutput' }, (payload) => ({
+      ev: payload.ev,
+      s: payload.s,
+      seq: payload.seq,
+      d: payload.d,
+    }))
+    .with({ ev: 'SessionDesync' }, (payload) => ({
+      ev: payload.ev,
+      s: payload.s,
+      dropped: payload.dropped,
+    }))
+    .with({ ev: 'PermissionRequested' }, (payload) => ({
+      ev: payload.ev,
+      request: payload.request,
+      s: payload.s,
+      message: payload.message,
+      respondable: payload.respondable,
+    }))
+    .with({ ev: 'PermissionResolved' }, (payload) => ({
+      ev: payload.ev,
+      request: payload.request,
+      decision: payload.decision,
     }))
     .exhaustive();
 }

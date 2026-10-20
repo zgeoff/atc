@@ -13,10 +13,10 @@ test('it spawns two claude entries each with its own args and settings file', as
     options: (paths) => {
       const parsed = parseConfig(SHIPPED_HARNESS_PLUGINS, {
         agents: {
-          claude: { bin: createStubRecordingClaude(join(paths.dir, 'a')), args: ['--a'] },
+          claude: { bin: createStubRecordingClaude(join(paths.directory, 'a')), args: ['--a'] },
           'claude-b': {
             kind: 'claude',
-            bin: createStubRecordingClaude(join(paths.dir, 'b')),
+            bin: createStubRecordingClaude(join(paths.directory, 'b')),
             args: ['--b'],
             env: { FROM_ENTRY: '1' },
             settings: { outputStyle: 'registry-marker', env: { FROM_SETTINGS: '1' } },
@@ -32,21 +32,21 @@ test('it spawns two claude entries each with its own args and settings file', as
   });
 
   const first = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     agent: 'claude',
     cols: 80,
     rows: 24,
   });
 
   const second = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     agent: 'claude-b',
     cols: 80,
     rows: 24,
   });
 
   const firstArgv = await waitFor(() => {
-    const log = readFileSync(join(daemon.dir, 'a', 'claude-starts.log'), 'utf8');
+    const log = readFileSync(join(daemon.directory, 'a', 'claude-starts.log'), 'utf8');
 
     expect(log).toEndWith('\n\n');
 
@@ -54,7 +54,7 @@ test('it spawns two claude entries each with its own args and settings file', as
   });
 
   const secondArgv = await waitFor(() => {
-    const log = readFileSync(join(daemon.dir, 'b', 'claude-starts.log'), 'utf8');
+    const log = readFileSync(join(daemon.directory, 'b', 'claude-starts.log'), 'utf8');
 
     expect(log).toEndWith('\n\n');
 
@@ -114,7 +114,7 @@ test('it refuses a spawn for an empty registry', async () => {
   });
 
   expect(
-    daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, cols: 80, rows: 24 }),
+    daemon.client.sendRequest('session.spawn', { cwd: daemon.directory, cols: 80, rows: 24 }),
   ).rejects.toMatchObject({
     code: 'unsupported',
     message: "no adapter for agent 'claude'",
@@ -127,7 +127,11 @@ test('it defaults spawns to the first entry when the registry holds no claude', 
     options: (paths) => {
       const parsed = parseConfig(SHIPPED_HARNESS_PLUGINS, {
         agents: {
-          'claude-b': { kind: 'claude', bin: createStubRecordingClaude(paths.dir), args: ['--b'] },
+          'claude-b': {
+            kind: 'claude',
+            bin: createStubRecordingClaude(paths.directory),
+            args: ['--b'],
+          },
         },
       });
 
@@ -149,7 +153,11 @@ test('it spawns the first entry when the registry holds no claude and the spawn 
     options: (paths) => {
       const parsed = parseConfig(SHIPPED_HARNESS_PLUGINS, {
         agents: {
-          'claude-b': { kind: 'claude', bin: createStubRecordingClaude(paths.dir), args: ['--b'] },
+          'claude-b': {
+            kind: 'claude',
+            bin: createStubRecordingClaude(paths.directory),
+            args: ['--b'],
+          },
         },
       });
 
@@ -161,7 +169,7 @@ test('it spawns the first entry when the registry holds no claude and the spawn 
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });

@@ -37,12 +37,12 @@ function setupTest() {
 test('it answers a TCP handshake that carries a token from the token file', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map(),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });
@@ -59,12 +59,12 @@ test('it answers a TCP handshake that carries a token from the token file', asyn
 test('it refuses a TCP handshake without a token and closes the connection', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map(),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });
@@ -87,12 +87,12 @@ test('it refuses a TCP handshake without a token and closes the connection', asy
 test('it refuses a TCP handshake with a wrong token and closes the connection', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map(),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });
@@ -115,12 +115,12 @@ test('it refuses a TCP handshake with a wrong token and closes the connection', 
 test('it closes a TCP connection that sends a request before the handshake without answering it', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map(),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });
@@ -139,12 +139,15 @@ test.each([
 ])('it accepts a handshake with %s token of a two-token file', async (_which, token) => {
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n${'b'.repeat(40)}\n`);
+      writeFileSync(
+        join(paths.directory, 'gateway-token'),
+        `${'a'.repeat(32)}\n${'b'.repeat(40)}\n`,
+      );
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map(),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });
@@ -158,18 +161,18 @@ test.each([
 test('it serves a TCP request that acts as a listed principal', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map([['gw', ['local']]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     resume: 'a-1',
   });
 
@@ -187,12 +190,12 @@ test('it serves a TCP request that acts as a listed principal', async () => {
 test('it refuses a TCP request that carries no principal to act as', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map([['gw', ['local']]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });
@@ -211,12 +214,12 @@ test.each([['daemon.quit'], ['fleet.restore']])(
   async (method) => {
     const daemon = await startTestDaemon({
       options: (paths) => {
-        writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+        writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
         return {
           adapter: buildMockAgentAdapter(),
           principals: new Map([['gw', ['local']]]),
-          listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+          listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
         };
       },
     });
@@ -237,12 +240,12 @@ test.each([['daemon.quit'], ['fleet.restore']])(
   async (method) => {
     const daemon = await startTestDaemon({
       options: (paths) => {
-        writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+        writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
         return {
           adapter: buildMockAgentAdapter(),
           principals: new Map([['gw', ['local']]]),
-          listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+          listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
         };
       },
     });
@@ -269,12 +272,12 @@ test.each([['daemon.quit'], ['fleet.restore']])(
 test('it refuses a TCP request as a principal the principals key does not list', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map([['gw', ['local']]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });
@@ -292,17 +295,17 @@ test('it refuses a TCP request as a principal the principals key does not list',
 test('it refuses every TCP principal when the config has no principals key', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: null,
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });
 
-  await daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, resume: 'a-1' });
+  await daemon.client.sendRequest('session.spawn', { cwd: daemon.directory, resume: 'a-1' });
 
   const client = await daemon.openTCPClient();
 
@@ -317,12 +320,12 @@ test('it refuses every TCP principal when the config has no principals key', asy
 test('it refuses a TCP handshake whose principal the principals key does not list', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map([['gw', ['local']]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });
@@ -349,17 +352,17 @@ test('it refuses a TCP handshake whose principal the principals key does not lis
 test('it lists none of the sessions outside the targets of a TCP principal', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map([['gw', []]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });
 
-  await daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, resume: 'a-1' });
+  await daemon.client.sendRequest('session.spawn', { cwd: daemon.directory, resume: 'a-1' });
 
   const client = await daemon.openTCPClient();
 
@@ -373,18 +376,18 @@ test('it lists none of the sessions outside the targets of a TCP principal', asy
 test('it answers a TCP principal reading a session outside its targets as for a missing session', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map([['gw', []]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     resume: 'a-1',
   });
 
@@ -403,18 +406,18 @@ test('it answers a TCP principal reading a session outside its targets as for a 
 test('it answers a TCP principal killing a session outside its targets as for a missing session', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map([['gw', []]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     resume: 'a-1',
   });
 
@@ -433,18 +436,18 @@ test('it answers a TCP principal killing a session outside its targets as for a 
 test('it keeps a session that a TCP principal outside its targets tried to kill', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map([['gw', []]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     resume: 'a-1',
   });
 
@@ -467,7 +470,7 @@ test('it keeps a session that a TCP principal outside its targets tried to kill'
 test('it lists for a TCP principal only the sessions on the targets it may use', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       // The targets `local` and `box` share one real pseudo-terminal provider.
       const local = new LocalPTYProvider();
@@ -480,7 +483,7 @@ test('it lists for a TCP principal only the sessions on the targets it may use',
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map([['gw', ['local']]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
         targets: targets.targets.map((target) => ({
           id: target.id,
           kind: target.provider,
@@ -495,13 +498,13 @@ test('it lists for a TCP principal only the sessions on the targets it may use',
   });
 
   const onLocal = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     resume: 'a-1',
     target: 'local',
   });
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     resume: 'a-2',
     target: 'box',
   });
@@ -520,7 +523,7 @@ test('it lists for a TCP principal only the sessions on the targets it may use',
 test('it reads for a TCP principal a session on a target it may use', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       // The targets `local` and `box` share one real pseudo-terminal provider.
       const local = new LocalPTYProvider();
@@ -533,7 +536,7 @@ test('it reads for a TCP principal a session on a target it may use', async () =
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map([['gw', ['local']]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
         targets: targets.targets.map((target) => ({
           id: target.id,
           kind: target.provider,
@@ -548,7 +551,7 @@ test('it reads for a TCP principal a session on a target it may use', async () =
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     resume: 'a-1',
     target: 'local',
   });
@@ -567,7 +570,7 @@ test('it reads for a TCP principal a session on a target it may use', async () =
 test('it answers a TCP principal reading a session on a target it may not use as for a missing session', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       // The targets `local` and `box` share one real pseudo-terminal provider.
       const local = new LocalPTYProvider();
@@ -580,7 +583,7 @@ test('it answers a TCP principal reading a session on a target it may not use as
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map([['gw', ['local']]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
         targets: targets.targets.map((target) => ({
           id: target.id,
           kind: target.provider,
@@ -595,7 +598,7 @@ test('it answers a TCP principal reading a session on a target it may not use as
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     resume: 'a-1',
     target: 'box',
   });
@@ -615,12 +618,12 @@ test('it answers a TCP principal reading a session on a target it may not use as
 test('it pushes a TCP connection no event of a session it did not act on', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map([['gw', ['local']]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });
@@ -634,7 +637,7 @@ test('it pushes a TCP connection no event of a session it did not act on', async
   };
 
   await client.sendHello('atc/test-gateway', { token: 'a'.repeat(32) });
-  await daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, resume: 'a-1' });
+  await daemon.client.sendRequest('session.spawn', { cwd: daemon.directory, resume: 'a-1' });
 
   // The owner's event shows the daemon has broadcast the spawn.
   await waitFor(() => {
@@ -649,12 +652,15 @@ test('it pushes a TCP connection no event of a session it did not act on', async
 test('it closes a TCP connection whose token a reload removes', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n${'b'.repeat(40)}\n`);
+      writeFileSync(
+        join(paths.directory, 'gateway-token'),
+        `${'a'.repeat(32)}\n${'b'.repeat(40)}\n`,
+      );
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map([['gw', ['local']]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });
@@ -669,7 +675,7 @@ test('it closes a TCP connection whose token a reload removes', async () => {
 
   await removed.sendHello('atc/test-gateway', { token: 'a'.repeat(32) });
 
-  writeFileSync(join(daemon.dir, 'gateway-token'), `${'b'.repeat(40)}\n`);
+  writeFileSync(join(daemon.directory, 'gateway-token'), `${'b'.repeat(40)}\n`);
 
   daemon.daemon.refreshTokens();
 
@@ -684,12 +690,15 @@ test('it closes a TCP connection whose token a reload removes', async () => {
 test('it keeps serving a TCP connection whose token a reload keeps', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n${'b'.repeat(40)}\n`);
+      writeFileSync(
+        join(paths.directory, 'gateway-token'),
+        `${'a'.repeat(32)}\n${'b'.repeat(40)}\n`,
+      );
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map([['gw', ['local']]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });
@@ -698,7 +707,7 @@ test('it keeps serving a TCP connection whose token a reload keeps', async () =>
 
   await kept.sendHello('atc/test-gateway', { token: 'b'.repeat(40) });
 
-  writeFileSync(join(daemon.dir, 'gateway-token'), `${'b'.repeat(40)}\n`);
+  writeFileSync(join(daemon.directory, 'gateway-token'), `${'b'.repeat(40)}\n`);
 
   daemon.daemon.refreshTokens();
 
@@ -710,17 +719,17 @@ test('it keeps serving a TCP connection whose token a reload keeps', async () =>
 test('it refuses a handshake with a token a reload removed', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map([['gw', ['local']]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });
 
-  writeFileSync(join(daemon.dir, 'gateway-token'), `${'b'.repeat(40)}\n`);
+  writeFileSync(join(daemon.directory, 'gateway-token'), `${'b'.repeat(40)}\n`);
 
   daemon.daemon.refreshTokens();
 
@@ -734,12 +743,12 @@ test('it refuses a handshake with a token a reload removed', async () => {
 test('it closes every TCP connection after an invalid reload', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map([['gw', ['local']]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });
@@ -754,7 +763,7 @@ test('it closes every TCP connection after an invalid reload', async () => {
 
   await open.sendHello('atc/test-gateway', { token: 'a'.repeat(32) });
 
-  writeFileSync(join(daemon.dir, 'gateway-token'), `${'a'.repeat(32)}\nshort\n`);
+  writeFileSync(join(daemon.directory, 'gateway-token'), `${'a'.repeat(32)}\nshort\n`);
 
   daemon.daemon.refreshTokens();
 
@@ -769,17 +778,17 @@ test('it closes every TCP connection after an invalid reload', async () => {
 test('it refuses every handshake after an invalid reload and logs the failed reload', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map([['gw', ['local']]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });
 
-  writeFileSync(join(daemon.dir, 'gateway-token'), `${'a'.repeat(32)}\nshort\n`);
+  writeFileSync(join(daemon.directory, 'gateway-token'), `${'a'.repeat(32)}\nshort\n`);
 
   daemon.daemon.refreshTokens();
 
@@ -799,23 +808,23 @@ test('it refuses every handshake after an invalid reload and logs the failed rel
 test('it takes handshakes again after a valid reload follows an invalid one', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map([['gw', ['local']]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });
 
-  writeFileSync(join(daemon.dir, 'gateway-token'), '');
+  writeFileSync(join(daemon.directory, 'gateway-token'), '');
 
   daemon.daemon.refreshTokens();
 
   const afterInvalid = [...daemon.logs];
 
-  writeFileSync(join(daemon.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+  writeFileSync(join(daemon.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
   daemon.daemon.refreshTokens();
 
@@ -831,7 +840,7 @@ test('it delays the next handshake from an address by the failure delay after fi
 
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
@@ -840,7 +849,7 @@ test('it delays the next handshake from an address by the failure delay after fi
         listen: {
           host: '127.0.0.1',
           port: 0,
-          tokenFile: join(paths.dir, 'gateway-token'),
+          tokenFile: join(paths.directory, 'gateway-token'),
           failureDelayMs: 600,
         },
       };
@@ -873,7 +882,7 @@ test('it answers a delayed handshake once the failure delay passes', async () =>
 
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
@@ -882,7 +891,7 @@ test('it answers a delayed handshake once the failure delay passes', async () =>
         listen: {
           host: '127.0.0.1',
           port: 0,
-          tokenFile: join(paths.dir, 'gateway-token'),
+          tokenFile: join(paths.directory, 'gateway-token'),
           failureDelayMs: 600,
         },
       };
@@ -919,7 +928,7 @@ test('it answers the handshake at once before an address has failed five times',
 
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
@@ -928,7 +937,7 @@ test('it answers the handshake at once before an address has failed five times',
         listen: {
           host: '127.0.0.1',
           port: 0,
-          tokenFile: join(paths.dir, 'gateway-token'),
+          tokenFile: join(paths.directory, 'gateway-token'),
           failureDelayMs: 600,
         },
       };
@@ -996,12 +1005,12 @@ test('it refuses to start a listener whose token file holds a short token', () =
 test('it logs the address and port the TCP listener bound', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map(),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });
@@ -1046,12 +1055,12 @@ test('it logs no listener start when the TCP listener cannot bind', async () => 
 test('it logs a refused handshake with the peer and the reason', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map(),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });
@@ -1070,12 +1079,12 @@ test('it logs no part of the token a refused handshake presents', async () => {
 
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map(),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });
@@ -1096,12 +1105,12 @@ test('it logs no part of the token a refused handshake presents', async () => {
 test('it logs a refused principal as unlisted with the peer', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map([['gw', ['local']]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });
@@ -1124,12 +1133,12 @@ test('it logs a refused principal as unlisted with the peer', async () => {
 test('it logs a principal refused on a request after the handshake', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map([['gw', ['local']]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });
@@ -1149,12 +1158,12 @@ test('it logs a token sent in pieces as a refused principal as unlisted', async 
 
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${token}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${token}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map([['gw', ['local']]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });
@@ -1179,12 +1188,12 @@ test('it logs no part of a token sent in pieces as a refused principal', async (
 
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${token}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${token}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map([['gw', ['local']]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });
@@ -1209,12 +1218,12 @@ test('it logs no part of a token sent in pieces as a refused principal', async (
 test('it logs no principal line for a listed principal', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map([['gw', ['local']]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });
@@ -1233,12 +1242,12 @@ test('it logs no principal line for a listed principal', async () => {
 test('it logs no control character of a refused principal', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map([['gw', ['local']]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });
@@ -1263,7 +1272,7 @@ test('it folds repeated refusals from one peer within the window into one line',
 
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
@@ -1272,7 +1281,7 @@ test('it folds repeated refusals from one peer within the window into one line',
         listen: {
           host: '127.0.0.1',
           port: 0,
-          tokenFile: join(paths.dir, 'gateway-token'),
+          tokenFile: join(paths.directory, 'gateway-token'),
           refusalLogIntervalMs: 60_000,
         },
       };
@@ -1301,7 +1310,7 @@ test('it logs a refusal after the window as a new line after the count of the fo
 
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
@@ -1310,7 +1319,7 @@ test('it logs a refusal after the window as a new line after the count of the fo
         listen: {
           host: '127.0.0.1',
           port: 0,
-          tokenFile: join(paths.dir, 'gateway-token'),
+          tokenFile: join(paths.directory, 'gateway-token'),
           refusalLogIntervalMs: 60_000,
         },
       };
@@ -1344,7 +1353,7 @@ test.skipIf(!tryCreateListeners(['127.0.0.2', '127.0.0.3', '127.0.0.4', '127.0.0
   async () => {
     const daemon = await startTestDaemon({
       options: (paths) => {
-        writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+        writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
         return {
           adapter: buildMockAgentAdapter(),
@@ -1352,7 +1361,7 @@ test.skipIf(!tryCreateListeners(['127.0.0.2', '127.0.0.3', '127.0.0.4', '127.0.0
           listen: {
             host: '127.0.0.1',
             port: 0,
-            tokenFile: join(paths.dir, 'gateway-token'),
+            tokenFile: join(paths.directory, 'gateway-token'),
             maxRefusalWindows: 4,
           },
         };
@@ -1404,7 +1413,7 @@ test.skipIf(!tryCreateListeners(['127.0.0.2', '127.0.0.3', '127.0.0.4', '127.0.0
   async () => {
     const daemon = await startTestDaemon({
       options: (paths) => {
-        writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+        writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
         return {
           adapter: buildMockAgentAdapter(),
@@ -1412,7 +1421,7 @@ test.skipIf(!tryCreateListeners(['127.0.0.2', '127.0.0.3', '127.0.0.4', '127.0.0
           listen: {
             host: '127.0.0.1',
             port: 0,
-            tokenFile: join(paths.dir, 'gateway-token'),
+            tokenFile: join(paths.directory, 'gateway-token'),
             maxRefusalWindows: 2,
           },
         };
@@ -1518,12 +1527,12 @@ test('it releases the daemon lock and leaves no socket or record behind when the
 test('it closes an unauthenticated TCP connection that sends a malformed line without a reply', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map(),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });
@@ -1562,7 +1571,7 @@ test('it counts lines before the handshake as failed handshakes toward the delay
 
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
@@ -1571,7 +1580,7 @@ test('it counts lines before the handshake as failed handshakes toward the delay
         listen: {
           host: '127.0.0.1',
           port: 0,
-          tokenFile: join(paths.dir, 'gateway-token'),
+          tokenFile: join(paths.directory, 'gateway-token'),
           failureDelayMs: 600,
         },
       };
@@ -1627,7 +1636,7 @@ test('it counts lines before the handshake as failed handshakes toward the delay
 test('it refuses a second handshake on a TCP connection, which keeps its first principal', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
@@ -1635,13 +1644,13 @@ test('it refuses a second handshake on a TCP connection, which keeps its first p
           ['gw-a', ['local']],
           ['gw-b', []],
         ]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
       };
     },
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     resume: 'a-1',
   });
 
@@ -1685,7 +1694,7 @@ test('it closes a TCP peer that floods lines behind its delayed handshake', asyn
 
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
@@ -1694,7 +1703,7 @@ test('it closes a TCP peer that floods lines behind its delayed handshake', asyn
         listen: {
           host: '127.0.0.1',
           port: 0,
-          tokenFile: join(paths.dir, 'gateway-token'),
+          tokenFile: join(paths.directory, 'gateway-token'),
           failureDelayMs: 1500,
         },
       };
@@ -1748,7 +1757,7 @@ test('it refuses at once a handshake that would wait while the cap of delayed ha
 
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
@@ -1757,7 +1766,7 @@ test('it refuses at once a handshake that would wait while the cap of delayed ha
         listen: {
           host: '127.0.0.1',
           port: 0,
-          tokenFile: join(paths.dir, 'gateway-token'),
+          tokenFile: join(paths.directory, 'gateway-token'),
           failureDelayMs: 1500,
           maxDelayedHandshakes: 3,
         },
@@ -1796,7 +1805,7 @@ test('it answers the held handshakes once the delay passes after the cap refused
 
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
@@ -1805,7 +1814,7 @@ test('it answers the held handshakes once the delay passes after the cap refused
         listen: {
           host: '127.0.0.1',
           port: 0,
-          tokenFile: join(paths.dir, 'gateway-token'),
+          tokenFile: join(paths.directory, 'gateway-token'),
           failureDelayMs: 1500,
           maxDelayedHandshakes: 3,
         },
@@ -1853,7 +1862,7 @@ test('it cancels the delay timer of a delayed handshake once its socket closes',
 
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
@@ -1862,7 +1871,7 @@ test('it cancels the delay timer of a delayed handshake once its socket closes',
         listen: {
           host: '127.0.0.1',
           port: 0,
-          tokenFile: join(paths.dir, 'gateway-token'),
+          tokenFile: join(paths.directory, 'gateway-token'),
           failureDelayMs: 1500,
           maxDelayedHandshakes: 2,
         },
@@ -1902,7 +1911,7 @@ test('it delays a new handshake in the place in the cap that a closed delayed ha
 
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
@@ -1911,7 +1920,7 @@ test('it delays a new handshake in the place in the cap that a closed delayed ha
         listen: {
           host: '127.0.0.1',
           port: 0,
-          tokenFile: join(paths.dir, 'gateway-token'),
+          tokenFile: join(paths.directory, 'gateway-token'),
           failureDelayMs: 1500,
           maxDelayedHandshakes: 2,
         },
@@ -1967,7 +1976,7 @@ test('it answers a local ping while many TCP sockets each send a handshake durin
 
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
@@ -1976,7 +1985,7 @@ test('it answers a local ping while many TCP sockets each send a handshake durin
         listen: {
           host: '127.0.0.1',
           port: 0,
-          tokenFile: join(paths.dir, 'gateway-token'),
+          tokenFile: join(paths.directory, 'gateway-token'),
           failureDelayMs: 1500,
         },
       };
@@ -2013,7 +2022,7 @@ test('it answers a local ping as the delay of every held handshake ends at once'
 
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
         adapter: buildMockAgentAdapter(),
@@ -2022,7 +2031,7 @@ test('it answers a local ping as the delay of every held handshake ends at once'
         listen: {
           host: '127.0.0.1',
           port: 0,
-          tokenFile: join(paths.dir, 'gateway-token'),
+          tokenFile: join(paths.directory, 'gateway-token'),
           failureDelayMs: 1500,
         },
       };
@@ -2064,7 +2073,7 @@ test('it answers a local ping as the delay of every held handshake ends at once'
 test('it pushes a TCP connection whose handshake gives a principal the removal of a session that leaves its reach', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => {
-      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       // The targets `local` and `box` share one real pseudo-terminal provider.
       const local = new LocalPTYProvider();
@@ -2077,7 +2086,7 @@ test('it pushes a TCP connection whose handshake gives a principal the removal o
       return {
         adapter: buildMockAgentAdapter(),
         principals: new Map([['gw', ['local']]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
         targets: targets.targets.map((target) => ({
           id: target.id,
           kind: target.provider,
@@ -2092,7 +2101,7 @@ test('it pushes a TCP connection whose handshake gives a principal the removal o
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     resume: 'a-1',
     target: 'local',
   });
@@ -2114,7 +2123,7 @@ test('it pushes a TCP connection whose handshake gives a principal the removal o
   });
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     target: 'box',
     parent,
     resume: 'a-2',

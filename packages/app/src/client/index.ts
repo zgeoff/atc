@@ -61,7 +61,7 @@ function ptyRows(): number {
 }
 
 function findFocused(): MirrorSession | null {
-  return mirror.sessions.find((s) => s.id === focusedID) ?? null;
+  return mirror.sessions.find((session) => session.id === focusedID) ?? null;
 }
 
 function openHome() {
@@ -89,7 +89,10 @@ function scheduleStatus() {
 
     if (getMode() !== 'attached') {
       const focused = findFocused();
-      const urgent = sortSessionViews(mirror.sessions).find((s) => s.state === 'needs_you');
+
+      const urgent = sortSessionViews(mirror.sessions).find(
+        (session) => session.state === 'needs_you',
+      );
 
       drawStatusBar({
         counts: countSessionStates(mirror.sessions),
@@ -105,9 +108,9 @@ function scheduleStatus() {
   }, 50);
 }
 
-async function sendQuiet(m: string, p?: Readonly<Record<string, unknown>>) {
+async function sendQuiet(method: string, params?: Readonly<Record<string, unknown>>) {
   try {
-    await getClient().sendRequest(m, p);
+    await getClient().sendRequest(method, params);
   } catch {}
 }
 
@@ -132,11 +135,11 @@ function detachFocused() {
 }
 
 function showBase() {
-  const f = findFocused();
+  const focused = findFocused();
 
-  if (f !== null && f.alive) {
-    service.send({ type: 'ATTACH', sessionID: f.id });
-    void sendQuiet('session.attach', { session: f.id, cols: cols(), rows: ptyRows() });
+  if (focused !== null && focused.alive) {
+    service.send({ type: 'ATTACH', sessionID: focused.id });
+    void sendQuiet('session.attach', { session: focused.id, cols: cols(), rows: ptyRows() });
   } else {
     service.send({ type: 'HOME' });
   }
@@ -157,8 +160,8 @@ const picker = new SpawnPicker<MirrorSession>({
   showBase,
   attach,
   toMirrorSession,
-  upsertMirror: (d) => {
-    mirror.upsert(d);
+  upsertMirror: (session) => {
+    mirror.upsert(session);
   },
 
   // The restart prompt keeps the screen until it has its key.
@@ -184,8 +187,8 @@ function openPicker(resume: boolean) {
   picker.open(resume);
 }
 
-function sendRequest(m: string, p?: Readonly<Record<string, unknown>>) {
-  return getClient().sendRequest(m, p);
+function sendRequest(method: string, params?: Readonly<Record<string, unknown>>) {
+  return getClient().sendRequest(method, params);
 }
 
 function getLastUsedAgent(): AgentID {
@@ -207,7 +210,7 @@ async function restoreFleet() {
     return;
   }
 
-  const first = sortSessionViews(mirror.sessions).find((s) => s.alive);
+  const first = sortSessionViews(mirror.sessions).find((session) => session.alive);
 
   if (first !== undefined) {
     await attach(first.id);

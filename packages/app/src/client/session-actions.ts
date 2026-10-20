@@ -14,7 +14,7 @@ export interface SessionActionsDeps {
   readonly getClient: () => DaemonClient;
   readonly getMode: () => ClientMode;
   readonly attach: (sessionID: string) => Promise<void>;
-  readonly sendQuiet: (m: string, p?: Readonly<Record<string, unknown>>) => Promise<void>;
+  readonly sendQuiet: (method: string, params?: Readonly<Record<string, unknown>>) => Promise<void>;
   readonly ptyRows: () => number;
 }
 
@@ -76,10 +76,10 @@ export class SessionActions {
   // A failed overlay action lands in the session's message column, so the
   // reason is visible instead of the action silently doing nothing.
   recordActionFailure(id: string, error: unknown) {
-    const s = this.deps.mirror.sessions.find((x) => x.id === id);
+    const session = this.deps.mirror.sessions.find((x) => x.id === id);
 
-    if (s !== undefined) {
-      s.lastMsg = error instanceof Error ? error.message : String(error);
+    if (session !== undefined) {
+      session.lastMsg = error instanceof Error ? error.message : String(error);
     }
   }
 
@@ -97,10 +97,10 @@ export class SessionActions {
 
       copyToClipboard(command);
 
-      const s = this.deps.mirror.sessions.find((x) => x.id === sessionID);
+      const session = this.deps.mirror.sessions.find((x) => x.id === sessionID);
 
-      if (s !== undefined) {
-        s.lastMsg = 'resume cmd copied';
+      if (session !== undefined) {
+        session.lastMsg = 'resume cmd copied';
       }
 
       // Eject hands the session off entirely.
@@ -130,10 +130,10 @@ function copyToClipboard(text: string) {
 
   for (const cmd of [['clip.exe'], ['wl-copy'], ['xclip', '-selection', 'clipboard']]) {
     try {
-      const proc = Bun.spawn(cmd, { stdin: 'pipe', stdout: 'ignore', stderr: 'ignore' });
+      const subprocess = Bun.spawn(cmd, { stdin: 'pipe', stdout: 'ignore', stderr: 'ignore' });
 
-      void proc.stdin.write(text);
-      void proc.stdin.end();
+      void subprocess.stdin.write(text);
+      void subprocess.stdin.end();
       break;
     } catch {}
   }

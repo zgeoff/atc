@@ -23,10 +23,10 @@ import { RoutingCaller } from './routing-caller';
 import type { RegistryDaemon } from './types';
 
 async function setupTest() {
-  const tmp = setupTempDir('atc-routing-caller-');
+  const temporaryDirectory = setupTempDir('atc-routing-caller-');
 
   // The token both listeners take, which every pool here presents.
-  writeFileSync(join(tmp.path, 'token'), `${'a'.repeat(32)}\n`);
+  writeFileSync(join(temporaryDirectory.path, 'token'), `${'a'.repeat(32)}\n`);
 
   const cloud = await startTestDaemon({
     prefix: 'atc-routing-cloud-',
@@ -36,7 +36,7 @@ async function setupTest() {
 
       // Lets the pools' principal use the local target.
       principals: new Map([['gw', ['local']]]),
-      listen: { host: '127.0.0.1', port: 0, tokenFile: join(tmp.path, 'token') },
+      listen: { host: '127.0.0.1', port: 0, tokenFile: join(temporaryDirectory.path, 'token') },
     }),
   });
 
@@ -47,7 +47,7 @@ async function setupTest() {
 
       // Lets the pools' principal use the local target.
       principals: new Map([['gw', ['local']]]),
-      listen: { host: '127.0.0.1', port: 0, tokenFile: join(tmp.path, 'token') },
+      listen: { host: '127.0.0.1', port: 0, tokenFile: join(temporaryDirectory.path, 'token') },
     }),
   });
 
@@ -93,7 +93,7 @@ async function setupTest() {
     defaultDaemon: 'cloud',
   };
 
-  const storePath = join(tmp.path, 'gateway.db');
+  const storePath = join(temporaryDirectory.path, 'gateway.db');
   const store = GatewayStore.open(storePath);
 
   registerTestCleanup(() => {
@@ -109,7 +109,7 @@ async function setupTest() {
   registerTestCleanup(() => pool.stop());
 
   return {
-    dir: tmp.path,
+    directory: temporaryDirectory.path,
     cloud,
     pc,
     cloudID,
@@ -132,7 +132,7 @@ test('it refuses a request that carries no verified client', async () => {
 test('it runs only one of two concurrent keyed spawns with one key on two daemons', async () => {
   const ctx = await setupTest();
 
-  const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-both' };
+  const params = { cwd: ctx.directory, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-both' };
 
   await Promise.allSettled([
     ctx.router.sendRequest(
@@ -158,7 +158,7 @@ test('it runs only one of two concurrent keyed spawns with one key on two daemon
 test('it refuses the other of two concurrent keyed spawns with one key on two daemons as idempotency_conflict', async () => {
   const ctx = await setupTest();
 
-  const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-both' };
+  const params = { cwd: ctx.directory, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-both' };
 
   const outcomes = await Promise.allSettled([
     ctx.router.sendRequest(
@@ -181,7 +181,7 @@ test('it refuses the other of two concurrent keyed spawns with one key on two da
 test('it answers two concurrent keyed spawns with one key on one daemon with the one session', async () => {
   const ctx = await setupTest();
 
-  const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-twice' };
+  const params = { cwd: ctx.directory, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-twice' };
 
   const answers = await Promise.all([
     ctx.router.sendRequest('session.spawn', params, { id: 'gw', name: 'Lantern Notes' }),
@@ -216,7 +216,11 @@ test('it runs only one keyed spawn when another gateway binds its key to another
 
   const other = new RoutingCaller({ registry: ctx.registry, pool: otherPool, store: otherStore });
 
-  const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-shared' };
+  const params = {
+    cwd: ctx.directory,
+    resume: `a-${randomUUID()}`,
+    idempotencyKey: 'spawn-shared',
+  };
 
   await Promise.allSettled([
     ctx.router.sendRequest(
@@ -258,7 +262,11 @@ test('it refuses a keyed spawn whose key another gateway bound to another daemon
 
   const other = new RoutingCaller({ registry: ctx.registry, pool: otherPool, store: otherStore });
 
-  const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-shared' };
+  const params = {
+    cwd: ctx.directory,
+    resume: `a-${randomUUID()}`,
+    idempotencyKey: 'spawn-shared',
+  };
 
   const outcomes = await Promise.allSettled([
     ctx.router.sendRequest(
@@ -282,7 +290,7 @@ test("it keeps another call's completed binding when a call that found none is r
   const ctx = await setupTest();
 
   // A daemon behind another state identity, whose handshake the held call refuses.
-  startStubLegacyDaemon(join(ctx.dir, 'legacy.sock'), {
+  startStubLegacyDaemon(join(ctx.directory, 'legacy.sock'), {
     replies: {
       'daemon.hello': {
         daemon: 'atc/legacy-build',
@@ -293,7 +301,7 @@ test("it keeps another call's completed binding when a call that found none is r
   });
 
   const heldOpener = buildStubChannelOpener(
-    [() => openDaemonClient(join(ctx.dir, 'legacy.sock'))],
+    [() => openDaemonClient(join(ctx.directory, 'legacy.sock'))],
     { holdDial: 1 },
   );
 
@@ -317,7 +325,7 @@ test("it keeps another call's completed binding when a call that found none is r
     store: heldStore,
   });
 
-  const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-kept' };
+  const params = { cwd: ctx.directory, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-kept' };
   const held = heldRouter.sendRequest('session.spawn', params, { id: 'gw', name: 'Lantern Notes' });
 
   await heldOpener.waitForHeld();
@@ -374,7 +382,7 @@ test('it resends an uncertain keyed spawn replay-only, so a retry after the daem
 
   const router = new RoutingCaller({ registry, pool, store: ctx.store });
 
-  const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-late' };
+  const params = { cwd: ctx.directory, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-late' };
 
   // The first send rejects as outcome_unknown by design, so it is settled
   // rather than awaited.
@@ -440,7 +448,11 @@ test('it spawns nothing for a queued keyed resend that reaches the daemon after 
 
   const router = new RoutingCaller({ registry, pool, store: ctx.store });
 
-  const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-queued' };
+  const params = {
+    cwd: ctx.directory,
+    resume: `a-${randomUUID()}`,
+    idempotencyKey: 'spawn-queued',
+  };
 
   // The first send rejects as outcome_unknown by design, so it is settled
   // rather than awaited.
@@ -505,7 +517,11 @@ test('it spawns nothing for a keyed spawn whose first send never reached the dae
 
   const router = new RoutingCaller({ registry, pool, store: ctx.store });
 
-  const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-dropped' };
+  const params = {
+    cwd: ctx.directory,
+    resume: `a-${randomUUID()}`,
+    idempotencyKey: 'spawn-dropped',
+  };
 
   // The first send rejects as outcome_unknown by design, so it is settled
   // rather than awaited.
@@ -554,7 +570,11 @@ test('it runs one of two concurrent keyed spawns with one key from two gateways 
 
   const other = new RoutingCaller({ registry: ctx.registry, pool: otherPool, store: otherStore });
 
-  const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-racing' };
+  const params = {
+    cwd: ctx.directory,
+    resume: `a-${randomUUID()}`,
+    idempotencyKey: 'spawn-racing',
+  };
 
   const outcomes = await Promise.allSettled([
     ctx.router.sendRequest('session.spawn', params, { id: 'gw', name: 'Lantern Notes' }),
@@ -571,7 +591,11 @@ test('it runs one of two concurrent keyed spawns with one key from two gateways 
 test('it makes the first send of a binding a gateway restart left claimed but unsent', async () => {
   const ctx = await setupTest();
 
-  const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-unsent' };
+  const params = {
+    cwd: ctx.directory,
+    resume: `a-${randomUUID()}`,
+    idempotencyKey: 'spawn-unsent',
+  };
 
   ctx.store.claimBinding(
     buildMockKeyBindingClaim({
@@ -606,7 +630,11 @@ test('it makes the first send of a binding a gateway restart left claimed but un
 test('it replays the first send of a binding a gateway restart left claimed but unsent', async () => {
   const ctx = await setupTest();
 
-  const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-unsent' };
+  const params = {
+    cwd: ctx.directory,
+    resume: `a-${randomUUID()}`,
+    idempotencyKey: 'spawn-unsent',
+  };
 
   ctx.store.claimBinding(
     buildMockKeyBindingClaim({
@@ -641,7 +669,7 @@ test('it replays the first send of a binding a gateway restart left claimed but 
 test('it spawns nothing for a binding a gateway restart left sent but unanswered when the daemon holds no key, and returns its effectRef', async () => {
   const ctx = await setupTest();
 
-  const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-sent' };
+  const params = { cwd: ctx.directory, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-sent' };
 
   ctx.store.claimBinding(
     buildMockKeyBindingClaim({
@@ -677,7 +705,7 @@ test("it refuses a keyed message as idempotency_conflict when the key's first se
 
   const spawned = await ctx.router.sendRequest(
     'session.spawn',
-    { cwd: ctx.dir, resume: `a-${randomUUID()}` },
+    { cwd: ctx.directory, resume: `a-${randomUUID()}` },
     { id: 'gw', name: 'Lantern Notes' },
   );
 
@@ -744,7 +772,11 @@ test('it replays a keyed spawn sent before a gateway restart from the key the da
 
   const before = new RoutingCaller({ registry, pool: beforePool, store: beforeStore });
 
-  const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-restart' };
+  const params = {
+    cwd: ctx.directory,
+    resume: `a-${randomUUID()}`,
+    idempotencyKey: 'spawn-restart',
+  };
 
   // The first send rejects as outcome_unknown by design, so it is settled
   // rather than awaited.
@@ -810,7 +842,7 @@ test('it answers outcome_unknown for a keyed spawn sent before a gateway restart
 
   const before = new RoutingCaller({ registry, pool: beforePool, store: beforeStore });
 
-  const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-swept' };
+  const params = { cwd: ctx.directory, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-swept' };
 
   // The first send rejects as outcome_unknown by design, so it is settled
   // rather than awaited.

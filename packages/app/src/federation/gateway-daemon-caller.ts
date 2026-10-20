@@ -51,25 +51,26 @@ export class GatewayDaemonCaller {
   }
 
   async sendRequest(
-    m: string,
-    p: Readonly<Record<string, unknown>> = {},
+    method: string,
+    requestParams: Readonly<Record<string, unknown>> = {},
     as?: Principal,
     prepareParams: ParamsPreparer = (params) => params,
   ): Promise<Readonly<Record<string, unknown>>> {
     const opened = await this.transport.waitForConnection();
-    const first = await this.trySend(opened, m, p, as, prepareParams);
+    const first = await this.trySend(opened, method, requestParams, as, prepareParams);
 
     if (first.kind === 'answered') {
       return first.ok;
     }
 
     const keyed =
-      typeof p['idempotencyKey'] === 'string' && PROCEDURE_TRAITS.get(m)?.keyed === true;
+      typeof requestParams['idempotencyKey'] === 'string' &&
+      PROCEDURE_TRAITS.get(method)?.keyed === true;
 
-    const repeatable = PROCEDURE_TRAITS.get(m)?.readOnly === true || keyed;
+    const repeatable = PROCEDURE_TRAITS.get(method)?.readOnly === true || keyed;
 
     if (!repeatable) {
-      throw this.buildOutcomeUnknown(m);
+      throw this.buildOutcomeUnknown(method);
     }
 
     let fresh: OpenConnection;
@@ -77,12 +78,12 @@ export class GatewayDaemonCaller {
     try {
       fresh = await this.transport.waitForConnection();
     } catch {
-      throw this.buildOutcomeUnknown(m);
+      throw this.buildOutcomeUnknown(method);
     }
 
     // a keyed retry only ever replays, so a daemon whose first send never arrived, or that
     // has dropped the key since, runs nothing a second time
-    const second = await this.trySend(fresh, m, p, as, (params) =>
+    const second = await this.trySend(fresh, method, requestParams, as, (params) =>
       keyed ? { ...prepareParams(params), replayOnly: true } : prepareParams(params),
     );
 
@@ -90,7 +91,7 @@ export class GatewayDaemonCaller {
       return second.ok;
     }
 
-    throw this.buildOutcomeUnknown(m);
+    throw this.buildOutcomeUnknown(method);
   }
 
   async readHello(): Promise<DaemonHello> {
@@ -107,8 +108,8 @@ export class GatewayDaemonCaller {
 
   private async trySend(
     connection: SendingConnection,
-    m: string,
-    p: Readonly<Record<string, unknown>>,
+    method: string,
+    requestParams: Readonly<Record<string, unknown>>,
     as: Principal | undefined,
     prepareParams: ParamsPreparer,
   ): Promise<
@@ -119,7 +120,7 @@ export class GatewayDaemonCaller {
     // connection's handshake, so whatever it decides still holds when the
     // request leaves.
     const channel = connection.channel;
-    const sent = prepareParams(p);
+    const sent = prepareParams(requestParams);
     const timeout = Promise.withResolvers<'timeout'>();
 
     // A request that waits for a change on the daemon, such as a long poll,
@@ -137,7 +138,10 @@ export class GatewayDaemonCaller {
     // timeout won never goes unhandled.
     const settled = (async () => {
       try {
-        return { kind: 'ok' as const, ok: await channel.sendRequest(m, sent, as?.id, as?.name) };
+        return {
+          kind: 'ok' as const,
+          ok: await channel.sendRequest(method, sent, as?.id, as?.name),
+        };
       } catch (error) {
         return { kind: 'error' as const, error };
       }
@@ -165,20 +169,20 @@ export class GatewayDaemonCaller {
 
     // a replay-only request gets this for a key the daemon never held or has dropped
     if (raced.error instanceof DaemonError && raced.error.code === 'idempotency_key_unknown') {
-      throw this.buildOutcomeUnknown(m);
+      throw this.buildOutcomeUnknown(method);
     }
 
     throw raced.error;
   }
 
-  private scheduleTimeout(onTimeout: () => void, ms: number): () => void {
-    return (this.opts.clock ?? systemClock).schedule(onTimeout, ms);
+  private scheduleTimeout(onTimeout: () => void, delayMs: number): () => void {
+    return (this.opts.clock ?? systemClock).schedule(onTimeout, delayMs);
   }
 
-  private buildOutcomeUnknown(m: string): DaemonError {
+  private buildOutcomeUnknown(method: string): DaemonError {
     return new DaemonError(
       'outcome_unknown',
-      `daemon '${this.opts.daemon.name}' never answered ${m}; check what it did before sending it again`,
+      `daemon '${this.opts.daemon.name}' never answered ${method}; check what it did before sending it again`,
       { daemon: this.opts.daemon.name },
     );
   }

@@ -28,8 +28,15 @@ test("it passes each session's hook state back for that session alone, starting 
     }),
   });
 
-  const first = await daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, name: 'a' });
-  const second = await daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, name: 'b' });
+  const first = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.directory,
+    name: 'a',
+  });
+
+  const second = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.directory,
+    name: 'b',
+  });
 
   const a = getRecord(first, 'session')['id'];
   const b = getRecord(second, 'session')['id'];
@@ -72,7 +79,7 @@ test('it accepts a hook line carrying the kind for a second codex entry', async 
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     agent: 'codex-fast',
     cols: 80,
     rows: 24,
@@ -97,7 +104,9 @@ test('it accepts a hook line carrying the kind for a second codex entry', async 
     return answer;
   });
 
-  expect(resumed).toStrictEqual({ command: `cd '${daemon.dir}' && codex resume codex-sid-1` });
+  expect(resumed).toStrictEqual({
+    command: `cd '${daemon.directory}' && codex resume codex-sid-1`,
+  });
 });
 
 test('it drops a hook line carrying the entry id for a codex entry', async () => {
@@ -117,7 +126,7 @@ test('it drops a hook line carrying the entry id for a codex entry', async () =>
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     agent: 'codex-fast',
     cols: 80,
     rows: 24,
@@ -150,7 +159,7 @@ test('it drops a hook line carrying the entry id for a codex entry', async () =>
     session: sessionID,
   });
 
-  expect(resumed).toStrictEqual({ command: `cd '${daemon.dir}' && codex resume` });
+  expect(resumed).toStrictEqual({ command: `cd '${daemon.directory}' && codex resume` });
 });
 
 test('it drops a hook line from another agent at a claude session', async () => {
@@ -170,7 +179,7 @@ test('it drops a hook line from another agent at a claude session', async () => 
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     agent: 'claude',
     cols: 80,
     rows: 24,
@@ -198,5 +207,5 @@ test('it drops a hook line from another agent at a claude session', async () => 
     session: sessionID,
   });
 
-  expect(resumed).toStrictEqual({ command: `cd '${daemon.dir}' && bash --resume` });
+  expect(resumed).toStrictEqual({ command: `cd '${daemon.directory}' && bash --resume` });
 });

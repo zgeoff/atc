@@ -19,7 +19,7 @@ test('it translates the old agent keys into agents in a fixed order, then each g
           args: ['--x'],
           label: 'Two',
           mark: 'T',
-          env: { A: 'b', C: 3 },
+          env: { DEBUG: '1', LEVEL: 3 },
         },
         noURL: { label: 'No URL' },
         claude: { baseURL: 'https://three.example.com' },
@@ -83,7 +83,7 @@ test('it translates the old agent keys into agents in a fixed order, then each g
         bin: '/opt/other',
         args: ['--x'],
         baseURL: 'https://two.example.com',
-        env: { A: 'b' },
+        env: { DEBUG: '1' },
       },
     ],
     errors: [

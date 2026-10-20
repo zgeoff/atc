@@ -22,14 +22,14 @@ export async function verifyOAuthQuery(
   // prefixes.
   const canonical = new URLSearchParams(
     [...params].toSorted(([keyA, valueA], [keyB, valueB]) => {
-      const a = `${keyA}\u0000${valueA}`;
-      const b = `${keyB}\u0000${valueB}`;
+      const pairA = `${keyA}\u0000${valueA}`;
+      const pairB = `${keyB}\u0000${valueB}`;
 
-      if (a === b) {
+      if (pairA === pairB) {
         return 0;
       }
 
-      return a < b ? -1 : 1;
+      return pairA < pairB ? -1 : 1;
     }),
   );
 

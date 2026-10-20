@@ -28,9 +28,9 @@ test('it lists the sources it offers in order in agents.list', async () => {
         buildDirsSource({
           roots: [],
           readZoxideDirs: () => Promise.resolve([]),
-          homeDir: paths.dir,
+          homeDir: paths.directory,
         }),
-        buildGitHubSource({ run: runCommand, bin: join(paths.dir, 'gh'), owner: null }),
+        buildGitHubSource({ run: runCommand, bin: join(paths.directory, 'gh'), owner: null }),
         buildGitSource(),
       ],
     }),
@@ -55,21 +55,21 @@ test('it lists the spawn history, then the roots, then zoxide, as directories on
       principals: null,
       sources: [
         buildDirsSource({
-          roots: [join(paths.dir, 'roots')],
+          roots: [join(paths.directory, 'roots')],
           readZoxideDirs: () =>
-            Promise.resolve([join(paths.dir, 'zoxide-dir'), join(paths.dir, 'gone')]),
-          homeDir: paths.dir,
+            Promise.resolve([join(paths.directory, 'zoxide-dir'), join(paths.directory, 'gone')]),
+          homeDir: paths.directory,
         }),
       ],
     }),
   });
 
-  await mkdir(join(daemon.dir, 'work'));
-  await mkdir(join(daemon.dir, 'roots', 'proj'), { recursive: true });
-  await mkdir(join(daemon.dir, 'zoxide-dir'));
+  await mkdir(join(daemon.directory, 'work'));
+  await mkdir(join(daemon.directory, 'roots', 'proj'), { recursive: true });
+  await mkdir(join(daemon.directory, 'zoxide-dir'));
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: join(daemon.dir, 'work'),
+    cwd: join(daemon.directory, 'work'),
     cols: 80,
     rows: 24,
   });
@@ -80,9 +80,12 @@ test('it lists the spawn history, then the roots, then zoxide, as directories on
     source: 'dirs',
     scope: null,
     candidates: [
-      { label: '~/work', pick: { kind: 'path', dir: join(daemon.dir, 'work') } },
-      { label: '~/roots/proj', pick: { kind: 'path', dir: join(daemon.dir, 'roots', 'proj') } },
-      { label: '~/zoxide-dir', pick: { kind: 'path', dir: join(daemon.dir, 'zoxide-dir') } },
+      { label: '~/work', pick: { kind: 'path', dir: join(daemon.directory, 'work') } },
+      {
+        label: '~/roots/proj',
+        pick: { kind: 'path', dir: join(daemon.directory, 'roots', 'proj') },
+      },
+      { label: '~/zoxide-dir', pick: { kind: 'path', dir: join(daemon.directory, 'zoxide-dir') } },
     ],
   });
 });
@@ -115,24 +118,24 @@ test('it lists the owner the directories spawned on every target', async () => {
         buildDirsSource({
           roots: [],
           readZoxideDirs: () => Promise.resolve([]),
-          homeDir: paths.dir,
+          homeDir: paths.directory,
         }),
       ],
     }),
   });
 
-  await mkdir(join(daemon.dir, 'work'));
-  await mkdir(join(daemon.dir, 'box-dir'));
+  await mkdir(join(daemon.directory, 'work'));
+  await mkdir(join(daemon.directory, 'box-dir'));
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: join(daemon.dir, 'work'),
+    cwd: join(daemon.directory, 'work'),
     target: 'local',
     cols: 80,
     rows: 24,
   });
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: join(daemon.dir, 'box-dir'),
+    cwd: join(daemon.directory, 'box-dir'),
     target: 'box',
     cols: 80,
     rows: 24,
@@ -141,8 +144,8 @@ test('it lists the owner the directories spawned on every target', async () => {
   const listed = await daemon.client.sendRequest('sources.list', { source: 'dirs', target: 'box' });
 
   expect(listed['candidates']).toIncludeSameMembers([
-    { label: '~/work', pick: { kind: 'path', dir: join(daemon.dir, 'work') } },
-    { label: '~/box-dir', pick: { kind: 'path', dir: join(daemon.dir, 'box-dir') } },
+    { label: '~/work', pick: { kind: 'path', dir: join(daemon.directory, 'work') } },
+    { label: '~/box-dir', pick: { kind: 'path', dir: join(daemon.directory, 'box-dir') } },
   ]);
 });
 
@@ -174,24 +177,24 @@ test('it lists a principal only the directories spawned on targets it may use', 
         buildDirsSource({
           roots: [],
           readZoxideDirs: () => Promise.resolve([]),
-          homeDir: paths.dir,
+          homeDir: paths.directory,
         }),
       ],
     }),
   });
 
-  await mkdir(join(daemon.dir, 'work'));
-  await mkdir(join(daemon.dir, 'box-dir'));
+  await mkdir(join(daemon.directory, 'work'));
+  await mkdir(join(daemon.directory, 'box-dir'));
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: join(daemon.dir, 'work'),
+    cwd: join(daemon.directory, 'work'),
     target: 'local',
     cols: 80,
     rows: 24,
   });
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: join(daemon.dir, 'box-dir'),
+    cwd: join(daemon.directory, 'box-dir'),
     target: 'box',
     cols: 80,
     rows: 24,
@@ -201,7 +204,7 @@ test('it lists a principal only the directories spawned on targets it may use', 
   const listed = await alice.sendRequest('sources.list', { source: 'dirs', target: 'box' });
 
   expect(listed['candidates']).toStrictEqual([
-    { label: '~/box-dir', pick: { kind: 'path', dir: join(daemon.dir, 'box-dir') } },
+    { label: '~/box-dir', pick: { kind: 'path', dir: join(daemon.directory, 'box-dir') } },
   ]);
 });
 
@@ -213,12 +216,14 @@ test('it lists the configured GitHub owner through gh at the clone URL gh prefer
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
       principals: null,
-      sources: [buildGitHubSource({ run: runCommand, bin: join(paths.dir, 'gh'), owner: 'acme' })],
+      sources: [
+        buildGitHubSource({ run: runCommand, bin: join(paths.directory, 'gh'), owner: 'acme' }),
+      ],
     }),
   });
 
   createStubBin(
-    daemon.dir,
+    daemon.directory,
     'gh',
     buildStubGH({
       replies: {
@@ -228,12 +233,12 @@ test('it lists the configured GitHub owner through gh at the clone URL gh prefer
             '[{"nameWithOwner":"acme/app","description":"the app","isPrivate":true,"url":"https://github.com/acme/app","sshUrl":"git@github.com:acme/app.git"},{"nameWithOwner":"acme/web","description":null,"isPrivate":false,"url":"https://github.com/acme/web","sshUrl":"git@github.com:acme/web.git"}]\n',
         },
       },
-      argvFile: join(daemon.dir, 'gh-argv'),
+      argvFile: join(daemon.directory, 'gh-argv'),
     }),
   );
 
   const listed = await daemon.client.sendRequest('sources.list', { source: 'github' });
-  const argv = await readFile(join(daemon.dir, 'gh-argv'), 'utf8');
+  const argv = await readFile(join(daemon.directory, 'gh-argv'), 'utf8');
 
   expect(listed).toStrictEqual({
     source: 'github',
@@ -259,12 +264,14 @@ test('it lists the scope a request holds over the configured owner, at https URL
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
       principals: null,
-      sources: [buildGitHubSource({ run: runCommand, bin: join(paths.dir, 'gh'), owner: 'acme' })],
+      sources: [
+        buildGitHubSource({ run: runCommand, bin: join(paths.directory, 'gh'), owner: 'acme' }),
+      ],
     }),
   });
 
   createStubBin(
-    daemon.dir,
+    daemon.directory,
     'gh',
     buildStubGH({
       replies: {
@@ -274,7 +281,7 @@ test('it lists the scope a request holds over the configured owner, at https URL
             '[{"nameWithOwner":"other-org/app","description":"","isPrivate":false,"url":"https://github.com/other-org/app","sshUrl":"git@github.com:other-org/app.git"}]\n',
         },
       },
-      argvFile: join(daemon.dir, 'gh-argv'),
+      argvFile: join(daemon.directory, 'gh-argv'),
     }),
   );
 
@@ -283,7 +290,7 @@ test('it lists the scope a request holds over the configured owner, at https URL
     scope: 'other-org',
   });
 
-  const argv = await readFile(join(daemon.dir, 'gh-argv'), 'utf8');
+  const argv = await readFile(join(daemon.directory, 'gh-argv'), 'utf8');
 
   expect(listed).toStrictEqual({
     source: 'github',
@@ -307,16 +314,18 @@ test('it refuses a GitHub scope gh could read as an option, running no gh', asyn
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
       principals: null,
-      sources: [buildGitHubSource({ run: runCommand, bin: join(paths.dir, 'gh'), owner: null })],
+      sources: [
+        buildGitHubSource({ run: runCommand, bin: join(paths.directory, 'gh'), owner: null }),
+      ],
     }),
   });
 
   createStubBin(
-    daemon.dir,
+    daemon.directory,
     'gh',
     buildStubGH({
       replies: { repo: { stdout: '[]\n' } },
-      argvFile: join(daemon.dir, 'gh-argv'),
+      argvFile: join(daemon.directory, 'gh-argv'),
     }),
   );
 
@@ -327,7 +336,7 @@ test('it refuses a GitHub scope gh could read as an option, running no gh', asyn
 
   await Promise.allSettled([listed]);
 
-  const ran = await Bun.file(join(daemon.dir, 'gh-argv')).exists();
+  const ran = await Bun.file(join(daemon.directory, 'gh-argv')).exists();
 
   expect(listed).rejects.toMatchObject({ code: 'bad_args' });
   expect(ran).toBeFalse();
@@ -341,7 +350,9 @@ test('it refuses a GitHub listing on a host without gh as github_unavailable', a
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
       principals: null,
-      sources: [buildGitHubSource({ run: runCommand, bin: join(paths.dir, 'gh'), owner: null })],
+      sources: [
+        buildGitHubSource({ run: runCommand, bin: join(paths.directory, 'gh'), owner: null }),
+      ],
     }),
   });
 
@@ -416,15 +427,15 @@ test('it lists directories for a target that cannot take a workspace', async () 
       principals: null,
       sources: [
         buildDirsSource({
-          roots: [join(paths.dir, 'roots')],
+          roots: [join(paths.directory, 'roots')],
           readZoxideDirs: () => Promise.resolve([]),
-          homeDir: paths.dir,
+          homeDir: paths.directory,
         }),
       ],
     }),
   });
 
-  await mkdir(join(daemon.dir, 'roots', 'proj'), { recursive: true });
+  await mkdir(join(daemon.directory, 'roots', 'proj'), { recursive: true });
 
   const listed = await daemon.client.sendRequest('sources.list', {
     source: 'dirs',
@@ -435,7 +446,10 @@ test('it lists directories for a target that cannot take a workspace', async () 
     source: 'dirs',
     scope: null,
     candidates: [
-      { label: '~/roots/proj', pick: { kind: 'path', dir: join(daemon.dir, 'roots', 'proj') } },
+      {
+        label: '~/roots/proj',
+        pick: { kind: 'path', dir: join(daemon.directory, 'roots', 'proj') },
+      },
     ],
   });
 });
@@ -468,7 +482,7 @@ test('it refuses a principal a source listing for the default target it may not 
         buildDirsSource({
           roots: [],
           readZoxideDirs: () => Promise.resolve([]),
-          homeDir: paths.dir,
+          homeDir: paths.directory,
         }),
       ],
     }),
@@ -520,15 +534,15 @@ test.each([
         buildDirsSource({
           roots: [],
           readZoxideDirs: () => Promise.resolve([]),
-          homeDir: paths.dir,
+          homeDir: paths.directory,
         }),
-        buildGitHubSource({ run: runCommand, bin: join(paths.dir, 'gh'), owner: null }),
+        buildGitHubSource({ run: runCommand, bin: join(paths.directory, 'gh'), owner: null }),
         buildGitSource(),
       ],
     }),
   });
 
-  createStubBin(daemon.dir, 'gh', buildStubGH({ replies: { config: { stdout: 'ssh\n' } } }));
+  createStubBin(daemon.directory, 'gh', buildStubGH({ replies: { config: { stdout: 'ssh\n' } } }));
 
   const interpreted = await daemon.client.sendRequest('sources.interpret', { source, input });
 
@@ -547,7 +561,7 @@ test('it reads a leading ~ in directory input as the daemon home', async () => {
         buildDirsSource({
           roots: [],
           readZoxideDirs: () => Promise.resolve([]),
-          homeDir: paths.dir,
+          homeDir: paths.directory,
         }),
       ],
     }),
@@ -558,7 +572,7 @@ test('it reads a leading ~ in directory input as the daemon home', async () => {
     input: '~/work',
   });
 
-  expect(interpreted).toStrictEqual({ kind: 'path', dir: join(daemon.dir, 'work') });
+  expect(interpreted).toStrictEqual({ kind: 'path', dir: join(daemon.directory, 'work') });
 });
 
 test('it completes a typed ~ path against the daemon home', async () => {
@@ -571,14 +585,14 @@ test('it completes a typed ~ path against the daemon home', async () => {
         buildDirsSource({
           roots: [],
           readZoxideDirs: () => Promise.resolve([]),
-          homeDir: paths.dir,
+          homeDir: paths.directory,
         }),
       ],
     }),
   });
 
-  await mkdir(join(daemon.dir, 'alpha-work'));
-  await mkdir(join(daemon.dir, 'beta-work'));
+  await mkdir(join(daemon.directory, 'alpha-work'));
+  await mkdir(join(daemon.directory, 'beta-work'));
 
   const completed = await daemon.client.sendRequest('sources.complete', {
     source: 'dirs',
@@ -587,7 +601,7 @@ test('it completes a typed ~ path against the daemon home', async () => {
 
   expect(completed).toStrictEqual({
     completions: [
-      { label: '~/alpha-work', pick: { kind: 'path', dir: join(daemon.dir, 'alpha-work') } },
+      { label: '~/alpha-work', pick: { kind: 'path', dir: join(daemon.directory, 'alpha-work') } },
     ],
   });
 });
@@ -636,7 +650,7 @@ test('it refuses a principal a completion for the default target it may not use'
         buildDirsSource({
           roots: [],
           readZoxideDirs: () => Promise.resolve([]),
-          homeDir: paths.dir,
+          homeDir: paths.directory,
         }),
       ],
     }),
@@ -675,13 +689,13 @@ test('it completes a principal a path for a target it may use', async () => {
         buildDirsSource({
           roots: [],
           readZoxideDirs: () => Promise.resolve([]),
-          homeDir: paths.dir,
+          homeDir: paths.directory,
         }),
       ],
     }),
   });
 
-  await mkdir(join(daemon.dir, 'alpha-work'));
+  await mkdir(join(daemon.directory, 'alpha-work'));
 
   const alice = await daemon.openClient({ principal: 'alice' });
 
@@ -693,7 +707,7 @@ test('it completes a principal a path for a target it may use', async () => {
 
   expect(completed).toStrictEqual({
     completions: [
-      { label: '~/alpha-work', pick: { kind: 'path', dir: join(daemon.dir, 'alpha-work') } },
+      { label: '~/alpha-work', pick: { kind: 'path', dir: join(daemon.directory, 'alpha-work') } },
     ],
   });
 });
@@ -828,7 +842,7 @@ test("it refuses a GitHub probe git cannot read with the repository's other URL 
       adapter: buildMockAgentAdapter(),
       principals: null,
       sources: [
-        buildGitHubSource({ run: runCommand, bin: join(paths.dir, 'gh'), owner: null }),
+        buildGitHubSource({ run: runCommand, bin: join(paths.directory, 'gh'), owner: null }),
         buildGitSource(),
       ],
     }),
@@ -837,11 +851,11 @@ test("it refuses a GitHub probe git cannot read with the repository's other URL 
   // The rewrite sends the https form to a path that does not exist, so no
   // request reaches GitHub.
   await writeFile(
-    join(daemon.dir, 'gitconfig'),
-    `[url "file://${join(daemon.dir, 'nowhere')}/"]\n\tinsteadOf = https://github.com/\n`,
+    join(daemon.directory, 'gitconfig'),
+    `[url "file://${join(daemon.directory, 'nowhere')}/"]\n\tinsteadOf = https://github.com/\n`,
   );
 
-  updateEnv('GIT_CONFIG_GLOBAL', join(daemon.dir, 'gitconfig'));
+  updateEnv('GIT_CONFIG_GLOBAL', join(daemon.directory, 'gitconfig'));
 
   const probed = daemon.client.sendRequest('git.probe', { url: 'https://github.com/acme/app.git' });
 
@@ -860,7 +874,7 @@ test('it refuses a probe of the owner/repo shorthand, which only a spawn expands
       adapter: buildMockAgentAdapter(),
       principals: null,
       sources: [
-        buildGitHubSource({ run: runCommand, bin: join(paths.dir, 'gh'), owner: null }),
+        buildGitHubSource({ run: runCommand, bin: join(paths.directory, 'gh'), owner: null }),
         buildGitSource(),
       ],
     }),
@@ -869,11 +883,11 @@ test('it refuses a probe of the owner/repo shorthand, which only a spawn expands
   // The rewrite sends the expanded form to a path that does not exist, so
   // a probe that expanded the shorthand would fail in git instead.
   await writeFile(
-    join(daemon.dir, 'gitconfig'),
-    `[url "file://${join(daemon.dir, 'nowhere')}/"]\n\tinsteadOf = https://github.com/\n`,
+    join(daemon.directory, 'gitconfig'),
+    `[url "file://${join(daemon.directory, 'nowhere')}/"]\n\tinsteadOf = https://github.com/\n`,
   );
 
-  updateEnv('GIT_CONFIG_GLOBAL', join(daemon.dir, 'gitconfig'));
+  updateEnv('GIT_CONFIG_GLOBAL', join(daemon.directory, 'gitconfig'));
 
   const probed = daemon.client.sendRequest('git.probe', { url: 'acme/app' });
 
@@ -895,11 +909,11 @@ test('it refuses a GitHub probe with no alternates when the daemon offers no Git
   // The rewrite sends the https form to a path that does not exist, so no
   // request reaches GitHub.
   await writeFile(
-    join(daemon.dir, 'gitconfig'),
-    `[url "file://${join(daemon.dir, 'nowhere')}/"]\n\tinsteadOf = https://github.com/\n`,
+    join(daemon.directory, 'gitconfig'),
+    `[url "file://${join(daemon.directory, 'nowhere')}/"]\n\tinsteadOf = https://github.com/\n`,
   );
 
-  updateEnv('GIT_CONFIG_GLOBAL', join(daemon.dir, 'gitconfig'));
+  updateEnv('GIT_CONFIG_GLOBAL', join(daemon.directory, 'gitconfig'));
 
   const probed = daemon.client.sendRequest('git.probe', { url: 'https://github.com/acme/app.git' });
 

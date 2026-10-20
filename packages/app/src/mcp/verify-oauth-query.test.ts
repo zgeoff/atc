@@ -7,10 +7,10 @@ import { openMCPAuth } from './open-mcp-auth';
 import { verifyOAuthQuery } from './verify-oauth-query';
 
 async function setupTest() {
-  const tmp = setupTempDir('atc-verify-oauth-query-');
+  const temporaryDirectory = setupTempDir('atc-verify-oauth-query-');
 
   const store = await openMCPAuth({
-    dbPath: join(tmp.path, 'mcp-auth.db'),
+    dbPath: join(temporaryDirectory.path, 'mcp-auth.db'),
     openDatabase: openMCPAuthDatabase,
     origin: null,
   });

@@ -43,11 +43,11 @@ const PACKAGES_DIR = join(import.meta.dir, '..', '..');
 function readSourceRoots(): string[] {
   try {
     return readdirSync(PACKAGES_DIR).flatMap((name) => {
-      const dir = join(PACKAGES_DIR, name);
+      const directory = join(PACKAGES_DIR, name);
 
-      return existsSync(join(dir, 'package.json'))
-        ? [join(dir, 'src')]
-        : readdirSync(dir).map((child) => join(dir, child, 'src'));
+      return existsSync(join(directory, 'package.json'))
+        ? [join(directory, 'src')]
+        : readdirSync(directory).map((child) => join(directory, child, 'src'));
     });
   } catch {
     return [];

@@ -17,7 +17,7 @@ test("it runs a sub-session on its parent's target as another session in its par
 
   const daemon = await startTestDaemon({
     options: (paths) => {
-      const fakeClaude = createStubEchoClaude(paths.dir);
+      const fakeClaude = createStubEchoClaude(paths.directory);
 
       return {
         adapter: buildMockAgentAdapter({ planSpawn: () => ({ bin: fakeClaude, args: [] }) }),
@@ -36,7 +36,7 @@ test("it runs a sub-session on its parent's target as another session in its par
             identity: `imp:${id}`,
             provider: new ImpProvider(
               ctx.port,
-              { guestDir: join(paths.dir, id) },
+              { guestDir: join(paths.directory, id) },
               { version: '1.0.0' },
             ),
           })),
@@ -47,14 +47,14 @@ test("it runs a sub-session on its parent's target as another session in its par
   });
 
   const parent = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
     target: 'box',
   });
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
     target: 'box',
@@ -77,7 +77,7 @@ test("it puts a parent's imp to sleep once its only session is killed", async ()
 
   const daemon = await startTestDaemon({
     options: (paths) => {
-      const fakeClaude = createStubEchoClaude(paths.dir);
+      const fakeClaude = createStubEchoClaude(paths.directory);
 
       return {
         adapter: buildMockAgentAdapter({ planSpawn: () => ({ bin: fakeClaude, args: [] }) }),
@@ -96,7 +96,7 @@ test("it puts a parent's imp to sleep once its only session is killed", async ()
             identity: `imp:${id}`,
             provider: new ImpProvider(
               ctx.port,
-              { guestDir: join(paths.dir, id) },
+              { guestDir: join(paths.directory, id) },
               { version: '1.0.0' },
             ),
           })),
@@ -107,7 +107,7 @@ test("it puts a parent's imp to sleep once its only session is killed", async ()
   });
 
   const parent = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
     target: 'box',
@@ -127,7 +127,7 @@ test("it wakes a sleeping parent's imp to start a sub-session there", async () =
 
   const daemon = await startTestDaemon({
     options: (paths) => {
-      const fakeClaude = createStubEchoClaude(paths.dir);
+      const fakeClaude = createStubEchoClaude(paths.directory);
 
       return {
         adapter: buildMockAgentAdapter({ planSpawn: () => ({ bin: fakeClaude, args: [] }) }),
@@ -146,7 +146,7 @@ test("it wakes a sleeping parent's imp to start a sub-session there", async () =
             identity: `imp:${id}`,
             provider: new ImpProvider(
               ctx.port,
-              { guestDir: join(paths.dir, id) },
+              { guestDir: join(paths.directory, id) },
               { version: '1.0.0' },
             ),
           })),
@@ -157,7 +157,7 @@ test("it wakes a sleeping parent's imp to start a sub-session there", async () =
   });
 
   const parent = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
     target: 'box',
@@ -171,7 +171,7 @@ test("it wakes a sleeping parent's imp to start a sub-session there", async () =
   const before = ctx.port.findState(String(imp));
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
     target: 'box',
@@ -188,7 +188,7 @@ test('it gives a sub-session without a target a host of its own on the default t
 
   const daemon = await startTestDaemon({
     options: (paths) => {
-      const fakeClaude = createStubEchoClaude(paths.dir);
+      const fakeClaude = createStubEchoClaude(paths.directory);
 
       return {
         adapter: buildMockAgentAdapter({ planSpawn: () => ({ bin: fakeClaude, args: [] }) }),
@@ -207,7 +207,7 @@ test('it gives a sub-session without a target a host of its own on the default t
             identity: `imp:${id}`,
             provider: new ImpProvider(
               ctx.port,
-              { guestDir: join(paths.dir, id) },
+              { guestDir: join(paths.directory, id) },
               { version: '1.0.0' },
             ),
           })),
@@ -218,14 +218,14 @@ test('it gives a sub-session without a target a host of its own on the default t
   });
 
   const parent = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
     target: 'box',
   });
 
   const child = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
     parent: getRecord(parent, 'session')['id'],
@@ -241,7 +241,7 @@ test('it gives a sub-session on another imp target an imp of its own', async () 
 
   const daemon = await startTestDaemon({
     options: (paths) => {
-      const fakeClaude = createStubEchoClaude(paths.dir);
+      const fakeClaude = createStubEchoClaude(paths.directory);
 
       return {
         adapter: buildMockAgentAdapter({ planSpawn: () => ({ bin: fakeClaude, args: [] }) }),
@@ -260,7 +260,7 @@ test('it gives a sub-session on another imp target an imp of its own', async () 
             identity: `imp:${id}`,
             provider: new ImpProvider(
               ctx.port,
-              { guestDir: join(paths.dir, id) },
+              { guestDir: join(paths.directory, id) },
               { version: '1.0.0' },
             ),
           })),
@@ -271,14 +271,14 @@ test('it gives a sub-session on another imp target an imp of its own', async () 
   });
 
   const parent = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
     target: 'box',
   });
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
     target: 'other',

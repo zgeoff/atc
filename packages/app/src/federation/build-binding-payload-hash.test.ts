@@ -25,7 +25,9 @@ test('it hashes params with another payload apart', () => {
 });
 
 test('it hashes params the same in either order of two keys a locale comparison ties', () => {
-  expect(buildBindingPayloadHash({ é: 1, é: 2 })).toBe(buildBindingPayloadHash({ é: 2, é: 1 }));
+  expect(buildBindingPayloadHash({ café: 1, café: 2 })).toBe(
+    buildBindingPayloadHash({ café: 2, café: 1 }),
+  );
 });
 
 test('it hashes a replay-only resend the same as its first send', () => {

@@ -44,7 +44,11 @@ test('it accepts a message for a session that has not reported SessionStart', as
     }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   const ok = await daemon.client.sendRequest('session.message', {
     session: id,
@@ -76,7 +80,11 @@ test('it queues a message to a started session within the start-up grace window'
     }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   await daemon.sendHookLines({
     atcId: id,
@@ -119,7 +127,11 @@ test('it refuses a message once the grace window passes with no tap ever attache
     }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   await daemon.sendHookLines({
     atcId: id,
@@ -159,7 +171,11 @@ test('it accepts a message to a started session once a tap is connected', async 
     }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   await daemon.sendHookLines({
     atcId: id,
@@ -192,7 +208,7 @@ test('it refuses a message to a session whose agent cannot take messages', async
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     name: 'grok-one',
     agent: 'grok',
     cols: 80,
@@ -226,7 +242,11 @@ test('it answers a message for a killed session with session_dead', async () => 
     }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   await daemon.client.sendRequest('session.kill', { session: id });
 
@@ -242,7 +262,11 @@ test('it rejects a message without text as bad_args', async () => {
     }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   expect(daemon.client.sendRequest('session.message', { session: id })).rejects.toMatchObject({
     code: 'bad_args',
@@ -257,8 +281,12 @@ test('it lists a session the fleet restore has not reached yet as waiting to res
       const stopSeed = registerTestCleanup(() => seed.stop());
 
       await seed.writeFleet([
-        buildMockFleetEntry({ sessionID: toSessionID('s-agent-a'), cwd: paths.dir }),
-        buildMockFleetEntry({ sessionID: toSessionID('s-agent-b'), name: 'b', cwd: paths.dir }),
+        buildMockFleetEntry({ sessionID: toSessionID('s-agent-a'), cwd: paths.directory }),
+        buildMockFleetEntry({
+          sessionID: toSessionID('s-agent-b'),
+          name: 'b',
+          cwd: paths.directory,
+        }),
       ]);
 
       await stopSeed();
@@ -288,9 +316,9 @@ test('it queues a message for a session that waits for its restore boot after a 
       const stopSeed = registerTestCleanup(() => seed.stop());
 
       await seed.writeFleet([
-        buildMockFleetEntry({ sessionID: toSessionID('s-agent-a'), cwd: paths.dir }),
-        buildMockFleetEntry({ sessionID: toSessionID('s-agent-b'), cwd: paths.dir }),
-        buildMockFleetEntry({ sessionID: toSessionID('s-agent-c'), cwd: paths.dir }),
+        buildMockFleetEntry({ sessionID: toSessionID('s-agent-a'), cwd: paths.directory }),
+        buildMockFleetEntry({ sessionID: toSessionID('s-agent-b'), cwd: paths.directory }),
+        buildMockFleetEntry({ sessionID: toSessionID('s-agent-c'), cwd: paths.directory }),
       ]);
 
       await stopSeed();
@@ -329,9 +357,9 @@ test('it hands a message queued during the restore to the session tap that attac
       const stopSeed = registerTestCleanup(() => seed.stop());
 
       await seed.writeFleet([
-        buildMockFleetEntry({ sessionID: toSessionID('s-agent-a'), cwd: paths.dir }),
-        buildMockFleetEntry({ sessionID: toSessionID('s-agent-b'), cwd: paths.dir }),
-        buildMockFleetEntry({ sessionID: toSessionID('s-agent-c'), cwd: paths.dir }),
+        buildMockFleetEntry({ sessionID: toSessionID('s-agent-a'), cwd: paths.directory }),
+        buildMockFleetEntry({ sessionID: toSessionID('s-agent-b'), cwd: paths.directory }),
+        buildMockFleetEntry({ sessionID: toSessionID('s-agent-c'), cwd: paths.directory }),
       ]);
 
       await stopSeed();
@@ -398,7 +426,12 @@ test('it drains pending messages to a tap in the order they were sent', async ()
   });
 
   const tap = await daemon.openClient();
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   const first = await daemon.client.sendRequest('session.message', {
     session: id,
@@ -465,7 +498,11 @@ test('it streams a message queued while the tap is connected', async () => {
     tapEvents.push(event);
   };
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   await tap.sendRequest('session.tap', { session: id });
 
@@ -502,7 +539,12 @@ test('it drains two hundred pending messages to a tap with zero loss', async () 
   });
 
   const tap = await daemon.openClient();
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   const sent: string[] = [];
 
@@ -530,7 +572,11 @@ test('it drains a backlog larger than the outbound queue without dropping the ta
     options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }), queueBytes: 4096 }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   const sent: string[] = [];
 
@@ -564,7 +610,7 @@ test('it refuses a tap on a session whose agent cannot take messages', async () 
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
     name: 'grok-one',
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     agent: 'grok',
   });
 
@@ -595,7 +641,12 @@ test('it moves an acked message to delivered', async () => {
   });
 
   const tap = await daemon.openClient();
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   const sent = await daemon.client.sendRequest('session.message', {
     session: id,
@@ -620,7 +671,12 @@ test('it broadcasts SessionMessage for an acked message', async () => {
   });
 
   const tap = await daemon.openClient();
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   const sent = await daemon.client.sendRequest('session.message', {
     session: id,
@@ -653,7 +709,12 @@ test('it refuses an ack from a connection that is not the session tap', async ()
   });
 
   const tap = await daemon.openClient();
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   const sent = await daemon.client.sendRequest('session.message', {
     session: id,
@@ -678,7 +739,12 @@ test('it answers a repeat ack with the current status', async () => {
   });
 
   const tap = await daemon.openClient();
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   const sent = await daemon.client.sendRequest('session.message', {
     session: id,
@@ -704,7 +770,12 @@ test('it broadcasts delivered once for a repeat ack', async () => {
   });
 
   const tap = await daemon.openClient();
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   const sent = await daemon.client.sendRequest('session.message', {
     session: id,
@@ -744,7 +815,12 @@ test('it rejects an ack of an unknown message as bad_args', async () => {
   });
 
   const tap = await daemon.openClient();
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   await tap.sendRequest('session.tap', { session: id });
 
@@ -760,7 +836,11 @@ test('it moves a message to answered from a Report line on the reporter socket',
     }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   const sent = await daemon.client.sendRequest('session.message', {
     session: id,
@@ -801,12 +881,16 @@ test('it ignores an answer from another session', async () => {
     }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   const other = await spawnNamedSession(
     (m, p) => daemon.client.sendRequest(m, p),
     'two',
-    daemon.dir,
+    daemon.directory,
   );
 
   const sent = await daemon.client.sendRequest('session.message', {
@@ -848,7 +932,11 @@ test('it keeps queueing messages after the tap connection drops', async () => {
     }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   await daemon.sendHookLines({
     atcId: id,
@@ -884,7 +972,12 @@ test('it refuses a message to a session whose process died even after a tap atta
     options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }), tapGraceMs: 0 }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
+
   const tap = await daemon.openClient();
 
   await tap.sendRequest('session.tap', { session: id });
@@ -903,7 +996,13 @@ test('it broadcasts SessionMessage on the events socket', async () => {
   });
 
   const subscriber = await subscribeToSocketLines(daemon.eventsSocketPath);
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
+
   const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
 
   const line = await waitFor(() => {
@@ -937,17 +1036,22 @@ test('it runs SessionMessage hooks with the event on stdin', async () => {
     options: (paths) => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
       hooks: {
-        SessionMessage: [{ command: `cat >> '${join(paths.dir, 'hooks.log')}'` }],
-        SessionNote: [{ command: `cat >> '${join(paths.dir, 'hooks.log')}'` }],
+        SessionMessage: [{ command: `cat >> '${join(paths.directory, 'hooks.log')}'` }],
+        SessionNote: [{ command: `cat >> '${join(paths.directory, 'hooks.log')}'` }],
       },
     }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
+
   const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
 
   const logged = await waitFor(() => {
-    const text = readFileSync(join(daemon.dir, 'hooks.log'), 'utf8');
+    const text = readFileSync(join(daemon.directory, 'hooks.log'), 'utf8');
 
     expect(text).toEndWith('\n');
 
@@ -979,7 +1083,11 @@ test('it broadcasts a note from the reporter socket as SessionNote', async () =>
     }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   await daemon.sendHookLines({
     atcId: id,
@@ -1010,7 +1118,7 @@ test('it ignores a note from an unknown session', async () => {
     }),
   });
 
-  await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.directory);
 
   await daemon.sendHookLines({
     atcId: 'nope',
@@ -1033,7 +1141,12 @@ test('it broadcasts SessionNote on the events socket', async () => {
   });
 
   const subscriber = await subscribeToSocketLines(daemon.eventsSocketPath);
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   await daemon.sendHookLines({
     atcId: id,
@@ -1069,13 +1182,17 @@ test('it runs SessionNote hooks with the event on stdin', async () => {
     options: (paths) => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
       hooks: {
-        SessionMessage: [{ command: `cat >> '${join(paths.dir, 'hooks.log')}'` }],
-        SessionNote: [{ command: `cat >> '${join(paths.dir, 'hooks.log')}'` }],
+        SessionMessage: [{ command: `cat >> '${join(paths.directory, 'hooks.log')}'` }],
+        SessionNote: [{ command: `cat >> '${join(paths.directory, 'hooks.log')}'` }],
       },
     }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   await daemon.sendHookLines({
     atcId: id,
@@ -1084,7 +1201,7 @@ test('it runs SessionNote hooks with the event on stdin', async () => {
   });
 
   const logged = await waitFor(() => {
-    const text = readFileSync(join(daemon.dir, 'hooks.log'), 'utf8');
+    const text = readFileSync(join(daemon.directory, 'hooks.log'), 'utf8');
 
     expect(text).toEndWith('\n');
 
@@ -1122,7 +1239,12 @@ test('it keeps InboxMessage off every connection but the tap', async () => {
   };
 
   const subscriber = await subscribeToSocketLines(daemon.eventsSocketPath);
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   await tap.sendRequest('session.tap', { session: id });
   await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
@@ -1146,7 +1268,12 @@ test('it delivers pending messages to a new tap before a message queued at the s
   });
 
   const tap = await daemon.openClient();
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   const pending: Readonly<Record<string, unknown>>[] = [];
 
@@ -1179,7 +1306,13 @@ test('it orders concurrently queued messages by their sent time', async () => {
   });
 
   const tap = await daemon.openClient();
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
+
   const inbox = await startStubTap(tap, id);
 
   await Promise.all(
@@ -1208,7 +1341,11 @@ test('it reads a queued message back through message.get', async () => {
     }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   const sent = await daemon.client.sendRequest('session.message', {
     session: id,
@@ -1240,7 +1377,12 @@ test('it reads a delivered message back through message.get', async () => {
   });
 
   const tap = await daemon.openClient();
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   const sent = await daemon.client.sendRequest('session.message', {
     session: id,
@@ -1276,7 +1418,12 @@ test('it reads an answered message back through message.get', async () => {
   });
 
   const tap = await daemon.openClient();
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   const sent = await daemon.client.sendRequest('session.message', {
     session: id,
@@ -1321,7 +1468,11 @@ test('it returns the full text and answer through message.get while the event ca
     }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   const text = 't'.repeat(3000);
   const answer = 'a'.repeat(3000);
@@ -1354,7 +1505,11 @@ test('it caps a stored answer at the byte limit without splitting a character', 
     }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   const sent = await daemon.client.sendRequest('session.message', {
     session: id,
@@ -1388,7 +1543,11 @@ test('it gives two messages one turn answered the same turn and lists each besid
     }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   const first = await daemon.client.sendRequest('session.message', {
     session: id,
@@ -1445,7 +1604,11 @@ test("it wakes a held read of one turn's message with the whole group already an
     }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   const first = await daemon.client.sendRequest('session.message', {
     session: id,
@@ -1498,7 +1661,11 @@ test('it lists no other messages for a message its own turn answered', async () 
     }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   const first = await daemon.client.sendRequest('session.message', {
     session: id,
@@ -1548,7 +1715,11 @@ test('it stores no turn for an answer reported without one', async () => {
     }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   const first = await daemon.client.sendRequest('session.message', {
     session: id,
@@ -1599,7 +1770,13 @@ test("it answers one message of a running turn with the answer tool's text befor
   });
 
   const tap = await daemon.openClient();
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
+
   const first = await daemon.client.sendRequest('session.message', { session: id, text: 'one' });
   const second = await daemon.client.sendRequest('session.message', { session: id, text: 'two' });
 
@@ -1640,7 +1817,13 @@ test('it gives the final reply only to the message of a turn that the answer too
   });
 
   const tap = await daemon.openClient();
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
+
   const first = await daemon.client.sendRequest('session.message', { session: id, text: 'one' });
   const second = await daemon.client.sendRequest('session.message', { session: id, text: 'two' });
 
@@ -1701,7 +1884,12 @@ test('it holds message.get open until the message status changes', async () => {
     options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }), clock }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
+
   const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
 
   const pending = daemon.client.sendRequest('message.get', {
@@ -1742,7 +1930,12 @@ test('it answers a held message.get with the unchanged status once the wait ends
     options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }), clock }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
+
   const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
 
   const pending = daemon.client.sendRequest('message.get', {
@@ -1778,7 +1971,12 @@ test('it answers message.get for an answered message at once whatever the wait',
     options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }), clock }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
+
   const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
 
   await daemon.sendHookLines({
@@ -1822,7 +2020,12 @@ test('it moves a delivered message to unanswered from an unanswered Note line', 
   });
 
   const tap = await daemon.openClient();
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   const sent = await daemon.client.sendRequest('session.message', {
     session: id,
@@ -1865,7 +2068,12 @@ test('it reads an unanswered message back through message.get with its reason an
     options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
+
   const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
 
   await daemon.sendHookLines({
@@ -1902,7 +2110,12 @@ test('it records an unanswered message in events.read', async () => {
     options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
+
   const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
 
   await daemon.sendHookLines({
@@ -1945,12 +2158,16 @@ test('it ignores an unanswered note from another session', async () => {
     }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   const other = await spawnNamedSession(
     (m, p) => daemon.client.sendRequest(m, p),
     'two',
-    daemon.dir,
+    daemon.directory,
   );
 
   const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
@@ -1977,7 +2194,12 @@ test('it wakes a held message.get when the message turns unanswered', async () =
     options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }), clock }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
+
   const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
 
   const pending = daemon.client.sendRequest('message.get', {
@@ -2007,7 +2229,12 @@ test('it answers message.get for an unanswered message at once whatever the wait
     options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }), clock }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
+
   const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
 
   await daemon.sendHookLines({
@@ -2043,7 +2270,12 @@ test('it keeps a message unanswered when an answer arrives later', async () => {
     }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
+
   const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
 
   await daemon.sendHookLines({
@@ -2113,7 +2345,12 @@ test('it ends the earlier tap subscription when a second tap attaches', async ()
   };
 
   const replacement = await daemon.openClient();
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   await tap.sendRequest('session.tap', { session: id });
   await replacement.sendRequest('session.tap', { session: id });
@@ -2140,7 +2377,11 @@ test('it keeps the tap subscription when the same connection taps again', async 
     tapEvents.push(event);
   };
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   await tap.sendRequest('session.tap', { session: id });
 
@@ -2167,7 +2408,11 @@ test('it ends the tap subscription when its session is removed', async () => {
     tapEvents.push(event);
   };
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   await tap.sendRequest('session.tap', { session: id });
 
@@ -2190,7 +2435,12 @@ test('it records each message status change in events.read in order', async () =
   });
 
   const tap = await daemon.openClient();
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   const sent = await daemon.client.sendRequest('session.message', {
     session: id,
@@ -2257,7 +2507,12 @@ test('it records a repeated ack in the trail once', async () => {
   });
 
   const tap = await daemon.openClient();
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   const sent = await daemon.client.sendRequest('session.message', {
     session: id,
@@ -2299,7 +2554,12 @@ test('it wakes a waiting events.read when a message is queued', async () => {
     options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }), clock }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
+
   const first = await daemon.client.sendRequest('events.read', {});
 
   const pending = daemon.client.sendRequest('events.read', {
@@ -2335,8 +2595,17 @@ test("it limits events.read to one session's events", async () => {
     }),
   });
 
-  const one = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
-  const two = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'two', daemon.dir);
+  const one = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
+
+  const two = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'two',
+    daemon.directory,
+  );
 
   await daemon.client.sendRequest('session.message', { session: one, text: 'to one' });
   await daemon.client.sendRequest('session.message', { session: two, text: 'to two' });
@@ -2367,8 +2636,18 @@ test("it wakes a held events.read only for the filtered session's event", async 
     }),
   });
 
-  const one = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
-  const two = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'two', daemon.dir);
+  const one = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
+
+  const two = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'two',
+    daemon.directory,
+  );
+
   const first = await daemon.client.sendRequest('events.read', {});
 
   const pending = daemon.client.sendRequest('events.read', {
@@ -2406,7 +2685,12 @@ test('it marks an events.read page that stopped before the end of the trail', as
     }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
+
   const start = await daemon.client.sendRequest('events.read', {});
   const a = await daemon.client.sendRequest('session.message', { session: id, text: 'a' });
   const b = await daemon.client.sendRequest('session.message', { session: id, text: 'b' });
@@ -2451,7 +2735,12 @@ test('it marks the events.read page that reaches the end of the trail as the las
     }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
+
   const start = await daemon.client.sendRequest('events.read', {});
 
   await daemon.client.sendRequest('session.message', { session: id, text: 'a' });
@@ -2493,7 +2782,11 @@ test('it records a note in events.read with its label', async () => {
     }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   await daemon.sendHookLines({
     atcId: id,
@@ -2533,7 +2826,11 @@ test("it returns a note's whole text by the cursor of its event", async () => {
     }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   await daemon.sendHookLines({
     atcId: id,
@@ -2571,7 +2868,11 @@ test("it returns a note's text cut at 64 KiB", async () => {
     }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   await daemon.sendHookLines({
     atcId: id,
@@ -2627,7 +2928,11 @@ test('it refuses the cursor of an event that is not a note as an unknown note', 
     }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   await daemon.sendHookLines({
     atcId: id,
@@ -2657,7 +2962,11 @@ test("it returns a message's whole answer by the cursor of its answered event", 
     }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   const answer = 'The parser keeps tabs. '.repeat(40);
 
@@ -2708,7 +3017,11 @@ test('it refuses the cursor of an event that is not an answered message as an un
     }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   await daemon.sendHookLines({
     atcId: id,
@@ -2740,7 +3053,11 @@ test('it leaves a note from an unknown session out of the trail', async () => {
     }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   await daemon.sendHookLines({
     atcId: 'nope',
@@ -2789,7 +3106,11 @@ test("it counts a note toward the session's last activity time", async () => {
     options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }), clock }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   await daemon.sendHookLines({
     atcId: id,
@@ -2833,7 +3154,11 @@ test('it gates a revived session on its own tap, not the tap its previous proces
     }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   await daemon.sendHookLines({
     atcId: id,
@@ -2904,7 +3229,11 @@ test('it queues a message to a revived session before it reports SessionStart ag
     }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   await daemon.sendHookLines({
     atcId: id,
@@ -2944,7 +3273,12 @@ test('it marks a delivered message unanswered as session_ended when the process 
   });
 
   const tap = await daemon.openClient();
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
 
   const sent = await daemon.client.sendRequest('session.message', {
     session: id,
@@ -2978,7 +3312,13 @@ test('it marks a delivered message unanswered as session_ended when the session 
   });
 
   const tap = await daemon.openClient();
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
+
   const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
 
   await tap.sendRequest('session.tap', { session: id });
@@ -3002,7 +3342,13 @@ test('it marks a delivered message unanswered as session_ended when the daemon r
   });
 
   const tap = await daemon.openClient();
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
+
   const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
 
   await tap.sendRequest('session.tap', { session: id });
@@ -3019,7 +3365,12 @@ test('it marks a queued message unanswered as session_ended when the session is 
     options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
+
   const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
 
   // The first kill leaves an exited entry, whose next process could still
@@ -3047,7 +3398,7 @@ test('it keeps a delivered message delivered when another session of the same ag
   const tap = await daemon.openClient();
 
   const first = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     name: 'first',
     resume: 'agent-1',
     cols: 80,
@@ -3055,7 +3406,7 @@ test('it keeps a delivered message delivered when another session of the same ag
   });
 
   const second = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     name: 'second',
     resume: 'agent-1',
     cols: 80,
@@ -3097,7 +3448,13 @@ test('it marks a message unanswered as session_ended when its tap acks it after 
   });
 
   const tap = await daemon.openClient();
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
+
   const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
 
   await tap.sendRequest('session.tap', { session: id });
@@ -3124,7 +3481,12 @@ test('it keeps a queued message queued when the process exits', async () => {
     }),
   });
 
-  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const id = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.directory,
+  );
+
   const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
 
   await daemon.client.sendRequest('session.input', { session: id, d: 'end\r' });
@@ -3182,13 +3544,13 @@ test.each([
     const target = await spawnNamedSession(
       (m, p) => daemon.client.sendRequest(m, p),
       'target',
-      daemon.dir,
+      daemon.directory,
     );
 
     const from = await spawnNamedSession(
       (m, p) => daemon.client.sendRequest(m, p),
       'harbor-refactor',
-      daemon.dir,
+      daemon.directory,
     );
 
     // The hello's session placeholder stands for the sending session's id.

@@ -24,7 +24,7 @@ async function setupTest() {
     prefix: 'atc-daemon-caller-',
     options: (paths) => {
       // The token the listener takes, which every caller here presents.
-      writeFileSync(join(paths.dir, 'token'), `${'a'.repeat(32)}\n`);
+      writeFileSync(join(paths.directory, 'token'), `${'a'.repeat(32)}\n`);
 
       return {
         // Takes messages, so a message can end a long poll.
@@ -32,7 +32,7 @@ async function setupTest() {
 
         // Lets the callers' principal use the local target.
         principals: new Map([['gw', ['local']]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'token') },
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'token') },
       };
     },
   });
@@ -116,7 +116,7 @@ test('it refuses a daemon behind another state identity as daemon_changed and se
 
   const spawned = caller.sendRequest(
     'session.spawn',
-    { cwd: ctx.daemon.dir, resume: `a-${randomUUID()}` },
+    { cwd: ctx.daemon.directory, resume: `a-${randomUUID()}` },
     { id: 'gw', name: 'Lantern Notes' },
   );
 
@@ -224,7 +224,7 @@ test('it retries a keyed spawn whose response was lost once on the same daemon, 
 
   const spawned = await caller.sendRequest(
     'session.spawn',
-    { cwd: ctx.daemon.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-1' },
+    { cwd: ctx.daemon.directory, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-1' },
     { id: 'gw', name: 'Lantern Notes' },
   );
 
@@ -260,7 +260,7 @@ test('it answers outcome_unknown for an unkeyed spawn whose response was lost', 
 
   const spawned = caller.sendRequest(
     'session.spawn',
-    { cwd: ctx.daemon.dir, resume: `a-${randomUUID()}` },
+    { cwd: ctx.daemon.directory, resume: `a-${randomUUID()}` },
     { id: 'gw', name: 'Lantern Notes' },
   );
 
@@ -293,7 +293,7 @@ test('it answers outcome_unknown for a keyed spawn whose retry also lost its res
 
   const spawned = caller.sendRequest(
     'session.spawn',
-    { cwd: ctx.daemon.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-2' },
+    { cwd: ctx.daemon.directory, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-2' },
     { id: 'gw', name: 'Lantern Notes' },
   );
 
@@ -335,7 +335,7 @@ test('it retries a keyed spawn whose response timed out on a fresh connection', 
 
   const spawning = caller.sendRequest(
     'session.spawn',
-    { cwd: ctx.daemon.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-3' },
+    { cwd: ctx.daemon.directory, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-3' },
     { id: 'gw', name: 'Lantern Notes' },
   );
 
@@ -424,7 +424,7 @@ test('it resends a keyed spawn replay-only, so a resend after the daemon swept t
 
   const spawned = caller.sendRequest(
     'session.spawn',
-    { cwd: ctx.daemon.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-swept' },
+    { cwd: ctx.daemon.directory, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-swept' },
     { id: 'gw', name: 'Lantern Notes' },
   );
 
@@ -501,7 +501,7 @@ test('it gives a long poll its own waitMs on top of the response time on the sam
 
   const spawned = await caller.sendRequest(
     'session.spawn',
-    { cwd: ctx.daemon.dir, resume: `a-${randomUUID()}` },
+    { cwd: ctx.daemon.directory, resume: `a-${randomUUID()}` },
     { id: 'gw', name: 'Lantern Notes' },
   );
 
@@ -554,7 +554,7 @@ test('it sends the name of the principal beside it', async () => {
   registerTestCleanup(() => caller.stop());
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+    cwd: ctx.daemon.directory,
     resume: `a-${randomUUID()}`,
   });
 

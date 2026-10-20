@@ -20,15 +20,17 @@ import { startMCPHTTPServer } from './start-mcp-http-server';
 import { TransportCaller } from './transport-caller';
 
 async function setupTest() {
-  const tmp = setupTempDir('atc-answer-login-');
-  const dbPath = join(tmp.path, 'mcp-auth.db');
+  const temporaryDirectory = setupTempDir('atc-answer-login-');
+  const dbPath = join(temporaryDirectory.path, 'mcp-auth.db');
   const requests: string[] = [];
   const security: string[] = [];
   const clock = buildStubClock(Date.now());
 
   // sign-in never reaches the daemon, so nothing listens on this socket.
-  const caller = new TransportCaller(join(tmp.path, 'daemon.sock'), 'atc/test-build', (path) =>
-    openDaemonClient(path),
+  const caller = new TransportCaller(
+    join(temporaryDirectory.path, 'daemon.sock'),
+    'atc/test-build',
+    (path) => openDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());

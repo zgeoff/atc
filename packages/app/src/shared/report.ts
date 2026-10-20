@@ -24,18 +24,18 @@ async function sendLine(sock: string, line: string): Promise<boolean> {
     socket: {
       // A write returns the bytes the socket accepted and drops the rest, so
       // a line larger than the socket buffer goes out across drain calls.
-      open(s) {
-        written += s.write(bytes.subarray(written));
+      open(socket) {
+        written += socket.write(bytes.subarray(written));
 
         if (written >= bytes.length) {
-          s.end();
+          socket.end();
         }
       },
-      drain(s) {
-        written += s.write(bytes.subarray(written));
+      drain(socket) {
+        written += socket.write(bytes.subarray(written));
 
         if (written >= bytes.length) {
-          s.end();
+          socket.end();
         }
       },
       close() {

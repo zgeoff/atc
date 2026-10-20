@@ -6,10 +6,10 @@ import { openMCPAuth } from './open-mcp-auth';
 import { readClientViews } from './read-client-views';
 
 async function setupTest() {
-  const tmp = setupTempDir('atc-collect-clients-');
+  const temporaryDirectory = setupTempDir('atc-collect-clients-');
 
   const store = await openMCPAuth({
-    dbPath: join(tmp.path, 'mcp-auth.db'),
+    dbPath: join(temporaryDirectory.path, 'mcp-auth.db'),
     openDatabase: openMCPAuthDatabase,
     origin: null,
   });

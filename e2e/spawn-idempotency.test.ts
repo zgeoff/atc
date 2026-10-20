@@ -25,7 +25,7 @@ test('it answers a retried keyed spawn with the first session and spawns once', 
     options: () => ({ adapter: buildMockAgentAdapter() }),
   });
 
-  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const params = { cwd: daemon.directory, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
   const first = await daemon.client.sendRequest('session.spawn', params);
   const second = await daemon.client.sendRequest('session.spawn', params);
@@ -41,7 +41,7 @@ test('it spawns once for two keyed spawns that arrive together', async () => {
     options: () => ({ adapter: buildMockAgentAdapter() }),
   });
 
-  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const params = { cwd: daemon.directory, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
   const [first, second] = await Promise.all([
     daemon.client.sendRequest('session.spawn', params),
@@ -61,12 +61,12 @@ test('it replays a retried spawn whose params differ only in defaults and fields
   });
 
   const first = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     idempotencyKey: 'k-1',
   });
 
   const second = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
     name: '',
@@ -84,7 +84,7 @@ test('it refuses a key reused with a different spawn payload as idempotency_conf
   });
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
     idempotencyKey: 'k-1',
@@ -92,7 +92,7 @@ test('it refuses a key reused with a different spawn payload as idempotency_conf
 
   expect(
     daemon.client.sendRequest('session.spawn', {
-      cwd: join(daemon.dir, 'other'),
+      cwd: join(daemon.directory, 'other'),
       cols: 80,
       rows: 24,
       idempotencyKey: 'k-1',
@@ -106,7 +106,7 @@ test('it answers a spawn retried after an interrupted run with outcome_unknown a
     options: () => ({ adapter: buildMockAgentAdapter() }),
   });
 
-  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const params = { cwd: daemon.directory, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
   await daemon.stop();
 
@@ -147,7 +147,7 @@ test('it refuses a spawn retried after an interrupted run whose session reached 
     options: () => ({ adapter: buildMockAgentAdapter() }),
   });
 
-  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const params = { cwd: daemon.directory, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
   await daemon.stop();
 
@@ -167,7 +167,7 @@ test('it refuses a spawn retried after an interrupted run whose session reached 
   await seed.writeFleet([
     buildMockFleetEntry({
       sessionID: toSessionID('spawned-before-crash'),
-      cwd: daemon.dir,
+      cwd: daemon.directory,
       exited: true,
     }),
   ]);
@@ -188,7 +188,7 @@ test('it completes an interrupted spawn whose session reached the fleet and repl
     options: () => ({ adapter: buildMockAgentAdapter() }),
   });
 
-  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const params = { cwd: daemon.directory, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
   await daemon.stop();
 
@@ -208,7 +208,7 @@ test('it completes an interrupted spawn whose session reached the fleet and repl
   await seed.writeFleet([
     buildMockFleetEntry({
       sessionID: toSessionID('spawned-before-crash'),
-      cwd: daemon.dir,
+      cwd: daemon.directory,
       exited: true,
     }),
   ]);
@@ -240,7 +240,7 @@ test('it refuses a keyed spawn whose agent fails to start as internal', async ()
 
   expect(
     daemon.client.sendRequest('session.spawn', {
-      cwd: daemon.dir,
+      cwd: daemon.directory,
       cols: 80,
       rows: 24,
       idempotencyKey: 'k-1',
@@ -260,7 +260,7 @@ test('it drops the claim of a spawn that failed to start so a retry spawns', asy
     options: () => ({ adapter: buildMockAgentAdapter({ planSpawn }) }),
   });
 
-  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const params = { cwd: daemon.directory, cols: 80, rows: 24, idempotencyKey: 'k-1' };
   const failed = daemon.client.sendRequest('session.spawn', params);
 
   await Promise.allSettled([failed]);
@@ -269,7 +269,7 @@ test('it drops the claim of a spawn that failed to start so a retry spawns', asy
 
   expect(failed).rejects.toMatchObject({ code: 'internal' });
   expect(planSpawn).toHaveBeenCalledTimes(2);
-  expect(retried).toMatchObject({ session: { cwd: daemon.dir } });
+  expect(retried).toMatchObject({ session: { cwd: daemon.directory } });
 });
 
 test('it records no claim for a keyed spawn refused before it starts', async () => {
@@ -279,7 +279,7 @@ test('it records no claim for a keyed spawn refused before it starts', async () 
   });
 
   const spawned = daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     parent: 'ghost',
     cols: 80,
     rows: 24,
@@ -307,13 +307,20 @@ test('it replays a completed keyed spawn even once its parent is gone', async ()
   });
 
   const parent = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
 
   const parentID = getRecord(parent, 'session')['id'];
-  const params = { cwd: daemon.dir, parent: parentID, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+
+  const params = {
+    cwd: daemon.directory,
+    parent: parentID,
+    cols: 80,
+    rows: 24,
+    idempotencyKey: 'k-1',
+  };
 
   const first = await daemon.client.sendRequest('session.spawn', params);
 
@@ -332,7 +339,7 @@ test('it refuses a spawn with fractional rows as bad_args before any session sta
   });
 
   const spawned = daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24.5,
     idempotencyKey: 'k-1',
@@ -361,7 +368,7 @@ test('it refuses a keyed spawn that fails after its process starts as internal',
 
   expect(
     daemon.client.sendRequest('session.spawn', {
-      cwd: daemon.dir,
+      cwd: daemon.directory,
       cols: 80,
       rows: 24,
       idempotencyKey: 'k-1',
@@ -382,7 +389,7 @@ test('it leaves no session behind from a keyed spawn that fails after its proces
     options: () => ({ adapter: stub.adapter }),
   });
 
-  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const params = { cwd: daemon.directory, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
   await Promise.allSettled([daemon.client.sendRequest('session.spawn', params)]);
 
@@ -407,7 +414,7 @@ test('it answers outcome_unknown with its claim when killing a failed spawn thro
   });
 
   const spawned = daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
     idempotencyKey: 'k-1',
@@ -442,7 +449,7 @@ test('it keeps the key as outcome_unknown when killing a failed spawn throws, so
     options: () => ({ adapter: stub.adapter }),
   });
 
-  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const params = { cwd: daemon.directory, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
   await Promise.allSettled([daemon.client.sendRequest('session.spawn', params)]);
 
@@ -494,7 +501,7 @@ test('it answers outcome_unknown when a failed spawn cannot be removed from the 
 
   expect(
     daemon.client.sendRequest('session.spawn', {
-      cwd: daemon.dir,
+      cwd: daemon.directory,
       cols: 80,
       rows: 24,
       idempotencyKey: 'k-1',
@@ -515,7 +522,7 @@ test('it keeps the key as outcome_unknown when a failed spawn cannot be removed 
     options: () => ({ adapter: stub.adapter }),
   });
 
-  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const params = { cwd: daemon.directory, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
   // Another connection drops the fleet table, so no fleet write can land.
   const db = new Database(daemon.dbPath);
@@ -558,7 +565,7 @@ test('it answers outcome_unknown with the session id when the fleet write after 
   db.run('DROP TABLE fleet');
 
   const spawned = daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
     idempotencyKey: 'k-1',
@@ -586,7 +593,7 @@ test('it keeps the key as outcome_unknown when the fleet write after a successfu
     options: () => ({ adapter: buildMockAgentAdapter({ planSpawn }) }),
   });
 
-  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const params = { cwd: daemon.directory, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
   // Another connection drops the fleet table, so the spawn starts but its
   // fleet write cannot land.
@@ -638,7 +645,7 @@ test('it answers outcome_unknown with the session id when completing the key fai
   );
 
   const spawned = daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
     idempotencyKey: 'k-1',
@@ -666,7 +673,7 @@ test('it keeps the key in progress when completing it fails, so a retry spawns n
     options: () => ({ adapter: buildMockAgentAdapter({ planSpawn }) }),
   });
 
-  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const params = { cwd: daemon.directory, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
   // Another connection makes every update of a key fail, so the claim lands
   // but neither its completion nor its outcome can.
@@ -720,7 +727,7 @@ test('it answers outcome_unknown with the session id when the fleet write and th
   );
 
   const spawned = daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
     idempotencyKey: 'k-1',
@@ -748,7 +755,7 @@ test('it keeps the key in progress when the fleet write and the key update both 
     options: () => ({ adapter: buildMockAgentAdapter({ planSpawn }) }),
   });
 
-  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const params = { cwd: daemon.directory, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
   const db = new Database(daemon.dbPath);
 
@@ -809,7 +816,7 @@ test('it answers outcome_unknown with its claim when a failed spawn cannot leave
   );
 
   const spawned = daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
     idempotencyKey: 'k-1',
@@ -838,7 +845,7 @@ test('it keeps the key in progress when a failed spawn cannot leave the fleet an
     options: () => ({ adapter: stub.adapter }),
   });
 
-  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const params = { cwd: daemon.directory, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
   const db = new Database(daemon.dbPath);
 
@@ -897,7 +904,7 @@ test('it ends a failed spawn that ignores its kill with a forced kill before it 
   });
 
   const spawned = daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
     idempotencyKey: 'k-1',
@@ -937,7 +944,7 @@ test('it completes the rollback of a failed spawn that ignores its kill, so a re
     }),
   });
 
-  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const params = { cwd: daemon.directory, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
   await Promise.allSettled([daemon.client.sendRequest('session.spawn', params)]);
 
@@ -984,7 +991,7 @@ test('it answers outcome_unknown and keeps the process of a failed spawn whose p
   });
 
   const spawned = daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
     resume: 'agent-session-1',
@@ -1053,7 +1060,7 @@ test('it answers outcome_unknown for a failed spawn whose killed process outlast
   });
 
   const spawned = daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
     resume: 'agent-session-1',
@@ -1101,7 +1108,7 @@ test('it keeps the key of a failed spawn whose provider cannot confirm the exit 
   });
 
   const params = {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
     resume: 'agent-session-1',
@@ -1170,7 +1177,7 @@ test('it keeps a failed spawn whose provider cannot confirm the exit listed and 
 
   await Promise.allSettled([
     daemon.client.sendRequest('session.spawn', {
-      cwd: daemon.dir,
+      cwd: daemon.directory,
       cols: 80,
       rows: 24,
       resume: 'agent-session-1',
@@ -1231,7 +1238,7 @@ test('it answers a failed spawn only once its killed process has exited', async 
   });
 
   const spawned = daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
     idempotencyKey: 'k-1',
@@ -1269,7 +1276,7 @@ test('it lets a retry spawn once after a failed spawn whose killed process took 
     options: () => ({ adapter: stub.adapter }),
   });
 
-  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const params = { cwd: daemon.directory, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
   await Promise.allSettled([daemon.client.sendRequest('session.spawn', params)]);
 
@@ -1305,7 +1312,7 @@ test('it refuses to revive a failed spawn while its rollback waits for the kille
   });
 
   const spawned = daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
     resume: 'agent-session-1',
@@ -1360,7 +1367,7 @@ test('it leaves no session behind from a failed spawn whose revive was refused d
   });
 
   const spawned = daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
     resume: 'agent-session-1',
@@ -1401,7 +1408,7 @@ test('it answers a retried keyed message with the first message and sends once',
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -1434,7 +1441,7 @@ test('it replays a retried message whose params differ only in a default and a f
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -1465,7 +1472,7 @@ test('it refuses a message key reused with different text as idempotency_conflic
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -1590,7 +1597,7 @@ test('it refuses a replay-only spawn whose key it never held as idempotency_key_
   });
 
   const refused = daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
     idempotencyKey: 'never-held',
@@ -1611,7 +1618,7 @@ test('it refuses a replay-only spawn whose completed key was swept and spawns no
     options: () => ({ adapter: buildMockAgentAdapter() }),
   });
 
-  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'swept' };
+  const params = { cwd: daemon.directory, cols: 80, rows: 24, idempotencyKey: 'swept' };
 
   await daemon.client.sendRequest('session.spawn', params);
 
@@ -1641,7 +1648,7 @@ test('it replays a held key for a replay-only spawn and spawns nothing more', as
     options: () => ({ adapter: buildMockAgentAdapter() }),
   });
 
-  const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'held' };
+  const params = { cwd: daemon.directory, cols: 80, rows: 24, idempotencyKey: 'held' };
 
   const first = await daemon.client.sendRequest('session.spawn', params);
 
@@ -1663,7 +1670,7 @@ test('it replays a held key for a replay-only message', async () => {
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });
@@ -1690,7 +1697,10 @@ test('it refuses a replay-only spawn without an idempotency key as bad_args and 
     options: () => ({ adapter: buildMockAgentAdapter() }),
   });
 
-  const refused = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, replayOnly: true });
+  const refused = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.directory,
+    replayOnly: true,
+  });
 
   await Promise.allSettled([refused]);
 
@@ -1707,7 +1717,7 @@ test('it refuses a message key whose stored hash covers a from as idempotency_co
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     cols: 80,
     rows: 24,
   });

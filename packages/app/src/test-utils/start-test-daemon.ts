@@ -14,7 +14,7 @@ import type { Socket } from 'bun';
 import { buildLocalTarget } from './build-local-target';
 
 interface TestDaemonPaths {
-  readonly dir: string;
+  readonly directory: string;
   readonly socketPath: string;
   readonly reporterSocketPath: string;
   readonly eventsSocketPath: string;
@@ -77,7 +77,7 @@ export function startTestDaemon<const Config extends TestDaemonConfig = TestDaem
 ): Promise<StartedTestDaemon<Config>>;
 
 export async function startTestDaemon(config: TestDaemonConfig = {}): Promise<TestDaemon> {
-  const tmp = setupTempDir(config.prefix ?? 'atc-test-daemon-');
+  const temporaryDirectory = setupTempDir(config.prefix ?? 'atc-test-daemon-');
 
   // Registered after the directory, so it releases first: the daemon stops
   // before its directory is removed.
@@ -85,15 +85,15 @@ export async function startTestDaemon(config: TestDaemonConfig = {}): Promise<Te
 
   const dispose = registerTestCleanup(() => stack.disposeAsync());
 
-  stack.defer(tmp.teardown);
+  stack.defer(temporaryDirectory.teardown);
 
   const paths: TestDaemonPaths = {
-    dir: tmp.path,
-    socketPath: join(tmp.path, 'daemon.sock'),
-    reporterSocketPath: join(tmp.path, 'reporter.sock'),
-    eventsSocketPath: join(tmp.path, 'events.sock'),
-    dbPath: join(tmp.path, 'state.db'),
-    statusPath: join(tmp.path, 'status.json'),
+    directory: temporaryDirectory.path,
+    socketPath: join(temporaryDirectory.path, 'daemon.sock'),
+    reporterSocketPath: join(temporaryDirectory.path, 'reporter.sock'),
+    eventsSocketPath: join(temporaryDirectory.path, 'events.sock'),
+    dbPath: join(temporaryDirectory.path, 'state.db'),
+    statusPath: join(temporaryDirectory.path, 'status.json'),
   };
 
   const logs: string[] = [];

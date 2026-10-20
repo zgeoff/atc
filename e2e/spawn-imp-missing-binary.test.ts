@@ -12,14 +12,14 @@ test('it lists an agent whose binary is missing here as spawnable only on the im
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-imp-missing-',
     options: (paths) => {
-      const fakeClaude = createStubEchoClaude(paths.dir);
+      const fakeClaude = createStubEchoClaude(paths.directory);
 
       return {
         adapter: buildMockAgentAdapter({
           profile: {
             label: 'Claude',
             kind: 'claude',
-            bin: join(paths.dir, 'missing', 'claude'),
+            bin: join(paths.directory, 'missing', 'claude'),
             models: null,
             spawnOptions: {
               model: {
@@ -57,7 +57,7 @@ test('it lists an agent whose binary is missing here as spawnable only on the im
             identity: 'imp:test',
             provider: new ImpProvider(
               createStubImpPort(),
-              { guestDir: join(paths.dir, 'g') },
+              { guestDir: join(paths.directory, 'g') },
               { reconnectDelaysMs: [0, 0, 0], version: '1.0.0' },
             ),
           },
@@ -140,7 +140,7 @@ test('it lists the imp target as remote and the local target as not', async () =
           identity: 'imp:test',
           provider: new ImpProvider(
             createStubImpPort(),
-            { guestDir: join(paths.dir, 'g') },
+            { guestDir: join(paths.directory, 'g') },
             { reconnectDelaysMs: [0, 0, 0], version: '1.0.0' },
           ),
         },
@@ -161,14 +161,14 @@ test('it spawns an agent whose binary is missing here on the imp target', async 
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-imp-missing-',
     options: (paths) => {
-      const fakeClaude = createStubEchoClaude(paths.dir);
+      const fakeClaude = createStubEchoClaude(paths.directory);
 
       return {
         adapter: buildMockAgentAdapter({
           profile: {
             label: 'Claude',
             kind: 'claude',
-            bin: join(paths.dir, 'missing', 'claude'),
+            bin: join(paths.directory, 'missing', 'claude'),
             models: null,
             spawnOptions: {
               model: {
@@ -199,7 +199,7 @@ test('it spawns an agent whose binary is missing here on the imp target', async 
             identity: 'imp:test',
             provider: new ImpProvider(
               createStubImpPort(),
-              { guestDir: join(paths.dir, 'g') },
+              { guestDir: join(paths.directory, 'g') },
               { reconnectDelaysMs: [0, 0, 0], version: '1.0.0' },
             ),
           },
@@ -210,7 +210,7 @@ test('it spawns an agent whose binary is missing here on the imp target', async 
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     agent: 'claude',
     target: 'box',
   });
@@ -230,7 +230,7 @@ test('it refuses an agent whose binary is missing here on the local target', asy
         profile: {
           label: 'Claude',
           kind: 'claude',
-          bin: join(paths.dir, 'missing', 'claude'),
+          bin: join(paths.directory, 'missing', 'claude'),
           models: null,
           spawnOptions: {
             model: {
@@ -266,7 +266,7 @@ test('it refuses an agent whose binary is missing here on the local target', asy
   });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+    cwd: daemon.directory,
     agent: 'claude',
     target: 'local',
   });

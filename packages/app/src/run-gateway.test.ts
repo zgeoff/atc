@@ -8,16 +8,16 @@ import { openMCPAuthDatabase } from './open-mcp-auth-database';
 import { runGateway } from './run-gateway';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-run-gateway-');
+  const temporaryDirectory = setupTempDir('atc-run-gateway-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it answers the liveness probe for the host of its public URL', async () => {
   const ctx = setupTest();
 
   writeFileSync(
-    join(ctx.dir, 'registry.json'),
+    join(ctx.directory, 'registry.json'),
     JSON.stringify({
       daemons: {
         cloud: { address: '127.0.0.1:9', daemonID: '0123abcd-0000-4000-8000-000000000000' },
@@ -37,8 +37,8 @@ test('it answers the liveness probe for the host of its public URL', async () =>
       port: 0,
       publicURL: 'https://atc.example.com',
       trustForwardedFrom: [],
-      registryPath: join(ctx.dir, 'registry.json'),
-      stateDir: join(ctx.dir, 'state'),
+      registryPath: join(ctx.directory, 'registry.json'),
+      stateDir: join(ctx.directory, 'state'),
     },
     {
       env: { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
@@ -74,7 +74,7 @@ test('it trusts the forwarded address from a proxy its flags list', async () => 
   const ctx = setupTest();
 
   writeFileSync(
-    join(ctx.dir, 'registry.json'),
+    join(ctx.directory, 'registry.json'),
     JSON.stringify({
       daemons: {
         cloud: { address: '127.0.0.1:9', daemonID: '0123abcd-0000-4000-8000-000000000000' },
@@ -95,8 +95,8 @@ test('it trusts the forwarded address from a proxy its flags list', async () => 
       port: 0,
       publicURL: 'https://atc.example.com',
       trustForwardedFrom: ['127.0.0.1'],
-      registryPath: join(ctx.dir, 'registry.json'),
-      stateDir: join(ctx.dir, 'state'),
+      registryPath: join(ctx.directory, 'registry.json'),
+      stateDir: join(ctx.directory, 'state'),
     },
     {
       env: { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
@@ -148,7 +148,7 @@ test('it leaves the forwarded address unverified from a peer its flags do not li
   const ctx = setupTest();
 
   writeFileSync(
-    join(ctx.dir, 'registry.json'),
+    join(ctx.directory, 'registry.json'),
     JSON.stringify({
       daemons: {
         cloud: { address: '127.0.0.1:9', daemonID: '0123abcd-0000-4000-8000-000000000000' },
@@ -169,8 +169,8 @@ test('it leaves the forwarded address unverified from a peer its flags do not li
       port: 0,
       publicURL: 'https://atc.example.com',
       trustForwardedFrom: ['192.0.2.1'],
-      registryPath: join(ctx.dir, 'registry.json'),
-      stateDir: join(ctx.dir, 'state'),
+      registryPath: join(ctx.directory, 'registry.json'),
+      stateDir: join(ctx.directory, 'state'),
     },
     {
       env: { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
@@ -226,7 +226,7 @@ test('it prints nothing to stdout once it serves and each sign-in security event
   const ctx = setupTest();
 
   writeFileSync(
-    join(ctx.dir, 'registry.json'),
+    join(ctx.directory, 'registry.json'),
     JSON.stringify({
       daemons: {
         cloud: { address: '127.0.0.1:9', daemonID: '0123abcd-0000-4000-8000-000000000000' },
@@ -247,8 +247,8 @@ test('it prints nothing to stdout once it serves and each sign-in security event
       port: 0,
       publicURL: 'https://atc.example.com',
       trustForwardedFrom: [],
-      registryPath: join(ctx.dir, 'registry.json'),
-      stateDir: join(ctx.dir, 'state'),
+      registryPath: join(ctx.directory, 'registry.json'),
+      stateDir: join(ctx.directory, 'state'),
     },
     {
       env: { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
@@ -277,7 +277,7 @@ test('it prints nothing to stdout once it serves and each sign-in security event
 
   // The gateway's database, opened the way `atc-gateway clients` opens it.
   const store = await openMCPAuth({
-    dbPath: join(ctx.dir, 'state', 'mcp-auth.db'),
+    dbPath: join(ctx.directory, 'state', 'mcp-auth.db'),
     openDatabase: openMCPAuthDatabase,
     origin: null,
   });
@@ -324,7 +324,7 @@ test('it writes a probe from a Host it does not serve as a bad_host security eve
   const ctx = setupTest();
 
   writeFileSync(
-    join(ctx.dir, 'registry.json'),
+    join(ctx.directory, 'registry.json'),
     JSON.stringify({
       daemons: {
         cloud: { address: '127.0.0.1:9', daemonID: '0123abcd-0000-4000-8000-000000000000' },
@@ -345,8 +345,8 @@ test('it writes a probe from a Host it does not serve as a bad_host security eve
       port: 0,
       publicURL: 'https://atc.example.com',
       trustForwardedFrom: [],
-      registryPath: join(ctx.dir, 'registry.json'),
-      stateDir: join(ctx.dir, 'state'),
+      registryPath: join(ctx.directory, 'registry.json'),
+      stateDir: join(ctx.directory, 'state'),
     },
     {
       env: { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
@@ -390,7 +390,7 @@ test('it answers the readiness probe for the host of its public URL', async () =
   const ctx = setupTest();
 
   writeFileSync(
-    join(ctx.dir, 'registry.json'),
+    join(ctx.directory, 'registry.json'),
     JSON.stringify({
       daemons: {
         cloud: { address: '127.0.0.1:9', daemonID: '0123abcd-0000-4000-8000-000000000000' },
@@ -410,8 +410,8 @@ test('it answers the readiness probe for the host of its public URL', async () =
       port: 0,
       publicURL: 'https://atc.example.com',
       trustForwardedFrom: [],
-      registryPath: join(ctx.dir, 'registry.json'),
-      stateDir: join(ctx.dir, 'state'),
+      registryPath: join(ctx.directory, 'registry.json'),
+      stateDir: join(ctx.directory, 'state'),
     },
     {
       env: { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
@@ -447,7 +447,7 @@ test('it refuses a probe from a foreign host', async () => {
   const ctx = setupTest();
 
   writeFileSync(
-    join(ctx.dir, 'registry.json'),
+    join(ctx.directory, 'registry.json'),
     JSON.stringify({
       daemons: {
         cloud: { address: '127.0.0.1:9', daemonID: '0123abcd-0000-4000-8000-000000000000' },
@@ -467,8 +467,8 @@ test('it refuses a probe from a foreign host', async () => {
       port: 0,
       publicURL: 'https://atc.example.com',
       trustForwardedFrom: [],
-      registryPath: join(ctx.dir, 'registry.json'),
-      stateDir: join(ctx.dir, 'state'),
+      registryPath: join(ctx.directory, 'registry.json'),
+      stateDir: join(ctx.directory, 'state'),
     },
     {
       env: { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
@@ -504,7 +504,7 @@ test('it keeps both databases in the state directory and writes nowhere else', a
   const ctx = setupTest();
 
   writeFileSync(
-    join(ctx.dir, 'registry.json'),
+    join(ctx.directory, 'registry.json'),
     JSON.stringify({
       daemons: {
         cloud: { address: '127.0.0.1:9', daemonID: '0123abcd-0000-4000-8000-000000000000' },
@@ -522,8 +522,8 @@ test('it keeps both databases in the state directory and writes nowhere else', a
       port: 0,
       publicURL: 'https://atc.example.com',
       trustForwardedFrom: [],
-      registryPath: join(ctx.dir, 'registry.json'),
-      stateDir: join(ctx.dir, 'state'),
+      registryPath: join(ctx.directory, 'registry.json'),
+      stateDir: join(ctx.directory, 'state'),
     },
     {
       env: { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
@@ -541,15 +541,19 @@ test('it keeps both databases in the state directory and writes nowhere else', a
   invariant(stop, 'the gateway registered no SIGTERM handler');
   registerTestCleanup(() => stop());
 
-  expect(readdirSync(join(ctx.dir, 'state'))).toIncludeAllMembers(['gateway.db', 'mcp-auth.db']);
-  expect(readdirSync(ctx.dir).toSorted()).toStrictEqual(['registry.json', 'state']);
+  expect(readdirSync(join(ctx.directory, 'state'))).toIncludeAllMembers([
+    'gateway.db',
+    'mcp-auth.db',
+  ]);
+
+  expect(readdirSync(ctx.directory).toSorted()).toStrictEqual(['registry.json', 'state']);
 });
 
 test('it exits 1 naming the token variable a daemon lacks', async () => {
   const ctx = setupTest();
 
   writeFileSync(
-    join(ctx.dir, 'registry.json'),
+    join(ctx.directory, 'registry.json'),
     JSON.stringify({
       daemons: {
         cloud: { address: '127.0.0.1:9', daemonID: '0123abcd-0000-4000-8000-000000000000' },
@@ -568,8 +572,8 @@ test('it exits 1 naming the token variable a daemon lacks', async () => {
       port: 0,
       publicURL: 'https://atc.example.com',
       trustForwardedFrom: [],
-      registryPath: join(ctx.dir, 'registry.json'),
-      stateDir: join(ctx.dir, 'state'),
+      registryPath: join(ctx.directory, 'registry.json'),
+      stateDir: join(ctx.directory, 'state'),
     },
     {
       env: {},
@@ -589,13 +593,13 @@ test('it exits 1 naming the token variable a daemon lacks', async () => {
     exits: [1],
   });
 
-  expect(readdirSync(ctx.dir)).toStrictEqual(['registry.json']);
+  expect(readdirSync(ctx.directory)).toStrictEqual(['registry.json']);
 });
 
 test('it exits 1 on a registry that is not JSON', async () => {
   const ctx = setupTest();
 
-  writeFileSync(join(ctx.dir, 'bad.json'), 'not json');
+  writeFileSync(join(ctx.directory, 'bad.json'), 'not json');
 
   const errors: string[] = [];
   const exits: number[] = [];
@@ -607,8 +611,8 @@ test('it exits 1 on a registry that is not JSON', async () => {
       port: 0,
       publicURL: 'https://atc.example.com',
       trustForwardedFrom: [],
-      registryPath: join(ctx.dir, 'bad.json'),
-      stateDir: join(ctx.dir, 'state'),
+      registryPath: join(ctx.directory, 'bad.json'),
+      stateDir: join(ctx.directory, 'state'),
     },
     {
       env: { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
@@ -624,7 +628,7 @@ test('it exits 1 on a registry that is not JSON', async () => {
   );
 
   const prefix = RegExp.escape(
-    `atc-gateway: cannot read the registry at ${join(ctx.dir, 'bad.json')}: `,
+    `atc-gateway: cannot read the registry at ${join(ctx.directory, 'bad.json')}: `,
   );
 
   expect(exits).toStrictEqual([1]);
@@ -635,7 +639,7 @@ test('it stops serving and exits 0 on SIGTERM', async () => {
   const ctx = setupTest();
 
   writeFileSync(
-    join(ctx.dir, 'registry.json'),
+    join(ctx.directory, 'registry.json'),
     JSON.stringify({
       daemons: {
         cloud: { address: '127.0.0.1:9', daemonID: '0123abcd-0000-4000-8000-000000000000' },
@@ -656,8 +660,8 @@ test('it stops serving and exits 0 on SIGTERM', async () => {
       port: 0,
       publicURL: 'https://atc.example.com',
       trustForwardedFrom: [],
-      registryPath: join(ctx.dir, 'registry.json'),
-      stateDir: join(ctx.dir, 'state'),
+      registryPath: join(ctx.directory, 'registry.json'),
+      stateDir: join(ctx.directory, 'state'),
     },
     {
       env: { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
