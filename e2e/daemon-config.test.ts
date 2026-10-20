@@ -20,20 +20,20 @@ import {
 } from '@atc/test-utils';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-e2e-config-');
+  const temporaryDirectory = setupTempDir('atc-e2e-config-');
   const atc = resolveATCCommand();
-  const composer = createStubComposer(tmp.path);
-  const configDir = join(tmp.path, '.config', 'atc');
+  const composer = createStubComposer(temporaryDirectory.path);
+  const configDir = join(temporaryDirectory.path, '.config', 'atc');
 
   mkdirSync(configDir, { recursive: true });
 
   return {
-    home: tmp.path,
+    home: temporaryDirectory.path,
     atc,
     configPath: join(configDir, 'config.json'),
-    claude: createStubClaude(tmp.path, { atc, composer }),
-    grok: createStubGrok(tmp.path, { atc, composer }),
-    codex: createStubCodex(tmp.path, { atc, composer }),
+    claude: createStubClaude(temporaryDirectory.path, { atc, composer }),
+    grok: createStubGrok(temporaryDirectory.path, { atc, composer }),
+    codex: createStubCodex(temporaryDirectory.path, { atc, composer }),
   };
 }
 
@@ -434,7 +434,7 @@ test('it restores the stored fleet by itself when the config leaves restoreFleet
 
     const listed = getRecords(reply, 'sessions');
 
-    expect(listed.map((s) => s['kind'])).toStrictEqual(['pty', 'pty']);
+    expect(listed.map((session) => session['kind'])).toStrictEqual(['pty', 'pty']);
 
     expect(
       readFileSync(join(ctx.home, 'fake-claude-starts.log'), 'utf8').trim().split('\n'),

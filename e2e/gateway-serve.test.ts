@@ -5,10 +5,10 @@ import { registerTestCleanup, resolveGatewayCommand, setupTempDir } from '@atc/t
 import invariant from 'tiny-invariant';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-gateway-bin-');
+  const temporaryDirectory = setupTempDir('atc-gateway-bin-');
 
   return {
-    dir: tmp.path,
+    directory: temporaryDirectory.path,
     command: resolveGatewayCommand(process.env['ATC_GATEWAY_BIN']),
 
     // Bun's transpiler cache would write under HOME when the source entry runs.
@@ -16,7 +16,7 @@ function setupTest() {
       PATH: process.env['PATH'] ?? '',
 
       // Nothing creates this home, so a write under it shows in the directory listing.
-      HOME: join(tmp.path, 'home'),
+      HOME: join(temporaryDirectory.path, 'home'),
       BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0',
     },
   };
@@ -26,7 +26,7 @@ test('it serves from the state directory given before its subcommand over the en
   const ctx = setupTest();
 
   writeFileSync(
-    join(ctx.dir, 'registry.json'),
+    join(ctx.directory, 'registry.json'),
     JSON.stringify({
       daemons: {
         cloud: { address: '127.0.0.1:9', daemonID: '0123abcd-0000-4000-8000-000000000000' },
@@ -49,7 +49,7 @@ test('it serves from the state directory given before its subcommand over the en
       '0',
     ],
     {
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       env: {
         ...ctx.env,
         ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32),
@@ -84,8 +84,8 @@ test('it serves from the state directory given before its subcommand over the en
 
   const ready = await fetch(`http://127.0.0.1:${port}/readyz`);
 
-  const entries = readdirSync(ctx.dir).toSorted();
-  const flagged = readdirSync(join(ctx.dir, 'flagged'));
+  const entries = readdirSync(ctx.directory).toSorted();
+  const flagged = readdirSync(join(ctx.directory, 'flagged'));
 
   gateway.kill('SIGTERM');
 

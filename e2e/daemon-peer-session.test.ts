@@ -12,17 +12,17 @@ import {
 } from '@atc/test-utils';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-e2e-peer-');
-  const configDir = join(tmp.path, '.config', 'atc');
+  const temporaryDirectory = setupTempDir('atc-e2e-peer-');
+  const configDir = join(temporaryDirectory.path, '.config', 'atc');
 
   mkdirSync(configDir, { recursive: true });
 
   return {
-    home: tmp.path,
+    home: temporaryDirectory.path,
     atc: resolveATCCommand(),
     configPath: join(configDir, 'config.json'),
     probe: join(import.meta.dir, '..', 'packages', 'test-utils', 'src', 'run-stub-peer-probe.ts'),
-    outPath: join(tmp.path, 'probe.json'),
+    outPath: join(temporaryDirectory.path, 'probe.json'),
   };
 }
 

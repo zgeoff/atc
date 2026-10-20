@@ -21,9 +21,9 @@ function main(): void {
     findings.push(...checkManifest(pkg));
 
     const files =
-      pkg.dir === '.'
-        ? ROOT_DIRS.flatMap((dir) => readSourceFiles(root, dir))
-        : readSourceFiles(root, pkg.dir);
+      pkg.directory === '.'
+        ? ROOT_DIRS.flatMap((directory) => readSourceFiles(root, directory))
+        : readSourceFiles(root, pkg.directory);
 
     fileCount += files.length;
 
@@ -40,7 +40,7 @@ function main(): void {
 
       // the root package's tooling resolves computed paths, and no graph
       // reads its resolve forms
-      findings.push(...checkComputed(file, imports, pkg.dir !== '.'));
+      findings.push(...checkComputed(file, imports, pkg.directory !== '.'));
     }
   }
 
@@ -101,7 +101,7 @@ interface Manifest {
 }
 
 interface WorkspacePackage {
-  readonly dir: string;
+  readonly directory: string;
   readonly manifest: Manifest;
 }
 
@@ -117,13 +117,15 @@ function readPackages(root: string): WorkspacePackage[] {
   }
 
   return [
-    { dir: '.', manifest },
-    ...[...dirs].toSorted().map((dir) => ({ dir, manifest: readManifest(root, dir) })),
+    { directory: '.', manifest },
+    ...[...dirs]
+      .toSorted()
+      .map((directory) => ({ directory, manifest: readManifest(root, directory) })),
   ];
 }
 
-function readManifest(root: string, dir: string): Manifest {
-  const text = readFileSync(join(root, dir, 'package.json'), 'utf8');
+function readManifest(root: string, directory: string): Manifest {
+  const text = readFileSync(join(root, directory, 'package.json'), 'utf8');
 
   return MANIFEST_SCHEMA.parse(JSON.parse(text));
 }
@@ -136,7 +138,7 @@ const EXACT_VERSION =
 
 function checkManifest(pkg: WorkspacePackage): string[] {
   const findings: string[] = [];
-  const manifestPath = pkg.dir === '.' ? 'package.json' : `${pkg.dir}/package.json`;
+  const manifestPath = pkg.directory === '.' ? 'package.json' : `${pkg.directory}/package.json`;
 
   for (const [field, entries] of [
     ['dependencies', pkg.manifest.dependencies ?? {}],
@@ -153,7 +155,7 @@ function checkManifest(pkg: WorkspacePackage): string[] {
     }
   }
 
-  if (pkg.dir === '.') {
+  if (pkg.directory === '.') {
     for (const [name, version] of Object.entries(pkg.manifest.workspaces?.catalog ?? {})) {
       if (!EXACT_VERSION.test(version)) {
         findings.push(
@@ -213,7 +215,7 @@ function checkPreloads(root: string, packages: readonly WorkspacePackage[]): str
 
       if (entryPreload !== undefined) {
         findings.push(
-          `preloaded entry: ${entry}, an entry point of ${pkg.dir}, is ${entryPreload.preload}, which bunfig.toml preloads; drop it from the exports map`,
+          `preloaded entry: ${entry}, an entry point of ${pkg.directory}, is ${entryPreload.preload}, which bunfig.toml preloads; drop it from the exports map`,
         );
       }
 
@@ -225,7 +227,7 @@ function checkPreloads(root: string, packages: readonly WorkspacePackage[]): str
             return preload === undefined
               ? []
               : [
-                  `preloaded module: ${file}, which ${entry} reaches as an entry point of ${pkg.dir}, loads ${specifier}, which bunfig.toml preloads as ${preload}; import it by path`,
+                  `preloaded module: ${file}, which ${entry} reaches as an entry point of ${pkg.directory}, loads ${specifier}, which bunfig.toml preloads as ${preload}; import it by path`,
                 ];
           }),
         );
@@ -268,7 +270,7 @@ function collectEntryFiles(pkg: WorkspacePackage): string[] {
 
   for (let target = pending.pop(); target !== undefined; target = pending.pop()) {
     if (typeof target === 'string') {
-      targets.push(normalize(join(pkg.dir, target)));
+      targets.push(normalize(join(pkg.directory, target)));
     } else if (typeof target === 'object' && target !== null) {
       const conditions: unknown[] = Object.values(target);
 
@@ -320,8 +322,8 @@ function readStaticLoads(root: string, entry: string): Map<string, readonly stri
 }
 
 // Undefined when no source file matches, as for a text import of a shell script
-function resolveModule(root: string, dir: string, specifier: string): string | undefined {
-  const base = normalize(join(dir, specifier));
+function resolveModule(root: string, directory: string, specifier: string): string | undefined {
+  const base = normalize(join(directory, specifier));
 
   return MODULE_SUFFIXES.map((suffix) => `${base}${suffix}`).find(
     (path) =>
@@ -354,14 +356,14 @@ function checkDependencyZones(root: string, packages: readonly WorkspacePackage[
   const config = ZONES_CONFIG_SCHEMA.parse(Bun.JSONC.parse(readFileSync(configPath, 'utf8')));
   const [, options] = config.rules['zgeoff/import-zones'];
 
-  const dirs = new Map(packages.map((pkg) => [pkg.manifest.name, pkg.dir]));
+  const dirs = new Map(packages.map((pkg) => [pkg.manifest.name, pkg.directory]));
 
   return packages
-    .filter((pkg) => pkg.dir !== '.')
+    .filter((pkg) => pkg.directory !== '.')
     .flatMap((pkg) =>
       Object.keys(pkg.manifest.dependencies ?? {}).flatMap((name) => {
         const target = dirs.get(name);
-        const from = `${pkg.dir}/src/index.ts`;
+        const from = `${pkg.directory}/src/index.ts`;
 
         const refusing =
           target === undefined ? undefined : collectRefusingEdges(options, { from, to: target })[0];
@@ -369,7 +371,7 @@ function checkDependencyZones(root: string, packages: readonly WorkspacePackage[
         return refusing === undefined
           ? []
           : [
-              `package rule: ${pkg.dir}/package.json depends on ${name}, which the ${refusing.name} edge in .oxlintrc.zones.json refuses`,
+              `package rule: ${pkg.directory}/package.json depends on ${name}, which the ${refusing.name} edge in .oxlintrc.zones.json refuses`,
             ];
       }),
     );
@@ -424,7 +426,7 @@ function isSchemaObject(value: unknown): value is Readonly<Record<string, unknow
 // computed resolve
 function checkComputed(file: string, imports: ImportList, withResolves: boolean): string[] {
   return [...imports.computedLoadLines, ...(withResolves ? imports.computedResolveLines : [])]
-    .toSorted((a, b) => a - b)
+    .toSorted((left, right) => left - right)
     .map(
       (line) =>
         `computed specifier: ${file}:${line} references a module through a specifier that no import rule can read; quote it`,
@@ -443,14 +445,15 @@ function checkSpecifier(
 
     if (
       owner === pkg ||
-      (pkg.dir === '.' && ROOT_REACHES.some((dir) => target.startsWith(`${dir}/`))) ||
+      (pkg.directory === '.' &&
+        ROOT_REACHES.some((directory) => target.startsWith(`${directory}/`))) ||
       (APP_TESTS.has(file) && target.startsWith('packages/app/'))
     ) {
       return [];
     }
 
     return [
-      `outside package: ${file} imports ${specifier}, which resolves into ${owner.dir === '.' ? 'the root package' : owner.dir}`,
+      `outside package: ${file} imports ${specifier}, which resolves into ${owner.directory === '.' ? 'the root package' : owner.directory}`,
     ];
   }
 
@@ -467,15 +470,15 @@ function checkDeclared(pkg: WorkspacePackage, file: string, name: string): strin
   }
 
   if (name in (pkg.manifest.devDependencies ?? {})) {
-    return pkg.dir === '.' || isTestFile(file)
+    return pkg.directory === '.' || isTestFile(file)
       ? []
       : [
-          `dev dependency: ${file} imports ${name}, which ${pkg.dir}/package.json declares only for tests`,
+          `dev dependency: ${file} imports ${name}, which ${pkg.directory}/package.json declares only for tests`,
         ];
   }
 
   return [
-    `undeclared: ${file} imports ${name}, which ${pkg.dir === '.' ? 'the root package.json' : `${pkg.dir}/package.json`} does not declare`,
+    `undeclared: ${file} imports ${name}, which ${pkg.directory === '.' ? 'the root package.json' : `${pkg.directory}/package.json`} does not declare`,
   ];
 }
 
@@ -503,16 +506,18 @@ const APP_TESTS: ReadonlySet<string> = new Set([
 
 function getOwner(packages: readonly WorkspacePackage[], path: string): WorkspacePackage {
   const owners = packages.filter(
-    (candidate) => candidate.dir !== '.' && path.startsWith(`${candidate.dir}/`),
+    (candidate) => candidate.directory !== '.' && path.startsWith(`${candidate.directory}/`),
   );
 
-  const root = packages.find((candidate) => candidate.dir === '.');
+  const root = packages.find((candidate) => candidate.directory === '.');
 
   if (root === undefined) {
     throw new Error('the package list holds no root package');
   }
 
-  return owners.toSorted((a, b) => b.dir.length - a.dir.length)[0] ?? root;
+  return (
+    owners.toSorted((left, right) => right.directory.length - left.directory.length)[0] ?? root
+  );
 }
 
 // `@scope/name/sub` and `name/sub` both import from one package.

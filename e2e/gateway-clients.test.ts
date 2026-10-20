@@ -5,10 +5,10 @@ import { resolveGatewayCommand, runCommand, setupTempDir } from '@atc/test-utils
 import invariant from 'tiny-invariant';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-gateway-bin-');
+  const temporaryDirectory = setupTempDir('atc-gateway-bin-');
 
   return {
-    dir: tmp.path,
+    directory: temporaryDirectory.path,
     command: resolveGatewayCommand(process.env['ATC_GATEWAY_BIN']),
 
     // Bun's transpiler cache would write under HOME when the source entry runs.
@@ -16,7 +16,7 @@ function setupTest() {
       PATH: process.env['PATH'] ?? '',
 
       // Nothing creates this home, so a write under it shows in the directory listing.
-      HOME: join(tmp.path, 'home'),
+      HOME: join(temporaryDirectory.path, 'home'),
       BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0',
     },
   };
@@ -36,7 +36,7 @@ test('it adds, lists, and removes a client in a state directory relative to wher
       '--redirect-uri',
       'https://claude.ai/api/mcp/auth_callback',
     ],
-    { cwd: ctx.dir, env: { ...ctx.env, ATC_GATEWAY_STATE_DIR: 'from-env' } },
+    { cwd: ctx.directory, env: { ...ctx.env, ATC_GATEWAY_STATE_DIR: 'from-env' } },
   );
 
   const clientID = /client ID is (?<id>\w+)/u.exec(added.stdout)?.groups?.['id'];
@@ -44,7 +44,7 @@ test('it adds, lists, and removes a client in a state directory relative to wher
   invariant(clientID !== undefined, `no client ID in: ${added.stdout}${added.stderr}`);
 
   const listed = await runCommand([...ctx.command, 'clients', 'list', '--state-dir=flagged'], {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: ctx.env,
   });
 
@@ -55,13 +55,13 @@ test('it adds, lists, and removes a client in a state directory relative to wher
 
   const removed = await runCommand(
     [...ctx.command, 'clients', 'remove', clientID, '--state-dir', 'flagged'],
-    { cwd: ctx.dir, env: ctx.env },
+    { cwd: ctx.directory, env: ctx.env },
   );
 
   expect(removed.stdout).toBe(`Removed client ${clientID} and revoked every grant it held\n`);
 
   const emptied = await runCommand([...ctx.command, 'clients', 'list', '--state-dir=flagged'], {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     env: ctx.env,
   });
 
@@ -69,7 +69,7 @@ test('it adds, lists, and removes a client in a state directory relative to wher
     'No clients. Add one with: atc-gateway clients add <name> --redirect-uri <uri>\n',
   );
 
-  expect(readdirSync(ctx.dir).toSorted()).toStrictEqual(['flagged']);
+  expect(readdirSync(ctx.directory).toSorted()).toStrictEqual(['flagged']);
 });
 
 test('it exits 1 on two state directories that differ', async () => {
@@ -87,7 +87,7 @@ test('it exits 1 on two state directories that differ', async () => {
       '--state-dir',
       'second',
     ],
-    { cwd: ctx.dir, env: ctx.env },
+    { cwd: ctx.directory, env: ctx.env },
   );
 
   expect({
@@ -100,5 +100,5 @@ test('it exits 1 on two state directories that differ', async () => {
     stderr: "atc-gateway: --state-dir gives different directories: 'first', 'second'\n",
   });
 
-  expect(readdirSync(ctx.dir)).toStrictEqual([]);
+  expect(readdirSync(ctx.directory)).toStrictEqual([]);
 });

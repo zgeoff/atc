@@ -5,14 +5,14 @@ import { resolveATCCommand, runATC, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-e2e-config-migrate-');
+  const temporaryDirectory = setupTempDir('atc-e2e-config-migrate-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it backs the file up, rewrites it, and prints both paths with --write', async () => {
   const ctx = setupTest();
-  const file = join(ctx.dir, 'config.json');
+  const file = join(ctx.directory, 'config.json');
   const original = JSON.stringify({ codexBin: '/opt/codex' });
 
   writeFileSync(file, original);
@@ -20,14 +20,16 @@ test('it backs the file up, rewrites it, and prints both paths with --write', as
   const migrated = await runATC({
     command: resolveATCCommand(),
     args: ['config', 'migrate', '--file', file, '--write'],
-    home: ctx.dir,
+    home: ctx.directory,
   });
 
-  const [backupName, ...others] = readdirSync(ctx.dir).filter((name) => name !== 'config.json');
+  const [backupName, ...others] = readdirSync(ctx.directory).filter(
+    (name) => name !== 'config.json',
+  );
 
   invariant(backupName !== undefined, 'the migration wrote no backup');
 
-  const backup = join(ctx.dir, backupName);
+  const backup = join(ctx.directory, backupName);
 
   expect(backupName).toMatch(/^config\.json\.bak-\d{8}T\d{6}Z$/u);
 

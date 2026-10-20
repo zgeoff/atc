@@ -37,7 +37,13 @@ import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemo
 async function setupTest() {
   const git = await createGitFixture({ prefix: 'atc-workspace-' });
 
-  return { dir: git.directory, env: git.env, upstream: git.upstream, work: git.work, sha: git.sha };
+  return {
+    directory: git.directory,
+    env: git.env,
+    upstream: git.upstream,
+    work: git.work,
+    sha: git.sha,
+  };
 }
 
 test('it materializes a path source at its pushed HEAD on the target and verifies it there', async () => {
@@ -70,20 +76,20 @@ test('it materializes a path source at its pushed HEAD on the target and verifie
     }),
   });
 
-  const dest = join(ctx.dir, 'box', 'ws');
+  const destination = join(ctx.directory, 'box', 'ws');
   const before = Date.now();
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
   });
 
-  const head = await $`git rev-parse HEAD`.env(ctx.env).cwd(dest).text();
+  const head = await $`git rev-parse HEAD`.env(ctx.env).cwd(destination).text();
 
   const session = getRecord(spawned, 'session');
 
-  expect(session).toMatchObject({ cwd: dest, locator: { targetID: 'box' } });
+  expect(session).toMatchObject({ cwd: destination, locator: { targetID: 'box' } });
 
   expect(session['workspace']).toStrictEqual({
     repoURL: ctx.upstream,
@@ -93,20 +99,27 @@ test('it materializes a path source at its pushed HEAD on the target and verifie
   });
 
   expect(head.trim()).toBe(ctx.sha);
-  expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe(committed);
+  expect(readFileSync(join(destination, 'README.md'), 'utf8')).toBe(committed);
   expect(spawned).not.toContainKey('warnings');
 
   // The claim creates the parent and the directory in one command, and the
   // verify unsets every variable that could point git at another
   // repository before it reads the checkout's HEAD and status in one more.
   expect(box.calls).toStrictEqual([
-    { op: 'run', argv: ['sh', '-c', expect.any(String), 'sh', dest], cwd: '/' },
+    { op: 'run', argv: ['sh', '-c', expect.any(String), 'sh', destination], cwd: '/' },
     {
       op: 'run',
-      argv: ['sh', '-c', expect.toStartWith('mkdir -p'), 'sh', join(ctx.dir, 'box'), dest],
+      argv: [
+        'sh',
+        '-c',
+        expect.toStartWith('mkdir -p'),
+        'sh',
+        join(ctx.directory, 'box'),
+        destination,
+      ],
       cwd: '/',
     },
-    { op: 'transfer', directory: dest, bytes: expect.toBeNumber() },
+    { op: 'transfer', directory: destination, bytes: expect.toBeNumber() },
     {
       op: 'run',
       argv: [
@@ -145,7 +158,7 @@ test('it materializes a path source at its pushed HEAD on the target and verifie
         '-c',
         String.raw`git rev-parse --verify 'HEAD^{commit}' || exit 1; printf '\0'; exec git -c core.fsmonitor=false status --porcelain --untracked-files=no`,
       ],
-      cwd: dest,
+      cwd: destination,
     },
   ]);
 });
@@ -155,7 +168,7 @@ test('it verifies the target checkout itself when the daemon env points git at a
 
   // A git hook in a linked worktree exports GIT_DIR, and a daemon started
   // from one inherits it.
-  const decoy = join(ctx.dir, 'decoy');
+  const decoy = join(ctx.directory, 'decoy');
 
   await $`git init --quiet --template= --initial-branch=main ${decoy}`.env(ctx.env).quiet();
 
@@ -189,7 +202,7 @@ test('it verifies the target checkout itself when the daemon env points git at a
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
   });
@@ -207,8 +220,8 @@ test('it fails the spawn when the target checkout has no commit at HEAD, and rem
 
   // The unpack on the host leaves HEAD on a branch that holds no commit.
   const box = buildStubDirProvider({
-    afterTransfer: async (dir) => {
-      await writeFile(join(dir, '.git', 'HEAD'), 'ref: refs/heads/missing\n');
+    afterTransfer: async (directory) => {
+      await writeFile(join(directory, '.git', 'HEAD'), 'ref: refs/heads/missing\n');
     },
   });
 
@@ -234,10 +247,10 @@ test('it fails the spawn when the target checkout has no commit at HEAD, and rem
     }),
   });
 
-  const dest = join(ctx.dir, 'box', 'ws');
+  const destination = join(ctx.directory, 'box', 'ws');
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
   });
@@ -252,7 +265,7 @@ test('it fails the spawn when the target checkout has no commit at HEAD, and rem
     ),
   );
 
-  expect(existsSync(dest)).toBeFalse();
+  expect(existsSync(destination)).toBeFalse();
 });
 
 test('it fails the spawn when the target checkout lacks a tracked file, and removes it', async () => {
@@ -260,8 +273,8 @@ test('it fails the spawn when the target checkout lacks a tracked file, and remo
 
   // The unpack on the host leaves one tracked file out.
   const box = buildStubDirProvider({
-    afterTransfer: async (dir) => {
-      await rm(join(dir, 'README.md'));
+    afterTransfer: async (directory) => {
+      await rm(join(directory, 'README.md'));
     },
   });
 
@@ -287,10 +300,10 @@ test('it fails the spawn when the target checkout lacks a tracked file, and remo
     }),
   });
 
-  const dest = join(ctx.dir, 'box', 'ws');
+  const destination = join(ctx.directory, 'box', 'ws');
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
   });
@@ -308,15 +321,15 @@ test('it fails the spawn when the target checkout lacks a tracked file, and remo
   );
 
   expect(listed).toStrictEqual({ sessions: [] });
-  expect(existsSync(dest)).toBeFalse();
+  expect(existsSync(destination)).toBeFalse();
 });
 
 test('it removes only the directory it created when a symlink in the requested path changes before a rollback', async () => {
   const ctx = await setupTest();
 
-  const safe = join(ctx.dir, 'safe');
-  const busy = join(ctx.dir, 'busy');
-  const alias = join(ctx.dir, 'alias');
+  const safe = join(ctx.directory, 'safe');
+  const busy = join(ctx.directory, 'busy');
+  const alias = join(ctx.directory, 'alias');
 
   mkdirSync(safe);
   mkdirSync(join(busy, 'ws', 'inner'), { recursive: true });
@@ -326,8 +339,8 @@ test('it removes only the directory it created when a symlink in the requested p
   // The unpack leaves a tracked file out, and the requested path's symlink
   // moves to another directory before the rollback removes the checkout.
   const box = buildStubDirProvider({
-    afterTransfer: async (dir) => {
-      await rm(join(dir, 'README.md'));
+    afterTransfer: async (directory) => {
+      await rm(join(directory, 'README.md'));
 
       unlinkSync(alias);
       symlinkSync(busy, alias);
@@ -394,10 +407,10 @@ test('it records a ready workspace and lists it again on the session after a res
     }),
   });
 
-  const dest = join(ctx.dir, 'box', 'ws');
+  const destination = join(ctx.directory, 'box', 'ws');
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
   });
@@ -426,7 +439,7 @@ test('it records a ready workspace and lists it again on the session after a res
   const restored = await daemon.client.sendRequest('fleet.list');
 
   expect(restored).toStrictEqual({
-    fleet: [expect.objectContaining({ cwd: dest, target: 'box', workspace })],
+    fleet: [expect.objectContaining({ cwd: destination, target: 'box', workspace })],
   });
 });
 
@@ -462,7 +475,7 @@ test('it refuses a path source whose HEAD was never pushed, transferring nothing
   await $`git commit --quiet -am unpushed`.env(ctx.env).cwd(ctx.work).quiet();
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
   });
@@ -506,7 +519,7 @@ test('it refuses a path source with uncommitted changes as workspace_dirty when 
   writeFileSync(join(ctx.work, 'README.md'), 'edited\n');
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     target: 'box',
     workspace: { kind: 'path', path: ctx.work, allowDirty: 'refuse' },
   });
@@ -545,7 +558,7 @@ test('it materializes the committed HEAD of a dirty path source and leaves its c
     }),
   });
 
-  const dest = join(ctx.dir, 'box', 'ws');
+  const destination = join(ctx.directory, 'box', 'ws');
 
   writeFileSync(join(ctx.work, 'README.md'), 'edited\n');
   writeFileSync(join(ctx.work, 'scratch.txt'), 'untracked\n');
@@ -553,7 +566,7 @@ test('it materializes the committed HEAD of a dirty path source and leaves its c
   const before = await $`git status --porcelain`.env(ctx.env).cwd(ctx.work).text();
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
   });
@@ -561,7 +574,7 @@ test('it materializes the committed HEAD of a dirty path source and leaves its c
   const session = getRecord(spawned, 'session');
 
   const after = await $`git status --porcelain`.env(ctx.env).cwd(ctx.work).text();
-  const cloned = await $`git rev-parse HEAD`.env(ctx.env).cwd(dest).text();
+  const cloned = await $`git rev-parse HEAD`.env(ctx.env).cwd(destination).text();
 
   expect(session['workspace']).toStrictEqual({
     repoURL: ctx.upstream,
@@ -576,8 +589,8 @@ test('it materializes the committed HEAD of a dirty path source and leaves its c
     `cloned commit ${ctx.sha.slice(0, 12)}; left 2 uncommitted or untracked paths behind in ${ctx.work}`,
   ]);
 
-  expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe(committed);
-  expect(existsSync(join(dest, 'scratch.txt'))).toBeFalse();
+  expect(readFileSync(join(destination, 'README.md'), 'utf8')).toBe(committed);
+  expect(existsSync(join(destination, 'scratch.txt'))).toBeFalse();
   expect(after).toBe(before);
   expect(readFileSync(join(ctx.work, 'README.md'), 'utf8')).toBe('edited\n');
   expect(readFileSync(join(ctx.work, 'scratch.txt'), 'utf8')).toBe('untracked\n');
@@ -608,12 +621,12 @@ test('it materializes the committed HEAD of a dirty path source when dirt is all
     }),
   });
 
-  const dest = join(ctx.dir, 'box', 'ws');
+  const destination = join(ctx.directory, 'box', 'ws');
 
   writeFileSync(join(ctx.work, 'scratch.txt'), 'untracked\n');
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     target: 'box',
     workspace: { kind: 'path', path: ctx.work, allowDirty: 'warn' },
   });
@@ -629,7 +642,7 @@ test('it materializes the committed HEAD of a dirty path source when dirt is all
     `cloned commit ${ctx.sha.slice(0, 12)}; left 1 uncommitted or untracked path behind in ${ctx.work}`,
   ]);
 
-  expect(existsSync(join(dest, 'scratch.txt'))).toBeFalse();
+  expect(existsSync(join(destination, 'scratch.txt'))).toBeFalse();
 });
 
 test('it refuses a dirty path source whose HEAD was never pushed, transferring nothing', async () => {
@@ -666,7 +679,7 @@ test('it refuses a dirty path source whose HEAD was never pushed, transferring n
   writeFileSync(join(ctx.work, 'scratch.txt'), 'untracked\n');
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
   });
@@ -713,7 +726,7 @@ test('it refuses a path source that uses submodules, transferring nothing', asyn
   await $`git push --quiet origin main`.env(ctx.env).cwd(ctx.work).quiet();
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
   });
@@ -751,7 +764,7 @@ test('it refuses a git source that tracks LFS paths, transferring nothing and le
     }),
   });
 
-  const dest = join(ctx.dir, 'box', 'ws');
+  const destination = join(ctx.directory, 'box', 'ws');
 
   writeFileSync(join(ctx.work, '.gitattributes'), '*.bin filter=lfs diff=lfs merge=lfs -text\n');
   writeFileSync(join(ctx.work, 'model.bin'), 'version https://git-lfs.github.com/spec/v1\n');
@@ -761,7 +774,7 @@ test('it refuses a git source that tracks LFS paths, transferring nothing and le
   await $`git push --quiet origin main`.env(ctx.env).cwd(ctx.work).quiet();
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     target: 'box',
     workspace: { kind: 'git', url: ctx.upstream, ref: 'main' },
   });
@@ -770,7 +783,7 @@ test('it refuses a git source that tracks LFS paths, transferring nothing and le
 
   expect(spawn).rejects.toMatchObject({ code: 'lfs_unsupported', data: { phase: 'cloning' } });
   expect(box.calls).not.toPartiallyContain({ op: 'transfer' });
-  expect(existsSync(dest)).toBeFalse();
+  expect(existsSync(destination)).toBeFalse();
 });
 
 test('it refuses a path source whose git config rewrites its origin into a URL with a token', async () => {
@@ -806,7 +819,7 @@ test('it refuses a path source whose git config rewrites its origin into a URL w
     .quiet();
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
   });
@@ -882,7 +895,7 @@ test('it keeps a workspace credential out of every row, the session, the fleet, 
   updateEnv('ATC_TEST_WORKSPACE_TOKEN', 'tok-7d1e5a');
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     target: 'box',
     workspace: {
       kind: 'git',
@@ -933,7 +946,7 @@ test("it keeps a workspace credential out of a refusal that carries git's error,
 
   // A ref spelled as the token makes git's own refusal carry it.
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     target: 'box',
     workspace: {
       kind: 'git',
@@ -963,7 +976,7 @@ test("it keeps a workspace credential out of a refusal that carries git's error,
 test('it clones with the workspace credential and starts the harness without it or the askpass context', async () => {
   const ctx = await setupTest();
 
-  const server = startGitHTTPServer(ctx.dir, ctx.env);
+  const server = startGitHTTPServer(ctx.directory, ctx.env);
 
   // The askpass variables stand in for a daemon whose own environment holds
   // them; the credential variable is the one the spawn names.
@@ -995,11 +1008,11 @@ test('it clones with the workspace credential and starts the harness without it 
     }),
   });
 
-  const dest = join(ctx.dir, 'box', 'ws');
+  const destination = join(ctx.directory, 'box', 'ws');
   const url = `${server.url}upstream.git`;
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     target: 'box',
     workspace: {
       kind: 'git',
@@ -1013,8 +1026,8 @@ test('it clones with the workspace credential and starts the harness without it 
 
   invariant(harness !== undefined, 'the spawn started no harness');
 
-  const tree = await $`grep -rl fixture-not-a-secret ${dest}`.nothrow().quiet().text();
-  const origin = await $`git config --get remote.origin.url`.env(ctx.env).cwd(dest).text();
+  const tree = await $`grep -rl fixture-not-a-secret ${destination}`.nothrow().quiet().text();
+  const origin = await $`git config --get remote.origin.url`.env(ctx.env).cwd(destination).text();
 
   expect(server.authorizations).not.toBeEmpty();
 
@@ -1037,10 +1050,10 @@ test('it clones with the workspace credential and starts the harness without it 
 test('it starts a revived harness after a restart without the workspace credential', async () => {
   const ctx = await setupTest();
 
-  const dest = join(ctx.dir, 'box', 'ws');
+  const destination = join(ctx.directory, 'box', 'ws');
 
   updateEnv('ATC_TEST_WORKSPACE_CRED', 'fixture-not-a-secret');
-  mkdirSync(dest, { recursive: true });
+  mkdirSync(destination, { recursive: true });
 
   const box = buildStubDirProvider();
 
@@ -1057,7 +1070,7 @@ test('it starts a revived harness after a restart without the workspace credenti
         {
           sessionID: toSessionID('s-ws'),
           target: 'box',
-          directory: dest,
+          directory: destination,
           sourceKind: 'git',
           withheldEnv: ['ATC_TEST_WORKSPACE_CRED', 'GIT_ASKPASS', 'ATC_GIT_ASKPASS_SECRET'],
         },
@@ -1073,7 +1086,7 @@ test('it starts a revived harness after a restart without the workspace credenti
       await store.writeFleet([
         buildMockFleetEntry({
           sessionID: toSessionID('s-ws'),
-          cwd: dest,
+          cwd: destination,
           agentSessionID: toAgentSessionID('agent-ws'),
           target: 'box',
           targetIdentity: 'test:box',
@@ -1113,7 +1126,7 @@ test('it starts a revived harness after a restart without the workspace credenti
     return revived;
   });
 
-  expect(harness.cwd).toBe(dest);
+  expect(harness.cwd).toBe(destination);
   expect(harness.env).not.toContainKey('ATC_TEST_WORKSPACE_CRED');
 });
 
@@ -1130,8 +1143,8 @@ test('it fails the spawn when the target checkout is not at the pinned commit, a
 
   // The host's checkout lands on another commit than the one sent.
   const box = buildStubDirProvider({
-    afterTransfer: async (dir) => {
-      await Bun.write(join(dir, '.git', 'HEAD'), parent);
+    afterTransfer: async (directory) => {
+      await Bun.write(join(directory, '.git', 'HEAD'), parent);
     },
   });
 
@@ -1157,10 +1170,10 @@ test('it fails the spawn when the target checkout is not at the pinned commit, a
     }),
   });
 
-  const dest = join(ctx.dir, 'box', 'ws');
+  const destination = join(ctx.directory, 'box', 'ws');
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     target: 'box',
     workspace: { kind: 'git', url: ctx.upstream, sha: pinned.trim() },
   });
@@ -1183,7 +1196,7 @@ test('it fails the spawn when the target checkout is not at the pinned commit, a
   });
 
   expect(listed).toStrictEqual({ sessions: [] });
-  expect(existsSync(dest)).toBeFalse();
+  expect(existsSync(destination)).toBeFalse();
 
   expect(rows).toStrictEqual([
     { phase: 'failed', error_code: 'workspace_mismatch', sha: pinned.trim() },
@@ -1224,7 +1237,7 @@ test.each([['transfer'], ['run']] as const)(
     writeFileSync(join(ctx.work, 'README.md'), 'edited\n');
 
     const spawn = daemon.client.sendRequest('session.spawn', {
-      cwd: join(ctx.dir, 'box', 'ws'),
+      cwd: join(ctx.directory, 'box', 'ws'),
       target: 'box',
       workspace: { kind: 'path', path: ctx.work, allowDirty: 'refuse' },
     });
@@ -1286,7 +1299,7 @@ test('it fails a materialization that a restart interrupts and lists no session 
   // The restart ends the spawn's connection, so its answer never comes.
   const spawn = Promise.allSettled([
     daemon.client.sendRequest('session.spawn', {
-      cwd: join(ctx.dir, 'box', 'ws'),
+      cwd: join(ctx.directory, 'box', 'ws'),
       target: 'box',
       workspace: { kind: 'path', path: ctx.work },
     }),
@@ -1368,7 +1381,7 @@ test("it logs the failure of an interrupted materialization that resumes into th
   // The restart ends the spawn's connection, so its answer never comes.
   const spawn = Promise.allSettled([
     daemon.client.sendRequest('session.spawn', {
-      cwd: join(ctx.dir, 'box', 'ws'),
+      cwd: join(ctx.directory, 'box', 'ws'),
       target: 'box',
       workspace: { kind: 'path', path: ctx.work },
     }),
@@ -1434,9 +1447,9 @@ test('it refuses to materialize under a parent it cannot create, with the cause'
   });
 
   // A file stands where the parent's own parent would be.
-  writeFileSync(join(ctx.dir, 'blocked'), 'a file\n');
+  writeFileSync(join(ctx.directory, 'blocked'), 'a file\n');
 
-  const parent = join(ctx.dir, 'blocked', 'box');
+  const parent = join(ctx.directory, 'blocked', 'box');
 
   const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: join(parent, 'ws'),
@@ -1482,22 +1495,22 @@ test('it refuses to materialize where a dangling symlink stands and leaves it as
     }),
   });
 
-  const dest = join(ctx.dir, 'box', 'ws');
+  const destination = join(ctx.directory, 'box', 'ws');
 
-  mkdirSync(join(ctx.dir, 'box'));
-  symlinkSync(join(ctx.dir, 'missing'), dest);
+  mkdirSync(join(ctx.directory, 'box'));
+  symlinkSync(join(ctx.directory, 'missing'), destination);
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
   });
 
   await spawn.catch(() => null);
 
-  expect(spawn).rejects.toMatchObject({ code: 'workspace_exists', data: { dir: dest } });
+  expect(spawn).rejects.toMatchObject({ code: 'workspace_exists', data: { dir: destination } });
   expect(box.calls).not.toPartiallyContain({ op: 'transfer' });
-  expect(readlinkSync(dest)).toBe(join(ctx.dir, 'missing'));
+  expect(readlinkSync(destination)).toBe(join(ctx.directory, 'missing'));
 });
 
 test('it refuses to materialize into a directory that already exists and leaves it as it was', async () => {
@@ -1527,23 +1540,23 @@ test('it refuses to materialize into a directory that already exists and leaves 
     }),
   });
 
-  const dest = join(ctx.dir, 'box', 'ws');
+  const destination = join(ctx.directory, 'box', 'ws');
 
-  mkdirSync(dest, { recursive: true });
-  writeFileSync(join(dest, 'mine.txt'), 'keep\n');
+  mkdirSync(destination, { recursive: true });
+  writeFileSync(join(destination, 'mine.txt'), 'keep\n');
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
   });
 
   await spawn.catch(() => null);
 
-  expect(spawn).rejects.toMatchObject({ code: 'workspace_exists', data: { dir: dest } });
+  expect(spawn).rejects.toMatchObject({ code: 'workspace_exists', data: { dir: destination } });
   expect(box.calls).not.toPartiallyContain({ op: 'transfer' });
-  expect(readdirSync(dest)).toStrictEqual(['mine.txt']);
-  expect(readFileSync(join(dest, 'mine.txt'), 'utf8')).toBe('keep\n');
+  expect(readdirSync(destination)).toStrictEqual(['mine.txt']);
+  expect(readFileSync(join(destination, 'mine.txt'), 'utf8')).toBe('keep\n');
 });
 
 test('it removes the checkout it created and keeps the files beside it when its harness fails to start', async () => {
@@ -1579,11 +1592,11 @@ test('it removes the checkout it created and keeps the files beside it when its 
     }),
   });
 
-  mkdirSync(join(ctx.dir, 'box'));
-  writeFileSync(join(ctx.dir, 'box', 'beside.txt'), 'kept\n');
+  mkdirSync(join(ctx.directory, 'box'));
+  writeFileSync(join(ctx.directory, 'box', 'beside.txt'), 'kept\n');
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
   });
@@ -1591,8 +1604,8 @@ test('it removes the checkout it created and keeps the files beside it when its 
   await spawn.catch(() => null);
 
   expect(spawn).rejects.toMatchObject({ code: 'host_unavailable' });
-  expect(readdirSync(join(ctx.dir, 'box'))).toStrictEqual(['beside.txt']);
-  expect(readFileSync(join(ctx.dir, 'box', 'beside.txt'), 'utf8')).toBe('kept\n');
+  expect(readdirSync(join(ctx.directory, 'box'))).toStrictEqual(['beside.txt']);
+  expect(readFileSync(join(ctx.directory, 'box', 'beside.txt'), 'utf8')).toBe('kept\n');
 });
 
 test('it spawns a retry into the directory a harness that failed to start left', async () => {
@@ -1632,7 +1645,7 @@ test('it spawns a retry into the directory a harness that failed to start left',
   });
 
   const failed = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
   });
@@ -1640,14 +1653,14 @@ test('it spawns a retry into the directory a harness that failed to start left',
   await Promise.allSettled([failed]);
 
   const retried = await daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
   });
 
   expect(failed).rejects.toMatchObject({ code: 'host_unavailable' });
   expect(getRecord(retried, 'session')['alive']).toBeTrue();
-  expect(readFileSync(join(ctx.dir, 'box', 'ws', 'README.md'), 'utf8')).toBe(committed);
+  expect(readFileSync(join(ctx.directory, 'box', 'ws', 'README.md'), 'utf8')).toBe(committed);
 });
 
 test.each([
@@ -1662,8 +1675,8 @@ test.each([
     const released = Promise.withResolvers<void>();
 
     const box = buildStubDirProvider({
-      afterTransfer: async (dir) => {
-        unlinkSync(join(dir, 'README.md'));
+      afterTransfer: async (directory) => {
+        unlinkSync(join(directory, 'README.md'));
 
         transferred.resolve();
 
@@ -1699,21 +1712,21 @@ test.each([
       released.resolve();
     });
 
-    const dest = join(ctx.dir, 'box', 'ws');
+    const destination = join(ctx.directory, 'box', 'ws');
 
     const spawn = daemon.client.sendRequest('session.spawn', {
-      cwd: dest,
+      cwd: destination,
       target: 'box',
       workspace: { kind: 'path', path: ctx.work },
     });
 
     await transferred.promise;
 
-    mkdirSync(join(dest, 'inner'));
-    writeFileSync(join(dest, 'inner', 'mine.txt'), 'kept\n');
+    mkdirSync(join(destination, 'inner'));
+    writeFileSync(join(destination, 'inner', 'mine.txt'), 'kept\n');
 
     const inside = await daemon.client.sendRequest('session.spawn', {
-      cwd: join(dest, 'inner'),
+      cwd: join(destination, 'inner'),
       target: insideTarget,
     });
 
@@ -1721,8 +1734,12 @@ test.each([
 
     await spawn.catch(() => null);
 
-    expect(spawn).rejects.toMatchObject({ code: 'workspace_mismatch', data: { leftDir: dest } });
-    expect(readFileSync(join(dest, 'inner', 'mine.txt'), 'utf8')).toBe('kept\n');
+    expect(spawn).rejects.toMatchObject({
+      code: 'workspace_mismatch',
+      data: { leftDir: destination },
+    });
+
+    expect(readFileSync(join(destination, 'inner', 'mine.txt'), 'utf8')).toBe('kept\n');
     expect(getRecord(inside, 'session')['alive']).toBe(true);
   },
 );
@@ -1739,8 +1756,8 @@ test.each([
     const released = Promise.withResolvers<void>();
 
     const host = buildStubDirProvider({
-      afterTransfer: (dir) => {
-        unlinkSync(join(dir, 'README.md'));
+      afterTransfer: (directory) => {
+        unlinkSync(join(directory, 'README.md'));
 
         return Promise.resolve();
       },
@@ -1797,18 +1814,18 @@ test.each([
       released.resolve();
     });
 
-    mkdirSync(join(ctx.dir, 'box'));
-    writeFileSync(join(ctx.dir, 'box', 'beside.txt'), 'kept\n');
+    mkdirSync(join(ctx.directory, 'box'));
+    writeFileSync(join(ctx.directory, 'box', 'beside.txt'), 'kept\n');
 
     const spawn = daemon.client.sendRequest('session.spawn', {
-      cwd: join(ctx.dir, 'box', 'ws'),
+      cwd: join(ctx.directory, 'box', 'ws'),
       target: 'box',
       workspace: { kind: 'path', path: ctx.work },
     });
 
     await removing.promise;
 
-    const cwd = join(ctx.dir, ...segments);
+    const cwd = join(ctx.directory, ...segments);
 
     mkdirSync(cwd, { recursive: true });
 
@@ -1822,8 +1839,8 @@ test.each([
 
     expect(local).rejects.toMatchObject({ code: 'workspace_overlap', data: { dir: cwd } });
     expect(spawn).rejects.toMatchObject({ code: 'workspace_mismatch' });
-    expect(readdirSync(join(ctx.dir, 'box'))).toStrictEqual(['beside.txt']);
-    expect(readFileSync(join(ctx.dir, 'box', 'beside.txt'), 'utf8')).toBe('kept\n');
+    expect(readdirSync(join(ctx.directory, 'box'))).toStrictEqual(['beside.txt']);
+    expect(readFileSync(join(ctx.directory, 'box', 'beside.txt'), 'utf8')).toBe('kept\n');
   },
 );
 
@@ -1834,8 +1851,8 @@ test('it refuses a local spawn through a symlink into a checkout that a failed w
   const released = Promise.withResolvers<void>();
 
   const host = buildStubDirProvider({
-    afterTransfer: (dir) => {
-      unlinkSync(join(dir, 'README.md'));
+    afterTransfer: (directory) => {
+      unlinkSync(join(directory, 'README.md'));
 
       return Promise.resolve();
     },
@@ -1892,21 +1909,21 @@ test('it refuses a local spawn through a symlink into a checkout that a failed w
     released.resolve();
   });
 
-  const dest = join(ctx.dir, 'box', 'ws');
+  const destination = join(ctx.directory, 'box', 'ws');
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
   });
 
   await removing.promise;
 
-  mkdirSync(join(dest, 'inner'));
-  symlinkSync(join(dest, 'inner'), join(ctx.dir, 'link'));
+  mkdirSync(join(destination, 'inner'));
+  symlinkSync(join(destination, 'inner'), join(ctx.directory, 'link'));
 
   const local = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'link'),
+    cwd: join(ctx.directory, 'link'),
     target: 'local',
   });
 
@@ -1918,11 +1935,11 @@ test('it refuses a local spawn through a symlink into a checkout that a failed w
 
   expect(local).rejects.toMatchObject({
     code: 'workspace_overlap',
-    data: { dir: join(ctx.dir, 'link') },
+    data: { dir: join(ctx.directory, 'link') },
   });
 
   expect(spawn).rejects.toMatchObject({ code: 'workspace_mismatch' });
-  expect(existsSync(dest)).toBeFalse();
+  expect(existsSync(destination)).toBeFalse();
 });
 
 test('it starts a local spawn beside a checkout that a failed workspace spawn removes on a target without hosts', async () => {
@@ -1932,8 +1949,8 @@ test('it starts a local spawn beside a checkout that a failed workspace spawn re
   const released = Promise.withResolvers<void>();
 
   const host = buildStubDirProvider({
-    afterTransfer: (dir) => {
-      unlinkSync(join(dir, 'README.md'));
+    afterTransfer: (directory) => {
+      unlinkSync(join(directory, 'README.md'));
 
       return Promise.resolve();
     },
@@ -1991,18 +2008,18 @@ test('it starts a local spawn beside a checkout that a failed workspace spawn re
   });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
   });
 
   await removing.promise;
 
-  mkdirSync(join(ctx.dir, 'elsewhere'));
-  writeFileSync(join(ctx.dir, 'elsewhere', 'mine.txt'), 'kept\n');
+  mkdirSync(join(ctx.directory, 'elsewhere'));
+  writeFileSync(join(ctx.directory, 'elsewhere', 'mine.txt'), 'kept\n');
 
   const local = await daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'elsewhere'),
+    cwd: join(ctx.directory, 'elsewhere'),
     target: 'local',
   });
 
@@ -2012,8 +2029,8 @@ test('it starts a local spawn beside a checkout that a failed workspace spawn re
 
   expect(getRecord(local, 'session')['alive']).toBe(true);
   expect(spawn).rejects.toMatchObject({ code: 'workspace_mismatch' });
-  expect(existsSync(join(ctx.dir, 'box', 'ws'))).toBeFalse();
-  expect(readFileSync(join(ctx.dir, 'elsewhere', 'mine.txt'), 'utf8')).toBe('kept\n');
+  expect(existsSync(join(ctx.directory, 'box', 'ws'))).toBeFalse();
+  expect(readFileSync(join(ctx.directory, 'elsewhere', 'mine.txt'), 'utf8')).toBe('kept\n');
 });
 
 test('it keeps a checkout that a local spawn still starting runs inside when its spawn fails on a target without hosts', async () => {
@@ -2025,8 +2042,8 @@ test('it keeps a checkout that a local spawn still starting runs inside when its
   const releasedPrepare = Promise.withResolvers<void>();
 
   const host = buildStubDirProvider({
-    afterTransfer: async (dir) => {
-      unlinkSync(join(dir, 'README.md'));
+    afterTransfer: async (directory) => {
+      unlinkSync(join(directory, 'README.md'));
 
       transferred.resolve();
 
@@ -2089,21 +2106,21 @@ test('it keeps a checkout that a local spawn still starting runs inside when its
     releasedPrepare.resolve();
   });
 
-  const dest = join(ctx.dir, 'box', 'ws');
+  const destination = join(ctx.directory, 'box', 'ws');
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
   });
 
   await transferred.promise;
 
-  mkdirSync(join(dest, 'inner'));
-  writeFileSync(join(dest, 'inner', 'mine.txt'), 'kept\n');
+  mkdirSync(join(destination, 'inner'));
+  writeFileSync(join(destination, 'inner', 'mine.txt'), 'kept\n');
 
   const inside = daemon.client.sendRequest('session.spawn', {
-    cwd: join(dest, 'inner'),
+    cwd: join(destination, 'inner'),
     target: 'box',
   });
 
@@ -2113,13 +2130,17 @@ test('it keeps a checkout that a local spawn still starting runs inside when its
 
   await spawn.catch(() => null);
 
-  const kept = readdirSync(join(dest, 'inner'));
+  const kept = readdirSync(join(destination, 'inner'));
 
   releasePrepare();
 
   const started = await inside;
 
-  expect(spawn).rejects.toMatchObject({ code: 'workspace_mismatch', data: { leftDir: dest } });
+  expect(spawn).rejects.toMatchObject({
+    code: 'workspace_mismatch',
+    data: { leftDir: destination },
+  });
+
   expect(kept).toStrictEqual(['mine.txt']);
   expect(getRecord(started, 'session')['alive']).toBe(true);
 });
@@ -2133,8 +2154,8 @@ test('it keeps a checkout that a local spawn starts inside while its failed work
   const releasedPrepare = Promise.withResolvers<void>();
 
   const host = buildStubDirProvider({
-    afterTransfer: (dir) => {
-      unlinkSync(join(dir, 'README.md'));
+    afterTransfer: (directory) => {
+      unlinkSync(join(directory, 'README.md'));
 
       return Promise.resolve();
     },
@@ -2160,7 +2181,7 @@ test('it keeps a checkout that a local spawn starts inside while its failed work
     spawnHarness: host.spawnHarness,
     transferArchive: host.transferArchive,
     runCommand: async (spec) => {
-      if (spec.argv.length === 5 && spec.argv[4] === join(ctx.dir, 'elsewhere')) {
+      if (spec.argv.length === 5 && spec.argv[4] === join(ctx.directory, 'elsewhere')) {
         resolving.resolve();
 
         await releasedResolve.promise;
@@ -2205,28 +2226,28 @@ test('it keeps a checkout that a local spawn starts inside while its failed work
     releasedPrepare.resolve();
   });
 
-  mkdirSync(join(ctx.dir, 'elsewhere'));
+  mkdirSync(join(ctx.directory, 'elsewhere'));
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'elsewhere'),
+    cwd: join(ctx.directory, 'elsewhere'),
     target: 'local',
   });
 
-  const dest = join(ctx.dir, 'box', 'ws');
+  const destination = join(ctx.directory, 'box', 'ws');
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
   });
 
   await resolving.promise;
 
-  mkdirSync(join(dest, 'inner'));
-  writeFileSync(join(dest, 'inner', 'mine.txt'), 'kept\n');
+  mkdirSync(join(destination, 'inner'));
+  writeFileSync(join(destination, 'inner', 'mine.txt'), 'kept\n');
 
   const inside = daemon.client.sendRequest('session.spawn', {
-    cwd: join(dest, 'inner'),
+    cwd: join(destination, 'inner'),
     target: 'box',
   });
 
@@ -2236,13 +2257,17 @@ test('it keeps a checkout that a local spawn starts inside while its failed work
 
   await spawn.catch(() => null);
 
-  const kept = readdirSync(join(dest, 'inner'));
+  const kept = readdirSync(join(destination, 'inner'));
 
   releasePrepare();
 
   const started = await inside;
 
-  expect(spawn).rejects.toMatchObject({ code: 'workspace_mismatch', data: { leftDir: dest } });
+  expect(spawn).rejects.toMatchObject({
+    code: 'workspace_mismatch',
+    data: { leftDir: destination },
+  });
+
   expect(kept).toStrictEqual(['mine.txt']);
   expect(getRecord(started, 'session')['alive']).toBe(true);
 });
@@ -2254,8 +2279,8 @@ test('it refuses a local spawn in a relative directory while a failed workspace 
   const released = Promise.withResolvers<void>();
 
   const host = buildStubDirProvider({
-    afterTransfer: (dir) => {
-      unlinkSync(join(dir, 'README.md'));
+    afterTransfer: (directory) => {
+      unlinkSync(join(directory, 'README.md'));
 
       return Promise.resolve();
     },
@@ -2313,7 +2338,7 @@ test('it refuses a local spawn in a relative directory while a failed workspace 
   });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
   });
@@ -2638,18 +2663,18 @@ test('it materializes a git source on the local target like on any other', async
     }),
   });
 
-  const dest = join(ctx.dir, 'local', 'ws');
+  const destination = join(ctx.directory, 'local', 'ws');
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     target: 'local',
     workspace: { kind: 'git', url: ctx.upstream, ref: 'main' },
   });
 
-  const head = await $`git rev-parse HEAD`.env(ctx.env).cwd(dest).text();
+  const head = await $`git rev-parse HEAD`.env(ctx.env).cwd(destination).text();
 
   expect(spawned).toMatchObject({
-    session: { cwd: dest, workspace: { repoURL: ctx.upstream, sha: ctx.sha, ref: 'main' } },
+    session: { cwd: destination, workspace: { repoURL: ctx.upstream, sha: ctx.sha, ref: 'main' } },
   });
 
   expect(head.trim()).toBe(ctx.sha);
@@ -2661,7 +2686,7 @@ test('it materializes a git source without a cwd under the home on the local tar
   // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
-  const home = join(ctx.dir, 'home');
+  const home = join(ctx.directory, 'home');
 
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -2689,7 +2714,7 @@ test('it materializes a git source without a cwd under the home on the local tar
   const head = await $`git rev-parse HEAD`.env(ctx.env).cwd(ctx.work).text();
 
   const sha = head.trim();
-  const dest = join(home, '.local/share/atc/workspaces', `upstream-main-${sha.slice(0, 7)}`);
+  const destination = join(home, '.local/share/atc/workspaces', `upstream-main-${sha.slice(0, 7)}`);
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
     target: 'local',
@@ -2698,20 +2723,20 @@ test('it materializes a git source without a cwd under the home on the local tar
 
   expect(spawned).toMatchObject({
     session: {
-      cwd: dest,
-      repoRoot: dest,
+      cwd: destination,
+      repoRoot: destination,
       name: `upstream-main-${sha.slice(0, 7)}`,
       workspace: { repoURL: ctx.upstream, sha, ref: 'main' },
     },
   });
 
-  expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe(committed);
+  expect(readFileSync(join(destination, 'README.md'), 'utf8')).toBe(committed);
 });
 
 test('it groups a git source without a cwd that lands at the base of a root inside another work tree under its own clone', async () => {
   const ctx = await setupTest();
 
-  const enclosing = join(ctx.dir, 'enclosing');
+  const enclosing = join(ctx.directory, 'enclosing');
   const root = join(enclosing, 'checkouts');
   const base = join(root, 'upstream-main');
 
@@ -2750,7 +2775,7 @@ test('it lands concurrent spawns of one repository without a cwd beside a direct
   // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
-  const home = join(ctx.dir, 'home');
+  const home = join(ctx.directory, 'home');
   const base = join(home, '.local/share/atc/workspaces', 'upstream-main');
 
   mkdirSync(base, { recursive: true });
@@ -2805,7 +2830,7 @@ test('it lands a git source without a cwd under the root the config sets for its
   // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
-  const root = join(ctx.dir, 'roots', 'box');
+  const root = join(ctx.directory, 'roots', 'box');
 
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -2813,7 +2838,7 @@ test('it lands a git source without a cwd under the root the config sets for its
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
       workspaceRoots: {
-        root: join(ctx.dir, 'roots', 'all'),
+        root: join(ctx.directory, 'roots', 'all'),
         targetRoots: new Map([['box', root]]),
       },
       targets: [
@@ -2848,7 +2873,7 @@ test.skipIf(process.getuid?.() === 0)(
   async () => {
     const ctx = await setupTest();
 
-    const root = join(ctx.dir, 'read-only');
+    const root = join(ctx.directory, 'read-only');
     const box = buildStubDirProvider();
 
     mkdirSync(root, { mode: 0o555 });
@@ -3061,16 +3086,16 @@ test('it checks out the sha of a git source that holds both on the branch its re
   await $`git commit --quiet -m later`.env(ctx.env).cwd(ctx.work).quiet();
   await $`git push --quiet origin main`.env(ctx.env).cwd(ctx.work).quiet();
 
-  const dest = join(ctx.dir, 'box', 'ws');
+  const destination = join(ctx.directory, 'box', 'ws');
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     target: 'box',
     workspace: { kind: 'git', url: ctx.upstream, ref: 'main', sha: pinned },
   });
 
-  const head = await $`git rev-parse HEAD`.env(ctx.env).cwd(dest).text();
-  const branch = await $`git symbolic-ref HEAD`.env(ctx.env).cwd(dest).nothrow().text();
+  const head = await $`git rev-parse HEAD`.env(ctx.env).cwd(destination).text();
+  const branch = await $`git symbolic-ref HEAD`.env(ctx.env).cwd(destination).nothrow().text();
 
   expect(getRecord(spawned, 'session')['workspace']).toStrictEqual({
     repoURL: ctx.upstream,
@@ -3081,7 +3106,7 @@ test('it checks out the sha of a git source that holds both on the branch its re
 
   expect(head.trim()).toBe(pinned);
   expect(branch.trim()).toBe('refs/heads/main');
-  expect(existsSync(join(dest, 'later.txt'))).toBeFalse();
+  expect(existsSync(join(destination, 'later.txt'))).toBeFalse();
 });
 
 test("it runs git from the daemon's PATH for a git spawn on an allowed transport", async () => {
@@ -3156,11 +3181,16 @@ test('it refuses a git source on a local transport before it runs git, transferr
 
   // A git first on the PATH records each run, so a refusal that runs git
   // leaves the record behind.
-  createStubBin(ctx.dir, 'git', `#!/bin/sh\necho ran >> '${join(ctx.dir, 'git-ran')}'\nexit 1\n`);
-  updateEnv('PATH', `${ctx.dir}:${process.env['PATH'] ?? ''}`);
+  createStubBin(
+    ctx.directory,
+    'git',
+    `#!/bin/sh\necho ran >> '${join(ctx.directory, 'git-ran')}'\nexit 1\n`,
+  );
+
+  updateEnv('PATH', `${ctx.directory}:${process.env['PATH'] ?? ''}`);
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     target: 'box',
     workspace: { kind: 'git', url: `file://${ctx.upstream}`, ref: 'main' },
   });
@@ -3176,7 +3206,7 @@ test('it refuses a git source on a local transport before it runs git, transferr
   );
 
   expect(box.calls).toStrictEqual([]);
-  expect(existsSync(join(ctx.dir, 'git-ran'))).toBeFalse();
+  expect(existsSync(join(ctx.directory, 'git-ran'))).toBeFalse();
 });
 
 test('it refuses a path source whose origin is a local repository, in git, transferring nothing', async () => {
@@ -3206,7 +3236,7 @@ test('it refuses a path source whose origin is a local repository, in git, trans
   });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
   });
@@ -3286,7 +3316,7 @@ test('it holds a spawn to the configured transports whatever transports it carri
   });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     target: 'box',
     gitTransports: ['file'],
     workspace: { kind: 'git', url: `file://${ctx.upstream}`, ref: 'main' },
@@ -3325,7 +3355,7 @@ test('it refuses a git source that carries transports of its own as bad_args', a
   });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     target: 'box',
     workspace: {
       kind: 'git',
@@ -3371,7 +3401,7 @@ test('it holds git to the configured transports whatever the daemon environment 
   });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
   });
@@ -3391,11 +3421,11 @@ test('it materializes a spawn from the owner/repo shorthand at its GitHub https 
   // The rewrite sends the expanded URL to the fixture upstream, so no
   // request reaches GitHub.
   writeFileSync(
-    join(ctx.dir, 'gitconfig'),
-    `[url "file://${ctx.dir}/"]\n\tinsteadOf = https://github.com/acme/\n`,
+    join(ctx.directory, 'gitconfig'),
+    `[url "file://${ctx.directory}/"]\n\tinsteadOf = https://github.com/acme/\n`,
   );
 
-  updateEnv('GIT_CONFIG_GLOBAL', join(ctx.dir, 'gitconfig'));
+  updateEnv('GIT_CONFIG_GLOBAL', join(ctx.directory, 'gitconfig'));
 
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -3419,10 +3449,10 @@ test('it materializes a spawn from the owner/repo shorthand at its GitHub https 
     }),
   });
 
-  const dest = join(ctx.dir, 'local', 'ws');
+  const destination = join(ctx.directory, 'local', 'ws');
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     target: 'local',
     workspace: { kind: 'git', url: 'acme/upstream', ref: 'main' },
   });
@@ -3610,18 +3640,23 @@ test("it runs git from the daemon's PATH for a checkout spawn under a valid tran
   });
 
   // A git first on the PATH records each run.
-  createStubBin(ctx.dir, 'git', `#!/bin/sh\necho ran >> '${join(ctx.dir, 'git-ran')}'\nexit 1\n`);
-  updateEnv('PATH', `${ctx.dir}:${process.env['PATH'] ?? ''}`);
+  createStubBin(
+    ctx.directory,
+    'git',
+    `#!/bin/sh\necho ran >> '${join(ctx.directory, 'git-ran')}'\nexit 1\n`,
+  );
+
+  updateEnv('PATH', `${ctx.directory}:${process.env['PATH'] ?? ''}`);
 
   await daemon.client
     .sendRequest('session.spawn', {
-      cwd: join(ctx.dir, 'box', 'ws-path'),
+      cwd: join(ctx.directory, 'box', 'ws-path'),
       target: 'box',
       workspace: { kind: 'path', path: ctx.work },
     })
     .catch(() => null);
 
-  expect(existsSync(join(ctx.dir, 'git-ran'))).toBeTrue();
+  expect(existsSync(join(ctx.directory, 'git-ran'))).toBeTrue();
 });
 
 test('it refuses a checkout spawn under an invalid transport list before any git runs', async () => {
@@ -3656,11 +3691,16 @@ test('it refuses a checkout spawn under an invalid transport list before any git
 
   // A git first on the PATH records each run, so a refusal that runs git
   // leaves the record behind.
-  createStubBin(ctx.dir, 'git', `#!/bin/sh\necho ran >> '${join(ctx.dir, 'git-ran')}'\nexit 1\n`);
-  updateEnv('PATH', `${ctx.dir}:${process.env['PATH'] ?? ''}`);
+  createStubBin(
+    ctx.directory,
+    'git',
+    `#!/bin/sh\necho ran >> '${join(ctx.directory, 'git-ran')}'\nexit 1\n`,
+  );
+
+  updateEnv('PATH', `${ctx.directory}:${process.env['PATH'] ?? ''}`);
 
   const refused = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws-path'),
+    cwd: join(ctx.directory, 'box', 'ws-path'),
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
   });
@@ -3673,7 +3713,7 @@ test('it refuses a checkout spawn under an invalid transport list before any git
       "workspaces.gitTransports in config.json is invalid, so the daemon runs no git: workspaces.gitTransports holds 'ext', which atc never allows because it runs a command or reads a descriptor on the daemon host; the daemon runs no git until it is fixed",
   });
 
-  expect(existsSync(join(ctx.dir, 'git-ran'))).toBeFalse();
+  expect(existsSync(join(ctx.directory, 'git-ran'))).toBeFalse();
   expect(box.calls).toStrictEqual([]);
 });
 

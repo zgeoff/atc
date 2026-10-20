@@ -32,12 +32,12 @@ import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemo
 async function setupTest() {
   const git = await createGitFixture({ prefix: 'atc-imp-workspace-git-' });
 
-  const tmp = setupTempDir('atc-imp-workspace-');
+  const temporaryDirectory = setupTempDir('atc-imp-workspace-');
   const port = createStubImpPort();
 
   const provider = new ImpProvider(
     port,
-    { guestDir: join(tmp.path, 'g') },
+    { guestDir: join(temporaryDirectory.path, 'g') },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -48,7 +48,7 @@ async function setupTest() {
   return {
     port,
     provider,
-    dir: tmp.path,
+    directory: temporaryDirectory.path,
     upstream: git.upstream,
     work: git.work,
     sha: git.sha,
@@ -105,10 +105,10 @@ test('it materializes a workspace on the host of an imp spawn and starts the ses
   // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
-  const dest = join(ctx.dir, 'box', 'ws');
+  const destination = join(ctx.directory, 'box', 'ws');
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     agent: 'plain',
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -117,7 +117,7 @@ test('it materializes a workspace on the host of an imp spawn and starts the ses
   const session = getRecord(spawned, 'session');
   const [imp] = ctx.port.collectImpNames();
 
-  expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe(committed);
+  expect(readFileSync(join(destination, 'README.md'), 'utf8')).toBe(committed);
 
   expect(session).toMatchObject({
     locator: { targetID: 'box' },
@@ -130,14 +130,18 @@ test('it materializes a workspace on the host of an imp spawn and starts the ses
   ]);
 
   expect(
-    ctx.port.calls.filter((call) => call.endsWith(` sh ${join(ctx.dir, 'box')} ${dest}`)),
+    ctx.port.calls.filter((call) =>
+      call.endsWith(` sh ${join(ctx.directory, 'box')} ${destination}`),
+    ),
   ).toStrictEqual([
-    `exec.run ${imp} sh -c mkdir -p -- "$1" || exit 3\nmkdir -- "$2" && exit 0\nif [ -e "$2" ] || [ -L "$2" ]; then exit 4; fi\nexit 5 sh ${join(ctx.dir, 'box')} ${dest}`,
+    `exec.run ${imp} sh -c mkdir -p -- "$1" || exit 3\nmkdir -- "$2" && exit 0\nif [ -e "$2" ] || [ -L "$2" ]; then exit 4; fi\nexit 5 sh ${join(ctx.directory, 'box')} ${destination}`,
   ]);
 
   expect(
-    ctx.port.calls.filter((call) => call.includes(dest) && call.includes('tar -x')),
-  ).toStrictEqual([expect.toEndWith(`tar -x -z --no-same-owner -f - -C "$1"\n sh ${dest} 69`)]);
+    ctx.port.calls.filter((call) => call.includes(destination) && call.includes('tar -x')),
+  ).toStrictEqual([
+    expect.toEndWith(`tar -x -z --no-same-owner -f - -C "$1"\n sh ${destination} 69`),
+  ]);
 
   expect(ctx.port.sessionRequests.map((request) => request.kind)).toStrictEqual(['start']);
 });
@@ -191,8 +195,8 @@ test('it materializes a git source without a cwd under the home of an imp and st
   // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
-  const home = join(ctx.dir, 'guest-home');
-  const dest = join(home, '.local/share/atc/workspaces', 'upstream-main');
+  const home = join(ctx.directory, 'guest-home');
+  const destination = join(home, '.local/share/atc/workspaces', 'upstream-main');
 
   mkdirSync(home, { recursive: true });
 
@@ -204,18 +208,18 @@ test('it materializes a git source without a cwd under the home of an imp and st
     workspace: { kind: 'git', url: ctx.upstream, ref: 'main' },
   });
 
-  expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe(committed);
+  expect(readFileSync(join(destination, 'README.md'), 'utf8')).toBe(committed);
 
   expect(getRecord(spawned, 'session')).toMatchObject({
-    cwd: dest,
-    repoRoot: dest,
+    cwd: destination,
+    repoRoot: destination,
     locator: { targetID: 'box' },
     alive: true,
   });
 
   expect(
     ctx.port.sessionRequests.flatMap((request) => (request.kind === 'start' ? [request.cwd] : [])),
-  ).toStrictEqual([dest]);
+  ).toStrictEqual([destination]);
 });
 
 test('it clones a git source inside the imp as a blobless clone and uploads nothing', async () => {
@@ -240,18 +244,21 @@ test('it clones a git source inside the imp as a blobless clone and uploads noth
 
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
-  const dest = join(ctx.dir, 'box', 'ws');
+  const destination = join(ctx.directory, 'box', 'ws');
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     agent: 'plain',
     target: 'box',
     workspace: { kind: 'git', url: ctx.upstream, ref: 'main' },
   });
 
-  const filter = await $`git config remote.origin.partialclonefilter`.env(ctx.env).cwd(dest).text();
+  const filter = await $`git config remote.origin.partialclonefilter`
+    .env(ctx.env)
+    .cwd(destination)
+    .text();
 
-  expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe(committed);
+  expect(readFileSync(join(destination, 'README.md'), 'utf8')).toBe(committed);
   expect(filter.trim()).toBe('blob:none');
   expect(ctx.port.calls.filter((call) => call.includes('tar -x'))).toStrictEqual([]);
 });
@@ -273,24 +280,24 @@ test('it leaves a clone made inside the imp on its branch with a token-free orig
     }),
   });
 
-  const dest = join(ctx.dir, 'box', 'ws');
+  const destination = join(ctx.directory, 'box', 'ws');
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     agent: 'plain',
     target: 'box',
     workspace: { kind: 'git', url: ctx.upstream, ref: 'main' },
   });
 
-  const branch = await $`git symbolic-ref --short HEAD`.env(ctx.env).cwd(dest).text();
-  const head = await $`git rev-parse HEAD`.env(ctx.env).cwd(dest).text();
-  const origin = await $`git config remote.origin.url`.env(ctx.env).cwd(dest).text();
+  const branch = await $`git symbolic-ref --short HEAD`.env(ctx.env).cwd(destination).text();
+  const head = await $`git rev-parse HEAD`.env(ctx.env).cwd(destination).text();
+  const origin = await $`git config remote.origin.url`.env(ctx.env).cwd(destination).text();
 
   expect(branch.trim()).toBe('main');
   expect(head.trim()).toBe(ctx.sha);
   expect(origin.trim()).toBe(ctx.upstream);
-  expect(readdirSync(join(dest, '.git', 'hooks'))).toStrictEqual([]);
-  expect(existsSync(join(dest, '.git', 'logs'))).toBeFalse();
+  expect(readdirSync(join(destination, '.git', 'hooks'))).toStrictEqual([]);
+  expect(existsSync(join(destination, '.git', 'logs'))).toBeFalse();
 });
 
 test('it times a clone made inside the imp as resolve-ref and guest-clone, with no clone, archive or transfer step', async () => {
@@ -311,7 +318,7 @@ test('it times a clone made inside the imp as resolve-ref and guest-clone, with 
   });
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     agent: 'plain',
     target: 'box',
     workspace: { kind: 'git', url: ctx.upstream, ref: 'main' },
@@ -338,7 +345,7 @@ test('it uploads the workspace from the daemon and logs why when the imp cannot 
   // The daemon's own git config reaches the repository behind its URL, as
   // a credential helper on the daemon host reaches a private repository;
   // the imp's git has no such config, and nothing listens at the URL.
-  const gitConfig = join(ctx.dir, 'daemon-gitconfig');
+  const gitConfig = join(ctx.directory, 'daemon-gitconfig');
 
   writeFileSync(
     gitConfig,
@@ -363,20 +370,20 @@ test('it uploads the workspace from the daemon and logs why when the imp cannot 
 
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
-  const dest = join(ctx.dir, 'box', 'ws');
+  const destination = join(ctx.directory, 'box', 'ws');
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     agent: 'plain',
     target: 'box',
     workspace: { kind: 'git', url: 'http://127.0.0.1:9/acme/private.git', ref: 'main' },
   });
 
-  expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe(committed);
+  expect(readFileSync(join(destination, 'README.md'), 'utf8')).toBe(committed);
 
   expect<readonly unknown[]>(
     ctx.port.calls.filter((call) => call.includes('tar -x')),
-  ).toStrictEqual([expect.stringContaining(` sh ${dest}`)]);
+  ).toStrictEqual([expect.stringContaining(` sh ${destination}`)]);
 
   expect<readonly unknown[]>(
     daemon.logs.filter((line) => line.includes('could not clone inside')),
@@ -419,7 +426,7 @@ test('it clones inside the imp only after the broker grants of the session are b
   });
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     agent: 'glm',
     target: 'box',
     workspace: { kind: 'git', url: ctx.upstream, ref: 'main' },
@@ -460,7 +467,7 @@ test('it refuses a git source with submodules inside the imp as has_submodules w
     .quiet();
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     agent: 'plain',
     target: 'box',
     workspace: { kind: 'git', url: ctx.upstream, ref: 'main' },
@@ -496,7 +503,7 @@ test('it refuses a git source that tracks paths through Git LFS inside the imp a
     .quiet();
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     agent: 'plain',
     target: 'box',
     workspace: { kind: 'git', url: ctx.upstream, ref: 'main' },
@@ -559,7 +566,7 @@ test('it lands concurrent sub-sessions of one repository without a cwd side by s
   // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
-  const home = join(ctx.dir, 'guest-home');
+  const home = join(ctx.directory, 'guest-home');
   const base = join(home, '.local/share/atc/workspaces', 'upstream-main');
 
   mkdirSync(home, { recursive: true });
@@ -616,7 +623,7 @@ test('it lands one of two concurrent sub-sessions without a cwd at the base of a
 
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
-  const root = join(ctx.dir, 'orchard-roots');
+  const root = join(ctx.directory, 'orchard-roots');
 
   const daemon = await startTestDaemon({
     prefix: 'atc-imp-workspace-daemon-',
@@ -631,7 +638,7 @@ test('it lands one of two concurrent sub-sessions without a cwd at the base of a
     }),
   });
 
-  const home = join(ctx.dir, 'guest-home');
+  const home = join(ctx.directory, 'guest-home');
   const base = join(root, 'upstream-main');
 
   mkdirSync(home, { recursive: true });
@@ -740,16 +747,16 @@ test('it materializes a workspace for a local spawn on the daemon host and start
   // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
-  const dest = join(ctx.dir, 'local', 'ws');
+  const destination = join(ctx.directory, 'local', 'ws');
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     agent: 'plain',
     target: 'local',
     workspace: { kind: 'path', path: ctx.work },
   });
 
-  expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe(committed);
+  expect(readFileSync(join(destination, 'README.md'), 'utf8')).toBe(committed);
 
   expect(getRecord(spawned, 'session')).toMatchObject({
     locator: { targetID: 'local' },
@@ -821,11 +828,11 @@ test('it refuses a workspace sub-session under a revoked parent before resolving
   // A source that does not exist fails its resolution, so a refusal other
   // than the resolution's shows resolution never ran.
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'child'),
+    cwd: join(ctx.directory, 'box', 'child'),
     agent: 'glm',
     target: 'box',
     parent: parentID,
-    workspace: { kind: 'path', path: join(ctx.dir, 'missing') },
+    workspace: { kind: 'path', path: join(ctx.directory, 'missing') },
   });
 
   await spawn.catch(() => null);
@@ -838,12 +845,12 @@ test('it refuses a workspace sub-session under a revoked parent before resolving
     db.close();
   });
 
-  const rows = db.query('select count(*) as n from workspace_materialization').get();
+  const rows = db.query('select count(*) as count from workspace_materialization').get();
 
   expect(spawn).rejects.toMatchObject({ code: 'auth_blocked', data: { state: 'revoked' } });
   expect(ctx.port.calls.filter((call) => !call.startsWith('leases.renew'))).toStrictEqual([]);
   expect(listed['sessions']).toStrictEqual([expect.objectContaining({ id: parentID })]);
-  expect(rows).toStrictEqual({ n: 0 });
+  expect(rows).toStrictEqual({ count: 0 });
 });
 
 test('it materializes a workspace sub-session on the host of a ready parent and starts it there', async () => {
@@ -901,17 +908,17 @@ test('it materializes a workspace sub-session on the host of a ready parent and 
     target: 'box',
   });
 
-  const dest = join(ctx.dir, 'box', 'child');
+  const destination = join(ctx.directory, 'box', 'child');
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     agent: 'glm',
     target: 'box',
     parent: getRecord(parent, 'session')['id'],
     workspace: { kind: 'path', path: ctx.work },
   });
 
-  expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe(committed);
+  expect(readFileSync(join(destination, 'README.md'), 'utf8')).toBe(committed);
 
   expect(getRecord(spawned, 'session')).toMatchObject({
     alive: true,
@@ -967,12 +974,12 @@ test('it destroys the host of its own that a spawn readied when its workspace fa
     }),
   });
 
-  const dest = join(ctx.dir, 'box', 'ws');
+  const destination = join(ctx.directory, 'box', 'ws');
 
-  mkdirSync(dest, { recursive: true });
+  mkdirSync(destination, { recursive: true });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     agent: 'plain',
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -1039,12 +1046,12 @@ test('it takes back the imp and binding a brokered spawn provisioned when its wo
     }),
   });
 
-  const dest = join(ctx.dir, 'box', 'ws');
+  const destination = join(ctx.directory, 'box', 'ws');
 
-  mkdirSync(dest, { recursive: true });
+  mkdirSync(destination, { recursive: true });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     agent: 'glm',
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -1058,7 +1065,7 @@ test('it takes back the imp and binding a brokered spawn provisioned when its wo
     db.close();
   });
 
-  const rows = db.query('select count(*) as n from runtime_auth_binding').get();
+  const rows = db.query('select count(*) as count from runtime_auth_binding').get();
 
   expect(spawn).rejects.toMatchObject({ code: 'workspace_exists' });
 
@@ -1067,7 +1074,7 @@ test('it takes back the imp and binding a brokered spawn provisioned when its wo
   ]);
 
   expect(ctx.port.collectImpNames()).toStrictEqual([]);
-  expect(rows).toStrictEqual({ n: 0 });
+  expect(rows).toStrictEqual({ count: 0 });
 });
 
 test('it takes back the imp and binding of a brokered spawn whose start is refused, without removing its checkout first', async () => {
@@ -1115,7 +1122,7 @@ test('it takes back the imp and binding of a brokered spawn whose start is refus
   ctx.port.setCommandFailure('-mindepth');
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     agent: 'glm',
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -1129,11 +1136,11 @@ test('it takes back the imp and binding of a brokered spawn whose start is refus
     db.close();
   });
 
-  const rows = db.query('select count(*) as n from runtime_auth_binding').get();
+  const rows = db.query('select count(*) as count from runtime_auth_binding').get();
 
   expect(spawn).rejects.toMatchObject({ code: 'broker_not_ready' });
   expect(ctx.port.collectImpNames()).toStrictEqual([]);
-  expect(rows).toStrictEqual({ n: 0 });
+  expect(rows).toStrictEqual({ count: 0 });
 });
 
 test("it leaves a parent running on its host when a sub-session's workspace fails there", async () => {
@@ -1189,12 +1196,12 @@ test("it leaves a parent running on its host when a sub-session's workspace fail
   });
 
   const parentID = String(getRecord(parent, 'session')['id']);
-  const dest = join(ctx.dir, 'box', 'child');
+  const destination = join(ctx.directory, 'box', 'child');
 
-  mkdirSync(dest, { recursive: true });
+  mkdirSync(destination, { recursive: true });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     agent: 'glm',
     target: 'box',
     parent: parentID,
@@ -1262,7 +1269,7 @@ test('it destroys the host of its own that a plain workspace spawn readied when 
   });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     agent: 'unsigned-plain',
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -1331,7 +1338,7 @@ test('it answers outcome_unknown for a workspace spawn whose host it cannot take
   ctx.port.setDestroyFailure('INTERNAL_SERVER_ERROR');
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     agent: 'unsigned',
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -1390,7 +1397,7 @@ test('it keeps the key of a workspace spawn whose host it cannot take back as ou
   ctx.port.setDestroyFailure('INTERNAL_SERVER_ERROR');
 
   const failed = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     agent: 'unsigned',
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -1400,7 +1407,7 @@ test('it keeps the key of a workspace spawn whose host it cannot take back as ou
   await Promise.allSettled([failed]);
 
   const retried = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     agent: 'unsigned',
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -1464,7 +1471,7 @@ test('it refuses a workspace spawn whose host fails its sign-in check and takes 
   });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     agent: 'unsigned',
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -1479,11 +1486,11 @@ test('it refuses a workspace spawn whose host fails its sign-in check and takes 
     db.close();
   });
 
-  const rows = db.query('select count(*) as n from runtime_auth_binding').get();
+  const rows = db.query('select count(*) as count from runtime_auth_binding').get();
 
   expect(spawn).rejects.toMatchObject({ code: 'auth_not_configured' });
   expect(ctx.port.collectImpNames()).toStrictEqual([]);
-  expect(rows).toStrictEqual({ n: 0 });
+  expect(rows).toStrictEqual({ count: 0 });
 });
 
 test("it refuses a sub-session workspace inside its parent's directory before claiming or transferring anything", async () => {
@@ -1615,17 +1622,17 @@ test("it materializes a sub-session workspace beside its parent's directory on t
     target: 'box',
   });
 
-  const dest = join(ctx.dir, 'sibling');
+  const destination = join(ctx.directory, 'sibling');
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     agent: 'glm',
     target: 'box',
     parent: getRecord(parent, 'session')['id'],
     workspace: { kind: 'path', path: ctx.work },
   });
 
-  expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe(committed);
+  expect(readFileSync(join(destination, 'README.md'), 'utf8')).toBe(committed);
 
   expect(getRecord(spawned, 'session')).toMatchObject({
     alive: true,
@@ -1682,7 +1689,7 @@ test('it refuses a git workspace whose credential variable is unset before touch
   updateEnv('ATC_TEST_WORKSPACE_TOKEN', undefined);
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     agent: 'plain',
     target: 'box',
     workspace: {
@@ -1754,10 +1761,10 @@ test('it materializes a git workspace on an imp host when its credential variabl
 
   updateEnv('ATC_TEST_WORKSPACE_TOKEN', 'workspace-token');
 
-  const dest = join(ctx.dir, 'box', 'ws');
+  const destination = join(ctx.directory, 'box', 'ws');
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     agent: 'plain',
     target: 'box',
     workspace: {
@@ -1768,7 +1775,7 @@ test('it materializes a git workspace on an imp host when its credential variabl
     },
   });
 
-  expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe(committed);
+  expect(readFileSync(join(destination, 'README.md'), 'utf8')).toBe(committed);
 
   expect(getRecord(spawned, 'session')).toMatchObject({
     alive: true,
@@ -1835,7 +1842,7 @@ test('it claims the directory of a workspace sub-session on the shared host befo
     target: 'box',
   });
 
-  const outer = join(ctx.dir, 'box', 'a');
+  const outer = join(ctx.directory, 'box', 'a');
   const tarHold = ctx.port.startCommandHold('tar -x');
 
   // The daemon stops with this spawn still held, which rejects it.
@@ -1909,7 +1916,7 @@ test('it claims the directory of a workspace sub-session under the home of the s
     ctx.port.stopLeaseHold();
   });
 
-  const home = join(ctx.dir, 'box');
+  const home = join(ctx.directory, 'box');
 
   mkdirSync(home, { recursive: true });
 
@@ -2002,7 +2009,7 @@ test('it refuses a workspace spawn inside another one still materializing on the
   });
 
   const parentID = getRecord(parent, 'session')['id'];
-  const outer = join(ctx.dir, 'box', 'a');
+  const outer = join(ctx.directory, 'box', 'a');
   const inner = join(outer, 'b');
   const tarHold = ctx.port.startCommandHold('tar -x');
 
@@ -2110,8 +2117,8 @@ test('it materializes concurrent workspace spawns into sibling directories on th
   });
 
   const parentID = getRecord(parent, 'session')['id'];
-  const first = join(ctx.dir, 'box', 'a');
-  const second = join(ctx.dir, 'box', 'b');
+  const first = join(ctx.directory, 'box', 'a');
+  const second = join(ctx.directory, 'box', 'b');
   const tarHold = ctx.port.startCommandHold('tar -x');
 
   const spawns = [first, second].map((cwd) =>
@@ -2137,10 +2144,9 @@ test('it materializes concurrent workspace spawns into sibling directories on th
     true,
   ]);
 
-  expect([first, second].map((dir) => readFileSync(join(dir, 'README.md'), 'utf8'))).toStrictEqual([
-    committed,
-    committed,
-  ]);
+  expect(
+    [first, second].map((directory) => readFileSync(join(directory, 'README.md'), 'utf8')),
+  ).toStrictEqual([committed, committed]);
 });
 
 test("it keeps another session's files inside its directory when a workspace spawn rolls back on the shared host", async () => {
@@ -2203,7 +2209,7 @@ test("it keeps another session's files inside its directory when a workspace spa
   });
 
   const parentID = getRecord(parent, 'session')['id'];
-  const outer = join(ctx.dir, 'box', 'a');
+  const outer = join(ctx.directory, 'box', 'a');
   const tarHold = ctx.port.startCommandHold('tar -x');
 
   const outerSpawn = daemon.client.sendRequest('session.spawn', {
@@ -2228,10 +2234,10 @@ test("it keeps another session's files inside its directory when a workspace spa
 
   mkdirSync(join(outer, 'inner'));
   writeFileSync(join(outer, 'inner', 'keep.txt'), 'kept\n');
-  symlinkSync(outer, join(ctx.dir, 'alias'));
+  symlinkSync(outer, join(ctx.directory, 'alias'));
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'alias', 'inner'),
+    cwd: join(ctx.directory, 'alias', 'inner'),
     agent: 'glm',
     target: 'box',
     parent: parentID,
@@ -2306,7 +2312,7 @@ test('it refuses a plain sub-session inside a workspace still materializing on t
   });
 
   const parentID = getRecord(parent, 'session')['id'];
-  const outer = join(ctx.dir, 'box', 'a');
+  const outer = join(ctx.directory, 'box', 'a');
   const tarHold = ctx.port.startCommandHold('tar -x');
 
   const outerSpawn = daemon.client.sendRequest('session.spawn', {
@@ -2400,7 +2406,7 @@ test('it keeps the files of a plain sub-session still starting through a symlink
   });
 
   const parentID = getRecord(parent, 'session')['id'];
-  const outer = join(ctx.dir, 'box', 'a');
+  const outer = join(ctx.directory, 'box', 'a');
   const tarHold = ctx.port.startCommandHold('tar -x');
 
   const outerSpawn = daemon.client.sendRequest('session.spawn', {
@@ -2415,7 +2421,7 @@ test('it keeps the files of a plain sub-session still starting through a symlink
 
   mkdirSync(join(outer, 'inner'));
   writeFileSync(join(outer, 'inner', 'keep.txt'), 'kept\n');
-  symlinkSync(outer, join(ctx.dir, 'alias'));
+  symlinkSync(outer, join(ctx.directory, 'alias'));
 
   const leasesBefore = ctx.port.calls.filter((call) => call.startsWith('leases.acquire')).length;
 
@@ -2423,7 +2429,7 @@ test('it keeps the files of a plain sub-session still starting through a symlink
 
   // The plain sub-session waits for its lease, before it lists.
   const plain = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'alias', 'inner'),
+    cwd: join(ctx.directory, 'alias', 'inner'),
     agent: 'glm',
     target: 'box',
     parent: parentID,
@@ -2509,7 +2515,7 @@ test('it refuses a plain sub-session on the shared host while a workspace rollba
   });
 
   const parentID = getRecord(parent, 'session')['id'];
-  const outer = join(ctx.dir, 'box', 'a');
+  const outer = join(ctx.directory, 'box', 'a');
   const tarHold = ctx.port.startCommandHold('tar -x');
 
   const outerSpawn = daemon.client.sendRequest('session.spawn', {
@@ -2524,7 +2530,7 @@ test('it refuses a plain sub-session on the shared host while a workspace rollba
 
   // The daemon stops with this spawn still rolling back, which rejects it.
   void Promise.allSettled([outerSpawn]);
-  symlinkSync(outer, join(ctx.dir, 'alias'));
+  symlinkSync(outer, join(ctx.directory, 'alias'));
 
   ctx.port.setCommandFailure('tar -x');
   tarHold.stop();
@@ -2537,7 +2543,7 @@ test('it refuses a plain sub-session on the shared host while a workspace rollba
   });
 
   const refused = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'alias', 'inner'),
+    cwd: join(ctx.directory, 'alias', 'inner'),
     agent: 'glm',
     target: 'box',
     parent: parentID,
@@ -2608,7 +2614,7 @@ test('it starts a plain sub-session on the shared host once a workspace rollback
   });
 
   const parentID = getRecord(parent, 'session')['id'];
-  const outer = join(ctx.dir, 'box', 'a');
+  const outer = join(ctx.directory, 'box', 'a');
   const tarHold = ctx.port.startCommandHold('tar -x');
 
   const outerSpawn = daemon.client.sendRequest('session.spawn', {
@@ -2621,7 +2627,7 @@ test('it starts a plain sub-session on the shared host once a workspace rollback
 
   await tarHold.entered;
 
-  symlinkSync(outer, join(ctx.dir, 'alias'));
+  symlinkSync(outer, join(ctx.directory, 'alias'));
 
   ctx.port.setCommandFailure('tar -x');
   tarHold.stop();
@@ -2633,7 +2639,7 @@ test('it starts a plain sub-session on the shared host once a workspace rollback
   });
 
   const refused = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'alias', 'inner'),
+    cwd: join(ctx.directory, 'alias', 'inner'),
     agent: 'glm',
     target: 'box',
     parent: parentID,
@@ -2712,7 +2718,7 @@ test('it keeps the files of a relative plain sub-session still starting when a w
     ctx.port.stopLeaseHold();
   });
 
-  const home = join(ctx.dir, 'box');
+  const home = join(ctx.directory, 'box');
 
   mkdirSync(home, { recursive: true });
 
@@ -2834,7 +2840,7 @@ test('it keeps its directory when a workspace rollback cannot resolve a plain su
   });
 
   const parentID = getRecord(parent, 'session')['id'];
-  const outer = join(ctx.dir, 'box', 'a');
+  const outer = join(ctx.directory, 'box', 'a');
   const tarHold = ctx.port.startCommandHold('tar -x');
 
   const outerSpawn = daemon.client.sendRequest('session.spawn', {
@@ -2849,14 +2855,14 @@ test('it keeps its directory when a workspace rollback cannot resolve a plain su
 
   mkdirSync(join(outer, 'inner'));
   writeFileSync(join(outer, 'inner', 'keep.txt'), 'kept\n');
-  symlinkSync(outer, join(ctx.dir, 'alias'));
+  symlinkSync(outer, join(ctx.directory, 'alias'));
 
   const leasesBefore = ctx.port.calls.filter((call) => call.startsWith('leases.acquire')).length;
 
   ctx.port.startLeaseHold();
 
   const plain = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'alias', 'inner'),
+    cwd: join(ctx.directory, 'alias', 'inner'),
     agent: 'glm',
     target: 'box',
     parent: parentID,
@@ -2882,7 +2888,7 @@ test('it keeps its directory when a workspace rollback cannot resolve a plain su
   });
 
   // Only the resolution of the plain sub-session's directory fails.
-  ctx.port.setCommandFailure(join(ctx.dir, 'alias'));
+  ctx.port.setCommandFailure(join(ctx.directory, 'alias'));
   resolveHold.stop();
 
   await outerSpawn.catch(() => null);
@@ -2950,7 +2956,7 @@ test('it keeps its directory when a workspace rollback cannot resolve a relative
     ctx.port.stopLeaseHold();
   });
 
-  const home = join(ctx.dir, 'box');
+  const home = join(ctx.directory, 'box');
 
   mkdirSync(home, { recursive: true });
 
@@ -3078,7 +3084,7 @@ test('it removes its directory when a workspace rollback meets a listed relative
     ctx.port.stopLeaseHold();
   });
 
-  const home = join(ctx.dir, 'box');
+  const home = join(ctx.directory, 'box');
 
   mkdirSync(join(home, 'scratchpad'), { recursive: true });
 
@@ -3182,7 +3188,7 @@ test('it starts a plain sub-session beside a workspace still materializing on th
   });
 
   const parentID = getRecord(parent, 'session')['id'];
-  const outer = join(ctx.dir, 'box', 'a');
+  const outer = join(ctx.directory, 'box', 'a');
   const tarHold = ctx.port.startCommandHold('tar -x');
 
   const outerSpawn = daemon.client.sendRequest('session.spawn', {
@@ -3262,7 +3268,7 @@ test('it removes the directory it claimed when a workspace spawn rolls back on t
     target: 'box',
   });
 
-  const outer = join(ctx.dir, 'box', 'a');
+  const outer = join(ctx.directory, 'box', 'a');
 
   ctx.port.setCommandFailure('tar -x');
 
@@ -3348,7 +3354,7 @@ test('it gives back the directory a rolled-back workspace spawn claimed, so a re
   ctx.port.setCommandFailure('tar -x');
 
   const failed = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'a'),
+    cwd: join(ctx.directory, 'box', 'a'),
     agent: 'glm',
     target: 'box',
     parent: getRecord(parent, 'session')['id'],
@@ -3362,7 +3368,7 @@ test('it gives back the directory a rolled-back workspace spawn claimed, so a re
   const parentID = getRecord(parent, 'session')['id'];
 
   const retried = await daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'a'),
+    cwd: join(ctx.directory, 'box', 'a'),
     agent: 'glm',
     target: 'box',
     parent: parentID,
@@ -3429,13 +3435,13 @@ test("it removes a sub-session's checkout but keeps its parent and the files bes
   });
 
   const parentID = String(getRecord(parent, 'session')['id']);
-  const dest = join(ctx.dir, 'box', 'child');
+  const destination = join(ctx.directory, 'box', 'child');
 
   // The imp the parent's spawn created, which the failed start must keep.
   const [imp] = ctx.port.collectImpNames();
 
-  mkdirSync(join(ctx.dir, 'box'));
-  writeFileSync(join(ctx.dir, 'box', 'beside.txt'), 'kept\n');
+  mkdirSync(join(ctx.directory, 'box'));
+  writeFileSync(join(ctx.directory, 'box', 'beside.txt'), 'kept\n');
 
   ctx.port.startBrokerFailure();
 
@@ -3446,7 +3452,7 @@ test("it removes a sub-session's checkout but keeps its parent and the files bes
   });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     agent: 'glm',
     target: 'box',
     parent: parentID,
@@ -3455,7 +3461,7 @@ test("it removes a sub-session's checkout but keeps its parent and the files bes
 
   await hold.entered;
 
-  const checkedOutAtHold = existsSync(dest);
+  const checkedOutAtHold = existsSync(destination);
 
   hold.stop();
 
@@ -3465,8 +3471,8 @@ test("it removes a sub-session's checkout but keeps its parent and the files bes
 
   expect(spawn).rejects.toMatchObject({ code: 'broker_not_ready' });
   expect(checkedOutAtHold).toBeTrue();
-  expect(existsSync(dest)).toBe(false);
-  expect(readFileSync(join(ctx.dir, 'box', 'beside.txt'), 'utf8')).toBe('kept\n');
+  expect(existsSync(destination)).toBe(false);
+  expect(readFileSync(join(ctx.directory, 'box', 'beside.txt'), 'utf8')).toBe('kept\n');
   expect(readFileSync(join(ctx.work, 'README.md'), 'utf8')).toBe(committed);
   expect<readonly unknown[]>(ctx.port.collectImpNames()).toStrictEqual([imp]);
   expect(ctx.port.findState(String(imp))).toBe('running');
@@ -3534,13 +3540,13 @@ test('it spawns a sub-session again on the shared host after its failed start re
   // The imp the parent's spawn created, which the failed start must keep.
   const [imp] = ctx.port.collectImpNames();
 
-  mkdirSync(join(ctx.dir, 'box'));
-  writeFileSync(join(ctx.dir, 'box', 'beside.txt'), 'kept\n');
+  mkdirSync(join(ctx.directory, 'box'));
+  writeFileSync(join(ctx.directory, 'box', 'beside.txt'), 'kept\n');
 
   ctx.port.startBrokerFailure();
 
   const failed = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'child'),
+    cwd: join(ctx.directory, 'box', 'child'),
     agent: 'glm',
     target: 'box',
     parent: getRecord(parent, 'session')['id'],
@@ -3554,7 +3560,7 @@ test('it spawns a sub-session again on the shared host after its failed start re
   const parentID = getRecord(parent, 'session')['id'];
 
   const retried = await daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'child'),
+    cwd: join(ctx.directory, 'box', 'child'),
     agent: 'glm',
     target: 'box',
     parent: parentID,
@@ -3566,7 +3572,7 @@ test('it spawns a sub-session again on the shared host after its failed start re
   const after = await daemon.client.sendRequest('session.list');
 
   expect(failed).rejects.toMatchObject({ code: 'broker_not_ready' });
-  expect(readFileSync(join(ctx.dir, 'box', 'beside.txt'), 'utf8')).toBe('kept\n');
+  expect(readFileSync(join(ctx.directory, 'box', 'beside.txt'), 'utf8')).toBe('kept\n');
   expect(readFileSync(join(ctx.work, 'README.md'), 'utf8')).toBe(committed);
   expect<readonly unknown[]>(ctx.port.collectImpNames()).toStrictEqual([imp]);
   expect(ctx.port.findState(String(imp))).toBe('running');
@@ -3634,7 +3640,7 @@ test("it removes a sub-session's checkout on its parent's sleeping host when its
 
   const parentID = String(getRecord(parent, 'session')['id']);
   const [imp] = ctx.port.collectImpNames();
-  const dest = join(ctx.dir, 'box', 'child');
+  const destination = join(ctx.directory, 'box', 'child');
 
   ctx.port.suspendWithForce(String(imp));
 
@@ -3658,7 +3664,7 @@ test("it removes a sub-session's checkout on its parent's sleeping host when its
   });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     agent: 'glm',
     target: 'box',
     parent: parentID,
@@ -3668,7 +3674,7 @@ test("it removes a sub-session's checkout on its parent's sleeping host when its
 
   await hold.entered;
 
-  const checkedOutAtHold = existsSync(dest);
+  const checkedOutAtHold = existsSync(destination);
 
   hold.stop();
 
@@ -3676,7 +3682,7 @@ test("it removes a sub-session's checkout on its parent's sleeping host when its
 
   expect(spawn).rejects.toMatchObject({ code: 'broker_not_ready' });
   expect(checkedOutAtHold).toBeTrue();
-  expect(existsSync(dest)).toBe(false);
+  expect(existsSync(destination)).toBe(false);
   expect(stateBeforeSpawn).toBe('sleeping');
 
   expect(
@@ -3741,13 +3747,13 @@ test("it answers outcome_unknown and logs the path of a sub-session's checkout i
   });
 
   const parentID = String(getRecord(parent, 'session')['id']);
-  const dest = join(ctx.dir, 'box', 'child');
+  const destination = join(ctx.directory, 'box', 'child');
 
   ctx.port.startBrokerFailure();
   ctx.port.setCommandFailure('-mindepth');
 
   const params = {
-    cwd: dest,
+    cwd: destination,
     agent: 'glm',
     target: 'box',
     parent: parentID,
@@ -3762,9 +3768,9 @@ test("it answers outcome_unknown and logs the path of a sub-session's checkout i
   const listed = await daemon.client.sendRequest('session.list');
 
   expect(first).rejects.toMatchObject({ code: 'outcome_unknown' });
-  expect(existsSync(join(dest, 'README.md'))).toBe(true);
+  expect(existsSync(join(destination, 'README.md'))).toBe(true);
 
-  expect(daemon.logs.filter((line) => line.startsWith(`atc: left ${dest} `))).toStrictEqual([
+  expect(daemon.logs.filter((line) => line.startsWith(`atc: left ${destination} `))).toStrictEqual([
     expect.toEndWith('; remove it by hand'),
   ]);
 
@@ -3829,7 +3835,7 @@ test("it keeps the key of a sub-session's checkout it cannot remove, so a retry 
   ctx.port.setCommandFailure('-mindepth');
 
   const failed = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'child'),
+    cwd: join(ctx.directory, 'box', 'child'),
     agent: 'glm',
     target: 'box',
     parent: getRecord(parent, 'session')['id'],
@@ -3840,10 +3846,10 @@ test("it keeps the key of a sub-session's checkout it cannot remove, so a retry 
   await Promise.allSettled([failed]);
 
   const parentID = getRecord(parent, 'session')['id'];
-  const dest = join(ctx.dir, 'box', 'child');
+  const destination = join(ctx.directory, 'box', 'child');
 
   const retried = daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     agent: 'glm',
     target: 'box',
     parent: parentID,
@@ -3856,7 +3862,7 @@ test("it keeps the key of a sub-session's checkout it cannot remove, so a retry 
   expect(failed).rejects.toMatchObject({ code: 'outcome_unknown' });
   expect(retried).rejects.toMatchObject({ code: 'outcome_unknown' });
 
-  expect(daemon.logs.filter((line) => line.startsWith(`atc: left ${dest} `))).toStrictEqual([
+  expect(daemon.logs.filter((line) => line.startsWith(`atc: left ${destination} `))).toStrictEqual([
     expect.toEndWith('; remove it by hand'),
   ]);
 });
@@ -3917,7 +3923,7 @@ test("it keeps the claim on a sub-session's checkout it cannot remove, so a spaw
   ctx.port.setCommandFailure('-mindepth');
 
   const failed = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'child'),
+    cwd: join(ctx.directory, 'box', 'child'),
     agent: 'glm',
     target: 'box',
     parent: getRecord(parent, 'session')['id'],
@@ -3928,10 +3934,10 @@ test("it keeps the claim on a sub-session's checkout it cannot remove, so a spaw
   await Promise.allSettled([failed]);
 
   const parentID = getRecord(parent, 'session')['id'];
-  const dest = join(ctx.dir, 'box', 'child');
+  const destination = join(ctx.directory, 'box', 'child');
 
   const inside = daemon.client.sendRequest('session.spawn', {
-    cwd: join(dest, 'inner'),
+    cwd: join(destination, 'inner'),
     agent: 'glm',
     target: 'box',
     parent: parentID,
@@ -3943,7 +3949,7 @@ test("it keeps the claim on a sub-session's checkout it cannot remove, so a spaw
 
   expect(failed).rejects.toMatchObject({ code: 'outcome_unknown' });
   expect(inside).rejects.toMatchObject({ code: 'workspace_overlap' });
-  expect(existsSync(join(dest, 'README.md'))).toBe(true);
+  expect(existsSync(join(destination, 'README.md'))).toBe(true);
 
   expect(listed).toStrictEqual({
     sessions: [expect.objectContaining({ id: parentID, alive: true })],
@@ -4002,12 +4008,12 @@ test("it refuses a workspace destination that a symlink places inside its parent
     target: 'box',
   });
 
-  symlinkSync(ctx.work, join(ctx.dir, 'alias'));
+  symlinkSync(ctx.work, join(ctx.directory, 'alias'));
 
-  const dest = join(ctx.dir, 'alias', 'new');
+  const destination = join(ctx.directory, 'alias', 'new');
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     agent: 'glm',
     target: 'box',
     parent: getRecord(parent, 'session')['id'],
@@ -4016,11 +4022,12 @@ test("it refuses a workspace destination that a symlink places inside its parent
 
   await spawn.catch(() => null);
 
-  expect(spawn).rejects.toMatchObject({ code: 'workspace_overlap', data: { dir: dest } });
+  expect(spawn).rejects.toMatchObject({ code: 'workspace_overlap', data: { dir: destination } });
 
   expect(
     ctx.port.calls.filter(
-      (call) => call.endsWith(` sh ${dirname(dest)} ${dest}`) || call.includes('tar -x'),
+      (call) =>
+        call.endsWith(` sh ${dirname(destination)} ${destination}`) || call.includes('tar -x'),
     ),
   ).toStrictEqual([]);
 });
@@ -4071,7 +4078,7 @@ test("it refuses a workspace destination inside its parent's relative directory 
     }),
   });
 
-  const home = join(ctx.dir, 'home');
+  const home = join(ctx.directory, 'home');
 
   mkdirSync(join(home, 'proj'), { recursive: true });
 
@@ -4083,10 +4090,10 @@ test("it refuses a workspace destination inside its parent's relative directory 
     target: 'box',
   });
 
-  const dest = join(home, 'proj', 'new');
+  const destination = join(home, 'proj', 'new');
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     agent: 'glm',
     target: 'box',
     parent: getRecord(parent, 'session')['id'],
@@ -4095,11 +4102,12 @@ test("it refuses a workspace destination inside its parent's relative directory 
 
   await spawn.catch(() => null);
 
-  expect(spawn).rejects.toMatchObject({ code: 'workspace_overlap', data: { dir: dest } });
+  expect(spawn).rejects.toMatchObject({ code: 'workspace_overlap', data: { dir: destination } });
 
   expect(
     ctx.port.calls.filter(
-      (call) => call.endsWith(` sh ${dirname(dest)} ${dest}`) || call.includes('tar -x'),
+      (call) =>
+        call.endsWith(` sh ${dirname(destination)} ${destination}`) || call.includes('tar -x'),
     ),
   ).toStrictEqual([]);
 });
@@ -4159,11 +4167,11 @@ test('it materializes a workspace through a symlinked directory that leads away 
     target: 'box',
   });
 
-  mkdirSync(join(ctx.dir, 'elsewhere'));
-  symlinkSync(join(ctx.dir, 'elsewhere'), join(ctx.dir, 'link'));
+  mkdirSync(join(ctx.directory, 'elsewhere'));
+  symlinkSync(join(ctx.directory, 'elsewhere'), join(ctx.directory, 'link'));
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'link', 'new'),
+    cwd: join(ctx.directory, 'link', 'new'),
     agent: 'glm',
     target: 'box',
     parent: getRecord(parent, 'session')['id'],
@@ -4171,7 +4179,10 @@ test('it materializes a workspace through a symlinked directory that leads away 
   });
 
   expect(getRecord(spawned, 'session')['alive']).toBe(true);
-  expect(readFileSync(join(ctx.dir, 'elsewhere', 'new', 'README.md'), 'utf8')).toBe(committed);
+
+  expect(readFileSync(join(ctx.directory, 'elsewhere', 'new', 'README.md'), 'utf8')).toBe(
+    committed,
+  );
 });
 
 test('it answers outcome_unknown for a workspace spawn whose own host it cannot destroy after its workspace fails', async () => {
@@ -4220,14 +4231,14 @@ test('it answers outcome_unknown for a workspace spawn whose own host it cannot 
     }),
   });
 
-  const dest = join(ctx.dir, 'box', 'ws');
+  const destination = join(ctx.directory, 'box', 'ws');
 
-  mkdirSync(dest, { recursive: true });
+  mkdirSync(destination, { recursive: true });
 
   ctx.port.setDestroyFailure('INTERNAL_SERVER_ERROR');
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     agent: 'plain',
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -4283,12 +4294,12 @@ test('it keeps the key of a workspace spawn whose own host it cannot destroy as 
     }),
   });
 
-  mkdirSync(join(ctx.dir, 'box', 'ws'), { recursive: true });
+  mkdirSync(join(ctx.directory, 'box', 'ws'), { recursive: true });
 
   ctx.port.setDestroyFailure('INTERNAL_SERVER_ERROR');
 
   const failed = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     agent: 'plain',
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -4298,7 +4309,7 @@ test('it keeps the key of a workspace spawn whose own host it cannot destroy as 
   await Promise.allSettled([failed]);
 
   const retried = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     agent: 'plain',
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -4365,7 +4376,7 @@ test('it answers outcome_unknown for a spawn whose failed readying leaves an imp
   ctx.port.setDestroyFailure('INTERNAL_SERVER_ERROR');
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     agent: 'plain',
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -4425,7 +4436,7 @@ test('it keeps the key of a spawn whose failed readying leaves an imp it cannot 
   ctx.port.setDestroyFailure('INTERNAL_SERVER_ERROR');
 
   const failed = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     agent: 'plain',
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -4435,7 +4446,7 @@ test('it keeps the key of a spawn whose failed readying leaves an imp it cannot 
   await Promise.allSettled([failed]);
 
   const retried = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     agent: 'plain',
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -4501,7 +4512,7 @@ test('it refuses a spawn whose readying fails and destroys the imp the readying 
   ctx.port.setAcquireFailure(0, 'INTERNAL_SERVER_ERROR');
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(ctx.directory, 'box', 'ws'),
     agent: 'plain',
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -4579,7 +4590,7 @@ test('it keeps the files of a session listed inside its directory while a worksp
   });
 
   const parentID = getRecord(parent, 'session')['id'];
-  const outer = join(ctx.dir, 'box', 'a');
+  const outer = join(ctx.directory, 'box', 'a');
   const tarHold = ctx.port.startCommandHold('tar -x');
 
   const outerSpawn = daemon.client.sendRequest('session.spawn', {
@@ -4612,10 +4623,10 @@ test('it keeps the files of a session listed inside its directory while a worksp
   // The rollback's resolution is held while the nested session lists. It
   // reaches the directory through a symlink, since a plain spawn naming a
   // path inside a workspace still materializing is refused.
-  symlinkSync(outer, join(ctx.dir, 'alias'));
+  symlinkSync(outer, join(ctx.directory, 'alias'));
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'alias', 'inner'),
+    cwd: join(ctx.directory, 'alias', 'inner'),
     agent: 'glm',
     target: 'box',
     parent: parentID,
@@ -4676,7 +4687,7 @@ test('it refuses a workspace cwd with a dot-dot segment before touching impd', a
   });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: `${ctx.dir}/alias/../new`,
+    cwd: `${ctx.directory}/alias/../new`,
     agent: 'plain',
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -4735,7 +4746,7 @@ test('it refuses a workspace cwd with a control character before touching impd',
   });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'new\n'),
+    cwd: join(ctx.directory, 'box', 'new\n'),
     agent: 'plain',
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -4796,11 +4807,11 @@ test('it materializes a workspace through a symlink to a directory whose name en
   // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
-  const busy = join(ctx.dir, 'busy');
+  const busy = join(ctx.directory, 'busy');
 
   mkdirSync(join(busy, 'sub'), { recursive: true });
   mkdirSync(join(busy, 'sub\n'));
-  symlinkSync(join(busy, 'sub\n'), join(ctx.dir, 'alias'));
+  symlinkSync(join(busy, 'sub\n'), join(ctx.directory, 'alias'));
 
   const parent = await daemon.client.sendRequest('session.spawn', {
     cwd: join(busy, 'sub'),
@@ -4809,7 +4820,7 @@ test('it materializes a workspace through a symlink to a directory whose name en
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'alias', 'new'),
+    cwd: join(ctx.directory, 'alias', 'new'),
     agent: 'glm',
     target: 'box',
     parent: getRecord(parent, 'session')['id'],
@@ -4874,9 +4885,9 @@ test('it removes only the directory it created when a symlink in the requested p
     ctx.port.stopLeaseHold();
   });
 
-  const safe = join(ctx.dir, 'safe');
-  const busy = join(ctx.dir, 'busy');
-  const alias = join(ctx.dir, 'alias');
+  const safe = join(ctx.directory, 'safe');
+  const busy = join(ctx.directory, 'busy');
+  const alias = join(ctx.directory, 'alias');
 
   mkdirSync(safe);
   mkdirSync(join(busy, 'new', 'inner'), { recursive: true });
@@ -4963,8 +4974,8 @@ test('it leaves its directory and reports it when the directory it created no lo
     ctx.port.stopLeaseHold();
   });
 
-  const safe = join(ctx.dir, 'safe');
-  const busy = join(ctx.dir, 'busy');
+  const safe = join(ctx.directory, 'safe');
+  const busy = join(ctx.directory, 'busy');
 
   mkdirSync(safe);
   mkdirSync(join(busy, 'new', 'inner'), { recursive: true });
@@ -4983,7 +4994,7 @@ test('it leaves its directory and reports it when the directory it created no lo
     expect(existsSync(join(safe, 'new'))).toBeTrue();
   });
 
-  renameSync(safe, join(ctx.dir, 'safe-old'));
+  renameSync(safe, join(ctx.directory, 'safe-old'));
   symlinkSync(busy, safe);
 
   ctx.port.setCommandFailure('tar -x');
@@ -4997,7 +5008,7 @@ test('it leaves its directory and reports it when the directory it created no lo
   });
 
   expect(readFileSync(join(busy, 'new', 'inner', 'keep.txt'), 'utf8')).toBe('kept\n');
-  expect(existsSync(join(ctx.dir, 'safe-old', 'new'))).toBe(true);
+  expect(existsSync(join(ctx.directory, 'safe-old', 'new'))).toBe(true);
 });
 
 test('it refuses a workspace spawn on an imp without gzip with a transfer error that names gzip', async () => {
@@ -5018,7 +5029,7 @@ test('it refuses a workspace spawn on an imp without gzip with a transfer error 
   });
 
   // The guest's PATH holds every tool the spawn runs there except gzip.
-  const bin = join(ctx.dir, 'bin');
+  const bin = join(ctx.directory, 'bin');
 
   mkdirSync(bin);
 
@@ -5031,12 +5042,12 @@ test('it refuses a workspace spawn on an imp without gzip with a transfer error 
 
   ctx.port.setGuestPath(bin);
 
-  const dest = join(ctx.dir, 'box', 'ws');
+  const destination = join(ctx.directory, 'box', 'ws');
 
   // A path source is uploaded from the daemon, where a git source clones
   // inside the imp and needs no gzip there.
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: dest,
+    cwd: destination,
     agent: 'plain',
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -5046,7 +5057,7 @@ test('it refuses a workspace spawn on an imp without gzip with a transfer error 
 
   expect(spawn).rejects.toThrow(
     new RegExp(
-      `^imp atc-\\w+ has no gzip, which unpacking the archive into ${dest} needs; install gzip in its image$`,
+      `^imp atc-\\w+ has no gzip, which unpacking the archive into ${destination} needs; install gzip in its image$`,
       'u',
     ),
   );

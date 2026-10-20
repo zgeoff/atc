@@ -5,15 +5,15 @@ const SOURCE_EXTENSIONS = ['.ts', '.tsx', '.js', '.mjs'];
 
 // Every source module under the directory, in sorted order, skipping
 // installed packages; a directory that does not exist holds none.
-export function readSourceFiles(root: string, dir: string): string[] {
+export function readSourceFiles(root: string, directory: string): string[] {
   const files: string[] = [];
 
-  if (!existsSync(join(root, dir))) {
+  if (!existsSync(join(root, directory))) {
     return files;
   }
 
-  for (const entry of readdirSync(join(root, dir)).toSorted()) {
-    const path = `${dir}/${entry}`;
+  for (const entry of readdirSync(join(root, directory)).toSorted()) {
+    const path = `${directory}/${entry}`;
 
     if (entry === 'node_modules') {
       continue;

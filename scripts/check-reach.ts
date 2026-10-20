@@ -340,9 +340,9 @@ function resolveSpecifier(
   specifier: string,
 ): string | null | undefined {
   if (specifier.startsWith('.')) {
-    const dir = dirname(file);
+    const directory = dirname(file);
 
-    return findModule(known, normalize(join(dir, specifier)));
+    return findModule(known, normalize(join(directory, specifier)));
   }
 
   if (specifier.startsWith('@atc/')) {
@@ -418,10 +418,10 @@ function readExports(root: string): Map<string, string> {
 
     for (const [subpath, target] of Object.entries(manifest.exports ?? {})) {
       const specifier = subpath === '.' ? manifest.name : `${manifest.name}/${subpath.slice(2)}`;
-      const dir = dirname(path);
+      const directory = dirname(path);
 
       if (specifier !== undefined) {
-        exports.set(specifier, normalize(join(dir, target)));
+        exports.set(specifier, normalize(join(directory, target)));
       }
     }
   }

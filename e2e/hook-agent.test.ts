@@ -6,7 +6,7 @@ import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-har
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 test("it passes each session's hook state back for that session alone, starting each at none", async () => {
-  const seen: { readonly session: unknown; readonly prev: unknown }[] = [];
+  const seen: { readonly session: unknown; readonly previous: unknown }[] = [];
 
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-hook-agent-',
@@ -14,10 +14,10 @@ test("it passes each session's hook state back for that session alone, starting 
       // A harness whose state for a session is the hook events it has read
       // for that session, in order.
       adapter: buildMockAgentAdapter({
-        planHookEvents: (event, prev) => {
-          seen.push({ session: event.atcId, prev });
+        planHookEvents: (event, previous) => {
+          seen.push({ session: event.atcId, previous });
 
-          const read: readonly unknown[] = Array.isArray(prev) ? prev : [];
+          const read: readonly unknown[] = Array.isArray(previous) ? previous : [];
 
           return {
             events: [{ kind: 'heartbeat' }],
@@ -38,15 +38,15 @@ test("it passes each session's hook state back for that session alone, starting 
     name: 'b',
   });
 
-  const a = getRecord(first, 'session')['id'];
-  const b = getRecord(second, 'session')['id'];
+  const firstID = getRecord(first, 'session')['id'];
+  const secondID = getRecord(second, 'session')['id'];
 
   await daemon.sendHookLines(
-    { atcId: a, event: 'SessionStart', payload: {} },
-    { atcId: b, event: 'SessionStart', payload: {} },
-    { atcId: a, event: 'UserPromptSubmit', payload: {} },
-    { atcId: b, event: 'Stop', payload: {} },
-    { atcId: a, event: 'Stop', payload: {} },
+    { atcId: firstID, event: 'SessionStart', payload: {} },
+    { atcId: secondID, event: 'SessionStart', payload: {} },
+    { atcId: firstID, event: 'UserPromptSubmit', payload: {} },
+    { atcId: secondID, event: 'Stop', payload: {} },
+    { atcId: firstID, event: 'Stop', payload: {} },
   );
 
   await waitFor(() => {
@@ -54,11 +54,11 @@ test("it passes each session's hook state back for that session alone, starting 
   });
 
   expect(seen).toStrictEqual([
-    { session: a, prev: undefined },
-    { session: b, prev: undefined },
-    { session: a, prev: ['SessionStart'] },
-    { session: b, prev: ['SessionStart'] },
-    { session: a, prev: ['SessionStart', 'UserPromptSubmit'] },
+    { session: firstID, previous: undefined },
+    { session: secondID, previous: undefined },
+    { session: firstID, previous: ['SessionStart'] },
+    { session: secondID, previous: ['SessionStart'] },
+    { session: firstID, previous: ['SessionStart', 'UserPromptSubmit'] },
   ]);
 });
 

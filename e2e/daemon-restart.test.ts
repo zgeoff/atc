@@ -21,18 +21,21 @@ import {
 import invariant from 'tiny-invariant';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-e2e-restart-');
+  const temporaryDirectory = setupTempDir('atc-e2e-restart-');
   const atc = resolveATCCommand();
   const fake = createStubSystemd(atc);
-  const configDir = join(tmp.path, '.config', 'atc');
+  const configDir = join(temporaryDirectory.path, '.config', 'atc');
 
   mkdirSync(configDir, { recursive: true });
 
   return {
-    home: tmp.path,
+    home: temporaryDirectory.path,
     atc,
     configPath: join(configDir, 'config.json'),
-    claude: createStubClaude(tmp.path, { atc, composer: createStubComposer(tmp.path) }),
+    claude: createStubClaude(temporaryDirectory.path, {
+      atc,
+      composer: createStubComposer(temporaryDirectory.path),
+    }),
     fake,
     path: `${fake.binDir}:/usr/sbin:/usr/bin:/bin`,
   };
@@ -117,7 +120,7 @@ test('it restarts the daemon in place and restores a saved fleet of two live ses
   expect(record.pid).not.toBe(oldPID);
   expect(() => process.kill(oldPID, 0)).toThrow();
 
-  expect(getRecords(listed, 'sessions').map((s) => s['id'])).toIncludeSameMembers([
+  expect(getRecords(listed, 'sessions').map((session) => session['id'])).toIncludeSameMembers([
     's-one',
     's-two',
   ]);
@@ -331,7 +334,7 @@ test('it joins a restart already in flight and reports its result without a seco
     restarts.map((run) => /^daemon pid (?<pid>\d+), build/mu.exec(run.stdout)?.groups?.['pid']),
   ).toStrictEqual([String(finalPID), String(finalPID)]);
 
-  expect(getRecords(listed, 'sessions').map((s) => s['id'])).toIncludeSameMembers([
+  expect(getRecords(listed, 'sessions').map((session) => session['id'])).toIncludeSameMembers([
     's-one',
     's-two',
   ]);
@@ -500,7 +503,7 @@ test('it restarts through the unit when the daemon is the unit main process, han
   expect(restart.exitCode).toBe(0);
   expect(record.pid).not.toBe(oldPID);
 
-  expect(getRecords(listed, 'sessions').map((s) => s['id'])).toIncludeSameMembers([
+  expect(getRecords(listed, 'sessions').map((session) => session['id'])).toIncludeSameMembers([
     's-one',
     's-two',
   ]);

@@ -18,12 +18,12 @@ import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-har
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-codex-guest-auth-');
-  const guestDir = join(tmp.path, 'g');
+  const temporaryDirectory = setupTempDir('atc-codex-guest-auth-');
+  const guestDir = join(temporaryDirectory.path, 'g');
 
   // The imp provider hands the guest this atc binary, which prints the
   // daemon's version, so the guest's hooks run it.
-  const guestATC = createStubBin(tmp.path, 'atc', '#!/bin/sh\necho 1.0.0\n');
+  const guestATC = createStubBin(temporaryDirectory.path, 'atc', '#!/bin/sh\necho 1.0.0\n');
   const port = createStubImpPort();
 
   const provider = new ImpProvider(
@@ -37,10 +37,10 @@ function setupTest() {
   });
 
   return {
-    dir: tmp.path,
+    directory: temporaryDirectory.path,
     port,
-    fakeCodex: createStubRecordingCodex(tmp.path),
-    starts: join(tmp.path, 'codex-starts.log'),
+    fakeCodex: createStubRecordingCodex(temporaryDirectory.path),
+    starts: join(temporaryDirectory.path, 'codex-starts.log'),
     guestDir,
     targets: [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider }],
   };
@@ -96,7 +96,7 @@ test('it starts Codex on an imp in a Codex home of its own, signed in through th
   );
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: ctx.directory,
     agent: 'codex',
     target: 'box',
     prompt: 'go',
@@ -248,7 +248,7 @@ test.each(['pending', 'needs_login'] as const)(
     );
 
     const spawn = daemon.client.sendRequest('session.spawn', {
-      cwd: ctx.dir,
+      cwd: ctx.directory,
       agent: 'codex',
       target: 'box',
     });

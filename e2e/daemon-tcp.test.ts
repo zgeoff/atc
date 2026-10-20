@@ -8,9 +8,13 @@ import { registerTestCleanup, resolveATCCommand, setupTempDir } from '@atc/test-
 import { z } from 'zod';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-e2e-tcp-');
+  const temporaryDirectory = setupTempDir('atc-e2e-tcp-');
 
-  return { home: tmp.path, atc: resolveATCCommand(), tokenFile: join(tmp.path, 'gateway-token') };
+  return {
+    home: temporaryDirectory.path,
+    atc: resolveATCCommand(),
+    tokenFile: join(temporaryDirectory.path, 'gateway-token'),
+  };
 }
 
 test('it closes a TCP connection whose token a SIGHUP reload removed', async () => {

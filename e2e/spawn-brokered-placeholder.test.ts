@@ -49,7 +49,7 @@ function setupTest() {
   });
 
   return {
-    dir: temporaryDirectory.path,
+    directory: temporaryDirectory.path,
     port,
     fakeClaude,
     targets: [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider }],
@@ -111,15 +111,15 @@ test.skipIf(!isBrokered)(
     });
 
     const id = String(getRecord(spawned, 'session')['id']);
-    const settingsFile = join(ctx.dir, 'g', 'sessions', id, 'auth-r1', 'settings.json');
+    const settingsFile = join(ctx.directory, 'g', 'sessions', id, 'auth-r1', 'settings.json');
 
     await waitFor(() => {
-      expect(existsSync(join(ctx.dir, 'brokered-status'))).toBeTrue();
+      expect(existsSync(join(ctx.directory, 'brokered-status'))).toBeTrue();
     });
 
     const settings: unknown = JSON.parse(readFileSync(settingsFile, 'utf8'));
 
     expect(settings).toHaveProperty('env.ANTHROPIC_AUTH_TOKEN', 'broker-placeholder');
-    expect(readFileSync(join(ctx.dir, 'brokered-status'), 'utf8')).toBe('200');
+    expect(readFileSync(join(ctx.directory, 'brokered-status'), 'utf8')).toBe('200');
   },
 );

@@ -179,7 +179,7 @@ test('it lists a sub-session indented under its parent', async () => {
   await daemon.sendHello('atc/test');
 
   const parentID = await spawnNamedSession(
-    (m, p) => daemon.sendRequest(m, p),
+    (method, params) => daemon.sendRequest(method, params),
     'wrangler',
     ctx.home,
   );
@@ -216,13 +216,13 @@ test('it lists a detached sub-session as top-level', async () => {
   await daemon.sendHello('atc/test');
 
   const parentID = await spawnNamedSession(
-    (m, p) => daemon.sendRequest(m, p),
+    (method, params) => daemon.sendRequest(method, params),
     'wrangler',
     ctx.home,
   );
 
   const workerID = await spawnNamedSession(
-    (m, p) => daemon.sendRequest(m, { ...p, parent: parentID }),
+    (method, params) => daemon.sendRequest(method, { ...params, parent: parentID }),
     'worker',
     ctx.home,
   );

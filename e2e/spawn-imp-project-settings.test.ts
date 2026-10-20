@@ -21,20 +21,20 @@ import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-har
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 async function setupTest() {
-  const tmp = setupTempDir('atc-project-settings-');
+  const temporaryDirectory = setupTempDir('atc-project-settings-');
 
   const git = await createGitFixture({ prefix: 'atc-project-settings-git-' });
 
-  const fakeClaude = createStubRecordingClaude(tmp.path);
+  const fakeClaude = createStubRecordingClaude(temporaryDirectory.path);
 
   // The guest's atc prints the daemon's version, so the guest's hooks run
   // it.
-  const guestATC = createStubBin(tmp.path, 'atc', '#!/bin/sh\necho 1.0.0\n');
+  const guestATC = createStubBin(temporaryDirectory.path, 'atc', '#!/bin/sh\necho 1.0.0\n');
   const port = createStubImpPort();
 
   const provider = new ImpProvider(
     port,
-    { guestDir: join(tmp.path, 'guest'), guestATC },
+    { guestDir: join(temporaryDirectory.path, 'guest'), guestATC },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -46,10 +46,10 @@ async function setupTest() {
     port,
     provider,
     fakeClaude,
-    starts: join(tmp.path, 'claude-starts.log'),
+    starts: join(temporaryDirectory.path, 'claude-starts.log'),
     work: git.work,
     gitEnv: git.env,
-    dir: tmp.path,
+    directory: temporaryDirectory.path,
   };
 }
 
@@ -152,7 +152,7 @@ test.each([
     await $`git commit --quiet -m settings`.env(ctx.gitEnv).cwd(ctx.work).quiet();
     await $`git push --quiet origin main`.env(ctx.gitEnv).cwd(ctx.work).quiet();
 
-    const root = join(ctx.dir, 'clone');
+    const root = join(ctx.directory, 'clone');
 
     const spawn = daemon.client.sendRequest('session.spawn', {
       cwd: root,
@@ -252,7 +252,7 @@ test('it refuses an untrusted subscription clone whose settings set apiKeyHelper
   await $`git push --quiet origin main`.env(ctx.gitEnv).cwd(ctx.work).quiet();
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'clone'),
+    cwd: join(ctx.directory, 'clone'),
     agent: 'claude',
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -266,7 +266,7 @@ test('it refuses an untrusted subscription clone whose settings set apiKeyHelper
       agent: 'claude',
       target: 'box',
       problem: 'project_settings_conflict',
-      file: join(ctx.dir, 'clone', '.claude/settings.json'),
+      file: join(ctx.directory, 'clone', '.claude/settings.json'),
       setting: 'apiKeyHelper',
     },
   });
@@ -346,7 +346,7 @@ test.each(['{"env": {', '[]', '[{"env":{"ANTHROPIC_API_KEY":"x"}}]'])(
     await $`git push --quiet origin main`.env(ctx.gitEnv).cwd(ctx.work).quiet();
 
     const spawn = daemon.client.sendRequest('session.spawn', {
-      cwd: join(ctx.dir, 'clone'),
+      cwd: join(ctx.directory, 'clone'),
       agent: 'claude',
       target: 'box',
       workspace: { kind: 'path', path: ctx.work },
@@ -361,7 +361,7 @@ test.each(['{"env": {', '[]', '[{"env":{"ANTHROPIC_API_KEY":"x"}}]'])(
         agent: 'claude',
         target: 'box',
         problem: 'project_settings_conflict',
-        file: join(ctx.dir, 'clone', '.claude/settings.json'),
+        file: join(ctx.directory, 'clone', '.claude/settings.json'),
         setting: '(unparseable)',
       },
     });
@@ -433,14 +433,18 @@ test('it refuses a subscription clone whose settings file is a dangling symlink'
   });
 
   mkdirSync(join(ctx.work, '.claude'));
-  symlinkSync(join(ctx.dir, 'missing', 'settings.json'), join(ctx.work, '.claude/settings.json'));
+
+  symlinkSync(
+    join(ctx.directory, 'missing', 'settings.json'),
+    join(ctx.work, '.claude/settings.json'),
+  );
 
   await $`git add .claude/settings.json`.env(ctx.gitEnv).cwd(ctx.work).quiet();
   await $`git commit --quiet -m settings`.env(ctx.gitEnv).cwd(ctx.work).quiet();
   await $`git push --quiet origin main`.env(ctx.gitEnv).cwd(ctx.work).quiet();
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'clone'),
+    cwd: join(ctx.directory, 'clone'),
     agent: 'claude',
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -455,7 +459,7 @@ test('it refuses a subscription clone whose settings file is a dangling symlink'
       agent: 'claude',
       target: 'box',
       problem: 'project_settings_unreadable',
-      file: join(ctx.dir, 'clone', '.claude/settings.json'),
+      file: join(ctx.directory, 'clone', '.claude/settings.json'),
     },
   });
 
@@ -536,7 +540,7 @@ test('it starts a trusted subscription clone whose settings set neither a creden
   await $`git push --quiet origin main`.env(ctx.gitEnv).cwd(ctx.work).quiet();
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'clone'),
+    cwd: join(ctx.directory, 'clone'),
     agent: 'claude',
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -611,7 +615,7 @@ test('it starts a trusted subscription clone with no project settings files', as
   });
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'clone'),
+    cwd: join(ctx.directory, 'clone'),
     agent: 'claude',
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -785,7 +789,7 @@ test('it refuses a trusted gateway clone whose settings set apiKeyHelper', async
   await $`git push --quiet origin main`.env(ctx.gitEnv).cwd(ctx.work).quiet();
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'clone'),
+    cwd: join(ctx.directory, 'clone'),
     agent: 'glm',
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -800,7 +804,7 @@ test('it refuses a trusted gateway clone whose settings set apiKeyHelper', async
       agent: 'glm',
       target: 'box',
       problem: 'project_settings_conflict',
-      file: join(ctx.dir, 'clone', '.claude/settings.json'),
+      file: join(ctx.directory, 'clone', '.claude/settings.json'),
       setting: 'apiKeyHelper',
     },
   });
@@ -878,7 +882,7 @@ test('it refuses a subscription clone whose settings file is a symlink to an end
   await $`git push --quiet origin main`.env(ctx.gitEnv).cwd(ctx.work).quiet();
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'clone'),
+    cwd: join(ctx.directory, 'clone'),
     agent: 'claude',
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -893,7 +897,7 @@ test('it refuses a subscription clone whose settings file is a symlink to an end
       agent: 'claude',
       target: 'box',
       problem: 'project_settings_unreadable',
-      file: join(ctx.dir, 'clone', '.claude/settings.json'),
+      file: join(ctx.directory, 'clone', '.claude/settings.json'),
     },
   });
 
@@ -1052,7 +1056,7 @@ test('it refuses a subscription launch in a worktree whose main checkout holds l
 
   mkdirSync(join(ctx.work, '.claude'));
 
-  const worktree = join(ctx.dir, 'worktree');
+  const worktree = join(ctx.directory, 'worktree');
 
   await $`git worktree add --quiet ${worktree}`.env(ctx.gitEnv).cwd(ctx.work).quiet();
 
@@ -1147,12 +1151,12 @@ test('it refuses a launch path whose symlink and parent step resolve to a folder
 
   mkdirSync(join(ctx.work, '.claude'));
   mkdirSync(join(ctx.work, 'sub'));
-  mkdirSync(join(ctx.dir, 'elsewhere'));
-  symlinkSync(join(ctx.work, 'sub'), join(ctx.dir, 'elsewhere', 'link'));
+  mkdirSync(join(ctx.directory, 'elsewhere'));
+  symlinkSync(join(ctx.work, 'sub'), join(ctx.directory, 'elsewhere', 'link'));
   writeFileSync(join(ctx.work, '.claude/settings.json'), '{"env":{"ANTHROPIC_API_KEY":"x"}}');
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: `${join(ctx.dir, 'elsewhere', 'link')}/..`,
+    cwd: `${join(ctx.directory, 'elsewhere', 'link')}/..`,
     agent: 'claude',
     target: 'box',
   });

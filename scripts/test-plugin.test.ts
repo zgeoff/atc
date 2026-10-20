@@ -8,9 +8,9 @@ import { z } from 'zod';
 // A temp directory standing in for a repo root, and the real repo, whose
 // test-home script and tool versions the stand-in reuses
 function setupTest() {
-  const tmp = setupTempDir('test-plugin-');
+  const temporaryDirectory = setupTempDir('test-plugin-');
 
-  return { dir: tmp.path, repo: join(import.meta.dir, '..') };
+  return { directory: temporaryDirectory.path, repo: join(import.meta.dir, '..') };
 }
 
 test('it tests a plugin in a workspace of its manifest closure and the test helpers', async () => {
@@ -26,7 +26,7 @@ test('it tests a plugin in a workspace of its manifest closure and the test help
   const catalog = rootManifest.workspaces.catalog;
 
   await Bun.write(
-    join(ctx.dir, 'package.json'),
+    join(ctx.directory, 'package.json'),
     JSON.stringify({
       name: 'root',
       private: true,
@@ -48,10 +48,10 @@ test('it tests a plugin in a workspace of its manifest closure and the test help
     }),
   );
 
-  await Bun.write(join(ctx.dir, 'bunfig.toml'), '[install]\nlinker = "isolated"\n');
+  await Bun.write(join(ctx.directory, 'bunfig.toml'), '[install]\nlinker = "isolated"\n');
 
   await Bun.write(
-    join(ctx.dir, 'tsconfig.base.json'),
+    join(ctx.directory, 'tsconfig.base.json'),
     JSON.stringify({
       compilerOptions: {
         strict: true,
@@ -66,21 +66,24 @@ test('it tests a plugin in a workspace of its manifest closure and the test help
   );
 
   await Bun.write(
-    join(ctx.dir, 'scripts/with-test-home.sh'),
+    join(ctx.directory, 'scripts/with-test-home.sh'),
     Bun.file(join(ctx.repo, 'scripts/with-test-home.sh')),
   );
 
-  await Bun.write(join(ctx.dir, 'mods/README.md'), '# mods\n');
+  await Bun.write(join(ctx.directory, 'mods/README.md'), '# mods\n');
 
   await Bun.write(
-    join(ctx.dir, 'packages/core/package.json'),
+    join(ctx.directory, 'packages/core/package.json'),
     JSON.stringify({ name: '@atc/core', exports: { '.': './src/index.ts' } }),
   );
 
-  await Bun.write(join(ctx.dir, 'packages/core/src/index.ts'), "export const CORE = 'core';\n");
+  await Bun.write(
+    join(ctx.directory, 'packages/core/src/index.ts'),
+    "export const CORE = 'core';\n",
+  );
 
   await Bun.write(
-    join(ctx.dir, 'packages/plugin-api/package.json'),
+    join(ctx.directory, 'packages/plugin-api/package.json'),
     JSON.stringify({
       name: '@atc/plugin-api',
       exports: { '.': './src/index.ts' },
@@ -89,29 +92,32 @@ test('it tests a plugin in a workspace of its manifest closure and the test help
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/plugin-api/src/index.ts'),
+    join(ctx.directory, 'packages/plugin-api/src/index.ts'),
     "import { CORE } from '@atc/core';\n\nexport const API = [CORE, 'api'].join('-');\n",
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/store/package.json'),
+    join(ctx.directory, 'packages/store/package.json'),
     JSON.stringify({ name: '@atc/store', exports: { '.': './src/index.ts' } }),
   );
 
-  await Bun.write(join(ctx.dir, 'packages/store/src/index.ts'), "export const STORE = 'store';\n");
+  await Bun.write(
+    join(ctx.directory, 'packages/store/src/index.ts'),
+    "export const STORE = 'store';\n",
+  );
 
   await Bun.write(
-    join(ctx.dir, 'packages/test-utils/package.json'),
+    join(ctx.directory, 'packages/test-utils/package.json'),
     JSON.stringify({ name: '@atc/test-utils', exports: { '.': './src/index.ts' } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/test-utils/src/index.ts'),
+    join(ctx.directory, 'packages/test-utils/src/index.ts'),
     "export const FIXTURE = 'fixture';\n",
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/harnesses/demo/package.json'),
+    join(ctx.directory, 'packages/harnesses/demo/package.json'),
     JSON.stringify({
       name: '@atc/harness-demo',
       exports: { '.': './src/index.ts' },
@@ -121,12 +127,12 @@ test('it tests a plugin in a workspace of its manifest closure and the test help
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/harnesses/demo/src/index.ts'),
+    join(ctx.directory, 'packages/harnesses/demo/src/index.ts'),
     "import { API } from '@atc/plugin-api';\n\nexport const DEMO = [API, 'demo'].join('-');\n",
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/harnesses/demo/src/index.test.ts'),
+    join(ctx.directory, 'packages/harnesses/demo/src/index.test.ts'),
     "import { expect, test } from 'bun:test';\nimport { FIXTURE } from '@atc/test-utils';\nimport { DEMO } from './index';\n\ntest('it builds the name', () => {\n  expect([DEMO, FIXTURE]).toStrictEqual(['core-api-demo', 'fixture']);\n});\n",
   );
 
@@ -134,7 +140,7 @@ test('it tests a plugin in a workspace of its manifest closure and the test help
     process.execPath,
     join(import.meta.dir, 'test-plugin.ts'),
     'harness-demo',
-    ctx.dir,
+    ctx.directory,
     '--keep',
   ]);
 
@@ -150,8 +156,8 @@ test('it tests a plugin in a workspace of its manifest closure and the test help
   expect(ran.stdout).toInclude('test-plugin: harness-demo passed in a workspace without the app');
 
   expect(
-    ['core', 'plugin-api', 'test-utils', 'harnesses/demo', 'store'].map((dir) =>
-      existsSync(join(kept, 'packages', dir, 'package.json')),
+    ['core', 'plugin-api', 'test-utils', 'harnesses/demo', 'store'].map((directory) =>
+      existsSync(join(kept, 'packages', directory, 'package.json')),
     ),
   ).toStrictEqual([true, true, true, true, false]);
 

@@ -6,22 +6,22 @@ import { runCommand, setupTempDir } from '@atc/test-utils';
 // A temp directory standing in for a repo root, with a local and a remote
 // execution provider package linked where the bundler resolves them.
 async function setupTest() {
-  const tmp = setupTempDir('check-bundle-');
+  const temporaryDirectory = setupTempDir('check-bundle-');
 
   // the local provider, which the local-only build keeps
   await Bun.write(
-    join(tmp.path, 'packages/execution/local/package.json'),
+    join(temporaryDirectory.path, 'packages/execution/local/package.json'),
     JSON.stringify({ name: '@atc/execution-local', exports: { './*': './src/*.ts' } }),
   );
 
   await Bun.write(
-    join(tmp.path, 'packages/execution/local/src/local-plugin.ts'),
+    join(temporaryDirectory.path, 'packages/execution/local/src/local-plugin.ts'),
     "export const LOCAL_PLUGIN = { id: 'local-pty' };\n",
   );
 
   // the remote provider, with an external package that only it depends on
   await Bun.write(
-    join(tmp.path, 'packages/execution/remote/package.json'),
+    join(temporaryDirectory.path, 'packages/execution/remote/package.json'),
     JSON.stringify({
       name: '@atc/execution-remote',
       exports: { './*': './src/*.ts' },
@@ -30,58 +30,58 @@ async function setupTest() {
   );
 
   await Bun.write(
-    join(tmp.path, 'packages/execution/remote/src/remote-plugin.ts'),
+    join(temporaryDirectory.path, 'packages/execution/remote/src/remote-plugin.ts'),
     "import { connect } from 'remote-sdk';\n\nexport const REMOTE_PLUGIN = { id: 'remote', connect };\n",
   );
 
   await Bun.write(
-    join(tmp.path, 'node_modules/remote-sdk/package.json'),
+    join(temporaryDirectory.path, 'node_modules/remote-sdk/package.json'),
     JSON.stringify({ name: 'remote-sdk', main: 'index.js' }),
   );
 
   await Bun.write(
-    join(tmp.path, 'node_modules/remote-sdk/index.js'),
+    join(temporaryDirectory.path, 'node_modules/remote-sdk/index.js'),
     'export function connect() {}\n',
   );
 
   // the app's manifest, which the provider scan reads beside the providers'
   await Bun.write(
-    join(tmp.path, 'packages/app/package.json'),
+    join(temporaryDirectory.path, 'packages/app/package.json'),
     JSON.stringify({ name: '@atc/app' }),
   );
 
-  mkdirSync(join(tmp.path, 'node_modules/@atc'), { recursive: true });
+  mkdirSync(join(temporaryDirectory.path, 'node_modules/@atc'), { recursive: true });
 
   symlinkSync(
-    join(tmp.path, 'packages/execution/local'),
-    join(tmp.path, 'node_modules/@atc/execution-local'),
+    join(temporaryDirectory.path, 'packages/execution/local'),
+    join(temporaryDirectory.path, 'node_modules/@atc/execution-local'),
   );
 
   symlinkSync(
-    join(tmp.path, 'packages/execution/remote'),
-    join(tmp.path, 'node_modules/@atc/execution-remote'),
+    join(temporaryDirectory.path, 'packages/execution/remote'),
+    join(temporaryDirectory.path, 'node_modules/@atc/execution-remote'),
   );
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it passes a bundle that reaches each provider only through the shipped list', async () => {
   const ctx = await setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/plugins/shipped-execution-plugins.ts'),
+    join(ctx.directory, 'packages/app/src/plugins/shipped-execution-plugins.ts'),
     "import { LOCAL_PLUGIN } from '@atc/execution-local/local-plugin';\nimport { REMOTE_PLUGIN } from '@atc/execution-remote/remote-plugin';\n\nexport const SHIPPED_EXECUTION_PLUGINS = [LOCAL_PLUGIN, REMOTE_PLUGIN];\n",
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/cli.ts'),
+    join(ctx.directory, 'packages/app/src/cli.ts'),
     "import { SHIPPED_EXECUTION_PLUGINS } from './plugins/shipped-execution-plugins';\n\nconsole.log(SHIPPED_EXECUTION_PLUGINS);\n",
   );
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-bundle.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -100,18 +100,18 @@ test('it passes a bundle that reaches each provider only through the shipped lis
   const ctx = await setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/plugins/shipped-execution-plugins.ts'),
+    join(ctx.directory, 'packages/app/src/plugins/shipped-execution-plugins.ts'),
     "import { LOCAL_PLUGIN } from '@atc/execution-local/local-plugin';\nimport { REMOTE_PLUGIN } from '@atc/execution-remote/remote-plugin';\n\nexport const SHIPPED_EXECUTION_PLUGINS = [LOCAL_PLUGIN, REMOTE_PLUGIN];\n",
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/cli.ts'),
+    join(ctx.directory, 'packages/app/src/cli.ts'),
     "import { SHIPPED_EXECUTION_PLUGINS } from './plugins/shipped-execution-plugins';\n\nconsole.log(SHIPPED_EXECUTION_PLUGINS);\n",
   );
 
   const links = setupTempDir('check-bundle-link-');
 
-  symlinkSync(ctx.dir, join(links.path, 'root'));
+  symlinkSync(ctx.directory, join(links.path, 'root'));
 
   const checked = await runCommand([
     process.execPath,
@@ -135,18 +135,18 @@ test('it fails a bundle that carries a provider the shipped list leaves out when
   const ctx = await setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/plugins/shipped-execution-plugins.ts'),
+    join(ctx.directory, 'packages/app/src/plugins/shipped-execution-plugins.ts'),
     "import { LOCAL_PLUGIN } from '@atc/execution-local/local-plugin';\n\nexport const SHIPPED_EXECUTION_PLUGINS = [LOCAL_PLUGIN];\n",
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/cli.ts'),
+    join(ctx.directory, 'packages/app/src/cli.ts'),
     "import { REMOTE_PLUGIN } from '@atc/execution-remote/remote-plugin';\nimport { SHIPPED_EXECUTION_PLUGINS } from './plugins/shipped-execution-plugins';\n\nconsole.log(SHIPPED_EXECUTION_PLUGINS, REMOTE_PLUGIN);\n",
   );
 
   const links = setupTempDir('check-bundle-link-');
 
-  symlinkSync(ctx.dir, join(links.path, 'root'));
+  symlinkSync(ctx.directory, join(links.path, 'root'));
 
   const checked = await runCommand([
     process.execPath,
@@ -165,7 +165,7 @@ test('it drops a provider that the shipped list imports through its root entry p
   const ctx = await setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'packages/execution/remote/package.json'),
+    join(ctx.directory, 'packages/execution/remote/package.json'),
     JSON.stringify({
       name: '@atc/execution-remote',
       exports: { '.': './src/index.ts' },
@@ -174,24 +174,24 @@ test('it drops a provider that the shipped list imports through its root entry p
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/execution/remote/src/index.ts'),
+    join(ctx.directory, 'packages/execution/remote/src/index.ts'),
     "export * from './remote-plugin';\n",
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/plugins/shipped-execution-plugins.ts'),
+    join(ctx.directory, 'packages/app/src/plugins/shipped-execution-plugins.ts'),
     "import { LOCAL_PLUGIN } from '@atc/execution-local/local-plugin';\nimport { REMOTE_PLUGIN } from '@atc/execution-remote';\n\nexport const SHIPPED_EXECUTION_PLUGINS = [LOCAL_PLUGIN, REMOTE_PLUGIN];\n",
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/cli.ts'),
+    join(ctx.directory, 'packages/app/src/cli.ts'),
     "import { SHIPPED_EXECUTION_PLUGINS } from './plugins/shipped-execution-plugins';\n\nconsole.log(SHIPPED_EXECUTION_PLUGINS);\n",
   );
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-bundle.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -210,18 +210,18 @@ test('it finds a provider outside the shipped list when it runs from a directory
   const ctx = await setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/plugins/shipped-execution-plugins.ts'),
+    join(ctx.directory, 'packages/app/src/plugins/shipped-execution-plugins.ts'),
     "import { LOCAL_PLUGIN } from '@atc/execution-local/local-plugin';\nimport { REMOTE_PLUGIN } from '@atc/execution-remote/remote-plugin';\n\nexport const SHIPPED_EXECUTION_PLUGINS = [LOCAL_PLUGIN, REMOTE_PLUGIN];\n",
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/cli.ts'),
+    join(ctx.directory, 'packages/app/src/cli.ts'),
     "import { REMOTE_PLUGIN } from '@atc/execution-remote/remote-plugin';\nimport { SHIPPED_EXECUTION_PLUGINS } from './plugins/shipped-execution-plugins';\n\nconsole.log(SHIPPED_EXECUTION_PLUGINS, REMOTE_PLUGIN);\n",
   );
 
   const checked = await runCommand(
-    [process.execPath, join(import.meta.dir, 'check-bundle.ts'), ctx.dir],
-    { cwd: dirname(ctx.dir) },
+    [process.execPath, join(import.meta.dir, 'check-bundle.ts'), ctx.directory],
+    { cwd: dirname(ctx.directory) },
   );
 
   expect({ exitCode: checked.exitCode, stderr: checked.stderr }).toStrictEqual({
@@ -235,19 +235,19 @@ test('it fails a local-only bundle that reaches a provider outside the shipped l
   const ctx = await setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/plugins/shipped-execution-plugins.ts'),
+    join(ctx.directory, 'packages/app/src/plugins/shipped-execution-plugins.ts'),
     "import { LOCAL_PLUGIN } from '@atc/execution-local/local-plugin';\nimport { REMOTE_PLUGIN } from '@atc/execution-remote/remote-plugin';\n\nexport const SHIPPED_EXECUTION_PLUGINS = [LOCAL_PLUGIN, REMOTE_PLUGIN];\n",
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/cli.ts'),
+    join(ctx.directory, 'packages/app/src/cli.ts'),
     "import { REMOTE_PLUGIN } from '@atc/execution-remote/remote-plugin';\nimport { SHIPPED_EXECUTION_PLUGINS } from './plugins/shipped-execution-plugins';\n\nconsole.log(SHIPPED_EXECUTION_PLUGINS, REMOTE_PLUGIN);\n",
   );
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-bundle.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({ exitCode: checked.exitCode, stderr: checked.stderr }).toStrictEqual({
@@ -261,19 +261,19 @@ test('it fails a bundle that carries a provider the shipped list leaves out', as
   const ctx = await setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/plugins/shipped-execution-plugins.ts'),
+    join(ctx.directory, 'packages/app/src/plugins/shipped-execution-plugins.ts'),
     "import { LOCAL_PLUGIN } from '@atc/execution-local/local-plugin';\n\nexport const SHIPPED_EXECUTION_PLUGINS = [LOCAL_PLUGIN];\n",
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/cli.ts'),
+    join(ctx.directory, 'packages/app/src/cli.ts'),
     "import { REMOTE_PLUGIN } from '@atc/execution-remote/remote-plugin';\nimport { SHIPPED_EXECUTION_PLUGINS } from './plugins/shipped-execution-plugins';\n\nconsole.log(SHIPPED_EXECUTION_PLUGINS, REMOTE_PLUGIN);\n",
   );
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-bundle.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({ exitCode: checked.exitCode, stderr: checked.stderr }).toStrictEqual({
@@ -287,19 +287,19 @@ test('it fails a bundle that keeps a provider but carries none of its files', as
   const ctx = await setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/plugins/shipped-execution-plugins.ts'),
+    join(ctx.directory, 'packages/app/src/plugins/shipped-execution-plugins.ts'),
     "import type { LOCAL_PLUGIN } from '@atc/execution-local/local-plugin';\n\nexport const SHIPPED_EXECUTION_PLUGINS: (typeof LOCAL_PLUGIN)[] = [];\n",
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/cli.ts'),
+    join(ctx.directory, 'packages/app/src/cli.ts'),
     "import { SHIPPED_EXECUTION_PLUGINS } from './plugins/shipped-execution-plugins';\n\nconsole.log(SHIPPED_EXECUTION_PLUGINS);\n",
   );
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-bundle.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({ exitCode: checked.exitCode, stderr: checked.stderr }).toStrictEqual({

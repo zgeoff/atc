@@ -22,15 +22,15 @@ import { buildLocalTarget } from '../packages/app/src/test-utils/build-local-tar
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-daemon-tcp-');
+  const temporaryDirectory = setupTempDir('atc-daemon-tcp-');
 
   return {
-    dir: tmp.path,
-    socketPath: join(tmp.path, 'daemon.sock'),
-    reporterSocketPath: join(tmp.path, 'reporter.sock'),
-    dbPath: join(tmp.path, 'state.db'),
-    statusPath: join(tmp.path, 'status.json'),
-    tokenFile: join(tmp.path, 'gateway-token'),
+    directory: temporaryDirectory.path,
+    socketPath: join(temporaryDirectory.path, 'daemon.sock'),
+    reporterSocketPath: join(temporaryDirectory.path, 'reporter.sock'),
+    dbPath: join(temporaryDirectory.path, 'state.db'),
+    statusPath: join(temporaryDirectory.path, 'status.json'),
+    tokenFile: join(temporaryDirectory.path, 'gateway-token'),
   };
 }
 
@@ -1512,7 +1512,7 @@ test('it releases the daemon lock and leaves no socket or record behind when the
 
   await Promise.allSettled([started]);
 
-  const lock = await claimDaemonLock(join(ctx.dir, 'daemon.lock'), 0);
+  const lock = await claimDaemonLock(join(ctx.directory, 'daemon.lock'), 0);
 
   registerTestCleanup(() => {
     lock?.dispose();
@@ -1521,7 +1521,7 @@ test('it releases the daemon lock and leaves no socket or record behind when the
   expect(started).rejects.toMatchObject({ code: 'listen_refused' });
   expect(lock).not.toBeNil();
   expect(existsSync(ctx.socketPath)).toBe(false);
-  expect(existsSync(join(ctx.dir, 'daemon.json'))).toBe(false);
+  expect(existsSync(join(ctx.directory, 'daemon.json'))).toBe(false);
 });
 
 test('it closes an unauthenticated TCP connection that sends a malformed line without a reply', async () => {

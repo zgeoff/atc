@@ -7,11 +7,11 @@ import { z } from 'zod';
 // A temp tree standing in for the repo root, linted by the committed config
 // at the path each fixture would have in the repo
 async function setupTest() {
-  const tmp = setupTempDir('import-zones-');
+  const temporaryDirectory = setupTempDir('import-zones-');
   const root = join(import.meta.dir, '..');
 
   // the zones resolve from the nearest .git, and each package name through its manifest
-  mkdirSync(join(tmp.path, '.git'));
+  mkdirSync(join(temporaryDirectory.path, '.git'));
 
   const manifests = [
     ...new Bun.Glob('packages/*/package.json').scanSync(root),
@@ -20,12 +20,12 @@ async function setupTest() {
 
   await Promise.all(
     manifests.map((manifest) =>
-      Bun.write(join(tmp.path, manifest), Bun.file(join(root, manifest))),
+      Bun.write(join(temporaryDirectory.path, manifest), Bun.file(join(root, manifest))),
     ),
   );
 
   return {
-    dir: tmp.path,
+    directory: temporaryDirectory.path,
     oxlint: join(root, 'node_modules', '.bin', 'oxlint'),
     config: { extends: [join(root, '.oxlintrc.json')] },
     modsConfig: { extends: [join(root, '.oxlintrc.mods.json')] },
@@ -365,20 +365,20 @@ test.each([
 ])('it refuses %s', async (_label, file, specifier, targets, message) => {
   const ctx = await setupTest();
 
-  await Bun.write(join(ctx.dir, '.oxlintrc.json'), JSON.stringify(ctx.config));
+  await Bun.write(join(ctx.directory, '.oxlintrc.json'), JSON.stringify(ctx.config));
 
   for (const target of targets) {
-    await Bun.write(join(ctx.dir, target), 'export const a = 1;\n');
+    await Bun.write(join(ctx.directory, target), 'export const a = 1;\n');
   }
 
   await Bun.write(
-    join(ctx.dir, file),
+    join(ctx.directory, file),
     `import { a } from '${specifier}';\n\nexport const VALUE = [a];\n`,
   );
 
   const linted = await runCommand(
     [process.execPath, ctx.oxlint, '-c', '.oxlintrc.json', '-f', 'json', file],
-    { cwd: ctx.dir },
+    { cwd: ctx.directory },
   );
 
   const report = z
@@ -395,15 +395,15 @@ test.each([
 test('it refuses a file in a workspace package outside every package zone', async () => {
   const ctx = await setupTest();
 
-  await Bun.write(join(ctx.dir, '.oxlintrc.json'), JSON.stringify(ctx.config));
+  await Bun.write(join(ctx.directory, '.oxlintrc.json'), JSON.stringify(ctx.config));
 
   await Bun.write(
-    join(ctx.dir, 'packages/extras/package.json'),
+    join(ctx.directory, 'packages/extras/package.json'),
     JSON.stringify({ name: '@atc/extras', exports: { '.': './src/a.ts' } }),
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/extras/src/a.ts'),
+    join(ctx.directory, 'packages/extras/src/a.ts'),
     "import { a } from '@atc/core';\n\nexport const VALUE = [a];\n",
   );
 
@@ -417,7 +417,7 @@ test('it refuses a file in a workspace package outside every package zone', asyn
       'json',
       'packages/extras/src/a.ts',
     ],
-    { cwd: ctx.dir },
+    { cwd: ctx.directory },
   );
 
   const report = z
@@ -506,20 +506,20 @@ test.each([
 ])('it allows %s', async (_label, file, specifier, targets) => {
   const ctx = await setupTest();
 
-  await Bun.write(join(ctx.dir, '.oxlintrc.json'), JSON.stringify(ctx.config));
+  await Bun.write(join(ctx.directory, '.oxlintrc.json'), JSON.stringify(ctx.config));
 
   for (const target of targets) {
-    await Bun.write(join(ctx.dir, target), 'export const a = 1;\n');
+    await Bun.write(join(ctx.directory, target), 'export const a = 1;\n');
   }
 
   await Bun.write(
-    join(ctx.dir, file),
+    join(ctx.directory, file),
     `import { a } from '${specifier}';\n\nexport const VALUE = [a];\n`,
   );
 
   const linted = await runCommand(
     [process.execPath, ctx.oxlint, '-c', '.oxlintrc.json', '-f', 'json', file],
-    { cwd: ctx.dir },
+    { cwd: ctx.directory },
   );
 
   const report = z
@@ -532,16 +532,16 @@ test.each([
 test('it refuses a synchronous spawn in a package', async () => {
   const ctx = await setupTest();
 
-  await Bun.write(join(ctx.dir, '.oxlintrc.json'), JSON.stringify(ctx.config));
+  await Bun.write(join(ctx.directory, '.oxlintrc.json'), JSON.stringify(ctx.config));
 
   await Bun.write(
-    join(ctx.dir, 'packages/store/src/a.ts'),
+    join(ctx.directory, 'packages/store/src/a.ts'),
     "import { spawnSync } from 'node:child_process';\n\nexport const VALUE = [spawnSync];\n",
   );
 
   const linted = await runCommand(
     [process.execPath, ctx.oxlint, '-c', '.oxlintrc.json', '-f', 'json', 'packages/store/src/a.ts'],
-    { cwd: ctx.dir },
+    { cwd: ctx.directory },
   );
 
   const report = z
@@ -578,8 +578,8 @@ test.each([
 ])('it refuses %s in a mod, which only the mods config lints', async (_label, source, message) => {
   const ctx = await setupTest();
 
-  await Bun.write(join(ctx.dir, '.oxlintrc.json'), JSON.stringify(ctx.modsConfig));
-  await Bun.write(join(ctx.dir, 'mods/bridge/hooks/register.ts'), source);
+  await Bun.write(join(ctx.directory, '.oxlintrc.json'), JSON.stringify(ctx.modsConfig));
+  await Bun.write(join(ctx.directory, 'mods/bridge/hooks/register.ts'), source);
 
   const linted = await runCommand(
     [
@@ -591,7 +591,7 @@ test.each([
       'json',
       'mods/bridge/hooks/register.ts',
     ],
-    { cwd: ctx.dir },
+    { cwd: ctx.directory },
   );
 
   const report = z

@@ -31,22 +31,22 @@ import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-har
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 async function setupTest() {
-  const tmp = setupTempDir('atc-workspace-trust-');
+  const temporaryDirectory = setupTempDir('atc-workspace-trust-');
   const port = createStubImpPort();
 
   const git = await createGitFixture({ prefix: 'atc-workspace-trust-git-' });
 
   // Each agent run records its start, so a test sees whether a launch went
   // ahead.
-  const fakeClaude = createStubRecordingClaude(tmp.path);
+  const fakeClaude = createStubRecordingClaude(temporaryDirectory.path);
 
   // The imp provider installs this as the guest's atc. It prints the
   // daemon's version, so the guest's hooks run it.
-  const guestATC = createStubBin(tmp.path, 'atc', '#!/bin/sh\necho 1.0.0\n');
+  const guestATC = createStubBin(temporaryDirectory.path, 'atc', '#!/bin/sh\necho 1.0.0\n');
 
   const box = new ImpProvider(
     port,
-    { guestDir: join(tmp.path, 'guest'), guestATC },
+    { guestDir: join(temporaryDirectory.path, 'guest'), guestATC },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -55,9 +55,9 @@ async function setupTest() {
   });
 
   return {
-    dir: tmp.path,
-    guestDir: join(tmp.path, 'guest'),
-    starts: join(tmp.path, 'claude-starts.log'),
+    directory: temporaryDirectory.path,
+    guestDir: join(temporaryDirectory.path, 'guest'),
+    starts: join(temporaryDirectory.path, 'claude-starts.log'),
     port,
     work: git.work,
     box,
@@ -122,8 +122,8 @@ test('it trusts only the resolved cloned root after an opted-in brokered launch'
     },
   });
 
-  const parent = join(ctx.dir, 'physical');
-  const alias = join(ctx.dir, 'alias');
+  const parent = join(ctx.directory, 'physical');
+  const alias = join(ctx.directory, 'alias');
 
   mkdirSync(parent);
   symlinkSync(parent, alias);
@@ -227,7 +227,7 @@ test.each([
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
     ...launch,
-    cwd: join(ctx.dir, 'clone'),
+    cwd: join(ctx.directory, 'clone'),
     agent: 'glm',
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },
@@ -391,7 +391,7 @@ test.each([
 
     const spawn = daemon.client.sendRequest('session.spawn', {
       ...launch,
-      cwd: join(ctx.dir, 'clone'),
+      cwd: join(ctx.directory, 'clone'),
       agent: 'glm',
       target: 'box',
       workspace: { kind: 'path', path: ctx.work },
@@ -491,7 +491,7 @@ test.each([
       hold.stop();
     });
 
-    const root = join(ctx.dir, 'clone');
+    const root = join(ctx.directory, 'clone');
 
     const spawn = daemon.client.sendRequest('session.spawn', {
       ...launch,
@@ -575,7 +575,7 @@ test('it refuses clone trust for stock Claude on an imp target before preparing 
     },
   });
 
-  const root = join(ctx.dir, 'clone');
+  const root = join(ctx.directory, 'clone');
 
   const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: root,
@@ -647,7 +647,7 @@ test('it refuses clone trust for a gateway on the local target before cloning', 
     },
   });
 
-  const root = join(ctx.dir, 'clone');
+  const root = join(ctx.directory, 'clone');
 
   const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: root,
@@ -740,7 +740,7 @@ test.each([
 
     const spawn = daemon.client.sendRequest('session.spawn', {
       ...launch,
-      cwd: join(ctx.dir, 'clone'),
+      cwd: join(ctx.directory, 'clone'),
       agent: 'glm',
       target: 'box',
       workspace: { kind: 'path', path: ctx.work },
@@ -846,7 +846,7 @@ test.each([
     });
 
     const parentID = String(getRecord(parent, 'session')['id']);
-    const root = join(ctx.dir, 'child');
+    const root = join(ctx.directory, 'child');
     const hold = ctx.port.startCommandHold('rev-parse');
 
     registerTestCleanup(() => {
@@ -971,7 +971,7 @@ test.each([
 
     const failed = daemon.client.sendRequest('session.spawn', {
       ...launch,
-      cwd: join(ctx.dir, 'child'),
+      cwd: join(ctx.directory, 'child'),
       agent: 'glm',
       target: 'box',
       parent: parentID,
@@ -998,7 +998,7 @@ test.each([
 
     const retried = await daemon.client.sendRequest('session.spawn', {
       ...launch,
-      cwd: join(ctx.dir, 'child'),
+      cwd: join(ctx.directory, 'child'),
       agent: 'glm',
       target: 'box',
       parent: parentID,
@@ -1090,7 +1090,7 @@ test.each([
 
     const spawned = await daemon.client.sendRequest('session.spawn', {
       ...launch,
-      cwd: join(ctx.dir, 'clone'),
+      cwd: join(ctx.directory, 'clone'),
       agent: 'glm',
       target: 'box',
       workspace: { kind: 'path', path: ctx.work },
@@ -1182,7 +1182,7 @@ test.each([
       },
     });
 
-    const root = join(ctx.dir, 'clone');
+    const root = join(ctx.directory, 'clone');
 
     const spawned = await daemon.client.sendRequest('session.spawn', {
       ...launch,
@@ -1345,7 +1345,7 @@ test('it refuses inherited clone trust for stock Claude on an imp target', async
   });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'clone'),
+    cwd: join(ctx.directory, 'clone'),
     agent: 'claude',
     target: 'box',
     workspace: { kind: 'path', path: ctx.work },

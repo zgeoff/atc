@@ -92,7 +92,7 @@ test('it stops a live session and its sub-sessions on a stop-only kill', async (
   const ctx = await setupTest();
 
   const parent = await spawnNamedSession(
-    (m, p) => ctx.client.sendRequest(m, p),
+    (method, params) => ctx.client.sendRequest(method, params),
     'one',
     ctx.directory,
   );
@@ -121,7 +121,12 @@ test('it stops a live session and its sub-sessions on a stop-only kill', async (
 
 test('it leaves an exited session in the list on a stop-only kill', async () => {
   const ctx = await setupTest();
-  const id = await spawnNamedSession((m, p) => ctx.client.sendRequest(m, p), 'one', ctx.directory);
+
+  const id = await spawnNamedSession(
+    (method, params) => ctx.client.sendRequest(method, params),
+    'one',
+    ctx.directory,
+  );
 
   await ctx.client.sendRequest('session.kill', { session: id, stopOnly: true });
 
@@ -134,7 +139,13 @@ test('it leaves an exited session in the list on a stop-only kill', async () => 
 
 test('it removes an exited session on a second kill without stopOnly', async () => {
   const ctx = await setupTest();
-  const id = await spawnNamedSession((m, p) => ctx.client.sendRequest(m, p), 'one', ctx.directory);
+
+  const id = await spawnNamedSession(
+    (method, params) => ctx.client.sendRequest(method, params),
+    'one',
+    ctx.directory,
+  );
+
   const first = await ctx.client.sendRequest('session.kill', { session: id });
   const second = await ctx.client.sendRequest('session.kill', { session: id });
   const listed = await ctx.client.sendRequest('session.list');
@@ -542,7 +553,7 @@ test('it broadcasts SessionAttached with the session descriptor when a client at
   const actor = await ctx.openClient();
 
   const sessionID = await spawnNamedSession(
-    (m, p) => actor.sendRequest(m, p),
+    (method, params) => actor.sendRequest(method, params),
     'focus-me',
     ctx.directory,
   );
@@ -550,7 +561,7 @@ test('it broadcasts SessionAttached with the session descriptor when a client at
   await actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
 
   const event = await waitFor(() => {
-    const found = ctx.events.find((e) => e.ev === 'SessionAttached');
+    const found = ctx.events.find((daemonEvent) => daemonEvent.ev === 'SessionAttached');
 
     invariant(found !== undefined, 'no SessionAttached yet');
 
@@ -576,7 +587,7 @@ test('it broadcasts SessionDetached when an attached client detaches', async () 
   const actor = await ctx.openClient();
 
   const sessionID = await spawnNamedSession(
-    (m, p) => actor.sendRequest(m, p),
+    (method, params) => actor.sendRequest(method, params),
     'focus-me',
     ctx.directory,
   );
@@ -585,7 +596,7 @@ test('it broadcasts SessionDetached when an attached client detaches', async () 
   await actor.sendRequest('session.detach', { session: sessionID });
 
   const event = await waitFor(() => {
-    const found = ctx.events.find((e) => e.ev === 'SessionDetached');
+    const found = ctx.events.find((daemonEvent) => daemonEvent.ev === 'SessionDetached');
 
     invariant(found !== undefined, 'no SessionDetached yet');
 
@@ -600,7 +611,7 @@ test('it broadcasts SessionDetached when an attached client disconnects', async 
   const actor = await ctx.openClient();
 
   const sessionID = await spawnNamedSession(
-    (m, p) => actor.sendRequest(m, p),
+    (method, params) => actor.sendRequest(method, params),
     'focus-me',
     ctx.directory,
   );
@@ -614,7 +625,7 @@ test('it broadcasts SessionDetached when an attached client disconnects', async 
   actor.stop();
 
   const event = await waitFor(() => {
-    const found = ctx.events.find((e) => e.ev === 'SessionDetached');
+    const found = ctx.events.find((daemonEvent) => daemonEvent.ev === 'SessionDetached');
 
     invariant(found !== undefined, 'no SessionDetached yet');
 
@@ -629,7 +640,7 @@ test('it broadcasts no SessionDetached for a detach without an attach', async ()
   const actor = await ctx.openClient();
 
   const sessionID = await spawnNamedSession(
-    (m, p) => actor.sendRequest(m, p),
+    (method, params) => actor.sendRequest(method, params),
     'focus-me',
     ctx.directory,
   );
@@ -643,7 +654,7 @@ test('it broadcasts no SessionDetached for a detach without an attach', async ()
     expect(ctx.events).toPartiallyContain({ ev: 'SessionAttached' });
   });
 
-  expect(ctx.events.filter((e) => e.ev === 'SessionDetached')).toBeEmpty();
+  expect(ctx.events.filter((daemonEvent) => daemonEvent.ev === 'SessionDetached')).toBeEmpty();
 });
 
 test('it runs a configured hook with the same event JSON a watching client receives', async () => {
@@ -664,7 +675,7 @@ test('it runs a configured hook with the same event JSON a watching client recei
   const actor = await ctx.openClient();
 
   const sessionID = await spawnNamedSession(
-    (m, p) => actor.sendRequest(m, p),
+    (method, params) => actor.sendRequest(method, params),
     'focus-me',
     ctx.directory,
   );
@@ -672,7 +683,7 @@ test('it runs a configured hook with the same event JSON a watching client recei
   await actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
 
   const event = await waitFor(() => {
-    const found = ctx.events.find((e) => e.ev === 'SessionAttached');
+    const found = ctx.events.find((daemonEvent) => daemonEvent.ev === 'SessionAttached');
 
     invariant(found !== undefined, 'no SessionAttached yet');
 
@@ -747,7 +758,7 @@ test('it answers session.read with unsupported for an agent atc cannot read the 
   const ctx = await setupTest();
 
   const id = await spawnNamedSession(
-    (m, p) => ctx.client.sendRequest(m, p),
+    (method, params) => ctx.client.sendRequest(method, params),
     'worker',
     ctx.directory,
   );

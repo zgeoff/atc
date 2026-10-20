@@ -2816,7 +2816,9 @@ test('it answers an answer read of a session outside the principal as an answer 
   const event = await waitFor(async () => {
     const owner = await daemon.client.sendRequest('events.read', { waitMs: 0 });
 
-    const found = eventList.parse(owner).events.find((e) => answeredEntry.safeParse(e).success);
+    const found = eventList
+      .parse(owner)
+      .events.find((entry) => answeredEntry.safeParse(entry).success);
 
     return answeredEntry.parse(found);
   });
@@ -2885,7 +2887,9 @@ test('it gives a principal the answer of a session it may see', async () => {
   const event = await waitFor(async () => {
     const read = await daemon.client.sendRequest('events.read', { waitMs: 0 }, 'client-a');
 
-    const found = eventList.parse(read).events.find((e) => answeredEntry.safeParse(e).success);
+    const found = eventList
+      .parse(read)
+      .events.find((entry) => answeredEntry.safeParse(entry).success);
 
     return answeredEntry.parse(found);
   });

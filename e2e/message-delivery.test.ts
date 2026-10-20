@@ -45,7 +45,7 @@ test('it accepts a message for a session that has not reported SessionStart', as
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -81,7 +81,7 @@ test('it queues a message to a started session within the start-up grace window'
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -128,7 +128,7 @@ test('it refuses a message once the grace window passes with no tap ever attache
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -172,7 +172,7 @@ test('it accepts a message to a started session once a tap is connected', async 
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -243,7 +243,7 @@ test('it answers a message for a killed session with session_dead', async () => 
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -263,7 +263,7 @@ test('it rejects a message without text as bad_args', async () => {
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -428,7 +428,7 @@ test('it drains pending messages to a tap in the order they were sent', async ()
   const tap = await daemon.openClient();
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -499,7 +499,7 @@ test('it streams a message queued while the tap is connected', async () => {
   };
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -541,17 +541,17 @@ test('it drains two hundred pending messages to a tap with zero loss', async () 
   const tap = await daemon.openClient();
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
 
   const sent: string[] = [];
 
-  for (let i = 0; i < 200; i++) {
+  for (let index = 0; index < 200; index++) {
     const ok = await daemon.client.sendRequest('session.message', {
       session: id,
-      text: `message ${i}`,
+      text: `message ${index}`,
     });
 
     sent.push(getString(ok, 'message'));
@@ -573,17 +573,17 @@ test('it drains a backlog larger than the outbound queue without dropping the ta
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
 
   const sent: string[] = [];
 
-  for (let i = 0; i < 12; i++) {
+  for (let index = 0; index < 12; index++) {
     const ok = await daemon.client.sendRequest('session.message', {
       session: id,
-      text: `${i}`.padEnd(1500, 'x'),
+      text: `${index}`.padEnd(1500, 'x'),
     });
 
     sent.push(getString(ok, 'message'));
@@ -643,7 +643,7 @@ test('it moves an acked message to delivered', async () => {
   const tap = await daemon.openClient();
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -673,7 +673,7 @@ test('it broadcasts SessionMessage for an acked message', async () => {
   const tap = await daemon.openClient();
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -711,7 +711,7 @@ test('it refuses an ack from a connection that is not the session tap', async ()
   const tap = await daemon.openClient();
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -741,7 +741,7 @@ test('it answers a repeat ack with the current status', async () => {
   const tap = await daemon.openClient();
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -772,7 +772,7 @@ test('it broadcasts delivered once for a repeat ack', async () => {
   const tap = await daemon.openClient();
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -791,7 +791,9 @@ test('it broadcasts delivered once for a repeat ack', async () => {
   await daemon.client.sendRequest('daemon.ping');
 
   expect<readonly Record<string, unknown>[]>(
-    daemon.events.filter((e) => e.ev === 'SessionMessage' && e.status === 'delivered'),
+    daemon.events.filter(
+      (daemonEvent) => daemonEvent.ev === 'SessionMessage' && daemonEvent.status === 'delivered',
+    ),
   ).toStrictEqual([
     {
       ev: 'SessionMessage',
@@ -817,7 +819,7 @@ test('it rejects an ack of an unknown message as bad_args', async () => {
   const tap = await daemon.openClient();
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -837,7 +839,7 @@ test('it moves a message to answered from a Report line on the reporter socket',
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -882,13 +884,13 @@ test('it ignores an answer from another session', async () => {
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
 
   const other = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'two',
     daemon.directory,
   );
@@ -909,7 +911,9 @@ test('it ignores an answer from another session', async () => {
   });
 
   expect(
-    daemon.events.filter((e) => e.ev === 'SessionMessage' && e.status === 'answered'),
+    daemon.events.filter(
+      (daemonEvent) => daemonEvent.ev === 'SessionMessage' && daemonEvent.status === 'answered',
+    ),
   ).toStrictEqual([]);
 });
 
@@ -933,7 +937,7 @@ test('it keeps queueing messages after the tap connection drops', async () => {
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -973,7 +977,7 @@ test('it refuses a message to a session whose process died even after a tap atta
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -998,7 +1002,7 @@ test('it broadcasts SessionMessage on the events socket', async () => {
   const subscriber = await subscribeToSocketLines(daemon.eventsSocketPath);
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -1006,7 +1010,7 @@ test('it broadcasts SessionMessage on the events socket', async () => {
   const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
 
   const line = await waitFor(() => {
-    const found = subscriber.lines.find((l) => l.includes('"ev":"SessionMessage"'));
+    const found = subscriber.lines.find((candidate) => candidate.includes('"ev":"SessionMessage"'));
 
     expect(found).toBeString();
 
@@ -1043,7 +1047,7 @@ test('it runs SessionMessage hooks with the event on stdin', async () => {
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -1084,7 +1088,7 @@ test('it broadcasts a note from the reporter socket as SessionNote', async () =>
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -1118,7 +1122,11 @@ test('it ignores a note from an unknown session', async () => {
     }),
   });
 
-  await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.directory);
+  await spawnNamedSession(
+    (method, params) => daemon.client.sendRequest(method, params),
+    'one',
+    daemon.directory,
+  );
 
   await daemon.sendHookLines({
     atcId: 'nope',
@@ -1130,7 +1138,7 @@ test('it ignores a note from an unknown session', async () => {
     expect(ignored).toStrictEqual([['nope', 'note']]);
   });
 
-  expect(daemon.events.filter((e) => e.ev === 'SessionNote')).toStrictEqual([]);
+  expect(daemon.events.filter((daemonEvent) => daemonEvent.ev === 'SessionNote')).toStrictEqual([]);
 });
 
 test('it broadcasts SessionNote on the events socket', async () => {
@@ -1143,7 +1151,7 @@ test('it broadcasts SessionNote on the events socket', async () => {
   const subscriber = await subscribeToSocketLines(daemon.eventsSocketPath);
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -1155,7 +1163,7 @@ test('it broadcasts SessionNote on the events socket', async () => {
   });
 
   const line = await waitFor(() => {
-    const found = subscriber.lines.find((l) => l.includes('"ev":"SessionNote"'));
+    const found = subscriber.lines.find((candidate) => candidate.includes('"ev":"SessionNote"'));
 
     expect(found).toBeString();
 
@@ -1189,7 +1197,7 @@ test('it runs SessionNote hooks with the event on stdin', async () => {
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -1241,7 +1249,7 @@ test('it keeps InboxMessage off every connection but the tap', async () => {
   const subscriber = await subscribeToSocketLines(daemon.eventsSocketPath);
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -1256,7 +1264,7 @@ test('it keeps InboxMessage off every connection but the tap', async () => {
 
   await daemon.client.sendRequest('daemon.ping');
 
-  expect(daemon.events.map((e) => e.ev)).not.toContain('InboxMessage');
+  expect(daemon.events.map((daemonEvent) => daemonEvent.ev)).not.toContain('InboxMessage');
   expect(subscriber.lines.join('\n')).not.toInclude('InboxMessage');
 });
 
@@ -1270,17 +1278,17 @@ test('it delivers pending messages to a new tap before a message queued at the s
   const tap = await daemon.openClient();
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
 
   const pending: Readonly<Record<string, unknown>>[] = [];
 
-  for (let i = 0; i < 5; i++) {
+  for (let index = 0; index < 5; index++) {
     const ok = await daemon.client.sendRequest('session.message', {
       session: id,
-      text: `${i}`,
+      text: `${index}`,
     });
 
     pending.push(ok);
@@ -1292,7 +1300,7 @@ test('it delivers pending messages to a new tap before a message queued at the s
   ]);
 
   await waitFor(() => {
-    expect(inbox.messages.map((e) => e.message)).toStrictEqual(
+    expect(inbox.messages.map((inboxMessage) => inboxMessage.message)).toStrictEqual(
       [...pending, live].map((ok) => getString(ok, 'message')),
     );
   });
@@ -1308,7 +1316,7 @@ test('it orders concurrently queued messages by their sent time', async () => {
   const tap = await daemon.openClient();
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -1316,8 +1324,8 @@ test('it orders concurrently queued messages by their sent time', async () => {
   const inbox = await startStubTap(tap, id);
 
   await Promise.all(
-    Array.from({ length: 20 }, (_, i) =>
-      daemon.client.sendRequest('session.message', { session: id, text: `${i}` }),
+    Array.from({ length: 20 }, (_, index) =>
+      daemon.client.sendRequest('session.message', { session: id, text: `${index}` }),
     ),
   );
 
@@ -1325,12 +1333,12 @@ test('it orders concurrently queued messages by their sent time', async () => {
     expect(inbox.messages).toHaveLength(20);
   });
 
-  const sentAt = inbox.messages.map((e) => e.sentAt);
+  const sentAt = inbox.messages.map((inboxMessage) => inboxMessage.sentAt);
 
-  expect(sentAt).toStrictEqual(sentAt.toSorted((a, b) => a - b));
+  expect(sentAt).toStrictEqual(sentAt.toSorted((left, right) => left - right));
 
-  expect(inbox.messages.map((e) => e.text)).toStrictEqual(
-    Array.from({ length: 20 }, (_, i) => `${i}`),
+  expect(inbox.messages.map((inboxMessage) => inboxMessage.text)).toStrictEqual(
+    Array.from({ length: 20 }, (_, index) => `${index}`),
   );
 });
 
@@ -1342,7 +1350,7 @@ test('it reads a queued message back through message.get', async () => {
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -1379,7 +1387,7 @@ test('it reads a delivered message back through message.get', async () => {
   const tap = await daemon.openClient();
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -1420,7 +1428,7 @@ test('it reads an answered message back through message.get', async () => {
   const tap = await daemon.openClient();
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -1469,7 +1477,7 @@ test('it returns the full text and answer through message.get while the event ca
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -1491,11 +1499,17 @@ test('it returns the full text and answer through message.get while the event ca
 
   const got = await daemon.client.sendRequest('message.get', { message: sent['message'] });
 
-  const broadcast = daemon.events.filter((e) => e.ev === 'SessionMessage');
+  const broadcast = daemon.events.filter((daemonEvent) => daemonEvent.ev === 'SessionMessage');
 
   expect(got).toMatchObject({ text, answer });
-  expect(broadcast).toSatisfyAll((e) => !('text' in e) && !('answer' in e));
-  expect(broadcast.map((e) => e.textPreview)).toSatisfyAll((p) => p === `${'t'.repeat(599)}…`);
+
+  expect(broadcast).toSatisfyAll(
+    (daemonEvent) => !('text' in daemonEvent) && !('answer' in daemonEvent),
+  );
+
+  expect(broadcast.map((daemonEvent) => daemonEvent.textPreview)).toSatisfyAll(
+    (preview) => preview === `${'t'.repeat(599)}…`,
+  );
 });
 
 test('it caps a stored answer at the byte limit without splitting a character', async () => {
@@ -1506,7 +1520,7 @@ test('it caps a stored answer at the byte limit without splitting a character', 
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -1544,7 +1558,7 @@ test('it gives two messages one turn answered the same turn and lists each besid
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -1605,7 +1619,7 @@ test("it wakes a held read of one turn's message with the whole group already an
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -1662,7 +1676,7 @@ test('it lists no other messages for a message its own turn answered', async () 
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -1716,7 +1730,7 @@ test('it stores no turn for an answer reported without one', async () => {
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -1772,7 +1786,7 @@ test("it answers one message of a running turn with the answer tool's text befor
   const tap = await daemon.openClient();
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -1819,7 +1833,7 @@ test('it gives the final reply only to the message of a turn that the answer too
   const tap = await daemon.openClient();
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -1885,7 +1899,7 @@ test('it holds message.get open until the message status changes', async () => {
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -1931,7 +1945,7 @@ test('it answers a held message.get with the unchanged status once the wait ends
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -1972,7 +1986,7 @@ test('it answers message.get for an answered message at once whatever the wait',
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -2022,7 +2036,7 @@ test('it moves a delivered message to unanswered from an unanswered Note line', 
   const tap = await daemon.openClient();
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -2069,7 +2083,7 @@ test('it reads an unanswered message back through message.get with its reason an
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -2111,7 +2125,7 @@ test('it records an unanswered message in events.read', async () => {
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -2159,13 +2173,13 @@ test('it ignores an unanswered note from another session', async () => {
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
 
   const other = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'two',
     daemon.directory,
   );
@@ -2195,7 +2209,7 @@ test('it wakes a held message.get when the message turns unanswered', async () =
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -2230,7 +2244,7 @@ test('it answers message.get for an unanswered message at once whatever the wait
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -2271,7 +2285,7 @@ test('it keeps a message unanswered when an answer arrives later', async () => {
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -2347,7 +2361,7 @@ test('it ends the earlier tap subscription when a second tap attaches', async ()
   const replacement = await daemon.openClient();
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -2356,7 +2370,7 @@ test('it ends the earlier tap subscription when a second tap attaches', async ()
   await replacement.sendRequest('session.tap', { session: id });
 
   await waitFor(() => {
-    expect(tapEvents.filter((e) => e.ev === 'InboxClosed')).toStrictEqual([
+    expect(tapEvents.filter((tapEvent) => tapEvent.ev === 'InboxClosed')).toStrictEqual([
       { ev: 'InboxClosed', s: id, reason: 'replaced' },
     ]);
   });
@@ -2378,7 +2392,7 @@ test('it keeps the tap subscription when the same connection taps again', async 
   };
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -2390,7 +2404,7 @@ test('it keeps the tap subscription when the same connection taps again', async 
   // answer follows any such event.
   await tap.sendRequest('session.tap', { session: id });
 
-  expect(tapEvents.filter((e) => e.ev === 'InboxClosed')).toStrictEqual([]);
+  expect(tapEvents.filter((tapEvent) => tapEvent.ev === 'InboxClosed')).toStrictEqual([]);
 });
 
 test('it ends the tap subscription when its session is removed', async () => {
@@ -2409,7 +2423,7 @@ test('it ends the tap subscription when its session is removed', async () => {
   };
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -2421,7 +2435,7 @@ test('it ends the tap subscription when its session is removed', async () => {
   await daemon.client.sendRequest('session.kill', { session: id });
 
   await waitFor(() => {
-    expect(tapEvents.filter((e) => e.ev === 'InboxClosed')).toStrictEqual([
+    expect(tapEvents.filter((tapEvent) => tapEvent.ev === 'InboxClosed')).toStrictEqual([
       { ev: 'InboxClosed', s: id, reason: 'removed' },
     ]);
   });
@@ -2437,7 +2451,7 @@ test('it records each message status change in events.read in order', async () =
   const tap = await daemon.openClient();
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -2509,7 +2523,7 @@ test('it records a repeated ack in the trail once', async () => {
   const tap = await daemon.openClient();
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -2555,7 +2569,7 @@ test('it wakes a waiting events.read when a message is queued', async () => {
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -2596,13 +2610,13 @@ test("it limits events.read to one session's events", async () => {
   });
 
   const one = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
 
   const two = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'two',
     daemon.directory,
   );
@@ -2637,13 +2651,13 @@ test("it wakes a held events.read only for the filtered session's event", async 
   });
 
   const one = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
 
   const two = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'two',
     daemon.directory,
   );
@@ -2686,14 +2700,14 @@ test('it marks an events.read page that stopped before the end of the trail', as
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
 
   const start = await daemon.client.sendRequest('events.read', {});
-  const a = await daemon.client.sendRequest('session.message', { session: id, text: 'a' });
-  const b = await daemon.client.sendRequest('session.message', { session: id, text: 'b' });
+  const firstSent = await daemon.client.sendRequest('session.message', { session: id, text: 'a' });
+  const secondSent = await daemon.client.sendRequest('session.message', { session: id, text: 'b' });
 
   await daemon.client.sendRequest('session.message', { session: id, text: 'c' });
 
@@ -2711,7 +2725,7 @@ test('it marks an events.read page that stopped before the end of the trail', as
         name: 'one',
         kind: 'message-queued',
         detail: 'a',
-        message: a['message'],
+        message: firstSent['message'],
       },
       {
         cursor: expect.toBeString(),
@@ -2720,7 +2734,7 @@ test('it marks an events.read page that stopped before the end of the trail', as
         name: 'one',
         kind: 'message-queued',
         detail: 'b',
-        message: b['message'],
+        message: secondSent['message'],
       },
     ],
     cursor: expect.toBeString(),
@@ -2736,7 +2750,7 @@ test('it marks the events.read page that reaches the end of the trail as the las
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -2746,7 +2760,7 @@ test('it marks the events.read page that reaches the end of the trail as the las
   await daemon.client.sendRequest('session.message', { session: id, text: 'a' });
   await daemon.client.sendRequest('session.message', { session: id, text: 'b' });
 
-  const c = await daemon.client.sendRequest('session.message', { session: id, text: 'c' });
+  const lastSent = await daemon.client.sendRequest('session.message', { session: id, text: 'c' });
 
   const page = await daemon.client.sendRequest('events.read', {
     cursor: start['cursor'],
@@ -2767,7 +2781,7 @@ test('it marks the events.read page that reaches the end of the trail as the las
         name: 'one',
         kind: 'message-queued',
         detail: 'c',
-        message: c['message'],
+        message: lastSent['message'],
       },
     ],
     cursor: expect.toBeString(),
@@ -2783,7 +2797,7 @@ test('it records a note in events.read with its label', async () => {
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -2827,7 +2841,7 @@ test("it returns a note's whole text by the cursor of its event", async () => {
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -2869,7 +2883,7 @@ test("it returns a note's text cut at 64 KiB", async () => {
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -2929,7 +2943,7 @@ test('it refuses the cursor of an event that is not a note as an unknown note', 
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -2963,7 +2977,7 @@ test("it returns a message's whole answer by the cursor of its answered event", 
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -2987,7 +3001,7 @@ test("it returns a message's whole answer by the cursor of its answered event", 
     invariant(Array.isArray(read['events']), 'no events');
 
     const answered: unknown = read['events'].find(
-      (e: unknown) => isRecord(e) && e['kind'] === 'message-answered',
+      (entry: unknown) => isRecord(entry) && entry['kind'] === 'message-answered',
     );
 
     invariant(isRecord(answered), 'no answered event yet');
@@ -3018,7 +3032,7 @@ test('it refuses the cursor of an event that is not an answered message as an un
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -3054,7 +3068,7 @@ test('it leaves a note from an unknown session out of the trail', async () => {
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -3107,7 +3121,7 @@ test("it counts a note toward the session's last activity time", async () => {
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -3155,7 +3169,7 @@ test('it gates a revived session on its own tap, not the tap its previous proces
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -3230,7 +3244,7 @@ test('it queues a message to a revived session before it reports SessionStart ag
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -3275,7 +3289,7 @@ test('it marks a delivered message unanswered as session_ended when the process 
   const tap = await daemon.openClient();
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -3314,7 +3328,7 @@ test('it marks a delivered message unanswered as session_ended when the session 
   const tap = await daemon.openClient();
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -3344,7 +3358,7 @@ test('it marks a delivered message unanswered as session_ended when the daemon r
   const tap = await daemon.openClient();
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -3366,7 +3380,7 @@ test('it marks a queued message unanswered as session_ended when the session is 
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -3450,7 +3464,7 @@ test('it marks a message unanswered as session_ended when its tap acks it after 
   const tap = await daemon.openClient();
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -3482,7 +3496,7 @@ test('it keeps a queued message queued when the process exits', async () => {
   });
 
   const id = await spawnNamedSession(
-    (m, p) => daemon.client.sendRequest(m, p),
+    (method, params) => daemon.client.sendRequest(method, params),
     'one',
     daemon.directory,
   );
@@ -3542,13 +3556,13 @@ test.each([
     });
 
     const target = await spawnNamedSession(
-      (m, p) => daemon.client.sendRequest(m, p),
+      (method, params) => daemon.client.sendRequest(method, params),
       'target',
       daemon.directory,
     );
 
     const from = await spawnNamedSession(
-      (m, p) => daemon.client.sendRequest(m, p),
+      (method, params) => daemon.client.sendRequest(method, params),
       'harbor-refactor',
       daemon.directory,
     );

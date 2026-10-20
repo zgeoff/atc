@@ -18,17 +18,20 @@ import {
 import invariant from 'tiny-invariant';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-e2e-messages-');
+  const temporaryDirectory = setupTempDir('atc-e2e-messages-');
   const atc = resolveATCCommand();
-  const configDir = join(tmp.path, '.config', 'atc');
+  const configDir = join(temporaryDirectory.path, '.config', 'atc');
 
   mkdirSync(configDir, { recursive: true });
 
   return {
-    home: tmp.path,
+    home: temporaryDirectory.path,
     atc,
     configPath: join(configDir, 'config.json'),
-    claude: createStubClaude(tmp.path, { atc, composer: createStubComposer(tmp.path) }),
+    claude: createStubClaude(temporaryDirectory.path, {
+      atc,
+      composer: createStubComposer(temporaryDirectory.path),
+    }),
   };
 }
 
@@ -242,7 +245,7 @@ test('it names a message event from before a daemon crash by the restored sessio
   const read = await waitFor(async () => {
     const answer = await revived.sendRequest('events.read', {});
 
-    const ours = getRecords(answer, 'events').filter((e) => e['message'] === messageID);
+    const ours = getRecords(answer, 'events').filter((entry) => entry['message'] === messageID);
 
     expect(ours).toHaveLength(2);
 
@@ -339,7 +342,7 @@ test('it names a message event sent before SessionStart by the restored session'
   const read = await waitFor(async () => {
     const answer = await revived.sendRequest('events.read', {});
 
-    const ours = getRecords(answer, 'events').filter((e) => e['message'] === messageID);
+    const ours = getRecords(answer, 'events').filter((entry) => entry['message'] === messageID);
 
     expect(ours).toHaveLength(1);
 

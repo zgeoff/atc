@@ -19,8 +19,8 @@ import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-har
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-daemon-config-file-');
-  const configDir = join(tmp.path, 'config');
+  const temporaryDirectory = setupTempDir('atc-daemon-config-file-');
+  const configDir = join(temporaryDirectory.path, 'config');
 
   mkdirSync(configDir);
 
@@ -29,7 +29,7 @@ function setupTest() {
   const harnesses: string[] = [];
 
   return {
-    dir: tmp.path,
+    directory: temporaryDirectory.path,
     configPath: join(configDir, 'config.json'),
     claude,
     harnesses,
@@ -572,7 +572,7 @@ test('it refuses a spawn of an agent missing from this host with the config prob
   // A codex binary that does not exist, so codex is registered but not
   // installed.
   const codexConfig = parseConfig(SHIPPED_HARNESS_PLUGINS, {
-    agents: { codex: { kind: 'codex', bin: join(ctx.dir, 'missing', 'codex') } },
+    agents: { codex: { kind: 'codex', bin: join(ctx.directory, 'missing', 'codex') } },
   });
 
   const codex = new CodexAdapter(getAgentEntry(codexConfig, 'codex'));
@@ -618,7 +618,7 @@ test('it refuses a spawn of an agent missing from this host as not installed whe
   // A codex binary that does not exist, so codex is registered but not
   // installed.
   const codexConfig = parseConfig(SHIPPED_HARNESS_PLUGINS, {
-    agents: { codex: { kind: 'codex', bin: join(ctx.dir, 'missing', 'codex') } },
+    agents: { codex: { kind: 'codex', bin: join(ctx.directory, 'missing', 'codex') } },
   });
 
   const codex = new CodexAdapter(getAgentEntry(codexConfig, 'codex'));

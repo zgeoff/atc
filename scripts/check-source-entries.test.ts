@@ -4,40 +4,40 @@ import { runCommand, setupTempDir } from '@atc/test-utils';
 
 // A temp directory standing in for a repo root.
 function setupTest() {
-  const tmp = setupTempDir('check-source-entries-');
+  const temporaryDirectory = setupTempDir('check-source-entries-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it passes helpers that read the source entry from the wrapper variable', async () => {
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'scripts/with-test-home.sh'),
+    join(ctx.directory, 'scripts/with-test-home.sh'),
     'repo=$(pwd)\nexport ATC_CLI_ENTRY="$repo/packages/app/src/cli.ts"\n',
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/test-utils/src/run-probe.ts'),
+    join(ctx.directory, 'packages/test-utils/src/run-probe.ts'),
     "export const PROBE = [process.execPath, process.env['ATC_CLI_ENTRY']];\n",
   );
 
   // a helper's own unit test holds an entry path as fixture data
   await Bun.write(
-    join(ctx.dir, 'packages/test-utils/src/run-probe.test.ts'),
+    join(ctx.directory, 'packages/test-utils/src/run-probe.test.ts'),
     "export const FIXTURE = '/checkout/packages/app/src/cli.ts';\n",
   );
 
   // a module outside the helper folders is not a test helper
   await Bun.write(
-    join(ctx.dir, 'packages/lantern/src/is-entry.ts'),
+    join(ctx.directory, 'packages/lantern/src/is-entry.ts'),
     "export const ENTRY = '/src/cli.ts';\n",
   );
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-source-entries.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -55,7 +55,7 @@ test('it fails on a helper that hard-codes a source entry path or joins its segm
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'scripts/with-test-home.sh'),
+    join(ctx.directory, 'scripts/with-test-home.sh'),
     [
       'repo=$(pwd)',
       'export ATC_CLI_ENTRY="$repo/packages/app/src/cli.ts"',
@@ -65,24 +65,24 @@ test('it fails on a helper that hard-codes a source entry path or joins its segm
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/test-utils/src/run-probe.ts'),
+    join(ctx.directory, 'packages/test-utils/src/run-probe.ts'),
     "// starts the probe\nexport const PROBE = ['bun', 'packages/app/src/cli.ts'];\n",
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/test-utils/start-probe.ts'),
+    join(ctx.directory, 'packages/app/src/test-utils/start-probe.ts'),
     "export const PROBE = join(root, 'src', 'gateway.ts');\n",
   );
 
   await Bun.write(
-    join(ctx.dir, 'e2e/probe.test.ts'),
+    join(ctx.directory, 'e2e/probe.test.ts'),
     "const entry = join(import.meta.dir, '..', 'packages', 'app', 'src', 'cli.ts');\n",
   );
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-source-entries.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -105,19 +105,19 @@ test('it checks against the entry path the wrapper exports after a package move'
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'scripts/with-test-home.sh'),
+    join(ctx.directory, 'scripts/with-test-home.sh'),
     'repo=$(pwd)\nexport ATC_CLI_ENTRY="$repo/packages/console/src/main.ts"\n',
   );
 
   await Bun.write(
-    join(ctx.dir, 'packages/daemon/src/testing/start-probe.ts'),
+    join(ctx.directory, 'packages/daemon/src/testing/start-probe.ts'),
     "export const OLD = 'packages/app/src/cli.ts';\nexport const NEW = 'packages/console/src/main.ts';\n",
   );
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-source-entries.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({
@@ -135,12 +135,12 @@ test('it checks against the entry path the wrapper exports after a package move'
 test('it fails when the wrapper exports no source entry', async () => {
   const ctx = setupTest();
 
-  await Bun.write(join(ctx.dir, 'scripts/with-test-home.sh'), 'repo=$(pwd)\n');
+  await Bun.write(join(ctx.directory, 'scripts/with-test-home.sh'), 'repo=$(pwd)\n');
 
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-source-entries.ts'),
-    ctx.dir,
+    ctx.directory,
   ]);
 
   expect({

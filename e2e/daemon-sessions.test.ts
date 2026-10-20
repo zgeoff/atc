@@ -15,17 +15,20 @@ import {
 } from '@atc/test-utils';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-e2e-sessions-');
+  const temporaryDirectory = setupTempDir('atc-e2e-sessions-');
   const atc = resolveATCCommand();
-  const configDir = join(tmp.path, '.config', 'atc');
+  const configDir = join(temporaryDirectory.path, '.config', 'atc');
 
   mkdirSync(configDir, { recursive: true });
 
   return {
-    home: tmp.path,
+    home: temporaryDirectory.path,
     atc,
     configPath: join(configDir, 'config.json'),
-    claude: createStubClaude(tmp.path, { atc, composer: createStubComposer(tmp.path) }),
+    claude: createStubClaude(temporaryDirectory.path, {
+      atc,
+      composer: createStubComposer(temporaryDirectory.path),
+    }),
   };
 }
 

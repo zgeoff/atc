@@ -51,15 +51,15 @@ async function main(): Promise<void> {
 
   // the plugin, and the shared test helpers its tests import
   const packages = collectPackageClosure(workspace, [plugin.name, 'test-utils']);
-  const dir = mkdtempSync(join(tmpdir(), `atc-test-plugin-${plugin.name}-`));
+  const directory = mkdtempSync(join(tmpdir(), `atc-test-plugin-${plugin.name}-`));
 
   try {
-    createPluginWorkspace(repo, dir, plugin, packages);
+    createPluginWorkspace(repo, directory, plugin, packages);
 
     const steps: readonly (readonly string[])[] = [
       ['bun', 'install'],
       ['node_modules/.bin/tsc', '-p', 'tsconfig.json', '--noEmit'],
-      ['bash', 'scripts/with-test-home.sh', 'bun', 'test', plugin.dir],
+      ['bash', 'scripts/with-test-home.sh', 'bun', 'test', plugin.directory],
     ];
 
     let passed = true;
@@ -70,7 +70,7 @@ async function main(): Promise<void> {
       }
 
       // each step needs the one before it
-      const stepPassed = await runStep(dir, argv);
+      const stepPassed = await runStep(directory, argv);
 
       passed = stepPassed;
     }
@@ -82,9 +82,9 @@ async function main(): Promise<void> {
     process.exitCode = passed ? 0 : 1;
   } finally {
     if (keep) {
-      console.log(`test-plugin: kept ${dir}`);
+      console.log(`test-plugin: kept ${directory}`);
     } else {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(directory, { recursive: true, force: true });
     }
   }
 }
@@ -104,33 +104,33 @@ function printUsage(plugins: readonly WorkspacePackage[]): void {
 // app, which the workspace leaves out.
 function createPluginWorkspace(
   repo: string,
-  dir: string,
+  directory: string,
   plugin: WorkspacePackage,
   packages: readonly WorkspacePackage[],
 ): void {
   for (const rule of packages) {
-    cpSync(join(repo, rule.dir), join(dir, rule.dir), {
+    cpSync(join(repo, rule.directory), join(directory, rule.directory), {
       recursive: true,
       filter: (source) => !source.includes('/node_modules'),
     });
   }
 
   for (const path of SETUP_PATHS) {
-    cpSync(join(repo, path), join(dir, path), { recursive: true });
+    cpSync(join(repo, path), join(directory, path), { recursive: true });
   }
 
-  writeWorkspaceManifest(repo, dir, packages);
+  writeWorkspaceManifest(repo, directory, packages);
 
   writeFileSync(
-    join(dir, 'tsconfig.json'),
+    join(directory, 'tsconfig.json'),
     `${JSON.stringify(
       {
         extends: './tsconfig.base.json',
         compilerOptions: { types: ['bun', '@zgeoff/bun-test-extended'] },
-        include: packages.map((rule) => `${rule.dir}/src/**/*.ts`),
+        include: packages.map((rule) => `${rule.directory}/src/**/*.ts`),
         exclude: packages
           .filter((rule) => rule !== plugin)
-          .map((rule) => `${rule.dir}/src/**/*.test.ts`),
+          .map((rule) => `${rule.directory}/src/**/*.test.ts`),
       },
       null,
       2,
@@ -143,7 +143,7 @@ function createPluginWorkspace(
 // workspace leaves out.
 function writeWorkspaceManifest(
   repo: string,
-  dir: string,
+  directory: string,
   packages: readonly WorkspacePackage[],
 ): void {
   const text = readFileSync(join(repo, 'package.json'), 'utf8');
@@ -168,7 +168,7 @@ function writeWorkspaceManifest(
   } = manifest;
 
   writeFileSync(
-    join(dir, 'package.json'),
+    join(directory, 'package.json'),
     `${JSON.stringify({ ...rest, devDependencies: kept }, null, 2)}\n`,
   );
 }
@@ -183,10 +183,10 @@ function isStringRecord(value: unknown): value is Record<string, string> {
 
 // Runs one step in the workspace with its output on this process's, and
 // whether it exited 0.
-async function runStep(dir: string, argv: readonly string[]): Promise<boolean> {
+async function runStep(directory: string, argv: readonly string[]): Promise<boolean> {
   console.log(`test-plugin: ${argv.join(' ')}`);
 
-  const child = Bun.spawn([...argv], { cwd: dir, stdio: ['ignore', 'inherit', 'inherit'] });
+  const child = Bun.spawn([...argv], { cwd: directory, stdio: ['ignore', 'inherit', 'inherit'] });
 
   const code = await child.exited;
 

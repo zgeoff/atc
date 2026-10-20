@@ -17,8 +17,17 @@ function setupTest() {
 test('it replays the fleet as SessionAdded lines on connect', async () => {
   const ctx = await setupTest();
 
-  await spawnNamedSession((m, p) => ctx.client.sendRequest(m, p), 'one', ctx.directory);
-  await spawnNamedSession((m, p) => ctx.client.sendRequest(m, p), 'two', ctx.directory);
+  await spawnNamedSession(
+    (method, params) => ctx.client.sendRequest(method, params),
+    'one',
+    ctx.directory,
+  );
+
+  await spawnNamedSession(
+    (method, params) => ctx.client.sendRequest(method, params),
+    'two',
+    ctx.directory,
+  );
 
   const subscriber = await subscribeToSocketLines(ctx.eventsSocketPath);
   const initial = await subscriber.waitForLine(2);
@@ -47,7 +56,7 @@ test('it streams a live event after the replay', async () => {
   const ctx = await setupTest();
 
   const sessionID = await spawnNamedSession(
-    (m, p) => ctx.client.sendRequest(m, p),
+    (method, params) => ctx.client.sendRequest(method, params),
     'one',
     ctx.directory,
   );
@@ -71,7 +80,11 @@ test('it ignores subscriber input and keeps streaming', async () => {
 
   subscriber.write('{"m":"session.kill"}\nnot even json\n');
 
-  await spawnNamedSession((m, p) => ctx.client.sendRequest(m, p), 'after-garbage', ctx.directory);
+  await spawnNamedSession(
+    (method, params) => ctx.client.sendRequest(method, params),
+    'after-garbage',
+    ctx.directory,
+  );
 
   const streamed = await subscriber.waitForLine(1);
 
