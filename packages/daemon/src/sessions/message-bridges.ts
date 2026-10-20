@@ -82,7 +82,7 @@ export class MessageBridges {
       env: launch.env,
       withheldEnv: launch.withheldEnv,
       options: launch.options,
-      dir: join(this.stateDir, 'sessions', launch.session, 'codex'),
+      directory: join(this.stateDir, 'sessions', launch.session, 'codex'),
       host: this.buildHost(launch.session),
     });
 

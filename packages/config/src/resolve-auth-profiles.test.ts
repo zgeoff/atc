@@ -202,11 +202,11 @@ test('it merges two profiles that hold the same rule for one host into one rule'
 });
 
 test('it resolves a 40-profile chain where each profile depends on every profile before it', () => {
-  const names = Array.from({ length: 40 }, (_, i) => `p${String(i).padStart(2, '0')}`);
+  const names = Array.from({ length: 40 }, (_, index) => `p${String(index).padStart(2, '0')}`);
 
   const result = resolveAuthProfiles(
     new Map(
-      names.map((name, i) => [
+      names.map((name, index) => [
         name,
         buildMockAuthProfile({
           name,
@@ -216,7 +216,7 @@ test('it resolves a 40-profile chain where each profile depends on every profile
           header: 'authorization',
           scheme: 'bearer',
           env: {},
-          dependencies: names.slice(0, i),
+          dependencies: names.slice(0, index),
         }),
       ]),
     ),
@@ -343,32 +343,32 @@ test('it refuses two profiles that bind one secret as different kinds', () => {
 });
 
 test('it merges the variables of every reached profile with the profile that sets each', () => {
-  const a = buildMockAuthProfile({ name: 'a', env: { TOKEN: 'broker-placeholder' } });
+  const profileA = buildMockAuthProfile({ name: 'a', env: { TOKEN: 'broker-placeholder' } });
 
-  const b = buildMockAuthProfile({
+  const profileB = buildMockAuthProfile({
     name: 'b',
     env: { TOKEN: 'broker-placeholder', B_HOST: 'https://b.example.com' },
   });
 
   const profiles = new Map([
-    ['a', a],
-    ['b', b],
+    ['a', profileA],
+    ['b', profileB],
   ]);
 
   expect(resolveAuthProfiles(profiles, ['b', 'a'])).toStrictEqual({
     resolved: {
       profiles: ['a', 'b'],
-      hosts: expect.toIncludeSameMembers([a.host, b.host]),
+      hosts: expect.toIncludeSameMembers([profileA.host, profileB.host]),
       secrets: expect.toIncludeSameMembers([
         {
-          secret: a.secret,
+          secret: profileA.secret,
           kind: 'custom',
-          rules: [{ host: a.host, header: a.header, scheme: 'bearer' }],
+          rules: [{ host: profileA.host, header: profileA.header, scheme: 'bearer' }],
         },
         {
-          secret: b.secret,
+          secret: profileB.secret,
           kind: 'custom',
-          rules: [{ host: b.host, header: b.header, scheme: 'bearer' }],
+          rules: [{ host: profileB.host, header: profileB.header, scheme: 'bearer' }],
         },
       ]),
       env: { TOKEN: 'broker-placeholder', B_HOST: 'https://b.example.com' },

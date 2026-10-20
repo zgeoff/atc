@@ -14,14 +14,14 @@ import { readDaemonRecord } from '../read-daemon-record';
 import { startDaemonProcess } from './start-daemon-process';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-daemon-process-');
+  const temporaryDirectory = setupTempDir('atc-daemon-process-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it starts a daemon that answers a handshake on the socket in the home', async () => {
   const ctx = setupTest();
-  const daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.dir });
+  const daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.directory });
 
   const client = await daemon.openClient();
 
@@ -30,17 +30,19 @@ test('it starts a daemon that answers a handshake on the socket in the home', as
 
 test('it keeps the daemon state in the home and records the daemon process there', async () => {
   const ctx = setupTest();
-  const daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.dir });
+  const daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.directory });
 
   const client = await daemon.openClient();
 
   await client.sendHello('atc/test');
 
-  expect(readDaemonRecord(join(ctx.dir, '.local', 'state', 'atc', 'daemon.json'))).toStrictEqual({
-    pid: daemon.proc.pid,
-    socketPath: join(ctx.dir, 'atc-daemon.sock'),
-    reporterSocketPath: join(ctx.dir, 'atc.sock'),
-    eventsSocketPath: join(ctx.dir, 'atc-events.sock'),
+  expect(
+    readDaemonRecord(join(ctx.directory, '.local', 'state', 'atc', 'daemon.json')),
+  ).toStrictEqual({
+    pid: daemon.subprocess.pid,
+    socketPath: join(ctx.directory, 'atc-daemon.sock'),
+    reporterSocketPath: join(ctx.directory, 'atc.sock'),
+    eventsSocketPath: join(ctx.directory, 'atc-events.sock'),
     listenPort: null,
     protocol: 6,
   });
@@ -51,11 +53,11 @@ test('it hands the daemon the arguments and keeps its stderr readable', async ()
 
   const daemon = startDaemonProcess({
     command: resolveATCCommand(),
-    home: ctx.dir,
+    home: ctx.directory,
     args: ['--listen', '127.0.0.1:0'],
   });
 
-  const exitCode = await daemon.proc.exited;
+  const exitCode = await daemon.subprocess.exited;
 
   expect({ exitCode, stderr: daemon.readStderr() }).toStrictEqual({
     exitCode: 1,
@@ -68,13 +70,13 @@ test('it rejects a client with the daemon stderr when the daemon exits before it
 
   const daemon = startDaemonProcess({
     command: resolveATCCommand(),
-    home: ctx.dir,
+    home: ctx.directory,
     args: ['--listen', '127.0.0.1:0'],
   });
 
   const opening = daemon.openClient();
 
-  await daemon.proc.exited;
+  await daemon.subprocess.exited;
 
   expect(opening).rejects.toThrowWithMessage(
     Error,
@@ -87,11 +89,11 @@ test('it rejects a client at once with the daemon stderr when the daemon exited 
 
   const daemon = startDaemonProcess({
     command: resolveATCCommand(),
-    home: ctx.dir,
+    home: ctx.directory,
     args: ['--listen', '127.0.0.1:0'],
   });
 
-  await daemon.proc.exited;
+  await daemon.subprocess.exited;
 
   expect(daemon.openClient()).rejects.toThrowWithMessage(
     Error,
@@ -101,7 +103,7 @@ test('it rejects a client at once with the daemon stderr when the daemon exited 
 
 test('it opens a client on the socket a replacement holds when the daemon exits before it listens', async () => {
   const ctx = setupTest();
-  const nextPath = join(ctx.dir, 'next.sock');
+  const nextPath = join(ctx.directory, 'next.sock');
   let accepted = 0;
 
   const replacement = Bun.listen({
@@ -118,12 +120,12 @@ test('it opens a client on the socket a replacement holds when the daemon exits 
     replacement.stop(true);
   });
 
-  const atc = createStubBin(join(ctx.dir, 'bin'), 'atc', buildStubHandoffDaemon(nextPath));
-  const daemon = startDaemonProcess({ command: [atc], home: ctx.dir });
+  const atc = createStubBin(join(ctx.directory, 'bin'), 'atc', buildStubHandoffDaemon(nextPath));
+  const daemon = startDaemonProcess({ command: [atc], home: ctx.directory });
 
   await daemon.openClient();
 
-  const exitCode = await daemon.proc.exited;
+  const exitCode = await daemon.subprocess.exited;
 
   await waitFor(() => {
     expect(accepted).toBe(1);
@@ -137,8 +139,8 @@ test('it lays the config variables over the environment of the daemon', async ()
 
   const daemon = startDaemonProcess({
     command: resolveATCCommand(),
-    home: ctx.dir,
-    env: { HOME: join(ctx.dir, 'other') },
+    home: ctx.directory,
+    env: { HOME: join(ctx.directory, 'other') },
   });
 
   const client = await daemon.openClient();
@@ -146,12 +148,12 @@ test('it lays the config variables over the environment of the daemon', async ()
   await client.sendHello('atc/test');
 
   expect(
-    readDaemonRecord(join(ctx.dir, 'other', '.local', 'state', 'atc', 'daemon.json')),
+    readDaemonRecord(join(ctx.directory, 'other', '.local', 'state', 'atc', 'daemon.json')),
   ).toStrictEqual({
-    pid: daemon.proc.pid,
-    socketPath: join(ctx.dir, 'atc-daemon.sock'),
-    reporterSocketPath: join(ctx.dir, 'atc.sock'),
-    eventsSocketPath: join(ctx.dir, 'atc-events.sock'),
+    pid: daemon.subprocess.pid,
+    socketPath: join(ctx.directory, 'atc-daemon.sock'),
+    reporterSocketPath: join(ctx.directory, 'atc.sock'),
+    eventsSocketPath: join(ctx.directory, 'atc-events.sock'),
     listenPort: null,
     protocol: 6,
   });
@@ -162,14 +164,14 @@ test('it removes a variable the config sets to undefined from the environment of
 
   const daemon = startDaemonProcess({
     command: resolveATCCommand(),
-    home: ctx.dir,
+    home: ctx.directory,
     env: { XDG_RUNTIME_DIR: undefined },
   });
 
   // Without a runtime directory the daemon listens under its state
   // directory, which its record holds once it is up.
   const record = await waitFor(() => {
-    const found = readDaemonRecord(join(ctx.dir, '.local', 'state', 'atc', 'daemon.json'));
+    const found = readDaemonRecord(join(ctx.directory, '.local', 'state', 'atc', 'daemon.json'));
 
     expect(found).not.toBeNull();
 
@@ -177,10 +179,10 @@ test('it removes a variable the config sets to undefined from the environment of
   });
 
   expect(record).toStrictEqual({
-    pid: daemon.proc.pid,
-    socketPath: join(ctx.dir, '.local', 'state', 'atc', 'atc-daemon.sock'),
-    reporterSocketPath: join(ctx.dir, '.local', 'state', 'atc', 'atc.sock'),
-    eventsSocketPath: join(ctx.dir, '.local', 'state', 'atc', 'atc-events.sock'),
+    pid: daemon.subprocess.pid,
+    socketPath: join(ctx.directory, '.local', 'state', 'atc', 'atc-daemon.sock'),
+    reporterSocketPath: join(ctx.directory, '.local', 'state', 'atc', 'atc.sock'),
+    eventsSocketPath: join(ctx.directory, '.local', 'state', 'atc', 'atc-events.sock'),
     listenPort: null,
     protocol: 6,
   });
@@ -188,12 +190,12 @@ test('it removes a variable the config sets to undefined from the environment of
 
 test('it restarts the daemon on the same home after the signal stops it', async () => {
   const ctx = setupTest();
-  const daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.dir });
+  const daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.directory });
 
   const first = await daemon.openClient();
   const before = await first.sendHello('atc/test');
 
-  const crashed = daemon.proc;
+  const crashed = daemon.subprocess;
 
   await daemon.restart('SIGKILL');
 
@@ -201,13 +203,13 @@ test('it restarts the daemon on the same home after the signal stops it', async 
   const after = await second.sendHello('atc/test');
 
   expect(crashed.signalCode).toBe('SIGKILL');
-  expect(daemon.proc.pid).not.toBe(crashed.pid);
+  expect(daemon.subprocess.pid).not.toBe(crashed.pid);
   expect(after['daemonID']).toBe(before['daemonID']);
 });
 
 test('it keeps the stderr of two daemons on one home apart', async () => {
   const ctx = setupTest();
-  const serving = startDaemonProcess({ command: resolveATCCommand(), home: ctx.dir });
+  const serving = startDaemonProcess({ command: resolveATCCommand(), home: ctx.directory });
 
   const client = await serving.openClient();
 
@@ -215,11 +217,11 @@ test('it keeps the stderr of two daemons on one home apart', async () => {
 
   const refused = startDaemonProcess({
     command: resolveATCCommand(),
-    home: ctx.dir,
+    home: ctx.directory,
     args: ['--listen', '127.0.0.1:0'],
   });
 
-  await refused.proc.exited;
+  await refused.subprocess.exited;
 
   expect(refused.readStderr()).toInclude('--listen and --token-file go together');
   expect(serving.readStderr()).not.toInclude('--listen and --token-file go together');
@@ -227,17 +229,17 @@ test('it keeps the stderr of two daemons on one home apart', async () => {
 
 test('it kills the daemon once stopped', async () => {
   const ctx = setupTest();
-  const daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.dir });
+  const daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.directory });
 
   await daemon.openClient();
   await daemon.stop();
 
-  expect(daemon.proc.signalCode).toBe('SIGKILL');
+  expect(daemon.subprocess.signalCode).toBe('SIGKILL');
 });
 
 test('it kills the daemon the state directory records once stopped', async () => {
   const ctx = setupTest();
-  const daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.dir });
+  const daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.directory });
   const recorded = Bun.spawn(['sleep', '30']);
 
   onTestFinished(() => {
@@ -249,7 +251,7 @@ test('it kills the daemon the state directory records once stopped', async () =>
   await client.sendHello('atc/test');
 
   writeFileSync(
-    join(ctx.dir, '.local', 'state', 'atc', 'daemon.json'),
+    join(ctx.directory, '.local', 'state', 'atc', 'daemon.json'),
     JSON.stringify({
       pid: recorded.pid,
       socketPath: daemon.socketPath,
@@ -270,8 +272,12 @@ test('it kills the daemon once the test finishes without a stop', () => {
   const ctx = setupTest();
 
   // A stand-in that runs until killed and ignores the arguments after it.
-  const daemon = startDaemonProcess({ command: ['bash', '-c', 'exec sleep 30'], home: ctx.dir });
-  const pid = daemon.proc.pid;
+  const daemon = startDaemonProcess({
+    command: ['bash', '-c', 'exec sleep 30'],
+    home: ctx.directory,
+  });
+
+  const pid = daemon.subprocess.pid;
 
   onTestFinished(() => {
     expect(probeProcessAlive(pid)).toBeFalse();
@@ -289,8 +295,12 @@ test('it kills the daemon its home records and removes its stderr directory once
     stderrLeft = existsSync(stderrDir);
   });
 
-  const daemon = startDaemonProcess({ command: ['bash', '-c', 'exec sleep 30'], home: ctx.dir });
-  const pid = daemon.proc.pid;
+  const daemon = startDaemonProcess({
+    command: ['bash', '-c', 'exec sleep 30'],
+    home: ctx.directory,
+  });
+
+  const pid = daemon.subprocess.pid;
 
   stderrDir = daemon.stderrDir;
 
@@ -305,7 +315,7 @@ test('it kills the daemon its home records and removes its stderr directory once
     });
 
     expect(stderrLeft).toBe(false);
-    expect(existsSync(ctx.dir)).toBe(false);
+    expect(existsSync(ctx.directory)).toBe(false);
   });
 
   // A replacement daemon a restart would leave, recorded in the home.
@@ -334,11 +344,11 @@ test('it keeps the daemon stderr readable after a stop', async () => {
 
   const daemon = startDaemonProcess({
     command: resolveATCCommand(),
-    home: ctx.dir,
+    home: ctx.directory,
     args: ['--listen', '127.0.0.1:0'],
   });
 
-  await daemon.proc.exited;
+  await daemon.subprocess.exited;
 
   await daemon.stop();
 
@@ -349,7 +359,10 @@ test('it refuses to restart a stopped daemon', async () => {
   const ctx = setupTest();
 
   // A stand-in that runs until killed and ignores the arguments after it.
-  const daemon = startDaemonProcess({ command: ['bash', '-c', 'exec sleep 30'], home: ctx.dir });
+  const daemon = startDaemonProcess({
+    command: ['bash', '-c', 'exec sleep 30'],
+    home: ctx.directory,
+  });
 
   await daemon.stop();
 

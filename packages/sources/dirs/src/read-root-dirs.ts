@@ -13,11 +13,11 @@ export function readRootDirs(roots: readonly string[]): string[] {
   return found;
 }
 
-function readChildDirs(dir: string): string[] {
+function readChildDirs(directory: string): string[] {
   try {
-    return readdirSync(dir, { withFileTypes: true })
+    return readdirSync(directory, { withFileTypes: true })
       .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
-      .map((entry) => join(dir, entry.name))
+      .map((entry) => join(directory, entry.name))
       .toSorted();
   } catch {
     return [];

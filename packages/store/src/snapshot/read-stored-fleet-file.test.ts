@@ -7,9 +7,9 @@ import { registerRefusedSQLiteName } from '../sqlite/register-refused-sqlite-nam
 import { readStoredFleetFile } from './read-stored-fleet-file';
 
 function setupTest() {
-  const tmp = setupTempDir('read-stored-fleet-file-');
+  const temporaryDirectory = setupTempDir('read-stored-fleet-file-');
 
-  return { dbPath: join(tmp.path, 'atc.db') };
+  return { dbPath: join(temporaryDirectory.path, 'atc.db') };
 }
 
 test('it reads the rows this state directory owns with their exit status', () => {

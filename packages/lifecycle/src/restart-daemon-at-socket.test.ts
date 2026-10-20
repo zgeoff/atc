@@ -7,9 +7,9 @@ import { restartDaemonAtSocket } from './restart-daemon-at-socket';
 import { buildMockLifecycleHost } from './testing/build-mock-lifecycle-host';
 
 function setupTest() {
-  const dir = setupTempDir('restart-daemon-at-socket-').path;
-  const paths = resolvePaths({ HOME: dir, XDG_RUNTIME_DIR: dir });
-  const procRoot = join(dir, 'proc');
+  const directory = setupTempDir('restart-daemon-at-socket-').path;
+  const paths = resolvePaths({ HOME: directory, XDG_RUNTIME_DIR: directory });
+  const procRoot = join(directory, 'proc');
 
   // The record the daemon keeps lives in the state directory.
   mkdirSync(paths.stateDir, { recursive: true });

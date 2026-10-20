@@ -26,7 +26,7 @@ test('it clusters sessions sharing a repository even when states interleave', ()
     },
   ];
 
-  const ids = sortGroupedSessionViews(fleet).map((s) => s.id);
+  const ids = sortGroupedSessionViews(fleet).map((session) => session.id);
 
   expect(ids).toStrictEqual(['c', 'e', 'a', 'd', 'b']);
 });
@@ -43,7 +43,7 @@ test('it orders repository clusters by their most urgent member', () => {
     },
   ];
 
-  const ids = sortGroupedSessionViews(fleet).map((s) => s.id);
+  const ids = sortGroupedSessionViews(fleet).map((session) => session.id);
 
   expect(ids).toStrictEqual(['urgent', 'calm']);
 });
@@ -65,7 +65,7 @@ test('it pulls pinned sessions out of their repositories into a leading cluster'
     },
   ];
 
-  const ids = sortGroupedSessionViews(fleet).map((s) => s.id);
+  const ids = sortGroupedSessionViews(fleet).map((session) => session.id);
 
   expect(ids).toStrictEqual(['starred', 'worker']);
 });
@@ -91,7 +91,7 @@ test('it groups a sub-session under its parent repository, not its own', () => {
     },
   ];
 
-  const ids = sortGroupedSessionViews(fleet).map((s) => s.id);
+  const ids = sortGroupedSessionViews(fleet).map((session) => session.id);
 
   expect(ids).toStrictEqual(['other', 'wrangler', 'worker']);
 });

@@ -59,7 +59,7 @@ export interface MessageBridgeRequest {
   readonly options: SpawnOptions;
 
   // a folder of the session's own for the bridge's files.
-  readonly dir: string;
+  readonly directory: string;
   readonly host: MessageBridgeHost;
 }
 

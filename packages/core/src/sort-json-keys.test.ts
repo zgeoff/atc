@@ -3,14 +3,24 @@ import { sortJSONKeys } from './sort-json-keys';
 
 test('it sorts keys at every depth by locale', () => {
   expect(
-    JSON.stringify(sortJSONKeys({ b: 1, a: [{ B: 2, a: 3 }], C: { d: 4, c: 5 } }, 'locale')),
-  ).toBe('{"a":[{"a":3,"B":2}],"b":1,"C":{"c":5,"d":4}}');
+    JSON.stringify(
+      sortJSONKeys(
+        { banana: 1, apple: [{ Banana: 2, apple: 3 }], Cherry: { date: 4, cherry: 5 } },
+        'locale',
+      ),
+    ),
+  ).toBe('{"apple":[{"apple":3,"Banana":2}],"banana":1,"Cherry":{"cherry":5,"date":4}}');
 });
 
 test('it sorts keys at every depth by UTF-16 code unit', () => {
   expect(
-    JSON.stringify(sortJSONKeys({ b: 1, a: [{ B: 2, a: 3 }], C: { d: 4, c: 5 } }, 'code-unit')),
-  ).toBe('{"C":{"c":5,"d":4},"a":[{"B":2,"a":3}],"b":1}');
+    JSON.stringify(
+      sortJSONKeys(
+        { banana: 1, apple: [{ Banana: 2, apple: 3 }], Cherry: { date: 4, cherry: 5 } },
+        'code-unit',
+      ),
+    ),
+  ).toBe('{"Cherry":{"cherry":5,"date":4},"apple":[{"Banana":2,"apple":3}],"banana":1}');
 });
 
 test('it returns a value that is not an object or an array unchanged', () => {

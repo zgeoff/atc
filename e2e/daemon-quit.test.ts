@@ -16,7 +16,7 @@ async function setupTest() {
 test('it stops the daemon process on daemon.quit', async () => {
   const ctx = await setupTest();
   const answer = await ctx.client.sendRequest('daemon.quit');
-  const code = await ctx.daemon.proc.exited;
+  const code = await ctx.daemon.subprocess.exited;
 
   expect(answer).toStrictEqual({});
   expect(code).toBe(0);

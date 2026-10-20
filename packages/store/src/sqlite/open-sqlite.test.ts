@@ -6,9 +6,9 @@ import { openSQLite } from './open-sqlite';
 import { registerRefusedSQLiteName } from './register-refused-sqlite-name';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-open-sqlite-');
+  const temporaryDirectory = setupTempDir('atc-open-sqlite-');
 
-  return { dbPath: join(tmp.path, 'test.db') };
+  return { dbPath: join(temporaryDirectory.path, 'test.db') };
 }
 
 test('it creates the file and opens it in write-ahead-log mode', () => {

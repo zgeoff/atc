@@ -56,7 +56,11 @@ export interface ExecutionProvider {
 
   // Unpacks a tar archive into a directory on a host, creating the directory
   // first. The daemon's own machine takes no host.
-  readonly transferArchive: (archive: Uint8Array, dir: string, host?: string) => Promise<void>;
+  readonly transferArchive: (
+    archive: Uint8Array,
+    directory: string,
+    host?: string,
+  ) => Promise<void>;
 
   // Runs a command to completion and returns what it printed.
   readonly runCommand: (spec: CommandSpec) => Promise<CommandResult>;
@@ -110,7 +114,7 @@ export interface HostRequest {
 }
 
 export interface GuestLayout {
-  readonly dir: string;
+  readonly directory: string;
   readonly atc: string | null;
 }
 

@@ -31,8 +31,8 @@ export async function openBridgeSocket(
           }
         }
       },
-      drain(s) {
-        unsent = unsent.subarray(s.write(unsent));
+      drain(bridgeSocket) {
+        unsent = unsent.subarray(bridgeSocket.write(unsent));
       },
       close() {
         closed.resolve();

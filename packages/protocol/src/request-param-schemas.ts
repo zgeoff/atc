@@ -99,7 +99,7 @@ export const REQUEST_PARAM_SCHEMAS = {
     // The atc session the client runs inside, which a client started in a
     // session's environment sends; absent for a client outside any session.
     session: z.preprocess(
-      (v) => (typeof v === 'string' && v !== '' ? v : undefined),
+      (input) => (typeof input === 'string' && input !== '' ? input : undefined),
       z.string().transform(toSessionID).optional(),
     ),
   }),
@@ -165,8 +165,8 @@ export const REQUEST_PARAM_SCHEMAS = {
     cols: buildTerminalSize(80),
     rows: buildTerminalSize(24),
 
-    resume: buildDefaultedBooleanOrString(false).transform((v) =>
-      typeof v === 'string' ? toAgentSessionID(v) : v,
+    resume: buildDefaultedBooleanOrString(false).transform((value) =>
+      typeof value === 'string' ? toAgentSessionID(value) : value,
     ),
     agent: z
       .string({ error: 'session.spawn agent must be a non-empty agent id' })
@@ -212,7 +212,7 @@ export const REQUEST_PARAM_SCHEMAS = {
     // The session the new one is a sub-session of; absent or empty spawns a
     // top-level session.
     parent: z.preprocess(
-      (v) => (typeof v === 'string' && v !== '' ? v : undefined),
+      (input) => (typeof input === 'string' && input !== '' ? input : undefined),
       z.string().transform(toSessionID).optional(),
     ),
   }),
@@ -268,7 +268,7 @@ export const REQUEST_PARAM_SCHEMAS = {
   'session.resize': SESSION_DEFAULTED.extend({
     cols: buildTerminalSize(0),
     rows: buildTerminalSize(0),
-  }).refine((v) => v.cols >= 1 && v.rows >= 1, {
+  }).refine((params) => params.cols >= 1 && params.rows >= 1, {
     message: 'session.resize requires positive cols and rows',
   }),
   'session.resumeCommand': SESSION_DEFAULTED,
@@ -289,10 +289,10 @@ export const REQUEST_PARAM_SCHEMAS = {
     label: z.string({ error: 'label must be a string' }).optional(),
     key: z.literal('escape', { error: "key takes only 'escape'" }).optional(),
   }).refine(
-    (v) =>
-      v.key === undefined
-        ? v.option !== undefined && v.label !== undefined
-        : v.option === undefined,
+    (params) =>
+      params.key === undefined
+        ? params.option !== undefined && params.label !== undefined
+        : params.option === undefined,
     { message: "session.choose takes an option with its label, or key 'escape', not both" },
   ),
   'session.eject': SESSION_DEFAULTED.extend({
@@ -307,13 +307,15 @@ export const REQUEST_PARAM_SCHEMAS = {
       request: buildDefaultedString(''),
       decision: buildDefaultedString(''),
     })
-    .refine((v) => v.request !== '' && v.decision !== '', {
+    .refine((params) => params.request !== '' && params.decision !== '', {
       message: 'permission.respond requires a request and a decision',
     }),
   'session.get': SESSION_DEFAULTED,
   'session.read': SESSION_DEFAULTED.extend({
     cursor: buildOptionalCursor(),
-    limit: buildDefaultedNumber(50).transform((v) => Math.min(Math.max(Math.trunc(v), 1), 200)),
+    limit: buildDefaultedNumber(50).transform((value) =>
+      Math.min(Math.max(Math.trunc(value), 1), 200),
+    ),
   }),
   'events.read': z
     .object({
@@ -321,16 +323,18 @@ export const REQUEST_PARAM_SCHEMAS = {
 
       // `start` reads from the oldest retained event, where no cursor reads the newest.
       from: z.literal('start', { error: "events.read takes from only as 'start'" }).optional(),
-      limit: buildDefaultedNumber(50).transform((v) => Math.min(Math.max(Math.trunc(v), 1), 200)),
+      limit: buildDefaultedNumber(50).transform((value) =>
+        Math.min(Math.max(Math.trunc(value), 1), 200),
+      ),
       waitMs: buildDefaultedWait(),
 
       // Limits the read to one session's events; absent or empty reads the whole fleet.
       session: z.preprocess(
-        (v) => (typeof v === 'string' && v !== '' ? v : undefined),
+        (input) => (typeof input === 'string' && input !== '' ? input : undefined),
         z.string().transform(toSessionID).optional(),
       ),
     })
-    .refine((v) => v.cursor === undefined || v.from === undefined, {
+    .refine((params) => params.cursor === undefined || params.from === undefined, {
       message: 'events.read takes a cursor or from, not both',
     }),
 
@@ -347,14 +351,14 @@ export const REQUEST_PARAM_SCHEMAS = {
     // labels its message; every other caller's `from` is ignored. Anything
     // but a non-empty string counts as none.
     from: z.preprocess(
-      (v) => (typeof v === 'string' && v.trim() !== '' ? v.trim() : undefined),
+      (input) => (typeof input === 'string' && input.trim() !== '' ? input.trim() : undefined),
       z.string().max(200, 'from must be at most 200 characters').optional(),
     ),
 
     // false queues no answer notice for the sending session, for a message
     // that needs no answer.
     notice: z.boolean({ error: 'notice must be a boolean' }).optional(),
-  }).refine((v) => v.text !== '', { message: 'session.message requires text' }),
+  }).refine((params) => params.text !== '', { message: 'session.message requires text' }),
   'session.tap': SESSION_DEFAULTED.extend({
     // Whether the tap also takes answer notices: the outcome of each message
     // its session sent. A tap that leaves it out takes messages alone.
@@ -365,36 +369,39 @@ export const REQUEST_PARAM_SCHEMAS = {
       message: buildDefaultedString('').transform(toMessageID),
       waitMs: buildDefaultedWait(),
     })
-    .refine((v) => v.message !== '', { message: 'message.get requires a message' }),
+    .refine((params) => params.message !== '', { message: 'message.get requires a message' }),
   'note.get': z
     .object({
       // The cursor events.read returned with the note's event.
       note: buildDefaultedString(''),
     })
-    .refine((v) => v.note !== '', { message: 'note.get requires a note' }),
+    .refine((params) => params.note !== '', { message: 'note.get requires a note' }),
   'answer.get': z
     .object({
       // The cursor events.read returned with the message-answered event.
       answer: buildDefaultedString(''),
     })
-    .refine((v) => v.answer !== '', { message: 'answer.get requires an answer' }),
+    .refine((params) => params.answer !== '', { message: 'answer.get requires an answer' }),
   'message.ack': SESSION_DEFAULTED.extend({
     message: buildDefaultedString('').transform(toMessageID),
-  }).refine((v) => v.message !== '', { message: 'message.ack requires a message' }),
+  }).refine((params) => params.message !== '', { message: 'message.ack requires a message' }),
   'notice.ack': SESSION_DEFAULTED.extend({
     message: buildDefaultedString('').transform(toMessageID),
-  }).refine((v) => v.message !== '', { message: 'notice.ack requires a message' }),
+  }).refine((params) => params.message !== '', { message: 'notice.ack requires a message' }),
 } as const;
 
 function buildDefaultedString(fallback: string) {
-  return z.preprocess((v) => (typeof v === 'string' ? v : undefined), z.string().default(fallback));
+  return z.preprocess(
+    (input) => (typeof input === 'string' ? input : undefined),
+    z.string().default(fallback),
+  );
 }
 
 // a fractional size throws only after the process starts, so the schema
 // refuses it up front
 function buildTerminalSize(fallback: number) {
   return z.preprocess(
-    (v) => (typeof v === 'number' ? v : undefined),
+    (input) => (typeof input === 'number' ? input : undefined),
     z
       .number({ error: TERMINAL_SIZE_ERROR })
       .int(TERMINAL_SIZE_ERROR)
@@ -406,7 +413,7 @@ function buildTerminalSize(fallback: number) {
 
 function buildDefaultedBooleanOrString(fallback: boolean | string) {
   return z.preprocess(
-    (v) => (typeof v === 'boolean' || typeof v === 'string' ? v : undefined),
+    (input) => (typeof input === 'boolean' || typeof input === 'string' ? input : undefined),
     z.union([z.boolean(), z.string()]).default(fallback),
   );
 }
@@ -418,7 +425,7 @@ function buildDefaultedBooleanOrString(fallback: boolean | string) {
 // standing as a deliberate empty value.
 function buildDefaultedNonEmptyString(fallback: string) {
   return z.preprocess(
-    (v) => (typeof v === 'string' && v !== '' ? v : undefined),
+    (input) => (typeof input === 'string' && input !== '' ? input : undefined),
     z.string().default(fallback),
   );
 }
@@ -426,17 +433,22 @@ function buildDefaultedNonEmptyString(fallback: string) {
 // An empty cursor reads as no cursor, the way a client starting fresh sends it.
 function buildOptionalCursor() {
   return z.preprocess(
-    (v) => (typeof v === 'string' && v !== '' ? v : undefined),
+    (input) => (typeof input === 'string' && input !== '' ? input : undefined),
     z.string().optional(),
   );
 }
 
 function buildDefaultedNumber(fallback: number) {
-  return z.preprocess((v) => (typeof v === 'number' ? v : undefined), z.number().default(fallback));
+  return z.preprocess(
+    (input) => (typeof input === 'number' ? input : undefined),
+    z.number().default(fallback),
+  );
 }
 
 // How long a read may hold its request open, in milliseconds: 0 when absent,
 // clamped to 0–30000.
 function buildDefaultedWait() {
-  return buildDefaultedNumber(0).transform((v) => Math.min(Math.max(Math.trunc(v), 0), 30_000));
+  return buildDefaultedNumber(0).transform((value) =>
+    Math.min(Math.max(Math.trunc(value), 0), 30_000),
+  );
 }

@@ -159,7 +159,7 @@ export interface HeadlessRunEvents {
 
   // The turn's whole final message.
   readonly onDone: (result: string) => void;
-  readonly onNeedsYou: (msg: string) => void;
+  readonly onNeedsYou: (message: string) => void;
 }
 
 // A live headless turn; stop aborts it.
@@ -319,7 +319,7 @@ export interface AgentAdapter {
   // Reads one hook line as the events it means for its session. `prev` is
   // the state this adapter returned for the same session's previous line,
   // or undefined for the session's first line since its harness booted.
-  readonly planHookEvents: (e: HookEvent, prev: unknown) => HookPlan;
+  readonly planHookEvents: (hookEvent: HookEvent, previous: unknown) => HookPlan;
   readonly loadName: (
     source: string,
     namedBy: 'user' | 'auto' | 'agent',

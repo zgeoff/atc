@@ -7,17 +7,17 @@ import { readOwnDaemonProcess } from './read-own-daemon-process';
 import { readProcProcess } from './read-proc-process';
 
 export function readDaemonProcess(pid: number, procRoot: string): DaemonProcess {
-  const proc = readProcProcess(procRoot, pid);
+  const subprocess = readProcProcess(procRoot, pid);
 
   // an unreadable entry, as on macOS, falls back to this process's own start.
-  if (proc === null) {
+  if (subprocess === null) {
     return readOwnDaemonProcess();
   }
 
   return {
-    env: collectRestartEnv(proc.env),
+    env: collectRestartEnv(subprocess.env),
     cwd: readCwd(procRoot, pid),
-    flags: parseDaemonFlags(proc.args),
+    flags: parseDaemonFlags(subprocess.args),
     fromProc: true,
   };
 }

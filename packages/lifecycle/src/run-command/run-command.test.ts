@@ -14,9 +14,9 @@ import { runCommand } from './run-command';
 
 // A directory for stand-in commands and the files they write.
 function setupTest() {
-  const tmp = setupTempDir('atc-run-command-');
+  const temporaryDirectory = setupTempDir('atc-run-command-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it returns the exit code and the trimmed output of a command', async () => {
@@ -27,7 +27,7 @@ test('it returns the exit code and the trimmed output of a command', async () =>
 
 test('it returns once a command exits when told to ignore stderr that a child keeps open', async () => {
   const ctx = setupTest();
-  const pidFile = join(ctx.dir, 'child.pid');
+  const pidFile = join(ctx.directory, 'child.pid');
 
   const result = await runCommand(
     ['sh', '-c', `sleep 30 >/dev/null & echo $! > '${pidFile}'; printf out`],
@@ -105,8 +105,8 @@ test('it stops a command at once when the signal aborted before the call', async
 
 test('it stops every process a command that is still running at abort started', async () => {
   const ctx = setupTest();
-  const pidsFile = join(ctx.dir, 'pids');
-  const bin = createStubBin(ctx.dir, 'forking', buildStubForkingGH(pidsFile));
+  const pidsFile = join(ctx.directory, 'pids');
+  const bin = createStubBin(ctx.directory, 'forking', buildStubForkingGH(pidsFile));
 
   const controller = new AbortController();
 

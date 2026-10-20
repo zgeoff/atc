@@ -7,13 +7,13 @@ import type { DaemonRecord } from '../read-daemon-record';
 export function buildMockDaemonRecord(
   overrides: MockOverrides<DaemonRecord, keyof DaemonRecord> = {},
 ): DaemonRecord {
-  const dir = faker.system.directoryPath();
+  const directory = faker.system.directoryPath();
 
   return mergeDeep<DaemonRecord>(
     {
       pid: faker.number.int({ min: 2, max: 4_194_304 }),
-      socketPath: `${dir}/atc-daemon.sock`,
-      reporterSocketPath: `${dir}/atc.sock`,
+      socketPath: `${directory}/atc-daemon.sock`,
+      reporterSocketPath: `${directory}/atc.sock`,
       eventsSocketPath: null,
       listenPort: null,
       protocol: PROTOCOL_V,

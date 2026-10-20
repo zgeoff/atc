@@ -6,14 +6,14 @@ import invariant from 'tiny-invariant';
 import { claimDaemonLock } from './claim-daemon-lock';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-daemon-lock-');
+  const temporaryDirectory = setupTempDir('atc-daemon-lock-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it refuses the lock while another holder keeps it past the wait', async () => {
   const ctx = setupTest();
-  const lockPath = join(ctx.dir, 'daemon.lock');
+  const lockPath = join(ctx.directory, 'daemon.lock');
   const clock = buildStubClock(0);
 
   const first = await claimDaemonLock(lockPath, 0, clock);
@@ -35,7 +35,7 @@ test('it refuses the lock while another holder keeps it past the wait', async ()
 
 test('it grants the lock once the previous holder lets go', async () => {
   const ctx = setupTest();
-  const lockPath = join(ctx.dir, 'daemon.lock');
+  const lockPath = join(ctx.directory, 'daemon.lock');
 
   const first = await claimDaemonLock(lockPath, 0);
 
@@ -58,7 +58,7 @@ test('it grants the lock once the previous holder lets go', async () => {
 
 test('it waits for a holder that lets go within the wait', async () => {
   const ctx = setupTest();
-  const lockPath = join(ctx.dir, 'daemon.lock');
+  const lockPath = join(ctx.directory, 'daemon.lock');
   const clock = buildStubClock(0);
 
   const first = await claimDaemonLock(lockPath, 0, clock);
@@ -88,7 +88,7 @@ test.skipIf(process.getuid?.() === 0)(
   'it throws when the lock file cannot be opened for reading and writing',
   () => {
     const ctx = setupTest();
-    const lockPath = join(ctx.dir, 'daemon.lock');
+    const lockPath = join(ctx.directory, 'daemon.lock');
 
     writeFileSync(lockPath, '');
     chmodSync(lockPath, 0o200);

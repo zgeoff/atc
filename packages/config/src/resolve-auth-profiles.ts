@@ -55,7 +55,9 @@ export function resolveAuthProfiles(
     reached = next;
   }
 
-  const ordered = [...reached.values()].toSorted((a, b) => (a.name < b.name ? -1 : 1));
+  const ordered = [...reached.values()].toSorted((left, right) =>
+    left.name < right.name ? -1 : 1,
+  );
 
   const byHost = new Map<string, ProfileRule>();
   const kinds = new Map<string, AuthProfile>();
@@ -209,10 +211,12 @@ function buildSecrets(
   }
 
   return [...bySecret.entries()]
-    .toSorted(([a], [b]) => (a < b ? -1 : 1))
+    .toSorted(([leftSecret], [rightSecret]) => (leftSecret < rightSecret ? -1 : 1))
     .map(([secret, entry]) => ({
       secret,
       kind: entry.kind,
-      rules: entry.rules.toSorted((a, b) => (a.host < b.host ? -1 : 1)),
+      rules: entry.rules.toSorted((leftRule, rightRule) =>
+        leftRule.host < rightRule.host ? -1 : 1,
+      ),
     }));
 }

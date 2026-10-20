@@ -304,6 +304,6 @@ export class PublishedRecords {
   }
 
   private getGuestDir(subject: RecordSubject): string {
-    return `${subject.provider.guest?.dir ?? '/tmp/atc'}/records`;
+    return `${subject.provider.guest?.directory ?? '/tmp/atc'}/records`;
   }
 }

@@ -229,7 +229,7 @@ test('it refuses an entry with an empty bin and reports it alone', () => {
 
 test('it refuses an entry with a non-string env value and reports it alone', () => {
   const result = collectAgents(
-    { claude: { env: { A: 1 } }, 'claude-ok': { kind: 'claude' } },
+    { claude: { env: { DEBUG: 1 } }, 'claude-ok': { kind: 'claude' } },
     new Map(),
     buildStubHarnessPlugins(),
   );
@@ -298,7 +298,7 @@ test('it refuses an entry with a baseURL on codex and reports it alone', () => {
 
 test('it refuses an entry with env on grok and reports it alone', () => {
   const result = collectAgents(
-    { grok: { env: { A: 'b' } }, 'claude-ok': { kind: 'claude' } },
+    { grok: { env: { DEBUG: '1' } }, 'claude-ok': { kind: 'claude' } },
     new Map(),
     buildStubHarnessPlugins(),
   );

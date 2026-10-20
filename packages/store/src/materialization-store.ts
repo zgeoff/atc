@@ -17,7 +17,7 @@ export class MaterializationStore {
   async createMaterialization(
     row: Pick<
       WorkspaceMaterialization,
-      'sessionID' | 'target' | 'dir' | 'sourceKind' | 'withheldEnv'
+      'sessionID' | 'target' | 'directory' | 'sourceKind' | 'withheldEnv'
     >,
     at: number,
   ): Promise<void> {
@@ -26,7 +26,7 @@ export class MaterializationStore {
       .values({
         session_id: row.sessionID,
         target: row.target,
-        dir: row.dir,
+        dir: row.directory,
         source_kind: row.sourceKind,
         phase: 'resolving',
         repo_url: null,
@@ -50,7 +50,7 @@ export class MaterializationStore {
       .updateTable('workspace_materialization')
       .set({
         phase: fields.phase,
-        ...(fields.dir === undefined ? {} : { dir: fields.dir }),
+        ...(fields.directory === undefined ? {} : { dir: fields.directory }),
         ...(fields.repoURL === undefined ? {} : { repo_url: fields.repoURL }),
         ...(fields.sha === undefined ? {} : { sha: fields.sha }),
         ...(fields.ref === undefined ? {} : { ref: fields.ref }),
@@ -100,7 +100,7 @@ function toWorkspaceMaterialization(
   return {
     sessionID: toSessionID(row.session_id),
     target: row.target,
-    dir: row.dir,
+    directory: row.dir,
     sourceKind: row.source_kind,
     phase: row.phase,
     repoURL: row.repo_url,

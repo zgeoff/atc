@@ -127,14 +127,14 @@ test('it reads an oauth profile with the same rule as a custom one', () => {
 test.each([
   [
     { host: undefined },
-    'authProfiles.p: host must be a lowercase hostname such as api.example.com',
+    'authProfiles.glm: host must be a lowercase hostname such as api.example.com',
   ],
-  [{ scheme: 'basic' }, 'authProfiles.p: scheme must be bearer or raw, the schemes atc binds'],
-  [{ header: '' }, 'authProfiles.p: header must be a header name such as authorization'],
+  [{ scheme: 'basic' }, 'authProfiles.glm: scheme must be bearer or raw, the schemes atc binds'],
+  [{ header: '' }, 'authProfiles.glm: header must be a header name such as authorization'],
 ])('it refuses an oauth profile with %p', (override, error) => {
   expect(
     collectAuthProfiles({
-      p: {
+      glm: {
         secret: 'codex-chatgpt',
         kind: 'oauth',
         host: 'chatgpt.com',
@@ -149,38 +149,38 @@ test.each([
 test.each([
   [
     { host: 'github.com' },
-    "authProfiles.p: host cannot be set on a github profile, whose hosts and headers the broker's github secret fixes",
+    "authProfiles.glm: host cannot be set on a github profile, whose hosts and headers the broker's github secret fixes",
   ],
   [
     { header: 'authorization' },
-    "authProfiles.p: header cannot be set on a github profile, whose hosts and headers the broker's github secret fixes",
+    "authProfiles.glm: header cannot be set on a github profile, whose hosts and headers the broker's github secret fixes",
   ],
   [
     { scheme: 'basic' },
-    "authProfiles.p: scheme cannot be set on a github profile, whose hosts and headers the broker's github secret fixes",
+    "authProfiles.glm: scheme cannot be set on a github profile, whose hosts and headers the broker's github secret fixes",
   ],
   [
     { user: 'x-access-token' },
-    "authProfiles.p: user cannot be set on a github profile, whose hosts and headers the broker's github secret fixes",
+    "authProfiles.glm: user cannot be set on a github profile, whose hosts and headers the broker's github secret fixes",
   ],
-  [{ dependencies: 'glm' }, 'authProfiles.p: dependencies must be an array of profile names'],
+  [{ dependencies: 'glm' }, 'authProfiles.glm: dependencies must be an array of profile names'],
 ])('it refuses a github profile with %p', (override, error) => {
   expect(
-    collectAuthProfiles({ p: { secret: 'github-agents', kind: 'github', ...override } }),
+    collectAuthProfiles({ glm: { secret: 'github-agents', kind: 'github', ...override } }),
   ).toStrictEqual({ profiles: new Map(), errors: [error] });
 });
 
 test('it reads a profile whose secret and header names only a broker may refuse', () => {
   expect(
     collectAuthProfiles({
-      p: { secret: 'GLM_Key', host: 'api.z.ai', header: 'Authorization', scheme: 'bearer' },
+      glm: { secret: 'GLM_Key', host: 'api.z.ai', header: 'Authorization', scheme: 'bearer' },
     }),
   ).toStrictEqual({
     profiles: new Map([
       [
-        'p',
+        'glm',
         {
-          name: 'p',
+          name: 'glm',
           secret: 'GLM_Key',
           kind: 'custom',
           host: 'api.z.ai',
@@ -209,38 +209,41 @@ test('it refuses an authProfiles value that is not an object of named profiles',
 test.each([
   [
     { kind: 'anthropic' },
-    'authProfiles.p: kind must be custom, oauth, or github, the kinds atc binds',
+    'authProfiles.glm: kind must be custom, oauth, or github, the kinds atc binds',
   ],
-  [{ scheme: 'basic' }, 'authProfiles.p: scheme must be bearer or raw, the schemes atc binds'],
+  [{ scheme: 'basic' }, 'authProfiles.glm: scheme must be bearer or raw, the schemes atc binds'],
   [
     { user: 'me' },
-    'authProfiles.p: user pairs only with the basic scheme, which atc does not bind',
+    'authProfiles.glm: user pairs only with the basic scheme, which atc does not bind',
   ],
-  [{ secret: '' }, 'authProfiles.p: secret must be the name of a broker secret'],
-  [{ secret: 7 }, 'authProfiles.p: secret must be the name of a broker secret'],
+  [{ secret: '' }, 'authProfiles.glm: secret must be the name of a broker secret'],
+  [{ secret: 7 }, 'authProfiles.glm: secret must be the name of a broker secret'],
   [
     { host: 'API.z.ai' },
-    'authProfiles.p: host must be a lowercase hostname such as api.example.com',
+    'authProfiles.glm: host must be a lowercase hostname such as api.example.com',
   ],
-  [{ host: '*.z.ai' }, 'authProfiles.p: host must be a lowercase hostname such as api.example.com'],
+  [
+    { host: '*.z.ai' },
+    'authProfiles.glm: host must be a lowercase hostname such as api.example.com',
+  ],
   [
     { host: '10.0.0.1' },
-    'authProfiles.p: host must be a lowercase hostname such as api.example.com',
+    'authProfiles.glm: host must be a lowercase hostname such as api.example.com',
   ],
   [
     { host: 'api.z.ai:443' },
-    'authProfiles.p: host must be a lowercase hostname such as api.example.com',
+    'authProfiles.glm: host must be a lowercase hostname such as api.example.com',
   ],
-  [{ header: '' }, 'authProfiles.p: header must be a header name such as authorization'],
-  [{ dependencies: 'judge' }, 'authProfiles.p: dependencies must be an array of profile names'],
+  [{ header: '' }, 'authProfiles.glm: header must be a header name such as authorization'],
+  [{ dependencies: 'judge' }, 'authProfiles.glm: dependencies must be an array of profile names'],
   [
     { dependencies: ['judge', 3] },
-    'authProfiles.p: dependencies must be an array of profile names',
+    'authProfiles.glm: dependencies must be an array of profile names',
   ],
 ])('it refuses a profile with %p', (override, error) => {
   expect(
     collectAuthProfiles({
-      p: {
+      glm: {
         secret: 'glm',
         host: 'api.z.ai',
         header: 'authorization',
@@ -428,12 +431,12 @@ test.each([
 test('it refuses env on a github profile', () => {
   expect(
     collectAuthProfiles({
-      p: { secret: 'github-agents', kind: 'github', env: { X: 'broker-placeholder' } },
+      glm: { secret: 'github-agents', kind: 'github', env: { GH_TOKEN: 'broker-placeholder' } },
     }),
   ).toStrictEqual({
     profiles: new Map(),
     errors: [
-      "authProfiles.p: env cannot be set on a github profile, whose placeholders the broker's github secret sets",
+      "authProfiles.glm: env cannot be set on a github profile, whose placeholders the broker's github secret sets",
     ],
   });
 });

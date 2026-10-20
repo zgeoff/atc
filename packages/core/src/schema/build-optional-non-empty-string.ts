@@ -4,7 +4,7 @@ import { z } from 'zod';
 // than failing the whole object.
 export function buildOptionalNonEmptyString() {
   return z.preprocess(
-    (v) => (typeof v === 'string' && v !== '' ? v : undefined),
+    (value) => (typeof value === 'string' && value !== '' ? value : undefined),
     z.string().optional(),
   );
 }

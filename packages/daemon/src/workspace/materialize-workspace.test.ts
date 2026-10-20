@@ -43,7 +43,7 @@ test('it leaves no staging directory behind when the materialization row cannot 
     {
       sessionID: toSessionID('s-1'),
       target: 'box',
-      dir: join(ctx.scratch, 'other'),
+      directory: join(ctx.scratch, 'other'),
       sourceKind: 'git',
       withheldEnv: [],
     },

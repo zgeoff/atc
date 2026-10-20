@@ -7,7 +7,7 @@ test('it reports itself as a remote imp with the imp capabilities and guest layo
 
   expect(provider.kind).toBe('imp');
   expect(provider.remote).toBeTrue();
-  expect(provider.guest).toStrictEqual({ dir: '/tmp/atc', atc: null });
+  expect(provider.guest).toStrictEqual({ directory: '/tmp/atc', atc: null });
 
   expect(provider.capabilities).toStrictEqual({
     spawn: true,

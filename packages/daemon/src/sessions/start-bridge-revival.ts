@@ -132,7 +132,7 @@ export function startBridgeRevival(deps: BridgeRevivalDeps): BridgeRevival {
       ([path, content]) => ({ path, content }),
     );
 
-    return { session: s, provider, files, dir: `${guest.dir}/sessions/${s.id}` };
+    return { session: s, provider, files, dir: `${guest.directory}/sessions/${s.id}` };
   };
 
   // A target that refuses transfers, or that left the config, takes no write.

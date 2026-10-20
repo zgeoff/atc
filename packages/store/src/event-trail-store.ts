@@ -45,19 +45,23 @@ export class EventTrailStore {
 
   // Records a hook event in the trail, stamped with the given time in epoch
   // milliseconds, or the system clock's when absent.
-  async recordEvent(e: HookEvent, ev: Readonly<AdapterEvent> | null, at: number): Promise<void> {
-    const rawMessage = e.payload['message'];
-    const rawSessionID = e.payload['session_id'] ?? e.payload['sessionId'];
+  async recordEvent(
+    hookEvent: HookEvent,
+    ev: Readonly<AdapterEvent> | null,
+    at: number,
+  ): Promise<void> {
+    const rawMessage = hookEvent.payload['message'];
+    const rawSessionID = hookEvent.payload['session_id'] ?? hookEvent.payload['sessionId'];
     const message = typeof rawMessage === 'string' ? rawMessage : null;
     const sessionID = typeof rawSessionID === 'string' ? rawSessionID : null;
-    const atcID: string = e.atcId;
+    const atcID: string = hookEvent.atcId;
 
     await this.db
       .insertInto('events')
       .values({
         ts: new Date(at).toISOString(),
         atc_id: atcID,
-        event: e.event,
+        event: hookEvent.event,
         message,
         session_id: sessionID,
         kind: ev === null ? null : ev.kind,

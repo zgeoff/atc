@@ -6,14 +6,14 @@ import { StateStore } from '../state-store';
 import { createMigratedStateDB } from './create-migrated-state-db';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-migrated-state-');
+  const temporaryDirectory = setupTempDir('atc-migrated-state-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it creates a database the store opens without running a migration', async () => {
   const ctx = setupTest();
-  const dbPath = join(ctx.dir, 'state.db');
+  const dbPath = join(ctx.directory, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -46,8 +46,8 @@ test('it creates a database the store opens without running a migration', async 
 
 test('it creates a database whose migration ledger holds every migration', async () => {
   const ctx = setupTest();
-  const freshPath = join(ctx.dir, 'fresh.db');
-  const copyPath = join(ctx.dir, 'copy.db');
+  const freshPath = join(ctx.directory, 'fresh.db');
+  const copyPath = join(ctx.directory, 'copy.db');
 
   const fresh = await StateStore.open(freshPath);
 
@@ -75,8 +75,8 @@ test('it creates a database whose migration ledger holds every migration', async
 
 test('it creates a separate file for each call', async () => {
   const ctx = setupTest();
-  const firstPath = join(ctx.dir, 'first.db');
-  const secondPath = join(ctx.dir, 'second.db');
+  const firstPath = join(ctx.directory, 'first.db');
+  const secondPath = join(ctx.directory, 'second.db');
 
   await createMigratedStateDB(firstPath);
   await createMigratedStateDB(secondPath);
@@ -105,7 +105,7 @@ test('it rejects when the test home is unset', () => {
 
   updateEnv('ATC_TEST_HOME', undefined);
 
-  expect(createMigratedStateDB(join(ctx.dir, 'state.db'))).rejects.toThrowWithMessage(
+  expect(createMigratedStateDB(join(ctx.directory, 'state.db'))).rejects.toThrowWithMessage(
     Error,
     'ATC_TEST_HOME is unset; run the tests through `bun run test`',
   );

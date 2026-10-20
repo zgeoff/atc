@@ -19,7 +19,7 @@ test('it answers a tool call after the daemon restarts under the same server', a
   const ctx = await setupTest();
   const before = await ctx.mcp.sendToolCall('atc_sessions_list', {});
 
-  const firstPID = ctx.daemon.proc.pid;
+  const firstPID = ctx.daemon.subprocess.pid;
 
   await ctx.daemon.restart('SIGTERM');
   await ctx.daemon.openClient();
@@ -27,7 +27,7 @@ test('it answers a tool call after the daemon restarts under the same server', a
   const after = await ctx.mcp.sendToolCall('atc_sessions_list', {});
 
   expect(before).toStrictEqual({ isError: undefined, text: '[]', structured: { sessions: [] } });
-  expect(ctx.daemon.proc.pid).not.toBe(firstPID);
+  expect(ctx.daemon.subprocess.pid).not.toBe(firstPID);
   expect(after).toStrictEqual({ isError: undefined, text: '[]', structured: { sessions: [] } });
 });
 

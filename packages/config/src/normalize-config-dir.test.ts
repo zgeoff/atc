@@ -9,6 +9,6 @@ test.each([
   ['/', '/'],
   ['relative/dir', 'relative/dir'],
   ['~other/dir', '~other/dir'],
-])('it normalizes %p to %p', (dir, expected) => {
-  expect(normalizeConfigDir(dir, '/home/u')).toBe(expected);
+])('it normalizes %p to %p', (directory, expected) => {
+  expect(normalizeConfigDir(directory, '/home/u')).toBe(expected);
 });

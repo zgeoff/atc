@@ -25,10 +25,10 @@ export async function runCommand(
   argv: readonly string[],
   options: CommandOptions = {},
 ): Promise<CommandResult> {
-  let proc: ReturnType<typeof spawnCommand>;
+  let subprocess: ReturnType<typeof spawnCommand>;
 
   try {
-    proc = spawnCommand(argv, options);
+    subprocess = spawnCommand(argv, options);
   } catch (error) {
     return {
       code: 127,
@@ -38,18 +38,18 @@ export async function runCommand(
     };
   }
 
-  options.onSpawn?.(proc.pid);
+  options.onSpawn?.(subprocess.pid);
 
   const finished = Promise.all([
-    new Response(proc.stdout).text(),
-    proc.stderr === undefined ? '' : new Response(proc.stderr).text(),
-    proc.exited,
+    new Response(subprocess.stdout).text(),
+    subprocess.stderr === undefined ? '' : new Response(subprocess.stderr).text(),
+    subprocess.exited,
   ]);
 
   const settled = await waitForEnd(finished, options.signal);
 
   if (settled === null) {
-    killProcessGroup(proc.pid);
+    killProcessGroup(subprocess.pid);
 
     return { code: -1, stdout: '', stderr: '', aborted: true };
   }

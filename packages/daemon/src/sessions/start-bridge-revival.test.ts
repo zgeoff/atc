@@ -34,7 +34,7 @@ function setupTest(config: SetupTestConfig) {
   const provider = buildStubMemoryProvider({
     kind: 'imp',
     remote: config.remote,
-    guest: { dir: '/tmp/atc', atc: '/tmp/atc/bin/atc' },
+    guest: { directory: '/tmp/atc', atc: '/tmp/atc/bin/atc' },
     transferArchive: config.transferArchive ?? (() => Promise.resolve()),
   });
 

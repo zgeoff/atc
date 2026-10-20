@@ -51,7 +51,7 @@ export function buildStubRestoreImpProvider(
     kind: 'imp',
     remote: true,
     capabilities: { headless: false, suspend: true, destroy: true },
-    guest: { dir: '/tmp/atc', atc: null },
+    guest: { directory: '/tmp/atc', atc: null },
     cloneOnTarget: true,
     hostGitIdentity: true,
     guestWorkspaceTrust: true,

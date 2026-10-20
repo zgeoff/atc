@@ -70,7 +70,7 @@ export async function materializeWorkspace(
     {
       sessionID: request.sessionID,
       target: request.target,
-      dir: request.dir,
+      directory: request.dir,
       sourceKind: source.kind,
       withheldEnv,
     },

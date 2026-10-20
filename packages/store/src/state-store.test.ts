@@ -32,8 +32,8 @@ import { buildMockMessageRecord } from './testing/build-mock-message-record';
 import { createMigratedStateDB } from './testing/create-migrated-state-db';
 
 async function setupTest() {
-  const tmp = setupTempDir('atc-store-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-store-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
@@ -45,7 +45,7 @@ async function setupTest() {
 
   registerTestCleanup(() => store.stop());
 
-  return { dir: tmp.path, dbPath, store, queries };
+  return { directory: temporaryDirectory.path, dbPath, store, queries };
 }
 
 test('it round-trips the fleet', async () => {
@@ -517,8 +517,8 @@ test('it lists a spawn directory once for each target it was spawned on', async 
 });
 
 test('it carries spawn directories from before their target was recorded over as spawns on the default local target', async () => {
-  const tmp = setupTempDir('atc-store-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-store-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
 
@@ -699,8 +699,8 @@ test('it round-trips a fleet row with its execution target and identity', async 
 });
 
 test('it adds parent to a fleet row that predates it', async () => {
-  const tmp = setupTempDir('atc-store-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-store-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
 
@@ -786,8 +786,8 @@ test('it loads last-used agent from a reopened store', async () => {
 });
 
 test('it renames the id column and defaults agent for a store written before both', async () => {
-  const tmp = setupTempDir('atc-store-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-store-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
 
@@ -825,8 +825,8 @@ test('it renames the id column and defaults agent for a store written before bot
 });
 
 test('it adds pinned to a fleet row that predates it', async () => {
-  const tmp = setupTempDir('atc-store-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-store-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
 
@@ -864,8 +864,8 @@ test('it adds pinned to a fleet row that predates it', async () => {
 });
 
 test('it adds the last-attached time to a fleet row that predates it', async () => {
-  const tmp = setupTempDir('atc-store-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-store-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
 
@@ -907,8 +907,8 @@ test('it adds the last-attached time to a fleet row that predates it', async () 
 });
 
 test('it adds agent to a fleet row that predates it', async () => {
-  const tmp = setupTempDir('atc-store-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-store-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
 
@@ -951,8 +951,8 @@ test('it adds agent to a fleet row that predates it', async () => {
 });
 
 test('it adds exited to a fleet row that predates it', async () => {
-  const tmp = setupTempDir('atc-store-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-store-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
 
@@ -995,8 +995,8 @@ test('it adds exited to a fleet row that predates it', async () => {
 });
 
 test('it runs every migration once on the first open of a fresh database', async () => {
-  const tmp = setupTempDir('atc-store-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-store-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const store = await StateStore.open(dbPath);
 
@@ -1058,8 +1058,8 @@ test('it runs every migration once on the first open of a fresh database', async
 });
 
 test('it drops the resume column from a database that stopped at the step that added it, and keeps its fleet', async () => {
-  const tmp = setupTempDir('atc-store-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-store-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
 
@@ -1104,8 +1104,8 @@ test('it drops the resume column from a database that stopped at the step that a
 });
 
 test('it records the resume column drop and keeps the fleet when a crash left the column dropped but the step unrecorded', async () => {
-  const tmp = setupTempDir('atc-store-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-store-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
 
@@ -1249,8 +1249,8 @@ test('it finishes the host column rename and keeps the binding when a crash left
 });
 
 test('it re-runs no migration when it reopens a migrated database', async () => {
-  const tmp = setupTempDir('atc-store-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-store-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const first = await StateStore.open(dbPath);
 
@@ -1281,8 +1281,8 @@ test('it re-runs no migration when it reopens a migrated database', async () => 
 });
 
 test('it keeps the fleet of a migrated database across a reopen', async () => {
-  const tmp = setupTempDir('atc-store-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-store-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
 
@@ -1330,9 +1330,9 @@ test('it keeps the fleet of a migrated database across a reopen', async () => {
 });
 
 test('it ends a fresh database at the same fleet schema as a fully migrated old one', async () => {
-  const tmp = setupTempDir('atc-store-');
-  const freshPath = join(tmp.path, 'fresh.db');
-  const oldPath = join(tmp.path, 'old.db');
+  const temporaryDirectory = setupTempDir('atc-store-');
+  const freshPath = join(temporaryDirectory.path, 'fresh.db');
+  const oldPath = join(temporaryDirectory.path, 'old.db');
 
   const old = new Database(oldPath);
 
@@ -1389,7 +1389,7 @@ test('it ends a fresh database at the same fleet schema as a fully migrated old 
             notnull: column.notnull,
             dflt_value: column.dflt_value,
           }))
-          .toSorted((a, b) => a.name.localeCompare(b.name)),
+          .toSorted((left, right) => left.name.localeCompare(right.name)),
       })),
   );
 
@@ -1397,8 +1397,8 @@ test('it ends a fresh database at the same fleet schema as a fully migrated old 
 });
 
 test('it refuses a database that holds a fleet table but no migration ledger', () => {
-  const tmp = setupTempDir('atc-store-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-store-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const db = new Database(dbPath);
 
@@ -3497,8 +3497,8 @@ test('it lists the other messages of one turn in send order when they share a se
 });
 
 test('it rebuilds a fleet at the model-and-effort shape keyed by a minted session id', async () => {
-  const tmp = setupTempDir('atc-store-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-store-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
 
@@ -3647,8 +3647,8 @@ test('it keeps the same daemon id across a reopen', async () => {
 });
 
 test('it records this daemon as the owner of every fleet row it migrates', async () => {
-  const tmp = setupTempDir('atc-store-');
-  const dbPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-store-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
 
@@ -4025,30 +4025,34 @@ test('it breaks the cycle two crossed resumes make by keeping the earlier row to
 
   // R resumes P's agent session under Q, and S resumes Q's under P: replacing
   // P with R and Q with S links R under S and S under R.
-  const p = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-p') });
-  const q = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-q') });
-  const r = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-p') });
-  const s = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-q'), parent: p.sessionID });
+  const rowP = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-p') });
+  const rowQ = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-q') });
+  const rowR = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-p') });
 
-  await ctx.store.writeFleet([p, q, { ...r, parent: q.sessionID }, s]);
+  const rowS = buildMockFleetEntry({
+    agentSessionID: toAgentSessionID('c-q'),
+    parent: rowP.sessionID,
+  });
+
+  await ctx.store.writeFleet([rowP, rowQ, { ...rowR, parent: rowQ.sessionID }, rowS]);
 
   const fleet = await ctx.store.loadFleet();
 
-  expect(fleet).toStrictEqual([r, { ...s, parent: r.sessionID }]);
+  expect(fleet).toStrictEqual([rowR, { ...rowS, parent: rowR.sessionID }]);
 });
 
 test('it moves a worker under a row that a resume of its own parent replaced', async () => {
   const ctx = await setupTest();
 
-  const p = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-p') });
-  const w = buildMockFleetEntry({ parent: p.sessionID });
-  const r = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-p') });
+  const replaced = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-p') });
+  const worker = buildMockFleetEntry({ parent: replaced.sessionID });
+  const resumed = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-p') });
 
-  await ctx.store.writeFleet([p, w, { ...r, parent: p.sessionID }]);
+  await ctx.store.writeFleet([replaced, worker, { ...resumed, parent: replaced.sessionID }]);
 
   const fleet = await ctx.store.loadFleet();
 
-  expect(fleet).toStrictEqual([{ ...w, parent: r.sessionID }, r]);
+  expect(fleet).toStrictEqual([{ ...worker, parent: resumed.sessionID }, resumed]);
 });
 
 test('it writes three resumes crossed in a ring as one top-level row with every other row under it', async () => {
@@ -4056,50 +4060,54 @@ test('it writes three resumes crossed in a ring as one top-level row with every 
 
   // R resumes P under Q, S resumes Q under T, and U resumes T under P, and
   // each replaced row has a worker of its own.
-  const p = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-p') });
-  const q = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-q') });
-  const t = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-t') });
-  const wp = buildMockFleetEntry({ parent: p.sessionID });
-  const wq = buildMockFleetEntry({ parent: q.sessionID });
-  const r = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-p') });
-  const s = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-q') });
-  const u = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-t') });
+  const rowP = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-p') });
+  const rowQ = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-q') });
+  const rowT = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-t') });
+  const wp = buildMockFleetEntry({ parent: rowP.sessionID });
+  const wq = buildMockFleetEntry({ parent: rowQ.sessionID });
+  const rowR = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-p') });
+  const rowS = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-q') });
+  const rowU = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-t') });
 
   await ctx.store.writeFleet([
-    p,
-    q,
-    t,
+    rowP,
+    rowQ,
+    rowT,
     wp,
     wq,
-    { ...r, parent: q.sessionID },
-    { ...s, parent: t.sessionID },
-    { ...u, parent: p.sessionID },
+    { ...rowR, parent: rowQ.sessionID },
+    { ...rowS, parent: rowT.sessionID },
+    { ...rowU, parent: rowP.sessionID },
   ]);
 
   const fleet = await ctx.store.loadFleet();
 
   expect(fleet).toStrictEqual([
-    { ...wp, parent: r.sessionID },
-    { ...wq, parent: r.sessionID },
-    r,
-    { ...s, parent: r.sessionID },
-    { ...u, parent: r.sessionID },
+    { ...wp, parent: rowR.sessionID },
+    { ...wq, parent: rowR.sessionID },
+    rowR,
+    { ...rowS, parent: rowR.sessionID },
+    { ...rowU, parent: rowR.sessionID },
   ]);
 });
 
 test("it moves a worker of a replaced row under the parent of the sub-session that took the row's place", async () => {
   const ctx = await setupTest();
 
-  const o = buildMockFleetEntry();
-  const f = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-f') });
-  const w = buildMockFleetEntry({ parent: f.sessionID });
-  const r = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-f'), parent: o.sessionID });
+  const other = buildMockFleetEntry();
+  const replaced = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-f') });
+  const worker = buildMockFleetEntry({ parent: replaced.sessionID });
 
-  await ctx.store.writeFleet([o, f, w, r]);
+  const resumed = buildMockFleetEntry({
+    agentSessionID: toAgentSessionID('c-f'),
+    parent: other.sessionID,
+  });
+
+  await ctx.store.writeFleet([other, replaced, worker, resumed]);
 
   const fleet = await ctx.store.loadFleet();
 
-  expect(fleet).toStrictEqual([o, { ...w, parent: o.sessionID }, r]);
+  expect(fleet).toStrictEqual([other, { ...worker, parent: other.sessionID }, resumed]);
 });
 
 test('it writes a row whose parent the write does not hold as a top-level row', async () => {
@@ -4140,7 +4148,7 @@ test('it records a workspace materialization through its phases', async () => {
     {
       sessionID: toSessionID('s-ws'),
       target: 'box',
-      dir: '/w/s-ws',
+      directory: '/w/s-ws',
       sourceKind: 'git',
       withheldEnv: ['APP_GIT_TOKEN'],
     },
@@ -4164,7 +4172,7 @@ test('it records a workspace materialization through its phases', async () => {
   expect(row).toStrictEqual({
     sessionID: toSessionID('s-ws'),
     target: 'box',
-    dir: '/w/s-ws',
+    directory: '/w/s-ws',
     sourceKind: 'git',
     phase: 'ready',
     repoURL: 'https://example.com/r.git',
@@ -4185,7 +4193,7 @@ test('it fails every materialization a stopped daemon left short of ready', asyn
     {
       sessionID: toSessionID('s-resolving'),
       target: 'box',
-      dir: '/w/s-resolving',
+      directory: '/w/s-resolving',
       sourceKind: 'path',
       withheldEnv: [],
     },
@@ -4196,7 +4204,7 @@ test('it fails every materialization a stopped daemon left short of ready', asyn
     {
       sessionID: toSessionID('s-cloning'),
       target: 'box',
-      dir: '/w/s-cloning',
+      directory: '/w/s-cloning',
       sourceKind: 'path',
       withheldEnv: [],
     },
@@ -4207,7 +4215,7 @@ test('it fails every materialization a stopped daemon left short of ready', asyn
     {
       sessionID: toSessionID('s-transferring'),
       target: 'box',
-      dir: '/w/s-transferring',
+      directory: '/w/s-transferring',
       sourceKind: 'path',
       withheldEnv: [],
     },
@@ -4218,7 +4226,7 @@ test('it fails every materialization a stopped daemon left short of ready', asyn
     {
       sessionID: toSessionID('s-verifying'),
       target: 'box',
-      dir: '/w/s-verifying',
+      directory: '/w/s-verifying',
       sourceKind: 'path',
       withheldEnv: [],
     },
@@ -4229,7 +4237,7 @@ test('it fails every materialization a stopped daemon left short of ready', asyn
     {
       sessionID: toSessionID('s-ready'),
       target: 'box',
-      dir: '/w/s-ready',
+      directory: '/w/s-ready',
       sourceKind: 'path',
       withheldEnv: [],
     },
@@ -4240,7 +4248,7 @@ test('it fails every materialization a stopped daemon left short of ready', asyn
     {
       sessionID: toSessionID('s-failed'),
       target: 'box',
-      dir: '/w/s-failed',
+      directory: '/w/s-failed',
       sourceKind: 'path',
       withheldEnv: [],
     },
@@ -4292,7 +4300,7 @@ test('it fails every materialization a stopped daemon left short of ready', asyn
   expect(resolving).toStrictEqual({
     sessionID: toSessionID('s-resolving'),
     target: 'box',
-    dir: '/w/s-resolving',
+    directory: '/w/s-resolving',
     sourceKind: 'path',
     phase: 'failed',
     repoURL: null,
@@ -4308,7 +4316,7 @@ test('it fails every materialization a stopped daemon left short of ready', asyn
   expect(cloning).toStrictEqual({
     sessionID: toSessionID('s-cloning'),
     target: 'box',
-    dir: '/w/s-cloning',
+    directory: '/w/s-cloning',
     sourceKind: 'path',
     phase: 'failed',
     repoURL: null,
@@ -4324,7 +4332,7 @@ test('it fails every materialization a stopped daemon left short of ready', asyn
   expect(transferring).toStrictEqual({
     sessionID: toSessionID('s-transferring'),
     target: 'box',
-    dir: '/w/s-transferring',
+    directory: '/w/s-transferring',
     sourceKind: 'path',
     phase: 'failed',
     repoURL: null,
@@ -4340,7 +4348,7 @@ test('it fails every materialization a stopped daemon left short of ready', asyn
   expect(verifying).toStrictEqual({
     sessionID: toSessionID('s-verifying'),
     target: 'box',
-    dir: '/w/s-verifying',
+    directory: '/w/s-verifying',
     sourceKind: 'path',
     phase: 'failed',
     repoURL: null,
@@ -4356,7 +4364,7 @@ test('it fails every materialization a stopped daemon left short of ready', asyn
   expect(ready).toStrictEqual({
     sessionID: toSessionID('s-ready'),
     target: 'box',
-    dir: '/w/s-ready',
+    directory: '/w/s-ready',
     sourceKind: 'path',
     phase: 'ready',
     repoURL: null,
@@ -4372,7 +4380,7 @@ test('it fails every materialization a stopped daemon left short of ready', asyn
   expect(failed).toStrictEqual({
     sessionID: toSessionID('s-failed'),
     target: 'box',
-    dir: '/w/s-failed',
+    directory: '/w/s-failed',
     sourceKind: 'path',
     phase: 'failed',
     repoURL: null,
@@ -4393,7 +4401,7 @@ test('it loads a fleet row with its ready workspace and withheld variables, and 
     {
       sessionID: toSessionID('s-ready'),
       target: 'local',
-      dir: '/w/s-ready',
+      directory: '/w/s-ready',
       sourceKind: 'git',
       withheldEnv: ['APP_GIT_TOKEN', 'GIT_ASKPASS'],
     },
@@ -4404,7 +4412,7 @@ test('it loads a fleet row with its ready workspace and withheld variables, and 
     {
       sessionID: toSessionID('s-verifying'),
       target: 'local',
-      dir: '/w/s-verifying',
+      directory: '/w/s-verifying',
       sourceKind: 'git',
       withheldEnv: ['APP_GIT_TOKEN'],
     },
@@ -4459,7 +4467,7 @@ test('it leaves out of the fleet a session whose withheld variables are malforme
     {
       sessionID: toSessionID('s-ready'),
       target: 'local',
-      dir: '/w/s-ready',
+      directory: '/w/s-ready',
       sourceKind: 'git',
       withheldEnv: ['APP_GIT_TOKEN'],
     },
@@ -4508,7 +4516,7 @@ test('it refuses to read a workspace whose withheld variables are malformed', as
     {
       sessionID: toSessionID('s-ready'),
       target: 'local',
-      dir: '/w/s-ready',
+      directory: '/w/s-ready',
       sourceKind: 'git',
       withheldEnv: ['APP_GIT_TOKEN'],
     },
@@ -5226,7 +5234,7 @@ test('it writes a backup that a store opens with every fleet row and the same da
 
   await ctx.store.writeFleet([first, second]);
 
-  const backupPath = join(ctx.dir, 'backup.db');
+  const backupPath = join(ctx.directory, 'backup.db');
 
   await ctx.store.writeBackup(backupPath);
 
@@ -5243,7 +5251,7 @@ test('it writes a backup that a store opens with every fleet row and the same da
 test('it resolves the backup to its size in bytes', async () => {
   const ctx = await setupTest();
 
-  const backupPath = join(ctx.dir, 'backup.db');
+  const backupPath = join(ctx.directory, 'backup.db');
 
   const bytes = await ctx.store.writeBackup(backupPath);
 
@@ -5253,7 +5261,7 @@ test('it resolves the backup to its size in bytes', async () => {
 test('it writes a backup that only its owner can read or write', async () => {
   const ctx = await setupTest();
 
-  const backupPath = join(ctx.dir, 'backup.db');
+  const backupPath = join(ctx.directory, 'backup.db');
 
   await ctx.store.writeBackup(backupPath);
 
@@ -5267,7 +5275,7 @@ test('it replaces a file already at the backup path', async () => {
 
   await ctx.store.writeFleet([entry]);
 
-  const backupPath = join(ctx.dir, 'backup.db');
+  const backupPath = join(ctx.directory, 'backup.db');
 
   writeFileSync(backupPath, 'an older backup');
 
@@ -5309,9 +5317,9 @@ test.each([[''], ['-wal'], ['-shm'], ['-journal']])(
 test('it refuses a backup onto its own database through a symlinked directory', async () => {
   const ctx = await setupTest();
 
-  const linked = join(ctx.dir, 'linked-state');
+  const linked = join(ctx.directory, 'linked-state');
 
-  symlinkSync(ctx.dir, linked);
+  symlinkSync(ctx.directory, linked);
 
   expect(ctx.store.writeBackup(join(linked, 'state.db'))).rejects.toMatchObject({
     code: 'bad_args',
@@ -5319,9 +5327,9 @@ test('it refuses a backup onto its own database through a symlinked directory', 
 });
 
 test('it refuses a backup onto the file its database path links to', async () => {
-  const tmp = setupTempDir('atc-store-linked-');
-  const realPath = join(tmp.path, 'live.db');
-  const linkPath = join(tmp.path, 'state.db');
+  const temporaryDirectory = setupTempDir('atc-store-linked-');
+  const realPath = join(temporaryDirectory.path, 'live.db');
+  const linkPath = join(temporaryDirectory.path, 'state.db');
 
   await createMigratedStateDB(realPath);
 
@@ -5337,12 +5345,12 @@ test('it refuses a backup onto the file its database path links to', async () =>
 test('it removes its staging file when the backup cannot reach its path', async () => {
   const ctx = await setupTest();
 
-  const backupPath = join(ctx.dir, 'taken');
+  const backupPath = join(ctx.directory, 'taken');
 
   mkdirSync(backupPath);
 
   expect(ctx.store.writeBackup(backupPath)).rejects.toThrow();
-  expect(readdirSync(ctx.dir).filter((name) => name.includes('.partial'))).toStrictEqual([]);
+  expect(readdirSync(ctx.directory).filter((name) => name.includes('.partial'))).toStrictEqual([]);
 });
 
 test('it writes a consistent backup while another connection commits writes', async () => {
@@ -5366,7 +5374,7 @@ test('it writes a consistent backup while another connection commits writes', as
     'WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 4096) INSERT INTO bulk SELECT randomblob(8192) FROM n',
   );
 
-  const commitLog = join(ctx.dir, 'commits.log');
+  const commitLog = join(ctx.directory, 'commits.log');
 
   // Each transaction adds 20 rows of one generation and moves the head to
   // it, then logs the time it committed at.
@@ -5404,7 +5412,7 @@ test('it writes a consistent backup while another connection commits writes', as
     expect(readFileSync(commitLog, 'utf8')).toInclude('\n');
   });
 
-  const backupPath = join(ctx.dir, 'backup.db');
+  const backupPath = join(ctx.directory, 'backup.db');
   const startedAt = Date.now();
 
   await ctx.store.writeBackup(backupPath);

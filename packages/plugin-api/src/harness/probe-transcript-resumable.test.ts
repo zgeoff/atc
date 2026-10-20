@@ -6,9 +6,9 @@ import { probeTranscriptResumable } from './probe-transcript-resumable';
 
 // A folder for the transcript a test writes or leaves out.
 function setupTest() {
-  const tmp = setupTempDir('atc-resume-');
+  const temporaryDirectory = setupTempDir('atc-resume-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it resumes when no transcript was reported', () => {
@@ -17,7 +17,7 @@ test('it resumes when no transcript was reported', () => {
 
 test('it resumes when the reported transcript exists', () => {
   const ctx = setupTest();
-  const transcript = join(ctx.dir, 'transcript.jsonl');
+  const transcript = join(ctx.directory, 'transcript.jsonl');
 
   writeFileSync(transcript, '');
 
@@ -28,6 +28,6 @@ test('it does not resume when the reported transcript is gone', () => {
   const ctx = setupTest();
 
   expect(
-    probeTranscriptResumable({ transcriptSource: join(ctx.dir, 'missing.jsonl') }),
+    probeTranscriptResumable({ transcriptSource: join(ctx.directory, 'missing.jsonl') }),
   ).toBeFalse();
 });

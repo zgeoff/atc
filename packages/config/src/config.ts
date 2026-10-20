@@ -351,8 +351,8 @@ export function parseConfig(
 const RESERVED_CODES = new Set([0x09, 0x0d, 0x1b]);
 
 function decodeLeader(name: string): LeaderKey | null {
-  const m = /^ctrl-(?<key>.+)$/iu.exec(name.trim().toLowerCase());
-  const key = m?.groups?.['key'];
+  const matched = /^ctrl-(?<key>.+)$/iu.exec(name.trim().toLowerCase());
+  const key = matched?.groups?.['key'];
 
   if (key === undefined) {
     return null;

@@ -13,7 +13,7 @@ test('it writes the bridge mod again and notes it in the feed for a remote sessi
     options: (paths) => {
       const provider = {
         ...buildStubExecutionProvider({ kind: 'imp-like', remote: true }),
-        guest: { dir: join(paths.dir, 'guest'), atc: '/opt/atc/bin/atc' },
+        guest: { directory: join(paths.dir, 'guest'), atc: '/opt/atc/bin/atc' },
       };
 
       return {

@@ -16,11 +16,11 @@ test('it reads the arguments and the environment of a process', () => {
 
   mkdirSync(join(ctx.procRoot, '42'));
   writeFileSync(join(ctx.procRoot, '42', 'cmdline'), 'atc\0daemon\0--listen=127.0.0.1:1\0');
-  writeFileSync(join(ctx.procRoot, '42', 'environ'), 'HOME=/home/u\0EMPTY=\0A=b=c\0');
+  writeFileSync(join(ctx.procRoot, '42', 'environ'), 'HOME=/home/u\0EMPTY=\0QUERY=b=c\0');
 
   expect(readProcProcess(ctx.procRoot, 42)).toStrictEqual({
     args: ['atc', 'daemon', '--listen=127.0.0.1:1'],
-    env: { HOME: '/home/u', EMPTY: '', A: 'b=c' },
+    env: { HOME: '/home/u', EMPTY: '', QUERY: 'b=c' },
   });
 });
 

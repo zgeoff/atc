@@ -20,8 +20,8 @@ export interface DaemonChannel {
   // A request with a principal acts as that principal, and carries its
   // name when one is given.
   readonly sendRequest: (
-    m: string,
-    p?: Readonly<Record<string, unknown>>,
+    method: string,
+    params?: Readonly<Record<string, unknown>>,
     as?: string,
     asName?: string,
   ) => Promise<Readonly<Record<string, unknown>>>;

@@ -15,15 +15,15 @@ import { tryOpenDaemon } from './try-open-daemon';
 
 // A temp directory for the sockets.
 function setupTest() {
-  const dir = setupTempDir('try-open-daemon-').path;
+  const directory = setupTempDir('try-open-daemon-').path;
 
-  return { dir };
+  return { directory };
 }
 
 test('it returns the hello and what the read returns from the daemon that answers', async () => {
   const ctx = setupTest();
 
-  startStubLegacyDaemon(join(ctx.dir, 'atc-daemon.sock'), {
+  startStubLegacyDaemon(join(ctx.directory, 'atc-daemon.sock'), {
     replies: {
       'daemon.hello': { daemon: 'atc/1.2.3', daemonID: 'd-1' },
       'session.list': { sessions: [] },
@@ -31,14 +31,14 @@ test('it returns the hello and what the read returns from the daemon that answer
   });
 
   const probe = await tryOpenDaemon(
-    [join(ctx.dir, 'atc-daemon.sock')],
+    [join(ctx.directory, 'atc-daemon.sock')],
     { build: 'atc/test-build', deadline: systemClock.now() + 3000, clock: systemClock },
     (client) => client.sendRequest('session.list'),
   );
 
   expect(probe).toStrictEqual({
     kind: 'ok',
-    socketPath: join(ctx.dir, 'atc-daemon.sock'),
+    socketPath: join(ctx.directory, 'atc-daemon.sock'),
     hello: { build: 'atc/1.2.3', daemonID: 'd-1' },
     value: { sessions: [] },
   });
@@ -47,21 +47,21 @@ test('it returns the hello and what the read returns from the daemon that answer
 test('it refuses a daemon whose hello holds no build or id, and reads nothing from it', async () => {
   const ctx = setupTest();
 
-  startStubLegacyDaemon(join(ctx.dir, 'atc-daemon.sock'), {
+  startStubLegacyDaemon(join(ctx.directory, 'atc-daemon.sock'), {
     replies: { 'daemon.hello': {} },
   });
 
   const read = mock(() => Promise.resolve(null));
 
   const probe = await tryOpenDaemon(
-    [join(ctx.dir, 'atc-daemon.sock')],
+    [join(ctx.directory, 'atc-daemon.sock')],
     { build: 'atc/test-build', deadline: systemClock.now() + 3000, clock: systemClock },
     read,
   );
 
   expect(probe).toStrictEqual({
     kind: 'refused',
-    socketPath: join(ctx.dir, 'atc-daemon.sock'),
+    socketPath: join(ctx.directory, 'atc-daemon.sock'),
     message: 'the daemon answered the handshake without its build and id',
   });
 
@@ -71,17 +71,17 @@ test('it refuses a daemon whose hello holds no build or id, and reads nothing fr
 test('it returns the refusal of a daemon on another protocol', async () => {
   const ctx = setupTest();
 
-  startStubLegacyDaemon(join(ctx.dir, 'atc-daemon.sock'), { protocol: PROTOCOL_V + 1 });
+  startStubLegacyDaemon(join(ctx.directory, 'atc-daemon.sock'), { protocol: PROTOCOL_V + 1 });
 
   const probe = await tryOpenDaemon(
-    [join(ctx.dir, 'atc-daemon.sock')],
+    [join(ctx.directory, 'atc-daemon.sock')],
     { build: 'atc/test-build', deadline: systemClock.now() + 3000, clock: systemClock },
     () => Promise.resolve(null),
   );
 
   expect(probe).toStrictEqual({
     kind: 'refused',
-    socketPath: join(ctx.dir, 'atc-daemon.sock'),
+    socketPath: join(ctx.directory, 'atc-daemon.sock'),
     message: `atc/test-build speaks protocol v${PROTOCOL_V}, daemon atc/legacy-build speaks v${PROTOCOL_V + 1}; restart the daemon so both run the same build`,
   });
 });
@@ -89,22 +89,22 @@ test('it returns the refusal of a daemon on another protocol', async () => {
 test('it tries the next socket when one refuses the connection', async () => {
   const ctx = setupTest();
 
-  startStubLegacyDaemon(join(ctx.dir, 'recorded.sock'));
+  startStubLegacyDaemon(join(ctx.directory, 'recorded.sock'));
 
   const probe = await tryOpenDaemon(
-    [join(ctx.dir, 'computed.sock'), join(ctx.dir, 'recorded.sock')],
+    [join(ctx.directory, 'computed.sock'), join(ctx.directory, 'recorded.sock')],
     { build: 'atc/test-build', deadline: systemClock.now() + 3000, clock: systemClock },
     () => Promise.resolve(null),
   );
 
-  expect(probe?.socketPath).toBe(join(ctx.dir, 'recorded.sock'));
+  expect(probe?.socketPath).toBe(join(ctx.directory, 'recorded.sock'));
 });
 
 test('it returns nothing when no socket answers', async () => {
   const ctx = setupTest();
 
   const probe = await tryOpenDaemon(
-    [join(ctx.dir, 'atc-daemon.sock')],
+    [join(ctx.directory, 'atc-daemon.sock')],
     { build: 'atc/test-build', deadline: systemClock.now() + 3000, clock: systemClock },
     () => Promise.resolve(null),
   );
@@ -116,10 +116,10 @@ test('it gives up on a daemon that never answers once the deadline passes', asyn
   const ctx = setupTest();
   const clock = buildStubClock(0);
 
-  startStubUnansweringUnixListener(join(ctx.dir, 'atc-daemon.sock'));
+  startStubUnansweringUnixListener(join(ctx.directory, 'atc-daemon.sock'));
 
   const probing = tryOpenDaemon(
-    [join(ctx.dir, 'atc-daemon.sock')],
+    [join(ctx.directory, 'atc-daemon.sock')],
     { build: 'atc/test-build', deadline: 3000, clock },
     () => Promise.resolve(null),
   );
@@ -146,14 +146,14 @@ test('it leaves the next socket time to answer when one never answers', async ()
   const ctx = setupTest();
   const clock = buildStubClock(0);
 
-  startStubUnansweringUnixListener(join(ctx.dir, 'atc-daemon.sock'));
+  startStubUnansweringUnixListener(join(ctx.directory, 'atc-daemon.sock'));
 
-  startStubLegacyDaemon(join(ctx.dir, 'recorded.sock'), {
+  startStubLegacyDaemon(join(ctx.directory, 'recorded.sock'), {
     replies: { 'daemon.hello': { daemon: 'atc/1.2.3', daemonID: 'd-1' } },
   });
 
   const probing = tryOpenDaemon(
-    [join(ctx.dir, 'atc-daemon.sock'), join(ctx.dir, 'recorded.sock')],
+    [join(ctx.directory, 'atc-daemon.sock'), join(ctx.directory, 'recorded.sock')],
     { build: 'atc/test-build', deadline: 3000, clock },
     () => Promise.resolve(null),
   );
@@ -176,7 +176,7 @@ test('it leaves the next socket time to answer when one never answers', async ()
 
   expect(probe).toStrictEqual({
     kind: 'ok',
-    socketPath: join(ctx.dir, 'recorded.sock'),
+    socketPath: join(ctx.directory, 'recorded.sock'),
     hello: { build: 'atc/1.2.3', daemonID: 'd-1' },
     value: null,
   });
@@ -184,10 +184,10 @@ test('it leaves the next socket time to answer when one never answers', async ()
 
 test('it closes the client once the read settles', async () => {
   const ctx = setupTest();
-  const daemon = startStubLegacyDaemon(join(ctx.dir, 'atc-daemon.sock'));
+  const daemon = startStubLegacyDaemon(join(ctx.directory, 'atc-daemon.sock'));
 
   await tryOpenDaemon(
-    [join(ctx.dir, 'atc-daemon.sock')],
+    [join(ctx.directory, 'atc-daemon.sock')],
     { build: 'atc/test-build', deadline: systemClock.now() + 3000, clock: systemClock },
     () => Promise.resolve(null),
   );
@@ -201,10 +201,10 @@ test('it closes the client once the read settles', async () => {
 
 test('it leaves the client open for a caller that keeps it', async () => {
   const ctx = setupTest();
-  const daemon = startStubLegacyDaemon(join(ctx.dir, 'atc-daemon.sock'));
+  const daemon = startStubLegacyDaemon(join(ctx.directory, 'atc-daemon.sock'));
 
   const probe = await tryOpenDaemon(
-    [join(ctx.dir, 'atc-daemon.sock')],
+    [join(ctx.directory, 'atc-daemon.sock')],
     {
       build: 'atc/test-build',
       deadline: systemClock.now() + 3000,

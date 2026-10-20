@@ -13,8 +13,10 @@ export function sortJSONKeys(value: unknown, order: JSONKeyOrder): unknown {
   if (isRecord(value)) {
     return Object.fromEntries(
       Object.entries(value)
-        .toSorted(([a], [b]) =>
-          order === 'locale' ? a.localeCompare(b) : Number(a > b) - Number(a < b),
+        .toSorted(([leftKey], [rightKey]) =>
+          order === 'locale'
+            ? leftKey.localeCompare(rightKey)
+            : Number(leftKey > rightKey) - Number(leftKey < rightKey),
         )
         .map(([key, item]) => [key, sortJSONKeys(item, order)]),
     );

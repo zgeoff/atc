@@ -12,7 +12,7 @@ test('it records each start and answers with a bridge on the stub binary', async
     env: {},
     withheldEnv: [],
     options: { prompt: '', resume: false },
-    dir: '/state/sessions/s-1/codex',
+    directory: '/state/sessions/s-1/codex',
     host: {
       attachTap: mock<MessageBridgeHost['attachTap']>(),
       detachTap: mock<MessageBridgeHost['detachTap']>(),
@@ -40,7 +40,7 @@ test('it records what the daemon asks of a bridge', async () => {
     env: {},
     withheldEnv: [],
     options: { prompt: '', resume: false },
-    dir: '/state/sessions/s-1/codex',
+    directory: '/state/sessions/s-1/codex',
     host: {
       attachTap: mock<MessageBridgeHost['attachTap']>(),
       detachTap: mock<MessageBridgeHost['detachTap']>(),

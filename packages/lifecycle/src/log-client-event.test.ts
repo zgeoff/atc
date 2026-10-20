@@ -5,14 +5,14 @@ import { setupTempDir, updateEnv } from '@atc/test-utils';
 import { logClientEvent } from './log-client-event';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-client-log-');
+  const temporaryDirectory = setupTempDir('atc-client-log-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it appends each line to the file the variable holds', () => {
   const ctx = setupTest();
-  const path = join(ctx.dir, 'client.log');
+  const path = join(ctx.directory, 'client.log');
 
   updateEnv('ATC_CLIENT_LOG', path);
   logClientEvent('dropped probe answer');
@@ -24,7 +24,7 @@ test('it appends each line to the file the variable holds', () => {
 test('it keeps going when the file cannot be written', () => {
   const ctx = setupTest();
 
-  updateEnv('ATC_CLIENT_LOG', join(ctx.dir, 'missing', 'client.log'));
+  updateEnv('ATC_CLIENT_LOG', join(ctx.directory, 'missing', 'client.log'));
 
   expect(() => {
     logClientEvent('dropped probe answer');
@@ -36,7 +36,7 @@ test.each([
   ['empty', ''],
 ])('it writes nothing while the variable is %s', (_case, value) => {
   const ctx = setupTest();
-  const path = join(ctx.dir, 'client.log');
+  const path = join(ctx.directory, 'client.log');
 
   updateEnv('ATC_CLIENT_LOG', path);
   logClientEvent('dropped probe answer');

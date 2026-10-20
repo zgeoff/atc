@@ -20,7 +20,7 @@ test('it leads with pinned sessions in most-recently-attached order', () => {
     }),
   ];
 
-  const ids = sortSessionViews(fleet).map((s) => s.id);
+  const ids = sortSessionViews(fleet).map((session) => session.id);
 
   expect(ids).toStrictEqual(['pinned-new', 'pinned-old', 'urgent', 'busy']);
 });
@@ -34,7 +34,7 @@ test('it orders unpinned sessions by urgency, then most recently attached', () =
     buildMockSortableSessionView({ id: 'urgent', state: 'needs_you', lastAttachedAt: 3 }),
   ];
 
-  const ids = sortSessionViews(fleet).map((s) => s.id);
+  const ids = sortSessionViews(fleet).map((session) => session.id);
 
   expect(ids).toStrictEqual(['urgent', 'finished', 'busy-fresh', 'busy-stale', 'dead']);
 });
@@ -51,7 +51,7 @@ test('it lists a sub-session directly under its parent', () => {
     buildMockSortableSessionView({ id: 'wrangler', state: 'running', lastAttachedAt: 1 }),
   ];
 
-  const ids = sortSessionViews(fleet).map((s) => s.id);
+  const ids = sortSessionViews(fleet).map((session) => session.id);
 
   expect(ids).toStrictEqual(['other', 'wrangler', 'worker']);
 });
@@ -68,7 +68,7 @@ test('it never moves a parent for the attention of its sub-sessions', () => {
     buildMockSortableSessionView({ id: 'wrangler', state: 'running', lastAttachedAt: 1 }),
   ];
 
-  const ids = sortSessionViews(fleet).map((s) => s.id);
+  const ids = sortSessionViews(fleet).map((session) => session.id);
 
   expect(ids).toStrictEqual(['other', 'wrangler', 'worker']);
 });
@@ -96,7 +96,7 @@ test('it orders sub-sessions by urgency among their siblings', () => {
     }),
   ];
 
-  const ids = sortSessionViews(fleet).map((s) => s.id);
+  const ids = sortSessionViews(fleet).map((session) => session.id);
 
   expect(ids).toStrictEqual(['wrangler', 'urgent', 'finished', 'idle']);
 });
@@ -112,7 +112,7 @@ test('it ranks a sub-session whose parent is not listed as a top-level row', () 
     }),
   ];
 
-  const ids = sortSessionViews(fleet).map((s) => s.id);
+  const ids = sortSessionViews(fleet).map((session) => session.id);
 
   expect(ids).toStrictEqual(['orphan', 'busy']);
 });
@@ -134,7 +134,7 @@ test('it keeps a pinned parent and its sub-sessions together at the top', () => 
     }),
   ];
 
-  const ids = sortSessionViews(fleet).map((s) => s.id);
+  const ids = sortSessionViews(fleet).map((session) => session.id);
 
   expect(ids).toStrictEqual(['wrangler', 'worker', 'urgent']);
 });

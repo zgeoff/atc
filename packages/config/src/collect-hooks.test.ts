@@ -13,7 +13,7 @@ test('it collects hook entries keyed by wire-event name', () => {
   expect(hooks).toStrictEqual({
     SessionAttached: [{ command: 'notify-send attached' }],
     SessionRemoved: [
-      { command: 'ork sync', dir: '/home/me/projects/ork', timeout: 5000 },
+      { command: 'ork sync', directory: '/home/me/projects/ork', timeout: 5000 },
       { command: 'log-removal' },
     ],
   });
@@ -62,9 +62,9 @@ test('it expands a leading tilde and trims trailing slashes in dir', () => {
 
   expect(hooks).toStrictEqual({
     SessionAttached: [
-      { command: 'a', dir: '/home/someone/projects/ork' },
-      { command: 'b', dir: '/home/someone' },
-      { command: 'c', dir: '/opt/x' },
+      { command: 'a', directory: '/home/someone/projects/ork' },
+      { command: 'b', directory: '/home/someone' },
+      { command: 'c', directory: '/opt/x' },
     ],
   });
 });

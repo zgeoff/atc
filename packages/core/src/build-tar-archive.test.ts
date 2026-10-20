@@ -5,9 +5,9 @@ import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { buildTarArchive } from './build-tar-archive';
 
 function setupTest() {
-  const tmp = setupTempDir('atc-tar-');
+  const temporaryDirectory = setupTempDir('atc-tar-');
 
-  return { dir: tmp.path };
+  return { directory: temporaryDirectory.path };
 }
 
 test('it packs files that tar unpacks with their content, parent directories, and modes', async () => {
@@ -19,25 +19,25 @@ test('it packs files that tar unpacks with their content, parent directories, an
     { path: 'bridge/hooks/register.ts', content: 'x'.repeat(1000) },
   ]);
 
-  const proc = Bun.spawn(['tar', '-x', '-f', '-', '-C', ctx.dir], {
+  const subprocess = Bun.spawn(['tar', '-x', '-f', '-', '-C', ctx.directory], {
     stdin: archive,
     stdout: 'ignore',
     stderr: 'pipe',
   });
 
   registerTestCleanup(() => {
-    proc.kill('SIGKILL');
+    subprocess.kill('SIGKILL');
   });
 
-  const stderr = await new Response(proc.stderr).text();
+  const stderr = await new Response(subprocess.stderr).text();
 
-  expect({ code: await proc.exited, stderr }).toStrictEqual({ code: 0, stderr: '' });
-  expect(readFileSync(join(ctx.dir, 'settings.json'), 'utf8')).toBe('{"hooks":{}}');
-  expect([...readFileSync(join(ctx.dir, 'bin', 'atc'))]).toStrictEqual([0, 1, 2, 255]);
-  expect(statSync(join(ctx.dir, 'bin', 'atc')).mode & 0o777).toBe(0o755);
-  expect(statSync(join(ctx.dir, 'bridge', 'hooks')).isDirectory()).toBeTrue();
+  expect({ code: await subprocess.exited, stderr }).toStrictEqual({ code: 0, stderr: '' });
+  expect(readFileSync(join(ctx.directory, 'settings.json'), 'utf8')).toBe('{"hooks":{}}');
+  expect([...readFileSync(join(ctx.directory, 'bin', 'atc'))]).toStrictEqual([0, 1, 2, 255]);
+  expect(statSync(join(ctx.directory, 'bin', 'atc')).mode & 0o777).toBe(0o755);
+  expect(statSync(join(ctx.directory, 'bridge', 'hooks')).isDirectory()).toBeTrue();
 
-  expect(readFileSync(join(ctx.dir, 'bridge', 'hooks', 'register.ts'), 'utf8')).toBe(
+  expect(readFileSync(join(ctx.directory, 'bridge', 'hooks', 'register.ts'), 'utf8')).toBe(
     'x'.repeat(1000),
   );
 });
@@ -46,20 +46,20 @@ test('it packs a path longer than 100 bytes that tar unpacks at the full path', 
   const ctx = setupTest();
   const path = `${'d'.repeat(80)}/${'e'.repeat(60)}/${'f'.repeat(90)}.md`;
 
-  const proc = Bun.spawn(['tar', '-x', '-f', '-', '-C', ctx.dir], {
+  const subprocess = Bun.spawn(['tar', '-x', '-f', '-', '-C', ctx.directory], {
     stdin: buildTarArchive([{ path, content: 'deep' }]),
     stdout: 'ignore',
     stderr: 'pipe',
   });
 
   registerTestCleanup(() => {
-    proc.kill('SIGKILL');
+    subprocess.kill('SIGKILL');
   });
 
-  const stderr = await new Response(proc.stderr).text();
+  const stderr = await new Response(subprocess.stderr).text();
 
-  expect({ code: await proc.exited, stderr }).toStrictEqual({ code: 0, stderr: '' });
-  expect(readFileSync(join(ctx.dir, path), 'utf8')).toBe('deep');
+  expect({ code: await subprocess.exited, stderr }).toStrictEqual({ code: 0, stderr: '' });
+  expect(readFileSync(join(ctx.directory, path), 'utf8')).toBe('deep');
 });
 
 test('it refuses a path that fits no split into an archive header', () => {

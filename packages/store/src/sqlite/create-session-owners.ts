@@ -10,10 +10,10 @@ export async function createSessionOwners(db: Kysely<StateStoreSchema>): Promise
   await db.schema
     .createTable('session_owner')
     .ifNotExists()
-    .addColumn('session_id', 'text', (c) => c.primaryKey())
-    .addColumn('daemon_id', 'text', (c) => c.notNull())
-    .addColumn('owner_epoch', 'integer', (c) => c.notNull().defaultTo(1))
-    .addColumn('updated_at', 'integer', (c) => c.notNull())
+    .addColumn('session_id', 'text', (column) => column.primaryKey())
+    .addColumn('daemon_id', 'text', (column) => column.notNull())
+    .addColumn('owner_epoch', 'integer', (column) => column.notNull().defaultTo(1))
+    .addColumn('updated_at', 'integer', (column) => column.notNull())
     .execute();
 
   await db

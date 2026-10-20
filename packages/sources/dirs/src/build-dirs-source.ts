@@ -26,30 +26,30 @@ export function buildDirsSource(services: DirsSourceServices): SourceProvider {
     async list(_query, request) {
       const seen = new Set<string>();
 
-      for (const dir of [
+      for (const directory of [
         ...(await request.readSpawnDirs()),
         ...readRootDirs(services.roots),
         ...(await services.readZoxideDirs()),
       ]) {
-        if (!seen.has(dir) && existsSync(dir)) {
-          seen.add(dir);
+        if (!seen.has(directory) && existsSync(directory)) {
+          seen.add(directory);
         }
       }
 
       return {
-        candidates: [...seen].map((dir) => ({
-          label: formatHomePath(dir, services.homeDir),
-          pick: { kind: 'path', dir },
+        candidates: [...seen].map((directory) => ({
+          label: formatHomePath(directory, services.homeDir),
+          pick: { kind: 'path', dir: directory },
         })),
         scope: null,
       };
     },
     interpret(input) {
       // a relative path resolves under the home, as a completion does.
-      const dir = resolvePathInput(input.trim(), services.homeDir, services.homeDir);
+      const directory = resolvePathInput(input.trim(), services.homeDir, services.homeDir);
 
       const interpretation: SourceInterpretation =
-        dir === null ? { kind: 'none' } : { kind: 'path', dir };
+        directory === null ? { kind: 'none' } : { kind: 'path', dir: directory };
 
       return Promise.resolve(interpretation);
     },
@@ -63,9 +63,9 @@ export function buildDirsSource(services: DirsSourceServices): SourceProvider {
       );
 
       return Promise.resolve(
-        dirs.map((dir) => ({
-          label: formatHomePath(dir, services.homeDir),
-          pick: { kind: 'path', dir },
+        dirs.map((directory) => ({
+          label: formatHomePath(directory, services.homeDir),
+          pick: { kind: 'path', dir: directory },
         })),
       );
     },
