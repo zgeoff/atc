@@ -7,7 +7,7 @@ import type { AuthProfile, LaunchTicket } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import { StateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/testing';
-import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { buildMockAuthProfile, registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { buildMockAuthBinding } from '../testing/build-mock-auth-binding';
 import { buildStubBinderBroker } from '../testing/build-stub-binder-broker';
@@ -3535,16 +3535,15 @@ test('it verifies a host bound under an older form of the same grants and moves 
       baseURL: 'https://api.z.ai/api/anthropic',
       auth: { profiles: ['gh'], placeholderEnv: {} },
     },
-    new Map<string, AuthProfile>([
+    new Map([
       [
         'gh',
-        {
+        buildMockAuthProfile({
           name: 'gh',
           secret: 'gh',
           kind: 'github',
           env: { GH_TOKEN: 'broker-placeholder' },
-          dependencies: [],
-        },
+        }),
       ],
     ]),
   );
@@ -3636,16 +3635,15 @@ test('it admits a start planned under the current form once a host bound under a
       baseURL: 'https://api.z.ai/api/anthropic',
       auth: { profiles: ['gh'], placeholderEnv: {} },
     },
-    new Map<string, AuthProfile>([
+    new Map([
       [
         'gh',
-        {
+        buildMockAuthProfile({
           name: 'gh',
           secret: 'gh',
           kind: 'github',
           env: { GH_TOKEN: 'broker-placeholder' },
-          dependencies: [],
-        },
+        }),
       ],
     ]),
   );
@@ -3732,13 +3730,12 @@ test('it refuses a host bound under an older form whose grants changed since, wi
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  const gh: AuthProfile = {
+  const gh = buildMockAuthProfile({
     name: 'gh',
     secret: 'gh',
     kind: 'github',
     env: { GH_TOKEN: 'broker-placeholder' },
-    dependencies: [],
-  };
+  });
 
   const bound = buildAuthBinding(
     {
@@ -3759,16 +3756,12 @@ test('it refuses a host bound under an older form whose grants changed since, wi
       ['gh', gh],
       [
         'glm',
-        {
+        buildMockAuthProfile({
           name: 'glm',
           secret: 'glm',
-          kind: 'custom',
           host: 'api.z.ai',
           header: 'authorization',
-          scheme: 'bearer',
-          env: {},
-          dependencies: [],
-        },
+        }),
       ],
     ]),
   );

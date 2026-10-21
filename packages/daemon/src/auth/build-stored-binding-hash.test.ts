@@ -1,5 +1,7 @@
 import { expect, test } from 'bun:test';
 import { LEGACY_BROKER_PLACEHOLDER } from '@atc/config';
+import type { AuthProfile } from '@atc/plugin-api';
+import { buildMockAuthProfile } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { buildAuthBinding } from './build-auth-binding';
 import { buildStoredBindingHash } from './build-stored-binding-hash';
@@ -14,13 +16,12 @@ test('it hashes a stored binding of the older placeholder and github rules as th
     new Map([
       [
         'gh',
-        {
+        buildMockAuthProfile({
           name: 'gh',
           secret: 'gh',
           kind: 'github',
           env: { GH_TOKEN: 'broker-placeholder' },
-          dependencies: [],
-        },
+        }),
       ],
     ]),
   );
@@ -64,29 +65,24 @@ test('it hashes a stored binding of the current form as the binding that wrote i
       baseURL: 'https://api.z.ai/api/anthropic',
       auth: { profiles: ['gh', 'glm'], placeholderEnv: {} },
     },
-    new Map([
+    new Map<string, AuthProfile>([
       [
         'gh',
-        {
+        buildMockAuthProfile({
           name: 'gh',
           secret: 'gh',
           kind: 'github',
           env: { GH_TOKEN: 'broker-placeholder' },
-          dependencies: [],
-        },
+        }),
       ],
       [
         'glm',
-        {
+        buildMockAuthProfile({
           name: 'glm',
           secret: 'glm',
-          kind: 'custom',
           host: 'api.z.ai',
           header: 'authorization',
-          scheme: 'bearer',
-          env: {},
-          dependencies: [],
-        },
+        }),
       ],
     ]),
   );
@@ -103,18 +99,7 @@ test('it hashes a stored github secret whose rules differ from the older set apa
       baseURL: 'https://api.z.ai/api/anthropic',
       auth: { profiles: ['gh'], placeholderEnv: {} },
     },
-    new Map([
-      [
-        'gh',
-        {
-          name: 'gh',
-          secret: 'gh',
-          kind: 'github',
-          env: {},
-          dependencies: [],
-        },
-      ],
-    ]),
+    new Map([['gh', buildMockAuthProfile({ name: 'gh', secret: 'gh', kind: 'github' })]]),
   );
 
   invariant('binding' in planned);
@@ -145,13 +130,12 @@ test('it hashes a stored custom variable apart from the placeholder', () => {
     new Map([
       [
         'gh',
-        {
+        buildMockAuthProfile({
           name: 'gh',
           secret: 'gh',
           kind: 'github',
           env: { GH_TOKEN: 'broker-placeholder' },
-          dependencies: [],
-        },
+        }),
       ],
     ]),
   );
