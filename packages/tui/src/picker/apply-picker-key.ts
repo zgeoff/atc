@@ -1,11 +1,11 @@
 import { match } from 'ts-pattern';
 import { KEY, planTextEdit } from '../keys';
 import type { TextEdit } from '../keys';
-import { applyAgentCancel, applyAgentSubmit } from './agent-step';
+import { applyAgentSubmit } from './agent-step';
 import { applyConfirmCancel, applyConfirmSubmit } from './confirm-step';
-import { applyDirCancel, applyDirInput, applyDirSubmit } from './dir-step';
+import { applyDirInput, applyDirSubmit } from './dir-step';
 import { applyNameCancel, applyNameSubmit } from './name-step';
-import { openSource, quitFlow, renderFlow } from './navigate-picker';
+import { openAgentStep, openSource, quitFlow, renderFlow } from './navigate-picker';
 import type { PickerFlow } from './picker-flow';
 import { applyPromptCancel, applyPromptSubmit } from './prompt-step';
 import { applyRefCancel, applyRefSubmit } from './ref-step';
@@ -156,7 +156,7 @@ function applyCancel(flow: PickerFlow) {
 
   match(ctx.step)
     .with('agent', () => {
-      applyAgentCancel(flow);
+      quitFlow(flow);
     })
     .with('source', () => {
       applySourceCancel(flow);
@@ -167,7 +167,7 @@ function applyCancel(flow: PickerFlow) {
     .with('dir', () => {
       ctx.input = '';
 
-      applyDirCancel(flow);
+      openAgentStep(flow);
     })
     .with('target', () => {
       ctx.input = '';

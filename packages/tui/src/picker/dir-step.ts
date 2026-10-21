@@ -3,7 +3,6 @@ import type { CompletionOutcome, PathListingOutcome } from './create-picker-acto
 import {
   applyDir,
   collectReadOrder,
-  openAgentStep,
   openGitSource,
   readTypedInput,
   renderFlow,
@@ -25,10 +24,6 @@ export function applyDirSubmit(flow: PickerFlow) {
   if (typed !== '') {
     readTypedInput(flow, typed, collectReadOrder(flow, true), { kind: 'refuse' });
   }
-}
-
-export function applyDirCancel(flow: PickerFlow) {
-  openAgentStep(flow);
 }
 
 export function applyDirInput(flow: PickerFlow, value: string) {

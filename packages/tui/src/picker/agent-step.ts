@@ -1,5 +1,5 @@
 import type { AgentList } from './create-picker-actors';
-import { openFirstSource, quitFlow, renderFlow } from './navigate-picker';
+import { openFirstSource, renderFlow } from './navigate-picker';
 import type { AgentPick, PickerFlow } from './picker-flow';
 
 export function openAgentMenu(flow: PickerFlow) {
@@ -50,10 +50,6 @@ export function applyAgentSubmit(flow: PickerFlow) {
   flow.ctx.agent = pick.agent;
 
   openFirstSource(flow);
-}
-
-export function applyAgentCancel(flow: PickerFlow) {
-  quitFlow(flow);
 }
 
 function collectAgentPicks(agents: AgentList['agents']): AgentPick[] {
