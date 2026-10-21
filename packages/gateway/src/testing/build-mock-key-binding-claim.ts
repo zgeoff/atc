@@ -1,7 +1,7 @@
 import type { MockOverrides } from '@atc/test-utils';
 import { faker } from '@faker-js/faker';
 import { mergeDeep } from '@zgeoff/std';
-import type { GatewayStore } from '../gateway-store';
+import type { GatewayStore } from '../create-gateway-store';
 
 type KeyBindingClaim = Parameters<GatewayStore['claimBinding']>[0];
 

@@ -2,14 +2,14 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { buildBindingPayloadHash } from './build-binding-payload-hash';
-import { GatewayStore } from './gateway-store';
+import { createGatewayStore } from './create-gateway-store';
 import { buildMockKeyBindingClaim } from './testing/build-mock-key-binding-claim';
 import { openTestBindingDatabase } from './testing/open-test-binding-database';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-gateway-store-');
   const path = join(temporaryDirectory.path, 'gateway.db');
-  const store = GatewayStore.open(openTestBindingDatabase(path));
+  const store = createGatewayStore(openTestBindingDatabase(path));
 
   registerTestCleanup(() => {
     store.stop();
@@ -117,7 +117,7 @@ test('#open keeps a binding across a gateway restart', () => {
   ctx.store.claimBinding(claim, 10);
   ctx.store.stop();
 
-  const restarted = GatewayStore.open(openTestBindingDatabase(ctx.path));
+  const restarted = createGatewayStore(openTestBindingDatabase(ctx.path));
 
   registerTestCleanup(() => {
     restarted.stop();
@@ -267,7 +267,7 @@ test('#claimFirstSend refuses the first send of a binding sent before a gateway 
   ctx.store.claimFirstSend('c1', 'session.spawn', 'k', 20);
   ctx.store.stop();
 
-  const restarted = GatewayStore.open(openTestBindingDatabase(ctx.path));
+  const restarted = createGatewayStore(openTestBindingDatabase(ctx.path));
 
   registerTestCleanup(() => {
     restarted.stop();

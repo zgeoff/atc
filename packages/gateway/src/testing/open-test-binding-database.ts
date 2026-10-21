@@ -1,5 +1,5 @@
 import { Database } from 'bun:sqlite';
-import type { BindingDatabase } from '../gateway-store';
+import type { BindingDatabase } from '../create-gateway-store';
 
 // The binding database as the gateway's entry opens it: named parameters
 // without their prefix, and WAL, so a second store reads the first one's writes.

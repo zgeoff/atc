@@ -5,7 +5,7 @@ import { decodeCursor, encodeCursor } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
 import { buildEventsFilterHash } from './build-events-filter-hash';
 import { buildGatewayError } from './build-gateway-error';
-import type { GatewayDaemonCaller } from './gateway-daemon-caller';
+import type { GatewayDaemonCaller } from './create-gateway-daemon-caller';
 import { mergeEventPages } from './merge-event-pages';
 import type { MergeSource } from './merge-event-pages';
 import { parseGatewayID } from './parse-gateway-id';

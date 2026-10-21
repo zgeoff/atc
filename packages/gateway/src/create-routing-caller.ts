@@ -4,9 +4,9 @@ import type { Principal } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
 import { match } from 'ts-pattern';
 import { buildGatewayResult } from './build-gateway-result';
-import type { DaemonPool } from './daemon-pool';
-import type { GatewayDaemonCaller } from './gateway-daemon-caller';
-import type { GatewayStore } from './gateway-store';
+import type { DaemonPool } from './create-daemon-pool';
+import type { GatewayDaemonCaller } from './create-gateway-daemon-caller';
+import type { GatewayStore } from './create-gateway-store';
 import { pickDaemonState } from './pick-daemon-state';
 import { readFleetEvents } from './read-fleet-events';
 import { sendRoutedCall } from './send-routed-call';
@@ -33,70 +33,34 @@ interface RoutingCallerOptions {
 
 const FAN_OUT_TIMEOUT_MS = 5000;
 
-export class RoutingCaller {
-  private readonly opts: RoutingCallerOptions;
-
-  constructor(opts: RoutingCallerOptions) {
-    this.opts = opts;
-  }
-
-  sendRequest(
+export interface RoutingCaller {
+  readonly sendRequest: (
     method: string,
-    requestParams: Readonly<Record<string, unknown>> = {},
+    requestParams?: Readonly<Record<string, unknown>>,
     principal?: Principal,
-  ): Promise<Readonly<Record<string, unknown>>> {
-    if (principal === undefined) {
-      return Promise.reject(
-        new Error('the gateway sends a request only as the verified client of the call'),
-      );
-    }
+  ) => Promise<Readonly<Record<string, unknown>>>;
 
-    const { daemon: named, ...params } = requestParams;
-
-    return match(method)
-      .with('daemons.list', () => this.readDaemonStates())
-      .with('session.list', 'agents.list', (fanned) => this.sendFanOut(fanned, principal))
-      .with('events.read', () =>
-        readFleetEvents(
-          {
-            registry: this.opts.registry,
-            getCaller: this.getCaller,
-            timeoutMs: this.getTimeout(),
-            clock: this.getClock(),
-          },
-          params,
-          principal,
-        ),
-      )
-      .otherwise(() => this.sendRouted(method, params, named, principal));
-  }
-
-  readonly features: ReadonlySet<GatewayFeature> = new Set<GatewayFeature>(['fleet.daemons']);
+  readonly features: ReadonlySet<GatewayFeature>;
 
   // The gateway dials each daemon only when a call needs it, and a listing
   // reports a daemon it cannot reach as down, so no single daemon gates it.
-  waitForDaemon(): Promise<void> {
-    return Promise.resolve();
-  }
+  readonly waitForDaemon: () => Promise<void>;
+}
 
-  private readonly getCaller = (name: string): GatewayDaemonCaller =>
-    this.opts.pool.getCaller(name);
+export function createRoutingCaller(opts: RoutingCallerOptions): RoutingCaller {
+  const features: ReadonlySet<GatewayFeature> = new Set<GatewayFeature>(['fleet.daemons']);
 
-  private getTimeout(): number {
-    return this.opts.fanOutTimeoutMs ?? FAN_OUT_TIMEOUT_MS;
-  }
-
-  private getClock(): Clock {
-    return this.opts.clock ?? systemClock;
-  }
+  const getCaller = (name: string): GatewayDaemonCaller => opts.pool.getCaller(name);
+  const getTimeout = (): number => opts.fanOutTimeoutMs ?? FAN_OUT_TIMEOUT_MS;
+  const getClock = (): Clock => opts.clock ?? systemClock;
 
   // The daemon a `daemon` param picks, or null when the call gives none.
-  private findNamedDaemon(named: unknown): RegistryDaemon | null {
+  const findNamedDaemon = (named: unknown): RegistryDaemon | null => {
     if (named === undefined) {
       return null;
     }
 
-    const daemon = typeof named === 'string' ? this.opts.registry.daemons.get(named) : undefined;
+    const daemon = typeof named === 'string' ? opts.registry.daemons.get(named) : undefined;
 
     if (daemon === undefined) {
       const shown = typeof named === 'string' ? named : JSON.stringify(named);
@@ -105,25 +69,25 @@ export class RoutingCaller {
     }
 
     return daemon;
-  }
+  };
 
   // The steps of a routed call, outermost first: the id rules, the daemon
   // pick, the key binding, then the pass-through to the daemon.
-  private async sendRouted(
+  const sendRouted = async (
     method: string,
     params: Readonly<Record<string, unknown>>,
     rawNamed: unknown,
     principal: Principal,
-  ): Promise<Readonly<Record<string, unknown>>> {
-    const registry = this.opts.registry;
-    const pool = this.opts.pool;
-    const binding = { registry, pool, store: this.opts.store, clock: this.getClock() };
+  ): Promise<Readonly<Record<string, unknown>>> => {
+    const registry = opts.registry;
+    const pool = opts.pool;
+    const binding = { registry, pool, store: opts.store, clock: getClock() };
 
     const call: RoutedCall = {
       method,
       params,
       principal,
-      named: this.findNamedDaemon(rawNamed),
+      named: findNamedDaemon(rawNamed),
       owner: null,
       daemon: null,
     };
@@ -140,21 +104,27 @@ export class RoutingCaller {
         throw refused.error;
       })
       .exhaustive();
-  }
+  };
 
-  private async sendFanOut(
+  const sendToDaemon = async (
+    method: string,
+    daemon: RegistryDaemon,
+    principal: Principal,
+  ): Promise<Readonly<Record<string, unknown>>> => {
+    const ok = await opts.pool.getCaller(daemon.name).sendRequest(method, {}, principal);
+
+    return buildGatewayResult(method, ok, daemon);
+  };
+
+  const sendFanOut = async (
     method: 'session.list' | 'agents.list',
     principal: Principal,
-  ): Promise<Readonly<Record<string, unknown>>> {
-    const daemons = [...this.opts.registry.daemons.values()];
+  ): Promise<Readonly<Record<string, unknown>>> => {
+    const daemons = [...opts.registry.daemons.values()];
 
     const outcomes = await Promise.all(
       daemons.map((daemon) =>
-        waitForOutcome(
-          this.sendToDaemon(method, daemon, principal),
-          this.getTimeout(),
-          this.getClock(),
-        ),
+        waitForOutcome(sendToDaemon(method, daemon, principal), getTimeout(), getClock()),
       ),
     );
 
@@ -185,30 +155,16 @@ export class RoutingCaller {
         state: pickDaemonState(entry.outcome),
       })),
     };
-  }
-
-  private async sendToDaemon(
-    method: string,
-    daemon: RegistryDaemon,
-    principal: Principal,
-  ): Promise<Readonly<Record<string, unknown>>> {
-    const ok = await this.opts.pool.getCaller(daemon.name).sendRequest(method, {}, principal);
-
-    return buildGatewayResult(method, ok, daemon);
-  }
+  };
 
   // Each daemon's name, state, build, and pinned state identity, read from
   // its handshake, and the default daemon. Never an address or a token.
-  private async readDaemonStates(): Promise<Readonly<Record<string, unknown>>> {
-    const daemons = [...this.opts.registry.daemons.values()];
+  const readDaemonStates = async (): Promise<Readonly<Record<string, unknown>>> => {
+    const daemons = [...opts.registry.daemons.values()];
 
     const outcomes = await Promise.all(
       daemons.map((daemon) =>
-        waitForOutcome(
-          this.opts.pool.getCaller(daemon.name).readHello(),
-          this.getTimeout(),
-          this.getClock(),
-        ),
+        waitForOutcome(opts.pool.getCaller(daemon.name).readHello(), getTimeout(), getClock()),
       ),
     );
 
@@ -224,9 +180,42 @@ export class RoutingCaller {
           daemonID: daemon.daemonID,
         };
       }),
-      defaultDaemon: this.opts.registry.defaultDaemon,
+      defaultDaemon: opts.registry.defaultDaemon,
     };
-  }
+  };
+
+  return {
+    sendRequest: (method, requestParams, principal) => {
+      if (principal === undefined) {
+        return Promise.reject(
+          new Error('the gateway sends a request only as the verified client of the call'),
+        );
+      }
+
+      const { daemon: named, ...params } = requestParams ?? {};
+
+      return match(method)
+        .with('daemons.list', () => readDaemonStates())
+        .with('session.list', 'agents.list', (fanned) => sendFanOut(fanned, principal))
+        .with('events.read', () =>
+          readFleetEvents(
+            {
+              registry: opts.registry,
+              getCaller,
+              timeoutMs: getTimeout(),
+              clock: getClock(),
+            },
+            params,
+            principal,
+          ),
+        )
+        .otherwise(() => sendRouted(method, params, named, principal));
+    },
+
+    features,
+
+    waitForDaemon: () => Promise.resolve(),
+  };
 }
 
 function collectSessions(outcome: CallOutcome<Readonly<Record<string, unknown>>>): unknown[] {

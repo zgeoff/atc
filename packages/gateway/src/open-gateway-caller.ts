@@ -1,8 +1,9 @@
 import type { Clock } from '@atc/core';
-import { DaemonPool } from './daemon-pool';
-import { GatewayStore } from './gateway-store';
-import type { BindingDatabase } from './gateway-store';
-import { RoutingCaller } from './routing-caller';
+import { createDaemonPool } from './create-daemon-pool';
+import { createGatewayStore } from './create-gateway-store';
+import type { BindingDatabase } from './create-gateway-store';
+import { createRoutingCaller } from './create-routing-caller';
+import type { RoutingCaller } from './create-routing-caller';
 import type { GatewayChannel, GatewayRegistry, RegistryDaemon } from './types';
 
 interface GatewayCallerOptions {
@@ -28,16 +29,16 @@ export function openGatewayCaller(opts: GatewayCallerOptions): {
   readonly caller: RoutingCaller;
   readonly stop: () => Promise<void>;
 } {
-  const store = GatewayStore.open(opts.bindings);
+  const store = createGatewayStore(opts.bindings);
 
-  const pool = new DaemonPool({
+  const pool = createDaemonPool({
     registry: opts.registry,
     build: opts.build,
     openChannel: opts.openChannel,
     ...(opts.clock === undefined ? {} : { clock: opts.clock }),
   });
 
-  const caller = new RoutingCaller({
+  const caller = createRoutingCaller({
     registry: opts.registry,
     pool,
     store,
