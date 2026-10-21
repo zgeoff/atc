@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { openDaemonClient } from '@atc/protocol/client';
 import {
@@ -19,31 +19,27 @@ function setupTest() {
 test('it narrows the overlay to sessions matching the slash filter', async () => {
   const ctx = setupTest();
 
+  // The sessions report no prompt, so neither names itself in the status
+  // bar as the session that needs you.
+  writeFileSync(join(ctx.home, 'fake-claude-events.jsonl'), '');
+
   ctx.boot();
 
   await ctx.waitFor('atc — control tower');
 
-  await spawnClaudeSession(ctx, 'alpha');
+  const daemon = await openDaemonClient(join(ctx.home, 'atc-daemon.sock'));
 
-  ctx.reset();
-  ctx.write(KEYS.ctrlSpace);
+  registerTestCleanup(() => {
+    daemon.stop();
+  });
 
-  await ctx.waitFor('need you: alpha');
-  await ctx.waitFor('┌ sessions ');
+  await daemon.sendHello('atc/test');
 
-  // Attaching alpha stops it being the urgent session in the status bar;
-  // the attach jiggle repaints the fake.
-  ctx.reset();
-  ctx.write(KEYS.enter);
+  const send = (method: string, params?: Readonly<Record<string, unknown>>) =>
+    daemon.sendRequest(method, params);
 
-  await ctx.waitFor('FAKE_CLAUDE_UP');
-
-  ctx.reset();
-  ctx.write(KEYS.ctrlSpace);
-
-  await ctx.waitFor('┌ sessions ');
-
-  await spawnClaudeSession(ctx, 'bravo');
+  await spawnNamedSession(send, 'alpha', ctx.home);
+  await spawnNamedSession(send, 'bravo', ctx.home);
 
   ctx.reset();
   ctx.write(KEYS.ctrlSpace);
