@@ -3,6 +3,7 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolveGatewayCommand, runCommand, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
+import { runClients } from '../packages/app/src/clients';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-gateway-bin-');
@@ -22,7 +23,7 @@ function setupTest() {
   };
 }
 
-test('it adds, lists, and removes a client in a state directory relative to where it runs over the environment', async () => {
+test('it adds a client in a state directory relative to where it runs over the environment', async () => {
   const ctx = setupTest();
 
   const added = await runCommand(
@@ -39,9 +40,31 @@ test('it adds, lists, and removes a client in a state directory relative to wher
     { cwd: ctx.directory, env: { ...ctx.env, ATC_GATEWAY_STATE_DIR: 'from-env' } },
   );
 
-  const clientID = /client ID is (?<id>\w+)/u.exec(added.stdout)?.groups?.['id'];
+  expect(added.stdout).toMatch(/^Added Claude\. Its client ID is \w+\n$/u);
+  expect(readdirSync(ctx.directory)).toStrictEqual(['flagged']);
+  expect(readdirSync(join(ctx.directory, 'flagged'))).toContain('mcp-auth.db');
+});
 
-  invariant(clientID !== undefined, `no client ID in: ${added.stdout}${added.stderr}`);
+test('it lists the clients of a state directory relative to where it runs', async () => {
+  const ctx = setupTest();
+  const printed: string[] = [];
+
+  await runClients(
+    { kind: 'add', name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+    { dbPath: join(ctx.directory, 'flagged', 'mcp-auth.db'), command: 'atc-gateway clients' },
+    {
+      print: (line) => {
+        printed.push(line);
+      },
+      printError: () => {},
+      setExitCode: () => {},
+      exit: () => {},
+    },
+  );
+
+  const clientID = /client ID is (?<id>\w+)/u.exec(printed.join('\n'))?.groups?.['id'];
+
+  invariant(clientID !== undefined, `no client ID in: ${printed.join('\n')}`);
 
   const listed = await runCommand([...ctx.command, 'clients', 'list', '--state-dir=flagged'], {
     cwd: ctx.directory,
@@ -52,6 +75,28 @@ test('it adds, lists, and removes a client in a state directory relative to wher
     exitCode: 0,
     stdout: `${clientID}  Claude  https://claude.ai/api/mcp/auth_callback\n`,
   });
+});
+
+test('it removes a client from a state directory relative to where it runs', async () => {
+  const ctx = setupTest();
+  const printed: string[] = [];
+
+  await runClients(
+    { kind: 'add', name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+    { dbPath: join(ctx.directory, 'flagged', 'mcp-auth.db'), command: 'atc-gateway clients' },
+    {
+      print: (line) => {
+        printed.push(line);
+      },
+      printError: () => {},
+      setExitCode: () => {},
+      exit: () => {},
+    },
+  );
+
+  const clientID = /client ID is (?<id>\w+)/u.exec(printed.join('\n'))?.groups?.['id'];
+
+  invariant(clientID !== undefined, `no client ID in: ${printed.join('\n')}`);
 
   const removed = await runCommand(
     [...ctx.command, 'clients', 'remove', clientID, '--state-dir', 'flagged'],
@@ -59,17 +104,19 @@ test('it adds, lists, and removes a client in a state directory relative to wher
   );
 
   expect(removed.stdout).toBe(`Removed client ${clientID} and revoked every grant it held\n`);
+});
 
-  const emptied = await runCommand([...ctx.command, 'clients', 'list', '--state-dir=flagged'], {
+test('it lists no clients and how to add one in a state directory with none', async () => {
+  const ctx = setupTest();
+
+  const listed = await runCommand([...ctx.command, 'clients', 'list', '--state-dir=flagged'], {
     cwd: ctx.directory,
     env: ctx.env,
   });
 
-  expect(emptied.stdout).toBe(
+  expect(listed.stdout).toBe(
     'No clients. Add one with: atc-gateway clients add <name> --redirect-uri <uri>\n',
   );
-
-  expect(readdirSync(ctx.directory).toSorted()).toStrictEqual(['flagged']);
 });
 
 test('it exits 1 on two state directories that differ', async () => {
