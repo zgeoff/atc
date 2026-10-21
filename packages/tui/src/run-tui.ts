@@ -4,6 +4,7 @@ import { ansi, makeSingleFlight, systemClock } from '@atc/core';
 import { countSessionStates, sortSessionViews } from '@atc/protocol';
 import type { DaemonBoot } from '@atc/protocol';
 import type { DaemonClient } from '@atc/protocol/client';
+import { match } from 'ts-pattern';
 import { createActor } from 'xstate';
 import { applyDaemonEvent } from './apply-daemon-event';
 import type { DaemonEventDeps } from './apply-daemon-event';
@@ -16,10 +17,10 @@ import { DaemonConnection } from './daemon-connection';
 import { EjectScreen } from './eject-screen';
 import { FleetMirror } from './fleet-mirror';
 import { OverlayScreen } from './overlay-screen';
+import { createSpawnPicker } from './picker/create-spawn-picker';
 import { resolveAgentMetadata } from './resolve-agent-metadata';
 import { restartDaemon } from './restart-daemon';
 import { SessionActions } from './session-actions';
-import { SpawnPicker } from './spawn-picker';
 import { toMirrorSession } from './to-mirror-session';
 import type { MirrorSession } from './to-mirror-session';
 import type { TUIHost } from './tui-host';
@@ -203,40 +204,34 @@ export async function runTUI(host: TUIHost): Promise<void> {
   const isDaemonRestarting = (): boolean => service.getSnapshot().matches({ daemon: 'restarting' });
 
   const drawMode = () => {
-    switch (getMode()) {
-      case 'home': {
+    match(getMode())
+      .with('home', () => {
         drawHome(mirror.count, leader.label);
-        break;
-      }
-      case 'overlay': {
+      })
+      .with('overlay', () => {
         stdout.write(ansi.clear);
         overlay.render();
-        break;
-      }
-      case 'help': {
+      })
+      .with('help', () => {
         openHelp();
-        break;
-      }
-      case 'picker': {
+      })
+      .with('picker', () => {
         stdout.write(ansi.clear);
         picker.render();
-        break;
-      }
-      case 'picker-eject': {
+      })
+      .with('picker-eject', () => {
         stdout.write(ansi.clear);
         eject.render();
-        break;
-      }
-      case 'attached': {
+      })
+      .with('attached', () => {
         // a session repaints only through the agent, on the resize the daemon passes on.
-        break;
-      }
-    }
+      })
+      .exhaustive();
 
     scheduleStatus();
   };
 
-  const picker = new SpawnPicker<MirrorSession>({
+  const picker = createSpawnPicker<MirrorSession>({
     sendRequest,
     ptyRows,
     isLeaderKey,
