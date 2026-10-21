@@ -116,16 +116,21 @@ still waiting for a response, and decides for itself whether to resend it.
 
 ## Versions
 
-The protocol version is one integer compared for equality. The daemon records it in `daemon.json`
-beside its socket paths, and a client sends its own in the hello. A daemon on another version
-refuses the handshake with `protocol_mismatch`, and the error holds both versions and both builds,
-so the failure says what to do. [The daemon](../daemon/daemon.md#builds-and-protocol-versions)
-covers how each client handles it.
+The protocol version is one integer compared for equality, and the current version is 8. The daemon
+records it in `daemon.json` beside its socket paths, and a client sends its own in the hello. A
+daemon on another version refuses the handshake with `protocol_mismatch`, so a client and a daemon
+on different versions never talk, and the two install together. The error holds both versions and
+both builds, so the failure says what to do.
+[The daemon](../daemon/daemon.md#builds-and-protocol-versions) covers how each client handles it.
 
 Any change to a procedure, an input field, or an answer field raises the version. A client and a
 daemon that pass the handshake therefore serve the same procedures and fields, so a client offers
 every tool and input without asking the daemon what it serves. A peer ignores a field it does not
 know, in a request or in an answer.
+
+Version 8 differs from version 7 in one input field: `sources.complete` and `sources.interpret` take
+an optional `clientCwd`, the absolute directory the client runs in. The directory source reads a
+typed relative path from that directory. A client sends it only to a daemon on its own machine.
 
 ## Events
 
