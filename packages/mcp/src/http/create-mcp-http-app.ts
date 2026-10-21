@@ -156,14 +156,15 @@ export function createMCPHTTPApp(options: MCPHTTPAppOptions) {
         // or another one is a forged form
         beforeHandle: (context) => {
           const origin = context.request.headers.get('origin');
+          const isForged = origin === null || !options.origins.has(origin);
 
-          if (origin !== null && options.origins.has(origin)) {
-            return;
+          if (isForged) {
+            recordBadOrigin(options, context.request);
           }
 
-          recordBadOrigin(options, context.request);
-
-          return buildPageResponse(403, { message: 'The form came from an unexpected origin.' });
+          return isForged
+            ? buildPageResponse(403, { message: 'The form came from an unexpected origin.' })
+            : undefined;
         },
       },
     );
@@ -188,14 +189,13 @@ export function createMCPHTTPApp(options: MCPHTTPAppOptions) {
       {
         beforeHandle: (context) => {
           const origin = context.request.headers.get('origin');
+          const isForeign = origin !== null && !options.origins.has(origin);
 
-          if (origin === null || options.origins.has(origin)) {
-            return;
+          if (isForeign) {
+            recordBadOrigin(options, context.request);
           }
 
-          recordBadOrigin(options, context.request);
-
-          return new Response(null, { status: 403 });
+          return isForeign ? new Response(null, { status: 403 }) : undefined;
         },
       },
     );

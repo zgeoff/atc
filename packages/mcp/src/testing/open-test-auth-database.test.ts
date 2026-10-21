@@ -37,7 +37,9 @@ test('it releases the file once closed, so another connection writes to it', asy
 
   const other = new Database(ctx.path);
 
-  onTestFinished(() => other.close());
+  onTestFinished(() => {
+    other.close();
+  });
 
   other.run("INSERT INTO note (id) VALUES ('n1')");
 

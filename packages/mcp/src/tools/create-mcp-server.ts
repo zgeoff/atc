@@ -6,11 +6,7 @@ import type {
   JsonSchemaValidator,
   jsonSchemaValidator,
 } from '@modelcontextprotocol/server';
-import {
-  Ajv,
-  AjvJsonSchemaValidator,
-  addFormats,
-} from '@modelcontextprotocol/server/validators/ajv';
+import { Ajv, AjvJsonSchemaValidator } from '@modelcontextprotocol/server/validators/ajv';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
 import type { RegisteredAgent } from './build-spawn-descriptions';
@@ -42,9 +38,11 @@ const ajv = new Ajv({
   formats: { starts_with: true },
 });
 
-addFormats(ajv);
-
 const ajvValidator = new AjvJsonSchemaValidator(ajv);
+
+// Ajv keeps every schema object it compiles, and each HTTP request builds its
+// tools afresh, so each schema text maps to the one object Ajv compiles.
+const canonicalSchemas = new Map<string, JsonSchemaType>();
 
 // The SDK compiles a tool's schemas when the tool registers, which costs
 // every tool on each start, so each schema compiles on its first call instead.
@@ -53,7 +51,14 @@ const schemaValidator: jsonSchemaValidator = {
     let compiled: JsonSchemaValidator<T> | null = null;
 
     return (input) => {
-      compiled ??= ajvValidator.getValidator<T>(schema);
+      if (compiled === null) {
+        const text = JSON.stringify(schema);
+        const canonical = canonicalSchemas.get(text) ?? schema;
+
+        canonicalSchemas.set(text, canonical);
+
+        compiled = ajvValidator.getValidator<T>(canonical);
+      }
 
       return compiled(input);
     };

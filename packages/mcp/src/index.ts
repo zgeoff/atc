@@ -1,7 +1,7 @@
 export * from './auth/create-enrollment-token';
 export * from './auth/create-passkey';
 export * from './auth/is-allowed-redirect-uri';
-export * from './auth/mcp-auth-database';
+export type * from './auth/mcp-auth-database';
 export * from './auth/normalize-client-name';
 export * from './auth/open-mcp-auth';
 export * from './auth/read-client-views';
