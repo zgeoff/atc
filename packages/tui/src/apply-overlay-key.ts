@@ -1,12 +1,12 @@
 import { ansi } from '@atc/core';
 import type { DaemonBoot } from '@atc/protocol';
 import type { ClientActor } from './build-client-machine';
-import type { FleetMirror } from './fleet-mirror';
+import type { FleetMirror } from './create-fleet-mirror';
+import type { OverlayConfirm, OverlayScreen } from './create-overlay-screen';
+import type { SessionActions } from './create-session-actions';
 import { KEY, isDown, isUp } from './keys';
-import type { OverlayConfirm, OverlayScreen } from './overlay-screen';
 import { pickPinTarget } from './pick-pin-target';
 import { pickTabTarget } from './pick-tab-target';
-import type { SessionActions } from './session-actions';
 
 // What the overlay's keys borrow from the client that owns the screen, the
 // fleet mirror, and the daemon connection.

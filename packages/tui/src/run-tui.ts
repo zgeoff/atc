@@ -13,14 +13,14 @@ import type { InputKeyDeps } from './apply-input-key';
 import { buildClientMachine } from './build-client-machine';
 import type { RestartConsent } from './build-client-machine';
 import { buildLeaderChords } from './build-leader-chords';
-import { DaemonConnection } from './daemon-connection';
-import { EjectScreen } from './eject-screen';
-import { FleetMirror } from './fleet-mirror';
-import { OverlayScreen } from './overlay-screen';
+import { createEjectScreen } from './create-eject-screen';
+import { createFleetMirror } from './create-fleet-mirror';
+import { createOverlayScreen } from './create-overlay-screen';
+import { createSessionActions } from './create-session-actions';
+import { createTUIDaemonConnection } from './create-tui-daemon-connection';
 import { createSpawnPicker } from './picker/create-spawn-picker';
 import { resolveAgentMetadata } from './resolve-agent-metadata';
 import { restartDaemon } from './restart-daemon';
-import { SessionActions } from './session-actions';
 import { toMirrorSession } from './to-mirror-session';
 import type { MirrorSession } from './to-mirror-session';
 import type { TUIHost } from './tui-host';
@@ -34,9 +34,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
 
   // The time and the timers every wait of this client runs on.
   const clock = systemClock;
-
-  const mirror = new FleetMirror();
-
+  const mirror = createFleetMirror();
   let focusedID: string | null = null;
   let lastUsedAgent: AgentID = host.readConfig().defaultAgent;
   let statusTimer: ReturnType<typeof setTimeout> | null = null;
@@ -278,7 +276,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
     }),
   );
 
-  const overlay = new OverlayScreen({
+  const overlay = createOverlayScreen({
     mirror,
     bootMetadata,
     readConfig: host.readConfig,
@@ -291,7 +289,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
     scheduleStatus,
   });
 
-  const actions = new SessionActions({
+  const actions = createSessionActions({
     service,
     mirror,
     overlay,
@@ -302,7 +300,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
     ptyRows,
   });
 
-  const eject = new EjectScreen({
+  const eject = createEjectScreen({
     service,
     actions,
     getClient,
@@ -326,7 +324,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
     scheduleStatus,
   };
 
-  const connection = new DaemonConnection({
+  const connection = createTUIDaemonConnection({
     clock,
     bootDaemonClient,
     remoteDaemonName,

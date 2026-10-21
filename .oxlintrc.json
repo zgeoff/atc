@@ -52,18 +52,6 @@
   },
   "overrides": [
     {
-      // GEO-1426 builds the objects in these files with factory functions;
-      // each follow-up removes the files it converts
-      "files": [
-        "packages/tui/src/daemon-connection.ts",
-        "packages/tui/src/eject-screen.ts",
-        "packages/tui/src/fleet-mirror.ts",
-        "packages/tui/src/overlay-screen.ts",
-        "packages/tui/src/session-actions.ts"
-      ],
-      "rules": { "zgeoff/no-class": "off" }
-    },
-    {
       // the system clock itself, tests, test helpers (a package's testing
       // folder among them), and tooling read the
       // wall clock directly; an override replaces the rule's options, so it
