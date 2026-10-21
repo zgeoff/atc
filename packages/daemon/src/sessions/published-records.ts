@@ -21,9 +21,11 @@ interface PublishedRecordStore {
   readonly removePublishedRecord: (sessionID: SessionID) => Promise<void>;
 }
 
-interface RecordSubject {
+export interface RecordSubject {
   readonly session: SessionID;
   readonly target: string;
+  readonly name: string;
+  readonly transcriptPath: string | null;
   readonly provider: ExecutionProvider;
   readonly host: SessionID;
   readonly directory: string;
@@ -92,15 +94,39 @@ export class PublishedRecords {
   }
 
   // Places the stored copy again before a harness starts on a revived or
-  // restored session, recording a fresh one for a session without one.
-  async restoreCopy(subject: RecordSubject): Promise<string> {
-    const stored = await this.options.store.readPublishedRecord(subject.session);
+  // restored session, recording a fresh one for a session without one, and
+  // a name or transcript path changed since then as the next revision.
+  restoreCopy(subject: RecordSubject): Promise<string> {
+    return this.withSessionTurn(subject.session, async () => {
+      const stored = await this.options.store.readPublishedRecord(subject.session);
 
-    if (stored === null) {
-      return this.createRecord(subject, null);
-    }
+      if (stored === null) {
+        return this.createRecord(subject, null);
+      }
 
-    return this.writeCopy(subject, stored);
+      const record = await this.writeIdentity(subject, stored);
+
+      return this.writeCopy(subject, record);
+    });
+  }
+
+  // Records a changed name or transcript path as the next revision. The
+  // copy is placed only when placeCopy holds, since a host that sleeps
+  // takes its copy at its next harness start.
+  updateIdentity(subject: RecordSubject, placeCopy: boolean): Promise<void> {
+    return this.withSessionTurn(subject.session, async () => {
+      const stored = await this.options.store.readPublishedRecord(subject.session);
+
+      if (stored === null) {
+        return;
+      }
+
+      const record = await this.writeIdentity(subject, stored);
+
+      if (record !== stored && placeCopy) {
+        await this.writeCopy(subject, record);
+      }
+    });
   }
 
   // Checks an added scope on the session's host, adds each entry the record
@@ -127,6 +153,21 @@ export class PublishedRecords {
     this.withoutGuestCopy.delete(sessionID);
 
     await rm(this.getLocalPath(sessionID), { force: true });
+  }
+
+  private async writeIdentity(
+    subject: RecordSubject,
+    stored: PublishedRecord,
+  ): Promise<PublishedRecord> {
+    if (stored.name === subject.name && stored.transcriptPath === subject.transcriptPath) {
+      return stored;
+    }
+
+    const record = this.buildRecord(subject, stored.scope, stored.revision + 1);
+
+    await this.options.store.writePublishedRecord(record);
+
+    return record;
   }
 
   private async writeScope(
@@ -216,6 +257,8 @@ export class PublishedRecords {
       target: subject.target,
       revision,
       updatedAt: new Date(this.options.now()).toISOString(),
+      name: subject.name,
+      transcriptPath: subject.transcriptPath,
       scope,
     };
   }

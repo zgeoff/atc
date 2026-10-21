@@ -127,6 +127,8 @@ export class SessionManager {
 
   private readonly hooks: SessionHookApplier;
 
+  private readonly callbacks: SessionCallbacks;
+
   private readonly store: FleetStore;
 
   // events are taken at build time, so no session event arrives before its
@@ -188,6 +190,7 @@ export class SessionManager {
     const rollback = new SpawnRollback({ registry, fleet, claims, harnesses, callbacks });
     const auth = new AuthSetup({ registry, fleet, claims, harnesses, rollback, store, callbacks });
 
+    this.callbacks = callbacks;
     this.store = store;
     this.registry = registry;
     this.fleet = fleet;
@@ -424,7 +427,7 @@ export class SessionManager {
 
   updateSession(id: SessionID, changes: SessionChanges): boolean | 'shared_host' | 'agent_named' {
     return updateSession(
-      { registry: this.registry, fleet: this.fleet, callbacks: { onEvent: this.onEvent } },
+      { registry: this.registry, fleet: this.fleet, callbacks: this.callbacks },
       id,
       changes,
     );

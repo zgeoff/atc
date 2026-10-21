@@ -3,11 +3,12 @@ import type { SessionFleetWriter } from '../fleet/session-fleet-writer';
 import type { SessionCallbacks } from './session-callbacks';
 import type { SessionChanges } from './session-changes';
 import type { SessionRegistry } from './session-registry';
+import { updateRecordIdentity } from './update-record-identity';
 
 interface UpdateSessionDeps {
-  readonly registry: Pick<SessionRegistry, 'sessions'>;
+  readonly registry: Pick<SessionRegistry, 'sessions' | 'requireExecution'>;
   readonly fleet: Pick<SessionFleetWriter, 'emitChange' | 'tryWriteFleet' | 'writeStatus'>;
-  readonly callbacks: Pick<SessionCallbacks, 'onEvent'>;
+  readonly callbacks: Pick<SessionCallbacks, 'onEvent' | 'findRecords' | 'log'>;
 }
 
 export function updateSession(
@@ -48,7 +49,7 @@ export function updateSession(
     // auto-summaries stop overwriting a user-strength name, while an
     // in-session rename still wins
     session.namedBy = 'user';
-
+    void updateRecordIdentity(deps, session);
     deps.callbacks.onEvent('renamed', session);
   }
 

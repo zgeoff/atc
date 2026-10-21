@@ -76,6 +76,8 @@ test('it publishes a record of the workspace and each checked entry and gives th
     target: 'box',
     revision: 1,
     updatedAt: expect.any(String),
+    name: 'work',
+    transcriptPath: null,
     scope: {
       workspace: { path: ctx.fixture.work, branch: 'main', repoURL: null, sha: null },
       worktrees: [{ path: worktree, branch: 'fix-login' }],
@@ -97,6 +99,88 @@ test('it returns the published record from session.get', async () => {
 
   const got = await ctx.daemon.client.sendRequest('session.get', { session: id });
   const copy = await readJSONRecord(Bun.file(join(ctx.records, `${id}.json`)));
+
+  expect(got['sessionRecord']).toStrictEqual(copy);
+});
+
+test("it records the user's new name for the session and rewrites the copy", async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.fixture.work,
+    target: 'box',
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+  const path = join(ctx.records, `${id}.json`);
+
+  await ctx.daemon.client.sendRequest('session.update', { session: id, name: 'cart rework' });
+
+  const copy = await waitFor(async () => {
+    const read = await readJSONRecord(Bun.file(path));
+
+    expect(read['name']).toBe('cart rework');
+
+    return read;
+  });
+
+  expect(copy['revision']).toBe(2);
+});
+
+test("it records the agent's name and transcript path for the session from its hook", async () => {
+  const fixture = await createGitFixture({ prefix: 'atc-session-record-' });
+
+  const box = buildStubDirProvider();
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-session-record-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter({
+        planHookEvents: () => ({
+          events: [
+            {
+              kind: 'started',
+              transcriptSource: '/home/dev/.claude/projects/work/7b3e.jsonl',
+              nameSource: '/home/dev/.claude/projects/work/7b3e.jsonl',
+            },
+          ],
+        }),
+        loadName: () => Promise.resolve({ name: 'invoice export', namedBy: 'agent' }),
+      }),
+      targets: [
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: fixture.work,
+    target: 'box',
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+  const path = join(daemon.directory, 'records', `${id}.json`);
+
+  await daemon.sendHookLines({ atcId: id, event: 'SessionStart', payload: {} });
+
+  const copy = await waitFor(async () => {
+    const read = await readJSONRecord(Bun.file(path));
+
+    expect(read).toMatchObject({
+      name: 'invoice export',
+      transcriptPath: '/home/dev/.claude/projects/work/7b3e.jsonl',
+    });
+
+    return read;
+  });
+
+  const got = await daemon.client.sendRequest('session.get', { session: id });
 
   expect(got['sessionRecord']).toStrictEqual(copy);
 });
@@ -191,6 +275,8 @@ test('it adds scope from a client outside the session and rewrites the record', 
     target: 'box',
     revision: 2,
     updatedAt: expect.any(String),
+    name: 'work',
+    transcriptPath: null,
     scope: {
       workspace: { path: ctx.fixture.work, branch: 'main', repoURL: null, sha: null },
       worktrees: [],
@@ -342,6 +428,7 @@ test('it places the stored record again when a restore revives the session', asy
       await store.writeFleet([
         buildMockFleetEntry({
           sessionID: toSessionID('s-kept'),
+          name: 'kept session',
           cwd: fixture.work,
           agentSessionID: toAgentSessionID('agent-kept'),
           target: 'box',
@@ -357,6 +444,8 @@ test('it places the stored record again when a restore revives the session', asy
         target: 'box',
         revision: 4,
         updatedAt: '2026-10-08T09:30:00.000Z',
+        name: 'kept session',
+        transcriptPath: null,
         scope: {
           workspace: { path: fixture.work, branch: 'main', repoURL: null, sha: null },
           worktrees: [],

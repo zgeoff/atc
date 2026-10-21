@@ -37,6 +37,10 @@ const PUBLISHED_RECORD_SCHEMA = z.object({
   target: z.string(),
   revision: REVISION,
   updatedAt: z.string(),
+
+  // a record an older atc stored holds neither key
+  name: NULLABLE_STRING.default(null),
+  transcriptPath: NULLABLE_STRING.default(null),
   scope: SCOPE_SCHEMA,
 });
 

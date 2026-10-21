@@ -49,6 +49,8 @@ test('it publishes a read-only copy in the local directory and returns its path'
     {
       session,
       target: 'local',
+      name: 'login fix',
+      transcriptPath: null,
       provider: ctx.provider,
       host: session,
       directory: ctx.fixture.work,
@@ -71,6 +73,8 @@ test('it publishes a read-only copy in the local directory and returns its path'
     target: 'local',
     revision: 1,
     updatedAt: '2026-10-08T09:30:00.000Z',
+    name: 'login fix',
+    transcriptPath: null,
     scope: {
       workspace: { path: ctx.fixture.work, branch: 'main', repoURL: null, sha: null },
       worktrees: [],
@@ -89,6 +93,8 @@ test('it holds the record it publishes in the state store', async () => {
     {
       session,
       target: 'local',
+      name: 'login fix',
+      transcriptPath: null,
       provider: ctx.provider,
       host: session,
       directory: ctx.fixture.work,
@@ -112,6 +118,8 @@ test("it records a materialized workspace's repository and commit", async () => 
     {
       session,
       target: 'local',
+      name: 'login fix',
+      transcriptPath: null,
       provider: ctx.provider,
       host: session,
       directory: ctx.fixture.work,
@@ -147,6 +155,8 @@ test('it records no branch for a directory outside git', async () => {
     {
       session,
       target: 'local',
+      name: 'login fix',
+      transcriptPath: null,
       provider: ctx.provider,
       host: session,
       directory: plain,
@@ -177,6 +187,8 @@ test('it records the checked scope a spawn declares', async () => {
     {
       session,
       target: 'local',
+      name: 'login fix',
+      transcriptPath: null,
       provider: ctx.provider,
       host: session,
       directory: ctx.fixture.work,
@@ -202,6 +214,8 @@ test('it refuses a spawn whose declared scope fails its check and records nothin
     {
       session,
       target: 'local',
+      name: 'login fix',
+      transcriptPath: null,
       provider: ctx.provider,
       host: session,
       directory: ctx.fixture.work,
@@ -231,6 +245,8 @@ test('it places the stored copy again when a revive finds it gone', async () => 
   const subject = {
     session,
     target: 'local',
+    name: 'login fix',
+    transcriptPath: null,
     provider: ctx.provider,
     host: session,
     directory: ctx.fixture.work,
@@ -259,6 +275,8 @@ test('it records a fresh record when a revive finds a session without one', asyn
   const delivered = await ctx.records.restoreCopy({
     session,
     target: 'local',
+    name: 'login fix',
+    transcriptPath: null,
     provider: ctx.provider,
     host: session,
     directory: ctx.fixture.work,
@@ -275,12 +293,198 @@ test('it records a fresh record when a revive finds a session without one', asyn
     target: 'local',
     revision: 1,
     updatedAt: '2026-10-08T09:30:00.000Z',
+    name: 'login fix',
+    transcriptPath: null,
     scope: {
       workspace: { path: ctx.fixture.work, branch: 'main', repoURL: null, sha: null },
       worktrees: [],
       branches: [],
       pullRequests: [],
     },
+  });
+});
+
+test('it records a new name and transcript path as the next revision and rewrites the copy', async () => {
+  const ctx = await setupTest();
+
+  const session = toSessionID('s-renamed');
+
+  const path = await ctx.records.createRecord(
+    {
+      session,
+      target: 'local',
+      name: 'login fix',
+      transcriptPath: null,
+      provider: ctx.provider,
+      host: session,
+      directory: ctx.fixture.work,
+      workspace: null,
+    },
+    null,
+  );
+
+  await ctx.records.updateIdentity(
+    {
+      session,
+      target: 'local',
+      name: 'login fix, take two',
+      transcriptPath: '/home/dev/.claude/projects/app/4d2c.jsonl',
+      provider: ctx.provider,
+      host: session,
+      directory: ctx.fixture.work,
+      workspace: null,
+    },
+    true,
+  );
+
+  const copy = await readJSONRecord(Bun.file(path));
+
+  expect(copy).toStrictEqual({
+    format: 'atc.session-record',
+    version: 1,
+    session: 's-renamed',
+    daemonID: ctx.store.daemonID,
+    target: 'local',
+    revision: 2,
+    updatedAt: '2026-10-08T09:30:00.000Z',
+    name: 'login fix, take two',
+    transcriptPath: '/home/dev/.claude/projects/app/4d2c.jsonl',
+    scope: {
+      workspace: { path: ctx.fixture.work, branch: 'main', repoURL: null, sha: null },
+      worktrees: [],
+      branches: [],
+      pullRequests: [],
+    },
+  });
+});
+
+test('it keeps the record and its revision when the name and transcript path are unchanged', async () => {
+  const ctx = await setupTest();
+
+  const session = toSessionID('s-unchanged');
+
+  const subject = {
+    session,
+    target: 'local',
+    name: 'login fix',
+    transcriptPath: '/home/dev/.claude/projects/app/4d2c.jsonl',
+    provider: ctx.provider,
+    host: session,
+    directory: ctx.fixture.work,
+    workspace: null,
+  };
+
+  await ctx.records.createRecord(subject, null);
+  await ctx.records.updateIdentity(subject, true);
+
+  const stored = await ctx.store.readPublishedRecord(session);
+
+  expect(stored?.revision).toBe(1);
+});
+
+test('it stores a new name but leaves the copy when the copy is not to be placed', async () => {
+  const ctx = await setupTest();
+
+  const session = toSessionID('s-asleep');
+
+  const path = await ctx.records.createRecord(
+    {
+      session,
+      target: 'local',
+      name: 'login fix',
+      transcriptPath: null,
+      provider: ctx.provider,
+      host: session,
+      directory: ctx.fixture.work,
+      workspace: null,
+    },
+    null,
+  );
+
+  const before = await Bun.file(path).text();
+
+  await ctx.records.updateIdentity(
+    {
+      session,
+      target: 'local',
+      name: 'cart rework',
+      transcriptPath: null,
+      provider: ctx.provider,
+      host: session,
+      directory: ctx.fixture.work,
+      workspace: null,
+    },
+    false,
+  );
+
+  const stored = await ctx.store.readPublishedRecord(session);
+  const text = await Bun.file(path).text();
+
+  expect(stored?.name).toBe('cart rework');
+  expect(text).toBe(before);
+});
+
+test('it records nothing for a session without a record when its name changes', async () => {
+  const ctx = await setupTest();
+
+  const session = toSessionID('s-none');
+
+  await ctx.records.updateIdentity(
+    {
+      session,
+      target: 'local',
+      name: 'cart rework',
+      transcriptPath: null,
+      provider: ctx.provider,
+      host: session,
+      directory: ctx.fixture.work,
+      workspace: null,
+    },
+    true,
+  );
+
+  const stored = await ctx.store.readPublishedRecord(session);
+
+  expect(stored).toBeNull();
+  expect(existsSync(join(ctx.localDir, 's-none.json'))).toBe(false);
+});
+
+test('it records a name changed since the record was stored when a revive places the copy', async () => {
+  const ctx = await setupTest();
+
+  const session = toSessionID('s-revived-renamed');
+
+  await ctx.records.createRecord(
+    {
+      session,
+      target: 'local',
+      name: 'login fix',
+      transcriptPath: null,
+      provider: ctx.provider,
+      host: session,
+      directory: ctx.fixture.work,
+      workspace: null,
+    },
+    null,
+  );
+
+  const delivered = await ctx.records.restoreCopy({
+    session,
+    target: 'local',
+    name: 'cart rework',
+    transcriptPath: '/home/dev/.claude/projects/app/9e1f.jsonl',
+    provider: ctx.provider,
+    host: session,
+    directory: ctx.fixture.work,
+    workspace: null,
+  });
+
+  const copy = await readJSONRecord(Bun.file(delivered));
+
+  expect(copy).toMatchObject({
+    revision: 2,
+    name: 'cart rework',
+    transcriptPath: '/home/dev/.claude/projects/app/9e1f.jsonl',
   });
 });
 
@@ -292,6 +496,8 @@ test('it adds a checked scope, raises the revision, and rewrites the copy', asyn
   const subject = {
     session,
     target: 'local',
+    name: 'login fix',
+    transcriptPath: null,
     provider: ctx.provider,
     host: session,
     directory: ctx.fixture.work,
@@ -325,6 +531,8 @@ test('it keeps the record and its revision when an added scope holds nothing new
   const subject = {
     session,
     target: 'local',
+    name: 'login fix',
+    transcriptPath: null,
     provider: ctx.provider,
     host: session,
     directory: ctx.fixture.work,
@@ -354,6 +562,8 @@ test('it leaves the record as it was when an added entry fails its check', async
   const subject = {
     session,
     target: 'local',
+    name: 'login fix',
+    transcriptPath: null,
     provider: ctx.provider,
     host: session,
     directory: ctx.fixture.work,
@@ -392,6 +602,8 @@ test('it applies two additions to one record one after the other', async () => {
   const subject = {
     session,
     target: 'local',
+    name: 'login fix',
+    transcriptPath: null,
     provider: ctx.provider,
     host: session,
     directory: ctx.fixture.work,
@@ -433,6 +645,8 @@ test('it removes the record and its local copy', async () => {
     {
       session,
       target: 'local',
+      name: 'login fix',
+      transcriptPath: null,
       provider: ctx.provider,
       host: session,
       directory: ctx.fixture.work,
@@ -458,6 +672,8 @@ test('it rewrites the copy on a retry after a failed copy write left the store a
   const subject = {
     session,
     target: 'local',
+    name: 'login fix',
+    transcriptPath: null,
     provider: ctx.provider,
     host: session,
     directory: ctx.fixture.work,

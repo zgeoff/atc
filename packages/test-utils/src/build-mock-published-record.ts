@@ -17,6 +17,8 @@ export function buildMockPublishedRecord(
       target: 'local',
       revision: 1,
       updatedAt: faker.date.recent().toISOString(),
+      name: faker.word.words(2),
+      transcriptPath: null,
       scope: {
         workspace: {
           path: faker.system.directoryPath(),

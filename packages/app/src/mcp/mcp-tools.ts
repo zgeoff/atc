@@ -809,6 +809,16 @@ const SESSION_RECORD: Readonly<Record<string, unknown>> = {
       description: 'counts from 1 and grows with each change to the record',
     },
     updatedAt: { type: 'string', description: 'when the record last changed, in ISO 8601' },
+    name: {
+      type: ['string', 'null'],
+      description:
+        "the session's name; null only in a record an older atc stored and has not changed since",
+    },
+    transcriptPath: {
+      type: ['string', 'null'],
+      description:
+        "the agent's transcript file on the session's host; null until the agent reports one",
+    },
     scope: {
       type: 'object',
       description:

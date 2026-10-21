@@ -1,4 +1,3 @@
-import { posix } from 'node:path';
 import { socketPath } from '@atc/config';
 import type { AgentID, AgentSessionID, SessionID } from '@atc/core';
 import { createStepTimer } from '@atc/core';
@@ -11,6 +10,7 @@ import type { AuthSetup } from '../auth/auth-setup';
 import type { SessionFleetWriter } from '../fleet/session-fleet-writer';
 import type { HostDirClaims } from './host-dir-claims';
 import { mintSessionID } from './mint-session-id';
+import { pickSpawnName } from './pick-spawn-name';
 import { resolveRepoRoot } from './resolve-repo-root';
 import { runSpawnSteps } from './run-spawn-steps';
 import type { SpawnStepRunner, SpawnSteps } from './run-spawn-steps';
@@ -346,8 +346,7 @@ export class SessionSpawner {
 
         const registered: Session = {
           id,
-          name:
-            spawn.namedBy === 'auto' && directory !== cwd ? posix.basename(directory) : spawn.name,
+          name: pickSpawnName(spawn, directory),
           cwd: directory,
           kind: 'pty',
           pty,

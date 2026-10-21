@@ -6,6 +6,7 @@ import { buildSessionEnv } from '@atc/protocol/session';
 import { DaemonError } from '@atc/protocol/wire';
 import type { AuthSetup, HarnessAuthSetup, HarnessPlan } from '../auth/auth-setup';
 import type { SessionFleetWriter } from '../fleet/session-fleet-writer';
+import { buildRecordSubject } from './build-record-subject';
 import { requirePluginDirsOnTarget } from './require-plugin-dirs-on-target';
 import { resolveRepoRoot } from './resolve-repo-root';
 import type { Session } from './session';
@@ -221,14 +222,7 @@ export class SessionAdopter {
           records === null
             ? null
             : await timer.withStep('record', () =>
-                records.restoreCopy({
-                  session: session.id,
-                  target: session.target,
-                  provider,
-                  host: session.hostKey,
-                  directory: session.cwd,
-                  workspace: session.workspace ?? null,
-                }),
+                records.restoreCopy(buildRecordSubject(session, provider)),
               );
 
         return { plan: planned.plan, recordPath: path };

@@ -10,6 +10,8 @@ test('it builds a default published record', () => {
     target: 'local',
     revision: 1,
     updatedAt: expect.toBeDateString(),
+    name: expect.toBeString(),
+    transcriptPath: null,
     scope: {
       workspace: {
         path: expect.toStartWith('/'),
@@ -42,6 +44,8 @@ test('it applies overrides on top of the defaults', () => {
     target: 'local',
     revision: 3,
     updatedAt: expect.toBeDateString(),
+    name: expect.toBeString(),
+    transcriptPath: null,
     scope: {
       workspace: { path: expect.toStartWith('/'), branch: null, repoURL: null, sha: null },
       worktrees: [],

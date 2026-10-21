@@ -7,11 +7,15 @@ import type { SessionFleetWriter } from '../fleet/session-fleet-writer';
 import type { Session } from './session';
 import type { SessionCallbacks } from './session-callbacks';
 import type { SessionRegistry } from './session-registry';
+import { updateRecordIdentity } from './update-record-identity';
 
 interface SessionHookApplierDeps {
-  readonly registry: Pick<SessionRegistry, 'sessions' | 'focusedId' | 'findAdapter'>;
+  readonly registry: Pick<
+    SessionRegistry,
+    'sessions' | 'focusedId' | 'findAdapter' | 'requireExecution'
+  >;
   readonly fleet: Pick<SessionFleetWriter, 'emitChange' | 'tryWriteFleet' | 'tryUpdateFleetEntry'>;
-  readonly callbacks: Pick<SessionCallbacks, 'onEvent'>;
+  readonly callbacks: Pick<SessionCallbacks, 'onEvent' | 'findRecords' | 'log'>;
 }
 
 export class SessionHookApplier {
@@ -70,6 +74,7 @@ export class SessionHookApplier {
       if (session.transcriptPath !== ev.transcriptSource) {
         session.transcriptPath = ev.transcriptSource;
         rowUpdate.transcriptPath = ev.transcriptSource;
+        void updateRecordIdentity({ registry: this.registry, callbacks: this.callbacks }, session);
       }
     }
 
@@ -199,6 +204,7 @@ export class SessionHookApplier {
     }
 
     void this.fleet.tryWriteFleet(session.id);
+    void updateRecordIdentity({ registry: this.registry, callbacks: this.callbacks }, session);
     this.callbacks.onEvent('renamed', session);
     this.fleet.emitChange();
   }
