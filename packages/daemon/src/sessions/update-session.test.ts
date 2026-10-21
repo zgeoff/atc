@@ -5,6 +5,7 @@ import { StateStore } from '@atc/store';
 import { registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
 import { buildMockSession } from '../testing/build-mock-session';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
+import { buildRecordSubject } from './build-record-subject';
 import { PublishedRecords } from './published-records';
 import { updateSession } from './update-session';
 
@@ -81,4 +82,57 @@ test('it places the record copy on a remote host without a host lifecycle when a
   });
 
   expect(placed?.argv.at(-1)).toInclude('"name": "cart rework"');
+});
+
+test('it stores a rename of a session whose remote host sleeps and places the copy at the next harness start', async () => {
+  const ctx = await setupTest();
+
+  const session = buildMockSession({
+    id: toSessionID('s-asleep'),
+    name: 'login fix',
+    target: 'box',
+    cwd: '/work/app',
+    vm: 'asleep',
+  });
+
+  await ctx.records.createRecord(
+    {
+      session: session.id,
+      target: 'box',
+      name: 'login fix',
+      transcriptPath: null,
+      provider: ctx.provider,
+      host: session.hostKey,
+      directory: '/work/app',
+      workspace: null,
+    },
+    null,
+  );
+
+  updateSession(
+    {
+      registry: {
+        sessions: [session],
+        requireExecution: () => ({ provider: ctx.provider, identity: 'test:box' }),
+      },
+      fleet: ctx.fleet,
+      callbacks: { onEvent: () => {}, findRecords: () => ctx.records, log: () => {} },
+    },
+    session.id,
+    { name: 'cart rework' },
+  );
+
+  await waitFor(async () => {
+    const stored = await ctx.store.readPublishedRecord(session.id);
+
+    expect(stored?.name).toBe('cart rework');
+  });
+
+  const commandsWhileAsleep = ctx.provider.commands.length;
+
+  await ctx.records.restoreCopy(buildRecordSubject(session, ctx.provider));
+
+  expect(commandsWhileAsleep).toBe(1);
+  expect(ctx.provider.commands).toHaveLength(2);
+  expect(ctx.provider.commands.at(-1)?.argv.at(-1)).toInclude('"name": "cart rework"');
 });
