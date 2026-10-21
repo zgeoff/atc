@@ -4,6 +4,7 @@ import type { MockOverrides } from '@atc/test-utils';
 import { faker } from '@faker-js/faker';
 import { mergeDeep } from '@zgeoff/std';
 import type { LifecycleHost } from '../lifecycle-host';
+import { tryOpenDaemon } from '../try-open-daemon';
 
 export function buildMockLifecycleHost(
   overrides: MockOverrides<LifecycleHost, keyof LifecycleHost> = {},
@@ -25,6 +26,7 @@ export function buildMockLifecycleHost(
           stderr: 'systemctl: command not found',
           aborted: false,
         }),
+      openDaemon: tryOpenDaemon,
     },
     overrides,
   );

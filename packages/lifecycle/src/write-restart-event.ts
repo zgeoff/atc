@@ -3,7 +3,6 @@ import type { DaemonClient } from '@atc/protocol/client';
 import { buildHostDaemonPaths } from './build-host-daemon-paths';
 import type { LifecycleHost } from './lifecycle-host';
 import { readDaemonSocketPaths } from './read-daemon-socket-paths';
-import { tryOpenDaemon } from './try-open-daemon';
 
 type RestartEventOutcome =
   | { readonly kind: 'sent' }
@@ -17,7 +16,7 @@ export async function writeRestartEvent(
   result: RestartResult,
 ): Promise<RestartEventOutcome> {
   try {
-    const probe = await tryOpenDaemon(
+    const probe = await host.openDaemon(
       readDaemonSocketPaths(buildHostDaemonPaths(host)),
       {
         build: host.invocation.readBuild(),

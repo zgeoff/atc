@@ -62,12 +62,17 @@ test('it reports no daemon when nothing listens on the socket', async () => {
   expect(outcome).toStrictEqual({ kind: 'no_daemon' });
 });
 
-test('it reports a failure when the daemon refuses the handshake', async () => {
-  const ctx = setupTest();
+test('it reports a failure with the refusal when the daemon refuses the handshake', async () => {
+  const host = buildMockLifecycleHost({
+    openDaemon: () =>
+      Promise.resolve({
+        kind: 'refused',
+        socketPath: '/run/user/1000/atc-daemon.sock',
+        message: 'atc/test-build speaks protocol v9, daemon atc/0.8.0 speaks v8',
+      }),
+  });
 
-  startStubLegacyDaemon(ctx.host.paths.daemonSocketPath, { protocol: 1 });
-
-  const outcome = await writeRestartEvent(ctx.host, {
+  const outcome = await writeRestartEvent(host, {
     runID: 'run-maple',
     code: 0,
     pid: 4242,
@@ -80,5 +85,29 @@ test('it reports a failure when the daemon refuses the handshake', async () => {
     error: null,
   });
 
-  expect(outcome).toStrictEqual({ kind: 'failed', reason: expect.toInclude('protocol') });
+  expect(outcome).toStrictEqual({
+    kind: 'failed',
+    reason: 'atc/test-build speaks protocol v9, daemon atc/0.8.0 speaks v8',
+  });
+});
+
+test('it reports a failure with the error when the send fails', async () => {
+  const host = buildMockLifecycleHost({
+    openDaemon: () => Promise.reject(new Error('the daemon closed the connection')),
+  });
+
+  const outcome = await writeRestartEvent(host, {
+    runID: 'run-maple',
+    code: 0,
+    pid: 4242,
+    build: 'atc/0.9.1',
+    listenPort: null,
+    restored: 0,
+    total: 0,
+    failed: [],
+    interrupted: [],
+    error: null,
+  });
+
+  expect(outcome).toStrictEqual({ kind: 'failed', reason: 'the daemon closed the connection' });
 });

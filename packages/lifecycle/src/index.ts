@@ -13,5 +13,6 @@ export * from './run-daemon-id';
 export * from './run-daemon-restart';
 export * from './run-daemon-restart-worker';
 export * from './run-systemctl';
+export * from './try-open-daemon';
 export * from './verify-restored-fleet';
 export * from './write-daemon-record';
