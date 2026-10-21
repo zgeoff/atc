@@ -3209,20 +3209,14 @@ test('it sends no completion for a path typed just before the leader leaves the 
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -3350,20 +3344,14 @@ test('it names the target of a local typed path when the daemon lists no default
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'box',
