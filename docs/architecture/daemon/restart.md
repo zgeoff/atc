@@ -69,10 +69,10 @@ The worker then hands the result record to whichever daemon answers on the socke
 or the old daemon when the restart left it running. The daemon broadcasts it as one
 `DaemonRestarted` event, so a reader learns of each restart and its result from the event feed. The
 event goes to owner connections, the events socket and user hooks, but never to a principal
-connection, since the result names sessions outside its reach. The trail keeps no copy, so a reader
-that connects after the broadcast misses it. When no daemon answers, the restart reaches no feed,
-and the worker's report says so. A joined worker sends nothing, so one restart puts one event on the
-feed.
+connection, since the result names sessions outside its reach. The daemon writes the result to the
+event trail before it broadcasts it, so an owner reader that connects later reads it from a cursor
+saved before the restart. When no daemon answers, the restart reaches no feed, and the worker's
+report says so. A joined worker sends nothing, so one restart puts one event on the feed.
 
 ## One restart at a time
 

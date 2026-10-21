@@ -291,7 +291,7 @@ export interface DaemonContext {
   // sub-session of, at any depth.
   readonly isCallerTree: (id: SessionID, caller: SessionID) => boolean;
   readonly quitDaemon: () => void;
-  readonly announceRestart: (result: RestartResult) => void;
+  readonly announceRestart: (result: RestartResult) => Promise<void>;
   readonly ackSession: (id: SessionID) => boolean;
   readonly planResumeCommand: (id: SessionID) => ResumeCommand;
   readonly readSessionScreen: (id: SessionID) => Promise<ScreenText | 'missing' | 'no_screen'>;

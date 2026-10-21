@@ -208,6 +208,73 @@ test('it puts one DaemonRestarted event with the restart result on the replaceme
   ]);
 }, 60_000);
 
+test('it returns the restart result from events.read to a reader that connects after the restart with a cursor saved before it', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({ agents: { claude: { bin: ctx.claude } }, restoreFleetOnRestart: false }),
+  );
+
+  const daemon = startDaemonProcess({
+    command: ctx.atc,
+    home: ctx.home,
+    env: { PATH: ctx.path },
+  });
+
+  const before = await daemon.openClient();
+  const hello = await before.sendHello('atc/test');
+  const first = await before.sendRequest('events.read', {});
+
+  const saved = getString(first, 'cursor');
+
+  const restart = await runATC({
+    command: ctx.atc,
+    args: ['daemon', 'restart'],
+    home: ctx.home,
+    env: { PATH: ctx.path },
+  });
+
+  const after = await daemon.openClient();
+
+  await after.sendHello('atc/test');
+
+  const page = await after.sendRequest('events.read', { cursor: saved, waitMs: 10_000 });
+
+  const record = readDaemonRecord(join(daemon.stateDir, 'daemon.json'));
+
+  invariant(record !== null, 'the state directory records no daemon');
+
+  expect(restart.exitCode).toBe(0);
+
+  expect(page).toStrictEqual({
+    events: [
+      {
+        cursor: expect.toBeString(),
+        at: expect.toBeNumber(),
+        session: '',
+        name: null,
+        kind: 'daemon-restarted',
+        detail: 'restored 0 of 0',
+        result: {
+          runID: expect.toBeString(),
+          code: 0,
+          pid: record.pid,
+          build: getString(hello, 'daemon'),
+          listenPort: null,
+          restored: 0,
+          total: 0,
+          failed: [],
+          interrupted: [],
+          error: null,
+        },
+      },
+    ],
+    cursor: expect.toBeString(),
+    more: false,
+  });
+}, 60_000);
+
 test('it puts the result of a refused restart on the feed of the daemon it left running', async () => {
   const ctx = setupTest();
   const eventsFile = join(ctx.home, 'restarted.jsonl');

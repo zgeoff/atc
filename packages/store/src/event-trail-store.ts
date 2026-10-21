@@ -1,6 +1,7 @@
 import type { AgentSessionID, SessionID } from '@atc/core';
 import { isRecord, toAgentSessionID, toMessageID, toSessionID } from '@atc/core';
-import type { AdapterEvent } from '@atc/protocol';
+import { RESTART_RESULT_SCHEMA } from '@atc/protocol';
+import type { AdapterEvent, RestartResult } from '@atc/protocol';
 import type { HookEvent } from '@atc/protocol/session';
 import { sql } from 'kysely';
 import type { Expression, ExpressionBuilder, Kysely, SqlBool } from 'kysely';
@@ -93,6 +94,31 @@ export class EventTrailStore {
     return result.numInsertedOrUpdatedRows !== 0n;
   }
 
+  // A restart belongs to no session, so its row carries no atc id and only a
+  // read with no scope returns it.
+  async recordRestart(result: RestartResult, detail: string, at: number): Promise<void> {
+    await this.db.transaction().execute(async (trx) => {
+      const row = await trx
+        .insertInto('events')
+        .values({
+          ts: new Date(at).toISOString(),
+          atc_id: '',
+          event: 'DaemonRestarted',
+          message: null,
+          session_id: null,
+          kind: 'daemon-restarted',
+          detail,
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+
+      await trx
+        .insertInto('restart_results')
+        .values({ event_id: row.id, result: JSON.stringify(result) })
+        .execute();
+    });
+  }
+
   async readEventsAfter(
     afterID: number,
     limit: number,
@@ -100,11 +126,21 @@ export class EventTrailStore {
   ): Promise<StoredEvent[]> {
     const rows = await this.db
       .selectFrom('events')
-      .select(['id', 'ts', 'atc_id', 'session_id', 'kind', 'detail', 'message'])
-      .where('id', '>', afterID)
+      .leftJoin('restart_results', 'restart_results.event_id', 'events.id')
+      .select([
+        'events.id',
+        'events.ts',
+        'events.atc_id',
+        'events.session_id',
+        'events.kind',
+        'events.detail',
+        'events.message',
+        'restart_results.result',
+      ])
+      .where('events.id', '>', afterID)
       .where((expressionBuilder) => buildTrailFilter(expressionBuilder))
       .where((eb) => buildScopeMatch(eb, scope))
-      .orderBy('id', 'asc')
+      .orderBy('events.id', 'asc')
       .limit(limit)
       .execute();
 
@@ -166,10 +202,20 @@ export class EventTrailStore {
   async readLatestEvents(limit: number, scope: EventScope | null): Promise<StoredEvent[]> {
     const rows = await this.db
       .selectFrom('events')
-      .select(['id', 'ts', 'atc_id', 'session_id', 'kind', 'detail', 'message'])
+      .leftJoin('restart_results', 'restart_results.event_id', 'events.id')
+      .select([
+        'events.id',
+        'events.ts',
+        'events.atc_id',
+        'events.session_id',
+        'events.kind',
+        'events.detail',
+        'events.message',
+        'restart_results.result',
+      ])
       .where((expressionBuilder) => buildTrailFilter(expressionBuilder))
       .where((eb) => buildScopeMatch(eb, scope))
-      .orderBy('id', 'desc')
+      .orderBy('events.id', 'desc')
       .limit(limit)
       .execute();
 
@@ -202,10 +248,17 @@ export class EventTrailStore {
   async removeExpiredEvents(before: number): Promise<void> {
     const cutoff = new Date(before).toISOString();
 
-    await this.db
-      .deleteFrom('events')
-      .where((expressionBuilder) => buildExpiredMatch(expressionBuilder, cutoff))
-      .execute();
+    await this.db.transaction().execute(async (trx) => {
+      await trx
+        .deleteFrom('events')
+        .where((expressionBuilder) => buildExpiredMatch(expressionBuilder, cutoff))
+        .execute();
+
+      await trx
+        .deleteFrom('restart_results')
+        .where('event_id', 'not in', trx.selectFrom('events').select('id'))
+        .execute();
+    });
   }
 
   // Trail entries written before the agent reported its session id carry
@@ -327,6 +380,7 @@ interface EventRow {
   readonly kind: string | null;
   readonly detail: string | null;
   readonly message: string | null;
+  readonly result: string | null;
 }
 
 function buildStoredEvents(rows: readonly EventRow[]): StoredEvent[] {
@@ -344,6 +398,7 @@ function buildStoredEvents(rows: readonly EventRow[]): StoredEvent[] {
       agentSessionID: row.session_id === null ? null : toAgentSessionID(row.session_id),
       kind: row.kind,
       ...buildTrailFields(row.kind, row.detail, row.message),
+      ...buildRestartField(row.result),
     });
   }
 
@@ -375,4 +430,24 @@ function buildTrailFields(
   }
 
   return { detail: detail ?? message };
+}
+
+// A result that no longer parses leaves the restart's row with its detail
+// alone, as a row from before results were kept.
+function buildRestartField(result: string | null): Pick<StoredEvent, 'result'> {
+  if (result === null) {
+    return {};
+  }
+
+  const parsed = RESTART_RESULT_SCHEMA.safeParse(parseJSON(result));
+
+  return parsed.success ? { result: parsed.data } : {};
+}
+
+function parseJSON(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
 }

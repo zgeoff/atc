@@ -521,7 +521,11 @@ const EVENTS_OUTPUT: Readonly<Record<string, unknown>> = {
             description: 'the cursor at this event; pass it to read on from after the event',
           },
           at: { type: 'number', description: 'when the event happened, in epoch milliseconds' },
-          session: { type: 'string', description: 'the atc session id the event belongs to' },
+          session: {
+            type: 'string',
+            description:
+              'the atc session id the event belongs to; empty on a daemon-restarted event, which belongs to no session',
+          },
           name: {
             type: ['string', 'null'],
             description: "the session's current name; null when atc no longer lists the session",
@@ -540,6 +544,11 @@ const EVENTS_OUTPUT: Readonly<Record<string, unknown>> = {
             description: 'on a message or notice event, the message id, for atc_message_get',
           },
           label: { type: 'string', description: "on a note, the note's label" },
+          result: {
+            type: 'object',
+            description:
+              "on a daemon-restarted event, the restart's result: its exit code, the new daemon's pid and build, how many sessions it restored of how many, each failed session with its reason, the sessions it interrupted mid-turn, and the error that stopped it, or null",
+          },
           text: {
             type: 'string',
             description:
@@ -1258,7 +1267,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     annotations: READ_ONLY,
     scope: 'read',
     description:
-      "Read the fleet's event feed: the one call to catch up on session state changes, the notes sessions send, and the progress of messages you sent, oldest first. To wait on one message, use atc_message_get; for a session's conversation itself, use atc_transcript_read. It holds session events (started, prompt-submitted, needs-input, turn-done, ended), message events (message-queued, message-delivered, message-answered with the full answer, cut at 64 KiB, message-unanswered, each with the message id), answer notice events under the sending session (notice-queued, notice-delivered, with the message id) and notes (note, with its label and full text, cut at 64 KiB). Pass the returned cursor on the next call; more true means the page stopped early, so read again at once. Without a cursor it returns the latest events, and more never counts the older ones. waitMs holds the call until an event arrives, up to 30000; use it instead of polling. session limits the read to one session; previewOnly true returns 600-character previews of notes and answers instead. atc deletes events older than 30 days, except the newest event of each session. A partial read says so: complete false or textError on a note or an answer, and, under the gateway, unavailable, started or truncated, with their meanings in the output schema.",
+      "Read the fleet's event feed: the one call to catch up on session state changes, the notes sessions send, and the progress of messages you sent, oldest first. To wait on one message, use atc_message_get; for a session's conversation itself, use atc_transcript_read. It holds session events (started, prompt-submitted, needs-input, turn-done, ended), message events (message-queued, message-delivered, message-answered with the full answer, cut at 64 KiB, message-unanswered, each with the message id), answer notice events under the sending session (notice-queued, notice-delivered, with the message id), notes (note, with its label and full text, cut at 64 KiB) and daemon restarts (daemon-restarted, with the restart's result). Only a local caller reading the whole fleet gets daemon restarts: a remote client, a read under the gateway and a read limited to one session never do. Pass the returned cursor on the next call; more true means the page stopped early, so read again at once. Without a cursor it returns the latest events, and more never counts the older ones. waitMs holds the call until an event arrives, up to 30000; use it instead of polling. session limits the read to one session; previewOnly true returns 600-character previews of notes and answers instead. atc deletes events older than 30 days, except the newest event of each session. A partial read says so: complete false or textError on a note or an answer, and, under the gateway, unavailable, started or truncated, with their meanings in the output schema.",
     inputSchema: EVENTS_READ_INPUT,
     outputSchema: EVENTS_OUTPUT,
   },

@@ -31,7 +31,7 @@ test('it adds an empty scope to the session after a handshake without a session'
   expect(daemon.requests).toStrictEqual([
     {
       method: 'daemon.hello',
-      params: { client: 'atc/peer-probe', protocol: 9, auth: { scheme: 'none' } },
+      params: { client: 'atc/peer-probe', protocol: 10, auth: { scheme: 'none' } },
     },
     { method: 'session.scope.add', params: { session: 's-7', scope: {} } },
   ]);
@@ -108,7 +108,7 @@ test('it gives the session in its handshake', async () => {
   expect(daemon.requests).toStrictEqual([
     {
       method: 'daemon.hello',
-      params: { client: 'atc/peer-probe', protocol: 9, auth: { scheme: 'none' }, session: 's-7' },
+      params: { client: 'atc/peer-probe', protocol: 10, auth: { scheme: 'none' }, session: 's-7' },
     },
   ]);
 });

@@ -1,5 +1,5 @@
 import type { Clock, SessionID } from '@atc/core';
-import type { SessionDescriptor } from '@atc/protocol';
+import type { RestartResult, SessionDescriptor } from '@atc/protocol';
 import type { EventScope, StateStore } from '@atc/store';
 import { isTreeInReach } from '../auth/is-tree-in-reach';
 import type { TargetAccess } from '../auth/target-access';
@@ -9,17 +9,18 @@ import { buildAnswerView } from '../sessions/build-answer-view';
 import { buildNoteView } from '../sessions/build-note-view';
 import type { SessionManager } from '../sessions/sessions';
 import type { EventSignal } from './event-signal';
+import { formatRestartDetail } from './format-restart-detail';
 
 interface EventTrailDeps {
-  readonly manager: Pick<SessionManager, 'sessions' | 'collectDescriptors'>;
+  readonly manager: Pick<SessionManager, 'sessions' | 'collectDescriptors' | 'log'>;
   readonly store: Pick<
     StateStore,
-    'readLatestEvents' | 'readEventsAfter' | 'readNote' | 'readAnswer'
+    'readLatestEvents' | 'readEventsAfter' | 'readNote' | 'readAnswer' | 'recordRestart'
   >;
   readonly clock: Clock;
 
   // Wakes a held read once the trail grows.
-  readonly eventSignal: Pick<EventSignal, 'generation' | 'disposed' | 'waitForNext'>;
+  readonly eventSignal: Pick<EventSignal, 'generation' | 'disposed' | 'waitForNext' | 'emit'>;
 }
 
 type EventsPage = Awaited<ReturnType<DaemonContext['readEvents']>>;
@@ -42,6 +43,22 @@ export class EventTrail {
     this.store = deps.store;
     this.clock = deps.clock;
     this.eventSignal = deps.eventSignal;
+  }
+
+  // A failed write never stops the restart's live event, which still reaches
+  // the readers connected now, so the failure only goes to the daemon's log.
+  async recordRestart(result: RestartResult): Promise<void> {
+    try {
+      await this.store.recordRestart(result, formatRestartDetail(result), this.clock.now());
+    } catch (error) {
+      this.manager.log(
+        `atc daemon.restarted for restart run ${result.runID}: the event trail write failed, so a reader that connects later misses it: ${String(error)}`,
+      );
+
+      return;
+    }
+
+    this.eventSignal.emit();
   }
 
   // A wake for an event the read leaves out loops back to wait out the rest of the window.

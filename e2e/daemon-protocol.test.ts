@@ -9,6 +9,7 @@ import { openDaemonClient } from '@atc/protocol/client';
 import { StateStore } from '@atc/store';
 import {
   buildMockAgentAdapter,
+  buildMockRestartResult,
   buildStubClock,
   getAgentEntry,
   getRecord,
@@ -704,7 +705,7 @@ test('it runs a configured hook with the same event JSON a watching client recei
   // The hook reads the wire form, which carries the protocol version the
   // client drops.
   expect({ payload: parsed, eventName, rest }).toStrictEqual({
-    payload: { version: 9, ...event },
+    payload: { version: 10, ...event },
     eventName: 'SessionAttached',
     rest: '',
   });
@@ -892,6 +893,40 @@ test('it broadcasts the restart result it receives as a DaemonRestarted event', 
 
   expect(answer).toStrictEqual({});
   expect(event).toStrictEqual({ ev: 'DaemonRestarted', result });
+});
+
+test('it answers daemon.restarted and broadcasts the unchanged result when the event trail write fails', async () => {
+  const ctx = await setupTest();
+
+  const db = new Database(join(ctx.directory, 'state.db'));
+
+  registerTestCleanup(() => {
+    db.close();
+  });
+
+  db.run('DROP TABLE restart_results');
+
+  const result = buildMockRestartResult({
+    runID: 'run-tamarack',
+    code: 1,
+    restored: 1,
+    total: 2,
+    failed: [{ name: 'plover', id: 's-plover', reason: 'its agent is not configured' }],
+  });
+
+  const answer = await ctx.client.sendRequest('daemon.restarted', { result });
+
+  const event = await waitFor(() => {
+    const found = ctx.events.find((daemonEvent) => daemonEvent.ev === 'DaemonRestarted');
+
+    invariant(found !== undefined, 'no DaemonRestarted yet');
+
+    return found;
+  });
+
+  expect(answer).toStrictEqual({});
+  expect(event).toStrictEqual({ ev: 'DaemonRestarted', result });
+  expect(ctx.logs).toContainEqual(expect.stringContaining('restart run run-tamarack'));
 });
 
 test('it answers daemon.hello with the same daemon id after a restart', async () => {

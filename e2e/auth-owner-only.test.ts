@@ -3,7 +3,7 @@ import { writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
 import type { DaemonEvent } from '@atc/protocol';
-import { buildMockAgentAdapter, waitFor } from '@atc/test-utils';
+import { buildMockAgentAdapter, buildMockRestartResult, waitFor } from '@atc/test-utils';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 function setupTest() {
@@ -168,6 +168,44 @@ test('it sends a DaemonRestarted event to an owner connection and never to a pri
   });
 
   expect(principalEvents.map((event) => event.ev)).not.toContain('DaemonRestarted');
+});
+
+test('it returns a restart from events.read to the owner', async () => {
+  const ctx = setupTest();
+
+  const daemon = await startTestDaemon({ options: () => ({ adapter: ctx.adapter }) });
+
+  await daemon.client.sendRequest('daemon.restarted', {
+    result: buildMockRestartResult({ runID: 'run-willow' }),
+  });
+
+  const page = await daemon.client.sendRequest('events.read', { from: 'start' });
+
+  expect(page).toMatchObject({
+    events: [{ kind: 'daemon-restarted', result: { runID: 'run-willow' } }],
+  });
+});
+
+test('it never returns a restart from events.read to a principal connection', async () => {
+  const ctx = setupTest();
+
+  const daemon = await startTestDaemon({
+    options: () => ({ adapter: ctx.adapter, principals: new Map([['gw', ['local']]]) }),
+  });
+
+  const client = await daemon.openClient({ principal: 'gw' });
+
+  await daemon.client.sendRequest('daemon.restarted', {
+    result: buildMockRestartResult({
+      code: 1,
+      total: 1,
+      failed: [{ name: 'kestrel', id: 's-kestrel', reason: 'its agent is not configured' }],
+    }),
+  });
+
+  const page = await client.sendRequest('events.read', { from: 'start' });
+
+  expect(page).toStrictEqual({ events: [], cursor: expect.toBeString(), more: false });
 });
 
 test('it admits daemon.backup from the owner', async () => {

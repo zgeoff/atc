@@ -1,9 +1,15 @@
-import { expect, test } from 'bun:test';
+import { Database } from 'bun:sqlite';
+import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { toSessionID } from '@atc/core';
 import { StateStore } from '@atc/store';
 import { buildMockFleetEntry, createMigratedStateDB } from '@atc/store/testing';
-import { buildStubClock, registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import {
+  buildMockRestartResult,
+  buildStubClock,
+  registerTestCleanup,
+  setupTempDir,
+} from '@atc/test-utils';
 import { TargetAccess } from '../auth/target-access';
 import { buildNoteTrailEntry } from '../sessions/build-note-trail-entry';
 import { SessionManager } from '../sessions/sessions';
@@ -48,7 +54,7 @@ async function setupTest() {
   const eventSignal = new EventSignal(clock);
   const trail = new EventTrail({ manager, store, clock, eventSignal });
 
-  return { store, manager, clock, eventSignal, trail };
+  return { dbPath, store, manager, clock, eventSignal, trail };
 }
 
 test('it reads the latest events under the session that recorded them', async () => {
@@ -160,6 +166,90 @@ test('it reads none of the events of a session whose target the access may not u
   );
 
   expect(page.events).toBeEmpty();
+});
+
+test('it wakes a held read with a restart it records, whole result included', async () => {
+  const ctx = await setupTest();
+
+  const result = buildMockRestartResult({ restored: 2, total: 2 });
+  const read = ctx.trail.readEvents(0, 10, 60_000, null, null);
+
+  await ctx.trail.recordRestart(result);
+
+  const page = await read;
+
+  expect(page).toStrictEqual({
+    events: [
+      {
+        cursor: expect.toBeString(),
+        at: 1_000_000,
+        session: '',
+        name: null,
+        kind: 'daemon-restarted',
+        detail: 'restored 2 of 2',
+        result,
+      },
+    ],
+    more: false,
+  });
+});
+
+test('it logs a restart whose trail write fails under its run id and records nothing', async () => {
+  const ctx = await setupTest();
+
+  const log = mock<(line: string) => void>();
+
+  ctx.manager.log = log;
+
+  const db = new Database(ctx.dbPath);
+
+  registerTestCleanup(() => {
+    db.close();
+  });
+
+  db.run('DROP TABLE restart_results');
+
+  await ctx.trail.recordRestart(buildMockRestartResult({ runID: 'run-sumac' }));
+
+  const rows = db.query('SELECT kind FROM events').all();
+
+  expect(log).toHaveBeenCalledExactlyOnceWith(
+    expect.stringMatching(
+      /^atc daemon\.restarted for restart run run-sumac: the event trail write failed, so a reader that connects later misses it: .*restart_results/u,
+    ),
+  );
+
+  expect(rows).toStrictEqual([]);
+});
+
+test('it reads no restart under an access that reaches every session', async () => {
+  const ctx = await setupTest();
+
+  ctx.manager.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-1'),
+      target: 'local',
+      targetIdentity: 'local-pty:test',
+    }),
+  );
+
+  await ctx.trail.recordRestart(buildMockRestartResult());
+
+  await ctx.store.recordEvent(
+    { atcId: toSessionID('s-1'), event: 'Stop', payload: {} },
+    { kind: 'turn-done' },
+    2_000_000,
+  );
+
+  const page = await ctx.trail.readEvents(
+    0,
+    10,
+    0,
+    null,
+    new TargetAccess([{ target: 'local', targetIdentity: 'local-pty:test' }]),
+  );
+
+  expect(page.events.map((event) => event.kind)).toStrictEqual(['turn-done']);
 });
 
 test('it reads a note by its trail id with the session that sent it', async () => {

@@ -23,7 +23,7 @@ for an attached client, not fleet state.
 
 ## The event trail
 
-The trail holds three groups of events, oldest first:
+The trail holds four groups of events, oldest first:
 
 - **Hook events**, as the adapter normalized them: a start, a submitted prompt, a pending input, a
   finished turn and an end. Heartbeats and hook events the adapter leaves unclassified are stored
@@ -33,9 +33,12 @@ The trail holds three groups of events, oldest first:
   answer without a message read.
 - **Notes**, each with its label and its text up to a cap, kept once under the id the session helper
   gave it, so a resent note lands once.
+- **Daemon restarts**, each with the restart's whole result record. A restart belongs to no session,
+  so only a read of the whole fleet with no principal returns it: a principal's read and a read
+  narrowed to one session leave it out, as the live event never reaches a principal connection.
 
-The daemon writes a message or note event to the trail before it broadcasts it, so a client that
-reads the trail when the broadcast arrives finds the event there.
+The daemon writes a message, note or restart event to the trail before it broadcasts it, so a client
+that reads the trail when the broadcast arrives finds the event there.
 
 The daemon prunes the trail when it starts and then on a timer, so `atc.db` stops growing on a
 daemon that runs for months. Each sweep drops every event older than the retention window, and every
