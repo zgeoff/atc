@@ -91,6 +91,7 @@ export * from './send-mcp-request';
 export * from './setup-temp-dir';
 export * from './spawn-claude-session';
 export * from './spawn-grok-session';
+export * from './spawn-daemon-session';
 export * from './spawn-named-session';
 export * from './start-codex-terminal-thread';
 export * from './start-cut-proxy';
