@@ -1,9 +1,9 @@
 import type { Clock } from '@atc/core';
 import { formatLogField } from '../format-log-field';
-import type { DaemonConnection } from './daemon-connection';
+import type { DaemonConnection } from './create-daemon-connection';
+import { createHandshakeThrottle } from './create-handshake-throttle';
+import { createRefusalLog } from './create-refusal-log';
 import { findTokenFingerprint } from './find-token-fingerprint';
-import { HandshakeThrottle } from './handshake-throttle';
-import { RefusalLog } from './refusal-log';
 import type { TCPPeer } from './tcp-peer';
 
 // The slice of an accepted socket a protocol connection writes to and ends.
@@ -56,11 +56,11 @@ export interface TCPListener {
 // a connection acts only as the principals its requests give, never as the daemon's owner
 export function startTCPListener(opts: TCPListenerOptions): TCPListener {
   let tokens: readonly string[] | null = opts.tokens;
+  const throttle = createHandshakeThrottle(opts.failureDelayMs);
 
-  const throttle = new HandshakeThrottle(opts.failureDelayMs);
   const connections = new Set<DaemonConnection>();
 
-  const refusals = new RefusalLog({
+  const refusals = createRefusalLog({
     log: opts.log,
     now: opts.clock.now,
     intervalMs: opts.refusalLogIntervalMs,

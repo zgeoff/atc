@@ -18,8 +18,8 @@ import type { TapClient } from '../daemon-context';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
-import { EventSignal } from '../transport/event-signal';
-import { IdempotencyLedger } from '../transport/idempotency-ledger';
+import { createEventSignal } from '../transport/create-event-signal';
+import { createIdempotencyLedger } from '../transport/create-idempotency-ledger';
 import { HookIntake } from './hook-intake';
 import { MessageService } from './message-service';
 import { SessionRuntime } from './session-runtime';
@@ -78,8 +78,8 @@ async function setupTest(config: SetupTestConfig) {
   manager.log = recorder.log;
 
   const emitted: EventMsg[] = [];
+  const eventSignal = createEventSignal(clock);
 
-  const eventSignal = new EventSignal(clock);
   const taps = new TapRegistry<TapClient>();
 
   const emitEvent = (event: EventMsg) => {
@@ -90,7 +90,7 @@ async function setupTest(config: SetupTestConfig) {
     manager,
     store,
     clock,
-    ledger: new IdempotencyLedger(store, 'local', () => {}, clock),
+    ledger: createIdempotencyLedger(store, 'local', () => {}, clock),
     taps,
     findRuntime: (id) => runtimes.get(id),
     eventSignal,

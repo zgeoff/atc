@@ -1,5 +1,5 @@
 import { buildPayloadHash } from './build-payload-hash';
-import type { KeyedRequest } from './idempotency-ledger';
+import type { KeyedRequest } from './create-idempotency-ledger';
 
 export function buildKeyedRequest(
   params: Readonly<Record<string, unknown>> & {

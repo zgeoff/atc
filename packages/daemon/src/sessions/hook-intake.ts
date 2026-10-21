@@ -9,7 +9,7 @@ import type { BridgeBinding } from '../auth/is-binding-current';
 import type { TapClient } from '../daemon-context';
 import { formatLogField } from '../format-log-field';
 import { ANSWER_BYTE_CAP } from '../transport/answer-byte-cap';
-import type { EventSignal } from '../transport/event-signal';
+import type { EventSignal } from '../transport/create-event-signal';
 import { startSessionBridge } from '../transport/start-session-bridge';
 import { buildMessageOwner } from './build-message-owner';
 import { buildNoteTrailEntry } from './build-note-trail-entry';

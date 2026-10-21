@@ -1,12 +1,10 @@
 import { expect, test } from 'bun:test';
 import { buildStubClock } from '@atc/test-utils';
-import { EventSignal } from './event-signal';
+import { createEventSignal } from './create-event-signal';
 
 test('it resolves a wait at once when an event landed since the reader looked', async () => {
   const clock = buildStubClock(0);
-
-  const signal = new EventSignal(clock);
-
+  const signal = createEventSignal(clock);
   const generation = signal.generation;
 
   signal.emit();
@@ -17,9 +15,7 @@ test('it resolves a wait at once when an event landed since the reader looked', 
 
 test('it resolves a pending wait when an event is emitted', async () => {
   const clock = buildStubClock(0);
-
-  const signal = new EventSignal(clock);
-
+  const signal = createEventSignal(clock);
   const pending = signal.waitForNext(signal.generation, 10_000);
 
   signal.emit();
@@ -29,9 +25,7 @@ test('it resolves a pending wait when an event is emitted', async () => {
 
 test('it ends the timer of a wait an event resolves', async () => {
   const clock = buildStubClock(0);
-
-  const signal = new EventSignal(clock);
-
+  const signal = createEventSignal(clock);
   const pending = signal.waitForNext(signal.generation, 10_000);
 
   signal.emit();
@@ -43,9 +37,7 @@ test('it ends the timer of a wait an event resolves', async () => {
 
 test('it holds a wait with no event on a timer of its timeout', () => {
   const clock = buildStubClock(0);
-
-  const signal = new EventSignal(clock);
-
+  const signal = createEventSignal(clock);
   const waiting = signal.waitForNext(signal.generation, 100);
 
   expect(clock.collectPending()).toStrictEqual([100]);
@@ -54,9 +46,7 @@ test('it holds a wait with no event on a timer of its timeout', () => {
 
 test('it resolves a wait with no event once the timeout passes', async () => {
   const clock = buildStubClock(0);
-
-  const signal = new EventSignal(clock);
-
+  const signal = createEventSignal(clock);
   const pending = signal.waitForNext(signal.generation, 100);
 
   clock.advance(100);
@@ -66,9 +56,7 @@ test('it resolves a wait with no event once the timeout passes', async () => {
 
 test('it resolves pending waits on dispose', async () => {
   const clock = buildStubClock(0);
-
-  const signal = new EventSignal(clock);
-
+  const signal = createEventSignal(clock);
   const pending = signal.waitForNext(signal.generation, 10_000);
 
   signal.dispose();
@@ -78,8 +66,7 @@ test('it resolves pending waits on dispose', async () => {
 
 test('it resolves every wait after dispose at once', async () => {
   const clock = buildStubClock(0);
-
-  const signal = new EventSignal(clock);
+  const signal = createEventSignal(clock);
 
   signal.dispose();
 
@@ -87,7 +74,7 @@ test('it resolves every wait after dispose at once', async () => {
 });
 
 test('it counts each wait still pending', () => {
-  const signal = new EventSignal(buildStubClock(0));
+  const signal = createEventSignal(buildStubClock(0));
 
   const waits = [
     signal.waitForNext(signal.generation, 10_000),
@@ -99,7 +86,7 @@ test('it counts each wait still pending', () => {
 });
 
 test('it counts no wait once an event wakes every pending one', () => {
-  const signal = new EventSignal(buildStubClock(0));
+  const signal = createEventSignal(buildStubClock(0));
 
   const waits = [
     signal.waitForNext(signal.generation, 10_000),
@@ -113,8 +100,7 @@ test('it counts no wait once an event wakes every pending one', () => {
 });
 
 test('it counts no wait that resolved at once', () => {
-  const signal = new EventSignal(buildStubClock(0));
-
+  const signal = createEventSignal(buildStubClock(0));
   const generation = signal.generation;
 
   signal.emit();

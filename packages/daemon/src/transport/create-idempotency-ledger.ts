@@ -39,56 +39,64 @@ interface IdempotentCall<T> {
   readonly findEffectTarget?: (result: T) => EffectTarget | null;
 }
 
+export interface IdempotencyLedger {
+  readonly run: <T extends Readonly<Record<string, unknown>>>(
+    call: IdempotentCall<T>,
+  ) => Promise<T>;
+}
+
 // a retry whose effect a stopped daemon may or may not have run answers outcome_unknown with
-// the effect id and never starts the effect again
-export class IdempotencyLedger {
-  private readonly store: StateStore;
-
-  private readonly principal: string;
-
-  // Where a failed write to the ledger is reported, one line at a time.
-  private readonly log: (line: string) => void;
-
-  // The time each claim and outcome is stamped with.
-  private readonly clock: Clock;
-
+// the effect id and never starts the effect again. log is where a failed write to the ledger is
+// reported, one line at a time, and clock gives the time each claim and outcome is stamped with.
+export function createIdempotencyLedger(
+  store: StateStore,
+  principal: string,
+  log: (line: string) => void,
+  clock: Clock = systemClock,
+): IdempotencyLedger {
   // One promise chain per key, so two requests under the same key never
   // interleave their claim and completion on one daemon.
-  private readonly withKeyLock = makeKeyedLock();
+  const withKeyLock = makeKeyedLock();
 
-  constructor(
-    store: StateStore,
-    principal: string,
-    log: (line: string) => void,
-    clock: Clock = systemClock,
-  ) {
-    this.store = store;
-    this.principal = principal;
-    this.log = log;
-    this.clock = clock;
-  }
+  // The line holds the operation, key, effect id, the step that failed, and
+  // the error, never the request's payload or the effect's result.
+  const logFailure = (
+    call: Pick<IdempotentCall<unknown>, 'operation' | 'keyed' | 'effectRef'>,
+    step: string,
+    error: unknown,
+  ): void => {
+    const cause =
+      error instanceof Error && error.cause instanceof Error ? ` (${String(error.cause)})` : '';
 
-  run<T extends Readonly<Record<string, unknown>>>(call: IdempotentCall<T>): Promise<T> {
-    const lockKey = JSON.stringify([
-      call.keyed.principal ?? this.principal,
-      call.operation,
-      call.keyed.key,
-    ]);
+    log(
+      `atc ${call.operation} under idempotency key '${call.keyed.key}' (effect ${call.effectRef}): ${step} failed: ${String(error)}${cause}`,
+    );
+  };
 
-    return this.withKeyLock(lockKey, () => this.runClaimed(call));
-  }
+  // A claim this write fails to update stays in progress, which a retry
+  // answers the same way, so the failure is logged and not thrown.
+  const tryRecordOutcomeUnknown = async (
+    call: Pick<IdempotentCall<unknown>, 'operation' | 'keyed' | 'effectRef'>,
+    id: Pick<IdempotencyRecord, 'principal' | 'operation' | 'key'>,
+  ): Promise<void> => {
+    try {
+      await store.updateIdempotencyOutcomeUnknown(id, clock.now());
+    } catch (error) {
+      logFailure(call, 'outcome_unknown write', error);
+    }
+  };
 
-  private async runClaimed<T extends Readonly<Record<string, unknown>>>(
+  const runClaimed = async <T extends Readonly<Record<string, unknown>>>(
     call: IdempotentCall<T>,
-  ): Promise<T> {
+  ): Promise<T> => {
     const id = {
-      principal: call.keyed.principal ?? this.principal,
+      principal: call.keyed.principal ?? principal,
       operation: call.operation,
       key: call.keyed.key,
     };
 
     if (call.keyed.replayOnly === true) {
-      const found = await this.store.readIdempotencyKey(id);
+      const found = await store.readIdempotencyKey(id);
 
       if (found === null) {
         throw new DaemonError(
@@ -100,11 +108,11 @@ export class IdempotencyLedger {
       return answerHeldKey(call, found);
     }
 
-    const held = await this.store.claimIdempotencyKey({
+    const held = await store.claimIdempotencyKey({
       ...id,
       payloadHash: call.keyed.payloadHash,
       effectRef: call.effectRef,
-      at: this.clock.now(),
+      at: clock.now(),
     });
 
     if (held !== null) {
@@ -117,14 +125,14 @@ export class IdempotencyLedger {
       result = await call.start();
     } catch (error) {
       if (error instanceof EffectRemainsError) {
-        this.logFailure(call, 'start', error);
+        logFailure(call, 'start', error);
 
-        await this.tryRecordOutcomeUnknown(call, id);
+        await tryRecordOutcomeUnknown(call, id);
 
         throw buildOutcomeUnknownError(call, 'failed');
       }
 
-      await this.store.removeIdempotencyKey(id);
+      await store.removeIdempotencyKey(id);
 
       throw error;
     }
@@ -135,55 +143,39 @@ export class IdempotencyLedger {
     try {
       await call.settle();
     } catch (error) {
-      this.logFailure(call, 'settle', error);
+      logFailure(call, 'settle', error);
 
-      await this.tryRecordOutcomeUnknown(call, id);
+      await tryRecordOutcomeUnknown(call, id);
 
       throw buildOutcomeUnknownError(call, 'could not be made durable');
     }
 
     try {
-      await this.store.updateIdempotencyCompleted(
+      await store.updateIdempotencyCompleted(
         id,
         JSON.stringify(result),
-        this.clock.now(),
+        clock.now(),
         call.findEffectTarget?.(result) ?? null,
       );
     } catch (error) {
-      this.logFailure(call, 'completion write', error);
+      logFailure(call, 'completion write', error);
       throw buildOutcomeUnknownError(call, 'could not be recorded as completed');
     }
 
     return result;
-  }
+  };
 
-  // A claim this write fails to update stays in progress, which a retry
-  // answers the same way, so the failure is logged and not thrown.
-  private async tryRecordOutcomeUnknown(
-    call: Pick<IdempotentCall<unknown>, 'operation' | 'keyed' | 'effectRef'>,
-    id: Pick<IdempotencyRecord, 'principal' | 'operation' | 'key'>,
-  ): Promise<void> {
-    try {
-      await this.store.updateIdempotencyOutcomeUnknown(id, this.clock.now());
-    } catch (error) {
-      this.logFailure(call, 'outcome_unknown write', error);
-    }
-  }
+  return {
+    run: (call) => {
+      const lockKey = JSON.stringify([
+        call.keyed.principal ?? principal,
+        call.operation,
+        call.keyed.key,
+      ]);
 
-  // The line holds the operation, key, effect id, the step that failed, and
-  // the error, never the request's payload or the effect's result.
-  private logFailure(
-    call: Pick<IdempotentCall<unknown>, 'operation' | 'keyed' | 'effectRef'>,
-    step: string,
-    error: unknown,
-  ): void {
-    const cause =
-      error instanceof Error && error.cause instanceof Error ? ` (${String(error.cause)})` : '';
-
-    this.log(
-      `atc ${call.operation} under idempotency key '${call.keyed.key}' (effect ${call.effectRef}): ${step} failed: ${String(error)}${cause}`,
-    );
-  }
+      return withKeyLock(lockKey, () => runClaimed(call));
+    },
+  };
 }
 
 function answerHeldKey<T>(call: IdempotentCall<T>, held: IdempotencyRecord): T | Promise<T> {

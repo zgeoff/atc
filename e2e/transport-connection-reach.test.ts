@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'bun:test';
 import { toDaemonID, toMessageID, toSessionID } from '@atc/core';
-import { DaemonConnection } from '@atc/daemon';
+import { createDaemonConnection } from '@atc/daemon';
 import type { DaemonContext } from '@atc/daemon';
 import { buildStubDaemonContext } from '@atc/daemon/testing';
 import { PROTOCOL_V } from '@atc/protocol/wire';
@@ -26,7 +26,7 @@ test('it answers session.get whose session leaves the view during the read as fo
 
   const peer = buildStubPeerSocket();
 
-  const conn = new DaemonConnection(
+  const conn = createDaemonConnection(
     peer.socket,
     buildStubDaemonContext({ canSeeSession, readSessionRecord }),
   );
@@ -83,7 +83,7 @@ test('it answers session.screen whose session leaves the view during the read as
 
   const peer = buildStubPeerSocket();
 
-  const conn = new DaemonConnection(
+  const conn = createDaemonConnection(
     peer.socket,
     buildStubDaemonContext({ canSeeSession, readSessionScreen }),
   );
@@ -132,7 +132,7 @@ test('it answers session.menu whose session leaves the view during the read as f
 
   const peer = buildStubPeerSocket();
 
-  const conn = new DaemonConnection(
+  const conn = createDaemonConnection(
     peer.socket,
     buildStubDaemonContext({ canSeeSession, readSessionMenu }),
   );
@@ -192,7 +192,7 @@ test('it answers session.read whose session leaves the view during the read as f
 
   const peer = buildStubPeerSocket();
 
-  const conn = new DaemonConnection(
+  const conn = createDaemonConnection(
     peer.socket,
     buildStubDaemonContext({ canSeeSession, loadSessionTranscript }),
   );
@@ -245,7 +245,7 @@ test('it leaves out of events.read the events of a session that leaves the view 
 
   const peer = buildStubPeerSocket();
 
-  const conn = new DaemonConnection(
+  const conn = createDaemonConnection(
     peer.socket,
     buildStubDaemonContext({ canSeeSession, readEvents }),
   );
@@ -307,7 +307,7 @@ test('it answers note.get whose session leaves the view during the read as for a
 
   const peer = buildStubPeerSocket();
 
-  const conn = new DaemonConnection(
+  const conn = createDaemonConnection(
     peer.socket,
     buildStubDaemonContext({ canSeeSession, readNote }),
   );
@@ -368,7 +368,7 @@ test('it answers note.get whose sender leaves the view during the read as for a 
 
   const peer = buildStubPeerSocket();
 
-  const conn = new DaemonConnection(
+  const conn = createDaemonConnection(
     peer.socket,
     buildStubDaemonContext({ canSeeSession, readNote }),
   );
@@ -429,7 +429,7 @@ test('it answers message.get whose session leaves the view during the wait as fo
 
   const peer = buildStubPeerSocket();
 
-  const conn = new DaemonConnection(
+  const conn = createDaemonConnection(
     peer.socket,
     buildStubDaemonContext({ canSeeSession, readMessage }),
   );
@@ -487,7 +487,7 @@ test('it answers message.ack whose session leaves the view during the ack as for
 
   const peer = buildStubPeerSocket();
 
-  const conn = new DaemonConnection(
+  const conn = createDaemonConnection(
     peer.socket,
     buildStubDaemonContext({ canSeeSession, ackMessage }),
   );
@@ -547,7 +547,7 @@ test('it answers session.message whose session leaves the view during the write 
 
   const peer = buildStubPeerSocket();
 
-  const conn = new DaemonConnection(
+  const conn = createDaemonConnection(
     peer.socket,
     buildStubDaemonContext({ canSeeSession, writeSessionMessage }),
   );
@@ -595,7 +595,7 @@ test('it refuses a spawn whose session leaves the view before the answer as a re
   const canSeeSession = mock<DaemonContext['canSeeSession']>(() => true);
   const peer = buildStubPeerSocket();
 
-  const conn = new DaemonConnection(
+  const conn = createDaemonConnection(
     peer.socket,
     buildStubDaemonContext({
       canSeeSession,
@@ -664,7 +664,7 @@ test('it leaves out of fleet.list a session that leaves the view during the read
 
   const peer = buildStubPeerSocket();
 
-  const conn = new DaemonConnection(
+  const conn = createDaemonConnection(
     peer.socket,
     buildStubDaemonContext({ canSeeSession, readFleet }),
   );

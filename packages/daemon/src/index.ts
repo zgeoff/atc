@@ -7,4 +7,4 @@ export * from './fleet/restore-fleet';
 export * from './sources/build-sources';
 export * from './start-stderr-log';
 export * from './transport/build-payload-hash';
-export * from './transport/daemon-connection';
+export * from './transport/create-daemon-connection';

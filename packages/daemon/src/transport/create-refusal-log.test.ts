@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test';
 import { buildStubClock, buildStubLog } from '@atc/test-utils';
-import { RefusalLog } from './refusal-log';
+import { createRefusalLog } from './create-refusal-log';
 
 test('it logs the first refusal of a window at once with a count of one', () => {
   const sink = buildStubLog();
   const clock = buildStubClock(0);
 
-  const log = new RefusalLog({
+  const log = createRefusalLog({
     log: sink.log,
     now: clock.now,
     intervalMs: 60_000,
@@ -24,7 +24,7 @@ test('it logs no line for a repeated refusal within the window', () => {
   const sink = buildStubLog();
   const clock = buildStubClock(0);
 
-  const log = new RefusalLog({
+  const log = createRefusalLog({
     log: sink.log,
     now: clock.now,
     intervalMs: 60_000,
@@ -44,7 +44,7 @@ test('it logs the count of an ended window on the next refusal from another peer
   const sink = buildStubLog();
   const clock = buildStubClock(0);
 
-  const log = new RefusalLog({
+  const log = createRefusalLog({
     log: sink.log,
     now: clock.now,
     intervalMs: 60_000,
@@ -68,7 +68,7 @@ test('it keeps separate windows for each reason from one peer', () => {
   const sink = buildStubLog();
   const clock = buildStubClock(0);
 
-  const log = new RefusalLog({
+  const log = createRefusalLog({
     log: sink.log,
     now: clock.now,
     intervalMs: 60_000,
@@ -88,7 +88,7 @@ test('it folds refusals of different principals from one peer within the window 
   const sink = buildStubLog();
   const clock = buildStubClock(0);
 
-  const log = new RefusalLog({
+  const log = createRefusalLog({
     log: sink.log,
     now: clock.now,
     intervalMs: 60_000,
@@ -112,7 +112,7 @@ test('it starts a window for each new peer while the cap of windows has room', (
   const sink = buildStubLog();
   const clock = buildStubClock(0);
 
-  const log = new RefusalLog({
+  const log = createRefusalLog({
     log: sink.log,
     now: clock.now,
     intervalMs: 60_000,
@@ -134,7 +134,7 @@ test('it folds every peer past the cap of windows into one overflow window', () 
   const sink = buildStubLog();
   const clock = buildStubClock(0);
 
-  const log = new RefusalLog({
+  const log = createRefusalLog({
     log: sink.log,
     now: clock.now,
     intervalMs: 60_000,
@@ -161,7 +161,7 @@ test('it logs the count of the overflow window once it ends', () => {
   const sink = buildStubLog();
   const clock = buildStubClock(0);
 
-  const log = new RefusalLog({
+  const log = createRefusalLog({
     log: sink.log,
     now: clock.now,
     intervalMs: 60_000,
@@ -187,7 +187,7 @@ test('it logs every pending count on a drain', () => {
   const sink = buildStubLog();
   const clock = buildStubClock(0);
 
-  const log = new RefusalLog({
+  const log = createRefusalLog({
     log: sink.log,
     now: clock.now,
     intervalMs: 60_000,
