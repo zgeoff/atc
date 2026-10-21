@@ -2393,8 +2393,6 @@ function buildProbedRepo(
   };
 }
 
-// The agents the daemon lists as installed and able to start on some
-// target, in its order.
 function collectAgentPicks(raw: unknown): AgentPick[] {
   return collectParsed(raw, (entry) => {
     const agent = AGENT_ENTRY_SCHEMA.safeParse(entry).data;
