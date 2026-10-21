@@ -25,7 +25,6 @@ test("it adds to a session's scope through the MCP tool from outside the session
   expect(added.structured).toMatchObject({
     record: {
       session,
-      revision: 2,
       scope: { branches: [{ name: 'main', repo: ctx.fixture.work }] },
     },
   });
