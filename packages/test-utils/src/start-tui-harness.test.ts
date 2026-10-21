@@ -51,18 +51,22 @@ test("it puts a copy of the run's migrated database in its home before a boot", 
 
 test('it captures a later client that a second boot starts on the same home', async () => {
   const tui = startTUIHarness();
-  const first = tui.boot();
 
-  await tui.waitFor('atc — control tower');
+  // A version run prints and exits without a daemon, so each boot costs one
+  // client start.
+  const first = tui.boot(['--version']);
+
+  await tui.waitForExit();
 
   tui.reset();
 
-  const second = tui.boot();
+  const second = tui.boot(['--version']);
 
-  await tui.waitFor('atc — control tower');
+  await waitFor(() => {
+    expect(tui.read()).toMatch(/\d+\.\d+\.\d+/u);
+  });
 
   expect(second.pid).not.toBe(first.pid);
-  expect(tui.read()).toInclude('atc — control tower');
 });
 
 test('it stops capturing a client that a second boot replaced', async () => {
@@ -76,9 +80,9 @@ test('it stops capturing a client that a second boot replaced', async () => {
 
   await tui.waitFor('atc — control tower');
 
-  tui.boot();
+  tui.boot(['--version']);
 
-  await tui.waitFor('atc — control tower');
+  await tui.waitForExit();
 
   tui.reset();
   first.write('n');
@@ -96,9 +100,9 @@ test('it kills a client a later boot replaced on stop', async () => {
 
   await tui.waitFor('atc — control tower');
 
-  tui.boot();
+  tui.boot(['--version']);
 
-  await tui.waitFor('atc — control tower');
+  await tui.waitForExit();
   await tui.stop();
 
   await waitFor(() => {

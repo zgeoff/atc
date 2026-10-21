@@ -441,8 +441,11 @@ test("it boots the daemon on a copy of the run's migrated database", async () =>
   // handshake answer, and a fresh database holds none.
   const store = await createStateStore(template);
 
+  const stopStore = registerTestCleanup(() => store.stop());
+
   await store.writeLastUsedAgent(toAgentID('grok'));
-  await store.stop();
+
+  await stopStore();
 
   updateEnv('ATC_TEST_STATE_TEMPLATE', template);
 
