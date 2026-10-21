@@ -1,15 +1,19 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { isRecord } from '@atc/core';
 import { startTestDaemon } from '@atc/daemon/testing';
 import {
   buildMockAgentAdapter,
+  getRecord,
   setupTempDir,
   spawnNamedSession,
+  startStubRecordingListener,
   startStubSessionBridge,
   updateEnv,
   waitFor,
 } from '@atc/test-utils';
+import invariant from 'tiny-invariant';
 import { runTap } from './tap';
 
 async function setupTest() {
@@ -86,6 +90,35 @@ test('it writes each pending message as an NDJSON line and acks it', async () =>
       sentAt: expect.toBeNumber(),
     },
   ]);
+});
+
+test('it sends the build it is given as the client of its handshake', async () => {
+  const temporaryDirectory = setupTempDir('atc-tap-');
+  const sock = join(temporaryDirectory.path, 'atc-daemon.sock');
+  const listener = startStubRecordingListener(sock);
+
+  const tapped = runTap('s1', 'atc/tap-probe-build', sock, {
+    writeStdout: () => Promise.resolve(),
+    printError: () => {},
+    exit: () => {},
+  });
+
+  onTestFinished(() => tapped);
+
+  await waitFor(() => {
+    expect(listener.received.join('')).toInclude('\n');
+  });
+
+  listener.stop();
+
+  const frame: unknown = JSON.parse(listener.received.join('').split('\n')[0] ?? '');
+
+  invariant(isRecord(frame));
+
+  const request = getRecord(frame, 'p');
+
+  expect(request['u']).toBe('/daemon/hello');
+  expect(getRecord(getRecord(request, 'b'), 'json')['client']).toBe('atc/tap-probe-build');
 });
 
 test('it exits 1 with a hint when no daemon listens', async () => {
