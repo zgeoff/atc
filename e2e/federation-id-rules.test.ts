@@ -4,14 +4,13 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isRecord } from '@atc/core';
 import { buildPayloadHash } from '@atc/daemon';
+import { ERROR_DATA_RULES, ID_RULES, collectUnruledIDPaths } from '@atc/gateway';
 import { parseClaudeTranscriptLine } from '@atc/harness-claude';
 import { REQUEST_PARAM_SCHEMAS } from '@atc/protocol';
 import { StateStore } from '@atc/store';
 import { buildMockAgentAdapter, getRecord, registerTestCleanup, waitFor } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
-import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { collectUnruledIDPaths } from './collect-unruled-id-paths';
-import { ERROR_DATA_RULES, ID_RULES } from './id-rules';
+import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 async function setupTest() {
   // under `/tmp`, not the temp root: a session's temp root holds its session id, and a path

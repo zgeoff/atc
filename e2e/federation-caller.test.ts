@@ -3,6 +3,8 @@ import { randomBytes } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isRecord } from '@atc/core';
+import { openGatewayCaller } from '@atc/gateway';
+import { buildMockRegistryDaemon, openTestBindingDatabase } from '@atc/gateway/testing';
 import { createEnrollmentToken, openMCPAuth, startMCPHTTPServer } from '@atc/mcp';
 import { openDaemonClient } from '@atc/protocol/client';
 import {
@@ -18,10 +20,8 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
-import { openMCPAuthDatabase } from '../open-mcp-auth-database';
-import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
-import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { openGatewayCaller } from './open-gateway-caller';
+import { openMCPAuthDatabase } from '../packages/app/src/open-mcp-auth-database';
+import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-gateway-');
@@ -127,7 +127,7 @@ async function setupTest() {
     },
     build: 'atc-gateway/test',
     openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
-    gatewayDBPath: join(temporaryDirectory.path, 'gateway.db'),
+    bindings: openTestBindingDatabase(join(temporaryDirectory.path, 'gateway.db')),
 
     // Bounds a call asked of every daemon, so a daemon that never answers
     // cannot hold a test for the 5 s default. No test waits it out: a

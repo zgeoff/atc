@@ -1,4 +1,3 @@
-import { Database } from 'bun:sqlite';
 import { DaemonError } from '@atc/protocol/wire';
 import { z } from 'zod';
 
@@ -43,18 +42,27 @@ const BINDING_ROW_SCHEMA = z.object({
 
 type BindingRow = z.infer<typeof BINDING_ROW_SCHEMA>;
 
-export class GatewayStore {
-  private readonly db: Database;
+// The part of a SQLite handle the store uses. The app opens the file, with
+// named parameters bound without their prefix.
+export interface BindingDatabase {
+  readonly run: (sql: string) => unknown;
+  readonly query: (sql: string) => {
+    readonly run: (params: Readonly<Record<string, string | number | null>>) => {
+      readonly changes: number;
+    };
+    readonly get: (params: Readonly<Record<string, string | number | null>>) => unknown;
+  };
+  readonly close: () => void;
+}
 
-  private constructor(db: Database) {
+export class GatewayStore {
+  private readonly db: BindingDatabase;
+
+  private constructor(db: BindingDatabase) {
     this.db = db;
   }
 
-  static open(path: string): GatewayStore {
-    const db = new Database(path, { create: true, strict: true });
-
-    db.run('PRAGMA journal_mode = WAL');
-
+  static open(db: BindingDatabase): GatewayStore {
     db.run(`CREATE TABLE IF NOT EXISTS key_binding (
       principal TEXT NOT NULL,
       operation TEXT NOT NULL,

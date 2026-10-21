@@ -8,6 +8,8 @@ import { ImpProvider } from '@atc/execution-imp';
 import { createStubImpPort, getOnlyImpName } from '@atc/execution-imp/testing';
 import { LocalPTYProvider } from '@atc/execution-local';
 import { buildStubExecutionProvider } from '@atc/execution-local/testing';
+import { DaemonPool, GatewayStore, RoutingCaller } from '@atc/gateway';
+import { buildMockRegistryDaemon, openTestBindingDatabase } from '@atc/gateway/testing';
 import { TransportCaller, buildPrincipalCaller, runTool } from '@atc/mcp';
 import { buildStubFleetCaller } from '@atc/mcp/testing';
 import type { AgentAdapter } from '@atc/plugin-api';
@@ -25,10 +27,6 @@ import {
 } from '@atc/test-utils';
 import { $ } from 'bun';
 import invariant from 'tiny-invariant';
-import { DaemonPool } from '../packages/app/src/federation/daemon-pool';
-import { GatewayStore } from '../packages/app/src/federation/gateway-store';
-import { RoutingCaller } from '../packages/app/src/federation/routing-caller';
-import { buildMockRegistryDaemon } from '../packages/app/src/test-utils/build-mock-registry-daemon';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 async function setupTest() {
@@ -1248,7 +1246,7 @@ test('it returns the adopted session for atc_session_adopt through the gateway',
 
   registerTestCleanup(() => pool.stop());
 
-  const store = GatewayStore.open(join(ctx.directory, 'gateway.db'));
+  const store = GatewayStore.open(openTestBindingDatabase(join(ctx.directory, 'gateway.db')));
 
   registerTestCleanup(() => {
     store.stop();
@@ -1319,7 +1317,7 @@ test('it refuses atc_session_auth_rebind through the gateway as unauthorized, si
 
   registerTestCleanup(() => pool.stop());
 
-  const store = GatewayStore.open(join(ctx.directory, 'gateway.db'));
+  const store = GatewayStore.open(openTestBindingDatabase(join(ctx.directory, 'gateway.db')));
 
   registerTestCleanup(() => {
     store.stop();

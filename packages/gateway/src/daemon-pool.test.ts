@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { startTestDaemon } from '@atc/daemon/testing';
 import { openDaemonClient } from '@atc/protocol/client';
 import { buildMockAgentAdapter, registerTestCleanup, setupTempDir } from '@atc/test-utils';
-import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
-import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { DaemonPool } from './daemon-pool';
+import { buildMockRegistryDaemon } from './testing/build-mock-registry-daemon';
 
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-daemon-pool-');

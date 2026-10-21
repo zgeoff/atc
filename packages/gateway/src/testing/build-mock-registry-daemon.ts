@@ -1,7 +1,7 @@
 import type { MockOverrides } from '@atc/test-utils';
 import { faker } from '@faker-js/faker';
 import { mergeDeep } from '@zgeoff/std';
-import type { RegistryDaemon } from '../federation/types';
+import type { RegistryDaemon } from '../types';
 
 export function buildMockRegistryDaemon(
   overrides: MockOverrides<RegistryDaemon, keyof RegistryDaemon> = {},

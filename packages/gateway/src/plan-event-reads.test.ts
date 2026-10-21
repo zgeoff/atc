@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
-import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
 import { buildEventsFilterHash } from './build-events-filter-hash';
 import { encodeGatewayCursor } from './encode-gateway-cursor';
 import { planEventReads } from './plan-event-reads';
+import { buildMockRegistryDaemon } from './testing/build-mock-registry-daemon';
 
 test('it starts every daemon at the start of its trail without a cursor', () => {
   const registry = {

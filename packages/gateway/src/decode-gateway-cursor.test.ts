@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
-import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
 import { buildEventsFilterHash } from './build-events-filter-hash';
 import { decodeGatewayCursor } from './decode-gateway-cursor';
 import { encodeGatewayCursor } from './encode-gateway-cursor';
+import { buildMockRegistryDaemon } from './testing/build-mock-registry-daemon';
 
 test('it decodes each registry daemon position an encoded cursor holds', () => {
   const registry = {

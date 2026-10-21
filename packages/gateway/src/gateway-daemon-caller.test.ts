@@ -3,6 +3,7 @@ import { expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { startTestDaemon } from '@atc/daemon/testing';
 import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildMockAgentAdapter,
@@ -14,9 +15,8 @@ import {
   startStubUnansweringListener,
   waitFor,
 } from '@atc/test-utils';
-import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
-import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { GatewayDaemonCaller } from './gateway-daemon-caller';
+import { buildMockRegistryDaemon } from './testing/build-mock-registry-daemon';
 import type { RegistryDaemon } from './types';
 
 async function setupTest() {
