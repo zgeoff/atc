@@ -66,6 +66,15 @@ daemon sends the reads for these checks to impd at once. atc never adds a missin
 a missing grant means someone withdrew it. A sub-session joins only a host bound to the same binding
 as its own.
 
+The binding hash covers the bound secrets and the variables the profiles set, in one current form.
+An older atc release wrote two parts of a binding in another form: the old placeholder value, and
+the github rules, which the broker's github secret holds itself. The daemon maps each of those to
+the current form before it hashes, and it hashes the recorded binding again the same way when its
+recorded hash differs. So a binding whose grants are unchanged passes the check after an upgrade
+with no rebind. Once impd confirms the host and its grants, the daemon writes the current form and
+hash into the binding at its revision, and a launch admission and a joining sub-session compare
+against that form. Any other difference still refuses until a rebind.
+
 On an imp target that sets `rebindChangedAuth`, a revive or a restore whose auth profiles no longer
 hash as recorded moves the host to the current selection instead of refusing. The owner writes both
 the profile change and the option, so the new grants follow the owner's own intent. The imp must

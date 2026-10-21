@@ -9,6 +9,7 @@ import { assertRecordedHostName } from './assert-recorded-host-name';
 import { BrokerAuthorityError } from './broker-authority-error';
 import type { AuthBinding } from './build-auth-binding';
 import { buildRevocationPending } from './build-revocation-pending';
+import { buildStoredBindingHash } from './build-stored-binding-hash';
 import { createHostAndGrants } from './create-host-and-grants';
 import { formatError } from './format-error';
 import { LaunchAdmissions } from './launch-admissions';
@@ -154,7 +155,10 @@ export class RuntimeAuthBinder {
         );
       }
 
-      const isChanged = row.bindingHash !== binding.hash;
+      const isChanged =
+        row.bindingHash !== binding.hash &&
+        buildStoredBindingHash(row.bindingJSON) !== binding.hash;
+
       const plan = planBindingVerify(row, isChanged, rebind !== null);
 
       if (plan === 'blocked') {
@@ -227,7 +231,20 @@ export class RuntimeAuthBinder {
         );
       }
 
-      return row;
+      if (row.bindingHash === binding.hash) {
+        return row;
+      }
+
+      // the stored binding grants what this one does in an older form, so the
+      // row takes this form at its revision, and a launch admission or a
+      // sub-session compares against it
+      await this.store.updateAuthBinding(
+        hostKey,
+        { bindingHash: binding.hash, bindingJSON: JSON.stringify(binding) },
+        this.now(),
+      );
+
+      return this.requireBinding(hostKey);
     });
   }
 
