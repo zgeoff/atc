@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
 import { resolveDaemonRequest } from './resolve-daemon-request';
+import { buildMockRegistryDaemon } from './testing/build-mock-registry-daemon';
 
 test('it routes a request by its session id and hands the daemon its own id', () => {
   const cloud = buildMockRegistryDaemon({ name: 'cloud', incarnation: '0f6c2a8e' });

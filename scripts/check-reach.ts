@@ -73,7 +73,6 @@ const GATEWAY_APP_MODULES: readonly string[] = [
   'open-mcp-auth-database.ts',
   'clients.ts',
   'passkeys.ts',
-  'federation/',
 ];
 
 function checkFile(verb: string, file: string): string[] {

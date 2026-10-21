@@ -10,6 +10,7 @@
         "@atc/daemon": "workspace:*",
         "@atc/execution-imp": "workspace:*",
         "@atc/execution-local": "workspace:*",
+        "@atc/gateway": "workspace:*",
         "@atc/harness-claude": "workspace:*",
         "@atc/harness-codex": "workspace:*",
         "@atc/harness-grok": "workspace:*",
@@ -51,6 +52,7 @@
         "@atc/daemon": "workspace:*",
         "@atc/execution-imp": "workspace:*",
         "@atc/execution-local": "workspace:*",
+        "@atc/gateway": "workspace:*",
         "@atc/harness-claude": "workspace:*",
         "@atc/harness-codex": "workspace:*",
         "@atc/harness-grok": "workspace:*",
@@ -65,9 +67,7 @@
         "@atc/store": "workspace:*",
         "@atc/tui": "workspace:*",
         "@zgeoff/kysely-bun-sqlite": "catalog:",
-        "@zgeoff/std": "catalog:",
         "gunshi": "catalog:",
-        "ts-pattern": "catalog:",
         "zod": "catalog:",
       },
       "devDependencies": {
@@ -159,6 +159,22 @@
       "devDependencies": {
         "@atc/test-utils": "workspace:*",
         "tiny-invariant": "catalog:",
+      },
+    },
+    "packages/gateway": {
+      "name": "@atc/gateway",
+      "dependencies": {
+        "@atc/core": "workspace:*",
+        "@atc/protocol": "workspace:*",
+        "@zgeoff/std": "catalog:",
+        "tiny-invariant": "catalog:",
+        "ts-pattern": "catalog:",
+        "zod": "catalog:",
+      },
+      "devDependencies": {
+        "@atc/daemon": "workspace:*",
+        "@atc/test-utils": "workspace:*",
+        "@faker-js/faker": "catalog:",
       },
     },
     "packages/harnesses/claude": {
@@ -478,6 +494,8 @@
     "@atc/execution-imp": ["@atc/execution-imp@workspace:packages/execution/imp"],
 
     "@atc/execution-local": ["@atc/execution-local@workspace:packages/execution/local"],
+
+    "@atc/gateway": ["@atc/gateway@workspace:packages/gateway"],
 
     "@atc/harness-claude": ["@atc/harness-claude@workspace:packages/harnesses/claude"],
 

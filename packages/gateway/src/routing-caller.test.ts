@@ -3,6 +3,7 @@ import { expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { startTestDaemon } from '@atc/daemon/testing';
 import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildMockAgentAdapter,
@@ -13,13 +14,13 @@ import {
   startCutProxy,
   startStubLegacyDaemon,
 } from '@atc/test-utils';
-import { buildMockKeyBindingClaim } from '../test-utils/build-mock-key-binding-claim';
-import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
-import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { buildBindingPayloadHash } from './build-binding-payload-hash';
 import { DaemonPool } from './daemon-pool';
 import { GatewayStore } from './gateway-store';
 import { RoutingCaller } from './routing-caller';
+import { buildMockKeyBindingClaim } from './testing/build-mock-key-binding-claim';
+import { buildMockRegistryDaemon } from './testing/build-mock-registry-daemon';
+import { openTestBindingDatabase } from './testing/open-test-binding-database';
 import type { RegistryDaemon } from './types';
 
 async function setupTest() {
@@ -94,7 +95,7 @@ async function setupTest() {
   };
 
   const storePath = join(temporaryDirectory.path, 'gateway.db');
-  const store = GatewayStore.open(storePath);
+  const store = GatewayStore.open(openTestBindingDatabase(storePath));
 
   registerTestCleanup(() => {
     store.stop();
@@ -200,7 +201,7 @@ test('it answers two concurrent keyed spawns with one key on one daemon with the
 test('it runs only one keyed spawn when another gateway binds its key to another daemon at once', async () => {
   const ctx = await setupTest();
 
-  const otherStore = GatewayStore.open(ctx.storePath);
+  const otherStore = GatewayStore.open(openTestBindingDatabase(ctx.storePath));
 
   registerTestCleanup(() => {
     otherStore.stop();
@@ -246,7 +247,7 @@ test('it runs only one keyed spawn when another gateway binds its key to another
 test('it refuses a keyed spawn whose key another gateway bound to another daemon first as idempotency_conflict', async () => {
   const ctx = await setupTest();
 
-  const otherStore = GatewayStore.open(ctx.storePath);
+  const otherStore = GatewayStore.open(openTestBindingDatabase(ctx.storePath));
 
   registerTestCleanup(() => {
     otherStore.stop();
@@ -305,7 +306,7 @@ test("it keeps another call's completed binding when a call that found none is r
     { holdDial: 1 },
   );
 
-  const heldStore = GatewayStore.open(ctx.storePath);
+  const heldStore = GatewayStore.open(openTestBindingDatabase(ctx.storePath));
 
   registerTestCleanup(() => {
     heldStore.stop();
@@ -554,7 +555,7 @@ test('it spawns nothing for a keyed spawn whose first send never reached the dae
 test('it runs one of two concurrent keyed spawns with one key from two gateways on one binding store', async () => {
   const ctx = await setupTest();
 
-  const otherStore = GatewayStore.open(ctx.storePath);
+  const otherStore = GatewayStore.open(openTestBindingDatabase(ctx.storePath));
 
   registerTestCleanup(() => {
     otherStore.stop();
@@ -756,7 +757,7 @@ test('it replays a keyed spawn sent before a gateway restart from the key the da
     defaultDaemon: 'cloud',
   };
 
-  const beforeStore = GatewayStore.open(ctx.storePath);
+  const beforeStore = GatewayStore.open(openTestBindingDatabase(ctx.storePath));
 
   registerTestCleanup(() => {
     beforeStore.stop();
@@ -826,7 +827,7 @@ test('it answers outcome_unknown for a keyed spawn sent before a gateway restart
     defaultDaemon: 'cloud',
   };
 
-  const beforeStore = GatewayStore.open(ctx.storePath);
+  const beforeStore = GatewayStore.open(openTestBindingDatabase(ctx.storePath));
 
   registerTestCleanup(() => {
     beforeStore.stop();
@@ -900,26 +901,22 @@ test("it passes each daemon's agent and target broker fields through agents.list
 test('it refuses a daemon param the registry does not hold as bad_args', async () => {
   const ctx = await setupTest();
 
-  expect(() =>
+  expect(
     ctx.router.sendRequest('dirs.list', { daemon: 'nope' }, { id: 'gw', name: 'Lantern Notes' }),
-  ).toThrow(
-    expect.objectContaining({ code: 'bad_args', message: "no daemon 'nope' in this gateway" }),
-  );
+  ).rejects.toMatchObject({ code: 'bad_args', message: "no daemon 'nope' in this gateway" });
 });
 
 test('it refuses a call whose ids belong to another daemon than its daemon param as bad_args', async () => {
   const ctx = await setupTest();
 
-  expect(() =>
+  expect(
     ctx.router.sendRequest(
       'session.get',
       { session: `cloud.${ctx.cloudID.slice(0, 8)}.s1`, daemon: 'pc' },
       { id: 'gw', name: 'Lantern Notes' },
     ),
-  ).toThrow(
-    expect.objectContaining({
-      code: 'bad_args',
-      message: "the call's ids belong to daemon 'cloud', not 'pc'",
-    }),
-  );
+  ).rejects.toMatchObject({
+    code: 'bad_args',
+    message: "the call's ids belong to daemon 'cloud', not 'pc'",
+  });
 });

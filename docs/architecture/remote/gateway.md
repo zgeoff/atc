@@ -53,6 +53,12 @@ one the read started at its newest or latest events under `started`, and one who
 unread under `truncated`. A read that waits first reads every daemon without waiting, and only when
 none has an event does each wait, returning as soon as one has.
 
+Every other call passes through the gateway's routing steps in a fixed order. The id rules rewrite
+its ids, the daemon pick chooses its daemon, the key binding binds its idempotency key, and the
+pass-through sends it to that daemon. Each step wraps the steps after it, so a daemon's answer or
+refusal comes back out through the key binding, which records it, and then through the id rules,
+which rewrite the daemon's ids before the client sees them.
+
 The gateway carries no terminal stream. It serves a screen read, a transcript read and a submitted
 line, and no attach or raw input, because an MCP tool call has nowhere to put a live stream.
 

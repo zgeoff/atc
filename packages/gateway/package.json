@@ -1,0 +1,23 @@
+{
+  "name": "@atc/gateway",
+  "private": true,
+  "description": "The atc gateway's federation: the daemon registry, one connection per daemon, and the routing that rewrites ids and binds idempotency keys across daemons",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./src/testing/index.ts"
+  },
+  "dependencies": {
+    "@atc/core": "workspace:*",
+    "@atc/protocol": "workspace:*",
+    "@zgeoff/std": "catalog:",
+    "tiny-invariant": "catalog:",
+    "ts-pattern": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@atc/daemon": "workspace:*",
+    "@atc/test-utils": "workspace:*",
+    "@faker-js/faker": "catalog:"
+  }
+}

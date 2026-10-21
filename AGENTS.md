@@ -34,6 +34,8 @@ packages/
                  reporters, the note, and the message tap; its root entry stays light for start-up
   mcp/           the MCP server: the tools, which stdio and HTTP serve alike, and the HTTP app with
                  its authorization server; the tools reach no module of the authorization server
+  gateway/       the gateway's federation: the daemon registry, one connection per daemon, and the
+                 routing steps that rewrite ids, pick a daemon, and bind idempotency keys
   plugin-api/    the contracts a plugin implements, among them the AgentAdapter interface
   harnesses/     one package per agent CLI: claude, codex, grok
   execution/     one package per execution provider: local, imp

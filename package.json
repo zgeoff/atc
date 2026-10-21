@@ -108,6 +108,7 @@
     "@atc/daemon": "workspace:*",
     "@atc/execution-imp": "workspace:*",
     "@atc/execution-local": "workspace:*",
+    "@atc/gateway": "workspace:*",
     "@atc/harness-claude": "workspace:*",
     "@atc/harness-codex": "workspace:*",
     "@atc/harness-grok": "workspace:*",

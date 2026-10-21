@@ -11,6 +11,7 @@
     "@atc/daemon": "workspace:*",
     "@atc/execution-imp": "workspace:*",
     "@atc/execution-local": "workspace:*",
+    "@atc/gateway": "workspace:*",
     "@atc/harness-claude": "workspace:*",
     "@atc/harness-codex": "workspace:*",
     "@atc/harness-grok": "workspace:*",
@@ -25,9 +26,7 @@
     "@atc/store": "workspace:*",
     "@atc/tui": "workspace:*",
     "@zgeoff/kysely-bun-sqlite": "catalog:",
-    "@zgeoff/std": "catalog:",
     "gunshi": "catalog:",
-    "ts-pattern": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

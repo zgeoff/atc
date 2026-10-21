@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
-import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
 import { buildGatewayResult } from './build-gateway-result';
 import { parseGatewayID } from './parse-gateway-id';
+import { buildMockRegistryDaemon } from './testing/build-mock-registry-daemon';
 
 test('it rewrites every id of a session descriptor and keeps the agent session id', () => {
   const daemon = { name: 'cloud', incarnation: '0f6c2a8e' };

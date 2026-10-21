@@ -1,6 +1,7 @@
 import type { Clock } from '@atc/core';
 import { DaemonPool } from './daemon-pool';
 import { GatewayStore } from './gateway-store';
+import type { BindingDatabase } from './gateway-store';
 import { RoutingCaller } from './routing-caller';
 import type { GatewayChannel, GatewayRegistry, RegistryDaemon } from './types';
 
@@ -11,8 +12,8 @@ interface GatewayCallerOptions {
   // Connects to a daemon's TCP address.
   readonly openChannel: (address: RegistryDaemon['address']) => Promise<GatewayChannel>;
 
-  // The keyed-request bindings.
-  readonly gatewayDBPath: string;
+  // The database of keyed-request bindings, which the caller closes when it stops.
+  readonly bindings: BindingDatabase;
 
   // How long each daemon may take to answer a call asked of every daemon.
   readonly fanOutTimeoutMs?: number;
@@ -27,7 +28,7 @@ export function openGatewayCaller(opts: GatewayCallerOptions): {
   readonly caller: RoutingCaller;
   readonly stop: () => Promise<void>;
 } {
-  const store = GatewayStore.open(opts.gatewayDBPath);
+  const store = GatewayStore.open(opts.bindings);
 
   const pool = new DaemonPool({
     registry: opts.registry,

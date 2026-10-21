@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
 import { parseGatewayID } from './parse-gateway-id';
+import { buildMockRegistryDaemon } from './testing/build-mock-registry-daemon';
 
 test('it routes a gateway id back to its daemon and the daemon id inside it', () => {
   const cloud = buildMockRegistryDaemon({ name: 'cloud', incarnation: '0f6c2a8e' });

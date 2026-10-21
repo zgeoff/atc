@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test';
 import { encodeCursor } from '@atc/protocol';
-import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
 import { buildEventsFilterHash } from './build-events-filter-hash';
 import { decodeGatewayCursor } from './decode-gateway-cursor';
 import { encodeGatewayCursor } from './encode-gateway-cursor';
 import { MAX_REGISTRY_DAEMONS } from './max-registry-daemons';
+import { buildMockRegistryDaemon } from './testing/build-mock-registry-daemon';
 
 test('it lets a registry list 36 daemons', () => {
   expect(MAX_REGISTRY_DAEMONS).toBe(36);

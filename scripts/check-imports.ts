@@ -85,14 +85,13 @@ const ALLOWED_IMPORTS: Readonly<Record<string, readonly string[]>> = {
   // plugins
   client: ['shared', 'plugins'],
   mcp: ['shared'],
-  federation: ['shared'],
 
   // modules at the source root: the subcommand modules beside the entrypoints
-  root: ['shared', 'agents', 'client', 'mcp', 'federation', 'plugins'],
+  root: ['shared', 'agents', 'client', 'mcp', 'plugins'],
 
   // the shared test helpers wire real modules together the way a test does,
   // and no production row lists them, so no production module imports one
-  'test-utils': ['shared', 'agents', 'sources', 'client', 'mcp', 'federation', 'root', 'plugins'],
+  'test-utils': ['shared', 'agents', 'sources', 'client', 'mcp', 'root', 'plugins'],
 };
 
 function checkDirection(file: string, targets: readonly string[]): string[] {

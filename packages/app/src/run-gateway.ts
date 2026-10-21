@@ -1,10 +1,10 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { loadGatewayRegistry, openGatewayCaller } from '@atc/gateway';
 import { startMCPHTTPServer } from '@atc/mcp';
 import type { MCPHTTPServer } from '@atc/mcp';
 import { openDaemonClient } from '@atc/protocol/client';
-import { loadGatewayRegistry } from './federation/load-gateway-registry';
-import { openGatewayCaller } from './federation/open-gateway-caller';
+import { openSQLite } from '@atc/store/sqlite';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
 
 interface GatewayFlags {
@@ -70,7 +70,7 @@ export async function runGateway(
     registry: loaded.registry,
     build,
     openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
-    gatewayDBPath: join(flags.stateDir, 'gateway.db'),
+    bindings: openSQLite(join(flags.stateDir, 'gateway.db'), { strict: true }),
   });
 
   let server: MCPHTTPServer;

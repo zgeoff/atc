@@ -660,34 +660,3 @@ test('it ignores a URL that is not relative to the module', async () => {
     stderr: '',
   });
 });
-
-test('it fails on a federation module that imports the mcp layer', async () => {
-  const ctx = setupTest();
-
-  await Bun.write(
-    join(ctx.directory, 'packages/app/src/mcp/types.ts'),
-    'export const TOOLS = 1;\n',
-  );
-
-  await Bun.write(
-    join(ctx.directory, 'packages/app/src/federation/router.ts'),
-    "import { TOOLS } from '../mcp/types';\nexport const ROUTER = TOOLS;\n",
-  );
-
-  const checked = await runCommand([
-    process.execPath,
-    join(import.meta.dir, 'check-imports.ts'),
-    ctx.directory,
-  ]);
-
-  expect({
-    exitCode: checked.exitCode,
-    stdout: checked.stdout,
-    stderr: checked.stderr,
-  }).toStrictEqual({
-    exitCode: 1,
-    stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
-    stderr:
-      'forbidden edge: packages/app/src/federation/router.ts imports packages/app/src/mcp/types.ts (federation -> mcp)\n',
-  });
-});
