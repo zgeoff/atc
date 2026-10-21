@@ -1,7 +1,7 @@
 import type { Database } from 'bun:sqlite';
 import type { AgentID, AgentSessionID, DaemonID, MessageID, SessionID } from '@atc/core';
 import { systemClock, toAgentID, toDaemonID } from '@atc/core';
-import type { AdapterEvent, PublishedRecord } from '@atc/protocol';
+import type { AdapterEvent, PublishedRecord, RestartResult } from '@atc/protocol';
 import type { HookEvent } from '@atc/protocol/session';
 import { buildSQLiteDialect } from '@zgeoff/kysely-bun-sqlite';
 import { Kysely } from 'kysely';
@@ -155,6 +155,10 @@ export class StateStore {
 
   recordTrailEntry(entry: TrailEntry): Promise<boolean> {
     return this.trail.recordTrailEntry(entry);
+  }
+
+  recordRestart(result: RestartResult, detail: string, at: number): Promise<void> {
+    return this.trail.recordRestart(result, detail, at);
   }
 
   readEventsAfter(

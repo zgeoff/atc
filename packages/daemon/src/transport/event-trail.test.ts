@@ -162,6 +162,94 @@ test('it reads none of the events of a session whose target the access may not u
   expect(page.events).toBeEmpty();
 });
 
+test('it wakes a held read with a restart it records, whole result included', async () => {
+  const ctx = await setupTest();
+
+  const read = ctx.trail.readEvents(0, 10, 60_000, null, null);
+
+  await ctx.trail.recordRestart({
+    runID: 'run-poplar',
+    code: 0,
+    pid: 7170,
+    build: 'atc/0.9.4',
+    listenPort: null,
+    restored: 2,
+    total: 2,
+    failed: [],
+    interrupted: [],
+    error: null,
+  });
+
+  const page = await read;
+
+  expect(page).toStrictEqual({
+    events: [
+      {
+        cursor: expect.toBeString(),
+        at: 1_000_000,
+        session: '',
+        name: null,
+        kind: 'daemon-restarted',
+        detail: 'restored 2 of 2',
+        result: {
+          runID: 'run-poplar',
+          code: 0,
+          pid: 7170,
+          build: 'atc/0.9.4',
+          listenPort: null,
+          restored: 2,
+          total: 2,
+          failed: [],
+          interrupted: [],
+          error: null,
+        },
+      },
+    ],
+    more: false,
+  });
+});
+
+test('it reads no restart under an access that reaches every session', async () => {
+  const ctx = await setupTest();
+
+  ctx.manager.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-1'),
+      target: 'local',
+      targetIdentity: 'local-pty:test',
+    }),
+  );
+
+  await ctx.trail.recordRestart({
+    runID: 'run-linden',
+    code: 0,
+    pid: 7171,
+    build: 'atc/0.9.4',
+    listenPort: null,
+    restored: 1,
+    total: 1,
+    failed: [],
+    interrupted: [],
+    error: null,
+  });
+
+  await ctx.store.recordEvent(
+    { atcId: toSessionID('s-1'), event: 'Stop', payload: {} },
+    { kind: 'turn-done' },
+    2_000_000,
+  );
+
+  const page = await ctx.trail.readEvents(
+    0,
+    10,
+    0,
+    null,
+    new TargetAccess([{ target: 'local', targetIdentity: 'local-pty:test' }]),
+  );
+
+  expect(page.events.map((event) => event.kind)).toStrictEqual(['turn-done']);
+});
+
 test('it reads a note by its trail id with the session that sent it', async () => {
   const ctx = await setupTest();
 

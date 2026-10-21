@@ -211,6 +211,15 @@ interface MessagesTable {
   notice_delivered_at: number | null;
 }
 
+// The whole result of a restart whose events row holds the restart's place
+// in the trail; the row id is the key.
+interface RestartResultsTable {
+  event_id: number;
+
+  // The result record as JSON.
+  result: string;
+}
+
 export interface StateStoreSchema {
   fleet: FleetTable;
   events: EventsTable;
@@ -223,4 +232,5 @@ export interface StateStoreSchema {
   runtime_auth_binding: RuntimeAuthBindingTable;
   runtime_auth_grant: RuntimeAuthGrantTable;
   published_record: PublishedRecordTable;
+  restart_results: RestartResultsTable;
 }

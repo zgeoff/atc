@@ -1,6 +1,6 @@
 import type { MessageID } from '@atc/core';
 import { encodeCursor } from '@atc/protocol';
-import type { SessionDescriptor } from '@atc/protocol';
+import type { RestartResult, SessionDescriptor } from '@atc/protocol';
 import type { StoredEvent } from '@atc/store';
 
 export interface FleetEvent {
@@ -16,6 +16,9 @@ export interface FleetEvent {
 
   // The note label on a note event.
   readonly label?: string;
+
+  // The whole result on a daemon-restarted event.
+  readonly result?: RestartResult;
 }
 
 export function buildFleetEvents(
@@ -41,6 +44,7 @@ export function buildFleetEvents(
       detail: row.detail,
       ...(row.message === undefined ? {} : { message: row.message }),
       ...(row.label === undefined ? {} : { label: row.label }),
+      ...(row.result === undefined ? {} : { result: row.result }),
     };
   });
 }

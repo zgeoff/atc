@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { RESTART_RESULT_SCHEMA } from './restart-result';
 
 export const FLEET_EVENT_SCHEMA = z.object({
   cursor: z.string(),
@@ -9,4 +10,5 @@ export const FLEET_EVENT_SCHEMA = z.object({
   detail: z.string().nullable(),
   message: z.string().optional(),
   label: z.string().optional(),
+  result: RESTART_RESULT_SCHEMA.optional(),
 });

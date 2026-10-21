@@ -1061,7 +1061,71 @@ test('it runs every migration once on the first open of a fresh database', async
     '037_drop_fleet_resume_interrupted_turns',
     '038_rename_runtime_auth_binding_host_columns',
     '039_rename_workspace_materialization_dir_to_directory',
+    '040_create_restart_results',
   ]);
+});
+
+test('it adds the restart results table and leaves every row of an older database as it was', async () => {
+  const temporaryDirectory = setupTempDir('atc-store-');
+  const dbPath = join(temporaryDirectory.path, 'state.db');
+
+  const older = new Database(dbPath);
+
+  registerTestCleanup(() => {
+    older.close();
+  });
+
+  const db = new Kysely<StateStoreSchema>({ dialect: buildSQLiteDialect(older) });
+
+  await new Migrator({
+    db,
+    provider: { getMigrations: () => Promise.resolve(MIGRATIONS) },
+  }).migrateTo('039_rename_workspace_materialization_dir_to_directory');
+
+  older.run(
+    "INSERT INTO fleet (session_id, name, cwd, pinned, agent, exited) VALUES ('s-lark', 'nightly-lint', '/work/lint', 0, 'claude', 0)",
+  );
+
+  older.run(
+    "INSERT INTO events (ts, atc_id, event, message, session_id, kind, detail) VALUES ('2026-03-01T08:00:00.000Z', 's-lark', 'Stop', NULL, 'agent-lark', 'turn-done', 'lint clean')",
+  );
+
+  const tablesBefore = older
+    .query("SELECT name, sql FROM sqlite_master WHERE type IN ('table', 'index') ORDER BY name")
+    .all();
+
+  const fleetBefore = older.query('SELECT * FROM fleet').all();
+  const eventsBefore = older.query('SELECT * FROM events').all();
+
+  older.close();
+
+  const upgraded = await StateStore.open(dbPath);
+
+  registerTestCleanup(() => upgraded.stop());
+
+  await upgraded.stop();
+
+  const reader = new Database(dbPath, { readonly: true });
+
+  registerTestCleanup(() => {
+    reader.close();
+  });
+
+  const tablesAfter = reader
+    .query("SELECT name, sql FROM sqlite_master WHERE type IN ('table', 'index') ORDER BY name")
+    .all();
+
+  expect(tablesAfter).toIncludeSameMembers([
+    ...tablesBefore,
+    {
+      name: 'restart_results',
+      sql: 'CREATE TABLE "restart_results" ("event_id" integer primary key, "result" text not null)',
+    },
+  ]);
+
+  expect(reader.query('SELECT * FROM fleet').all()).toStrictEqual(fleetBefore);
+  expect(reader.query('SELECT * FROM events').all()).toStrictEqual(eventsBefore);
+  expect(reader.query('SELECT * FROM restart_results').all()).toStrictEqual([]);
 });
 
 test('it drops the resume column from a database that stopped at the step that added it, and keeps its fleet', async () => {
@@ -1356,7 +1420,7 @@ test('it re-runs no migration when it reopens a migrated database', async () => 
 
   const stamps = ledger.query('SELECT timestamp FROM kysely_migration').values().flat();
 
-  expect(stamps).toStrictEqual(Array.from({ length: 39 }, () => 'sentinel'));
+  expect(stamps).toStrictEqual(Array.from({ length: 40 }, () => 'sentinel'));
 });
 
 test('it keeps the fleet of a migrated database across a reopen', async () => {
@@ -2034,9 +2098,9 @@ test('it finds the newest row of each id from an index when it removes expired e
 
   await ctx.store.removeExpiredEvents(Date.parse('2026-01-31T00:00:00.000Z'));
 
-  const query = ctx.queries.at(-1);
+  const query = ctx.queries.find((candidate) => candidate.sql.startsWith('delete from "events"'));
 
-  invariant(query !== undefined, 'the store ran no query');
+  invariant(query !== undefined, 'the store ran no delete from the events table');
 
   const plan = readQueryPlan(ctx.dbPath, query);
 
@@ -3312,6 +3376,256 @@ test('it reads the trail in order across hook events and message entries', async
       detail: null,
     },
   ]);
+});
+
+test('it reads a restart with its whole result in order between the hook events around it', async () => {
+  const ctx = await setupTest();
+
+  await ctx.store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'Stop', payload: {} },
+    { kind: 'turn-done' },
+    1000,
+  );
+
+  await ctx.store.recordRestart(
+    {
+      runID: 'run-juniper',
+      code: 1,
+      pid: 6160,
+      build: 'atc/0.9.3',
+      listenPort: null,
+      restored: 1,
+      total: 2,
+      failed: [{ name: 'heron', id: 's-heron', reason: 'its agent is not configured' }],
+      interrupted: [],
+      error: null,
+    },
+    'restored 1 of 2, 1 failed, exit code 1',
+    2000,
+  );
+
+  await ctx.store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'SessionStart', payload: {} },
+    { kind: 'started' },
+    3000,
+  );
+
+  const events = await ctx.store.readEventsAfter(0, 10);
+
+  expect(events).toStrictEqual([
+    {
+      id: expect.toBeNumber(),
+      at: 1000,
+      atcID: toSessionID('s1'),
+      agentSessionID: null,
+      kind: 'turn-done',
+      detail: null,
+    },
+    {
+      id: expect.toBeNumber(),
+      at: 2000,
+      atcID: toSessionID(''),
+      agentSessionID: null,
+      kind: 'daemon-restarted',
+      detail: 'restored 1 of 2, 1 failed, exit code 1',
+      result: {
+        runID: 'run-juniper',
+        code: 1,
+        pid: 6160,
+        build: 'atc/0.9.3',
+        listenPort: null,
+        restored: 1,
+        total: 2,
+        failed: [{ name: 'heron', id: 's-heron', reason: 'its agent is not configured' }],
+        interrupted: [],
+        error: null,
+      },
+    },
+    {
+      id: expect.toBeNumber(),
+      at: 3000,
+      atcID: toSessionID('s1'),
+      agentSessionID: null,
+      kind: 'started',
+      detail: null,
+    },
+  ]);
+});
+
+test('it reads the latest restart with its whole result', async () => {
+  const ctx = await setupTest();
+
+  await ctx.store.recordRestart(
+    {
+      runID: 'run-spruce',
+      code: 0,
+      pid: 6161,
+      build: 'atc/0.9.3',
+      listenPort: 7421,
+      restored: 0,
+      total: 0,
+      failed: [],
+      interrupted: [],
+      error: null,
+    },
+    'restored 0 of 0',
+    2000,
+  );
+
+  const events = await ctx.store.readLatestEvents(10);
+
+  expect(events).toStrictEqual([
+    {
+      id: expect.toBeNumber(),
+      at: 2000,
+      atcID: toSessionID(''),
+      agentSessionID: null,
+      kind: 'daemon-restarted',
+      detail: 'restored 0 of 0',
+      result: {
+        runID: 'run-spruce',
+        code: 0,
+        pid: 6161,
+        build: 'atc/0.9.3',
+        listenPort: 7421,
+        restored: 0,
+        total: 0,
+        failed: [],
+        interrupted: [],
+        error: null,
+      },
+    },
+  ]);
+});
+
+test('it leaves a restart out of a read scoped to sessions', async () => {
+  const ctx = await setupTest();
+
+  await ctx.store.recordRestart(
+    {
+      runID: 'run-hazel',
+      code: 0,
+      pid: 6162,
+      build: 'atc/0.9.3',
+      listenPort: null,
+      restored: 1,
+      total: 1,
+      failed: [],
+      interrupted: [],
+      error: null,
+    },
+    'restored 1 of 1',
+    2000,
+  );
+
+  await ctx.store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'Stop', payload: {} },
+    { kind: 'turn-done' },
+    3000,
+  );
+
+  const events = await ctx.store.readEventsAfter(0, 10, {
+    atcIDs: [toSessionID('s1')],
+    agentSessionIDs: [],
+  });
+
+  expect(events.map((event) => event.kind)).toStrictEqual(['turn-done']);
+});
+
+test('it reads a restart whose stored result no longer parses with its detail alone', async () => {
+  const ctx = await setupTest();
+
+  await ctx.store.recordRestart(
+    {
+      runID: 'run-rowan',
+      code: 0,
+      pid: 6163,
+      build: 'atc/0.9.3',
+      listenPort: null,
+      restored: 0,
+      total: 0,
+      failed: [],
+      interrupted: [],
+      error: null,
+    },
+    'restored 0 of 0',
+    2000,
+  );
+
+  const db = new Database(ctx.dbPath);
+
+  registerTestCleanup(() => {
+    db.close();
+  });
+
+  db.run('UPDATE restart_results SET result = \'{"runID":7}\'');
+
+  const events = await ctx.store.readLatestEvents(10);
+
+  expect(events).toStrictEqual([
+    {
+      id: expect.toBeNumber(),
+      at: 2000,
+      atcID: toSessionID(''),
+      agentSessionID: null,
+      kind: 'daemon-restarted',
+      detail: 'restored 0 of 0',
+    },
+  ]);
+});
+
+test('it removes the result of an expired restart and keeps the result of a restart after the cutoff', async () => {
+  const ctx = await setupTest();
+
+  await ctx.store.recordRestart(
+    {
+      runID: 'run-old',
+      code: 0,
+      pid: 6164,
+      build: 'atc/0.9.3',
+      listenPort: null,
+      restored: 0,
+      total: 0,
+      failed: [],
+      interrupted: [],
+      error: null,
+    },
+    'restored 0 of 0',
+    Date.parse('2026-02-01T00:00:00.000Z'),
+  );
+
+  await ctx.store.recordRestart(
+    {
+      runID: 'run-new',
+      code: 0,
+      pid: 6165,
+      build: 'atc/0.9.3',
+      listenPort: null,
+      restored: 0,
+      total: 0,
+      failed: [],
+      interrupted: [],
+      error: null,
+    },
+    'restored 0 of 0',
+    Date.parse('2026-02-02T00:00:00.000Z'),
+  );
+
+  await ctx.store.removeExpiredEvents(Date.parse('2026-02-01T12:00:00.000Z'));
+
+  const db = new Database(ctx.dbPath, { readonly: true });
+
+  registerTestCleanup(() => {
+    db.close();
+  });
+
+  const results = db
+    .query(
+      "SELECT events.ts, json_extract(restart_results.result, '$.runID') AS run FROM restart_results LEFT JOIN events ON events.id = restart_results.event_id",
+    )
+    .all();
+
+  expect(results).toStrictEqual([{ ts: '2026-02-02T00:00:00.000Z', run: 'run-new' }]);
 });
 
 test('it stamps trail entries recorded before the agent session id was known', async () => {
@@ -4628,7 +4942,7 @@ test('it upgrades a database from before runtime auth and keeps every existing r
     .query('SELECT name FROM kysely_migration ORDER BY name')
     .values()
     .flat()
-    .slice(-15, -12);
+    .slice(24, 27);
 
   const fleet = await upgraded.loadFleet();
   const dirs = await upgraded.readSpawnDirs();

@@ -493,4 +493,14 @@ export const MIGRATIONS: Record<string, Migration> = {
       }
     },
   },
+  '040_create_restart_results': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema
+        .createTable('restart_results')
+        .ifNotExists()
+        .addColumn('event_id', 'integer', (column) => column.primaryKey())
+        .addColumn('result', 'text', (column) => column.notNull())
+        .execute();
+    },
+  },
 };

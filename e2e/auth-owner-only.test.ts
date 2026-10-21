@@ -170,6 +170,62 @@ test('it sends a DaemonRestarted event to an owner connection and never to a pri
   expect(principalEvents.map((event) => event.ev)).not.toContain('DaemonRestarted');
 });
 
+test('it returns a restart from events.read to the owner', async () => {
+  const ctx = setupTest();
+
+  const daemon = await startTestDaemon({ options: () => ({ adapter: ctx.adapter }) });
+
+  await daemon.client.sendRequest('daemon.restarted', {
+    result: {
+      runID: 'run-willow',
+      code: 0,
+      pid: 4343,
+      build: 'atc/0.9.1',
+      listenPort: null,
+      restored: 0,
+      total: 0,
+      failed: [],
+      interrupted: [],
+      error: null,
+    },
+  });
+
+  const page = await daemon.client.sendRequest('events.read', { from: 'start' });
+
+  expect(page).toMatchObject({
+    events: [{ kind: 'daemon-restarted', result: { runID: 'run-willow' } }],
+  });
+});
+
+test('it never returns a restart from events.read to a principal connection', async () => {
+  const ctx = setupTest();
+
+  const daemon = await startTestDaemon({
+    options: () => ({ adapter: ctx.adapter, principals: new Map([['gw', ['local']]]) }),
+  });
+
+  const client = await daemon.openClient({ principal: 'gw' });
+
+  await daemon.client.sendRequest('daemon.restarted', {
+    result: {
+      runID: 'run-aspen',
+      code: 1,
+      pid: 4344,
+      build: 'atc/0.9.1',
+      listenPort: null,
+      restored: 0,
+      total: 1,
+      failed: [{ name: 'kestrel', id: 's-kestrel', reason: 'its agent is not configured' }],
+      interrupted: [],
+      error: null,
+    },
+  });
+
+  const page = await client.sendRequest('events.read', { from: 'start' });
+
+  expect(page).toStrictEqual({ events: [], cursor: expect.toBeString(), more: false });
+});
+
 test('it admits daemon.backup from the owner', async () => {
   const ctx = setupTest();
 

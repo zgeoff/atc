@@ -103,7 +103,9 @@ export function buildDaemonContext(deps: DaemonContextDeps): DaemonContext {
         })();
       }, QUIT_FLUSH_DELAY_MS);
     },
-    announceRestart: (result) => {
+    announceRestart: async (result) => {
+      await trail.recordRestart(result);
+
       deps.emitEvent({ version: PROTOCOL_V, ev: 'DaemonRestarted', result });
     },
     killSession: (id, stopOnly) => forgetter.killSession(id, stopOnly),

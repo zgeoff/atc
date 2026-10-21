@@ -21,8 +21,8 @@ function createDaemonRouter() {
 
         return {};
       }),
-      restarted: os.daemon.restarted.handler((call) => {
-        call.context.ctx.announceRestart(call.input.result);
+      restarted: os.daemon.restarted.handler(async (call) => {
+        await call.context.ctx.announceRestart(call.input.result);
 
         return {};
       }),

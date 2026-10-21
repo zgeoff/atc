@@ -1,4 +1,5 @@
 import type { AgentSessionID, MessageID, SessionID } from '@atc/core';
+import type { RestartResult } from '@atc/protocol';
 
 export interface EventScope {
   readonly atcIDs: readonly SessionID[];
@@ -25,6 +26,9 @@ export interface StoredEvent {
 
   // The note label on a note event.
   readonly label?: string;
+
+  // The whole result on a daemon-restarted event.
+  readonly result?: RestartResult;
 }
 
 export interface StoredNote {

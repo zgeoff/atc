@@ -3,7 +3,7 @@ import { isRecord } from '@atc/core';
 // Raised by any change to a procedure, an input field, or an answer field,
 // because a client trusts a daemon on its own version to serve its whole
 // contract.
-export const PROTOCOL_V = 9;
+export const PROTOCOL_V = 10;
 
 // Control lines are capped before buffering; PTY output is split into chunks
 // so a queued response is delayed by at most one chunk.
