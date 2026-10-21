@@ -11,8 +11,6 @@ import { parseSpawnOverrides } from '../sessions/parse-spawn-overrides';
 import { buildKeyedRequest } from './build-keyed-request';
 import type { RequestDeps } from './request-deps';
 
-// What a source request holds: the source's id, the target it is for, and
-// the client's directory when the request is about typed input.
 interface SourceParams {
   readonly source: string;
   readonly target?: string | undefined;

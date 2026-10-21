@@ -73,15 +73,11 @@ export interface SpawnPickerDeps<TMirror> {
   // Where the flow draws: every byte of the picker's screen goes through it.
   readonly write: (chunk: string) => void;
 
-  // The client's own directory, which the directory step lists first and a
-  // local daemon reads a typed relative path under.
   readonly cwd: string;
 
   // The client's home directory, which a typed `~` expands to.
   readonly home: string;
 
-  // Whether the daemon runs on another host, where the client's own
-  // directory stands for nothing.
   readonly remoteDaemon?: boolean;
 
   // The config file the flow reads its agents, roots, and workspaces from
@@ -105,13 +101,9 @@ export interface SpawnPickerDeps<TMirror> {
   // The socket of the daemon the client reaches, which keys the listings.
   readonly getDaemonSocketPath?: () => string;
 
-  // The time a cached listing's age is read from, and the timer a typed
-  // path waits on before the flow asks the daemon to complete it.
   readonly clock: Clock;
 }
 
-// How long typing pauses before the flow asks the daemon to complete a
-// typed path, so a burst of keys sends one request.
 const COMPLETION_DELAY_MS = 120;
 
 // One agent the menu offers.
@@ -197,9 +189,6 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
   private dirLabels: ReadonlyMap<string, string> = new Map();
 
-  // The daemon's completions of a typed path with the label each shows, for
-  // the input they complete, the completion request the flow waits on, and
-  // the timer that sends the next one.
   private completed: {
     readonly input: string;
     readonly labels: ReadonlyMap<string, string>;
@@ -701,7 +690,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     if (this.listedFrom !== null) {
       const refreshing = this.listingSeq === null ? '' : ', refreshing…';
 
-      age = ` · ${formatAge(this.getNow() - this.listedFrom)} old${refreshing}`;
+      age = ` · ${formatAge(this.deps.clock.now() - this.listedFrom)} old${refreshing}`;
 
       if (this.refreshFailure !== null && this.listingSeq === null) {
         listing = `refresh failed: ${this.refreshFailure} · ^r retry · esc back`;
@@ -838,9 +827,6 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.render();
   }
 
-  // Asks the daemon to complete a typed path on its own host. Only the
-  // latest request's answer draws, so an earlier answer is dropped even
-  // when the input has come back to the text it completes.
   private async loadCompletions(input: string) {
     const own = this.findSource();
 
@@ -1352,22 +1338,22 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.render();
   }
 
-  // The target a remote daemon checks a directory request against: the
-  // chosen one, else the default the caller may use, else the first, since
-  // a principal may hold no default target. A local request sends none.
+  // A principal may hold no default target, and a config that lists targets
+  // may name none, so a request without one fails on the daemon. A local
+  // daemon falls back on its own default when it has one.
   private buildPathTargetParam(): Readonly<Record<string, string>> {
-    if (this.deps.remoteDaemon !== true) {
+    const eligible = this.collectEligibleTargets();
+    const fallback = eligible.find((candidate) => candidate.isDefault);
+
+    if (this.deps.remoteDaemon !== true && fallback !== undefined) {
       return {};
     }
 
-    const eligible = this.collectEligibleTargets();
-    const target = this.target ?? eligible.find((candidate) => candidate.isDefault) ?? eligible[0];
+    const target = this.target ?? fallback ?? eligible[0];
 
     return target === undefined ? {} : { target: target.id };
   }
 
-  // The client's directory, which a typed relative path reads from when the
-  // daemon runs on the client's machine; a remote daemon gets none.
   private buildClientCwdParam(): Readonly<Record<string, string>> {
     return this.deps.remoteDaemon === true ? {} : { clientCwd: this.deps.cwd };
   }
@@ -1456,7 +1442,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       return;
     }
 
-    const cached = cache.readListing(this.buildListingKey(source.id, scope), this.getNow());
+    const cached = cache.readListing(this.buildListingKey(source.id, scope), this.deps.clock.now());
 
     // A source that lists nothing, such as a typed git URL, has nothing
     // to show from the cache.
@@ -1492,10 +1478,6 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     ].join('\n');
   }
 
-  private getNow(): number {
-    return this.deps.clock.now();
-  }
-
   // The target every source request is made for: the chosen one, or none
   // for the daemon's default when there is no choice to make.
   private buildTargetParam(): Readonly<Record<string, string>> {
@@ -1516,7 +1498,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     const seq = this.requestSeq;
     const key = this.buildListingKey(source.id, scope);
-    const requestedAt = this.getNow();
+    const requestedAt = this.deps.clock.now();
 
     this.listingSeq = seq;
     this.requestedScope = scope;

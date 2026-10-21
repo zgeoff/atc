@@ -3200,6 +3200,51 @@ test('it asks the daemon once for a path typed in a burst of keys', async () => 
   ]);
 });
 
+test('it sends no completion for a path typed just before the leader leaves the flow', async () => {
+  const ctx = setupTest();
+
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
+  );
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+
+  picker.applyKey(Buffer.from('./w'));
+  ctx.clock.advance(60);
+  picker.applyKey(Buffer.from(KEYS.ctrlRightBracket));
+  ctx.clock.advance(120);
+
+  expect(ctx.daemon.collectSent('sources.complete')).toStrictEqual([]);
+});
+
 test("it spawns in the directory a local daemon completed under the client's directory", async () => {
   const ctx = setupTest();
 
@@ -3294,6 +3339,52 @@ test("it asks a local daemon to read a typed relative path under the client's di
   expect(ctx.daemon.collectSent('session.spawn')).toPartiallyContain({
     cwd: '/srv/near/new-work',
   });
+});
+
+test('it names the target of a local typed path when the daemon lists no default target', async () => {
+  const ctx = setupTest();
+
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
+  );
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'box',
+        provider: 'local-pty',
+        available: true,
+        default: false,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+
+  picker.applyKey(Buffer.from(`/srv/box-app${KEYS.enter}`));
+
+  await ctx.daemon.answer('sources.interpret', { kind: 'path', directory: '/srv/box-app' });
+
+  expect(ctx.daemon.collectSent('sources.interpret')).toStrictEqual([
+    { source: 'dirs', input: '/srv/box-app', target: 'box', clientCwd: ctx.cwd },
+  ]);
 });
 
 test("it shows a remote daemon's refused completion in place of the hint", async () => {
