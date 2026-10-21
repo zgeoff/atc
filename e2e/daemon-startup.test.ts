@@ -56,7 +56,7 @@ test('it lets exactly one of two daemons started at once serve a state directory
     result.status === 'fulfilled' ? [result.value] : [],
   );
 
-  const refusals = settled.flatMap((result) =>
+  const refusals = settled.flatMap((result): unknown[] =>
     result.status === 'rejected' ? [result.reason] : [],
   );
 
