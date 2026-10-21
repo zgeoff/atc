@@ -1,6 +1,6 @@
 import { DaemonError } from '@atc/protocol/wire';
 import invariant from 'tiny-invariant';
-import type { DaemonPool } from './daemon-pool';
+import type { DaemonPool } from './create-daemon-pool';
 import type { RoutedCall, RoutedOutcome } from './types';
 
 // The pass-through at the end of the routing steps: the call goes to its

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { startTestDaemon } from '@atc/daemon/testing';
 import { openDaemonClient } from '@atc/protocol/client';
 import { buildMockAgentAdapter, registerTestCleanup, setupTempDir } from '@atc/test-utils';
-import { DaemonPool } from './daemon-pool';
+import { createDaemonPool } from './create-daemon-pool';
 import { buildMockRegistryDaemon } from './testing/build-mock-registry-daemon';
 
 async function setupTest() {
@@ -75,7 +75,7 @@ test('it gives each registry daemon its own caller that reaches only that daemon
     token: 'a'.repeat(32),
   });
 
-  const pool = new DaemonPool({
+  const pool = createDaemonPool({
     registry: {
       daemons: new Map([
         ['cloud', cloud],
@@ -106,7 +106,7 @@ test('it gives each registry daemon its own caller that reaches only that daemon
 });
 
 test('it refuses a caller for a name the registry does not hold', () => {
-  const pool = new DaemonPool({
+  const pool = createDaemonPool({
     registry: { daemons: new Map(), defaultDaemon: 'cloud' },
     build: 'atc-gateway/test',
     openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),

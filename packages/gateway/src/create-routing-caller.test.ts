@@ -15,9 +15,9 @@ import {
   startStubLegacyDaemon,
 } from '@atc/test-utils';
 import { buildBindingPayloadHash } from './build-binding-payload-hash';
-import { DaemonPool } from './daemon-pool';
-import { GatewayStore } from './gateway-store';
-import { RoutingCaller } from './routing-caller';
+import { createDaemonPool } from './create-daemon-pool';
+import { createGatewayStore } from './create-gateway-store';
+import { createRoutingCaller } from './create-routing-caller';
 import { buildMockKeyBindingClaim } from './testing/build-mock-key-binding-claim';
 import { buildMockRegistryDaemon } from './testing/build-mock-registry-daemon';
 import { openTestBindingDatabase } from './testing/open-test-binding-database';
@@ -95,13 +95,13 @@ async function setupTest() {
   };
 
   const storePath = join(temporaryDirectory.path, 'gateway.db');
-  const store = GatewayStore.open(openTestBindingDatabase(storePath));
+  const store = createGatewayStore(openTestBindingDatabase(storePath));
 
   registerTestCleanup(() => {
     store.stop();
   });
 
-  const pool = new DaemonPool({
+  const pool = createDaemonPool({
     registry,
     build: 'atc-gateway/test',
     openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
@@ -117,7 +117,7 @@ async function setupTest() {
     registry,
     storePath,
     store,
-    router: new RoutingCaller({ registry, pool, store }),
+    router: createRoutingCaller({ registry, pool, store }),
   };
 }
 
@@ -201,13 +201,13 @@ test('it answers two concurrent keyed spawns with one key on one daemon with the
 test('it runs only one keyed spawn when another gateway binds its key to another daemon at once', async () => {
   const ctx = await setupTest();
 
-  const otherStore = GatewayStore.open(openTestBindingDatabase(ctx.storePath));
+  const otherStore = createGatewayStore(openTestBindingDatabase(ctx.storePath));
 
   registerTestCleanup(() => {
     otherStore.stop();
   });
 
-  const otherPool = new DaemonPool({
+  const otherPool = createDaemonPool({
     registry: ctx.registry,
     build: 'atc-gateway/test',
     openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
@@ -215,7 +215,7 @@ test('it runs only one keyed spawn when another gateway binds its key to another
 
   registerTestCleanup(() => otherPool.stop());
 
-  const other = new RoutingCaller({ registry: ctx.registry, pool: otherPool, store: otherStore });
+  const other = createRoutingCaller({ registry: ctx.registry, pool: otherPool, store: otherStore });
 
   const params = {
     cwd: ctx.directory,
@@ -247,13 +247,13 @@ test('it runs only one keyed spawn when another gateway binds its key to another
 test('it refuses a keyed spawn whose key another gateway bound to another daemon first as idempotency_conflict', async () => {
   const ctx = await setupTest();
 
-  const otherStore = GatewayStore.open(openTestBindingDatabase(ctx.storePath));
+  const otherStore = createGatewayStore(openTestBindingDatabase(ctx.storePath));
 
   registerTestCleanup(() => {
     otherStore.stop();
   });
 
-  const otherPool = new DaemonPool({
+  const otherPool = createDaemonPool({
     registry: ctx.registry,
     build: 'atc-gateway/test',
     openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
@@ -261,7 +261,7 @@ test('it refuses a keyed spawn whose key another gateway bound to another daemon
 
   registerTestCleanup(() => otherPool.stop());
 
-  const other = new RoutingCaller({ registry: ctx.registry, pool: otherPool, store: otherStore });
+  const other = createRoutingCaller({ registry: ctx.registry, pool: otherPool, store: otherStore });
 
   const params = {
     cwd: ctx.directory,
@@ -306,13 +306,13 @@ test("it keeps another call's completed binding when a call that found none is r
     { holdDial: 1 },
   );
 
-  const heldStore = GatewayStore.open(openTestBindingDatabase(ctx.storePath));
+  const heldStore = createGatewayStore(openTestBindingDatabase(ctx.storePath));
 
   registerTestCleanup(() => {
     heldStore.stop();
   });
 
-  const heldPool = new DaemonPool({
+  const heldPool = createDaemonPool({
     registry: ctx.registry,
     build: 'atc-gateway/test',
     openChannel: heldOpener.open,
@@ -320,7 +320,7 @@ test("it keeps another call's completed binding when a call that found none is r
 
   registerTestCleanup(() => heldPool.stop());
 
-  const heldRouter = new RoutingCaller({
+  const heldRouter = createRoutingCaller({
     registry: ctx.registry,
     pool: heldPool,
     store: heldStore,
@@ -373,7 +373,7 @@ test('it resends an uncertain keyed spawn replay-only, so a retry after the daem
     defaultDaemon: 'cloud',
   };
 
-  const pool = new DaemonPool({
+  const pool = createDaemonPool({
     registry,
     build: 'atc-gateway/test',
     openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
@@ -381,8 +381,7 @@ test('it resends an uncertain keyed spawn replay-only, so a retry after the daem
 
   registerTestCleanup(() => pool.stop());
 
-  const router = new RoutingCaller({ registry, pool, store: ctx.store });
-
+  const router = createRoutingCaller({ registry, pool, store: ctx.store });
   const params = { cwd: ctx.directory, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-late' };
 
   // The first send rejects as outcome_unknown by design, so it is settled
@@ -443,11 +442,11 @@ test('it spawns nothing for a queued keyed resend that reaches the daemon after 
     { holdDial: 3 },
   );
 
-  const pool = new DaemonPool({ registry, build: 'atc-gateway/test', openChannel: opener.open });
+  const pool = createDaemonPool({ registry, build: 'atc-gateway/test', openChannel: opener.open });
 
   registerTestCleanup(() => pool.stop());
 
-  const router = new RoutingCaller({ registry, pool, store: ctx.store });
+  const router = createRoutingCaller({ registry, pool, store: ctx.store });
 
   const params = {
     cwd: ctx.directory,
@@ -508,7 +507,7 @@ test('it spawns nothing for a keyed spawn whose first send never reached the dae
     defaultDaemon: 'cloud',
   };
 
-  const pool = new DaemonPool({
+  const pool = createDaemonPool({
     registry,
     build: 'atc-gateway/test',
     openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
@@ -516,7 +515,7 @@ test('it spawns nothing for a keyed spawn whose first send never reached the dae
 
   registerTestCleanup(() => pool.stop());
 
-  const router = new RoutingCaller({ registry, pool, store: ctx.store });
+  const router = createRoutingCaller({ registry, pool, store: ctx.store });
 
   const params = {
     cwd: ctx.directory,
@@ -555,13 +554,13 @@ test('it spawns nothing for a keyed spawn whose first send never reached the dae
 test('it runs one of two concurrent keyed spawns with one key from two gateways on one binding store', async () => {
   const ctx = await setupTest();
 
-  const otherStore = GatewayStore.open(openTestBindingDatabase(ctx.storePath));
+  const otherStore = createGatewayStore(openTestBindingDatabase(ctx.storePath));
 
   registerTestCleanup(() => {
     otherStore.stop();
   });
 
-  const otherPool = new DaemonPool({
+  const otherPool = createDaemonPool({
     registry: ctx.registry,
     build: 'atc-gateway/test',
     openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
@@ -569,7 +568,7 @@ test('it runs one of two concurrent keyed spawns with one key from two gateways 
 
   registerTestCleanup(() => otherPool.stop());
 
-  const other = new RoutingCaller({ registry: ctx.registry, pool: otherPool, store: otherStore });
+  const other = createRoutingCaller({ registry: ctx.registry, pool: otherPool, store: otherStore });
 
   const params = {
     cwd: ctx.directory,
@@ -757,13 +756,13 @@ test('it replays a keyed spawn sent before a gateway restart from the key the da
     defaultDaemon: 'cloud',
   };
 
-  const beforeStore = GatewayStore.open(openTestBindingDatabase(ctx.storePath));
+  const beforeStore = createGatewayStore(openTestBindingDatabase(ctx.storePath));
 
   registerTestCleanup(() => {
     beforeStore.stop();
   });
 
-  const beforePool = new DaemonPool({
+  const beforePool = createDaemonPool({
     registry,
     build: 'atc-gateway/test',
     openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
@@ -771,7 +770,7 @@ test('it replays a keyed spawn sent before a gateway restart from the key the da
 
   registerTestCleanup(() => beforePool.stop());
 
-  const before = new RoutingCaller({ registry, pool: beforePool, store: beforeStore });
+  const before = createRoutingCaller({ registry, pool: beforePool, store: beforeStore });
 
   const params = {
     cwd: ctx.directory,
@@ -827,13 +826,13 @@ test('it answers outcome_unknown for a keyed spawn sent before a gateway restart
     defaultDaemon: 'cloud',
   };
 
-  const beforeStore = GatewayStore.open(openTestBindingDatabase(ctx.storePath));
+  const beforeStore = createGatewayStore(openTestBindingDatabase(ctx.storePath));
 
   registerTestCleanup(() => {
     beforeStore.stop();
   });
 
-  const beforePool = new DaemonPool({
+  const beforePool = createDaemonPool({
     registry,
     build: 'atc-gateway/test',
     openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
@@ -841,8 +840,7 @@ test('it answers outcome_unknown for a keyed spawn sent before a gateway restart
 
   registerTestCleanup(() => beforePool.stop());
 
-  const before = new RoutingCaller({ registry, pool: beforePool, store: beforeStore });
-
+  const before = createRoutingCaller({ registry, pool: beforePool, store: beforeStore });
   const params = { cwd: ctx.directory, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-swept' };
 
   // The first send rejects as outcome_unknown by design, so it is settled

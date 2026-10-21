@@ -8,7 +8,7 @@ import { createImpProvider } from '@atc/execution-imp';
 import { createStubImpPort, getOnlyImpName } from '@atc/execution-imp/testing';
 import { createLocalPTYProvider } from '@atc/execution-local';
 import { createStubExecutionProvider } from '@atc/execution-local/testing';
-import { DaemonPool, GatewayStore, RoutingCaller } from '@atc/gateway';
+import { createDaemonPool, createGatewayStore, createRoutingCaller } from '@atc/gateway';
 import { buildMockRegistryDaemon, openTestBindingDatabase } from '@atc/gateway/testing';
 import { TransportCaller, buildPrincipalCaller, runTool } from '@atc/mcp';
 import { buildStubFleetCaller } from '@atc/mcp/testing';
@@ -1238,7 +1238,7 @@ test('it returns the adopted session for atc_session_adopt through the gateway',
     defaultDaemon: 'cloud',
   };
 
-  const pool = new DaemonPool({
+  const pool = createDaemonPool({
     registry,
     build: 'atc-gateway/test',
     openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
@@ -1246,7 +1246,7 @@ test('it returns the adopted session for atc_session_adopt through the gateway',
 
   registerTestCleanup(() => pool.stop());
 
-  const store = GatewayStore.open(openTestBindingDatabase(join(ctx.directory, 'gateway.db')));
+  const store = createGatewayStore(openTestBindingDatabase(join(ctx.directory, 'gateway.db')));
 
   registerTestCleanup(() => {
     store.stop();
@@ -1254,7 +1254,7 @@ test('it returns the adopted session for atc_session_adopt through the gateway',
 
   // The gateway's caller, acting as `gw` the way `atc-gateway` hands it to
   // the tool handlers.
-  const caller = buildPrincipalCaller(new RoutingCaller({ registry, pool, store }), {
+  const caller = buildPrincipalCaller(createRoutingCaller({ registry, pool, store }), {
     id: 'gw',
     name: 'Harbor Desk',
   });
@@ -1309,7 +1309,7 @@ test('it refuses atc_session_auth_rebind through the gateway as unauthorized, si
     defaultDaemon: 'cloud',
   };
 
-  const pool = new DaemonPool({
+  const pool = createDaemonPool({
     registry,
     build: 'atc-gateway/test',
     openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
@@ -1317,7 +1317,7 @@ test('it refuses atc_session_auth_rebind through the gateway as unauthorized, si
 
   registerTestCleanup(() => pool.stop());
 
-  const store = GatewayStore.open(openTestBindingDatabase(join(ctx.directory, 'gateway.db')));
+  const store = createGatewayStore(openTestBindingDatabase(join(ctx.directory, 'gateway.db')));
 
   registerTestCleanup(() => {
     store.stop();
@@ -1325,7 +1325,7 @@ test('it refuses atc_session_auth_rebind through the gateway as unauthorized, si
 
   // The gateway's caller, acting as `gw` the way `atc-gateway` hands it to
   // the tool handlers.
-  const caller = buildPrincipalCaller(new RoutingCaller({ registry, pool, store }), {
+  const caller = buildPrincipalCaller(createRoutingCaller({ registry, pool, store }), {
     id: 'gw',
     name: 'Harbor Desk',
   });

@@ -5,9 +5,9 @@ import { DaemonError } from '@atc/protocol/wire';
 import invariant from 'tiny-invariant';
 import { match } from 'ts-pattern';
 import { buildBindingPayloadHash } from './build-binding-payload-hash';
-import type { DaemonPool } from './daemon-pool';
+import type { DaemonPool } from './create-daemon-pool';
+import type { GatewayStore } from './create-gateway-store';
 import { GatewayError } from './gateway-error';
-import type { GatewayStore } from './gateway-store';
 import type {
   GatewayRegistry,
   RegistryDaemon,

@@ -40,8 +40,6 @@ const BINDING_ROW_SCHEMA = z.object({
   claim_id: z.string(),
 });
 
-type BindingRow = z.infer<typeof BINDING_ROW_SCHEMA>;
-
 // The part of a SQLite handle the store uses. The app opens the file, with
 // named parameters bound without their prefix.
 export interface BindingDatabase {
@@ -55,15 +53,38 @@ export interface BindingDatabase {
   readonly close: () => void;
 }
 
-export class GatewayStore {
-  private readonly db: BindingDatabase;
+export interface GatewayStore {
+  readonly claimBinding: (
+    binding: Omit<KeyBinding, 'outcome' | 'outcomeAt' | 'sentAt' | 'effectRef'>,
+    now: number,
+  ) => KeyBinding;
+  readonly findBinding: (principal: string, operation: string, key: string) => KeyBinding | null;
+  readonly claimFirstSend: (
+    principal: string,
+    operation: string,
+    key: string,
+    now: number,
+  ) => boolean;
+  readonly updateOutcome: (
+    principal: string,
+    operation: string,
+    key: string,
+    outcome: BindingOutcome,
+    now: number,
+    effectRef?: string | null,
+  ) => void;
+  readonly removeBinding: (
+    principal: string,
+    operation: string,
+    key: string,
+    claimID: string,
+  ) => void;
+  readonly removeExpiredBindings: (now: number) => number;
+  readonly stop: () => void;
+}
 
-  private constructor(db: BindingDatabase) {
-    this.db = db;
-  }
-
-  static open(db: BindingDatabase): GatewayStore {
-    db.run(`CREATE TABLE IF NOT EXISTS key_binding (
+export function createGatewayStore(db: BindingDatabase): GatewayStore {
+  db.run(`CREATE TABLE IF NOT EXISTS key_binding (
       principal TEXT NOT NULL,
       operation TEXT NOT NULL,
       key TEXT NOT NULL,
@@ -79,21 +100,25 @@ export class GatewayStore {
       PRIMARY KEY (principal, operation, key)
     )`);
 
-    return new GatewayStore(db);
-  }
-
-  claimBinding(
-    binding: Omit<KeyBinding, 'outcome' | 'outcomeAt' | 'sentAt' | 'effectRef'>,
-    now: number,
-  ): KeyBinding {
-    this.db
+  const findBinding = (principal: string, operation: string, key: string): KeyBinding | null => {
+    const row = db
       .query(
+        `SELECT * FROM key_binding
+         WHERE principal = $principal AND operation = $operation AND key = $key`,
+      )
+      .get({ principal, operation, key });
+
+    return row === null ? null : toKeyBinding(BINDING_ROW_SCHEMA.parse(row));
+  };
+
+  return {
+    claimBinding: (binding, now) => {
+      db.query(
         `INSERT INTO key_binding
            (principal, operation, key, daemon, daemon_id, retention_ms, payload_hash, outcome, outcome_at, claim_id)
          VALUES ($principal, $operation, $key, $daemon, $daemonID, $retentionMs, $payloadHash, 'pending', $now, $claimID)
          ON CONFLICT (principal, operation, key) DO NOTHING`,
-      )
-      .run({
+      ).run({
         principal: binding.principal,
         operation: binding.operation,
         key: binding.key,
@@ -105,94 +130,73 @@ export class GatewayStore {
         now,
       });
 
-    const held = this.findBinding(binding.principal, binding.operation, binding.key);
+      const held = findBinding(binding.principal, binding.operation, binding.key);
 
-    if (held === null) {
-      throw new Error('a claimed key binding is missing');
-    }
+      if (held === null) {
+        throw new Error('a claimed key binding is missing');
+      }
 
-    // a reused key never reaches a daemon that may have dropped it already
-    if (held.payloadHash !== binding.payloadHash) {
-      throw new DaemonError(
-        'idempotency_conflict',
-        `idempotency key '${binding.key}' was first used with a different ${binding.operation} payload`,
-      );
-    }
+      // a reused key never reaches a daemon that may have dropped it already
+      if (held.payloadHash !== binding.payloadHash) {
+        throw new DaemonError(
+          'idempotency_conflict',
+          `idempotency key '${binding.key}' was first used with a different ${binding.operation} payload`,
+        );
+      }
 
-    return held;
-  }
+      return held;
+    },
 
-  findBinding(principal: string, operation: string, key: string): KeyBinding | null {
-    const row = this.db
-      .query(
-        `SELECT * FROM key_binding
-         WHERE principal = $principal AND operation = $operation AND key = $key`,
-      )
-      .get({ principal, operation, key });
+    findBinding,
 
-    return row === null ? null : toKeyBinding(BINDING_ROW_SCHEMA.parse(row));
-  }
-
-  claimFirstSend(principal: string, operation: string, key: string, now: number): boolean {
     // one conditional statement, so of any number of calls, across gateway processes too,
     // exactly one takes the first send and every later one may only replay
-    return (
-      this.db
+    claimFirstSend: (principal, operation, key, now) =>
+      db
         .query(
           `UPDATE key_binding SET sent_at = $now
            WHERE principal = $principal AND operation = $operation AND key = $key
              AND sent_at IS NULL`,
         )
-        .run({ principal, operation, key, now }).changes === 1
-    );
-  }
+        .run({ principal, operation, key, now }).changes === 1,
 
-  updateOutcome(
-    principal: string,
-    operation: string,
-    key: string,
-    outcome: BindingOutcome,
-    now: number,
-    effectRef: string | null = null,
-  ): void {
-    // a completed outcome stays completed, and an answer without an effect id keeps the one
-    // recorded earlier
-    this.db
-      .query(
+    updateOutcome: (principal, operation, key, outcome, now, effectRef = null) => {
+      // a completed outcome stays completed, and an answer without an effect id keeps the one
+      // recorded earlier
+      db.query(
         `UPDATE key_binding
          SET outcome = $outcome, outcome_at = $now, effect_ref = COALESCE($effectRef, effect_ref)
          WHERE principal = $principal AND operation = $operation AND key = $key
            AND (outcome != 'completed' OR $outcome = 'completed')`,
-      )
-      .run({ principal, operation, key, outcome, now, effectRef });
-  }
+      ).run({ principal, operation, key, outcome, now, effectRef });
+    },
 
-  removeBinding(principal: string, operation: string, key: string, claimID: string): void {
-    this.db
-      .query(
+    removeBinding: (principal, operation, key, claimID) => {
+      db.query(
         `DELETE FROM key_binding
          WHERE principal = $principal AND operation = $operation AND key = $key
            AND claim_id = $claimID AND sent_at IS NULL`,
-      )
-      .run({ principal, operation, key, claimID });
-  }
+      ).run({ principal, operation, key, claimID });
+    },
 
-  removeExpiredBindings(now: number): number {
     // a binding outlives the daemon's promise to deduplicate its key: only a completed one
     // goes, at twice the announced retention, as the daemon keeps every other key
-    return this.db
-      .query(
-        `DELETE FROM key_binding
+    removeExpiredBindings: (now) =>
+      db
+        .query(
+          `DELETE FROM key_binding
          WHERE outcome = 'completed' AND retention_ms IS NOT NULL
            AND outcome_at + 2 * retention_ms < $now`,
-      )
-      .run({ now }).changes;
-  }
+        )
+        .run({ now }).changes,
 
-  stop(): void {
-    this.db.close();
-  }
+    stop: () => {
+      db.close();
+    },
+  };
 }
+
+type BindingRow = z.infer<typeof BINDING_ROW_SCHEMA>;
 
 function toKeyBinding(row: BindingRow): KeyBinding {
   return {
