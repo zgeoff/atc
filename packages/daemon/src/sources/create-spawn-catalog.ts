@@ -9,7 +9,7 @@ import { buildConfigRevision } from '../fleet/build-config-revision';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { buildTargetList } from '../fleet/build-target-list';
 import { buildAgentList } from '../sessions/build-agent-list';
-import type { SessionManager } from '../sessions/sessions';
+import type { SessionManager } from '../sessions/create-session-manager';
 import { checkRepositoryAccess } from '../workspace/check-repository-access';
 import { requireGitTransports } from '../workspace/require-git-transports';
 

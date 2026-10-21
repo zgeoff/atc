@@ -3,11 +3,11 @@ import type { ExecutionProvider, HarnessHandle, HarnessStart } from '@atc/plugin
 import { formatAuthNotice } from '../auth/format-auth-notice';
 import type { BridgeBinding } from '../auth/is-binding-current';
 import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
+import type { SessionKiller } from './create-session-killer';
 import type { SessionRegistry } from './create-session-registry';
 import { HARNESS_EXIT_TRANSITIONS } from './harness-exit-transitions';
 import type { Session } from './session';
 import type { SessionCallbacks } from './session-callbacks';
-import type { SessionKiller } from './session-killer';
 
 // what a failed start takes back: the auth attempt that provisioned the
 // host, and the workspace directory the spawn created, as the host resolves it

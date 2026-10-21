@@ -1,6 +1,6 @@
 import type { SessionID } from '@atc/core';
 import type { SessionDescriptor } from '@atc/protocol';
-import type { SessionManager } from './sessions';
+import type { SessionManager } from './create-session-manager';
 
 // The manager as the lookup reads it.
 interface DescriptorSource {

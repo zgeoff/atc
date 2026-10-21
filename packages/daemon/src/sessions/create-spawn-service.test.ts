@@ -15,10 +15,10 @@ import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubLocalProvider } from '../testing/build-stub-local-provider';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { createIdempotencyLedger } from '../transport/create-idempotency-ledger';
+import { createSessionManager } from './create-session-manager';
 import { createSessionRuntime } from './create-session-runtime';
 import type { SessionRuntime } from './create-session-runtime';
-import { SessionManager } from './sessions';
-import { SpawnService } from './spawn-service';
+import { createSpawnService } from './create-spawn-service';
 
 interface SetupTestConfig {
   readonly targets: readonly ExecutionTarget[];
@@ -47,7 +47,7 @@ async function setupTest(config: SetupTestConfig) {
 
   const runtimes = new Map<SessionID, SessionRuntime>();
 
-  const manager = new SessionManager(
+  const manager = createSessionManager(
     null,
     store,
     join(temporaryDirectory.path, 'status.json'),
@@ -69,7 +69,7 @@ async function setupTest(config: SetupTestConfig) {
 
   const ledger = createIdempotencyLedger(store, 'local', () => {}, systemClock);
 
-  const spawns = new SpawnService({
+  const spawns = createSpawnService({
     manager,
     store,
     clock: systemClock,

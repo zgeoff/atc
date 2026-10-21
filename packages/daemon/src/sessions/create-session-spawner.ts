@@ -11,6 +11,7 @@ import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import type { HostDirClaims } from './create-host-dir-claims';
 import type { SessionHarnesses, SpawnReadied } from './create-session-harnesses';
 import type { SessionRegistry } from './create-session-registry';
+import type { SpawnRollback } from './create-spawn-rollback';
 import { mintSessionID } from './mint-session-id';
 import { pickSpawnName } from './pick-spawn-name';
 import { resolveRepoRoot } from './resolve-repo-root';
@@ -21,7 +22,6 @@ import type { SessionCallbacks } from './session-callbacks';
 import { setupSpawn } from './setup-spawn';
 import type { SpawnMaterializer } from './spawn-materializer';
 import type { SpawnRequest } from './spawn-request';
-import type { SpawnRollback } from './spawn-rollback';
 
 interface SessionSpawnerDeps {
   readonly registry: Pick<
@@ -84,143 +84,42 @@ interface SessionSpawnerDeps {
   readonly runSteps?: SpawnStepRunner;
 }
 
-export class SessionSpawner {
-  private readonly registry: SessionSpawnerDeps['registry'];
-
-  private readonly fleet: SessionSpawnerDeps['fleet'];
-
-  private readonly claims: SessionSpawnerDeps['claims'];
-
-  private readonly harnesses: SessionSpawnerDeps['harnesses'];
-
-  private readonly rollback: SessionSpawnerDeps['rollback'];
-
-  private readonly auth: SessionSpawnerDeps['auth'];
-
-  private readonly callbacks: SessionSpawnerDeps['callbacks'];
-
-  private readonly runSteps: SpawnStepRunner;
-
-  constructor(deps: SessionSpawnerDeps) {
-    this.registry = deps.registry;
-    this.fleet = deps.fleet;
-    this.claims = deps.claims;
-    this.harnesses = deps.harnesses;
-    this.rollback = deps.rollback;
-    this.auth = deps.auth;
-    this.callbacks = deps.callbacks;
-    this.runSteps = deps.runSteps ?? runSpawnSteps;
-  }
-
+export interface SessionSpawner {
   // resume: true opens the agent's session picker, an id resumes that session;
   // the session keeps overrides for every revive; a materialize failure takes
   // back the host the spawn readied, unless it is a parent's
-  async spawn(
+  readonly spawn: (
     cwd: string,
     name: string,
     prompt: string,
     cols: number,
     rows: number,
-    resume: boolean | AgentSessionID = false,
-    namedBy: 'user' | 'auto' = 'auto',
-    agent: AgentID = 'claude',
-    parent: SessionID | null = null,
-    overrides: SpawnOverrides = {},
-    id: SessionID = mintSessionID(),
-    target = 'local',
-    materialize: SpawnMaterializer | null = null,
-    requireInReach: () => void = () => {},
-    autoDir = false,
-    scope: DeclaredScope | null = null,
-    answer: ((session: Session) => void) | null = null,
-  ): Promise<Session> {
-    const adapter = this.registry.findAdapter(agent);
+    resume?: boolean | AgentSessionID,
+    namedBy?: 'user' | 'auto',
+    agent?: AgentID,
+    parent?: SessionID | null,
+    overrides?: SpawnOverrides,
+    id?: SessionID,
+    target?: string,
+    materialize?: SpawnMaterializer | null,
+    requireInReach?: () => void,
+    autoDir?: boolean,
+    scope?: DeclaredScope | null,
+    answer?: ((session: Session) => void) | null,
+  ) => Promise<Session>;
+}
 
-    if (adapter === null) {
-      throw new Error(`no adapter for agent '${agent}'`);
-    }
+export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
+  const registry = deps.registry;
+  const fleet = deps.fleet;
+  const claims = deps.claims;
+  const harnesses = deps.harnesses;
+  const rollback = deps.rollback;
+  const authSetup = deps.auth;
+  const callbacks = deps.callbacks;
+  const runSteps = deps.runSteps ?? runSpawnSteps;
 
-    const execution = this.registry.requireExecution({ target, targetIdentity: null }, 'spawn');
-    const provider = execution.provider;
-    const timer = createStepTimer(this.callbacks.now);
-
-    const trustClonedWorkspace =
-      overrides.trustClonedWorkspace ??
-      this.registry.targets.get(target)?.options['trustClonedWorkspace'] === true;
-
-    const hostKey = this.pickHostKey(id, parent, target, execution.identity);
-    const auth = this.auth.resolveHarnessAuth(adapter, provider, target);
-
-    if (trustClonedWorkspace) {
-      if (materialize === null) {
-        throw new DaemonError('bad_args', 'trustClonedWorkspace requires a workspace source');
-      }
-
-      const isLocalTrust =
-        !provider.remote && auth === null && adapter.updateLocalWorkspaceTrust !== undefined;
-
-      const isGuestTrust =
-        provider.guestWorkspaceTrust === true &&
-        provider.remote &&
-        auth !== null &&
-        adapter.planGuestWorkspaceTrust !== undefined;
-
-      if (!isLocalTrust && !isGuestTrust) {
-        throw new DaemonError(
-          'unsupported',
-          'trustClonedWorkspace requires stock Claude on the local target, or stock Claude, a Claude gateway, or Codex signed in through the broker on a remote target that can trust a clone',
-        );
-      }
-    }
-
-    if (hostKey !== id) {
-      await this.auth.requireSharedBinding(hostKey, auth?.binding ?? null);
-    }
-
-    const refusal = adapter.findSpawnRefusal?.() ?? null;
-
-    if (refusal !== null) {
-      throw refusal;
-    }
-
-    // A spawn whose steps fail takes back what the steps before the failure
-    // did, last step first; the session counts as rolling back until the
-    // unwind ends, so no revive starts it in between.
-    try {
-      return await this.runSteps(id, (steps) =>
-        this.runSpawn(steps, {
-          adapter,
-          provider,
-          execution,
-          auth,
-          id,
-          hostKey,
-          target,
-          cwd,
-          name,
-          prompt,
-          cols,
-          rows,
-          resume,
-          namedBy,
-          agent,
-          parent,
-          overrides,
-          materialize,
-          requireInReach,
-          autoDir,
-          scope,
-          trustClonedWorkspace,
-          timer,
-          answer,
-        }),
-      );
-    } finally {
-      this.rollback.rollingBack.delete(id);
-    }
-  }
-
-  private async runSpawn(steps: SpawnSteps, spawn: Readonly<SpawnRequest>): Promise<Session> {
+  const runSpawn = async (steps: SpawnSteps, spawn: Readonly<SpawnRequest>): Promise<Session> => {
     const adapter = spawn.adapter;
     const provider = spawn.provider;
     const auth = spawn.auth;
@@ -239,31 +138,31 @@ export class SessionSpawner {
       () => {
         if (hostKey !== id) {
           if (materialize === null) {
-            this.claims.claimPlainDir(id, hostKey, target, cwd);
+            claims.claimPlainDir(id, hostKey, target, cwd);
           } else if (!spawn.autoDir) {
-            this.claims.claimWorkspace(id, hostKey, target, cwd);
+            claims.claimWorkspace(id, hostKey, target, cwd);
           }
-        } else if (materialize === null && !this.registry.hasHostLifecycle(target)) {
-          this.claims.claimMachineDir(id, target, cwd);
+        } else if (materialize === null && !registry.hasHostLifecycle(target)) {
+          claims.claimMachineDir(id, target, cwd);
         }
       },
       (_claimed, failure) => {
         if (!(failure instanceof EffectRemainsError)) {
-          this.claims.releaseWorkspace(id);
+          claims.releaseWorkspace(id);
         }
       },
     );
 
     // The host stays readying until the record is published, so nothing
     // gives its lease back or puts it to sleep before the harness starts.
-    const prepared = await this.harnesses.withHostReadying(hostKey, () =>
+    const prepared = await harnesses.withHostReadying(hostKey, () =>
       setupSpawn(
         {
-          registry: this.registry,
-          claims: this.claims,
-          rollback: this.rollback,
-          auth: this.auth,
-          callbacks: this.callbacks,
+          registry,
+          claims,
+          rollback,
+          auth: authSetup,
+          callbacks,
         },
         steps,
         spawn,
@@ -301,7 +200,7 @@ export class SessionSpawner {
       () =>
         provider.remote
           ? null
-          : this.callbacks.startMessageBridge({
+          : callbacks.startMessageBridge({
               adapter,
               session: id,
               cwd: directory,
@@ -309,13 +208,13 @@ export class SessionSpawner {
               withheldEnv,
               options: { prompt: spawn.prompt, resume: spawn.resume, ...spawn.overrides },
             }),
-      () => this.callbacks.stopMessageBridge(id),
+      () => callbacks.stopMessageBridge(id),
     );
 
     await steps.run('reach', spawn.requireInReach);
 
     const launch = bridged ?? { bin: plan.bin, args: plan.args };
-    const binding = this.harnesses.mintBridgeBinding(id, target, spawn.execution.identity, hostKey);
+    const binding = harnesses.mintBridgeBinding(id, target, spawn.execution.identity, hostKey);
     let initialMsg = spawn.prompt;
 
     if (initialMsg === '') {
@@ -338,9 +237,9 @@ export class SessionSpawner {
           withheldEnv,
           cols: spawn.cols,
           rows: spawn.rows,
-          ...this.auth.buildBrokerSpec(hostKey, plan.admission),
+          ...authSetup.buildBrokerSpec(hostKey, plan.admission),
           onRelay: (relay) => {
-            this.callbacks.onRelay(binding, relay);
+            callbacks.onRelay(binding, relay);
           },
         });
 
@@ -356,10 +255,10 @@ export class SessionSpawner {
           ...(typeof spawn.resume === 'string' ? { agentSessionID: spawn.resume } : {}),
           agent: spawn.agent,
           pinned: false,
-          lastAttachedAt: this.callbacks.getClock().now(),
+          lastAttachedAt: callbacks.getClock().now(),
           repoRoot,
           namedBy: spawn.namedBy,
-          createdAt: this.callbacks.getClock().now(),
+          createdAt: callbacks.getClock().now(),
           parent: spawn.parent,
           ...(spawn.prompt === '' ? {} : { prompt: spawn.prompt }),
           ...(spawn.overrides.model === undefined ? {} : { model: spawn.overrides.model }),
@@ -380,21 +279,21 @@ export class SessionSpawner {
           ...(plan.admission === null ? {} : { authRevision: plan.admission.revision }),
         };
 
-        this.harnesses.attachHarness(registered, pty, this.registry.hasHostLifecycle(target));
-        this.registry.sessions.push(registered);
-        this.harnesses.startingSpawns.set(id, readied);
+        harnesses.attachHarness(registered, pty, registry.hasHostLifecycle(target));
+        registry.sessions.push(registered);
+        harnesses.startingSpawns.set(id, readied);
 
         return registered;
       },
-      () => this.rollback.removeListedSpawn(id, readied.root),
+      () => rollback.removeListedSpawn(id, readied.root),
     );
 
     steps.runNow('list', () => {
-      this.claims.releaseWorkspace(id);
-      void this.fleet.tryWriteFleet(session.id);
-      this.fleet.writeStatus();
-      this.callbacks.onEvent('added', session);
-      this.callbacks.onBoot(session, spawn.cols, spawn.rows);
+      claims.releaseWorkspace(id);
+      void fleet.tryWriteFleet(session.id);
+      fleet.writeStatus();
+      callbacks.onEvent('added', session);
+      callbacks.onBoot(session, spawn.cols, spawn.rows);
     });
 
     // a start the host refuses throws here, after the session listed, and the
@@ -405,7 +304,7 @@ export class SessionSpawner {
         if (auth !== null && hostKey === id) {
           await session.pty?.waitForStart?.();
         } else if (auth !== null && session.pty !== null) {
-          await this.harnesses.waitForAuthStart(session, provider, session.pty);
+          await harnesses.waitForAuthStart(session, provider, session.pty);
         }
       }),
     );
@@ -415,7 +314,7 @@ export class SessionSpawner {
     if (readyAttempt !== null) {
       await steps.run('auth-ready', () =>
         timer.withStep('auth-ready', () =>
-          this.auth.requireAuthBinder().updateReady(hostKey, readyAttempt),
+          authSetup.requireAuthBinder().updateReady(hostKey, readyAttempt),
         ),
       );
     }
@@ -428,37 +327,144 @@ export class SessionSpawner {
       });
     }
 
-    this.harnesses.startingSpawns.delete(id);
+    harnesses.startingSpawns.delete(id);
 
     if (provider.remote) {
-      this.callbacks.log(
+      callbacks.log(
         `atc: spawn of session ${id} on target '${target}' took ${timer.formatSteps()}`,
       );
     }
 
     return session;
-  }
+  };
 
   // one host serves a top-level session and every sub-session bound to the
   // same target name and identity, when that target's hosts have a lifecycle
-  private pickHostKey(
+  const pickHostKey = (
     id: SessionID,
     parent: SessionID | null,
     target: string,
     identity: string,
-  ): SessionID {
+  ): SessionID => {
     const owner =
-      parent === null ? undefined : this.registry.sessions.find((session) => session.id === parent);
+      parent === null ? undefined : registry.sessions.find((session) => session.id === parent);
 
     if (
       owner === undefined ||
       owner.target !== target ||
       owner.targetIdentity !== identity ||
-      !this.registry.hasHostLifecycle(target)
+      !registry.hasHostLifecycle(target)
     ) {
       return id;
     }
 
     return owner.hostKey;
-  }
+  };
+
+  return {
+    spawn: async (
+      cwd,
+      name,
+      prompt,
+      cols,
+      rows,
+      resume = false,
+      namedBy = 'auto',
+      agent = 'claude',
+      parent = null,
+      overrides = {},
+      id = mintSessionID(),
+      target = 'local',
+      materialize = null,
+      requireInReach = () => {},
+      autoDir = false,
+      scope = null,
+      answer = null,
+    ) => {
+      const adapter = registry.findAdapter(agent);
+
+      if (adapter === null) {
+        throw new Error(`no adapter for agent '${agent}'`);
+      }
+
+      const execution = registry.requireExecution({ target, targetIdentity: null }, 'spawn');
+      const provider = execution.provider;
+      const timer = createStepTimer(callbacks.now);
+
+      const trustClonedWorkspace =
+        overrides.trustClonedWorkspace ??
+        registry.targets.get(target)?.options['trustClonedWorkspace'] === true;
+
+      const hostKey = pickHostKey(id, parent, target, execution.identity);
+      const auth = authSetup.resolveHarnessAuth(adapter, provider, target);
+
+      if (trustClonedWorkspace) {
+        if (materialize === null) {
+          throw new DaemonError('bad_args', 'trustClonedWorkspace requires a workspace source');
+        }
+
+        const isLocalTrust =
+          !provider.remote && auth === null && adapter.updateLocalWorkspaceTrust !== undefined;
+
+        const isGuestTrust =
+          provider.guestWorkspaceTrust === true &&
+          provider.remote &&
+          auth !== null &&
+          adapter.planGuestWorkspaceTrust !== undefined;
+
+        if (!isLocalTrust && !isGuestTrust) {
+          throw new DaemonError(
+            'unsupported',
+            'trustClonedWorkspace requires stock Claude on the local target, or stock Claude, a Claude gateway, or Codex signed in through the broker on a remote target that can trust a clone',
+          );
+        }
+      }
+
+      if (hostKey !== id) {
+        await authSetup.requireSharedBinding(hostKey, auth?.binding ?? null);
+      }
+
+      const refusal = adapter.findSpawnRefusal?.() ?? null;
+
+      if (refusal !== null) {
+        throw refusal;
+      }
+
+      // A spawn whose steps fail takes back what the steps before the failure
+      // did, last step first; the session counts as rolling back until the
+      // unwind ends, so no revive starts it in between.
+      try {
+        return await runSteps(id, (steps) =>
+          runSpawn(steps, {
+            adapter,
+            provider,
+            execution,
+            auth,
+            id,
+            hostKey,
+            target,
+            cwd,
+            name,
+            prompt,
+            cols,
+            rows,
+            resume,
+            namedBy,
+            agent,
+            parent,
+            overrides,
+            materialize,
+            requireInReach,
+            autoDir,
+            scope,
+            trustClonedWorkspace,
+            timer,
+            answer,
+          }),
+        );
+      } finally {
+        rollback.rollingBack.delete(id);
+      }
+    },
+  };
 }

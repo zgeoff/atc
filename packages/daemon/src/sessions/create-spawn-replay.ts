@@ -7,46 +7,30 @@ import { buildGrantFromFleetEntry } from '../auth/build-grant-from-fleet-entry';
 import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import { buildTargetForbiddenError } from '../auth/build-target-forbidden-error';
 import { isTreeInReach } from '../auth/is-tree-in-reach';
-import type { SessionManager } from './sessions';
+import type { SessionManager } from './create-session-manager';
 
 interface SpawnReplayDeps {
   readonly manager: Pick<SessionManager, 'sessions' | 'collectDescriptors'>;
   readonly store: Pick<StateStore, 'loadFleet'>;
 }
 
-export class SpawnReplay {
-  private readonly manager: SpawnReplayDeps['manager'];
-
-  private readonly store: SpawnReplayDeps['store'];
-
-  constructor(deps: SpawnReplayDeps) {
-    this.manager = deps.manager;
-    this.store = deps.store;
-  }
-
+export interface SpawnReplay {
   // The tree may change while the fleet is read, so the live check runs
   // again in the step that answers.
-  async loadReplay(
+  readonly loadReplay: (
     record: IdempotencyRecord,
     access: TargetAccess | null,
-  ): Promise<DaemonAnswer<'session.spawn'>> {
-    if (access === null) {
-      return this.loadAnswer(record);
-    }
+  ) => Promise<DaemonAnswer<'session.spawn'>>;
+}
 
-    this.requireLiveTreeInReach(record, access);
-
-    await this.requireStoredTreeInReach(record, access);
-
-    this.requireLiveTreeInReach(record, access);
-
-    return this.loadAnswer(record);
-  }
+export function createSpawnReplay(deps: SpawnReplayDeps): SpawnReplay {
+  const manager = deps.manager;
+  const store = deps.store;
 
   // A key that start-up reconciliation completed has no stored answer, and
   // its session lists only once the fleet is restored.
-  private loadAnswer(record: IdempotencyRecord): DaemonAnswer<'session.spawn'> {
-    const listed = this.manager
+  const loadAnswer = (record: IdempotencyRecord): DaemonAnswer<'session.spawn'> => {
+    const listed = manager
       .collectDescriptors()
       .find((descriptor) => descriptor.id === record.effectRef);
 
@@ -66,9 +50,9 @@ export class SpawnReplay {
       `the spawn under idempotency key '${record.key}' created session '${record.effectRef}', which is not listed; restore the fleet to list it`,
       { effectRef: record.effectRef },
     );
-  }
+  };
 
-  private requireLiveTreeInReach(record: IdempotencyRecord, access: TargetAccess): void {
+  const requireLiveTreeInReach = (record: IdempotencyRecord, access: TargetAccess): void => {
     const bound = record.effectTarget;
 
     // nothing a key without a recorded target holds shows where its
@@ -77,7 +61,7 @@ export class SpawnReplay {
       throw buildTargetForbiddenError(getReplayTarget(record));
     }
 
-    const sessions = this.manager.sessions;
+    const sessions = manager.sessions;
     const session = sessions.find((x) => x.id === record.effectRef);
 
     if (
@@ -86,17 +70,17 @@ export class SpawnReplay {
     ) {
       throw buildTargetForbiddenError(bound.target);
     }
-  }
+  };
 
-  private async requireStoredTreeInReach(
+  const requireStoredTreeInReach = async (
     record: IdempotencyRecord,
     access: TargetAccess,
-  ): Promise<void> {
-    if (this.manager.sessions.some((x) => x.id === record.effectRef)) {
+  ): Promise<void> => {
+    if (manager.sessions.some((x) => x.id === record.effectRef)) {
       return;
     }
 
-    const fleet = await this.store.loadFleet();
+    const fleet = await store.loadFleet();
 
     const members = fleet.map((entry) => {
       const grant = buildGrantFromFleetEntry(entry);
@@ -115,7 +99,23 @@ export class SpawnReplay {
     if (own !== undefined && !isTreeInReach(members, own.id, access)) {
       throw buildTargetForbiddenError(record.effectTarget?.target ?? getReplayTarget(record));
     }
-  }
+  };
+
+  return {
+    loadReplay: async (record, access) => {
+      if (access === null) {
+        return loadAnswer(record);
+      }
+
+      requireLiveTreeInReach(record, access);
+
+      await requireStoredTreeInReach(record, access);
+
+      requireLiveTreeInReach(record, access);
+
+      return loadAnswer(record);
+    },
+  };
 }
 
 // The target a held spawn key's stored answer holds its session on, for a

@@ -24,13 +24,13 @@ import { runLocalCommand } from '../testing/run-local-command';
 import { createHostDirClaims } from './create-host-dir-claims';
 import { createPublishedRecords } from './create-published-records';
 import { createSessionHarnesses } from './create-session-harnesses';
+import { createSessionKiller } from './create-session-killer';
 import { createSessionRegistry } from './create-session-registry';
+import { createSessionSpawner } from './create-session-spawner';
+import { createSpawnRollback } from './create-spawn-rollback';
 import { runSpawnSteps } from './run-spawn-steps';
 import type { SpawnStepName, SpawnStepRunner } from './run-spawn-steps';
 import type { SessionCallbacks } from './session-callbacks';
-import { SessionKiller } from './session-killer';
-import { SessionSpawner } from './session-spawner';
-import { SpawnRollback } from './spawn-rollback';
 
 // The agents and execution targets a test runs its sessions under, and the
 // runner of each spawn's steps; the spawner's own when absent.
@@ -100,16 +100,12 @@ async function setupTest(config: SetupTestConfig) {
 
   const claims = createHostDirClaims({ registry });
   const restarts = { stopRestart: () => Promise.resolve(false) };
-
-  const killer = new SessionKiller({ registry, fleet, callbacks, restarts });
-
+  const killer = createSessionKiller({ registry, fleet, callbacks, restarts });
   const harnesses = createSessionHarnesses({ registry, fleet, killer, callbacks });
-
-  const rollback = new SpawnRollback({ registry, fleet, claims, harnesses, callbacks });
-
+  const rollback = createSpawnRollback({ registry, fleet, claims, harnesses, callbacks });
   const auth = createAuthSetup({ registry, fleet, claims, harnesses, rollback, store, callbacks });
 
-  const spawner = new SessionSpawner({
+  const spawner = createSessionSpawner({
     registry,
     fleet,
     claims,

@@ -15,13 +15,14 @@ import { updateEndedFleetMessages } from './fleet/update-ended-fleet-messages';
 import { buildSessionEvent } from './sessions/build-session-event';
 import { createPermissionPrompts } from './sessions/create-permission-prompts';
 import { createScreenModel } from './sessions/create-screen-model';
+import { createSessionManager } from './sessions/create-session-manager';
+import type { SessionManager } from './sessions/create-session-manager';
 import { createSessionRuntime } from './sessions/create-session-runtime';
 import type { SessionRuntime } from './sessions/create-session-runtime';
 import { createTapRegistry } from './sessions/create-tap-registry';
 import { emitInboxClosed } from './sessions/emit-inbox-closed';
 import { makeHookRunner } from './sessions/make-hook-runner';
 import type { HookScope } from './sessions/make-hook-runner';
-import { SessionManager } from './sessions/sessions';
 import { startSessionServices } from './start-session-services';
 import { buildBindRefusal } from './transport/build-bind-refusal';
 import { createDaemonConnection } from './transport/create-daemon-connection';
@@ -286,7 +287,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   // The manager takes every callback above when it is built, so no session
   // event arrives before its handler exists.
-  const manager = new SessionManager(
+  const manager = createSessionManager(
     opts.adapter,
     store,
     opts.statusPath,

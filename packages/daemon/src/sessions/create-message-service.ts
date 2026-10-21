@@ -22,6 +22,7 @@ import { buildMessageSender } from './build-message-sender';
 import { buildMessageTrailEntry } from './build-message-trail-entry';
 import { buildNoticeTrailEntry } from './build-notice-trail-entry';
 import { buildSessionMessageEvent } from './build-session-message-event';
+import type { SessionManager } from './create-session-manager';
 import type { SessionRuntime } from './create-session-runtime';
 import type { TapRegistry } from './create-tap-registry';
 import { drainInbox } from './drain-inbox';
@@ -32,7 +33,6 @@ import type { MessageCaller } from './message-caller';
 import { MessageRefusedError } from './message-refused-error';
 import { mintMessageID } from './mint-message-id';
 import type { Session } from './session';
-import type { SessionManager } from './sessions';
 
 interface MessageServiceDeps {
   readonly manager: Pick<SessionManager, 'sessions' | 'findAdapter' | 'isLocalTarget'>;

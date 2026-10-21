@@ -12,7 +12,7 @@ import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { createHostDirClaims } from './create-host-dir-claims';
 import { createSessionHarnesses } from './create-session-harnesses';
 import { createSessionRegistry } from './create-session-registry';
-import { SpawnRollback } from './spawn-rollback';
+import { createSpawnRollback } from './create-spawn-rollback';
 
 // A rollback over the real session modules: a registry whose `local` target
 // runs harnesses in memory, a fleet writer on a real state store, real
@@ -64,7 +64,7 @@ async function setupTest() {
     callbacks,
   });
 
-  const rollback = new SpawnRollback({ registry, fleet, claims, harnesses, callbacks });
+  const rollback = createSpawnRollback({ registry, fleet, claims, harnesses, callbacks });
 
   return { store, provider, registry, fleet, rollback, lines: recorder.lines };
 }

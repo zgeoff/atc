@@ -3,10 +3,10 @@ import type { StateStore } from '@atc/store';
 import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import type { SessionRecord, SessionTranscriptRead } from '../daemon-context';
 import type { PublishedRecords } from './create-published-records';
+import type { SessionManager } from './create-session-manager';
 import { getDescriptor } from './get-descriptor';
 import { loadTranscriptPage } from './load-transcript-page';
 import type { TranscriptPosition } from './load-transcript-page';
-import type { SessionManager } from './sessions';
 
 // A page stays far under the protocol's 1 MiB line cap.
 const TRANSCRIPT_PAGE_MAX_BYTES = 262_144;

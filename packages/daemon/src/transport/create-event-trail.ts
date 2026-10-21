@@ -7,7 +7,7 @@ import type { DaemonContext } from '../daemon-context';
 import { buildFleetEvents } from '../fleet/build-fleet-events';
 import { buildAnswerView } from '../sessions/build-answer-view';
 import { buildNoteView } from '../sessions/build-note-view';
-import type { SessionManager } from '../sessions/sessions';
+import type { SessionManager } from '../sessions/create-session-manager';
 import type { EventSignal } from './create-event-signal';
 import { formatRestartDetail } from './format-restart-detail';
 

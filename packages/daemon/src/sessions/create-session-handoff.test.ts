@@ -12,9 +12,9 @@ import { buildMockExecutionTarget } from '../testing/build-mock-execution-target
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { createSessionHandoff } from './create-session-handoff';
+import { createSessionManager } from './create-session-manager';
 import { createSessionRuntime } from './create-session-runtime';
 import type { SessionRuntime } from './create-session-runtime';
-import { SessionManager } from './sessions';
 
 interface SetupTestConfig {
   // The one agent the sessions run.
@@ -40,7 +40,7 @@ async function setupTest(config: SetupTestConfig) {
 
   const provider = buildStubMemoryProvider({ kind: 'local-pty' });
 
-  const manager = new SessionManager(
+  const manager = createSessionManager(
     null,
     store,
     join(temporaryDirectory.path, 'status.json'),

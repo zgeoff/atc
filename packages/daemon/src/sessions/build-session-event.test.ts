@@ -5,7 +5,7 @@ import { createStateStore } from '@atc/store';
 import { buildMockAgentAdapter, registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { buildMockSession } from '../testing/build-mock-session';
 import { buildSessionEvent } from './build-session-event';
-import { SessionManager } from './sessions';
+import { createSessionManager } from './create-session-manager';
 
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-daemon-events-');
@@ -14,7 +14,7 @@ async function setupTest() {
 
   registerTestCleanup(() => store.stop());
 
-  const manager = new SessionManager(
+  const manager = createSessionManager(
     buildMockAgentAdapter(),
     store,
     join(temporaryDirectory.path, 'status.json'),

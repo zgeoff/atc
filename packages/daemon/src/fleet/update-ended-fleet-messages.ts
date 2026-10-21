@@ -1,7 +1,7 @@
 import { LOCAL_TARGET } from '@atc/config';
 import type { StateStore } from '@atc/store';
 import type { MessageService } from '../sessions/create-message-service';
-import type { SessionManager } from '../sessions/sessions';
+import type { SessionManager } from '../sessions/create-session-manager';
 
 interface EndedFleetMessagesDeps {
   readonly manager: Pick<SessionManager, 'isLocalTarget'>;

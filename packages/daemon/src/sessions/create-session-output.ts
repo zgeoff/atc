@@ -5,11 +5,11 @@ import type { EventMsg } from '@atc/protocol/wire';
 import type { OutputClient } from '../daemon-context';
 import { createAttachRegistry } from './create-attach-registry';
 import type { Dims } from './create-attach-registry';
+import type { SessionManager } from './create-session-manager';
 import type { SessionRuntime } from './create-session-runtime';
 import { getDescriptor } from './get-descriptor';
 import type { HookScope } from './make-hook-runner';
 import type { Session } from './session';
-import type { SessionManager } from './sessions';
 
 // The size a session's terminal is read at before any client attaches and
 // before its harness reports one.

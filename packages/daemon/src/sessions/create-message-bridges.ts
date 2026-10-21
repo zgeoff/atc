@@ -13,10 +13,10 @@ import type { TapClient } from '../daemon-context';
 import { buildBridgeTapClient } from './build-bridge-tap-client';
 import { buildMessageOwner } from './build-message-owner';
 import type { MessageService } from './create-message-service';
+import type { SessionManager } from './create-session-manager';
 import type { TapRegistry } from './create-tap-registry';
 import { parseNote } from './parse-note';
 import type { MessageBridgeLaunch } from './session-callbacks';
-import type { SessionManager } from './sessions';
 
 interface MessageBridgesDeps {
   readonly manager: Pick<SessionManager, 'sessions' | 'log'>;

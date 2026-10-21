@@ -8,7 +8,7 @@ import type { DaemonContext } from './daemon-context';
 import type { DaemonOptions } from './daemon-options';
 import type { ExecutionTarget } from './fleet/build-execution-targets';
 import type { PermissionPrompts } from './sessions/create-permission-prompts';
-import type { SessionManager } from './sessions/sessions';
+import type { SessionManager } from './sessions/create-session-manager';
 import type { SessionServices } from './start-session-services';
 
 export interface DaemonContextDeps {

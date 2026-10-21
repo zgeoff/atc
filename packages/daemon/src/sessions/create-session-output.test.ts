@@ -13,10 +13,10 @@ import { buildMockExecutionTarget } from '../testing/build-mock-execution-target
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { createScreenModel } from './create-screen-model';
+import { createSessionManager } from './create-session-manager';
 import { createSessionOutput } from './create-session-output';
 import { createSessionRuntime } from './create-session-runtime';
 import type { SessionRuntime } from './create-session-runtime';
-import { SessionManager } from './sessions';
 
 interface SetupTestConfig {
   // Whether the session's host can resize its terminal.
@@ -42,7 +42,7 @@ async function setupTest(config: SetupTestConfig) {
     capabilities: { resize: config.resize },
   });
 
-  const manager = new SessionManager(
+  const manager = createSessionManager(
     null,
     store,
     join(temporaryDirectory.path, 'status.json'),
