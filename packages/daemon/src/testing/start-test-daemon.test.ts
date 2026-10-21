@@ -3,7 +3,7 @@ import { existsSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { openDaemonClient } from '@atc/protocol/client';
 import type { HookEvent } from '@atc/protocol/session';
-import { StateStore } from '@atc/store';
+import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import { buildMockAgentAdapter, registerTestCleanup, waitFor } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
@@ -429,7 +429,7 @@ test('it boots on the state written while the daemon is stopped', async () => {
 
   await harness.stop();
 
-  const store = await StateStore.open(harness.dbPath);
+  const store = await createStateStore(harness.dbPath);
 
   registerTestCleanup(() => store.stop());
 

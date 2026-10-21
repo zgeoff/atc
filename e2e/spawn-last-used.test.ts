@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import type { SessionID } from '@atc/core';
 import { toSessionID } from '@atc/core';
 import { openDaemonClient } from '@atc/protocol/client';
-import { StateStore } from '@atc/store';
+import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import { buildMockAgentAdapter, getRecord, registerTestCleanup, waitFor } from '@atc/test-utils';
 import { faker } from '@faker-js/faker';
@@ -15,7 +15,7 @@ test('it keeps the last-used agent when a restored session reports its start', a
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-last-used-',
     options: async (paths) => {
-      const store = await StateStore.open(paths.dbPath);
+      const store = await createStateStore(paths.dbPath);
 
       const stopStore = registerTestCleanup(() => store.stop());
 
@@ -65,7 +65,7 @@ test('it writes the last-used agent when a spawned session reports its start', a
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-last-used-',
     options: async (paths) => {
-      const store = await StateStore.open(paths.dbPath);
+      const store = await createStateStore(paths.dbPath);
 
       const stopStore = registerTestCleanup(() => store.stop());
 

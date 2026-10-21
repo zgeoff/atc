@@ -4,7 +4,7 @@ import { linkSync, readdirSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { toAgentSessionID, toSessionID } from '@atc/core';
-import { StateStore, buildTargetIdentity } from '@atc/store';
+import { buildTargetIdentity, createStateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/testing';
 import {
   buildMockAgentAdapter,
@@ -24,7 +24,7 @@ async function setupTest() {
 
   await createMigratedStateDB(dbPath);
 
-  const store = await StateStore.open(dbPath);
+  const store = await createStateStore(dbPath);
 
   registerTestCleanup(() => store.stop());
 

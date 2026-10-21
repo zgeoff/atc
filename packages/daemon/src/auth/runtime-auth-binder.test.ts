@@ -5,7 +5,7 @@ import { toSessionID } from '@atc/core';
 import { EffectRemainsError } from '@atc/plugin-api';
 import type { AuthProfile, LaunchTicket } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
-import { StateStore } from '@atc/store';
+import { createStateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/testing';
 import { buildMockAuthProfile, registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
@@ -24,7 +24,7 @@ async function setupTest() {
 
   await createMigratedStateDB(dbPath);
 
-  const store = await StateStore.open(dbPath);
+  const store = await createStateStore(dbPath);
 
   registerTestCleanup(() => store.stop());
 

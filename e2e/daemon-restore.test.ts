@@ -6,7 +6,7 @@ import { toAgentSessionID, toSessionID } from '@atc/core';
 import { readDaemonRecord } from '@atc/lifecycle';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
 import type { DaemonEvent } from '@atc/protocol';
-import { StateStore } from '@atc/store';
+import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
   KEYS,
@@ -224,7 +224,7 @@ test('it restores a stored exited row once and nothing on a second restore', asy
 
   await client.sendHello('atc/test');
 
-  const seed = await StateStore.open(join(daemon.stateDir, 'atc.db'));
+  const seed = await createStateStore(join(daemon.stateDir, 'atc.db'));
 
   registerTestCleanup(() => seed.stop());
 
@@ -273,7 +273,7 @@ test('it revives the fleet one boot at a time, gated on SessionStart', async () 
   writeFileSync(join(ctx.home, 'fake-claude-own-id'), '');
   writeFileSync(join(ctx.home, 'fake-claude-gate'), '');
 
-  const seed = await StateStore.open(join(daemon.stateDir, 'atc.db'));
+  const seed = await createStateStore(join(daemon.stateDir, 'atc.db'));
 
   registerTestCleanup(() => seed.stop());
 
@@ -355,7 +355,7 @@ test('it moves on to the next revive when one dies before announcing itself', as
   writeFileSync(join(ctx.home, 'fake-claude-own-id'), '');
   writeFileSync(join(ctx.home, 'fake-claude-dies-agent-dying'), '');
 
-  const seed = await StateStore.open(join(daemon.stateDir, 'atc.db'));
+  const seed = await createStateStore(join(daemon.stateDir, 'atc.db'));
 
   registerTestCleanup(() => seed.stop());
 
@@ -422,7 +422,7 @@ test('it revives the fleet most recently active first', async () => {
 
   writeFileSync(join(ctx.home, 'fake-claude-own-id'), '');
 
-  const seed = await StateStore.open(join(daemon.stateDir, 'atc.db'));
+  const seed = await createStateStore(join(daemon.stateDir, 'atc.db'));
 
   registerTestCleanup(() => seed.stop());
 

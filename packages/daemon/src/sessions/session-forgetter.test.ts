@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { toSessionID } from '@atc/core';
 import type { SessionID } from '@atc/core';
 import { DaemonError } from '@atc/protocol/wire';
-import { StateStore } from '@atc/store';
+import { createStateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/testing';
 import { buildStubClock, buildStubLog, registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
@@ -26,7 +26,7 @@ async function setupTest(config: SetupTestConfig) {
 
   await createMigratedStateDB(dbPath);
 
-  const store = await StateStore.open(dbPath);
+  const store = await createStateStore(dbPath);
 
   registerTestCleanup(() => store.stop());
 

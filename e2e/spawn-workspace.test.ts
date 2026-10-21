@@ -18,7 +18,7 @@ import { LocalPTYProvider } from '@atc/execution-local';
 import { buildStubDirProvider, buildStubExecutionProvider } from '@atc/execution-local/testing';
 import type { ExecutionProvider } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
-import { StateStore } from '@atc/store';
+import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
   buildMockAgentAdapter,
@@ -1062,7 +1062,7 @@ test('it starts a revived harness after a restart without the workspace credenti
     options: async (paths) => {
       // The fleet holds a ready git workspace on box, as a spawn under a
       // workspace credential leaves it.
-      const store = await StateStore.open(paths.dbPath);
+      const store = await createStateStore(paths.dbPath);
 
       const stopStore = registerTestCleanup(() => store.stop());
 

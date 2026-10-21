@@ -4,7 +4,7 @@ import { toAgentSessionID, toMessageID, toSessionID } from '@atc/core';
 import type { SessionID } from '@atc/core';
 import type { AdapterEvent } from '@atc/protocol';
 import type { EventMsg } from '@atc/protocol/wire';
-import { StateStore } from '@atc/store';
+import { createStateStore } from '@atc/store';
 import { buildMockMessageRecord, createMigratedStateDB } from '@atc/store/testing';
 import {
   buildStubClock,
@@ -37,7 +37,7 @@ async function setupTest(config: SetupTestConfig) {
 
   await createMigratedStateDB(dbPath);
 
-  const store = await StateStore.open(dbPath);
+  const store = await createStateStore(dbPath);
 
   registerTestCleanup(() => store.stop());
 

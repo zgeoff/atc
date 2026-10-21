@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { toAgentSessionID, toSessionID } from '@atc/core';
 import { buildTargetOptionsFromConfig } from '@atc/daemon/testing';
 import { buildStubExecutionProvider } from '@atc/execution-local/testing';
-import { StateStore } from '@atc/store';
+import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
   buildMockAgentAdapter,
@@ -420,7 +420,7 @@ test.each([
     const daemon = await startTestDaemon({
       prefix: 'atc-daemon-targets-',
       options: async (paths) => {
-        const store = await StateStore.open(paths.dbPath);
+        const store = await createStateStore(paths.dbPath);
 
         const stopStore = registerTestCleanup(() => store.stop());
 
@@ -460,7 +460,7 @@ test('it refuses input to a restored headless session on local once the targets 
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-targets-',
     options: async (paths) => {
-      const store = await StateStore.open(paths.dbPath);
+      const store = await createStateStore(paths.dbPath);
 
       const stopStore = registerTestCleanup(() => store.stop());
 
@@ -516,7 +516,7 @@ test('it refuses input to a restored headless session whose provider runs no hea
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-targets-',
     options: async (paths) => {
-      const store = await StateStore.open(paths.dbPath);
+      const store = await createStateStore(paths.dbPath);
 
       const stopStore = registerTestCleanup(() => store.stop());
 
@@ -565,7 +565,7 @@ test('it refuses input to a killed headless session on a working target, without
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-targets-',
     options: async (paths) => {
-      const store = await StateStore.open(paths.dbPath);
+      const store = await createStateStore(paths.dbPath);
 
       const stopStore = registerTestCleanup(() => store.stop());
 
@@ -1039,7 +1039,7 @@ test('it revives a restored session without a stored target on the implicit loca
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-targets-',
     options: async (paths) => {
-      const store = await StateStore.open(paths.dbPath);
+      const store = await createStateStore(paths.dbPath);
 
       const stopStore = registerTestCleanup(() => store.stop());
 

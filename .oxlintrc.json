@@ -141,15 +141,7 @@
         "packages/harnesses/codex/src/app-server/app-server-connection.ts",
         "packages/harnesses/codex/src/app-server/unconfirmed-sends.ts",
         "packages/harnesses/codex/src/codex-adapter.ts",
-        "packages/harnesses/grok/src/grok-adapter.ts",
-        "packages/store/src/auth-binding-store.ts",
-        "packages/store/src/event-trail-store.ts",
-        "packages/store/src/fleet-store.ts",
-        "packages/store/src/idempotency-store.ts",
-        "packages/store/src/materialization-store.ts",
-        "packages/store/src/message-store.ts",
-        "packages/store/src/published-record-store.ts",
-        "packages/store/src/state-store.ts"
+        "packages/harnesses/grok/src/grok-adapter.ts"
       ],
       "rules": { "zgeoff/no-class": "off" }
     },

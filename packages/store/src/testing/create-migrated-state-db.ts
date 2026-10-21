@@ -1,6 +1,6 @@
 import { copyFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { StateStore } from '../state-store';
+import { createStateStore } from '../create-state-store';
 
 let template: Promise<string> | undefined;
 
@@ -22,7 +22,7 @@ async function createTemplateStateDB(home: string): Promise<string> {
   // One name per process, since parallel test processes share the test home.
   const path = join(home, `migrated-state-${String(process.pid)}.db`);
 
-  const store = await StateStore.open(path);
+  const store = await createStateStore(path);
 
   await store.stop();
 

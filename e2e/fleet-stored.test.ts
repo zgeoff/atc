@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { toSessionID } from '@atc/core';
-import { StateStore } from '@atc/store';
+import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import { buildMockAgentAdapter, getRecord, registerTestCleanup } from '@atc/test-utils';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
@@ -9,7 +9,7 @@ test('it keeps every stored fleet row restorable when a spawn writes the fleet b
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-fleet-',
     options: async (paths) => {
-      const store = await StateStore.open(paths.dbPath);
+      const store = await createStateStore(paths.dbPath);
 
       registerTestCleanup(() => store.stop());
 
@@ -70,7 +70,7 @@ test('it keeps every stored fleet row when a rename and a deliberate kill write 
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-fleet-',
     options: async (paths) => {
-      const store = await StateStore.open(paths.dbPath);
+      const store = await createStateStore(paths.dbPath);
 
       registerTestCleanup(() => store.stop());
 

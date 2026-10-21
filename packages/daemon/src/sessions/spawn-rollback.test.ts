@@ -2,7 +2,7 @@ import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { toSessionID } from '@atc/core';
 import { EffectRemainsError } from '@atc/plugin-api';
-import { StateStore } from '@atc/store';
+import { createStateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/testing';
 import { buildStubLog, registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { SessionFleetWriter } from '../fleet/session-fleet-writer';
@@ -23,7 +23,7 @@ async function setupTest() {
 
   await createMigratedStateDB(dbPath);
 
-  const store = await StateStore.open(dbPath);
+  const store = await createStateStore(dbPath);
 
   registerTestCleanup(() => store.stop());
 

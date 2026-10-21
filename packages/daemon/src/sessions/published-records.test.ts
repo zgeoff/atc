@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { toSessionID } from '@atc/core';
-import { StateStore, parsePublishedRecord } from '@atc/store';
+import { createStateStore, parsePublishedRecord } from '@atc/store';
 import {
   createGitFixture,
   getRecord,
@@ -22,7 +22,7 @@ async function setupTest() {
 
   const temporaryDirectory = setupTempDir('atc-records-state-');
 
-  const store = await StateStore.open(join(temporaryDirectory.path, 'atc.db'));
+  const store = await createStateStore(join(temporaryDirectory.path, 'atc.db'));
 
   registerTestCleanup(() => store.stop());
 

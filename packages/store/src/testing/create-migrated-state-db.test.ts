@@ -2,7 +2,7 @@ import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { registerTestCleanup, setupTempDir, updateEnv } from '@atc/test-utils';
-import { StateStore } from '../state-store';
+import { createStateStore } from '../create-state-store';
 import { createMigratedStateDB } from './create-migrated-state-db';
 
 function setupTest() {
@@ -27,7 +27,7 @@ test('it creates a database the store opens without running a migration', async 
 
   closeBefore();
 
-  const store = await StateStore.open(dbPath);
+  const store = await createStateStore(dbPath);
 
   const stopStore = registerTestCleanup(() => store.stop());
 
@@ -49,7 +49,7 @@ test('it creates a database whose migration ledger holds every migration', async
   const freshPath = join(ctx.directory, 'fresh.db');
   const copyPath = join(ctx.directory, 'copy.db');
 
-  const fresh = await StateStore.open(freshPath);
+  const fresh = await createStateStore(freshPath);
 
   const stopFresh = registerTestCleanup(() => fresh.stop());
 

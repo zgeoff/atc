@@ -7,7 +7,7 @@ import type { RestoreSettled } from '@atc/daemon';
 import { ImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/testing';
 import { LocalPTYProvider } from '@atc/execution-local';
-import { StateStore } from '@atc/store';
+import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
   buildMockHostServices,
@@ -516,7 +516,7 @@ test('it refuses to adopt a restored local session of a gateway with auth and st
   // the daemon is stopped.
   await daemon.stop();
 
-  const store = await StateStore.open(daemon.dbPath);
+  const store = await createStateStore(daemon.dbPath);
 
   registerTestCleanup(() => store.stop());
 
@@ -593,7 +593,7 @@ test('it restores a local session of a gateway with auth without starting its ha
   // the daemon is stopped.
   await daemon.stop();
 
-  const store = await StateStore.open(daemon.dbPath);
+  const store = await createStateStore(daemon.dbPath);
 
   registerTestCleanup(() => store.stop());
 

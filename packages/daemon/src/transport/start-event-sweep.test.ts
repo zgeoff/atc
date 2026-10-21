@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { toSessionID } from '@atc/core';
-import { StateStore } from '@atc/store';
+import { createStateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/testing';
 import { buildStubClock, registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
 import { startEventSweep } from './start-event-sweep';
@@ -14,7 +14,7 @@ async function setupTest() {
 
   await createMigratedStateDB(dbPath);
 
-  const store = await StateStore.open(dbPath);
+  const store = await createStateStore(dbPath);
 
   registerTestCleanup(() => store.stop());
 

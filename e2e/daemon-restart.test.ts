@@ -5,7 +5,7 @@ import { isRecord, toAgentID, toSessionID } from '@atc/core';
 import { readDaemonRecord } from '@atc/lifecycle';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
 import { PROTOCOL_V } from '@atc/protocol/wire';
-import { StateStore } from '@atc/store';
+import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
   createStubClaude,
@@ -70,7 +70,7 @@ test('it restarts the daemon in place and restores a saved fleet of two live ses
 
   const oldPID = daemon.subprocess.pid;
 
-  const seed = await StateStore.open(join(daemon.stateDir, 'atc.db'));
+  const seed = await createStateStore(join(daemon.stateDir, 'atc.db'));
 
   registerTestCleanup(() => seed.stop());
 
@@ -371,7 +371,7 @@ test('it exits 1 and names a row whose agent is gone while the good row comes ba
 
   await client.sendHello('atc/test');
 
-  const seed = await StateStore.open(join(daemon.stateDir, 'atc.db'));
+  const seed = await createStateStore(join(daemon.stateDir, 'atc.db'));
 
   registerTestCleanup(() => seed.stop());
 
@@ -485,7 +485,7 @@ test('it joins a restart already in flight and reports its result without a seco
 
   await client.sendHello('atc/test');
 
-  const seed = await StateStore.open(join(daemon.stateDir, 'atc.db'));
+  const seed = await createStateStore(join(daemon.stateDir, 'atc.db'));
 
   registerTestCleanup(() => seed.stop());
 
@@ -580,7 +580,7 @@ test('it completes a restart run from inside a hosted session after the session 
 
   const oldPID = daemon.subprocess.pid;
 
-  const seed = await StateStore.open(join(daemon.stateDir, 'atc.db'));
+  const seed = await createStateStore(join(daemon.stateDir, 'atc.db'));
 
   registerTestCleanup(() => seed.stop());
 
@@ -662,7 +662,7 @@ test('it restarts through the unit when the daemon is the unit main process, han
   ctx.fake.writeMainPID(oldPID);
   ctx.fake.writeUnitCgroup(oldPID, 'atc-daemon.service');
 
-  const seed = await StateStore.open(join(daemon.stateDir, 'atc.db'));
+  const seed = await createStateStore(join(daemon.stateDir, 'atc.db'));
 
   registerTestCleanup(() => seed.stop());
 

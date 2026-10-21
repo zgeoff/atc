@@ -15,7 +15,7 @@ import { buildStubFleetCaller } from '@atc/mcp/testing';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { REQUEST_PARAM_SCHEMAS } from '@atc/protocol';
 import { openDaemonClient } from '@atc/protocol/client';
-import { StateStore } from '@atc/store';
+import { createStateStore } from '@atc/store';
 import {
   buildMockAgentAdapter,
   buildStubBrokeredAgentAdapter,
@@ -531,7 +531,7 @@ test('it spawns nothing top-level when the gone session belongs to a spawn its k
   const daemon = await startTestDaemon({
     prefix: 'atc-run-tool-',
     options: async (paths) => {
-      const seed = await StateStore.open(paths.dbPath);
+      const seed = await createStateStore(paths.dbPath);
 
       const stopSeed = registerTestCleanup(() => seed.stop());
 

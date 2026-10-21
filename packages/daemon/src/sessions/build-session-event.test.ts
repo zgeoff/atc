@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { toSessionID } from '@atc/core';
-import { StateStore } from '@atc/store';
+import { createStateStore } from '@atc/store';
 import { buildMockAgentAdapter, registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { buildMockSession } from '../testing/build-mock-session';
 import { buildSessionEvent } from './build-session-event';
@@ -10,7 +10,7 @@ import { SessionManager } from './sessions';
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-daemon-events-');
 
-  const store = await StateStore.open(join(temporaryDirectory.path, 'state.db'));
+  const store = await createStateStore(join(temporaryDirectory.path, 'state.db'));
 
   registerTestCleanup(() => store.stop());
 
