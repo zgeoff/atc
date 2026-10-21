@@ -49,6 +49,28 @@ test('it records the target of each spawn', () => {
   expect(spawned).toStrictEqual(['box']);
 });
 
+test('it runs the start callback on each harness a local-pty target starts', () => {
+  const onStart = mock();
+
+  const [target] = buildStubTargets([{ id: 'box', provider: 'local-pty', options: {} }], {
+    spawned: [],
+    onStart,
+  });
+
+  const harness = target?.provider?.spawnHarness({
+    session: 's-1',
+    host: 's-1',
+    bin: 'stub-harness',
+    args: [],
+    cwd: '/work',
+    env: {},
+    cols: 80,
+    rows: 24,
+  });
+
+  expect(onStart).toHaveBeenCalledExactlyOnceWith(harness);
+});
+
 test('it gives a target the host operations named for it', async () => {
   const suspendHost = mock(() => Promise.resolve());
 
