@@ -2,7 +2,6 @@ import { expect, test } from 'bun:test';
 import { collectAgents } from '@atc/config';
 import type { AuthProfile } from '@atc/plugin-api';
 import { buildMockAuthProfile, buildMockHostServices } from '@atc/test-utils';
-import { CodexAdapter } from './codex-adapter';
 import { CODEX_PLUGIN } from './codex-plugin';
 
 test('it loads a codex entry whose auth signs it in through an oauth profile for chatgpt.com', () => {
@@ -248,6 +247,6 @@ test('it creates a codex adapter for an entry', () => {
     { authProfiles: new Map() },
   );
 
-  expect(adapter).toBeInstanceOf(CodexAdapter);
+  expect(adapter.profile?.kind).toBe('codex');
   expect(adapter.id).toBe('codex-b');
 });

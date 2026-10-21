@@ -1,6 +1,6 @@
 import type { MessageBridgeHost } from '@atc/plugin-api';
 import { z } from 'zod';
-import type { AppServerConnection, AppServerRequest } from './app-server-connection';
+import type { AppServerConnection, AppServerRequest } from './create-app-server-connection';
 import { NOTE_LABELS } from './note-labels';
 
 export interface ToolCallAnswer {

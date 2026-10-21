@@ -1,7 +1,7 @@
 import type { BridgedMessage } from '@atc/plugin-api';
 import { z } from 'zod';
-import type { AppServerConnection } from './app-server-connection';
 import { buildModelParams } from './build-model-params';
+import type { AppServerConnection } from './create-app-server-connection';
 import { isOverload } from './is-overload';
 import { isRefusal } from './is-refusal';
 import { renderAtcEnvelope } from './render-atc-envelope';

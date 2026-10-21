@@ -3,9 +3,10 @@ import { join } from 'node:path';
 import { readCleanEnv } from '@atc/config';
 import type { MessageBridge, MessageBridgeRequest, SpawnPlan } from '@atc/plugin-api';
 import type { Subprocess } from 'bun';
-import { AppServerBridge } from './app-server-bridge';
-import { AppServerConnection } from './app-server-connection';
 import { AppServerError } from './app-server-error';
+import { createAppServerBridge } from './create-app-server-bridge';
+import type { AppServerConnection } from './create-app-server-connection';
+import { createAppServerConnection } from './create-app-server-connection';
 
 export interface CodexAppServerLaunch {
   readonly bin: string;
@@ -66,7 +67,7 @@ export async function startCodexAppServerBridge(
 
     for (let attempt = 1; ; attempt += 1) {
       try {
-        return await AppServerConnection.open(`ws+unix://${socket}`);
+        return await createAppServerConnection(`ws+unix://${socket}`);
       } catch (error) {
         if (running.exitCode !== null || running.signalCode !== null || attempt >= attempts) {
           throw error;
@@ -79,7 +80,7 @@ export async function startCodexAppServerBridge(
 
   const resumeThread = typeof request.options.resume === 'string' ? request.options.resume : null;
 
-  const bridge = new AppServerBridge({
+  const bridge = createAppServerBridge({
     session: request.session,
     cwd: request.cwd,
     host: request.host,

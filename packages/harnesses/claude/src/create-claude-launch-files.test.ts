@@ -3,7 +3,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { toAgentID } from '@atc/core';
 import { setupTempDir } from '@atc/test-utils';
-import { ClaudeLaunchFiles } from './claude-launch-files';
+import { createClaudeLaunchFiles } from './create-claude-launch-files';
 
 // The folders the files go to: a state folder, a home, and a mod folder,
 // none of which exists until the files write it.
@@ -20,15 +20,13 @@ function setupTest() {
 test('it writes nothing until a launch asks for a file', () => {
   const ctx = setupTest();
 
-  void new ClaudeLaunchFiles({ id: toAgentID('claude') }, ['/opt/atc/bin/atc'], ctx);
+  void createClaudeLaunchFiles({ id: toAgentID('claude') }, ['/opt/atc/bin/atc'], ctx);
   expect(existsSync(ctx.stateDir)).toBeFalse();
 });
 
 test("it writes the agent's settings file into the state folder", () => {
   const ctx = setupTest();
-
-  const files = new ClaudeLaunchFiles({ id: toAgentID('claude') }, ['/opt/atc/bin/atc'], ctx);
-
+  const files = createClaudeLaunchFiles({ id: toAgentID('claude') }, ['/opt/atc/bin/atc'], ctx);
   const settings = files.writeSettings();
 
   expect(settings).toBe(join(ctx.stateDir, 'hook-settings-claude.json'));
@@ -40,9 +38,7 @@ test("it writes the agent's settings file into the state folder", () => {
 
 test('it writes the settings file once and reuses it for every later launch', () => {
   const ctx = setupTest();
-
-  const files = new ClaudeLaunchFiles({ id: toAgentID('claude') }, ['/opt/atc/bin/atc'], ctx);
-
+  const files = createClaudeLaunchFiles({ id: toAgentID('claude') }, ['/opt/atc/bin/atc'], ctx);
   const settings = files.writeSettings();
 
   writeFileSync(settings, 'kept');
@@ -55,9 +51,7 @@ test('it writes the settings file once and reuses it for every later launch', ()
 
 test('it writes the mod into the mod folder, running the atc it is given', () => {
   const ctx = setupTest();
-
-  const files = new ClaudeLaunchFiles({ id: toAgentID('claude') }, ['/opt/atc/bin/atc'], ctx);
-
+  const files = createClaudeLaunchFiles({ id: toAgentID('claude') }, ['/opt/atc/bin/atc'], ctx);
   const bridge = files.writeBridge();
 
   expect(bridge).toBe(ctx.bridgeTarget);

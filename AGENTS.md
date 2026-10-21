@@ -138,7 +138,7 @@ instrumented. These rules hold for any change to it:
   launch that opts into clone trust adds one folder-trust entry for its verified clone root to the
   user's Claude config, under Claude's own lock, since Claude takes trust no other way.
 - The config's `agents` map is the registry: one adapter per entry, keyed by the entry's id. A
-  Claude-compatible backend is an entry with a `baseURL`, not a new adapter class per vendor. A
+  Claude-compatible backend is an entry with a `baseURL`, not a new adapter factory per vendor. A
   helper command supplies its credential, which never goes in the generated file.
 - Hook and statusline reporters run inside the wrangled session and always exit 0, so a broken
   reporter never breaks the session it reports on.

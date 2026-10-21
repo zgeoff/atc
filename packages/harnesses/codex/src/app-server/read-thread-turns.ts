@@ -1,6 +1,6 @@
 import type { UnsettledMessage } from '@atc/plugin-api';
 import { z } from 'zod';
-import type { AppServerConnection } from './app-server-connection';
+import type { AppServerConnection } from './create-app-server-connection';
 import { parseAppServerTurn } from './parse-app-server-turn';
 import type { AppServerTurn } from './parse-app-server-turn';
 

@@ -3,7 +3,7 @@ import { expect, mock, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
-import { GrokAdapter } from '@atc/harness-grok';
+import { createGrokAdapter } from '@atc/harness-grok';
 import { encodeCursor } from '@atc/protocol';
 import { openDaemonClient } from '@atc/protocol/client';
 import { createStateStore } from '@atc/store';
@@ -314,7 +314,7 @@ test('it spawns a grok session when a grok adapter is registered', async () => {
     options: (paths) => ({
       adapter: buildMockAgentAdapter(),
       adapters: [
-        new GrokAdapter(
+        createGrokAdapter(
           getAgentEntry(
             parseConfig(SHIPPED_HARNESS_PLUGINS, {
               agents: { grok: { kind: 'grok', bin: 'bash', args: ['-c', 'sleep 30'] } },
@@ -343,7 +343,7 @@ test('it yanks a grok session spawned with an id as a resume of that id', async 
     options: (paths) => ({
       adapter: buildMockAgentAdapter(),
       adapters: [
-        new GrokAdapter(
+        createGrokAdapter(
           getAgentEntry(
             parseConfig(SHIPPED_HARNESS_PLUGINS, {
               agents: { grok: { kind: 'grok', bin: 'bash', args: ['-c', 'sleep 30'] } },
@@ -377,7 +377,7 @@ test('it yanks a grok session spawned without an id as a plain start', async () 
     options: (paths) => ({
       adapter: buildMockAgentAdapter(),
       adapters: [
-        new GrokAdapter(
+        createGrokAdapter(
           getAgentEntry(
             parseConfig(SHIPPED_HARNESS_PLUGINS, {
               agents: { grok: { kind: 'grok', bin: 'bash', args: ['-c', 'sleep 30'] } },
@@ -410,7 +410,7 @@ test('it revives a grok session from a captured id when summary.json is missing'
     options: (paths) => ({
       adapter: buildMockAgentAdapter(),
       adapters: [
-        new GrokAdapter(
+        createGrokAdapter(
           getAgentEntry(
             parseConfig(SHIPPED_HARNESS_PLUGINS, {
               agents: { grok: { kind: 'grok', bin: 'bash', args: ['-c', 'sleep 30'] } },
@@ -456,7 +456,7 @@ test('it keeps last-used on a spawn that has not reported SessionStart', async (
     options: (paths) => ({
       adapter: buildMockAgentAdapter(),
       adapters: [
-        new GrokAdapter(
+        createGrokAdapter(
           getAgentEntry(
             parseConfig(SHIPPED_HARNESS_PLUGINS, {
               agents: { grok: { kind: 'grok', bin: 'bash', args: ['-c', 'sleep 30'] } },
@@ -510,7 +510,7 @@ test('it spawns claude when a spawn omits agent after another agent was last use
       return {
         adapter: buildMockAgentAdapter(),
         adapters: [
-          new GrokAdapter(
+          createGrokAdapter(
             getAgentEntry(
               parseConfig(SHIPPED_HARNESS_PLUGINS, {
                 agents: { grok: { kind: 'grok', bin: 'bash', args: ['-c', 'sleep 30'] } },

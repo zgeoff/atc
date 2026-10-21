@@ -3,7 +3,7 @@ import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
 import { toAgentSessionID, toSessionID } from '@atc/core';
-import { GrokAdapter } from '@atc/harness-grok';
+import { createGrokAdapter } from '@atc/harness-grok';
 import { DaemonError } from '@atc/protocol/wire';
 import {
   buildMockAgentAdapter,
@@ -1054,7 +1054,7 @@ test('it refuses to eject a grok session', async () => {
     options: (paths) => ({
       adapter: buildMockAgentAdapter({ headlessRunner: headless.runner }),
       adapters: [
-        new GrokAdapter(
+        createGrokAdapter(
           getAgentEntry(
             parseConfig(SHIPPED_HARNESS_PLUGINS, {
               agents: { grok: { bin: 'bash', args: ['-c', 'sleep 30'] } },
@@ -1096,7 +1096,7 @@ test('it starts no headless run for a refused grok eject', async () => {
     options: (paths) => ({
       adapter: buildMockAgentAdapter({ headlessRunner: headless.runner }),
       adapters: [
-        new GrokAdapter(
+        createGrokAdapter(
           getAgentEntry(
             parseConfig(SHIPPED_HARNESS_PLUGINS, {
               agents: { grok: { bin: 'bash', args: ['-c', 'sleep 30'] } },

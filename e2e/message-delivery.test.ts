@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isRecord, toSessionID } from '@atc/core';
 import type { RestoreSettled } from '@atc/daemon';
-import { ClaudeAdapter } from '@atc/harness-claude';
+import { createClaudeAdapter } from '@atc/harness-claude';
 import { encodeCursor } from '@atc/protocol';
 import type { DaemonEvent } from '@atc/protocol';
 import { decodeMessage } from '@atc/protocol/wire';
@@ -27,7 +27,7 @@ import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemo
 
 test('it accepts a message for a session that has not reported SessionStart', async () => {
   // The Claude adapter's own hook reading marks a session started.
-  const claude = new ClaudeAdapter(
+  const claude = createClaudeAdapter(
     buildMockAgentEntry({ id: 'claude' }),
     {
       authProfiles: new Map(),
@@ -61,7 +61,7 @@ test('it accepts a message for a session that has not reported SessionStart', as
 test('it queues a message to a started session within the start-up grace window', async () => {
   const clock = buildStubClock(0);
 
-  const claude = new ClaudeAdapter(
+  const claude = createClaudeAdapter(
     buildMockAgentEntry({ id: 'claude' }),
     {
       authProfiles: new Map(),
@@ -108,7 +108,7 @@ test('it queues a message to a started session within the start-up grace window'
 test('it refuses a message once the grace window passes with no tap ever attached', async () => {
   const clock = buildStubClock(0);
 
-  const claude = new ClaudeAdapter(
+  const claude = createClaudeAdapter(
     buildMockAgentEntry({ id: 'claude' }),
     {
       authProfiles: new Map(),
@@ -153,7 +153,7 @@ test('it refuses a message once the grace window passes with no tap ever attache
 });
 
 test('it accepts a message to a started session once a tap is connected', async () => {
-  const claude = new ClaudeAdapter(
+  const claude = createClaudeAdapter(
     buildMockAgentEntry({ id: 'claude' }),
     {
       authProfiles: new Map(),
@@ -918,7 +918,7 @@ test('it ignores an answer from another session', async () => {
 });
 
 test('it keeps queueing messages after the tap connection drops', async () => {
-  const claude = new ClaudeAdapter(
+  const claude = createClaudeAdapter(
     buildMockAgentEntry({ id: 'claude' }),
     {
       authProfiles: new Map(),
@@ -2925,7 +2925,7 @@ test('it refuses a cursor at no trail row as an unknown note', async () => {
 
 test('it refuses the cursor of an event that is not a note as an unknown note', async () => {
   // The Claude adapter's own hook reading marks a session started.
-  const claude = new ClaudeAdapter(
+  const claude = createClaudeAdapter(
     buildMockAgentEntry({ id: 'claude' }),
     {
       authProfiles: new Map(),
@@ -3142,7 +3142,7 @@ test("it counts a note toward the session's last activity time", async () => {
 });
 
 test('it gates a revived session on its own tap, not the tap its previous process attached', async () => {
-  const claude = new ClaudeAdapter(
+  const claude = createClaudeAdapter(
     buildMockAgentEntry({ id: 'claude' }),
     {
       authProfiles: new Map(),
@@ -3217,7 +3217,7 @@ test('it gates a revived session on its own tap, not the tap its previous proces
 });
 
 test('it queues a message to a revived session before it reports SessionStart again', async () => {
-  const claude = new ClaudeAdapter(
+  const claude = createClaudeAdapter(
     buildMockAgentEntry({ id: 'claude' }),
     {
       authProfiles: new Map(),

@@ -1,6 +1,6 @@
 import type { MessageBridgeHost } from '@atc/plugin-api';
-import type { AppServerConnection } from './app-server-connection';
-import type { UnconfirmedSends } from './unconfirmed-sends';
+import type { AppServerConnection } from './create-app-server-connection';
+import type { UnconfirmedSends } from './create-unconfirmed-sends';
 
 // What a send that starts a turn needs from the bridge that queues it.
 export interface TurnSendContext {
