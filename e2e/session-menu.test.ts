@@ -701,15 +701,7 @@ test('it reads afresh a long list after input from outside a menu read or choice
     expect(ctx.claude.log.at(-1)).toStrictEqual({ key: 'x' });
   });
 
-  ctx.claude.switchMenu();
-
-  await waitFor(async () => {
-    const screen = await ctx.daemon.client.sendRequest('session.screen', {
-      session: shown.session,
-    });
-
-    expect(screen['text']).toInclude('↓ Plum');
-  });
+  await ctx.claude.switchMenu();
 
   const read = await ctx.daemon.client.sendRequest('session.menu', { session: shown.session });
 
@@ -750,7 +742,7 @@ test('it reads afresh a long menu that opens again with the same text after clos
     label: 'Amber',
   });
 
-  ctx.claude.switchMenu();
+  await ctx.claude.switchMenu();
 
   await waitFor(async () => {
     const screen = await ctx.daemon.client.sendRequest('session.screen', {
@@ -818,7 +810,7 @@ test('it refuses a choice on a menu that changed since the read and sends nothin
     ],
   });
 
-  ctx.claude.switchMenu();
+  await ctx.claude.switchMenu();
 
   await waitFor(async () => {
     const answer = await ctx.daemon.client.sendRequest('session.menu', { session: shown.session });
@@ -872,7 +864,7 @@ test('it refuses Escape on a menu that changed since the read and sends nothing'
     ],
   });
 
-  ctx.claude.switchMenu();
+  await ctx.claude.switchMenu();
 
   await waitFor(async () => {
     const answer = await ctx.daemon.client.sendRequest('session.menu', { session: shown.session });

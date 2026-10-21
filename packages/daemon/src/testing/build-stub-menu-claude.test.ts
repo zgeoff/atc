@@ -362,7 +362,7 @@ test('it answers Enter only once the Enter delay has passed', async () => {
   expect(Date.now() - sentAt).toBeGreaterThanOrEqual(100);
 });
 
-test('it shows the second menu when the test switches it', async () => {
+test('it has drawn the second menu by the time a switch resolves', async () => {
   const ctx = setupTest();
 
   ctx.claude.load({
@@ -374,11 +374,9 @@ test('it shows the second menu when the test switches it', async () => {
 
   const menu = ctx.start();
 
-  ctx.claude.switchMenu();
+  await ctx.claude.switchMenu();
 
-  await waitFor(() => {
-    expect(menu.output.text).toInclude('❯ Circle');
-  });
+  expect(menu.output.text).toInclude('❯ Circle');
 });
 
 test('it exits with code 0 and draws nothing more when the test ends it', async () => {

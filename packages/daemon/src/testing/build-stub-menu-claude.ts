@@ -34,8 +34,8 @@ interface StubMenuClaude {
   readonly start: (harness: StubMemoryHarness) => void;
 
   // Opens the second menu of the scenario in the latest session, as when the
-  // agent moves on by itself.
-  readonly switchMenu: () => void;
+  // agent moves on by itself, and resolves once the session has drawn it.
+  readonly switchMenu: () => Promise<void>;
 
   // Ends the latest session with exit code 0.
   readonly exit: () => void;
@@ -79,6 +79,14 @@ export function buildStubMenuClaude(): StubMenuClaude {
       }
 
       latest.open(second);
+
+      // The session draws on a zero-delay timer, and timers of one delay run
+      // in the order they were set.
+      const drawn = Promise.withResolvers<void>();
+
+      setTimeout(drawn.resolve, 0);
+
+      return drawn.promise;
     },
     exit: () => {
       readLatest().harness.emitExit({ exitCode: 0 });
