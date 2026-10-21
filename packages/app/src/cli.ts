@@ -16,20 +16,20 @@ let pendingHostServices: Promise<HostServices> | null = null;
 const PROCESS_IO: ATCCLIIO = {
   runTUI: async (daemon) => {
     const lifecycle = await import('./build-lifecycle-host');
-    const slot = await import('./client/tui-host-slot');
+    const tui = await import('@atc/tui');
     const hostServices = await resolveHostServices();
 
     const lifecycleHost = lifecycle.buildLifecycleHost(process.env, hostServices);
 
     if (daemon === null) {
-      const host = await import('./build-tui-host');
+      const host = await import('./create-tui-host');
 
-      slot.tuiHostSlot.current = host.buildTUIHost(lifecycleHost);
+      await tui.runTUI(host.createTUIHost(lifecycleHost));
     } else {
       const config = await import('@atc/config');
       const harnessPlugins = await import('./plugins/shipped-harness-plugins');
       const resolved = await import('./resolve-remote-daemon');
-      const host = await import('./build-remote-tui-host');
+      const host = await import('./create-remote-tui-host');
 
       const picked = resolved.resolveRemoteDaemon(
         config.loadConfig(harnessPlugins.SHIPPED_HARNESS_PLUGINS),
@@ -42,10 +42,8 @@ const PROCESS_IO: ATCCLIIO = {
         process.exit(1);
       }
 
-      slot.tuiHostSlot.current = host.buildRemoteTUIHost(lifecycleHost, picked.daemon);
+      await tui.runTUI(host.createRemoteTUIHost(lifecycleHost, picked.daemon));
     }
-
-    await import('./client');
   },
   runMCP: async (flags) => {
     const boot = await import('@atc/lifecycle');

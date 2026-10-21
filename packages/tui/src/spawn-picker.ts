@@ -1,5 +1,5 @@
-import type { WorkspacesConfig } from '@atc/config';
-import { DEFAULT_GIT_TRANSPORTS, LOCAL_TARGET, loadConfig } from '@atc/config';
+import type { Config, WorkspacesConfig } from '@atc/config';
+import { DEFAULT_GIT_TRANSPORTS, LOCAL_TARGET } from '@atc/config';
 import type { AgentID, Clock } from '@atc/core';
 import {
   COMMIT_ID_PATTERN,
@@ -20,12 +20,11 @@ import {
   SOURCE_INTERPRETATION_SCHEMA,
 } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
-import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { collectTargetPicks } from './collect-target-picks';
 import type { TargetPick } from './collect-target-picks';
 import { formatDir, formatDirName, pickMatches } from './dirs';
 import { KEY, planTextEdit } from './keys';
-import type { ListingCache } from './open-listing-cache';
+import type { ListingCache } from './listing-cache';
 import { pickRefusalStep } from './pick-refusal-step';
 import { resolveWorkspaceRoot } from './resolve-workspace-root';
 import { splitToWidth } from './split-to-width';
@@ -80,9 +79,9 @@ export interface SpawnPickerDeps<TMirror> {
 
   readonly remoteDaemon?: boolean;
 
-  // The config file the flow reads its agents, roots, and workspaces from
-  // each time it opens.
-  readonly configPath: string;
+  // The config the flow reads its workspace settings from each time it
+  // opens.
+  readonly readConfig: () => Config;
 
   // a dropped answer from a stale flow or request changes nothing; a dropped listing for a
   // source the flow left only clears the pending listing, so that source lists again when
@@ -310,7 +309,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.generation += 1;
     this.resume = resume;
 
-    const config = loadConfig(SHIPPED_HARNESS_PLUGINS, this.deps.configPath);
+    const config = this.deps.readConfig();
 
     this.picks = [];
     this.listed = {};

@@ -1,6 +1,5 @@
-import { expect, onTestFinished, test } from 'bun:test';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { expect, test } from 'bun:test';
+import { parseConfig } from '@atc/config';
 import { resolveHomeDir } from '@atc/config/host';
 import { DaemonError } from '@atc/protocol/wire';
 import {
@@ -9,28 +8,22 @@ import {
   buildMockSessionDescriptor,
   buildStubClock,
   buildStubDaemonRequests,
+  buildStubHarnessPlugins,
   buildStubTerminal,
 } from '@atc/test-utils';
-import { buildStubPickerHost } from '../test-utils/build-stub-picker-host';
-import { openListingCache } from './open-listing-cache';
 import { SpawnPicker } from './spawn-picker';
+import { buildStubListingCache } from './testing/build-stub-listing-cache';
+import { buildStubPickerHost } from './testing/build-stub-picker-host';
 import { toMirrorSession } from './to-mirror-session';
 
 function setupTest() {
-  // the directory filter fuzzy-matches every typed character in order. The temp root sits
-  // directly under /tmp, whatever TMPDIR holds, so the only separators in its path come
-  // before any letter a filter such as `acme/` needs.
-  const cwd = mkdtempSync('/tmp/atc-spawn-picker-');
-
-  onTestFinished(() => {
-    rmSync(cwd, { recursive: true, force: true });
-  });
-
+  // the directory filter fuzzy-matches every typed character in order, so no letter a
+  // filter such as `acme/` needs follows the last separator of the client's directory.
+  const cwd = '/srv/atc-spawn-picker/client';
   const host = buildStubPickerHost();
   const terminal = buildStubTerminal();
   const daemon = buildStubDaemonRequests({ countReactions: host.countReactions });
   const clock = buildStubClock(1_000_000_000);
-  const configPath = join(cwd, 'config.json');
 
   const deps = {
     sendRequest: (method: string, params?: Readonly<Record<string, unknown>>) =>
@@ -44,7 +37,7 @@ function setupTest() {
     write: terminal.write,
     cwd,
     home: resolveHomeDir(),
-    configPath,
+    readConfig: () => parseConfig(buildStubHarnessPlugins(), {}),
     onDropAnswer: host.onDropAnswer,
     clock,
   };
@@ -56,7 +49,6 @@ function setupTest() {
     counts: host.counts,
     dropped: host.dropped,
     cwd,
-    configPath,
     clock,
   };
 }
@@ -2326,13 +2318,13 @@ test('it returns esc from a git source to the agent step when one target left no
 
 test('it shows the listing an earlier client kept at once, marked with its age, while it lists again', async () => {
   const ctx = setupTest();
-  const cacheFile = join(ctx.cwd, 'listing-cache.json');
+  const cache = buildStubListingCache();
 
   const earlier = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
     getLastUsedAgent: () => 'claude',
-    listingCache: openListingCache(cacheFile),
+    listingCache: cache,
     getDaemonSocketPath: () => '/run/atc/atc.sock',
   });
 
@@ -2368,7 +2360,7 @@ test('it shows the listing an earlier client kept at once, marked with its age, 
     ...ctx.deps,
     ptyRows: () => 24,
     getLastUsedAgent: () => 'claude',
-    listingCache: openListingCache(cacheFile),
+    listingCache: cache,
     getDaemonSocketPath: () => '/run/atc/atc.sock',
   });
 
@@ -2412,7 +2404,7 @@ test('it swaps the fresh listing in for the cached one when it answers, keeping 
     ...ctx.deps,
     ptyRows: () => 24,
     getLastUsedAgent: () => 'claude',
-    listingCache: openListingCache(join(ctx.cwd, 'listing-cache.json')),
+    listingCache: buildStubListingCache(),
     getDaemonSocketPath: () => '/run/atc/atc.sock',
   });
 
@@ -2498,7 +2490,7 @@ test('it lists again on ctrl-r and shows a repository created since the last lis
     ...ctx.deps,
     ptyRows: () => 24,
     getLastUsedAgent: () => 'claude',
-    listingCache: openListingCache(join(ctx.cwd, 'listing-cache.json')),
+    listingCache: buildStubListingCache(),
     getDaemonSocketPath: () => '/run/atc/atc.sock',
   });
 
@@ -2554,7 +2546,7 @@ test('it waits on the listing when the kept one is older than a day', async () =
     ...ctx.deps,
     ptyRows: () => 24,
     getLastUsedAgent: () => 'claude',
-    listingCache: openListingCache(join(ctx.cwd, 'listing-cache.json')),
+    listingCache: buildStubListingCache(),
     getDaemonSocketPath: () => '/run/atc/atc.sock',
   });
 
@@ -2620,7 +2612,7 @@ test('it keeps the cached listing with the failure in its hint when listing agai
     ...ctx.deps,
     ptyRows: () => 24,
     getLastUsedAgent: () => 'claude',
-    listingCache: openListingCache(join(ctx.cwd, 'listing-cache.json')),
+    listingCache: buildStubListingCache(),
     getDaemonSocketPath: () => '/run/atc/atc.sock',
   });
 
@@ -2690,7 +2682,7 @@ test('it leaves the source step on esc while it refreshes a cached listing', asy
     ...ctx.deps,
     ptyRows: () => 24,
     getLastUsedAgent: () => 'claude',
-    listingCache: openListingCache(join(ctx.cwd, 'listing-cache.json')),
+    listingCache: buildStubListingCache(),
     getDaemonSocketPath: () => '/run/atc/atc.sock',
   });
 
@@ -2755,7 +2747,7 @@ test('it shows nothing from the cache on the next open once a listing answers em
     ...ctx.deps,
     ptyRows: () => 24,
     getLastUsedAgent: () => 'claude',
-    listingCache: openListingCache(join(ctx.cwd, 'listing-cache.json')),
+    listingCache: buildStubListingCache(),
     getDaemonSocketPath: () => '/run/atc/atc.sock',
   });
 
@@ -2824,7 +2816,7 @@ test('it shows the listing asked for last on the next open when an earlier one a
     ...ctx.deps,
     ptyRows: () => 24,
     getLastUsedAgent: () => 'claude',
-    listingCache: openListingCache(join(ctx.cwd, 'listing-cache.json')),
+    listingCache: buildStubListingCache(),
     getDaemonSocketPath: () => '/run/atc/atc.sock',
   });
 
@@ -2899,7 +2891,7 @@ test('it shows the cached listing of an owner typed on the source step at once, 
     ...ctx.deps,
     ptyRows: () => 24,
     getLastUsedAgent: () => 'claude',
-    listingCache: openListingCache(join(ctx.cwd, 'listing-cache.json')),
+    listingCache: buildStubListingCache(),
     getDaemonSocketPath: () => '/run/atc/atc.sock',
   });
 
@@ -2986,7 +2978,7 @@ test('it reads typed github:owner/repo text the cached listing leaves out throug
     ...ctx.deps,
     ptyRows: () => 24,
     getLastUsedAgent: () => 'claude',
-    listingCache: openListingCache(join(ctx.cwd, 'listing-cache.json')),
+    listingCache: buildStubListingCache(),
     getDaemonSocketPath: () => '/run/atc/atc.sock',
   });
 

@@ -1,0 +1,23 @@
+{
+  "name": "@atc/tui",
+  "private": true,
+  "description": "The atc terminal client: the home screen, the overlay, the spawn picker, and the attached session, driven over the daemon protocol",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@atc/config": "workspace:*",
+    "@atc/core": "workspace:*",
+    "@atc/protocol": "workspace:*",
+    "@zgeoff/std": "catalog:",
+    "ts-pattern": "catalog:",
+    "xstate": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@atc/test-utils": "workspace:*",
+    "@faker-js/faker": "catalog:",
+    "tiny-invariant": "catalog:"
+  }
+}

@@ -1,4 +1,4 @@
-import type { ClientMachineDeps } from '../client/build-client-machine';
+import type { ClientMachineDeps } from '../build-client-machine';
 
 export function buildStubClientScreens() {
   const calls: string[] = [];

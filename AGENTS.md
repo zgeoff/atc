@@ -28,6 +28,8 @@ packages/
                  that backs one subcommand sits beside it at the src/ root
   daemon/        the session fleet, its runtime state, and the protocol server; it loads no plugin,
                  because the app passes in its execution targets and agent adapters
+  tui/           the terminal client; it reads and writes no file, because the app passes in its
+                 config, listing cache, client log, and daemon boot
   plugin-api/    the contracts a plugin implements, among them the AgentAdapter interface
   harnesses/     one package per agent CLI: claude, codex, grok
   execution/     one package per execution provider: local, imp

@@ -60,6 +60,7 @@
         "@atc/source-git": "workspace:*",
         "@atc/source-github": "workspace:*",
         "@atc/store": "workspace:*",
+        "@atc/tui": "workspace:*",
         "@better-auth/mcp": "catalog:",
         "@better-auth/oauth-provider": "catalog:",
         "@simplewebauthn/server": "catalog:",
@@ -70,7 +71,6 @@
         "kysely": "catalog:",
         "reflect-metadata": "catalog:",
         "ts-pattern": "catalog:",
-        "xstate": "catalog:",
         "zod": "catalog:",
       },
       "devDependencies": {
@@ -330,6 +330,23 @@
         "tiny-invariant": "catalog:",
       },
     },
+    "packages/tui": {
+      "name": "@atc/tui",
+      "dependencies": {
+        "@atc/config": "workspace:*",
+        "@atc/core": "workspace:*",
+        "@atc/protocol": "workspace:*",
+        "@zgeoff/std": "catalog:",
+        "ts-pattern": "catalog:",
+        "xstate": "catalog:",
+        "zod": "catalog:",
+      },
+      "devDependencies": {
+        "@atc/test-utils": "workspace:*",
+        "@faker-js/faker": "catalog:",
+        "tiny-invariant": "catalog:",
+      },
+    },
   },
   "patchedDependencies": {
     "knip@6.41.0": "patches/knip@6.41.0.patch",
@@ -446,6 +463,8 @@
     "@atc/store": ["@atc/store@workspace:packages/store"],
 
     "@atc/test-utils": ["@atc/test-utils@workspace:packages/test-utils"],
+
+    "@atc/tui": ["@atc/tui@workspace:packages/tui"],
 
     "@babel/code-frame": ["@babel/code-frame@7.29.7", "", { "dependencies": { "@babel/helper-validator-identifier": "^7.29.7", "js-tokens": "^4.0.0", "picocolors": "^1.1.1" } }, "sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw=="],
 
