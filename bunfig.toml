@@ -20,6 +20,14 @@ minimumReleaseAgeExcludes = [
   "@zgeoff/oxlint-config",
   "@zgeoff/skill-gate",
   "@zgeoff/std",
+  # tsrs 0.18.0 and its native packages skip the gate so typecheck can move to
+  # it now; these entries come out on 2026-10-26, once tsrs 0.18.0 is 7 days old
+  "tsrs",
+  "@tsrs/darwin-arm64",
+  "@tsrs/linux-arm64-gnu",
+  "@tsrs/linux-arm64-musl",
+  "@tsrs/linux-x64-gnu",
+  "@tsrs/linux-x64-musl",
 ]
 
 [test]

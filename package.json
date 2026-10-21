@@ -62,6 +62,7 @@
       "ts-pattern": "5.9.0",
       "tslib": "2.8.1",
       "type-fest": "5.10.0",
+      "tsrs": "0.18.0-ts7.1.0-dev.20260929",
       "typescript": "7.0.2",
       "xstate": "5.33.2",
       "zod": "4.6.6"
@@ -97,7 +98,7 @@
     "test:atc-bridge": "bash scripts/with-test-home.sh sh -c 'claude plugin validate --strict mods/atc-bridge && claude plugin test mods/atc-bridge'",
     "test:isolation": "bun scripts/check-test-isolation.ts",
     "test:plugin": "bun scripts/test-plugin.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsrs -p tsconfig.json --noEmit",
     "format": "oxfmt . && format-codemod --quiet .",
     "format:check": "oxfmt --check . && format-codemod --check --quiet .",
     "prepare": "command -v git > /dev/null 2>&1 && lefthook install --force || true"
@@ -137,6 +138,7 @@
     "oxlint-tsgolint": "catalog:",
     "tiny-invariant": "catalog:",
     "tslib": "catalog:",
+    "tsrs": "catalog:",
     "typescript": "catalog:",
     "zod": "catalog:"
   },
