@@ -123,7 +123,9 @@ export class PublishedRecords {
 
       const record = await this.writeIdentity(subject, stored);
 
-      if (record !== stored && placeCopy) {
+      // An unchanged identity still places the copy, so a retry after a
+      // failed copy write brings the copy level with the store.
+      if (placeCopy) {
         await this.writeCopy(subject, record);
       }
     });

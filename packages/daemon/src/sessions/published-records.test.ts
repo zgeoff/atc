@@ -424,6 +424,54 @@ test('it stores a new name but leaves the copy when the copy is not to be placed
   expect(text).toBe(before);
 });
 
+test('it rewrites the copy on a rename retry after a failed copy write left the store ahead', async () => {
+  const ctx = await setupTest();
+
+  const session = toSessionID('s-rename-retried');
+
+  const path = await ctx.records.createRecord(
+    {
+      session,
+      target: 'local',
+      name: 'login fix',
+      transcriptPath: null,
+      provider: ctx.provider,
+      host: session,
+      directory: ctx.fixture.work,
+      workspace: null,
+    },
+    null,
+  );
+
+  const renamed = {
+    session,
+    target: 'local',
+    name: 'cart rework',
+    transcriptPath: null,
+    provider: ctx.provider,
+    host: session,
+    directory: ctx.fixture.work,
+    workspace: null,
+  };
+
+  // A file where the copies' directory stands fails the next copy write.
+  rmSync(ctx.localDir, { recursive: true, force: true });
+  writeFileSync(ctx.localDir, '');
+
+  const failed = ctx.records.updateIdentity(renamed, true);
+
+  await Promise.allSettled([failed]);
+
+  rmSync(ctx.localDir, { force: true });
+
+  await ctx.records.updateIdentity(renamed, true);
+
+  const copy = await readJSONRecord(Bun.file(path));
+
+  expect(failed).rejects.toThrow();
+  expect(copy).toMatchObject({ revision: 2, name: 'cart rework' });
+});
+
 test('it records nothing for a session without a record when its name changes', async () => {
   const ctx = await setupTest();
 
