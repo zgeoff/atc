@@ -5,7 +5,7 @@ import { openMCPAuthDatabase } from '../../app/src/open-mcp-auth-database';
 import { createEnrollmentToken } from '../../mcp/src/auth/create-enrollment-token';
 import { openMCPAuth } from '../../mcp/src/auth/open-mcp-auth';
 import { startMCPHTTPServer } from '../../mcp/src/http/start-mcp-http-server';
-import { TransportCaller } from '../../mcp/src/tools/transport-caller';
+import { createTransportCaller } from '../../mcp/src/tools/create-transport-caller';
 import { buildStubAuthenticator } from './build-stub-authenticator';
 import { registerTestCleanup } from './register-test-cleanup';
 import { runPasskeyEnrollment } from './run-passkey-enrollment';
@@ -18,7 +18,7 @@ async function setupTest() {
 
   // Sign-in never reaches the daemon, so the caller points at a socket nothing
   // listens on and never dials it.
-  const caller = new TransportCaller(
+  const caller = createTransportCaller(
     join(temporaryDirectory.path, 'daemon.sock'),
     'atc/test-build',
     (path) => openDaemonClient(path),

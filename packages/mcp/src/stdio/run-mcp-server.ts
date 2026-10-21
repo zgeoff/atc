@@ -3,7 +3,7 @@ import { openDaemonClient } from '@atc/protocol/client';
 import { readSessionEnv } from '@atc/protocol/session';
 import { StdioServerTransport } from '@modelcontextprotocol/server/stdio';
 import { createMCPServer } from '../tools/create-mcp-server';
-import { TransportCaller } from '../tools/transport-caller';
+import { createTransportCaller } from '../tools/create-transport-caller';
 
 export async function runMCPServer(
   build: string,
@@ -18,7 +18,7 @@ export async function runMCPServer(
   // messages it sends
   const callerSessionID = readSessionEnv(process.env).sessionID ?? null;
 
-  const caller = new TransportCaller(
+  const caller = createTransportCaller(
     boot.socketPath,
     build,
     (path) => openDaemonClient(path),

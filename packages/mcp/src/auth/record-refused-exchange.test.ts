@@ -2,9 +2,9 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { buildStubClock, registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { openTestAuthDatabase } from '../testing/open-test-auth-database';
+import { createSecurityEventLog } from './create-security-event-log';
 import { openMCPAuth } from './open-mcp-auth';
 import { recordRefusedExchange } from './record-refused-exchange';
-import { SecurityEventLog } from './security-event-log';
 
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-refused-exchange-');
@@ -19,7 +19,7 @@ async function setupTest() {
 
   registerTestCleanup(() => store.close());
 
-  const security = new SecurityEventLog({
+  const security = createSecurityEventLog({
     print: (line) => {
       lines.push(line);
     },

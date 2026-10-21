@@ -10,7 +10,7 @@ import { createLocalPTYProvider } from '@atc/execution-local';
 import { createStubExecutionProvider } from '@atc/execution-local/testing';
 import { createDaemonPool, createGatewayStore, createRoutingCaller } from '@atc/gateway';
 import { buildMockRegistryDaemon, openTestBindingDatabase } from '@atc/gateway/testing';
-import { TransportCaller, buildPrincipalCaller, runTool } from '@atc/mcp';
+import { buildPrincipalCaller, createTransportCaller, runTool } from '@atc/mcp';
 import { buildStubFleetCaller } from '@atc/mcp/testing';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { REQUEST_PARAM_SCHEMAS } from '@atc/protocol';
@@ -85,7 +85,7 @@ async function setupTest() {
     },
   });
 
-  const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
+  const caller = createTransportCaller(daemon.socketPath, daemon.build, (path) =>
     openDaemonClient(path),
   );
 
@@ -303,7 +303,7 @@ test("it returns a message's whole answer on its answered event by default", asy
     options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
   });
 
-  const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
+  const caller = createTransportCaller(daemon.socketPath, daemon.build, (path) =>
     openDaemonClient(path),
   );
 
@@ -350,7 +350,7 @@ test('it returns the answer preview on an answered event when the call asks for 
     options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
   });
 
-  const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
+  const caller = createTransportCaller(daemon.socketPath, daemon.build, (path) =>
     openDaemonClient(path),
   );
 
@@ -568,7 +568,7 @@ test('it spawns nothing top-level when the gone session belongs to a spawn its k
     },
   });
 
-  const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
+  const caller = createTransportCaller(daemon.socketPath, daemon.build, (path) =>
     openDaemonClient(path),
   );
 
@@ -730,7 +730,7 @@ test('it spawns a git workspace without a cwd and returns the directory the daem
     }),
   });
 
-  const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
+  const caller = createTransportCaller(daemon.socketPath, daemon.build, (path) =>
     openDaemonClient(path),
   );
 
@@ -1649,7 +1649,7 @@ test('it refuses a principal a session on a target it cannot use as no_such_sess
     }),
   });
 
-  const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
+  const caller = createTransportCaller(daemon.socketPath, daemon.build, (path) =>
     openDaemonClient(path),
   );
 
@@ -1754,7 +1754,7 @@ test('it rebinds the host of a session whose restore was refused for a changed a
   await daemon.restart();
   await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
+  const caller = createTransportCaller(daemon.socketPath, daemon.build, (path) =>
     openDaemonClient(path),
   );
 
@@ -1847,7 +1847,7 @@ test('it adopts a session whose restore was refused once its host is rebound', a
   await daemon.restart();
   await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
+  const caller = createTransportCaller(daemon.socketPath, daemon.build, (path) =>
     openDaemonClient(path),
   );
 
@@ -1942,7 +1942,7 @@ test('it refuses a rebind from a remote client acting as a principal and binds n
   await daemon.restart();
   await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  const owner = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
+  const owner = createTransportCaller(daemon.socketPath, daemon.build, (path) =>
     openDaemonClient(path),
   );
 

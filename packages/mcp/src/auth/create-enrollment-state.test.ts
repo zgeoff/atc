@@ -1,9 +1,8 @@
 import { expect, test } from 'bun:test';
-import { EnrollmentState } from './enrollment-state';
+import { createEnrollmentState } from './create-enrollment-state';
 
 test("it takes a token's challenge once", () => {
-  const state = new EnrollmentState(() => 1000);
-
+  const state = createEnrollmentState(() => 1000);
   const challenge = state.mintChallenge('hash-1');
   const taken = [state.claimChallenge('hash-1'), state.claimChallenge('hash-1')];
 
@@ -11,7 +10,7 @@ test("it takes a token's challenge once", () => {
 });
 
 test('it keeps only the last challenge minted for a token', () => {
-  const state = new EnrollmentState(() => 1000);
+  const state = createEnrollmentState(() => 1000);
 
   state.mintChallenge('hash-1');
 
@@ -21,7 +20,7 @@ test('it keeps only the last challenge minted for a token', () => {
 });
 
 test('it keeps the challenges of two tokens apart', () => {
-  const state = new EnrollmentState(() => 1000);
+  const state = createEnrollmentState(() => 1000);
 
   state.mintChallenge('hash-1');
 
@@ -30,8 +29,7 @@ test('it keeps the challenges of two tokens apart', () => {
 
 test('it reports a challenge taken after five minutes as expired', () => {
   let now = 1000;
-
-  const state = new EnrollmentState(() => now);
+  const state = createEnrollmentState(() => now);
 
   state.mintChallenge('hash-1');
 
@@ -41,7 +39,7 @@ test('it reports a challenge taken after five minutes as expired', () => {
 });
 
 test('it drops the oldest challenge to make room for a ninth', () => {
-  const state = new EnrollmentState(() => 1000);
+  const state = createEnrollmentState(() => 1000);
 
   Array.from({ length: 9 }, (_, index) => state.mintChallenge(`hash-${index}`));
 

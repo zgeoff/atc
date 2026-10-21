@@ -2,7 +2,12 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { startDaemon } from '@atc/daemon';
 import type { DaemonHandle } from '@atc/daemon';
-import { TransportCaller, createEnrollmentToken, openMCPAuth, startMCPHTTPServer } from '@atc/mcp';
+import {
+  createEnrollmentToken,
+  createTransportCaller,
+  openMCPAuth,
+  startMCPHTTPServer,
+} from '@atc/mcp';
 import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildMockAgentAdapter,
@@ -55,7 +60,7 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
 
   stack.defer(() => daemon.stop());
 
-  const caller = new TransportCaller(socketPath, 'atc/test-build', (path) =>
+  const caller = createTransportCaller(socketPath, 'atc/test-build', (path) =>
     openDaemonClient(path),
   );
 

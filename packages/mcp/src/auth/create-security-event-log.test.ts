@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { buildStubClock } from '@atc/test-utils';
-import { SecurityEventLog } from './security-event-log';
+import { createSecurityEventLog } from './create-security-event-log';
 
 // A log on a clock that moves only when the test advances it, with every
 // line it prints collected.
@@ -8,7 +8,7 @@ function setupTest() {
   const clock = buildStubClock(Date.UTC(2026, 9, 14, 12, 0, 0));
   const lines: string[] = [];
 
-  const log = new SecurityEventLog({
+  const log = createSecurityEventLog({
     print: (line) => {
       lines.push(line);
     },
