@@ -125,9 +125,11 @@ a list.
 
 - **Directories** list the spawn history on the targets the caller may use, then the directories
   under the configured roots, then zoxide's list, and drop any that no longer exist. They complete a
-  typed path on the daemon's host, with `~` and a relative path under the home of the user the
-  daemon runs as, and resolve a typed absolute or `~` path the same way. A TUI on a remote daemon
-  reads every path through them, so it reads no path on its own host. An adopt opens only on them.
+  typed path on the daemon's host and resolve it the same way: `~` reads as the home of the user the
+  daemon runs as, and a relative path reads from the directory the TUI runs in when the daemon runs
+  on the TUI's machine, else from that home. The TUI reads every path through them, so it reads no
+  path on its own host, and it asks for a completion only once typing pauses. An adopt opens only on
+  them.
 - **GitHub** lists one owner's repositories through `gh`, as the account `gh` is signed in to sees
   them, at the clone URL form `gh` prefers.
 - **A git URL** lists nothing and reads what the owner types.

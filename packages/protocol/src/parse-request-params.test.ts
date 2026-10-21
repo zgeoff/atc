@@ -37,6 +37,8 @@ test.each([
   ['sources.list', { source: 'dirs' }],
   ['sources.interpret', { source: 'github', input: 'zgeoff/', target: 'box' }],
   ['sources.complete', { source: 'dirs', input: '~/pro' }],
+  ['sources.complete', { source: 'dirs', input: './pro', clientCwd: '/srv/work' }],
+  ['sources.interpret', { source: 'dirs', input: './pro', clientCwd: '/srv/work' }],
   ['git.probe', { url: 'zgeoff/atc', ref: 'main', target: 'box' }],
 ] as const)('it parses the valid %s payload %j as it is', (method, payload) => {
   // Each row's expected data is its own payload, which carries plain
@@ -498,6 +500,35 @@ test('it rejects sources.interpret without an input', () => {
 
   expect(parsed).toStrictEqual({ ok: false, message: 'source text must be a string' });
 });
+
+test.each(['sources.complete', 'sources.interpret'] as const)(
+  'it rejects %s with a relative clientCwd',
+  (method) => {
+    const parsed = parseRequestParams(method, {
+      source: 'dirs',
+      input: './pro',
+      clientCwd: 'work',
+    });
+
+    expect(parsed).toStrictEqual({ ok: false, message: 'clientCwd must be an absolute path' });
+  },
+);
+
+test.each(['sources.complete', 'sources.interpret'] as const)(
+  'it rejects %s with a clientCwd over 4096 characters',
+  (method) => {
+    const parsed = parseRequestParams(method, {
+      source: 'dirs',
+      input: './pro',
+      clientCwd: `/${'a'.repeat(4096)}`,
+    });
+
+    expect(parsed).toStrictEqual({
+      ok: false,
+      message: 'clientCwd must be at most 4096 characters',
+    });
+  },
+);
 
 test('it rejects sources.interpret with an input over 4096 characters', () => {
   const parsed = parseRequestParams('sources.interpret', {

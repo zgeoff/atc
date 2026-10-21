@@ -69,6 +69,22 @@ test.each([
   expect(interpretation).toStrictEqual(expected);
 });
 
+test("it reads a typed relative path under the client's directory", async () => {
+  const source = buildDirsSource({
+    roots: [],
+    readZoxideDirs: () => Promise.resolve([]),
+    homeDir: '/home/tester',
+  });
+
+  const interpretation = await source.interpret('./app', {
+    target: 'local',
+    readSpawnDirs: () => Promise.resolve([]),
+    clientCwd: '/srv/work',
+  });
+
+  expect(interpretation).toStrictEqual({ kind: 'path', directory: '/srv/work/app' });
+});
+
 test("it completes a relative path under the client's directory", async () => {
   const ctx = setupTest();
 

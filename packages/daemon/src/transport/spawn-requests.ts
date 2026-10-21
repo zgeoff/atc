@@ -1,7 +1,7 @@
 import { basename, isAbsolute } from 'node:path';
 import type { AgentID, SessionID } from '@atc/core';
 import { toSessionID } from '@atc/core';
-import type { SourceProvider, SourceRequest } from '@atc/plugin-api';
+import type { SourceInputRequest, SourceProvider } from '@atc/plugin-api';
 import { CONTROL_CHARACTER, parseDeclaredScope } from '@atc/protocol';
 import type { DaemonAnswer, DeclaredScope, RequestParams } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
@@ -11,16 +11,16 @@ import { parseSpawnOverrides } from '../sessions/parse-spawn-overrides';
 import { buildKeyedRequest } from './build-keyed-request';
 import type { RequestDeps } from './request-deps';
 
-// What a source request holds: the source's id and the target it is for.
 interface SourceParams {
   readonly source: string;
   readonly target?: string | undefined;
+  readonly clientCwd?: string | undefined;
 }
 
 // The source a request asks for, and the request the source serves.
 interface ResolvedSourceRequest {
   readonly source: SourceProvider;
-  readonly request: SourceRequest;
+  readonly request: SourceInputRequest;
 }
 
 // The requests that spawn a session and the source and git requests that
@@ -248,7 +248,14 @@ export class SpawnRequests {
 
     // The spawn history is read through the request's own view, so a
     // principal lists only directories spawned on targets it may use.
-    return { source, request: { target, readSpawnDirs: () => ctx.readSpawnDirs(null) } };
+    return {
+      source,
+      request: {
+        target,
+        readSpawnDirs: () => ctx.readSpawnDirs(null),
+        ...(params.clientCwd === undefined ? {} : { clientCwd: params.clientCwd }),
+      },
+    };
   }
 
   // Probes a git workspace source for a spawn to the request's target, so

@@ -14,6 +14,7 @@ export * from './get-settled-value';
 export * from './is-broker-variable';
 export * from './is-git-url';
 export * from './is-home-relative';
+export * from './is-path-input';
 export * from './is-record';
 export * from './is-subscription-override-variable';
 export * from './make-keyed-lock';
