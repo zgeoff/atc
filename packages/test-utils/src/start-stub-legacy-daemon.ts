@@ -19,9 +19,7 @@ interface StubLegacyDaemonOptions {
   // refused with `protocol_mismatch`, as a real daemon refuses it.
   readonly protocol?: number;
 
-  // Puts the protocol version in the refusal's data as well as its message,
-  // as a daemon of this build does; a released daemon before it puts the
-  // version only in the message. Off unless set.
+  // Released daemons can omit the protocol version from their refusal's data.
   readonly refusalHoldsProtocol?: boolean;
 
   readonly replies?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
