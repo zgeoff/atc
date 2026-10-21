@@ -70,6 +70,7 @@ export * from './read-source-entry';
 export * from './get-string';
 export * from './keys';
 export type * from './mock-overrides';
+export * from './open-agent-step';
 export * from './open-repo-step';
 export * from './parse-mcp-tool-result';
 export * from './parse-passkey-page';

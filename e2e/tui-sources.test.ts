@@ -8,6 +8,7 @@ import {
   buildStubSignedOutGH,
   createGitFixture,
   createStubBin,
+  openAgentStep,
   registerTestCleanup,
   startTUIHarness,
 } from '@atc/test-utils';
@@ -26,9 +27,7 @@ test('it keeps paths and slash filters in the local directory step', async () =>
 
   await ctx.waitFor('atc — control tower');
 
-  ctx.write('n');
-
-  await ctx.waitFor('spawn: agent');
+  await openAgentStep(ctx);
 
   ctx.write(KEYS.enter);
 
@@ -60,9 +59,7 @@ test('it offers the next source on the directory step and cycles the sources on 
 
   await ctx.waitFor('atc — control tower');
 
-  ctx.write('n');
-
-  await ctx.waitFor('spawn: agent');
+  await openAgentStep(ctx);
 
   ctx.reset();
   ctx.write(KEYS.enter);
@@ -96,9 +93,7 @@ test('it switches the directory step to the GitHub source on a pasted URL', asyn
 
   await ctx.waitFor('atc — control tower');
 
-  ctx.write('n');
-
-  await ctx.waitFor('spawn: agent');
+  await openAgentStep(ctx);
 
   ctx.write(KEYS.enter);
 
@@ -135,9 +130,7 @@ test('it drives a source from its candidates to the confirm screen', async () =>
 
   await ctx.waitFor('atc — control tower');
 
-  ctx.write('n');
-
-  await ctx.waitFor('spawn: agent');
+  await openAgentStep(ctx);
 
   ctx.write(KEYS.enter);
 
@@ -177,9 +170,7 @@ test('it spawns the repository a source reads typed text as, through to its work
 
   await ctx.waitFor('atc — control tower');
 
-  ctx.write('n');
-
-  await ctx.waitFor('spawn: agent');
+  await openAgentStep(ctx);
 
   ctx.write(KEYS.enter);
 
@@ -256,9 +247,7 @@ test('it lists the scope a source reads from a directory step once, after the ta
 
   await ctx.waitFor('atc — control tower');
 
-  ctx.write('n');
-
-  await ctx.waitFor('spawn: agent');
+  await openAgentStep(ctx);
 
   ctx.write(KEYS.enter);
 
@@ -302,9 +291,7 @@ test('it refuses a spawn when the config offers no sources', async () => {
 
   await ctx.waitFor('atc — control tower');
 
-  ctx.write('n');
-
-  await ctx.waitFor('spawn: agent');
+  await openAgentStep(ctx);
 
   ctx.reset();
   ctx.write(KEYS.enter);
@@ -323,9 +310,7 @@ test('it lists an owner typed in the directory step through the source that read
 
   await ctx.waitFor('atc — control tower');
 
-  ctx.write('n');
-
-  await ctx.waitFor('spawn: agent');
+  await openAgentStep(ctx);
 
   ctx.write(KEYS.enter);
 
@@ -361,9 +346,7 @@ test('it probes a repository typed in the directory step at the URL its source r
 
   await ctx.waitFor('atc — control tower');
 
-  ctx.write('n');
-
-  await ctx.waitFor('spawn: agent');
+  await openAgentStep(ctx);
 
   ctx.write(KEYS.enter);
 
@@ -392,9 +375,7 @@ test('it opens the sources in the order the config gives', async () => {
 
   await ctx.waitFor('atc — control tower');
 
-  ctx.write('n');
-
-  await ctx.waitFor('spawn: agent');
+  await openAgentStep(ctx);
 
   ctx.reset();
   ctx.write(KEYS.enter);

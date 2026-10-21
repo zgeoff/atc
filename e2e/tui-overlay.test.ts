@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { openDaemonClient } from '@atc/protocol/client';
 import {
   KEYS,
+  openAgentStep,
   registerTestCleanup,
   spawnClaudeSession,
   spawnNamedSession,
@@ -122,9 +123,7 @@ test('it clusters overlay rows under repository headers when grouping is toggled
   await ctx.waitFor('need you: first');
   await ctx.waitFor('┌ sessions ');
 
-  ctx.write('n');
-
-  await ctx.waitFor('spawn: agent');
+  await openAgentStep(ctx);
 
   ctx.write(KEYS.enter);
 

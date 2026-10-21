@@ -1,10 +1,9 @@
 import { KEYS } from './keys';
+import { openAgentStep } from './open-agent-step';
 import type { TUIHarness } from './start-tui-harness';
 
 export async function spawnClaudeSession(tui: TUIHarness, name: string): Promise<void> {
-  tui.write('n');
-
-  await tui.waitFor('spawn: agent');
+  await openAgentStep(tui);
 
   tui.write(KEYS.enter);
 
