@@ -33,7 +33,6 @@ export * from './build-stub-launch-admission';
 export * from './build-stub-log';
 export * from './build-stub-mcp-claude';
 export * from './build-stub-mcp-grok';
-export * from './build-stub-menu-claude';
 export * from './build-stub-message-bridge-host';
 export * from './build-stub-peer-socket';
 export * from './build-stub-proxied-agent-adapter';
