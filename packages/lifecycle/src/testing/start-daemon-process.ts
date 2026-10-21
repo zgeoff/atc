@@ -21,6 +21,10 @@ interface DaemonProcessConfig {
 
   // Arguments after `atc daemon`.
   readonly args?: readonly string[];
+
+  // Whether the daemon starts on a home with no state directory, creating it
+  // itself; each boot otherwise opens a copy of the run's migrated database.
+  readonly freshState?: boolean;
 }
 
 interface DaemonBoot {
@@ -55,7 +59,7 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
     // run's migrated one.
     const bootStateDir = join(config.env?.['HOME'] ?? config.home, '.local', 'state', 'atc');
 
-    if (!existsSync(join(bootStateDir, 'atc.db'))) {
+    if (config.freshState !== true && !existsSync(join(bootStateDir, 'atc.db'))) {
       mkdirSync(bootStateDir, { recursive: true, mode: 0o700 });
       createMigratedStateDB(join(bootStateDir, 'atc.db'));
     }

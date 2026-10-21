@@ -81,6 +81,7 @@ test('it keeps the state directory and every daemon socket owner-only under a pe
     command: ['/bin/sh', '-c', 'umask 000 && exec "$@"', 'sh', ...ctx.atc],
     home: ctx.home,
     env: { XDG_RUNTIME_DIR: undefined },
+    freshState: true,
   });
 
   // The daemon writes its record once every socket is bound.
