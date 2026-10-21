@@ -1593,6 +1593,54 @@ test('it leaves an agent the daemon lists as not installed or unable to spawn ou
   expect(shown).not.toInclude('Refused Codex');
 });
 
+test('it leaves out of the menu an agent entry the agent schema rejects', async () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  const mark = ctx.terminal.countChunks();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({
+        id: 'claude',
+        label: 'Ready Claude',
+        installed: true,
+        capabilities: { spawn: true },
+      }),
+      {
+        ...buildMockListedAgent({
+          id: 'grok',
+          label: 'Garbled Grok',
+          installed: true,
+          capabilities: { spawn: true },
+        }),
+        installed: 'yes',
+      },
+      buildMockListedAgent({
+        id: 'proxy',
+        label: 'Ready Proxy',
+        installed: true,
+        capabilities: { spawn: true },
+      }),
+    ],
+    targets: [],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  const shown = ctx.terminal.getTextSince(mark);
+
+  expect(shown).toInclude('Ready Claude');
+  expect(shown).toInclude('Ready Proxy');
+  expect(shown).not.toInclude('Garbled Grok');
+});
+
 test('it opens the first source without a menu when the daemon can start one agent', async () => {
   const ctx = setupTest();
 
@@ -3241,6 +3289,45 @@ test('it asks the daemon once for a path typed in a burst of keys', async () => 
   ]);
 });
 
+test('it sends no completion for a path typed just before the leader leaves the flow', async () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+
+  picker.applyKey(Buffer.from('./w'));
+  ctx.clock.advance(60);
+  picker.applyKey(Buffer.from(KEYS.ctrlRightBracket));
+  ctx.clock.advance(120);
+
+  expect(ctx.daemon.collectSent('sources.complete')).toStrictEqual([]);
+});
+
 test("it spawns in the directory a local daemon completed under the client's directory", async () => {
   const ctx = setupTest();
 
@@ -3335,6 +3422,46 @@ test("it asks a local daemon to read a typed relative path under the client's di
   expect(ctx.daemon.collectSent('session.spawn')).toPartiallyContain({
     cwd: '/srv/near/new-work',
   });
+});
+
+test('it names the target of a local typed path when the daemon lists no default target', async () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
+    targets: [
+      {
+        id: 'box',
+        provider: 'local-pty',
+        available: true,
+        default: false,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+
+  picker.applyKey(Buffer.from(`/srv/box-app${KEYS.enter}`));
+
+  await ctx.daemon.answer('sources.interpret', { kind: 'path', directory: '/srv/box-app' });
+
+  expect(ctx.daemon.collectSent('sources.interpret')).toStrictEqual([
+    { source: 'dirs', input: '/srv/box-app', target: 'box', clientCwd: ctx.cwd },
+  ]);
 });
 
 test("it shows a remote daemon's refused completion in place of the hint", async () => {
