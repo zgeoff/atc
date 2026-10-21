@@ -56,6 +56,7 @@
         "@atc/lifecycle": "workspace:*",
         "@atc/plugin-api": "workspace:*",
         "@atc/protocol": "workspace:*",
+        "@atc/reporters": "workspace:*",
         "@atc/source-dirs": "workspace:*",
         "@atc/source-git": "workspace:*",
         "@atc/source-github": "workspace:*",
@@ -256,6 +257,20 @@
         "@atc/test-utils": "workspace:*",
       },
     },
+    "packages/reporters": {
+      "name": "@atc/reporters",
+      "dependencies": {
+        "@atc/config": "workspace:*",
+        "@atc/core": "workspace:*",
+        "@atc/protocol": "workspace:*",
+        "zod": "catalog:",
+      },
+      "devDependencies": {
+        "@atc/daemon": "workspace:*",
+        "@atc/test-utils": "workspace:*",
+        "tiny-invariant": "catalog:",
+      },
+    },
     "packages/sources/dirs": {
       "name": "@atc/source-dirs",
       "dependencies": {
@@ -453,6 +468,8 @@
     "@atc/plugin-api": ["@atc/plugin-api@workspace:packages/plugin-api"],
 
     "@atc/protocol": ["@atc/protocol@workspace:packages/protocol"],
+
+    "@atc/reporters": ["@atc/reporters@workspace:packages/reporters"],
 
     "@atc/source-dirs": ["@atc/source-dirs@workspace:packages/sources/dirs"],
 

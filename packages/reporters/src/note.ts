@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { NOTE_KINDS, readSessionEnv, sendBridgeRequest } from '@atc/protocol/session';
-import { sendReport } from './shared/report';
+import { sendReport } from './send-report';
 
 interface NoteOptions {
   readonly message: string;

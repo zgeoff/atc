@@ -499,7 +499,6 @@ const APP_TESTS: ReadonlySet<string> = new Set([
   'packages/test-utils/src/spawn-grok-session.test.ts',
   'packages/test-utils/src/start-cut-proxy.test.ts',
   'packages/test-utils/src/start-mcp-stdio.test.ts',
-  'packages/test-utils/src/start-stub-reporter-socket.test.ts',
   'packages/test-utils/src/start-stub-tap.test.ts',
   'packages/test-utils/src/start-tui-harness.test.ts',
 ]);

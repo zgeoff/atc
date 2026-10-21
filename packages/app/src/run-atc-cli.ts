@@ -1,10 +1,10 @@
+import type { runNote } from '@atc/reporters';
 import { define, lazy } from 'gunshi';
 import { integer } from 'gunshi/combinators';
 import pkg from '../package.json';
 import type { runClients } from './clients';
 import { createDaemonCommand } from './create-daemon-command';
 import type { DaemonCommandIO } from './create-daemon-command';
-import type { runNote } from './note';
 import type { runPasskeys } from './passkeys';
 import { makeMissingCommandRun, runCommandLine } from './run-command-line';
 import type { CommandLineIO } from './run-command-line';

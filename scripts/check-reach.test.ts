@@ -529,21 +529,13 @@ test('it passes reporters whose static imports load only light entry points', as
   );
 
   await Bun.write(
-    join(ctx.directory, 'packages/app/src/hook-report.ts'),
+    join(ctx.directory, 'packages/reporters/src/index.ts'),
     "import { ENV } from '@atc/protocol/session';\n\nexport const REPORT = ENV;\n",
   );
 
-  await Bun.write(join(ctx.directory, 'packages/app/src/note.ts'), 'export const NOTE = 1;\n');
-  await Bun.write(join(ctx.directory, 'packages/app/src/tap.ts'), 'export const TAP = 1;\n');
-
   await Bun.write(
-    join(ctx.directory, 'packages/app/src/run-bridge-tap.ts'),
-    'export const BRIDGE_TAP = 1;\n',
-  );
-
-  await Bun.write(
-    join(ctx.directory, 'packages/app/src/statusline.ts'),
-    'export const STATUSLINE = 1;\n',
+    join(ctx.directory, 'packages/reporters/src/tap/index.ts'),
+    'export const TAP = 1;\n',
   );
 
   const checked = await runCommand([
@@ -614,21 +606,13 @@ test('it fails on a reporter whose static imports load a root entry point', asyn
   await Bun.write(join(ctx.directory, 'packages/app/src/cli.ts'), 'export const CLI = 1;\n');
 
   await Bun.write(
-    join(ctx.directory, 'packages/app/src/hook-report.ts'),
+    join(ctx.directory, 'packages/reporters/src/index.ts'),
     "import { ENV } from '@atc/protocol';\n\nexport const REPORT = ENV;\n",
   );
 
-  await Bun.write(join(ctx.directory, 'packages/app/src/note.ts'), 'export const NOTE = 1;\n');
-  await Bun.write(join(ctx.directory, 'packages/app/src/tap.ts'), 'export const TAP = 1;\n');
-
   await Bun.write(
-    join(ctx.directory, 'packages/app/src/run-bridge-tap.ts'),
-    'export const BRIDGE_TAP = 1;\n',
-  );
-
-  await Bun.write(
-    join(ctx.directory, 'packages/app/src/statusline.ts'),
-    'export const STATUSLINE = 1;\n',
+    join(ctx.directory, 'packages/reporters/src/tap/index.ts'),
+    'export const TAP = 1;\n',
   );
 
   const checked = await runCommand([
@@ -645,7 +629,7 @@ test('it fails on a reporter whose static imports load a root entry point', asyn
     exitCode: 1,
     stdout: 'check-reach: 1 files reached, 1 bundled, 2 findings\n',
     stderr:
-      'slow reporter: packages/app/src/hook-report.ts loads packages/protocol/src/index.ts at start-up, outside the entries a reporter may load\nslow reporter: packages/app/src/hook-report.ts loads packages/protocol/src/schemas.ts at start-up, outside the entries a reporter may load\n',
+      'slow reporter: packages/reporters/src/index.ts loads packages/protocol/src/index.ts at start-up, outside the entries a reporter may load\nslow reporter: packages/reporters/src/index.ts loads packages/protocol/src/schemas.ts at start-up, outside the entries a reporter may load\n',
   });
 });
 
@@ -703,21 +687,13 @@ test('it fails on a CLI entry whose static imports load the core schema entry', 
   );
 
   await Bun.write(
-    join(ctx.directory, 'packages/app/src/hook-report.ts'),
+    join(ctx.directory, 'packages/reporters/src/index.ts'),
     "import { IS_ERROR } from '@atc/core';\n\nexport const REPORT = IS_ERROR;\n",
   );
 
-  await Bun.write(join(ctx.directory, 'packages/app/src/note.ts'), 'export const NOTE = 1;\n');
-  await Bun.write(join(ctx.directory, 'packages/app/src/tap.ts'), 'export const TAP = 1;\n');
-
   await Bun.write(
-    join(ctx.directory, 'packages/app/src/run-bridge-tap.ts'),
-    'export const BRIDGE_TAP = 1;\n',
-  );
-
-  await Bun.write(
-    join(ctx.directory, 'packages/app/src/statusline.ts'),
-    'export const STATUSLINE = 1;\n',
+    join(ctx.directory, 'packages/reporters/src/tap/index.ts'),
+    'export const TAP = 1;\n',
   );
 
   const checked = await runCommand([
@@ -761,20 +737,8 @@ test('it fails on a missing reporter entry beside the CLI entry', async () => {
   await Bun.write(join(ctx.directory, 'packages/app/src/cli.ts'), 'export const CLI = 1;\n');
 
   await Bun.write(
-    join(ctx.directory, 'packages/app/src/hook-report.ts'),
+    join(ctx.directory, 'packages/reporters/src/index.ts'),
     'export const REPORT = 1;\n',
-  );
-
-  await Bun.write(join(ctx.directory, 'packages/app/src/note.ts'), 'export const NOTE = 1;\n');
-
-  await Bun.write(
-    join(ctx.directory, 'packages/app/src/run-bridge-tap.ts'),
-    'export const BRIDGE_TAP = 1;\n',
-  );
-
-  await Bun.write(
-    join(ctx.directory, 'packages/app/src/statusline.ts'),
-    'export const STATUSLINE = 1;\n',
   );
 
   const checked = await runCommand([
@@ -790,7 +754,7 @@ test('it fails on a missing reporter entry beside the CLI entry', async () => {
   }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-reach: 1 files reached, 1 bundled, 1 findings\n',
-    stderr: 'missing reporter: packages/app/src/tap.ts does not exist\n',
+    stderr: 'missing reporter: packages/reporters/src/tap/index.ts does not exist\n',
   });
 });
 
@@ -873,21 +837,13 @@ test('it fails on a missing daemon entry beside the CLI entry', async () => {
   await Bun.write(join(ctx.directory, 'packages/app/src/cli.ts'), 'export const CLI = 1;\n');
 
   await Bun.write(
-    join(ctx.directory, 'packages/app/src/hook-report.ts'),
+    join(ctx.directory, 'packages/reporters/src/index.ts'),
     'export const REPORT = 1;\n',
   );
 
-  await Bun.write(join(ctx.directory, 'packages/app/src/note.ts'), 'export const NOTE = 1;\n');
-  await Bun.write(join(ctx.directory, 'packages/app/src/tap.ts'), 'export const TAP = 1;\n');
-
   await Bun.write(
-    join(ctx.directory, 'packages/app/src/run-bridge-tap.ts'),
-    'export const BRIDGE_TAP = 1;\n',
-  );
-
-  await Bun.write(
-    join(ctx.directory, 'packages/app/src/statusline.ts'),
-    'export const STATUSLINE = 1;\n',
+    join(ctx.directory, 'packages/reporters/src/tap/index.ts'),
+    'export const TAP = 1;\n',
   );
 
   await Bun.write(
@@ -920,21 +876,13 @@ test('it fails on a missing mcp-auth.db opener beside the CLI entry', async () =
   await Bun.write(join(ctx.directory, 'packages/app/src/cli.ts'), 'export const CLI = 1;\n');
 
   await Bun.write(
-    join(ctx.directory, 'packages/app/src/hook-report.ts'),
+    join(ctx.directory, 'packages/reporters/src/index.ts'),
     'export const REPORT = 1;\n',
   );
 
-  await Bun.write(join(ctx.directory, 'packages/app/src/note.ts'), 'export const NOTE = 1;\n');
-  await Bun.write(join(ctx.directory, 'packages/app/src/tap.ts'), 'export const TAP = 1;\n');
-
   await Bun.write(
-    join(ctx.directory, 'packages/app/src/run-bridge-tap.ts'),
-    'export const BRIDGE_TAP = 1;\n',
-  );
-
-  await Bun.write(
-    join(ctx.directory, 'packages/app/src/statusline.ts'),
-    'export const STATUSLINE = 1;\n',
+    join(ctx.directory, 'packages/reporters/src/tap/index.ts'),
+    'export const TAP = 1;\n',
   );
 
   await Bun.write(

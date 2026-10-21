@@ -102,6 +102,7 @@ export * from './start-stub-legacy-daemon';
 export * from './start-stub-legacy-daemon-process';
 export * from './start-stub-line-daemon';
 export * from './start-stub-peer-daemon';
+export * from './start-stub-recording-listener';
 export * from './start-stub-refusing-listener';
 export * from './start-stub-reporter-socket';
 export * from './start-stub-restore-daemon';

@@ -121,13 +121,10 @@ const APP_SOURCE = 'packages/app/src';
 // cli.ts's static imports load before every subcommand, so none of these may
 // load a module whose top-level code builds schemas, the protocol contract, or the store.
 const REPORTER_ENTRIES = [
-  'cli.ts',
-  'hook-report.ts',
-  'note.ts',
-  'tap.ts',
-  'run-bridge-tap.ts',
-  'statusline.ts',
-].map((file) => `${APP_SOURCE}/${file}`);
+  `${APP_SOURCE}/cli.ts`,
+  'packages/reporters/src/index.ts',
+  'packages/reporters/src/tap/index.ts',
+];
 
 // The folders under src/ that a reporter may load, by package name: a light
 // root entry allows every folder but its heavy ones, such as core's schema
@@ -137,6 +134,7 @@ type ReporterAllowance = readonly string[] | { readonly except: readonly string[
 const REPORTER_FOLDERS: ReadonlyMap<string, ReporterAllowance> = new Map<string, ReporterAllowance>(
   [
     ['core', { except: ['schema'] }],
+    ['reporters', { except: [] }],
     ['protocol', ['client', 'session', 'wire']],
     ['config', ['host', 'claude-statusline']],
     ['lifecycle', ['run-command']],

@@ -1,6 +1,6 @@
 import { isRecord } from '@atc/core';
 import { normalizeHookEventName, readSessionEnv } from '@atc/protocol/session';
-import { sendReport } from './shared/report';
+import { sendReport } from './send-report';
 
 // Where the reporter reads its event and how it exits: stdin and the
 // process by default.

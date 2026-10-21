@@ -30,6 +30,8 @@ packages/
                  because the app passes in its execution targets and agent adapters
   tui/           the terminal client; it reads and writes no file, because the app passes in its
                  config, listing cache, client log, and daemon boot
+  reporters/     the commands that run inside a wrangled session: the hook and statusline
+                 reporters, the note, and the message tap; its root entry stays light for start-up
   plugin-api/    the contracts a plugin implements, among them the AgentAdapter interface
   harnesses/     one package per agent CLI: claude, codex, grok
   execution/     one package per execution provider: local, imp

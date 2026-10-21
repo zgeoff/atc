@@ -1,0 +1,21 @@
+{
+  "name": "@atc/reporters",
+  "private": true,
+  "description": "The commands that run inside a wrangled session: the hook and statusline reporters, the note, and the message tap",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./tap": "./src/tap/index.ts"
+  },
+  "dependencies": {
+    "@atc/config": "workspace:*",
+    "@atc/core": "workspace:*",
+    "@atc/protocol": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@atc/daemon": "workspace:*",
+    "@atc/test-utils": "workspace:*",
+    "tiny-invariant": "catalog:"
+  }
+}

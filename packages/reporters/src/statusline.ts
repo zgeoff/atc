@@ -3,10 +3,37 @@ import { loadClaudeStatusLine } from '@atc/config/claude-statusline';
 import { statusFile } from '@atc/config/host';
 import { isRecord } from '@atc/core';
 import { readSessionEnv, sendBridgeRequest } from '@atc/protocol/session';
-import { sendReport } from './shared/report';
+import { sendReport } from './send-report';
 
-export async function runStatusline(agent: string): Promise<void> {
-  const raw = await new Response(Bun.stdin.stream()).text();
+// Where the statusline reads its payload and the fleet's status, how it runs
+// the user's own statusline, where it prints, and how it exits: the process
+// by default.
+interface StatuslineIO {
+  readonly readStdin: () => Promise<string>;
+
+  // Throws when the status file is missing or unreadable.
+  readonly readStatusFile: () => string;
+
+  // Runs a command with the payload as its stdin and resolves with its stdout.
+  readonly runChained: (command: string, stdin: string) => Promise<string>;
+  readonly print: (line: string) => void;
+  readonly exit: (code: number) => void;
+}
+
+const PROCESS_IO: StatuslineIO = {
+  readStdin: () => new Response(Bun.stdin.stream()).text(),
+  readStatusFile: () => readFileSync(statusFile, 'utf8'),
+  runChained: runChainedCommand,
+  print: (line) => {
+    console.log(line);
+  },
+  exit: (code) => {
+    process.exit(code);
+  },
+};
+
+export async function runStatusline(agent: string, io: StatuslineIO = PROCESS_IO): Promise<void> {
+  const raw = await io.readStdin();
 
   const session = readSessionEnv(process.env);
   const sock = session.socket;
@@ -34,33 +61,42 @@ export async function runStatusline(agent: string): Promise<void> {
     const cmd = loadClaudeStatusLine().command;
 
     if (cmd !== undefined && cmd !== '' && !isSelfCommand(cmd)) {
-      const subprocess = Bun.spawn(['bash', '-c', cmd], {
-        stdin: new TextEncoder().encode(raw),
-        stdout: 'pipe',
-        stderr: 'ignore',
-      });
+      const output = await io.runChained(cmd, raw);
 
-      const timer = setTimeout(() => {
-        subprocess.kill();
-      }, 1500);
-
-      const text = await new Response(subprocess.stdout).text();
-
-      chained = text.trimEnd();
-
-      clearTimeout(timer);
+      chained = output.trimEnd();
     }
   } catch {}
 
   const segment =
-    session.bridge === true && sock !== undefined ? await readOwnSegment(sock) : readFleetSegment();
+    session.bridge === true && sock !== undefined
+      ? await readOwnSegment(sock)
+      : readFleetSegment(io);
 
-  const line = [chained, segment].filter((part) => part !== '').join(' \u001B[90m▏\u001B[0m ');
-
-  console.log(line);
+  io.print([chained, segment].filter((part) => part !== '').join(' \u001B[90m▏\u001B[0m '));
 
   // always 0, so the statusline never breaks the session it renders for
-  process.exit(0);
+  io.exit(0);
+}
+
+// The user's statusline gets this long before atc renders without it.
+const CHAINED_TIMEOUT_MS = 1500;
+
+async function runChainedCommand(command: string, stdin: string): Promise<string> {
+  const subprocess = Bun.spawn(['bash', '-c', command], {
+    stdin: new TextEncoder().encode(stdin),
+    stdout: 'pipe',
+    stderr: 'ignore',
+  });
+
+  const timer = setTimeout(() => {
+    subprocess.kill();
+  }, CHAINED_TIMEOUT_MS);
+
+  const text = await new Response(subprocess.stdout).text();
+
+  clearTimeout(timer);
+
+  return text;
 }
 
 // A user statusline that is atc's own injected command would chain into
@@ -91,11 +127,11 @@ async function readOwnSegment(sock: string): Promise<string> {
 }
 
 // The fleet segment, from the status file the daemon writes beside it.
-function readFleetSegment(): string {
+function readFleetSegment(io: StatuslineIO): string {
   let segment = '';
 
   try {
-    const status: unknown = JSON.parse(readFileSync(statusFile, 'utf8'));
+    const status: unknown = JSON.parse(io.readStatusFile());
 
     if (isRecord(status)) {
       const needsYou = typeof status['needs_you'] === 'number' ? status['needs_you'] : 0;

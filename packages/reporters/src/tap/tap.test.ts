@@ -1,53 +1,36 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { startDaemon } from '@atc/daemon';
-import type { DaemonEvent } from '@atc/protocol';
-import { openDaemonClient } from '@atc/protocol/client';
+import { isRecord } from '@atc/core';
+import { startTestDaemon } from '@atc/daemon/testing';
 import {
   buildMockAgentAdapter,
-  registerTestCleanup,
+  getRecord,
   setupTempDir,
   spawnNamedSession,
+  startStubRecordingListener,
   startStubSessionBridge,
   updateEnv,
   waitFor,
 } from '@atc/test-utils';
+import invariant from 'tiny-invariant';
 import { runTap } from './tap';
-import { buildLocalTarget } from './test-utils/build-local-target';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-tap-');
-  const socketPath = join(temporaryDirectory.path, 'atc-daemon.sock');
-
   // The adapter takes messages, so a session has an inbox to tap.
-  const daemon = await startDaemon({
-    socketPath,
-    reporterSocketPath: join(temporaryDirectory.path, 'reporter.sock'),
-    build: 'atc/test-build',
-    targets: [buildLocalTarget()],
-    adapter: buildMockAgentAdapter({ takesMessages: true }),
-    dbPath: join(temporaryDirectory.path, 'state.db'),
-    statusPath: join(temporaryDirectory.path, 'status.json'),
+  const testDaemon = await startTestDaemon({
+    prefix: 'atc-tap-',
+    options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
   });
 
-  registerTestCleanup(() => daemon.stop());
-
-  const events: DaemonEvent[] = [];
-
-  const actor = await openDaemonClient(socketPath);
-
-  registerTestCleanup(() => {
-    actor.stop();
-  });
-
-  actor.onEvent = (event) => {
-    events.push(event);
+  return {
+    directory: testDaemon.directory,
+    socketPath: testDaemon.socketPath,
+    actor: testDaemon.client,
+    events: testDaemon.events,
+    daemon: testDaemon.daemon,
+    openClient: testDaemon.openClient,
   };
-
-  await actor.sendHello('atc/test-build');
-
-  return { directory: temporaryDirectory.path, socketPath, actor, events, daemon };
 }
 
 test('it writes each pending message as an NDJSON line and acks it', async () => {
@@ -71,7 +54,7 @@ test('it writes each pending message as an NDJSON line and acks it', async () =>
 
   const printed: string[] = [];
 
-  const tapped = runTap(id, ctx.socketPath, {
+  const tapped = runTap(id, 'atc/test-build', ctx.socketPath, {
     writeStdout: (text) => {
       printed.push(text);
 
@@ -109,20 +92,54 @@ test('it writes each pending message as an NDJSON line and acks it', async () =>
   ]);
 });
 
+test('it sends the build it is given as the client of its handshake', async () => {
+  const temporaryDirectory = setupTempDir('atc-tap-');
+  const sock = join(temporaryDirectory.path, 'atc-daemon.sock');
+  const listener = startStubRecordingListener(sock);
+
+  const tapped = runTap('s1', 'atc/tap-probe-build', sock, {
+    writeStdout: () => Promise.resolve(),
+    printError: () => {},
+    exit: () => {},
+  });
+
+  onTestFinished(() => tapped);
+
+  await waitFor(() => {
+    expect(listener.received.join('')).toInclude('\n');
+  });
+
+  listener.stop();
+
+  const frame: unknown = JSON.parse(listener.received.join('').split('\n')[0] ?? '');
+
+  invariant(isRecord(frame));
+
+  const request = getRecord(frame, 'p');
+
+  expect(request['u']).toBe('/daemon/hello');
+  expect(getRecord(getRecord(request, 'b'), 'json')['client']).toBe('atc/tap-probe-build');
+});
+
 test('it exits 1 with a hint when no daemon listens', async () => {
   const temporaryDirectory = setupTempDir('atc-tap-');
   const errors: string[] = [];
   const codes: number[] = [];
 
-  await runTap('s1', join(temporaryDirectory.path, 'no-daemon', 'atc-daemon.sock'), {
-    writeStdout: () => Promise.resolve(),
-    printError: (line) => {
-      errors.push(line);
+  await runTap(
+    's1',
+    'atc/test-build',
+    join(temporaryDirectory.path, 'no-daemon', 'atc-daemon.sock'),
+    {
+      writeStdout: () => Promise.resolve(),
+      printError: (line) => {
+        errors.push(line);
+      },
+      exit: (code) => {
+        codes.push(code);
+      },
     },
-    exit: (code) => {
-      codes.push(code);
-    },
-  });
+  );
 
   expect({ codes, errors }).toStrictEqual({
     codes: [1],
@@ -138,7 +155,7 @@ test('it exits 1 with the refusal when the session cannot be tapped', async () =
   const errors: string[] = [];
   const codes: number[] = [];
 
-  await runTap('nope', ctx.socketPath, {
+  await runTap('nope', 'atc/test-build', ctx.socketPath, {
     writeStdout: () => Promise.resolve(),
     printError: (line) => {
       errors.push(line);
@@ -165,7 +182,7 @@ test('it exits 0 once the daemon closes the connection', async () => {
 
   const codes: number[] = [];
 
-  const tapped = runTap(id, ctx.socketPath, {
+  const tapped = runTap(id, 'atc/test-build', ctx.socketPath, {
     writeStdout: () => Promise.resolve(),
     printError: () => {},
     exit: (code) => {
@@ -201,7 +218,7 @@ test('it exits 0 when another tap replaces it', async () => {
 
   const codes: number[] = [];
 
-  const tapped = runTap(id, ctx.socketPath, {
+  const tapped = runTap(id, 'atc/test-build', ctx.socketPath, {
     writeStdout: () => Promise.resolve(),
     printError: () => {},
     exit: (code) => {
@@ -218,13 +235,8 @@ test('it exits 0 when another tap replaces it', async () => {
     expect(ctx.events).toPartiallyContain({ ev: 'SessionMessage', status: 'delivered' });
   });
 
-  const replacement = await openDaemonClient(ctx.socketPath);
+  const replacement = await ctx.openClient();
 
-  registerTestCleanup(() => {
-    replacement.stop();
-  });
-
-  await replacement.sendHello('atc/test-build');
   await replacement.sendRequest('session.tap', { session: id });
 
   await tapped;
@@ -256,7 +268,7 @@ test('it taps through the session bridge inside a remote host', async () => {
 
   const codes: number[] = [];
 
-  await runTap('s1', join(temporaryDirectory.path, 'atc-daemon.sock'), {
+  await runTap('s1', 'atc/test-build', join(temporaryDirectory.path, 'atc-daemon.sock'), {
     writeStdout: () => Promise.resolve(),
     printError: () => {},
     exit: (code) => {
