@@ -6,7 +6,7 @@ import { registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
 import { buildMockSession } from '../testing/build-mock-session';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { buildRecordSubject } from './build-record-subject';
-import { PublishedRecords } from './published-records';
+import { createPublishedRecords } from './create-published-records';
 import { updateSession } from './update-session';
 
 async function setupTest() {
@@ -16,7 +16,7 @@ async function setupTest() {
 
   registerTestCleanup(() => store.stop());
 
-  const records = new PublishedRecords({
+  const records = createPublishedRecords({
     store,
     daemonID: store.daemonID,
     localDir: join(temporaryDirectory.path, 'records'),

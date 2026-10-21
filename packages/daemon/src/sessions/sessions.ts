@@ -30,11 +30,13 @@ import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import { createSessionRestorer } from '../fleet/create-session-restorer';
 import type { SessionRestorer } from '../fleet/create-session-restorer';
 import { collectSessionDescriptors } from './collect-session-descriptors';
+import type { PublishedRecords } from './create-published-records';
+import { createSessionRegistry } from './create-session-registry';
+import type { SessionRegistry, TargetBinding } from './create-session-registry';
 import { HostDirClaims } from './host-dir-claims';
 import { mintSessionID } from './mint-session-id';
 import { planResumeCommand } from './plan-resume-command';
 import type { ResumeCommand } from './plan-resume-command';
-import type { PublishedRecords } from './published-records';
 import type { Session } from './session';
 import { SessionAdopter } from './session-adopter';
 import type { MessageBridgeLaunch, SessionCallbacks } from './session-callbacks';
@@ -43,8 +45,6 @@ import type { SessionEventKind } from './session-event-kind';
 import { SessionHarnesses } from './session-harnesses';
 import { SessionHookApplier } from './session-hook-applier';
 import { SessionKiller } from './session-killer';
-import { SessionRegistry } from './session-registry';
-import type { TargetBinding } from './session-registry';
 import { SessionSpawner } from './session-spawner';
 import type { SpawnMaterializer } from './spawn-materializer';
 import { SpawnRollback } from './spawn-rollback';
@@ -173,7 +173,13 @@ export class SessionManager {
       findRecords: () => this.records,
     };
 
-    const registry = new SessionRegistry({ fallback, adapters, targets, targetErrors, callbacks });
+    const registry = createSessionRegistry({
+      fallback,
+      adapters,
+      targets,
+      targetErrors,
+      callbacks,
+    });
 
     const fleet = createSessionFleetWriter({
       registry,

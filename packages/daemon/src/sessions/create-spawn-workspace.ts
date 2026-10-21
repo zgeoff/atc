@@ -1,7 +1,7 @@
 import { posix } from 'node:path';
+import type { SessionRegistry } from './create-session-registry';
 import type { HostDirClaims } from './host-dir-claims';
 import type { SpawnSteps } from './run-spawn-steps';
-import type { SessionRegistry } from './session-registry';
 import type { MaterializedSpawn, SpawnMaterializer } from './spawn-materializer';
 import type { SpawnRequest } from './spawn-request';
 import type { SpawnRollback } from './spawn-rollback';

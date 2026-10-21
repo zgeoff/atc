@@ -10,9 +10,10 @@ import invariant from 'tiny-invariant';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
-import { ConfirmTokens } from './confirm-tokens';
+import { createConfirmTokens } from './create-confirm-tokens';
+import { createSessionRuntime } from './create-session-runtime';
+import type { SessionRuntime } from './create-session-runtime';
 import { SessionForgetter } from './session-forgetter';
-import { SessionRuntime } from './session-runtime';
 import { SessionManager } from './sessions';
 
 interface SetupTestConfig {
@@ -49,7 +50,7 @@ async function setupTest(config: SetupTestConfig) {
     {
       onEvent: (kind, session) => {
         if (kind === 'added') {
-          runtimes.set(session.id, new SessionRuntime());
+          runtimes.set(session.id, createSessionRuntime());
         }
       },
     },
@@ -65,7 +66,7 @@ async function setupTest(config: SetupTestConfig) {
   const forgetter = new SessionForgetter({
     manager,
     findRuntime: (id) => runtimes.get(id),
-    tokens: new ConfirmTokens({ now: () => clock.now(), lifetimeMs: 60_000 }),
+    tokens: createConfirmTokens({ now: () => clock.now(), lifetimeMs: 60_000 }),
   });
 
   return { directory: temporaryDirectory.path, provider, manager, runtimes, forgetter };

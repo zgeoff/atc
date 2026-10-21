@@ -1,9 +1,9 @@
 import type { SessionID } from '@atc/core';
 import { DaemonError } from '@atc/protocol/wire';
 import type { ForgetRefusals, ForgetResult, KillOutcome } from '../daemon-context';
-import type { ConfirmTokens } from './confirm-tokens';
+import type { ConfirmTokens } from './create-confirm-tokens';
+import type { SessionRuntime } from './create-session-runtime';
 import type { Session } from './session';
-import type { SessionRuntime } from './session-runtime';
 import type { SessionManager } from './sessions';
 
 interface SessionForgetterDeps {

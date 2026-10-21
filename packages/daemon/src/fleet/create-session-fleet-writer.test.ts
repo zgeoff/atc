@@ -12,7 +12,7 @@ import {
   registerTestCleanup,
   setupTempDir,
 } from '@atc/test-utils';
-import { SessionRegistry } from '../sessions/session-registry';
+import { createSessionRegistry } from '../sessions/create-session-registry';
 import { buildMockSession } from '../testing/build-mock-session';
 import { createSessionFleetWriter } from './create-session-fleet-writer';
 
@@ -30,7 +30,7 @@ async function setupTest() {
 
   const recorder = buildStubLog();
 
-  const registry = new SessionRegistry({
+  const registry = createSessionRegistry({
     fallback: buildMockAgentAdapter(),
     adapters: [],
     targets: [],

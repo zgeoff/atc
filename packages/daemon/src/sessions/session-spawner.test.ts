@@ -21,14 +21,14 @@ import { buildStubCredentialBroker } from '../testing/build-stub-credential-brok
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { runLocalCommand } from '../testing/run-local-command';
+import { createPublishedRecords } from './create-published-records';
+import { createSessionRegistry } from './create-session-registry';
 import { HostDirClaims } from './host-dir-claims';
-import { PublishedRecords } from './published-records';
 import { runSpawnSteps } from './run-spawn-steps';
 import type { SpawnStepName, SpawnStepRunner } from './run-spawn-steps';
 import type { SessionCallbacks } from './session-callbacks';
 import { SessionHarnesses } from './session-harnesses';
 import { SessionKiller } from './session-killer';
-import { SessionRegistry } from './session-registry';
 import { SessionSpawner } from './session-spawner';
 import { SpawnRollback } from './spawn-rollback';
 
@@ -53,7 +53,7 @@ async function setupTest(config: SetupTestConfig) {
 
   registerTestCleanup(() => store.stop());
 
-  const records = new PublishedRecords({
+  const records = createPublishedRecords({
     store,
     daemonID: store.daemonID,
     localDir: join(temporaryDirectory.path, 'records'),
@@ -83,7 +83,7 @@ async function setupTest(config: SetupTestConfig) {
     findRecords: () => records,
   };
 
-  const registry = new SessionRegistry({
+  const registry = createSessionRegistry({
     fallback: null,
     adapters: config.adapters,
     targets: config.targets,

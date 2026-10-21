@@ -13,9 +13,9 @@ import type { IdempotencyLedger, KeyedRequest } from '../transport/create-idempo
 import { buildDefaultWorkspaceDir } from '../workspace/build-default-workspace-dir';
 import { materializeWorkspace } from '../workspace/materialize-workspace';
 import { readHostGitIdentity } from '../workspace/read-host-git-identity';
+import type { SessionRuntime } from './create-session-runtime';
 import { mintSessionID } from './mint-session-id';
 import { requirePluginDirsOnTarget } from './require-plugin-dirs-on-target';
-import type { SessionRuntime } from './session-runtime';
 import type { SessionManager } from './sessions';
 import type { SpawnHostAccess, SpawnMaterializer } from './spawn-materializer';
 import { SpawnReplay } from './spawn-replay';

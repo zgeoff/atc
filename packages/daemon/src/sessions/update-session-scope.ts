@@ -2,8 +2,8 @@ import type { SessionID } from '@atc/core';
 import type { DeclaredScope, PublishedRecord } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
 import { buildRecordSubject } from './build-record-subject';
-import type { PublishedRecords } from './published-records';
-import type { SessionRegistry } from './session-registry';
+import type { PublishedRecords } from './create-published-records';
+import type { SessionRegistry } from './create-session-registry';
 
 interface UpdateSessionScopeDeps {
   readonly registry: Pick<SessionRegistry, 'sessions' | 'requireExecution'>;

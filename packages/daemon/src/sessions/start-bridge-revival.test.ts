@@ -7,9 +7,9 @@ import type { TapClient } from '../daemon-context';
 import { buildMockSession } from '../testing/build-mock-session';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
+import { createTapRegistry } from './create-tap-registry';
 import type { Session } from './session';
 import { startBridgeRevival } from './start-bridge-revival';
-import { TapRegistry } from './tap-registry';
 
 interface SetupTestConfig {
   // Whether the session's host is another machine.
@@ -21,9 +21,7 @@ interface SetupTestConfig {
 
 function setupTest(config: SetupTestConfig) {
   const clock = buildStubClock(100_000);
-
-  const taps = new TapRegistry<TapClient>();
-
+  const taps = createTapRegistry<TapClient>();
   const sessions: Session[] = [];
 
   const ended = new Set<string>();

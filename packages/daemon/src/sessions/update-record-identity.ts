@@ -1,7 +1,7 @@
 import { buildRecordSubject } from './build-record-subject';
+import type { SessionRegistry } from './create-session-registry';
 import type { Session } from './session';
 import type { SessionCallbacks } from './session-callbacks';
-import type { SessionRegistry } from './session-registry';
 
 interface UpdateRecordIdentityDeps {
   readonly registry: Pick<SessionRegistry, 'requireExecution'>;

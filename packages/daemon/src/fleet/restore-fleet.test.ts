@@ -15,8 +15,9 @@ import {
   waitFor,
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
+import { createSessionRuntime } from '../sessions/create-session-runtime';
+import type { SessionRuntime } from '../sessions/create-session-runtime';
 import type { Session } from '../sessions/session';
-import { SessionRuntime } from '../sessions/session-runtime';
 import { SessionManager } from '../sessions/sessions';
 import { startHeadlessTurn } from '../sessions/start-headless-turn';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
@@ -440,7 +441,7 @@ test('it starts no terminal on a later restore for a session an earlier restore 
 
   await first.settled;
 
-  const runtime = new SessionRuntime();
+  const runtime = createSessionRuntime();
 
   const started = startHeadlessTurn(
     manager,
@@ -517,7 +518,7 @@ test('it revives on a later restore a session an earlier restore left without a 
 
   await first.settled;
 
-  const runtime = new SessionRuntime();
+  const runtime = createSessionRuntime();
 
   expect(() =>
     startHeadlessTurn(
@@ -582,7 +583,7 @@ test('it starts no terminal for a queued session whose headless turn starts whil
 
   // The first session never reports it has booted, so the restore waits on
   // it until the test releases the wait.
-  const firstRuntime = new SessionRuntime();
+  const firstRuntime = createSessionRuntime();
 
   const restored = await restoreFleet({
     manager,
@@ -600,7 +601,7 @@ test('it starts no terminal for a queued session whose headless turn starts whil
 
   const started = startHeadlessTurn(
     manager,
-    () => new SessionRuntime(),
+    () => createSessionRuntime(),
     toSessionID('s-second'),
     'keep going',
     () => {},
@@ -1307,8 +1308,7 @@ test('it waits for the last session a round started to boot before a retry start
   const ctx = await setupTest();
 
   const clock = buildStubClock(Date.now());
-
-  const runtime = new SessionRuntime();
+  const runtime = createSessionRuntime();
 
   const manager = new SessionManager(
     buildMockAgentAdapter(),

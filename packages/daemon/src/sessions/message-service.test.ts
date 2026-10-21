@@ -15,10 +15,11 @@ import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { createEventSignal } from '../transport/create-event-signal';
 import { createIdempotencyLedger } from '../transport/create-idempotency-ledger';
+import { createSessionRuntime } from './create-session-runtime';
+import type { SessionRuntime } from './create-session-runtime';
+import { createTapRegistry } from './create-tap-registry';
 import { MessageService } from './message-service';
-import { SessionRuntime } from './session-runtime';
 import { SessionManager } from './sessions';
-import { TapRegistry } from './tap-registry';
 
 interface SetupTestConfig {
   // Whether the one agent takes inbox messages.
@@ -55,7 +56,7 @@ async function setupTest(config: SetupTestConfig) {
     {
       onEvent: (kind, session) => {
         if (kind === 'added') {
-          runtimes.set(session.id, new SessionRuntime());
+          runtimes.set(session.id, createSessionRuntime());
         }
       },
     },
@@ -68,7 +69,8 @@ async function setupTest(config: SetupTestConfig) {
   const emitted: EventMsg[] = [];
 
   const ended = new Set<SessionID>();
-  const taps = new TapRegistry<TapClient>();
+
+  const taps = createTapRegistry<TapClient>();
 
   const messages = new MessageService({
     manager,

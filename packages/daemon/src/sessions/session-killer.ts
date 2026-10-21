@@ -2,9 +2,9 @@ import type { SessionID } from '@atc/core';
 import type { ExecutionCapability } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
+import type { SessionRegistry } from './create-session-registry';
 import type { Session } from './session';
 import type { SessionCallbacks } from './session-callbacks';
-import type { SessionRegistry } from './session-registry';
 
 interface SessionKillerDeps {
   readonly registry: Pick<

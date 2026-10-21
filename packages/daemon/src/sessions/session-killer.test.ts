@@ -10,8 +10,8 @@ import { createSessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildMockSession } from '../testing/build-mock-session';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
+import { createSessionRegistry } from './create-session-registry';
 import { SessionKiller } from './session-killer';
-import { SessionRegistry } from './session-registry';
 
 interface SetupConfig {
   readonly targets: readonly ExecutionTarget[];
@@ -39,7 +39,7 @@ async function setupTest(config: SetupConfig) {
     findRecords: () => null,
   };
 
-  const registry = new SessionRegistry({
+  const registry = createSessionRegistry({
     fallback: null,
     adapters: [],
     targets: config.targets,

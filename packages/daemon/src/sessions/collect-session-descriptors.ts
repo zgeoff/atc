@@ -1,9 +1,9 @@
 import type { SessionDescriptor, SessionLifecycle } from '@atc/protocol';
 import type { FleetStore } from '@atc/store';
 import { buildSessionLifecycle } from './build-session-lifecycle';
+import type { SessionRegistry } from './create-session-registry';
 import { pickSessionState } from './pick-session-state';
 import type { Session } from './session';
-import type { SessionRegistry } from './session-registry';
 
 export function collectSessionDescriptors(
   registry: Pick<SessionRegistry, 'sessions' | 'findAdapter'>,

@@ -9,9 +9,9 @@ import { createSessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildMockSession } from '../testing/build-mock-session';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
+import { createSessionRegistry } from './create-session-registry';
 import { HostDirClaims } from './host-dir-claims';
 import { SessionHarnesses } from './session-harnesses';
-import { SessionRegistry } from './session-registry';
 import { SpawnRollback } from './spawn-rollback';
 
 // A rollback over the real session modules: a registry whose `local` target
@@ -40,7 +40,7 @@ async function setupTest() {
     findAuthBinder: () => null,
   };
 
-  const registry = new SessionRegistry({
+  const registry = createSessionRegistry({
     fallback: null,
     adapters: [],
     targets: [buildMockExecutionTarget({ id: 'local', provider })],

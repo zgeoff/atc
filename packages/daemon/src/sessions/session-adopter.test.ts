@@ -14,12 +14,12 @@ import { buildMockExecutionTarget } from '../testing/build-mock-execution-target
 import { buildMockSession } from '../testing/build-mock-session';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
+import { createSessionRegistry } from './create-session-registry';
 import { HostDirClaims } from './host-dir-claims';
 import { SessionAdopter } from './session-adopter';
 import type { SessionCallbacks } from './session-callbacks';
 import { SessionHarnesses } from './session-harnesses';
 import { SessionKiller } from './session-killer';
-import { SessionRegistry } from './session-registry';
 import { SpawnRollback } from './spawn-rollback';
 
 // The agents and execution targets a test runs its sessions under.
@@ -64,7 +64,7 @@ async function setupTest(config: SetupTestConfig) {
     findRecords: () => null,
   };
 
-  const registry = new SessionRegistry({
+  const registry = createSessionRegistry({
     fallback: null,
     adapters: config.adapters,
     targets: config.targets,

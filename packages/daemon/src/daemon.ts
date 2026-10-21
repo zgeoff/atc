@@ -13,14 +13,15 @@ import type { TapClient } from './daemon-context';
 import type { DaemonOptions } from './daemon-options';
 import { updateEndedFleetMessages } from './fleet/update-ended-fleet-messages';
 import { buildSessionEvent } from './sessions/build-session-event';
+import { createPermissionPrompts } from './sessions/create-permission-prompts';
+import { createScreenModel } from './sessions/create-screen-model';
+import { createSessionRuntime } from './sessions/create-session-runtime';
+import type { SessionRuntime } from './sessions/create-session-runtime';
+import { createTapRegistry } from './sessions/create-tap-registry';
 import { emitInboxClosed } from './sessions/emit-inbox-closed';
 import { makeHookRunner } from './sessions/make-hook-runner';
 import type { HookScope } from './sessions/make-hook-runner';
-import { PermissionPrompts } from './sessions/permission-prompts';
-import { ScreenModel } from './sessions/screen-model';
-import { SessionRuntime } from './sessions/session-runtime';
 import { SessionManager } from './sessions/sessions';
-import { TapRegistry } from './sessions/tap-registry';
 import { startSessionServices } from './start-session-services';
 import { buildBindRefusal } from './transport/build-bind-refusal';
 import { createDaemonConnection } from './transport/create-daemon-connection';
@@ -208,8 +209,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     return session === undefined ? null : { cwd: session.cwd, repoRoot: session.repoRoot };
   };
 
-  const permissions = new PermissionPrompts({ clock, emitEvent, findHookScope });
-
+  const permissions = createPermissionPrompts({ clock, emitEvent, findHookScope });
   const eventSignal = createEventSignal(clock);
 
   // One runtime per live session, created when the session manager announces it and disposed the
@@ -217,8 +217,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   const runtimes = new Map<SessionID, SessionRuntime>();
 
   const findRuntime = (sessionID: SessionID) => runtimes.get(sessionID);
-
-  const taps = new TapRegistry<TapClient>();
+  const taps = createTapRegistry<TapClient>();
 
   // The sessions whose process end the daemon saw, until a harness starts
   // for them again.
@@ -237,7 +236,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
     runtime.resetBoot({ cols, rows });
 
-    runtime.screen ??= new ScreenModel(cols, rows);
+    runtime.screen ??= createScreenModel(cols, rows);
 
     // A bridge delivers only once its session lists and its terminal boots.
     bridges.startDelivery(session.id);
@@ -259,7 +258,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
 
     if (kind === 'added') {
-      runtimes.set(session.id, new SessionRuntime());
+      runtimes.set(session.id, createSessionRuntime());
     }
 
     // A revive that dies before it ever announces itself must still release
