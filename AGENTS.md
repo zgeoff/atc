@@ -105,7 +105,8 @@ prints its own reason, and the rules live where each bullet points.
 
 ## Runtime rules
 
-- The TUI is hand-rolled ANSI on purpose, with no TUI framework.
+- The TUI is hand-rolled ANSI on purpose, with no TUI framework. `bun run lint` refuses an import of
+  one through the `hand-rolled-tui` rule in `.oxlintrc.zones.json`.
 - Releases ship only compiled binaries (`bun build --compile`). Code that needs a file outside the
   bundle at runtime, such as a package's native binary or the source tree, checks
   `isCompiledBinary()` and takes the path that works without `node_modules`. CI runs the daemon
