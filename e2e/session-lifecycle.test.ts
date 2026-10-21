@@ -1,36 +1,11 @@
 import { expect, test } from 'bun:test';
-import { LOCAL_TARGET, parseConfig } from '@atc/config';
-import { buildStubTargets, createStubAgentCLIs } from '@atc/daemon/testing';
-import {
-  buildMockHostServices,
-  getRecord,
-  getString,
-  setupTempDir,
-  waitFor,
-  waitForEvent,
-} from '@atc/test-utils';
-import { buildAgentAdapters } from '../packages/app/src/agents/build-agent-adapters';
-import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
+import { getRecord, getString, waitFor, waitForEvent } from '@atc/test-utils';
+import { startStubAgentDaemon } from '../packages/app/src/test-utils/start-stub-agent-daemon';
 
 // A daemon in the test's process whose Claude runs as the in-process
 // stand-in, reporting its hooks over the daemon's real reporter socket.
-async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-session-lifecycle-');
-  const agents = createStubAgentCLIs(temporaryDirectory.path);
-
-  const daemon = await startTestDaemon({
-    prefix: 'atc-session-lifecycle-',
-    options: () => ({
-      adapters: buildAgentAdapters(
-        parseConfig(SHIPPED_HARNESS_PLUGINS, { agents: { claude: { bin: agents.bins.claude } } }),
-        buildMockHostServices(),
-      ),
-      targets: buildStubTargets([LOCAL_TARGET], { spawned: [], onStart: agents.start }),
-    }),
-  });
-
-  return { daemon, agents, home: temporaryDirectory.path };
+function setupTest() {
+  return startStubAgentDaemon();
 }
 
 test('it spawns a session and broadcasts SessionAdded to every client', async () => {
