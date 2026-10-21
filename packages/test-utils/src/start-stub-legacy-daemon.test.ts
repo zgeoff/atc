@@ -34,7 +34,7 @@ test('it drops a connection on the selected request after answering the handshak
   expect(daemon.requests).toStrictEqual([
     {
       method: 'daemon.hello',
-      params: { client: 'atc/test-build', protocol: 7, auth: { scheme: 'none' } },
+      params: { client: 'atc/test-build', protocol: 8, auth: { scheme: 'none' } },
     },
     { method: 'session.list', params: {} },
   ]);
@@ -83,7 +83,7 @@ test('it answers a method with the reply it was given and records the request', 
   expect(daemon.requests).toStrictEqual([
     {
       method: 'daemon.hello',
-      params: { client: 'atc/test-build', protocol: 7, auth: { scheme: 'none' } },
+      params: { client: 'atc/test-build', protocol: 8, auth: { scheme: 'none' } },
     },
     { method: 'message.get', params: { message: 'm-1', waitMs: 5000 } },
   ]);
@@ -139,7 +139,7 @@ test('it refuses a hello on another protocol version with protocol_mismatch', as
   expect(client.sendHello('atc/test-build')).rejects.toMatchObject({
     code: 'protocol_mismatch',
     message:
-      'atc/test-build speaks protocol v7, daemon atc/legacy-build speaks v3; restart the daemon so both run the same build',
+      'atc/test-build speaks protocol v8, daemon atc/legacy-build speaks v3; restart the daemon so both run the same build',
   });
 });
 
