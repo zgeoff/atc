@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { RESOLVE_HOME_SCRIPT } from '../sessions/host-dir-claims';
+import { RESOLVE_HOME_SCRIPT } from '../sessions/create-host-dir-claims';
 import { buildStubStaleRelativeProvider } from './build-stub-stale-relative-provider';
 
 test('it answers the home lookup with /home/guest', async () => {

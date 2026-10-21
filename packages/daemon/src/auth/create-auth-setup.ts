@@ -11,10 +11,10 @@ import type {
 import { DaemonError } from '@atc/protocol/wire';
 import type { FleetStore, RuntimeAuthBinding } from '@atc/store';
 import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
+import type { HostDirClaims } from '../sessions/create-host-dir-claims';
+import type { SessionHarnesses } from '../sessions/create-session-harnesses';
 import type { SessionRegistry } from '../sessions/create-session-registry';
-import type { HostDirClaims } from '../sessions/host-dir-claims';
 import type { SessionCallbacks } from '../sessions/session-callbacks';
-import type { SessionHarnesses } from '../sessions/session-harnesses';
 import type { SpawnRollback } from '../sessions/spawn-rollback';
 import { buildAuthBinding } from './build-auth-binding';
 import type { AuthBinding } from './build-auth-binding';

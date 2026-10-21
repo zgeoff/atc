@@ -14,11 +14,11 @@ import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { buildStubMessageBridges } from '../testing/build-stub-message-bridges';
 import { createEventSignal } from '../transport/create-event-signal';
 import { createIdempotencyLedger } from '../transport/create-idempotency-ledger';
+import { createMessageBridges } from './create-message-bridges';
+import { createMessageService } from './create-message-service';
 import { createSessionRuntime } from './create-session-runtime';
 import type { SessionRuntime } from './create-session-runtime';
 import { createTapRegistry } from './create-tap-registry';
-import { MessageBridges } from './message-bridges';
-import { MessageService } from './message-service';
 import { SessionManager } from './sessions';
 
 // A session manager on one `local` target over the in-memory provider with
@@ -73,7 +73,7 @@ async function setupTest() {
 
   const taps = createTapRegistry<TapClient>();
 
-  const messages = new MessageService({
+  const messages = createMessageService({
     manager,
     store,
     clock,
@@ -89,7 +89,7 @@ async function setupTest() {
 
   const applyNote = mock<(hookEvent: HookEvent) => Promise<void>>(() => Promise.resolve());
 
-  const bridges = new MessageBridges({
+  const bridges = createMessageBridges({
     manager,
     store,
     clock,

@@ -30,10 +30,13 @@ import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import { createSessionRestorer } from '../fleet/create-session-restorer';
 import type { SessionRestorer } from '../fleet/create-session-restorer';
 import { collectSessionDescriptors } from './collect-session-descriptors';
+import { createHostDirClaims } from './create-host-dir-claims';
 import type { PublishedRecords } from './create-published-records';
+import { createSessionHarnesses } from './create-session-harnesses';
+import { createSessionHookApplier } from './create-session-hook-applier';
+import type { SessionHookApplier } from './create-session-hook-applier';
 import { createSessionRegistry } from './create-session-registry';
 import type { SessionRegistry, TargetBinding } from './create-session-registry';
-import { HostDirClaims } from './host-dir-claims';
 import { mintSessionID } from './mint-session-id';
 import { planResumeCommand } from './plan-resume-command';
 import type { ResumeCommand } from './plan-resume-command';
@@ -42,8 +45,6 @@ import { SessionAdopter } from './session-adopter';
 import type { MessageBridgeLaunch, SessionCallbacks } from './session-callbacks';
 import type { SessionChanges } from './session-changes';
 import type { SessionEventKind } from './session-event-kind';
-import { SessionHarnesses } from './session-harnesses';
-import { SessionHookApplier } from './session-hook-applier';
 import { SessionKiller } from './session-killer';
 import { SessionSpawner } from './session-spawner';
 import type { SpawnMaterializer } from './spawn-materializer';
@@ -188,13 +189,15 @@ export class SessionManager {
       callbacks,
     });
 
-    const claims = new HostDirClaims({ registry });
+    const claims = createHostDirClaims({ registry });
 
     // The killer reaches the adopter, built after it, only once a kill runs.
     const restarts = { stopRestart: (id: SessionID) => this.adopter.stopRestart(id) };
 
     const killer = new SessionKiller({ registry, fleet, callbacks, restarts });
-    const harnesses = new SessionHarnesses({ registry, fleet, killer, callbacks });
+
+    const harnesses = createSessionHarnesses({ registry, fleet, killer, callbacks });
+
     const rollback = new SpawnRollback({ registry, fleet, claims, harnesses, callbacks });
 
     const auth = createAuthSetup({
@@ -228,7 +231,7 @@ export class SessionManager {
       callbacks,
     });
 
-    this.hooks = new SessionHookApplier({ registry, fleet, callbacks });
+    this.hooks = createSessionHookApplier({ registry, fleet, callbacks });
   }
 
   get sessions(): Session[] {

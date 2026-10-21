@@ -15,10 +15,16 @@ import type { FleetRestorer } from './fleet/create-fleet-restorer';
 import { createConfirmTokens } from './sessions/create-confirm-tokens';
 import { createHookIntake } from './sessions/create-hook-intake';
 import type { HookIntake } from './sessions/create-hook-intake';
+import { createMessageBridges } from './sessions/create-message-bridges';
+import type { MessageBridges } from './sessions/create-message-bridges';
+import { createMessageService } from './sessions/create-message-service';
+import type { MessageService } from './sessions/create-message-service';
 import { createPublishedRecords } from './sessions/create-published-records';
 import type { PublishedRecords } from './sessions/create-published-records';
 import { createScreenDetection } from './sessions/create-screen-detection';
 import type { ScreenDetection } from './sessions/create-screen-detection';
+import { createSessionHandoff } from './sessions/create-session-handoff';
+import type { SessionHandoff } from './sessions/create-session-handoff';
 import { createSessionInput } from './sessions/create-session-input';
 import type { SessionInput } from './sessions/create-session-input';
 import { createSessionOutput } from './sessions/create-session-output';
@@ -30,10 +36,7 @@ import type { TapRegistry } from './sessions/create-tap-registry';
 import { startHookServer } from './sessions/hooks';
 import type { HookScope } from './sessions/make-hook-runner';
 import { MENU_TIMING } from './sessions/menu-terminal';
-import { MessageBridges } from './sessions/message-bridges';
-import { MessageService } from './sessions/message-service';
 import { SessionForgetter } from './sessions/session-forgetter';
-import { SessionHandoff } from './sessions/session-handoff';
 import type { SessionManager } from './sessions/sessions';
 import { SpawnService } from './sessions/spawn-service';
 import { startBridgeRevival } from './sessions/start-bridge-revival';
@@ -148,7 +151,7 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
     clock,
   );
 
-  const messages = new MessageService({
+  const messages = createMessageService({
     manager,
     store,
     clock,
@@ -181,7 +184,7 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
       : { onLastUsedUnchanged: opts.onLastUsedUnchanged }),
   });
 
-  const bridges = new MessageBridges({
+  const bridges = createMessageBridges({
     manager,
     store,
     clock,
@@ -241,7 +244,7 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
     startHeadlessTurn: startTurn,
   });
 
-  const handoff = new SessionHandoff({
+  const handoff = createSessionHandoff({
     manager,
     findRuntime,
     ejectSettleMs: opts.ejectSettleMs ?? 4000,

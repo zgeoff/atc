@@ -2,7 +2,7 @@ import { posix } from 'node:path';
 import type { SessionID } from '@atc/core';
 import type { AgentAdapter, ExecutionProvider } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
-import type { HostDirClaims } from '../sessions/host-dir-claims';
+import type { HostDirClaims } from '../sessions/create-host-dir-claims';
 import { REPOSITORY_ENV_UNSET_ARGV } from '../workspace/repository-env-unset-argv';
 import { READ_PROJECT_SETTINGS_SCRIPT } from './read-project-settings-script';
 

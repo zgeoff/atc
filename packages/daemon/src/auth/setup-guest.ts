@@ -3,8 +3,8 @@ import { buildTarArchive } from '@atc/core';
 import type { AgentAdapter, ExecutionProvider, GuestSpawnPlan } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import type { FleetStore } from '@atc/store';
+import type { SessionHarnesses } from '../sessions/create-session-harnesses';
 import type { SessionCallbacks } from '../sessions/session-callbacks';
-import type { SessionHarnesses } from '../sessions/session-harnesses';
 
 // What a guest's setup reads from the daemon: its id, its log, and whether
 // a host is idle.

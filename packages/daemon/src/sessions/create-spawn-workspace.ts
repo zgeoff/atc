@@ -1,6 +1,6 @@
 import { posix } from 'node:path';
+import type { HostDirClaims } from './create-host-dir-claims';
 import type { SessionRegistry } from './create-session-registry';
-import type { HostDirClaims } from './host-dir-claims';
 import type { SpawnSteps } from './run-spawn-steps';
 import type { MaterializedSpawn, SpawnMaterializer } from './spawn-materializer';
 import type { SpawnRequest } from './spawn-request';

@@ -1,4 +1,4 @@
-import { RESOLVE_HOME_SCRIPT } from '../sessions/host-dir-claims';
+import { RESOLVE_HOME_SCRIPT } from '../sessions/create-host-dir-claims';
 import { buildStubMemoryProvider } from './build-stub-memory-provider';
 
 // Stands in for a remote host whose home is /home/guest and where a relative

@@ -18,52 +18,51 @@ interface SessionHookApplierDeps {
   readonly callbacks: Pick<SessionCallbacks, 'onEvent' | 'findRecords' | 'log'>;
 }
 
-export class SessionHookApplier {
-  private readonly registry: SessionHookApplierDeps['registry'];
-
-  private readonly fleet: SessionHookApplierDeps['fleet'];
-
-  private readonly callbacks: SessionHookApplierDeps['callbacks'];
-
-  constructor(deps: SessionHookApplierDeps) {
-    this.registry = deps.registry;
-    this.fleet = deps.fleet;
-    this.callbacks = deps.callbacks;
-  }
-
+export interface SessionHookApplier {
   // the adapter plans from the state it returned for the previous line; the
   // plan goes back so the caller can key its bookkeeping and trail on its
   // events and keep the next state
-  applyHook(hookEvent: HookEvent, previous?: unknown): HookPlan | null {
-    const session = this.registry.sessions.find((x) => x.id === hookEvent.atcId);
+  readonly applyHook: (hookEvent: HookEvent, previous?: unknown) => HookPlan | null;
+}
 
-    if (!session) {
-      return null;
-    }
+export function createSessionHookApplier(deps: SessionHookApplierDeps): SessionHookApplier {
+  const registry = deps.registry;
+  const fleet = deps.fleet;
+  const callbacks = deps.callbacks;
 
-    const adapter = this.registry.findAdapter(session.agent);
+  const refreshName = async (session: Session, source: string) => {
+    const adapter = registry.findAdapter(session.agent);
 
     if (adapter === null) {
-      return null;
+      return;
     }
 
-    const plan = adapter.planHookEvents(hookEvent, previous);
+    const update = await adapter.loadName(source, session.namedBy);
 
-    for (const ev of plan.events) {
-      this.applyAdapterEvent(session, ev);
+    if (update === null || update.name === '' || update.name === session.name) {
+      return;
     }
 
-    return plan;
-  }
+    session.name = update.name;
 
-  private applyAdapterEvent(session: Session, ev: Readonly<AdapterEvent>): void {
+    if (update.namedBy !== undefined) {
+      session.namedBy = update.namedBy;
+    }
+
+    void fleet.tryWriteFleet(session.id);
+    void updateRecordIdentity({ registry, callbacks }, session);
+    callbacks.onEvent('renamed', session);
+    fleet.emitChange();
+  };
+
+  const applyAdapterEvent = (session: Session, ev: Readonly<AdapterEvent>): void => {
     // Reporters belong to the terminal process; once a session is headless,
     // late reports from the dying terminal must not clobber its state.
     if (session.kind === 'headless') {
       return;
     }
 
-    const focused = this.registry.focusedId === session.id;
+    const focused = registry.focusedId === session.id;
     let dirty = false;
     let persist = false;
     const rowUpdate: { result?: string; transcriptPath?: string } = {};
@@ -74,7 +73,7 @@ export class SessionHookApplier {
       if (session.transcriptPath !== ev.transcriptSource) {
         session.transcriptPath = ev.transcriptSource;
         rowUpdate.transcriptPath = ev.transcriptSource;
-        void updateRecordIdentity({ registry: this.registry, callbacks: this.callbacks }, session);
+        void updateRecordIdentity({ registry, callbacks }, session);
       }
     }
 
@@ -89,7 +88,7 @@ export class SessionHookApplier {
     }
 
     if (ev.nameSource !== undefined) {
-      void this.refreshName(session, ev.nameSource);
+      void refreshName(session, ev.nameSource);
     }
 
     // A permission prompt stays pending until an event shows it closed: a
@@ -173,39 +172,38 @@ export class SessionHookApplier {
     // new agent session id takes it. Anything else touches this session's
     // own row.
     if (persist) {
-      void this.fleet.tryWriteFleet(session.id);
+      void fleet.tryWriteFleet(session.id);
     } else {
-      void this.fleet.tryUpdateFleetEntry(session.id, rowUpdate);
+      void fleet.tryUpdateFleetEntry(session.id, rowUpdate);
     }
 
     if (dirty) {
-      this.callbacks.onEvent('state', session);
-      this.fleet.emitChange();
+      callbacks.onEvent('state', session);
+      fleet.emitChange();
     }
-  }
+  };
 
-  private async refreshName(session: Session, source: string) {
-    const adapter = this.registry.findAdapter(session.agent);
+  return {
+    applyHook: (hookEvent, previous) => {
+      const session = registry.sessions.find((x) => x.id === hookEvent.atcId);
 
-    if (adapter === null) {
-      return;
-    }
+      if (!session) {
+        return null;
+      }
 
-    const update = await adapter.loadName(source, session.namedBy);
+      const adapter = registry.findAdapter(session.agent);
 
-    if (update === null || update.name === '' || update.name === session.name) {
-      return;
-    }
+      if (adapter === null) {
+        return null;
+      }
 
-    session.name = update.name;
+      const plan = adapter.planHookEvents(hookEvent, previous);
 
-    if (update.namedBy !== undefined) {
-      session.namedBy = update.namedBy;
-    }
+      for (const ev of plan.events) {
+        applyAdapterEvent(session, ev);
+      }
 
-    void this.fleet.tryWriteFleet(session.id);
-    void updateRecordIdentity({ registry: this.registry, callbacks: this.callbacks }, session);
-    this.callbacks.onEvent('renamed', session);
-    this.fleet.emitChange();
-  }
+      return plan;
+    },
+  };
 }
