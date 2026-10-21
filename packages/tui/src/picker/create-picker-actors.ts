@@ -2,6 +2,7 @@ import type { AgentEntry, SourceEntry, SourceInterpretation } from '@atc/protoco
 import { fromPromise } from 'xstate';
 import { collectTargetPicks } from '../collect-target-picks';
 import type { TargetPick } from '../collect-target-picks';
+import { canTakeReading } from './can-take-reading';
 import { formatPickerError } from './format-picker-error';
 import {
   parseAnnouncedSources,
@@ -18,7 +19,6 @@ import type {
   PickerRequest,
   SpawnPickerDeps,
 } from './picker-flow';
-import { canTakeReading } from './picker-queries';
 
 type Answer = Readonly<Record<string, unknown>>;
 

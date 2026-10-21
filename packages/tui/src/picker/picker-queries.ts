@@ -1,5 +1,5 @@
 import { isGitURL, isPathInput } from '@atc/core';
-import type { GitRef, SourceEntry, SourceInterpretation } from '@atc/protocol';
+import type { GitRef, SourceEntry } from '@atc/protocol';
 import { match } from 'ts-pattern';
 import type { TargetPick } from '../collect-target-picks';
 import { pickMatches } from '../dirs';
@@ -102,13 +102,6 @@ export function findTargetRefusal(pick: TargetPick, git: boolean): string | null
   }
 
   return null;
-}
-
-export function canTakeReading(
-  kind: SourceEntry['kind'] | undefined,
-  reading: SourceInterpretation,
-): boolean {
-  return reading.kind === 'browse' || (reading.kind !== 'none' && reading.kind === kind);
 }
 
 export function buildDestination(ctx: PickerContext): string {
