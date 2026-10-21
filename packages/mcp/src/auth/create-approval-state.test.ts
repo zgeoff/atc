@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 import invariant from 'tiny-invariant';
-import { ApprovalState } from './approval-state';
+import { createApprovalState } from './create-approval-state';
 
 test('it gives each pending request a random correlation id unrelated to its key', () => {
-  const state = new ApprovalState(600_000, () => 1000);
+  const state = createApprovalState(600_000, () => 1000);
 
   const first = state.createPending({
     key: 'q1',
@@ -29,7 +29,7 @@ test('it gives each pending request a random correlation id unrelated to its key
 });
 
 test("it takes a request's challenge once", () => {
-  const state = new ApprovalState(600_000, () => 1000);
+  const state = createApprovalState(600_000, () => 1000);
 
   state.createPending({
     key: 'q1',
@@ -48,7 +48,7 @@ test("it takes a request's challenge once", () => {
 });
 
 test('it mints a fresh 32-byte challenge for each login page and keeps only the last', () => {
-  const state = new ApprovalState(600_000, () => 1000);
+  const state = createApprovalState(600_000, () => 1000);
 
   state.createPending({
     key: 'q1',
@@ -69,8 +69,7 @@ test('it mints a fresh 32-byte challenge for each login page and keeps only the 
 
 test('it reports a challenge taken after five minutes as expired', () => {
   let now = 1000;
-
-  const state = new ApprovalState(600_000, () => now);
+  const state = createApprovalState(600_000, () => now);
 
   state.createPending({
     key: 'q1',
@@ -87,7 +86,7 @@ test('it reports a challenge taken after five minutes as expired', () => {
 });
 
 test('it keeps the challenges of two requests apart', () => {
-  const state = new ApprovalState(600_000, () => 1000);
+  const state = createApprovalState(600_000, () => 1000);
 
   state.createPending({
     key: 'q1',
@@ -109,13 +108,13 @@ test('it keeps the challenges of two requests apart', () => {
 });
 
 test('it mints no challenge for a request that does not wait', () => {
-  const state = new ApprovalState(600_000, () => 1000);
+  const state = createApprovalState(600_000, () => 1000);
 
   expect(state.mintChallenge('q1')).toBeNull();
 });
 
 test('it locks a pending request on the fifth failed sign-in', () => {
-  const state = new ApprovalState(600_000, () => 1000);
+  const state = createApprovalState(600_000, () => 1000);
 
   state.createPending({
     key: 'q1',
@@ -131,7 +130,7 @@ test('it locks a pending request on the fifth failed sign-in', () => {
 });
 
 test('it removes a pending request with its challenge', () => {
-  const state = new ApprovalState(600_000, () => 1000);
+  const state = createApprovalState(600_000, () => 1000);
 
   state.createPending({
     key: 'q1',
@@ -148,8 +147,7 @@ test('it removes a pending request with its challenge', () => {
 
 test('it forgets a pending request once it expires', () => {
   let now = 1000;
-
-  const state = new ApprovalState(600_000, () => now);
+  const state = createApprovalState(600_000, () => now);
 
   state.createPending({
     key: 'q1',
@@ -164,7 +162,7 @@ test('it forgets a pending request once it expires', () => {
 });
 
 test("it drops a client's oldest waiting approval when it starts a fourth", () => {
-  const state = new ApprovalState(600_000, () => 1000);
+  const state = createApprovalState(600_000, () => 1000);
 
   const created = ['q1', 'q2', 'q3', 'q4'].map((key) =>
     state.createPending({
@@ -182,8 +180,7 @@ test("it drops a client's oldest waiting approval when it starts a fourth", () =
 
 test('it drops the oldest waiting approval to make room for a seventeenth', () => {
   let now = 1000;
-
-  const state = new ApprovalState(600_000, () => now);
+  const state = createApprovalState(600_000, () => now);
 
   const created = Array.from({ length: 17 }, (_, index) => {
     now = 1000 + index * 7000;
@@ -202,7 +199,7 @@ test('it drops the oldest waiting approval to make room for a seventeenth', () =
 });
 
 test('it refuses an eleventh approval started within a minute', () => {
-  const state = new ApprovalState(600_000, () => 1000);
+  const state = createApprovalState(600_000, () => 1000);
 
   const created = Array.from({ length: 11 }, (_, index) =>
     state.createPending({
@@ -219,8 +216,7 @@ test('it refuses an eleventh approval started within a minute', () => {
 
 test('it starts approvals again a minute after the limit was reached', () => {
   let now = 1000;
-
-  const state = new ApprovalState(600_000, () => now);
+  const state = createApprovalState(600_000, () => now);
 
   Array.from({ length: 10 }, (_, index) =>
     state.createPending({
@@ -244,7 +240,7 @@ test('it starts approvals again a minute after the limit was reached', () => {
 });
 
 test('it holds the binding and correlation id an owner session approved', () => {
-  const state = new ApprovalState(600_000, () => 1000);
+  const state = createApprovalState(600_000, () => 1000);
 
   state.recordApproved('session-1', { binding: 'binding-1', correlationID: 'corr-1' });
 
@@ -256,7 +252,7 @@ test('it holds the binding and correlation id an owner session approved', () => 
 });
 
 test('it holds no binding for an owner session other than the one that approved', () => {
-  const state = new ApprovalState(600_000, () => 1000);
+  const state = createApprovalState(600_000, () => 1000);
 
   state.recordApproved('session-1', { binding: 'binding-1', correlationID: 'corr-1' });
 
@@ -265,8 +261,7 @@ test('it holds no binding for an owner session other than the one that approved'
 
 test('it forgets an approved binding once it expires', () => {
   let now = 1000;
-
-  const state = new ApprovalState(600_000, () => now);
+  const state = createApprovalState(600_000, () => now);
 
   state.recordApproved('session-1', { binding: 'binding-1', correlationID: 'corr-1' });
 

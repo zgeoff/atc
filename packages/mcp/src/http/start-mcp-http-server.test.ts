@@ -23,7 +23,7 @@ import { removeClient } from '../auth/remove-client';
 import { resetPasskeys } from '../auth/reset-passkeys';
 import { revokeGrant } from '../auth/revoke-grant';
 import { openTestAuthDatabase } from '../testing/open-test-auth-database';
-import { TransportCaller } from '../tools/transport-caller';
+import { createTransportCaller } from '../tools/create-transport-caller';
 import { startMCPHTTPServer } from './start-mcp-http-server';
 
 // the caller, the server, and the database live in the daemon's directory, so
@@ -38,7 +38,7 @@ async function setupTest() {
   const requests: string[] = [];
   const security: string[] = [];
 
-  const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
+  const caller = createTransportCaller(daemon.socketPath, daemon.build, (path) =>
     openDaemonClient(path),
   );
 
@@ -361,7 +361,7 @@ test('it shows a remote MCP client the sessions of the targets the principals gr
     }),
   });
 
-  const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
+  const caller = createTransportCaller(daemon.socketPath, daemon.build, (path) =>
     openDaemonClient(path),
   );
 
@@ -461,7 +461,7 @@ test('it shows a remote MCP client no sessions when the principals grant the tar
     }),
   });
 
-  const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
+  const caller = createTransportCaller(daemon.socketPath, daemon.build, (path) =>
     openDaemonClient(path),
   );
 
@@ -1886,7 +1886,7 @@ test('it refuses a token bound to the resource of an earlier public URL', async 
 
   const tokens = await readJSONRecord(exchanged);
 
-  const caller = new TransportCaller(ctx.socketPath, 'atc/test-build', (path) =>
+  const caller = createTransportCaller(ctx.socketPath, 'atc/test-build', (path) =>
     openDaemonClient(path),
   );
 
@@ -1928,7 +1928,7 @@ test.each([
 ])('it refuses to listen on %p with the public URL %p', (host, publicURL) => {
   const temporaryDirectory = setupTempDir('atc-mcp-http-');
 
-  const caller = new TransportCaller(
+  const caller = createTransportCaller(
     join(temporaryDirectory.path, 'daemon.sock'),
     'atc/test-build',
     (path) => openDaemonClient(path),
@@ -1956,7 +1956,7 @@ test.each([
 test('it listens beyond loopback behind an https public URL', async () => {
   const temporaryDirectory = setupTempDir('atc-mcp-http-');
 
-  const caller = new TransportCaller(
+  const caller = createTransportCaller(
     join(temporaryDirectory.path, 'daemon.sock'),
     'atc/test-build',
     (path) => openDaemonClient(path),
@@ -3157,7 +3157,7 @@ test('it writes a token bound to the resource of an earlier public URL as invali
 
   const tokens = await readJSONRecord(exchanged);
 
-  const caller = new TransportCaller(ctx.socketPath, 'atc/test-build', (path) =>
+  const caller = createTransportCaller(ctx.socketPath, 'atc/test-build', (path) =>
     openDaemonClient(path),
   );
 

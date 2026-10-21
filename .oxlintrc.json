@@ -59,11 +59,7 @@
         "packages/tui/src/eject-screen.ts",
         "packages/tui/src/fleet-mirror.ts",
         "packages/tui/src/overlay-screen.ts",
-        "packages/tui/src/session-actions.ts",
-        "packages/mcp/src/auth/approval-state.ts",
-        "packages/mcp/src/auth/enrollment-state.ts",
-        "packages/mcp/src/auth/security-event-log.ts",
-        "packages/mcp/src/tools/transport-caller.ts"
+        "packages/tui/src/session-actions.ts"
       ],
       "rules": { "zgeoff/no-class": "off" }
     },

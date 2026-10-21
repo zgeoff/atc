@@ -7,8 +7,8 @@ import { InMemoryTransport } from '@modelcontextprotocol/server';
 import invariant from 'tiny-invariant';
 import { buildStubFleetCaller } from '../testing/build-stub-fleet-caller';
 import { createMCPServer } from './create-mcp-server';
+import { createTransportCaller } from './create-transport-caller';
 import type { GrantScope } from './grant-scope';
-import { TransportCaller } from './transport-caller';
 import type { FleetCaller } from './types';
 
 // The server on one end of an in-memory pair, initialized, with every message
@@ -52,7 +52,7 @@ async function setupTest(caller: FleetCaller, scopes?: readonly GrantScope[]) {
 test('it answers a tool list with an error when no daemon listens on the socket', async () => {
   const temporaryDirectory = setupTempDir('atc-create-mcp-server-');
 
-  const caller = new TransportCaller(
+  const caller = createTransportCaller(
     join(temporaryDirectory.path, 'daemon.sock'),
     'atc/test-build',
     (path) => openDaemonClient(path),

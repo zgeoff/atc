@@ -5,7 +5,7 @@ import { openMCPAuthDatabase } from '../../app/src/open-mcp-auth-database';
 import { createEnrollmentToken } from '../../mcp/src/auth/create-enrollment-token';
 import { openMCPAuth } from '../../mcp/src/auth/open-mcp-auth';
 import { startMCPHTTPServer } from '../../mcp/src/http/start-mcp-http-server';
-import { TransportCaller } from '../../mcp/src/tools/transport-caller';
+import { createTransportCaller } from '../../mcp/src/tools/create-transport-caller';
 import { buildStubAuthenticator } from './build-stub-authenticator';
 import { registerTestCleanup } from './register-test-cleanup';
 import { runMCPAuthorization } from './run-mcp-authorization';
@@ -19,7 +19,7 @@ async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-run-mcp-authorization-');
   const dbPath = join(temporaryDirectory.path, 'mcp-auth.db');
 
-  const caller = new TransportCaller(
+  const caller = createTransportCaller(
     join(temporaryDirectory.path, 'daemon.sock'),
     'atc/test-build',
     (path) => openDaemonClient(path),

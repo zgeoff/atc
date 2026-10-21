@@ -16,5 +16,5 @@ export * from './http/create-mcp-http-app';
 export * from './http/start-mcp-http-server';
 export * from './tools/build-principal-caller';
 export * from './tools/run-tool';
-export * from './tools/transport-caller';
+export * from './tools/create-transport-caller';
 export type * from './tools/types';

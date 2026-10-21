@@ -3,12 +3,12 @@ import type { Clock } from '@atc/core';
 import { MAX_LINE } from '@atc/protocol/wire';
 import type { Server } from 'bun';
 import invariant from 'tiny-invariant';
-import { ApprovalState } from '../auth/approval-state';
 import { APPROVAL_WINDOW_SECONDS } from '../auth/approval-window-seconds';
-import { EnrollmentState } from '../auth/enrollment-state';
+import { createApprovalState } from '../auth/create-approval-state';
+import { createEnrollmentState } from '../auth/create-enrollment-state';
+import { createSecurityEventLog } from '../auth/create-security-event-log';
 import type { MCPAuthDatabase } from '../auth/mcp-auth-database';
 import { openMCPAuth } from '../auth/open-mcp-auth';
-import { SecurityEventLog } from '../auth/security-event-log';
 import type { HTTPServerContext, Requester } from '../auth/types';
 import type { FleetCaller } from '../tools/types';
 import { createMCPHTTPApp } from './create-mcp-http-app';
@@ -92,7 +92,8 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
     );
   }
 
-  const security = new SecurityEventLog({ print: options.printSecurity, clock });
+  const security = createSecurityEventLog({ print: options.printSecurity, clock });
+
   const trustedProxies: ReadonlySet<string> = new Set(options.trustForwardedFrom);
 
   const holder: {
@@ -200,8 +201,8 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
     origin,
     resource: `${origin}/mcp`,
     store,
-    approvals: new ApprovalState(APPROVAL_WINDOW_SECONDS * 1000, () => clock.now()),
-    enrollments: new EnrollmentState(() => clock.now()),
+    approvals: createApprovalState(APPROVAL_WINDOW_SECONDS * 1000, () => clock.now()),
+    enrollments: createEnrollmentState(() => clock.now()),
     security,
     clock,
   };

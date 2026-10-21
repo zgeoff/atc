@@ -3,14 +3,14 @@ import { startTestDaemon } from '@atc/daemon/testing';
 import { openDaemonClient } from '@atc/protocol/client';
 import { buildStubClock, registerTestCleanup } from '@atc/test-utils';
 import { buildStubFleetCaller } from '../testing/build-stub-fleet-caller';
+import { createTransportCaller } from './create-transport-caller';
 import { readEventTexts } from './read-event-texts';
-import { TransportCaller } from './transport-caller';
 
 // A daemon that holds no note and a caller connected to it.
 async function setupTest() {
   const daemon = await startTestDaemon({ prefix: 'atc-read-event-texts-' });
 
-  const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
+  const caller = createTransportCaller(daemon.socketPath, daemon.build, (path) =>
     openDaemonClient(path),
   );
 

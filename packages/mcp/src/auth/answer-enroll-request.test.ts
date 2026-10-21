@@ -13,7 +13,7 @@ import {
 import invariant from 'tiny-invariant';
 import { startMCPHTTPServer } from '../http/start-mcp-http-server';
 import { openTestAuthDatabase } from '../testing/open-test-auth-database';
-import { TransportCaller } from '../tools/transport-caller';
+import { createTransportCaller } from '../tools/create-transport-caller';
 import { createEnrollmentToken } from './create-enrollment-token';
 import { openMCPAuth } from './open-mcp-auth';
 import { readPasskeyViews } from './read-passkey-views';
@@ -26,7 +26,7 @@ async function setupTest() {
   const clock = buildStubClock(Date.now());
 
   // enrollment never reaches the daemon, so nothing listens on this socket.
-  const caller = new TransportCaller(
+  const caller = createTransportCaller(
     join(temporaryDirectory.path, 'daemon.sock'),
     'atc/test-build',
     (path) => openDaemonClient(path),

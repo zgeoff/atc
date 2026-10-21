@@ -12,12 +12,12 @@ import {
   startStubLegacyDaemon,
   waitFor,
 } from '@atc/test-utils';
-import { TransportCaller } from './transport-caller';
+import { createTransportCaller } from './create-transport-caller';
 
 async function setupTest() {
   const daemon = await startTestDaemon({ prefix: 'atc-reconnecting-caller-' });
 
-  const caller = new TransportCaller(daemon.socketPath, 'atc/test-build', (path) =>
+  const caller = createTransportCaller(daemon.socketPath, 'atc/test-build', (path) =>
     openDaemonClient(path),
   );
 
@@ -35,7 +35,7 @@ test('it resolves a wait for the daemon once the daemon accepts its handshake', 
 test('it refuses a wait for the daemon when no daemon listens on the socket', () => {
   const temporaryDirectory = setupTempDir('atc-reconnecting-caller-');
 
-  const caller = new TransportCaller(
+  const caller = createTransportCaller(
     join(temporaryDirectory.path, 'daemon.sock'),
     'atc/test-build',
     (path) => openDaemonClient(path),
@@ -68,7 +68,7 @@ test('it closes a connection whose handshake the daemon rejects', async () => {
     protocol: PROTOCOL_V + 1,
   });
 
-  const caller = new TransportCaller(
+  const caller = createTransportCaller(
     join(temporaryDirectory.path, 'daemon.sock'),
     'atc/test-build',
     (path) => openDaemonClient(path),
@@ -92,7 +92,7 @@ test('it opens a fresh connection for the request after one whose handshake the 
     protocol: PROTOCOL_V + 1,
   });
 
-  const caller = new TransportCaller(
+  const caller = createTransportCaller(
     join(temporaryDirectory.path, 'daemon.sock'),
     'atc/test-build',
     (path) => openDaemonClient(path),
@@ -126,7 +126,7 @@ test('it retries a spawn on a fresh connection under the key it minted when the 
   const temporaryDirectory = setupTempDir('atc-reconnecting-caller-');
   const dropping = startStubDroppingDaemon(join(temporaryDirectory.path, 'daemon.sock'));
 
-  const caller = new TransportCaller(
+  const caller = createTransportCaller(
     join(temporaryDirectory.path, 'daemon.sock'),
     'atc/test-build',
     (path) => openDaemonClient(path),
@@ -144,7 +144,7 @@ test('it retries a message on a fresh connection under the key its caller passed
   const temporaryDirectory = setupTempDir('atc-reconnecting-caller-');
   const dropping = startStubDroppingDaemon(join(temporaryDirectory.path, 'daemon.sock'));
 
-  const caller = new TransportCaller(
+  const caller = createTransportCaller(
     join(temporaryDirectory.path, 'daemon.sock'),
     'atc/test-build',
     (path) => openDaemonClient(path),
@@ -165,7 +165,7 @@ test('it resends a keyed spawn unchanged, never as replay-only, so a daemon that
   const temporaryDirectory = setupTempDir('atc-reconnecting-caller-');
   const dropping = startStubDroppingDaemon(join(temporaryDirectory.path, 'daemon.sock'));
 
-  const caller = new TransportCaller(
+  const caller = createTransportCaller(
     join(temporaryDirectory.path, 'daemon.sock'),
     'atc/test-build',
     (path) => openDaemonClient(path),
@@ -190,7 +190,7 @@ test('it fails a request that is neither keyed nor read-only when its connection
   const temporaryDirectory = setupTempDir('atc-reconnecting-caller-');
   const dropping = startStubDroppingDaemon(join(temporaryDirectory.path, 'daemon.sock'));
 
-  const caller = new TransportCaller(
+  const caller = createTransportCaller(
     join(temporaryDirectory.path, 'daemon.sock'),
     'atc/test-build',
     (path) => openDaemonClient(path),
@@ -223,8 +223,8 @@ test('it claims the session it was given in the handshake, and none when given n
     });
   };
 
-  const inside = new TransportCaller(daemon.socketPath, 'atc/test-build', openRecording, 's-a');
-  const outside = new TransportCaller(daemon.socketPath, 'atc/test-build', openRecording, null);
+  const inside = createTransportCaller(daemon.socketPath, 'atc/test-build', openRecording, 's-a');
+  const outside = createTransportCaller(daemon.socketPath, 'atc/test-build', openRecording, null);
 
   registerTestCleanup(() => inside.stop());
   registerTestCleanup(() => outside.stop());
@@ -242,7 +242,7 @@ test("it sends a principal's name beside it, which labels the message the reques
   });
 
   // As `atc mcp --http` runs it: a connector has no inbox, so it claims no session.
-  const caller = new TransportCaller(
+  const caller = createTransportCaller(
     daemon.socketPath,
     'atc/test-build',
     (path) => openDaemonClient(path),

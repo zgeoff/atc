@@ -6,7 +6,7 @@ import { basename, join } from 'node:path';
 import { collectPrincipals, collectTargets } from '@atc/config';
 import { buildStubTargets } from '@atc/daemon/testing';
 import { createStubExecutionProvider } from '@atc/execution-local/testing';
-import { TransportCaller, buildPrincipalCaller, runTool } from '@atc/mcp';
+import { buildPrincipalCaller, createTransportCaller, runTool } from '@atc/mcp';
 import { encodeCursor } from '@atc/protocol';
 import type { DaemonEvent } from '@atc/protocol';
 import { openDaemonClient } from '@atc/protocol/client';
@@ -2969,7 +2969,7 @@ test('it reads the whole text of only the notes of sessions a principal may see 
     },
   });
 
-  const caller = new TransportCaller(daemon.socketPath, 'atc/test-build', (path) =>
+  const caller = createTransportCaller(daemon.socketPath, 'atc/test-build', (path) =>
     openDaemonClient(path),
   );
 
@@ -3043,7 +3043,7 @@ test('it reads the first of many large notes a principal may see while another c
     },
   });
 
-  const caller = new TransportCaller(daemon.socketPath, 'atc/test-build', (path) =>
+  const caller = createTransportCaller(daemon.socketPath, 'atc/test-build', (path) =>
     openDaemonClient(path),
   );
 

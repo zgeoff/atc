@@ -1,7 +1,7 @@
 import type { Clock } from '@atc/core';
 import type { FleetCaller } from '../tools/types';
-import type { ApprovalState } from './approval-state';
-import type { EnrollmentState } from './enrollment-state';
+import type { ApprovalState } from './create-approval-state';
+import type { EnrollmentState } from './create-enrollment-state';
 import type { openMCPAuth } from './open-mcp-auth';
 
 export interface Requester {

@@ -4,7 +4,7 @@ import type { MCPHTTPConfig } from '@atc/config';
 import { loadMCPHTTPConfig, mcpAuthDBFile } from '@atc/config';
 import type { MCPAuthDatabase } from '@atc/mcp';
 import {
-  TransportCaller,
+  createTransportCaller,
   openMCPAuth,
   readClientViews,
   readPasskeyViews,
@@ -103,7 +103,7 @@ export async function runMCPHTTPServer(
 
   // A remote connector has no inbox, so the server claims no session even
   // when it was started inside one.
-  const caller = new TransportCaller(
+  const caller = createTransportCaller(
     boot.socketPath,
     build,
     (path) => openDaemonClient(path),
