@@ -1,11 +1,18 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { existsSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
+import { toAgentID } from '@atc/core';
 import { openDaemonClient } from '@atc/protocol/client';
 import type { HookEvent } from '@atc/protocol/session';
 import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
-import { buildMockAgentAdapter, registerTestCleanup, waitFor } from '@atc/test-utils';
+import {
+  buildMockAgentAdapter,
+  registerTestCleanup,
+  setupTempDir,
+  updateEnv,
+  waitFor,
+} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { startTestDaemon } from './start-test-daemon';
 
@@ -420,6 +427,35 @@ test('it keeps the stored fleet across a restart', async () => {
   const listed = await harness.client.sendRequest('session.list');
 
   expect(listed['sessions']).toPartiallyContain({ name: 'alpha' });
+});
+
+test("it boots the daemon on a copy of the run's migrated database", async () => {
+  const directory = setupTempDir('atc-marked-template-').path;
+  const runTemplate = process.env['ATC_TEST_STATE_TEMPLATE'];
+  const template = join(directory, 'template.db');
+
+  invariant(runTemplate !== undefined, 'the test script exports no state template');
+  copyFileSync(runTemplate, template);
+
+  // The daemon reads the last-used agent from its database into each
+  // handshake answer, and a fresh database holds none.
+  const store = await createStateStore(template);
+
+  await store.writeLastUsedAgent(toAgentID('grok'));
+  await store.stop();
+
+  updateEnv('ATC_TEST_STATE_TEMPLATE', template);
+
+  const harness = await startTestDaemon();
+  const client = await openDaemonClient(harness.socketPath);
+
+  registerTestCleanup(() => {
+    client.stop();
+  });
+
+  const hello = await client.sendHello('atc/test');
+
+  expect(hello['lastUsedAgent']).toBe('grok');
 });
 
 test('it boots on the state written while the daemon is stopped', async () => {
