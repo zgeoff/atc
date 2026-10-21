@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { LEGACY_BROKER_PLACEHOLDER } from '@atc/config';
 import { buildMockAuthProfile } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { buildAuthBinding } from './build-auth-binding';
@@ -129,6 +130,50 @@ test.each([
   invariant('binding' in before && 'binding' in after, 'expected both selections to resolve');
 
   expect(after.binding.hash).not.toBe(before.binding.hash);
+});
+
+test('it hashes a profile that sets the old placeholder as one that sets the current placeholder', () => {
+  const before = buildAuthBinding(
+    {
+      id: 'glm',
+      baseURL: 'https://api.z.ai/api/anthropic',
+      auth: { profiles: ['gh'], placeholderEnv: {} },
+    },
+    new Map([
+      [
+        'gh',
+        buildMockAuthProfile({
+          name: 'gh',
+          secret: 'gh',
+          kind: 'github',
+          env: { GH_TOKEN: LEGACY_BROKER_PLACEHOLDER },
+        }),
+      ],
+    ]),
+  );
+
+  const after = buildAuthBinding(
+    {
+      id: 'glm',
+      baseURL: 'https://api.z.ai/api/anthropic',
+      auth: { profiles: ['gh'], placeholderEnv: {} },
+    },
+    new Map([
+      [
+        'gh',
+        buildMockAuthProfile({
+          name: 'gh',
+          secret: 'gh',
+          kind: 'github',
+          env: { GH_TOKEN: 'broker-placeholder' },
+        }),
+      ],
+    ]),
+  );
+
+  invariant('binding' in before && 'binding' in after, 'expected both selections to resolve');
+
+  expect(after.binding.hash).toBe(before.binding.hash);
 });
 
 test('it keeps the hash when the selection lists the same profiles in another order', () => {

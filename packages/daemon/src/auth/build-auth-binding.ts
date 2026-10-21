@@ -1,9 +1,8 @@
-import { createHash } from 'node:crypto';
 import { resolveAuthProfiles } from '@atc/config';
 import type { AuthProfileProblem, ResolvedAuthSecret } from '@atc/config';
 import type { AgentID } from '@atc/core';
-import { sortJSONKeys } from '@atc/core';
 import type { AuthProfile, GatewayAuth } from '@atc/plugin-api';
+import { buildBindingHash } from './build-binding-hash';
 
 export interface AuthBinding {
   readonly agent: AgentID;
@@ -35,7 +34,6 @@ export function buildAuthBinding(
 
   const secrets = resolution.resolved.secrets;
   const profileEnv = resolution.resolved.env;
-  const hashed = Object.keys(profileEnv).length === 0 ? { secrets } : { secrets, profileEnv };
 
   return {
     binding: {
@@ -45,9 +43,7 @@ export function buildAuthBinding(
       secrets,
       placeholderEnv: gateway.auth.placeholderEnv,
       profileEnv,
-      hash: createHash('sha256')
-        .update(JSON.stringify(sortJSONKeys(hashed, 'locale')))
-        .digest('hex'),
+      hash: buildBindingHash({ secrets, profileEnv }),
     },
   };
 }
