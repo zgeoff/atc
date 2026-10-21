@@ -49,5 +49,5 @@ test("it refuses the session's own MCP identity when it adds to its own scope", 
     `session '${session}' cannot add to the scope of session '${session}'`,
   );
 
-  expect(after.structured).toMatchObject({ sessionRecord: { revision: 1 } });
+  expect(after.structured).toMatchObject({ sessionRecord: { scope: { branches: [] } } });
 });
