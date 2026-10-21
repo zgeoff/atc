@@ -197,7 +197,7 @@ test('it wakes a held read with a restart it records, whole result included', as
 test('it logs a restart whose trail write fails under its run id and records nothing', async () => {
   const ctx = await setupTest();
 
-  const log = mock();
+  const log = mock<(line: string) => void>();
 
   ctx.manager.log = log;
 
