@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'bun:test';
 import { registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
-import { LocalPTYProvider } from '../local-pty-provider';
-import { buildStubPTYProvider } from './build-stub-pty-provider';
+import { createLocalPTYProvider } from '../create-local-pty-provider';
+import { createStubPTYProvider } from './create-stub-pty-provider';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-stub-pty-provider-');
@@ -10,27 +10,27 @@ function setupTest() {
 }
 
 test('it reports the local provider kind and capabilities by default', () => {
-  const provider = buildStubPTYProvider();
+  const provider = createStubPTYProvider();
 
   expect({ kind: provider.kind, capabilities: provider.capabilities }).toStrictEqual({
     kind: 'local-pty',
-    capabilities: new LocalPTYProvider().capabilities,
+    capabilities: createLocalPTYProvider().capabilities,
   });
 });
 
 test('it reports the kind and capabilities the test gives it', () => {
-  const provider = buildStubPTYProvider({ kind: 'imp', capabilities: { suspend: true } });
+  const provider = createStubPTYProvider({ kind: 'imp', capabilities: { suspend: true } });
 
   expect({ kind: provider.kind, capabilities: provider.capabilities }).toStrictEqual({
     kind: 'imp',
-    capabilities: { ...new LocalPTYProvider().capabilities, suspend: true },
+    capabilities: { ...createLocalPTYProvider().capabilities, suspend: true },
   });
 });
 
 test('it reports each spec and runs the harness on a real terminal', async () => {
   const ctx = setupTest();
   const onSpawn = mock(() => {});
-  const provider = buildStubPTYProvider({ onSpawn });
+  const provider = createStubPTYProvider({ onSpawn });
   const output: string[] = [];
 
   const spec = {
@@ -63,7 +63,7 @@ test('it reports each spec and runs the harness on a real terminal', async () =>
 
 test('it readies a host through the operation the test gives it', async () => {
   const prepareHost = mock(() => Promise.resolve());
-  const provider = buildStubPTYProvider({ prepareHost });
+  const provider = createStubPTYProvider({ prepareHost });
 
   await provider.prepareHost({ host: 'h-1', daemonID: 'd-1' });
 
@@ -72,7 +72,7 @@ test('it readies a host through the operation the test gives it', async () => {
 
 test('it puts a host to sleep through the operation the test gives it', async () => {
   const suspendHost = mock(() => Promise.resolve());
-  const provider = buildStubPTYProvider({ suspendHost });
+  const provider = createStubPTYProvider({ suspendHost });
 
   await provider.suspendHost('h-1');
 
@@ -81,7 +81,7 @@ test('it puts a host to sleep through the operation the test gives it', async ()
 
 test('it destroys a host through the operation the test gives it', async () => {
   const destroyHost = mock(() => Promise.resolve());
-  const provider = buildStubPTYProvider({ destroyHost });
+  const provider = createStubPTYProvider({ destroyHost });
 
   await provider.destroyHost('h-1');
 
@@ -89,14 +89,14 @@ test('it destroys a host through the operation the test gives it', async () => {
 });
 
 test('it rejects a sleep as the local provider does when the test gives none', () => {
-  expect(buildStubPTYProvider().suspendHost('h-1')).rejects.toThrowWithMessage(
+  expect(createStubPTYProvider().suspendHost('h-1')).rejects.toThrowWithMessage(
     Error,
     'the local-pty provider cannot suspend host h-1',
   );
 });
 
 test('it rejects a destroy as the local provider does when the test gives none', () => {
-  expect(buildStubPTYProvider().destroyHost('h-1')).rejects.toThrowWithMessage(
+  expect(createStubPTYProvider().destroyHost('h-1')).rejects.toThrowWithMessage(
     Error,
     'the local-pty provider cannot destroy host h-1',
   );

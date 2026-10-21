@@ -1,5 +1,5 @@
 import type { ExecutionCapabilities, ExecutionProvider, HarnessSpec } from '@atc/plugin-api';
-import { LocalPTYProvider } from '../local-pty-provider';
+import { createLocalPTYProvider } from '../create-local-pty-provider';
 
 interface StubExecutionProviderConfig {
   // The provider kind the daemon reports for the target.
@@ -32,11 +32,10 @@ interface StubExecutionProvider extends ExecutionProvider {
   readonly setDestroyFailure: (error: Readonly<Error> | null) => void;
 }
 
-export function buildStubExecutionProvider(
+export function createStubExecutionProvider(
   config: StubExecutionProviderConfig = {},
 ): StubExecutionProvider {
-  const local = new LocalPTYProvider();
-
+  const local = createLocalPTYProvider();
   const onSpawn = config.onSpawn ?? (() => {});
   const commandFailure = config.commandFailure;
   const suspended: string[] = [];

@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { buildStubExecutionProvider } from '@atc/execution-local/testing';
+import { createStubExecutionProvider } from '@atc/execution-local/testing';
 import { buildMockAgentAdapter, buildStubClock, getRecord, waitFor } from '@atc/test-utils';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
@@ -12,7 +12,7 @@ test('it writes the bridge mod again and notes it in the feed for a remote sessi
     prefix: 'atc-bridge-revival-',
     options: (paths) => {
       const provider = {
-        ...buildStubExecutionProvider({ kind: 'imp-like', remote: true }),
+        ...createStubExecutionProvider({ kind: 'imp-like', remote: true }),
         guest: { directory: join(paths.directory, 'guest'), atc: '/opt/atc/bin/atc' },
       };
 

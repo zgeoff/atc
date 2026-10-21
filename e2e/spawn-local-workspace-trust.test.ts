@@ -2,8 +2,8 @@ import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
-import { LocalPTYProvider } from '@atc/execution-local';
-import { buildStubPTYProvider } from '@atc/execution-local/testing';
+import { createLocalPTYProvider } from '@atc/execution-local';
+import { createStubPTYProvider } from '@atc/execution-local/testing';
 import { createClaudeAdapter, createGatewayAdapter } from '@atc/harness-claude';
 import { getGatewayConfig } from '@atc/harness-claude/testing';
 import {
@@ -70,7 +70,7 @@ test('it trusts only the resolved clone root in the user config after an opted-i
           kind: 'local-pty',
           options: {},
           identity: 'local:test',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         },
       ],
       defaultTarget: 'local',
@@ -162,7 +162,7 @@ test('it leaves the user config byte for byte after a local clone launch with no
           kind: 'local-pty',
           options: {},
           identity: 'local:test',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         },
       ],
       defaultTarget: 'local',
@@ -224,7 +224,7 @@ test('it leaves the user config byte for byte after a local clone launch that op
           kind: 'local-pty',
           options: {},
           identity: 'local:test',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         },
       ],
       defaultTarget: 'local',
@@ -287,7 +287,7 @@ test('it trusts a local clone when the target defaults trust on', async () => {
           kind: 'local-pty',
           options: { trustClonedWorkspace: true },
           identity: 'local:test',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         },
       ],
       defaultTarget: 'local',
@@ -346,7 +346,7 @@ test('it refuses local trust for an existing folder', async () => {
           kind: 'local-pty',
           options: {},
           identity: 'local:test',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         },
       ],
       defaultTarget: 'local',
@@ -400,7 +400,7 @@ test('it leaves the user config and starts nothing when it refuses local trust f
           kind: 'local-pty',
           options: {},
           identity: 'local:test',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         },
       ],
       defaultTarget: 'local',
@@ -457,7 +457,7 @@ test('it refuses a local launch whose harness fails to start after the trust wri
           kind: 'local-pty',
           options: {},
           identity: 'local:test',
-          provider: buildStubPTYProvider({
+          provider: createStubPTYProvider({
             onSpawn: () => {
               throw new Error('PTY spawn failed: the host refused the harness');
             },
@@ -520,7 +520,7 @@ test('it takes the local trust back and removes the clone when the harness fails
           kind: 'local-pty',
           options: {},
           identity: 'local:test',
-          provider: buildStubPTYProvider({
+          provider: createStubPTYProvider({
             onSpawn: () => {
               atSpawn.push(JSON.parse(readFileSync(ctx.claudeConfig, 'utf8')));
               throw new Error('PTY spawn failed: the host refused the harness');
@@ -597,7 +597,7 @@ test('it refuses a local launch whose trust write fails', async () => {
           kind: 'local-pty',
           options: {},
           identity: 'local:test',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         },
       ],
       defaultTarget: 'local',
@@ -651,7 +651,7 @@ test('it removes the clone, keeps the user config, and starts nothing when the t
           kind: 'local-pty',
           options: {},
           identity: 'local:test',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         },
       ],
       defaultTarget: 'local',
@@ -709,7 +709,7 @@ test('it refuses local trust for a gateway', async () => {
           kind: 'local-pty',
           options: {},
           identity: 'local:test',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         },
       ],
       defaultTarget: 'local',
@@ -767,7 +767,7 @@ test('it refuses local trust for a gateway before cloning or touching the user c
           kind: 'local-pty',
           options: {},
           identity: 'local:test',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         },
       ],
       defaultTarget: 'local',

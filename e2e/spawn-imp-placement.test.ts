@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { ImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/testing';
-import { LocalPTYProvider } from '@atc/execution-local';
+import { createLocalPTYProvider } from '@atc/execution-local';
 import { buildMockAgentAdapter, createStubEchoClaude, getRecord } from '@atc/test-utils';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
@@ -27,7 +27,7 @@ test("it runs a sub-session on its parent's target as another session in its par
             kind: 'local-pty',
             options: {},
             identity: 'local-pty:test',
-            provider: new LocalPTYProvider(),
+            provider: createLocalPTYProvider(),
           },
           ...['box', 'other'].map((id) => ({
             id,
@@ -87,7 +87,7 @@ test("it puts a parent's imp to sleep once its only session is killed", async ()
             kind: 'local-pty',
             options: {},
             identity: 'local-pty:test',
-            provider: new LocalPTYProvider(),
+            provider: createLocalPTYProvider(),
           },
           ...['box', 'other'].map((id) => ({
             id,
@@ -137,7 +137,7 @@ test("it wakes a sleeping parent's imp to start a sub-session there", async () =
             kind: 'local-pty',
             options: {},
             identity: 'local-pty:test',
-            provider: new LocalPTYProvider(),
+            provider: createLocalPTYProvider(),
           },
           ...['box', 'other'].map((id) => ({
             id,
@@ -198,7 +198,7 @@ test('it gives a sub-session without a target a host of its own on the default t
             kind: 'local-pty',
             options: {},
             identity: 'local-pty:test',
-            provider: new LocalPTYProvider(),
+            provider: createLocalPTYProvider(),
           },
           ...['box', 'other'].map((id) => ({
             id,
@@ -251,7 +251,7 @@ test('it gives a sub-session on another imp target an imp of its own', async () 
             kind: 'local-pty',
             options: {},
             identity: 'local-pty:test',
-            provider: new LocalPTYProvider(),
+            provider: createLocalPTYProvider(),
           },
           ...['box', 'other'].map((id) => ({
             id,

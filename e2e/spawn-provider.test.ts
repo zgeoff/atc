@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test';
-import { LocalPTYProvider } from '@atc/execution-local';
-import { buildStubExecutionProvider } from '@atc/execution-local/testing';
+import { createLocalPTYProvider } from '@atc/execution-local';
+import { createStubExecutionProvider } from '@atc/execution-local/testing';
 import { DaemonError } from '@atc/protocol/wire';
 import { buildMockAgentAdapter, getRecord, waitFor } from '@atc/test-utils';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 test('it streams the output of a session harness on the local pty provider', async () => {
-  const provider = new LocalPTYProvider();
+  const provider = createLocalPTYProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-provider-',
@@ -47,7 +47,7 @@ test('it streams the output of a session harness on the local pty provider', asy
 });
 
 test('it types input into a session harness on the local pty provider', async () => {
-  const provider = new LocalPTYProvider();
+  const provider = createLocalPTYProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-provider-',
@@ -87,7 +87,7 @@ test('it types input into a session harness on the local pty provider', async ()
 });
 
 test('it kills a session harness on the local pty provider', async () => {
-  const provider = new LocalPTYProvider();
+  const provider = createLocalPTYProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-provider-',
@@ -117,7 +117,10 @@ test('it kills a session harness on the local pty provider', async () => {
 });
 
 test('it refuses a spawn with unsupported_operation when the provider cannot spawn', async () => {
-  const provider = buildStubExecutionProvider({ kind: 'no-spawn', capabilities: { spawn: false } });
+  const provider = createStubExecutionProvider({
+    kind: 'no-spawn',
+    capabilities: { spawn: false },
+  });
 
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-provider-',
@@ -144,7 +147,10 @@ test('it refuses a spawn with unsupported_operation when the provider cannot spa
 });
 
 test('it refuses input with unsupported_operation when the provider takes no input', async () => {
-  const provider = buildStubExecutionProvider({ kind: 'no-input', capabilities: { input: false } });
+  const provider = createStubExecutionProvider({
+    kind: 'no-input',
+    capabilities: { input: false },
+  });
 
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-provider-',
@@ -171,7 +177,7 @@ test('it refuses input with unsupported_operation when the provider takes no inp
 });
 
 test('it refuses a kill with unsupported_operation when the provider cannot end a harness', async () => {
-  const provider = buildStubExecutionProvider({ kind: 'no-kill', capabilities: { kill: false } });
+  const provider = createStubExecutionProvider({ kind: 'no-kill', capabilities: { kill: false } });
 
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-provider-',
@@ -201,7 +207,7 @@ test('it refuses a kill with unsupported_operation when the provider cannot end 
 });
 
 test('it refuses an attach with unsupported_operation when the provider streams no output', async () => {
-  const provider = buildStubExecutionProvider({
+  const provider = createStubExecutionProvider({
     kind: 'no-attach',
     capabilities: { attach: false },
   });
@@ -232,7 +238,7 @@ test('it refuses an attach with unsupported_operation when the provider streams 
 });
 
 test('it takes a resize from an attached client on a provider that cannot resize', async () => {
-  const provider = buildStubExecutionProvider({
+  const provider = createStubExecutionProvider({
     kind: 'no-resize',
     capabilities: { resize: false },
   });
@@ -271,7 +277,7 @@ test('it takes a resize from an attached client on a provider that cannot resize
 });
 
 test('it puts the host of a killed session to sleep on a provider that can suspend it', async () => {
-  const provider = buildStubExecutionProvider({
+  const provider = createStubExecutionProvider({
     kind: 'sleepy',
     capabilities: { suspend: true, destroy: true },
   });
@@ -314,7 +320,7 @@ test('it puts the host of a killed session to sleep on a provider that can suspe
 });
 
 test('it refuses a second kill with confirmation_required on a provider that can destroy the host', async () => {
-  const provider = buildStubExecutionProvider({
+  const provider = createStubExecutionProvider({
     kind: 'sleepy',
     capabilities: { suspend: true, destroy: true },
   });
@@ -356,7 +362,7 @@ test('it refuses a second kill with confirmation_required on a provider that can
 });
 
 test('it keeps a session running when its host refuses to sleep', async () => {
-  const provider = buildStubExecutionProvider({
+  const provider = createStubExecutionProvider({
     kind: 'sleepy',
     capabilities: { suspend: true, destroy: true },
   });

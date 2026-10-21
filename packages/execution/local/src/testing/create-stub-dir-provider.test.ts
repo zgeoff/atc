@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { $ } from 'bun';
-import { buildStubDirProvider } from './build-stub-dir-provider';
+import { createStubDirProvider } from './create-stub-dir-provider';
 
 // A temp directory the provider's transfers and commands run in.
 function setupTest() {
@@ -20,7 +20,7 @@ test('it unpacks a transferred archive into the directory it is given and record
 
   const archive = await $`tar -c -f - -C ${join(ctx.directory, 'src')} .`.arrayBuffer();
 
-  const provider = buildStubDirProvider();
+  const provider = createStubDirProvider();
 
   await provider.transferArchive(new Uint8Array(archive), join(ctx.directory, 'host', 'ws'));
 
@@ -33,7 +33,7 @@ test('it unpacks a transferred archive into the directory it is given and record
 
 test('it runs a command in its working directory and records it', async () => {
   const ctx = setupTest();
-  const provider = buildStubDirProvider();
+  const provider = createStubDirProvider();
 
   const result = await provider.runCommand({ argv: ['pwd'], cwd: ctx.directory });
 
@@ -49,7 +49,7 @@ test('it runs the after-transfer step on the unpacked directory before the trans
 
   const archive = await $`tar -c -f - -C ${join(ctx.directory, 'src')} .`.arrayBuffer();
 
-  const provider = buildStubDirProvider({
+  const provider = createStubDirProvider({
     afterTransfer: async (directory) => {
       await Bun.write(join(directory, 'hello.txt'), 'changed\n');
     },
@@ -61,7 +61,7 @@ test('it runs the after-transfer step on the unpacked directory before the trans
 });
 
 test('it declares the capabilities it is told it lacks as missing', () => {
-  const provider = buildStubDirProvider({ lacking: ['transfer', 'run'] });
+  const provider = createStubDirProvider({ lacking: ['transfer', 'run'] });
 
   expect(provider.capabilities).toStrictEqual({
     spawn: true,
@@ -80,7 +80,7 @@ test('it declares the capabilities it is told it lacks as missing', () => {
 test('it rejects an archive tar cannot unpack', () => {
   const ctx = setupTest();
 
-  const transfer = buildStubDirProvider().transferArchive(
+  const transfer = createStubDirProvider().transferArchive(
     new Uint8Array([1, 2, 3]),
     join(ctx.directory, 'ws'),
   );
@@ -92,7 +92,7 @@ test('it rejects an archive tar cannot unpack', () => {
 });
 
 test('it refuses to suspend a host', () => {
-  const provider = buildStubDirProvider();
+  const provider = createStubDirProvider();
 
   expect(provider.suspendHost('h1')).rejects.toThrowWithMessage(
     Error,
@@ -101,7 +101,7 @@ test('it refuses to suspend a host', () => {
 });
 
 test('it refuses to destroy a host', () => {
-  const provider = buildStubDirProvider();
+  const provider = createStubDirProvider();
 
   expect(provider.destroyHost('h1')).rejects.toThrowWithMessage(
     Error,
@@ -111,7 +111,7 @@ test('it refuses to destroy a host', () => {
 
 test('it starts a harness on a local terminal and records its spec', async () => {
   const ctx = setupTest();
-  const provider = buildStubDirProvider();
+  const provider = createStubDirProvider();
 
   const spec = {
     session: 's1',

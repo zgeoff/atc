@@ -6,8 +6,8 @@ import { isRecord, toAgentSessionID, toSessionID } from '@atc/core';
 import { buildPayloadHash } from '@atc/daemon';
 import { ImpProvider } from '@atc/execution-imp';
 import { createStubImpPort, getOnlyImpName } from '@atc/execution-imp/testing';
-import { LocalPTYProvider } from '@atc/execution-local';
-import { buildStubExecutionProvider } from '@atc/execution-local/testing';
+import { createLocalPTYProvider } from '@atc/execution-local';
+import { createStubExecutionProvider } from '@atc/execution-local/testing';
 import { DaemonPool, GatewayStore, RoutingCaller } from '@atc/gateway';
 import { buildMockRegistryDaemon, openTestBindingDatabase } from '@atc/gateway/testing';
 import { TransportCaller, buildPrincipalCaller, runTool } from '@atc/mcp';
@@ -32,7 +32,7 @@ import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemo
 async function setupTest() {
   const planSpawn = mock<AgentAdapter['planSpawn']>(() => ({ bin: 'sleep', args: ['30'] }));
 
-  const stubProvider = buildStubExecutionProvider({
+  const stubProvider = createStubExecutionProvider({
     kind: 'imp-like',
     capabilities: { suspend: true, destroy: true },
   });
@@ -51,7 +51,7 @@ async function setupTest() {
             kind: 'local-pty',
             options: {},
             identity: 'test:local',
-            provider: new LocalPTYProvider(),
+            provider: createLocalPTYProvider(),
           },
           {
             id: 'box',
@@ -1633,7 +1633,7 @@ test('it refuses an unknown session as no_such_session before any token exists',
 });
 
 test('it refuses a principal a session on a target it cannot use as no_such_session and keeps the session', async () => {
-  const provider = buildStubExecutionProvider({
+  const provider = createStubExecutionProvider({
     kind: 'imp-like',
     capabilities: { suspend: true, destroy: true },
   });
@@ -1713,7 +1713,7 @@ test('it rebinds the host of a session whose restore was refused for a changed a
           kind: 'local-pty',
           options: {},
           identity: 'local-pty:test',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         },
         { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider },
       ],
@@ -1807,7 +1807,7 @@ test('it adopts a session whose restore was refused once its host is rebound', a
           kind: 'local-pty',
           options: {},
           identity: 'local-pty:test',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         },
         { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider },
       ],
@@ -1898,7 +1898,7 @@ test('it refuses a rebind from a remote client acting as a principal and binds n
           kind: 'local-pty',
           options: {},
           identity: 'local-pty:test',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         },
         { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider },
       ],

@@ -2,8 +2,8 @@ import { expect, mock, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
-import { LocalPTYProvider } from '../local-pty-provider';
-import { buildStubExecutionProvider } from './build-stub-execution-provider';
+import { createLocalPTYProvider } from '../create-local-pty-provider';
+import { createStubExecutionProvider } from './create-stub-execution-provider';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-stub-provider-');
@@ -12,10 +12,10 @@ function setupTest() {
 }
 
 test('it builds a provider with the capabilities of a local pseudo-terminal', () => {
-  expect(buildStubExecutionProvider()).toStrictEqual({
+  expect(createStubExecutionProvider()).toStrictEqual({
     kind: 'stub',
     remote: false,
-    capabilities: new LocalPTYProvider().capabilities,
+    capabilities: createLocalPTYProvider().capabilities,
     prepareHost: expect.toBeFunction(),
     spawnHarness: expect.toBeFunction(),
     transferArchive: expect.toBeFunction(),
@@ -31,7 +31,7 @@ test('it builds a provider with the capabilities of a local pseudo-terminal', ()
 });
 
 test('it applies the kind and capability overrides on top of the defaults', () => {
-  const provider = buildStubExecutionProvider({
+  const provider = createStubExecutionProvider({
     kind: 'imp-like',
     capabilities: { suspend: true, destroy: true, input: false },
   });
@@ -39,7 +39,7 @@ test('it applies the kind and capability overrides on top of the defaults', () =
   expect(provider.kind).toBe('imp-like');
 
   expect(provider.capabilities).toStrictEqual({
-    ...new LocalPTYProvider().capabilities,
+    ...createLocalPTYProvider().capabilities,
     suspend: true,
     destroy: true,
     input: false,
@@ -47,7 +47,7 @@ test('it applies the kind and capability overrides on top of the defaults', () =
 });
 
 test('it reports the host as remote once the config marks it so', () => {
-  expect(buildStubExecutionProvider({ remote: true }).remote).toBeTrue();
+  expect(createStubExecutionProvider({ remote: true }).remote).toBeTrue();
 });
 
 test('it rejects every command with the configured failure without running it', async () => {
@@ -56,7 +56,7 @@ test('it rejects every command with the configured failure without running it', 
 
   const failure = new Error('the host runs no commands');
 
-  const provider = buildStubExecutionProvider({ commandFailure: failure });
+  const provider = createStubExecutionProvider({ commandFailure: failure });
   const run = provider.runCommand({ argv: ['touch', marker], cwd: ctx.directory });
 
   await Promise.allSettled([run]);
@@ -67,7 +67,7 @@ test('it rejects every command with the configured failure without running it', 
 
 test('it runs a command on this machine', () => {
   const ctx = setupTest();
-  const provider = buildStubExecutionProvider();
+  const provider = createStubExecutionProvider();
 
   expect(provider.runCommand({ argv: ['pwd'], cwd: ctx.directory })).resolves.toStrictEqual({
     exitCode: 0,
@@ -77,7 +77,7 @@ test('it runs a command on this machine', () => {
 });
 
 test('it records each suspended and destroyed host in order', async () => {
-  const provider = buildStubExecutionProvider();
+  const provider = createStubExecutionProvider();
 
   await provider.suspendHost('host-a');
   await provider.destroyHost('host-b');
@@ -88,7 +88,7 @@ test('it records each suspended and destroyed host in order', async () => {
 });
 
 test('it rejects a suspend with the failure it was given and records nothing', () => {
-  const provider = buildStubExecutionProvider();
+  const provider = createStubExecutionProvider();
 
   const failure = new Error('another owner keeps the host awake');
 
@@ -99,7 +99,7 @@ test('it rejects a suspend with the failure it was given and records nothing', (
 });
 
 test('it rejects a destroy with the failure it was given and records nothing', () => {
-  const provider = buildStubExecutionProvider();
+  const provider = createStubExecutionProvider();
 
   const failure = new Error('impd is unreachable');
 
@@ -110,7 +110,7 @@ test('it rejects a destroy with the failure it was given and records nothing', (
 });
 
 test('it suspends again once a suspend failure is cleared', async () => {
-  const provider = buildStubExecutionProvider();
+  const provider = createStubExecutionProvider();
 
   const failure = new Error('suspend refused');
 
@@ -129,7 +129,7 @@ test('it suspends again once a suspend failure is cleared', async () => {
 });
 
 test('it destroys again once a destroy failure is cleared', async () => {
-  const provider = buildStubExecutionProvider();
+  const provider = createStubExecutionProvider();
 
   const failure = new Error('destroy refused');
 
@@ -150,7 +150,7 @@ test('it destroys again once a destroy failure is cleared', async () => {
 test('it reports a harness spec and starts the harness on a local terminal', async () => {
   const ctx = setupTest();
   const onSpawn = mock(() => {});
-  const provider = buildStubExecutionProvider({ onSpawn });
+  const provider = createStubExecutionProvider({ onSpawn });
 
   const spec = {
     session: 's1',
@@ -185,7 +185,7 @@ test('it aborts the spawn with the error the spawn report throws, before the loc
 
   const failure = new Error('the harness could not start');
 
-  const provider = buildStubExecutionProvider({
+  const provider = createStubExecutionProvider({
     onSpawn: () => {
       throw failure;
     },
@@ -212,7 +212,7 @@ test('it aborts the spawn with the error the spawn report throws, before the loc
 
 test('it refuses a spec that requires a broker through the local start when the spawn report passes', () => {
   const ctx = setupTest();
-  const provider = buildStubExecutionProvider();
+  const provider = createStubExecutionProvider();
 
   const spawn = () =>
     provider.spawnHarness({
@@ -238,7 +238,7 @@ test('it refuses a spec that requires a broker through the local start when the 
 
 test('it streams the output of a harness it starts on a local terminal', async () => {
   const ctx = setupTest();
-  const provider = buildStubExecutionProvider();
+  const provider = createStubExecutionProvider();
 
   const harness = provider.spawnHarness({
     session: 's1',

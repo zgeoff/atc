@@ -10,13 +10,12 @@ import {
   waitFor,
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
-import { LocalPTYProvider } from './local-pty-provider';
-import { SessionScopes } from './session-scopes';
+import { createLocalPTYProvider } from './create-local-pty-provider';
+import { createSessionScopes } from './create-session-scopes';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-local-pty-');
-
-  const provider = new LocalPTYProvider();
+  const provider = createLocalPTYProvider();
 
   registerTestCleanup(() => provider.dispose());
 
@@ -495,9 +494,9 @@ test('it keeps a variable the daemon started with out of a harness whose map lea
   const ctx = setupTest();
 
   const inner = `
-import { LocalPTYProvider } from ${JSON.stringify(join(import.meta.dir, 'local-pty-provider.ts'))};
+import { createLocalPTYProvider } from ${JSON.stringify(join(import.meta.dir, 'create-local-pty-provider.ts'))};
 delete process.env.ATC_TEST_DELETED;
-const harness = new LocalPTYProvider().spawnHarness({
+const harness = createLocalPTYProvider().spawnHarness({
   session: 's1',
   host: 's1',
   bin: 'bash',
@@ -606,9 +605,9 @@ test('it starts a harness in a scope of its own bound to the daemon service', as
   const ctx = setupTest();
   const systemd = createStubSystemd(['/bin/true']);
 
-  const provider = new LocalPTYProvider(
+  const provider = createLocalPTYProvider(
     systemClock,
-    new SessionScopes({
+    createSessionScopes({
       unit: 'atc-daemon.service',
       run: '0a1b2c3d',
       systemctl: join(systemd.binDir, 'systemctl'),
@@ -653,9 +652,9 @@ test('it stops the scope of each harness it started as it is disposed', async ()
   const ctx = setupTest();
   const systemd = createStubSystemd(['/bin/true']);
 
-  const provider = new LocalPTYProvider(
+  const provider = createLocalPTYProvider(
     systemClock,
-    new SessionScopes({
+    createSessionScopes({
       unit: 'atc-daemon.service',
       run: '0a1b2c3d',
       systemctl: join(systemd.binDir, 'systemctl'),

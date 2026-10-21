@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { LOCAL_TARGET, parseConfig } from '@atc/config';
 import { ImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/testing';
-import { LocalPTYProvider } from '@atc/execution-local';
+import { createLocalPTYProvider } from '@atc/execution-local';
 import { buildTargetIdentity } from '@atc/store';
 import {
   buildMockHostServices,
@@ -515,7 +515,7 @@ test('it refuses plugin folders on a target that runs the agent on another machi
           kind: LOCAL_TARGET.provider,
           options: LOCAL_TARGET.options,
           identity: buildTargetIdentity(LOCAL_TARGET.provider, LOCAL_TARGET.options),
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         },
         {
           id: 'box',
@@ -564,7 +564,7 @@ test("it refuses a spawn on a target that runs the agent on another machine when
           kind: LOCAL_TARGET.provider,
           options: LOCAL_TARGET.options,
           identity: buildTargetIdentity(LOCAL_TARGET.provider, LOCAL_TARGET.options),
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         },
         {
           id: 'box',

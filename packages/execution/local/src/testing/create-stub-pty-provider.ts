@@ -1,5 +1,5 @@
 import type { ExecutionCapabilities, ExecutionProvider, HarnessSpec } from '@atc/plugin-api';
-import { LocalPTYProvider } from '../local-pty-provider';
+import { createLocalPTYProvider } from '../create-local-pty-provider';
 
 interface StubPTYProviderConfig {
   // The provider kind the stand-in reports, such as the kind a target's
@@ -16,9 +16,8 @@ interface StubPTYProviderConfig {
   readonly destroyHost?: ExecutionProvider['destroyHost'];
 }
 
-export function buildStubPTYProvider(config: StubPTYProviderConfig = {}): ExecutionProvider {
-  const local = new LocalPTYProvider();
-
+export function createStubPTYProvider(config: StubPTYProviderConfig = {}): ExecutionProvider {
+  const local = createLocalPTYProvider();
   const onSpawn = config.onSpawn ?? (() => {});
 
   return {

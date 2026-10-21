@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { createStubSystemd } from '@atc/test-utils';
-import { SessionScopes } from './session-scopes';
+import { createSessionScopes } from './create-session-scopes';
 
 // A stand-in service manager that the scopes reach through its programs.
 function setupTest() {
@@ -17,7 +17,7 @@ function setupTest() {
 test('it starts a command in a scope of its own bound to the daemon service', () => {
   const ctx = setupTest();
 
-  const scopes = new SessionScopes({
+  const scopes = createSessionScopes({
     unit: 'atc-daemon.service',
     run: '0a1b2c3d',
     systemctl: ctx.systemctl,
@@ -36,7 +36,7 @@ test('it starts a command in a scope of its own bound to the daemon service', ()
 test('it gives each start of one session a scope name of its own', () => {
   const ctx = setupTest();
 
-  const scopes = new SessionScopes({
+  const scopes = createSessionScopes({
     unit: 'atc-daemon.service',
     run: '0a1b2c3d',
     systemctl: ctx.systemctl,
@@ -57,7 +57,7 @@ test('it gives each start of one session a scope name of its own', () => {
 test('it replaces each character a unit name cannot hold in the scope name', () => {
   const ctx = setupTest();
 
-  const scopes = new SessionScopes({
+  const scopes = createSessionScopes({
     unit: 'atc-daemon.service',
     run: '0a1b2c3d',
     systemctl: ctx.systemctl,
@@ -72,7 +72,7 @@ test('it replaces each character a unit name cannot hold in the scope name', () 
 test('it stops the scopes an earlier daemon run of the service left behind', async () => {
   const ctx = setupTest();
 
-  const scopes = new SessionScopes({
+  const scopes = createSessionScopes({
     unit: 'atc-daemon.service',
     run: '0a1b2c3d',
     systemctl: ctx.systemctl,
@@ -95,7 +95,7 @@ test('it stops the scopes an earlier daemon run of the service left behind', asy
 test('it never stops a bound unit that is not a session scope of the service', async () => {
   const ctx = setupTest();
 
-  const scopes = new SessionScopes({
+  const scopes = createSessionScopes({
     unit: 'atc-daemon.service',
     run: '0a1b2c3d',
     systemctl: ctx.systemctl,
@@ -118,7 +118,7 @@ test('it never stops a bound unit that is not a session scope of the service', a
 test('it never stops a scope the same daemon run started from another target', async () => {
   const ctx = setupTest();
 
-  const scopes = new SessionScopes({
+  const scopes = createSessionScopes({
     unit: 'atc-daemon.service',
     run: '0a1b2c3d',
     systemctl: ctx.systemctl,
@@ -137,7 +137,7 @@ test('it never stops a scope the same daemon run started from another target', a
 test('it stops every scope it started a command in', async () => {
   const ctx = setupTest();
 
-  const scopes = new SessionScopes({
+  const scopes = createSessionScopes({
     unit: 'atc-daemon.service',
     run: '0a1b2c3d',
     systemctl: ctx.systemctl,
@@ -164,7 +164,7 @@ test('it stops every scope it started a command in', async () => {
 test('it queues no stop when it started no scope', async () => {
   const ctx = setupTest();
 
-  const scopes = new SessionScopes({
+  const scopes = createSessionScopes({
     unit: 'atc-daemon.service',
     run: '0a1b2c3d',
     systemctl: ctx.systemctl,

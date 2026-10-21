@@ -5,7 +5,7 @@ import { LOCAL_TARGET } from '@atc/config';
 import { toSessionID } from '@atc/core';
 import { ImpProvider } from '@atc/execution-imp';
 import { createStubImpPort, getOnlyImpName } from '@atc/execution-imp/testing';
-import { LocalPTYProvider } from '@atc/execution-local';
+import { createLocalPTYProvider } from '@atc/execution-local';
 import { openDaemonClient } from '@atc/protocol/client';
 import { buildTargetIdentity, createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
@@ -46,7 +46,7 @@ async function setupTest() {
             kind: LOCAL_TARGET.provider,
             options: LOCAL_TARGET.options,
             identity: buildTargetIdentity(LOCAL_TARGET.provider, LOCAL_TARGET.options),
-            provider: new LocalPTYProvider(),
+            provider: createLocalPTYProvider(),
           },
           {
             id: 'box',

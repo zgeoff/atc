@@ -1,7 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { createStubBin, createStubSystemd, setupTempDir, waitFor } from '@atc/test-utils';
-import { SessionScopes } from './session-scopes';
 import { startSessionScopes } from './start-session-scopes';
 
 // A stand-in service manager whose programs sit on the daemon's PATH.
@@ -26,7 +25,11 @@ test('it starts scopes for the main process of a user service', () => {
       join(ctx.systemd.procRoot, '4242', 'cgroup'),
       4242,
     ),
-  ).toBeInstanceOf(SessionScopes);
+  ).toStrictEqual({
+    buildCommand: expect.toBeFunction(),
+    stopLeftovers: expect.toBeFunction(),
+    stop: expect.toBeFunction(),
+  });
 });
 
 test('it stops the scopes an earlier run of the service left behind as it starts', async () => {

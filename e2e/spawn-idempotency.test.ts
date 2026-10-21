@@ -3,7 +3,7 @@ import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { toMessageID, toSessionID } from '@atc/core';
 import { buildPayloadHash } from '@atc/daemon';
-import { buildStubSoftKillProvider } from '@atc/execution-local/testing';
+import { createStubSoftKillProvider } from '@atc/execution-local/testing';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { REQUEST_PARAM_SCHEMAS } from '@atc/protocol';
 import { createStateStore } from '@atc/store';
@@ -984,7 +984,7 @@ test('it answers outcome_unknown and keeps the process of a failed spawn whose p
           kind: 'no-forced-kill',
           options: {},
           identity: 'test:local',
-          provider: buildStubSoftKillProvider(),
+          provider: createStubSoftKillProvider(),
         },
       ],
     }),
@@ -1053,7 +1053,7 @@ test('it answers outcome_unknown for a failed spawn whose killed process outlast
           kind: 'no-forced-kill',
           options: {},
           identity: 'test:local',
-          provider: buildStubSoftKillProvider(),
+          provider: createStubSoftKillProvider(),
         },
       ],
     }),
@@ -1101,7 +1101,7 @@ test('it keeps the key of a failed spawn whose provider cannot confirm the exit 
           kind: 'no-forced-kill',
           options: {},
           identity: 'test:local',
-          provider: buildStubSoftKillProvider(),
+          provider: createStubSoftKillProvider(),
         },
       ],
     }),
@@ -1169,7 +1169,7 @@ test('it keeps a failed spawn whose provider cannot confirm the exit listed and 
           kind: 'no-forced-kill',
           options: {},
           identity: 'test:local',
-          provider: buildStubSoftKillProvider(),
+          provider: createStubSoftKillProvider(),
         },
       ],
     }),

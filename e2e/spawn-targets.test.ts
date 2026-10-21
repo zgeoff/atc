@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { toAgentSessionID, toSessionID } from '@atc/core';
 import { buildTargetOptionsFromConfig } from '@atc/daemon/testing';
-import { buildStubExecutionProvider } from '@atc/execution-local/testing';
+import { createStubExecutionProvider } from '@atc/execution-local/testing';
 import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
@@ -21,7 +21,7 @@ function setupTest() {
     [
       'local-pty',
       (id: string) =>
-        buildStubExecutionProvider({
+        createStubExecutionProvider({
           kind: 'local-pty',
           onSpawn: () => {
             harnesses.push(id);
@@ -503,7 +503,7 @@ test('it refuses input to a restored headless session whose provider runs no hea
     [
       'no-headless',
       (id: string) =>
-        buildStubExecutionProvider({
+        createStubExecutionProvider({
           kind: 'no-headless',
           capabilities: { spawn: false, headless: false },
           onSpawn: () => {
@@ -659,7 +659,7 @@ test.each([
       [
         'no-headless',
         (id: string) =>
-          buildStubExecutionProvider({
+          createStubExecutionProvider({
             kind: 'no-headless',
             capabilities: { spawn: false, headless: false },
             onSpawn: () => {
@@ -736,7 +736,7 @@ test.each([
       [
         'no-headless',
         (id: string) =>
-          buildStubExecutionProvider({
+          createStubExecutionProvider({
             kind: 'no-headless',
             capabilities: { spawn: false, headless: false },
             onSpawn: () => {
@@ -812,7 +812,7 @@ test.each([
       [
         'no-headless',
         (id: string) =>
-          buildStubExecutionProvider({
+          createStubExecutionProvider({
             kind: 'no-headless',
             capabilities: { spawn: false, headless: false },
             onSpawn: () => {

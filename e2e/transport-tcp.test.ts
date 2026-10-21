@@ -5,7 +5,7 @@ import { createConnection } from 'node:net';
 import { join } from 'node:path';
 import { collectTargets } from '@atc/config';
 import { startDaemon } from '@atc/daemon';
-import { LocalPTYProvider } from '@atc/execution-local';
+import { createLocalPTYProvider } from '@atc/execution-local';
 import { claimDaemonLock } from '@atc/lifecycle';
 import type { DaemonEvent } from '@atc/protocol';
 import { buildTargetIdentity } from '@atc/store';
@@ -474,7 +474,7 @@ test('it lists for a TCP principal only the sessions on the targets it may use',
       writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       // The targets `local` and `box` share one real pseudo-terminal provider.
-      const local = new LocalPTYProvider();
+      const local = createLocalPTYProvider();
 
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -527,7 +527,7 @@ test('it reads for a TCP principal a session on a target it may use', async () =
       writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       // The targets `local` and `box` share one real pseudo-terminal provider.
-      const local = new LocalPTYProvider();
+      const local = createLocalPTYProvider();
 
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -574,7 +574,7 @@ test('it answers a TCP principal reading a session on a target it may not use as
       writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       // The targets `local` and `box` share one real pseudo-terminal provider.
-      const local = new LocalPTYProvider();
+      const local = createLocalPTYProvider();
 
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -2081,7 +2081,7 @@ test('it pushes a TCP connection whose handshake gives a principal the removal o
       writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       // The targets `local` and `box` share one real pseudo-terminal provider.
-      const local = new LocalPTYProvider();
+      const local = createLocalPTYProvider();
 
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },

@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { parseSystemdUnit } from '@atc/core';
+import { createSessionScopes } from './create-session-scopes';
+import type { SessionScopes } from './create-session-scopes';
 import { readSystemdVersion } from './read-systemd-version';
-import { SessionScopes } from './session-scopes';
 
 // The first systemd release whose `systemd-run` takes
 // `--expand-environment`.
@@ -44,7 +45,7 @@ export function startSessionScopes(
     return null;
   }
 
-  const scopes = new SessionScopes({ unit, run: invocation.slice(0, 8), systemctl, systemdRun });
+  const scopes = createSessionScopes({ unit, run: invocation.slice(0, 8), systemctl, systemdRun });
 
   void scopes.stopLeftovers();
 

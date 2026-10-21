@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import type { HarnessSpec } from '@atc/plugin-api';
 import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
-import { buildStubHeldProvider } from './build-stub-held-provider';
+import { createStubHeldProvider } from './create-stub-held-provider';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-stub-held-provider-');
@@ -10,7 +10,7 @@ function setupTest() {
 }
 
 test('it records the host of each preparation in the order it began', () => {
-  const stub = buildStubHeldProvider();
+  const stub = createStubHeldProvider();
 
   void stub.provider.prepareHost({ host: 'h1', daemonID: 'd1' });
   void stub.provider.prepareHost({ host: 'h2', daemonID: 'd1' });
@@ -18,7 +18,7 @@ test('it records the host of each preparation in the order it began', () => {
 });
 
 test('it finishes a held host preparation once its host is released', () => {
-  const stub = buildStubHeldProvider();
+  const stub = createStubHeldProvider();
   const preparing = stub.provider.prepareHost({ host: 'h1', daemonID: 'd1' });
 
   stub.release('h1');
@@ -27,7 +27,7 @@ test('it finishes a held host preparation once its host is released', () => {
 });
 
 test('it holds the preparation of a host not yet released after an earlier one finishes', async () => {
-  const stub = buildStubHeldProvider();
+  const stub = createStubHeldProvider();
   const second = stub.provider.prepareHost({ host: 'h2', daemonID: 'd1' });
   const first = stub.provider.prepareHost({ host: 'h1', daemonID: 'd1' });
 
@@ -40,7 +40,7 @@ test('it holds the preparation of a host not yet released after an earlier one f
 
 test('it records each harness it starts', () => {
   const ctx = setupTest();
-  const stub = buildStubHeldProvider();
+  const stub = createStubHeldProvider();
 
   const spec: HarnessSpec = {
     session: 's1',

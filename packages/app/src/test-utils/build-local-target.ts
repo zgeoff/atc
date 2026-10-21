@@ -1,6 +1,6 @@
 import { LOCAL_TARGET } from '@atc/config';
 import type { ExecutionTarget } from '@atc/daemon';
-import { LocalPTYProvider } from '@atc/execution-local';
+import { createLocalPTYProvider } from '@atc/execution-local';
 import { buildTargetIdentity } from '@atc/store';
 
 export function buildLocalTarget(): ExecutionTarget {
@@ -9,6 +9,6 @@ export function buildLocalTarget(): ExecutionTarget {
     kind: LOCAL_TARGET.provider,
     options: LOCAL_TARGET.options,
     identity: buildTargetIdentity(LOCAL_TARGET.provider, LOCAL_TARGET.options),
-    provider: new LocalPTYProvider(),
+    provider: createLocalPTYProvider(),
   };
 }

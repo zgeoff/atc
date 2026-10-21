@@ -130,10 +130,7 @@
         "packages/execution/imp/src/testing/stub-imp-forwards.ts",
         "packages/execution/imp/src/testing/stub-imp-leases.ts",
         "packages/execution/imp/src/testing/stub-imp-secrets.ts",
-        "packages/execution/imp/src/testing/stub-imp-sessions.ts",
-        "packages/execution/local/src/local-pty-provider.ts",
-        "packages/execution/local/src/session-scopes.ts",
-        "packages/execution/local/src/testing/build-stub-dir-provider.ts"
+        "packages/execution/imp/src/testing/stub-imp-sessions.ts"
       ],
       "rules": { "zgeoff/no-class": "off" }
     },

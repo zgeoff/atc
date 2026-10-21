@@ -1,2 +1,2 @@
 export * from './local-pty-plugin';
-export * from './local-pty-provider';
+export * from './create-local-pty-provider';
