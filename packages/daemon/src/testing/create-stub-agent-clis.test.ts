@@ -180,12 +180,13 @@ test('it reports the daemon session id as the Claude session id once told to use
   ctx.start(ctx.agents.bins.claude, ['--settings', ctx.settingsPath]);
 
   await waitFor(() => {
-    expect(ctx.reporter.lines).not.toBeEmpty();
+    expect(ctx.reporter.lines).toHaveLength(2);
   });
 
-  expect(JSON.parse(ctx.reporter.lines[0] ?? '')).toMatchObject({
-    payload: { session_id: 's-1' },
-  });
+  expect(ctx.reporter.lines.map((line): unknown => JSON.parse(line))).toMatchObject([
+    { payload: { hook_event_name: 'SessionStart', session_id: 's-1' } },
+    { payload: { hook_event_name: 'Notification', session_id: 's-1' } },
+  ]);
 });
 
 test('it echoes each line a Claude session reads and records it', () => {

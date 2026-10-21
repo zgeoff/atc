@@ -272,7 +272,12 @@ async function reportStart(
 
   // A report the daemon refused leaves the next one to try, as each hook
   // runs its own reporter.
-  for (const event of script.events ?? [DEFAULT_PROMPTS[session.kind]]) {
+  const prompt =
+    session.kind === 'claude' && script.ownID && atcID !== undefined
+      ? { ...DEFAULT_PROMPTS.claude, session_id: atcID }
+      : DEFAULT_PROMPTS[session.kind];
+
+  for (const event of script.events ?? [prompt]) {
     await session.report(event);
   }
 }
