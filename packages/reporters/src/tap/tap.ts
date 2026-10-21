@@ -4,7 +4,6 @@ import type { DaemonClient } from '@atc/protocol/client';
 import { readSessionEnv } from '@atc/protocol/session';
 import { DaemonError, MESSAGE_SENDER_SCHEMA } from '@atc/protocol/wire';
 import { z } from 'zod';
-import { createHostServices } from './create-host-services';
 import { renderMessageLine } from './render-message-line';
 import { renderNoticeLine } from './render-notice-line';
 import { runBridgeTap } from './run-bridge-tap';
@@ -49,8 +48,10 @@ const PROCESS_IO: TapIO = {
   },
 };
 
+// `build` is the build the tap's handshake names.
 export async function runTap(
   session: string,
+  build: string,
   socketPath: string = daemonSocketPath,
   io: TapIO = PROCESS_IO,
   notices = false,
@@ -133,7 +134,7 @@ export async function runTap(
   };
 
   try {
-    await client.sendHello(createHostServices().build, {
+    await client.sendHello(build, {
       session: readSessionEnv(process.env).sessionID,
     });
 

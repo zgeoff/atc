@@ -3,7 +3,6 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { sendReport } from '../../app/src/shared/report';
 import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { startStubReporterSocket } from './start-stub-reporter-socket';
@@ -20,7 +19,15 @@ test('it collects each line a sender writes without its newline', async () => {
   const ctx = setupTest();
   const reporter = startStubReporterSocket(ctx.path);
 
-  await sendReport(ctx.path, 'one\ntwo\n', 2000);
+  await Bun.connect({
+    unix: ctx.path,
+    socket: {
+      open(socket) {
+        socket.end('one\ntwo\n');
+      },
+      data() {},
+    },
+  });
 
   await waitFor(() => {
     expect(reporter.lines).toStrictEqual(['one', 'two']);
@@ -71,8 +78,29 @@ test('it collects nothing from a line that never ends', async () => {
   const ctx = setupTest();
   const reporter = startStubReporterSocket(ctx.path);
 
-  await sendReport(ctx.path, 'unfinished', 2000);
-  await sendReport(ctx.path, 'done\n', 2000);
+  await Bun.connect({
+    unix: ctx.path,
+    socket: {
+      open(socket) {
+        socket.end('unfinished');
+      },
+      data() {},
+    },
+  });
+
+  await waitFor(() => {
+    expect(reporter.reads).toBe(1);
+  });
+
+  await Bun.connect({
+    unix: ctx.path,
+    socket: {
+      open(socket) {
+        socket.end('done\n');
+      },
+      data() {},
+    },
+  });
 
   await waitFor(() => {
     expect(reporter.lines).toStrictEqual(['done']);
@@ -83,8 +111,15 @@ test('it resolves the wait with the first line to arrive', async () => {
   const ctx = setupTest();
   const reporter = startStubReporterSocket(ctx.path);
 
-  await sendReport(ctx.path, 'first\n', 2000);
-  await sendReport(ctx.path, 'second\n', 2000);
+  await Bun.connect({
+    unix: ctx.path,
+    socket: {
+      open(socket) {
+        socket.end('first\nsecond\n');
+      },
+      data() {},
+    },
+  });
 
   const line = await reporter.waitForLine();
 

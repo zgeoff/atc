@@ -177,24 +177,25 @@ const PROCESS_IO: ATCCLIIO = {
     hook.printGrokHookFile(hostServices.atcArgv);
   },
   runHookReport: async (agent) => {
-    const reporter = await import('./hook-report');
+    const reporters = await import('@atc/reporters');
 
-    await reporter.runHookReport(agent);
+    await reporters.runHookReport(agent);
   },
   runTap: async (session, notices) => {
-    const tap = await import('./tap');
+    const tap = await import('@atc/reporters/tap');
+    const hostServices = await resolveHostServices();
 
-    await tap.runTap(session, undefined, undefined, notices);
+    await tap.runTap(session, hostServices.build, undefined, undefined, notices);
   },
   runNote: async (kind, options) => {
-    const note = await import('./note');
+    const reporters = await import('@atc/reporters');
 
-    await note.runNote(kind, options);
+    await reporters.runNote(kind, options);
   },
   runStatusline: async (agent) => {
-    const statusline = await import('./statusline');
+    const reporters = await import('@atc/reporters');
 
-    await statusline.runStatusline(agent);
+    await reporters.runStatusline(agent);
   },
   print: (line) => {
     console.log(line);
