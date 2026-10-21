@@ -11,9 +11,9 @@ import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-gr
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
+import { createSessionHandoff } from './create-session-handoff';
 import { createSessionRuntime } from './create-session-runtime';
 import type { SessionRuntime } from './create-session-runtime';
-import { SessionHandoff } from './session-handoff';
 import { SessionManager } from './sessions';
 
 interface SetupTestConfig {
@@ -63,7 +63,7 @@ async function setupTest(config: SetupTestConfig) {
   const startHeadlessTurn = mock<(sessionID: SessionID, prompt: string) => boolean>(() => true);
   const scheduleResize = mock<(sessionID: SessionID) => void>();
 
-  const handoff = new SessionHandoff({
+  const handoff = createSessionHandoff({
     manager,
     findRuntime: (id) => runtimes.get(id),
     ejectSettleMs: 4000,

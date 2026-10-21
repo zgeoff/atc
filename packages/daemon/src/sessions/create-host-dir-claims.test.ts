@@ -8,14 +8,14 @@ import { buildMockExecutionTarget } from '../testing/build-mock-execution-target
 import { buildMockSession } from '../testing/build-mock-session';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { buildStubStaleRelativeProvider } from '../testing/build-stub-stale-relative-provider';
-import { createSessionRegistry } from './create-session-registry';
 import {
-  HostDirClaims,
   REMOVE_DIR_SCRIPT,
   RESOLVE_DIR_SCRIPT,
   RESOLVE_HOME_SCRIPT,
   RESOLVE_UNLINKED_DIR_SCRIPT,
-} from './host-dir-claims';
+  createHostDirClaims,
+} from './create-host-dir-claims';
+import { createSessionRegistry } from './create-session-registry';
 
 interface SetupConfig {
   readonly targets: readonly ExecutionTarget[];
@@ -30,7 +30,7 @@ function setupTest(config: SetupConfig) {
     callbacks: { onEvent: mock<() => void>() },
   });
 
-  const claims = new HostDirClaims({ registry });
+  const claims = createHostDirClaims({ registry });
 
   return { registry, claims };
 }

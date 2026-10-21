@@ -21,13 +21,13 @@ import { buildStubCredentialBroker } from '../testing/build-stub-credential-brok
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { runLocalCommand } from '../testing/run-local-command';
+import { createHostDirClaims } from './create-host-dir-claims';
 import { createPublishedRecords } from './create-published-records';
+import { createSessionHarnesses } from './create-session-harnesses';
 import { createSessionRegistry } from './create-session-registry';
-import { HostDirClaims } from './host-dir-claims';
 import { runSpawnSteps } from './run-spawn-steps';
 import type { SpawnStepName, SpawnStepRunner } from './run-spawn-steps';
 import type { SessionCallbacks } from './session-callbacks';
-import { SessionHarnesses } from './session-harnesses';
 import { SessionKiller } from './session-killer';
 import { SessionSpawner } from './session-spawner';
 import { SpawnRollback } from './spawn-rollback';
@@ -98,12 +98,13 @@ async function setupTest(config: SetupTestConfig) {
     callbacks,
   });
 
-  const claims = new HostDirClaims({ registry });
-
+  const claims = createHostDirClaims({ registry });
   const restarts = { stopRestart: () => Promise.resolve(false) };
 
   const killer = new SessionKiller({ registry, fleet, callbacks, restarts });
-  const harnesses = new SessionHarnesses({ registry, fleet, killer, callbacks });
+
+  const harnesses = createSessionHarnesses({ registry, fleet, killer, callbacks });
+
   const rollback = new SpawnRollback({ registry, fleet, claims, harnesses, callbacks });
 
   const auth = createAuthSetup({ registry, fleet, claims, harnesses, rollback, store, callbacks });

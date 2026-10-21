@@ -14,11 +14,11 @@ import { startSessionBridge } from '../transport/start-session-bridge';
 import { buildMessageOwner } from './build-message-owner';
 import { buildNoteTrailEntry } from './build-note-trail-entry';
 import { buildSessionNoteEvent } from './build-session-note-event';
+import type { MessageService } from './create-message-service';
 import type { SessionRuntime } from './create-session-runtime';
 import type { TapRegistry } from './create-tap-registry';
 import { isOwnHookEvent } from './is-own-hook-event';
 import type { HookScope } from './make-hook-runner';
-import type { MessageService } from './message-service';
 import { parseNote } from './parse-note';
 import type { SessionManager } from './sessions';
 

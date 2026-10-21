@@ -15,10 +15,10 @@ import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { createEventSignal } from '../transport/create-event-signal';
 import { createIdempotencyLedger } from '../transport/create-idempotency-ledger';
+import { createMessageService } from './create-message-service';
 import { createSessionRuntime } from './create-session-runtime';
 import type { SessionRuntime } from './create-session-runtime';
 import { createTapRegistry } from './create-tap-registry';
-import { MessageService } from './message-service';
 import { SessionManager } from './sessions';
 
 interface SetupTestConfig {
@@ -72,7 +72,7 @@ async function setupTest(config: SetupTestConfig) {
 
   const taps = createTapRegistry<TapClient>();
 
-  const messages = new MessageService({
+  const messages = createMessageService({
     manager,
     store,
     clock,

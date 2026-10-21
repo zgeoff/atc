@@ -9,9 +9,9 @@ import { createSessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildMockSession } from '../testing/build-mock-session';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
+import { createHostDirClaims } from './create-host-dir-claims';
+import { createSessionHarnesses } from './create-session-harnesses';
 import { createSessionRegistry } from './create-session-registry';
-import { HostDirClaims } from './host-dir-claims';
-import { SessionHarnesses } from './session-harnesses';
 import { SpawnRollback } from './spawn-rollback';
 
 // A rollback over the real session modules: a registry whose `local` target
@@ -55,9 +55,9 @@ async function setupTest() {
     callbacks,
   });
 
-  const claims = new HostDirClaims({ registry });
+  const claims = createHostDirClaims({ registry });
 
-  const harnesses = new SessionHarnesses({
+  const harnesses = createSessionHarnesses({
     registry,
     fleet,
     killer: { updateSuspended: mock<() => void>() },
