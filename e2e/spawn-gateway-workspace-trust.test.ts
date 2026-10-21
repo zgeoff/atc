@@ -10,7 +10,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
-import { ImpProvider } from '@atc/execution-imp';
+import { createImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/testing';
 import { createLocalPTYProvider } from '@atc/execution-local';
 import { createClaudeAdapter, createGatewayAdapter } from '@atc/harness-claude';
@@ -44,7 +44,7 @@ async function setupTest() {
   // daemon's version, so the guest's hooks run it.
   const guestATC = createStubBin(temporaryDirectory.path, 'atc', '#!/bin/sh\necho 1.0.0\n');
 
-  const box = new ImpProvider(
+  const box = createImpProvider(
     port,
     { guestDir: join(temporaryDirectory.path, 'guest'), guestATC },
     { atcBinary: null, version: '1.0.0' },

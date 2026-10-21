@@ -1,3 +1,3 @@
-export * from './imp-harness';
+export * from './create-imp-harness';
+export * from './create-imp-provider';
 export * from './imp-plugin';
-export * from './imp-provider';

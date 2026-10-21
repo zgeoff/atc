@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { startStubImpdInfo } from '@atc/test-utils';
 import { buildImpCredentialBroker } from './build-imp-credential-broker';
-import { ImpClientPort } from './imp-client-port';
+import { createImpClientPort } from './create-imp-client-port';
 import { createStubImpPort } from './testing/create-stub-imp-port';
 
 // A broker over a stub imp port that names each host `atc-<key>`, creates
@@ -127,7 +127,7 @@ test('it rejects the version check of an outdated impd as refused after one syst
 
   impd.info.version = '2.1.0';
 
-  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+  const port = createImpClientPort({ url: impd.url, readToken: () => 'token' });
 
   const broker = buildImpCredentialBroker(port, {
     impPrefix: 'atc-',

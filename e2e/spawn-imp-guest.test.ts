@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { readFileSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
-import { ImpProvider } from '@atc/execution-imp';
+import { createImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/testing';
 import { createClaudeAdapter } from '@atc/harness-claude';
 import {
@@ -51,7 +51,7 @@ test('it refuses a remote Claude spawn when the host has no atc and the daemon h
           kind: 'imp',
           options: {},
           identity: 'imp:test',
-          provider: new ImpProvider(
+          provider: createImpProvider(
             ctx.port,
             { guestDir: ctx.guestDir },
             {
@@ -103,7 +103,7 @@ test('it gives a remote Claude session settings, a statusline, and a mod that re
           kind: 'imp',
           options: {},
           identity: 'imp:test',
-          provider: new ImpProvider(
+          provider: createImpProvider(
             ctx.port,
             { guestDir: ctx.guestDir, guestATC: ctx.clis.atc },
             {
@@ -182,7 +182,7 @@ test("it takes a remote session's hook reports from a socket that serves that se
           kind: 'imp',
           options: {},
           identity: 'imp:test',
-          provider: new ImpProvider(
+          provider: createImpProvider(
             ctx.port,
             { guestDir: ctx.guestDir, guestATC: ctx.clis.atc },
             {
@@ -254,7 +254,7 @@ test('it keeps a nested harness inside a remote session from rebinding that sess
           kind: 'imp',
           options: {},
           identity: 'imp:test',
-          provider: new ImpProvider(
+          provider: createImpProvider(
             ctx.port,
             { guestDir: ctx.guestDir, guestATC: ctx.clis.atc },
             {
@@ -327,7 +327,7 @@ test('it copies its own atc binary into an imp that has none', async () => {
           kind: 'imp',
           options: {},
           identity: 'imp:test',
-          provider: new ImpProvider(
+          provider: createImpProvider(
             ctx.port,
             { guestDir: ctx.guestDir },
             {
@@ -368,7 +368,7 @@ test('it refuses a remote spawn whose agent is not signed in on the host, before
           kind: 'imp',
           options: {},
           identity: 'imp:test',
-          provider: new ImpProvider(
+          provider: createImpProvider(
             ctx.port,
             { guestDir: ctx.guestDir },
             {
@@ -415,7 +415,7 @@ test('it destroys the host of its own that a remote spawn readied when its agent
           kind: 'imp',
           options: {},
           identity: 'imp:test',
-          provider: new ImpProvider(
+          provider: createImpProvider(
             ctx.port,
             { guestDir: ctx.guestDir },
             {
@@ -468,7 +468,7 @@ test('it answers outcome_unknown for a spawn whose agent is not signed in on a h
           kind: 'imp',
           options: {},
           identity: 'imp:test',
-          provider: new ImpProvider(
+          provider: createImpProvider(
             ctx.port,
             { guestDir: ctx.guestDir },
             {
@@ -513,7 +513,7 @@ test('it keeps the key of a spawn whose agent is not signed in on a host it cann
           kind: 'imp',
           options: {},
           identity: 'imp:test',
-          provider: new ImpProvider(
+          provider: createImpProvider(
             ctx.port,
             { guestDir: ctx.guestDir },
             {
@@ -568,7 +568,7 @@ test('it revives a slept remote session whose transcript only its imp holds', as
           kind: 'imp',
           options: {},
           identity: 'imp:test',
-          provider: new ImpProvider(
+          provider: createImpProvider(
             ctx.port,
             { guestDir: ctx.guestDir, guestATC: ctx.clis.atc },
             {
@@ -633,7 +633,7 @@ test('it refuses a remote Claude spawn when the atc the target names is missing 
           kind: 'imp',
           options: {},
           identity: 'imp:test',
-          provider: new ImpProvider(
+          provider: createImpProvider(
             ctx.port,
             { guestDir: ctx.guestDir, guestATC: ctx.clis.atc },
             {
@@ -683,7 +683,7 @@ test('it refuses a remote spawn of an agent that never runs remotely, without bl
           kind: 'imp',
           options: {},
           identity: 'imp:test',
-          provider: new ImpProvider(
+          provider: createImpProvider(
             ctx.port,
             { guestDir: ctx.guestDir, guestATC: ctx.clis.atc },
             {

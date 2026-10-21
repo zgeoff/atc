@@ -4,7 +4,7 @@ import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isRecord, toAgentSessionID, toSessionID } from '@atc/core';
 import { buildPayloadHash } from '@atc/daemon';
-import { ImpProvider } from '@atc/execution-imp';
+import { createImpProvider } from '@atc/execution-imp';
 import { createStubImpPort, getOnlyImpName } from '@atc/execution-imp/testing';
 import { createLocalPTYProvider } from '@atc/execution-local';
 import { createStubExecutionProvider } from '@atc/execution-local/testing';
@@ -58,7 +58,7 @@ async function setupTest() {
             kind: 'imp',
             options: {},
             identity: 'imp:test',
-            provider: new ImpProvider(
+            provider: createImpProvider(
               createStubImpPort(),
               { guestDir: join(paths.directory, 'g') },
               { reconnectDelaysMs: [0, 0, 0], version: '1.0.0' },
@@ -1683,7 +1683,7 @@ test('it rebinds the host of a session whose restore was refused for a changed a
   const temporaryDirectory = setupTempDir('atc-run-tool-auth-');
   const port = createStubImpPort();
 
-  const provider = new ImpProvider(
+  const provider = createImpProvider(
     port,
     { guestDir: join(temporaryDirectory.path, 'g'), rebindChangedAuth: false },
     { atcBinary: null, version: '1.0.0' },
@@ -1777,7 +1777,7 @@ test('it adopts a session whose restore was refused once its host is rebound', a
   const temporaryDirectory = setupTempDir('atc-run-tool-auth-');
   const port = createStubImpPort();
 
-  const provider = new ImpProvider(
+  const provider = createImpProvider(
     port,
     { guestDir: join(temporaryDirectory.path, 'g'), rebindChangedAuth: false },
     { atcBinary: null, version: '1.0.0' },
@@ -1868,7 +1868,7 @@ test('it refuses a rebind from a remote client acting as a principal and binds n
   const temporaryDirectory = setupTempDir('atc-run-tool-auth-');
   const port = createStubImpPort();
 
-  const provider = new ImpProvider(
+  const provider = createImpProvider(
     port,
     { guestDir: join(temporaryDirectory.path, 'g'), rebindChangedAuth: false },
     { atcBinary: null, version: '1.0.0' },

@@ -3,7 +3,7 @@ import { existsSync, statSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { LOCAL_TARGET } from '@atc/config';
 import { toSessionID } from '@atc/core';
-import { ImpProvider } from '@atc/execution-imp';
+import { createImpProvider } from '@atc/execution-imp';
 import { createStubImpPort, getOnlyImpName } from '@atc/execution-imp/testing';
 import { createLocalPTYProvider } from '@atc/execution-local';
 import { openDaemonClient } from '@atc/protocol/client';
@@ -53,7 +53,7 @@ async function setupTest() {
             kind: 'imp',
             options: {},
             identity: 'imp:test',
-            provider: new ImpProvider(
+            provider: createImpProvider(
               port,
               { guestDir: join(paths.directory, 'g') },
               { reconnectDelaysMs: [0, 0, 0], version: '1.0.0' },

@@ -2,7 +2,6 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { TargetUnavailableError } from '@atc/plugin-api';
 import { buildMockHostServices } from '@atc/test-utils';
 import { IMP_PLUGIN } from './imp-plugin';
-import { ImpProvider } from './imp-provider';
 
 test('it creates an imp provider for a target with a url and a set token variable', () => {
   const provider = IMP_PLUGIN.create(
@@ -15,7 +14,7 @@ test('it creates an imp provider for a target with a url and a set token variabl
     { authProfiles: new Map() },
   );
 
-  expect(provider).toBeInstanceOf(ImpProvider);
+  expect(provider.kind).toBe('imp');
 });
 
 test('it creates a provider that clones on its host, takes the daemon git identity, and can trust a clone', () => {

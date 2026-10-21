@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { ImpProvider } from '@atc/execution-imp';
+import { createImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/testing';
 import { createLocalPTYProvider } from '@atc/execution-local';
 import { buildMockAgentAdapter, createStubEchoClaude, getRecord } from '@atc/test-utils';
@@ -34,7 +34,7 @@ test("it runs a sub-session on its parent's target as another session in its par
             kind: 'imp',
             options: { image: id },
             identity: `imp:${id}`,
-            provider: new ImpProvider(
+            provider: createImpProvider(
               ctx.port,
               { guestDir: join(paths.directory, id) },
               { version: '1.0.0' },
@@ -94,7 +94,7 @@ test("it puts a parent's imp to sleep once its only session is killed", async ()
             kind: 'imp',
             options: { image: id },
             identity: `imp:${id}`,
-            provider: new ImpProvider(
+            provider: createImpProvider(
               ctx.port,
               { guestDir: join(paths.directory, id) },
               { version: '1.0.0' },
@@ -144,7 +144,7 @@ test("it wakes a sleeping parent's imp to start a sub-session there", async () =
             kind: 'imp',
             options: { image: id },
             identity: `imp:${id}`,
-            provider: new ImpProvider(
+            provider: createImpProvider(
               ctx.port,
               { guestDir: join(paths.directory, id) },
               { version: '1.0.0' },
@@ -205,7 +205,7 @@ test('it gives a sub-session without a target a host of its own on the default t
             kind: 'imp',
             options: { image: id },
             identity: `imp:${id}`,
-            provider: new ImpProvider(
+            provider: createImpProvider(
               ctx.port,
               { guestDir: join(paths.directory, id) },
               { version: '1.0.0' },
@@ -258,7 +258,7 @@ test('it gives a sub-session on another imp target an imp of its own', async () 
             kind: 'imp',
             options: { image: id },
             identity: `imp:${id}`,
-            provider: new ImpProvider(
+            provider: createImpProvider(
               ctx.port,
               { guestDir: join(paths.directory, id) },
               { version: '1.0.0' },

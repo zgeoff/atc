@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
-import { ImpProvider } from '@atc/execution-imp';
+import { createImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/testing';
 import { createLocalPTYProvider } from '@atc/execution-local';
 import {
@@ -16,7 +16,7 @@ function setupTest() {
   const temporaryDirectory = setupTempDir('atc-session-action-');
   const port = createStubImpPort();
 
-  const provider = new ImpProvider(
+  const provider = createImpProvider(
     port,
     { guestDir: join(temporaryDirectory.path, 'g'), rebindChangedAuth: false },
     { atcBinary: null, version: '1.0.0' },
