@@ -1,13 +1,14 @@
 import { mkdirSync } from 'node:fs';
+import type { RestartResult } from '@atc/protocol';
 import { buildRestartFailure } from './build-restart-failure';
 import { claimDaemonLock } from './claim-daemon-lock';
 import { formatRestartReport } from './format-restart-report';
 import type { LifecycleHost } from './lifecycle-host';
-import type { RestartResult } from './parse-restart-result';
 import { readRestartResult } from './read-restart-result';
 import { removeRestartResult } from './remove-restart-result';
 import { restartDaemon } from './restart-daemon';
 import type { RestartOptions } from './restart-daemon';
+import { writeRestartEvent } from './write-restart-event';
 import { writeRestartResult } from './write-restart-result';
 
 export async function runDaemonRestartWorker(
@@ -39,6 +40,16 @@ export async function runDaemonRestartWorker(
       });
 
       writeRestartResult(restartsDir, result);
+
+      const event = await writeRestartEvent(host, result);
+
+      if (event.kind === 'no_daemon') {
+        console.log('no daemon answered, so the restart is not on the event feed');
+      }
+
+      if (event.kind === 'failed') {
+        console.log(`cannot put the restart on the event feed: ${event.reason}`);
+      }
     } finally {
       lock.dispose();
     }

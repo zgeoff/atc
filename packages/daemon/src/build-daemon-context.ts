@@ -1,4 +1,6 @@
 import type { Clock } from '@atc/core';
+import { PROTOCOL_V } from '@atc/protocol/wire';
+import type { EventMsg } from '@atc/protocol/wire';
 import type { StateStore } from '@atc/store';
 import { buildTargetAccess } from './auth/build-target-access';
 import { isTreeInReach } from './auth/is-tree-in-reach';
@@ -20,6 +22,7 @@ export interface DaemonContextDeps {
   readonly permissions: PermissionPrompts;
   readonly services: SessionServices;
   readonly idempotencyRetentionMs: number;
+  readonly emitEvent: (event: EventMsg) => void;
 
   // Stops the daemon once it is listening; undefined before then.
   readonly stopDaemon: () => Promise<void> | undefined;
@@ -99,6 +102,9 @@ export function buildDaemonContext(deps: DaemonContextDeps): DaemonContext {
           opts.onQuit?.();
         })();
       }, QUIT_FLUSH_DELAY_MS);
+    },
+    announceRestart: (result) => {
+      deps.emitEvent({ version: PROTOCOL_V, ev: 'DaemonRestarted', result });
     },
     killSession: (id, stopOnly) => forgetter.killSession(id, stopOnly),
     forgetSession: (id, confirmToken, refuse, caller) =>

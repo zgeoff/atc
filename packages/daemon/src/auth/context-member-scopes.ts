@@ -34,6 +34,7 @@ export const CONTEXT_MEMBER_SCOPES = {
   detachTap: 'caller-checked',
 
   quitDaemon: 'owner-only',
+  announceRestart: 'owner-only',
   restoreFleet: 'owner-only',
   writeStateBackup: 'owner-only',
 

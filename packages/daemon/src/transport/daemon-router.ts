@@ -21,6 +21,11 @@ function createDaemonRouter() {
 
         return {};
       }),
+      restarted: os.daemon.restarted.handler((call) => {
+        call.context.ctx.announceRestart(call.input.result);
+
+        return {};
+      }),
       backup: os.daemon.backup.handler(async (call) => ({
         path: call.input.path,
         bytes: await call.context.ctx.writeStateBackup(call.input.path),

@@ -1,4 +1,4 @@
-import type { RestartResult } from './parse-restart-result';
+import type { RestartResult } from '@atc/protocol';
 
 export function formatRestartReport(result: RestartResult): string[] {
   const lines: string[] = [];

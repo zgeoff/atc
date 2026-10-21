@@ -2,7 +2,8 @@ import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
-import { buildMockAgentAdapter } from '@atc/test-utils';
+import type { DaemonEvent } from '@atc/protocol';
+import { buildMockAgentAdapter, waitFor } from '@atc/test-utils';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 function setupTest() {
@@ -15,6 +16,7 @@ function setupTest() {
 test.each([
   ['daemon.quit'],
   ['daemon.backup'],
+  ['daemon.restarted'],
   ['fleet.restore'],
   ['session.auth.revoke'],
   ['session.auth.rebind'],
@@ -36,6 +38,7 @@ test.each([
 test.each([
   ['daemon.quit'],
   ['daemon.backup'],
+  ['daemon.restarted'],
   ['fleet.restore'],
   ['session.auth.revoke'],
   ['session.auth.rebind'],
@@ -55,6 +58,7 @@ test.each([
 test.each([
   ['daemon.quit'],
   ['daemon.backup'],
+  ['daemon.restarted'],
   ['fleet.restore'],
   ['session.auth.revoke'],
   ['session.auth.rebind'],
@@ -118,6 +122,52 @@ test('it admits fleet.restore from the owner', async () => {
   expect(daemon.client.sendRequest('fleet.restore', {})).resolves.toStrictEqual({
     restored: 0,
   });
+});
+
+test('it sends a DaemonRestarted event to an owner connection and never to a principal connection', async () => {
+  const ctx = setupTest();
+
+  const daemon = await startTestDaemon({
+    options: () => ({ adapter: ctx.adapter, principals: new Map([['gw', ['local']]]) }),
+  });
+
+  const client = await daemon.openClient({ principal: 'gw' });
+
+  const principalEvents: DaemonEvent[] = [];
+
+  client.onEvent = (event) => {
+    principalEvents.push(event);
+  };
+
+  await daemon.client.sendRequest('daemon.restarted', {
+    result: {
+      runID: 'run-maple',
+      code: 1,
+      pid: 4242,
+      build: 'atc/0.9.1',
+      listenPort: null,
+      restored: 0,
+      total: 1,
+      failed: [{ name: 'heron', id: 's-heron', reason: 'its agent is not configured' }],
+      interrupted: [],
+      error: null,
+    },
+  });
+
+  // A connection takes its events in order, so a session the principal sees
+  // after the restart proves the restart event had its turn first.
+  await daemon.client.sendRequest('session.spawn', { cwd: daemon.directory, name: 'after' });
+
+  await waitFor(() => {
+    expect(principalEvents).toPartiallyContain({ ev: 'SessionAdded' });
+  });
+
+  expect(daemon.events).toPartiallyContain({
+    ev: 'DaemonRestarted',
+    result: expect.objectContaining({ runID: 'run-maple' }),
+  });
+
+  expect(principalEvents.map((event) => event.ev)).not.toContain('DaemonRestarted');
 });
 
 test('it admits daemon.backup from the owner', async () => {

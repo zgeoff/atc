@@ -62,7 +62,17 @@ and the restore has no further try for it.
 
 The report holds the final pid and build, `restored <n> of <m>`, each failed row with its reason,
 and the sessions the restart interrupted. The worker writes the same data as a result record, which
-is the final line of the run log and the content of `restarts/last.json`.
+is the final line of the run log and the content of `restarts/last.json`. That file is private to
+atc.
+
+The worker then hands the result record to whichever daemon answers on the socket: the replacement,
+or the old daemon when the restart left it running. The daemon broadcasts it as one
+`DaemonRestarted` event, so a reader learns of each restart and its result from the event feed. The
+event goes to owner connections, the events socket and user hooks, but never to a principal
+connection, since the result names sessions outside its reach. The trail keeps no copy, so a reader
+that connects after the broadcast misses it. When no daemon answers, the restart reaches no feed,
+and the worker's report says so. A joined worker sends nothing, so one restart puts one event on the
+feed.
 
 ## One restart at a time
 

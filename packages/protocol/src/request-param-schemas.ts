@@ -1,6 +1,7 @@
 import { COMMIT_ID_PATTERN, toAgentSessionID, toMessageID, toSessionID } from '@atc/core';
 import { buildOptionalBoolean, buildOptionalString } from '@atc/core/schema';
 import { z } from 'zod';
+import { RESTART_RESULT_SCHEMA } from './restart-result';
 
 const EJECT_DEFAULT_PROMPT =
   'Continue the task autonomously. Verify your work as you go and stop when it is complete.';
@@ -120,6 +121,7 @@ export const REQUEST_PARAM_SCHEMAS = {
       .string({ error: 'daemon.backup path must be an absolute path' })
       .refine((path) => path.startsWith('/'), 'daemon.backup path must be an absolute path'),
   }),
+  'daemon.restarted': z.object({ result: RESTART_RESULT_SCHEMA }),
   'session.list': z.object({}),
   'dirs.list': z.object({}),
   'agents.list': z.object({}),

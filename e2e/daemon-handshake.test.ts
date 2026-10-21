@@ -47,12 +47,12 @@ test('it rejects a protocol version mismatch naming both builds and closes the c
     client.stop();
   });
 
-  const refused = client.sendRequest('daemon.hello', { client: 'atc/newer-build', protocol: 9 });
+  const refused = client.sendRequest('daemon.hello', { client: 'atc/newer-build', protocol: 10 });
 
   expect(refused).rejects.toMatchObject({
     code: 'protocol_mismatch',
     message:
-      'atc/newer-build speaks protocol v9, daemon atc/test-build speaks v8; restart the daemon so both run the same build',
+      'atc/newer-build speaks protocol v10, daemon atc/test-build speaks v9; restart the daemon so both run the same build',
   });
 
   await Promise.allSettled([refused]);

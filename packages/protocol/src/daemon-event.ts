@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { MESSAGE_STATUS_SCHEMA } from './message-status';
+import { RESTART_RESULT_SCHEMA } from './restart-result';
 import { SESSION_DESCRIPTOR_SCHEMA } from './session-descriptor';
 import { MESSAGE_SENDER_SCHEMA } from './wire/message-sender';
 
@@ -87,6 +88,7 @@ export const DAEMON_EVENT_SCHEMA = z.discriminatedUnion('ev', [
     sessionID: z.string(),
     reason: z.enum(['replaced', 'removed']),
   }),
+  z.object({ ev: z.literal('DaemonRestarted'), result: RESTART_RESULT_SCHEMA }),
 ]);
 
 export type DaemonEvent = z.output<typeof DAEMON_EVENT_SCHEMA>;
