@@ -1,8 +1,10 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
+import { LEGACY_BROKER_PLACEHOLDER } from '@atc/config';
 import { toSessionID } from '@atc/core';
 import { EffectRemainsError } from '@atc/plugin-api';
-import type { LaunchTicket } from '@atc/plugin-api';
+import type { AuthProfile, LaunchTicket } from '@atc/plugin-api';
+import { DaemonError } from '@atc/protocol/wire';
 import { StateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/testing';
 import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
@@ -11,6 +13,7 @@ import { buildMockAuthBinding } from '../testing/build-mock-auth-binding';
 import { buildStubBinderBroker } from '../testing/build-stub-binder-broker';
 import { buildStubCredentialBroker } from '../testing/build-stub-credential-broker';
 import { buildStubPregrantedBrokerHost } from '../testing/build-stub-pregranted-broker-host';
+import { buildAuthBinding } from './build-auth-binding';
 import { RuntimeAuthBinder } from './runtime-auth-binder';
 
 // a binder over a real state store, a broker that refuses grants as impd does behind the imp
@@ -3508,4 +3511,321 @@ test('it keeps the pending admission of another harness on the host through a re
   invariant(ticket);
 
   expect(ticket.check()).toBeNull();
+});
+
+test('it verifies a host bound under an older form of the same grants and moves the binding to the current form at its revision', async () => {
+  const ctx = await setupTest();
+
+  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
+  // imps and may grant `gh`, and impd holds `gh` as a github secret.
+  ctx.host.setIdentity({
+    name: 'atc-runtime',
+    scope: 'manage',
+    hosts: ['atc-*'],
+    grantable: ['gh'],
+  });
+
+  ctx.host.createSecret('gh', 'github', [
+    { host: 'api.github.com', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const planned = buildAuthBinding(
+    {
+      id: 'glm',
+      baseURL: 'https://api.z.ai/api/anthropic',
+      auth: { profiles: ['gh'], placeholderEnv: {} },
+    },
+    new Map<string, AuthProfile>([
+      [
+        'gh',
+        {
+          name: 'gh',
+          secret: 'gh',
+          kind: 'github',
+          env: { GH_TOKEN: 'broker-placeholder' },
+          dependencies: [],
+        },
+      ],
+    ]),
+  );
+
+  invariant('binding' in planned);
+
+  const attemptID = await ctx.binder.createBinding(ctx.host, {
+    hostKey: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'imp:test',
+    binding: planned.binding,
+  });
+
+  await ctx.binder.updateReady(toSessionID('s1'), attemptID);
+
+  // the row as an older atc wrote it: the old placeholder, and the rules
+  // atc held for a github secret before the broker held them
+  await ctx.store.updateAuthBinding(
+    toSessionID('s1'),
+    {
+      bindingHash: '5f'.repeat(32),
+      bindingJSON: JSON.stringify({
+        agent: 'glm',
+        baseURL: 'https://api.z.ai/api/anthropic',
+        profiles: ['gh'],
+        secrets: [
+          {
+            secret: 'gh',
+            kind: 'github',
+            rules: [
+              { host: 'api.github.com', header: 'authorization', scheme: 'bearer' },
+              {
+                host: 'github.com',
+                header: 'authorization',
+                scheme: 'basic',
+                user: 'x-access-token',
+              },
+              { host: 'uploads.github.com', header: 'authorization', scheme: 'bearer' },
+            ],
+          },
+        ],
+        placeholderEnv: {},
+        profileEnv: { GH_TOKEN: LEGACY_BROKER_PLACEHOLDER },
+        hash: '5f'.repeat(32),
+      }),
+    },
+    1000,
+  );
+
+  ctx.host.calls.length = 0;
+
+  const verified = await ctx.binder.verifyBinding(ctx.host, toSessionID('s1'), planned.binding);
+
+  expect(verified).toMatchObject({
+    state: 'ready',
+    revision: 1,
+    bindingHash: planned.binding.hash,
+    bindingJSON: JSON.stringify(planned.binding),
+  });
+
+  expect(ctx.host.calls).toStrictEqual([
+    'verifyVersion',
+    'readIdentity',
+    'readSecrets',
+    'readHost atc-s1',
+    'readGrants atc-s1',
+  ]);
+});
+
+test('it admits a start planned under the current form once a host bound under an older form of the same grants verifies', async () => {
+  const ctx = await setupTest();
+
+  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
+  // imps and may grant `gh`, and impd holds `gh` as a github secret.
+  ctx.host.setIdentity({
+    name: 'atc-runtime',
+    scope: 'manage',
+    hosts: ['atc-*'],
+    grantable: ['gh'],
+  });
+
+  ctx.host.createSecret('gh', 'github', [
+    { host: 'api.github.com', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const planned = buildAuthBinding(
+    {
+      id: 'glm',
+      baseURL: 'https://api.z.ai/api/anthropic',
+      auth: { profiles: ['gh'], placeholderEnv: {} },
+    },
+    new Map<string, AuthProfile>([
+      [
+        'gh',
+        {
+          name: 'gh',
+          secret: 'gh',
+          kind: 'github',
+          env: { GH_TOKEN: 'broker-placeholder' },
+          dependencies: [],
+        },
+      ],
+    ]),
+  );
+
+  invariant('binding' in planned);
+
+  const attemptID = await ctx.binder.createBinding(ctx.host, {
+    hostKey: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'imp:test',
+    binding: planned.binding,
+  });
+
+  await ctx.binder.updateReady(toSessionID('s1'), attemptID);
+
+  // the row as an older atc wrote it: the old placeholder, and the rules
+  // atc held for a github secret before the broker held them
+  await ctx.store.updateAuthBinding(
+    toSessionID('s1'),
+    {
+      bindingHash: '5f'.repeat(32),
+      bindingJSON: JSON.stringify({
+        agent: 'glm',
+        baseURL: 'https://api.z.ai/api/anthropic',
+        profiles: ['gh'],
+        secrets: [
+          {
+            secret: 'gh',
+            kind: 'github',
+            rules: [
+              { host: 'api.github.com', header: 'authorization', scheme: 'bearer' },
+              {
+                host: 'github.com',
+                header: 'authorization',
+                scheme: 'basic',
+                user: 'x-access-token',
+              },
+              { host: 'uploads.github.com', header: 'authorization', scheme: 'bearer' },
+            ],
+          },
+        ],
+        placeholderEnv: {},
+        profileEnv: { GH_TOKEN: LEGACY_BROKER_PLACEHOLDER },
+        hash: '5f'.repeat(32),
+      }),
+    },
+    1000,
+  );
+
+  await ctx.binder.verifyBinding(ctx.host, toSessionID('s1'), planned.binding);
+
+  const sent: string[] = [];
+
+  await ctx.binder.withLaunchAdmission(
+    toSessionID('s1'),
+    { revision: 1, hash: planned.binding.hash, attemptID: null },
+    'start',
+    () => {
+      sent.push('start');
+    },
+  );
+
+  expect(sent).toStrictEqual(['start']);
+});
+
+test('it refuses a host bound under an older form whose grants changed since, with the rebind message, before it reaches impd', async () => {
+  const ctx = await setupTest();
+
+  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
+  // imps and may grant `gh` and `glm`, and impd holds `gh` as a github
+  // secret and `glm` for api.z.ai as a custom bearer secret.
+  ctx.host.setIdentity({
+    name: 'atc-runtime',
+    scope: 'manage',
+    hosts: ['atc-*'],
+    grantable: ['gh', 'glm'],
+  });
+
+  ctx.host.createSecret('gh', 'github', [
+    { host: 'api.github.com', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  ctx.host.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const gh: AuthProfile = {
+    name: 'gh',
+    secret: 'gh',
+    kind: 'github',
+    env: { GH_TOKEN: 'broker-placeholder' },
+    dependencies: [],
+  };
+
+  const bound = buildAuthBinding(
+    {
+      id: 'glm',
+      baseURL: 'https://api.z.ai/api/anthropic',
+      auth: { profiles: ['gh'], placeholderEnv: {} },
+    },
+    new Map([['gh', gh]]),
+  );
+
+  const changed = buildAuthBinding(
+    {
+      id: 'glm',
+      baseURL: 'https://api.z.ai/api/anthropic',
+      auth: { profiles: ['gh', 'glm'], placeholderEnv: {} },
+    },
+    new Map<string, AuthProfile>([
+      ['gh', gh],
+      [
+        'glm',
+        {
+          name: 'glm',
+          secret: 'glm',
+          kind: 'custom',
+          host: 'api.z.ai',
+          header: 'authorization',
+          scheme: 'bearer',
+          env: {},
+          dependencies: [],
+        },
+      ],
+    ]),
+  );
+
+  invariant('binding' in bound && 'binding' in changed);
+
+  const attemptID = await ctx.binder.createBinding(ctx.host, {
+    hostKey: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'imp:test',
+    binding: bound.binding,
+  });
+
+  await ctx.binder.updateReady(toSessionID('s1'), attemptID);
+
+  // the row as an older atc wrote it: the old placeholder, and the rules
+  // atc held for a github secret before the broker held them
+  await ctx.store.updateAuthBinding(
+    toSessionID('s1'),
+    {
+      bindingHash: '5f'.repeat(32),
+      bindingJSON: JSON.stringify({
+        agent: 'glm',
+        baseURL: 'https://api.z.ai/api/anthropic',
+        profiles: ['gh'],
+        secrets: [
+          {
+            secret: 'gh',
+            kind: 'github',
+            rules: [
+              { host: 'api.github.com', header: 'authorization', scheme: 'bearer' },
+              {
+                host: 'github.com',
+                header: 'authorization',
+                scheme: 'basic',
+                user: 'x-access-token',
+              },
+              { host: 'uploads.github.com', header: 'authorization', scheme: 'bearer' },
+            ],
+          },
+        ],
+        placeholderEnv: {},
+        profileEnv: { GH_TOKEN: LEGACY_BROKER_PLACEHOLDER },
+        hash: '5f'.repeat(32),
+      }),
+    },
+    1000,
+  );
+
+  ctx.host.calls.length = 0;
+
+  const verified = ctx.binder.verifyBinding(ctx.host, toSessionID('s1'), changed.binding);
+
+  expect(verified).rejects.toThrowWithMessage(
+    DaemonError,
+    'the auth profiles host s1 uses changed since it was bound; rebind it to adopt them',
+  );
+
+  expect(ctx.host.calls).toStrictEqual([]);
 });

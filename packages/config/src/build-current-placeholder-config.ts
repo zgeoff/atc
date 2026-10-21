@@ -1,7 +1,7 @@
 import { BROKER_PLACEHOLDER, isRecord } from '@atc/core';
 
 // A deprecated placeholder, which atc reads as its own and warns about.
-const LEGACY_PLACEHOLDER = 'imp-broker-placeholder';
+export const LEGACY_BROKER_PLACEHOLDER = 'imp-broker-placeholder';
 
 // The fields that hold a credential's placeholder, `*` matching any key; the
 // gateways key is the one the config migration reads.
@@ -38,7 +38,7 @@ export function buildCurrentPlaceholderConfig(
   return {
     config: current,
     warning: found
-      ? `config.json holds the placeholder ${LEGACY_PLACEHOLDER}, which atc reads as ${BROKER_PLACEHOLDER}; write ${BROKER_PLACEHOLDER} instead, since a later release stops reading the old value`
+      ? `config.json holds the placeholder ${LEGACY_BROKER_PLACEHOLDER}, which atc reads as ${BROKER_PLACEHOLDER}; write ${BROKER_PLACEHOLDER} instead, since a later release stops reading the old value`
       : null,
   };
 }
@@ -47,7 +47,7 @@ function buildCurrentField(value: unknown, path: readonly string[], onFound: () 
   const [key, ...rest] = path;
 
   if (key === undefined) {
-    if (value !== LEGACY_PLACEHOLDER) {
+    if (value !== LEGACY_BROKER_PLACEHOLDER) {
       return value;
     }
 
