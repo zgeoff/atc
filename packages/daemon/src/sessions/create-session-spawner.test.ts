@@ -79,6 +79,7 @@ async function setupTest(config: SetupTestConfig) {
     log: mock<() => void>(),
     now: () => 0,
     getClock: () => systemClock,
+    getReporterSocketPath: () => join(temporaryDirectory.path, 'reporter.sock'),
     findAuthBinder: () => authBinder,
     findRecords: () => records,
   };
@@ -153,6 +154,19 @@ test('it lists a running session and starts its harness on the local target', as
   });
 
   expect(ctx.callbacks.onEvent).toHaveBeenCalledExactlyOnceWith('added', session);
+});
+
+test('it points the hooks of a session it starts at the reporter socket the daemon listens on', async () => {
+  const provider = buildStubMemoryProvider({ kind: 'local-pty' });
+
+  const ctx = await setupTest({
+    adapters: [buildStubHarnessAdapter()],
+    targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
+  });
+
+  await ctx.spawner.spawn(ctx.directory, 'work', '', 120, 40);
+
+  expect(provider.harnesses[0]?.spec.env['ATC_SOCKET']).toBe(join(ctx.directory, 'reporter.sock'));
 });
 
 test('it boots a session before output its harness writes at once can reach it', async () => {

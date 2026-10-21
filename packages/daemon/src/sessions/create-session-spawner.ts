@@ -1,4 +1,3 @@
-import { socketPath } from '@atc/config';
 import type { AgentID, AgentSessionID, SessionID } from '@atc/core';
 import { createStepTimer } from '@atc/core';
 import type { SpawnOverrides } from '@atc/plugin-api';
@@ -74,6 +73,7 @@ interface SessionSpawnerDeps {
     | 'log'
     | 'now'
     | 'getClock'
+    | 'getReporterSocketPath'
     | 'findRecords'
     | 'startMessageBridge'
     | 'stopMessageBridge'
@@ -186,7 +186,7 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
       ...plan.env,
       ...buildSessionEnv({
         sessionID: id,
-        socket: socketPath,
+        socket: callbacks.getReporterSocketPath(),
         ...(prepared.recordPath === null ? {} : { sessionRecord: prepared.recordPath }),
       }),
     };

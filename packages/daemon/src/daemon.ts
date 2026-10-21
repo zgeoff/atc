@@ -310,6 +310,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   );
 
   manager.clock = clock;
+  manager.reporterSocketPath = opts.reporterSocketPath;
 
   if (opts.log !== undefined) {
     manager.log = opts.log;

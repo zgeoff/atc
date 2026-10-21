@@ -51,6 +51,10 @@ export interface SessionCallbacks {
   // after the modules are built; this clock stamps creation and last attach
   readonly getClock: () => Clock;
 
+  // The socket the daemon's hook server listens on, which each session's
+  // hooks report to.
+  readonly getReporterSocketPath: () => string;
+
   // The binder of each host's runtime auth, or null when the daemon has
   // none and refuses every start that needs one.
   readonly findAuthBinder: () => RuntimeAuthBinder | null;

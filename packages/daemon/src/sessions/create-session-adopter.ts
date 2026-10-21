@@ -1,4 +1,3 @@
-import { socketPath } from '@atc/config';
 import { createStepTimer } from '@atc/core';
 import type { SessionID } from '@atc/core';
 import type { ExecutionProvider, HarnessHandle } from '@atc/plugin-api';
@@ -41,6 +40,7 @@ interface SessionAdopterDeps {
     | 'onRelay'
     | 'log'
     | 'now'
+    | 'getReporterSocketPath'
     | 'findRecords'
     | 'startMessageBridge'
     | 'stopMessageBridge'
@@ -119,7 +119,7 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
         ...plan.env,
         ...buildSessionEnv({
           sessionID: session.id,
-          socket: socketPath,
+          socket: callbacks.getReporterSocketPath(),
           ...(launch.recordPath === null ? {} : { sessionRecord: launch.recordPath }),
         }),
       },
@@ -405,7 +405,7 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
             ...plan.env,
             ...buildSessionEnv({
               sessionID: session.id,
-              socket: socketPath,
+              socket: callbacks.getReporterSocketPath(),
               ...(recordPath === null ? {} : { sessionRecord: recordPath }),
             }),
           },
