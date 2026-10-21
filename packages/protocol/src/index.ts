@@ -17,6 +17,7 @@ export * from './git-probe-result';
 export * from './git-ref';
 export * from './hello-result';
 export * from './menu-view';
+export * from './mismatch-refusal-data';
 export * from './message-answer';
 export * from './parse-declared-scope';
 export * from './parse-request-params';

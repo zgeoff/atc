@@ -2,7 +2,11 @@ import type { ChildProcess } from 'node:child_process';
 import { makeSingleFlight, toAgentID, waitUntil } from '@atc/core';
 import type { Clock } from '@atc/core';
 import type { DaemonBoot, DaemonBootOptions, DaemonPaths, ProtocolMismatch } from '@atc/protocol';
-import { formatProtocolMismatch, isClientBehind } from '@atc/protocol';
+import {
+  MISMATCH_REFUSAL_DATA_SCHEMA,
+  formatProtocolMismatch,
+  isClientBehind,
+} from '@atc/protocol';
 import { openDaemonClient } from '@atc/protocol/client';
 import type { DaemonClient } from '@atc/protocol/client';
 import { readSessionEnv } from '@atc/protocol/session';
@@ -104,7 +108,7 @@ export async function bootDaemonClient(
         throw error;
       }
 
-      const daemonProtocol = error.data?.['daemonProtocol'];
+      const refusal = MISMATCH_REFUSAL_DATA_SCHEMA.safeParse(error.data ?? {});
 
       const mismatch: ProtocolMismatch = {
         socketPath: opened.socketPath,
@@ -115,7 +119,7 @@ export async function bootDaemonClient(
         }),
         clientBuild: build,
         clientProtocol: PROTOCOL_V,
-        daemonProtocol: typeof daemonProtocol === 'number' ? daemonProtocol : null,
+        daemonProtocol: refusal.data?.daemonProtocol ?? null,
         daemonMessage: error.message,
       };
 

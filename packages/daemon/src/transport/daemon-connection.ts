@@ -1,5 +1,5 @@
 import type { SessionID } from '@atc/core';
-import type { DaemonAnswer, RequestParams } from '@atc/protocol';
+import type { DaemonAnswer, MismatchRefusalData, RequestParams } from '@atc/protocol';
 import {
   DEFAULT_QUEUE_BYTES,
   DaemonError,
@@ -591,7 +591,7 @@ export class DaemonConnection {
         throw new DaemonError(
           'protocol_mismatch',
           this.formatMismatch(input.client, input.protocol),
-          { daemonProtocol: PROTOCOL_V },
+          { daemonProtocol: PROTOCOL_V } satisfies MismatchRefusalData,
         );
       }
 
