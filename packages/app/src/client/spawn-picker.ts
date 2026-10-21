@@ -106,7 +106,6 @@ export interface SpawnPickerDeps<TMirror> {
 
 const COMPLETION_DELAY_MS = 120;
 
-// One agent the menu offers.
 interface AgentPick {
   readonly agent: AgentID;
   readonly label: string;
