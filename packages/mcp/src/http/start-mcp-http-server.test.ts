@@ -294,6 +294,53 @@ test('it runs a tool call whose scope the token holds', async () => {
   });
 });
 
+test('it refuses an MCP request that does not accept an event stream with 406', async () => {
+  const ctx = await setupTest();
+
+  const created = await ctx.store.auth.api.createFixedClient({
+    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+  });
+
+  const clientID = created.clientID;
+
+  const authorized = await runMCPAuthorization(ctx, {
+    clientID,
+    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    ticked: ['read'],
+  });
+
+  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authorized.code,
+      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+      client_id: clientID,
+      code_verifier: authorized.verifier,
+    }),
+  });
+
+  const tokens = await readJSONRecord(exchanged);
+
+  const listed = await fetch(`${ctx.url}/mcp`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${String(tokens['access_token'])}`,
+      accept: 'application/json',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name: 'atc_sessions_list', arguments: {} },
+    }),
+  });
+
+  expect(listed.status).toBe(406);
+});
+
 test('it shows a remote MCP client the sessions of the targets the principals grant to its client id', async () => {
   const temporaryDirectory = setupTempDir('atc-mcp-http-');
   const dbPath = join(temporaryDirectory.path, 'mcp-auth.db');
