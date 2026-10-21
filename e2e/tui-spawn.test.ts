@@ -25,7 +25,9 @@ test('it leaves an agent with no installed binary out of the picker', async () =
   ctx.reset();
   ctx.write('n');
 
-  await ctx.waitFor('spawn: agent');
+  // The agent step opens before the daemon lists the agents, so the menu is
+  // read once an agent it lists is drawn.
+  await ctx.waitFor('Grok');
 
   const menu = ctx.read();
 

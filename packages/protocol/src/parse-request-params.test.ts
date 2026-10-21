@@ -514,6 +514,22 @@ test.each(['sources.complete', 'sources.interpret'] as const)(
   },
 );
 
+test.each(['sources.complete', 'sources.interpret'] as const)(
+  'it rejects %s with a clientCwd over 4096 characters',
+  (method) => {
+    const parsed = parseRequestParams(method, {
+      source: 'dirs',
+      input: './pro',
+      clientCwd: `/${'a'.repeat(4096)}`,
+    });
+
+    expect(parsed).toStrictEqual({
+      ok: false,
+      message: 'clientCwd must be at most 4096 characters',
+    });
+  },
+);
+
 test('it rejects sources.interpret with an input over 4096 characters', () => {
   const parsed = parseRequestParams('sources.interpret', {
     source: 'github',
