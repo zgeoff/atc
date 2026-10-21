@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { systemClock, toAgentSessionID, toSessionID } from '@atc/core';
 import type { SessionID } from '@atc/core';
 import type { AgentAdapter, SpawnPlan } from '@atc/plugin-api';
-import { StateStore } from '@atc/store';
+import { createStateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/testing';
 import { registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
 import { AuthSetup } from '../auth/auth-setup';
@@ -37,7 +37,7 @@ async function setupTest(config: SetupTestConfig) {
 
   await createMigratedStateDB(dbPath);
 
-  const store = await StateStore.open(dbPath);
+  const store = await createStateStore(dbPath);
 
   registerTestCleanup(() => store.stop());
 

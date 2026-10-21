@@ -7,7 +7,7 @@ import { ClaudeAdapter } from '@atc/harness-claude';
 import { encodeCursor } from '@atc/protocol';
 import type { DaemonEvent } from '@atc/protocol';
 import { decodeMessage } from '@atc/protocol/wire';
-import { StateStore } from '@atc/store';
+import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
   buildMockAgentAdapter,
@@ -276,7 +276,7 @@ test('it rejects a message without text as bad_args', async () => {
 test('it lists a session the fleet restore has not reached yet as waiting to restore', async () => {
   const daemon = await startTestDaemon({
     options: async (paths) => {
-      const seed = await StateStore.open(paths.dbPath);
+      const seed = await createStateStore(paths.dbPath);
 
       const stopSeed = registerTestCleanup(() => seed.stop());
 
@@ -311,7 +311,7 @@ test('it queues a message for a session that waits for its restore boot after a 
 
   const daemon = await startTestDaemon({
     options: async (paths) => {
-      const seed = await StateStore.open(paths.dbPath);
+      const seed = await createStateStore(paths.dbPath);
 
       const stopSeed = registerTestCleanup(() => seed.stop());
 
@@ -352,7 +352,7 @@ test('it hands a message queued during the restore to the session tap that attac
 
   const daemon = await startTestDaemon({
     options: async (paths) => {
-      const seed = await StateStore.open(paths.dbPath);
+      const seed = await createStateStore(paths.dbPath);
 
       const stopSeed = registerTestCleanup(() => seed.stop());
 

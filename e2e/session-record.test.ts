@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { toAgentSessionID, toSessionID } from '@atc/core';
 import { buildMockExecutionTarget } from '@atc/daemon/testing';
 import { buildStubDirProvider } from '@atc/execution-local/testing';
-import { StateStore } from '@atc/store';
+import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
   buildMockAgentAdapter,
@@ -421,7 +421,7 @@ test('it places the stored record again when a restore revives the session', asy
     options: async (paths) => {
       // The fleet holds a session with a published record whose copy is
       // gone, as a cleared state directory leaves it.
-      const store = await StateStore.open(paths.dbPath);
+      const store = await createStateStore(paths.dbPath);
 
       const stopStore = registerTestCleanup(() => store.stop());
 

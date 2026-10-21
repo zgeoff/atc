@@ -2,7 +2,7 @@ import { expect, mock, test } from 'bun:test';
 import { isRecord, toMessageID, toSessionID } from '@atc/core';
 import { ClaudeAdapter } from '@atc/harness-claude';
 import type { DaemonEvent } from '@atc/protocol';
-import { StateStore } from '@atc/store';
+import { createStateStore } from '@atc/store';
 import {
   buildMockAgentAdapter,
   buildMockAgentEntry,
@@ -274,7 +274,7 @@ test('it hands one answer notice after a restart when the daemon stopped right a
 
   // The settling statement a daemon commits before it stops, with nothing
   // after it.
-  const store = await StateStore.open(ctx.daemon.dbPath);
+  const store = await createStateStore(ctx.daemon.dbPath);
 
   registerTestCleanup(() => store.stop());
 
@@ -339,7 +339,7 @@ test('it hands no second answer notice when the answer is reported again after a
 
   // The settling statement a daemon commits before it stops, with nothing
   // after it.
-  const store = await StateStore.open(ctx.daemon.dbPath);
+  const store = await createStateStore(ctx.daemon.dbPath);
 
   registerTestCleanup(() => store.stop());
 

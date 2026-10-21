@@ -25,10 +25,10 @@ import { Migrator } from 'kysely/migration';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
 import { buildTargetIdentity } from './build-target-identity';
+import { createStateStore } from './create-state-store';
 import { MIGRATIONS } from './sqlite/migrations';
 import { PreLadderDatabaseError } from './sqlite/pre-ladder-database-error';
 import type { StateStoreSchema } from './sqlite/state-store-schema';
-import { StateStore } from './state-store';
 import { buildMockFleetEntry } from './testing/build-mock-fleet-entry';
 import { buildMockMessageRecord } from './testing/build-mock-message-record';
 import { createMigratedStateDB } from './testing/create-migrated-state-db';
@@ -41,7 +41,7 @@ async function setupTest() {
 
   const queries: CompiledQuery[] = [];
 
-  const store = await StateStore.open(dbPath, (query) => {
+  const store = await createStateStore(dbPath, (query) => {
     queries.push(query);
   });
 
@@ -546,7 +546,7 @@ test('it carries spawn directories from before their target was recorded over as
   older.run("INSERT INTO spawn_history (cwd, last_spawn) VALUES ('/old', 1000), ('/older', 500);");
   older.close();
 
-  const store = await StateStore.open(dbPath);
+  const store = await createStateStore(dbPath);
 
   registerTestCleanup(() => store.stop());
 
@@ -731,7 +731,7 @@ test('it adds parent to a fleet row that predates it', async () => {
 
   older.close();
 
-  const store = await StateStore.open(dbPath);
+  const store = await createStateStore(dbPath);
 
   registerTestCleanup(() => store.stop());
 
@@ -786,7 +786,7 @@ test('it loads last-used agent from a reopened store', async () => {
   await ctx.store.writeLastUsedAgent('grok');
   await ctx.store.stop();
 
-  const second = await StateStore.open(ctx.dbPath);
+  const second = await createStateStore(ctx.dbPath);
 
   registerTestCleanup(() => second.stop());
 
@@ -815,7 +815,7 @@ test('it renames the id column and defaults agent for a store written before bot
   older.run("INSERT INTO fleet (claude_id, name, cwd) VALUES ('c1', 'old', '/x')");
   older.close();
 
-  const store = await StateStore.open(dbPath);
+  const store = await createStateStore(dbPath);
 
   registerTestCleanup(() => store.stop());
 
@@ -854,7 +854,7 @@ test('it adds pinned to a fleet row that predates it', async () => {
   older.run("INSERT INTO fleet (agent_session_id, name, cwd) VALUES ('c1', 'old', '/x')");
   older.close();
 
-  const store = await StateStore.open(dbPath);
+  const store = await createStateStore(dbPath);
 
   registerTestCleanup(() => store.stop());
 
@@ -896,7 +896,7 @@ test('it adds the last-attached time to a fleet row that predates it', async () 
 
   older.close();
 
-  const store = await StateStore.open(dbPath);
+  const store = await createStateStore(dbPath);
 
   registerTestCleanup(() => store.stop());
 
@@ -939,7 +939,7 @@ test('it adds agent to a fleet row that predates it', async () => {
 
   older.close();
 
-  const store = await StateStore.open(dbPath);
+  const store = await createStateStore(dbPath);
 
   registerTestCleanup(() => store.stop());
 
@@ -983,7 +983,7 @@ test('it adds exited to a fleet row that predates it', async () => {
 
   older.close();
 
-  const store = await StateStore.open(dbPath);
+  const store = await createStateStore(dbPath);
 
   registerTestCleanup(() => store.stop());
 
@@ -1008,7 +1008,7 @@ test('it runs every migration once on the first open of a fresh database', async
   const temporaryDirectory = setupTempDir('atc-store-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
-  const store = await StateStore.open(dbPath);
+  const store = await createStateStore(dbPath);
 
   registerTestCleanup(() => store.stop());
 
@@ -1100,7 +1100,7 @@ test('it adds the restart results table and leaves every row of an older databas
 
   older.close();
 
-  const upgraded = await StateStore.open(dbPath);
+  const upgraded = await createStateStore(dbPath);
 
   registerTestCleanup(() => upgraded.stop());
 
@@ -1152,7 +1152,7 @@ test('it drops the resume column from a database that stopped at the step that a
 
   older.close();
 
-  const upgraded = await StateStore.open(dbPath);
+  const upgraded = await createStateStore(dbPath);
 
   registerTestCleanup(() => upgraded.stop());
 
@@ -1197,7 +1197,7 @@ test('it records the resume column drop and keeps the fleet when a crash left th
   older.run('ALTER TABLE fleet DROP COLUMN resume_interrupted_turns');
   older.close();
 
-  const upgraded = await StateStore.open(dbPath);
+  const upgraded = await createStateStore(dbPath);
 
   registerTestCleanup(() => upgraded.stop());
 
@@ -1242,7 +1242,7 @@ test('it reads a runtime auth binding bound before the host column rename as the
 
   older.close();
 
-  const upgraded = await StateStore.open(dbPath);
+  const upgraded = await createStateStore(dbPath);
 
   registerTestCleanup(() => upgraded.stop());
 
@@ -1291,7 +1291,7 @@ test('it finishes the host column rename and keeps the binding when a crash left
   older.run('ALTER TABLE runtime_auth_binding RENAME COLUMN imp_name TO host_name');
   older.close();
 
-  const upgraded = await StateStore.open(dbPath);
+  const upgraded = await createStateStore(dbPath);
 
   registerTestCleanup(() => upgraded.stop());
 
@@ -1339,7 +1339,7 @@ test('it renames the workspace directory column and keeps the workspace of a dat
 
   older.close();
 
-  const upgraded = await StateStore.open(dbPath);
+  const upgraded = await createStateStore(dbPath);
 
   registerTestCleanup(() => upgraded.stop());
 
@@ -1386,7 +1386,7 @@ test('it keeps the workspace when a crash left the directory column renamed but 
   older.run('ALTER TABLE workspace_materialization RENAME COLUMN dir TO directory');
   older.close();
 
-  const upgraded = await StateStore.open(dbPath);
+  const upgraded = await createStateStore(dbPath);
 
   registerTestCleanup(() => upgraded.stop());
 
@@ -1399,7 +1399,7 @@ test('it re-runs no migration when it reopens a migrated database', async () => 
   const temporaryDirectory = setupTempDir('atc-store-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
-  const first = await StateStore.open(dbPath);
+  const first = await createStateStore(dbPath);
 
   registerTestCleanup(() => first.stop());
 
@@ -1413,7 +1413,7 @@ test('it re-runs no migration when it reopens a migrated database', async () => 
 
   ledger.run("UPDATE kysely_migration SET timestamp = 'sentinel'");
 
-  const second = await StateStore.open(dbPath);
+  const second = await createStateStore(dbPath);
 
   registerTestCleanup(() => second.stop());
 
@@ -1444,7 +1444,7 @@ test('it keeps the fleet of a migrated database across a reopen', async () => {
   older.run("INSERT INTO fleet (claude_id, name, cwd) VALUES ('c1', 'first', '/x')");
   older.close();
 
-  const first = await StateStore.open(dbPath);
+  const first = await createStateStore(dbPath);
 
   registerTestCleanup(() => first.stop());
 
@@ -1453,7 +1453,7 @@ test('it keeps the fleet of a migrated database across a reopen', async () => {
   await first.writeFleet([...(await first.loadFleet()), added]);
   await first.stop();
 
-  const second = await StateStore.open(dbPath);
+  const second = await createStateStore(dbPath);
 
   registerTestCleanup(() => second.stop());
 
@@ -1491,11 +1491,11 @@ test('it ends a fresh database at the same fleet schema as a fully migrated old 
 
   old.close();
 
-  const freshStore = await StateStore.open(freshPath);
+  const freshStore = await createStateStore(freshPath);
 
   registerTestCleanup(() => freshStore.stop());
 
-  const oldStore = await StateStore.open(oldPath);
+  const oldStore = await createStateStore(oldPath);
 
   registerTestCleanup(() => oldStore.stop());
 
@@ -1553,7 +1553,7 @@ test('it refuses a database that holds a fleet table but no migration ledger', (
   db.run("INSERT INTO fleet (claude_id, name, cwd) VALUES ('c1', 'first', '/x')");
   db.close();
 
-  expect(StateStore.open(dbPath)).rejects.toThrowWithMessage(
+  expect(createStateStore(dbPath)).rejects.toThrowWithMessage(
     PreLadderDatabaseError,
     'the state database predates the migration ladder; start atc 4.15.0 against it once to migrate it, then start this release',
   );
@@ -2607,7 +2607,7 @@ test('it keeps the answer notice of a message answered before a store reopen', a
   await ctx.store.updateMessagesAnswered([record.id], { atcID: record.atcID }, 'done', 3000);
   await ctx.store.stop();
 
-  const second = await StateStore.open(ctx.dbPath);
+  const second = await createStateStore(ctx.dbPath);
 
   registerTestCleanup(() => second.stop());
 
@@ -2634,7 +2634,7 @@ test('it queues no second answer notice for a message answered again after a sto
   await ctx.store.updateMessagesAnswered([record.id], { atcID: record.atcID }, 'done', 3000);
   await ctx.store.stop();
 
-  const second = await StateStore.open(ctx.dbPath);
+  const second = await createStateStore(ctx.dbPath);
 
   registerTestCleanup(() => second.stop());
 
@@ -2839,7 +2839,7 @@ test('it keeps messages across a store reopen', async () => {
   await ctx.store.writeMessage(record);
   await ctx.store.stop();
 
-  const second = await StateStore.open(ctx.dbPath);
+  const second = await createStateStore(ctx.dbPath);
 
   registerTestCleanup(() => second.stop());
 
@@ -3201,7 +3201,7 @@ test('it finds the preview of a note recorded without its whole text', async () 
   db.run('UPDATE events SET note_text = NULL');
   db.close();
 
-  const store = await StateStore.open(ctx.dbPath);
+  const store = await createStateStore(ctx.dbPath);
 
   registerTestCleanup(() => store.stop());
 
@@ -3293,7 +3293,7 @@ test('it adds an empty answer text to the answered rows of a database from befor
   older.run("DELETE FROM kysely_migration WHERE name = '034_add_events_answer_text'");
   older.close();
 
-  const upgraded = await StateStore.open(ctx.dbPath);
+  const upgraded = await createStateStore(ctx.dbPath);
 
   registerTestCleanup(() => upgraded.stop());
 
@@ -3801,7 +3801,7 @@ test('it rebuilds a fleet at the model-and-effort shape keyed by a minted sessio
 
   older.close();
 
-  const store = await StateStore.open(dbPath);
+  const store = await createStateStore(dbPath);
 
   registerTestCleanup(() => store.stop());
 
@@ -3913,7 +3913,7 @@ test('it keeps the same daemon id across a reopen', async () => {
 
   await ctx.store.stop();
 
-  const second = await StateStore.open(ctx.dbPath);
+  const second = await createStateStore(ctx.dbPath);
 
   registerTestCleanup(() => second.stop());
 
@@ -3943,7 +3943,7 @@ test('it records this daemon as the owner of every fleet row it migrates', async
 
   older.close();
 
-  const store = await StateStore.open(dbPath);
+  const store = await createStateStore(dbPath);
 
   registerTestCleanup(() => store.stop());
 
@@ -4546,7 +4546,7 @@ test('it fails every materialization a stopped daemon left short of ready', asyn
 
   await ctx.store.stop();
 
-  const second = await StateStore.open(ctx.dbPath);
+  const second = await createStateStore(ctx.dbPath);
 
   registerTestCleanup(() => second.stop());
 
@@ -4834,7 +4834,7 @@ test('it upgrades a database from before runtime auth and keeps every existing r
   older.run("DELETE FROM kysely_migration WHERE name = '025_create_runtime_auth'");
   older.close();
 
-  const upgraded = await StateStore.open(ctx.dbPath);
+  const upgraded = await createStateStore(ctx.dbPath);
 
   registerTestCleanup(() => upgraded.stop());
 
@@ -4904,7 +4904,7 @@ test('it carries every fleet row and column across the rebuild that lets two row
   older.run('DROP INDEX fleet_agent_session_id');
   older.close();
 
-  const upgraded = await StateStore.open(ctx.dbPath);
+  const upgraded = await createStateStore(ctx.dbPath);
 
   registerTestCleanup(() => upgraded.stop());
 
@@ -5243,7 +5243,7 @@ test('it reconciles a grant a stopped daemon left granting as uncertain and leav
 
   await ctx.store.stop();
 
-  const second = await StateStore.open(ctx.dbPath);
+  const second = await createStateStore(ctx.dbPath);
 
   registerTestCleanup(() => second.stop());
 
@@ -5450,7 +5450,7 @@ test('it renames reports to notes and accepted to queued in a database from befo
 
   older.close();
 
-  const upgraded = await StateStore.open(ctx.dbPath);
+  const upgraded = await createStateStore(ctx.dbPath);
 
   registerTestCleanup(() => upgraded.stop());
 
@@ -5496,7 +5496,7 @@ test('it writes a backup that a store opens with every fleet row and the same da
 
   await ctx.store.writeBackup(backupPath);
 
-  const restored = await StateStore.open(backupPath);
+  const restored = await createStateStore(backupPath);
 
   registerTestCleanup(() => restored.stop());
 
@@ -5539,7 +5539,7 @@ test('it replaces a file already at the backup path', async () => {
 
   await ctx.store.writeBackup(backupPath);
 
-  const restored = await StateStore.open(backupPath);
+  const restored = await createStateStore(backupPath);
 
   registerTestCleanup(() => restored.stop());
 
@@ -5593,7 +5593,7 @@ test('it refuses a backup onto the file its database path links to', async () =>
 
   symlinkSync(realPath, linkPath);
 
-  const store = await StateStore.open(linkPath);
+  const store = await createStateStore(linkPath);
 
   registerTestCleanup(() => store.stop());
 

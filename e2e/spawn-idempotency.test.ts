@@ -6,7 +6,7 @@ import { buildPayloadHash } from '@atc/daemon';
 import { buildStubSoftKillProvider } from '@atc/execution-local/testing';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { REQUEST_PARAM_SCHEMAS } from '@atc/protocol';
-import { StateStore } from '@atc/store';
+import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry, buildMockMessageRecord } from '@atc/store/testing';
 import {
   buildMockAgentAdapter,
@@ -110,7 +110,7 @@ test('it answers a spawn retried after an interrupted run with outcome_unknown a
 
   await daemon.stop();
 
-  const seed = await StateStore.open(daemon.dbPath);
+  const seed = await createStateStore(daemon.dbPath);
 
   const stopSeed = registerTestCleanup(() => seed.stop());
 
@@ -151,7 +151,7 @@ test('it refuses a spawn retried after an interrupted run whose session reached 
 
   await daemon.stop();
 
-  const seed = await StateStore.open(daemon.dbPath);
+  const seed = await createStateStore(daemon.dbPath);
 
   const stopSeed = registerTestCleanup(() => seed.stop());
 
@@ -192,7 +192,7 @@ test('it completes an interrupted spawn whose session reached the fleet and repl
 
   await daemon.stop();
 
-  const seed = await StateStore.open(daemon.dbPath);
+  const seed = await createStateStore(daemon.dbPath);
 
   const stopSeed = registerTestCleanup(() => seed.stop());
 
@@ -1526,7 +1526,7 @@ test('it completes an interrupted message whose row was written and replays it',
 
   await daemon.stop();
 
-  const seed = await StateStore.open(daemon.dbPath);
+  const seed = await createStateStore(daemon.dbPath);
 
   const stopSeed = registerTestCleanup(() => seed.stop());
 
@@ -1567,7 +1567,7 @@ test('it answers a message retried after an interrupted send with outcome_unknow
 
   await daemon.stop();
 
-  const seed = await StateStore.open(daemon.dbPath);
+  const seed = await createStateStore(daemon.dbPath);
 
   const stopSeed = registerTestCleanup(() => seed.stop());
 
@@ -1726,7 +1726,7 @@ test('it refuses a message key whose stored hash covers a from as idempotency_co
 
   // The daemon reads the ledger from the database on each keyed request,
   // so a key written beside the running daemon is one it holds.
-  const seed = await StateStore.open(daemon.dbPath);
+  const seed = await createStateStore(daemon.dbPath);
 
   const stopSeed = registerTestCleanup(() => seed.stop());
   const id = { principal: 'local', operation: 'session.message', key: 'm-key' };

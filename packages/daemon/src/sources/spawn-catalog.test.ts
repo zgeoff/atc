@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import type { SourceProvider } from '@atc/plugin-api';
-import { StateStore } from '@atc/store';
+import { createStateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/testing';
 import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { TargetAccess } from '../auth/target-access';
@@ -26,7 +26,7 @@ async function setupTest(config: SetupTestConfig) {
 
   await createMigratedStateDB(dbPath);
 
-  const store = await StateStore.open(dbPath);
+  const store = await createStateStore(dbPath);
 
   registerTestCleanup(() => store.stop());
 

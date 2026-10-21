@@ -2,7 +2,7 @@ import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { toSessionID } from '@atc/core';
 import type { SessionID } from '@atc/core';
-import { StateStore, buildTargetIdentity } from '@atc/store';
+import { buildTargetIdentity, createStateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/testing';
 import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
@@ -26,7 +26,7 @@ async function setupTest(config: SetupConfig) {
 
   await createMigratedStateDB(dbPath);
 
-  const store = await StateStore.open(dbPath);
+  const store = await createStateStore(dbPath);
 
   registerTestCleanup(() => store.stop());
 

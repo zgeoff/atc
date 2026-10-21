@@ -7,7 +7,7 @@ import { ImpProvider } from '@atc/execution-imp';
 import { createStubImpPort, getOnlyImpName } from '@atc/execution-imp/testing';
 import { LocalPTYProvider } from '@atc/execution-local';
 import { openDaemonClient } from '@atc/protocol/client';
-import { StateStore, buildTargetIdentity } from '@atc/store';
+import { buildTargetIdentity, createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
   buildMockAgentAdapter,
@@ -366,7 +366,7 @@ test('it restores a cloud session that was mid-turn at a daemon restart and deli
 
 test('it revives a remote harness with only the variables atc sets, never the daemon environment', async () => {
   const ctx = await setupTest();
-  const store = await StateStore.open(ctx.dbPath);
+  const store = await createStateStore(ctx.dbPath);
 
   registerTestCleanup(() => store.stop());
 

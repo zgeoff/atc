@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { toSessionID } from '@atc/core';
-import { StateStore } from '@atc/store';
+import { createStateStore } from '@atc/store';
 import { registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
 import { buildMockSession } from '../testing/build-mock-session';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
@@ -12,7 +12,7 @@ import { updateSession } from './update-session';
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-update-session-');
 
-  const store = await StateStore.open(join(temporaryDirectory.path, 'atc.db'));
+  const store = await createStateStore(join(temporaryDirectory.path, 'atc.db'));
 
   registerTestCleanup(() => store.stop());
 

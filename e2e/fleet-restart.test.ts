@@ -3,7 +3,7 @@ import { chmod, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { toAgentSessionID, toSessionID } from '@atc/core';
 import type { RestoreSettled } from '@atc/daemon';
-import { StateStore } from '@atc/store';
+import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
   buildMockAgentAdapter,
@@ -21,7 +21,7 @@ test('it restores the stored sessions by itself after a restart', async () => {
 
   const daemon = await startTestDaemon({
     options: async (paths) => {
-      const seed = await StateStore.open(paths.dbPath);
+      const seed = await createStateStore(paths.dbPath);
 
       registerTestCleanup(() => seed.stop());
 
@@ -74,7 +74,7 @@ test('it starts the next stored session once the default boot cap passes', async
 
   await startTestDaemon({
     options: async (paths) => {
-      const seed = await StateStore.open(paths.dbPath);
+      const seed = await createStateStore(paths.dbPath);
 
       registerTestCleanup(() => seed.stop());
 
@@ -119,7 +119,7 @@ test('it caps the boot wait at the restore boot timeout setting', async () => {
 
   await startTestDaemon({
     options: async (paths) => {
-      const seed = await StateStore.open(paths.dbPath);
+      const seed = await createStateStore(paths.dbPath);
 
       registerTestCleanup(() => seed.stop());
 
@@ -149,7 +149,7 @@ test('it sends no message to the sessions it restores after a restart', async ()
 
   const daemon = await startTestDaemon({
     options: async (paths) => {
-      const seed = await StateStore.open(paths.dbPath);
+      const seed = await createStateStore(paths.dbPath);
 
       registerTestCleanup(() => seed.stop());
 
@@ -191,7 +191,7 @@ test('it sends no message to the sessions it restores after a restart', async ()
     expect(settles).toStrictEqual([{ restored: 2, outcome: 'finished' }]);
   });
 
-  const store = await StateStore.open(daemon.dbPath);
+  const store = await createStateStore(daemon.dbPath);
 
   registerTestCleanup(() => store.stop());
 
@@ -208,7 +208,7 @@ test('it starts none of the stored sessions when the option is unset', async () 
 
   const daemon = await startTestDaemon({
     options: async (paths) => {
-      const seed = await StateStore.open(paths.dbPath);
+      const seed = await createStateStore(paths.dbPath);
 
       registerTestCleanup(() => seed.stop());
 
@@ -237,7 +237,7 @@ test('it starts none of the stored sessions when the option is unset', async () 
 test('it restores the stored sessions on fleet.restore when the option is unset', async () => {
   const daemon = await startTestDaemon({
     options: async (paths) => {
-      const seed = await StateStore.open(paths.dbPath);
+      const seed = await createStateStore(paths.dbPath);
 
       registerTestCleanup(() => seed.stop());
 
@@ -261,7 +261,7 @@ test('it restores the stored sessions on fleet.restore when the option is unset'
 test('it restores one local session after a local spawn resumes the agent session of a stored row without a target identity', async () => {
   const daemon = await startTestDaemon({
     options: async (paths) => {
-      const seed = await StateStore.open(paths.dbPath);
+      const seed = await createStateStore(paths.dbPath);
 
       registerTestCleanup(() => seed.stop());
 
@@ -301,7 +301,7 @@ test('it starts none of the stored sessions when the option is false', async () 
 
   const daemon = await startTestDaemon({
     options: async (paths) => {
-      const seed = await StateStore.open(paths.dbPath);
+      const seed = await createStateStore(paths.dbPath);
 
       registerTestCleanup(() => seed.stop());
 
@@ -371,7 +371,7 @@ test('it joins a fleet.restore to the automatic restore while its stagger runs',
 
   const daemon = await startTestDaemon({
     options: async (paths) => {
-      const seed = await StateStore.open(paths.dbPath);
+      const seed = await createStateStore(paths.dbPath);
 
       registerTestCleanup(() => seed.stop());
 
@@ -411,7 +411,7 @@ test('it starts no queued session once the daemon stops while the stagger runs',
 
   const daemon = await startTestDaemon({
     options: async (paths) => {
-      const seed = await StateStore.open(paths.dbPath);
+      const seed = await createStateStore(paths.dbPath);
 
       registerTestCleanup(() => seed.stop());
 
@@ -457,7 +457,7 @@ test('it spawns nothing for a fleet.restore after the automatic restore settled'
 
   const daemon = await startTestDaemon({
     options: async (paths) => {
-      const seed = await StateStore.open(paths.dbPath);
+      const seed = await createStateStore(paths.dbPath);
 
       registerTestCleanup(() => seed.stop());
 
@@ -509,7 +509,7 @@ test('it restores the rest of the fleet past rows whose repository cannot be res
 
   const daemon = await startTestDaemon({
     options: async (paths) => {
-      const seed = await StateStore.open(paths.dbPath);
+      const seed = await createStateStore(paths.dbPath);
 
       registerTestCleanup(() => seed.stop());
 
@@ -578,7 +578,7 @@ test('it forgets an exited session on a target the daemon cannot use', async () 
 
   const daemon = await startTestDaemon({
     options: async (paths) => {
-      const seed = await StateStore.open(paths.dbPath);
+      const seed = await createStateStore(paths.dbPath);
 
       registerTestCleanup(() => seed.stop());
 
@@ -628,7 +628,7 @@ test('it lists a restored exited worktree session under the worktree itself', as
         `gitdir: ${paths.directory}/main/.git/worktrees/wt\n`,
       );
 
-      const seed = await StateStore.open(paths.dbPath);
+      const seed = await createStateStore(paths.dbPath);
 
       registerTestCleanup(() => seed.stop());
 
@@ -673,7 +673,7 @@ test('it regroups a revived exited worktree session under its repository', async
         `gitdir: ${paths.directory}/main/.git/worktrees/wt\n`,
       );
 
-      const seed = await StateStore.open(paths.dbPath);
+      const seed = await createStateStore(paths.dbPath);
 
       registerTestCleanup(() => seed.stop());
 

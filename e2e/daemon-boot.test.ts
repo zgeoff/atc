@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { startDaemon } from '@atc/daemon';
 import { bootDaemonClient } from '@atc/lifecycle';
 import { buildMockLifecycleHost } from '@atc/lifecycle/testing';
-import { StateStore } from '@atc/store';
+import { createStateStore } from '@atc/store';
 import {
   buildMockAgentAdapter,
   readJSONRecord,
@@ -112,7 +112,7 @@ console.log('connected');
 test('it reports a codex hello as the last-used agent instead of coercing it to claude', async () => {
   const ctx = setupTest();
 
-  const store = await StateStore.open(join(ctx.directory, 'state.db'));
+  const store = await createStateStore(join(ctx.directory, 'state.db'));
 
   registerTestCleanup(() => store.stop());
 

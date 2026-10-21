@@ -7,7 +7,7 @@ import { buildPayloadHash } from '@atc/daemon';
 import { ERROR_DATA_RULES, ID_RULES, collectUnruledIDPaths } from '@atc/gateway';
 import { parseClaudeTranscriptLine } from '@atc/harness-claude';
 import { REQUEST_PARAM_SCHEMAS } from '@atc/protocol';
-import { StateStore } from '@atc/store';
+import { createStateStore } from '@atc/store';
 import { buildMockAgentAdapter, getRecord, registerTestCleanup, waitFor } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
@@ -180,7 +180,7 @@ test('it has a rule for every id in the data of an uncertain keyed spawn', async
   const params = { cwd: ctx.cwd, resume: 'a-1', idempotencyKey: 'spawn-1' };
   const effectRef = randomUUID();
 
-  const seed = await StateStore.open(ctx.dbPath);
+  const seed = await createStateStore(ctx.dbPath);
 
   registerTestCleanup(() => seed.stop());
 

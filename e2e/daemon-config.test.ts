@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { toAgentSessionID } from '@atc/core';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
-import { StateStore } from '@atc/store';
+import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
   createStubClaude,
@@ -401,7 +401,7 @@ test('it restores the stored fleet by itself when the config leaves restoreFleet
   mkdirSync(join(ctx.home, '.local', 'state', 'atc'), { recursive: true });
 
   // The fleet a daemon that already ran here left behind.
-  const seed = await StateStore.open(join(ctx.home, '.local', 'state', 'atc', 'atc.db'));
+  const seed = await createStateStore(join(ctx.home, '.local', 'state', 'atc', 'atc.db'));
 
   registerTestCleanup(() => seed.stop());
 
@@ -467,7 +467,7 @@ test('it starts with an empty fleet beside a fleet.json and no state database', 
   // The daemon opens its store before it answers the hello.
   await client.sendHello('atc/test');
 
-  const store = await StateStore.open(join(ctx.home, '.local', 'state', 'atc', 'atc.db'));
+  const store = await createStateStore(join(ctx.home, '.local', 'state', 'atc', 'atc.db'));
 
   registerTestCleanup(() => store.stop());
 

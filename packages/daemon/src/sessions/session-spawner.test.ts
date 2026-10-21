@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { systemClock, toSessionID } from '@atc/core';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { EffectRemainsError } from '@atc/plugin-api';
-import { StateStore } from '@atc/store';
+import { createStateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/testing';
 import {
   buildStubBrokeredGatewayAdapter,
@@ -49,7 +49,7 @@ async function setupTest(config: SetupTestConfig) {
 
   await createMigratedStateDB(dbPath);
 
-  const store = await StateStore.open(dbPath);
+  const store = await createStateStore(dbPath);
 
   registerTestCleanup(() => store.stop());
 

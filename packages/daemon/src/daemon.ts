@@ -6,7 +6,7 @@ import { systemClock } from '@atc/core';
 import { claimDaemonLock, readDaemonRecord, writeDaemonRecord } from '@atc/lifecycle';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
-import { StateStore } from '@atc/store';
+import { createStateStore } from '@atc/store';
 import { getLogger } from '@logtape/logtape';
 import { buildDaemonContext } from './build-daemon-context';
 import type { TapClient } from './daemon-context';
@@ -116,7 +116,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     writeFileSync(opts.pidPath, String(process.pid));
   }
 
-  const store = await StateStore.open(opts.dbPath);
+  const store = await createStateStore(opts.dbPath);
 
   // Before any request is served: a workspace a stopped daemon left short
   // of ready fails as interrupted, and a key left in progress by a daemon

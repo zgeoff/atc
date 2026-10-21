@@ -6,7 +6,7 @@ import { parseConfig } from '@atc/config';
 import { GrokAdapter } from '@atc/harness-grok';
 import { encodeCursor } from '@atc/protocol';
 import { openDaemonClient } from '@atc/protocol/client';
-import { StateStore } from '@atc/store';
+import { createStateStore } from '@atc/store';
 import {
   buildMockAgentAdapter,
   buildMockRestartResult,
@@ -500,7 +500,7 @@ test('it spawns claude when a spawn omits agent after another agent was last use
   const ctx = await startTestDaemon({
     prefix: 'atc-daemon-',
     options: async (paths) => {
-      const store = await StateStore.open(paths.dbPath);
+      const store = await createStateStore(paths.dbPath);
 
       registerTestCleanup(() => store.stop());
 

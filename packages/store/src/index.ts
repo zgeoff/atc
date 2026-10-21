@@ -1,4 +1,5 @@
 export * from './build-target-identity';
+export * from './create-state-store';
 export type * from './fleet-entry';
 export type * from './idempotency-record';
 export type * from './message-owner';
@@ -9,7 +10,6 @@ export * from './snapshot/read-stored-fleet-file';
 export * from './snapshot/read-stored-rows';
 export * from './sqlite';
 export * from './stale-ownership-error';
-export * from './state-store';
 export type * from './stored-event';
 export type * from './trail-entry';
 export type * from './workspace-materialization';

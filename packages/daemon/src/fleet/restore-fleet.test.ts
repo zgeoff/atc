@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import type { SessionID } from '@atc/core';
 import { toAgentSessionID, toSessionID } from '@atc/core';
 import type { AgentAdapter } from '@atc/plugin-api';
-import { StateStore, buildTargetIdentity } from '@atc/store';
+import { buildTargetIdentity, createStateStore } from '@atc/store';
 import { buildMockFleetEntry, createMigratedStateDB } from '@atc/store/testing';
 import {
   buildMockAgentAdapter,
@@ -33,7 +33,7 @@ async function setupTest(config: Readonly<{ targets?: readonly ExecutionTarget[]
 
   await createMigratedStateDB(dbPath);
 
-  const store = await StateStore.open(dbPath);
+  const store = await createStateStore(dbPath);
 
   registerTestCleanup(() => store.stop());
 

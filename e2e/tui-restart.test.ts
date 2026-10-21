@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { toAgentSessionID } from '@atc/core';
 import { startDaemon } from '@atc/daemon';
 import { PROTOCOL_V } from '@atc/protocol/wire';
-import { StateStore } from '@atc/store';
+import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
   KEYS,
@@ -29,7 +29,7 @@ test('it restarts a daemon on another protocol after the user confirms and resto
   // Claude session in the home.
   mkdirSync(stateDir, { recursive: true });
 
-  const seed = await StateStore.open(join(stateDir, 'atc.db'));
+  const seed = await createStateStore(join(stateDir, 'atc.db'));
 
   registerTestCleanup(() => seed.stop());
 
@@ -93,7 +93,7 @@ test('it stops a daemon that speaks the line protocol after the user confirms, a
   mkdirSync(unitDir, { recursive: true });
   writeFileSync(join(unitDir, 'atc-daemon.service'), '[Service]\nExecStart=atc daemon\n');
 
-  const seed = await StateStore.open(join(stateDir, 'atc.db'));
+  const seed = await createStateStore(join(stateDir, 'atc.db'));
 
   registerTestCleanup(() => seed.stop());
 

@@ -5,7 +5,7 @@ import { loadConfig, parseConfig } from '@atc/config';
 import { toSessionID } from '@atc/core';
 import { buildStubTargets } from '@atc/daemon/testing';
 import { CodexAdapter } from '@atc/harness-codex';
-import { StateStore, buildTargetIdentity } from '@atc/store';
+import { buildTargetIdentity, createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
   buildMockAgentAdapter,
@@ -435,7 +435,7 @@ test('it refuses input to a restored local session without running a turn when t
 
   const daemon = await startTestDaemon({
     options: async (paths) => {
-      const store = await StateStore.open(paths.dbPath);
+      const store = await createStateStore(paths.dbPath);
 
       registerTestCleanup(() => store.stop());
 
@@ -799,7 +799,7 @@ test.each([
 
     const daemon = await startTestDaemon({
       options: async (paths) => {
-        const store = await StateStore.open(paths.dbPath);
+        const store = await createStateStore(paths.dbPath);
 
         registerTestCleanup(() => store.stop());
 
@@ -842,7 +842,7 @@ test('it gives a principal legacy rights over a restored local session when no c
 
   const daemon = await startTestDaemon({
     options: async (paths) => {
-      const store = await StateStore.open(paths.dbPath);
+      const store = await createStateStore(paths.dbPath);
 
       registerTestCleanup(() => store.stop());
 
@@ -891,7 +891,7 @@ test.each([
 
     const daemon = await startTestDaemon({
       options: async (paths) => {
-        const store = await StateStore.open(paths.dbPath);
+        const store = await createStateStore(paths.dbPath);
 
         registerTestCleanup(() => store.stop());
 
@@ -933,7 +933,7 @@ test('it hides a restored local session from a principal when the config path is
 
   const daemon = await startTestDaemon({
     options: async (paths) => {
-      const store = await StateStore.open(paths.dbPath);
+      const store = await createStateStore(paths.dbPath);
 
       registerTestCleanup(() => store.stop());
 

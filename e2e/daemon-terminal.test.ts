@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { toSessionID } from '@atc/core';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
 import type { DaemonEvent } from '@atc/protocol';
-import { StateStore } from '@atc/store';
+import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
   KEYS,
@@ -310,7 +310,7 @@ test('it bumps the attach recency of a session it attaches', async () => {
 
   await client.sendHello('atc/test');
 
-  const seed = await StateStore.open(join(daemon.stateDir, 'atc.db'));
+  const seed = await createStateStore(join(daemon.stateDir, 'atc.db'));
 
   registerTestCleanup(() => seed.stop());
 
