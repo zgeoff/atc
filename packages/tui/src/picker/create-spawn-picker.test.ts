@@ -389,6 +389,58 @@ test('it drops a probe answer that arrives after esc cancels it and the leader l
   expect(ctx.dropped).toStrictEqual(['probe']);
 });
 
+test('it refuses a typed ref whose probe answer the probe schema rejects', async () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'fake', label: 'fake repository', kind: 'git' }],
+  });
+
+  await ctx.daemon.answer('sources.list', { source: 'fake', scope: null, candidates: [] });
+
+  picker.applyKey(Buffer.from(`https://example.com/app.git${KEYS.enter}`));
+
+  await ctx.daemon.answer('git.probe', {
+    url: 'https://example.com/app.git',
+    head: 'main',
+    refs: [{ name: 'main', kind: 'branch', sha: 'a'.repeat(40) }],
+    resolved: null,
+  });
+
+  picker.applyKey(Buffer.from(`refs/tags/v9${KEYS.enter}`));
+
+  const mark = ctx.terminal.countChunks();
+
+  await ctx.daemon.answer('git.probe', { resolved: { sha: 'abc' } });
+
+  const shown = ctx.terminal.getTextSince(mark);
+
+  expect(shown).toInclude('the daemon answered git.probe with a malformed result');
+  expect(shown).not.toInclude('spawn: confirm');
+});
+
 test('it keeps a git listing running while the step waits on a probe', async () => {
   const ctx = setupTest();
 

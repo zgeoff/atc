@@ -1,4 +1,4 @@
-import type { AgentEntry, SourceEntry, SourceInterpretation } from '@atc/protocol';
+import type { AgentEntry, GitProbeResult, SourceEntry, SourceInterpretation } from '@atc/protocol';
 import { fromPromise } from 'xstate';
 import { collectTargetPicks } from '../collect-target-picks';
 import type { TargetPick } from '../collect-target-picks';
@@ -9,6 +9,7 @@ import {
   parseCandidates,
   parseInterpretation,
   parseListedAgents,
+  parseProbeResult,
 } from './parse-picker-answers';
 import type {
   CompletionRequest,
@@ -39,7 +40,7 @@ export type RequestOutcome =
   | {
       readonly kind: 'probe';
       readonly request: Extract<PickerRequest, { readonly kind: 'probe' }>;
-      readonly answer: Answer | null;
+      readonly result: GitProbeResult | null;
       readonly error: unknown;
     }
   | {
@@ -152,7 +153,17 @@ export function createPickerActors<TMirror extends { readonly id: string }>(
 
         reportDrop(args.signal, 'probe');
 
-        return { kind: 'probe', request: input, answer: sent.answer, error: sent.error };
+        const result = sent.answer === null ? null : parseProbeResult(sent.answer);
+
+        return {
+          kind: 'probe',
+          request: input,
+          result,
+          error:
+            sent.answer !== null && result === null
+              ? 'the daemon answered git.probe with a malformed result'
+              : sent.error,
+        };
       }
 
       const sent = await sendAnswered('session.spawn', input.params);

@@ -228,7 +228,7 @@ export type ReadFollowUp =
   | { readonly kind: 'source-fallback'; readonly candidate: ListedCandidate | null };
 
 type ProbeFollowUp =
-  | { readonly kind: 'access'; readonly label: string; readonly url: string }
+  | { readonly kind: 'access'; readonly label: string }
   | { readonly kind: 'refresh'; readonly reason: string; readonly repo: ProbedRepo }
   | { readonly kind: 'resolve'; readonly typed: string };
 

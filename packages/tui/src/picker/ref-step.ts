@@ -2,7 +2,6 @@ import { COMMIT_ID_PATTERN } from '@atc/core';
 import type { RequestOutcome } from './create-picker-actors';
 import { formatPickerError } from './format-picker-error';
 import { openConfirmStep, renderFlow, sendPending } from './navigate-picker';
-import { parseProbedRepo, parseResolvedSHA } from './parse-picker-answers';
 import type { ChosenRef, PickerFlow, ProbedRepo } from './picker-flow';
 import { buildTargetParam } from './picker-params';
 import { collectRefItems } from './picker-queries';
@@ -70,7 +69,7 @@ export function applyResolveProbe(
   outcome: Extract<RequestOutcome, { readonly kind: 'probe' }>,
   typed: string,
 ) {
-  const sha = outcome.answer === null ? null : parseResolvedSHA(outcome.answer);
+  const sha = outcome.result?.resolved?.sha ?? null;
 
   if (sha !== null) {
     applyRef(flow, { ref: typed, sha });
@@ -79,7 +78,7 @@ export function applyResolveProbe(
   }
 
   flow.ctx.refusal =
-    outcome.answer === null
+    outcome.result === null
       ? `${formatPickerError(outcome.error)} · esc back`
       : `the daemon resolved no commit for ${typed} · esc back`;
 
@@ -92,10 +91,16 @@ export function applyRefreshProbe(
   reason: string,
   repo: ProbedRepo,
 ) {
-  if (outcome.answer === null) {
+  if (outcome.result === null) {
     flow.ctx.refusal = `${reason} · ${formatPickerError(outcome.error)} · esc back`;
   } else {
-    flow.ctx.repo = parseProbedRepo(repo.label, repo.url, outcome.answer);
+    flow.ctx.repo = {
+      label: repo.label,
+      url: outcome.result.url,
+      head: outcome.result.head,
+      refs: outcome.result.refs,
+    };
+
     flow.ctx.refusal = `refs re-read · ${reason} · esc back`;
   }
 

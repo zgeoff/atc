@@ -1,13 +1,12 @@
-import { isRecord } from '@atc/core';
-import type { AgentEntry, GitRef, SourceEntry, SourceInterpretation } from '@atc/protocol';
+import type { AgentEntry, GitProbeResult, SourceEntry, SourceInterpretation } from '@atc/protocol';
 import {
   AGENT_ENTRY_SCHEMA,
-  GIT_REF_SCHEMA,
+  GIT_PROBE_RESULT_SCHEMA,
   SOURCE_CANDIDATE_SCHEMA,
   SOURCE_ENTRY_SCHEMA,
   SOURCE_INTERPRETATION_SCHEMA,
 } from '@atc/protocol';
-import type { ListedCandidate, ProbedRepo } from './picker-flow';
+import type { ListedCandidate } from './picker-flow';
 
 export function parseCandidates(raw: unknown): ListedCandidate[] {
   return collectParsed(raw, (entry) => {
@@ -33,27 +32,8 @@ export function parseInterpretation(
   return SOURCE_INTERPRETATION_SCHEMA.safeParse(answer).data ?? { kind: 'none' };
 }
 
-export function parseProbedRepo(
-  label: string,
-  url: string,
-  answer: Readonly<Record<string, unknown>>,
-): ProbedRepo {
-  return {
-    label,
-    url: typeof answer['url'] === 'string' ? answer['url'] : url,
-    head: typeof answer['head'] === 'string' ? answer['head'] : null,
-    refs: parseProbedRefs(answer['refs']),
-  };
-}
-
-export function parseResolvedSHA(answer: Readonly<Record<string, unknown>>): string | null {
-  const resolved = isRecord(answer['resolved']) ? answer['resolved'] : {};
-
-  return typeof resolved['sha'] === 'string' ? resolved['sha'] : null;
-}
-
-function parseProbedRefs(raw: unknown): GitRef[] {
-  return collectParsed(raw, (entry) => GIT_REF_SCHEMA.safeParse(entry).data);
+export function parseProbeResult(answer: Readonly<Record<string, unknown>>): GitProbeResult | null {
+  return GIT_PROBE_RESULT_SCHEMA.safeParse(answer).data ?? null;
 }
 
 function collectParsed<T>(raw: unknown, parse: (entry: unknown) => T | undefined): T[] {

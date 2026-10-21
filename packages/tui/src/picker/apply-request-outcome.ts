@@ -21,7 +21,7 @@ export function applyRequestOutcome(flow: PickerFlow, outcome: RequestOutcome) {
     .with({ kind: 'probe' }, (probe) => {
       match(probe.request.followUp)
         .with({ kind: 'access' }, (access) => {
-          applyAccessProbe(flow, probe, access.label, access.url);
+          applyAccessProbe(flow, probe, access.label);
         })
         .with({ kind: 'refresh' }, (refresh) => {
           applyRefreshProbe(flow, probe, refresh.reason, refresh.repo);

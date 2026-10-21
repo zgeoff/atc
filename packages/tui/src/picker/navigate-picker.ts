@@ -460,7 +460,7 @@ export function checkRepoAccess(flow: PickerFlow, label: string, url: string) {
     kind: 'probe',
     label: `checking access to ${url}…`,
     params: { url, ...buildTargetParam(flow.ctx) },
-    followUp: { kind: 'access', label, url },
+    followUp: { kind: 'access', label },
   });
 }
 

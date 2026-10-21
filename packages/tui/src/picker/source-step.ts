@@ -12,7 +12,7 @@ import {
   readTypedInput,
   renderFlow,
 } from './navigate-picker';
-import { parseCandidates, parseProbedRepo } from './parse-picker-answers';
+import { parseCandidates } from './parse-picker-answers';
 import type { ListedCandidate, PickerFlow } from './picker-flow';
 import { collectCandidateItems, findSource } from './picker-queries';
 
@@ -158,11 +158,10 @@ export function applyAccessProbe(
   flow: PickerFlow,
   outcome: Extract<RequestOutcome, { readonly kind: 'probe' }>,
   label: string,
-  url: string,
 ) {
   const ctx = flow.ctx;
 
-  if (outcome.answer === null) {
+  if (outcome.result === null) {
     ctx.alternateURL = findAlternateURL(outcome.error);
     ctx.selected = 0;
     ctx.refusal = `${formatPickerError(outcome.error)} · esc back`;
@@ -173,7 +172,12 @@ export function applyAccessProbe(
     return;
   }
 
-  const repo = parseProbedRepo(label, url, outcome.answer);
+  const repo = {
+    label,
+    url: outcome.result.url,
+    head: outcome.result.head,
+    refs: outcome.result.refs,
+  };
 
   if (repo.url !== ctx.destinationRepoURL) {
     ctx.destinationEdited = false;
