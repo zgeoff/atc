@@ -1309,16 +1309,18 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.render();
   }
 
-  // The target a remote daemon checks a directory request against: the
-  // chosen one, else the default the caller may use, else the first, since
-  // a principal may hold no default target. A local request sends none.
+  // A principal may hold no default target, and a config that lists targets
+  // may name none, so a request without one fails on the daemon. A local
+  // daemon falls back on its own default when it has one.
   private buildPathTargetParam(): Readonly<Record<string, string>> {
-    if (this.deps.remoteDaemon !== true) {
+    const eligible = this.collectEligibleTargets();
+    const fallback = eligible.find((candidate) => candidate.isDefault);
+
+    if (this.deps.remoteDaemon !== true && fallback !== undefined) {
       return {};
     }
 
-    const eligible = this.collectEligibleTargets();
-    const target = this.target ?? eligible.find((candidate) => candidate.isDefault) ?? eligible[0];
+    const target = this.target ?? fallback ?? eligible[0];
 
     return target === undefined ? {} : { target: target.id };
   }
