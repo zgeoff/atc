@@ -33,7 +33,7 @@ test('it answers initialize with the requested protocol version and its server n
   const response = await mcp.sendRequest('initialize', {
     protocolVersion: '2025-06-18',
     capabilities: {},
-    clientInfo: { name: 'test' },
+    clientInfo: { name: 'test', version: '1.0.0' },
   });
 
   expect(response).toStrictEqual({
@@ -41,7 +41,7 @@ test('it answers initialize with the requested protocol version and its server n
     id: 2,
     result: {
       protocolVersion: '2025-06-18',
-      capabilities: { tools: {} },
+      capabilities: { tools: { listChanged: false } },
       serverInfo: { name: 'atc', version: expect.toBeString() },
     },
   });
@@ -68,7 +68,7 @@ test('it answers an unsupported protocol version with the latest supported one',
   const response = await mcp.sendRequest('initialize', {
     protocolVersion: '2099-01-01',
     capabilities: {},
-    clientInfo: { name: 'test' },
+    clientInfo: { name: 'test', version: '1.0.0' },
   });
 
   expect(response).toStrictEqual({
@@ -76,7 +76,7 @@ test('it answers an unsupported protocol version with the latest supported one',
     id: 2,
     result: {
       protocolVersion: '2025-11-25',
-      capabilities: { tools: {} },
+      capabilities: { tools: { listChanged: false } },
       serverInfo: { name: 'atc', version: expect.toBeString() },
     },
   });
@@ -104,7 +104,7 @@ test('it answers an unknown rpc method with a json-rpc error', async () => {
   expect(response).toStrictEqual({
     jsonrpc: '2.0',
     id: 2,
-    error: { code: -32_601, message: "unknown method 'bogus/method'" },
+    error: { code: -32_601, message: 'Method not found' },
   });
 });
 

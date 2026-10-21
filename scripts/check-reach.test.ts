@@ -14,7 +14,7 @@ test('it passes a gateway that reaches only what its allowance holds', async () 
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.directory, 'packages/app/src/mcp/run-tool.ts'),
+    join(ctx.directory, 'packages/app/src/federation/run-tool.ts'),
     'export const TOOL = 1;\n',
   );
 
@@ -25,7 +25,7 @@ test('it passes a gateway that reaches only what its allowance holds', async () 
 
   await Bun.write(
     join(ctx.directory, 'packages/app/src/run-gateway.ts'),
-    "import { TOOL } from './mcp/run-tool';\nimport { POOL } from './federation/daemon-pool';\n\nexport const GATEWAY = [TOOL, POOL];\n",
+    "import { TOOL } from './federation/run-tool';\nimport { POOL } from './federation/daemon-pool';\n\nexport const GATEWAY = [TOOL, POOL];\n",
   );
 
   await Bun.write(
@@ -102,13 +102,13 @@ test('it fails on a gateway that reaches the daemon through an allowed module', 
   );
 
   await Bun.write(
-    join(ctx.directory, 'packages/app/src/mcp/run-tool.ts'),
+    join(ctx.directory, 'packages/app/src/federation/run-tool.ts'),
     "import { SESSIONS } from '../daemon/sessions';\n\nexport const TOOL = SESSIONS;\n",
   );
 
   await Bun.write(
     join(ctx.directory, 'packages/app/src/gateway.ts'),
-    "const tool = await import('./mcp/run-tool');\n\nconsole.log(tool.TOOL);\n",
+    "const tool = await import('./federation/run-tool');\n\nconsole.log(tool.TOOL);\n",
   );
 
   const checked = await runCommand([

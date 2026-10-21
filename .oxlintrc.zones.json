@@ -24,6 +24,9 @@
           "front-ends": ["packages/{tui,mcp,gateway,reporters}{,/**}"],
           "mcp": ["packages/mcp{,/**}"],
           "test-utils": ["packages/test-utils{,/**}"],
+          "oauth-helper-tests": [
+            "packages/test-utils/src/run-{mcp-authorization,passkey-*}.test.ts"
+          ],
           "app": ["packages/app{,/**}"],
 
           // sessions, auth, transport and fleet import one another, so the
@@ -36,6 +39,11 @@
           "daemon-transport": ["packages/daemon/src/transport/**"],
           "daemon-workspace": ["packages/daemon/src/workspace/**"],
           "daemon-testing": ["packages/daemon/src/testing/**", "packages/daemon/testing"],
+
+          // the MCP tools serve stdio and HTTP alike, so they reach nothing of
+          // the authorization server that guards HTTP
+          "mcp-tools": ["packages/mcp/src/tools/**"],
+          "mcp-auth": ["packages/mcp/src/auth/**"],
 
           // every test helper, a package's testing folder among them
           "testing": ["packages/**/testing{,/**}"],
@@ -172,6 +180,15 @@
             "name": "package-deps",
             "from": ["test-utils"],
             "allow": ["core", "protocol", "plugin-api", "config", "app"],
+            "allowWithin": "packages/*",
+            "ignore": ["packages/test-utils/src/run-{mcp-authorization,passkey-*}.test.ts"]
+          },
+          // the tests of the helpers that drive the OAuth flow run them against
+          // the real authorization server
+          {
+            "name": "package-deps",
+            "from": ["oauth-helper-tests"],
+            "allow": ["core", "protocol", "plugin-api", "config", "app", "mcp"],
             "allowWithin": "packages/*"
           },
           {
@@ -231,6 +248,13 @@
             "ignore": ["**/*.test.{ts,tsx,js,mjs}"]
           },
           {
+            "name": "mcp-folders",
+            "from": ["mcp-tools"],
+            "to": ["mcp-auth"],
+            "ignore": ["**/*.test.{ts,tsx,js,mjs}"],
+            "reason": "the tools reach no module of the authorization server"
+          },
+          {
             "name": "daemon-folders",
             "from": ["daemon-workspace"],
             "to": [
@@ -264,13 +288,19 @@
           // tests and e2e journeys open a state database to check what a run wrote
           {
             "name": "confinement",
-            "modules": ["bun:sqlite", "kysely", "@zgeoff/kysely-bun-sqlite"],
+            "modules": ["bun:sqlite", "@zgeoff/kysely-bun-sqlite"],
             "allow": ["store", "app", "tests"]
+          },
+          // the authorization server queries the database the app opens for it
+          {
+            "name": "confinement",
+            "modules": ["kysely"],
+            "allow": ["store", "mcp", "app", "tests"]
           },
           {
             "name": "confinement",
-            "modules": ["better-auth", "@better-auth"],
-            "allow": ["mcp", "app", "tests"]
+            "modules": ["better-auth", "@better-auth", "elysia", "@modelcontextprotocol/server"],
+            "allow": ["mcp", "tests"]
           },
           { "name": "confinement", "modules": ["proper-lockfile"], "allow": ["config-lock-check"] },
           // the Claude SDK's peer, which only the SDK itself loads

@@ -3,10 +3,10 @@ import { join } from 'node:path';
 import { startDaemon } from '@atc/daemon';
 import { bootDaemonClient } from '@atc/lifecycle';
 import { buildMockLifecycleHost } from '@atc/lifecycle/testing';
+import { openMCPAuth } from '@atc/mcp';
 import { buildMockAgentAdapter, registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { runMCPHTTPServer } from './mcp-http-server';
-import { openMCPAuth } from './mcp/open-mcp-auth';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
 import { buildLocalTarget } from './test-utils/build-local-target';
 

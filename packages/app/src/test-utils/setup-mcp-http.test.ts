@@ -1,9 +1,8 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { readClientViews, readPasskeyViews } from '@atc/mcp';
 import { readJSONRecord } from '@atc/test-utils';
-import { readClientViews } from '../mcp/read-client-views';
-import { readPasskeyViews } from '../mcp/read-passkey-views';
 import { setupMCPHTTP } from './setup-mcp-http';
 
 test("it enrolls the owner's passkey on the authenticator it returns", async () => {

@@ -48,18 +48,13 @@ test('it sends a message to a session that has not started', async () => {
   });
 });
 
-test("it reads a message from the owner's atc mcp back as from the owner, whatever from the call gives", async () => {
+test("it reads a message from the owner's atc mcp back as from the owner", async () => {
   const ctx = await setupTest();
 
   writeFileSync(join(ctx.home, 'fake-claude-hold-start'), '');
 
   const session = await ctx.mcp.spawnSession({ cwd: ctx.home });
-
-  const sent = await ctx.mcp.sendToolCall('atc_message_send', {
-    session,
-    text: 'hello',
-    from: 'impostor',
-  });
+  const sent = await ctx.mcp.sendToolCall('atc_message_send', { session, text: 'hello' });
 
   const message = sent.structured?.['message'];
 
@@ -80,7 +75,7 @@ test("it reads a message from the owner's atc mcp back as from the owner, whatev
   });
 });
 
-test('it reads a message from a session through its atc mcp back as from that session and its current name, whatever from the call gives', async () => {
+test('it reads a message from a session through its atc mcp back as from that session and its current name', async () => {
   const ctx = await setupTest();
 
   writeFileSync(join(ctx.home, 'fake-claude-hold-start'), '');
@@ -91,12 +86,7 @@ test('it reads a message from a session through its atc mcp back as from that se
   await ctx.mcp.sendToolCall('atc_session_update', { session: sender, name: 'harbor-refactor' });
 
   const inside = await startMCPStdio({ home: ctx.home, callerSessionID: sender });
-
-  const sent = await inside.sendToolCall('atc_message_send', {
-    session: target,
-    text: 'hello',
-    from: 'impostor',
-  });
+  const sent = await inside.sendToolCall('atc_message_send', { session: target, text: 'hello' });
 
   const got = await ctx.mcp.sendToolCall('atc_message_get', {
     message: sent.structured?.['message'],
@@ -114,12 +104,7 @@ test('it holds a message read open while its wait runs', async () => {
   writeFileSync(join(ctx.home, 'fake-claude-hold-start'), '');
 
   const session = await ctx.mcp.spawnSession({ cwd: ctx.home });
-
-  const sent = await ctx.mcp.sendToolCall('atc_message_send', {
-    session,
-    text: 'hello',
-    from: 'tester',
-  });
+  const sent = await ctx.mcp.sendToolCall('atc_message_send', { session, text: 'hello' });
 
   const message = sent.structured?.['message'];
   const held = ctx.mcp.sendToolCall('atc_message_get', { message, waitMs: 30_000 });
@@ -141,12 +126,7 @@ test('it answers a message read with the unanswered message once its wait ends',
   writeFileSync(join(ctx.home, 'fake-claude-hold-start'), '');
 
   const session = await ctx.mcp.spawnSession({ cwd: ctx.home });
-
-  const sent = await ctx.mcp.sendToolCall('atc_message_send', {
-    session,
-    text: 'hello',
-    from: 'tester',
-  });
+  const sent = await ctx.mcp.sendToolCall('atc_message_send', { session, text: 'hello' });
 
   const message = sent.structured?.['message'];
 

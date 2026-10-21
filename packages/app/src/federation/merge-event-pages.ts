@@ -1,5 +1,6 @@
 import { isRecord } from '@atc/core';
 import { decodeCursor, encodeCursor } from '@atc/protocol';
+import { match } from 'ts-pattern';
 import { buildGatewayID } from './build-gateway-id';
 import { buildRuledValue } from './build-ruled-value';
 import { encodeGatewayCursor } from './encode-gateway-cursor';
@@ -68,34 +69,37 @@ export function mergeEventPages(
 
   for (const source of sources) {
     const key = `${source.daemon.name}.${source.daemon.incarnation}`;
-    const page = source.page;
 
-    if (page.kind === 'unavailable') {
-      unavailable.push(source.daemon.name);
+    match(source.page)
+      .with({ kind: 'unavailable' }, () => {
+        unavailable.push(source.daemon.name);
 
-      if (source.before !== null) {
-        parts.set(key, source.before.cursor);
-      }
-    } else if (page.kind === 'started') {
-      started.push(source.daemon.name);
-      parts.set(key, page.cursor);
-    } else {
-      if (source.unstarted !== undefined) {
+        if (source.before !== null) {
+          parts.set(key, source.before.cursor);
+        }
+      })
+      .with({ kind: 'started' }, (page) => {
         started.push(source.daemon.name);
-      }
+        parts.set(key, page.cursor);
+      })
+      .with({ kind: 'read' }, (page) => {
+        if (source.unstarted !== undefined) {
+          started.push(source.daemon.name);
+        }
 
-      if (source.unstarted?.olderUnread === true) {
-        truncated.push(source.daemon.name);
-      }
+        if (source.unstarted?.olderUnread === true) {
+          truncated.push(source.daemon.name);
+        }
 
-      // until one of a page's events goes out, its daemon resumes right before the first one,
-      // a concrete position, since a daemon reads no cursor as its latest events
-      const [first] = page.events;
-      const position = first === undefined ? page.cursor : buildPositionBefore(first);
+        // until one of a page's events goes out, its daemon resumes right before the first one,
+        // a concrete position, since a daemon reads no cursor as its latest events
+        const [first] = page.events;
+        const position = first === undefined ? page.cursor : buildPositionBefore(first);
 
-      parts.set(key, position);
-      queues.push({ source, events: page.events, taken: 0 });
-    }
+        parts.set(key, position);
+        queues.push({ source, events: page.events, taken: 0 });
+      })
+      .exhaustive();
   }
 
   const events: Readonly<Record<string, unknown>>[] = [];

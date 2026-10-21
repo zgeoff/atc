@@ -1,11 +1,13 @@
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { isAllowedRedirectURI } from './mcp/is-allowed-redirect-uri';
-import { openMCPAuth } from './mcp/open-mcp-auth';
-import { readClientViews } from './mcp/read-client-views';
-import { removeClient } from './mcp/remove-client';
+import {
+  isAllowedRedirectURI,
+  normalizeClientName,
+  openMCPAuth,
+  readClientViews,
+  removeClient,
+} from '@atc/mcp';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
-import { normalizeClientName } from './shared/normalize-client-name';
 
 type ClientsAction =
   | { readonly kind: 'list' }

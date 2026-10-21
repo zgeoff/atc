@@ -6,6 +6,7 @@ import { basename, join } from 'node:path';
 import { collectPrincipals, collectTargets } from '@atc/config';
 import { buildStubTargets } from '@atc/daemon/testing';
 import { buildStubExecutionProvider } from '@atc/execution-local/testing';
+import { TransportCaller, buildPrincipalCaller, runTool } from '@atc/mcp';
 import { encodeCursor } from '@atc/protocol';
 import type { DaemonEvent } from '@atc/protocol';
 import { openDaemonClient } from '@atc/protocol/client';
@@ -23,9 +24,6 @@ import {
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
-import { buildPrincipalCaller } from '../packages/app/src/mcp/build-principal-caller';
-import { runTool } from '../packages/app/src/mcp/run-tool';
-import { TransportCaller } from '../packages/app/src/mcp/transport-caller';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 test('it refuses a client a configured target other than local when the config has no principals', async () => {

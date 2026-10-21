@@ -73,9 +73,6 @@ const GATEWAY_APP_MODULES: readonly string[] = [
   'open-mcp-auth-database.ts',
   'clients.ts',
   'passkeys.ts',
-  'shared/grant-scope.ts',
-  'shared/normalize-client-name.ts',
-  'mcp/',
   'federation/',
 ];
 

@@ -97,9 +97,7 @@ export class RoutingCaller {
       .otherwise(() => this.sendRouted(method, params, named, principal));
   }
 
-  readFeatures(): Promise<ReadonlySet<GatewayFeature>> {
-    return Promise.resolve(new Set<GatewayFeature>(['fleet.daemons']));
-  }
+  readonly features: ReadonlySet<GatewayFeature> = new Set<GatewayFeature>(['fleet.daemons']);
 
   private readonly getCaller = (name: string): GatewayDaemonCaller =>
     this.opts.pool.getCaller(name);

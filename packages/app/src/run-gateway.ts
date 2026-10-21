@@ -1,10 +1,10 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { startMCPHTTPServer } from '@atc/mcp';
+import type { MCPHTTPServer } from '@atc/mcp';
 import { openDaemonClient } from '@atc/protocol/client';
 import { loadGatewayRegistry } from './federation/load-gateway-registry';
 import { openGatewayCaller } from './federation/open-gateway-caller';
-import { startMCPHTTPServer } from './mcp/start-mcp-http-server';
-import type { MCPHTTPServer } from './mcp/start-mcp-http-server';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
 
 interface GatewayFlags {

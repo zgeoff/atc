@@ -4,7 +4,7 @@ description:
   The rules for atc's MCP tools and the atc-bridge tools — names, description order, result words,
   limits, output schemas, known-bug clauses, evidence, renames and vocabulary — each with an example
   from the current tools. Load before adding, renaming, or redescribing a tool in
-  packages/app/src/mcp/ or mods/atc-bridge/, or before reviewing such a change.
+  packages/mcp/src/tools/ or mods/atc-bridge/, or before reviewing such a change.
 ---
 
 # atc tool contract
@@ -15,13 +15,13 @@ moment it picks a tool, and acts on what it infers. A tool description therefore
 the agent to the right tool, and stop it from reading more into a result than the result shows.
 
 The tools live in three files:
-[`packages/app/src/mcp/mcp-tools.ts`](../../../packages/app/src/mcp/mcp-tools.ts) holds the names,
-descriptions, and schemas,
-[`packages/app/src/mcp/build-spawn-descriptions.ts`](../../../packages/app/src/mcp/build-spawn-descriptions.ts)
+[`packages/mcp/src/tools/mcp-tools.ts`](../../../packages/mcp/src/tools/mcp-tools.ts) holds the
+names, descriptions, and schemas,
+[`packages/mcp/src/tools/build-spawn-descriptions.ts`](../../../packages/mcp/src/tools/build-spawn-descriptions.ts)
 builds the spawn description with the daemon's agents, and
 [`mods/atc-bridge/hooks/register.ts`](../../../mods/atc-bridge/hooks/register.ts) registers the
 bridge's `note` tool inside a Claude session. The handlers behind the MCP tools are in
-[`packages/app/src/mcp/run-tool.ts`](../../../packages/app/src/mcp/run-tool.ts).
+[`packages/mcp/src/tools/run-tool.ts`](../../../packages/mcp/src/tools/run-tool.ts).
 
 ## Key rules
 
@@ -144,7 +144,7 @@ property points there: the event `kind` is "the event kind; the tool description
 An output schema holds no `enum`, and its objects leave further properties open, so a field or kind
 a later daemon adds never fails a client that validates results. The event `kind` is
 `{ type: 'string' }` with the values listed in prose, and
-[`mcp-tools.ts`](../../../packages/app/src/mcp/mcp-tools.ts) states the rule above the schemas:
+[`mcp-tools.ts`](../../../packages/mcp/src/tools/mcp-tools.ts) states the rule above the schemas:
 
 > Output schemas leave further properties open, so a field the daemon adds later never fails a
 > client that validates results against them.
@@ -193,8 +193,9 @@ Before you open a PR that adds or changes a tool:
 
 - Read the description as an agent that has never seen atc: list the wrong guesses it allows, and
   close each one or name it in the PR.
-- Check each claim against the handler in [`run-tool.ts`](../../../packages/app/src/mcp/run-tool.ts)
-  and the daemon code behind it, and record the file and line for each claim in the PR.
+- Check each claim against the handler in
+  [`run-tool.ts`](../../../packages/mcp/src/tools/run-tool.ts) and the daemon code behind it, and
+  record the file and line for each claim in the PR.
 - Run the misuse a description warns about on a dev daemon when the code alone cannot show it, such
   as text typed into a menu.
 - Search the tools, the event kinds, the CLI, and `docs/` for any word the change renames.

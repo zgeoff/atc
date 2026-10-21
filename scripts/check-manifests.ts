@@ -447,7 +447,8 @@ function checkSpecifier(
       owner === pkg ||
       (pkg.directory === '.' &&
         ROOT_REACHES.some((directory) => target.startsWith(`${directory}/`))) ||
-      (APP_TESTS.has(file) && target.startsWith('packages/app/'))
+      (APP_TESTS.has(file) && target.startsWith('packages/app/')) ||
+      (OAUTH_HELPER_TESTS.has(file) && target.startsWith('packages/mcp/'))
     ) {
       return [];
     }
@@ -501,6 +502,14 @@ const APP_TESTS: ReadonlySet<string> = new Set([
   'packages/test-utils/src/start-mcp-stdio.test.ts',
   'packages/test-utils/src/start-stub-tap.test.ts',
   'packages/test-utils/src/start-tui-harness.test.ts',
+]);
+
+// Tests of the helpers that drive the OAuth flow, which run each helper
+// against the real authorization server, so each reaches into it by path.
+const OAUTH_HELPER_TESTS: ReadonlySet<string> = new Set([
+  'packages/test-utils/src/run-mcp-authorization.test.ts',
+  'packages/test-utils/src/run-passkey-enrollment.test.ts',
+  'packages/test-utils/src/run-passkey-sign-in.test.ts',
 ]);
 
 function getOwner(packages: readonly WorkspacePackage[], path: string): WorkspacePackage {

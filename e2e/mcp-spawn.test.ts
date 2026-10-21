@@ -130,7 +130,7 @@ test('it rejects an empty agent id as a failed tool call', async () => {
 
   expect(failed).toStrictEqual({
     isError: true,
-    text: expect.toInclude('session.spawn agent must be a non-empty agent id'),
+    text: 'Input validation error: Invalid arguments for tool atc_session_spawn: data/agent must NOT have fewer than 1 characters',
     structured: undefined,
   });
 });

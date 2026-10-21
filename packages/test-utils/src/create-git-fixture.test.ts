@@ -94,7 +94,7 @@ test('it refuses to build its template outside the test home', async () => {
     [
       process.execPath,
       '-e',
-      "import { createGitFixture } from './create-git-fixture.ts'; await createGitFixture();",
+      "import { createGitFixture } from './create-git-fixture'; await createGitFixture();",
     ],
     {
       cwd: import.meta.dir,
