@@ -40,8 +40,6 @@ export interface SourceRequest {
 }
 
 export interface SourceInputRequest extends SourceRequest {
-  // the directory the client runs in, which a client sends only when the
-  // daemon runs on its machine, so a relative path it types reads from there.
   readonly clientCwd?: string;
 }
 
