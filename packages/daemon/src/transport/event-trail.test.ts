@@ -1,4 +1,5 @@
-import { expect, test } from 'bun:test';
+import { Database } from 'bun:sqlite';
+import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { toSessionID } from '@atc/core';
 import { StateStore } from '@atc/store';
@@ -48,7 +49,7 @@ async function setupTest() {
   const eventSignal = new EventSignal(clock);
   const trail = new EventTrail({ manager, store, clock, eventSignal });
 
-  return { store, manager, clock, eventSignal, trail };
+  return { dbPath, store, manager, clock, eventSignal, trail };
 }
 
 test('it reads the latest events under the session that recorded them', async () => {
@@ -207,6 +208,45 @@ test('it wakes a held read with a restart it records, whole result included', as
     ],
     more: false,
   });
+});
+
+test('it logs a restart whose trail write fails under its run id and records nothing', async () => {
+  const ctx = await setupTest();
+
+  const log = mock();
+
+  ctx.manager.log = log;
+
+  const db = new Database(ctx.dbPath);
+
+  registerTestCleanup(() => {
+    db.close();
+  });
+
+  db.run('DROP TABLE restart_results');
+
+  await ctx.trail.recordRestart({
+    runID: 'run-sumac',
+    code: 0,
+    pid: 7172,
+    build: 'atc/0.9.4',
+    listenPort: null,
+    restored: 0,
+    total: 0,
+    failed: [],
+    interrupted: [],
+    error: null,
+  });
+
+  const rows = db.query('SELECT kind FROM events').all();
+
+  expect(log).toHaveBeenCalledExactlyOnceWith(
+    expect.stringMatching(
+      /^atc daemon\.restarted for restart run run-sumac: the event trail write failed, so a reader that connects later misses it: .*restart_results/u,
+    ),
+  );
+
+  expect(rows).toStrictEqual([]);
 });
 
 test('it reads no restart under an access that reaches every session', async () => {

@@ -12,7 +12,7 @@ import type { EventSignal } from './event-signal';
 import { formatRestartDetail } from './format-restart-detail';
 
 interface EventTrailDeps {
-  readonly manager: Pick<SessionManager, 'sessions' | 'collectDescriptors'>;
+  readonly manager: Pick<SessionManager, 'sessions' | 'collectDescriptors' | 'log'>;
   readonly store: Pick<
     StateStore,
     'readLatestEvents' | 'readEventsAfter' | 'readNote' | 'readAnswer' | 'recordRestart'
@@ -46,11 +46,15 @@ export class EventTrail {
   }
 
   // A failed write never stops the restart's live event, which still reaches
-  // the readers connected now.
+  // the readers connected now, so the failure only goes to the daemon's log.
   async recordRestart(result: RestartResult): Promise<void> {
     try {
       await this.store.recordRestart(result, formatRestartDetail(result), this.clock.now());
-    } catch {
+    } catch (error) {
+      this.manager.log(
+        `atc daemon.restarted for restart run ${result.runID}: the event trail write failed, so a reader that connects later misses it: ${String(error)}`,
+      );
+
       return;
     }
 
