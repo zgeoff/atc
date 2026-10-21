@@ -1,4 +1,4 @@
-import { LineDecoder } from '../wire/line-decoder';
+import { createLineDecoder } from '../wire/create-line-decoder';
 
 export interface BridgeSocket {
   readonly writeLine: (value: Readonly<Record<string, unknown>>) => void;
@@ -13,8 +13,8 @@ export async function openBridgeSocket(
   onLine: (line: Readonly<Record<string, unknown>>) => void,
 ): Promise<BridgeSocket> {
   const encoder = new TextEncoder();
-  const decoder = new LineDecoder();
 
+  const decoder = createLineDecoder();
   const closed = Promise.withResolvers<void>();
 
   let unsent = new Uint8Array(0);

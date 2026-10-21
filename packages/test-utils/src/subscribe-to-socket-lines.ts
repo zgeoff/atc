@@ -1,4 +1,5 @@
-import { OutboundQueue } from '@atc/protocol/wire';
+import { createOutboundQueue } from '@atc/protocol/wire';
+import type { OutboundQueue } from '@atc/protocol/wire';
 import { registerTestCleanup } from './register-test-cleanup';
 import { waitFor } from './wait-for';
 
@@ -66,7 +67,7 @@ export async function subscribeToSocketLines(
 
   // The default leaves room for the largest payload a test sends in one
   // piece.
-  queue = new OutboundQueue(socket, options.queueBytes ?? 8 * 1024 * 1024);
+  queue = createOutboundQueue(socket, options.queueBytes ?? 8 * 1024 * 1024);
 
   const sending = queue;
 

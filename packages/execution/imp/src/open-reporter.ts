@@ -1,6 +1,6 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 import type { HarnessRelay, HarnessSpec } from '@atc/plugin-api';
-import { LineDecoder } from '@atc/protocol/wire';
+import { createLineDecoder } from '@atc/protocol/wire';
 import { match } from 'ts-pattern';
 import { buildShortName } from './build-short-name';
 import type { ImpHost } from './imp-host';
@@ -151,7 +151,8 @@ function buildSocketName(sessionID: string): string {
 
 // Frames a guest connection's bytes into lines, both ways.
 function toHarnessRelay(connection: ImpRelayConnection): HarnessRelay {
-  const decoder = new LineDecoder();
+  const decoder = createLineDecoder();
+
   const encoder = new TextEncoder();
 
   const lineListeners: ((line: string) => void)[] = [];

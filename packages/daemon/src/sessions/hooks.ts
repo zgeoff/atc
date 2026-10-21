@@ -1,7 +1,8 @@
 import { unlinkSync } from 'node:fs';
 import { socketPath } from '@atc/config';
 import type { HookEvent } from '@atc/protocol/session';
-import { LineDecoder } from '@atc/protocol/wire';
+import { createLineDecoder } from '@atc/protocol/wire';
+import type { LineDecoder } from '@atc/protocol/wire';
 import { parseHookLine } from '../transport/parse-hook-line';
 import { withOwnerOnlySocket } from '../transport/with-owner-only-socket';
 
@@ -32,7 +33,7 @@ export function startHookServer(
           }
         },
         open(socket) {
-          socket.data = { lines: new LineDecoder() };
+          socket.data = { lines: createLineDecoder() };
         },
         error() {},
       },

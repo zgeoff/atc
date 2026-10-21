@@ -5,9 +5,11 @@ import { ClientPeer } from '@orpc/standard-server-peer';
 import type { SocketHandler } from 'bun';
 import { createActor } from 'xstate';
 import type { Actor } from 'xstate';
+import { createLineDecoder } from '../wire/create-line-decoder';
+import type { LineDecoder } from '../wire/create-line-decoder';
+import { createOutboundQueue } from '../wire/create-outbound-queue';
+import type { OutboundQueue } from '../wire/create-outbound-queue';
 import { DaemonError } from '../wire/daemon-error';
-import { LineDecoder } from '../wire/line-decoder';
-import { OutboundQueue } from '../wire/outbound-queue';
 import { PRINCIPAL_HEADERS } from '../wire/principal-headers';
 import { PROTOCOL_V } from '../wire/protocol';
 import { CLIENT_MACHINE } from './client-machine';
@@ -31,8 +33,7 @@ export async function openDaemonClient(
         : await Bun.connect({ hostname: address.hostname, port: address.port, socket: handlers });
 
     conn.socket = socket;
-
-    conn.queue = new OutboundQueue(socket, QUEUE_BYTES);
+    conn.queue = createOutboundQueue(socket, QUEUE_BYTES);
   } catch (error) {
     conn.actor.stop();
     throw error;
@@ -101,7 +102,7 @@ function createClientConnection(): ClientConnection {
 
   const conn: ClientConnection = {
     actor: createActor(CLIENT_MACHINE).start(),
-    lines: new LineDecoder(),
+    lines: createLineDecoder(),
     peer,
     link,
     procedures: createORPCClient<DaemonProcedures>(link),

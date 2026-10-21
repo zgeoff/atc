@@ -3,7 +3,8 @@ import type { Clock } from '@atc/core';
 import type { Principal } from '@atc/protocol';
 import { PROCEDURE_TRAITS } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
-import { DaemonTransport } from '@atc/protocol/wire/transport';
+import { createDaemonTransport } from '@atc/protocol/wire/transport';
+import type { DaemonTransport } from '@atc/protocol/wire/transport';
 import { GatewayError } from './gateway-error';
 import type { DaemonHello, GatewayChannel, ParamsPreparer, RegistryDaemon } from './types';
 
@@ -43,7 +44,7 @@ export class GatewayDaemonCaller {
   constructor(opts: GatewayDaemonCallerOptions) {
     this.opts = opts;
 
-    this.transport = new DaemonTransport({
+    this.transport = createDaemonTransport({
       reconnect: 'on-demand',
       open: () => this.openTimedConnection(),
       getChannel: (connection) => connection.channel,

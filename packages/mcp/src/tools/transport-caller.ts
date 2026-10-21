@@ -3,7 +3,8 @@ import type { Principal } from '@atc/protocol';
 import { PROCEDURE_TRAITS } from '@atc/protocol';
 import { readSessionEnv } from '@atc/protocol/session';
 import type { DaemonChannel } from '@atc/protocol/wire';
-import { DaemonTransport } from '@atc/protocol/wire/transport';
+import { createDaemonTransport } from '@atc/protocol/wire/transport';
+import type { DaemonTransport } from '@atc/protocol/wire/transport';
 import type { FleetCaller, FleetFeature } from './types';
 
 export class TransportCaller implements FleetCaller {
@@ -18,7 +19,7 @@ export class TransportCaller implements FleetCaller {
     openChannel: (socketPath: string) => Promise<DaemonChannel>,
     session: string | null = readSessionEnv(process.env).sessionID ?? null,
   ) {
-    this.transport = new DaemonTransport({
+    this.transport = createDaemonTransport({
       reconnect: 'on-demand',
       open: () => openHandshaken(socketPath, build, openChannel, session),
       getChannel: (client) => client,
