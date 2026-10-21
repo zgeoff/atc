@@ -48,6 +48,43 @@ test('it fails a gate that creates a file in the atc state directory', async () 
   );
 });
 
+test('it fails a gate that spawns claude from PATH and names the rule', async () => {
+  const run = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-test-isolation.ts'),
+    'sh',
+    '-c',
+    'claude --print "summarize the fixture"',
+  ]);
+
+  expect({ exitCode: run.exitCode, stdout: run.stdout, stderr: run.stderr }).toStrictEqual({
+    exitCode: 1,
+    stdout: '',
+    stderr:
+      'canary claude: never spawn the real claude in a test\n' +
+      'test isolation: a test spawned the real claude binary; never spawn the real claude in a test, drive a stand-in:\n' +
+      'claude --print summarize the fixture\n',
+  });
+});
+
+test('it fails a gate that spawns claude and then exits 0', async () => {
+  const run = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-test-isolation.ts'),
+    'sh',
+    '-c',
+    'claude --print "list the stub tasks" 2> /dev/null; exit 0',
+  ]);
+
+  expect({ exitCode: run.exitCode, stdout: run.stdout, stderr: run.stderr }).toStrictEqual({
+    exitCode: 1,
+    stdout: '',
+    stderr:
+      'test isolation: a test spawned the real claude binary; never spawn the real claude in a test, drive a stand-in:\n' +
+      'claude --print list the stub tasks\n',
+  });
+});
+
 test('it exits with the code of a gate that fails', async () => {
   const run = await runCommand([
     process.execPath,
