@@ -901,26 +901,22 @@ test("it passes each daemon's agent and target broker fields through agents.list
 test('it refuses a daemon param the registry does not hold as bad_args', async () => {
   const ctx = await setupTest();
 
-  expect(() =>
+  expect(
     ctx.router.sendRequest('dirs.list', { daemon: 'nope' }, { id: 'gw', name: 'Lantern Notes' }),
-  ).toThrow(
-    expect.objectContaining({ code: 'bad_args', message: "no daemon 'nope' in this gateway" }),
-  );
+  ).rejects.toMatchObject({ code: 'bad_args', message: "no daemon 'nope' in this gateway" });
 });
 
 test('it refuses a call whose ids belong to another daemon than its daemon param as bad_args', async () => {
   const ctx = await setupTest();
 
-  expect(() =>
+  expect(
     ctx.router.sendRequest(
       'session.get',
       { session: `cloud.${ctx.cloudID.slice(0, 8)}.s1`, daemon: 'pc' },
       { id: 'gw', name: 'Lantern Notes' },
     ),
-  ).toThrow(
-    expect.objectContaining({
-      code: 'bad_args',
-      message: "the call's ids belong to daemon 'cloud', not 'pc'",
-    }),
-  );
+  ).rejects.toMatchObject({
+    code: 'bad_args',
+    message: "the call's ids belong to daemon 'cloud', not 'pc'",
+  });
 });

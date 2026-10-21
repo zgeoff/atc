@@ -167,6 +167,7 @@
         "@atc/core": "workspace:*",
         "@atc/protocol": "workspace:*",
         "@zgeoff/std": "catalog:",
+        "tiny-invariant": "catalog:",
         "ts-pattern": "catalog:",
         "zod": "catalog:",
       },
@@ -174,7 +175,6 @@
         "@atc/daemon": "workspace:*",
         "@atc/test-utils": "workspace:*",
         "@faker-js/faker": "catalog:",
-        "tiny-invariant": "catalog:",
       },
     },
     "packages/harnesses/claude": {
