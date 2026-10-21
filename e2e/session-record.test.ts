@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path';
 import { toAgentSessionID, toSessionID } from '@atc/core';
 import { buildMockExecutionTarget } from '@atc/daemon/testing';
-import { buildStubDirProvider } from '@atc/execution-local/testing';
+import { createStubDirProvider } from '@atc/execution-local/testing';
 import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
@@ -21,7 +21,7 @@ import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemo
 async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'atc-session-record-' });
 
-  const box = buildStubDirProvider();
+  const box = createStubDirProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-session-record-daemon-',
@@ -130,7 +130,7 @@ test("it records the user's new name for the session and rewrites the copy", asy
 test("it records the agent's name and transcript path for the session from its hook", async () => {
   const fixture = await createGitFixture({ prefix: 'atc-session-record-' });
 
-  const box = buildStubDirProvider();
+  const box = createStubDirProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-session-record-daemon-',
@@ -414,7 +414,7 @@ test('it removes the record when the session is forgotten', async () => {
 test('it places the stored record again when a restore revives the session', async () => {
   const fixture = await createGitFixture({ prefix: 'atc-session-record-' });
 
-  const box = buildStubDirProvider();
+  const box = createStubDirProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-session-record-daemon-',

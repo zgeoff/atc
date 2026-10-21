@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
 import { ImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/testing';
-import { LocalPTYProvider } from '@atc/execution-local';
+import { createLocalPTYProvider } from '@atc/execution-local';
 import { createClaudeAdapter, createGatewayAdapter } from '@atc/harness-claude';
 import { getGatewayConfig } from '@atc/harness-claude/testing';
 import {
@@ -61,7 +61,7 @@ async function setupTest() {
     port,
     work: git.work,
     box,
-    local: new LocalPTYProvider(),
+    local: createLocalPTYProvider(),
     fakeClaude,
   };
 }

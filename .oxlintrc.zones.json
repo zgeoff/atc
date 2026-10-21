@@ -60,7 +60,7 @@
           // in real PTYs, and the stub composer's and stub menu's raw-mode
           // reads need a real terminal
           "pty-files": [
-            "packages/execution/local/src/local-pty-provider.ts",
+            "packages/execution/local/src/create-local-pty-provider.ts",
             "packages/execution/imp/src/testing/{answer-stub-session,stub-imp,try-kill}.ts",
             "packages/test-utils/src/start-tui-harness.ts",
             "packages/test-utils/src/{create-stub-composer,run-stub-menu-claude}.test.ts"

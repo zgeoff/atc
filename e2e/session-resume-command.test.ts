@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { buildStubExecutionProvider } from '@atc/execution-local/testing';
+import { createStubExecutionProvider } from '@atc/execution-local/testing';
 import { buildMockAgentAdapter, getRecord } from '@atc/test-utils';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
@@ -27,7 +27,7 @@ test('it answers the adapter command for a session on the daemon machine', async
 });
 
 test('it refuses the command for a session on another machine as unsupported', async () => {
-  const provider = buildStubExecutionProvider({ kind: 'imp-like', remote: true });
+  const provider = createStubExecutionProvider({ kind: 'imp-like', remote: true });
 
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-resume-',

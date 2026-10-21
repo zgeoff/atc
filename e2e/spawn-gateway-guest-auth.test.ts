@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
 import { ImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/testing';
-import { LocalPTYProvider } from '@atc/execution-local';
+import { createLocalPTYProvider } from '@atc/execution-local';
 import { createGatewayAdapter } from '@atc/harness-claude';
 import { getGatewayConfig } from '@atc/harness-claude/testing';
 import {
@@ -51,7 +51,7 @@ function setupTest() {
         kind: 'local-pty',
         options: {},
         identity: 'local-pty:test',
-        provider: new LocalPTYProvider(),
+        provider: createLocalPTYProvider(),
       },
       { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider },
     ],

@@ -6,7 +6,7 @@ import { toSessionID } from '@atc/core';
 import type { RestoreSettled } from '@atc/daemon';
 import { ImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/testing';
-import { LocalPTYProvider } from '@atc/execution-local';
+import { createLocalPTYProvider } from '@atc/execution-local';
 import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
@@ -41,7 +41,7 @@ function setupTest() {
     settles,
     fakeClaude: createStubRecordingClaude(temporaryDirectory.path),
     marker: join(temporaryDirectory.path, 'claude-starts.log'),
-    local: new LocalPTYProvider(),
+    local: createLocalPTYProvider(),
     box,
     onRestoreSettled: (settled: RestoreSettled) => {
       settles.push(settled);

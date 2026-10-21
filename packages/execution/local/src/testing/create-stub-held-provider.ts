@@ -1,10 +1,11 @@
 import type { ExecutionProvider, HarnessSpec, HostRequest } from '@atc/plugin-api';
-import { LocalPTYProvider } from '../local-pty-provider';
+import { createLocalPTYProvider } from '../create-local-pty-provider';
 
 // Each host preparation holds until the test releases that host, so a test
 // can act while a harness is still starting.
-export function buildStubHeldProvider() {
-  const local = new LocalPTYProvider();
+export function createStubHeldProvider() {
+  const local = createLocalPTYProvider();
+
   const gates = new Map<string, PromiseWithResolvers<void>>();
 
   const prepares: string[] = [];
@@ -27,7 +28,7 @@ export function buildStubHeldProvider() {
 
       await getGate(request.host).promise;
 
-      await local.prepareHost();
+      await local.prepareHost(request);
     },
     spawnHarness: (spec) => {
       harnesses.push(spec);

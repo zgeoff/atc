@@ -1,10 +1,10 @@
 import type { ExecutionProvider, HarnessHandle } from '@atc/plugin-api';
-import { LocalPTYProvider } from '../local-pty-provider';
+import { createLocalPTYProvider } from '../create-local-pty-provider';
 
 // Its harnesses have no forced kill, as a remote provider's have none, so one
 // that ignores its kill keeps running.
-export function buildStubSoftKillProvider(): ExecutionProvider {
-  const local = new LocalPTYProvider();
+export function createStubSoftKillProvider(): ExecutionProvider {
+  const local = createLocalPTYProvider();
 
   return {
     kind: 'no-forced-kill',

@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { setupTempDir } from '@atc/test-utils';
-import { buildStubHostProvider } from './build-stub-host-provider';
+import { createStubHostProvider } from './create-stub-host-provider';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-stub-host-');
@@ -9,7 +9,7 @@ function setupTest() {
 }
 
 test('it declares every capability of a local terminal plus sleeping and destroying a host', () => {
-  expect(buildStubHostProvider().capabilities).toStrictEqual({
+  expect(createStubHostProvider().capabilities).toStrictEqual({
     spawn: true,
     attach: true,
     input: true,
@@ -27,14 +27,14 @@ test('it runs a command on this machine', () => {
   const ctx = setupTest();
 
   expect(
-    buildStubHostProvider().runCommand({ argv: ['pwd'], cwd: ctx.directory }),
+    createStubHostProvider().runCommand({ argv: ['pwd'], cwd: ctx.directory }),
   ).resolves.toStrictEqual({ exitCode: 0, stdout: `${ctx.directory}\n`, stderr: '' });
 });
 
 test('it puts a host to sleep without doing anything', () => {
-  expect(buildStubHostProvider().suspendHost('s-1')).resolves.toBeUndefined();
+  expect(createStubHostProvider().suspendHost('s-1')).resolves.toBeUndefined();
 });
 
 test('it destroys a host without doing anything', () => {
-  expect(buildStubHostProvider().destroyHost('s-1')).resolves.toBeUndefined();
+  expect(createStubHostProvider().destroyHost('s-1')).resolves.toBeUndefined();
 });

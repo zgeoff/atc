@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
-import { buildStubSoftKillProvider } from './build-stub-soft-kill-provider';
+import { createStubSoftKillProvider } from './create-stub-soft-kill-provider';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-soft-kill-');
@@ -9,7 +9,7 @@ function setupTest() {
 }
 
 test('it declares the capabilities of a local terminal', () => {
-  expect(buildStubSoftKillProvider().capabilities).toStrictEqual({
+  expect(createStubSoftKillProvider().capabilities).toStrictEqual({
     spawn: true,
     attach: true,
     input: true,
@@ -26,7 +26,7 @@ test('it declares the capabilities of a local terminal', () => {
 test('it starts a harness that has no forced kill', () => {
   const ctx = setupTest();
 
-  const harness = buildStubSoftKillProvider().spawnHarness({
+  const harness = createStubSoftKillProvider().spawnHarness({
     session: 's-1',
     host: 's-1',
     bin: 'sleep',

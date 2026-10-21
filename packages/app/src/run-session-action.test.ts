@@ -2,7 +2,7 @@ import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { ImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/testing';
-import { LocalPTYProvider } from '@atc/execution-local';
+import { createLocalPTYProvider } from '@atc/execution-local';
 import {
   buildStubBrokeredAgentAdapter,
   getRecord,
@@ -51,7 +51,7 @@ test('it prints the new revision, the adopt command and the sessions pending a r
           kind: 'local-pty',
           options: {},
           identity: 'local-pty:test',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         },
         { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
       ],
@@ -129,7 +129,7 @@ test('it starts the terminal of a session whose host is rebound', async () => {
           kind: 'local-pty',
           options: {},
           identity: 'local-pty:test',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         },
         { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
       ],
@@ -202,7 +202,7 @@ test('it prints the refusal with its code and exits 1 when the host still needs 
           kind: 'local-pty',
           options: {},
           identity: 'local-pty:test',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         },
         { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
       ],

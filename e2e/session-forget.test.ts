@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { LocalPTYProvider } from '@atc/execution-local';
-import { buildStubExecutionProvider } from '@atc/execution-local/testing';
+import { createLocalPTYProvider } from '@atc/execution-local';
+import { createStubExecutionProvider } from '@atc/execution-local/testing';
 import {
   buildMockAgentAdapter,
   buildStubHeadlessRunner,
@@ -11,7 +11,7 @@ import {
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 test('it answers a forget on a host-destroying target with a token and destroys nothing yet', async () => {
-  const provider = buildStubExecutionProvider({
+  const provider = createStubExecutionProvider({
     kind: 'imp-like',
     capabilities: { suspend: true, destroy: true },
   });
@@ -54,7 +54,7 @@ test('it answers a forget on a host-destroying target with a token and destroys 
 });
 
 test('it destroys the host and forgets the session when the forget carries its token', async () => {
-  const provider = buildStubExecutionProvider({
+  const provider = createStubExecutionProvider({
     kind: 'imp-like',
     capabilities: { suspend: true, destroy: true },
   });
@@ -93,7 +93,7 @@ test('it destroys the host and forgets the session when the forget carries its t
 });
 
 test('it refuses a forget with internal and keeps the session when the host destroy fails', async () => {
-  const provider = buildStubExecutionProvider({
+  const provider = createStubExecutionProvider({
     kind: 'imp-like',
     capabilities: { suspend: true, destroy: true },
   });
@@ -133,7 +133,7 @@ test('it refuses a forget with internal and keeps the session when the host dest
 });
 
 test('it refuses a confirm token a forget already took', async () => {
-  const provider = buildStubExecutionProvider({
+  const provider = createStubExecutionProvider({
     kind: 'imp-like',
     capabilities: { suspend: true, destroy: true },
   });
@@ -183,7 +183,7 @@ test('it refuses a confirm token a forget already took', async () => {
 });
 
 test('it refuses a confirm token past its lifetime', async () => {
-  const provider = buildStubExecutionProvider({
+  const provider = createStubExecutionProvider({
     kind: 'imp-like',
     capabilities: { suspend: true, destroy: true },
   });
@@ -227,7 +227,7 @@ test('it refuses a confirm token past its lifetime', async () => {
 });
 
 test('it takes a confirm token up to the last millisecond of its lifetime', async () => {
-  const provider = buildStubExecutionProvider({
+  const provider = createStubExecutionProvider({
     kind: 'imp-like',
     capabilities: { suspend: true, destroy: true },
   });
@@ -266,7 +266,7 @@ test('it takes a confirm token up to the last millisecond of its lifetime', asyn
 });
 
 test('it refuses a confirm token handed out for another session', async () => {
-  const provider = buildStubExecutionProvider({
+  const provider = createStubExecutionProvider({
     kind: 'imp-like',
     capabilities: { suspend: true, destroy: true },
   });
@@ -309,7 +309,7 @@ test('it refuses a confirm token handed out for another session', async () => {
 });
 
 test('it forgets a session on the local target at once without a token', async () => {
-  const provider = new LocalPTYProvider();
+  const provider = createLocalPTYProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-forget-',
@@ -336,7 +336,7 @@ test('it forgets a session on the local target at once without a token', async (
 });
 
 test('it refuses a forget of a session the daemon does not hold', async () => {
-  const provider = new LocalPTYProvider();
+  const provider = createLocalPTYProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-forget-',
@@ -354,7 +354,7 @@ test('it refuses a forget of a session the daemon does not hold', async () => {
 });
 
 test('it refuses a forget that refuses a pinned session when a pin lands after the session was read', async () => {
-  const provider = new LocalPTYProvider();
+  const provider = createLocalPTYProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-forget-',
@@ -392,7 +392,7 @@ test('it refuses a forget that refuses a pinned session when a pin lands after t
 });
 
 test('it refuses a forget that refuses a pinned session of a sub-session of a pinned session', async () => {
-  const provider = new LocalPTYProvider();
+  const provider = createLocalPTYProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-forget-',
@@ -436,7 +436,7 @@ test('it refuses a forget that refuses a pinned session of a sub-session of a pi
 });
 
 test('it forgets a sub-session of a pinned session when its parent asks and keeps the parent pinned', async () => {
-  const provider = new LocalPTYProvider();
+  const provider = createLocalPTYProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-forget-',
@@ -484,7 +484,7 @@ test('it forgets a sub-session of a pinned session when its parent asks and keep
 });
 
 test('it refuses a forget of a sub-session of a pinned session that another session asks for', async () => {
-  const provider = new LocalPTYProvider();
+  const provider = createLocalPTYProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-forget-',
@@ -540,7 +540,7 @@ test('it refuses a forget of a sub-session of a pinned session that another sess
 });
 
 test('it refuses a forget by its parent of a sub-session pinned on its own', async () => {
-  const provider = new LocalPTYProvider();
+  const provider = createLocalPTYProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-forget-',
@@ -588,7 +588,7 @@ test('it refuses a forget by its parent of a sub-session pinned on its own', asy
 });
 
 test('it keeps a dead sub-session pinned on its own as a top-level session when its parent is forgotten', async () => {
-  const provider = new LocalPTYProvider();
+  const provider = createLocalPTYProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-forget-',
@@ -636,7 +636,7 @@ test('it keeps a dead sub-session pinned on its own as a top-level session when 
 });
 
 test('it stops a sub-session of a pinned session when its parent asks', async () => {
-  const provider = new LocalPTYProvider();
+  const provider = createLocalPTYProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-forget-',
@@ -674,7 +674,7 @@ test('it stops a sub-session of a pinned session when its parent asks', async ()
 });
 
 test('it forgets a detached sub-session of a pinned session and keeps the former parent pinned', async () => {
-  const provider = new LocalPTYProvider();
+  const provider = createLocalPTYProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-forget-',
@@ -721,7 +721,7 @@ test('it forgets a detached sub-session of a pinned session and keeps the former
 });
 
 test('it refuses an update whose parent is not null and leaves the sub-session under its parent', async () => {
-  const provider = new LocalPTYProvider();
+  const provider = createLocalPTYProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-forget-',
@@ -762,7 +762,7 @@ test('it refuses an update whose parent is not null and leaves the sub-session u
 });
 
 test('it refuses a forget that refuses a live session when the session is live', async () => {
-  const provider = new LocalPTYProvider();
+  const provider = createLocalPTYProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-forget-',
@@ -796,7 +796,7 @@ test('it refuses a forget that refuses a live session when the session is live',
 });
 
 test('it forgets a dead unpinned session when the forget refuses pinned and live sessions', async () => {
-  const provider = new LocalPTYProvider();
+  const provider = createLocalPTYProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-forget-',
@@ -829,7 +829,7 @@ test('it forgets a dead unpinned session when the forget refuses pinned and live
 });
 
 test('it refuses a pinned session on a host-destroying target before it hands out a token', async () => {
-  const provider = buildStubExecutionProvider({
+  const provider = createStubExecutionProvider({
     kind: 'imp-like',
     capabilities: { suspend: true, destroy: true },
   });
@@ -860,7 +860,7 @@ test('it refuses a pinned session on a host-destroying target before it hands ou
 });
 
 test('it keeps a headless run going when the forget of its session fails to destroy the host', async () => {
-  const provider = buildStubExecutionProvider({
+  const provider = createStubExecutionProvider({
     kind: 'imp-like',
     capabilities: { suspend: true, destroy: true },
   });
@@ -933,7 +933,7 @@ test('it keeps a headless run going when the forget of its session fails to dest
 });
 
 test('it refuses a principal forget without a token of a session on a target it may not use as a session that does not exist, destroying nothing', async () => {
-  const provider = buildStubExecutionProvider({
+  const provider = createStubExecutionProvider({
     kind: 'imp-like',
     capabilities: { suspend: true, destroy: true },
   });
@@ -976,7 +976,7 @@ test('it refuses a principal forget without a token of a session on a target it 
 });
 
 test('it refuses a principal forget without a token of a session that does not exist', async () => {
-  const provider = buildStubExecutionProvider({
+  const provider = createStubExecutionProvider({
     kind: 'imp-like',
     capabilities: { suspend: true, destroy: true },
   });
@@ -1007,7 +1007,7 @@ test('it refuses a principal forget without a token of a session that does not e
 });
 
 test('it refuses a principal forget with the owner token of a session on a target it may not use as a session that does not exist, destroying nothing', async () => {
-  const provider = buildStubExecutionProvider({
+  const provider = createStubExecutionProvider({
     kind: 'imp-like',
     capabilities: { suspend: true, destroy: true },
   });
@@ -1056,7 +1056,7 @@ test('it refuses a principal forget with the owner token of a session on a targe
 });
 
 test('it refuses a principal forget with the owner token of a session that does not exist', async () => {
-  const provider = buildStubExecutionProvider({
+  const provider = createStubExecutionProvider({
     kind: 'imp-like',
     capabilities: { suspend: true, destroy: true },
   });
@@ -1099,7 +1099,7 @@ test('it refuses a principal forget with the owner token of a session that does 
 });
 
 test('it destroys the host when a principal that may use its target forgets with the token', async () => {
-  const provider = buildStubExecutionProvider({
+  const provider = createStubExecutionProvider({
     kind: 'imp-like',
     capabilities: { suspend: true, destroy: true },
   });

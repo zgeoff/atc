@@ -1,8 +1,8 @@
 import type { ExecutionProvider } from '@atc/plugin-api';
-import { LocalPTYProvider } from '../local-pty-provider';
+import { createLocalPTYProvider } from '../create-local-pty-provider';
 
-export function buildStubHostProvider(): ExecutionProvider {
-  const local = new LocalPTYProvider();
+export function createStubHostProvider(): ExecutionProvider {
+  const local = createLocalPTYProvider();
 
   return {
     kind: 'imp-like',

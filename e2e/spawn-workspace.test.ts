@@ -14,8 +14,8 @@ import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { toAgentSessionID, toSessionID } from '@atc/core';
 import { buildMockExecutionTarget } from '@atc/daemon/testing';
-import { LocalPTYProvider } from '@atc/execution-local';
-import { buildStubDirProvider, buildStubExecutionProvider } from '@atc/execution-local/testing';
+import { createLocalPTYProvider } from '@atc/execution-local';
+import { createStubDirProvider, createStubExecutionProvider } from '@atc/execution-local/testing';
 import type { ExecutionProvider } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
@@ -52,7 +52,7 @@ test('it materializes a path source at its pushed HEAD on the target and verifie
   // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
-  const box = buildStubDirProvider();
+  const box = createStubDirProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -64,7 +64,7 @@ test('it materializes a path source at its pushed HEAD on the target and verifie
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -189,13 +189,13 @@ test('it verifies the target checkout itself when the daemon env points git at a
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
           identity: 'test:box',
-          provider: buildStubDirProvider(),
+          provider: createStubDirProvider(),
         }),
       ],
     }),
@@ -219,7 +219,7 @@ test('it fails the spawn when the target checkout has no commit at HEAD, and rem
   const ctx = await setupTest();
 
   // The unpack on the host leaves HEAD on a branch that holds no commit.
-  const box = buildStubDirProvider({
+  const box = createStubDirProvider({
     afterTransfer: async (directory) => {
       await writeFile(join(directory, '.git', 'HEAD'), 'ref: refs/heads/missing\n');
     },
@@ -235,7 +235,7 @@ test('it fails the spawn when the target checkout has no commit at HEAD, and rem
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -272,7 +272,7 @@ test('it fails the spawn when the target checkout lacks a tracked file, and remo
   const ctx = await setupTest();
 
   // The unpack on the host leaves one tracked file out.
-  const box = buildStubDirProvider({
+  const box = createStubDirProvider({
     afterTransfer: async (directory) => {
       await rm(join(directory, 'README.md'));
     },
@@ -288,7 +288,7 @@ test('it fails the spawn when the target checkout lacks a tracked file, and remo
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -338,7 +338,7 @@ test('it removes only the directory it created when a symlink in the requested p
 
   // The unpack leaves a tracked file out, and the requested path's symlink
   // moves to another directory before the rollback removes the checkout.
-  const box = buildStubDirProvider({
+  const box = createStubDirProvider({
     afterTransfer: async (directory) => {
       await rm(join(directory, 'README.md'));
 
@@ -357,7 +357,7 @@ test('it removes only the directory it created when a symlink in the requested p
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -395,13 +395,13 @@ test('it records a ready workspace and lists it again on the session after a res
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
           identity: 'test:box',
-          provider: buildStubDirProvider(),
+          provider: createStubDirProvider(),
         }),
       ],
     }),
@@ -425,13 +425,13 @@ test('it records a ready workspace and lists it again on the session after a res
         id: 'local',
         kind: 'local-pty',
         identity: 'test:local',
-        provider: new LocalPTYProvider(),
+        provider: createLocalPTYProvider(),
       }),
       buildMockExecutionTarget({
         id: 'box',
         kind: 'fixture-dir',
         identity: 'test:box',
-        provider: buildStubDirProvider(),
+        provider: createStubDirProvider(),
       }),
     ],
   }));
@@ -446,7 +446,7 @@ test('it records a ready workspace and lists it again on the session after a res
 test('it refuses a path source whose HEAD was never pushed, transferring nothing', async () => {
   const ctx = await setupTest();
 
-  const box = buildStubDirProvider();
+  const box = createStubDirProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -458,7 +458,7 @@ test('it refuses a path source whose HEAD was never pushed, transferring nothing
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -492,7 +492,7 @@ test('it refuses a path source whose HEAD was never pushed, transferring nothing
 test('it refuses a path source with uncommitted changes as workspace_dirty when dirt is refused', async () => {
   const ctx = await setupTest();
 
-  const box = buildStubDirProvider();
+  const box = createStubDirProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -504,7 +504,7 @@ test('it refuses a path source with uncommitted changes as workspace_dirty when 
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -546,13 +546,13 @@ test('it materializes the committed HEAD of a dirty path source and leaves its c
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
           identity: 'test:box',
-          provider: buildStubDirProvider(),
+          provider: createStubDirProvider(),
         }),
       ],
     }),
@@ -609,13 +609,13 @@ test('it materializes the committed HEAD of a dirty path source when dirt is all
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
           identity: 'test:box',
-          provider: buildStubDirProvider(),
+          provider: createStubDirProvider(),
         }),
       ],
     }),
@@ -648,7 +648,7 @@ test('it materializes the committed HEAD of a dirty path source when dirt is all
 test('it refuses a dirty path source whose HEAD was never pushed, transferring nothing', async () => {
   const ctx = await setupTest();
 
-  const box = buildStubDirProvider();
+  const box = createStubDirProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -660,7 +660,7 @@ test('it refuses a dirty path source whose HEAD was never pushed, transferring n
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -693,7 +693,7 @@ test('it refuses a dirty path source whose HEAD was never pushed, transferring n
 test('it refuses a path source that uses submodules, transferring nothing', async () => {
   const ctx = await setupTest();
 
-  const box = buildStubDirProvider();
+  const box = createStubDirProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -705,7 +705,7 @@ test('it refuses a path source that uses submodules, transferring nothing', asyn
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -740,7 +740,7 @@ test('it refuses a path source that uses submodules, transferring nothing', asyn
 test('it refuses a git source that tracks LFS paths, transferring nothing and leaving no directory', async () => {
   const ctx = await setupTest();
 
-  const box = buildStubDirProvider();
+  const box = createStubDirProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -752,7 +752,7 @@ test('it refuses a git source that tracks LFS paths, transferring nothing and le
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -789,7 +789,7 @@ test('it refuses a git source that tracks LFS paths, transferring nothing and le
 test('it refuses a path source whose git config rewrites its origin into a URL with a token', async () => {
   const ctx = await setupTest();
 
-  const box = buildStubDirProvider();
+  const box = createStubDirProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -801,7 +801,7 @@ test('it refuses a path source whose git config rewrites its origin into a URL w
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -831,7 +831,7 @@ test('it refuses a path source whose git config rewrites its origin into a URL w
 });
 
 test('it refuses a git source whose URL carries a token', async () => {
-  const box = buildStubDirProvider();
+  const box = createStubDirProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -843,7 +843,7 @@ test('it refuses a git source whose URL carries a token', async () => {
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -880,13 +880,13 @@ test('it keeps a workspace credential out of every row, the session, the fleet, 
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
           identity: 'test:box',
-          provider: buildStubDirProvider(),
+          provider: createStubDirProvider(),
         }),
       ],
     }),
@@ -930,13 +930,13 @@ test("it keeps a workspace credential out of a refusal that carries git's error,
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
           identity: 'test:box',
-          provider: buildStubDirProvider(),
+          provider: createStubDirProvider(),
         }),
       ],
     }),
@@ -984,7 +984,7 @@ test('it clones with the workspace credential and starts the harness without it 
   updateEnv('GIT_ASKPASS', '/fixture/askpass');
   updateEnv('ATC_GIT_ASKPASS_SECRET', 'fixture-not-a-secret');
 
-  const box = buildStubDirProvider();
+  const box = createStubDirProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -996,7 +996,7 @@ test('it clones with the workspace credential and starts the harness without it 
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -1055,7 +1055,7 @@ test('it starts a revived harness after a restart without the workspace credenti
   updateEnv('ATC_TEST_WORKSPACE_CRED', 'fixture-not-a-secret');
   mkdirSync(destination, { recursive: true });
 
-  const box = buildStubDirProvider();
+  const box = createStubDirProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -1103,7 +1103,7 @@ test('it starts a revived harness after a restart without the workspace credenti
             id: 'local',
             kind: 'local-pty',
             identity: 'test:local',
-            provider: new LocalPTYProvider(),
+            provider: createLocalPTYProvider(),
           }),
           buildMockExecutionTarget({
             id: 'box',
@@ -1142,7 +1142,7 @@ test('it fails the spawn when the target checkout is not at the pinned commit, a
   const pinned = await $`git rev-parse HEAD`.env(ctx.env).cwd(ctx.work).text();
 
   // The host's checkout lands on another commit than the one sent.
-  const box = buildStubDirProvider({
+  const box = createStubDirProvider({
     afterTransfer: async (directory) => {
       await Bun.write(join(directory, '.git', 'HEAD'), parent);
     },
@@ -1158,7 +1158,7 @@ test('it fails the spawn when the target checkout is not at the pinned commit, a
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -1208,7 +1208,7 @@ test.each([['transfer'], ['run']] as const)(
   async (capability) => {
     const ctx = await setupTest();
 
-    const box = buildStubDirProvider({ lacking: [capability] });
+    const box = createStubDirProvider({ lacking: [capability] });
 
     const daemon = await startTestDaemon({
       prefix: 'atc-workspace-daemon-',
@@ -1220,7 +1220,7 @@ test.each([['transfer'], ['run']] as const)(
             id: 'local',
             kind: 'local-pty',
             identity: 'test:local',
-            provider: new LocalPTYProvider(),
+            provider: createLocalPTYProvider(),
           }),
           buildMockExecutionTarget({
             id: 'box',
@@ -1266,7 +1266,7 @@ test('it fails a materialization that a restart interrupts and lists no session 
   const ctx = await setupTest();
 
   const held = Promise.withResolvers<undefined>();
-  const box = buildStubDirProvider({ afterTransfer: () => held.promise });
+  const box = createStubDirProvider({ afterTransfer: () => held.promise });
 
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -1278,7 +1278,7 @@ test('it fails a materialization that a restart interrupts and lists no session 
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -1317,13 +1317,13 @@ test('it fails a materialization that a restart interrupts and lists no session 
         id: 'local',
         kind: 'local-pty',
         identity: 'test:local',
-        provider: new LocalPTYProvider(),
+        provider: createLocalPTYProvider(),
       }),
       buildMockExecutionTarget({
         id: 'box',
         kind: 'fixture-dir',
         identity: 'test:box',
-        provider: buildStubDirProvider(),
+        provider: createStubDirProvider(),
       }),
     ],
   }));
@@ -1348,7 +1348,7 @@ test("it logs the failure of an interrupted materialization that resumes into th
   const ctx = await setupTest();
 
   const held = Promise.withResolvers<undefined>();
-  const box = buildStubDirProvider({ afterTransfer: () => held.promise });
+  const box = createStubDirProvider({ afterTransfer: () => held.promise });
 
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -1360,7 +1360,7 @@ test("it logs the failure of an interrupted materialization that resumes into th
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -1399,13 +1399,13 @@ test("it logs the failure of an interrupted materialization that resumes into th
         id: 'local',
         kind: 'local-pty',
         identity: 'test:local',
-        provider: new LocalPTYProvider(),
+        provider: createLocalPTYProvider(),
       }),
       buildMockExecutionTarget({
         id: 'box',
         kind: 'fixture-dir',
         identity: 'test:box',
-        provider: buildStubDirProvider(),
+        provider: createStubDirProvider(),
       }),
     ],
   }));
@@ -1422,7 +1422,7 @@ test("it logs the failure of an interrupted materialization that resumes into th
 test('it refuses to materialize under a parent it cannot create, with the cause', async () => {
   const ctx = await setupTest();
 
-  const box = buildStubDirProvider();
+  const box = createStubDirProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -1434,7 +1434,7 @@ test('it refuses to materialize under a parent it cannot create, with the cause'
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -1471,7 +1471,7 @@ test('it refuses to materialize under a parent it cannot create, with the cause'
 test('it refuses to materialize where a dangling symlink stands and leaves it as it was', async () => {
   const ctx = await setupTest();
 
-  const box = buildStubDirProvider();
+  const box = createStubDirProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -1483,7 +1483,7 @@ test('it refuses to materialize where a dangling symlink stands and leaves it as
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -1520,7 +1520,7 @@ test('it refuses to materialize where a dangling symlink stands and leaves it as
 test('it refuses to materialize into a directory that already exists and leaves it as it was', async () => {
   const ctx = await setupTest();
 
-  const box = buildStubDirProvider();
+  const box = createStubDirProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -1532,7 +1532,7 @@ test('it refuses to materialize into a directory that already exists and leaves 
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -1571,7 +1571,7 @@ test('it removes the checkout it created and keeps the files beside it when its 
   const ctx = await setupTest();
 
   // A provider whose harness start throws, as a refused launch does.
-  const box = buildStubExecutionProvider({
+  const box = createStubExecutionProvider({
     kind: 'fixture-dir',
     onSpawn: () => {
       throw new DaemonError('host_unavailable', 'the harness could not start');
@@ -1588,7 +1588,7 @@ test('it removes the checkout it created and keeps the files beside it when its 
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -1623,7 +1623,7 @@ test('it spawns a retry into the directory a harness that failed to start left',
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
   // A provider whose first harness start throws, as a refused launch does.
-  const box = buildStubExecutionProvider({
+  const box = createStubExecutionProvider({
     kind: 'fixture-dir',
     onSpawn: mock(() => {}).mockImplementationOnce(() => {
       throw new DaemonError('host_unavailable', 'the harness could not start');
@@ -1640,7 +1640,7 @@ test('it spawns a retry into the directory a harness that failed to start left',
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -1682,7 +1682,7 @@ test.each([
     const transferred = Promise.withResolvers<void>();
     const released = Promise.withResolvers<void>();
 
-    const box = buildStubDirProvider({
+    const box = createStubDirProvider({
       afterTransfer: async (directory) => {
         unlinkSync(join(directory, 'README.md'));
 
@@ -1702,7 +1702,7 @@ test.each([
             id: 'local',
             kind: 'local-pty',
             identity: 'test:local',
-            provider: new LocalPTYProvider(),
+            provider: createLocalPTYProvider(),
           }),
           buildMockExecutionTarget({
             id: 'box',
@@ -1763,7 +1763,7 @@ test.each([
     const removing = Promise.withResolvers<void>();
     const released = Promise.withResolvers<void>();
 
-    const host = buildStubDirProvider({
+    const host = createStubDirProvider({
       afterTransfer: (directory) => {
         unlinkSync(join(directory, 'README.md'));
 
@@ -1804,7 +1804,7 @@ test.each([
             id: 'local',
             kind: 'local-pty',
             identity: 'test:local',
-            provider: new LocalPTYProvider(),
+            provider: createLocalPTYProvider(),
           }),
           buildMockExecutionTarget({
             id: 'box',
@@ -1858,7 +1858,7 @@ test('it refuses a local spawn through a symlink into a checkout that a failed w
   const removing = Promise.withResolvers<void>();
   const released = Promise.withResolvers<void>();
 
-  const host = buildStubDirProvider({
+  const host = createStubDirProvider({
     afterTransfer: (directory) => {
       unlinkSync(join(directory, 'README.md'));
 
@@ -1899,7 +1899,7 @@ test('it refuses a local spawn through a symlink into a checkout that a failed w
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -1956,7 +1956,7 @@ test('it starts a local spawn beside a checkout that a failed workspace spawn re
   const removing = Promise.withResolvers<void>();
   const released = Promise.withResolvers<void>();
 
-  const host = buildStubDirProvider({
+  const host = createStubDirProvider({
     afterTransfer: (directory) => {
       unlinkSync(join(directory, 'README.md'));
 
@@ -1997,7 +1997,7 @@ test('it starts a local spawn beside a checkout that a failed workspace spawn re
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -2049,7 +2049,7 @@ test('it keeps a checkout that a local spawn still starting runs inside when its
   const preparing = Promise.withResolvers<void>();
   const releasedPrepare = Promise.withResolvers<void>();
 
-  const host = buildStubDirProvider({
+  const host = createStubDirProvider({
     afterTransfer: async (directory) => {
       unlinkSync(join(directory, 'README.md'));
 
@@ -2092,7 +2092,7 @@ test('it keeps a checkout that a local spawn still starting runs inside when its
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -2161,7 +2161,7 @@ test('it keeps a checkout that a local spawn starts inside while its failed work
   const preparing = Promise.withResolvers<void>();
   const releasedPrepare = Promise.withResolvers<void>();
 
-  const host = buildStubDirProvider({
+  const host = createStubDirProvider({
     afterTransfer: (directory) => {
       unlinkSync(join(directory, 'README.md'));
 
@@ -2212,7 +2212,7 @@ test('it keeps a checkout that a local spawn starts inside while its failed work
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -2286,7 +2286,7 @@ test('it refuses a local spawn in a relative directory while a failed workspace 
   const removing = Promise.withResolvers<void>();
   const released = Promise.withResolvers<void>();
 
-  const host = buildStubDirProvider({
+  const host = createStubDirProvider({
     afterTransfer: (directory) => {
       unlinkSync(join(directory, 'README.md'));
 
@@ -2327,7 +2327,7 @@ test('it refuses a local spawn in a relative directory while a failed workspace 
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -2372,7 +2372,7 @@ test('it refuses a local spawn in a relative directory while a failed workspace 
 test('it refuses a workspace spawn whose cwd is relative before anything runs', async () => {
   const ctx = await setupTest();
 
-  const box = buildStubDirProvider();
+  const box = createStubDirProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -2384,7 +2384,7 @@ test('it refuses a workspace spawn whose cwd is relative before anything runs', 
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -2409,7 +2409,7 @@ test('it refuses a workspace spawn whose cwd is relative before anything runs', 
 });
 
 test('it refuses a directory outside git as the workspace of a target off the daemon host', async () => {
-  const box = buildStubDirProvider();
+  const box = createStubDirProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -2421,7 +2421,7 @@ test('it refuses a directory outside git as the workspace of a target off the da
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -2460,13 +2460,13 @@ test('it runs a local session in a directory outside git as it stands', async ()
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
           identity: 'test:box',
-          provider: buildStubDirProvider(),
+          provider: createStubDirProvider(),
         }),
       ],
     }),
@@ -2508,13 +2508,13 @@ test('it refuses to run a local repository in place when git cannot read its con
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
           identity: 'test:box',
-          provider: buildStubDirProvider(),
+          provider: createStubDirProvider(),
         }),
       ],
     }),
@@ -2546,13 +2546,13 @@ test('it refuses to run a local repository in place when git does not trust its 
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
           identity: 'test:box',
-          provider: buildStubDirProvider(),
+          provider: createStubDirProvider(),
         }),
       ],
     }),
@@ -2589,13 +2589,13 @@ test('it runs a local spawn without a workspace in a repository git cannot read'
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
           identity: 'test:box',
-          provider: buildStubDirProvider(),
+          provider: createStubDirProvider(),
         }),
       ],
     }),
@@ -2622,13 +2622,13 @@ test('it refuses a local directory outside git as the workspace of a spawn elsew
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
           identity: 'test:box',
-          provider: buildStubDirProvider(),
+          provider: createStubDirProvider(),
         }),
       ],
     }),
@@ -2663,13 +2663,13 @@ test('it materializes a git source on the local target like on any other', async
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
           identity: 'test:box',
-          provider: buildStubDirProvider(),
+          provider: createStubDirProvider(),
         }),
       ],
     }),
@@ -2711,13 +2711,13 @@ test('it materializes a git source without a cwd under the home on the local tar
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
           identity: 'test:box',
-          provider: buildStubDirProvider(),
+          provider: createStubDirProvider(),
         }),
       ],
     }),
@@ -2767,7 +2767,7 @@ test('it groups a git source without a cwd that lands at the base of a root insi
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
       ],
     }),
@@ -2804,13 +2804,13 @@ test('it lands concurrent spawns of one repository without a cwd beside a direct
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
           identity: 'test:box',
-          provider: buildStubDirProvider(),
+          provider: createStubDirProvider(),
         }),
       ],
     }),
@@ -2858,13 +2858,13 @@ test('it lands a git source without a cwd under the root the config sets for its
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
           identity: 'test:box',
-          provider: buildStubDirProvider(),
+          provider: createStubDirProvider(),
         }),
       ],
     }),
@@ -2886,7 +2886,7 @@ test.skipIf(process.getuid?.() === 0)(
     const ctx = await setupTest();
 
     const root = join(ctx.directory, 'read-only');
-    const box = buildStubDirProvider();
+    const box = createStubDirProvider();
 
     mkdirSync(root, { mode: 0o555 });
 
@@ -2901,7 +2901,7 @@ test.skipIf(process.getuid?.() === 0)(
             id: 'local',
             kind: 'local-pty',
             identity: 'test:local',
-            provider: new LocalPTYProvider(),
+            provider: createLocalPTYProvider(),
           }),
           buildMockExecutionTarget({
             id: 'box',
@@ -2952,13 +2952,13 @@ test('it refuses a spawn without a cwd or a workspace as bad_args', async () => 
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
           identity: 'test:box',
-          provider: buildStubDirProvider(),
+          provider: createStubDirProvider(),
         }),
       ],
     }),
@@ -2977,7 +2977,7 @@ test('it refuses a spawn without a cwd or a workspace as bad_args', async () => 
 test('it refuses a spawn without a cwd whose workspace is not a git source before anything runs', async () => {
   const ctx = await setupTest();
 
-  const box = buildStubDirProvider();
+  const box = createStubDirProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -2989,7 +2989,7 @@ test('it refuses a spawn without a cwd whose workspace is not a git source befor
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -3029,13 +3029,13 @@ test('it runs a local spawn without a workspace in its directory as it stands', 
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
           identity: 'test:box',
-          provider: buildStubDirProvider(),
+          provider: createStubDirProvider(),
         }),
       ],
     }),
@@ -3074,13 +3074,13 @@ test('it checks out the sha of a git source that holds both on the branch its re
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
           identity: 'test:box',
-          provider: buildStubDirProvider(),
+          provider: createStubDirProvider(),
         }),
       ],
     }),
@@ -3122,7 +3122,7 @@ test('it checks out the sha of a git source that holds both on the branch its re
 });
 
 test("it runs git from the daemon's PATH for a git spawn on an allowed transport", async () => {
-  const box = buildStubDirProvider();
+  const box = createStubDirProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -3133,7 +3133,7 @@ test("it runs git from the daemon's PATH for a git spawn on an allowed transport
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -3168,7 +3168,7 @@ test("it runs git from the daemon's PATH for a git spawn on an allowed transport
 test('it refuses a git source on a local transport before it runs git, transferring nothing', async () => {
   const ctx = await setupTest();
 
-  const box = buildStubDirProvider();
+  const box = createStubDirProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -3179,7 +3179,7 @@ test('it refuses a git source on a local transport before it runs git, transferr
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -3224,7 +3224,7 @@ test('it refuses a git source on a local transport before it runs git, transferr
 test('it refuses a path source whose origin is a local repository, in git, transferring nothing', async () => {
   const ctx = await setupTest();
 
-  const box = buildStubDirProvider();
+  const box = createStubDirProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -3235,7 +3235,7 @@ test('it refuses a path source whose origin is a local repository, in git, trans
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -3265,7 +3265,7 @@ test('it refuses a path source whose origin is a local repository, in git, trans
 test('it holds a probe to the configured transports whatever transports it carries', async () => {
   const ctx = await setupTest();
 
-  const box = buildStubDirProvider();
+  const box = createStubDirProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -3276,7 +3276,7 @@ test('it holds a probe to the configured transports whatever transports it carri
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -3304,7 +3304,7 @@ test('it holds a probe to the configured transports whatever transports it carri
 test('it holds a spawn to the configured transports whatever transports it carries', async () => {
   const ctx = await setupTest();
 
-  const box = buildStubDirProvider();
+  const box = createStubDirProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -3315,7 +3315,7 @@ test('it holds a spawn to the configured transports whatever transports it carri
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -3343,7 +3343,7 @@ test('it holds a spawn to the configured transports whatever transports it carri
 test('it refuses a git source that carries transports of its own as bad_args', async () => {
   const ctx = await setupTest();
 
-  const box = buildStubDirProvider();
+  const box = createStubDirProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -3354,7 +3354,7 @@ test('it refuses a git source that carries transports of its own as bad_args', a
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -3389,7 +3389,7 @@ test('it holds git to the configured transports whatever the daemon environment 
   updateEnv('GIT_ALLOW_PROTOCOL', 'https:ssh:file');
   updateEnv('ATC_GIT_ALLOW_PROTOCOL', 'https:ssh:file');
 
-  const box = buildStubDirProvider();
+  const box = createStubDirProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -3400,7 +3400,7 @@ test('it holds git to the configured transports whatever the daemon environment 
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -3449,13 +3449,13 @@ test('it materializes a spawn from the owner/repo shorthand at its GitHub https 
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
           identity: 'test:box',
-          provider: buildStubDirProvider(),
+          provider: createStubDirProvider(),
         }),
       ],
     }),
@@ -3475,7 +3475,7 @@ test('it materializes a spawn from the owner/repo shorthand at its GitHub https 
 });
 
 test("it runs git from the daemon's PATH for a probe under a valid transport list", async () => {
-  const box = buildStubDirProvider();
+  const box = createStubDirProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -3486,7 +3486,7 @@ test("it runs git from the daemon's PATH for a probe under a valid transport lis
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -3515,7 +3515,7 @@ test("it runs git from the daemon's PATH for a probe under a valid transport lis
 });
 
 test('it refuses a probe under an invalid transport list before any git runs', async () => {
-  const box = buildStubDirProvider();
+  const box = createStubDirProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -3530,7 +3530,7 @@ test('it refuses a probe under an invalid transport list before any git runs', a
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -3570,7 +3570,7 @@ test('it refuses a probe under an invalid transport list before any git runs', a
 });
 
 test('it refuses a git spawn under an invalid transport list before any git runs', async () => {
-  const box = buildStubDirProvider();
+  const box = createStubDirProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -3585,7 +3585,7 @@ test('it refuses a git spawn under an invalid transport list before any git runs
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -3628,7 +3628,7 @@ test('it refuses a git spawn under an invalid transport list before any git runs
 test("it runs git from the daemon's PATH for a checkout spawn under a valid transport list", async () => {
   const ctx = await setupTest();
 
-  const box = buildStubDirProvider();
+  const box = createStubDirProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -3639,7 +3639,7 @@ test("it runs git from the daemon's PATH for a checkout spawn under a valid tran
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -3674,7 +3674,7 @@ test("it runs git from the daemon's PATH for a checkout spawn under a valid tran
 test('it refuses a checkout spawn under an invalid transport list before any git runs', async () => {
   const ctx = await setupTest();
 
-  const box = buildStubDirProvider();
+  const box = createStubDirProvider();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
@@ -3689,7 +3689,7 @@ test('it refuses a checkout spawn under an invalid transport list before any git
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
@@ -3743,13 +3743,13 @@ test('it spawns a local session under an invalid transport list', async () => {
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
           identity: 'test:box',
-          provider: buildStubDirProvider(),
+          provider: createStubDirProvider(),
         }),
       ],
     }),
@@ -3777,13 +3777,13 @@ test('it spawns a local session in a directory outside git under an invalid tran
           id: 'local',
           kind: 'local-pty',
           identity: 'test:local',
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         }),
         buildMockExecutionTarget({
           id: 'box',
           kind: 'fixture-dir',
           identity: 'test:box',
-          provider: buildStubDirProvider(),
+          provider: createStubDirProvider(),
         }),
       ],
     }),

@@ -5,7 +5,7 @@ import { mkdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { collectPrincipals, collectTargets } from '@atc/config';
 import { buildStubTargets } from '@atc/daemon/testing';
-import { buildStubExecutionProvider } from '@atc/execution-local/testing';
+import { createStubExecutionProvider } from '@atc/execution-local/testing';
 import { TransportCaller, buildPrincipalCaller, runTool } from '@atc/mcp';
 import { encodeCursor } from '@atc/protocol';
 import type { DaemonEvent } from '@atc/protocol';
@@ -418,8 +418,8 @@ test('it lists an agent as unable to spawn to a principal granted none of its sp
 });
 
 test('it lists an agent as spawnable without plugin folders to a principal granted only a remote target', async () => {
-  const local = buildStubExecutionProvider({ kind: 'local-pty' });
-  const remote = buildStubExecutionProvider({ kind: 'imp-like', remote: true });
+  const local = createStubExecutionProvider({ kind: 'local-pty' });
+  const remote = createStubExecutionProvider({ kind: 'imp-like', remote: true });
 
   const daemon = await startTestDaemon({
     options: () => ({
@@ -483,8 +483,8 @@ test('it lists an agent as spawnable without plugin folders to a principal grant
 });
 
 test("it lists an agent as unable to spawn to a principal granted only a remote target when the agent's config sets plugin folders", async () => {
-  const local = buildStubExecutionProvider({ kind: 'local-pty' });
-  const remote = buildStubExecutionProvider({ kind: 'imp-like', remote: true });
+  const local = createStubExecutionProvider({ kind: 'local-pty' });
+  const remote = createStubExecutionProvider({ kind: 'imp-like', remote: true });
 
   const daemon = await startTestDaemon({
     options: () => ({

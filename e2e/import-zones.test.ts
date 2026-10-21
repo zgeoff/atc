@@ -189,7 +189,7 @@ test.each([
   ],
   [
     'the shared test helpers in a production file the table lists',
-    'packages/execution/local/src/local-pty-provider.ts',
+    'packages/execution/local/src/create-local-pty-provider.ts',
     '@atc/test-utils',
     [],
     'test-helpers: packages must not import packages/test-utils (packages, test-utils) — production code never imports the shared test helpers',
@@ -301,7 +301,7 @@ test.each([
   ],
   [
     'node-pty in the local provider',
-    'packages/execution/local/src/local-pty-provider.ts',
+    'packages/execution/local/src/create-local-pty-provider.ts',
     'node-pty',
     [],
     'bun-only: node-pty is allowed only in no zone',
@@ -336,7 +336,7 @@ test.each([
   ],
   [
     'its own package by name in a file a confinement lists',
-    'packages/execution/local/src/local-pty-provider.ts',
+    'packages/execution/local/src/create-local-pty-provider.ts',
     '@atc/execution-local',
     [],
     'self-import: @atc/execution-local names the package this file belongs to; import it by a relative path — a module reaches its own package by a relative path',
@@ -461,7 +461,7 @@ test.each([
   ],
   [
     'bun-pty in the local provider',
-    'packages/execution/local/src/local-pty-provider.ts',
+    'packages/execution/local/src/create-local-pty-provider.ts',
     'bun-pty',
     [],
   ],

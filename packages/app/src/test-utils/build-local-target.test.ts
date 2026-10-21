@@ -1,5 +1,4 @@
 import { expect, test } from 'bun:test';
-import { LocalPTYProvider } from '@atc/execution-local';
 import { buildLocalTarget } from './build-local-target';
 
 test('it builds the local target on the local pseudo-terminal provider', () => {
@@ -12,5 +11,5 @@ test('it builds the local target on the local pseudo-terminal provider', () => {
     identity: 'local-pty:44136fa355b3678a',
   });
 
-  expect(target.provider).toBeInstanceOf(LocalPTYProvider);
+  expect(target.provider?.kind).toBe('local-pty');
 });

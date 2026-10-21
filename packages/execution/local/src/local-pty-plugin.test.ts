@@ -1,7 +1,6 @@
 import { expect, test } from 'bun:test';
 import { buildMockHostServices } from '@atc/test-utils';
 import { LOCAL_PTY_PLUGIN } from './local-pty-plugin';
-import { LocalPTYProvider } from './local-pty-provider';
 
 test('it reads a target slice with its id, options, and environment', () => {
   const schema = LOCAL_PTY_PLUGIN.configSchema({
@@ -22,5 +21,5 @@ test('it creates a local PTY provider for a target', () => {
     { authProfiles: new Map() },
   );
 
-  expect(provider).toBeInstanceOf(LocalPTYProvider);
+  expect(provider.kind).toBe('local-pty');
 });

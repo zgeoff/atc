@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { LOCAL_TARGET } from '@atc/config';
 import { ImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/testing';
-import { LocalPTYProvider } from '@atc/execution-local';
+import { createLocalPTYProvider } from '@atc/execution-local';
 import { buildTargetIdentity } from '@atc/store';
 import { buildMockAgentAdapter, createStubEchoClaude, getRecord } from '@atc/test-utils';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
@@ -48,7 +48,7 @@ test('it lists an agent whose binary is missing here as spawnable only on the im
             kind: LOCAL_TARGET.provider,
             options: LOCAL_TARGET.options,
             identity: buildTargetIdentity(LOCAL_TARGET.provider, LOCAL_TARGET.options),
-            provider: new LocalPTYProvider(),
+            provider: createLocalPTYProvider(),
           },
           {
             id: 'box',
@@ -131,7 +131,7 @@ test('it lists the imp target as remote and the local target as not', async () =
           kind: LOCAL_TARGET.provider,
           options: LOCAL_TARGET.options,
           identity: buildTargetIdentity(LOCAL_TARGET.provider, LOCAL_TARGET.options),
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         },
         {
           id: 'box',
@@ -258,7 +258,7 @@ test('it refuses an agent whose binary is missing here on the local target', asy
           kind: LOCAL_TARGET.provider,
           options: LOCAL_TARGET.options,
           identity: buildTargetIdentity(LOCAL_TARGET.provider, LOCAL_TARGET.options),
-          provider: new LocalPTYProvider(),
+          provider: createLocalPTYProvider(),
         },
       ],
       defaultTarget: LOCAL_TARGET.id,
