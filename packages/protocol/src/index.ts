@@ -26,6 +26,7 @@ export type * from './principal';
 export * from './procedure-traits';
 export type * from './published-record';
 export * from './request-param-schemas';
+export * from './restart-result';
 export * from './session';
 export * from './session-descriptor';
 export * from './session-lifecycle';

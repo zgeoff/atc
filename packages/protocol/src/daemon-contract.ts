@@ -47,6 +47,7 @@ export const DAEMON_CONTRACT = {
     hello: base.meta(READ).input(PARAMS['daemon.hello']).output(HELLO_RESULT_SCHEMA),
     ping: base.meta(READ).input(PARAMS['daemon.ping']).output(EMPTY),
     quit: base.meta(OWNER).input(PARAMS['daemon.quit']).output(EMPTY),
+    restarted: base.meta(OWNER).input(PARAMS['daemon.restarted']).output(EMPTY),
     backup: base
       .meta(OWNER)
       .input(PARAMS['daemon.backup'])

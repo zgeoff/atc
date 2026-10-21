@@ -8,7 +8,7 @@ test('it builds a default daemon record', () => {
     reporterSocketPath: expect.toEndWith('/atc.sock'),
     eventsSocketPath: null,
     listenPort: null,
-    protocol: 8,
+    protocol: 9,
   });
 });
 
@@ -25,6 +25,6 @@ test('it applies overrides on top of the defaults', () => {
     reporterSocketPath: expect.toEndWith('/atc.sock'),
     eventsSocketPath: null,
     listenPort: 7400,
-    protocol: 8,
+    protocol: 9,
   });
 });

@@ -4,6 +4,7 @@ import { isOwnerOnlyMethod } from './is-owner-only-method';
 test.each([
   ['daemon.quit', true],
   ['daemon.backup', true],
+  ['daemon.restarted', true],
   ['fleet.restore', true],
   ['session.auth.revoke', true],
   ['session.auth.rebind', true],

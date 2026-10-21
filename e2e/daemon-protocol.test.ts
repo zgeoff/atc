@@ -704,7 +704,7 @@ test('it runs a configured hook with the same event JSON a watching client recei
   // The hook reads the wire form, which carries the protocol version the
   // client drops.
   expect({ payload: parsed, eventName, rest }).toStrictEqual({
-    payload: { version: 8, ...event },
+    payload: { version: 9, ...event },
     eventName: 'SessionAttached',
     rest: '',
   });
@@ -862,6 +862,36 @@ test('it stops only once the quit delay has passed after it answers daemon.quit'
   expect(answer).toStrictEqual({});
   expect(pending).toStrictEqual([80]);
   expect(quitsBeforeDelay).toBe(0);
+});
+
+test('it broadcasts the restart result it receives as a DaemonRestarted event', async () => {
+  const ctx = await setupTest();
+
+  const result = {
+    runID: 'run-maple',
+    code: 0,
+    pid: 4242,
+    build: 'atc/0.9.1',
+    listenPort: 7400,
+    restored: 2,
+    total: 2,
+    failed: [],
+    interrupted: [{ name: 'wren', id: 's-wren' }],
+    error: null,
+  };
+
+  const answer = await ctx.client.sendRequest('daemon.restarted', { result });
+
+  const event = await waitFor(() => {
+    const found = ctx.events.find((daemonEvent) => daemonEvent.ev === 'DaemonRestarted');
+
+    invariant(found !== undefined, 'no DaemonRestarted yet');
+
+    return found;
+  });
+
+  expect(answer).toStrictEqual({});
+  expect(event).toStrictEqual({ ev: 'DaemonRestarted', result });
 });
 
 test('it answers daemon.hello with the same daemon id after a restart', async () => {

@@ -1,10 +1,10 @@
 import { resolve } from 'node:path';
 import { loadListenerTokens } from '@atc/config';
+import type { RestartResult } from '@atc/protocol';
 import { readStoredFleetFile } from '@atc/store';
 import { buildRestartFailure } from './build-restart-failure';
 import { formatRestartPreflight } from './format-restart-preflight';
 import type { LifecycleHost } from './lifecycle-host';
-import type { RestartResult } from './parse-restart-result';
 import { readDaemonProcess } from './read-daemon-process';
 import { readFleetSnapshot } from './read-fleet-snapshot';
 import { readOwnDaemonProcess } from './read-own-daemon-process';

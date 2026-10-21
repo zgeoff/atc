@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { isRecord, toAgentID, toSessionID } from '@atc/core';
 import { readDaemonRecord } from '@atc/lifecycle';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
+import { PROTOCOL_V } from '@atc/protocol/wire';
 import { StateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
@@ -133,6 +134,147 @@ test('it restarts the daemon in place and restores a saved fleet of two live ses
   expect(ctx.fake.readSystemctlCalls().filter((call) => call.includes('restart'))).toStrictEqual(
     [],
   );
+}, 60_000);
+
+test('it puts one DaemonRestarted event with the restart result on the replacement daemon feed', async () => {
+  const ctx = setupTest();
+  const eventsFile = join(ctx.home, 'restarted.jsonl');
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+      restoreFleetOnRestart: false,
+
+      // One printf writes each event line whole, so a read never sees half of one.
+      hooks: {
+        DaemonRestarted: [{ command: `printf '%s\\n' "$(cat)" >> '${eventsFile}'` }],
+      },
+    }),
+  );
+
+  const daemon = startDaemonProcess({
+    command: ctx.atc,
+    home: ctx.home,
+    env: { PATH: ctx.path },
+  });
+
+  const client = await daemon.openClient();
+  const hello = await client.sendHello('atc/test');
+
+  const restart = await runATC({
+    command: ctx.atc,
+    args: ['daemon', 'restart'],
+    home: ctx.home,
+    env: { PATH: ctx.path },
+  });
+
+  const lines = await waitFor(
+    () => {
+      invariant(existsSync(eventsFile), 'no DaemonRestarted hook ran yet');
+
+      const written = readFileSync(eventsFile, 'utf8');
+
+      invariant(written.endsWith('\n'), 'the DaemonRestarted hook is still writing');
+
+      return written.split('\n').filter((line) => line !== '');
+    },
+    { timeoutMs: 10_000 },
+  );
+
+  const record = readDaemonRecord(join(daemon.stateDir, 'daemon.json'));
+
+  invariant(record !== null, 'the state directory records no daemon');
+
+  expect(restart.exitCode).toBe(0);
+
+  expect(lines.map((line): unknown => JSON.parse(line))).toStrictEqual([
+    {
+      version: PROTOCOL_V,
+      ev: 'DaemonRestarted',
+      result: {
+        runID: expect.toBeString(),
+        code: 0,
+        pid: record.pid,
+        build: getString(hello, 'daemon'),
+        listenPort: null,
+        restored: 0,
+        total: 0,
+        failed: [],
+        interrupted: [],
+        error: null,
+      },
+    },
+  ]);
+}, 60_000);
+
+test('it puts the result of a refused restart on the feed of the daemon it left running', async () => {
+  const ctx = setupTest();
+  const eventsFile = join(ctx.home, 'restarted.jsonl');
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+      restoreFleetOnRestart: false,
+
+      // One printf writes each event line whole, so a read never sees half of one.
+      hooks: {
+        DaemonRestarted: [{ command: `printf '%s\\n' "$(cat)" >> '${eventsFile}'` }],
+      },
+    }),
+  );
+
+  const daemon = startDaemonProcess({
+    command: ctx.atc,
+    home: ctx.home,
+    env: { PATH: ctx.path },
+  });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  const restart = await runATC({
+    command: ctx.atc,
+    args: ['daemon', 'restart', '--listen', '127.0.0.1:0'],
+    home: ctx.home,
+    env: { PATH: ctx.path },
+  });
+
+  const lines = await waitFor(
+    () => {
+      invariant(existsSync(eventsFile), 'no DaemonRestarted hook ran yet');
+
+      const written = readFileSync(eventsFile, 'utf8');
+
+      invariant(written.endsWith('\n'), 'the DaemonRestarted hook is still writing');
+
+      return written.split('\n').filter((line) => line !== '');
+    },
+    { timeoutMs: 10_000 },
+  );
+
+  expect(restart.exitCode).toBe(1);
+
+  expect(lines.map((line): unknown => JSON.parse(line))).toStrictEqual([
+    {
+      version: PROTOCOL_V,
+      ev: 'DaemonRestarted',
+      result: {
+        runID: expect.toBeString(),
+        code: 1,
+        pid: null,
+        build: null,
+        listenPort: null,
+        restored: 0,
+        total: 0,
+        failed: [],
+        interrupted: [],
+        error: '--listen and --token-file go together; the daemon was left running',
+      },
+    },
+  ]);
 }, 60_000);
 
 test('it exits 1 and names a row whose agent is gone while the good row comes back alive', async () => {

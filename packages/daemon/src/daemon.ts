@@ -356,6 +356,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     permissions,
     services,
     idempotencyRetentionMs: IDEMPOTENCY_TTL_MS,
+    emitEvent,
     stopDaemon: () => stopDaemon?.(),
   });
 
