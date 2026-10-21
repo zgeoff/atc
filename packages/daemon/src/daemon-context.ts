@@ -33,7 +33,7 @@ import type { AnswerResult } from './sessions/permission-registry';
 import type { ResumeCommand } from './sessions/plan-resume-command';
 import type { ScreenText } from './sessions/screen-model';
 import type { SessionChanges } from './sessions/session-changes';
-import type { KeyedRequest } from './transport/idempotency-ledger';
+import type { KeyedRequest } from './transport/create-idempotency-ledger';
 import type { checkRepositoryAccess } from './workspace/check-repository-access';
 
 export interface SpawnParams {

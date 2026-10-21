@@ -35,9 +35,11 @@ import { startHeadlessTurn } from './sessions/start-headless-turn';
 import type { TapRegistry } from './sessions/tap-registry';
 import { createSpawnCatalog } from './sources/create-spawn-catalog';
 import type { SpawnCatalog } from './sources/create-spawn-catalog';
-import type { EventSignal } from './transport/event-signal';
-import { EventTrail } from './transport/event-trail';
-import { IdempotencyLedger } from './transport/idempotency-ledger';
+import type { EventSignal } from './transport/create-event-signal';
+import { createEventTrail } from './transport/create-event-trail';
+import type { EventTrail } from './transport/create-event-trail';
+import { createIdempotencyLedger } from './transport/create-idempotency-ledger';
+import type { IdempotencyLedger } from './transport/create-idempotency-ledger';
 
 export interface SessionServicesDeps {
   readonly opts: DaemonOptions;
@@ -131,7 +133,7 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
   // stopped daemon left mid-change stays blocked until it is settled.
   void tryReconcileAuthBindings(authBinder, store, targetsByID, manager.log);
 
-  const ledger = new IdempotencyLedger(
+  const ledger = createIdempotencyLedger(
     store,
     LOCAL_PRINCIPAL,
     (line) => {
@@ -193,7 +195,7 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
     applyNote: (hookEvent) => hooks.applyNote(hookEvent),
   });
 
-  const trail = new EventTrail({ manager, store, clock, eventSignal });
+  const trail = createEventTrail({ manager, store, clock, eventSignal });
 
   const detection = new ScreenDetection({
     manager,

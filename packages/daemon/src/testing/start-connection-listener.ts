@@ -1,6 +1,7 @@
 import { registerTestCleanup } from '@atc/test-utils';
 import type { DaemonContext } from '../daemon-context';
-import { DaemonConnection } from '../transport/daemon-connection';
+import { createDaemonConnection } from '../transport/create-daemon-connection';
+import type { DaemonConnection } from '../transport/create-daemon-connection';
 import type { TCPPeer } from '../transport/tcp-peer';
 
 // Serves the daemon's connections on a unix socket the way its listener
@@ -17,7 +18,7 @@ export function startConnectionListener(
     unix: socketPath,
     socket: {
       open(socket) {
-        socket.data = new DaemonConnection(socket, ctx, tcp);
+        socket.data = createDaemonConnection(socket, ctx, tcp);
 
         connections.push(socket.data);
       },

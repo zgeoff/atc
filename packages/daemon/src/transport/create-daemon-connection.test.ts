@@ -18,7 +18,7 @@ import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-gr
 import type { DaemonContext } from '../daemon-context';
 import { buildStubDaemonContext } from '../testing/build-stub-daemon-context';
 import { startConnectionListener } from '../testing/start-connection-listener';
-import { DaemonConnection } from './daemon-connection';
+import { createDaemonConnection } from './create-daemon-connection';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-daemon-connection-');
@@ -556,7 +556,7 @@ test('it holds a peer subscription back while the socket takes nothing, then rep
   const peer = buildStubPeerSocket();
   const resyncs: SessionID[] = [];
 
-  const conn = new DaemonConnection(
+  const conn = createDaemonConnection(
     peer.socket,
     buildStubDaemonContext({
       queueBytes: 512,
@@ -614,7 +614,7 @@ test('it delivers output again after the dropped output is reported', async () =
   const peer = buildStubPeerSocket();
   const resyncs: SessionID[] = [];
 
-  const conn = new DaemonConnection(
+  const conn = createDaemonConnection(
     peer.socket,
     buildStubDaemonContext({
       queueBytes: 512,
@@ -681,7 +681,7 @@ test('it reports no dropped output while the socket still takes nothing', async 
   const peer = buildStubPeerSocket();
   const resyncs: SessionID[] = [];
 
-  const conn = new DaemonConnection(
+  const conn = createDaemonConnection(
     peer.socket,
     buildStubDaemonContext({
       queueBytes: 512,
@@ -740,7 +740,7 @@ test('it sends a principal no output of a session whose tree left its view, a re
   const resyncs: SessionID[] = [];
   let visible = true;
 
-  const conn = new DaemonConnection(
+  const conn = createDaemonConnection(
     peer.socket,
     buildStubDaemonContext({
       queueBytes: 512,
@@ -847,7 +847,7 @@ test('it sends a principal no output of a session whose tree left its view, a re
 test('it answers internal when a procedure returns an answer outside its contract', async () => {
   const peer = buildStubPeerSocket();
 
-  const conn = new DaemonConnection(
+  const conn = createDaemonConnection(
     peer.socket,
     buildStubDaemonContext({ writeStateBackup: () => Promise.resolve(Number.NaN) }),
   );
@@ -876,9 +876,7 @@ test.each([
   ['an error answer', '/no/such/method'],
 ])('it ends the connection when %s overflows the outbound queue', async (_label, path) => {
   const peer = buildStubPeerSocket();
-
-  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext({ queueBytes: 16 }));
-
+  const conn = createDaemonConnection(peer.socket, buildStubDaemonContext({ queueBytes: 16 }));
   const hello = { client: 'atc/test', protocol: PROTOCOL_V };
 
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
@@ -897,8 +895,7 @@ test.each([
 
 test('it ends a connection that sends a line-protocol request, without an answer', () => {
   const peer = buildStubPeerSocket();
-
-  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
+  const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
 
   conn.applyChunk('{"v":5,"id":1,"m":"daemon.hello","p":{"client":"atc/old"}}\n');
 
@@ -910,7 +907,7 @@ test('it records a line-protocol request before a TCP handshake as an unexpected
   const peer = buildStubPeerSocket();
   const recordFailure = mock(() => {});
 
-  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext(), {
+  const conn = createDaemonConnection(peer.socket, buildStubDaemonContext(), {
     verifyHandshake: () => Promise.resolve('fp-1'),
     recordFailure,
     recordRefusedPrincipal: () => {},
@@ -925,8 +922,7 @@ test('it records a line-protocol request before a TCP handshake as an unexpected
 
 test('it ends a connection that sends a line over the size cap, without an answer', () => {
   const peer = buildStubPeerSocket();
-
-  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
+  const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
 
   conn.applyChunk('x'.repeat(MAX_LINE + 1));
 
@@ -938,7 +934,7 @@ test('it records a line over the size cap before a TCP handshake as too long', (
   const peer = buildStubPeerSocket();
   const recordFailure = mock(() => {});
 
-  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext(), {
+  const conn = createDaemonConnection(peer.socket, buildStubDaemonContext(), {
     verifyHandshake: () => Promise.resolve('fp-1'),
     recordFailure,
     recordRefusedPrincipal: () => {},
@@ -970,8 +966,7 @@ test.each([
   'it answers %s on a peer connection that awaits its handshake',
   async (_label, path, body, answer, ends) => {
     const peer = buildStubPeerSocket();
-
-    const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
+    const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
 
     conn.applyChunk(buildPeerRequestLine('9', path, body));
 
@@ -991,8 +986,7 @@ test.each([
 
 test('it drops an event sent to a peer connection that awaits its handshake', async () => {
   const peer = buildStubPeerSocket();
-
-  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
+  const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
 
   conn.sendEvent({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-early' });
 
@@ -1018,8 +1012,7 @@ test('it drops an event sent to a peer connection that awaits its handshake', as
 
 test('it ends a peer connection disposed while it awaits its handshake, and answers nothing after', () => {
   const peer = buildStubPeerSocket();
-
-  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
+  const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
 
   conn.dispose();
 
@@ -1036,7 +1029,7 @@ test('it refuses a second handshake at once while the first is pending, and keep
   const held = Promise.withResolvers<string>();
   const load = mock(() => held.promise);
 
-  const conn = new DaemonConnection(
+  const conn = createDaemonConnection(
     peer.socket,
     buildStubDaemonContext({ loadLastUsedAgent: load }),
   );
@@ -1077,7 +1070,7 @@ test('it holds a peer request back until a pending handshake passes', async () =
   const load = mock(() => held.promise);
   const ack = mock(() => true);
 
-  const conn = new DaemonConnection(
+  const conn = createDaemonConnection(
     peer.socket,
     buildStubDaemonContext({ loadLastUsedAgent: load, ackSession: ack }),
   );
@@ -1120,7 +1113,7 @@ test('it answers a path that names no procedure while the handshake is pending, 
   const held = Promise.withResolvers<string>();
   const load = mock(() => held.promise);
 
-  const conn = new DaemonConnection(
+  const conn = createDaemonConnection(
     peer.socket,
     buildStubDaemonContext({ loadLastUsedAgent: load }),
   );
@@ -1157,7 +1150,7 @@ test('it drops an event sent to a peer connection while its handshake is pending
   const held = Promise.withResolvers<string>();
   const load = mock(() => held.promise);
 
-  const conn = new DaemonConnection(
+  const conn = createDaemonConnection(
     peer.socket,
     buildStubDaemonContext({ loadLastUsedAgent: load }),
   );
@@ -1194,7 +1187,7 @@ test('it ends a peer connection disposed while its handshake is pending', async 
   const held = Promise.withResolvers<string>();
   const load = mock(() => held.promise);
 
-  const conn = new DaemonConnection(
+  const conn = createDaemonConnection(
     peer.socket,
     buildStubDaemonContext({ loadLastUsedAgent: load }),
   );
@@ -1223,9 +1216,7 @@ test.each([
   ['a path that names no procedure', '/daemon/ping/', {}, { code: 'unknown_method' }],
 ])('it answers %s on an open peer connection and keeps it', async (_label, path, body, answer) => {
   const peer = buildStubPeerSocket();
-
-  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
-
+  const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
   const hello = { client: 'atc/test', protocol: PROTOCOL_V };
 
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
@@ -1249,9 +1240,7 @@ test.each([
 
 test('it ends an open peer connection once disposed, and answers nothing after', async () => {
   const peer = buildStubPeerSocket();
-
-  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
-
+  const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
   const hello = { client: 'atc/test', protocol: PROTOCOL_V };
 
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
@@ -1269,9 +1258,7 @@ test('it ends an open peer connection once disposed, and answers nothing after',
 
 test('it writes a refused handshake whole before it ends the connection', async () => {
   const peer = buildStubPeerSocket();
-
-  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
-
+  const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
   const hello = { client: 'atc/old', protocol: 1 };
 
   peer.setAccepting(false);
@@ -1312,9 +1299,7 @@ test.each([
   'it answers %s sent behind a refused handshake, then ends the connection once both are written',
   async (_label, path, body, answer) => {
     const peer = buildStubPeerSocket();
-
-    const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
-
+    const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
     const hello = { client: 'atc/old', protocol: 1 };
 
     peer.setAccepting(false);
@@ -1350,9 +1335,7 @@ test.each([
 
 test('it writes no event to a peer connection whose refusal is still queued', async () => {
   const peer = buildStubPeerSocket();
-
-  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
-
+  const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
   const hello = { client: 'atc/old', protocol: 1 };
 
   peer.setAccepting(false);
@@ -1375,9 +1358,7 @@ test('it writes no event to a peer connection whose refusal is still queued', as
 
 test('it ends a peer connection disposed while its refusal is still queued', async () => {
   const peer = buildStubPeerSocket();
-
-  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
-
+  const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
   const hello = { client: 'atc/old', protocol: 1 };
 
   peer.setAccepting(false);
@@ -1403,9 +1384,7 @@ test.each([
   ['a path that names no procedure', '/daemon/ping/', {}, { code: 'unknown_method' }],
 ])('it answers %s on a peer connection that is closing', async (_label, path, body, answer) => {
   const peer = buildStubPeerSocket();
-
-  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
-
+  const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
   const hello = { client: 'atc/old', protocol: 1 };
 
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
@@ -1427,9 +1406,7 @@ test.each([
 
 test('it writes no event to a peer connection that is closing', async () => {
   const peer = buildStubPeerSocket();
-
-  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
-
+  const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
   const hello = { client: 'atc/old', protocol: 1 };
 
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
@@ -1445,9 +1422,7 @@ test('it writes no event to a peer connection that is closing', async () => {
 
 test('it answers nothing on a closing peer connection once disposed', async () => {
   const peer = buildStubPeerSocket();
-
-  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
-
+  const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
   const hello = { client: 'atc/old', protocol: 1 };
 
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
@@ -1468,9 +1443,7 @@ test.each([
   ['a path that names no procedure', '/daemon/ping/', {}],
 ])('it answers nothing to %s on a closed peer connection', async (_label, path, body) => {
   const peer = buildStubPeerSocket();
-
-  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
-
+  const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
   const hello = { client: 'atc/test', protocol: PROTOCOL_V };
 
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
@@ -1487,9 +1460,7 @@ test.each([
 
 test('it writes no event to a closed peer connection', async () => {
   const peer = buildStubPeerSocket();
-
-  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
-
+  const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
   const hello = { client: 'atc/test', protocol: PROTOCOL_V };
 
   conn.applyChunk(
@@ -1509,8 +1480,7 @@ test('it writes no event to a closed peer connection', async () => {
 
 test('it takes a second dispose of a closed peer connection as a no-op', () => {
   const peer = buildStubPeerSocket();
-
-  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext());
+  const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
 
   conn.dispose();
 
@@ -1523,10 +1493,10 @@ test('it takes a second dispose of a closed peer connection as a no-op', () => {
 // build, which a run under the development condition loads.
 test('it sends a closed peer connection disposed again no event, so xstate warns of none', async () => {
   const script = [
-    `import { DaemonConnection } from '${join(import.meta.dir, 'daemon-connection.ts')}';`,
+    `import { createDaemonConnection } from '${join(import.meta.dir, 'create-daemon-connection.ts')}';`,
     `import { buildStubDaemonContext } from '${join(import.meta.dir, '..', 'testing', 'build-stub-daemon-context.ts')}';`,
     'const socket = { write: (data) => data.length, end: () => {} };',
-    'const conn = new DaemonConnection(socket, buildStubDaemonContext());',
+    'const conn = createDaemonConnection(socket, buildStubDaemonContext());',
     'conn.dispose();',
     'conn.dispose();',
   ].join('\n');
@@ -1541,7 +1511,7 @@ test('it sends a closed peer connection disposed again no event, so xstate warns
 test('it refuses a peer handshake that gives another session than the one the kernel names, and ends the connection', async () => {
   const peer = buildStubPeerSocket();
 
-  const conn = new DaemonConnection(
+  const conn = createDaemonConnection(
     peer.socket,
     buildStubDaemonContext(),
     null,
@@ -1571,7 +1541,7 @@ test('it acts as the session the kernel names for a peer handshake that gives no
   const peer = buildStubPeerSocket();
   const isCallerTree = mock<DaemonContext['isCallerTree']>(() => true);
 
-  const conn = new DaemonConnection(
+  const conn = createDaemonConnection(
     peer.socket,
     buildStubDaemonContext({ isCallerTree }),
     null,

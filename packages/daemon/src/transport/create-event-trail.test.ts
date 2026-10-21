@@ -16,8 +16,8 @@ import { SessionManager } from '../sessions/sessions';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
-import { EventSignal } from './event-signal';
-import { EventTrail } from './event-trail';
+import { createEventSignal } from './create-event-signal';
+import { createEventTrail } from './create-event-trail';
 
 // A session manager on one `local` target over the in-memory provider, a
 // real state store, a stub clock, and the trail over them.
@@ -50,9 +50,8 @@ async function setupTest() {
   });
 
   const clock = buildStubClock(1_000_000);
-
-  const eventSignal = new EventSignal(clock);
-  const trail = new EventTrail({ manager, store, clock, eventSignal });
+  const eventSignal = createEventSignal(clock);
+  const trail = createEventTrail({ manager, store, clock, eventSignal });
 
   return { dbPath, store, manager, clock, eventSignal, trail };
 }

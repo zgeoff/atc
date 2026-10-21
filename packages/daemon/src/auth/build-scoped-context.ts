@@ -3,7 +3,7 @@ import { toSessionID } from '@atc/core';
 import { DaemonError } from '@atc/protocol/wire';
 import { pick } from '@zgeoff/std';
 import type { DaemonContext } from '../daemon-context';
-import type { KeyedRequest } from '../transport/idempotency-ledger';
+import type { KeyedRequest } from '../transport/create-idempotency-ledger';
 import { buildGrantFromFleetEntry } from './build-grant-from-fleet-entry';
 import type { TargetAccess, TargetGrant } from './build-target-access-from-grants';
 import { buildTargetForbiddenError } from './build-target-forbidden-error';

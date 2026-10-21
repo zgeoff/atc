@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
-import { HandshakeThrottle } from './handshake-throttle';
+import { createHandshakeThrottle } from './create-handshake-throttle';
 
 test('it delays the handshake after five failures within a minute', () => {
-  const throttle = new HandshakeThrottle(10_000);
+  const throttle = createHandshakeThrottle(10_000);
 
   for (const at of [0, 1000, 2000, 3000, 4000]) {
     throttle.recordFailure('10.42.0.7', at);
@@ -12,7 +12,7 @@ test('it delays the handshake after five failures within a minute', () => {
 });
 
 test('it does not delay the handshake after four failures', () => {
-  const throttle = new HandshakeThrottle(10_000);
+  const throttle = createHandshakeThrottle(10_000);
 
   for (const at of [0, 1000, 2000, 3000]) {
     throttle.recordFailure('10.42.0.7', at);
@@ -22,7 +22,7 @@ test('it does not delay the handshake after four failures', () => {
 });
 
 test('it stops delaying once the failures are older than a minute', () => {
-  const throttle = new HandshakeThrottle(10_000);
+  const throttle = createHandshakeThrottle(10_000);
 
   for (const at of [0, 1000, 2000, 3000, 4000]) {
     throttle.recordFailure('10.42.0.7', at);
@@ -32,7 +32,7 @@ test('it stops delaying once the failures are older than a minute', () => {
 });
 
 test('it keeps the failures of one address from delaying another', () => {
-  const throttle = new HandshakeThrottle(10_000);
+  const throttle = createHandshakeThrottle(10_000);
 
   for (const at of [0, 1000, 2000, 3000, 4000]) {
     throttle.recordFailure('10.42.0.7', at);
@@ -42,7 +42,7 @@ test('it keeps the failures of one address from delaying another', () => {
 });
 
 test('it keeps delaying an address that failed far more than five times', () => {
-  const throttle = new HandshakeThrottle(10_000);
+  const throttle = createHandshakeThrottle(10_000);
 
   for (let at = 0; at < 100_000; at++) {
     throttle.recordFailure('10.42.0.7', at / 10);

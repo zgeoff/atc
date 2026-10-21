@@ -4,7 +4,7 @@ import type { SessionID } from '@atc/core';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { buildMockSessionDescriptor } from '@atc/test-utils';
 import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
-import { ConnectionView } from './connection-view';
+import { createConnectionView } from './create-connection-view';
 
 // A view over a fleet the test edits: the sessions the daemon holds, and
 // the ones the access reaches.
@@ -12,7 +12,7 @@ function setupTest() {
   const held = new Set<SessionID>();
   const reached = new Set<SessionID>();
 
-  const view = new ConnectionView({
+  const view = createConnectionView({
     findSessionGrant: (id) =>
       held.has(id) ? { target: 'local', targetIdentity: 'local-pty:test' } : null,
     canSeeSession: (id) => reached.has(id),

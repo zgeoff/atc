@@ -15,8 +15,8 @@ import type {
 import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import { isTreeInReach } from '../auth/is-tree-in-reach';
 import type { DaemonContext, MessageRefusal, TapClient } from '../daemon-context';
-import type { EventSignal } from '../transport/event-signal';
-import type { IdempotencyLedger, KeyedRequest } from '../transport/idempotency-ledger';
+import type { EventSignal } from '../transport/create-event-signal';
+import type { IdempotencyLedger, KeyedRequest } from '../transport/create-idempotency-ledger';
 import { buildMessageOwner } from './build-message-owner';
 import { buildMessageSender } from './build-message-sender';
 import { buildMessageTrailEntry } from './build-message-trail-entry';

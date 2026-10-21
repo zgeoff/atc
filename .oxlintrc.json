@@ -96,18 +96,7 @@
         "packages/daemon/src/sessions/spawn-replay.ts",
         "packages/daemon/src/sessions/spawn-rollback.ts",
         "packages/daemon/src/sessions/spawn-service.ts",
-        "packages/daemon/src/sessions/tap-registry.ts",
-        "packages/daemon/src/transport/connection-view.ts",
-        "packages/daemon/src/transport/daemon-connection.ts",
-        "packages/daemon/src/transport/event-signal.ts",
-        "packages/daemon/src/transport/event-trail.ts",
-        "packages/daemon/src/transport/handshake-throttle.ts",
-        "packages/daemon/src/transport/idempotency-ledger.ts",
-        "packages/daemon/src/transport/message-requests.ts",
-        "packages/daemon/src/transport/read-requests.ts",
-        "packages/daemon/src/transport/refusal-log.ts",
-        "packages/daemon/src/transport/spawn-requests.ts",
-        "packages/daemon/src/transport/terminal-requests.ts"
+        "packages/daemon/src/sessions/tap-registry.ts"
       ],
       "rules": { "zgeoff/no-class": "off" }
     },

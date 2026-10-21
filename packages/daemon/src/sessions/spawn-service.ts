@@ -9,7 +9,7 @@ import type { StateStore } from '@atc/store';
 import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import { isTreeInReach } from '../auth/is-tree-in-reach';
 import type { SpawnParams } from '../daemon-context';
-import type { IdempotencyLedger, KeyedRequest } from '../transport/idempotency-ledger';
+import type { IdempotencyLedger, KeyedRequest } from '../transport/create-idempotency-ledger';
 import { buildDefaultWorkspaceDir } from '../workspace/build-default-workspace-dir';
 import { materializeWorkspace } from '../workspace/materialize-workspace';
 import { readHostGitIdentity } from '../workspace/read-host-git-identity';

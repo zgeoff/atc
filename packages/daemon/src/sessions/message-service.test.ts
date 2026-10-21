@@ -13,8 +13,8 @@ import { updateEndedFleetMessages } from '../fleet/update-ended-fleet-messages';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
-import { EventSignal } from '../transport/event-signal';
-import { IdempotencyLedger } from '../transport/idempotency-ledger';
+import { createEventSignal } from '../transport/create-event-signal';
+import { createIdempotencyLedger } from '../transport/create-idempotency-ledger';
 import { MessageService } from './message-service';
 import { SessionRuntime } from './session-runtime';
 import { SessionManager } from './sessions';
@@ -74,10 +74,10 @@ async function setupTest(config: SetupTestConfig) {
     manager,
     store,
     clock,
-    ledger: new IdempotencyLedger(store, 'local', () => {}, clock),
+    ledger: createIdempotencyLedger(store, 'local', () => {}, clock),
     taps,
     findRuntime: (id) => runtimes.get(id),
-    eventSignal: new EventSignal(clock),
+    eventSignal: createEventSignal(clock),
     emitEvent: (event) => {
       emitted.push(event);
     },

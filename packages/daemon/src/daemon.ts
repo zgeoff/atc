@@ -23,8 +23,9 @@ import { SessionManager } from './sessions/sessions';
 import { TapRegistry } from './sessions/tap-registry';
 import { startSessionServices } from './start-session-services';
 import { buildBindRefusal } from './transport/build-bind-refusal';
-import { DaemonConnection } from './transport/daemon-connection';
-import { EventSignal } from './transport/event-signal';
+import { createDaemonConnection } from './transport/create-daemon-connection';
+import type { DaemonConnection } from './transport/create-daemon-connection';
+import { createEventSignal } from './transport/create-event-signal';
 import { readPeerPID } from './transport/read-peer-pid';
 import { readPeerSession } from './transport/read-peer-session';
 import { requireListenTokens } from './transport/require-listen-tokens';
@@ -208,7 +209,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   };
 
   const permissions = new PermissionPrompts({ clock, emitEvent, findHookScope });
-  const eventSignal = new EventSignal(clock);
+
+  const eventSignal = createEventSignal(clock);
 
   // One runtime per live session, created when the session manager announces it and disposed the
   // moment it is removed, so removal is a single lookup plus dispose.
@@ -435,7 +437,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         failureDelayMs: opts.listen.failureDelayMs ?? HANDSHAKE_FAILURE_DELAY_MS,
         maxDelayedHandshakes: opts.listen.maxDelayedHandshakes ?? MAX_DELAYED_HANDSHAKES,
         openConnection: (socket, peer) => {
-          const connection = new DaemonConnection(socket, ctx, peer);
+          const connection = createDaemonConnection(socket, ctx, peer);
 
           clients.add(connection);
 
@@ -463,7 +465,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       unix: opts.socketPath,
       socket: {
         open(socket) {
-          socket.data = new DaemonConnection(socket, ctx, null, readSocketSession(socket));
+          socket.data = createDaemonConnection(socket, ctx, null, readSocketSession(socket));
 
           clients.add(socket.data);
         },

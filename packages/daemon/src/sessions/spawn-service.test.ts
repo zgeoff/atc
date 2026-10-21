@@ -14,7 +14,7 @@ import { buildMockExecutionTarget } from '../testing/build-mock-execution-target
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubLocalProvider } from '../testing/build-stub-local-provider';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
-import { IdempotencyLedger } from '../transport/idempotency-ledger';
+import { createIdempotencyLedger } from '../transport/create-idempotency-ledger';
 import { SessionRuntime } from './session-runtime';
 import { SessionManager } from './sessions';
 import { SpawnService } from './spawn-service';
@@ -66,7 +66,7 @@ async function setupTest(config: SetupTestConfig) {
     manager.detachAll();
   });
 
-  const ledger = new IdempotencyLedger(store, 'local', () => {}, systemClock);
+  const ledger = createIdempotencyLedger(store, 'local', () => {}, systemClock);
 
   const spawns = new SpawnService({
     manager,
