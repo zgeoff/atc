@@ -14,7 +14,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { delimiter, dirname, join } from 'node:path';
 
 // An access time older than the modification time is updated by the next
 // read even on a relatime mount.
@@ -28,9 +28,12 @@ async function main(): Promise<void> {
   try {
     const home = join(outer, 'home');
     const run = join(outer, 'run');
+    const bin = join(outer, 'bin');
+    const claudeCalls = join(outer, 'claude-calls');
     const canaries = buildCanaryPaths(home, run);
 
     writeCanaries(canaries, home, run);
+    writeClaudeCanary(bin, claudeCalls);
 
     const watched = [
       join(home, '.local/state/atc'),
@@ -44,7 +47,21 @@ async function main(): Promise<void> {
 
     const before = readSnapshot(canaries, watched);
 
-    const exitCode = await runGate(gate, home, run);
+    const exitCode = await runGate(gate, home, run, bin);
+
+    if (existsSync(claudeCalls)) {
+      console.error(
+        'test isolation: a test spawned the real claude binary; never spawn the real claude in a test, drive a stand-in:',
+      );
+
+      for (const line of readFileSync(claudeCalls, 'utf8').trimEnd().split('\n')) {
+        console.error(`claude ${line}`);
+      }
+
+      process.exitCode = 1;
+
+      return;
+    }
 
     if (exitCode !== 0) {
       process.exitCode = exitCode;
@@ -115,6 +132,25 @@ function writeCanaries(canaries: readonly string[], home: string, run: string): 
   }
 }
 
+function writeClaudeCanary(bin: string, claudeCalls: string): void {
+  const claude = join(bin, 'claude');
+
+  mkdirSync(bin);
+
+  writeFileSync(
+    claude,
+    [
+      '#!/bin/sh',
+      `printf '%s\\n' "$*" >> '${claudeCalls}'`,
+      "echo 'canary claude: never spawn the real claude in a test' >&2",
+      'exit 1',
+      '',
+    ].join('\n'),
+  );
+
+  chmodSync(claude, 0o755);
+}
+
 // One line per canary, with its hash, modification time, and access time,
 // then every path under the watched directories, sorted. Hashing reads each
 // canary, so its access time is taken first and put back after.
@@ -144,12 +180,13 @@ function readSnapshot(canaries: readonly string[], watched: readonly string[]): 
   return [...lines, ...paths.toSorted()];
 }
 
-function runGate(gate: readonly string[], home: string, run: string): Promise<number> {
+function runGate(gate: readonly string[], home: string, run: string, bin: string): Promise<number> {
   const { ATC_TEST_HOME: _testHome, ...inherited } = process.env;
 
   const env = {
     ...inherited,
     HOME: home,
+    PATH: [bin, inherited['PATH']].filter(Boolean).join(delimiter),
     XDG_RUNTIME_DIR: run,
     XDG_CONFIG_HOME: join(home, '.config'),
     XDG_DATA_HOME: join(home, '.local/share'),

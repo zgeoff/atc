@@ -38,8 +38,9 @@ home a preload sets never reaches a test's subprocesses.
 ## Agent CLIs
 
 - Never spawn the real `claude` binary in a test. A test drives a stand-in, such as the PTY
-  harness's stand-in `claude`. One exception: `bun run test:atc-bridge` runs
-  `claude plugin validate` and `claude plugin test` on the mod, and neither starts a session.
+  harness's stand-in `claude`. `bun run test:isolation` puts a canary `claude` first on `PATH` and
+  fails when a test runs it. One exception: `bun run test:atc-bridge` runs `claude plugin validate`
+  and `claude plugin test` on the mod, and neither starts a session.
 - The Claude config lock's test runs against `proper-lockfile`, the lock library Claude Code
   bundles, because no test runs Claude itself.
 
