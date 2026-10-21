@@ -5,8 +5,13 @@ import type { SessionID } from '@atc/core';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
-import { buildMockFleetEntry, createMigratedStateDB } from '@atc/store/testing';
-import { buildStubClock, registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { buildMockFleetEntry } from '@atc/store/testing';
+import {
+  buildStubClock,
+  createMigratedStateDB,
+  registerTestCleanup,
+  setupTempDir,
+} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import type { TapClient } from '../daemon-context';
 import { updateEndedFleetMessages } from '../fleet/update-ended-fleet-messages';
@@ -30,7 +35,7 @@ async function setupTest(config: SetupTestConfig) {
   const temporaryDirectory = setupTempDir('atc-message-service-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
-  await createMigratedStateDB(dbPath);
+  createMigratedStateDB(dbPath);
 
   const store = await createStateStore(dbPath);
 

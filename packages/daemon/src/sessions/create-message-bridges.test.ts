@@ -4,8 +4,13 @@ import { toMessageID } from '@atc/core';
 import type { SessionID } from '@atc/core';
 import type { HookEvent } from '@atc/protocol/session';
 import { createStateStore } from '@atc/store';
-import { buildMockMessageRecord, createMigratedStateDB } from '@atc/store/testing';
-import { buildStubClock, registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { buildMockMessageRecord } from '@atc/store/testing';
+import {
+  buildStubClock,
+  createMigratedStateDB,
+  registerTestCleanup,
+  setupTempDir,
+} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import type { TapClient } from '../daemon-context';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
@@ -28,7 +33,7 @@ async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-message-bridges-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
-  await createMigratedStateDB(dbPath);
+  createMigratedStateDB(dbPath);
 
   const store = await createStateStore(dbPath);
 

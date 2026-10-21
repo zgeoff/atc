@@ -4,15 +4,15 @@ import { toAgentSessionID, toSessionID } from '@atc/core';
 import type { SessionID } from '@atc/core';
 import { createStateStore } from '@atc/store';
 import type { MessageOwner } from '@atc/store';
-import { buildMockFleetEntry, createMigratedStateDB } from '@atc/store/testing';
-import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { buildMockFleetEntry } from '@atc/store/testing';
+import { createMigratedStateDB, registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { updateEndedFleetMessages } from './update-ended-fleet-messages';
 
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-ended-fleet-messages-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
-  await createMigratedStateDB(dbPath);
+  createMigratedStateDB(dbPath);
 
   const store = await createStateStore(dbPath);
 

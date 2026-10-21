@@ -46,6 +46,7 @@ export * from './build-stub-terminal';
 export * from './build-stub-timeout-scheduler';
 export * from './read-process-tree';
 export * from './create-git-fixture';
+export * from './create-migrated-state-db';
 export * from './create-stub-app-server-codex';
 export * from './create-stub-bin';
 export * from './create-stub-brokered-claude';

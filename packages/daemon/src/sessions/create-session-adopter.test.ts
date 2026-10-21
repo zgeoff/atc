@@ -5,8 +5,7 @@ import { systemClock, toAgentSessionID, toSessionID } from '@atc/core';
 import type { SessionID } from '@atc/core';
 import type { AgentAdapter, SpawnPlan } from '@atc/plugin-api';
 import { createStateStore } from '@atc/store';
-import { createMigratedStateDB } from '@atc/store/testing';
-import { registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
+import { createMigratedStateDB, registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
 import { createAuthSetup } from '../auth/create-auth-setup';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { createSessionFleetWriter } from '../fleet/create-session-fleet-writer';
@@ -35,7 +34,7 @@ async function setupTest(config: SetupTestConfig) {
   const temporaryDirectory = setupTempDir('atc-session-adopter-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
-  await createMigratedStateDB(dbPath);
+  createMigratedStateDB(dbPath);
 
   const store = await createStateStore(dbPath);
 

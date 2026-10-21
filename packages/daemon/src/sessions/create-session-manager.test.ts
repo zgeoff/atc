@@ -2,10 +2,11 @@ import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { toAgentSessionID, toSessionID } from '@atc/core';
 import { buildTargetIdentity, createStateStore } from '@atc/store';
-import { buildMockFleetEntry, createMigratedStateDB } from '@atc/store/testing';
+import { buildMockFleetEntry } from '@atc/store/testing';
 import {
   buildMockAgentAdapter,
   buildStubLog,
+  createMigratedStateDB,
   registerTestCleanup,
   setupTempDir,
   waitFor,
@@ -22,7 +23,7 @@ async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-sessions-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
-  await createMigratedStateDB(dbPath);
+  createMigratedStateDB(dbPath);
 
   const store = await createStateStore(dbPath);
 

@@ -13,6 +13,7 @@ import { toAgentSessionID, toMessageID, toSessionID } from '@atc/core';
 import {
   buildMockPublishedRecord,
   buildMockRestartResult,
+  createMigratedStateDB,
   readQueryPlan,
   registerTestCleanup,
   setupTempDir,
@@ -31,13 +32,12 @@ import { PreLadderDatabaseError } from './sqlite/pre-ladder-database-error';
 import type { StateStoreSchema } from './sqlite/state-store-schema';
 import { buildMockFleetEntry } from './testing/build-mock-fleet-entry';
 import { buildMockMessageRecord } from './testing/build-mock-message-record';
-import { createMigratedStateDB } from './testing/create-migrated-state-db';
 
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-store-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
-  await createMigratedStateDB(dbPath);
+  createMigratedStateDB(dbPath);
 
   const queries: CompiledQuery[] = [];
 
@@ -5589,8 +5589,7 @@ test('it refuses a backup onto the file its database path links to', async () =>
   const realPath = join(temporaryDirectory.path, 'live.db');
   const linkPath = join(temporaryDirectory.path, 'state.db');
 
-  await createMigratedStateDB(realPath);
-
+  createMigratedStateDB(realPath);
   symlinkSync(realPath, linkPath);
 
   const store = await createStateStore(linkPath);

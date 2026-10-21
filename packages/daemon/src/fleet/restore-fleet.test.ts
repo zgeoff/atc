@@ -4,12 +4,13 @@ import type { SessionID } from '@atc/core';
 import { toAgentSessionID, toSessionID } from '@atc/core';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { buildTargetIdentity, createStateStore } from '@atc/store';
-import { buildMockFleetEntry, createMigratedStateDB } from '@atc/store/testing';
+import { buildMockFleetEntry } from '@atc/store/testing';
 import {
   buildMockAgentAdapter,
   buildStubClock,
   buildStubHeadlessRunner,
   buildStubLog,
+  createMigratedStateDB,
   registerTestCleanup,
   setupTempDir,
   waitFor,
@@ -32,7 +33,7 @@ async function setupTest(config: Readonly<{ targets?: readonly ExecutionTarget[]
   const temporaryDirectory = setupTempDir('atc-restore-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
-  await createMigratedStateDB(dbPath);
+  createMigratedStateDB(dbPath);
 
   const store = await createStateStore(dbPath);
 
