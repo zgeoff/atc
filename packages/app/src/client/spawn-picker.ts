@@ -347,9 +347,6 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     void this.loadAgents();
   }
 
-  // Reads the agents, targets, and sources the daemon offers, and opens the
-  // menu on the agents it can start. One such agent is no choice to make, so
-  // the flow goes on with it.
   private async loadAgents() {
     const generation = this.generation;
     let listed: Readonly<Record<string, unknown>> = {};
