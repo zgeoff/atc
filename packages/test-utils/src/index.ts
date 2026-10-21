@@ -71,6 +71,7 @@ export * from './get-string';
 export * from './keys';
 export type * from './mock-overrides';
 export * from './open-repo-step';
+export * from './parse-mcp-tool-result';
 export * from './parse-passkey-page';
 export * from './parse-peer-frame';
 export * from './read-json-record';

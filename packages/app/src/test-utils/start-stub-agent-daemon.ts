@@ -11,6 +11,10 @@ interface StubAgentDaemonConfig {
   // The config's agents map, built from the stand-in executables; one
   // Claude entry when absent.
   readonly agents?: (bins: StubAgentBins) => Readonly<Record<string, unknown>>;
+
+  // How long a started session may go without a message tap before a
+  // message to it is refused; the daemon's own default when absent.
+  readonly tapGraceMs?: number;
 }
 
 // A daemon in the test's process whose agents are the in-process stand-in
@@ -28,6 +32,8 @@ export async function startStubAgentDaemon(config: StubAgentDaemonConfig = {}) {
         buildMockHostServices(),
       ),
       targets: buildStubTargets([LOCAL_TARGET], { spawned: [], onStart: agents.start }),
+      homeDir: temporaryDirectory.path,
+      ...(config.tapGraceMs === undefined ? {} : { tapGraceMs: config.tapGraceMs }),
     }),
   });
 

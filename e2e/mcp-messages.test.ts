@@ -1,15 +1,19 @@
 import { expect, test } from 'bun:test';
-import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { setupMCPHome } from '@atc/lifecycle/testing';
-import { startMCPStdio, waitFor } from '@atc/test-utils';
+import { startInProcessMCP } from '@atc/mcp/testing';
+import { waitFor } from '@atc/test-utils';
+import { startStubAgentDaemon } from '../packages/app/src/test-utils/start-stub-agent-daemon';
 
+// The MCP tools in the test's process, against a daemon in it whose Claude is
+// the in-process stand-in, which never opens a message tap.
 async function setupTest() {
-  const mcpHome = setupMCPHome();
+  const stub = await startStubAgentDaemon({ tapGraceMs: 0 });
 
-  const mcp = await startMCPStdio({ home: mcpHome.home });
+  const mcp = await startInProcessMCP({
+    socketPath: stub.daemon.socketPath,
+    build: stub.daemon.build,
+  });
 
-  return { home: mcpHome.home, mcp };
+  return { home: stub.home, daemon: stub.daemon, agents: stub.agents, mcp };
 }
 
 test('it reports a message to a session with no tap as a failed tool call', async () => {
@@ -34,7 +38,7 @@ test('it reports a message to a session with no tap as a failed tool call', asyn
 test('it sends a message to a session that has not started', async () => {
   const ctx = await setupTest();
 
-  writeFileSync(join(ctx.home, 'fake-claude-hold-start'), '');
+  ctx.agents.holdStart('claude');
 
   const session = await ctx.mcp.spawnSession({ cwd: ctx.home });
   const result = await ctx.mcp.sendToolCall('atc_message_send', { session, text: 'hello' });
@@ -51,7 +55,7 @@ test('it sends a message to a session that has not started', async () => {
 test("it reads a message from the owner's atc mcp back as from the owner", async () => {
   const ctx = await setupTest();
 
-  writeFileSync(join(ctx.home, 'fake-claude-hold-start'), '');
+  ctx.agents.holdStart('claude');
 
   const session = await ctx.mcp.spawnSession({ cwd: ctx.home });
   const sent = await ctx.mcp.sendToolCall('atc_message_send', { session, text: 'hello' });
@@ -78,14 +82,19 @@ test("it reads a message from the owner's atc mcp back as from the owner", async
 test('it reads a message from a session through its atc mcp back as from that session and its current name', async () => {
   const ctx = await setupTest();
 
-  writeFileSync(join(ctx.home, 'fake-claude-hold-start'), '');
+  ctx.agents.holdStart('claude');
 
   const target = await ctx.mcp.spawnSession({ cwd: ctx.home });
   const sender = await ctx.mcp.spawnSession({ cwd: ctx.home });
 
   await ctx.mcp.sendToolCall('atc_session_update', { session: sender, name: 'harbor-refactor' });
 
-  const inside = await startMCPStdio({ home: ctx.home, callerSessionID: sender });
+  const inside = await startInProcessMCP({
+    socketPath: ctx.daemon.socketPath,
+    build: ctx.daemon.build,
+    callerSessionID: sender,
+  });
+
   const sent = await inside.sendToolCall('atc_message_send', { session: target, text: 'hello' });
 
   const got = await ctx.mcp.sendToolCall('atc_message_get', {
@@ -101,7 +110,7 @@ test('it reads a message from a session through its atc mcp back as from that se
 test('it holds a message read open while its wait runs', async () => {
   const ctx = await setupTest();
 
-  writeFileSync(join(ctx.home, 'fake-claude-hold-start'), '');
+  ctx.agents.holdStart('claude');
 
   const session = await ctx.mcp.spawnSession({ cwd: ctx.home });
   const sent = await ctx.mcp.sendToolCall('atc_message_send', { session, text: 'hello' });
@@ -123,7 +132,7 @@ test('it holds a message read open while its wait runs', async () => {
 test('it answers a message read with the unanswered message once its wait ends', async () => {
   const ctx = await setupTest();
 
-  writeFileSync(join(ctx.home, 'fake-claude-hold-start'), '');
+  ctx.agents.holdStart('claude');
 
   const session = await ctx.mcp.spawnSession({ cwd: ctx.home });
   const sent = await ctx.mcp.sendToolCall('atc_message_send', { session, text: 'hello' });

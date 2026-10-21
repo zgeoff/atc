@@ -1,15 +1,21 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupMCPHome } from '@atc/lifecycle/testing';
-import { startMCPStdio, waitFor } from '@atc/test-utils';
+import { startInProcessMCP } from '@atc/mcp/testing';
+import { waitFor } from '@atc/test-utils';
+import { startStubAgentDaemon } from '../packages/app/src/test-utils/start-stub-agent-daemon';
 
+// The MCP tools in the test's process, against a daemon in it whose Claude is
+// the in-process stand-in.
 async function setupTest() {
-  const mcpHome = setupMCPHome();
+  const stub = await startStubAgentDaemon();
 
-  const mcp = await startMCPStdio({ home: mcpHome.home });
+  const mcp = await startInProcessMCP({
+    socketPath: stub.daemon.socketPath,
+    build: stub.daemon.build,
+  });
 
-  return { home: mcpHome.home, mcp };
+  return { home: stub.home, mcp };
 }
 
 test('it reports a rename it skipped because the agent named the session itself', async () => {
