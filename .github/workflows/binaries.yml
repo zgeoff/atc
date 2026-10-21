@@ -24,15 +24,6 @@ jobs:
         with:
           bun-version-file: .bun-version
 
-      # Bun's install cache, keyed on the lockfile. A lockfile change restores
-      # the newest older cache, and the job saves a new one when it passes.
-      - name: Cache bun install
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.bun/install/cache
-          key: bun-install-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
-          restore-keys: bun-install-${{ runner.os }}-${{ runner.arch }}-
-
       - name: Install
         run: bun install --frozen-lockfile
 
@@ -78,14 +69,6 @@ jobs:
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version-file: .bun-version
-
-      # the install cache, as in the job above
-      - name: Cache bun install
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.bun/install/cache
-          key: bun-install-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
-          restore-keys: bun-install-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Install
         run: bun install --frozen-lockfile
