@@ -1,5 +1,22 @@
 # Changelog
 
+## [7.0.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@6.0.1...@zgeoff/atc@7.0.0) (2026-10-21)
+
+
+### ⚠ BREAKING CHANGES
+
+* **geo-403:** the daemon protocol is version 8; a client and a daemon on different protocol versions refuse each other at the handshake, so they install together.
+
+### Features
+
+* **geo-403:** complete typed paths through the daemon ([#847](https://github.com/zgeoff/atc/issues/847)) ([0d935e8](https://github.com/zgeoff/atc/commit/0d935e810bcc9431ba889dce9becc6ea08a87a41))
+* **geo-403:** list only the agents the daemon can start ([#848](https://github.com/zgeoff/atc/issues/848)) ([d881e7c](https://github.com/zgeoff/atc/commit/d881e7c021f3ffe06eeb2add0ce8379f3a44f9ae))
+
+
+### Documentation
+
+* **geo-403:** record daemon protocol version 8 ([#853](https://github.com/zgeoff/atc/issues/853)) ([c1ef96b](https://github.com/zgeoff/atc/commit/c1ef96b9b7f420ae1de298f48dec0b4287b4018d))
+
 ## [6.0.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@6.0.0...@zgeoff/atc@6.0.1) (2026-10-20)
 
 ### Bug Fixes
