@@ -9,6 +9,7 @@ import { openDaemonClient } from '@atc/protocol/client';
 import { StateStore } from '@atc/store';
 import {
   buildMockAgentAdapter,
+  buildMockRestartResult,
   buildStubClock,
   getAgentEntry,
   getRecord,
@@ -905,18 +906,13 @@ test('it answers daemon.restarted and broadcasts the unchanged result when the e
 
   db.run('DROP TABLE restart_results');
 
-  const result = {
+  const result = buildMockRestartResult({
     runID: 'run-tamarack',
     code: 1,
-    pid: 4245,
-    build: 'atc/0.9.1',
-    listenPort: null,
     restored: 1,
     total: 2,
     failed: [{ name: 'plover', id: 's-plover', reason: 'its agent is not configured' }],
-    interrupted: [],
-    error: null,
-  };
+  });
 
   const answer = await ctx.client.sendRequest('daemon.restarted', { result });
 

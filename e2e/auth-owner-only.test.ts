@@ -3,7 +3,7 @@ import { writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
 import type { DaemonEvent } from '@atc/protocol';
-import { buildMockAgentAdapter, waitFor } from '@atc/test-utils';
+import { buildMockAgentAdapter, buildMockRestartResult, waitFor } from '@atc/test-utils';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 function setupTest() {
@@ -176,18 +176,7 @@ test('it returns a restart from events.read to the owner', async () => {
   const daemon = await startTestDaemon({ options: () => ({ adapter: ctx.adapter }) });
 
   await daemon.client.sendRequest('daemon.restarted', {
-    result: {
-      runID: 'run-willow',
-      code: 0,
-      pid: 4343,
-      build: 'atc/0.9.1',
-      listenPort: null,
-      restored: 0,
-      total: 0,
-      failed: [],
-      interrupted: [],
-      error: null,
-    },
+    result: buildMockRestartResult({ runID: 'run-willow' }),
   });
 
   const page = await daemon.client.sendRequest('events.read', { from: 'start' });
@@ -207,18 +196,11 @@ test('it never returns a restart from events.read to a principal connection', as
   const client = await daemon.openClient({ principal: 'gw' });
 
   await daemon.client.sendRequest('daemon.restarted', {
-    result: {
-      runID: 'run-aspen',
+    result: buildMockRestartResult({
       code: 1,
-      pid: 4344,
-      build: 'atc/0.9.1',
-      listenPort: null,
-      restored: 0,
       total: 1,
       failed: [{ name: 'kestrel', id: 's-kestrel', reason: 'its agent is not configured' }],
-      interrupted: [],
-      error: null,
-    },
+    }),
   });
 
   const page = await client.sendRequest('events.read', { from: 'start' });

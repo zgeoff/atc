@@ -12,6 +12,7 @@ import { join } from 'node:path';
 import { toAgentSessionID, toMessageID, toSessionID } from '@atc/core';
 import {
   buildMockPublishedRecord,
+  buildMockRestartResult,
   readQueryPlan,
   registerTestCleanup,
   setupTempDir,
@@ -3381,28 +3382,20 @@ test('it reads the trail in order across hook events and message entries', async
 test('it reads a restart with its whole result in order between the hook events around it', async () => {
   const ctx = await setupTest();
 
+  const result = buildMockRestartResult({
+    code: 1,
+    restored: 1,
+    total: 2,
+    failed: [{ name: 'heron', id: 's-heron', reason: 'its agent is not configured' }],
+  });
+
   await ctx.store.recordEvent(
     { atcId: toSessionID('s1'), event: 'Stop', payload: {} },
     { kind: 'turn-done' },
     1000,
   );
 
-  await ctx.store.recordRestart(
-    {
-      runID: 'run-juniper',
-      code: 1,
-      pid: 6160,
-      build: 'atc/0.9.3',
-      listenPort: null,
-      restored: 1,
-      total: 2,
-      failed: [{ name: 'heron', id: 's-heron', reason: 'its agent is not configured' }],
-      interrupted: [],
-      error: null,
-    },
-    'restored 1 of 2, 1 failed, exit code 1',
-    2000,
-  );
+  await ctx.store.recordRestart(result, 'restored 1 of 2, 1 failed, exit code 1', 2000);
 
   await ctx.store.recordEvent(
     { atcId: toSessionID('s1'), event: 'SessionStart', payload: {} },
@@ -3428,18 +3421,7 @@ test('it reads a restart with its whole result in order between the hook events 
       agentSessionID: null,
       kind: 'daemon-restarted',
       detail: 'restored 1 of 2, 1 failed, exit code 1',
-      result: {
-        runID: 'run-juniper',
-        code: 1,
-        pid: 6160,
-        build: 'atc/0.9.3',
-        listenPort: null,
-        restored: 1,
-        total: 2,
-        failed: [{ name: 'heron', id: 's-heron', reason: 'its agent is not configured' }],
-        interrupted: [],
-        error: null,
-      },
+      result,
     },
     {
       id: expect.toBeNumber(),
@@ -3455,22 +3437,9 @@ test('it reads a restart with its whole result in order between the hook events 
 test('it reads the latest restart with its whole result', async () => {
   const ctx = await setupTest();
 
-  await ctx.store.recordRestart(
-    {
-      runID: 'run-spruce',
-      code: 0,
-      pid: 6161,
-      build: 'atc/0.9.3',
-      listenPort: 7421,
-      restored: 0,
-      total: 0,
-      failed: [],
-      interrupted: [],
-      error: null,
-    },
-    'restored 0 of 0',
-    2000,
-  );
+  const result = buildMockRestartResult();
+
+  await ctx.store.recordRestart(result, 'restored 0 of 0', 2000);
 
   const events = await ctx.store.readLatestEvents(10);
 
@@ -3482,18 +3451,7 @@ test('it reads the latest restart with its whole result', async () => {
       agentSessionID: null,
       kind: 'daemon-restarted',
       detail: 'restored 0 of 0',
-      result: {
-        runID: 'run-spruce',
-        code: 0,
-        pid: 6161,
-        build: 'atc/0.9.3',
-        listenPort: 7421,
-        restored: 0,
-        total: 0,
-        failed: [],
-        interrupted: [],
-        error: null,
-      },
+      result,
     },
   ]);
 });
@@ -3501,22 +3459,7 @@ test('it reads the latest restart with its whole result', async () => {
 test('it leaves a restart out of a read scoped to sessions', async () => {
   const ctx = await setupTest();
 
-  await ctx.store.recordRestart(
-    {
-      runID: 'run-hazel',
-      code: 0,
-      pid: 6162,
-      build: 'atc/0.9.3',
-      listenPort: null,
-      restored: 1,
-      total: 1,
-      failed: [],
-      interrupted: [],
-      error: null,
-    },
-    'restored 1 of 1',
-    2000,
-  );
+  await ctx.store.recordRestart(buildMockRestartResult(), 'restored 0 of 0', 2000);
 
   await ctx.store.recordEvent(
     { atcId: toSessionID('s1'), event: 'Stop', payload: {} },
@@ -3535,22 +3478,7 @@ test('it leaves a restart out of a read scoped to sessions', async () => {
 test('it reads a restart whose stored result no longer parses with its detail alone', async () => {
   const ctx = await setupTest();
 
-  await ctx.store.recordRestart(
-    {
-      runID: 'run-rowan',
-      code: 0,
-      pid: 6163,
-      build: 'atc/0.9.3',
-      listenPort: null,
-      restored: 0,
-      total: 0,
-      failed: [],
-      interrupted: [],
-      error: null,
-    },
-    'restored 0 of 0',
-    2000,
-  );
+  await ctx.store.recordRestart(buildMockRestartResult(), 'restored 0 of 0', 2000);
 
   const db = new Database(ctx.dbPath);
 
@@ -3578,35 +3506,13 @@ test('it removes the result of an expired restart and keeps the result of a rest
   const ctx = await setupTest();
 
   await ctx.store.recordRestart(
-    {
-      runID: 'run-old',
-      code: 0,
-      pid: 6164,
-      build: 'atc/0.9.3',
-      listenPort: null,
-      restored: 0,
-      total: 0,
-      failed: [],
-      interrupted: [],
-      error: null,
-    },
+    buildMockRestartResult({ runID: 'run-old' }),
     'restored 0 of 0',
     Date.parse('2026-02-01T00:00:00.000Z'),
   );
 
   await ctx.store.recordRestart(
-    {
-      runID: 'run-new',
-      code: 0,
-      pid: 6165,
-      build: 'atc/0.9.3',
-      listenPort: null,
-      restored: 0,
-      total: 0,
-      failed: [],
-      interrupted: [],
-      error: null,
-    },
+    buildMockRestartResult({ runID: 'run-new' }),
     'restored 0 of 0',
     Date.parse('2026-02-02T00:00:00.000Z'),
   );

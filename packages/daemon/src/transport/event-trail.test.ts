@@ -4,7 +4,12 @@ import { join } from 'node:path';
 import { toSessionID } from '@atc/core';
 import { StateStore } from '@atc/store';
 import { buildMockFleetEntry, createMigratedStateDB } from '@atc/store/testing';
-import { buildStubClock, registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import {
+  buildMockRestartResult,
+  buildStubClock,
+  registerTestCleanup,
+  setupTempDir,
+} from '@atc/test-utils';
 import { TargetAccess } from '../auth/target-access';
 import { buildNoteTrailEntry } from '../sessions/build-note-trail-entry';
 import { SessionManager } from '../sessions/sessions';
@@ -166,20 +171,10 @@ test('it reads none of the events of a session whose target the access may not u
 test('it wakes a held read with a restart it records, whole result included', async () => {
   const ctx = await setupTest();
 
+  const result = buildMockRestartResult({ restored: 2, total: 2 });
   const read = ctx.trail.readEvents(0, 10, 60_000, null, null);
 
-  await ctx.trail.recordRestart({
-    runID: 'run-poplar',
-    code: 0,
-    pid: 7170,
-    build: 'atc/0.9.4',
-    listenPort: null,
-    restored: 2,
-    total: 2,
-    failed: [],
-    interrupted: [],
-    error: null,
-  });
+  await ctx.trail.recordRestart(result);
 
   const page = await read;
 
@@ -192,18 +187,7 @@ test('it wakes a held read with a restart it records, whole result included', as
         name: null,
         kind: 'daemon-restarted',
         detail: 'restored 2 of 2',
-        result: {
-          runID: 'run-poplar',
-          code: 0,
-          pid: 7170,
-          build: 'atc/0.9.4',
-          listenPort: null,
-          restored: 2,
-          total: 2,
-          failed: [],
-          interrupted: [],
-          error: null,
-        },
+        result,
       },
     ],
     more: false,
@@ -225,18 +209,7 @@ test('it logs a restart whose trail write fails under its run id and records not
 
   db.run('DROP TABLE restart_results');
 
-  await ctx.trail.recordRestart({
-    runID: 'run-sumac',
-    code: 0,
-    pid: 7172,
-    build: 'atc/0.9.4',
-    listenPort: null,
-    restored: 0,
-    total: 0,
-    failed: [],
-    interrupted: [],
-    error: null,
-  });
+  await ctx.trail.recordRestart(buildMockRestartResult({ runID: 'run-sumac' }));
 
   const rows = db.query('SELECT kind FROM events').all();
 
@@ -260,18 +233,7 @@ test('it reads no restart under an access that reaches every session', async () 
     }),
   );
 
-  await ctx.trail.recordRestart({
-    runID: 'run-linden',
-    code: 0,
-    pid: 7171,
-    build: 'atc/0.9.4',
-    listenPort: null,
-    restored: 1,
-    total: 1,
-    failed: [],
-    interrupted: [],
-    error: null,
-  });
+  await ctx.trail.recordRestart(buildMockRestartResult());
 
   await ctx.store.recordEvent(
     { atcId: toSessionID('s-1'), event: 'Stop', payload: {} },

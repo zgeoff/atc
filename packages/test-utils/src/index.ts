@@ -7,6 +7,7 @@ export * from './build-mock-auth-profile';
 export * from './build-mock-host-services';
 export * from './build-mock-listed-agent';
 export * from './build-mock-published-record';
+export * from './build-mock-restart-result';
 export * from './build-mock-session-descriptor';
 export * from './build-mock-sortable-session-view';
 export * from './build-peer-request-line';
