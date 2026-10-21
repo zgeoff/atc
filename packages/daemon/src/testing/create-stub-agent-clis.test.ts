@@ -132,11 +132,11 @@ test('it reports the loaded events in place of the prompt for the next session o
     expect(ctx.reporter.lines).toHaveLength(4);
   });
 
-  expect(ctx.reporter.lines.map((line) => String(JSON.parse(line).event))).toStrictEqual([
-    'SessionStart',
-    'Stop',
-    'SessionStart',
-    'Notification',
+  expect(ctx.reporter.lines.map((line): unknown => JSON.parse(line))).toMatchObject([
+    { event: 'SessionStart' },
+    { event: 'Stop' },
+    { event: 'SessionStart' },
+    { event: 'Notification' },
   ]);
 });
 
@@ -158,7 +158,10 @@ test('it paints the banner with its arguments and reports nothing for a held sta
   });
 
   expect(sent).toBeTrue();
-  expect(ctx.reporter.lines.map((line) => String(JSON.parse(line).event))).toStrictEqual(['Stop']);
+
+  expect(ctx.reporter.lines.map((line): unknown => JSON.parse(line))).toMatchObject([
+    { event: 'Stop' },
+  ]);
 });
 
 test('it reports the daemon session id as the Claude session id once told to use its own', async () => {

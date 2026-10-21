@@ -50,7 +50,7 @@ test('it records the target of each spawn', () => {
 });
 
 test('it runs the start callback on each harness a local-pty target starts', () => {
-  const onStart = mock();
+  const onStart = mock(() => {});
 
   const [target] = buildStubTargets([{ id: 'box', provider: 'local-pty', options: {} }], {
     spawned: [],
