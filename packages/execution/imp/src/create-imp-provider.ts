@@ -54,6 +54,8 @@ export interface ImpProvider extends ExecutionProvider {
     path: string,
     content: string,
   ) => Promise<string | null>;
+
+  readonly dispose: () => void;
 }
 
 interface ImpTargetOptions {
