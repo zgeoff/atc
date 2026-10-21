@@ -14,6 +14,7 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
+import invariant from 'tiny-invariant';
 import { buildAgentAdapters } from '../packages/app/src/agents/build-agent-adapters';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
@@ -113,8 +114,12 @@ test("it starts a sub-session with the config's plugin folders and its own spawn
 
     expect(starts).toHaveLength(3);
 
-    return (starts[1] ?? '').split('\n');
+    return starts
+      .map((start) => start.split('\n'))
+      .find((argv) => argv.at(-1) === 'help with the task');
   });
+
+  invariant(child);
 
   expect(child.slice(-7)).toStrictEqual([
     '--plugin-dir',
