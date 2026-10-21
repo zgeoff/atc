@@ -34,5 +34,7 @@ export const PUBLISHED_RECORD_SCHEMA: z.ZodType<PublishedRecord, PublishedRecord
   target: z.string(),
   revision: z.number().int().min(1),
   updatedAt: z.string(),
+  name: z.string().nullable(),
+  transcriptPath: z.string().nullable(),
   scope: SCOPE_SCHEMA,
 });

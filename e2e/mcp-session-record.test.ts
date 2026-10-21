@@ -25,7 +25,6 @@ test("it adds to a session's scope through the MCP tool from outside the session
   expect(added.structured).toMatchObject({
     record: {
       session,
-      revision: 2,
       scope: { branches: [{ name: 'main', repo: ctx.fixture.work }] },
     },
   });
@@ -49,5 +48,5 @@ test("it refuses the session's own MCP identity when it adds to its own scope", 
     `session '${session}' cannot add to the scope of session '${session}'`,
   );
 
-  expect(after.structured).toMatchObject({ sessionRecord: { revision: 1 } });
+  expect(after.structured).toMatchObject({ sessionRecord: { scope: { branches: [] } } });
 });

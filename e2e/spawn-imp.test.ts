@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { existsSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { LOCAL_TARGET } from '@atc/config';
 import { toSessionID } from '@atc/core';
 import { ImpProvider } from '@atc/execution-imp';
@@ -1038,6 +1038,8 @@ test('it places a read-only copy of the session record inside the imp before the
     target: 'box',
     revision: 1,
     updatedAt: expect.any(String),
+    name: basename(ctx.directory),
+    transcriptPath: null,
     scope: {
       workspace: { path: ctx.directory, branch: null, repoURL: null, sha: null },
       worktrees: [],

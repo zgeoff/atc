@@ -1,6 +1,7 @@
 import type { SessionID } from '@atc/core';
 import type { DeclaredScope, PublishedRecord } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
+import { buildRecordSubject } from './build-record-subject';
 import type { PublishedRecords } from './published-records';
 import type { SessionRegistry } from './session-registry';
 
@@ -35,16 +36,7 @@ export async function updateSessionScope(
     );
   }
 
-  const subject = {
-    session: session.id,
-    target: session.target,
-    provider,
-    host: session.hostKey,
-    directory: session.cwd,
-    workspace: session.workspace ?? null,
-  };
-
-  const record = await deps.records.updateScope(subject, scope);
+  const record = await deps.records.updateScope(buildRecordSubject(session, provider), scope);
 
   return record;
 }

@@ -18,6 +18,8 @@ The record is one JSON object:
   "target": "local",
   "revision": 2,
   "updatedAt": "2026-10-08T09:30:00.000Z",
+  "name": "fix login",
+  "transcriptPath": "/home/me/.claude/projects/-home-me-src-app/5e2a9c1d-7f40-4b8e-a3d6-0c9b2e1f4a7d.jsonl",
   "scope": {
     "workspace": {
       "path": "/home/me/src/app",
@@ -48,10 +50,17 @@ The record is one JSON object:
 | `target`             | The execution target the session runs on.                                                                  |
 | `revision`           | A count that starts at 1 and grows by one with each change to the record.                                  |
 | `updatedAt`          | When atc last changed the record, as an ISO 8601 UTC time.                                                 |
+| `name`               | The session's name, as atc lists it.                                                                       |
+| `transcriptPath`     | The agent's transcript file on the session's host, or null until the agent reports one.                    |
 | `scope.workspace`    | The session's directory, its branch, and, for a materialized workspace, the repository URL and the commit. |
 | `scope.worktrees`    | Each declared worktree's top-level path and the branch atc read from it.                                   |
 | `scope.branches`     | Each declared branch and the repository directory atc found it in.                                         |
 | `scope.pullRequests` | Each declared pull request, its GitHub repository as `owner/name`, its URL, and its head branch.           |
+
+atc rewrites the record when the session's name changes, whether a person or the agent renames it,
+and when the agent reports a transcript file, so a hook reads both from the record instead of from
+the event stream or the agent's own folders. A record that an older atc stored holds neither key
+until atc next changes it, and atc reads it with a null `name`.
 
 `scope.workspace.branch` is null for a detached checkout or a directory outside git. Its `repoURL`
 and `sha` are null for a session that runs in a directory as it stands. A worktree's `branch` is
@@ -91,7 +100,8 @@ entry the record already holds changes nothing. atc never removes an entry.
 
 The daemon's state store holds each record, and every provider places a copy where the session reads
 it. atc writes the copy before each harness start, so a revive or a restored fleet finds it in
-place, and rewrites it on every change.
+place, and rewrites it on every change. One exception: a rename of a session whose imp sleeps
+changes only the stored record, and the copy follows at the next harness start.
 
 | Provider    | `ATC_SESSION_RECORD`                        | Protection                                                                                                                                                                          |
 | ----------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

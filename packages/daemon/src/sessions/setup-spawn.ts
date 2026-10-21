@@ -3,6 +3,7 @@ import type { AuthSetup, HarnessAuthSetup, HarnessSetup } from '../auth/auth-set
 import { applyWorkspaceTrust } from './apply-workspace-trust';
 import { createSpawnWorkspace } from './create-spawn-workspace';
 import type { SpawnWorkspaceDeps } from './create-spawn-workspace';
+import { pickSpawnName } from './pick-spawn-name';
 import type { SpawnSteps } from './run-spawn-steps';
 import type { SessionCallbacks } from './session-callbacks';
 import type { MaterializedSpawn } from './spawn-materializer';
@@ -157,6 +158,8 @@ export async function setupSpawn(
                 {
                   session: id,
                   target,
+                  name: pickSpawnName(spawn, recordDir),
+                  transcriptPath: null,
                   provider,
                   host: hostKey,
                   directory: recordDir,

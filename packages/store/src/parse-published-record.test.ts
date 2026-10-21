@@ -11,6 +11,8 @@ test('it reads back a version 1 record', () => {
     target: 'box',
     revision: 2,
     updatedAt: '2026-10-08T09:30:00.000Z',
+    name: 'login fix',
+    transcriptPath: '/home/dev/.claude/projects/app/4d2c.jsonl',
     scope: {
       workspace: {
         path: '/src/app',
@@ -27,6 +29,44 @@ test('it reads back a version 1 record', () => {
   };
 
   expect(parsePublishedRecord(JSON.stringify(record))).toStrictEqual(record);
+});
+
+test('it reads a record stored without a name or a transcript path as holding neither', () => {
+  const parsed = parsePublishedRecord(
+    JSON.stringify({
+      format: 'atc.session-record',
+      version: 1,
+      session: 's-1',
+      daemonID: 'd-1',
+      target: 'box',
+      revision: 2,
+      updatedAt: '2026-10-08T09:30:00.000Z',
+      scope: {
+        workspace: { path: '/src/app', branch: 'main', repoURL: null, sha: null },
+        worktrees: [],
+        branches: [],
+        pullRequests: [],
+      },
+    }),
+  );
+
+  expect(parsed).toStrictEqual({
+    format: 'atc.session-record',
+    version: 1,
+    session: 's-1',
+    daemonID: 'd-1',
+    target: 'box',
+    revision: 2,
+    updatedAt: '2026-10-08T09:30:00.000Z',
+    name: null,
+    transcriptPath: null,
+    scope: {
+      workspace: { path: '/src/app', branch: 'main', repoURL: null, sha: null },
+      worktrees: [],
+      branches: [],
+      pullRequests: [],
+    },
+  });
 });
 
 test('it reads text that is not JSON as no record', () => {

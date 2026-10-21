@@ -10,6 +10,14 @@ export interface PublishedRecord {
 
   // When atc last changed the record, as an ISO 8601 UTC time.
   readonly updatedAt: string;
+
+  // The session's name, or null in a record an older atc stored and has
+  // not changed since.
+  readonly name: string | null;
+
+  // The agent's transcript file on the session's host, or null until the
+  // agent reports one.
+  readonly transcriptPath: string | null;
   readonly scope: RecordedScope;
 }
 
