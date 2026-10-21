@@ -1,7 +1,8 @@
 name: Checks
 
-# The static checks, the test suite, and the isolation run, shared by the PR
-# and main workflows; each caller's own checks job gates on this one.
+# The static checks with the bridge tests, the test suite, and the isolation
+# run, shared by the PR and main workflows; each caller's own checks job gates
+# on this one.
 on:
   workflow_call:
 
@@ -17,9 +18,19 @@ jobs:
     env:
       # CI never commits, but skip hook install/execution regardless
       LEFTHOOK: 0
+      # the mods API is early access and changes between Claude Code releases,
+      # so the mod is validated and tested against one exact build
+      CLAUDE_CODE_VERSION: 2.1.294
+      # the App Server API is experimental and changes between Codex releases,
+      # so the bridge is tested against one exact build, and the tests report a
+      # different installed one
+      CODEX_VERSION: 0.163.0
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        # the npm installs below run package scripts, which need no git token
+        with:
+          persist-credentials: false
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
@@ -101,6 +112,28 @@ jobs:
 
       - name: Typecheck
         run: bun run typecheck
+
+      # the two bridges run here, not in jobs of their own, because each takes
+      # seconds and a job of its own costs a runner start and an install
+      - name: Install Claude Code
+        run: npm install --global "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
+
+      - name: Check Embedded Mod Drift
+        run: |
+          bun run build:atc-bridge
+          git diff --exit-code packages/harnesses/claude/src/bridge/atc-bridge-files.ts
+
+      - name: Test Mod
+        run: bun run test:atc-bridge
+
+      - name: Install Codex
+        run: |
+          npm install --global "@openai/codex@${CODEX_VERSION}"
+          codex --version
+
+      - name: Test Codex Bridge
+        run:
+          bun run test packages/harnesses/codex/src/app-server/start-codex-app-server-bridge.test.ts
 
   # the suite runs in two shards, balanced by the committed per-file timings
   test:

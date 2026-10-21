@@ -12,19 +12,29 @@ permissions:
   actions: read
   contents: read
 
-concurrency:
-  group: main-checks
-  cancel-in-progress: true
-
+# A newer push makes this run's checks worthless, so ci, binaries and checks
+# each cancel their older run through a job-level group. The release job never
+# cancels: a release cut off mid-way can leave a tag without its binaries or
+# formula. A workflow-level group would reach the release job too, so every
+# group here is set per job.
 jobs:
   ci:
+    concurrency:
+      group: main-ci
+      cancel-in-progress: true
     uses: ./.github/workflows/checks.yml
 
   # the one status the main ruleset requires: it runs even when a job it needs
   # failed or was skipped, and passes only when every one of them succeeded
+  #
+  # A ci job that a newer push cancelled skips this job instead of failing it,
+  # and the release job skips with it.
   checks:
     needs: [ci]
-    if: ${{ always() }}
+    if: ${{ !cancelled() && !contains(needs.*.result, 'cancelled') }}
+    concurrency:
+      group: main-checks
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -40,11 +50,20 @@ jobs:
           done
 
   binaries:
+    concurrency:
+      group: main-binaries
+      cancel-in-progress: true
     uses: ./.github/workflows/binaries.yml
 
+  # A newer run's release waits for this one to end. GitHub keeps one pending
+  # run per group, so a third run replaces a waiting one, never a running one.
   release:
     needs: [checks, binaries]
+    concurrency:
+      group: main-release
+      cancel-in-progress: false
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: write
       pull-requests: write
