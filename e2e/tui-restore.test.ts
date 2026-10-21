@@ -1,11 +1,11 @@
 import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { startDaemonProcess } from '@atc/lifecycle/testing';
 import {
   registerTestCleanup,
-  spawnClaudeSession,
-  spawnGrokSession,
+  resolveATCCommand,
+  spawnNamedSession,
   startTUIHarness,
   waitFor,
 } from '@atc/test-utils';
@@ -16,11 +16,20 @@ function setupTest() {
 
 test('it restores the fleet from disk after a crash', async () => {
   const ctx = setupTest();
-  const pty = ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  // The daemon that crashes runs with the client's environment, and no
+  // client is attached to it.
+  const daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.home, env: ctx.env });
 
-  await spawnClaudeSession(ctx, 'fleettest');
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  await spawnNamedSession(
+    (method, params) => client.sendRequest(method, params),
+    'fleettest',
+    ctx.home,
+  );
 
   const db = new Database(join(ctx.home, '.local', 'state', 'atc', 'atc.db'), { readonly: true });
 
@@ -36,20 +45,11 @@ test('it restores the fleet from disk after a crash', async () => {
     ).toStrictEqual([{ name: 'fleettest', cwd: ctx.home, agentSessionID: 'fake-1' }]);
   });
 
-  // A full crash: client and daemon both die, and the fleet row survives
-  // on disk.
-  const daemonPID = Number(readFileSync(join(ctx.home, 'atc-daemon.pid'), 'utf8'));
+  // A crash: the daemon dies, and the fleet row survives on disk.
+  daemon.subprocess.kill('SIGKILL');
 
-  pty.kill();
-  process.kill(daemonPID, 'SIGKILL');
+  await daemon.subprocess.exited;
 
-  await ctx.waitForExit();
-
-  await waitFor(() => {
-    expect(() => process.kill(daemonPID, 0)).toThrow();
-  });
-
-  ctx.reset();
   ctx.boot();
 
   await ctx.waitFor('restore last fleet (1 sessions)');
@@ -63,11 +63,22 @@ test('it restores the fleet from disk after a crash', async () => {
 
 test('it restores a grok session with grok --resume after a crash', async () => {
   const ctx = setupTest();
-  const pty = ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  // The daemon that crashes runs with the client's environment, and no
+  // client is attached to it.
+  const daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.home, env: ctx.env });
 
-  await spawnGrokSession(ctx, 'grokfleet');
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  await client.sendRequest('session.spawn', {
+    cwd: ctx.home,
+    name: 'grokfleet',
+    agent: 'grok',
+    cols: 80,
+    rows: 24,
+  });
 
   const db = new Database(join(ctx.home, '.local', 'state', 'atc', 'atc.db'), { readonly: true });
 
@@ -85,18 +96,10 @@ test('it restores a grok session with grok --resume after a crash', async () => 
     ]);
   });
 
-  const daemonPID = Number(readFileSync(join(ctx.home, 'atc-daemon.pid'), 'utf8'));
+  daemon.subprocess.kill('SIGKILL');
 
-  pty.kill();
-  process.kill(daemonPID, 'SIGKILL');
+  await daemon.subprocess.exited;
 
-  await ctx.waitForExit();
-
-  await waitFor(() => {
-    expect(() => process.kill(daemonPID, 0)).toThrow();
-  });
-
-  ctx.reset();
   ctx.boot();
 
   await ctx.waitFor('restore last fleet (1 sessions)');
