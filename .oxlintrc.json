@@ -115,14 +115,7 @@
         "packages/daemon/src/transport/read-requests.ts",
         "packages/daemon/src/transport/refusal-log.ts",
         "packages/daemon/src/transport/spawn-requests.ts",
-        "packages/daemon/src/transport/terminal-requests.ts",
-        "packages/execution/imp/src/testing/create-stub-imp-port.ts",
-        "packages/execution/imp/src/testing/stub-imp-commands.ts",
-        "packages/execution/imp/src/testing/stub-imp-fleet.ts",
-        "packages/execution/imp/src/testing/stub-imp-forwards.ts",
-        "packages/execution/imp/src/testing/stub-imp-leases.ts",
-        "packages/execution/imp/src/testing/stub-imp-secrets.ts",
-        "packages/execution/imp/src/testing/stub-imp-sessions.ts"
+        "packages/daemon/src/transport/terminal-requests.ts"
       ],
       "rules": { "zgeoff/no-class": "off" }
     },

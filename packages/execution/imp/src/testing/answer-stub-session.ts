@@ -3,10 +3,10 @@ import { isBrokerVariable } from '@atc/core';
 import { spawn } from 'bun-pty';
 import type { ImpSessionRequest, ResumeResult } from '../imp-port';
 import type { ImpdExecRefusal, ImpdSessionOutput } from '../impd-contract';
+import type { StubImpCommands } from './create-stub-imp-commands';
+import type { StubImpFleet } from './create-stub-imp-fleet';
 import { mergeTail } from './merge-tail';
 import type { StubConnection, StubImp, StubProcess } from './stub-imp';
-import type { StubImpCommands } from './stub-imp-commands';
-import type { StubImpFleet } from './stub-imp-fleet';
 
 // What impd does with the next session requests instead of answering them,
 // which a test sets.

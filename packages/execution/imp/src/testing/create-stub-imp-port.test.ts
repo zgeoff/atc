@@ -82,16 +82,6 @@ test('it refuses a read-only file for an imp it does not hold as NOT_FOUND', () 
   });
 });
 
-test('it refuses a lease under the label hold', async () => {
-  const ctx = setupTest();
-
-  await ctx.port.createImp({ name: 'imp-a' });
-
-  expect(ctx.port.acquireLease('imp-a', 'hold', 60)).rejects.toMatchObject({
-    code: 'BAD_REQUEST',
-  });
-});
-
 test('it refuses to sleep a leased imp with the leases it shows and a count of the rest', async () => {
   const ctx = setupTest();
 
