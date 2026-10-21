@@ -67,7 +67,9 @@
           ],
           // the real port calls impd through the client, and the contract
           // types the impd stand-in is checked against come from its declarations
-          "imp-client-files": ["packages/execution/imp/src/{imp-client-port,impd-contract}.ts"],
+          "imp-client-files": [
+            "packages/execution/imp/src/{create-imp-client-port,impd-contract}.ts"
+          ],
           "claude-sdk-files": [
             "packages/harnesses/claude/src/headless/{build-claude-query-options,render-sdk-message,start-claude-headless-run}.ts"
           ],

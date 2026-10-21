@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { LOCAL_TARGET } from '@atc/config';
-import { ImpProvider } from '@atc/execution-imp';
+import { createImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/testing';
 import { createLocalPTYProvider } from '@atc/execution-local';
 import { buildTargetIdentity } from '@atc/store';
@@ -55,7 +55,7 @@ test('it lists an agent whose binary is missing here as spawnable only on the im
             kind: 'imp',
             options: {},
             identity: 'imp:test',
-            provider: new ImpProvider(
+            provider: createImpProvider(
               createStubImpPort(),
               { guestDir: join(paths.directory, 'g') },
               { reconnectDelaysMs: [0, 0, 0], version: '1.0.0' },
@@ -138,7 +138,7 @@ test('it lists the imp target as remote and the local target as not', async () =
           kind: 'imp',
           options: {},
           identity: 'imp:test',
-          provider: new ImpProvider(
+          provider: createImpProvider(
             createStubImpPort(),
             { guestDir: join(paths.directory, 'g') },
             { reconnectDelaysMs: [0, 0, 0], version: '1.0.0' },
@@ -197,7 +197,7 @@ test('it spawns an agent whose binary is missing here on the imp target', async 
             kind: 'imp',
             options: {},
             identity: 'imp:test',
-            provider: new ImpProvider(
+            provider: createImpProvider(
               createStubImpPort(),
               { guestDir: join(paths.directory, 'g') },
               { reconnectDelaysMs: [0, 0, 0], version: '1.0.0' },

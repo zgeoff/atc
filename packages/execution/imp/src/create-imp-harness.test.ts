@@ -10,7 +10,7 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
-import { ImpHarness } from './imp-harness';
+import { createImpHarness } from './create-imp-harness';
 import { buildMockImpSessionRequest } from './testing/build-mock-imp-session-request';
 import { createStubImpPort } from './testing/create-stub-imp-port';
 
@@ -28,7 +28,7 @@ test('it reconnects after impd drops a send and resumes after the last byte it h
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const harness = new ImpHarness(
+  const harness = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-a',
@@ -125,7 +125,7 @@ test('it drops the bytes a resume repeats below its high-water offset', async ()
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const harness = new ImpHarness(
+  const harness = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-a',
@@ -191,7 +191,7 @@ test('it does a fresh attach that clears the screen when the resume finds a gap'
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const harness = new ImpHarness(
+  const harness = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-a',
@@ -271,7 +271,7 @@ test('it does a fresh attach when impd refuses its resume offset', async () => {
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const harness = new ImpHarness(
+  const harness = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-a',
@@ -340,7 +340,7 @@ test('it takes the session back from another connection that takes it over', asy
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const harness = new ImpHarness(
+  const harness = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-a',
@@ -421,7 +421,7 @@ test('it carries input once it takes the session back from another connection', 
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const harness = new ImpHarness(
+  const harness = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-a',
@@ -471,7 +471,7 @@ test('it ends a harness whose imp booted cold with the cause of the first boot a
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const harness = new ImpHarness(
+  const harness = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-a',
@@ -523,7 +523,7 @@ test('it ends a harness without a boot id as ended with the cause unknown', asyn
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const harness = new ImpHarness(
+  const harness = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-a',
@@ -577,7 +577,7 @@ test('it ends with the kept exit code of its own generation when impd no longer 
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const harness = new ImpHarness(
+  const harness = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-a',
@@ -639,7 +639,7 @@ test('it ends with the kept exit code when the cold boots impd returns do not re
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const harness = new ImpHarness(
+  const harness = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-a',
@@ -698,7 +698,7 @@ test('it ends with the refusal message in the detail when impd refuses without a
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const harness = new ImpHarness(
+  const harness = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-a',
@@ -754,7 +754,7 @@ test('it redacts credential-shaped runs from a refusal message it shows', async 
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const harness = new ImpHarness(
+  const harness = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-a',
@@ -815,7 +815,7 @@ test('it redacts short credentials in URL, header, and authorization shapes it s
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const harness = new ImpHarness(
+  const harness = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-a',
@@ -877,7 +877,7 @@ test('it never sends a resume offset to a session whose agent carries none', asy
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const harness = new ImpHarness(
+  const harness = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-a',
@@ -946,7 +946,7 @@ test('it reports a harness whose imp another owner put to sleep as suspended, wi
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const harness = new ImpHarness(
+  const harness = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-a',
@@ -1026,7 +1026,7 @@ test('it confirms the exit of a killed harness once impd reports its process exi
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const harness = new ImpHarness(
+  const harness = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-a',
@@ -1069,7 +1069,7 @@ test('it reports no exit for a running harness whose wait runs out', async () =>
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const harness = new ImpHarness(
+  const harness = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-a',
@@ -1110,7 +1110,7 @@ test('it reports no exit for a harness whose imp went to sleep with the process 
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const harness = new ImpHarness(
+  const harness = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-a',
@@ -1155,7 +1155,7 @@ test('it counts connections impd drops before they start, and ends once its reco
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const harness = new ImpHarness(
+  const harness = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-a',
@@ -1212,7 +1212,7 @@ test('it ends once its reconnects run out when a listener throws on every connec
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const harness = new ImpHarness(
+  const harness = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-a',
@@ -1274,7 +1274,7 @@ test('it starts at the size a resize asked for while its host was still readying
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const harness = new ImpHarness(
+  const harness = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-a',
@@ -1332,7 +1332,7 @@ test('it applies a resize that arrived before impd answered the start', async ()
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const harness = new ImpHarness(
+  const harness = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-a',
@@ -1384,7 +1384,7 @@ test('it settles its start once impd starts the process', async () => {
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const harness = new ImpHarness(
+  const harness = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-a',
@@ -1429,7 +1429,7 @@ test('it rejects its start as broker_not_ready and ends without running when imp
 
   await ctx.port.createImp({ name: 'imp-b' });
 
-  const harness = new ImpHarness(
+  const harness = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-b',
@@ -1492,7 +1492,7 @@ test('it sends no requirements on the attach that reconnects a harness whose sta
 
   const attachments: HarnessAttachment[] = [];
 
-  const harness = new ImpHarness(
+  const harness = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-b',
@@ -1558,7 +1558,7 @@ test('it starts a harness that drops CAP_SYS_ADMIN after its capability check ti
 
   ctx.port.setExecCheckFailures(1);
 
-  const harness = new ImpHarness(
+  const harness = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-b',
@@ -1593,7 +1593,7 @@ test('it refuses a harness whose admission check throws as its connection opens,
 
   await ctx.port.createImp({ name: 'imp-b' });
 
-  const harness = new ImpHarness(
+  const harness = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-b',
@@ -1643,7 +1643,7 @@ test('it sends the start of a harness whose admission check passes as its connec
   await ctx.port.createImp({ name: 'imp-b' });
   await ctx.port.createGrant('imp-b', 'glm');
 
-  const harness = new ImpHarness(
+  const harness = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-b',
@@ -1710,7 +1710,7 @@ test('it refuses the attach that reconnects a brokered harness once its admissio
     { host: 's2', state: 'revoked' },
   );
 
-  const harness = new ImpHarness(
+  const harness = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-b',
@@ -1811,7 +1811,7 @@ test('it closes the attach that reconnects a brokered harness unsent when a revo
     ),
   ];
 
-  const harness = new ImpHarness(
+  const harness = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-b',
@@ -1890,7 +1890,7 @@ test('it releases the admission ticket of each connection that fails before it o
 
   const released = new Set<LaunchTicket>();
 
-  const harness = new ImpHarness(
+  const harness = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-b',
@@ -1950,7 +1950,7 @@ test('it releases the admission ticket of a connection whose opening throws, unc
   const check = mock(() => null);
   const release = mock<() => void>();
 
-  const harness = new ImpHarness(
+  const harness = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-b',
@@ -1991,7 +1991,7 @@ test('it settles a start that impd answers by attaching to the running process a
 
   await ctx.port.createImp({ name: 'imp-b' });
 
-  const first = new ImpHarness(
+  const first = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-b',
@@ -2017,7 +2017,7 @@ test('it settles a start that impd answers by attaching to the running process a
 
   first.detach();
 
-  const second = new ImpHarness(
+  const second = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-b',
@@ -2049,7 +2049,7 @@ test('it tells its host the harness is done only after every exit listener has r
 
   const order: string[] = [];
 
-  const harness = new ImpHarness(
+  const harness = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-b',
@@ -2086,7 +2086,7 @@ test('it tells its host the harness is done once when the daemon lets go of it, 
 
   const order: string[] = [];
 
-  const harness = new ImpHarness(
+  const harness = createImpHarness(
     ctx.port,
     buildMockImpSessionRequest({
       name: 'imp-b',

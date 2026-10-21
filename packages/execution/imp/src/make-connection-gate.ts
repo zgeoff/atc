@@ -1,6 +1,6 @@
 import type { LaunchTicket } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
-import type { ImpHarnessState } from './imp-harness-state';
+import type { ImpHarnessState } from './create-imp-harness-state';
 import type { ImpSessionRequest } from './imp-port';
 
 // What a connection's gate needs of the harness whose request it guards.

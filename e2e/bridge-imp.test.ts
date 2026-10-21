@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
-import { ImpProvider } from '@atc/execution-imp';
+import { createImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/testing';
 import { createClaudeAdapter } from '@atc/harness-claude';
 import { openBridgeSocket, sendBridgeRequest } from '@atc/protocol/session';
@@ -40,7 +40,7 @@ async function setupTest() {
           kind: 'imp',
           options: {},
           identity: 'imp:test',
-          provider: new ImpProvider(
+          provider: createImpProvider(
             port,
             { guestDir, guestATC: clis.atc },
             {

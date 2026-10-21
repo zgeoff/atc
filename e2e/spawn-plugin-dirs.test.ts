@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { LOCAL_TARGET, parseConfig } from '@atc/config';
-import { ImpProvider } from '@atc/execution-imp';
+import { createImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/testing';
 import { createLocalPTYProvider } from '@atc/execution-local';
 import { buildTargetIdentity } from '@atc/store';
@@ -522,7 +522,7 @@ test('it refuses plugin folders on a target that runs the agent on another machi
           kind: 'imp',
           options: {},
           identity: 'imp:test',
-          provider: new ImpProvider(
+          provider: createImpProvider(
             createStubImpPort(),
             { guestDir: join(paths.directory, 'g') },
             { reconnectDelaysMs: [0, 0, 0], version: '1.0.0' },
@@ -571,7 +571,7 @@ test("it refuses a spawn on a target that runs the agent on another machine when
           kind: 'imp',
           options: {},
           identity: 'imp:test',
-          provider: new ImpProvider(
+          provider: createImpProvider(
             port,
             { guestDir: join(paths.directory, 'g') },
             { reconnectDelaysMs: [0, 0, 0], version: '1.0.0' },

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
 import { toSessionID } from '@atc/core';
 import type { RestoreSettled } from '@atc/daemon';
-import { ImpProvider } from '@atc/execution-imp';
+import { createImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/testing';
 import { createLocalPTYProvider } from '@atc/execution-local';
 import { createStateStore } from '@atc/store';
@@ -25,7 +25,7 @@ function setupTest() {
   const port = createStubImpPort();
   const settles: RestoreSettled[] = [];
 
-  const box = new ImpProvider(
+  const box = createImpProvider(
     port,
     { guestDir: join(temporaryDirectory.path, 'g') },
     { atcBinary: null, version: '1.0.0' },
