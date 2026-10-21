@@ -142,13 +142,35 @@ test('it refuses a peer handshake that speaks another protocol and ends the conn
   expect(refused).rejects.toMatchObject({
     code: 'protocol_mismatch',
     message:
-      'atc/old speaks protocol v1, daemon atc/test speaks v8; restart the daemon so both run the same build',
+      'atc/old speaks protocol v1, daemon atc/test speaks v8; update or reopen the client so both run the same build',
+    data: { daemonProtocol: 8 },
   });
 
   await refused.catch(() => {});
 
   await waitFor(() => {
     expect(client.isClosed()).toBeTrue();
+  });
+});
+
+test('it tells a peer client on a later protocol to restart the daemon', async () => {
+  const ctx = setupTest();
+
+  startConnectionListener(ctx.socketPath, buildStubDaemonContext());
+
+  const client = await openDaemonClient(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  expect(
+    client.sendRequest('daemon.hello', { client: 'atc/new', protocol: 9 }),
+  ).rejects.toMatchObject({
+    code: 'protocol_mismatch',
+    message:
+      'atc/new speaks protocol v9, daemon atc/test speaks v8; restart the daemon so both run the same build',
+    data: { daemonProtocol: 8 },
   });
 });
 

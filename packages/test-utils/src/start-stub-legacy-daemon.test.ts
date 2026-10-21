@@ -140,6 +140,24 @@ test('it refuses a hello on another protocol version with protocol_mismatch', as
     code: 'protocol_mismatch',
     message:
       'atc/test-build speaks protocol v8, daemon atc/legacy-build speaks v3; restart the daemon so both run the same build',
+    data: undefined,
+  });
+});
+
+test('it puts its protocol version in the refusal data when told to', async () => {
+  const ctx = setupTest();
+
+  startStubLegacyDaemon(ctx.socketPath, { protocol: 3, refusalHoldsProtocol: true });
+
+  const client = await openDaemonClient(ctx.socketPath);
+
+  registerTestCleanup(() => {
+    client.stop();
+  });
+
+  expect(client.sendHello('atc/test-build')).rejects.toMatchObject({
+    code: 'protocol_mismatch',
+    data: { daemonProtocol: 3 },
   });
 });
 

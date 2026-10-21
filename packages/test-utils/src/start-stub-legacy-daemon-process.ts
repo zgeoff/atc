@@ -2,12 +2,12 @@ import { join } from 'node:path';
 import { registerTestCleanup } from './register-test-cleanup';
 
 // Runs the legacy daemon in a process of its own, which a client can signal
-// by the pid it records, and resolves once it listens; with 'line' it speaks
-// an older release's line protocol, and the test's cleanup kills it.
+// by the pid it records, and resolves once it listens; the test's cleanup
+// kills it.
 export async function startStubLegacyDaemonProcess(
   socketPath: string,
   stateDir: string,
-  build?: 'line',
+  build?: 'line' | 'newer',
 ) {
   const daemon = Bun.spawn(
     [

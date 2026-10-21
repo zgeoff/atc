@@ -1,5 +1,5 @@
 import type { SessionID } from '@atc/core';
-import type { DaemonAnswer, RequestParams } from '@atc/protocol';
+import type { DaemonAnswer, MismatchRefusalData, RequestParams } from '@atc/protocol';
 import {
   DEFAULT_QUEUE_BYTES,
   DaemonError,
@@ -359,7 +359,12 @@ export class DaemonConnection {
   }
 
   private formatMismatch(client: string, protocol: number | undefined): string {
-    return `${client} speaks protocol v${protocol ?? 'unknown'}, daemon ${this.ctx.build} speaks v${PROTOCOL_V}; restart the daemon so both run the same build`;
+    const remedy =
+      protocol !== undefined && protocol < PROTOCOL_V
+        ? 'update or reopen the client'
+        : 'restart the daemon';
+
+    return `${client} speaks protocol v${protocol ?? 'unknown'}, daemon ${this.ctx.build} speaks v${PROTOCOL_V}; ${remedy} so both run the same build`;
   }
 
   // Makes the connection act as the principal, its view starting as the
@@ -586,6 +591,7 @@ export class DaemonConnection {
         throw new DaemonError(
           'protocol_mismatch',
           this.formatMismatch(input.client, input.protocol),
+          { daemonProtocol: PROTOCOL_V } satisfies MismatchRefusalData,
         );
       }
 
