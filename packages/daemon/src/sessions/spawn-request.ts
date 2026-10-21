@@ -1,7 +1,7 @@
 import type { AgentID, AgentSessionID, SessionID, StepTimer } from '@atc/core';
 import type { AgentAdapter, ExecutionProvider, SpawnOverrides } from '@atc/plugin-api';
 import type { DeclaredScope } from '@atc/protocol';
-import type { AuthSetup } from '../auth/auth-setup';
+import type { AuthSetup } from '../auth/create-auth-setup';
 import type { Session } from './session';
 import type { SessionRegistry } from './session-registry';
 import type { SpawnMaterializer } from './spawn-materializer';

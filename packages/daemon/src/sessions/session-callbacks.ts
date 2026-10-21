@@ -1,7 +1,7 @@
 import type { Clock, SessionID } from '@atc/core';
 import type { AgentAdapter, HarnessRelay, SpawnOptions, SpawnPlan } from '@atc/plugin-api';
+import type { RuntimeAuthBinder } from '../auth/create-runtime-auth-binder';
 import type { BridgeBinding } from '../auth/is-binding-current';
-import type { RuntimeAuthBinder } from '../auth/runtime-auth-binder';
 import type { PublishedRecords } from './published-records';
 import type { Session } from './session';
 import type { SessionEventKind } from './session-event-kind';

@@ -3,7 +3,7 @@ import type { HookPlan } from '@atc/plugin-api';
 import type { AdapterEvent } from '@atc/protocol';
 import type { HookEvent } from '@atc/protocol/session';
 import { match } from 'ts-pattern';
-import type { SessionFleetWriter } from '../fleet/session-fleet-writer';
+import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import type { Session } from './session';
 import type { SessionCallbacks } from './session-callbacks';
 import type { SessionRegistry } from './session-registry';

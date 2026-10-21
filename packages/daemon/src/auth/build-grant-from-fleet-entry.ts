@@ -1,7 +1,7 @@
 import { LOCAL_TARGET } from '@atc/config';
 import { buildTargetIdentity } from '@atc/store';
 import type { FleetEntry } from '@atc/store';
-import type { TargetGrant } from './target-access';
+import type { TargetGrant } from './build-target-access-from-grants';
 
 export function buildGrantFromFleetEntry(entry: FleetEntry): TargetGrant {
   return {

@@ -1,5 +1,5 @@
 import type { SessionID } from '@atc/core';
-import type { TargetAccess, TargetGrant } from './target-access';
+import type { TargetAccess, TargetGrant } from './build-target-access-from-grants';
 
 // A session as the tree check reads it: its id, its parent if it has one,
 // and the target it is bound to.

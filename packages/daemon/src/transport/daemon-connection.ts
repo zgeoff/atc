@@ -16,8 +16,9 @@ import type { EncodedMessage } from '@orpc/standard-server-peer';
 import { createActor, waitFor } from 'xstate';
 import type { Actor, EventFromLogic } from 'xstate';
 import { buildScopedContext } from '../auth/build-scoped-context';
+import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
+import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import { isOwnerOnlyMethod } from '../auth/is-owner-only-method';
-import { TargetAccess } from '../auth/target-access';
 import type { DaemonContext } from '../daemon-context';
 import { answerPeerRequest } from './answer-peer-request';
 import { buildConnectionRequests } from './build-connection-requests';
@@ -147,7 +148,7 @@ export class DaemonConnection {
     // A TCP connection acts only as the principals its requests give, so
     // the events pushed to it are limited from the first byte.
     if (tcp !== null) {
-      this.access = new TargetAccess([]);
+      this.access = buildTargetAccessFromGrants([]);
     }
   }
 
@@ -541,7 +542,7 @@ export class DaemonConnection {
       // A subscription delivers only what the connection's own view admits,
       // so over TCP it needs no principal of its own.
       if (this.tcp !== null && method === 'events.subscribe' && as === null) {
-        const access = this.access ?? new TargetAccess([]);
+        const access = this.access ?? buildTargetAccessFromGrants([]);
         const ctx = buildScopedContext(this.ctx, access, 'client:events');
 
         return this.buildProcedureContext(ctx, null);

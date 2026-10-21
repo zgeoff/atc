@@ -5,9 +5,9 @@ import { pick } from '@zgeoff/std';
 import type { DaemonContext } from '../daemon-context';
 import type { KeyedRequest } from '../transport/idempotency-ledger';
 import { buildGrantFromFleetEntry } from './build-grant-from-fleet-entry';
+import type { TargetAccess, TargetGrant } from './build-target-access-from-grants';
 import { buildTargetForbiddenError } from './build-target-forbidden-error';
 import { CONTEXT_MEMBER_SCOPES } from './context-member-scopes';
-import type { TargetAccess, TargetGrant } from './target-access';
 
 type ContextMemberScopes = typeof CONTEXT_MEMBER_SCOPES;
 

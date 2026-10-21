@@ -18,8 +18,8 @@ import type {
 } from '@atc/protocol';
 import type { EventMsg } from '@atc/protocol/wire';
 import type { FleetEntry, MessageRecord, TurnSibling } from '@atc/store';
-import type { AuthRebound } from './auth/auth-setup';
-import type { TargetAccess, TargetGrant } from './auth/target-access';
+import type { TargetAccess, TargetGrant } from './auth/build-target-access-from-grants';
+import type { AuthRebound } from './auth/create-auth-setup';
 import type { FleetEvent } from './fleet/build-fleet-events';
 import type { TargetEntry } from './fleet/build-target-list';
 import type { MenuChoice, MenuChoiceResult } from './sessions/apply-menu-choice';

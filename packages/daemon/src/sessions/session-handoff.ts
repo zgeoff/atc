@@ -1,6 +1,6 @@
 import type { SessionID } from '@atc/core';
+import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import { isTreeInReach } from '../auth/is-tree-in-reach';
-import type { TargetAccess } from '../auth/target-access';
 import { hasResumableTranscript } from './has-resumable-transcript';
 import { requireSessionPluginDirs } from './require-session-plugin-dirs';
 import { runEjectHandoff } from './run-eject-handoff';

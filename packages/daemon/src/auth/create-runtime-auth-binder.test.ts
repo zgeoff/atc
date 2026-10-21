@@ -14,7 +14,7 @@ import { buildStubBinderBroker } from '../testing/build-stub-binder-broker';
 import { buildStubCredentialBroker } from '../testing/build-stub-credential-broker';
 import { buildStubPregrantedBrokerHost } from '../testing/build-stub-pregranted-broker-host';
 import { buildAuthBinding } from './build-auth-binding';
-import { RuntimeAuthBinder } from './runtime-auth-binder';
+import { createRuntimeAuthBinder } from './create-runtime-auth-binder';
 
 // a binder over a real state store, a broker that refuses grants as impd does behind the imp
 // provider, and a broker stand-in that enforces no authority for the contract's own guarantees
@@ -32,7 +32,7 @@ async function setupTest() {
     store,
     host: buildStubBinderBroker('atc-'),
     broker: buildStubCredentialBroker('atc-'),
-    binder: new RuntimeAuthBinder(store),
+    binder: createRuntimeAuthBinder(store),
   };
 }
 

@@ -4,9 +4,9 @@ import { SPAWN_ANSWER_SCHEMA } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
 import type { IdempotencyRecord, StateStore } from '@atc/store';
 import { buildGrantFromFleetEntry } from '../auth/build-grant-from-fleet-entry';
+import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import { buildTargetForbiddenError } from '../auth/build-target-forbidden-error';
 import { isTreeInReach } from '../auth/is-tree-in-reach';
-import type { TargetAccess } from '../auth/target-access';
 import type { SessionManager } from './sessions';
 
 interface SpawnReplayDeps {

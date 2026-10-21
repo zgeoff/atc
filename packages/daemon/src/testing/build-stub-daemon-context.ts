@@ -1,5 +1,5 @@
 import { toDaemonID } from '@atc/core';
-import { TargetAccess } from '../auth/target-access';
+import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
 import type { DaemonContext } from '../daemon-context';
 
 export function buildStubDaemonContext(overrides: Partial<DaemonContext> = {}): DaemonContext {
@@ -14,7 +14,7 @@ export function buildStubDaemonContext(overrides: Partial<DaemonContext> = {}): 
     readFleet: () => Promise.resolve([]),
     loadLastUsedAgent: () => Promise.resolve('claude'),
     findAdapter: makeUnreached('findAdapter'),
-    buildTargetAccess: () => new TargetAccess([]),
+    buildTargetAccess: () => buildTargetAccessFromGrants([]),
     hasListedPrincipal: makeUnreached('hasListedPrincipal'),
     findSessionGrant: () => ({ target: 'local', targetIdentity: 'local-pty' }),
     findTargetIdentity: makeUnreached('findTargetIdentity'),

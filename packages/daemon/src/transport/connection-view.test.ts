@@ -3,7 +3,7 @@ import { toSessionID } from '@atc/core';
 import type { SessionID } from '@atc/core';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { buildMockSessionDescriptor } from '@atc/test-utils';
-import { TargetAccess } from '../auth/target-access';
+import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
 import { ConnectionView } from './connection-view';
 
 // A view over a fleet the test edits: the sessions the daemon holds, and
@@ -19,7 +19,7 @@ function setupTest() {
     collectSessions: () => [...held].map((id) => buildMockSessionDescriptor({ id })),
   });
 
-  return { held, reached, view, access: new TargetAccess([]) };
+  return { held, reached, view, access: buildTargetAccessFromGrants([]) };
 }
 
 test('it sends the event of a session in reach', () => {

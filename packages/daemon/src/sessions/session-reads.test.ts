@@ -5,7 +5,7 @@ import type { AgentAdapter } from '@atc/plugin-api';
 import { createStateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/testing';
 import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
-import { TargetAccess } from '../auth/target-access';
+import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
@@ -133,7 +133,9 @@ test('it counts only the own trail rows of the session under an access', async (
     1_700_000_000_000,
   );
 
-  const access = new TargetAccess([{ target: 'local', targetIdentity: 'local-pty:test' }]);
+  const access = buildTargetAccessFromGrants([
+    { target: 'local', targetIdentity: 'local-pty:test' },
+  ]);
 
   const record = await ctx.reads.readSessionRecord(session.id, access);
 

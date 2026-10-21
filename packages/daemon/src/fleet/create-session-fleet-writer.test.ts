@@ -14,7 +14,7 @@ import {
 } from '@atc/test-utils';
 import { SessionRegistry } from '../sessions/session-registry';
 import { buildMockSession } from '../testing/build-mock-session';
-import { SessionFleetWriter } from './session-fleet-writer';
+import { createSessionFleetWriter } from './create-session-fleet-writer';
 
 // A real state store, an empty registry the test fills with sessions, a
 // recorder of logged lines, and the writer over all three.
@@ -40,7 +40,7 @@ async function setupTest() {
 
   const statusPath = join(temporaryDirectory.path, 'status.json');
 
-  const writer = new SessionFleetWriter({
+  const writer = createSessionFleetWriter({
     registry,
     store,
     statusPath,

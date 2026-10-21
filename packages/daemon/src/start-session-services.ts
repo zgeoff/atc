@@ -4,12 +4,14 @@ import { parseRestoreBootTimeoutMs } from '@atc/config';
 import type { Clock, SessionID } from '@atc/core';
 import type { EventMsg } from '@atc/protocol/wire';
 import type { StateStore } from '@atc/store';
-import { RuntimeAuthBinder } from './auth/runtime-auth-binder';
+import { createRuntimeAuthBinder } from './auth/create-runtime-auth-binder';
+import type { RuntimeAuthBinder } from './auth/create-runtime-auth-binder';
 import { tryReconcileAuthBindings } from './auth/try-reconcile-auth-bindings';
 import type { TapClient } from './daemon-context';
 import type { DaemonOptions } from './daemon-options';
 import type { ExecutionTarget } from './fleet/build-execution-targets';
-import { FleetRestorer } from './fleet/fleet-restorer';
+import { createFleetRestorer } from './fleet/create-fleet-restorer';
+import type { FleetRestorer } from './fleet/create-fleet-restorer';
 import { ConfirmTokens } from './sessions/confirm-tokens';
 import { HookIntake } from './sessions/hook-intake';
 import { startHookServer } from './sessions/hooks';
@@ -31,7 +33,8 @@ import { startBridgeRevival } from './sessions/start-bridge-revival';
 import type { BridgeRevival } from './sessions/start-bridge-revival';
 import { startHeadlessTurn } from './sessions/start-headless-turn';
 import type { TapRegistry } from './sessions/tap-registry';
-import { SpawnCatalog } from './sources/spawn-catalog';
+import { createSpawnCatalog } from './sources/create-spawn-catalog';
+import type { SpawnCatalog } from './sources/create-spawn-catalog';
 import type { EventSignal } from './transport/event-signal';
 import { EventTrail } from './transport/event-trail';
 import { IdempotencyLedger } from './transport/idempotency-ledger';
@@ -120,7 +123,7 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
 
   manager.records = records;
 
-  const authBinder = new RuntimeAuthBinder(store, () => clock.now());
+  const authBinder = createRuntimeAuthBinder(store, () => clock.now());
 
   manager.authBinder = authBinder;
 
@@ -268,7 +271,7 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
     }),
   });
 
-  const catalog = new SpawnCatalog({
+  const catalog = createSpawnCatalog({
     manager,
     store,
     build: opts.build,
@@ -280,7 +283,7 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
     gitTransports,
   });
 
-  const restorer = new FleetRestorer({
+  const restorer = createFleetRestorer({
     manager,
     store,
     clock,

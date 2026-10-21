@@ -1,5 +1,5 @@
 import type { SessionID } from '@atc/core';
-import type { SessionFleetWriter } from '../fleet/session-fleet-writer';
+import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import type { SessionCallbacks } from './session-callbacks';
 import type { SessionChanges } from './session-changes';
 import type { SessionRegistry } from './session-registry';

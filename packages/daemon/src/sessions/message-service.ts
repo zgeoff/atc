@@ -12,8 +12,8 @@ import type {
   StateStore,
   TrailEntry,
 } from '@atc/store';
+import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import { isTreeInReach } from '../auth/is-tree-in-reach';
-import type { TargetAccess } from '../auth/target-access';
 import type { DaemonContext, MessageRefusal, TapClient } from '../daemon-context';
 import type { EventSignal } from '../transport/event-signal';
 import type { IdempotencyLedger, KeyedRequest } from '../transport/idempotency-ledger';
