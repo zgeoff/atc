@@ -60,8 +60,8 @@ the rest, and `?` for every other key.
   OAuth, with the scopes you approve ([remote MCP](./docs/guides/remote-mcp.md)).
 - **Several machines.** atc-gateway serves the fleets of several daemons through one connector
   ([gateway](./docs/guides/gateway.md)).
-- **Sessions on imps.** A session can run in its own VM, sleeping when you kill it and waking where
-  it left off ([targets](./docs/guides/configuration/targets.md)).
+- **Session sandboxing.** A session can run in its own VM, sleeping when you kill it and waking
+  where it left off ([targets](./docs/guides/configuration/targets.md)).
 - **Event stream.** `atc events` prints every fleet event, and `config.json` hooks run your own
   commands on them ([events](./docs/guides/events.md)).
 
