@@ -2,7 +2,8 @@ import type { AgentID, Clock } from '@atc/core';
 import type { DaemonBoot, DaemonEvent } from '@atc/protocol';
 import type { DaemonClient } from '@atc/protocol/client';
 import { DaemonError } from '@atc/protocol/wire';
-import { DaemonTransport } from '@atc/protocol/wire/transport';
+import { createDaemonTransport } from '@atc/protocol/wire/transport';
+import type { DaemonTransport } from '@atc/protocol/wire/transport';
 import type { ClientActor, ClientMode } from './build-client-machine';
 import type { FleetMirror } from './fleet-mirror';
 import type { OverlayScreen } from './overlay-screen';
@@ -51,7 +52,7 @@ export class DaemonConnection {
   constructor(deps: DaemonConnectionDeps) {
     this.deps = deps;
 
-    this.transport = new DaemonTransport<DaemonLink>({
+    this.transport = createDaemonTransport<DaemonLink>({
       reconnect: 'always',
       backoffMs: [0, 200, 1000, 2000],
       clock: deps.clock,

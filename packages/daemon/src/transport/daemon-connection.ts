@@ -3,13 +3,13 @@ import type { DaemonAnswer, MismatchRefusalData, RequestParams } from '@atc/prot
 import {
   DEFAULT_QUEUE_BYTES,
   DaemonError,
-  LineDecoder,
   MAX_CHUNK,
   MAX_LINE,
-  OutboundQueue,
   PROTOCOL_V,
+  createLineDecoder,
+  createOutboundQueue,
 } from '@atc/protocol/wire';
-import type { EventMsg, SocketWriter } from '@atc/protocol/wire';
+import type { EventMsg, OutboundQueue, SocketWriter } from '@atc/protocol/wire';
 import type { StandardRequest, StandardResponse } from '@orpc/standard-server';
 import { ServerPeer } from '@orpc/standard-server-peer';
 import type { EncodedMessage } from '@orpc/standard-server-peer';
@@ -54,7 +54,7 @@ export class DaemonConnection {
 
   private readonly queue: OutboundQueue;
 
-  private readonly lines = new LineDecoder();
+  private readonly lines = createLineDecoder();
 
   // Where the connection stands, from its handshake to its close; its
   // events and requests flow only while it is open.
@@ -129,8 +129,8 @@ export class DaemonConnection {
     };
 
     this.view = new ConnectionView(ctx);
-    this.queue = new OutboundQueue(peer, ctx.queueBytes);
 
+    this.queue = createOutboundQueue(peer, ctx.queueBytes);
     this.requests = buildConnectionRequests({ client: this, ctx, identity: this.identity });
 
     this.feed = createEventFeed({

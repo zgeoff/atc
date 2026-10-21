@@ -1,9 +1,8 @@
 import { expect, test } from 'bun:test';
-import { LineDecoder } from './line-decoder';
+import { createLineDecoder } from './create-line-decoder';
 
 test('it holds a line split across chunks until its newline arrives', () => {
-  const decoder = new LineDecoder();
-
+  const decoder = createLineDecoder();
   const first = decoder.splitText('{"id":1,');
   const second = decoder.splitText('"m":"x"}\n');
 
@@ -12,8 +11,7 @@ test('it holds a line split across chunks until its newline arrives', () => {
 });
 
 test('it returns every whole line of a chunk in order and keeps the unterminated tail', () => {
-  const decoder = new LineDecoder();
-
+  const decoder = createLineDecoder();
   const lines = decoder.splitText('{"a":1}\n{"b":2}\n{"c":');
 
   expect(lines).toStrictEqual(['{"a":1}', '{"b":2}']);
@@ -21,19 +19,20 @@ test('it returns every whole line of a chunk in order and keeps the unterminated
 });
 
 test('it drops empty and whitespace-only lines', () => {
-  const decoder = new LineDecoder();
+  const decoder = createLineDecoder();
 
   expect(decoder.splitText('\n  \n{"a":1}\n\t\n\n')).toStrictEqual(['{"a":1}']);
 });
 
 test('it keeps a carriage return before the newline on the line', () => {
-  const decoder = new LineDecoder();
+  const decoder = createLineDecoder();
 
   expect(decoder.splitText('{"a":1}\r\n')).toStrictEqual(['{"a":1}\r']);
 });
 
 test('it decodes a multi-byte character split across two reads whole', () => {
-  const decoder = new LineDecoder();
+  const decoder = createLineDecoder();
+
   const bytes = new TextEncoder().encode('{"t":"é✓"}\n');
 
   const first = decoder.splitChunk(bytes.subarray(0, 7));
@@ -44,7 +43,7 @@ test('it decodes a multi-byte character split across two reads whole', () => {
 });
 
 test('it counts the buffered tail so a caller can refuse a line over its limit', () => {
-  const decoder = new LineDecoder();
+  const decoder = createLineDecoder();
 
   decoder.splitText(`{"pad":"${'x'.repeat(1000)}`);
 
@@ -52,7 +51,7 @@ test('it counts the buffered tail so a caller can refuse a line over its limit',
 });
 
 test('it leaves nothing buffered after a chunk that ends on a newline', () => {
-  const decoder = new LineDecoder();
+  const decoder = createLineDecoder();
 
   decoder.splitText(`{"pad":"${'x'.repeat(1000)}"}\n`);
 

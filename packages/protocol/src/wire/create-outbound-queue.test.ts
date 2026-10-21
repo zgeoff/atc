@@ -4,7 +4,8 @@ import { connect } from 'node:net';
 import { join } from 'node:path';
 import { registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
 import type { Socket } from 'bun';
-import { OutboundQueue } from './outbound-queue';
+import { createOutboundQueue } from './create-outbound-queue';
+import type { OutboundQueue } from './create-outbound-queue';
 
 // A Unix socket server and a paused client connected to it. The server's
 // drain callback flushes whatever queue the test hangs on the socket.
@@ -48,7 +49,7 @@ async function setupTest() {
 test('it parks what a paused reader cannot take instead of refusing it', async () => {
   const ctx = await setupTest();
 
-  const queue = new OutboundQueue(ctx.socket, 8 * 1024 * 1024);
+  const queue = createOutboundQueue(ctx.socket, 8 * 1024 * 1024);
 
   ctx.socket.data = { queue };
 
@@ -65,7 +66,7 @@ test('it parks what a paused reader cannot take instead of refusing it', async (
 test('it delivers every byte to a slow reader without loss', async () => {
   const ctx = await setupTest();
 
-  const queue = new OutboundQueue(ctx.socket, 8 * 1024 * 1024);
+  const queue = createOutboundQueue(ctx.socket, 8 * 1024 * 1024);
 
   ctx.socket.data = { queue };
 
@@ -103,7 +104,7 @@ test('it delivers every byte to a slow reader without loss', async () => {
 test('it queues the unwritten rest of a payload past its capacity', async () => {
   const ctx = await setupTest();
 
-  const queue = new OutboundQueue(ctx.socket, 64);
+  const queue = createOutboundQueue(ctx.socket, 64);
 
   ctx.socket.data = { queue };
 
@@ -118,7 +119,7 @@ test('it queues the unwritten rest of a payload past its capacity', async () => 
 test('it refuses a whole payload once the queue is over capacity', async () => {
   const ctx = await setupTest();
 
-  const queue = new OutboundQueue(ctx.socket, 64);
+  const queue = createOutboundQueue(ctx.socket, 64);
 
   ctx.socket.data = { queue };
 
@@ -138,7 +139,7 @@ test('it refuses a whole payload once the queue is over capacity', async () => {
 test('it preserves payload order across short writes and drains', async () => {
   const ctx = await setupTest();
 
-  const queue = new OutboundQueue(ctx.socket, 8 * 1024 * 1024);
+  const queue = createOutboundQueue(ctx.socket, 8 * 1024 * 1024);
 
   ctx.socket.data = { queue };
 

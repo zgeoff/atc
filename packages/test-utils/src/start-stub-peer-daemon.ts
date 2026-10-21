@@ -1,5 +1,6 @@
 import { isRecord } from '@atc/core';
-import { LineDecoder, PRINCIPAL_HEADERS } from '@atc/protocol/wire';
+import { PRINCIPAL_HEADERS, createLineDecoder } from '@atc/protocol/wire';
+import type { LineDecoder } from '@atc/protocol/wire';
 import { ORPCError } from '@orpc/client';
 import { StandardRPCJsonSerializer, StandardRPCSerializer } from '@orpc/client/standard';
 import type { StandardRequest, StandardResponse } from '@orpc/standard-server';
@@ -64,7 +65,7 @@ export function startStubPeerDaemon(
   const handlers: SocketHandler<StubPeerConnection> = {
     open(socket) {
       socket.data = {
-        lines: new LineDecoder(),
+        lines: createLineDecoder(),
 
         // The peer encodes every message as a JSON string.
         peer: new ServerPeer((message) => {

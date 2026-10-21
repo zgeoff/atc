@@ -1,6 +1,6 @@
 import { unlinkSync } from 'node:fs';
-import { OutboundQueue, encodeMessage } from '@atc/protocol/wire';
-import type { EventMsg } from '@atc/protocol/wire';
+import { createOutboundQueue, encodeMessage } from '@atc/protocol/wire';
+import type { EventMsg, OutboundQueue } from '@atc/protocol/wire';
 import { withOwnerOnlySocket } from './with-owner-only-socket';
 
 interface EventsServerOptions {
@@ -39,7 +39,7 @@ export function startEventsServer(opts: EventsServerOptions): EventsServer {
       socket: {
         open(socket) {
           const subscriber: Subscriber = {
-            queue: new OutboundQueue(socket, opts.queueBytes),
+            queue: createOutboundQueue(socket, opts.queueBytes),
             end: () => {
               socket.end();
             },

@@ -1,13 +1,13 @@
 import { expect, mock, test } from 'bun:test';
 import { buildStubClock, waitFor } from '@atc/test-utils';
-import { DaemonTransport } from './daemon-transport';
-import type { TransportChannel } from './daemon-transport';
+import { createDaemonTransport } from './create-daemon-transport';
+import type { TransportChannel } from './create-daemon-transport';
 
 test('it opens one connection for requests that wait together and hands each the same one', async () => {
   const channel = { onClose: () => {}, stop: mock() };
   const open = mock(() => Promise.resolve(channel));
 
-  const transport = new DaemonTransport({
+  const transport = createDaemonTransport({
     open,
     getChannel: (connection) => connection,
     reconnect: 'on-demand',
@@ -31,7 +31,7 @@ test('it rejects every request that waited on an on-demand open that failed and 
   open.mockImplementationOnce(() => Promise.reject(new Error('no daemon listens')));
   open.mockImplementationOnce(() => Promise.resolve(channel));
 
-  const transport = new DaemonTransport({
+  const transport = createDaemonTransport({
     open,
     getChannel: (connection) => connection,
     reconnect: 'on-demand',
@@ -54,7 +54,7 @@ test('it marks a connection lost once it closes and opens a fresh one for the ne
   open.mockImplementationOnce(() => Promise.resolve(first));
   open.mockImplementationOnce(() => Promise.resolve(second));
 
-  const transport = new DaemonTransport({
+  const transport = createDaemonTransport({
     open,
     getChannel: (connection) => connection,
     reconnect: 'on-demand',
@@ -82,7 +82,7 @@ test('it keeps a newer connection in place when the one it replaced closes late'
   open.mockImplementationOnce(() => Promise.resolve(first));
   open.mockImplementationOnce(() => Promise.resolve(second));
 
-  const transport = new DaemonTransport({
+  const transport = createDaemonTransport({
     open,
     getChannel: (connection) => connection,
     reconnect: 'on-demand',
@@ -114,7 +114,7 @@ test('it reconnects an always transport after the backoff its clock runs and rep
   open.mockImplementationOnce(() => Promise.resolve(first));
   open.mockImplementationOnce(() => Promise.resolve(second));
 
-  const transport = new DaemonTransport({
+  const transport = createDaemonTransport({
     open,
     getChannel: (connection) => connection,
     reconnect: 'always',
@@ -151,7 +151,7 @@ test('it waits longer after each failed always open in a row, keeps the last wai
   open.mockImplementationOnce(() => Promise.reject(new Error('daemon starting')));
   open.mockImplementationOnce(() => Promise.resolve(channel));
 
-  const transport = new DaemonTransport({
+  const transport = createDaemonTransport({
     open,
     getChannel: (connection) => connection,
     reconnect: 'always',
@@ -193,7 +193,7 @@ test('it waits longer after each failed always open in a row, keeps the last wai
 test('it closes for good and rejects the waiting request on a fatal open failure', async () => {
   const open = mock(() => Promise.reject(new Error('the daemon refused the token')));
 
-  const transport = new DaemonTransport<TransportChannel>({
+  const transport = createDaemonTransport<TransportChannel>({
     open,
     getChannel: (connection) => connection,
     reconnect: 'always',
@@ -211,7 +211,7 @@ test('it closes for good and rejects the waiting request on a fatal open failure
 test('it closes the open connection and rejects later requests once stopped', async () => {
   const channel = { onClose: () => {}, stop: mock() };
 
-  const transport = new DaemonTransport({
+  const transport = createDaemonTransport({
     open: () => Promise.resolve(channel),
     getChannel: (connection) => connection,
     reconnect: 'on-demand',
@@ -229,7 +229,7 @@ test('it closes a connection that finishes opening after the transport stopped',
   const channel = { onClose: () => {}, stop: mock() };
   const gate = Promise.withResolvers<typeof channel>();
 
-  const transport = new DaemonTransport({
+  const transport = createDaemonTransport({
     open: () => gate.promise,
     getChannel: (connection) => connection,
     reconnect: 'on-demand',
@@ -250,7 +250,7 @@ test('it closes a connection that finishes opening after the transport stopped',
 test('it counts a connection that ended before the transport followed it as lost at once', async () => {
   const channel = { onClose: () => {}, stop: mock(), isClosed: () => true };
 
-  const transport = new DaemonTransport({
+  const transport = createDaemonTransport({
     open: () => Promise.resolve(channel),
     getChannel: (connection) => connection,
     reconnect: 'on-demand',
@@ -266,7 +266,7 @@ test('it counts a connection that ended before the transport followed it as lost
 test('it keeps the latest connection after it is lost and holds none before the first opens', async () => {
   const channel = { onClose: () => {}, stop: mock() };
 
-  const transport = new DaemonTransport({
+  const transport = createDaemonTransport({
     open: () => Promise.resolve(channel),
     getChannel: (connection) => connection,
     reconnect: 'on-demand',
