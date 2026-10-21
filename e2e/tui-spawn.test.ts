@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { openDaemonClient } from '@atc/protocol/client';
 import {
@@ -25,7 +25,9 @@ test('it leaves an agent with no installed binary out of the picker', async () =
   ctx.reset();
   ctx.write('n');
 
-  await ctx.waitFor('spawn: agent');
+  // The agent step opens before the daemon lists the agents, so the menu is
+  // read once an agent it lists is drawn.
+  await ctx.waitFor('Grok');
 
   const menu = ctx.read();
 
@@ -37,12 +39,14 @@ test('it leaves an agent with no installed binary out of the picker', async () =
 test('it shows a refused spawn in the picker and keeps the entered prompt', async () => {
   const ctx = setupTest();
 
-  // A config that is not JSON drops the configured binaries, so the default
-  // claude resolves on PATH to the fake one, the only agent installed, and
-  // the daemon's target check is what refuses the spawn.
-  writeFileSync(ctx.configPath, '{ "targets": ');
-  mkdirSync(join(ctx.home, 'bin'));
-  symlinkSync(join(ctx.home, 'fake-claude'), join(ctx.home, 'bin', 'claude'));
+  // Claude is the only agent installed, and its plugin folder is missing, so
+  // the daemon lists it as able to start and refuses the spawn itself.
+  ctx.writeConfig({
+    agents: {
+      claude: { pluginDirs: [join(ctx.home, 'missing-plugins')] },
+      grok: { bin: join(ctx.home, 'missing-grok') },
+    },
+  });
 
   ctx.boot();
 
@@ -71,7 +75,7 @@ test('it shows a refused spawn in the picker and keeps the entered prompt', asyn
   ctx.reset();
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor('target_config_invalid: config file');
+  await ctx.waitFor('bad_args: plugin folder');
 
   const screen = ctx.read();
 

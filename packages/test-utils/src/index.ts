@@ -2,6 +2,7 @@ export * from './assert-contract-answer';
 export * from './assert-contract-event';
 export * from './build-mock-agent-adapter';
 export * from './build-mock-agent-entry';
+export * from './build-mock-agent-profile';
 export * from './build-mock-auth-profile';
 export * from './build-mock-host-services';
 export * from './build-mock-listed-agent';

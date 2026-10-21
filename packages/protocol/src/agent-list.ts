@@ -7,7 +7,7 @@ import { SPAWN_OPTION_SPEC_SCHEMA } from './spawn-option-spec';
 // some target can start is available.
 const SPAWN_OPTION_ENTRY_SCHEMA = SPAWN_OPTION_SPEC_SCHEMA.extend({ available: z.boolean() });
 
-const AGENT_ENTRY_SCHEMA = z.object({
+export const AGENT_ENTRY_SCHEMA = z.object({
   id: z.string(),
   label: z.string(),
   kind: z.string(),

@@ -13,6 +13,7 @@ import {
 } from '@atc/core';
 import type { GitRef, SourceEntry, SourceInterpretation, SourcePick } from '@atc/protocol';
 import {
+  AGENT_ENTRY_SCHEMA,
   GIT_REF_SCHEMA,
   SOURCE_CANDIDATE_SCHEMA,
   SOURCE_ENTRY_SCHEMA,
@@ -26,8 +27,6 @@ import { formatDir, formatDirName, pickMatches } from './dirs';
 import { KEY, planTextEdit } from './keys';
 import type { ListingCache } from './open-listing-cache';
 import { pickRefusalStep } from './pick-refusal-step';
-import { readAgentPicks } from './read-agent-picks';
-import type { AgentPick } from './read-agent-picks';
 import { resolveWorkspaceRoot } from './resolve-workspace-root';
 import { splitToWidth } from './split-to-width';
 import { cols, drawPicker, getPickerWidth } from './ui';
@@ -44,7 +43,7 @@ type PickerStep =
   | 'spawned';
 
 // The kinds of answer the flow can drop: each source's listing, each
-// request a step waits on, the daemon's targets and sources, and a remote
+// request a step waits on, the daemon's agents, targets, and sources, and the
 // daemon's path completions.
 export type DroppedAnswer =
   | 'listing'
@@ -53,7 +52,7 @@ export type DroppedAnswer =
   | 'interpret'
   | 'probe'
   | 'spawn'
-  | 'targets and sources';
+  | 'agent list';
 
 // What the flow borrows from the client that owns the screen, the daemon
 // connection and the fleet mirror.
@@ -107,7 +106,11 @@ export interface SpawnPickerDeps<TMirror> {
 
 const COMPLETION_DELAY_MS = 120;
 
-// One source `agents.list` returned, in the order the daemon offers them.
+interface AgentPick {
+  readonly agent: AgentID;
+  readonly label: string;
+}
+
 // One candidate `sources.list` returned.
 interface ListedCandidate {
   readonly label: string;
@@ -169,13 +172,16 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
   private selected = 0;
 
-  // The installed agents, collected each time the menu opens so a config
-  // edit or a fresh install lands without a client restart.
+  // The agents the daemon can start, read each time the menu opens so a
+  // config edit or a fresh install lands without a client restart, and the
+  // answer that listed them with the daemon's targets and sources.
   private picks: AgentPick[] = [];
 
-  // Whether the agent step waits on the daemon's targets and sources once
-  // an agent is chosen.
-  private sourcesPending = false;
+  private listed: Readonly<Record<string, unknown>> = {};
+
+  // What the agent step waits on, the daemon's agents or the first source's
+  // listing, or null when it waits on nothing.
+  private agentStepWait: string | null = null;
 
   // The directories the directory step lists, and the label each shows.
   private dirs: string[] = [];
@@ -306,12 +312,12 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     const config = loadConfig(SHIPPED_HARNESS_PLUGINS, this.deps.configPath);
 
-    this.picks = readAgentPicks(config);
+    this.picks = [];
+    this.listed = {};
     this.workspaces = config.workspaces;
     this.input = '';
     this.sources = [];
     this.sourceIndex = -1;
-    this.sourcesPending = false;
     this.target = null;
     this.targetGap = null;
     this.repo = null;
@@ -331,24 +337,55 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.destinationEdited = false;
     this.destinationRepoURL = null;
     this.autoDestination = null;
+    this.selected = 0;
+    this.agent = this.deps.getLastUsedAgent();
+    this.step = 'agent';
+    this.refusal = null;
+    this.pending = null;
 
-    // A last-used agent that is no longer installed is not in the menu, so
-    // the selection falls to the first one that is.
+    this.deps.write(ansi.clear);
+    void this.loadAgents();
+  }
+
+  private async loadAgents() {
+    const generation = this.generation;
+    let listed: Readonly<Record<string, unknown>> = {};
+    let failure: string | null = null;
+
+    this.agentStepWait = 'reading agents…';
+
+    this.render();
+
+    try {
+      listed = await this.deps.sendRequest('agents.list');
+    } catch (error) {
+      failure = formatError(error);
+    }
+
+    if (this.isStale(generation)) {
+      this.deps.onDropAnswer?.('agent list');
+
+      return;
+    }
+
+    this.agentStepWait = null;
+    this.listed = listed;
+    this.picks = collectAgentPicks(listed['agents']);
+
+    // A last-used agent the daemon cannot start is not in the menu, so the
+    // selection falls to the first one it can.
     this.selected = Math.max(
       0,
       this.picks.findIndex((pick) => pick.agent === this.deps.getLastUsedAgent()),
     );
 
     this.agent = this.picks[this.selected]?.agent ?? this.deps.getLastUsedAgent();
-    this.step = 'agent';
-    this.refusal = null;
-    this.pending = null;
 
-    this.deps.write(ansi.clear);
-
-    // One installed agent is no choice to make, so the flow goes on with it.
-    if (this.picks.length === 1) {
-      void this.openFirstSource();
+    if (failure !== null) {
+      this.deps.log?.(`agent list failed: ${failure}`);
+      this.refusal = `cannot read the agents: ${failure} · esc cancel`;
+    } else if (this.picks.length === 1) {
+      this.openFirstSource();
 
       return;
     }
@@ -387,11 +424,11 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       return;
     }
 
-    // The agent step waiting on the daemon's targets and sources takes Esc
-    // and the leader, and every other key waits for the answer.
+    // The agent step waiting on the daemon's agents takes Esc and the
+    // leader, and every other key waits for the answer.
     if (
       this.step === 'agent' &&
-      this.sourcesPending &&
+      this.agentStepWait !== null &&
       edit.kind !== 'cancel' &&
       edit.kind !== 'leader'
     ) {
@@ -470,14 +507,15 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     if (this.step === 'agent') {
       this.selected = Math.min(this.selected, this.picks.length - 1);
 
-      // An empty menu means every configured binary is missing, so the hint
-      // carries the fix instead of the movement keys.
+      // An empty menu means the daemon can start no configured agent, so the
+      // hint carries the fix instead of the movement keys.
       let hint = '↑↓ move · ⏎ select · esc cancel';
 
-      if (this.picks.length === 0) {
-        hint = 'no agent CLI found — set agents in config.json · esc cancel';
-      } else if (this.sourcesPending) {
-        hint = 'reading targets and sources… · esc cancel';
+      if (this.agentStepWait !== null) {
+        hint = `${this.agentStepWait} · esc cancel`;
+      } else if (this.picks.length === 0) {
+        hint =
+          'the daemon can start no agent — check agents and targets in config.json · esc cancel';
       }
 
       drawPicker(
@@ -958,7 +996,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       this.picks.findIndex((pick) => pick.agent === this.agent),
     );
 
-    this.sourcesPending = false;
+    this.agentStepWait = null;
     this.step = 'agent';
 
     this.deps.write(ansi.clear);
@@ -1014,7 +1052,8 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       }
 
       this.agent = pick.agent;
-      void this.openFirstSource();
+
+      this.openFirstSource();
 
       return;
     }
@@ -2049,26 +2088,11 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     return this.targets.filter((target) => findTargetRefusal(target, git) === null);
   }
 
-  // Reads the daemon's targets and sources once the agent is chosen, and
-  // opens the first source, or the first of directories for an adopt. With
-  // none to open, the agent step shows why.
-  private async openFirstSource() {
-    const generation = this.generation;
-    let listed: Readonly<Record<string, unknown>> = {};
-
-    this.sourcesPending = true;
-
-    this.render();
-
-    try {
-      listed = await this.deps.sendRequest('agents.list');
-    } catch {}
-
-    if (this.isStale(generation)) {
-      this.deps.onDropAnswer?.('targets and sources');
-
-      return;
-    }
+  // Takes the daemon's targets and sources for the chosen agent, and opens
+  // the first source, or the first of directories for an adopt. With none to
+  // open, the agent step shows why.
+  private openFirstSource() {
+    const listed = this.listed;
 
     // An agent that starts only behind impd's broker runs only on a target
     // that reaches the broker.
@@ -2097,12 +2121,12 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.sources = announced;
 
     if (announced.length > 0 && index !== -1) {
+      this.agentStepWait = 'reading sources…';
+
       this.openSource(index);
 
       return;
     }
-
-    this.sourcesPending = false;
 
     this.refusal =
       announced.length === 0
@@ -2367,6 +2391,16 @@ function buildProbedRepo(
     head: typeof answer['head'] === 'string' ? answer['head'] : null,
     refs: parseProbedRefs(answer['refs']),
   };
+}
+
+function collectAgentPicks(raw: unknown): AgentPick[] {
+  return collectParsed(raw, (entry) => {
+    const agent = AGENT_ENTRY_SCHEMA.safeParse(entry).data;
+
+    return agent !== undefined && agent.installed && agent.capabilities.spawn
+      ? { agent: agent.id, label: agent.label }
+      : undefined;
+  });
 }
 
 // Whether the daemon lists an agent as starting only behind impd's broker.

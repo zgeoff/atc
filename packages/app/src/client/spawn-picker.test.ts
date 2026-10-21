@@ -1,10 +1,11 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolveHomeDir } from '@atc/config/host';
 import { DaemonError } from '@atc/protocol/wire';
 import {
   KEYS,
+  buildMockListedAgent,
   buildMockSessionDescriptor,
   buildStubClock,
   buildStubDaemonRequests,
@@ -60,7 +61,7 @@ function setupTest() {
   };
 }
 
-test('it drops the target and source answer that arrives after esc leaves the agent step', async () => {
+test('it drops the agent list that arrives after esc leaves the agent step', async () => {
   const ctx = setupTest();
 
   const picker = new SpawnPicker({
@@ -69,24 +70,17 @@ test('it drops the target and source answer that arrives after esc leaves the ag
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: process.execPath },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
-  picker.applyKey(Buffer.from(KEYS.enter));
   picker.applyKey(Buffer.from(KEYS.esc));
 
   const renders = ctx.counts.renders;
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -101,7 +95,7 @@ test('it drops the target and source answer that arrives after esc leaves the ag
 
   expect(ctx.counts.exits).toBe(1);
   expect(ctx.counts.renders).toBe(renders);
-  expect(ctx.dropped).toStrictEqual(['targets and sources']);
+  expect(ctx.dropped).toStrictEqual(['agent list']);
   expect(ctx.daemon.collectSent('sources.list')).toStrictEqual([]);
 });
 
@@ -114,22 +108,16 @@ test('it refuses a spawn on a daemon that offers no sources', async () => {
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   const mark = ctx.terminal.countChunks();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -159,22 +147,16 @@ test('it refuses an adopt on a daemon that offers no source of directories', asy
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open(true);
 
   const mark = ctx.terminal.countChunks();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -204,20 +186,14 @@ test('it leaves the flow on esc from the refusal of a daemon that offers no sour
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -244,20 +220,14 @@ test('it drops a git listing that arrives after the leader leaves the flow', asy
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -294,20 +264,14 @@ test('it drops a directory listing that arrives after the leader leaves the flow
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -344,20 +308,14 @@ test('it drops a reading that arrives after the leader leaves the flow', async (
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -398,20 +356,14 @@ test('it drops a probe answer that arrives after esc cancels it and the leader l
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -454,20 +406,14 @@ test('it neither attaches nor draws a spawn that answers after esc stops waiting
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -506,20 +452,14 @@ test('it materializes a directory on the one target when that target is remote',
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'box',
@@ -561,20 +501,14 @@ test("it shows the daemon's pick for the destination of a repository on a remote
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'box',
@@ -617,20 +551,14 @@ test('it spawns a repository on a remote target with no destination typed and le
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'box',
@@ -687,20 +615,14 @@ test('it sends the directory of a directory spawn after a flow left a repository
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'box',
@@ -730,6 +652,11 @@ test('it sends the directory of a directory spawn after a flow left a repository
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'box',
@@ -771,20 +698,14 @@ test('it holds a session whose workspace left changes behind instead of attachin
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'box',
@@ -823,20 +744,14 @@ test('it attaches a held session whose workspace left changes behind on enter', 
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'box',
@@ -877,20 +792,14 @@ test('it shows the whole note of a workspace that left changes behind, wrapped t
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'box',
@@ -934,20 +843,14 @@ test('it leaves a session whose workspace left changes behind running when esc r
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'box',
@@ -1002,20 +905,14 @@ test('it attaches a session spawned without warnings at once', async () => {
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'box',
@@ -1048,20 +945,14 @@ test('it runs a directory in place on the one target when that target is local',
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -1102,20 +993,14 @@ test('it adopts in place on the one local target it offers', async () => {
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open(true);
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'box',
@@ -1163,21 +1048,18 @@ test('it offers an agent that takes the broker credential only the targets that 
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
-    agents: [{ id: 'claude', brokerAuth: true, brokerRequired: true }],
+    agents: [
+      buildMockListedAgent({
+        id: 'claude',
+        installed: true,
+        brokerAuth: true,
+        brokerRequired: true,
+        capabilities: { spawn: true },
+      }),
+    ],
     targets: [
       {
         id: 'local',
@@ -1227,21 +1109,18 @@ test('it offers an agent that takes no broker credential every target', async ()
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
-    agents: [{ id: 'claude', brokerAuth: false, brokerRequired: false }],
+    agents: [
+      buildMockListedAgent({
+        id: 'claude',
+        installed: true,
+        brokerAuth: false,
+        brokerRequired: false,
+        capabilities: { spawn: true },
+      }),
+    ],
     targets: [
       {
         id: 'local',
@@ -1291,21 +1170,18 @@ test('it offers every target to an agent whose broker credential is optional', a
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
-    agents: [{ id: 'claude', brokerAuth: true, brokerRequired: false }],
+    agents: [
+      buildMockListedAgent({
+        id: 'claude',
+        installed: true,
+        brokerAuth: true,
+        brokerRequired: false,
+        capabilities: { spawn: true },
+      }),
+    ],
     targets: [
       {
         id: 'local',
@@ -1355,21 +1231,17 @@ test('it offers every target to an agent that takes the broker credential withou
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
-    agents: [{ id: 'claude', brokerAuth: true }],
+    agents: [
+      buildMockListedAgent({
+        id: 'claude',
+        installed: true,
+        brokerAuth: true,
+        capabilities: { spawn: true },
+      }),
+    ],
     targets: [
       {
         id: 'local',
@@ -1419,20 +1291,14 @@ test('it lists a scope read from typed text once, on the target chosen after it'
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -1481,20 +1347,14 @@ test('it starts a new flow on the default target, not the one the last flow chos
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -1527,6 +1387,11 @@ test('it starts a new flow on the default target, not the one the last flow chos
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -1585,20 +1450,14 @@ test('it lists a git source again when the flow left it before its listing answe
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -1627,7 +1486,7 @@ test('it lists a git source again when the flow left it before its listing answe
   ]);
 });
 
-test('it reads the targets and sources at once when one agent is installed', () => {
+test('it asks the daemon for its agents as it opens', () => {
   const ctx = setupTest();
 
   const picker = new SpawnPicker({
@@ -1635,24 +1494,13 @@ test('it reads the targets and sources at once when one agent is installed', () 
     ptyRows: () => 24,
     getLastUsedAgent: () => 'claude',
   });
-
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
 
   picker.open();
 
   expect(ctx.daemon.collectSent('agents.list')).toStrictEqual([{}]);
 });
 
-test('it waits on the agent choice when more than one agent is installed', () => {
+test('it leaves an agent the daemon lists as not installed or unable to spawn out of the menu', async () => {
   const ctx = setupTest();
 
   const picker = new SpawnPicker({
@@ -1661,23 +1509,50 @@ test('it waits on the agent choice when more than one agent is installed', () =>
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: process.execPath },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
-  expect(ctx.daemon.collectSent('agents.list')).toStrictEqual([]);
+  const mark = ctx.terminal.countChunks();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({
+        id: 'claude',
+        label: 'Ready Claude',
+        installed: true,
+        capabilities: { spawn: true },
+      }),
+      buildMockListedAgent({
+        id: 'grok',
+        label: 'Missing Grok',
+        installed: false,
+        capabilities: { spawn: true },
+      }),
+      buildMockListedAgent({
+        id: 'codex',
+        label: 'Refused Codex',
+        installed: true,
+        capabilities: { spawn: false },
+      }),
+      buildMockListedAgent({
+        id: 'proxy',
+        label: 'Ready Proxy',
+        installed: true,
+        capabilities: { spawn: true },
+      }),
+    ],
+    targets: [],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  const shown = ctx.terminal.getTextSince(mark);
+
+  expect(shown).toInclude('Ready Claude');
+  expect(shown).toInclude('Ready Proxy');
+  expect(shown).not.toInclude('Missing Grok');
+  expect(shown).not.toInclude('Refused Codex');
 });
 
-test('it shows how to install an agent when none is installed', () => {
+test('it leaves out of the menu an agent entry the agent schema rejects', async () => {
   const ctx = setupTest();
 
   const picker = new SpawnPicker({
@@ -1686,24 +1561,46 @@ test('it shows how to install an agent when none is installed', () => {
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: 'no-claude' },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
-  expect(ctx.terminal.getText()).toInclude('no agent CLI found');
-  expect(ctx.daemon.collectSent('agents.list')).toStrictEqual([]);
+  const mark = ctx.terminal.countChunks();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({
+        id: 'claude',
+        label: 'Ready Claude',
+        installed: true,
+        capabilities: { spawn: true },
+      }),
+      {
+        ...buildMockListedAgent({
+          id: 'grok',
+          label: 'Garbled Grok',
+          installed: true,
+          capabilities: { spawn: true },
+        }),
+        installed: 'yes',
+      },
+      buildMockListedAgent({
+        id: 'proxy',
+        label: 'Ready Proxy',
+        installed: true,
+        capabilities: { spawn: true },
+      }),
+    ],
+    targets: [],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  const shown = ctx.terminal.getTextSince(mark);
+
+  expect(shown).toInclude('Ready Claude');
+  expect(shown).toInclude('Ready Proxy');
+  expect(shown).not.toInclude('Garbled Grok');
 });
 
-test('it reads the targets and sources once when enter repeats on the agent step', () => {
+test('it opens the first source without a menu when the daemon can start one agent', async () => {
   const ctx = setupTest();
 
   const picker = new SpawnPicker({
@@ -1712,23 +1609,88 @@ test('it reads the targets and sources once when enter repeats on the agent step
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: process.execPath },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok', installed: false, capabilities: { spawn: true } }),
+    ],
+    targets: [],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  expect(ctx.daemon.collectSent('sources.list')).toStrictEqual([{ source: 'dirs' }]);
+});
+
+test('it shows how to install an agent when the daemon can start none', async () => {
+  const ctx = setupTest();
+
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
 
   picker.open();
+
+  const mark = ctx.terminal.countChunks();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [buildMockListedAgent({ id: 'claude', installed: false })],
+    targets: [],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  expect(ctx.terminal.getTextSince(mark)).toInclude('the daemon can start no agent');
+  expect(ctx.daemon.collectSent('sources.list')).toStrictEqual([]);
+});
+
+test("it shows why the daemon's agent list failed in place of the menu", async () => {
+  const ctx = setupTest();
+
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  const mark = ctx.terminal.countChunks();
+
+  await ctx.daemon.refuse('agents.list', new DaemonError('internal', 'the config is unreadable'));
+
+  expect(ctx.terminal.getTextSince(mark)).toInclude(
+    'cannot read the agents: internal: the config is unreadable · esc cancel',
+  );
+});
+
+test('it lists the first source once when enter repeats on the agent step', async () => {
+  const ctx = setupTest();
+
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok', installed: true, capabilities: { spawn: true } }),
+    ],
+    targets: [],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
   picker.applyKey(Buffer.from(KEYS.enter));
   picker.applyKey(Buffer.from(KEYS.down));
   picker.applyKey(Buffer.from(KEYS.enter));
 
-  expect(ctx.daemon.collectSent('agents.list')).toStrictEqual([{}]);
+  expect(ctx.daemon.collectSent('sources.list')).toStrictEqual([{ source: 'dirs' }]);
 });
 
 test('it returns esc from the directory step to the agent step when more than one agent is installed', async () => {
@@ -1740,21 +1702,14 @@ test('it returns esc from the directory step to the agent step when more than on
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: process.execPath },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
-  picker.applyKey(Buffer.from(KEYS.enter));
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -1766,6 +1721,8 @@ test('it returns esc from the directory step to the agent step when more than on
     ],
     sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
   });
+
+  picker.applyKey(Buffer.from(KEYS.enter));
 
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
@@ -1786,20 +1743,14 @@ test('it leaves the flow on esc from the directory step when one agent is instal
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -1828,20 +1779,14 @@ test('it opens the name step after the directory when one agent and one target l
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -1875,20 +1820,14 @@ test('it returns esc from the name step to the directory step when one target le
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -1922,20 +1861,14 @@ test('it lists a git source for the one target without a key when one agent and 
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -1962,20 +1895,14 @@ test('it leaves the flow on esc from a git source when one agent and one target 
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -2004,20 +1931,14 @@ test('it takes the one available target for a directory when the other is unavai
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -2065,20 +1986,14 @@ test('it takes the one target that takes a workspace for a repository', async ()
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       { id: 'local', provider: 'local-pty', available: true, default: true, capabilities: {} },
       {
@@ -2104,20 +2019,14 @@ test('it offers both targets for a directory when only one takes a workspace', a
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       { id: 'local', provider: 'local-pty', available: true, default: true, capabilities: {} },
       {
@@ -2149,20 +2058,14 @@ test('it shows why no target can run a directory when the one target is unavaila
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'box',
@@ -2196,20 +2099,14 @@ test('it shows why no target can run a repository when none takes a workspace', 
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       { id: 'local', provider: 'local-pty', available: true, default: true, capabilities: {} },
     ],
@@ -2229,21 +2126,18 @@ test('it shows why no target can run an agent whose broker no target reaches', a
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
-    agents: [{ id: 'claude', brokerAuth: true, brokerRequired: true }],
+    agents: [
+      buildMockListedAgent({
+        id: 'claude',
+        installed: true,
+        brokerAuth: true,
+        brokerRequired: true,
+        capabilities: { spawn: true },
+      }),
+    ],
     targets: [
       {
         id: 'local',
@@ -2278,20 +2172,14 @@ test('it shows why no target can adopt when none runs on the daemon host', async
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open(true);
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'box',
@@ -2323,20 +2211,14 @@ test('it returns esc from a target step with no usable target to the directory s
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'box',
@@ -2361,7 +2243,7 @@ test('it returns esc from a target step with no usable target to the directory s
   expect(ctx.counts.exits).toBe(0);
 });
 
-test('it drops the target and source answer of a flow that was left and opened again', async () => {
+test('it drops the agent list of a flow that was left and opened again', async () => {
   const ctx = setupTest();
 
   const picker = new SpawnPicker({
@@ -2370,17 +2252,6 @@ test('it drops the target and source answer of a flow that was left and opened a
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
   picker.applyKey(Buffer.from(KEYS.esc));
   picker.open();
@@ -2388,6 +2259,9 @@ test('it drops the target and source answer of a flow that was left and opened a
   const renders = ctx.counts.renders;
 
   await ctx.daemon.answerOldest('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+    ],
     targets: [
       {
         id: 'local',
@@ -2403,7 +2277,7 @@ test('it drops the target and source answer of a flow that was left and opened a
   expect(ctx.daemon.collectSent('agents.list')).toStrictEqual([{}, {}]);
   expect(ctx.daemon.collectSent('sources.list')).toStrictEqual([]);
   expect(ctx.counts.renders).toBe(renders);
-  expect(ctx.dropped).toStrictEqual(['targets and sources']);
+  expect(ctx.dropped).toStrictEqual(['agent list']);
 });
 
 test('it returns esc from a git source to the agent step when one target left no choice', async () => {
@@ -2415,21 +2289,14 @@ test('it returns esc from a git source to the agent step when one target left no
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: process.execPath },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
-  picker.applyKey(Buffer.from(KEYS.enter));
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -2445,6 +2312,8 @@ test('it returns esc from a git source to the agent step when one target left no
     ],
   });
 
+  picker.applyKey(Buffer.from(KEYS.enter));
+
   await ctx.daemon.answer('sources.list', { source: 'fake', scope: null, candidates: [] });
 
   const mark = ctx.terminal.countChunks();
@@ -2459,17 +2328,6 @@ test('it shows the listing an earlier client kept at once, marked with its age, 
   const ctx = setupTest();
   const cacheFile = join(ctx.cwd, 'listing-cache.json');
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   const earlier = new SpawnPicker({
     ...ctx.deps,
     ptyRows: () => 24,
@@ -2481,6 +2339,11 @@ test('it shows the listing an earlier client kept at once, marked with its age, 
   earlier.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -2514,6 +2377,11 @@ test('it shows the listing an earlier client kept at once, marked with its age, 
   const mark = ctx.terminal.countChunks();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -2548,20 +2416,14 @@ test('it swaps the fresh listing in for the cached one when it answers, keeping 
     getDaemonSocketPath: () => '/run/atc/atc.sock',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -2587,6 +2449,11 @@ test('it swaps the fresh listing in for the cached one when it answers, keeping 
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -2635,20 +2502,14 @@ test('it lists again on ctrl-r and shows a repository created since the last lis
     getDaemonSocketPath: () => '/run/atc/atc.sock',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -2697,20 +2558,14 @@ test('it waits on the listing when the kept one is older than a day', async () =
     getDaemonSocketPath: () => '/run/atc/atc.sock',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -2735,6 +2590,11 @@ test('it waits on the listing when the kept one is older than a day', async () =
   const mark = ctx.terminal.countChunks();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -2764,20 +2624,14 @@ test('it keeps the cached listing with the failure in its hint when listing agai
     getDaemonSocketPath: () => '/run/atc/atc.sock',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -2799,6 +2653,11 @@ test('it keeps the cached listing with the failure in its hint when listing agai
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -2835,20 +2694,14 @@ test('it leaves the source step on esc while it refreshes a cached listing', asy
     getDaemonSocketPath: () => '/run/atc/atc.sock',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -2870,6 +2723,11 @@ test('it leaves the source step on esc while it refreshes a cached listing', asy
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -2901,20 +2759,14 @@ test('it shows nothing from the cache on the next open once a listing answers em
     getDaemonSocketPath: () => '/run/atc/atc.sock',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -2942,6 +2794,11 @@ test('it shows nothing from the cache on the next open once a listing answers em
   const mark = ctx.terminal.countChunks();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -2971,20 +2828,14 @@ test('it shows the listing asked for last on the next open when an earlier one a
     getDaemonSocketPath: () => '/run/atc/atc.sock',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -3018,6 +2869,11 @@ test('it shows the listing asked for last on the next open when an earlier one a
   const mark = ctx.terminal.countChunks();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -3047,20 +2903,14 @@ test('it shows the cached listing of an owner typed on the source step at once, 
     getDaemonSocketPath: () => '/run/atc/atc.sock',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -3094,6 +2944,11 @@ test('it shows the cached listing of an owner typed on the source step at once, 
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -3135,20 +2990,14 @@ test('it reads typed github:owner/repo text the cached listing leaves out throug
     getDaemonSocketPath: () => '/run/atc/atc.sock',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -3170,6 +3019,11 @@ test('it reads typed github:owner/repo text the cached listing leaves out throug
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -3200,20 +3054,14 @@ test("it drops a remote daemon's completion of input typed over since, keeping t
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -3264,20 +3112,14 @@ test('it keeps the latest completion when an earlier one answers for input typed
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -3324,20 +3166,14 @@ test('it spawns in the directory a remote daemon completed', async () => {
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -3378,20 +3214,14 @@ test('it asks the daemon once for a path typed in a burst of keys', async () => 
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -3427,20 +3257,14 @@ test('it sends no completion for a path typed just before the leader leaves the 
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -3472,20 +3296,14 @@ test("it spawns in the directory a local daemon completed under the client's dir
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -3527,20 +3345,14 @@ test("it asks a local daemon to read a typed relative path under the client's di
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -3580,20 +3392,14 @@ test('it names the target of a local typed path when the daemon lists no default
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'box',
@@ -3627,20 +3433,14 @@ test("it shows a remote daemon's refused completion in place of the hint", async
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -3680,20 +3480,14 @@ test('it spawns in the directory a remote daemon reads a typed ~ path as when no
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -3737,20 +3531,14 @@ test("it shows a remote daemon's refusal to read a typed ~ path", async () => {
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
@@ -3794,20 +3582,14 @@ test('it names the one target a remote principal may use in its directory reques
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'box',
@@ -3842,20 +3624,14 @@ test("it shows why a remote daemon's directory listing failed", async () => {
     getLastUsedAgent: () => 'claude',
   });
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: process.execPath },
-        grok: { bin: 'no-grok' },
-        codex: { bin: 'no-codex' },
-      },
-    }),
-  );
-
   picker.open();
 
   await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
     targets: [
       {
         id: 'local',
