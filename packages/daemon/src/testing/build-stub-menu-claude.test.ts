@@ -1,14 +1,15 @@
 import { expect, test } from 'bun:test';
-import { KEYS, waitFor } from '@atc/test-utils';
+import { KEYS, buildStubClock } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { buildStubMemoryProvider } from './build-stub-memory-provider';
 import { buildStubMenuClaude } from './build-stub-menu-claude';
 
-// The stand-in on a provider of its own, and a start that spawns one
-// session on it, gathering what the session draws from before the stand-in
-// runs.
+// The stand-in on a provider of its own and a stub clock, and a start that
+// spawns one session on it, gathering what the session draws from before
+// the stand-in runs.
 function setupTest() {
-  const claude = buildStubMenuClaude();
+  const clock = buildStubClock(0);
+  const claude = buildStubMenuClaude(clock);
 
   const outputs = new Map<unknown, { text: string }>();
 
@@ -45,10 +46,10 @@ function setupTest() {
     return { harness, output };
   };
 
-  return { claude, provider, start };
+  return { clock, claude, provider, start };
 }
 
-test('it draws a numbered menu with the cursor on the first option', async () => {
+test('it draws a numbered menu with the cursor on the first option', () => {
   const ctx = setupTest();
 
   ctx.claude.load({
@@ -57,14 +58,14 @@ test('it draws a numbered menu with the cursor on the first option', async () =>
 
   const menu = ctx.start();
 
-  await waitFor(() => {
-    expect(menu.output.text.replaceAll('\r', '')).toInclude(
-      ' Do you want to proceed?\n\n ❯ 1. Yes\n   2. No\n',
-    );
-  });
+  ctx.clock.advance(0);
+
+  expect(menu.output.text.replaceAll('\r', '')).toInclude(
+    ' Do you want to proceed?\n\n ❯ 1. Yes\n   2. No\n',
+  );
 });
 
-test('it draws its menu only after the write that starts it', async () => {
+test('it draws its menu only after the write that starts it', () => {
   const ctx = setupTest();
 
   ctx.claude.load({ menus: [{ kind: 'plain', text: ['Pick a colour'], options: ['Amber'] }] });
@@ -72,14 +73,13 @@ test('it draws its menu only after the write that starts it', async () => {
   const menu = ctx.start();
   const drawnInsideStart = menu.output.text;
 
-  await waitFor(() => {
-    expect(menu.output.text).toInclude('❯ Amber');
-  });
+  ctx.clock.advance(0);
 
   expect(drawnInsideStart).toBe('');
+  expect(menu.output.text).toInclude('❯ Amber');
 });
 
-test('it picks the option the arrow keys move the cursor to', async () => {
+test('it picks the option the arrow keys move the cursor to', () => {
   const ctx = setupTest();
 
   ctx.claude.load({
@@ -89,17 +89,17 @@ test('it picks the option the arrow keys move the cursor to', async () => {
   const menu = ctx.start();
 
   menu.harness.write(KEYS.down);
+  ctx.clock.advance(0);
 
-  await waitFor(() => {
-    expect(menu.output.text).toInclude('❯ Teal');
-  });
+  const drawn = menu.output.text;
 
   menu.harness.write(KEYS.enter);
 
+  expect(drawn).toInclude('❯ Teal');
   expect(ctx.claude.log).toStrictEqual([{ key: 'down' }, { key: 'enter' }, { picked: 'Teal' }]);
 });
 
-test('it ticks a box on Enter and enables the ticked ones on the submit item', async () => {
+test('it ticks a box on Enter and enables the ticked ones on the submit item', () => {
   const ctx = setupTest();
 
   ctx.claude.load({
@@ -117,19 +117,20 @@ test('it ticks a box on Enter and enables the ticked ones on the submit item', a
   const menu = ctx.start();
 
   menu.harness.write(KEYS.enter);
+  ctx.clock.advance(0);
 
-  await waitFor(() => {
-    expect(menu.output.text).toInclude('❯ [ ] kettle-notes');
-  });
+  const ticked = menu.output.text;
 
   menu.harness.write(KEYS.down);
   menu.harness.write(KEYS.down);
+  ctx.clock.advance(0);
 
-  await waitFor(() => {
-    expect(menu.output.text).toInclude('❯     Enable selected');
-  });
+  const onSubmit = menu.output.text;
 
   menu.harness.write(KEYS.enter);
+
+  expect(ticked).toInclude('❯ [ ] kettle-notes');
+  expect(onSubmit).toInclude('❯     Enable selected');
 
   expect(ctx.claude.log).toStrictEqual([
     { key: 'enter' },
@@ -141,7 +142,7 @@ test('it ticks a box on Enter and enables the ticked ones on the submit item', a
   ]);
 });
 
-test('it draws a window of a long list with a mark beside its last row', async () => {
+test('it draws a window of a long list with a mark beside its last row', () => {
   const ctx = setupTest();
 
   ctx.claude.load({
@@ -159,14 +160,14 @@ test('it draws a window of a long list with a mark beside its last row', async (
 
   const menu = ctx.start();
 
-  await waitFor(() => {
-    expect(menu.output.text.replaceAll('\r', '')).toInclude(
-      '\n ❯ [✔] kettle-notes\n ↓ [✔] orchard-search\n       Enable selected\n',
-    );
-  });
+  ctx.clock.advance(0);
+
+  expect(menu.output.text.replaceAll('\r', '')).toInclude(
+    '\n ❯ [✔] kettle-notes\n ↓ [✔] orchard-search\n       Enable selected\n',
+  );
 });
 
-test('it scrolls the window one row once the cursor moves past its last row', async () => {
+test('it scrolls the window one row once the cursor moves past its last row', () => {
   const ctx = setupTest();
 
   ctx.claude.load({
@@ -185,23 +186,19 @@ test('it scrolls the window one row once the cursor moves past its last row', as
   const menu = ctx.start();
 
   menu.harness.write(KEYS.down);
-
-  await waitFor(() => {
-    expect(menu.output.text).toInclude('❯ [✔] orchard-search');
-  });
+  ctx.clock.advance(0);
 
   menu.output.text = '';
 
   menu.harness.write(KEYS.down);
+  ctx.clock.advance(0);
 
-  await waitFor(() => {
-    expect(menu.output.text.replaceAll('\r', '')).toInclude(
-      '\n ↑ [✔] orchard-search\n ❯ [✔] quarry-files\n       Enable selected\n',
-    );
-  });
+  expect(menu.output.text.replaceAll('\r', '')).toInclude(
+    '\n ↑ [✔] orchard-search\n ❯ [✔] quarry-files\n       Enable selected\n',
+  );
 });
 
-test('it moves the cursor from the last option of a long box list to the submit item', async () => {
+test('it moves the cursor from the last option of a long box list to the submit item', () => {
   const ctx = setupTest();
 
   ctx.claude.load({
@@ -221,15 +218,14 @@ test('it moves the cursor from the last option of a long box list to the submit 
   const menu = ctx.start();
 
   menu.harness.write(KEYS.down);
+  ctx.clock.advance(0);
 
-  await waitFor(() => {
-    expect(menu.output.text.replaceAll('\r', '')).toInclude(
-      '\n ↑ [✔] orchard-search\n   [✔] quarry-files\n ❯     Enable selected\n',
-    );
-  });
+  expect(menu.output.text.replaceAll('\r', '')).toInclude(
+    '\n ↑ [✔] orchard-search\n   [✔] quarry-files\n ❯     Enable selected\n',
+  );
 });
 
-test('it wraps the cursor of a long plain list from its last option to its first', async () => {
+test('it wraps the cursor of a long plain list from its last option to its first', () => {
   const ctx = setupTest();
 
   ctx.claude.load({
@@ -247,13 +243,12 @@ test('it wraps the cursor of a long plain list from its last option to its first
   const menu = ctx.start();
 
   menu.harness.write(KEYS.down);
+  ctx.clock.advance(0);
 
-  await waitFor(() => {
-    expect(menu.output.text.replaceAll('\r', '')).toInclude('\n ❯ Amber\n ↓ Teal\n');
-  });
+  expect(menu.output.text.replaceAll('\r', '')).toInclude('\n ❯ Amber\n ↓ Teal\n');
 });
 
-test('it wraps the cursor of a long plain list from its first option to its last', async () => {
+test('it wraps the cursor of a long plain list from its first option to its last', () => {
   const ctx = setupTest();
 
   ctx.claude.load({
@@ -265,13 +260,12 @@ test('it wraps the cursor of a long plain list from its first option to its last
   const menu = ctx.start();
 
   menu.harness.write(KEYS.up);
+  ctx.clock.advance(0);
 
-  await waitFor(() => {
-    expect(menu.output.text.replaceAll('\r', '')).toInclude('\n ↑ Teal\n ❯ Plum\n');
-  });
+  expect(menu.output.text.replaceAll('\r', '')).toInclude('\n ↑ Teal\n ❯ Plum\n');
 });
 
-test('it opens the second menu in place of the outcome when a pick opens the next', async () => {
+test('it opens the second menu in place of the outcome when a pick opens the next', () => {
   const ctx = setupTest();
 
   ctx.claude.load({
@@ -285,13 +279,14 @@ test('it opens the second menu in place of the outcome when a pick opens the nex
   const menu = ctx.start();
 
   menu.harness.write(KEYS.enter);
+  ctx.clock.advance(0);
 
-  await waitFor(() => {
-    expect(menu.output.text).toInclude('❯ Amber');
-  });
+  const opened = menu.output.text;
 
   menu.harness.write(KEYS.down);
   menu.harness.write(KEYS.enter);
+
+  expect(opened).toInclude('❯ Amber');
 
   expect(ctx.claude.log).toStrictEqual([
     { key: 'enter' },
@@ -316,7 +311,7 @@ test('it dismisses the menu on Escape', () => {
   expect(ctx.claude.log).toStrictEqual([{ key: 'escape' }, { dismissed: true }]);
 });
 
-test('it refuses Enter during the hold and puts the cursor back when the hold ends', async () => {
+test('it refuses Enter during the hold and puts the cursor back when the hold ends', () => {
   const ctx = setupTest();
 
   ctx.claude.load({
@@ -327,23 +322,27 @@ test('it refuses Enter during the hold and puts the cursor back when the hold en
   const menu = ctx.start();
 
   menu.harness.write(KEYS.down);
+  ctx.clock.advance(100);
 
-  await waitFor(() => {
-    expect(menu.output.text).toInclude('❯ Yes');
-  });
+  const moved = menu.output.text;
 
   menu.harness.write(KEYS.enter);
 
   menu.output.text = '';
 
-  await waitFor(() => {
-    expect(menu.output.text).toInclude('❯ No, exit');
-  });
+  ctx.clock.advance(299);
 
+  const beforeHoldEnd = menu.output.text;
+
+  ctx.clock.advance(1);
+
+  expect(moved).toInclude('❯ Yes');
+  expect(beforeHoldEnd).toBe('');
+  expect(menu.output.text).toInclude('❯ No, exit');
   expect(ctx.claude.log).toStrictEqual([{ key: 'down' }, { key: 'enter' }]);
 });
 
-test('it takes Enter once the hold has ended', async () => {
+test('it takes Enter once the hold has ended', () => {
   const ctx = setupTest();
 
   ctx.claude.load({
@@ -353,16 +352,17 @@ test('it takes Enter once the hold has ended', async () => {
 
   const menu = ctx.start();
 
-  await waitFor(() => {
-    expect(menu.output.text.match(/❯ No, exit/gu)).toHaveLength(2);
-  });
+  ctx.clock.advance(100);
+
+  const drawn = menu.output.text;
 
   menu.harness.write(KEYS.enter);
 
+  expect(drawn.match(/❯ No, exit/gu)).toHaveLength(2);
   expect(ctx.claude.log).toStrictEqual([{ key: 'enter' }, { picked: 'No, exit' }]);
 });
 
-test('it answers Enter only once the Enter delay has passed', async () => {
+test('it answers Enter only once the Enter delay has passed', () => {
   const ctx = setupTest();
 
   ctx.claude.load({
@@ -371,15 +371,16 @@ test('it answers Enter only once the Enter delay has passed', async () => {
   });
 
   const menu = ctx.start();
-  const sentAt = Date.now();
 
   menu.harness.write(KEYS.enter);
+  ctx.clock.advance(99);
 
-  await waitFor(() => {
-    expect(ctx.claude.log).toStrictEqual([{ key: 'enter' }, { picked: 'Amber' }]);
-  });
+  const beforeDelay = [...ctx.claude.log];
 
-  expect(Date.now() - sentAt).toBeGreaterThanOrEqual(100);
+  ctx.clock.advance(1);
+
+  expect(beforeDelay).toStrictEqual([{ key: 'enter' }]);
+  expect(ctx.claude.log).toStrictEqual([{ key: 'enter' }, { picked: 'Amber' }]);
 });
 
 test('it has drawn the second menu by the time a switch resolves', async () => {
@@ -393,8 +394,11 @@ test('it has drawn the second menu by the time a switch resolves', async () => {
   });
 
   const menu = ctx.start();
+  const switched = ctx.claude.switchMenu();
 
-  await ctx.claude.switchMenu();
+  ctx.clock.advance(0);
+
+  await switched;
 
   expect(menu.output.text).toInclude('❯ Circle');
 });
@@ -409,6 +413,7 @@ test('it exits with code 0 and draws nothing more when the test ends it', async 
   const menu = ctx.start();
 
   ctx.claude.exit();
+  ctx.clock.advance(0);
 
   const exited = await menu.harness.waitForExit(1000);
 
@@ -417,7 +422,7 @@ test('it exits with code 0 and draws nothing more when the test ends it', async 
   expect(menu.output.text).toBe('');
 });
 
-test('it draws nothing and logs no key for a session started before a scenario is loaded', async () => {
+test('it draws nothing and logs no key for a session started before a scenario is loaded', () => {
   const ctx = setupTest();
   const idle = ctx.start();
 
@@ -426,10 +431,9 @@ test('it draws nothing and logs no key for a session started before a scenario i
 
   const menu = ctx.start();
 
-  await waitFor(() => {
-    expect(menu.output.text).toInclude('❯ Amber');
-  });
+  ctx.clock.advance(0);
 
+  expect(menu.output.text).toInclude('❯ Amber');
   expect(idle.output.text).toBe('');
   expect(ctx.claude.log).toStrictEqual([]);
 });
