@@ -1552,6 +1552,54 @@ test('it leaves an agent the daemon lists as not installed or unable to spawn ou
   expect(shown).not.toInclude('Refused Codex');
 });
 
+test('it leaves out of the menu an agent entry the agent schema rejects', async () => {
+  const ctx = setupTest();
+
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  const mark = ctx.terminal.countChunks();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({
+        id: 'claude',
+        label: 'Ready Claude',
+        installed: true,
+        capabilities: { spawn: true },
+      }),
+      {
+        ...buildMockListedAgent({
+          id: 'grok',
+          label: 'Garbled Grok',
+          installed: true,
+          capabilities: { spawn: true },
+        }),
+        installed: 'yes',
+      },
+      buildMockListedAgent({
+        id: 'proxy',
+        label: 'Ready Proxy',
+        installed: true,
+        capabilities: { spawn: true },
+      }),
+    ],
+    targets: [],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  const shown = ctx.terminal.getTextSince(mark);
+
+  expect(shown).toInclude('Ready Claude');
+  expect(shown).toInclude('Ready Proxy');
+  expect(shown).not.toInclude('Garbled Grok');
+});
+
 test('it opens the first source without a menu when the daemon can start one agent', async () => {
   const ctx = setupTest();
 
