@@ -1,4 +1,4 @@
-import { isRecord } from '@atc/core';
+import { z } from 'zod';
 import { MAX_EVENTS_CURSOR_BYTES } from './max-events-cursor-bytes';
 import { MAX_REGISTRY_DAEMONS } from './max-registry-daemons';
 import type { GatewayRegistry, RegistryDaemon } from './types';
@@ -7,11 +7,18 @@ type ParsedGatewayRegistry =
   | { readonly ok: true; readonly registry: GatewayRegistry }
   | { readonly ok: false; readonly errors: readonly string[] };
 
+const REGISTRY_SCHEMA = z.object({
+  daemons: z.record(z.string(), z.unknown()),
+  defaultDaemon: z.unknown().optional(),
+});
+
 export function parseGatewayRegistry(
   raw: unknown,
   env: Readonly<Record<string, string | undefined>>,
 ): ParsedGatewayRegistry {
-  if (!isRecord(raw) || !isRecord(raw['daemons']) || Array.isArray(raw['daemons'])) {
+  const parsed = REGISTRY_SCHEMA.safeParse(raw);
+
+  if (!parsed.success) {
     return { ok: false, errors: ['the registry must be an object whose daemons is an object'] };
   }
 
@@ -19,17 +26,17 @@ export function parseGatewayRegistry(
 
   const errors: string[] = [];
 
-  for (const [name, entry] of Object.entries(raw['daemons'])) {
-    const parsed = parseRegistryDaemon(name, entry, env);
+  for (const [name, entry] of Object.entries(parsed.data.daemons)) {
+    const daemon = parseRegistryDaemon(name, entry, env);
 
-    if (typeof parsed === 'string') {
-      errors.push(parsed);
+    if (typeof daemon === 'string') {
+      errors.push(daemon);
     } else {
-      daemons.set(name, parsed);
+      daemons.set(name, daemon);
     }
   }
 
-  const count = Object.keys(raw['daemons']).length;
+  const count = Object.keys(parsed.data.daemons).length;
 
   if (count === 0) {
     errors.push('the registry lists no daemon');
@@ -41,50 +48,71 @@ export function parseGatewayRegistry(
     );
   }
 
-  const defaultDaemon = raw['defaultDaemon'];
+  const defaultDaemon = z.string().safeParse(parsed.data.defaultDaemon);
 
-  if (typeof defaultDaemon !== 'string') {
+  if (!defaultDaemon.success) {
     errors.push('defaultDaemon is required and must name a daemon in the registry');
-  } else if (!Object.hasOwn(raw['daemons'], defaultDaemon)) {
-    errors.push(`defaultDaemon '${defaultDaemon}' is not a daemon in the registry`);
+  } else if (!Object.hasOwn(parsed.data.daemons, defaultDaemon.data)) {
+    errors.push(`defaultDaemon '${defaultDaemon.data}' is not a daemon in the registry`);
   }
 
-  if (errors.length > 0 || typeof defaultDaemon !== 'string') {
+  if (errors.length > 0 || !defaultDaemon.success) {
     return { ok: false, errors };
   }
 
-  return { ok: true, registry: { daemons, defaultDaemon } };
+  return { ok: true, registry: { daemons, defaultDaemon: defaultDaemon.data } };
 }
 
 // A daemon name: never a `.`, which separates the parts of a gateway id.
-const NAME_PATTERN = /^[a-z][a-z0-9-]{0,30}$/u;
+const NAME_SCHEMA = z.string().regex(/^[a-z][a-z0-9-]{0,30}$/u);
+
+const ENTRY_SCHEMA = z.object({
+  address: z.unknown().optional(),
+  daemonID: z.unknown().optional(),
+});
+
+// `<host>:<port>`, with an IPv6 host in brackets.
+const ADDRESS_PATTERN = /^(?:\[(?<v6>[^\]]+)\]|(?<host>[^:[\]]+)):(?<port>\d{1,5})$/u;
+
+const ADDRESS_SCHEMA = z
+  .string()
+  .transform((raw) => {
+    const groups = ADDRESS_PATTERN.exec(raw)?.groups;
+
+    return { host: groups?.['v6'] ?? groups?.['host'], port: groups?.['port'] };
+  })
+  .pipe(z.object({ host: z.string(), port: z.coerce.number<string>().int().min(1).max(65_535) }));
 
 // A daemon ID as a daemon mints it: a lowercase UUID.
-const DAEMON_ID_PATTERN = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/u;
+const DAEMON_ID_SCHEMA = z
+  .string()
+  .regex(/^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/u);
 
 // One daemon entry, or the problem that refuses it.
 function parseRegistryDaemon(
   name: string,
-  entry: unknown,
+  raw: unknown,
   env: Readonly<Record<string, string | undefined>>,
 ): RegistryDaemon | string {
-  if (!NAME_PATTERN.test(name)) {
+  if (!NAME_SCHEMA.safeParse(name).success) {
     return `daemon name '${name}' must match ^[a-z][a-z0-9-]{0,30}$`;
   }
 
-  if (!isRecord(entry)) {
+  const entry = ENTRY_SCHEMA.safeParse(raw);
+
+  if (!entry.success) {
     return `daemon '${name}' must be an object with address and daemonID`;
   }
 
-  const address = typeof entry['address'] === 'string' ? parseAddress(entry['address']) : null;
+  const address = ADDRESS_SCHEMA.safeParse(entry.data.address);
 
-  if (address === null) {
+  if (!address.success) {
     return `daemon '${name}' needs an address of <host>:<port> with a port from 1 to 65535`;
   }
 
-  const daemonID = entry['daemonID'];
+  const daemonID = DAEMON_ID_SCHEMA.safeParse(entry.data.daemonID);
 
-  if (typeof daemonID !== 'string' || !DAEMON_ID_PATTERN.test(daemonID)) {
+  if (!daemonID.success) {
     return `daemon '${name}' needs the daemonID that atc daemon id prints on its host`;
   }
 
@@ -95,20 +123,11 @@ function parseRegistryDaemon(
     return `daemon '${name}' has no token: set ${tokenVar}`;
   }
 
-  return { name, address, daemonID, incarnation: daemonID.slice(0, 8), token };
-}
-
-// `<host>:<port>`, with an IPv6 host in brackets.
-const ADDRESS_PATTERN = /^(?:\[(?<v6>[^\]]+)\]|(?<host>[^:[\]]+)):(?<port>\d{1,5})$/u;
-
-function parseAddress(raw: string): { readonly host: string; readonly port: number } | null {
-  const match = ADDRESS_PATTERN.exec(raw);
-  const host = match?.groups?.['v6'] ?? match?.groups?.['host'];
-  const port = Number(match?.groups?.['port']);
-
-  if (host === undefined || !Number.isInteger(port) || port < 1 || port > 65_535) {
-    return null;
-  }
-
-  return { host, port };
+  return {
+    name,
+    address: address.data,
+    daemonID: daemonID.data,
+    incarnation: daemonID.data.slice(0, 8),
+    token,
+  };
 }
