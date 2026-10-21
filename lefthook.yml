@@ -17,6 +17,11 @@ pre-commit:
       glob: '*.{ts,tsx}'
       run: node_modules/.bin/format-codemod --quiet {staged_files}
       stage_fixed: true
+    # after the fixers, so it checks what they wrote; skipped when no staged
+    # file matches the glob
+    - name: typecheck
+      glob: '*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,json,jsonc}'
+      run: bun run typecheck
     # last so it scans what the fixers above re-staged; needs the gitleaks
     # binary on PATH (mise: `mise use -g gitleaks`)
     - name: gitleaks
