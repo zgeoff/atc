@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'bun:test';
 import { isRecord, toMessageID, toSessionID } from '@atc/core';
-import { ClaudeAdapter } from '@atc/harness-claude';
+import { createClaudeAdapter } from '@atc/harness-claude';
 import type { DaemonEvent } from '@atc/protocol';
 import { createStateStore } from '@atc/store';
 import {
@@ -19,7 +19,7 @@ async function setupTest(
   planSpawn = mock(() => ({ bin: 'sleep', args: ['30'] })),
   options: { readonly restoreFleetOnRestart?: boolean } = {},
 ) {
-  const claude = new ClaudeAdapter(
+  const claude = createClaudeAdapter(
     buildMockAgentEntry({ id: 'claude' }),
     { authProfiles: new Map() },
     buildMockHostServices(),

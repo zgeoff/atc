@@ -5,7 +5,7 @@ import { parseConfig } from '@atc/config';
 import { ImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/testing';
 import { LocalPTYProvider } from '@atc/execution-local';
-import { GatewayAdapter } from '@atc/harness-claude';
+import { createGatewayAdapter } from '@atc/harness-claude';
 import { getGatewayConfig } from '@atc/harness-claude/testing';
 import {
   buildMockHostServices,
@@ -478,7 +478,7 @@ test('it refuses a brokered gateway whose env sets a proxy variable before any i
       return {
         adapters: [
           // A proxy variable in a gateway's env, which the config would refuse.
-          new GatewayAdapter(
+          createGatewayAdapter(
             {
               ...getGatewayConfig(config, 'glm'),
               id: 'proxied',
@@ -561,7 +561,7 @@ test('it lists a brokered gateway with the bearer placeholder as spawnable and o
           ...buildAgentAdapters(config, buildMockHostServices()),
 
           // A proxy variable in a gateway's env, which the config would refuse.
-          new GatewayAdapter(
+          createGatewayAdapter(
             {
               ...getGatewayConfig(config, 'glm'),
               id: 'proxied',

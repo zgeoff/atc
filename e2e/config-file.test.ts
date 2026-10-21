@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { loadConfig, parseConfig } from '@atc/config';
 import { toSessionID } from '@atc/core';
 import { buildStubTargets } from '@atc/daemon/testing';
-import { CodexAdapter } from '@atc/harness-codex';
+import { createCodexAdapter } from '@atc/harness-codex';
 import { buildTargetIdentity, createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
@@ -575,7 +575,7 @@ test('it refuses a spawn of an agent missing from this host with the config prob
     agents: { codex: { kind: 'codex', bin: join(ctx.directory, 'missing', 'codex') } },
   });
 
-  const codex = new CodexAdapter(getAgentEntry(codexConfig, 'codex'));
+  const codex = createCodexAdapter(getAgentEntry(codexConfig, 'codex'));
 
   writeFileSync(ctx.configPath, '{ "targets": ');
 
@@ -621,7 +621,7 @@ test('it refuses a spawn of an agent missing from this host as not installed whe
     agents: { codex: { kind: 'codex', bin: join(ctx.directory, 'missing', 'codex') } },
   });
 
-  const codex = new CodexAdapter(getAgentEntry(codexConfig, 'codex'));
+  const codex = createCodexAdapter(getAgentEntry(codexConfig, 'codex'));
 
   writeFileSync(ctx.configPath, '{}');
 

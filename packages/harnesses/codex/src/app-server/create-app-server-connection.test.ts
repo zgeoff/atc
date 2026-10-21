@@ -1,7 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
 import { setupTempDir, startStubCodexAppServer, waitFor } from '@atc/test-utils';
-import { AppServerConnection } from './app-server-connection';
+import { createAppServerConnection } from './create-app-server-connection';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-app-server-conn-');
@@ -15,7 +15,7 @@ test('it resolves a request with the result the server answers', async () => {
 
   onTestFinished(() => server.stop());
 
-  const conn = await AppServerConnection.open(`ws+unix://${ctx.socket}`);
+  const conn = await createAppServerConnection(`ws+unix://${ctx.socket}`);
 
   onTestFinished(() => {
     conn.dispose();
@@ -34,7 +34,7 @@ test('it rejects a request with the code of the error the server answers', async
 
   onTestFinished(() => server.stop());
 
-  const conn = await AppServerConnection.open(`ws+unix://${ctx.socket}`);
+  const conn = await createAppServerConnection(`ws+unix://${ctx.socket}`);
 
   onTestFinished(() => {
     conn.dispose();
@@ -50,7 +50,7 @@ test('it rejects a request on a connection that closed', async () => {
   const ctx = setupTest();
   const server = startStubCodexAppServer(ctx.socket, {});
 
-  const conn = await AppServerConnection.open(`ws+unix://${ctx.socket}`);
+  const conn = await createAppServerConnection(`ws+unix://${ctx.socket}`);
 
   let closed = false;
 
@@ -71,7 +71,7 @@ test('it rejects a request on a connection that closed', async () => {
 test('it refuses to open where no server listens', () => {
   const ctx = setupTest();
 
-  expect(AppServerConnection.open(`ws+unix://${ctx.socket}`)).rejects.toMatchObject({ code: -1 });
+  expect(createAppServerConnection(`ws+unix://${ctx.socket}`)).rejects.toMatchObject({ code: -1 });
 });
 
 test('it hands notifications and server requests to their listeners and sends a result back', async () => {
@@ -80,7 +80,7 @@ test('it hands notifications and server requests to their listeners and sends a 
 
   onTestFinished(() => server.stop());
 
-  const conn = await AppServerConnection.open(`ws+unix://${ctx.socket}`);
+  const conn = await createAppServerConnection(`ws+unix://${ctx.socket}`);
 
   const methods: string[] = [];
 

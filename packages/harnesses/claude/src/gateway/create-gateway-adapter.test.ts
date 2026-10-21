@@ -16,7 +16,7 @@ import { ATC_BRIDGE_FILES } from '../bridge/atc-bridge-files';
 import { CLAUDE_PLUGIN } from '../claude-plugin';
 import { buildMockGatewayConfig } from '../testing/build-mock-gateway-config';
 import { buildStubClaudeHeadlessRun } from '../testing/build-stub-claude-headless-run';
-import { GatewayAdapter } from './gateway-adapter';
+import { createGatewayAdapter } from './create-gateway-adapter';
 
 // A folder for the files a test writes: transcripts, the atc-bridge mod, or a
 // guest folder a launch runs in.
@@ -27,7 +27,7 @@ function setupTest() {
 }
 
 test('it answers to the id its backend was configured under', () => {
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({ id: 'zai' }),
     parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
@@ -37,7 +37,7 @@ test('it answers to the id its backend was configured under', () => {
 });
 
 test('it runs no headless turn when the daemon gave it no runner', () => {
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig(),
     parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
@@ -47,7 +47,7 @@ test('it runs no headless turn when the daemon gave it no runner', () => {
 });
 
 test("it reads a session's hook lines as Claude's, with no state across them", () => {
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig(),
     parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
@@ -72,7 +72,7 @@ test("it reads a session's hook lines as Claude's, with no state across them", (
 });
 
 test('it takes inbox messages', () => {
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig(),
     parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
@@ -82,7 +82,7 @@ test('it takes inbox messages', () => {
 });
 
 test('it plans the guest bridge files a remote session launches with', () => {
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig(),
     parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
@@ -101,7 +101,7 @@ test("it runs a headless turn through the gateway's binary and settings file und
   const ctx = setupTest();
   const runner = buildStubClaudeHeadlessRun();
 
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({ id: 'zai', bin: '/opt/zai/bin/claude' }),
     parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
@@ -135,7 +135,7 @@ test("it runs a headless turn through the gateway's binary and settings file und
 });
 
 test('it profiles a gateway with only the model names its env sets', () => {
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'zai',
       label: 'GLM (z.ai)',
@@ -192,7 +192,7 @@ test('it profiles a gateway with only the model names its env sets', () => {
 });
 
 test('it profiles a gateway whose env sets no model with no models', () => {
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({ env: {} }),
     parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
@@ -205,7 +205,7 @@ test("it runs a headless turn under the permission mode the gateway's settings d
   const ctx = setupTest();
   const runner = buildStubClaudeHeadlessRun();
 
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'manual-settings',
       bin: 'claude',
@@ -246,7 +246,7 @@ test("it runs a headless turn under a gateway's explicit permission-mode argumen
   const ctx = setupTest();
   const runner = buildStubClaudeHeadlessRun();
 
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'manual-flag',
       bin: 'claude',
@@ -287,7 +287,7 @@ test("it runs a headless turn under a gateway's explicit permission-mode argumen
 test("it starts a gateway's terminal run under its explicit permission-mode argument over its settings default", () => {
   const ctx = setupTest();
 
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'manual-flag',
       bin: 'claude',
@@ -335,7 +335,7 @@ test("it loads a gateway's configured plugin folders with ~ expanded, then the s
 
   invariant(entry.baseURL !== undefined, 'expected a gateway entry');
 
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     { ...entry, baseURL: entry.baseURL },
     config,
     buildMockHostServices(),
@@ -361,7 +361,7 @@ test("it loads a gateway's configured plugin folders with ~ expanded, then the s
 });
 
 test("it lists a gateway's configured plugin folders in its profile", () => {
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({ pluginDirs: ['/opt/plugins/shared'] }),
     parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
@@ -373,7 +373,7 @@ test("it lists a gateway's configured plugin folders in its profile", () => {
 test("it keeps the gateway's arguments, its permission mode included, in the command that resumes it outside atc", () => {
   const ctx = setupTest();
 
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'manual-resume',
       bin: '/opt/gw/bin/claude',
@@ -399,7 +399,7 @@ test("it keeps the gateway's arguments, its permission mode included, in the com
 test("it keeps a gateway's configured plugin folders and the session's own in the command that resumes it outside atc", () => {
   const ctx = setupTest();
 
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'plugged',
       bin: '/opt/gw/bin/claude',
@@ -428,7 +428,7 @@ test("it runs a headless turn with a gateway's configured plugin folders before 
   const ctx = setupTest();
   const runner = buildStubClaudeHeadlessRun();
 
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'zai',
       bin: '/opt/zai/bin/claude',
@@ -475,7 +475,7 @@ test("it runs a headless turn with the gateway's settings file, its permission h
   const ctx = setupTest();
   const runner = buildStubClaudeHeadlessRun();
 
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'manual-hook',
       bin: 'claude',
@@ -593,7 +593,7 @@ test("it runs a headless turn with the gateway's settings file, its permission h
 test("it restores a session in the permission mode the gateway's settings default to", () => {
   const ctx = setupTest();
 
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'restore-settings',
       bin: 'claude',
@@ -628,7 +628,7 @@ test("it restores a session in the permission mode the gateway's settings defaul
 test("it keeps the gateway's settings default mode in the command that resumes it outside atc", () => {
   const ctx = setupTest();
 
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'resume-settings',
       bin: '/opt/gw/bin/claude',
@@ -654,7 +654,7 @@ test("it keeps the gateway's settings default mode in the command that resumes i
 test('it restores a gateway in its explicit permission-mode argument over its settings default', () => {
   const ctx = setupTest();
 
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'restore-flag',
       bin: 'claude',
@@ -690,7 +690,7 @@ test('it restores a gateway in its explicit permission-mode argument over its se
 test('it resumes a gateway outside atc in its explicit permission-mode argument over its settings default', () => {
   const ctx = setupTest();
 
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'restore-flag',
       bin: 'claude',
@@ -714,7 +714,7 @@ test('it resumes a gateway outside atc in its explicit permission-mode argument 
 });
 
 test("it refuses to start a gateway with auth on the daemon's machine", () => {
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'glm',
       bin: 'claude',
@@ -734,7 +734,7 @@ test("it refuses to start a gateway with auth on the daemon's machine", () => {
 });
 
 test('it gives a gateway with auth no headless runner', () => {
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({ id: 'glm', auth: { profiles: ['glm'], placeholderEnv: {} } }),
     parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
@@ -745,7 +745,7 @@ test('it gives a gateway with auth no headless runner', () => {
 });
 
 test('it gives a gateway with auth no resume command', () => {
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({ id: 'glm', auth: { profiles: ['glm'], placeholderEnv: {} } }),
     parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
@@ -758,7 +758,7 @@ test('it gives a gateway with auth no resume command', () => {
 test("it starts a gateway with auth and a credential helper on the daemon's machine under that helper", () => {
   const ctx = setupTest();
 
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'glm-local',
       bin: 'claude',
@@ -870,7 +870,7 @@ test("it starts a gateway with auth and a credential helper on the daemon's mach
 test('it writes no broker placeholder into the local settings of a gateway with auth and a credential helper', () => {
   const ctx = setupTest();
 
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'glm-local',
       bin: 'claude',
@@ -905,7 +905,7 @@ test('it lets a gateway with auth and a credential helper start on a target with
     },
   });
 
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'glm',
       bin: 'claude',
@@ -927,7 +927,7 @@ test("it runs a headless turn of a gateway with auth and a credential helper thr
   const ctx = setupTest();
   const runner = buildStubClaudeHeadlessRun();
 
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'glm',
       bin: 'claude',
@@ -969,7 +969,7 @@ test("it runs a headless turn of a gateway with auth and a credential helper thr
 test('it resumes a gateway with auth and a credential helper outside atc through its settings file', () => {
   const ctx = setupTest();
 
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'glm',
       bin: 'claude',
@@ -993,7 +993,7 @@ test('it resumes a gateway with auth and a credential helper outside atc through
 });
 
 test("it starts a brokered guest with the auth's own arguments in place of the gateway's", () => {
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'glm',
       bin: 'claude',
@@ -1063,7 +1063,7 @@ test('it plans a brokered guest spawn with its own settings file, Claude config 
     },
   });
 
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'glm',
       bin: 'claude',
@@ -1231,7 +1231,7 @@ test("it keeps the gateway's permission hook and mode in a brokered guest's sett
 
   const hook = { matcher: '.*', hooks: [{ type: 'command', command: 'classify', timeout: 90 }] };
 
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'glm',
       bin: 'claude',
@@ -1378,7 +1378,7 @@ test.each([
   [{ ANTHROPIC_AUTH_TOKEN: 'broker-placeholder', CLAUDE_CONFIG_DIR: 'broker-placeholder' }],
   [{ ANTHROPIC_AUTH_TOKEN: 'sk-real' }],
 ])('it refuses a brokered guest spawn whose placeholders are %p', (placeholderEnv) => {
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'glm',
       baseURL: 'https://api.z.ai/api/anthropic',
@@ -1407,7 +1407,7 @@ test.each([
 });
 
 test('it allows the start of a gateway with auth that sets an extra placeholder variable', () => {
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'glm',
       bin: 'claude',
@@ -1439,7 +1439,7 @@ test('it allows the start of a gateway with auth that sets an extra placeholder 
 });
 
 test('it carries an extra placeholder variable and the gateway args into a brokered guest launch', () => {
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'glm',
       bin: 'claude',
@@ -1603,7 +1603,7 @@ test("it refuses a brokered guest spawn whose profile sets a header other than a
     },
   });
 
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'glm',
       bin: 'claude',
@@ -1636,7 +1636,7 @@ test("it refuses a brokered guest spawn whose profile sets a header other than a
 });
 
 test('it refuses a brokered guest spawn on a host that gave it no broker binding', () => {
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'glm',
       bin: 'claude',
@@ -1659,7 +1659,7 @@ test('it refuses a brokered guest spawn on a host that gave it no broker binding
 });
 
 test('it plans no guest spawn for a gateway whose credential helper runs on the daemon machine', () => {
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'zai',
       bin: 'claude',
@@ -1687,7 +1687,7 @@ test('it plans no guest spawn for a gateway whose credential helper runs on the 
 });
 
 test('it plans no brokered guest spawn on a host without atc', () => {
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'glm',
       bin: 'claude',
@@ -1730,7 +1730,7 @@ test('it keeps a credential held on the daemon side out of every file, argument 
     },
   });
 
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'glm',
       bin: 'claude',
@@ -1773,7 +1773,7 @@ test("it seeds a brokered guest's Claude config with the onboarding state when t
     },
   });
 
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'glm',
       bin: 'true',
@@ -1828,7 +1828,7 @@ test("it keeps the state an earlier run left in a brokered guest's Claude config
     },
   });
 
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'glm',
       bin: 'true',
@@ -1883,7 +1883,7 @@ test("it keeps the state an earlier run left in a brokered guest's Claude config
 });
 
 test('it starts a brokered guest in the permission mode its configured arguments set', () => {
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'glm',
       bin: 'claude',
@@ -1937,7 +1937,7 @@ test('it starts a brokered guest in the permission mode its configured arguments
 });
 
 test("it starts a fresh spawn of a brokered guest in Claude's manual mode when the gateway sets none", () => {
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'glm',
       bin: 'claude',
@@ -1990,7 +1990,7 @@ test("it starts a fresh spawn of a brokered guest in Claude's manual mode when t
 });
 
 test("it starts a resume of a brokered guest in Claude's manual mode when the gateway sets none", () => {
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'glm',
       bin: 'claude',
@@ -2051,7 +2051,7 @@ test('it selects the credential a gateway with auth takes from the broker, with 
     },
   });
 
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'glm',
       bin: 'claude',
@@ -2080,7 +2080,7 @@ test('it selects the credential a gateway with auth takes from the broker, with 
 });
 
 test('it selects no broker credential for a gateway without auth', () => {
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'zai',
       bin: 'claude',
@@ -2094,7 +2094,7 @@ test('it selects no broker credential for a gateway without auth', () => {
 });
 
 test('it allows the start of a gateway with auth whose placeholder pairs with the bearer header', () => {
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'glm',
       bin: 'claude',
@@ -2116,7 +2116,7 @@ test('it allows the start of a gateway with auth whose placeholder pairs with th
 });
 
 test('it refuses every start of a gateway with auth whose API key placeholder meets a bearer authorization rule', () => {
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'glm',
       bin: 'claude',
@@ -2141,7 +2141,7 @@ test('it refuses every start of a gateway with auth whose API key placeholder me
 });
 
 test('it allows the start of a gateway with auth whose API key placeholder pairs with a raw x-api-key header', () => {
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'muse',
       bin: 'claude',
@@ -2182,7 +2182,7 @@ test.each([
 ])(
   'it refuses every start of a gateway with auth whose placeholders %p meet the rule %p',
   (placeholderEnv, rule) => {
-    const adapter = new GatewayAdapter(
+    const adapter = createGatewayAdapter(
       buildMockGatewayConfig({
         id: 'muse',
         bin: 'claude',
@@ -2203,7 +2203,7 @@ test.each([
 );
 
 test('it plans a brokered guest spawn of an API key gateway that sends only the x-api-key placeholder, approved in its seed', () => {
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'muse',
       bin: 'claude',
@@ -2265,7 +2265,7 @@ test('it plans a brokered guest spawn of an API key gateway that sends only the 
 });
 
 test('it seeds the approval of the API key placeholder beside the clone trust of an API key gateway', () => {
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'muse',
       bin: 'claude',
@@ -2305,7 +2305,7 @@ test.each([
   async (hostEnv, exitCode) => {
     const ctx = setupTest();
 
-    const adapter = new GatewayAdapter(
+    const adapter = createGatewayAdapter(
       buildMockGatewayConfig({
         id: 'muse',
         bin: 'true',
@@ -2352,7 +2352,7 @@ test.each([
 );
 
 test('it refuses every start of a gateway with auth whose env sets a proxy variable', () => {
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'glm',
       bin: 'claude',
@@ -2378,7 +2378,7 @@ test('it refuses every start of a gateway with auth whose env sets a proxy varia
 });
 
 test('it pastes a long line and submits it with a carriage return as a second write', () => {
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig(),
     parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
@@ -2391,7 +2391,7 @@ test('it pastes a long line and submits it with a carriage return as a second wr
 });
 
 test("it sets a profile's variables in a brokered guest's settings env and spawn env", () => {
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'glm',
       bin: 'claude',
@@ -2526,7 +2526,7 @@ test("it sets a profile's variables in a brokered guest's settings env and spawn
 });
 
 test('it refuses a local plan of a gateway whose profile sets variables', () => {
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     buildMockGatewayConfig({
       id: 'glm',
       bin: 'claude',

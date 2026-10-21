@@ -7,10 +7,10 @@ import {
   startStubCodexAppServer,
   waitFor,
 } from '@atc/test-utils';
-import { AppServerBridge } from './app-server-bridge';
-import { AppServerConnection } from './app-server-connection';
-import type { AppServerNotification } from './app-server-connection';
 import { AppServerError } from './app-server-error';
+import { createAppServerBridge } from './create-app-server-bridge';
+import { createAppServerConnection } from './create-app-server-connection';
+import type { AppServerConnection, AppServerNotification } from './create-app-server-connection';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-app-server-bridge-');
@@ -19,7 +19,7 @@ function setupTest() {
   return {
     socket,
     unconfirmedFile: join(temporaryDirectory.path, 'unconfirmed-sends.json'),
-    openConnection: () => AppServerConnection.open(`ws+unix://${socket}`),
+    openConnection: () => createAppServerConnection(`ws+unix://${socket}`),
   };
 }
 
@@ -30,7 +30,7 @@ test('it delivers a queued message with turn/start and answers it with the turn 
 
   onTestFinished(() => server.stop());
 
-  const bridge = new AppServerBridge({
+  const bridge = createAppServerBridge({
     session: 's-1',
     cwd: '/work/repo',
     host: stub.host,
@@ -78,7 +78,7 @@ test('it starts the thread with the atc tools and writes its rollout before it r
 
   onTestFinished(() => server.stop());
 
-  const bridge = new AppServerBridge({
+  const bridge = createAppServerBridge({
     session: 's-1',
     cwd: '/work/repo',
     host: stub.host,
@@ -108,7 +108,7 @@ test('it starts a new thread when the thread it was given does not resume', asyn
 
   onTestFinished(() => server.stop());
 
-  const bridge = new AppServerBridge({
+  const bridge = createAppServerBridge({
     session: 's-1',
     cwd: '/work/repo',
     host: stub.host,
@@ -136,7 +136,7 @@ test('it keeps every stored message as it was and sends nothing when the history
 
   onTestFinished(() => server.stop());
 
-  const bridge = new AppServerBridge({
+  const bridge = createAppServerBridge({
     session: 's-1',
     cwd: '/work/repo',
     host: stub.host,
@@ -183,7 +183,7 @@ test('it resends no accepted message when its turn completes while the connectio
 
   onTestFinished(() => server.stop());
 
-  const bridge = new AppServerBridge({
+  const bridge = createAppServerBridge({
     session: 's-1',
     cwd: '/work/repo',
     host: stub.host,
@@ -223,7 +223,7 @@ test('it settles a message the server took before the daemon marked it, and send
 
   onTestFinished(() => server.stop());
 
-  const earlier = new AppServerBridge({
+  const earlier = createAppServerBridge({
     session: 's-1',
     cwd: '/work/repo',
     host: first.host,
@@ -248,7 +248,7 @@ test('it settles a message the server took before the daemon marked it, and send
 
   const stub = buildStubMessageBridgeHost([{ id: 'm-1', status: 'queued' }]);
 
-  const bridge = new AppServerBridge({
+  const bridge = createAppServerBridge({
     session: 's-1',
     cwd: '/work/repo',
     host: stub.host,
@@ -282,7 +282,7 @@ test('it leaves a delivered message that no stored turn holds unanswered as neve
 
   onTestFinished(() => server.stop());
 
-  const bridge = new AppServerBridge({
+  const bridge = createAppServerBridge({
     session: 's-1',
     cwd: '/work/repo',
     host: stub.host,
@@ -314,7 +314,7 @@ test('it records a note the model calls atc.note with', async () => {
 
   onTestFinished(() => server.stop());
 
-  const bridge = new AppServerBridge({
+  const bridge = createAppServerBridge({
     session: 's-1',
     cwd: '/work/repo',
     host: stub.host,
@@ -352,7 +352,7 @@ test('it answers a message the running turn carries through atc.answer', async (
 
   onTestFinished(() => server.stop());
 
-  const bridge = new AppServerBridge({
+  const bridge = createAppServerBridge({
     session: 's-1',
     cwd: '/work/repo',
     host: stub.host,
@@ -389,7 +389,7 @@ test('it answers an atc.answer that a resumed thread calls before its recovery e
 
   onTestFinished(() => server.stop());
 
-  const before = new AppServerBridge({
+  const before = createAppServerBridge({
     session: 's-1',
     cwd: '/work/repo',
     host: stub.host,
@@ -414,7 +414,7 @@ test('it answers an atc.answer that a resumed thread calls before its recovery e
 
   const recovery = Promise.withResolvers<undefined>();
 
-  const after = new AppServerBridge({
+  const after = createAppServerBridge({
     session: 's-1',
     cwd: '/work/repo',
     host: {
@@ -457,7 +457,7 @@ test('it refuses an atc.answer for a message the running turn does not carry', a
 
   onTestFinished(() => server.stop());
 
-  const bridge = new AppServerBridge({
+  const bridge = createAppServerBridge({
     session: 's-1',
     cwd: '/work/repo',
     host: stub.host,
@@ -497,7 +497,7 @@ test('it closes a connection that opens after the bridge stopped, and uses it fo
 
   onTestFinished(() => server.stop());
 
-  const bridge = new AppServerBridge({
+  const bridge = createAppServerBridge({
     session: 's-1',
     cwd: '/work/repo',
     host: stub.host,
@@ -529,7 +529,7 @@ test('it leaves a message the App Server refuses unanswered and keeps the connec
 
   onTestFinished(() => server.stop());
 
-  const bridge = new AppServerBridge({
+  const bridge = createAppServerBridge({
     session: 's-1',
     cwd: '/work/repo',
     host: stub.host,
@@ -579,7 +579,7 @@ test('it keeps a message the overloaded App Server turns away queued and deliver
 
   onTestFinished(() => server.stop());
 
-  const bridge = new AppServerBridge({
+  const bridge = createAppServerBridge({
     session: 's-1',
     cwd: '/work/repo',
     host: stub.host,
@@ -627,7 +627,7 @@ test('it sends a message the daemon hands over during an overload wait only afte
 
   onTestFinished(() => server.stop());
 
-  const bridge = new AppServerBridge({
+  const bridge = createAppServerBridge({
     session: 's-1',
     cwd: '/work/repo',
     host: stub.host,
@@ -665,7 +665,7 @@ test('it moves to the thread the terminal shows without waiting out an overload'
 
   onTestFinished(() => server.stop());
 
-  const bridge = new AppServerBridge({
+  const bridge = createAppServerBridge({
     session: 's-1',
     cwd: '/work/repo',
     host: stub.host,
@@ -727,7 +727,7 @@ test('it moves when the terminal moves while an overloaded send waits for its an
   // the test lets it through, after the terminal moved.
   let held = false;
 
-  const bridge = new AppServerBridge({
+  const bridge = createAppServerBridge({
     session: 's-1',
     cwd: '/work/repo',
     host: stub.host,
@@ -803,7 +803,7 @@ test('it keeps a notice the overloaded App Server turns away queued and delivers
 
   onTestFinished(() => server.stop());
 
-  const bridge = new AppServerBridge({
+  const bridge = createAppServerBridge({
     session: 's-1',
     cwd: '/work/repo',
     host: stub.host,
@@ -842,7 +842,7 @@ test('it starts the thread and each turn on the model the spawn asked for', asyn
 
   onTestFinished(() => server.stop());
 
-  const bridge = new AppServerBridge({
+  const bridge = createAppServerBridge({
     session: 's-1',
     cwd: '/work/repo',
     host: stub.host,
@@ -884,7 +884,7 @@ test('it resumes the thread it was given on the model the spawn asked for', asyn
 
   const thread = await startCodexTerminalThread(ctx.socket);
 
-  const bridge = new AppServerBridge({
+  const bridge = createAppServerBridge({
     session: 's-1',
     cwd: '/work/repo',
     host: buildStubMessageBridgeHost().host,
@@ -914,7 +914,7 @@ test('it leaves the model to the server when the spawn asked for none', async ()
 
   onTestFinished(() => server.stop());
 
-  const bridge = new AppServerBridge({
+  const bridge = createAppServerBridge({
     session: 's-1',
     cwd: '/work/repo',
     host: stub.host,
@@ -947,7 +947,7 @@ test('it delivers a message to the thread the terminal moved to and none to the 
 
   onTestFinished(() => server.stop());
 
-  const bridge = new AppServerBridge({
+  const bridge = createAppServerBridge({
     session: 's-1',
     cwd: '/work/repo',
     host: stub.host,
@@ -994,7 +994,7 @@ test('it leaves a message unanswered and sends it nowhere else when the terminal
 
   onTestFinished(() => server.stop());
 
-  const bridge = new AppServerBridge({
+  const bridge = createAppServerBridge({
     session: 's-1',
     cwd: '/work/repo',
     host: stub.host,
@@ -1040,7 +1040,7 @@ test('it changes nothing when the thread it is given is the one it serves', asyn
 
   onTestFinished(() => server.stop());
 
-  const bridge = new AppServerBridge({
+  const bridge = createAppServerBridge({
     session: 's-1',
     cwd: '/work/repo',
     host: stub.host,
@@ -1091,7 +1091,7 @@ test('it sends a message the old thread took nowhere else when the terminal move
   // server took the message.
   let held = false;
 
-  const bridge = new AppServerBridge({
+  const bridge = createAppServerBridge({
     session: 's-1',
     cwd: '/work/repo',
     host: stub.host,
@@ -1198,7 +1198,7 @@ test('it sends a message the old thread took nowhere else when the connection dr
 
   onTestFinished(() => server.stop());
 
-  const bridge = new AppServerBridge({
+  const bridge = createAppServerBridge({
     session: 's-1',
     cwd: '/work/repo',
     host: stub.host,
@@ -1258,7 +1258,7 @@ test('it sends a message the old thread took nowhere else when the daemon restar
 
   onTestFinished(() => server.stop());
 
-  const before = new AppServerBridge({
+  const before = createAppServerBridge({
     session: 's-1',
     cwd: '/work/repo',
     host: stub.host,
@@ -1288,7 +1288,7 @@ test('it sends a message the old thread took nowhere else when the daemon restar
 
   before.stop();
 
-  const after = new AppServerBridge({
+  const after = createAppServerBridge({
     session: 's-1',
     cwd: '/work/repo',
     host: stub.host,
@@ -1341,7 +1341,7 @@ test('it delivers a message the old thread never took to the thread the terminal
 
   onTestFinished(() => server.stop());
 
-  const bridge = new AppServerBridge({
+  const bridge = createAppServerBridge({
     session: 's-1',
     cwd: '/work/repo',
     host: stub.host,
@@ -1398,7 +1398,7 @@ test('it leaves a message unanswered and sends it nowhere else when the old thre
 
   onTestFinished(() => server.stop());
 
-  const bridge = new AppServerBridge({
+  const bridge = createAppServerBridge({
     session: 's-1',
     cwd: '/work/repo',
     host: stub.host,
@@ -1456,7 +1456,7 @@ test('it keeps a message queued and sends it nowhere while the history of the ol
 
   onTestFinished(() => server.stop());
 
-  const bridge = new AppServerBridge({
+  const bridge = createAppServerBridge({
     session: 's-1',
     cwd: '/work/repo',
     host: stub.host,
@@ -1506,7 +1506,7 @@ test('it settles a later message with the turn it left running when the terminal
 
   onTestFinished(() => server.stop());
 
-  const bridge = new AppServerBridge({
+  const bridge = createAppServerBridge({
     session: 's-1',
     cwd: '/work/repo',
     host: stub.host,

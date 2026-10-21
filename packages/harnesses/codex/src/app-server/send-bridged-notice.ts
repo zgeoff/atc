@@ -1,6 +1,6 @@
 import type { BridgedNotice } from '@atc/plugin-api';
-import type { AppServerConnection } from './app-server-connection';
 import { buildModelParams } from './build-model-params';
+import type { AppServerConnection } from './create-app-server-connection';
 import { isOverload } from './is-overload';
 import { isRefusal } from './is-refusal';
 import { NOTICE_PREFIX } from './notice-prefix';

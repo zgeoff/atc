@@ -3,8 +3,6 @@ import { collectAgents, parseConfig } from '@atc/config';
 import type { AuthProfile } from '@atc/plugin-api';
 import { buildMockAuthProfile, buildMockHostServices } from '@atc/test-utils';
 import { buildClaudePlugin } from './build-claude-plugin';
-import { ClaudeAdapter } from './claude-adapter';
-import { GatewayAdapter } from './gateway/gateway-adapter';
 
 test('it loads a gateway with auth through the gateway checks', () => {
   const result = collectAgents(
@@ -923,7 +921,7 @@ test('it creates a stock claude adapter for an entry without a base URL', () => 
     { authProfiles: new Map() },
   );
 
-  expect(adapter).toBeInstanceOf(ClaudeAdapter);
+  expect(adapter.profile?.kind).toBe('claude');
   expect(adapter.id).toBe('claude-b');
 });
 
@@ -946,6 +944,6 @@ test('it creates a gateway adapter for an entry with a base URL', () => {
     { authProfiles: new Map() },
   );
 
-  expect(adapter).toBeInstanceOf(GatewayAdapter);
+  expect(adapter.profile?.kind).toBe('gateway');
   expect(adapter.id).toBe('zai');
 });

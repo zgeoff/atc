@@ -267,12 +267,12 @@ test("it writes a gateway's generated settings file inside the run's own home", 
     `import { expect, test } from 'bun:test';
 import { realpathSync } from 'node:fs';
 import { join, sep } from 'node:path';
-import { GatewayAdapter } from '${join(ctx.repo, 'packages', 'harnesses', 'claude', 'src', 'gateway', 'gateway-adapter')}';
+import { createGatewayAdapter } from '${join(ctx.repo, 'packages', 'harnesses', 'claude', 'src', 'gateway', 'create-gateway-adapter')}';
 import { parseConfig } from '${join(ctx.repo, 'packages', 'config', 'src', 'config')}';
 import { stateDir } from '${join(ctx.repo, 'packages', 'config', 'src', 'host', 'process-paths')}';
 
 test('it writes the settings file under the home', () => {
-  const adapter = new GatewayAdapter(
+  const adapter = createGatewayAdapter(
     { id: 'isolation-probe', label: 'Isolation probe', mark: 'i', bin: 'claude', args: [], baseURL: 'https://gateway.example/anthropic', env: {} },
     parseConfig([], {}),
     { atcArgv: ['atc'] },

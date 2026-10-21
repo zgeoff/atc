@@ -1,7 +1,7 @@
 import type { HarnessPlugin } from '@atc/config';
 import { buildAgentEntrySchema } from '@atc/config';
 import { definePlugin } from '@atc/plugin-api';
-import { GrokAdapter } from './grok-adapter';
+import { createGrokAdapter } from './create-grok-adapter';
 
 export const GROK_PLUGIN: HarnessPlugin = definePlugin({
   kind: 'harness',
@@ -9,5 +9,5 @@ export const GROK_PLUGIN: HarnessPlugin = definePlugin({
   configFields: [],
   configSchema: (context) =>
     buildAgentEntrySchema({ kind: 'grok', fields: [], defaultLabel: 'Grok' }, context),
-  create: (config) => new GrokAdapter(config.entry),
+  create: (config) => createGrokAdapter(config.entry),
 });

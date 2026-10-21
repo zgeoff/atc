@@ -1,7 +1,6 @@
 import { expect, test } from 'bun:test';
 import { collectAgents } from '@atc/config';
 import { buildMockHostServices } from '@atc/test-utils';
-import { GrokAdapter } from './grok-adapter';
 import { GROK_PLUGIN } from './grok-plugin';
 
 test('it loads a grok entry on the defaults of its kind', () => {
@@ -38,6 +37,6 @@ test('it creates a grok adapter for an entry', () => {
     { authProfiles: new Map() },
   );
 
-  expect(adapter).toBeInstanceOf(GrokAdapter);
+  expect(adapter.profile?.kind).toBe('grok');
   expect(adapter.id).toBe('grok-b');
 });

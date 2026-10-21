@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
 import { LocalPTYProvider } from '@atc/execution-local';
 import { buildStubPTYProvider } from '@atc/execution-local/testing';
-import { ClaudeAdapter, GatewayAdapter } from '@atc/harness-claude';
+import { createClaudeAdapter, createGatewayAdapter } from '@atc/harness-claude';
 import { getGatewayConfig } from '@atc/harness-claude/testing';
 import {
   buildMockHostServices,
@@ -49,10 +49,15 @@ test('it trusts only the resolved clone root in the user config after an opted-i
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: [
-        new ClaudeAdapter(getAgentEntry(atcConfig, 'claude'), atcConfig, buildMockHostServices(), {
-          homeDir: ctx.homeDir,
-        }),
-        new GatewayAdapter(
+        createClaudeAdapter(
+          getAgentEntry(atcConfig, 'claude'),
+          atcConfig,
+          buildMockHostServices(),
+          {
+            homeDir: ctx.homeDir,
+          },
+        ),
+        createGatewayAdapter(
           getGatewayConfig(atcConfig, 'plain'),
           atcConfig,
           buildMockHostServices(),
@@ -136,10 +141,15 @@ test('it leaves the user config byte for byte after a local clone launch with no
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: [
-        new ClaudeAdapter(getAgentEntry(atcConfig, 'claude'), atcConfig, buildMockHostServices(), {
-          homeDir: ctx.homeDir,
-        }),
-        new GatewayAdapter(
+        createClaudeAdapter(
+          getAgentEntry(atcConfig, 'claude'),
+          atcConfig,
+          buildMockHostServices(),
+          {
+            homeDir: ctx.homeDir,
+          },
+        ),
+        createGatewayAdapter(
           getGatewayConfig(atcConfig, 'plain'),
           atcConfig,
           buildMockHostServices(),
@@ -193,10 +203,15 @@ test('it leaves the user config byte for byte after a local clone launch that op
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: [
-        new ClaudeAdapter(getAgentEntry(atcConfig, 'claude'), atcConfig, buildMockHostServices(), {
-          homeDir: ctx.homeDir,
-        }),
-        new GatewayAdapter(
+        createClaudeAdapter(
+          getAgentEntry(atcConfig, 'claude'),
+          atcConfig,
+          buildMockHostServices(),
+          {
+            homeDir: ctx.homeDir,
+          },
+        ),
+        createGatewayAdapter(
           getGatewayConfig(atcConfig, 'plain'),
           atcConfig,
           buildMockHostServices(),
@@ -251,10 +266,15 @@ test('it trusts a local clone when the target defaults trust on', async () => {
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: [
-        new ClaudeAdapter(getAgentEntry(atcConfig, 'claude'), atcConfig, buildMockHostServices(), {
-          homeDir: ctx.homeDir,
-        }),
-        new GatewayAdapter(
+        createClaudeAdapter(
+          getAgentEntry(atcConfig, 'claude'),
+          atcConfig,
+          buildMockHostServices(),
+          {
+            homeDir: ctx.homeDir,
+          },
+        ),
+        createGatewayAdapter(
           getGatewayConfig(atcConfig, 'plain'),
           atcConfig,
           buildMockHostServices(),
@@ -305,10 +325,15 @@ test('it refuses local trust for an existing folder', async () => {
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: [
-        new ClaudeAdapter(getAgentEntry(atcConfig, 'claude'), atcConfig, buildMockHostServices(), {
-          homeDir: ctx.homeDir,
-        }),
-        new GatewayAdapter(
+        createClaudeAdapter(
+          getAgentEntry(atcConfig, 'claude'),
+          atcConfig,
+          buildMockHostServices(),
+          {
+            homeDir: ctx.homeDir,
+          },
+        ),
+        createGatewayAdapter(
           getGatewayConfig(atcConfig, 'plain'),
           atcConfig,
           buildMockHostServices(),
@@ -354,10 +379,15 @@ test('it leaves the user config and starts nothing when it refuses local trust f
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: [
-        new ClaudeAdapter(getAgentEntry(atcConfig, 'claude'), atcConfig, buildMockHostServices(), {
-          homeDir: ctx.homeDir,
-        }),
-        new GatewayAdapter(
+        createClaudeAdapter(
+          getAgentEntry(atcConfig, 'claude'),
+          atcConfig,
+          buildMockHostServices(),
+          {
+            homeDir: ctx.homeDir,
+          },
+        ),
+        createGatewayAdapter(
           getGatewayConfig(atcConfig, 'plain'),
           atcConfig,
           buildMockHostServices(),
@@ -406,10 +436,15 @@ test('it refuses a local launch whose harness fails to start after the trust wri
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: [
-        new ClaudeAdapter(getAgentEntry(atcConfig, 'claude'), atcConfig, buildMockHostServices(), {
-          homeDir: ctx.homeDir,
-        }),
-        new GatewayAdapter(
+        createClaudeAdapter(
+          getAgentEntry(atcConfig, 'claude'),
+          atcConfig,
+          buildMockHostServices(),
+          {
+            homeDir: ctx.homeDir,
+          },
+        ),
+        createGatewayAdapter(
           getGatewayConfig(atcConfig, 'plain'),
           atcConfig,
           buildMockHostServices(),
@@ -464,10 +499,15 @@ test('it takes the local trust back and removes the clone when the harness fails
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: [
-        new ClaudeAdapter(getAgentEntry(atcConfig, 'claude'), atcConfig, buildMockHostServices(), {
-          homeDir: ctx.homeDir,
-        }),
-        new GatewayAdapter(
+        createClaudeAdapter(
+          getAgentEntry(atcConfig, 'claude'),
+          atcConfig,
+          buildMockHostServices(),
+          {
+            homeDir: ctx.homeDir,
+          },
+        ),
+        createGatewayAdapter(
           getGatewayConfig(atcConfig, 'plain'),
           atcConfig,
           buildMockHostServices(),
@@ -536,10 +576,15 @@ test('it refuses a local launch whose trust write fails', async () => {
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: [
-        new ClaudeAdapter(getAgentEntry(atcConfig, 'claude'), atcConfig, buildMockHostServices(), {
-          homeDir: ctx.homeDir,
-        }),
-        new GatewayAdapter(
+        createClaudeAdapter(
+          getAgentEntry(atcConfig, 'claude'),
+          atcConfig,
+          buildMockHostServices(),
+          {
+            homeDir: ctx.homeDir,
+          },
+        ),
+        createGatewayAdapter(
           getGatewayConfig(atcConfig, 'plain'),
           atcConfig,
           buildMockHostServices(),
@@ -585,10 +630,15 @@ test('it removes the clone, keeps the user config, and starts nothing when the t
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: [
-        new ClaudeAdapter(getAgentEntry(atcConfig, 'claude'), atcConfig, buildMockHostServices(), {
-          homeDir: ctx.homeDir,
-        }),
-        new GatewayAdapter(
+        createClaudeAdapter(
+          getAgentEntry(atcConfig, 'claude'),
+          atcConfig,
+          buildMockHostServices(),
+          {
+            homeDir: ctx.homeDir,
+          },
+        ),
+        createGatewayAdapter(
           getGatewayConfig(atcConfig, 'plain'),
           atcConfig,
           buildMockHostServices(),
@@ -638,10 +688,15 @@ test('it refuses local trust for a gateway', async () => {
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: [
-        new ClaudeAdapter(getAgentEntry(atcConfig, 'claude'), atcConfig, buildMockHostServices(), {
-          homeDir: ctx.homeDir,
-        }),
-        new GatewayAdapter(
+        createClaudeAdapter(
+          getAgentEntry(atcConfig, 'claude'),
+          atcConfig,
+          buildMockHostServices(),
+          {
+            homeDir: ctx.homeDir,
+          },
+        ),
+        createGatewayAdapter(
           getGatewayConfig(atcConfig, 'plain'),
           atcConfig,
           buildMockHostServices(),
@@ -691,10 +746,15 @@ test('it refuses local trust for a gateway before cloning or touching the user c
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: [
-        new ClaudeAdapter(getAgentEntry(atcConfig, 'claude'), atcConfig, buildMockHostServices(), {
-          homeDir: ctx.homeDir,
-        }),
-        new GatewayAdapter(
+        createClaudeAdapter(
+          getAgentEntry(atcConfig, 'claude'),
+          atcConfig,
+          buildMockHostServices(),
+          {
+            homeDir: ctx.homeDir,
+          },
+        ),
+        createGatewayAdapter(
           getGatewayConfig(atcConfig, 'plain'),
           atcConfig,
           buildMockHostServices(),

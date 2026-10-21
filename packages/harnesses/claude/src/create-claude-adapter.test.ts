@@ -13,8 +13,8 @@ import {
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { ATC_BRIDGE_FILES } from './bridge/atc-bridge-files';
-import { ClaudeAdapter } from './claude-adapter';
 import { CLAUDE_PLUGIN } from './claude-plugin';
+import { createClaudeAdapter } from './create-claude-adapter';
 import { buildStubClaudeHeadlessRun } from './testing/build-stub-claude-headless-run';
 
 // A folder for the files a test writes: transcripts, the atc-bridge mod, a
@@ -26,7 +26,7 @@ function setupTest() {
 }
 
 test("it reads a session's hook lines as Claude's, with no state across them", () => {
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(parseConfig([CLAUDE_PLUGIN], {}), 'claude'),
     parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
@@ -44,7 +44,7 @@ test("it reads a session's hook lines as Claude's, with no state across them", (
 });
 
 test('it takes inbox messages', () => {
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(parseConfig([CLAUDE_PLUGIN], {}), 'claude'),
     parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
@@ -57,7 +57,7 @@ test('it runs a headless turn through the configured claude binary under the aut
   const ctx = setupTest();
   const runner = buildStubClaudeHeadlessRun();
 
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(parseConfig([CLAUDE_PLUGIN], {}), 'claude'),
     parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
@@ -103,7 +103,7 @@ test('it advertises the documented model aliases and effort levels with the conf
     agents: { claude: { args: ['--model', 'opus', '--effort=high'] } },
   });
 
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
@@ -147,7 +147,7 @@ test('it advertises the documented model aliases and effort levels with the conf
 });
 
 test('it advertises no default model or effort when the configured arguments set none', () => {
-  const options = new ClaudeAdapter(
+  const options = createClaudeAdapter(
     getAgentEntry(parseConfig([CLAUDE_PLUGIN], {}), 'claude'),
     parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
@@ -165,7 +165,7 @@ test('it runs a headless turn under the permission mode its configured arguments
     agents: { claude: { args: ['--permission-mode', 'plan'] } },
   });
 
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
@@ -203,7 +203,7 @@ test('it keeps the permission mode its configured arguments set in the command t
     agents: { claude: { args: ['--permission-mode', 'plan'] } },
   });
 
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
@@ -221,7 +221,7 @@ test('it restores a stock session in the mode its settings set', () => {
     agents: { claude: { settings: { permissions: { defaultMode: 'bypassPermissions' } } } },
   });
 
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
@@ -253,7 +253,7 @@ test('it gives a local session a scratch folder of its own as a working director
   const ctx = setupTest();
   const config = parseConfig([CLAUDE_PLUGIN], {});
 
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
@@ -290,7 +290,7 @@ test("it loads the config's plugin folders with ~ expanded, then the session's o
     agents: { claude: { pluginDirs: ['~/plugins/band', '/opt/plugins/shared'] } },
   });
 
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
@@ -328,7 +328,7 @@ test("it lists the config's plugin folders with ~ expanded in its profile", () =
     agents: { claude: { pluginDirs: ['~/plugins/band', '/opt/plugins/shared'] } },
   });
 
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
@@ -344,7 +344,7 @@ test("it lists the config's plugin folders with ~ expanded in its profile", () =
 test('it lists no plugin folders in the profile of an entry whose config sets none', () => {
   const config = parseConfig([CLAUDE_PLUGIN], {});
 
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
@@ -358,7 +358,7 @@ test("it leaves the config's and the session's plugin folders out of a remote sp
     agents: { claude: { pluginDirs: ['/opt/plugins/shared'] } },
   });
 
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
@@ -392,7 +392,7 @@ test("it runs a headless turn with the config's plugin folders and then the sess
     agents: { claude: { pluginDirs: ['/opt/plugins/shared'] } },
   });
 
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
@@ -434,7 +434,7 @@ test("it runs a headless turn with the config's plugin folders and then the sess
 test('it plans the guest bridge files a remote session launches with', () => {
   const config = parseConfig([CLAUDE_PLUGIN], {});
 
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
@@ -454,7 +454,7 @@ test('it restores an unbrokered remote session in the mode its settings set', ()
     agents: { claude: { settings: { permissions: { defaultMode: 'plan' } } } },
   });
 
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
@@ -571,7 +571,7 @@ test('it plans a remote spawn in the permission mode its configured arguments se
     agents: { claude: { args: ['--permission-mode', 'plan'] } },
   });
 
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
@@ -685,7 +685,7 @@ test('it quotes a configured binary path with spaces in the resume command', () 
     agents: { claude: { bin: '/opt/Claude Code/claude' } },
   });
 
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
@@ -703,7 +703,7 @@ test('it carries the settings file in the resume command of an entry with its ow
     agents: { claude: { settings: { model: 'opus' } } },
   });
 
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices({ atcArgv: ['/opt/atc/bin/atc'] }),
@@ -790,7 +790,7 @@ test('it carries the settings file in the resume command of an entry with its ow
 test('it restores a stock session without a permission-mode argument', () => {
   const ctx = setupTest();
 
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(parseConfig([CLAUDE_PLUGIN], {}), 'claude'),
     parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
@@ -817,7 +817,7 @@ test('it restores a stock session without a permission-mode argument', () => {
 });
 
 test('it resumes a stock session outside atc without a permission-mode argument', () => {
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(parseConfig([CLAUDE_PLUGIN], {}), 'claude'),
     parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
@@ -833,7 +833,7 @@ test("it keeps the config's plugin folders and the session's own in the command 
     agents: { claude: { pluginDirs: ['/opt/plugins/shared'] } },
   });
 
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
@@ -847,7 +847,7 @@ test("it keeps the config's plugin folders and the session's own in the command 
 });
 
 test('it pastes a long line and submits it with a carriage return as a second write', () => {
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(parseConfig([CLAUDE_PLUGIN], {}), 'claude'),
     parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
@@ -860,7 +860,7 @@ test('it pastes a long line and submits it with a carriage return as a second wr
 });
 
 test('it takes no credential from the broker when the config holds no Claude auth', () => {
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(parseConfig([CLAUDE_PLUGIN], {}), 'claude'),
     parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
@@ -870,7 +870,7 @@ test('it takes no credential from the broker when the config holds no Claude aut
 });
 
 test('it seeds no clone trust when the config holds no Claude auth', () => {
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(parseConfig([CLAUDE_PLUGIN], {}), 'claude'),
     parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
@@ -892,7 +892,7 @@ test('it selects the subscription token on the Anthropic API with the placeholde
     agents: { claude: { auth: { profiles: ['claude'] } } },
   });
 
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
@@ -938,7 +938,7 @@ test("it selects the entry's own placeholders beside the subscription token's", 
     },
   });
 
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
@@ -981,7 +981,7 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
     },
   });
 
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
@@ -1148,7 +1148,7 @@ test("it ships the host's Claude config as the session's user settings and keeps
     agents: { claude: { auth: { profiles: ['claude'] } } },
   });
 
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
@@ -1311,7 +1311,7 @@ test('it gives a subscription guest spawn its MCP servers with the placeholder i
     },
   });
 
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
@@ -1385,7 +1385,7 @@ test('it plans a guest spawn without a broker binding in the config of the host 
     agents: { claude: { auth: { profiles: ['claude'] } } },
   });
 
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
@@ -1516,7 +1516,7 @@ test.each([
     },
   });
 
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
@@ -1545,7 +1545,7 @@ test.each([
 });
 
 test('it refuses a subscription guest spawn whose entry env overrides the sign-in', () => {
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     buildMockAgentEntry({
       id: 'claude',
       bin: 'claude',
@@ -1581,7 +1581,7 @@ test('it refuses a subscription guest spawn whose entry env overrides the sign-i
 });
 
 test('it refuses a subscription guest spawn whose entry settings env overrides the sign-in', () => {
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     buildMockAgentEntry({
       id: 'claude',
       bin: 'claude',
@@ -1631,7 +1631,7 @@ test('it refuses to start a subscription session in a host whose environment set
     agents: { claude: { bin: 'true', auth: { profiles: ['claude'] } } },
   });
 
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
@@ -1698,7 +1698,7 @@ test.each([
       agents: { claude: { bin: 'true', auth: { profiles: ['claude'] } } },
     });
 
-    const adapter = new ClaudeAdapter(
+    const adapter = createClaudeAdapter(
       getAgentEntry(config, 'claude'),
       config,
       buildMockHostServices(),
@@ -1746,7 +1746,7 @@ test('it starts a subscription session with a seeded config folder in a host who
     agents: { claude: { bin: 'true', auth: { profiles: ['claude'] } } },
   });
 
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
@@ -1800,7 +1800,7 @@ test("it seeds folder trust and approval of the clone's own MCP servers for the 
     agents: { claude: { auth: { profiles: ['claude'] } } },
   });
 
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
@@ -1842,7 +1842,7 @@ test("it sets a profile's variables in a subscription guest's settings env and s
     agents: { claude: { auth: { profiles: ['claude', 'op'] } } },
   });
 
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
@@ -1979,7 +1979,7 @@ test("it leaves a profile's variables out of the local plan of an entry with a p
     agents: { claude: { auth: { profiles: ['claude', 'op'] } } },
   });
 
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices({ atcArgv: ['/opt/atc/bin/atc'] }),
@@ -2094,7 +2094,7 @@ test('it plans a Codex home in the binding revision when the profiles send a rea
     agents: { claude: { auth: { profiles: ['claude', 'codex'] } } },
   });
 
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
@@ -2185,7 +2185,7 @@ test('it plans no Codex home when the ChatGPT sign-in in impd is not ready', () 
     agents: { claude: { auth: { profiles: ['claude', 'codex'] } } },
   });
 
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),
@@ -2244,7 +2244,7 @@ test('it plans no Codex home when a ChatGPT profile sets no bearer authorization
     agents: { claude: { auth: { profiles: ['claude', 'codex'] } } },
   });
 
-  const adapter = new ClaudeAdapter(
+  const adapter = createClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
     buildMockHostServices(),

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
 import { ImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/testing';
-import { ClaudeAdapter, GatewayAdapter } from '@atc/harness-claude';
+import { createClaudeAdapter, createGatewayAdapter } from '@atc/harness-claude';
 import { getGatewayConfig } from '@atc/harness-claude/testing';
 import {
   buildMockHostServices,
@@ -134,8 +134,8 @@ test.each([
       prefix: 'atc-project-settings-daemon-',
       options: () => ({
         adapters: [
-          new ClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
-          new GatewayAdapter(getGatewayConfig(config, 'glm'), config, buildMockHostServices()),
+          createClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
+          createGatewayAdapter(getGatewayConfig(config, 'glm'), config, buildMockHostServices()),
         ],
         gitTransports: ['file'],
         targets: [
@@ -233,8 +233,8 @@ test('it refuses an untrusted subscription clone whose settings set apiKeyHelper
     prefix: 'atc-project-settings-daemon-',
     options: () => ({
       adapters: [
-        new ClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
-        new GatewayAdapter(getGatewayConfig(config, 'glm'), config, buildMockHostServices()),
+        createClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
+        createGatewayAdapter(getGatewayConfig(config, 'glm'), config, buildMockHostServices()),
       ],
       gitTransports: ['file'],
       targets: [
@@ -327,8 +327,8 @@ test.each(['{"env": {', '[]', '[{"env":{"ANTHROPIC_API_KEY":"x"}}]'])(
       prefix: 'atc-project-settings-daemon-',
       options: () => ({
         adapters: [
-          new ClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
-          new GatewayAdapter(getGatewayConfig(config, 'glm'), config, buildMockHostServices()),
+          createClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
+          createGatewayAdapter(getGatewayConfig(config, 'glm'), config, buildMockHostServices()),
         ],
         gitTransports: ['file'],
         targets: [
@@ -421,8 +421,8 @@ test('it refuses a subscription clone whose settings file is a dangling symlink'
     prefix: 'atc-project-settings-daemon-',
     options: () => ({
       adapters: [
-        new ClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
-        new GatewayAdapter(getGatewayConfig(config, 'glm'), config, buildMockHostServices()),
+        createClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
+        createGatewayAdapter(getGatewayConfig(config, 'glm'), config, buildMockHostServices()),
       ],
       gitTransports: ['file'],
       targets: [
@@ -517,8 +517,8 @@ test('it starts a trusted subscription clone whose settings set neither a creden
     prefix: 'atc-project-settings-daemon-',
     options: () => ({
       adapters: [
-        new ClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
-        new GatewayAdapter(getGatewayConfig(config, 'glm'), config, buildMockHostServices()),
+        createClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
+        createGatewayAdapter(getGatewayConfig(config, 'glm'), config, buildMockHostServices()),
       ],
       gitTransports: ['file'],
       targets: [
@@ -603,8 +603,8 @@ test('it starts a trusted subscription clone with no project settings files', as
     prefix: 'atc-project-settings-daemon-',
     options: () => ({
       adapters: [
-        new ClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
-        new GatewayAdapter(getGatewayConfig(config, 'glm'), config, buildMockHostServices()),
+        createClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
+        createGatewayAdapter(getGatewayConfig(config, 'glm'), config, buildMockHostServices()),
       ],
       gitTransports: ['file'],
       targets: [
@@ -678,8 +678,8 @@ test('it refuses a subscription launch in an existing folder whose local setting
     prefix: 'atc-project-settings-daemon-',
     options: () => ({
       adapters: [
-        new ClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
-        new GatewayAdapter(getGatewayConfig(config, 'glm'), config, buildMockHostServices()),
+        createClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
+        createGatewayAdapter(getGatewayConfig(config, 'glm'), config, buildMockHostServices()),
       ],
       gitTransports: ['file'],
       targets: [
@@ -770,8 +770,8 @@ test('it refuses a trusted gateway clone whose settings set apiKeyHelper', async
     prefix: 'atc-project-settings-daemon-',
     options: () => ({
       adapters: [
-        new ClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
-        new GatewayAdapter(getGatewayConfig(config, 'glm'), config, buildMockHostServices()),
+        createClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
+        createGatewayAdapter(getGatewayConfig(config, 'glm'), config, buildMockHostServices()),
       ],
       gitTransports: ['file'],
       targets: [
@@ -863,8 +863,8 @@ test('it refuses a subscription clone whose settings file is a symlink to an end
     prefix: 'atc-project-settings-daemon-',
     options: () => ({
       adapters: [
-        new ClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
-        new GatewayAdapter(getGatewayConfig(config, 'glm'), config, buildMockHostServices()),
+        createClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
+        createGatewayAdapter(getGatewayConfig(config, 'glm'), config, buildMockHostServices()),
       ],
       gitTransports: ['file'],
       targets: [
@@ -955,8 +955,8 @@ test('it refuses a subscription launch in a subfolder whose repository root hold
     prefix: 'atc-project-settings-daemon-',
     options: () => ({
       adapters: [
-        new ClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
-        new GatewayAdapter(getGatewayConfig(config, 'glm'), config, buildMockHostServices()),
+        createClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
+        createGatewayAdapter(getGatewayConfig(config, 'glm'), config, buildMockHostServices()),
       ],
       gitTransports: ['file'],
       targets: [
@@ -1043,8 +1043,8 @@ test('it refuses a subscription launch in a worktree whose main checkout holds l
     prefix: 'atc-project-settings-daemon-',
     options: () => ({
       adapters: [
-        new ClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
-        new GatewayAdapter(getGatewayConfig(config, 'glm'), config, buildMockHostServices()),
+        createClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
+        createGatewayAdapter(getGatewayConfig(config, 'glm'), config, buildMockHostServices()),
       ],
       gitTransports: ['file'],
       targets: [
@@ -1138,8 +1138,8 @@ test('it refuses a launch path whose symlink and parent step resolve to a folder
     prefix: 'atc-project-settings-daemon-',
     options: () => ({
       adapters: [
-        new ClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
-        new GatewayAdapter(getGatewayConfig(config, 'glm'), config, buildMockHostServices()),
+        createClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
+        createGatewayAdapter(getGatewayConfig(config, 'glm'), config, buildMockHostServices()),
       ],
       gitTransports: ['file'],
       targets: [
@@ -1212,7 +1212,7 @@ test('it refuses a subscription launch in an existing folder whose settings file
     prefix: 'atc-project-settings-daemon-',
     options: () => ({
       adapters: [
-        new ClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
+        createClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
       ],
       targets: [
         { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
@@ -1285,7 +1285,7 @@ test.skipIf(process.getuid?.() === 0)(
       prefix: 'atc-project-settings-daemon-',
       options: () => ({
         adapters: [
-          new ClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
+          createClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
         ],
         targets: [
           { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
@@ -1358,7 +1358,7 @@ test('it reads every project settings file of a subscription launch in one comma
     prefix: 'atc-project-settings-daemon-',
     options: () => ({
       adapters: [
-        new ClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
+        createClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
       ],
       targets: [
         { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },

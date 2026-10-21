@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
-import { CODEX_PLUGIN, CodexAdapter } from '@atc/harness-codex';
+import { CODEX_PLUGIN, createCodexAdapter } from '@atc/harness-codex';
 import {
   createStubAppServerCodex,
   getAgentEntry,
@@ -22,7 +22,7 @@ async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-codex-app-server-');
   const bin = createStubAppServerCodex(temporaryDirectory.path);
 
-  const codex = new CodexAdapter(
+  const codex = createCodexAdapter(
     getAgentEntry(
       parseConfig([CODEX_PLUGIN], { agents: { codex: { bin, appServer: true } } }),
       'codex',

@@ -2,7 +2,6 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
-import { ClaudeAdapter, GatewayAdapter } from '@atc/harness-claude';
 import { buildMockHostServices, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
@@ -31,7 +30,7 @@ test('it builds two claude adapters with distinct ids and spawn plans from one r
   });
 
   invariant(
-    first instanceof ClaudeAdapter && second instanceof ClaudeAdapter,
+    first?.profile?.kind === 'claude' && second?.profile?.kind === 'claude',
     'expected two claude adapters',
   );
 
@@ -89,7 +88,7 @@ test('it hands a gateway entry the settings folder, home and mod folder it is gi
     },
   );
 
-  invariant(gateway instanceof GatewayAdapter, 'expected a gateway adapter');
+  invariant(gateway?.profile?.kind === 'gateway', 'expected a gateway adapter');
 
   const plan = gateway.planSpawn({ prompt: '', resume: false });
 
