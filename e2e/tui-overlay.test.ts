@@ -43,10 +43,15 @@ test('it narrows the overlay to sessions matching the slash filter', async () =>
   ctx.reset();
   ctx.write('brav');
 
-  await ctx.waitFor('/ brav');
-  await ctx.waitFor('bravo');
+  // A session's state change can repaint the overlay before the typed text
+  // reaches it, so only the latest frame counts.
+  await waitFor(() => {
+    const frame = ctx.read().split('┌ sessions ').at(-1);
 
-  expect(ctx.read()).not.toInclude('alpha');
+    expect(frame).toInclude('/ brav');
+    expect(frame).toInclude('bravo');
+    expect(frame).not.toInclude('alpha');
+  });
 });
 
 test('it opens the overlay with a configured leader key', async () => {
