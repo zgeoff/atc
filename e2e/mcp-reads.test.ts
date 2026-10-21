@@ -1,8 +1,11 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { isRecord } from '@atc/core';
 import { startInProcessMCP } from '@atc/mcp/testing';
-import { waitFor } from '@atc/test-utils';
+import { runNote } from '@atc/reporters';
+import { updateEnv, waitFor } from '@atc/test-utils';
+import invariant from 'tiny-invariant';
 import { startStubAgentDaemon } from '../packages/app/src/test-utils/start-stub-agent-daemon';
 
 // The MCP tools in the test's process, against a daemon in it whose Claude is
@@ -15,7 +18,7 @@ async function setupTest() {
     build: stub.daemon.build,
   });
 
-  return { home: stub.home, mcp };
+  return { home: stub.home, daemon: stub.daemon, mcp };
 }
 
 test('it reads a session record through a tool call', async () => {
@@ -83,6 +86,65 @@ test('it reads fleet events through a tool call', async () => {
 
   expect(JSON.parse(read.text)).toStrictEqual(read.structured);
   expect(read.structured?.['events']).toPartiallyContain({ kind: 'started', session });
+});
+
+test('it returns the whole text of a note its event previews, and the preview on request', async () => {
+  const ctx = await setupTest();
+  const session = await ctx.mcp.spawnSession({ cwd: ctx.home });
+
+  const whole = `${'option '.repeat(150)}end`;
+
+  // The test runs the note reporter as the agent inside the session would.
+  updateEnv('ATC_SESSION_ID', session);
+  updateEnv('ATC_SOCKET', ctx.daemon.reporterSocketPath);
+
+  await runNote(
+    'note',
+    { message: '', messages: '', label: 'decision', turn: '' },
+    { readStdin: () => Promise.resolve(whole), print: () => {}, exit: () => {} },
+  );
+
+  const full = await waitFor(async () => {
+    const read = await ctx.mcp.sendToolCall('atc_events_read', {});
+
+    const listed = read.structured?.['events'];
+
+    expect(listed).toPartiallyContain({ kind: 'note' });
+
+    return listed;
+  });
+
+  const preview = await ctx.mcp.sendToolCall('atc_events_read', { previewOnly: true });
+
+  invariant(Array.isArray(full), 'the events read holds no events');
+
+  const fullNote: unknown = full.find(
+    (candidate: unknown) => isRecord(candidate) && candidate['kind'] === 'note',
+  );
+
+  invariant(isRecord(fullNote), 'the events read holds no note event');
+
+  expect(fullNote).toStrictEqual({
+    cursor: expect.toBeString(),
+    at: expect.toBeNumber(),
+    session,
+    name: expect.toBeString(),
+    kind: 'note',
+    label: 'decision',
+    detail: `${'option '.repeat(150).slice(0, 599)}…`,
+    text: whole,
+    complete: true,
+  });
+
+  expect(preview.structured?.['events']).toContainEqual({
+    cursor: fullNote['cursor'],
+    at: fullNote['at'],
+    session,
+    name: fullNote['name'],
+    kind: 'note',
+    label: 'decision',
+    detail: `${'option '.repeat(150).slice(0, 599)}…`,
+  });
 });
 
 test('it ends an events long-poll with no events when its wait runs out', async () => {

@@ -117,6 +117,7 @@
     "@atc/mcp": "workspace:*",
     "@atc/plugin-api": "workspace:*",
     "@atc/protocol": "workspace:*",
+    "@atc/reporters": "workspace:*",
     "@atc/source-dirs": "workspace:*",
     "@atc/source-git": "workspace:*",
     "@atc/source-github": "workspace:*",
