@@ -915,6 +915,10 @@ test('it refuses a choice of the option under the cursor once the session exits 
     label: 'No, exit',
   });
 
+  // The daemon starts each request in the order it reads them, so the choice
+  // is in its quiet wait once a later request has its answer.
+  await ctx.daemon.client.sendRequest('session.get', { session: shown.session });
+
   ctx.claude.exit();
 
   expect(chosen).rejects.toMatchObject({ code: 'session_dead' });
@@ -933,6 +937,10 @@ test('it refuses Escape once the session exits during the quiet wait', async () 
     menuToken: shown.menu['menuToken'],
     key: 'escape',
   });
+
+  // The daemon starts each request in the order it reads them, so the choice
+  // is in its quiet wait once a later request has its answer.
+  await ctx.daemon.client.sendRequest('session.get', { session: shown.session });
 
   ctx.claude.exit();
 
