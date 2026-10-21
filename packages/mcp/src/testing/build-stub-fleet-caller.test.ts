@@ -8,6 +8,18 @@ test('it answers every request with an empty record by default', () => {
   expect(caller.sendRequest('session.list')).resolves.toStrictEqual({});
 });
 
+test('it resolves a wait for the daemon by default', () => {
+  const caller = buildStubFleetCaller();
+
+  expect(caller.waitForDaemon()).resolves.toBeUndefined();
+});
+
+test('it refuses a wait for the daemon when the config makes it unreachable', () => {
+  const caller = buildStubFleetCaller({ reachable: false });
+
+  expect(caller.waitForDaemon()).rejects.toThrowWithMessage(Error, 'no daemon listens');
+});
+
 test('it reports no features by default', () => {
   const caller = buildStubFleetCaller();
 

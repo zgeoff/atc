@@ -18,6 +18,9 @@ interface StubFleetCallerConfig {
 
   // The features the caller reports; none, as a single daemon reports, by default.
   readonly features?: readonly FleetFeature[];
+
+  // Whether a wait for the daemon resolves, as when one answers; true by default.
+  readonly reachable?: boolean;
 }
 
 export function buildStubFleetCaller(
@@ -41,5 +44,9 @@ export function buildStubFleetCaller(
       return Promise.try(() => answer(request));
     },
     features: new Set(features),
+    waitForDaemon: () =>
+      config.reachable === false
+        ? Promise.reject(new Error('no daemon listens'))
+        : Promise.resolve(),
   };
 }

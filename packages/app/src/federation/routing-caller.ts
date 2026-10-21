@@ -99,6 +99,12 @@ export class RoutingCaller {
 
   readonly features: ReadonlySet<GatewayFeature> = new Set<GatewayFeature>(['fleet.daemons']);
 
+  // The gateway dials each daemon only when a call needs it, and a listing
+  // reports a daemon it cannot reach as down, so no single daemon gates it.
+  waitForDaemon(): Promise<void> {
+    return Promise.resolve();
+  }
+
   private readonly getCaller = (name: string): GatewayDaemonCaller =>
     this.opts.pool.getCaller(name);
 

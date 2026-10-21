@@ -98,6 +98,8 @@ export function createMCPServer(deps: MCPServerDeps): McpServer {
   // spawn tool's description names the agents the daemon has when the list
   // is asked for.
   server.server.setRequestHandler('tools/list', async () => {
+    await deps.caller.waitForDaemon();
+
     const agents = await tryReadAgents(deps);
 
     const result = { tools: buildToolList(deps.caller.features, agents) };

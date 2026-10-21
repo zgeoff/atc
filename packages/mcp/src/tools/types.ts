@@ -10,6 +10,9 @@ export interface FleetCaller {
     principal?: Principal,
   ) => Promise<Readonly<Record<string, unknown>>>;
   readonly features: ReadonlySet<FleetFeature>;
+
+  // Resolves once the caller can reach a daemon, and rejects when it cannot.
+  readonly waitForDaemon: () => Promise<void>;
 }
 
 export interface ToolContext {

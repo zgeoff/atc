@@ -26,6 +26,26 @@ async function setupTest() {
   return { daemon, caller, socketPath: daemon.socketPath };
 }
 
+test('it resolves a wait for the daemon once the daemon accepts its handshake', async () => {
+  const ctx = await setupTest();
+
+  expect(ctx.caller.waitForDaemon()).resolves.toBeUndefined();
+});
+
+test('it refuses a wait for the daemon when no daemon listens on the socket', () => {
+  const temporaryDirectory = setupTempDir('atc-reconnecting-caller-');
+
+  const caller = new TransportCaller(
+    join(temporaryDirectory.path, 'daemon.sock'),
+    'atc/test-build',
+    (path) => openDaemonClient(path),
+  );
+
+  registerTestCleanup(() => caller.stop());
+
+  expect(caller.waitForDaemon()).rejects.toThrow();
+});
+
 test('it answers a read-only request sent right after the daemon restarts', async () => {
   const ctx = await setupTest();
   const before = await ctx.caller.sendRequest('session.list');

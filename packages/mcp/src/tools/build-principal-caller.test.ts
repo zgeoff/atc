@@ -32,6 +32,14 @@ test('it sends a request as the principal over the principal the request asks fo
   ]);
 });
 
+test('it refuses a wait for the daemon when the caller behind it cannot reach one', () => {
+  const caller = buildStubFleetCaller({ reachable: false });
+
+  expect(
+    buildPrincipalCaller(caller, { id: 'client-a', name: 'Lantern Notes' }).waitForDaemon(),
+  ).rejects.toThrowWithMessage(Error, 'no daemon listens');
+});
+
 test('it reports the features of the caller behind it', () => {
   const caller = buildStubFleetCaller({ features: ['fleet.daemons'] });
 

@@ -5,5 +5,6 @@ export function buildPrincipalCaller(caller: FleetCaller, principal: Principal):
   return {
     sendRequest: (method, params) => caller.sendRequest(method, params, principal),
     features: caller.features,
+    waitForDaemon: () => caller.waitForDaemon(),
   };
 }

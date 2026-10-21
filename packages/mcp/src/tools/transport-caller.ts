@@ -55,6 +55,11 @@ export class TransportCaller implements FleetCaller {
   // A single daemon routes to no named daemons.
   readonly features: ReadonlySet<FleetFeature> = new Set();
 
+  // Handshakes, so a daemon that cannot be reached refuses the wait.
+  async waitForDaemon(): Promise<void> {
+    await this.transport.waitForConnection();
+  }
+
   stop(): Promise<void> {
     this.transport.stop();
 
