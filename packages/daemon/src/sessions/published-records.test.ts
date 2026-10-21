@@ -12,6 +12,7 @@ import {
   setupTempDir,
 } from '@atc/test-utils';
 import { $ } from 'bun';
+import { z } from 'zod';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { runLocalCommand } from '../testing/run-local-command';
 import { PLACE_COPY, PublishedRecords, REFRESH_COPY } from './published-records';
@@ -470,6 +471,90 @@ test('it rewrites the copy on a rename retry after a failed copy write left the 
 
   expect(failed).rejects.toThrow();
   expect(copy).toMatchObject({ revision: 2, name: 'cart rework' });
+});
+
+test('it publishes a renamed record that a reader of the version 1 format before the name and transcript path parses', async () => {
+  const ctx = await setupTest();
+
+  const session = toSessionID('s-older-reader');
+
+  const subject = {
+    session,
+    target: 'local',
+    name: 'login fix',
+    transcriptPath: '/home/dev/.claude/projects/app/4d2c.jsonl',
+    provider: ctx.provider,
+    host: session,
+    directory: ctx.fixture.work,
+    workspace: null,
+  };
+
+  const path = await ctx.records.createRecord(subject, null);
+
+  await ctx.records.updateIdentity({ ...subject, name: 'cart rework' }, true);
+
+  // the reader's schema as the format stood before it gained the two fields
+  const nullableString = z.string().nullable();
+  const worktree = z.object({ path: z.string(), branch: nullableString });
+  const branch = z.object({ name: z.string(), repo: z.string() });
+
+  const pullRequest = z.object({
+    repo: z.string(),
+    number: z.number(),
+    url: z.string(),
+    branch: z.string(),
+  });
+
+  const workspace = z.object({
+    path: z.string(),
+    branch: nullableString,
+    repoURL: nullableString,
+    sha: nullableString,
+  });
+
+  const scope = z.object({
+    workspace,
+    worktrees: z.array(worktree),
+    branches: z.array(branch),
+    pullRequests: z.array(pullRequest),
+  });
+
+  const olderReader = z.object({
+    format: z.literal('atc.session-record'),
+    version: z.literal(1),
+    session: z.string(),
+    daemonID: z.string(),
+    target: z.string(),
+    revision: z.number().int().positive(),
+    updatedAt: z.string(),
+    scope,
+  });
+
+  const copy = await readJSONRecord(Bun.file(path));
+
+  const parsed = olderReader.safeParse(copy);
+
+  expect(copy).toMatchObject({
+    version: 1,
+    name: 'cart rework',
+    transcriptPath: '/home/dev/.claude/projects/app/4d2c.jsonl',
+  });
+
+  expect(parsed.data).toStrictEqual({
+    format: 'atc.session-record',
+    version: 1,
+    session: 's-older-reader',
+    daemonID: ctx.store.daemonID,
+    target: 'local',
+    revision: 2,
+    updatedAt: '2026-10-08T09:30:00.000Z',
+    scope: {
+      workspace: { path: ctx.fixture.work, branch: 'main', repoURL: null, sha: null },
+      worktrees: [],
+      branches: [],
+      pullRequests: [],
+    },
+  });
 });
 
 test('it records nothing for a session without a record when its name changes', async () => {
