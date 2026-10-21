@@ -2,7 +2,11 @@ import type { ChildProcess } from 'node:child_process';
 import { makeSingleFlight, toAgentID, waitUntil } from '@atc/core';
 import type { Clock } from '@atc/core';
 import type { DaemonBoot, DaemonBootOptions, DaemonPaths, ProtocolMismatch } from '@atc/protocol';
-import { formatProtocolMismatch } from '@atc/protocol';
+import {
+  MISMATCH_REFUSAL_DATA_SCHEMA,
+  formatProtocolMismatch,
+  isClientBehind,
+} from '@atc/protocol';
 import { openDaemonClient } from '@atc/protocol/client';
 import type { DaemonClient } from '@atc/protocol/client';
 import { readSessionEnv } from '@atc/protocol/session';
@@ -104,6 +108,8 @@ export async function bootDaemonClient(
         throw error;
       }
 
+      const refusal = MISMATCH_REFUSAL_DATA_SCHEMA.safeParse(error.data ?? {});
+
       const mismatch: ProtocolMismatch = {
         socketPath: opened.socketPath,
         daemonPID: readDaemonPID(opened.socketPath, {
@@ -113,13 +119,16 @@ export async function bootDaemonClient(
         }),
         clientBuild: build,
         clientProtocol: PROTOCOL_V,
+        daemonProtocol: refusal.data?.daemonProtocol ?? null,
         daemonMessage: error.message,
       };
 
       // Without a pid there is no daemon this client could stop, so the
-      // caller is not asked.
+      // caller is not asked. A restart cannot help a client older than the
+      // daemon either, since the daemon comes back on its own build.
       if (
         mismatch.daemonPID === null ||
+        isClientBehind(mismatch) ||
         options.onProtocolMismatch === undefined ||
         !(await options.onProtocolMismatch(mismatch))
       ) {

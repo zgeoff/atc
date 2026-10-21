@@ -15,13 +15,13 @@ function main() {
   const build = process.argv.at(4);
 
   // A client on the current protocol reads the session list and the fleet
-  // as it starts, so the daemon answers both as empty. With 'line' it is a
-  // release that speaks the line protocol.
+  // as it starts, so the daemon answers both as empty.
   if (build === 'line') {
     startStubLineDaemon(socketPath, { owner: 'caller' });
   } else {
     startStubLegacyDaemon(socketPath, {
       protocol: build === 'current' ? PROTOCOL_V : PROTOCOL_V + 1,
+      refusalHoldsProtocol: build === 'newer',
       replies: { 'session.list': { sessions: [] }, 'fleet.list': { fleet: [] } },
       owner: 'caller',
     });

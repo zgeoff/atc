@@ -1,7 +1,8 @@
-import { expect, test } from 'bun:test';
+import { expect, mock, test } from 'bun:test';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolvePaths } from '@atc/config/host';
+import type { ProtocolMismatch } from '@atc/protocol';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import {
   buildStubClock,
@@ -106,6 +107,79 @@ test('it leaves a daemon on another protocol running and rejects when the caller
   expect(asked).toStrictEqual([legacy.pid]);
   expect(() => process.kill(legacy.pid, 0)).not.toThrow();
   expect(() => process.kill(sessionPID, 0)).not.toThrow();
+});
+
+test('it never offers to restart a daemon on a later protocol, and tells the user to reopen the client', async () => {
+  const ctx = setupTest();
+
+  const newer = Bun.spawn(
+    [process.execPath, ctx.legacyDaemon, ctx.sockPath, ctx.stateDir, 'newer'],
+    { stdout: 'pipe', stderr: 'inherit' },
+  );
+
+  registerTestCleanup(async () => {
+    newer.kill('SIGTERM');
+
+    await newer.exited;
+  });
+
+  const up = await newer.stdout.getReader().read();
+
+  const sessionPID = Number(new TextDecoder().decode(up.value).trim().split(' ')[1]);
+  const onProtocolMismatch = mock(() => Promise.resolve(true));
+
+  const booting = bootDaemonClient(buildMockLifecycleHost({ paths: ctx.paths }), {
+    onProtocolMismatch,
+  });
+
+  expect(booting).rejects.toMatchObject({
+    code: 'protocol_mismatch',
+    message: [
+      `this client, atc/test-build on protocol v${PROTOCOL_V}, is older than the atc daemon (pid ${newer.pid}, socket ${ctx.sockPath}), which speaks protocol v${PROTOCOL_V + 1}.`,
+      `The daemon answered: atc/test-build speaks protocol v${PROTOCOL_V}, daemon atc/legacy-build speaks v${PROTOCOL_V + 1}; restart the daemon so both run the same build`,
+      'It was left running, so the sessions it hosts keep running.',
+      'To reconnect, update atc if this build is out of date, then quit this client and run `atc` again. A daemon restart cannot help, because the daemon comes back on its own build.',
+    ].join('\n'),
+  });
+
+  expect(onProtocolMismatch).not.toHaveBeenCalled();
+  expect(() => process.kill(newer.pid, 0)).not.toThrow();
+  expect(() => process.kill(sessionPID, 0)).not.toThrow();
+});
+
+test('it offers to restart a daemon on an earlier protocol that names its version', () => {
+  const ctx = setupTest();
+
+  startStubLegacyDaemon(ctx.sockPath, { protocol: PROTOCOL_V - 1, refusalHoldsProtocol: true });
+  writeFileSync(join(ctx.directory, 'atc-daemon.pid'), '4242');
+
+  const asked: ProtocolMismatch[] = [];
+
+  const booting = bootDaemonClient(buildMockLifecycleHost(), {
+    paths: {
+      socketPath: ctx.sockPath,
+      recordFile: join(ctx.directory, 'daemon.json'),
+      pidFile: join(ctx.directory, 'atc-daemon.pid'),
+    },
+    onProtocolMismatch: (mismatch) => {
+      asked.push(mismatch);
+
+      return Promise.resolve(false);
+    },
+  });
+
+  expect(booting).rejects.toMatchObject({ code: 'protocol_mismatch' });
+
+  expect(asked).toStrictEqual([
+    {
+      socketPath: ctx.sockPath,
+      daemonPID: 4242,
+      clientBuild: 'atc/test-build',
+      clientProtocol: PROTOCOL_V,
+      daemonProtocol: PROTOCOL_V - 1,
+      daemonMessage: `atc/test-build speaks protocol v${PROTOCOL_V}, daemon atc/legacy-build speaks v${PROTOCOL_V - 1}; restart the daemon so both run the same build`,
+    },
+  ]);
 });
 
 test('it asks to restart a daemon that speaks the line protocol while it waits for one, instead of polling it again', async () => {
