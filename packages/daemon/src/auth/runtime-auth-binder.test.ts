@@ -3730,7 +3730,7 @@ test('it refuses a host bound under an older form whose grants changed since, wi
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  const gh = buildMockAuthProfile({
+  const githubProfile = buildMockAuthProfile({
     name: 'gh',
     secret: 'gh',
     kind: 'github',
@@ -3743,7 +3743,7 @@ test('it refuses a host bound under an older form whose grants changed since, wi
       baseURL: 'https://api.z.ai/api/anthropic',
       auth: { profiles: ['gh'], placeholderEnv: {} },
     },
-    new Map([['gh', gh]]),
+    new Map([['gh', githubProfile]]),
   );
 
   const changed = buildAuthBinding(
@@ -3753,7 +3753,7 @@ test('it refuses a host bound under an older form whose grants changed since, wi
       auth: { profiles: ['gh', 'glm'], placeholderEnv: {} },
     },
     new Map<string, AuthProfile>([
-      ['gh', gh],
+      ['gh', githubProfile],
       [
         'glm',
         buildMockAuthProfile({
