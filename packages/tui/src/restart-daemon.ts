@@ -4,8 +4,8 @@ import type { DaemonBoot } from '@atc/protocol';
 import type { DaemonClient } from '@atc/protocol/client';
 import type { DaemonTransport } from '@atc/protocol/wire/transport';
 import type { ClientActor } from './build-client-machine';
-import type { FleetMirror } from './fleet-mirror';
-import type { OverlayScreen } from './overlay-screen';
+import type { FleetMirror } from './create-fleet-mirror';
+import type { OverlayScreen } from './create-overlay-screen';
 import { resolveAgentMetadata } from './resolve-agent-metadata';
 import { cols } from './ui';
 

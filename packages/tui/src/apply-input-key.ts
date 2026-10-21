@@ -2,7 +2,7 @@ import { match } from 'ts-pattern';
 import { applyOverlayKey } from './apply-overlay-key';
 import type { OverlayKeyDeps } from './apply-overlay-key';
 import type { ClientMode, RestartConsent } from './build-client-machine';
-import type { EjectScreen } from './eject-screen';
+import type { EjectScreen } from './create-eject-screen';
 import { KEY } from './keys';
 import type { SpawnPicker } from './picker/create-spawn-picker';
 

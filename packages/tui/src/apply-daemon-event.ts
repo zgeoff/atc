@@ -1,8 +1,8 @@
 import type { AgentID, Clock } from '@atc/core';
 import { match } from 'ts-pattern';
 import type { ClientActor, ClientMode } from './build-client-machine';
-import type { FleetMirror } from './fleet-mirror';
-import type { OverlayScreen } from './overlay-screen';
+import type { FleetMirror } from './create-fleet-mirror';
+import type { OverlayScreen } from './create-overlay-screen';
 import { parseDaemonEvent } from './parse-daemon-event';
 import type { RawDaemonEvent } from './parse-daemon-event';
 import type { MirrorSession } from './to-mirror-session';
