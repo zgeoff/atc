@@ -12,8 +12,6 @@ export interface ProtocolMismatch {
   readonly clientBuild: string;
   readonly clientProtocol: number;
 
-  // The version from the refusal's data, or null for a daemon whose refusal
-  // holds it only in its message.
   readonly daemonProtocol: number | null;
 
   // The daemon's own refusal, which holds its build and protocol version.
