@@ -1,4 +1,4 @@
-import type { DroppedAnswer } from '../spawn-picker';
+import type { DroppedAnswer } from '../picker/picker-flow';
 
 export function buildStubPickerHost() {
   const counts = { renders: 0, exits: 0, attached: 0, drops: 0 };

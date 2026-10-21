@@ -1,5 +1,6 @@
 import { ansi } from '@atc/core';
 import type { DaemonClient } from '@atc/protocol/client';
+import { match } from 'ts-pattern';
 import type { ClientActor } from './build-client-machine';
 import { planTextEdit } from './keys';
 import type { SessionActions } from './session-actions';
@@ -56,33 +57,24 @@ export class EjectScreen {
       moves: false,
     });
 
-    switch (edit.kind) {
-      case 'none':
-      case 'move': {
-        return;
-      }
-      case 'cancel': {
+    match(edit)
+      .with({ kind: 'none' }, { kind: 'move' }, () => {})
+      .with({ kind: 'cancel' }, () => {
         this.deps.service.send({ type: 'OVERLAY' });
-
-        return;
-      }
-      case 'leader': {
+      })
+      .with({ kind: 'leader' }, () => {
         this.deps.showBase();
-
-        return;
-      }
-      case 'submit': {
-        this.input = edit.value;
+      })
+      .with({ kind: 'submit' }, (submit) => {
+        this.input = submit.value;
         void this.yankToHeadless(this.input.trim());
-
-        return;
-      }
-      case 'input': {
-        this.input = edit.value;
+      })
+      .with({ kind: 'input' }, (input) => {
+        this.input = input.value;
 
         this.render();
-      }
-    }
+      })
+      .exhaustive();
   }
 
   private async yankToHeadless(instruction: string) {

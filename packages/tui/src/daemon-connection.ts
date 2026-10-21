@@ -6,8 +6,7 @@ import { DaemonTransport } from '@atc/protocol/wire/transport';
 import type { ClientActor, ClientMode } from './build-client-machine';
 import type { FleetMirror } from './fleet-mirror';
 import type { OverlayScreen } from './overlay-screen';
-import type { SpawnPicker } from './spawn-picker';
-import type { MirrorSession } from './to-mirror-session';
+import type { SpawnPicker } from './picker/create-spawn-picker';
 import type { TUIHost } from './tui-host';
 import { cols } from './ui';
 import { waitForRestartConsent } from './wait-for-restart-consent';
@@ -21,7 +20,7 @@ export interface DaemonConnectionDeps {
   readonly service: ClientActor;
   readonly mirror: FleetMirror;
   readonly overlay: OverlayScreen;
-  readonly picker: SpawnPicker<MirrorSession>;
+  readonly picker: SpawnPicker;
   readonly getMode: () => ClientMode;
   readonly isDaemonRestarting: () => boolean;
   readonly scheduleStatus: () => void;
