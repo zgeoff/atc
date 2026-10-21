@@ -139,6 +139,31 @@ test('it stops a server whose initialize fails before rejecting', async () => {
   expect(() => process.kill(pid, 0)).toThrow(expect.objectContaining({ code: 'ESRCH' }));
 });
 
+test('it stops a server that answers its initialize with an error before rejecting', async () => {
+  const ctx = setupTest();
+
+  const bin = createStubBin(
+    ctx.home,
+    'refused-init',
+    buildStubMCPStdioServer([
+      '{"jsonrpc":"2.0","id":1,"error":{"code":-32602,"message":"bad clientInfo"}}',
+    ]),
+  );
+
+  const starting = startMCPStdio({ home: ctx.home, command: [bin] });
+
+  expect(starting).rejects.toThrowWithMessage(
+    Error,
+    'atc mcp refused the initialize: {"jsonrpc":"2.0","id":1,"error":{"code":-32602,"message":"bad clientInfo"}}',
+  );
+
+  const recorded = await Bun.file(`${bin}.pid`).text();
+
+  const pid = Number(recorded);
+
+  expect(() => process.kill(pid, 0)).toThrow(expect.objectContaining({ code: 'ESRCH' }));
+});
+
 test('it stops the server once the test finishes without a stop', async () => {
   const ctx = setupTest();
 
