@@ -25,24 +25,16 @@ import {
   isGitFlow,
 } from './picker-queries';
 
-// The root the daemon picks a destination under on a remote target without
-// a configured one, as the confirm screen shows it.
 const AUTO_ROOT = '~/.local/share/atc/workspaces';
 
-// Draws the flow once its context is in place, clearing the screen first
-// when the step's box changes shape.
 export function renderFlow(flow: PickerFlow, clear = false) {
   flow.effects.push({ kind: 'render', clear, ctx: { ...flow.ctx } });
 }
 
-// Leaves the flow for the screen it came from, dropping every answer still
-// on its way.
 export function quitFlow(flow: PickerFlow) {
   flow.effects.push({ kind: 'quit' });
 }
 
-// Sends a request the step waits on: Esc cancels it, and its answer moves
-// the flow on.
 export function sendPending(
   flow: PickerFlow,
   request: Exclude<PickerRequest, { readonly kind: 'agents' }>,
@@ -57,8 +49,6 @@ export function sendPending(
   renderFlow(flow);
 }
 
-// Goes back to the agent step, or leaves the flow when one agent left no
-// agent step to go back to.
 export function openAgentStep(flow: PickerFlow) {
   const ctx = flow.ctx;
 
@@ -79,20 +69,13 @@ export function openAgentStep(flow: PickerFlow) {
   renderFlow(flow, true);
 }
 
-// Takes the daemon's targets and sources for the chosen agent, and opens the
-// first source, or the first of directories for an adopt. With none to open,
-// the agent step shows why.
 export function openFirstSource(flow: PickerFlow) {
   const ctx = flow.ctx;
-
-  // An agent that starts only behind the credential broker runs only on a target
-  // that reaches the broker.
   const brokered = ctx.listedAgents.some((entry) => entry.id === ctx.agent && entry.brokerRequired);
   const picks = ctx.listedTargets.filter((target) => !brokered || target.brokerAuth);
 
   // An adopt resumes a session from its history on this host, which a
-  // fresh checkout elsewhere does not hold, so it is offered only the
-  // targets that run here.
+  // fresh checkout elsewhere does not hold.
   ctx.targets = ctx.resume ? picks.filter((target) => target.available && target.inPlace) : picks;
   ctx.targetGap = null;
 
@@ -130,9 +113,6 @@ export function openSource(flow: PickerFlow, index: number) {
   }
 }
 
-// the client's own directory lists first, unless the daemon runs on another host. The flow
-// stays where it is until the listing answers, and leaving the step it waits on drops the
-// listing.
 export function openPathSource(flow: PickerFlow, index: number, scope: string | null) {
   const source = flow.ctx.sources[index];
 
@@ -155,8 +135,6 @@ export function openPathSource(flow: PickerFlow, index: number, scope: string | 
   });
 }
 
-// the target step comes first when there is one and no repository target is chosen yet,
-// so every request about the repository goes to the target the spawn runs on.
 export function openGitSource(
   flow: PickerFlow,
   index: number,
@@ -188,8 +166,6 @@ export function openGitSource(
   openSourceStep(flow);
 }
 
-// Opens the git source step with its draft, listing the source again when
-// the source or the target changed since the last listing.
 export function openSourceStep(flow: PickerFlow) {
   const ctx = flow.ctx;
 
@@ -214,9 +190,6 @@ export function openSourceStep(flow: PickerFlow) {
     ctx.refreshFailure = null;
   }
 
-  // A scope a reading asked for is listed in place of the source's own
-  // default, for the target the step now has. A listing the cache keeps
-  // shows at once, and the listing behind the step replaces it.
   const scope = action.kind === 'browse' ? action.scope : null;
 
   if (action.kind === 'browse' || stale) {
@@ -234,8 +207,6 @@ export function openSourceStep(flow: PickerFlow) {
   }
 }
 
-// Shows the listing the cache keeps for a scope on this source and target,
-// if any. Without one, the step keeps what it shows.
 function restoreCachedCandidates(flow: PickerFlow, scope: string | null) {
   const ctx = flow.ctx;
   const deps = flow.deps;
@@ -251,8 +222,6 @@ function restoreCachedCandidates(flow: PickerFlow, scope: string | null) {
 
   const cached = cache.readListing(buildListingKey(ctx, deps, source.id, scope), deps.clock.now());
 
-  // A source that lists nothing, such as a typed git URL, has nothing to
-  // show from the cache.
   if (cached === null || (cached.candidates.length === 0 && cached.scope === null)) {
     return;
   }
@@ -267,8 +236,6 @@ function restoreCachedCandidates(flow: PickerFlow, scope: string | null) {
       : null;
 }
 
-// a daemon that cannot list leaves a notice row, or the cached listing with the failure in
-// its hint. Typing goes on meanwhile, and Esc stops a listing the step shows nothing for.
 export function loadCandidates(flow: PickerFlow, scope: string | null) {
   const ctx = flow.ctx;
   const deps = flow.deps;
@@ -299,15 +266,13 @@ export function loadCandidates(flow: PickerFlow, scope: string | null) {
   renderFlow(flow);
 }
 
-// opens only when more than one target can run the source, or none can although the
-// daemon lists targets, and answers whether it did.
 export function openTargetStep(flow: PickerFlow): boolean {
   const ctx = flow.ctx;
   const eligible = collectEligibleTargets(ctx);
 
   if (eligible.length === 1 || (ctx.targets.length === 0 && ctx.targetGap === null)) {
-    // the spawn names the one usable target, default or not, so its provider decides whether
-    // a directory runs in place. A daemon that lists no targets runs the spawn on its default.
+    // The spawn names the one usable target, default or not, so its provider decides whether
+    // a directory runs in place.
     ctx.target = eligible[0] ?? null;
 
     return false;
@@ -340,9 +305,6 @@ export function openRefStep(flow: PickerFlow) {
   ctx.selected = 0;
 }
 
-// Opens the confirm screen with the destination the user last accepted,
-// else the default under the target's workspace root. A root the target
-// cannot take leaves the destination empty with the reason.
 export function openConfirmStep(flow: PickerFlow) {
   const ctx = flow.ctx;
 
@@ -395,8 +357,6 @@ export function applyDir(flow: PickerFlow, directory: string) {
   renderFlow(flow, true);
 }
 
-// Moves the flow to what a source read typed text as: its scope listed, the
-// directory chosen, or the repository probed.
 export function applyReading(
   flow: PickerFlow,
   index: number,
@@ -425,8 +385,6 @@ export function applyReading(
     return;
   }
 
-  // The step lists the scope or probes the repository once it opens, after
-  // any target step, so the request is made for the spawn's target.
   if (index !== ctx.sourceIndex || ctx.step !== 'source') {
     const action: SourceStepAction =
       reading.kind === 'git'
@@ -440,7 +398,6 @@ export function applyReading(
     return;
   }
 
-  // A scope the cache keeps shows at once, while the step lists it again.
   if (reading.kind === 'browse') {
     ctx.input = '';
     ctx.selected = 0;
@@ -454,8 +411,6 @@ export function applyReading(
   checkRepoAccess(flow, typed, reading.url);
 }
 
-// Asks the sources in the order given what typed text is, and moves the flow
-// to the first whose kind takes the reading.
 export function readTypedInput(
   flow: PickerFlow,
   typed: string,
@@ -491,8 +446,6 @@ export function readTypedInput(
   sendPending(flow, { kind: 'read', typed, label: `reading ${typed}…`, attempts, followUp });
 }
 
-// The sources in order other than the one the flow is on, with that one
-// first when asked.
 export function collectReadOrder(flow: PickerFlow, withOwn: boolean): number[] {
   const others = flow.ctx.sources.flatMap((_, index) =>
     index === flow.ctx.sourceIndex ? [] : [index],
@@ -501,8 +454,6 @@ export function collectReadOrder(flow: PickerFlow, withOwn: boolean): number[] {
   return withOwn ? [flow.ctx.sourceIndex, ...others] : others;
 }
 
-// a failure stays on the source step with git's error and offers the other URL form the
-// daemon returns, when there is one.
 export function checkRepoAccess(flow: PickerFlow, label: string, url: string) {
   sendPending(flow, {
     kind: 'probe',
@@ -512,8 +463,6 @@ export function checkRepoAccess(flow: PickerFlow, label: string, url: string) {
   });
 }
 
-// Reads the repository's refs again after the commit the spawn pinned left
-// the upstream, and opens the ref step on them with the refusal.
 export function refreshRefs(flow: PickerFlow, reason: string) {
   const repo: ProbedRepo | null = flow.ctx.repo;
 
@@ -531,9 +480,6 @@ export function refreshRefs(flow: PickerFlow, reason: string) {
   });
 }
 
-// Whether the daemon picks the destination on a remote target: the
-// target's configured root, if any, must be one it resolves there, under
-// the home.
 function canPickOnTarget(flow: PickerFlow, target: string): boolean {
   const configured = flow.ctx.workspaces.targetRoots.get(target) ?? flow.ctx.workspaces.root;
 

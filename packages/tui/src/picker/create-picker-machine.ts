@@ -29,8 +29,6 @@ import type {
 import { findSource, getSelectedIndex } from './picker-queries';
 import { applyGitListing } from './source-step';
 
-// How long typing must pause before the flow asks the daemon to complete a
-// typed path, so a burst of keys sends one request.
 const COMPLETION_DELAY_MS = 120;
 
 type PickerEvent =
@@ -52,8 +50,6 @@ type PickerEvent =
   | { readonly type: 'COMPLETED'; readonly outcome: CompletionOutcome }
   | { readonly type: 'CANCEL_COMPLETION' };
 
-// Each request runs as an invoked actor that leaving its state stops, so an
-// answer that comes after changes nothing.
 export function createPickerMachine<TMirror extends { readonly id: string }>(
   deps: SpawnPickerDeps<TMirror>,
 ) {
@@ -296,7 +292,6 @@ export function createPickerMachine<TMirror extends { readonly id: string }>(
   });
 }
 
-// Hands one event to the step module that owns it.
 function applyEvent(flow: PickerFlow, event: PickerEvent) {
   match(event)
     .with({ type: 'OPEN' }, () => {
@@ -338,8 +333,6 @@ function applyEvent(flow: PickerFlow, event: PickerEvent) {
     .exhaustive();
 }
 
-// Ends every request the flow sent, so none changes anything when its answer
-// comes, and keeps the step on screen.
 function stopFlow(flow: PickerFlow) {
   const ctx = flow.ctx;
 
@@ -356,9 +349,6 @@ function stopFlow(flow: PickerFlow) {
   );
 }
 
-// Drops what the step left behind: a git listing for a source the flow has
-// left, so that source lists again when its step reopens, and a completion
-// for text the directory step no longer shows.
 function settleFlow(flow: PickerFlow) {
   const ctx = flow.ctx;
 

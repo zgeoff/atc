@@ -7,13 +7,9 @@ export interface SpawnPicker {
   readonly applyKey: (buf: Buffer) => void;
   readonly render: () => void;
 
-  // Ends every request the flow sent: none changes anything when its answer
-  // comes.
   readonly stopFlow: () => void;
 }
 
-// Starts the spawn picker's machine on the client's clock, so the delay a
-// typed path waits runs on the same timer as the rest of the client.
 export function createSpawnPicker<TMirror extends { readonly id: string }>(
   deps: SpawnPickerDeps<TMirror>,
 ): SpawnPicker {

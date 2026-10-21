@@ -1,8 +1,6 @@
 import { planTextEdit } from '../keys';
 import type { PickerFlow } from './picker-flow';
 
-// The started step takes Enter to attach the session and Esc or the leader
-// to return to the screen the flow came from; the session runs either way.
 export function applySpawnedKey(flow: PickerFlow, buf: Buffer) {
   const ctx = flow.ctx;
   const deps = flow.deps;

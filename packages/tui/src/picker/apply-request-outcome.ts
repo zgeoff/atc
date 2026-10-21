@@ -6,7 +6,6 @@ import { applySpawnOutcome } from './prompt-step';
 import { applyRefreshProbe, applyResolveProbe } from './ref-step';
 import { applyAccessProbe, applyReadOutcome } from './source-step';
 
-// Moves the flow on through the answer to the request its step waited on.
 export function applyRequestOutcome(flow: PickerFlow, outcome: RequestOutcome) {
   if (outcome.kind !== 'agents') {
     flow.ctx.pending = null;

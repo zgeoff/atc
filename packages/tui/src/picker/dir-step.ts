@@ -12,8 +12,6 @@ import type { PickerFlow } from './picker-flow';
 import { buildClientCwdParam, buildPathTargetParam } from './picker-params';
 import { collectDirItems, findSource } from './picker-queries';
 
-// Takes the directory step's choice: a listed or completed directory, or
-// else what the sources read the text as.
 export function applyDirSubmit(flow: PickerFlow) {
   const typed = flow.ctx.input.trim();
   const chosen = collectDirItems(flow.ctx)[flow.ctx.selected];
@@ -36,8 +34,6 @@ export function applyDirCancel(flow: PickerFlow) {
 export function applyDirInput(flow: PickerFlow, value: string) {
   const ctx = flow.ctx;
 
-  // A pasted URL in the directory step is a repository, not a path, so the
-  // flow moves to the first source of repositories with it.
   if (!ctx.resume && isGitURL(value) && !value.startsWith('/')) {
     const index = ctx.sources.findIndex((source) => source.kind === 'git');
 
@@ -48,8 +44,6 @@ export function applyDirInput(flow: PickerFlow, value: string) {
     }
   }
 
-  // Typing a path waits for a pause before the daemon completes it, so a
-  // burst of keys sends one request.
   if (isPathInput(value)) {
     scheduleCompletion(flow, value);
   }
@@ -57,8 +51,6 @@ export function applyDirInput(flow: PickerFlow, value: string) {
   renderFlow(flow);
 }
 
-// Opens the directory step on the listing the daemon answered, with the
-// client's own directory first unless the daemon runs on another host.
 export function applyPathListing(flow: PickerFlow, outcome: PathListingOutcome) {
   const ctx = flow.ctx;
   const deps = flow.deps;
@@ -79,8 +71,6 @@ export function applyPathListing(flow: PickerFlow, outcome: PathListingOutcome) 
   ctx.selected = 0;
   ctx.step = 'dir';
 
-  // A failed listing is no empty one, so the step shows why until the next
-  // key.
   if (outcome.failure !== null) {
     flow.effects.push({ kind: 'log', line: `directory listing failed: ${outcome.failure}` });
 
@@ -90,9 +80,6 @@ export function applyPathListing(flow: PickerFlow, outcome: PathListingOutcome) 
   renderFlow(flow, true);
 }
 
-// Shows the daemon's completions of the typed path. A refused completion is
-// no empty one: the step shows why until the next key, and the input
-// completes again on that key.
 export function applyCompletion(flow: PickerFlow, outcome: CompletionOutcome) {
   const ctx = flow.ctx;
   const input = outcome.request.input;
@@ -121,8 +108,6 @@ export function applyCompletion(flow: PickerFlow, outcome: CompletionOutcome) {
   renderFlow(flow);
 }
 
-// Asks the daemon's source of directories to complete a typed path once
-// typing pauses: the flow's own source, else the first of directories.
 function scheduleCompletion(flow: PickerFlow, input: string) {
   const ctx = flow.ctx;
   const deps = flow.deps;

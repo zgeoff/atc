@@ -18,7 +18,6 @@ import {
 import { applySpawnedKey } from './spawned-step';
 import { applyTargetCancel, applyTargetSubmit } from './target-step';
 
-// Turns one key into the flow's next context and the effects it asks for.
 export function applyPickerKey(flow: PickerFlow, buf: Buffer) {
   const ctx = flow.ctx;
   const deps = flow.deps;
@@ -41,8 +40,6 @@ export function applyPickerKey(flow: PickerFlow, buf: Buffer) {
       ctx.step === 'target',
   });
 
-  // A request in flight owns the step: Esc cancels it, the leader leaves,
-  // and every other key waits for the answer.
   if (ctx.pending !== null) {
     if (edit.kind === 'cancel') {
       applyPendingCancel(flow);
@@ -53,8 +50,6 @@ export function applyPickerKey(flow: PickerFlow, buf: Buffer) {
     return;
   }
 
-  // The agent step waiting on the daemon's agents takes Esc and the leader,
-  // and every other key waits for the answer.
   if (
     ctx.step === 'agent' &&
     ctx.agentStepWait !== null &&
@@ -66,16 +61,10 @@ export function applyPickerKey(flow: PickerFlow, buf: Buffer) {
 
   const tab = buf.length === 1 && buf[0] === KEY.tab;
 
-  // A tab to a source of directories waits for its listing on the step it
-  // left. Any other key there acts on that step, so the flow stays on it and
-  // the listing no longer opens its step.
   if (!tab && (ctx.step === 'dir' || ctx.step === 'source')) {
     cancelPathListing(flow);
   }
 
-  // Tab moves a spawn to the next source the daemon offers. Adopt resumes a
-  // session in a directory that already holds one, so it stays on its
-  // directories.
   if (tab) {
     if (!ctx.resume && (ctx.step === 'dir' || ctx.step === 'source')) {
       openNextSource(flow);
@@ -84,7 +73,6 @@ export function applyPickerKey(flow: PickerFlow, buf: Buffer) {
     return;
   }
 
-  // Ctrl-R lists the git source step's scope again.
   if (ctx.step === 'source' && edit.kind !== 'leader' && buf.length === 1 && buf[0] === KEY.ctrlR) {
     refreshCandidates(flow);
 
@@ -94,9 +82,8 @@ export function applyPickerKey(flow: PickerFlow, buf: Buffer) {
   applyEdit(flow, edit);
 }
 
-// Stops waiting on the request in flight, whose answer is dropped. A spawn
-// goes on on the daemon, which lists the session once it starts, so the flow
-// leaves rather than offer to spawn it again.
+// A spawn goes on on the daemon, which lists the session once it starts, so
+// the flow leaves rather than offer to spawn it again.
 function applyPendingCancel(flow: PickerFlow) {
   const cancelled = flow.ctx.pending;
 
@@ -123,7 +110,6 @@ function cancelPathListing(flow: PickerFlow) {
   }
 }
 
-// Opens the source after the current one, wrapping round.
 function openNextSource(flow: PickerFlow) {
   const ctx = flow.ctx;
 
@@ -163,8 +149,6 @@ function applyEdit(flow: PickerFlow, edit: TextEdit) {
     .exhaustive();
 }
 
-// Esc leaves whatever step the flow is on, so a directory listing it was
-// waiting on no longer opens its step.
 function applyCancel(flow: PickerFlow) {
   const ctx = flow.ctx;
 
@@ -238,7 +222,6 @@ function applySubmit(flow: PickerFlow) {
 function applyInput(flow: PickerFlow, value: string) {
   const ctx = flow.ctx;
 
-  // The target step takes no text: its list is short and fixed.
   if (ctx.step === 'target') {
     flow.effects.push({ kind: 'log', line: 'ignored text on the target step' });
 

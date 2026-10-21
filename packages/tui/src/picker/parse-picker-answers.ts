@@ -46,7 +46,6 @@ export function parseProbedRepo(
   };
 }
 
-// The commit a probe resolved a ref to, or null when it resolved none.
 export function parseResolvedSHA(answer: Readonly<Record<string, unknown>>): string | null {
   const resolved = isRecord(answer['resolved']) ? answer['resolved'] : {};
 
@@ -57,8 +56,6 @@ function parseProbedRefs(raw: unknown): GitRef[] {
   return collectParsed(raw, (entry) => GIT_REF_SCHEMA.safeParse(entry).data);
 }
 
-// The entries of an answer's list that parse, in order, leaving out each one
-// that does not; a value that is no list has none.
 function collectParsed<T>(raw: unknown, parse: (entry: unknown) => T | undefined): T[] {
   if (!Array.isArray(raw)) {
     return [];

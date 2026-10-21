@@ -16,9 +16,6 @@ import { parseCandidates, parseProbedRepo } from './parse-picker-answers';
 import type { ListedCandidate, PickerFlow } from './picker-flow';
 import { collectCandidateItems, findSource } from './picker-queries';
 
-// Takes the git source step's choice: the other URL form on offer, a typed
-// git URL, what the source reads typed text as, the selected candidate, or
-// else what another source reads the text as.
 export function applySourceSubmit(flow: PickerFlow) {
   const ctx = flow.ctx;
   const typed = ctx.input.trim();
@@ -48,9 +45,6 @@ export function applySourceSubmit(flow: PickerFlow) {
   applySourceFallback(flow, typed, item?.candidate ?? null);
 }
 
-// Esc first stops a listing in flight, keeping the step, unless the step
-// shows a cached listing meanwhile. Otherwise it leaves the step backwards:
-// to the target step when the spawn has one, else to the agent.
 export function applySourceCancel(flow: PickerFlow) {
   const ctx = flow.ctx;
 
@@ -84,8 +78,6 @@ export function applySourceInput(flow: PickerFlow) {
   renderFlow(flow);
 }
 
-// Lists the git source step's scope again behind the step, keeping what it
-// shows until the answer comes.
 export function refreshCandidates(flow: PickerFlow) {
   const ctx = flow.ctx;
 
@@ -94,16 +86,12 @@ export function refreshCandidates(flow: PickerFlow) {
   loadCandidates(flow, ctx.requestedScope);
 }
 
-// Fills the git source step from the listing the daemon answered, or from
-// the notice or the refresh failure in place of one it could not give.
 export function applyGitListing(flow: PickerFlow, outcome: GitListingOutcome) {
   const ctx = flow.ctx;
   const scope = outcome.request.scope;
 
   ctx.listing = null;
 
-  // The row the source step has selected, which stays selected when the
-  // fresh listing still holds it.
   const chosen = collectCandidateItems(ctx)[ctx.selected]?.candidate?.label;
 
   if (outcome.answer === null && ctx.listedFrom !== null) {
@@ -126,8 +114,6 @@ export function applyGitListing(flow: PickerFlow, outcome: GitListingOutcome) {
         : null;
   }
 
-  // The list answers behind the flow, so only the source step's own
-  // selection moves: to the row it had, else to the first.
   if (ctx.step === 'source') {
     ctx.selected = Math.max(
       0,
@@ -142,8 +128,6 @@ export function applyGitListing(flow: PickerFlow, outcome: GitListingOutcome) {
   flow.effects.push({ kind: 'log', line: `kept the ${ctx.step} step through a listing answer` });
 }
 
-// Moves the flow to the first reading a source took, or else shows why no
-// source read the text, or goes on through the git source step's choice.
 export function applyReadOutcome(
   flow: PickerFlow,
   outcome: Extract<RequestOutcome, { readonly kind: 'read' }>,
@@ -170,9 +154,6 @@ export function applyReadOutcome(
   renderFlow(flow, true);
 }
 
-// Opens the ref step on the repository the probe proved the daemon's host
-// can read, or stays on the source step with git's error and the other URL
-// form the daemon returns.
 export function applyAccessProbe(
   flow: PickerFlow,
   outcome: Extract<RequestOutcome, { readonly kind: 'probe' }>,
@@ -194,7 +175,6 @@ export function applyAccessProbe(
 
   const repo = parseProbedRepo(label, url, outcome.answer);
 
-  // A destination typed for one repository is not meant for another.
   if (repo.url !== ctx.destinationRepoURL) {
     ctx.destinationEdited = false;
     ctx.destination = '';
@@ -207,8 +187,6 @@ export function applyAccessProbe(
   renderFlow(flow, true);
 }
 
-// The selected candidate when it is a repository, else what the other
-// sources read the typed text as.
 function applySourceFallback(flow: PickerFlow, typed: string, candidate: ListedCandidate | null) {
   if (candidate?.pick.kind === 'git') {
     checkRepoAccess(flow, candidate.label, candidate.pick.url);

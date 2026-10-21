@@ -11,7 +11,6 @@ const NO_WORKSPACES: WorkspacesConfig = {
   targetRoots: new Map(),
 };
 
-// The context a flow opens with: the agent step, waiting on nothing yet.
 export function buildPickerContext(
   resume: boolean,
   agent: AgentID,

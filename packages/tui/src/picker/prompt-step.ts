@@ -41,8 +41,6 @@ export function sendSpawn(flow: PickerFlow, prompt: string) {
   });
 }
 
-// Attaches the started session, or first shows the warnings the daemon
-// started it with. A refused spawn goes to the step that can fix it.
 export function applySpawnOutcome(
   flow: PickerFlow,
   outcome: Extract<RequestOutcome, { readonly kind: 'spawn' }>,
@@ -63,8 +61,6 @@ export function applySpawnOutcome(
 
   flow.effects.push({ kind: 'stop' });
 
-  // A workspace that left changes behind says so before the session's
-  // screen takes over.
   if (outcome.warnings.length > 0) {
     ctx.spawnedID = outcome.sessionID;
     ctx.spawnedWarnings = outcome.warnings;
@@ -78,9 +74,6 @@ export function applySpawnOutcome(
   flow.effects.push({ kind: 'attach', sessionID: outcome.sessionID });
 }
 
-// a refused git workspace spawn returns to the step that can fix it; any other refusal
-// stays on the step that sent it with the entered text back, so the user can fix the
-// cause and retry or back out.
 function applySpawnRefusal(flow: PickerFlow, error: unknown, prompt: string) {
   const ctx = flow.ctx;
   const reason = formatPickerError(error);

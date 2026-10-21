@@ -20,7 +20,6 @@ export function applyTargetSubmit(flow: PickerFlow) {
     return;
   }
 
-  // A default destination belongs to the target it was built for.
   if (pick.id !== ctx.target?.id && !ctx.destinationEdited) {
     ctx.destination = '';
   }
@@ -39,8 +38,6 @@ export function applyTargetSubmit(flow: PickerFlow) {
   renderFlow(flow, true);
 }
 
-// Leaves the target step backwards: a directory goes back to its step, and a
-// repository to the first source of directories, else the agent.
 export function applyTargetCancel(flow: PickerFlow) {
   const ctx = flow.ctx;
 

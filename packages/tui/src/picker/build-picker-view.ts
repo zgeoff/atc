@@ -18,7 +18,6 @@ import {
   isGitFlow,
 } from './picker-queries';
 
-// The box every step of the flow draws: its title, rows, input, and hint.
 export function buildPickerView(ctx: PickerContext, deps: PickerDeps): PickerView {
   const verb = ctx.resume ? 'adopt' : 'spawn';
 
@@ -61,8 +60,6 @@ export function buildPickerView(ctx: PickerContext, deps: PickerDeps): PickerVie
 }
 
 function buildAgentView(ctx: PickerContext, verb: string): PickerView {
-  // An empty menu means the daemon can start no configured agent, so the
-  // hint carries the fix instead of the movement keys.
   let hint = '↑↓ move · ⏎ select · esc cancel';
 
   if (ctx.agentStepWait !== null) {
@@ -81,9 +78,7 @@ function buildAgentView(ctx: PickerContext, verb: string): PickerView {
 }
 
 function buildDirView(ctx: PickerContext, deps: PickerDeps, verb: string): PickerView {
-  // This host's home stands for nothing on a remote daemon's host, so a
-  // remote daemon's path shows the label the daemon gave it, or else as it
-  // is.
+  // This host's home stands for nothing on a remote daemon's host.
   const items = collectDirItems(ctx).map(
     (directory) =>
       ctx.completed?.labels.get(directory) ??
@@ -103,7 +98,6 @@ function buildDirView(ctx: PickerContext, deps: PickerDeps, verb: string): Picke
   };
 }
 
-// The hint that Tab moves to the next source, when there is one to move to.
 function formatTabHint(ctx: PickerContext): string {
   if (ctx.resume || ctx.sources.length < 2) {
     return '';
@@ -120,8 +114,6 @@ function buildSourceView(ctx: PickerContext, deps: PickerDeps): PickerView {
   let listing: string | null = null;
   let age = '';
 
-  // A cached listing shows its age in the title while the step lists again,
-  // and the failure in the hint when that listing fails.
   if (ctx.listedFrom !== null) {
     const refreshing = ctx.listing === null ? '' : ', refreshing…';
 
@@ -148,7 +140,6 @@ function buildSourceView(ctx: PickerContext, deps: PickerDeps): PickerView {
   };
 }
 
-// How old a cached listing is, in whole minutes or hours.
 function formatAge(ageMs: number): string {
   const minutes = Math.floor(ageMs / 60_000);
 
@@ -193,7 +184,6 @@ function buildTargetView(ctx: PickerContext, verb: string): PickerView {
   const what = git ? 'the repository' : formatDir(ctx.directory);
   let hint = `where ${what} runs · ↑↓ move · ⏎ select · esc back`;
 
-  // A step with no target the source can run on says what is missing.
   if (collectEligibleTargets(ctx).length === 0) {
     const gap = ctx.targetGap ?? `none of these targets can run ${what}`;
 

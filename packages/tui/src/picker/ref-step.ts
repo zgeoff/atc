@@ -47,8 +47,6 @@ export function applyRefSubmit(flow: PickerFlow) {
     return;
   }
 
-  // A ref the listing leaves out, such as `refs/tags/v1`, is resolved by
-  // the daemon the way the spawn would resolve it.
   sendPending(flow, {
     kind: 'probe',
     label: `resolving ${typed}…`,
@@ -67,8 +65,6 @@ export function applyRefCancel(flow: PickerFlow) {
   renderFlow(flow, true);
 }
 
-// Takes the commit the daemon resolved a typed ref to, or shows why it
-// resolved none.
 export function applyResolveProbe(
   flow: PickerFlow,
   outcome: Extract<RequestOutcome, { readonly kind: 'probe' }>,
@@ -90,7 +86,6 @@ export function applyResolveProbe(
   renderFlow(flow, true);
 }
 
-// Shows the refs read again after a refused spawn, with the refusal.
 export function applyRefreshProbe(
   flow: PickerFlow,
   outcome: Extract<RequestOutcome, { readonly kind: 'probe' }>,
@@ -110,7 +105,6 @@ export function applyRefreshProbe(
 function applyRef(flow: PickerFlow, ref: ChosenRef) {
   const ctx = flow.ctx;
 
-  // A default destination belongs to the commit it was built for.
   if (!ctx.destinationEdited) {
     ctx.destination = '';
   }

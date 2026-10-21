@@ -2,8 +2,6 @@ import type { AgentList } from './create-picker-actors';
 import { openFirstSource, quitFlow, renderFlow } from './navigate-picker';
 import type { AgentPick, PickerFlow } from './picker-flow';
 
-// Asks the daemon for the agents, targets, and sources it offers, and draws
-// the agent step while the answer is on its way.
 export function openAgentMenu(flow: PickerFlow) {
   flow.ctx.agentStepWait = 'reading agents…';
 
@@ -12,8 +10,6 @@ export function openAgentMenu(flow: PickerFlow) {
   renderFlow(flow, true);
 }
 
-// Opens the menu on the agents the daemon can start. One such agent is no
-// choice to make, so the flow goes on with it.
 export function applyAgentList(flow: PickerFlow, list: AgentList | null, failure: string | null) {
   const ctx = flow.ctx;
   const deps = flow.deps;
@@ -24,8 +20,6 @@ export function applyAgentList(flow: PickerFlow, list: AgentList | null, failure
   ctx.sources = list?.sources ?? [];
   ctx.picks = collectAgentPicks(ctx.listedAgents);
 
-  // A last-used agent the daemon cannot start is not in the menu, so the
-  // selection falls to the first one it can.
   ctx.selected = Math.max(
     0,
     ctx.picks.findIndex((pick) => pick.agent === deps.getLastUsedAgent()),
@@ -49,8 +43,6 @@ export function applyAgentList(flow: PickerFlow, list: AgentList | null, failure
 export function applyAgentSubmit(flow: PickerFlow) {
   const pick = flow.ctx.picks[flow.ctx.selected];
 
-  // With no agent the daemon can start the menu is empty and there is
-  // nothing to spawn.
   if (pick === undefined) {
     return;
   }
@@ -64,8 +56,6 @@ export function applyAgentCancel(flow: PickerFlow) {
   quitFlow(flow);
 }
 
-// The agents the daemon lists as installed and able to start on some
-// target, in its order.
 function collectAgentPicks(agents: AgentList['agents']): AgentPick[] {
   return agents.flatMap((agent) =>
     agent.installed && agent.capabilities.spawn ? [{ agent: agent.id, label: agent.label }] : [],

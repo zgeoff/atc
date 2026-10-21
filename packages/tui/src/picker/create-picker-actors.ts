@@ -22,14 +22,12 @@ import { canTakeReading } from './picker-queries';
 
 type Answer = Readonly<Record<string, unknown>>;
 
-// The daemon's agents, targets, and sources, as one agent list answers them.
 export interface AgentList {
   readonly agents: readonly AgentEntry[];
   readonly targets: readonly TargetPick[];
   readonly sources: readonly SourceEntry[];
 }
 
-// What a request the step waits on answers.
 export type RequestOutcome =
   | { readonly kind: 'agents'; readonly list: AgentList | null; readonly failure: string | null }
   | {
@@ -71,9 +69,6 @@ export interface CompletionOutcome {
   readonly failure: string | null;
 }
 
-// The requests the picker runs as invoked actors. Each one that settles after
-// the state that invoked it was left reports the dropped answer and changes
-// nothing else, since xstate drops a stopped actor's result.
 export function createPickerActors<TMirror extends { readonly id: string }>(
   deps: SpawnPickerDeps<TMirror>,
 ) {
@@ -197,9 +192,6 @@ export function createPickerActors<TMirror extends { readonly id: string }>(
     gitListing: fromPromise<GitListingOutcome, GitListingRequest>(async (args) => {
       const sent = await sendAnswered('sources.list', args.input.params);
 
-      // a late answer still holds what the daemon lists, so the cache keeps it. An empty one
-      // replaces a kept list too, so a repository the daemon no longer lists never comes back
-      // from the cache.
       if (sent.answer !== null && Array.isArray(sent.answer['candidates'])) {
         void deps.listingCache?.writeListing(args.input.key, {
           candidates: sent.answer['candidates'],

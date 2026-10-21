@@ -23,14 +23,10 @@ export function applyConfirmCancel(flow: PickerFlow) {
   renderFlow(flow, true);
 }
 
-// Takes the confirm screen's destination: absolute on its target, with a
-// leading `~` expanded only on the daemon's own machine. False, with the
-// reason shown, when the target cannot take it.
 function applyDestination(flow: PickerFlow, typed: string): boolean {
   const ctx = flow.ctx;
   const deps = flow.deps;
 
-  // An empty destination takes the one the daemon picks on the target.
   if (typed === '' && ctx.autoDestination !== null) {
     ctx.destinationRepoURL = ctx.repo?.url ?? null;
     ctx.directory = '';
