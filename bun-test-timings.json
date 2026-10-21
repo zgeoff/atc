@@ -1,7 +1,6 @@
 {
   "version": 1,
   "files": {
-    "e2e/import-zones.test.ts": 18396,
     "e2e/daemon-restart.test.ts": 12877,
     "e2e/tui-repo-step.test.ts": 12691,
     "e2e/tui-grok.test.ts": 11181,

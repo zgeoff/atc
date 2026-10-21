@@ -81,7 +81,6 @@ prints its own reason, and the rules live where each bullet points.
 - `bun run check:imports`: the import graph inside the app's `src/`, with the directory rows in
   `scripts/check-imports.ts`.
 - `bun run lint`: `.oxlintrc.json`, which takes the package boundaries from `.oxlintrc.zones.json`.
-  `e2e/import-zones.test.ts` lints a probe import against each boundary.
 - `bun run lint:mods`: the rules for `mods/`, in `.oxlintrc.mods.json`.
 - `bun run check:manifests`: each package's manifest, `exports` map, and import specifiers, in
   `scripts/check-manifests.ts`. It also checks each declared workspace dependency against the edges
