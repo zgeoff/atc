@@ -659,7 +659,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     if (this.listedFrom !== null) {
       const refreshing = this.listingSeq === null ? '' : ', refreshing…';
 
-      age = ` · ${formatAge(this.getNow() - this.listedFrom)} old${refreshing}`;
+      age = ` · ${formatAge(this.deps.clock.now() - this.listedFrom)} old${refreshing}`;
 
       if (this.refreshFailure !== null && this.listingSeq === null) {
         listing = `refresh failed: ${this.refreshFailure} · ^r retry · esc back`;
@@ -1415,7 +1415,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       return;
     }
 
-    const cached = cache.readListing(this.buildListingKey(source.id, scope), this.getNow());
+    const cached = cache.readListing(this.buildListingKey(source.id, scope), this.deps.clock.now());
 
     // A source that lists nothing, such as a typed git URL, has nothing
     // to show from the cache.
@@ -1451,10 +1451,6 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     ].join('\n');
   }
 
-  private getNow(): number {
-    return this.deps.clock.now();
-  }
-
   // The target every source request is made for: the chosen one, or none
   // for the daemon's default when there is no choice to make.
   private buildTargetParam(): Readonly<Record<string, string>> {
@@ -1475,7 +1471,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     const seq = this.requestSeq;
     const key = this.buildListingKey(source.id, scope);
-    const requestedAt = this.getNow();
+    const requestedAt = this.deps.clock.now();
 
     this.listingSeq = seq;
     this.requestedScope = scope;
