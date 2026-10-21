@@ -894,6 +894,45 @@ test('it broadcasts the restart result it receives as a DaemonRestarted event', 
   expect(event).toStrictEqual({ ev: 'DaemonRestarted', result });
 });
 
+test('it answers daemon.restarted and broadcasts the unchanged result when the event trail write fails', async () => {
+  const ctx = await setupTest();
+
+  const db = new Database(join(ctx.directory, 'state.db'));
+
+  registerTestCleanup(() => {
+    db.close();
+  });
+
+  db.run('DROP TABLE restart_results');
+
+  const result = {
+    runID: 'run-tamarack',
+    code: 1,
+    pid: 4245,
+    build: 'atc/0.9.1',
+    listenPort: null,
+    restored: 1,
+    total: 2,
+    failed: [{ name: 'plover', id: 's-plover', reason: 'its agent is not configured' }],
+    interrupted: [],
+    error: null,
+  };
+
+  const answer = await ctx.client.sendRequest('daemon.restarted', { result });
+
+  const event = await waitFor(() => {
+    const found = ctx.events.find((daemonEvent) => daemonEvent.ev === 'DaemonRestarted');
+
+    invariant(found !== undefined, 'no DaemonRestarted yet');
+
+    return found;
+  });
+
+  expect(answer).toStrictEqual({});
+  expect(event).toStrictEqual({ ev: 'DaemonRestarted', result });
+  expect(ctx.logs).toContainEqual(expect.stringContaining('restart run run-tamarack'));
+});
+
 test('it answers daemon.hello with the same daemon id after a restart', async () => {
   const ctx = await setupTest();
   const first = await openDaemonClient(ctx.socketPath);
