@@ -22,8 +22,6 @@ interface DaemonProcessConfig {
   // Arguments after `atc daemon`.
   readonly args?: readonly string[];
 
-  // Whether the daemon starts on a home with no state directory, creating it
-  // itself; each boot otherwise opens a copy of the run's migrated database.
   readonly freshState?: boolean;
 }
 
