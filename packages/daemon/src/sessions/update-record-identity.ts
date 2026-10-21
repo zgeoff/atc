@@ -24,9 +24,9 @@ export async function updateRecordIdentity(
   try {
     const provider = deps.registry.requireExecution(session, 'spawn').provider;
 
-    // a remote host that sleeps runs no command, so its copy waits for the
-    // next harness start, which places the stored record
-    const placeCopy = !provider.remote || session.vm === 'awake';
+    // a remote host that sleeps, or whose state is unknown, runs no command, so
+    // its copy waits for the next harness start, which places the stored record
+    const placeCopy = !provider.remote || session.vm === 'awake' || session.vm === 'none';
 
     await records.updateIdentity(buildRecordSubject(session, provider), placeCopy);
   } catch (error) {
