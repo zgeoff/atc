@@ -19,6 +19,11 @@ interface StubLegacyDaemonOptions {
   // refused with `protocol_mismatch`, as a real daemon refuses it.
   readonly protocol?: number;
 
+  // Puts the protocol version in the refusal's data as well as its message,
+  // as a daemon of this build does; a released daemon before it puts the
+  // version only in the message. Off unless set.
+  readonly refusalHoldsProtocol?: boolean;
+
   readonly replies?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
 
   // Drops the connection when this request arrives, without a response.
@@ -65,7 +70,7 @@ export function startStubLegacyDaemon(
         return 'close';
       }
 
-      return pickLegacyAnswer(request, answers, protocol);
+      return pickLegacyAnswer(request, answers, protocol, options.refusalHoldsProtocol ?? false);
     },
   });
 
@@ -81,6 +86,7 @@ function pickLegacyAnswer(
   request: StubPeerRequest,
   answers: Readonly<Record<string, Readonly<Record<string, unknown>>>>,
   protocol: number,
+  refusalHoldsProtocol: boolean,
 ): StubPeerAnswer {
   const asked = request.params?.['protocol'];
 
@@ -91,6 +97,7 @@ function pickLegacyAnswer(
       err: {
         code: 'protocol_mismatch',
         message: `${String(client)} speaks protocol v${String(asked)}, daemon atc/legacy-build speaks v${protocol}; restart the daemon so both run the same build`,
+        ...(refusalHoldsProtocol ? { data: { daemonProtocol: protocol } } : {}),
       },
     };
   }

@@ -123,8 +123,10 @@ When the daemon restarts, it restores the fleet by itself, and every session res
 transcript. Set `restoreFleetOnRestart` to `false` to wait for `R` on the home screen instead.
 
 After you upgrade atc, the status bar shows `⟳ update ready`, and `u` restarts the daemon and
-restores the fleet when you are ready. When the running daemon speaks another protocol version, atc
-asks before it restarts the daemon, since the restart ends every session the daemon hosts.
+restores the fleet when you are ready. When the running daemon speaks an older protocol version, atc
+asks before it restarts the daemon, since the restart ends every session the daemon hosts. When your
+client is the older side, such as a TUI you opened before the upgrade, atc exits and tells you to
+reopen it, and the daemon keeps running.
 
 To restart from a script or from inside a session, run:
 

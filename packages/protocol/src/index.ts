@@ -12,6 +12,7 @@ export * from './decode-cursor';
 export * from './encode-cursor';
 export * from './find-answer-schema';
 export * from './format-protocol-mismatch';
+export * from './is-client-behind';
 export * from './git-probe-result';
 export * from './git-ref';
 export * from './hello-result';

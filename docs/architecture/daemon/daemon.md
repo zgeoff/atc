@@ -59,17 +59,24 @@ serves once one answers, and exits when none does, so a service manager starts i
 
 ## Builds and protocol versions
 
-Client and daemon ship from one repo, so the only version mismatch in practice is a daemon that
-outlives an upgrade. A daemon from another build on the same protocol version stays in service, and
-the TUI marks it `⟳ update ready` until the owner restarts it. A daemon on another protocol version
+Client and daemon ship from one repo, so a version mismatch in practice is one side outliving an
+upgrade: a daemon that kept running, or a TUI opened before a service manager restarted the daemon
+on the new build. A daemon from another build on the same protocol version stays in service, and the
+TUI marks it `⟳ update ready` until the owner restarts it. A daemon on another protocol version
 refuses the handshake, so the client cannot ask it anything, including whether it hosts live
-sessions:
+sessions. The refusal holds the daemon's protocol version in its data, and the client compares it
+with its own:
 
 - A non-interactive client, such as `atc mcp`, exits with an error that holds both builds, both
   protocol versions, the daemon's pid and how to restart it.
 - The TUI shows the same facts and asks before it restarts the daemon, even when the daemon hosts no
   session, because it cannot tell. On a yes, it stops the daemon and boots one from its own build,
   which restores the fleet itself.
+- A client older than the daemon offers no restart, because the daemon would come back on its own
+  build. It exits and prints how to update atc and reopen the client.
+
+A refusal without the version comes from a release that predates the field, so the client treats
+that daemon as the older side.
 
 ## Listeners
 

@@ -1,3 +1,5 @@
+import { isClientBehind } from './is-client-behind';
+
 // A daemon that refused this client's handshake because it speaks another
 // protocol version.
 export interface ProtocolMismatch {
@@ -10,12 +12,25 @@ export interface ProtocolMismatch {
   readonly clientBuild: string;
   readonly clientProtocol: number;
 
+  // The version from the refusal's data, or null for a daemon whose refusal
+  // holds it only in its message.
+  readonly daemonProtocol: number | null;
+
   // The daemon's own refusal, which holds its build and protocol version.
   readonly daemonMessage: string;
 }
 
 export function formatProtocolMismatch(mismatch: ProtocolMismatch): string {
   const pid = mismatch.daemonPID === null ? 'pid unknown' : `pid ${mismatch.daemonPID}`;
+
+  if (isClientBehind(mismatch)) {
+    return [
+      `this client, ${mismatch.clientBuild} on protocol v${mismatch.clientProtocol}, is older than the atc daemon (${pid}, socket ${mismatch.socketPath}), which speaks protocol v${mismatch.daemonProtocol}.`,
+      `The daemon answered: ${mismatch.daemonMessage}`,
+      'It was left running, so the sessions it hosts keep running.',
+      'To reconnect, update atc if this build is out of date, then quit this client and run `atc` again. A daemon restart cannot help, because the daemon comes back on its own build.',
+    ].join('\n');
+  }
 
   // Without a pid the TUI cannot stop the daemon either, so the restart is
   // left to the user.
