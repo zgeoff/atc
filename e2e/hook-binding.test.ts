@@ -2,6 +2,7 @@ import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { runHookReport } from '@atc/reporters';
+import { runTap } from '@atc/reporters/tap';
 import {
   getRecord,
   getString,
@@ -260,6 +261,82 @@ test('it keeps a grok session needing you when an idle notification follows a pe
   const listed = await ctx.daemon.client.sendRequest('session.list');
 
   expect(listed).toMatchObject({ sessions: [{ id, state: 'needs_you', agent: 'grok' }] });
+});
+
+test('it keeps a nested codex harness from rebinding or answering for the claude session it runs in', async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.home,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getString(getRecord(spawned, 'session'), 'id');
+
+  await waitForEvent(ctx.daemon.events, { ev: 'SessionState', session: { state: 'needs_you' } });
+
+  // The test runs the session's message tap, as the agent's `atc tap` would.
+  void runTap(id, ctx.daemon.build, ctx.daemon.socketPath, {
+    writeStdout: () => Promise.resolve(),
+    printError: () => {},
+    exit: () => {},
+  });
+
+  const sent = await ctx.daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'ping from test',
+  });
+
+  const messageID = getString(sent, 'message');
+
+  await waitForEvent(ctx.daemon.events, { ev: 'SessionMessage', status: 'delivered' });
+
+  updateEnv('ATC_SESSION_ID', id);
+  updateEnv('ATC_SOCKET', ctx.daemon.reporterSocketPath);
+
+  await runHookReport('codex', {
+    readStdin: () =>
+      Promise.resolve(
+        JSON.stringify({
+          hook_event_name: 'SessionStart',
+          session_id: 'nested-codex-1',
+          transcript_path: `${ctx.home}/nested-rollout.jsonl`,
+          source: 'startup',
+        }),
+      ),
+    exit: () => {},
+  });
+
+  await runHookReport('codex', {
+    readStdin: () =>
+      Promise.resolve(
+        JSON.stringify({
+          hook_event_name: 'Stop',
+          session_id: 'nested-codex-1',
+          last_assistant_message: 'nested codex output',
+        }),
+      ),
+    exit: () => {},
+  });
+
+  await waitFor(() => {
+    expect(ctx.daemon.logs).toIncludeAllMembers([
+      `atc hook event=dropped session=${id} agent=codex hook=SessionStart`,
+      `atc hook event=dropped session=${id} agent=codex hook=Stop`,
+    ]);
+  });
+
+  const record = await ctx.daemon.client.sendRequest('session.get', { session: id });
+  const message = await ctx.daemon.client.sendRequest('message.get', { message: messageID });
+
+  expect(record).toMatchObject({
+    session: { agentSessionID: 'fake-1', state: 'needs_you', lastMsg: 'needs permission' },
+    result: null,
+  });
+
+  expect(message).toMatchObject({ session: id, status: 'delivered' });
+  expect(message).not.toContainKey('answer');
 });
 
 test('it drops a hook line without an agent at a session whose own hooks carry one', async () => {

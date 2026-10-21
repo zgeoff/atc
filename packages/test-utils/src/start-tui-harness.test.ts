@@ -290,11 +290,11 @@ test('it stops the daemon the client started on stop', async () => {
 });
 
 test('it removes its home on stop', async () => {
-  const ctx = await setupTest();
+  const tui = startTUIHarness();
 
-  await ctx.tui.stop();
+  await tui.stop();
 
-  expect(existsSync(ctx.tui.home)).toBe(false);
+  expect(existsSync(tui.home)).toBe(false);
 });
 
 test('it stops the daemon its pid file holds and removes the home once the test finishes', () => {
