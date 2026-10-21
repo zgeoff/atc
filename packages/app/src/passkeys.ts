@@ -1,11 +1,13 @@
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { systemClock } from '@atc/core';
-import { createEnrollmentToken } from './mcp/create-enrollment-token';
-import { openMCPAuth } from './mcp/open-mcp-auth';
-import { readPasskeyViews } from './mcp/read-passkey-views';
-import { removePasskey } from './mcp/remove-passkey';
-import { resetPasskeys } from './mcp/reset-passkeys';
+import {
+  createEnrollmentToken,
+  openMCPAuth,
+  readPasskeyViews,
+  removePasskey,
+  resetPasskeys,
+} from '@atc/mcp';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
 
 type PasskeysAction =

@@ -1,6 +1,6 @@
+import type { MCPAuthDatabase } from '@atc/mcp';
 import { openSQLite } from '@atc/store/sqlite';
 import { buildSQLiteDialect } from '@zgeoff/kysely-bun-sqlite';
-import type { MCPAuthDatabase } from './mcp/mcp-auth-database';
 
 export function openMCPAuthDatabase(path: string): MCPAuthDatabase {
   // a write waits for another process's lock, since the commands and a running

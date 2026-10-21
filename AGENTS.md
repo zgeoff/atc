@@ -32,6 +32,8 @@ packages/
                  config, listing cache, client log, and daemon boot
   reporters/     the commands that run inside a wrangled session: the hook and statusline
                  reporters, the note, and the message tap; its root entry stays light for start-up
+  mcp/           the MCP server: the tools, which stdio and HTTP serve alike, and the HTTP app with
+                 its authorization server; the tools reach no module of the authorization server
   plugin-api/    the contracts a plugin implements, among them the AgentAdapter interface
   harnesses/     one package per agent CLI: claude, codex, grok
   execution/     one package per execution provider: local, imp

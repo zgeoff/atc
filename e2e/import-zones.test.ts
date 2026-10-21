@@ -231,24 +231,24 @@ test.each([
   ],
   [
     'kysely outside its owner',
-    'packages/mcp/src/a.ts',
+    'packages/daemon/src/a.ts',
     'kysely',
     [],
-    'confinement: kysely is allowed only in store, app, tests',
+    'confinement: kysely is allowed only in store, mcp, app, tests',
   ],
   [
     'better-auth outside its owner',
     'packages/daemon/src/a.ts',
     'better-auth',
     [],
-    'confinement: better-auth is allowed only in mcp, app, tests',
+    'confinement: better-auth is allowed only in mcp, tests',
   ],
   [
     'a better-auth plugin outside its owner',
     'packages/daemon/src/a.ts',
     '@better-auth/mcp',
     [],
-    'confinement: @better-auth/mcp is allowed only in mcp, app, tests',
+    'confinement: @better-auth/mcp is allowed only in mcp, tests',
   ],
   [
     'the MCP SDK v1 anywhere',

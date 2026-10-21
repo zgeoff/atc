@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isRecord } from '@atc/core';
+import { createEnrollmentToken, openMCPAuth, startMCPHTTPServer } from '@atc/mcp';
 import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildMockAgentAdapter,
@@ -17,9 +18,6 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
-import { createEnrollmentToken } from '../mcp/create-enrollment-token';
-import { openMCPAuth } from '../mcp/open-mcp-auth';
-import { startMCPHTTPServer } from '../mcp/start-mcp-http-server';
 import { openMCPAuthDatabase } from '../open-mcp-auth-database';
 import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
@@ -285,7 +283,7 @@ test('it replays a keyed spawn from the daemon the key was bound to when the ret
   });
 });
 
-test("it labels a message a connector sends with the client's name and kind connector, whatever from the call gives", async () => {
+test("it labels a message a connector sends with the client's name and kind connector", async () => {
   const ctx = await setupTest();
 
   const spawned = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
@@ -297,7 +295,7 @@ test("it labels a message a connector sends with the client's name and kind conn
 
   const sent = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
     name: 'atc_message_send',
-    arguments: { session, text: 'check the tide tables', from: 'impostor' },
+    arguments: { session, text: 'check the tide tables' },
   });
 
   const got = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
@@ -553,7 +551,7 @@ test('it lists the agents tool without an output schema', async () => {
   expect(getRecord({ agentsTool }, 'agentsTool')).not.toContainKey('outputSchema');
 });
 
-test('it dispatches every tool name it lists and answers an unlisted name as unknown', async () => {
+test('it dispatches every tool name it lists', async () => {
   const ctx = await setupTest();
   const listed = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/list');
 
@@ -562,7 +560,7 @@ test('it dispatches every tool name it lists and answers an unlisted name as unk
   // Each call goes out without arguments, so most tools refuse it as bad
   // args; only a name the gateway cannot dispatch reads as unknown.
   const answered = await Promise.all(
-    [...names, 'atc_unlisted_tool'].map(async (name) => {
+    names.map(async (name) => {
       const called = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
         name,
         arguments: {},
@@ -577,7 +575,30 @@ test('it dispatches every tool name it lists and answers an unlisted name as unk
   );
 
   expect(names).toContain('atc_sessions_list');
-  expect(unknown).toStrictEqual(['atc_unlisted_tool']);
+  expect(unknown).toStrictEqual([]);
+});
+
+test('it refuses a call to a tool it does not list as invalid params', async () => {
+  const ctx = await setupTest();
+
+  const called = await fetch(`${ctx.url}/mcp`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${ctx.claudeToken}`,
+      accept: 'application/json, text/event-stream',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name: 'atc_unlisted_tool', arguments: {} },
+    }),
+  });
+
+  const body = await readJSONRecord(called);
+
+  expect(getRecord(body, 'error')).toMatchObject({ code: -32_602 });
 });
 
 test('it answers the health probe with an empty body while every daemon is down', async () => {

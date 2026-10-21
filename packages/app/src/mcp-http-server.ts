@@ -2,14 +2,16 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { MCPHTTPConfig } from '@atc/config';
 import { loadMCPHTTPConfig, mcpAuthDBFile } from '@atc/config';
+import type { MCPAuthDatabase } from '@atc/mcp';
+import {
+  TransportCaller,
+  openMCPAuth,
+  readClientViews,
+  readPasskeyViews,
+  startMCPHTTPServer,
+} from '@atc/mcp';
 import type { DaemonBoot, DaemonBootOptions, DaemonPaths } from '@atc/protocol';
 import { openDaemonClient } from '@atc/protocol/client';
-import type { MCPAuthDatabase } from './mcp/mcp-auth-database';
-import { openMCPAuth } from './mcp/open-mcp-auth';
-import { readClientViews } from './mcp/read-client-views';
-import { readPasskeyViews } from './mcp/read-passkey-views';
-import { startMCPHTTPServer } from './mcp/start-mcp-http-server';
-import { TransportCaller } from './mcp/transport-caller';
 
 interface MCPHTTPFlags {
   readonly host: string | null;

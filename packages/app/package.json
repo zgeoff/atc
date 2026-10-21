@@ -15,6 +15,7 @@
     "@atc/harness-codex": "workspace:*",
     "@atc/harness-grok": "workspace:*",
     "@atc/lifecycle": "workspace:*",
+    "@atc/mcp": "workspace:*",
     "@atc/plugin-api": "workspace:*",
     "@atc/protocol": "workspace:*",
     "@atc/reporters": "workspace:*",
@@ -23,21 +24,16 @@
     "@atc/source-github": "workspace:*",
     "@atc/store": "workspace:*",
     "@atc/tui": "workspace:*",
-    "@better-auth/mcp": "catalog:",
-    "@better-auth/oauth-provider": "catalog:",
-    "@simplewebauthn/server": "catalog:",
     "@zgeoff/kysely-bun-sqlite": "catalog:",
     "@zgeoff/std": "catalog:",
-    "better-auth": "catalog:",
     "gunshi": "catalog:",
-    "kysely": "catalog:",
-    "reflect-metadata": "catalog:",
     "ts-pattern": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@atc/test-utils": "workspace:*",
     "@faker-js/faker": "catalog:",
+    "kysely": "catalog:",
     "tiny-invariant": "catalog:"
   }
 }

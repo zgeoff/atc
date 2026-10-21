@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { openDaemonClient } from '@atc/protocol/client';
-import { createEnrollmentToken } from '../../app/src/mcp/create-enrollment-token';
-import { openMCPAuth } from '../../app/src/mcp/open-mcp-auth';
-import { startMCPHTTPServer } from '../../app/src/mcp/start-mcp-http-server';
-import { TransportCaller } from '../../app/src/mcp/transport-caller';
 import { openMCPAuthDatabase } from '../../app/src/open-mcp-auth-database';
+import { createEnrollmentToken } from '../../mcp/src/auth/create-enrollment-token';
+import { openMCPAuth } from '../../mcp/src/auth/open-mcp-auth';
+import { startMCPHTTPServer } from '../../mcp/src/http/start-mcp-http-server';
+import { TransportCaller } from '../../mcp/src/tools/transport-caller';
 import { buildStubAuthenticator } from './build-stub-authenticator';
 import { registerTestCleanup } from './register-test-cleanup';
 import { runMCPAuthorization } from './run-mcp-authorization';

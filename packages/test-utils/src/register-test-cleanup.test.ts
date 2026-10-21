@@ -64,7 +64,7 @@ test('it refuses to register outside a test', async () => {
     [
       process.execPath,
       '-e',
-      "import { registerTestCleanup } from './register-test-cleanup.ts'; registerTestCleanup(() => {});",
+      "import { registerTestCleanup } from './register-test-cleanup'; registerTestCleanup(() => {});",
     ],
     { cwd: import.meta.dir },
   );

@@ -1,0 +1,289 @@
+import { expect, test } from 'bun:test';
+import { join } from 'node:path';
+import { openDaemonClient } from '@atc/protocol/client';
+import {
+  buildStubAuthenticator,
+  readJSONRecord,
+  registerTestCleanup,
+  runMCPAuthorization,
+  runPasskeyEnrollment,
+  setupTempDir,
+} from '@atc/test-utils';
+import invariant from 'tiny-invariant';
+import { startMCPHTTPServer } from '../http/start-mcp-http-server';
+import { openTestAuthDatabase } from '../testing/open-test-auth-database';
+import { TransportCaller } from '../tools/transport-caller';
+import { createEnrollmentToken } from './create-enrollment-token';
+import { openMCPAuth } from './open-mcp-auth';
+import { readGrantViews } from './read-grant-views';
+
+// `atc mcp --http` on a free port with the owner's passkey enrolled, and its authorization server's database opened a second time
+// the way `atc grants` opens it. No test reaches the daemon, so the caller
+// points at a socket nothing listens on.
+async function setupTest() {
+  const temporaryDirectory = setupTempDir('atc-collect-grants-');
+  const dbPath = join(temporaryDirectory.path, 'mcp-auth.db');
+
+  const caller = new TransportCaller(
+    join(temporaryDirectory.path, 'daemon.sock'),
+    'atc/test-build',
+    (path) => openDaemonClient(path),
+  );
+
+  registerTestCleanup(() => caller.stop());
+
+  const server = await startMCPHTTPServer({
+    caller,
+    build: 'atc/test-build',
+    host: '127.0.0.1',
+    port: 0,
+    publicURL: null,
+    allowedHosts: [],
+    trustForwardedFrom: [],
+    dbPath,
+    openAuthDatabase: openTestAuthDatabase,
+    printRequest: () => {},
+    printSecurity: () => {},
+  });
+
+  registerTestCleanup(() => server.stop());
+
+  const store = await openMCPAuth({ dbPath, openDatabase: openTestAuthDatabase, origin: null });
+
+  registerTestCleanup(() => store.close());
+
+  const authenticator = buildStubAuthenticator();
+
+  const enrollment = await createEnrollmentToken(store.db, Date.now());
+
+  await runPasskeyEnrollment(server, enrollment.token, authenticator);
+
+  return { url: server.url, origin: server.origin, authenticator, store };
+}
+
+test('it lists a grant with its client and scopes and no last use before the grant is used', async () => {
+  const ctx = await setupTest();
+
+  const created = await ctx.store.auth.api.createFixedClient({
+    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+  });
+
+  const clientID = created.clientID;
+
+  const authorized = await runMCPAuthorization(ctx, {
+    clientID,
+    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read message',
+    ticked: ['read', 'message'],
+  });
+
+  await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authorized.code,
+      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+      client_id: clientID,
+      code_verifier: authorized.verifier,
+    }),
+  });
+
+  const grants = await readGrantViews(ctx.store.db);
+
+  expect(grants).toStrictEqual([
+    {
+      grantID: expect.toBeString(),
+      clientID,
+      clientName: 'Claude',
+      scopes: ['read', 'message'],
+      createdAt: expect.toBeString(),
+      lastUsedAt: null,
+    },
+  ]);
+});
+
+test('it lists when a grant was last used', async () => {
+  const ctx = await setupTest();
+
+  const created = await ctx.store.auth.api.createFixedClient({
+    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+  });
+
+  const clientID = created.clientID;
+
+  const authorized = await runMCPAuthorization(ctx, {
+    clientID,
+    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read message',
+    ticked: ['read', 'message'],
+  });
+
+  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authorized.code,
+      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+      client_id: clientID,
+      code_verifier: authorized.verifier,
+    }),
+  });
+
+  const tokens = await readJSONRecord(exchanged);
+
+  const startedAt = Date.now();
+
+  await fetch(`${ctx.url}/mcp`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${String(tokens['access_token'])}` },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+  });
+
+  const grants = await readGrantViews(ctx.store.db);
+
+  const lastUsedAt = grants[0]?.lastUsedAt;
+
+  invariant(typeof lastUsedAt === 'string', 'the grant holds no last use');
+
+  expect(grants).toStrictEqual([
+    {
+      grantID: expect.toBeString(),
+      clientID,
+      clientName: 'Claude',
+      scopes: ['read', 'message'],
+      createdAt: expect.toBeString(),
+      lastUsedAt,
+    },
+  ]);
+
+  expect(Date.parse(lastUsedAt)).toBeWithin(startedAt - 1000, Date.now() + 1);
+});
+
+test('it leaves out a grant whose refresh token was revoked', async () => {
+  const ctx = await setupTest();
+
+  const created = await ctx.store.auth.api.createFixedClient({
+    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+  });
+
+  const clientID = created.clientID;
+
+  const authorized = await runMCPAuthorization(ctx, {
+    clientID,
+    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    ticked: ['read'],
+  });
+
+  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authorized.code,
+      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+      client_id: clientID,
+      code_verifier: authorized.verifier,
+    }),
+  });
+
+  const tokens = await readJSONRecord(exchanged);
+
+  await fetch(`${ctx.url}/oauth2/revoke`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      token: String(tokens['refresh_token']),
+      token_type_hint: 'refresh_token',
+      client_id: clientID,
+    }),
+  });
+
+  const grants = await readGrantViews(ctx.store.db);
+
+  expect(grants).toStrictEqual([]);
+});
+
+test('it lists the grants oldest first', async () => {
+  const ctx = await setupTest();
+
+  const claude = await ctx.store.auth.api.createFixedClient({
+    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+  });
+
+  const chatGPT = await ctx.store.auth.api.createFixedClient({
+    body: {
+      name: 'ChatGPT',
+      redirectURIs: ['https://chatgpt.com/connector_platform_oauth_redirect'],
+    },
+  });
+
+  const claudeAuthorized = await runMCPAuthorization(ctx, {
+    clientID: claude.clientID,
+    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    ticked: ['read'],
+  });
+
+  await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: claudeAuthorized.code,
+      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+      client_id: claude.clientID,
+      code_verifier: claudeAuthorized.verifier,
+    }),
+  });
+
+  const chatGPTAuthorized = await runMCPAuthorization(ctx, {
+    clientID: chatGPT.clientID,
+    redirectURI: 'https://chatgpt.com/connector_platform_oauth_redirect',
+    scope: 'read',
+    ticked: ['read'],
+  });
+
+  await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: chatGPTAuthorized.code,
+      redirect_uri: 'https://chatgpt.com/connector_platform_oauth_redirect',
+      client_id: chatGPT.clientID,
+      code_verifier: chatGPTAuthorized.verifier,
+    }),
+  });
+
+  // The grant made last is the older one, so insertion order cannot pass
+  // for creation order.
+  await ctx.store.db
+    .updateTable('oauthRefreshToken')
+    .set({ createdAt: '2026-01-02T00:00:00.000Z' })
+    .where('clientId', '=', claude.clientID)
+    .execute();
+
+  await ctx.store.db
+    .updateTable('oauthRefreshToken')
+    .set({ createdAt: '2026-01-01T00:00:00.000Z' })
+    .where('clientId', '=', chatGPT.clientID)
+    .execute();
+
+  const grants = await readGrantViews(ctx.store.db);
+
+  expect(grants).toStrictEqual([
+    {
+      grantID: expect.toBeString(),
+      clientID: chatGPT.clientID,
+      clientName: 'ChatGPT',
+      scopes: ['read'],
+      createdAt: '2026-01-01T00:00:00.000Z',
+      lastUsedAt: null,
+    },
+    {
+      grantID: expect.toBeString(),
+      clientID: claude.clientID,
+      clientName: 'Claude',
+      scopes: ['read'],
+      createdAt: '2026-01-02T00:00:00.000Z',
+      lastUsedAt: null,
+    },
+  ]);
+});

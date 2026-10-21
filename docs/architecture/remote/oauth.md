@@ -120,9 +120,9 @@ client holds, and each of that client's grants needs approving again.
   caching. The policy blocks every script except, on the sign-in and enrollment pages, the one
   passkey script atc serves, which it allows by hash. The error page shows a fixed sentence per
   error code, never text from the link, so a crafted link cannot put its own words on atc's origin.
-- **Transport.** The server answers each MCP post with JSON and opens no server-to-client stream,
-  and it refuses JSON-RPC batches and an MCP protocol version it does not speak, so a newer client
-  falls back to initialize.
+- **Transport.** The server answers each MCP post with JSON and opens no server-to-client stream. It
+  refuses an MCP protocol version it does not speak, so a newer client falls back to initialize, and
+  a post whose `Accept` header leaves out JSON or an event stream, as Streamable HTTP requires.
 
 The server logs one line per request to stderr with the method, the path, the status, the time taken
 and the MCP method and tool. A line never holds a request body, a query, a cookie or an address.

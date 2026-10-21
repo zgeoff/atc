@@ -2,6 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { startDaemon } from '@atc/daemon';
 import type { DaemonHandle } from '@atc/daemon';
+import { TransportCaller, createEnrollmentToken, openMCPAuth, startMCPHTTPServer } from '@atc/mcp';
 import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildMockAgentAdapter,
@@ -10,10 +11,6 @@ import {
   runPasskeyEnrollment,
   setupTempDir,
 } from '@atc/test-utils';
-import { createEnrollmentToken } from '../mcp/create-enrollment-token';
-import { openMCPAuth } from '../mcp/open-mcp-auth';
-import { startMCPHTTPServer } from '../mcp/start-mcp-http-server';
-import { TransportCaller } from '../mcp/transport-caller';
 import { openMCPAuthDatabase } from '../open-mcp-auth-database';
 import { buildLocalTarget } from './build-local-target';
 

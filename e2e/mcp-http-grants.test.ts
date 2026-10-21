@@ -51,7 +51,11 @@ test('it revokes a grant whose id starts with a dash with --revoke=<id> so its a
 
   const before = await fetch(`${ctx.server.url}/mcp`, {
     method: 'POST',
-    headers: { authorization: `Bearer ${String(tokens['access_token'])}` },
+    headers: {
+      authorization: `Bearer ${String(tokens['access_token'])}`,
+      accept: 'application/json, text/event-stream',
+      'content-type': 'application/json',
+    },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
   });
 
@@ -74,7 +78,11 @@ test('it revokes a grant whose id starts with a dash with --revoke=<id> so its a
 
   const pinged = await fetch(`${ctx.server.url}/mcp`, {
     method: 'POST',
-    headers: { authorization: `Bearer ${String(tokens['access_token'])}` },
+    headers: {
+      authorization: `Bearer ${String(tokens['access_token'])}`,
+      accept: 'application/json, text/event-stream',
+      'content-type': 'application/json',
+    },
     body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'ping' }),
   });
 

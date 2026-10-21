@@ -1,10 +1,8 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { createPasskey, openMCPAuth, readEnrollmentToken } from '@atc/mcp';
 import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
-import { createPasskey } from './mcp/create-passkey';
-import { openMCPAuth } from './mcp/open-mcp-auth';
-import { readEnrollmentToken } from './mcp/read-enrollment-token';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
 import { runPasskeys } from './passkeys';
 

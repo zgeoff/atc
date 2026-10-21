@@ -22,9 +22,9 @@ A tool's name is `atc_<noun>_<verb>`, where the noun is the channel the tool rea
   access it needs ([scopes](#scopes)).
 
 A tool result holds its output as text, and a result that is data also holds it as structured
-content with an output schema. The servers speak each MCP protocol revision atc implements, and
-leave out the one revision that requires JSON-RPC batching, which atc does not implement. The
-`tool-contract` skill holds the rules for naming and describing a tool.
+content with an output schema. Both servers run on the MCP TypeScript SDK, so they speak each
+protocol revision the SDK supports and check each call's arguments against the tool's input schema
+before the tool runs. The `tool-contract` skill holds the rules for naming and describing a tool.
 
 A server lists every tool and every input, because the daemon it reaches passed a handshake on the
 same protocol version ([the protocol](../protocol/protocol.md#versions)). Only the gateway adds the

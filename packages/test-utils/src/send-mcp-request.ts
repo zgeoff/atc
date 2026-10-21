@@ -9,7 +9,11 @@ export async function sendMCPRequest(
 ): Promise<Readonly<Record<string, unknown>>> {
   const answered = await fetch(`${url}/mcp`, {
     method: 'POST',
-    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    headers: {
+      authorization: `Bearer ${token}`,
+      accept: 'application/json, text/event-stream',
+      'content-type': 'application/json',
+    },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
   });
 

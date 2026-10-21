@@ -53,7 +53,7 @@ const PROCESS_IO: ATCCLIIO = {
     const host = lifecycle.buildLifecycleHost(process.env, hostServices);
 
     if (!flags.http) {
-      const server = await import('./mcp-server');
+      const server = await import('@atc/mcp/stdio');
 
       await server.runMCPServer(host.invocation.readBuild(), () => boot.bootDaemonClient(host));
 

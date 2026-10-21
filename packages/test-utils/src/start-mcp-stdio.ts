@@ -99,15 +99,21 @@ export async function startMCPStdio(options: MCPStdioOptions) {
   };
 
   // A failed initialize stops the server here, before the start rejects.
-  await sendRequest('initialize', {
+  const initialized = await sendRequest('initialize', {
     protocolVersion: '2025-06-18',
     capabilities: {},
-    clientInfo: { name: 'atc-test' },
+    clientInfo: { name: 'atc-test', version: '1.0.0' },
   }).catch(async (error: unknown) => {
     await stop();
 
     throw error;
   });
+
+  if (!isRecord(initialized['result'])) {
+    await stop();
+
+    throw new Error(`atc mcp refused the initialize: ${JSON.stringify(initialized)}`);
+  }
 
   return server;
 }
