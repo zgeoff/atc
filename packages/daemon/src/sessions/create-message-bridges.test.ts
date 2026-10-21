@@ -16,10 +16,10 @@ import { createEventSignal } from '../transport/create-event-signal';
 import { createIdempotencyLedger } from '../transport/create-idempotency-ledger';
 import { createMessageBridges } from './create-message-bridges';
 import { createMessageService } from './create-message-service';
+import { createSessionManager } from './create-session-manager';
 import { createSessionRuntime } from './create-session-runtime';
 import type { SessionRuntime } from './create-session-runtime';
 import { createTapRegistry } from './create-tap-registry';
-import { SessionManager } from './sessions';
 
 // A session manager on one `local` target over the in-memory provider with
 // one agent that takes its messages through a bridge in the daemon, a real
@@ -45,7 +45,7 @@ async function setupTest() {
     startMessageBridge: stub.startMessageBridge,
   };
 
-  const manager = new SessionManager(
+  const manager = createSessionManager(
     null,
     store,
     join(temporaryDirectory.path, 'status.json'),

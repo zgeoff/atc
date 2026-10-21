@@ -12,7 +12,7 @@ import {
 } from '@atc/test-utils';
 import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
 import { buildNoteTrailEntry } from '../sessions/build-note-trail-entry';
-import { SessionManager } from '../sessions/sessions';
+import { createSessionManager } from '../sessions/create-session-manager';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
@@ -31,7 +31,7 @@ async function setupTest() {
 
   registerTestCleanup(() => store.stop());
 
-  const manager = new SessionManager(
+  const manager = createSessionManager(
     null,
     store,
     join(temporaryDirectory.path, 'status.json'),

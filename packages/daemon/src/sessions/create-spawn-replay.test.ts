@@ -12,8 +12,8 @@ import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-gr
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
-import { SessionManager } from './sessions';
-import { SpawnReplay } from './spawn-replay';
+import { createSessionManager } from './create-session-manager';
+import { createSpawnReplay } from './create-spawn-replay';
 
 // A session manager on one `local` target over the in-memory provider, a
 // real state store, and the replay that reads both.
@@ -27,7 +27,7 @@ async function setupTest() {
 
   registerTestCleanup(() => store.stop());
 
-  const manager = new SessionManager(
+  const manager = createSessionManager(
     null,
     store,
     join(temporaryDirectory.path, 'status.json'),
@@ -45,7 +45,7 @@ async function setupTest() {
     manager.detachAll();
   });
 
-  const replay = new SpawnReplay({ manager, store });
+  const replay = createSpawnReplay({ manager, store });
 
   return { store, manager, replay };
 }

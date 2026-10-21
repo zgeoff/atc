@@ -1,10 +1,10 @@
 import { posix } from 'node:path';
 import type { HostDirClaims } from './create-host-dir-claims';
 import type { SessionRegistry } from './create-session-registry';
+import type { SpawnRollback } from './create-spawn-rollback';
 import type { SpawnSteps } from './run-spawn-steps';
 import type { MaterializedSpawn, SpawnMaterializer } from './spawn-materializer';
 import type { SpawnRequest } from './spawn-request';
-import type { SpawnRollback } from './spawn-rollback';
 
 export interface SpawnWorkspaceDeps {
   readonly registry: Pick<SessionRegistry, 'hasHostLifecycle'>;

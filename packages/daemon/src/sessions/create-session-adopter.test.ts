@@ -15,12 +15,12 @@ import { buildMockSession } from '../testing/build-mock-session';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { createHostDirClaims } from './create-host-dir-claims';
+import { createSessionAdopter } from './create-session-adopter';
 import { createSessionHarnesses } from './create-session-harnesses';
+import { createSessionKiller } from './create-session-killer';
 import { createSessionRegistry } from './create-session-registry';
-import { SessionAdopter } from './session-adopter';
+import { createSpawnRollback } from './create-spawn-rollback';
 import type { SessionCallbacks } from './session-callbacks';
-import { SessionKiller } from './session-killer';
-import { SpawnRollback } from './spawn-rollback';
 
 // The agents and execution targets a test runs its sessions under.
 interface SetupTestConfig {
@@ -81,16 +81,11 @@ async function setupTest(config: SetupTestConfig) {
 
   const claims = createHostDirClaims({ registry });
   const restarts = { stopRestart: (id: SessionID) => adopter.stopRestart(id) };
-
-  const killer = new SessionKiller({ registry, fleet, callbacks, restarts });
-
+  const killer = createSessionKiller({ registry, fleet, callbacks, restarts });
   const harnesses = createSessionHarnesses({ registry, fleet, killer, callbacks });
-
-  const rollback = new SpawnRollback({ registry, fleet, claims, harnesses, callbacks });
-
+  const rollback = createSpawnRollback({ registry, fleet, claims, harnesses, callbacks });
   const auth = createAuthSetup({ registry, fleet, claims, harnesses, rollback, store, callbacks });
-
-  const adopter = new SessionAdopter({ registry, fleet, harnesses, rollback, auth, callbacks });
+  const adopter = createSessionAdopter({ registry, fleet, harnesses, rollback, auth, callbacks });
 
   return {
     directory: temporaryDirectory.path,

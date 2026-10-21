@@ -6,9 +6,9 @@ import { createActor } from 'xstate';
 import type { Actor } from 'xstate';
 import type { TapClient } from '../daemon-context';
 import { BRIDGE_REVIVAL_MACHINE } from './bridge-revival-machine';
+import type { SessionManager } from './create-session-manager';
 import type { TapRegistry } from './create-tap-registry';
 import type { Session } from './session';
-import type { SessionManager } from './sessions';
 
 interface BridgeRevivalDeps {
   readonly manager: Pick<SessionManager, 'sessions' | 'findAdapter' | 'requireExecution' | 'log'>;

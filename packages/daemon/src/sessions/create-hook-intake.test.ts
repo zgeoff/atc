@@ -22,10 +22,10 @@ import { createEventSignal } from '../transport/create-event-signal';
 import { createIdempotencyLedger } from '../transport/create-idempotency-ledger';
 import { createHookIntake } from './create-hook-intake';
 import { createMessageService } from './create-message-service';
+import { createSessionManager } from './create-session-manager';
 import { createSessionRuntime } from './create-session-runtime';
 import type { SessionRuntime } from './create-session-runtime';
 import { createTapRegistry } from './create-tap-registry';
-import { SessionManager } from './sessions';
 
 interface SetupTestConfig {
   // The events each hook event name means to the one agent.
@@ -48,7 +48,7 @@ async function setupTest(config: SetupTestConfig) {
 
   const adapter = buildStubHarnessAdapter({ hooks: config.hooks, takesMessages: true });
 
-  const manager = new SessionManager(
+  const manager = createSessionManager(
     null,
     store,
     join(temporaryDirectory.path, 'status.json'),

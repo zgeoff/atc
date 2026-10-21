@@ -13,9 +13,9 @@ import {
 import invariant from 'tiny-invariant';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
+import { createSessionManager } from './create-session-manager';
 import type { Session } from './session';
 import type { SessionEventKind } from './session-event-kind';
-import { SessionManager } from './sessions';
 
 // a manager the test holds after this setup detaches before the store goes
 async function setupTest() {
@@ -43,7 +43,7 @@ async function setupTest() {
 test('it pins a sub-session on its own and leaves its parent unpinned', async () => {
   const ctx = await setupTest();
 
-  const manager = new SessionManager(
+  const manager = createSessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -95,7 +95,7 @@ test('it pins a sub-session on its own and leaves its parent unpinned', async ()
 test("it refuses to pin a sub-session that runs in its parent's host and leaves it unpinned", async () => {
   const ctx = await setupTest();
 
-  const manager = new SessionManager(
+  const manager = createSessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -147,7 +147,7 @@ test("it refuses to pin a sub-session that runs in its parent's host and leaves 
 test('it detaches a sub-session and leaves its former parent pinned', async () => {
   const ctx = await setupTest();
 
-  const manager = new SessionManager(
+  const manager = createSessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -201,7 +201,7 @@ test('it detaches a sub-session and leaves its former parent pinned', async () =
 test("it refuses to detach a sub-session that runs in its parent's host and leaves it under the parent", async () => {
   const ctx = await setupTest();
 
-  const manager = new SessionManager(
+  const manager = createSessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -254,7 +254,7 @@ test("it refuses to detach a sub-session that runs in its parent's host and leav
 test('it pins a sub-session in the update that detaches it', async () => {
   const ctx = await setupTest();
 
-  const manager = new SessionManager(
+  const manager = createSessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -305,7 +305,7 @@ test('it pins a sub-session in the update that detaches it', async () => {
 test('it persists a detached sub-session as top-level', async () => {
   const ctx = await setupTest();
 
-  const manager = new SessionManager(
+  const manager = createSessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -380,7 +380,7 @@ test('it persists a detached sub-session as top-level', async () => {
 test('it pins a parent that has a sub-session', async () => {
   const ctx = await setupTest();
 
-  const manager = new SessionManager(
+  const manager = createSessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -428,7 +428,7 @@ test('it pins a parent that has a sub-session', async () => {
 test("it keeps a finished turn's last message as the session result", async () => {
   const ctx = await setupTest();
 
-  const manager = new SessionManager(
+  const manager = createSessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -487,7 +487,7 @@ test("it keeps a finished turn's last message as the session result", async () =
 test('it keeps a name the agent set and reports the rename it skipped', async () => {
   const ctx = await setupTest();
 
-  const manager = new SessionManager(
+  const manager = createSessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -538,7 +538,7 @@ test('it keeps a name the agent set and reports the rename it skipped', async ()
 test('it truncates a stored result past 16 KiB', async () => {
   const ctx = await setupTest();
 
-  const manager = new SessionManager(
+  const manager = createSessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -584,7 +584,7 @@ test('it truncates a stored result past 16 KiB', async () => {
 test('it persists the transcript path its hooks report', async () => {
   const ctx = await setupTest();
 
-  const manager = new SessionManager(
+  const manager = createSessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -643,7 +643,7 @@ test('it persists the transcript path its hooks report', async () => {
 test('it keeps a crashed sibling restorable as live when another session finishes a turn', async () => {
   const ctx = await setupTest();
 
-  const manager = new SessionManager(
+  const manager = createSessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -734,7 +734,7 @@ test('it keeps a crashed sibling restorable as live when another session finishe
 test('it lets go of each harness when disposed', async () => {
   const ctx = await setupTest();
 
-  const manager = new SessionManager(
+  const manager = createSessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -766,7 +766,7 @@ test('it lets go of each harness when disposed', async () => {
 test('it allows a second disposal', async () => {
   const ctx = await setupTest();
 
-  const manager = new SessionManager(
+  const manager = createSessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -801,7 +801,7 @@ test('it gives the boot handler it was built with the first spawn on the harness
 
   const onBoot = mock<(session: Session, cols: number, rows: number) => void>();
 
-  const manager = new SessionManager(
+  const manager = createSessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -832,7 +832,7 @@ test('it gives the event handler it was built with a session restored at daemon 
 
   const onEvent = mock<(kind: SessionEventKind, session: Session) => void>();
 
-  const manager = new SessionManager(
+  const manager = createSessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,

@@ -23,22 +23,24 @@ import { createPublishedRecords } from './sessions/create-published-records';
 import type { PublishedRecords } from './sessions/create-published-records';
 import { createScreenDetection } from './sessions/create-screen-detection';
 import type { ScreenDetection } from './sessions/create-screen-detection';
+import { createSessionForgetter } from './sessions/create-session-forgetter';
+import type { SessionForgetter } from './sessions/create-session-forgetter';
 import { createSessionHandoff } from './sessions/create-session-handoff';
 import type { SessionHandoff } from './sessions/create-session-handoff';
 import { createSessionInput } from './sessions/create-session-input';
 import type { SessionInput } from './sessions/create-session-input';
+import type { SessionManager } from './sessions/create-session-manager';
 import { createSessionOutput } from './sessions/create-session-output';
 import type { SessionOutput } from './sessions/create-session-output';
 import { createSessionReads } from './sessions/create-session-reads';
 import type { SessionReads } from './sessions/create-session-reads';
 import type { SessionRuntime } from './sessions/create-session-runtime';
+import { createSpawnService } from './sessions/create-spawn-service';
+import type { SpawnService } from './sessions/create-spawn-service';
 import type { TapRegistry } from './sessions/create-tap-registry';
 import { startHookServer } from './sessions/hooks';
 import type { HookScope } from './sessions/make-hook-runner';
 import { MENU_TIMING } from './sessions/menu-terminal';
-import { SessionForgetter } from './sessions/session-forgetter';
-import type { SessionManager } from './sessions/sessions';
-import { SpawnService } from './sessions/spawn-service';
 import { startBridgeRevival } from './sessions/start-bridge-revival';
 import type { BridgeRevival } from './sessions/start-bridge-revival';
 import { startHeadlessTurn } from './sessions/start-headless-turn';
@@ -261,7 +263,7 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
     hooks.applyHookEvent(hookEvent);
   }, opts.reporterSocketPath);
 
-  const spawns = new SpawnService({
+  const spawns = createSpawnService({
     manager,
     store,
     clock,
@@ -273,7 +275,7 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
     ...(opts.homeDir === undefined ? {} : { homeDir: opts.homeDir }),
   });
 
-  const forgetter = new SessionForgetter({
+  const forgetter = createSessionForgetter({
     manager,
     findRuntime,
     tokens: createConfirmTokens({

@@ -10,8 +10,8 @@ import { buildMockExecutionTarget } from '../testing/build-mock-execution-target
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { createPublishedRecords } from './create-published-records';
+import { createSessionManager } from './create-session-manager';
 import { createSessionReads } from './create-session-reads';
-import { SessionManager } from './sessions';
 
 interface SetupTestConfig {
   // The one agent the sessions run.
@@ -30,7 +30,7 @@ async function setupTest(config: SetupTestConfig) {
 
   registerTestCleanup(() => store.stop());
 
-  const manager = new SessionManager(
+  const manager = createSessionManager(
     null,
     store,
     join(temporaryDirectory.path, 'status.json'),

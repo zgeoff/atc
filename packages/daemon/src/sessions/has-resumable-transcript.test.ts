@@ -8,8 +8,8 @@ import { buildStubLog, registerTestCleanup, setupTempDir } from '@atc/test-utils
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
+import { createSessionManager } from './create-session-manager';
 import { hasResumableTranscript } from './has-resumable-transcript';
-import { SessionManager } from './sessions';
 
 interface SetupTestConfig {
   // The one agent the sessions run.
@@ -31,7 +31,7 @@ async function setupTest(config: SetupTestConfig) {
 
   registerTestCleanup(() => store.stop());
 
-  const manager = new SessionManager(
+  const manager = createSessionManager(
     null,
     store,
     join(temporaryDirectory.path, 'status.json'),

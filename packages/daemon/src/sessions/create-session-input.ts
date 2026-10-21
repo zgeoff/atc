@@ -6,12 +6,12 @@ import { applyMenuChoice } from './apply-menu-choice';
 import type { MenuChoice, MenuChoiceResult } from './apply-menu-choice';
 import { buildMenuView } from './build-menu-view';
 import type { ScreenText } from './create-screen-model';
+import type { SessionManager } from './create-session-manager';
 import type { SessionRuntime } from './create-session-runtime';
 import type { MenuTerminal, MenuTiming } from './menu-terminal';
 import { readKnownMenu } from './read-known-menu';
 import { readWholeMenu } from './read-whole-menu';
 import { requireSessionPluginDirs } from './require-session-plugin-dirs';
-import type { SessionManager } from './sessions';
 import { writeLineSteps } from './write-line-steps';
 
 interface SessionInputDeps {

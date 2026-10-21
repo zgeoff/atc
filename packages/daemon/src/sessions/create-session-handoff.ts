@@ -1,12 +1,12 @@
 import type { SessionID } from '@atc/core';
 import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import { isTreeInReach } from '../auth/is-tree-in-reach';
+import type { SessionManager } from './create-session-manager';
 import type { SessionRuntime } from './create-session-runtime';
 import { hasResumableTranscript } from './has-resumable-transcript';
 import { requireSessionPluginDirs } from './require-session-plugin-dirs';
 import { runEjectHandoff } from './run-eject-handoff';
 import type { SettleScheduler } from './run-eject-handoff';
-import type { SessionManager } from './sessions';
 
 interface SessionHandoffDeps {
   readonly manager: Pick<

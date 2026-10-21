@@ -1,6 +1,7 @@
 import { DaemonError } from '@atc/protocol/wire';
 import type { AuthSetup, HarnessAuthSetup, HarnessSetup } from '../auth/create-auth-setup';
 import { applyWorkspaceTrust } from './apply-workspace-trust';
+import type { SpawnRollback } from './create-spawn-rollback';
 import { createSpawnWorkspace } from './create-spawn-workspace';
 import type { SpawnWorkspaceDeps } from './create-spawn-workspace';
 import { pickSpawnName } from './pick-spawn-name';
@@ -8,7 +9,6 @@ import type { SpawnSteps } from './run-spawn-steps';
 import type { SessionCallbacks } from './session-callbacks';
 import type { MaterializedSpawn } from './spawn-materializer';
 import type { SpawnRequest } from './spawn-request';
-import type { SpawnRollback } from './spawn-rollback';
 
 interface SpawnSetupDeps extends SpawnWorkspaceDeps {
   readonly rollback: Pick<

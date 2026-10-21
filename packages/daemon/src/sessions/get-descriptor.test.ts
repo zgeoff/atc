@@ -7,8 +7,8 @@ import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
+import { createSessionManager } from './create-session-manager';
 import { getDescriptor } from './get-descriptor';
-import { SessionManager } from './sessions';
 
 // A session manager on one `local` target over the in-memory provider and
 // a real state store.
@@ -22,7 +22,7 @@ async function setupTest() {
 
   registerTestCleanup(() => store.stop());
 
-  const manager = new SessionManager(
+  const manager = createSessionManager(
     null,
     store,
     join(temporaryDirectory.path, 'status.json'),

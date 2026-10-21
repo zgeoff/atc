@@ -11,10 +11,10 @@ import { buildMockExecutionTarget } from '../testing/build-mock-execution-target
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { createConfirmTokens } from './create-confirm-tokens';
+import { createSessionForgetter } from './create-session-forgetter';
+import { createSessionManager } from './create-session-manager';
 import { createSessionRuntime } from './create-session-runtime';
 import type { SessionRuntime } from './create-session-runtime';
-import { SessionForgetter } from './session-forgetter';
-import { SessionManager } from './sessions';
 
 interface SetupTestConfig {
   // Whether the target's provider can destroy a session's host.
@@ -40,7 +40,7 @@ async function setupTest(config: SetupTestConfig) {
     capabilities: { suspend: config.destroy, destroy: config.destroy },
   });
 
-  const manager = new SessionManager(
+  const manager = createSessionManager(
     null,
     store,
     join(temporaryDirectory.path, 'status.json'),
@@ -63,7 +63,7 @@ async function setupTest(config: SetupTestConfig) {
   // A destroy logs the host it removed.
   manager.log = buildStubLog().log;
 
-  const forgetter = new SessionForgetter({
+  const forgetter = createSessionForgetter({
     manager,
     findRuntime: (id) => runtimes.get(id),
     tokens: createConfirmTokens({ now: () => clock.now(), lifetimeMs: 60_000 }),

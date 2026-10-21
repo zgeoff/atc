@@ -1,6 +1,6 @@
 import type { Clock, SessionID } from '@atc/core';
+import type { SessionManager } from './create-session-manager';
 import type { SessionRuntime } from './create-session-runtime';
-import type { SessionManager } from './sessions';
 
 // How long a session's output stays quiet before its screen is judged.
 const DETECT_QUIET_MS = 300;

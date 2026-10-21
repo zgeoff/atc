@@ -16,10 +16,10 @@ import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { createEventSignal } from '../transport/create-event-signal';
 import { createIdempotencyLedger } from '../transport/create-idempotency-ledger';
 import { createMessageService } from './create-message-service';
+import { createSessionManager } from './create-session-manager';
 import { createSessionRuntime } from './create-session-runtime';
 import type { SessionRuntime } from './create-session-runtime';
 import { createTapRegistry } from './create-tap-registry';
-import { SessionManager } from './sessions';
 
 interface SetupTestConfig {
   // Whether the one agent takes inbox messages.
@@ -40,7 +40,7 @@ async function setupTest(config: SetupTestConfig) {
 
   const runtimes = new Map<SessionID, SessionRuntime>();
 
-  const manager = new SessionManager(
+  const manager = createSessionManager(
     null,
     store,
     join(temporaryDirectory.path, 'status.json'),
