@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { openDaemonClient } from '@atc/protocol/client';
 import { registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
 import { InMemoryTransport } from '@modelcontextprotocol/server';
+import { buildStubFleetCaller } from '../testing/build-stub-fleet-caller';
 import { createMCPServer } from './create-mcp-server';
 import { TransportCaller } from './transport-caller';
 import type { FleetCaller } from './types';
@@ -68,4 +69,40 @@ test('it answers a tool list with an error when no daemon listens on the socket'
     id: 1,
     error: { code: -32_603, message: expect.toBeString() },
   });
+});
+
+test('it refuses a tool call with an argument its schema does not list before it reaches the daemon', async () => {
+  const caller = buildStubFleetCaller();
+
+  const ctx = await setupTest(caller);
+
+  await ctx.client.send({
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'tools/call',
+    params: {
+      name: 'atc_message_send',
+      arguments: { session: 's1', text: 'hello', from: 'someone-else' },
+    },
+  });
+
+  await waitFor(() => {
+    expect(ctx.answers).toPartiallyContain({ id: 1 });
+  });
+
+  expect(ctx.answers).toPartiallyContain({
+    jsonrpc: '2.0',
+    id: 1,
+    result: {
+      content: [
+        {
+          type: 'text',
+          text: 'Input validation error: Invalid arguments for tool atc_message_send: data must NOT have additional properties',
+        },
+      ],
+      isError: true,
+    },
+  });
+
+  expect(caller.requests).toStrictEqual([]);
 });
