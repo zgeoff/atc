@@ -1,7 +1,9 @@
 import { expect, test } from 'bun:test';
 import { resolvePaths } from '@atc/config/host';
-import { setupTempDir, startStubLegacyDaemon } from '@atc/test-utils';
+import type { DaemonEvent } from '@atc/protocol';
+import { resolveATCCommand, setupTempDir, waitFor } from '@atc/test-utils';
 import { buildMockLifecycleHost } from './testing/build-mock-lifecycle-host';
+import { startDaemonProcess } from './testing/start-daemon-process';
 import { writeRestartEvent } from './write-restart-event';
 
 function setupTest() {
@@ -14,15 +16,22 @@ function setupTest() {
     }),
   });
 
-  return { host };
+  return { home: temporaryDirectory.path, host };
 }
 
-test('it sends the restart result to the daemon that answers', async () => {
+test('it puts the restart result on the feed of the daemon that answers', async () => {
   const ctx = setupTest();
+  const daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.home });
 
-  const daemon = startStubLegacyDaemon(ctx.host.paths.daemonSocketPath, {
-    replies: { 'daemon.restarted': {} },
-  });
+  const watcher = await daemon.openClient();
+
+  const events: DaemonEvent[] = [];
+
+  watcher.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await watcher.sendHello('atc/test');
 
   const result = {
     runID: 'run-maple',
@@ -39,8 +48,15 @@ test('it sends the restart result to the daemon that answers', async () => {
 
   const outcome = await writeRestartEvent(ctx.host, result);
 
+  await waitFor(() => {
+    expect(events).toPartiallyContain({ ev: 'DaemonRestarted' });
+  });
+
   expect(outcome).toStrictEqual({ kind: 'sent' });
-  expect(daemon.requests).toContainEqual({ method: 'daemon.restarted', params: { result } });
+
+  expect(events.filter((event) => event.ev === 'DaemonRestarted')).toStrictEqual([
+    { ev: 'DaemonRestarted', result },
+  ]);
 });
 
 test('it reports no daemon when nothing listens on the socket', async () => {
