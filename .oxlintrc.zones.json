@@ -282,6 +282,13 @@
             "name": "bun-only",
             "modules": ["vitest", "jest", "@jest", "ts-node", "node-pty"],
             "allow": []
+          },
+          // the TUI is hand-rolled ANSI on purpose, so no file loads a TUI
+          // framework
+          {
+            "name": "hand-rolled-tui",
+            "modules": ["ink", "blessed", "neo-blessed", "terminal-kit"],
+            "allow": []
           }
         ]
       }
