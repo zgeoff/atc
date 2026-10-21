@@ -4,13 +4,13 @@ import type { SourceProvider } from '@atc/plugin-api';
 import { createStateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/testing';
 import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
-import { TargetAccess } from '../auth/target-access';
+import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { SessionManager } from '../sessions/sessions';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
-import { SpawnCatalog } from './spawn-catalog';
+import { createSpawnCatalog } from './create-spawn-catalog';
 
 interface SetupTestConfig {
   readonly targets: readonly ExecutionTarget[];
@@ -42,7 +42,7 @@ async function setupTest(config: SetupTestConfig) {
     manager.detachAll();
   });
 
-  const catalog = new SpawnCatalog({
+  const catalog = createSpawnCatalog({
     manager,
     store,
     build: 'atc/test',
@@ -114,7 +114,7 @@ test('it lists a principal only the directories spawned on targets it may use', 
   await ctx.store.recordSpawnDir('/work/ops', { target: 'box', targetIdentity: 'b:1' }, 2);
 
   const dirs = await ctx.catalog.readSpawnDirs(
-    new TargetAccess([{ target: 'box', targetIdentity: 'b:1' }]),
+    buildTargetAccessFromGrants([{ target: 'box', targetIdentity: 'b:1' }]),
   );
 
   expect(dirs).toStrictEqual(['/work/ops']);

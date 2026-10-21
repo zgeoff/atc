@@ -1,6 +1,6 @@
 import type { StateStore } from '@atc/store';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
-import type { RuntimeAuthBinder } from './runtime-auth-binder';
+import type { RuntimeAuthBinder } from './create-runtime-auth-binder';
 
 export async function tryReconcileAuthBindings(
   binder: Pick<RuntimeAuthBinder, 'reconcileBindings'>,

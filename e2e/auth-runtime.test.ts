@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { systemClock, toSessionID } from '@atc/core';
-import { RuntimeAuthBinder } from '@atc/daemon';
+import { createRuntimeAuthBinder } from '@atc/daemon';
 import { createImpProvider } from '@atc/execution-imp';
 import { createStubImpPort, getOnlyImpName } from '@atc/execution-imp/testing';
 import { createLocalPTYProvider } from '@atc/execution-local';
@@ -3671,7 +3671,7 @@ test('it takes back, as it starts, a spawn a stopped daemon left provisioning', 
 
   registerTestCleanup(() => store.stop());
 
-  await new RuntimeAuthBinder(store).createBinding(ctx.provider.brokerAuth, {
+  await createRuntimeAuthBinder(store).createBinding(ctx.provider.brokerAuth, {
     hostKey: toSessionID('orphan'),
     target: 'box',
     targetIdentity: 'imp:test',

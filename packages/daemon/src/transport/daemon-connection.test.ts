@@ -14,7 +14,7 @@ import {
   waitFor,
 } from '@atc/test-utils';
 import type { PeerFrame } from '@atc/test-utils';
-import { TargetAccess } from '../auth/target-access';
+import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
 import type { DaemonContext } from '../daemon-context';
 import { buildStubDaemonContext } from '../testing/build-stub-daemon-context';
 import { startConnectionListener } from '../testing/start-connection-listener';
@@ -224,7 +224,7 @@ test('it delivers a peer client that acts as a principal no event of a session o
   const connections = startConnectionListener(
     ctx.socketPath,
     buildStubDaemonContext({
-      buildTargetAccess: () => new TargetAccess([]),
+      buildTargetAccess: () => buildTargetAccessFromGrants([]),
       canSeeSession: (sessionID) => sessionID === 's-seen',
     }),
   );

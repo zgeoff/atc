@@ -7,7 +7,7 @@ import { SessionRegistry } from '../sessions/session-registry';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
-import { AuthSetup } from './auth-setup';
+import { createAuthSetup } from './create-auth-setup';
 import { READ_PROJECT_SETTINGS_SCRIPT } from './read-project-settings-script';
 
 interface SetupConfig {
@@ -24,7 +24,7 @@ function setupTest(config: SetupConfig) {
     callbacks: { onEvent: mock<() => void>() },
   });
 
-  const auth = new AuthSetup({
+  const auth = createAuthSetup({
     registry,
     fleet: { emitChange: mock<() => void>() },
     claims: { resolveHostHome: mock() },

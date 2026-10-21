@@ -16,7 +16,7 @@ import { SessionManager } from '../sessions/sessions';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
-import { FleetRestorer } from './fleet-restorer';
+import { createFleetRestorer } from './create-fleet-restorer';
 import type { RestoreSettled } from './restore-fleet';
 
 // A session manager on one `local` target over the in-memory provider, a
@@ -62,7 +62,7 @@ async function setupTest() {
   const onRestoreSettled = mock<(settled: RestoreSettled) => void>();
   const onRestoreSkipped = mock<(reason: 'disabled' | 'empty') => void>();
 
-  const restorer = new FleetRestorer({
+  const restorer = createFleetRestorer({
     manager,
     store,
     clock: buildStubClock(1_000_000),

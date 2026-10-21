@@ -10,7 +10,7 @@ import {
   registerTestCleanup,
   setupTempDir,
 } from '@atc/test-utils';
-import { TargetAccess } from '../auth/target-access';
+import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
 import { buildNoteTrailEntry } from '../sessions/build-note-trail-entry';
 import { SessionManager } from '../sessions/sessions';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
@@ -162,7 +162,7 @@ test('it reads none of the events of a session whose target the access may not u
     10,
     0,
     null,
-    new TargetAccess([{ target: 'local', targetIdentity: 'local-pty:other' }]),
+    buildTargetAccessFromGrants([{ target: 'local', targetIdentity: 'local-pty:other' }]),
   );
 
   expect(page.events).toBeEmpty();
@@ -246,7 +246,7 @@ test('it reads no restart under an access that reaches every session', async () 
     10,
     0,
     null,
-    new TargetAccess([{ target: 'local', targetIdentity: 'local-pty:test' }]),
+    buildTargetAccessFromGrants([{ target: 'local', targetIdentity: 'local-pty:test' }]),
   );
 
   expect(page.events.map((event) => event.kind)).toStrictEqual(['turn-done']);

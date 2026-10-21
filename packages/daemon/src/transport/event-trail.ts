@@ -1,8 +1,8 @@
 import type { Clock, SessionID } from '@atc/core';
 import type { RestartResult, SessionDescriptor } from '@atc/protocol';
 import type { EventScope, StateStore } from '@atc/store';
+import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import { isTreeInReach } from '../auth/is-tree-in-reach';
-import type { TargetAccess } from '../auth/target-access';
 import type { DaemonContext } from '../daemon-context';
 import { buildFleetEvents } from '../fleet/build-fleet-events';
 import { buildAnswerView } from '../sessions/build-answer-view';

@@ -5,7 +5,7 @@ import { EffectRemainsError } from '@atc/plugin-api';
 import { createStateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/testing';
 import { buildStubLog, registerTestCleanup, setupTempDir } from '@atc/test-utils';
-import { SessionFleetWriter } from '../fleet/session-fleet-writer';
+import { createSessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildMockSession } from '../testing/build-mock-session';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
@@ -48,7 +48,7 @@ async function setupTest() {
     callbacks,
   });
 
-  const fleet = new SessionFleetWriter({
+  const fleet = createSessionFleetWriter({
     registry,
     store,
     statusPath: join(temporaryDirectory.path, 'status.json'),

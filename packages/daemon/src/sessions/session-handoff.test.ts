@@ -7,7 +7,7 @@ import { createStateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/testing';
 import { buildStubClock, registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
-import { TargetAccess } from '../auth/target-access';
+import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
@@ -188,7 +188,7 @@ test('it refuses to adopt a session outside the access', async () => {
 
   ctx.manager.yankHeadless(session.id);
 
-  const access = new TargetAccess([{ target: 'imp', targetIdentity: 'imp:elsewhere' }]);
+  const access = buildTargetAccessFromGrants([{ target: 'imp', targetIdentity: 'imp:elsewhere' }]);
 
   const adopted = await ctx.handoff.adoptSession(session.id, 100, 30, access);
 

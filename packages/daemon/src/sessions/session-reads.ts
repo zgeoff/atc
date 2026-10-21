@@ -1,6 +1,6 @@
 import type { SessionID } from '@atc/core';
 import type { StateStore } from '@atc/store';
-import type { TargetAccess } from '../auth/target-access';
+import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import type { SessionRecord, SessionTranscriptRead } from '../daemon-context';
 import { getDescriptor } from './get-descriptor';
 import { loadTranscriptPage } from './load-transcript-page';

@@ -2,7 +2,7 @@ import type { SessionID } from '@atc/core';
 import type { ExecutionProvider, HarnessHandle, HarnessStart } from '@atc/plugin-api';
 import { formatAuthNotice } from '../auth/format-auth-notice';
 import type { BridgeBinding } from '../auth/is-binding-current';
-import type { SessionFleetWriter } from '../fleet/session-fleet-writer';
+import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import { HARNESS_EXIT_TRANSITIONS } from './harness-exit-transitions';
 import type { Session } from './session';
 import type { SessionCallbacks } from './session-callbacks';

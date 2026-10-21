@@ -20,13 +20,15 @@ import type {
 import type { HookEvent } from '@atc/protocol/session';
 import type { DaemonError } from '@atc/protocol/wire';
 import type { FleetEntry, FleetStore } from '@atc/store';
-import { AuthSetup } from '../auth/auth-setup';
-import type { AuthRebound } from '../auth/auth-setup';
+import { createAuthSetup } from '../auth/create-auth-setup';
+import type { AuthRebound, AuthSetup } from '../auth/create-auth-setup';
+import type { RuntimeAuthBinder } from '../auth/create-runtime-auth-binder';
 import type { BridgeBinding } from '../auth/is-binding-current';
-import type { RuntimeAuthBinder } from '../auth/runtime-auth-binder';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
-import { SessionFleetWriter } from '../fleet/session-fleet-writer';
-import { SessionRestorer } from '../fleet/session-restorer';
+import { createSessionFleetWriter } from '../fleet/create-session-fleet-writer';
+import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
+import { createSessionRestorer } from '../fleet/create-session-restorer';
+import type { SessionRestorer } from '../fleet/create-session-restorer';
 import { collectSessionDescriptors } from './collect-session-descriptors';
 import { HostDirClaims } from './host-dir-claims';
 import { mintSessionID } from './mint-session-id';
@@ -173,7 +175,7 @@ export class SessionManager {
 
     const registry = new SessionRegistry({ fallback, adapters, targets, targetErrors, callbacks });
 
-    const fleet = new SessionFleetWriter({
+    const fleet = createSessionFleetWriter({
       registry,
       store,
       statusPath: statusPath ?? statusFile,
@@ -188,7 +190,16 @@ export class SessionManager {
     const killer = new SessionKiller({ registry, fleet, callbacks, restarts });
     const harnesses = new SessionHarnesses({ registry, fleet, killer, callbacks });
     const rollback = new SpawnRollback({ registry, fleet, claims, harnesses, callbacks });
-    const auth = new AuthSetup({ registry, fleet, claims, harnesses, rollback, store, callbacks });
+
+    const auth = createAuthSetup({
+      registry,
+      fleet,
+      claims,
+      harnesses,
+      rollback,
+      store,
+      callbacks,
+    });
 
     this.callbacks = callbacks;
     this.store = store;
@@ -197,8 +208,8 @@ export class SessionManager {
     this.killer = killer;
     this.rollback = rollback;
     this.auth = auth;
+    this.restorer = createSessionRestorer({ registry, fleet, callbacks });
 
-    this.restorer = new SessionRestorer({ registry, fleet, callbacks });
     this.adopter = new SessionAdopter({ registry, fleet, harnesses, rollback, auth, callbacks });
 
     this.spawner = new SessionSpawner({

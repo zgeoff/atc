@@ -8,7 +8,7 @@ import {
   createMigratedStateDB,
 } from '@atc/store/testing';
 import { buildMockSessionDescriptor, registerTestCleanup, setupTempDir } from '@atc/test-utils';
-import { TargetAccess } from '../auth/target-access';
+import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
@@ -123,7 +123,7 @@ test('it answers a replay whose session the access reaches', async () => {
       effectRef: 's-1',
       effectTarget: { target: 'local', targetIdentity: 'local-pty:test' },
     }),
-    new TargetAccess([{ target: 'local', targetIdentity: 'local-pty:test' }]),
+    buildTargetAccessFromGrants([{ target: 'local', targetIdentity: 'local-pty:test' }]),
   );
 
   expect(answer.session.id).toBe(toSessionID('s-1'));
@@ -148,7 +148,7 @@ test('it refuses a replay under an access when the key holds no target, naming t
 
   const replayed = ctx.replay.loadReplay(
     record,
-    new TargetAccess([{ target: 'local', targetIdentity: 'local-pty:test' }]),
+    buildTargetAccessFromGrants([{ target: 'local', targetIdentity: 'local-pty:test' }]),
   );
 
   expect(replayed).rejects.toMatchObject({ code: 'target_forbidden', data: { target: 'remote' } });
@@ -163,7 +163,7 @@ test('it refuses a replay whose target the access may not use', async () => {
       effectRef: 's-1',
       effectTarget: { target: 'local', targetIdentity: 'local-pty:test' },
     }),
-    new TargetAccess([{ target: 'local', targetIdentity: 'local-pty:other' }]),
+    buildTargetAccessFromGrants([{ target: 'local', targetIdentity: 'local-pty:other' }]),
   );
 
   expect(replayed).rejects.toMatchObject({ code: 'target_forbidden', data: { target: 'local' } });
@@ -197,7 +197,7 @@ test('it refuses a replay whose stored tree holds a session on a target the acce
 
   const replayed = ctx.replay.loadReplay(
     record,
-    new TargetAccess([{ target: 'local', targetIdentity: 'local-pty:test' }]),
+    buildTargetAccessFromGrants([{ target: 'local', targetIdentity: 'local-pty:test' }]),
   );
 
   expect(replayed).rejects.toMatchObject({ code: 'target_forbidden', data: { target: 'local' } });

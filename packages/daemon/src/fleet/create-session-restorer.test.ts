@@ -9,7 +9,7 @@ import { buildMockExecutionTarget } from '../testing/build-mock-execution-target
 import { buildMockSession } from '../testing/build-mock-session';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import type { ExecutionTarget } from './build-execution-targets';
-import { SessionRestorer } from './session-restorer';
+import { createSessionRestorer } from './create-session-restorer';
 
 interface SetupConfig {
   readonly adapters: readonly AgentAdapter[];
@@ -30,7 +30,7 @@ function setupTest(config: SetupConfig) {
     callbacks,
   });
 
-  const restorer = new SessionRestorer({ registry, fleet, callbacks });
+  const restorer = createSessionRestorer({ registry, fleet, callbacks });
 
   return { registry, restorer, fleet, callbacks };
 }

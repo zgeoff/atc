@@ -11,10 +11,10 @@ import {
   registerTestCleanup,
   setupTempDir,
 } from '@atc/test-utils';
-import { AuthSetup } from '../auth/auth-setup';
-import { RuntimeAuthBinder } from '../auth/runtime-auth-binder';
+import { createAuthSetup } from '../auth/create-auth-setup';
+import { createRuntimeAuthBinder } from '../auth/create-runtime-auth-binder';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
-import { SessionFleetWriter } from '../fleet/session-fleet-writer';
+import { createSessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildMockSession } from '../testing/build-mock-session';
 import { buildStubCredentialBroker } from '../testing/build-stub-credential-broker';
@@ -61,8 +61,7 @@ async function setupTest(config: SetupTestConfig) {
     now: () => 0,
   });
 
-  const authBinder = new RuntimeAuthBinder(store);
-
+  const authBinder = createRuntimeAuthBinder(store);
   const stopMessageBridge = mock(() => Promise.resolve());
   const onBoot = mock<() => void>();
 
@@ -92,7 +91,7 @@ async function setupTest(config: SetupTestConfig) {
     callbacks,
   });
 
-  const fleet = new SessionFleetWriter({
+  const fleet = createSessionFleetWriter({
     registry,
     store,
     statusPath: join(temporaryDirectory.path, 'status.json'),
@@ -106,7 +105,8 @@ async function setupTest(config: SetupTestConfig) {
   const killer = new SessionKiller({ registry, fleet, callbacks, restarts });
   const harnesses = new SessionHarnesses({ registry, fleet, killer, callbacks });
   const rollback = new SpawnRollback({ registry, fleet, claims, harnesses, callbacks });
-  const auth = new AuthSetup({ registry, fleet, claims, harnesses, rollback, store, callbacks });
+
+  const auth = createAuthSetup({ registry, fleet, claims, harnesses, rollback, store, callbacks });
 
   const spawner = new SessionSpawner({
     registry,

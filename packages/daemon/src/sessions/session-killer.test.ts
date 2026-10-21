@@ -6,7 +6,7 @@ import { buildTargetIdentity, createStateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/testing';
 import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
-import { SessionFleetWriter } from '../fleet/session-fleet-writer';
+import { createSessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildMockSession } from '../testing/build-mock-session';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
@@ -47,7 +47,7 @@ async function setupTest(config: SetupConfig) {
     callbacks,
   });
 
-  const fleet = new SessionFleetWriter({
+  const fleet = createSessionFleetWriter({
     registry,
     store,
     statusPath: join(temporaryDirectory.path, 'status.json'),

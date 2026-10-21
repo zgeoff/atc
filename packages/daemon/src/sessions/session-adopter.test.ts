@@ -7,9 +7,9 @@ import type { AgentAdapter, SpawnPlan } from '@atc/plugin-api';
 import { createStateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/testing';
 import { registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
-import { AuthSetup } from '../auth/auth-setup';
+import { createAuthSetup } from '../auth/create-auth-setup';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
-import { SessionFleetWriter } from '../fleet/session-fleet-writer';
+import { createSessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildMockSession } from '../testing/build-mock-session';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
@@ -72,7 +72,7 @@ async function setupTest(config: SetupTestConfig) {
     callbacks,
   });
 
-  const fleet = new SessionFleetWriter({
+  const fleet = createSessionFleetWriter({
     registry,
     store,
     statusPath: join(temporaryDirectory.path, 'status.json'),
@@ -86,7 +86,9 @@ async function setupTest(config: SetupTestConfig) {
   const killer = new SessionKiller({ registry, fleet, callbacks, restarts });
   const harnesses = new SessionHarnesses({ registry, fleet, killer, callbacks });
   const rollback = new SpawnRollback({ registry, fleet, claims, harnesses, callbacks });
-  const auth = new AuthSetup({ registry, fleet, claims, harnesses, rollback, store, callbacks });
+
+  const auth = createAuthSetup({ registry, fleet, claims, harnesses, rollback, store, callbacks });
+
   const adopter = new SessionAdopter({ registry, fleet, harnesses, rollback, auth, callbacks });
 
   return {

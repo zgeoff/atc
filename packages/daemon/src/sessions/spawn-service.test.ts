@@ -8,7 +8,7 @@ import { createStateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/testing';
 import { createGitFixture, registerTestCleanup, setupTempDir, updateEnv } from '@atc/test-utils';
 import { $ } from 'bun';
-import { TargetAccess } from '../auth/target-access';
+import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
@@ -276,7 +276,7 @@ test('it refuses a spawn under a parent the access does not reach as an unknown 
       autoDir: false,
     }),
     null,
-    new TargetAccess([]),
+    buildTargetAccessFromGrants([]),
   );
 
   expect(spawned).rejects.toMatchObject({ code: 'no_such_session' });
