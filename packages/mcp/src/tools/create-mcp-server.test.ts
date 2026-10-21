@@ -1,20 +1,24 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { isRecord } from '@atc/core';
 import { openDaemonClient } from '@atc/protocol/client';
-import { registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
+import { getRecord, registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
 import { InMemoryTransport } from '@modelcontextprotocol/server';
+import invariant from 'tiny-invariant';
 import { buildStubFleetCaller } from '../testing/build-stub-fleet-caller';
 import { createMCPServer } from './create-mcp-server';
+import type { GrantScope } from './grant-scope';
 import { TransportCaller } from './transport-caller';
 import type { FleetCaller } from './types';
 
 // The server on one end of an in-memory pair, initialized, with every message
-// it sends back recorded.
-async function setupTest(caller: FleetCaller) {
+// it sends back recorded; absent scopes allow every tool.
+async function setupTest(caller: FleetCaller, scopes?: readonly GrantScope[]) {
   const server = createMCPServer({
     caller,
     build: 'atc/test-build',
     toolContext: { callerSessionID: null },
+    ...(scopes === undefined ? {} : { scopes }),
   });
 
   const [client, served] = InMemoryTransport.createLinkedPair();
@@ -102,6 +106,75 @@ test('it refuses a tool call with an argument its schema does not list before it
       ],
       isError: true,
     },
+  });
+
+  expect(caller.requests).toStrictEqual([]);
+});
+
+test('it lists a tool outside the one scope a caller holds', async () => {
+  const ctx = await setupTest(buildStubFleetCaller(), ['read']);
+
+  await ctx.client.send({ jsonrpc: '2.0', id: 1, method: 'tools/list' });
+
+  await waitFor(() => {
+    expect(ctx.answers).toPartiallyContain({ id: 1 });
+  });
+
+  expect(ctx.answers).toPartiallyContain({
+    id: 1,
+    result: {
+      tools: expect.arrayContaining([expect.objectContaining({ name: 'atc_session_stop' })]),
+    },
+  });
+});
+
+test('it names the registered agents in the spawn tool to a caller holding the read scope', async () => {
+  const caller = buildStubFleetCaller({
+    answer: () => ({ agents: [{ id: 'claude', installed: true }] }),
+  });
+
+  const ctx = await setupTest(caller, ['read', 'spawn']);
+
+  await ctx.client.send({ jsonrpc: '2.0', id: 1, method: 'tools/list' });
+
+  await waitFor(() => {
+    expect(ctx.answers).toPartiallyContain({ id: 1 });
+  });
+
+  const listed = ctx.answers.find((answer) => isRecord(answer) && answer['id'] === 1);
+
+  invariant(isRecord(listed));
+
+  const tools = getRecord(listed, 'result')['tools'];
+
+  invariant(Array.isArray(tools));
+
+  const spawn: unknown = tools.find(
+    (tool) => isRecord(tool) && tool['name'] === 'atc_session_spawn',
+  );
+
+  expect(caller.requests).toStrictEqual([{ method: 'agents.list' }]);
+
+  expect(spawn).toMatchObject({
+    inputSchema: {
+      properties: {
+        agent: { description: expect.stringContaining('the host registered: claude.') },
+      },
+    },
+  });
+});
+
+test('it reads no agents for a caller without the read scope', async () => {
+  const caller = buildStubFleetCaller({
+    answer: () => ({ agents: [{ id: 'claude', installed: true }] }),
+  });
+
+  const ctx = await setupTest(caller, ['spawn']);
+
+  await ctx.client.send({ jsonrpc: '2.0', id: 1, method: 'tools/list' });
+
+  await waitFor(() => {
+    expect(ctx.answers).toPartiallyContain({ id: 1 });
   });
 
   expect(caller.requests).toStrictEqual([]);
