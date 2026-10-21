@@ -76,8 +76,6 @@ export function startTUIHarness(options: TUIHarnessOptions = {}) {
   };
 
   writeConfig();
-
-  // The daemon the client starts opens a copy of the run's migrated database.
   mkdirSync(join(home, '.local', 'state', 'atc'), { recursive: true, mode: 0o700 });
   createMigratedStateDB(join(home, '.local', 'state', 'atc', 'atc.db'));
 
