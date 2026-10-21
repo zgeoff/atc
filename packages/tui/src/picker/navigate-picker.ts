@@ -1,7 +1,8 @@
 import { LOCAL_TARGET } from '@atc/config';
-import { buildWorkspaceDestination, isHomeRelative } from '@atc/core';
+import { buildWorkspaceDestination } from '@atc/core';
 import type { SourceInterpretation } from '@atc/protocol';
 import { resolveWorkspaceRoot } from '../resolve-workspace-root';
+import { canPickOnTarget } from './can-pick-on-target';
 import { parseCandidates } from './parse-picker-answers';
 import type {
   PickerFlow,
@@ -329,7 +330,7 @@ export function openConfirmStep(flow: PickerFlow) {
         ref: ctx.ref.ref,
         sha: ctx.ref.sha,
       });
-    } else if (target !== null && !target.inPlace && canPickOnTarget(flow, target.id)) {
+    } else if (target !== null && !target.inPlace && canPickOnTarget(ctx.workspaces, target.id)) {
       ctx.autoDestination = buildWorkspaceDestination({
         root: ctx.workspaces.targetRoots.get(target.id) ?? ctx.workspaces.root ?? AUTO_ROOT,
         url: ctx.repo.url,
@@ -478,10 +479,4 @@ export function refreshRefs(flow: PickerFlow, reason: string) {
     params: { url: repo.url, ...buildTargetParam(flow.ctx) },
     followUp: { kind: 'refresh', reason, repo },
   });
-}
-
-function canPickOnTarget(flow: PickerFlow, target: string): boolean {
-  const configured = flow.ctx.workspaces.targetRoots.get(target) ?? flow.ctx.workspaces.root;
-
-  return configured === null || isHomeRelative(configured);
 }
