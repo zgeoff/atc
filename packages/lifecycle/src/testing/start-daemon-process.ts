@@ -52,9 +52,6 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
     boots++;
 
     const stderrPath = join(stderrDir, `boot-${boots}.stderr`);
-
-    // A database the test wrote stays; any other boot opens a copy of the
-    // run's migrated one.
     const bootStateDir = join(config.env?.['HOME'] ?? config.home, '.local', 'state', 'atc');
 
     if (config.freshState !== true && !existsSync(join(bootStateDir, 'atc.db'))) {
