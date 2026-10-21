@@ -4,8 +4,8 @@ import { buildStubLog } from '@atc/test-utils';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildMockSession } from '../testing/build-mock-session';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
+import { createSessionRegistry } from './create-session-registry';
 import { SessionHarnesses } from './session-harnesses';
-import { SessionRegistry } from './session-registry';
 
 // The harness bookkeeping over a real registry whose `local` target runs
 // harnesses in memory, with recorders in place of the fleet writer, the
@@ -21,7 +21,7 @@ function setupTest() {
     log: recorder.log,
   };
 
-  const registry = new SessionRegistry({
+  const registry = createSessionRegistry({
     fallback: null,
     adapters: [],
     targets: [buildMockExecutionTarget({ id: 'local', provider })],

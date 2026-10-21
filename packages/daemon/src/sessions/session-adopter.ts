@@ -7,12 +7,12 @@ import { DaemonError } from '@atc/protocol/wire';
 import type { AuthSetup, HarnessAuthSetup, HarnessPlan } from '../auth/create-auth-setup';
 import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import { buildRecordSubject } from './build-record-subject';
+import type { SessionRegistry } from './create-session-registry';
 import { requirePluginDirsOnTarget } from './require-plugin-dirs-on-target';
 import { resolveRepoRoot } from './resolve-repo-root';
 import type { Session } from './session';
 import type { SessionCallbacks } from './session-callbacks';
 import type { SessionHarnesses } from './session-harnesses';
-import type { SessionRegistry } from './session-registry';
 import type { SpawnRollback } from './spawn-rollback';
 
 interface SessionAdopterDeps {

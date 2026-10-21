@@ -1,8 +1,8 @@
 import type { SessionID } from '@atc/core';
 import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
+import type { SessionRegistry } from './create-session-registry';
 import type { SessionCallbacks } from './session-callbacks';
 import type { SessionChanges } from './session-changes';
-import type { SessionRegistry } from './session-registry';
 import { updateRecordIdentity } from './update-record-identity';
 
 interface UpdateSessionDeps {

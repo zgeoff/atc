@@ -7,7 +7,7 @@ import { isTreeInReach } from './auth/is-tree-in-reach';
 import type { DaemonContext } from './daemon-context';
 import type { DaemonOptions } from './daemon-options';
 import type { ExecutionTarget } from './fleet/build-execution-targets';
-import type { PermissionPrompts } from './sessions/permission-prompts';
+import type { PermissionPrompts } from './sessions/create-permission-prompts';
 import type { SessionManager } from './sessions/sessions';
 import type { SessionServices } from './start-session-services';
 

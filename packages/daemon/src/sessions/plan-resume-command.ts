@@ -1,5 +1,5 @@
 import type { SessionID } from '@atc/core';
-import type { SessionRegistry } from './session-registry';
+import type { SessionRegistry } from './create-session-registry';
 
 // The command that resumes a session outside atc, or why there is none: no
 // such session, or a session that cannot resume outside atc.

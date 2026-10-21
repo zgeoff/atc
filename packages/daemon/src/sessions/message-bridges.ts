@@ -12,11 +12,11 @@ import type { StateStore } from '@atc/store';
 import type { TapClient } from '../daemon-context';
 import { buildBridgeTapClient } from './build-bridge-tap-client';
 import { buildMessageOwner } from './build-message-owner';
+import type { TapRegistry } from './create-tap-registry';
 import type { MessageService } from './message-service';
 import { parseNote } from './parse-note';
 import type { MessageBridgeLaunch } from './session-callbacks';
 import type { SessionManager } from './sessions';
-import type { TapRegistry } from './tap-registry';
 
 interface MessageBridgesDeps {
   readonly manager: Pick<SessionManager, 'sessions' | 'log'>;

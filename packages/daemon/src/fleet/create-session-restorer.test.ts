@@ -4,7 +4,7 @@ import type { AgentAdapter } from '@atc/plugin-api';
 import { buildTargetIdentity } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import { buildMockAgentAdapter } from '@atc/test-utils';
-import { SessionRegistry } from '../sessions/session-registry';
+import { createSessionRegistry } from '../sessions/create-session-registry';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildMockSession } from '../testing/build-mock-session';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
@@ -22,7 +22,7 @@ function setupTest(config: SetupConfig) {
   const callbacks = { onEvent: mock<() => void>(), getClock: () => systemClock };
   const fleet = { emitChange: mock<() => void>(), writeStatus: mock<() => void>() };
 
-  const registry = new SessionRegistry({
+  const registry = createSessionRegistry({
     fallback: null,
     adapters: config.adapters,
     targets: config.targets,

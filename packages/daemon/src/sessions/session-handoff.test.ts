@@ -11,8 +11,9 @@ import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-gr
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
+import { createSessionRuntime } from './create-session-runtime';
+import type { SessionRuntime } from './create-session-runtime';
 import { SessionHandoff } from './session-handoff';
-import { SessionRuntime } from './session-runtime';
 import { SessionManager } from './sessions';
 
 interface SetupTestConfig {
@@ -49,7 +50,7 @@ async function setupTest(config: SetupTestConfig) {
     {
       onEvent: (kind, session) => {
         if (kind === 'added') {
-          runtimes.set(session.id, new SessionRuntime());
+          runtimes.set(session.id, createSessionRuntime());
         }
       },
     },

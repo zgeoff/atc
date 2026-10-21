@@ -2,10 +2,10 @@ import type { SessionID } from '@atc/core';
 import { EffectRemainsError } from '@atc/plugin-api';
 import type { ExecutionProvider, HarnessHandle } from '@atc/plugin-api';
 import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
+import type { SessionRegistry } from './create-session-registry';
 import type { HostDirClaims } from './host-dir-claims';
 import type { SessionCallbacks } from './session-callbacks';
 import type { SessionHarnesses } from './session-harnesses';
-import type { SessionRegistry } from './session-registry';
 
 // How long a failed spawn's rollback waits for the killed process to exit
 // unless the manager is given another wait.

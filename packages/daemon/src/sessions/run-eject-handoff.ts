@@ -1,6 +1,6 @@
 import { systemClock } from '@atc/core';
 import type { SessionID } from '@atc/core';
-import type { SessionRuntime } from './session-runtime';
+import type { SessionRuntime } from './create-session-runtime';
 
 export type SettleScheduler = (onTimeout: () => void, delayMs: number) => () => void;
 

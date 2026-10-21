@@ -15,7 +15,8 @@ import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubLocalProvider } from '../testing/build-stub-local-provider';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { createIdempotencyLedger } from '../transport/create-idempotency-ledger';
-import { SessionRuntime } from './session-runtime';
+import { createSessionRuntime } from './create-session-runtime';
+import type { SessionRuntime } from './create-session-runtime';
 import { SessionManager } from './sessions';
 import { SpawnService } from './spawn-service';
 
@@ -56,7 +57,7 @@ async function setupTest(config: SetupTestConfig) {
     {
       onEvent: (kind, session) => {
         if (kind === 'added') {
-          runtimes.set(session.id, new SessionRuntime());
+          runtimes.set(session.id, createSessionRuntime());
         }
       },
     },

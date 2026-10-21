@@ -14,11 +14,12 @@ import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { buildStubMessageBridges } from '../testing/build-stub-message-bridges';
 import { createEventSignal } from '../transport/create-event-signal';
 import { createIdempotencyLedger } from '../transport/create-idempotency-ledger';
+import { createSessionRuntime } from './create-session-runtime';
+import type { SessionRuntime } from './create-session-runtime';
+import { createTapRegistry } from './create-tap-registry';
 import { MessageBridges } from './message-bridges';
 import { MessageService } from './message-service';
-import { SessionRuntime } from './session-runtime';
 import { SessionManager } from './sessions';
-import { TapRegistry } from './tap-registry';
 
 // A session manager on one `local` target over the in-memory provider with
 // one agent that takes its messages through a bridge in the daemon, a real
@@ -60,7 +61,7 @@ async function setupTest() {
     {
       onEvent: (kind, session) => {
         if (kind === 'added') {
-          runtimes.set(session.id, new SessionRuntime());
+          runtimes.set(session.id, createSessionRuntime());
         }
       },
     },
@@ -70,7 +71,7 @@ async function setupTest() {
     manager.detachAll();
   });
 
-  const taps = new TapRegistry<TapClient>();
+  const taps = createTapRegistry<TapClient>();
 
   const messages = new MessageService({
     manager,

@@ -3,7 +3,7 @@ import { createStepTimer, toDaemonID, toSessionID } from '@atc/core';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { buildMockAgentAdapter, runShellcheck } from '@atc/test-utils';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
-import { SessionRegistry } from '../sessions/session-registry';
+import { createSessionRegistry } from '../sessions/create-session-registry';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
@@ -16,7 +16,7 @@ interface SetupConfig {
 }
 
 function setupTest(config: SetupConfig) {
-  const registry = new SessionRegistry({
+  const registry = createSessionRegistry({
     fallback: null,
     adapters: config.adapters,
     targets: config.targets,

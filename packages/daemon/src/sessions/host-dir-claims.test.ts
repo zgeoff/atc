@@ -8,6 +8,7 @@ import { buildMockExecutionTarget } from '../testing/build-mock-execution-target
 import { buildMockSession } from '../testing/build-mock-session';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { buildStubStaleRelativeProvider } from '../testing/build-stub-stale-relative-provider';
+import { createSessionRegistry } from './create-session-registry';
 import {
   HostDirClaims,
   REMOVE_DIR_SCRIPT,
@@ -15,14 +16,13 @@ import {
   RESOLVE_HOME_SCRIPT,
   RESOLVE_UNLINKED_DIR_SCRIPT,
 } from './host-dir-claims';
-import { SessionRegistry } from './session-registry';
 
 interface SetupConfig {
   readonly targets: readonly ExecutionTarget[];
 }
 
 function setupTest(config: SetupConfig) {
-  const registry = new SessionRegistry({
+  const registry = createSessionRegistry({
     fallback: null,
     adapters: [],
     targets: config.targets,

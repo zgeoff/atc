@@ -12,27 +12,33 @@ import type { DaemonOptions } from './daemon-options';
 import type { ExecutionTarget } from './fleet/build-execution-targets';
 import { createFleetRestorer } from './fleet/create-fleet-restorer';
 import type { FleetRestorer } from './fleet/create-fleet-restorer';
-import { ConfirmTokens } from './sessions/confirm-tokens';
-import { HookIntake } from './sessions/hook-intake';
+import { createConfirmTokens } from './sessions/create-confirm-tokens';
+import { createHookIntake } from './sessions/create-hook-intake';
+import type { HookIntake } from './sessions/create-hook-intake';
+import { createPublishedRecords } from './sessions/create-published-records';
+import type { PublishedRecords } from './sessions/create-published-records';
+import { createScreenDetection } from './sessions/create-screen-detection';
+import type { ScreenDetection } from './sessions/create-screen-detection';
+import { createSessionInput } from './sessions/create-session-input';
+import type { SessionInput } from './sessions/create-session-input';
+import { createSessionOutput } from './sessions/create-session-output';
+import type { SessionOutput } from './sessions/create-session-output';
+import { createSessionReads } from './sessions/create-session-reads';
+import type { SessionReads } from './sessions/create-session-reads';
+import type { SessionRuntime } from './sessions/create-session-runtime';
+import type { TapRegistry } from './sessions/create-tap-registry';
 import { startHookServer } from './sessions/hooks';
 import type { HookScope } from './sessions/make-hook-runner';
 import { MENU_TIMING } from './sessions/menu-terminal';
 import { MessageBridges } from './sessions/message-bridges';
 import { MessageService } from './sessions/message-service';
-import { PublishedRecords } from './sessions/published-records';
-import { ScreenDetection } from './sessions/screen-detection';
 import { SessionForgetter } from './sessions/session-forgetter';
 import { SessionHandoff } from './sessions/session-handoff';
-import { SessionInput } from './sessions/session-input';
-import { SessionOutput } from './sessions/session-output';
-import { SessionReads } from './sessions/session-reads';
-import type { SessionRuntime } from './sessions/session-runtime';
 import type { SessionManager } from './sessions/sessions';
 import { SpawnService } from './sessions/spawn-service';
 import { startBridgeRevival } from './sessions/start-bridge-revival';
 import type { BridgeRevival } from './sessions/start-bridge-revival';
 import { startHeadlessTurn } from './sessions/start-headless-turn';
-import type { TapRegistry } from './sessions/tap-registry';
 import { createSpawnCatalog } from './sources/create-spawn-catalog';
 import type { SpawnCatalog } from './sources/create-spawn-catalog';
 import type { EventSignal } from './transport/create-event-signal';
@@ -115,7 +121,7 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
   const endedProcesses = deps.endedProcesses;
   const isStopped = deps.isStopped;
 
-  const records = new PublishedRecords({
+  const records = createPublishedRecords({
     store,
     daemonID: store.daemonID,
     localDir: join(stateDir, 'records'),
@@ -156,7 +162,7 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
     tapGraceMs: opts.tapGraceMs ?? TAP_GRACE_MS,
   });
 
-  const hooks = new HookIntake({
+  const hooks = createHookIntake({
     manager,
     store,
     clock,
@@ -197,14 +203,14 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
 
   const trail = createEventTrail({ manager, store, clock, eventSignal });
 
-  const detection = new ScreenDetection({
+  const detection = createScreenDetection({
     manager,
     clock,
     findRuntime,
     onDetectSkipped: opts.onDetectSkipped,
   });
 
-  const output = new SessionOutput({
+  const output = createSessionOutput({
     manager,
     clock,
     findRuntime,
@@ -227,7 +233,7 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
       opts.reporterSocketPath,
     );
 
-  const input = new SessionInput({
+  const input = createSessionInput({
     manager,
     clock,
     findRuntime,
@@ -246,7 +252,7 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
     },
   });
 
-  const reads = new SessionReads({ manager, store, records });
+  const reads = createSessionReads({ manager, store, records });
 
   const reporter = startHookServer((hookEvent) => {
     hooks.applyHookEvent(hookEvent);
@@ -267,7 +273,7 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
   const forgetter = new SessionForgetter({
     manager,
     findRuntime,
-    tokens: new ConfirmTokens({
+    tokens: createConfirmTokens({
       now: opts.forgetClock ?? (() => clock.now()),
       lifetimeMs: opts.forgetConfirmMs ?? FORGET_CONFIRM_MS,
     }),

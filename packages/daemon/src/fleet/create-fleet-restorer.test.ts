@@ -11,7 +11,7 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
-import type { SessionRuntime } from '../sessions/session-runtime';
+import type { SessionRuntime } from '../sessions/create-session-runtime';
 import { SessionManager } from '../sessions/sessions';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';

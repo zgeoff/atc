@@ -1,7 +1,7 @@
 import type { SessionID } from '@atc/core';
 import { truncateDetail, truncateSummary } from '@atc/core';
 import type { AdapterEvent } from '@atc/protocol';
-import type { SessionRuntime } from './session-runtime';
+import type { SessionRuntime } from './create-session-runtime';
 import type { SessionManager } from './sessions';
 
 export function startHeadlessTurn(

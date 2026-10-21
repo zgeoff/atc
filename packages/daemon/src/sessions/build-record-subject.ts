@@ -1,5 +1,5 @@
 import type { ExecutionProvider } from '@atc/plugin-api';
-import type { RecordSubject } from './published-records';
+import type { RecordSubject } from './create-published-records';
 import type { Session } from './session';
 
 export function buildRecordSubject(

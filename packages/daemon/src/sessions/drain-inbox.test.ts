@@ -2,11 +2,11 @@ import { expect, mock, test } from 'bun:test';
 import { toAgentSessionID, toMessageID, toSessionID } from '@atc/core';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
-import { buildStubHeldInboxSource } from '../testing/build-stub-held-inbox-source';
+import { createStubHeldInboxSource } from '../testing/create-stub-held-inbox-source';
 import { drainInbox } from './drain-inbox';
 
 test("it sends a principal's tap that replaced the owner's during the read no message the owner's read found", async () => {
-  const inbox = buildStubHeldInboxSource(toAgentSessionID('a-shared'));
+  const inbox = createStubHeldInboxSource(toAgentSessionID('a-shared'));
   const owner = { sendEvent: mock() };
   const principal = { sendEvent: mock() };
 
@@ -37,7 +37,7 @@ test("it sends a principal's tap that replaced the owner's during the read no me
 });
 
 test('it sends a tap that replaced the one a drain read for nothing from that drain', async () => {
-  const inbox = buildStubHeldInboxSource(toAgentSessionID('a-shared'));
+  const inbox = createStubHeldInboxSource(toAgentSessionID('a-shared'));
   const first = { sendEvent: mock() };
   const second = { sendEvent: mock() };
 
@@ -67,7 +67,7 @@ test('it sends a tap that replaced the one a drain read for nothing from that dr
 });
 
 test("it sends an unlinked tap no message sent to another session's atc id", async () => {
-  const inbox = buildStubHeldInboxSource(toAgentSessionID('a-shared'));
+  const inbox = createStubHeldInboxSource(toAgentSessionID('a-shared'));
   const tap = { sendEvent: mock() };
 
   inbox.source.taps.attach(toSessionID('s-shown'), tap, false);
@@ -108,7 +108,7 @@ test("it sends an unlinked tap no message sent to another session's atc id", asy
 });
 
 test('it sends a tap without notices no answer notice', async () => {
-  const inbox = buildStubHeldInboxSource(toAgentSessionID('a-1'), [
+  const inbox = createStubHeldInboxSource(toAgentSessionID('a-1'), [
     {
       id: toMessageID('m-sent'),
       atcID: toSessionID('s-other'),
@@ -136,7 +136,7 @@ test('it sends a tap without notices no answer notice', async () => {
 });
 
 test('it sends a tap with notices the answer notice of a message its session sent', async () => {
-  const inbox = buildStubHeldInboxSource(toAgentSessionID('a-1'), [
+  const inbox = createStubHeldInboxSource(toAgentSessionID('a-1'), [
     {
       id: toMessageID('m-sent'),
       atcID: toSessionID('s-other'),
@@ -177,7 +177,7 @@ test('it sends a tap with notices the answer notice of a message its session sen
 });
 
 test('it sends a pending message ahead of an answer notice', async () => {
-  const inbox = buildStubHeldInboxSource(toAgentSessionID('a-1'), [
+  const inbox = createStubHeldInboxSource(toAgentSessionID('a-1'), [
     {
       id: toMessageID('m-self'),
       atcID: toSessionID('s-1'),
