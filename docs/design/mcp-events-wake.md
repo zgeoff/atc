@@ -180,7 +180,9 @@ The payload carries the event name, the atc session id in `data`, and the event 
 event, because a trail read returns only the events after the cursor it gets, which matches the
 draft's watermark. The assistant therefore treats a delivery as a wake only: it reads the trail from
 the cursor its previous read returned, and keeps the cursor that the new read returns. A lost
-delivery costs nothing, because the next wake's read returns the missed event. A repeated delivery
+delivery costs nothing while the next read comes inside the trail's retention window, because that
+read returns the missed event. A read after the window misses every event the daemon pruned in the
+meantime, as the [events doc](../architecture/protocol/events.md#the-event-trail) describes. A repeated delivery
 repeats nothing, because the assistant drops a seen `eventId` and its read returns no event twice.
 Subscribing needs the `read` grant scope. atc's tools declare no per-tool security scheme, so the
 live check shows whether ChatGPT asks for `read` from the server's metadata alone or needs a tool to
