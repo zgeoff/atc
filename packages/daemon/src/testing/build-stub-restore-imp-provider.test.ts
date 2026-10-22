@@ -2,12 +2,15 @@ import { expect, test } from 'bun:test';
 import { waitFor } from '@atc/test-utils';
 import { buildStubRestoreImpProvider } from './build-stub-restore-imp-provider';
 
-test('it reports itself as a remote imp with the imp capabilities and guest layout', () => {
+test('it reports itself as a remote imp with the imp capabilities and guest layout', async () => {
   const provider = buildStubRestoreImpProvider();
 
   expect(provider.kind).toBe('imp');
   expect(provider.remote).toBeTrue();
-  expect(provider.guest).toStrictEqual({ directory: '/tmp/atc', atc: null });
+
+  const guest = await provider.readGuest?.();
+
+  expect(guest).toStrictEqual({ directory: '/tmp/atc', atc: null });
 
   expect(provider.capabilities).toStrictEqual({
     spawn: true,

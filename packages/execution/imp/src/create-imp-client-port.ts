@@ -11,13 +11,17 @@ import type {
   ImpSessionRequest,
 } from './imp-port';
 import { ImpPortError } from './imp-port-error';
+import type { ImpdOutput } from './impd-contract';
 import { openGatedSocket } from './open-gated-socket';
 import { openRelay } from './open-relay';
+import { requireGuestScratchDir } from './require-guest-scratch-dir';
 import { requireImpdVersion } from './require-impd-version';
 import { toImpIdentity } from './to-imp-identity';
 import { toImpLease } from './to-imp-lease';
 import { toImpSecret } from './to-imp-secret';
 import { toImpView } from './to-imp-view';
+
+type ImpdInfo = Pick<ImpdOutput<'system.info'>, 'version' | 'guest'>;
 
 interface ImpClientPortOptions {
   readonly url: string;
@@ -25,10 +29,10 @@ interface ImpClientPortOptions {
   readonly now?: () => number;
 }
 
-// How long one read of impd's slow status report answers later version
-// checks; the version changes only when impd is replaced, which the doc on
-// runtime auth weighs.
-const VERSION_MAX_AGE_MS = 30_000;
+// How long one read of impd's slow status report answers later version and
+// scratch folder checks; both change only when impd is replaced, which the
+// doc on runtime auth weighs.
+const INFO_MAX_AGE_MS = 30_000;
 
 export function createImpClientPort(options: ImpClientPortOptions): ImpPort {
   const url = options.url;
@@ -38,12 +42,12 @@ export function createImpClientPort(options: ImpClientPortOptions): ImpPort {
   // The client for the token read last, rebuilt when the token changes.
   let client: Readonly<{ token: string | null; client: ImpClient }> | null = null;
 
-  // The last read of impd's version under a token, from when it went out,
-  // dropped when it rejects.
-  let version: Readonly<{
+  // The last read of impd's status report under a token, from when it went
+  // out, dropped when it rejects.
+  let info: Readonly<{
     token: string | null;
     at: number;
-    read: Promise<string>;
+    read: Promise<ImpdInfo>;
   }> | null = null;
 
   // The client that calls impd with the token as it reads now.
@@ -79,9 +83,9 @@ export function createImpClientPort(options: ImpClientPortOptions): ImpPort {
     }
   };
 
-  // impd's version, from a read under the same token within the maximum age
-  // when one is held.
-  const readVersion = (): Promise<string> => {
+  // impd's status report, from a read under the same token within the
+  // maximum age when one is held.
+  const readInfo = (): Promise<ImpdInfo> => {
     const token = tryReadToken();
 
     if (token instanceof ImpPortError) {
@@ -89,36 +93,40 @@ export function createImpClientPort(options: ImpClientPortOptions): ImpPort {
     }
 
     const at = now();
-    const held = version;
+    const held = info;
 
-    if (held !== null && held.token === token && at - held.at < VERSION_MAX_AGE_MS) {
+    if (held !== null && held.token === token && at - held.at < INFO_MAX_AGE_MS) {
       return held.read;
     }
 
-    const read = (async (): Promise<string> => {
+    const read = (async (): Promise<ImpdInfo> => {
       try {
-        const info = await tryCall((impClient) => impClient.system.info());
-
-        return info.version;
+        return await tryCall((impClient) => impClient.system.info());
       } catch (error) {
-        if (version?.token === token && version.at === at) {
-          version = null;
+        if (info?.token === token && info.at === at) {
+          info = null;
         }
 
         throw error;
       }
     })();
 
-    version = { token, at, read };
+    info = { token, at, read };
 
     return read;
   };
 
   return {
     verifyVersion: async () => {
-      const read = await readVersion();
+      const read = await readInfo();
 
-      requireImpdVersion(read);
+      requireImpdVersion(read.version);
+    },
+
+    readGuestScratchDir: async () => {
+      const read = await readInfo();
+
+      return requireGuestScratchDir(read);
     },
 
     readIdentity: async () => {

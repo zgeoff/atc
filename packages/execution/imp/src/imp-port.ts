@@ -3,6 +3,10 @@ export interface ImpPort {
   // this atc supports, or reports a version that does not parse.
   readonly verifyVersion: () => Promise<void>;
 
+  // The folder inside each imp that impd declares for scratch files.
+  // Rejects with `IMPD_OUTDATED` when impd declares none.
+  readonly readGuestScratchDir: () => Promise<string>;
+
   // The caller's own identity: its scope, the imps it may reach, and the
   // secrets it may grant.
   readonly readIdentity: () => Promise<ImpIdentity>;

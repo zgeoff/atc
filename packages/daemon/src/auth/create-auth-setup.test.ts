@@ -133,7 +133,11 @@ test('it readies a local host once and plans the agent spawn there', async () =>
 
 test('it readies a remote host and plans the local spawn with no files when the agent plans no guest spawn', async () => {
   const adapter = buildStubHarnessAdapter({ id: 'claude' });
-  const provider = buildStubMemoryProvider({ remote: true });
+
+  const provider = buildStubMemoryProvider({
+    remote: true,
+    guest: { directory: '/srv/orchard-guest', atc: null },
+  });
 
   const ctx = setupTest({
     adapters: [adapter],

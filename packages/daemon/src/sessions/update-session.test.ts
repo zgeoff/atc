@@ -24,7 +24,11 @@ async function setupTest() {
     now: () => Date.parse('2026-10-08T09:30:00.000Z'),
   });
 
-  const provider = buildStubMemoryProvider({ kind: 'box', remote: true });
+  const provider = buildStubMemoryProvider({
+    kind: 'box',
+    remote: true,
+    guest: { directory: '/srv/box-guest', atc: null },
+  });
 
   const fleet = {
     emitChange: () => {},

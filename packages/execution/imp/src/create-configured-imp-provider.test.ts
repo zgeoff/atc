@@ -20,7 +20,7 @@ test('it builds no provider for an imp target without a url', () => {
   });
 });
 
-test("it builds an imp provider that takes the target's guest options", () => {
+test("it builds an imp provider that takes the target's guest options", async () => {
   const built = createConfiguredImpProvider(
     'box',
     {
@@ -35,9 +35,15 @@ test("it builds an imp provider that takes the target's guest options", () => {
 
   invariant(built.provider !== null, 'expected an imp provider');
 
+  const guest = await built.provider.readGuest();
+
   expect(built.problem).toBeNull();
   expect(built.provider?.kind).toBe('imp');
-  expect(built.provider.guest).toStrictEqual({ directory: '/srv/atc', atc: '/srv/atc/bin/atc' });
+
+  expect(guest).toStrictEqual({
+    directory: '/srv/atc',
+    atc: '/srv/atc/bin/atc',
+  });
 });
 
 test('it builds an imp provider with no token for a target that sets no tokenEnv', () => {

@@ -138,6 +138,7 @@
         "@atc/protocol": "workspace:*",
         "@impz/client": "catalog:",
         "@zgeoff/std": "catalog:",
+        "tiny-invariant": "catalog:",
         "ts-pattern": "catalog:",
         "xstate": "catalog:",
         "zod": "catalog:",
@@ -146,7 +147,6 @@
         "@atc/test-utils": "workspace:*",
         "@faker-js/faker": "catalog:",
         "bun-pty": "catalog:",
-        "tiny-invariant": "catalog:",
       },
     },
     "packages/execution/local": {

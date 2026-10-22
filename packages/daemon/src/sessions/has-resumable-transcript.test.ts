@@ -44,7 +44,11 @@ async function setupTest(config: SetupTestConfig) {
       buildMockExecutionTarget({
         id: 'local',
         identity: 'local-pty:test',
-        provider: buildStubMemoryProvider({ kind: 'local-pty', remote: config.remote }),
+        provider: buildStubMemoryProvider({
+          kind: 'local-pty',
+          remote: config.remote,
+          guest: { directory: '/srv/orchard-guest', atc: null },
+        }),
       }),
     ],
     [],
