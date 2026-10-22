@@ -7,6 +7,7 @@ import type { TUIHarness } from '@atc/test-utils';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { createHostServices } from '../create-host-services';
 import { createShippedExecutionProvider } from '../plugins/create-shipped-execution-provider';
+import { loadExecutionPlugins } from '../plugins/load-execution-plugins';
 import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { createBuiltinSources } from '../sources/create-builtin-sources';
 
@@ -26,8 +27,10 @@ export async function startTUIDaemon(
   const host = createHostServices({ log: () => {} });
   const config = loadConfig(SHIPPED_HARNESS_PLUGINS, paths.configFile, tui.home, paths.stateDir);
 
+  const plugins = await loadExecutionPlugins(config.targets);
+
   const targets = buildExecutionTargets(config.targets, (target) =>
-    createShippedExecutionProvider(target, host, tui.env, config.authProfiles),
+    createShippedExecutionProvider(plugins, target, host, tui.env, config.authProfiles),
   );
 
   const sources = buildSources(

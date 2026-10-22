@@ -303,6 +303,7 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
   const headless = await import('@atc/harness-claude');
   const targets = await import('@atc/daemon');
   const providers = await import('./plugins/create-shipped-execution-provider');
+  const executionPlugins = await import('./plugins/load-execution-plugins');
   const sourceOrder = await import('@atc/daemon');
   const builtinSources = await import('./sources/create-builtin-sources');
   const home = await import('@atc/config/host');
@@ -319,8 +320,16 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
   const queueBytes = Number(process.env['ATC_QUEUE_BYTES']);
   const cfg = config.loadConfig(harnessPlugins.SHIPPED_HARNESS_PLUGINS);
 
+  const plugins = await executionPlugins.loadExecutionPlugins(cfg.targets);
+
   const built = targets.buildExecutionTargets(cfg.targets, (target) =>
-    providers.createShippedExecutionProvider(target, hostServices, process.env, cfg.authProfiles),
+    providers.createShippedExecutionProvider(
+      plugins,
+      target,
+      hostServices,
+      process.env,
+      cfg.authProfiles,
+    ),
   );
 
   const targetErrors = [...cfg.targetErrors, ...built.errors];
