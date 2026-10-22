@@ -3,8 +3,7 @@ import { join } from 'node:path';
 import { toSessionID } from '@atc/core';
 import type { SessionID } from '@atc/core';
 import { buildTargetIdentity, createStateStore } from '@atc/store';
-import { createMigratedStateDB } from '@atc/store/testing';
-import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { createMigratedStateDB, registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { createSessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
@@ -24,7 +23,7 @@ async function setupTest(config: SetupConfig) {
   const temporaryDirectory = setupTempDir('atc-session-killer-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
-  await createMigratedStateDB(dbPath);
+  createMigratedStateDB(dbPath);
 
   const store = await createStateStore(dbPath);
 

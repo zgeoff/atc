@@ -2,8 +2,7 @@ import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import type { SourceProvider } from '@atc/plugin-api';
 import { createStateStore } from '@atc/store';
-import { createMigratedStateDB } from '@atc/store/testing';
-import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { createMigratedStateDB, registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { createSessionManager } from '../sessions/create-session-manager';
@@ -24,7 +23,7 @@ async function setupTest(config: SetupTestConfig) {
   const temporaryDirectory = setupTempDir('atc-spawn-catalog-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
-  await createMigratedStateDB(dbPath);
+  createMigratedStateDB(dbPath);
 
   const store = await createStateStore(dbPath);
 

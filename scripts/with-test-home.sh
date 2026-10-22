@@ -39,4 +39,12 @@ export ATC_GATEWAY_ENTRY="$repo/packages/app/src/gateway.ts"
 unset ATC_SESSION_ID ATC_SOCKET ATC_BRIDGE ATC_OUTBOX ATC_SESSION_RECORD CLAUDE_CONFIG_DIR
 unset CODEX_THREAD_ID CODEX_SESSION_ID CODEX_TOOL_CALL_ID
 
+# One migrated state database per run, which each test that opens one copies.
+# A plugin's own workspace holds no store and no script to migrate one, and
+# its tests open no state database.
+if [ -f "$repo/scripts/create-state-template.ts" ]; then
+  export ATC_TEST_STATE_TEMPLATE="$root/state-template.db"
+  bun "$repo/scripts/create-state-template.ts" "$ATC_TEST_STATE_TEMPLATE"
+fi
+
 "$@"

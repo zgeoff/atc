@@ -5,9 +5,9 @@ import { toSessionID } from '@atc/core';
 import type { CommandSpec } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
-import { createMigratedStateDB } from '@atc/store/testing';
 import {
   createGitFixture,
+  createMigratedStateDB,
   getString,
   registerTestCleanup,
   runShellcheck,
@@ -27,8 +27,7 @@ async function setupTest() {
 
   // The staging root must exist for a clone to stage in it.
   mkdirSync(scratch);
-
-  await createMigratedStateDB(dbPath);
+  createMigratedStateDB(dbPath);
 
   const store = await createStateStore(dbPath);
 

@@ -3,10 +3,11 @@ import { join } from 'node:path';
 import { toSessionID } from '@atc/core';
 import type { SessionID } from '@atc/core';
 import { createStateStore } from '@atc/store';
-import { buildMockFleetEntry, createMigratedStateDB } from '@atc/store/testing';
+import { buildMockFleetEntry } from '@atc/store/testing';
 import {
   buildStubClock,
   buildStubLog,
+  createMigratedStateDB,
   registerTestCleanup,
   setupTempDir,
   waitFor,
@@ -26,7 +27,7 @@ async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-fleet-restorer-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
-  await createMigratedStateDB(dbPath);
+  createMigratedStateDB(dbPath);
 
   const store = await createStateStore(dbPath);
 

@@ -3,8 +3,12 @@ import { join } from 'node:path';
 import { toSessionID } from '@atc/core';
 import { EffectRemainsError } from '@atc/plugin-api';
 import { createStateStore } from '@atc/store';
-import { createMigratedStateDB } from '@atc/store/testing';
-import { buildStubLog, registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import {
+  buildStubLog,
+  createMigratedStateDB,
+  registerTestCleanup,
+  setupTempDir,
+} from '@atc/test-utils';
 import { createSessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildMockSession } from '../testing/build-mock-session';
@@ -21,7 +25,7 @@ async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-spawn-rollback-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
-  await createMigratedStateDB(dbPath);
+  createMigratedStateDB(dbPath);
 
   const store = await createStateStore(dbPath);
 

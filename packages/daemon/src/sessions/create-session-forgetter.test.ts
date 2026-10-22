@@ -4,8 +4,13 @@ import { toSessionID } from '@atc/core';
 import type { SessionID } from '@atc/core';
 import { DaemonError } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
-import { createMigratedStateDB } from '@atc/store/testing';
-import { buildStubClock, buildStubLog, registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import {
+  buildStubClock,
+  buildStubLog,
+  createMigratedStateDB,
+  registerTestCleanup,
+  setupTempDir,
+} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
@@ -25,7 +30,7 @@ async function setupTest(config: SetupTestConfig) {
   const temporaryDirectory = setupTempDir('atc-session-forgetter-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
-  await createMigratedStateDB(dbPath);
+  createMigratedStateDB(dbPath);
 
   const store = await createStateStore(dbPath);
 

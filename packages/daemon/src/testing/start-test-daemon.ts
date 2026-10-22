@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { LOCAL_TARGET } from '@atc/config';
 import type { DaemonEvent } from '@atc/protocol';
@@ -6,6 +7,7 @@ import type { DaemonClient } from '@atc/protocol/client';
 import {
   assertContractAnswer,
   assertContractEvent,
+  createMigratedStateDB,
   registerTestCleanup,
   setupTempDir,
 } from '@atc/test-utils';
@@ -154,6 +156,12 @@ export async function startTestDaemon(config: TestDaemonConfig = {}): Promise<Te
 
   const boot = async () => {
     const options = await buildOptions(paths);
+
+    // A database the options wrote stays; any other boot opens a copy of the
+    // run's migrated one.
+    if (!existsSync(paths.dbPath)) {
+      createMigratedStateDB(paths.dbPath);
+    }
 
     const daemon = await startDaemon({
       log: (line) => {

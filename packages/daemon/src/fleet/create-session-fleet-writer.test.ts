@@ -5,10 +5,10 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { toAgentSessionID, toSessionID } from '@atc/core';
 import { buildTargetIdentity, createStateStore } from '@atc/store';
-import { createMigratedStateDB } from '@atc/store/testing';
 import {
   buildMockAgentAdapter,
   buildStubLog,
+  createMigratedStateDB,
   registerTestCleanup,
   setupTempDir,
 } from '@atc/test-utils';
@@ -22,7 +22,7 @@ async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-fleet-writer-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
-  await createMigratedStateDB(dbPath);
+  createMigratedStateDB(dbPath);
 
   const store = await createStateStore(dbPath);
 

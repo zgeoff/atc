@@ -1,8 +1,8 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { openDaemonClient } from '@atc/protocol/client';
 import type { DaemonClient } from '@atc/protocol/client';
-import { registerTestCleanup, waitFor } from '@atc/test-utils';
+import { createMigratedStateDB, registerTestCleanup, waitFor } from '@atc/test-utils';
 import type { Subprocess } from 'bun';
 import { readDaemonRecord } from '../read-daemon-record';
 
@@ -21,6 +21,8 @@ interface DaemonProcessConfig {
 
   // Arguments after `atc daemon`.
   readonly args?: readonly string[];
+
+  readonly freshState?: boolean;
 }
 
 interface DaemonBoot {
@@ -50,6 +52,12 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
     boots++;
 
     const stderrPath = join(stderrDir, `boot-${boots}.stderr`);
+    const bootStateDir = join(config.env?.['HOME'] ?? config.home, '.local', 'state', 'atc');
+
+    if (config.freshState !== true && !existsSync(join(bootStateDir, 'atc.db'))) {
+      mkdirSync(bootStateDir, { recursive: true, mode: 0o700 });
+      createMigratedStateDB(join(bootStateDir, 'atc.db'));
+    }
 
     const subprocess = Bun.spawn([...config.command, 'daemon', ...(config.args ?? [])], {
       env: Object.fromEntries(

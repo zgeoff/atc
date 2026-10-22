@@ -3,10 +3,11 @@ import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { toSessionID } from '@atc/core';
 import { createStateStore } from '@atc/store';
-import { buildMockFleetEntry, createMigratedStateDB } from '@atc/store/testing';
+import { buildMockFleetEntry } from '@atc/store/testing';
 import {
   buildMockRestartResult,
   buildStubClock,
+  createMigratedStateDB,
   registerTestCleanup,
   setupTempDir,
 } from '@atc/test-utils';
@@ -25,7 +26,7 @@ async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-event-trail-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
-  await createMigratedStateDB(dbPath);
+  createMigratedStateDB(dbPath);
 
   const store = await createStateStore(dbPath);
 

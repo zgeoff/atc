@@ -6,8 +6,12 @@ import { EffectRemainsError } from '@atc/plugin-api';
 import type { AuthProfile, LaunchTicket } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
-import { createMigratedStateDB } from '@atc/store/testing';
-import { buildMockAuthProfile, registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import {
+  buildMockAuthProfile,
+  createMigratedStateDB,
+  registerTestCleanup,
+  setupTempDir,
+} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { buildMockAuthBinding } from '../testing/build-mock-auth-binding';
 import { buildStubBinderBroker } from '../testing/build-stub-binder-broker';
@@ -22,7 +26,7 @@ async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-auth-binder-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
-  await createMigratedStateDB(dbPath);
+  createMigratedStateDB(dbPath);
 
   const store = await createStateStore(dbPath);
 

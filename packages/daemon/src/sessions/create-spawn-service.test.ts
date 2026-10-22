@@ -5,8 +5,13 @@ import { systemClock, toSessionID } from '@atc/core';
 import type { SessionID } from '@atc/core';
 import type { CommandSpec } from '@atc/plugin-api';
 import { createStateStore } from '@atc/store';
-import { createMigratedStateDB } from '@atc/store/testing';
-import { createGitFixture, registerTestCleanup, setupTempDir, updateEnv } from '@atc/test-utils';
+import {
+  createGitFixture,
+  createMigratedStateDB,
+  registerTestCleanup,
+  setupTempDir,
+  updateEnv,
+} from '@atc/test-utils';
 import { $ } from 'bun';
 import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
@@ -39,7 +44,7 @@ async function setupTest(config: SetupTestConfig) {
   const temporaryDirectory = setupTempDir('atc-spawn-service-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
-  await createMigratedStateDB(dbPath);
+  createMigratedStateDB(dbPath);
 
   const store = await createStateStore(dbPath);
 

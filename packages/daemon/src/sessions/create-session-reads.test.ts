@@ -3,8 +3,7 @@ import { join } from 'node:path';
 import { toAgentSessionID, toSessionID } from '@atc/core';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { createStateStore } from '@atc/store';
-import { createMigratedStateDB } from '@atc/store/testing';
-import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { createMigratedStateDB, registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
@@ -24,7 +23,7 @@ async function setupTest(config: SetupTestConfig) {
   const temporaryDirectory = setupTempDir('atc-session-reads-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
-  await createMigratedStateDB(dbPath);
+  createMigratedStateDB(dbPath);
 
   const store = await createStateStore(dbPath);
 

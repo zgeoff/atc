@@ -28,7 +28,7 @@ test('it waits for a managed daemon instead of starting one while the unit is do
 
   await ctx.waitFor('waiting for atc-daemon.service');
 
-  expect(existsSync(join(ctx.home, '.local', 'state', 'atc', 'atc.db'))).toBe(false);
+  expect(existsSync(join(ctx.home, '.local', 'state', 'atc', 'daemon.json'))).toBe(false);
 
   const daemon = await startDaemon({
     socketPath: join(ctx.home, 'atc-daemon.sock'),

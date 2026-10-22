@@ -1,5 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   buildStubHandoffDaemon,
@@ -63,6 +63,30 @@ test('it hands the daemon the arguments and keeps its stderr readable', async ()
     exitCode: 1,
     stderr: expect.toInclude('--listen and --token-file go together'),
   });
+});
+
+test('it hands the daemon a copy of the migrated database in an owner-only state directory', async () => {
+  const ctx = setupTest();
+  const daemon = startDaemonProcess({ command: ['/bin/true'], home: ctx.directory });
+
+  await daemon.subprocess.exited;
+
+  expect(existsSync(join(daemon.stateDir, 'atc.db'))).toBe(true);
+  expect(statSync(daemon.stateDir).mode & 0o777).toBe(0o700);
+});
+
+test('it leaves the state directory for the daemon to create on a fresh state', async () => {
+  const ctx = setupTest();
+
+  const daemon = startDaemonProcess({
+    command: ['/bin/true'],
+    home: ctx.directory,
+    freshState: true,
+  });
+
+  await daemon.subprocess.exited;
+
+  expect(existsSync(daemon.stateDir)).toBe(false);
 });
 
 test('it rejects a client with the daemon stderr when the daemon exits before it listens', async () => {

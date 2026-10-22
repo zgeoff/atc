@@ -3,8 +3,12 @@ import { join } from 'node:path';
 import { toAgentSessionID, toSessionID } from '@atc/core';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { createStateStore } from '@atc/store';
-import { createMigratedStateDB } from '@atc/store/testing';
-import { buildStubLog, registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import {
+  buildStubLog,
+  createMigratedStateDB,
+  registerTestCleanup,
+  setupTempDir,
+} from '@atc/test-utils';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
@@ -25,7 +29,7 @@ async function setupTest(config: SetupTestConfig) {
   const temporaryDirectory = setupTempDir('atc-resumable-transcript-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
-  await createMigratedStateDB(dbPath);
+  createMigratedStateDB(dbPath);
 
   const store = await createStateStore(dbPath);
 

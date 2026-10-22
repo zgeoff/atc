@@ -4,8 +4,13 @@ import { toAgentSessionID, toSessionID } from '@atc/core';
 import type { SessionID } from '@atc/core';
 import type { AgentAdapter, HeadlessRunner } from '@atc/plugin-api';
 import { createStateStore } from '@atc/store';
-import { createMigratedStateDB } from '@atc/store/testing';
-import { buildStubClock, registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
+import {
+  buildStubClock,
+  createMigratedStateDB,
+  registerTestCleanup,
+  setupTempDir,
+  waitFor,
+} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
@@ -28,7 +33,7 @@ async function setupTest(config: SetupTestConfig) {
   const temporaryDirectory = setupTempDir('atc-session-handoff-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
-  await createMigratedStateDB(dbPath);
+  createMigratedStateDB(dbPath);
 
   const store = await createStateStore(dbPath);
 

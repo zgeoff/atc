@@ -1,8 +1,11 @@
+import { Database } from 'bun:sqlite';
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { buildStubWaitClock } from './build-stub-wait-clock';
 import { KEYS } from './keys';
+import { registerTestCleanup } from './register-test-cleanup';
 import { startTUIHarness } from './start-tui-harness';
 import { waitFor } from './wait-for';
 
@@ -27,20 +30,43 @@ test('it boots the client in its home, where the client starts its daemon', asyn
   expect(readFileSync(join(tui.home, 'atc-daemon.pid'), 'utf8')).toMatch(/^\d+$/u);
 });
 
+test("it puts a copy of the run's migrated database in its home before a boot", () => {
+  const tui = startTUIHarness();
+  const runTemplate = process.env['ATC_TEST_STATE_TEMPLATE'];
+
+  invariant(runTemplate !== undefined, 'the test script exports no state template');
+
+  const copy = new Database(join(tui.home, '.local', 'state', 'atc', 'atc.db'), { readonly: true });
+  const template = new Database(runTemplate, { readonly: true });
+
+  registerTestCleanup(() => {
+    copy.close();
+    template.close();
+  });
+
+  const ledger = 'SELECT name FROM kysely_migration ORDER BY name';
+
+  expect(copy.query(ledger).values()).toStrictEqual(template.query(ledger).values());
+});
+
 test('it captures a later client that a second boot starts on the same home', async () => {
   const tui = startTUIHarness();
-  const first = tui.boot();
 
-  await tui.waitFor('atc — control tower');
+  // A version run prints and exits without a daemon, so each boot costs one
+  // client start.
+  const first = tui.boot(['--version']);
+
+  await tui.waitForExit();
 
   tui.reset();
 
-  const second = tui.boot();
+  const second = tui.boot(['--version']);
 
-  await tui.waitFor('atc — control tower');
+  await waitFor(() => {
+    expect(tui.read()).toMatch(/\d+\.\d+\.\d+/u);
+  });
 
   expect(second.pid).not.toBe(first.pid);
-  expect(tui.read()).toInclude('atc — control tower');
 });
 
 test('it stops capturing a client that a second boot replaced', async () => {
@@ -54,9 +80,9 @@ test('it stops capturing a client that a second boot replaced', async () => {
 
   await tui.waitFor('atc — control tower');
 
-  tui.boot();
+  tui.boot(['--version']);
 
-  await tui.waitFor('atc — control tower');
+  await tui.waitForExit();
 
   tui.reset();
   first.write('n');
@@ -74,9 +100,9 @@ test('it kills a client a later boot replaced on stop', async () => {
 
   await tui.waitFor('atc — control tower');
 
-  tui.boot();
+  tui.boot(['--version']);
 
-  await tui.waitFor('atc — control tower');
+  await tui.waitForExit();
   await tui.stop();
 
   await waitFor(() => {

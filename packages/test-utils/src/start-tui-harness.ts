@@ -5,6 +5,7 @@ import { spawn } from 'bun-pty';
 import type { IDisposable, IPty } from 'bun-pty';
 import { buildStubTUIClaude } from './build-stub-tui-claude';
 import { buildStubTUIGrok } from './build-stub-tui-grok';
+import { createMigratedStateDB } from './create-migrated-state-db';
 import { createStubBin } from './create-stub-bin';
 import { readSourceEntry } from './read-source-entry';
 import { registerTestCleanup } from './register-test-cleanup';
@@ -75,6 +76,8 @@ export function startTUIHarness(options: TUIHarnessOptions = {}) {
   };
 
   writeConfig();
+  mkdirSync(join(home, '.local', 'state', 'atc'), { recursive: true, mode: 0o700 });
+  createMigratedStateDB(join(home, '.local', 'state', 'atc', 'atc.db'));
 
   // A test that drops an executable into the home's bin directory puts it
   // on the PATH of the client and of the daemons it starts.

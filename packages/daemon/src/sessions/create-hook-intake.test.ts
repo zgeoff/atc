@@ -5,10 +5,11 @@ import type { SessionID } from '@atc/core';
 import type { AdapterEvent } from '@atc/protocol';
 import type { EventMsg } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
-import { buildMockMessageRecord, createMigratedStateDB } from '@atc/store/testing';
+import { buildMockMessageRecord } from '@atc/store/testing';
 import {
   buildStubClock,
   buildStubLog,
+  createMigratedStateDB,
   registerTestCleanup,
   setupTempDir,
   waitFor,
@@ -36,7 +37,7 @@ async function setupTest(config: SetupTestConfig) {
   const temporaryDirectory = setupTempDir('atc-hook-intake-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
-  await createMigratedStateDB(dbPath);
+  createMigratedStateDB(dbPath);
 
   const store = await createStateStore(dbPath);
 
