@@ -1,6 +1,5 @@
 import { isRecord } from '@atc/core';
-import { parseMCPToolResult } from './parse-mcp-tool-result';
-import type { MCPToolResult } from './parse-mcp-tool-result';
+import { buildMCPToolCalls } from './build-mcp-tool-calls';
 import { readSourceEntry } from './read-source-entry';
 import { registerTestCleanup } from './register-test-cleanup';
 
@@ -68,31 +67,7 @@ export async function startMCPStdio(options: MCPStdioOptions) {
     return response.promise;
   };
 
-  const sendToolCall = async (
-    name: string,
-    args: Readonly<Record<string, unknown>>,
-  ): Promise<MCPToolResult> => {
-    const response = await sendRequest('tools/call', { name, arguments: args });
-
-    return parseMCPToolResult(response);
-  };
-
-  const server = {
-    sendRequest,
-    sendToolCall,
-    async spawnSession(args: Readonly<Record<string, unknown>>): Promise<string> {
-      const spawned = await sendToolCall('atc_session_spawn', args);
-
-      const id = spawned.structured?.['id'];
-
-      if (typeof id !== 'string') {
-        throw new TypeError(`spawn returned no session id: ${spawned.text}`);
-      }
-
-      return id;
-    },
-    stop,
-  };
+  const server = { sendRequest, ...buildMCPToolCalls(sendRequest), stop };
 
   // A failed initialize stops the server here, before the start rejects.
   const initialized = await sendRequest('initialize', {

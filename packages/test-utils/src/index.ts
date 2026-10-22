@@ -1,5 +1,6 @@
 export * from './assert-contract-answer';
 export * from './assert-contract-event';
+export * from './build-mcp-tool-calls';
 export * from './build-mock-agent-adapter';
 export * from './build-mock-agent-entry';
 export * from './build-mock-agent-profile';

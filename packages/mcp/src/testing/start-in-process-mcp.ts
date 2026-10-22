@@ -1,7 +1,6 @@
 import { isRecord } from '@atc/core';
 import { openDaemonClient } from '@atc/protocol/client';
-import { parseMCPToolResult, registerTestCleanup } from '@atc/test-utils';
-import type { MCPToolResult } from '@atc/test-utils';
+import { buildMCPToolCalls, registerTestCleanup } from '@atc/test-utils';
 import { InMemoryTransport } from '@modelcontextprotocol/server';
 import { createMCPServer } from '../tools/create-mcp-server';
 import { createTransportCaller } from '../tools/create-transport-caller';
@@ -69,15 +68,6 @@ export async function startInProcessMCP(config: InProcessMCPConfig) {
     return response.promise;
   };
 
-  const sendToolCall = async (
-    name: string,
-    args: Readonly<Record<string, unknown>>,
-  ): Promise<MCPToolResult> => {
-    const response = await sendRequest('tools/call', { name, arguments: args });
-
-    return parseMCPToolResult(response);
-  };
-
   const initialized = await sendRequest('initialize', {
     protocolVersion: '2025-06-18',
     capabilities: {},
@@ -90,20 +80,5 @@ export async function startInProcessMCP(config: InProcessMCPConfig) {
 
   await client.send({ jsonrpc: '2.0', method: 'notifications/initialized' });
 
-  return {
-    sendRequest,
-    sendToolCall,
-    async spawnSession(args: Readonly<Record<string, unknown>>): Promise<string> {
-      const spawned = await sendToolCall('atc_session_spawn', args);
-
-      const id = spawned.structured?.['id'];
-
-      if (typeof id !== 'string') {
-        throw new TypeError(`spawn returned no session id: ${spawned.text}`);
-      }
-
-      return id;
-    },
-    stop,
-  };
+  return { sendRequest, ...buildMCPToolCalls(sendRequest), stop };
 }
