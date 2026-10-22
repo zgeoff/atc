@@ -51,7 +51,11 @@ async function runProbe(
     return { ok: true };
   }
 
-  await client.sendHello('atc/peer-probe');
+  const hello = await client.sendHello('atc/peer-probe');
+
+  if (probe === 'peer-session') {
+    return { peerSession: hello['peerSession'] };
+  }
 
   if (probe === 'scope-add') {
     await client.sendRequest('session.scope.add', { session, scope: {} });

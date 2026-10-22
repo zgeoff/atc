@@ -203,6 +203,121 @@ exec cat
 );
 
 test.skipIf(process.platform !== 'linux')(
+  'it answers the handshake of a process inside a session that drops ATC_SESSION_ID with that session as its peer session',
+  async () => {
+    const ctx = setupTest();
+
+    writeFileSync(
+      ctx.configPath,
+      JSON.stringify({ agents: { claude: { bin: join(ctx.home, 'probe-agent') } } }),
+    );
+
+    const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+    createStubBin(
+      ctx.home,
+      'probe-agent',
+      `#!/usr/bin/env bash
+read -r _
+env -u ATC_SESSION_ID "${process.execPath}" "${ctx.probe}" peer-session "${daemon.socketPath}" - "${ctx.outPath}"
+exec cat
+`,
+    );
+
+    const client = await daemon.openClient();
+
+    await client.sendHello('atc/test');
+
+    const spawned = await client.sendRequest('session.spawn', {
+      cwd: ctx.home,
+      cols: 80,
+      rows: 24,
+    });
+
+    const id = getString(getRecord(spawned, 'session'), 'id');
+
+    await client.sendRequest('session.input', { session: id, data: 'go\r' });
+
+    const outcome = await waitFor((): unknown => JSON.parse(readFileSync(ctx.outPath, 'utf8')));
+
+    expect(outcome).toStrictEqual({ peerSession: id });
+  },
+);
+
+test.skipIf(process.platform !== 'linux')(
+  "it answers the handshake of a process inside a session that sets ATC_SESSION_ID to another session's id with its own session",
+  async () => {
+    const ctx = setupTest();
+    const otherIDPath = join(ctx.home, 'other-session-id');
+
+    writeFileSync(
+      ctx.configPath,
+      JSON.stringify({ agents: { claude: { bin: join(ctx.home, 'probe-agent') } } }),
+    );
+
+    const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+    createStubBin(
+      ctx.home,
+      'probe-agent',
+      `#!/usr/bin/env bash
+read -r _
+ATC_SESSION_ID="$(cat "${otherIDPath}")" "${process.execPath}" "${ctx.probe}" peer-session "${daemon.socketPath}" - "${ctx.outPath}"
+exec cat
+`,
+    );
+
+    const client = await daemon.openClient();
+
+    await client.sendHello('atc/test');
+
+    const other = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+
+    writeFileSync(otherIDPath, getString(getRecord(other, 'session'), 'id'));
+
+    const spawned = await client.sendRequest('session.spawn', {
+      cwd: ctx.home,
+      cols: 80,
+      rows: 24,
+    });
+
+    const id = getString(getRecord(spawned, 'session'), 'id');
+
+    await client.sendRequest('session.input', { session: id, data: 'go\r' });
+
+    const outcome = await waitFor((): unknown => JSON.parse(readFileSync(ctx.outPath, 'utf8')));
+
+    expect(outcome).toStrictEqual({ peerSession: id });
+  },
+);
+
+test("it answers the handshake of a client outside every session that gives a session's id with no peer session", async () => {
+  const ctx = setupTest();
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({ agents: { claude: { bin: join(ctx.home, 'idle-agent') } } }),
+  );
+
+  createStubBin(ctx.home, 'idle-agent', '#!/usr/bin/env bash\nexec cat\n');
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const owner = await daemon.openClient();
+
+  await owner.sendHello('atc/test');
+
+  const spawned = await owner.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+
+  const id = getString(getRecord(spawned, 'session'), 'id');
+
+  const claimant = await daemon.openClient();
+  const hello = await claimant.sendHello('atc/test', { session: id });
+
+  expect(hello['peerSession']).toBeNull();
+});
+
+test.skipIf(process.platform !== 'linux')(
   'it streams events to atc events run from a process inside a session that drops its atc variables',
   async () => {
     const ctx = setupTest();
