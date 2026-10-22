@@ -337,7 +337,13 @@ const AGENTS_OUTPUT: Readonly<Record<string, unknown>> = {
           installed: {
             type: 'boolean',
             description:
-              'whether its binary resolves on this host; a registered agent that is not installed cannot spawn',
+              "whether its binary resolves on the daemon's host; false refuses a spawn only on a target that runs the agent on that host, so an agent on an imp target can be false and still start, and spawnTargets shows where a spawn can start",
+          },
+          spawnTargets: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'the ids of the targets a spawn of the agent can start on; empty when capabilities.spawn is false',
           },
           brokerAuth: {
             type: 'boolean',
@@ -1239,7 +1245,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     annotations: READ_ONLY,
     scope: 'read',
     description:
-      'Read what atc_session_spawn accepts on this daemon: each agent (pass its id as agent) with whether it is installed, its capabilities, the model and effort values it takes, and whether it takes plugin folders; each execution target (pass its id as target) with whether it is available; and spawnDefaults. A spawn that would fail says so in advance: an agent with installed false or capabilities.spawn false, a target with available false, or an entry in targetErrors, with their meanings in the output schema. available true does not show that the host of the target is up. A remote client sees only the targets it reaches, and no config-wide targetErrors. Under the gateway it returns daemons, an object keyed by daemon name that holds the state of each daemon and, for a daemon that is up, the object a single daemon returns. It never holds credentials, environment values or endpoints.',
+      'Read what atc_session_spawn accepts on this daemon: each agent (pass its id as agent) with whether it is installed, its capabilities, the model and effort values it takes, and whether it takes plugin folders; each execution target (pass its id as target) with whether it is available; and spawnDefaults. A spawn that would fail says so in advance: an agent with capabilities.spawn false, a target missing from the spawnTargets of the agent, a target with available false, or an entry in targetErrors, with their meanings in the output schema. available true does not show that the host of the target is up. A remote client sees only the targets it reaches, and no config-wide targetErrors. Under the gateway it returns daemons, an object keyed by daemon name that holds the state of each daemon and, for a daemon that is up, the object a single daemon returns. It never holds credentials, environment values or endpoints.',
     inputSchema: NO_INPUT,
     outputSchema: AGENTS_OUTPUT,
     requires: { outputUnless: 'fleet.daemons' },

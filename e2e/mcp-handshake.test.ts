@@ -278,7 +278,7 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": true,
               "readOnlyHint": false,
             },
-            "description": "Start a new agent session in a directory and return its entry. prompt goes to the agent CLI as its first message at launch; the result does not show that the agent took it, so follow with atc_events_read. agent defaults to claude when it is registered, else the first registered agent. When this tool list was built, the host registered: claude, grok, codex (not installed). atc_spawn_options_get lists the agents, targets, models and effort levels this daemon takes. An unknown or uninstalled agent, an unknown target, an effort outside the agent's values, or a missing or relative cwd is refused before anything starts; a model name goes to the agent CLI unchecked when the agent lists no model values. A workspace or scope refusal can come after atc readied the host, and atc then rolls the spawn back. Called through atc mcp from inside an atc session, the new session is a sub-session unless detached is true: of the caller, or of the caller's parent when the caller is a sub-session itself. It is listed under that parent, pinned and stopped with it, forgettable while it is pinned only by a call from inside it, and reached by a remote client only when the client reaches it. A spawn through atc mcp --http or the gateway, or from a caller atc no longer lists, starts a top-level session. atc_session_update with parent null detaches a sub-session later. A directory the agent has not trusted opens its folder-trust dialog, which atc_terminal_choose answers for Claude Code and a person answers in the TUI for any agent; trustClonedWorkspace trusts a fresh workspace clone. The entry holds warnings when the workspace left changes behind. A retry with the same idempotencyKey and arguments starts no second session: while atc lists the session, it returns the session's current entry without the first call's warnings.",
+            "description": "Start a new agent session in a directory and return its entry. prompt goes to the agent CLI as its first message at launch; the result does not show that the agent took it, so follow with atc_events_read. agent defaults to claude when it is registered, else the first registered agent. When this tool list was built, the host registered: claude, grok, codex (not installed). atc_spawn_options_get lists the agents, targets, models and effort levels this daemon takes. An unknown agent, an agent whose binary is missing on a target that runs it on the daemon's host, an unknown target, an effort outside the agent's values, or a missing or relative cwd is refused before anything starts; a model name goes to the agent CLI unchecked when the agent lists no model values. A workspace or scope refusal can come after atc readied the host, and atc then rolls the spawn back. Called through atc mcp from inside an atc session, the new session is a sub-session unless detached is true: of the caller, or of the caller's parent when the caller is a sub-session itself. It is listed under that parent, pinned and stopped with it, forgettable while it is pinned only by a call from inside it, and reached by a remote client only when the client reaches it. A spawn through atc mcp --http or the gateway, or from a caller atc no longer lists, starts a top-level session. atc_session_update with parent null detaches a sub-session later. A directory the agent has not trusted opens its folder-trust dialog, which atc_terminal_choose answers for Claude Code and a person answers in the TUI for any agent; trustClonedWorkspace trusts a fresh workspace clone. The entry holds warnings when the workspace left changes behind. A retry with the same idempotencyKey and arguments starts no second session: while atc lists the session, it returns the session's current entry without the first call's warnings.",
             "inputSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "additionalProperties": false,
@@ -1132,7 +1132,7 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": false,
               "readOnlyHint": true,
             },
-            "description": "Read what atc_session_spawn accepts on this daemon: each agent (pass its id as agent) with whether it is installed, its capabilities, the model and effort values it takes, and whether it takes plugin folders; each execution target (pass its id as target) with whether it is available; and spawnDefaults. A spawn that would fail says so in advance: an agent with installed false or capabilities.spawn false, a target with available false, or an entry in targetErrors, with their meanings in the output schema. available true does not show that the host of the target is up. A remote client sees only the targets it reaches, and no config-wide targetErrors. Under the gateway it returns daemons, an object keyed by daemon name that holds the state of each daemon and, for a daemon that is up, the object a single daemon returns. It never holds credentials, environment values or endpoints.",
+            "description": "Read what atc_session_spawn accepts on this daemon: each agent (pass its id as agent) with whether it is installed, its capabilities, the model and effort values it takes, and whether it takes plugin folders; each execution target (pass its id as target) with whether it is available; and spawnDefaults. A spawn that would fail says so in advance: an agent with capabilities.spawn false, a target missing from the spawnTargets of the agent, a target with available false, or an entry in targetErrors, with their meanings in the output schema. available true does not show that the host of the target is up. A remote client sees only the targets it reaches, and no config-wide targetErrors. Under the gateway it returns daemons, an object keyed by daemon name that holds the state of each daemon and, for a daemon that is up, the object a single daemon returns. It never holds credentials, environment values or endpoints.",
             "inputSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "additionalProperties": false,
@@ -1197,7 +1197,7 @@ test('it lists the fleet tools', async () => {
                         "type": "string",
                       },
                       "installed": {
-                        "description": "whether its binary resolves on this host; a registered agent that is not installed cannot spawn",
+                        "description": "whether its binary resolves on the daemon's host; false refuses a spawn only on a target that runs the agent on that host, so an agent on an imp target can be false and still start, and spawnTargets shows where a spawn can start",
                         "type": "boolean",
                       },
                       "kind": {
@@ -1460,6 +1460,13 @@ test('it lists the fleet tools', async () => {
                           "pluginDirs",
                         ],
                         "type": "object",
+                      },
+                      "spawnTargets": {
+                        "description": "the ids of the targets a spawn of the agent can start on; empty when capabilities.spawn is false",
+                        "items": {
+                          "type": "string",
+                        },
+                        "type": "array",
                       },
                     },
                     "required": [
