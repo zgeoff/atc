@@ -24,4 +24,4 @@ test('it spawns a session the client lists under the name given', async () => {
   await ctx.tui.waitFor('beacon');
 
   expect(id).toBeString();
-}, 15_000);
+});

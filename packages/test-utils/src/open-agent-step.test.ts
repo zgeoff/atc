@@ -25,4 +25,4 @@ test('it returns once the agent step takes keys, so the next key moves the selec
   await ctx.tui.waitFor('\u001B[7mGrok');
 
   expect(ctx.tui.read()).not.toInclude('reading agents');
-}, 15_000);
+});
