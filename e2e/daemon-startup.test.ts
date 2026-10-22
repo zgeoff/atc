@@ -51,10 +51,17 @@ test('it lets exactly one of two daemons started at once serve a state directory
   mkdirSync(ctx.stateDir, { recursive: true, mode: 0o700 });
   createMigratedStateDB(join(ctx.stateDir, 'atc.db'));
 
-  const starting = Promise.allSettled([
-    startDaemon(ctx.buildDaemonOptions('first')),
-    startDaemon(ctx.buildDaemonOptions('second')),
-  ]);
+  // Each daemon's cleanup is registered as it starts, so a failed wait below
+  // still stops it.
+  const starting = Promise.allSettled(
+    ['first', 'second'].map(async (name) => {
+      const daemon = await startDaemon(ctx.buildDaemonOptions(name));
+
+      registerTestCleanup(() => daemon.stop());
+
+      return daemon;
+    }),
+  );
 
   // The daemon that lost the lock retries until its wait for the lock ends.
   await waitFor(() => {
@@ -72,8 +79,6 @@ test('it lets exactly one of two daemons started at once serve a state directory
   const refusals = settled.flatMap((result): unknown[] =>
     result.status === 'rejected' ? [result.reason] : [],
   );
-
-  registerTestCleanup(() => Promise.all(started.map((daemon) => daemon.stop())));
 
   const record = readDaemonRecord(join(ctx.stateDir, 'daemon.json'));
 
