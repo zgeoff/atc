@@ -6,8 +6,6 @@ type CredentialBrokerCode =
   | 'forbidden'
   | 'unauthorized'
   | 'unreachable'
-
-  // the broker is older than the oldest broker this atc supports.
   | 'too_old'
   | 'refused';
 
