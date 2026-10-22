@@ -225,6 +225,18 @@ test('it resolves a report false once the daemon socket is gone', async () => {
   expect(sent).toBeFalse();
 });
 
+test('it resolves a report false and sends nothing for a payload that names no event', async () => {
+  const ctx = setupTest();
+
+  ctx.agents.holdStart('grok');
+  ctx.start(ctx.agents.bins.grok);
+
+  const sent = await ctx.agents.sessions[0]?.report({ sessionId: 'fake-grok-1' });
+
+  expect(sent).toBeFalse();
+  expect(ctx.reporter.lines).toStrictEqual([]);
+});
+
 test('it refuses a spawn of a binary that is none of its agents', () => {
   const ctx = setupTest();
 

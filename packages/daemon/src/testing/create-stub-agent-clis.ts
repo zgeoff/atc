@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { isRecord } from '@atc/core';
+import { isRecord, toAgentID, toSessionID } from '@atc/core';
 import { SESSION_ENV_NAMES, normalizeHookEventName } from '@atc/protocol/session';
+import type { HookEvent } from '@atc/protocol/session';
 import { createStubBin } from '@atc/test-utils';
 import type { Socket } from 'bun';
 import type { StubMemoryHarness } from './build-stub-memory-provider';
@@ -15,9 +16,8 @@ interface StubAgentSession {
   // Each line the session read from its terminal, without its line end.
   readonly received: string[];
 
-  // Reports one hook event as the agent's hook command reports it. Like the
-  // reporter, it never throws: it resolves true once the daemon's socket
-  // took the whole line, and false when the socket refused it.
+  // Reports one hook event as the agent's hook command reports it, and
+  // never throws, as the reporter never does.
   readonly report: (payload: Readonly<Record<string, unknown>>) => Promise<boolean>;
 }
 
@@ -140,12 +140,19 @@ function createStubAgentSession(kind: StubAgentKind, harness: StubMemoryHarness)
       }
 
       const rawName = payload['hook_event_name'] ?? payload['hookEventName'];
-      const event = typeof rawName === 'string' ? normalizeHookEventName(rawName) : rawName;
 
-      return writeReportLine(
-        socket,
-        `${JSON.stringify({ atcId: atcID, agent, event, payload })}\n`,
-      ).then(
+      if (typeof rawName !== 'string') {
+        return Promise.resolve(false);
+      }
+
+      const line: HookEvent = {
+        atcId: toSessionID(atcID),
+        agent: toAgentID(agent),
+        event: normalizeHookEventName(rawName),
+        payload,
+      };
+
+      return writeReportLine(socket, `${JSON.stringify(line)}\n`).then(
         () => true,
         () => false,
       );
