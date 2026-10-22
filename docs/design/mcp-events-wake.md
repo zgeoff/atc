@@ -160,7 +160,7 @@ SEP-3415 lists its reference implementation as outstanding.
 
 ## What full delivery needs
 
-The plan for full delivery holds, with four changes that the draft and ChatGPT's guide require:
+The plan for full delivery holds, with three changes that the draft and ChatGPT's guide require:
 
 - **Protocol.** atc answers `server/discover` and negotiates `2026-07-28`, either through an SDK
   release that does or through a handler in front of the SDK.
@@ -169,8 +169,11 @@ The plan for full delivery holds, with four changes that the draft and ChatGPT's
 - **Verification.** atc sends the signed `verification` challenge before it delivers to a callback,
   and keeps the verified status beside each persisted subscription. The callback must be https, must
   not redirect, and must not resolve to a private address.
-- **410.** A 410 ends retries for that one delivery and leaves the subscription in place. A
-  subscription ends at its `refreshBefore`, or when the client unsubscribes.
+
+The plan's 410 rule is an open question for the build. The plan drops a subscription on a 410. The
+draft ends retries for that one delivery and keeps the subscription, which then ends at its
+`refreshBefore` or when the client unsubscribes. ChatGPT's guide says only that a 410 is not
+retried, so either rule works with ChatGPT.
 
 The payload carries the event name, the atc session id in `data`, and the event trail's cursor in
 `cursor`, beside the `eventId` and `timestamp` the draft requires. That cursor points past its
@@ -185,7 +188,7 @@ declare it.
 
 ## The live check
 
-The check needs an atc build that serves the four changes above, a public https origin for its
+The check needs an atc build that serves the three changes above, a public https origin for its
 `/mcp`, and a ChatGPT plan whose workspace allows plugins and event-triggered tasks. Run it on that
 build in a home of its own:
 
