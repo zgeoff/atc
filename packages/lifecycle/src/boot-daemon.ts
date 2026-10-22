@@ -1,5 +1,5 @@
 import type { ChildProcess } from 'node:child_process';
-import { makeSingleFlight, toAgentID, waitUntil } from '@atc/core';
+import { makeSingleFlight, toAgentID } from '@atc/core';
 import type { Clock } from '@atc/core';
 import type { DaemonBoot, DaemonBootOptions, DaemonPaths, ProtocolMismatch } from '@atc/protocol';
 import {
@@ -13,6 +13,7 @@ import { readSessionEnv } from '@atc/protocol/session';
 import { DaemonError, PROTOCOL_V } from '@atc/protocol/wire';
 import { buildHostDaemonPaths } from './build-host-daemon-paths';
 import type { LifecycleHost } from './lifecycle-host';
+import { DAEMON_READY_FD_VARIABLE } from './make-daemon-ready-signal';
 import { probeProcessAlive } from './probe-process-alive';
 import { readDaemonPID } from './read-daemon-pid';
 import { readDaemonRecord } from './read-daemon-record';
@@ -251,32 +252,71 @@ async function bootDaemon(
   clock: Clock,
   atcArgv: readonly string[],
 ): Promise<void> {
-  let child = spawnDaemonDetached(atcArgv);
+  const deadline = clock.now() + BOOT_DEADLINE_MS;
+  let woken = Promise.withResolvers<void>();
 
-  await waitUntil(
-    async () => {
+  const wake = () => {
+    woken.resolve();
+  };
+
+  let child = spawnDaemonDetached(atcArgv, wake);
+
+  try {
+    for (;;) {
       const probe = await tryOpenKnownDaemon(paths);
 
       if (probe !== null) {
         probe.client.stop();
 
-        return true;
+        return;
       }
 
       // A daemon that found the state lock still held by one shutting down
       // exits; once the old one is gone, a fresh spawn takes the lock.
       if (child.exitCode !== null || child.signalCode !== null) {
-        child = spawnDaemonDetached(atcArgv);
+        closeReadyPipe(child);
+
+        child = spawnDaemonDetached(atcArgv, wake);
       }
 
-      return false;
-    },
-    { clock, intervalMs: 100, deadlineMs: clock.now() + BOOT_DEADLINE_MS },
-  );
+      if (clock.now() >= deadline) {
+        return;
+      }
+
+      // The poll still finds a daemon that another process started, and
+      // paces the spawns when each daemon exits at once.
+      const cancel = clock.schedule(wake, 100);
+
+      await woken.promise;
+
+      cancel();
+
+      woken = Promise.withResolvers<void>();
+    }
+  } finally {
+    closeReadyPipe(child);
+  }
 }
 
-function spawnDaemonDetached(atcArgv: readonly string[]): ChildProcess {
-  return spawnATCDetached(atcArgv, ['daemon']);
+function spawnDaemonDetached(atcArgv: readonly string[], onReady: () => void): ChildProcess {
+  const child = spawnATCDetached(atcArgv, ['daemon'], {
+    env: { ...process.env, [DAEMON_READY_FD_VARIABLE]: '3' },
+    stdio: ['ignore', 'ignore', 'ignore', 'pipe'],
+  });
+
+  const pipe = child.stdio.at(3);
+
+  pipe?.on('data', onReady);
+
+  // A daemon that dies mid-write can break the pipe, and the poll covers
+  // that daemon.
+  pipe?.on('error', () => {});
+
+  return child;
+}
+
+function closeReadyPipe(child: ChildProcess): void {
+  child.stdio.at(3)?.destroy();
 }
 
 // A live daemon this process cannot reach, such as one whose runtime

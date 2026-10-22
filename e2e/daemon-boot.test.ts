@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { startDaemon } from '@atc/daemon';
 import { bootDaemonClient } from '@atc/lifecycle';
@@ -11,6 +11,7 @@ import {
   readSourceEntry,
   registerTestCleanup,
   setupTempDir,
+  waitFor,
 } from '@atc/test-utils';
 import { createHostServices } from '../packages/app/src/create-host-services';
 
@@ -107,6 +108,50 @@ console.log('connected');
   expect(stdout).toBe('connected\n');
   expect(waiting).toBe('waiting for atc-daemon.service; this client does not start a daemon\n');
   expect(autostarted).toBe(false);
+});
+
+test('it connects to the daemon it starts once that daemon is ready, before any poll fires', async () => {
+  const ctx = setupTest();
+
+  registerTestCleanup(async () => {
+    const pid = Number(readFileSync(join(ctx.directory, 'atc-daemon.pid'), 'utf8'));
+
+    process.kill(pid, 'SIGTERM');
+
+    await waitFor(() => {
+      expect(() => process.kill(pid, 0)).toThrow();
+    });
+  });
+
+  // The clock never fires a timer, so only the daemon's ready signal can
+  // end the boot's wait.
+  writeFileSync(
+    join(ctx.directory, 'probe.ts'),
+    `import { bootDaemonClient } from '${ctx.bootModule}';
+import { buildLifecycleHost } from '${ctx.hostModule}';
+import { createHostServices } from '${ctx.servicesModule}';
+const invocation = { argv: [process.execPath, '${readSourceEntry('atc')}'], readBuild: () => 'atc/test-build' };
+const clock = { now: () => Date.now(), schedule: () => () => {} };
+const boot = await bootDaemonClient({ ...buildLifecycleHost(process.env, createHostServices()), invocation }, { clock });
+boot.client.stop();
+console.log('connected');
+process.exit(0);
+`,
+  );
+
+  const subprocess = Bun.spawn([process.execPath, join(ctx.directory, 'probe.ts')], {
+    env: ctx.env,
+    stdout: 'pipe',
+    stderr: 'ignore',
+  });
+
+  registerTestCleanup(() => {
+    subprocess.kill();
+  });
+
+  const stdout = await new Response(subprocess.stdout).text();
+
+  expect(stdout).toBe('connected\n');
 });
 
 test('it reports a codex hello as the last-used agent instead of coercing it to claude', async () => {

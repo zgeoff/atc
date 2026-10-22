@@ -1,5 +1,5 @@
 import { expect, mock, test } from 'bun:test';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolvePaths } from '@atc/config/host';
 import type { ProtocolMismatch } from '@atc/protocol';
@@ -438,6 +438,106 @@ test('it waits for its own daemon while a boot on the same clock waits for anoth
   });
 
   expect(boot.socketPath).toBe(second.sockPath);
+});
+
+test('it rejects at the 8 s boot deadline when the daemon it starts never becomes ready', async () => {
+  const ctx = setupTest();
+  const clock = buildStubClock(0);
+  const pidFile = join(ctx.directory, 'silent-daemon.pid');
+
+  registerTestCleanup(() => {
+    process.kill(Number(readFileSync(pidFile, 'utf8')), 'SIGKILL');
+  });
+
+  // The daemon stays up but neither listens nor signals ready.
+  const booting = bootDaemonClient(
+    buildMockLifecycleHost({
+      paths: ctx.paths,
+      invocation: { argv: ['sh', '-c', `echo $$ > ${pidFile}; exec sleep 30`] },
+    }),
+    { clock },
+  );
+
+  const steps: number[] = [];
+
+  for (let poll = 0; poll < 80; poll++) {
+    const pending = await waitFor(() => {
+      const [next] = clock.collectPending();
+
+      if (next === undefined) {
+        throw new Error('no poll is waiting');
+      }
+
+      return next;
+    });
+
+    steps.push(pending);
+    clock.advance(100);
+  }
+
+  expect(booting).rejects.toThrowWithMessage(
+    Error,
+    'the atc daemon did not come up; try `atc daemon` for its output',
+  );
+
+  expect(steps).toStrictEqual(Array.from({ length: 80 }, () => 100));
+});
+
+test('it rejects at the 8 s boot deadline when the daemon it starts signals ready but never listens', async () => {
+  const ctx = setupTest();
+  const clock = buildStubClock(0);
+  const pidFile = join(ctx.directory, 'unlistening-daemon.pid');
+
+  registerTestCleanup(() => {
+    process.kill(Number(readFileSync(pidFile, 'utf8')), 'SIGKILL');
+  });
+
+  const booting = bootDaemonClient(
+    buildMockLifecycleHost({
+      paths: ctx.paths,
+      invocation: {
+        argv: ['sh', '-c', `echo $$ > ${pidFile}; echo ready >&3; exec sleep 30`],
+      },
+    }),
+    { clock },
+  );
+
+  // Before the clock moves, only the ready line can wake the boot to try the
+  // socket again and schedule a second poll.
+  const delaysBeforeDeadline = await waitFor(() => {
+    const delays = clock.collectDelays();
+
+    if (delays.length < 2) {
+      throw new Error('the ready line has not woken the boot');
+    }
+
+    return delays;
+  });
+
+  const steps: number[] = [];
+
+  for (let poll = 0; poll < 80; poll++) {
+    const pending = await waitFor(() => {
+      const [next] = clock.collectPending();
+
+      if (next === undefined) {
+        throw new Error('no poll is waiting');
+      }
+
+      return next;
+    });
+
+    steps.push(pending);
+    clock.advance(100);
+  }
+
+  expect(booting).rejects.toThrowWithMessage(
+    Error,
+    'the atc daemon did not come up; try `atc daemon` for its output',
+  );
+
+  expect(delaysBeforeDeadline).toStrictEqual([100, 100]);
+  expect(steps).toStrictEqual(Array.from({ length: 80 }, () => 100));
 });
 
 test('it rejects with the socket path it is given when a wait finds no daemon there', () => {

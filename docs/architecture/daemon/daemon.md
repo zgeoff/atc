@@ -47,8 +47,11 @@ A daemon starts in a fixed order, so no client ever sees a half-started daemon:
 
 Every client that needs a daemon runs one startup check: the TUI, `atc mcp` and `atc mcp --http`. It
 tries the computed socket, then the socket in the daemon record. When neither answers, it starts
-`atc daemon` detached and waits for it to answer. Overlapping boots inside one process share one
-start, and a boot that lost the lock to a daemon still shutting down starts again.
+`atc daemon` detached and passes it one end of a pipe. The daemon writes a line to that pipe once it
+serves, and the client tries the socket as soon as the line arrives. A slower poll tries the socket
+too, so the client finds a daemon that another process started, and it paces the starts when each
+daemon exits at once. Overlapping boots inside one process share one start, and a boot that lost the
+lock to a daemon still shutting down starts again.
 
 An installed `atc-daemon.service` user unit reserves daemon startup for systemd, whatever state the
 unit is in. A client that finds the unit file waits for the daemon without a deadline and starts
