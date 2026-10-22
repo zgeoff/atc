@@ -7,7 +7,7 @@ import { registerTestCleanup } from './register-test-cleanup';
 export async function startStubLegacyDaemonProcess(
   socketPath: string,
   stateDir: string,
-  build?: 'line' | 'newer',
+  build?: 'newer',
 ) {
   const daemon = Bun.spawn(
     [

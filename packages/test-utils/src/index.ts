@@ -105,7 +105,6 @@ export * from './start-stub-impd';
 export * from './start-stub-impd-info';
 export * from './start-stub-legacy-daemon';
 export * from './start-stub-legacy-daemon-process';
-export * from './start-stub-line-daemon';
 export * from './start-stub-peer-daemon';
 export * from './start-stub-recording-listener';
 export * from './start-stub-refusing-listener';
