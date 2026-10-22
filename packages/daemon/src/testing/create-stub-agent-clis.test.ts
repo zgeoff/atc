@@ -225,6 +225,27 @@ test('it resolves a report false once the daemon socket is gone', async () => {
   expect(sent).toBeFalse();
 });
 
+test('it delivers a report larger than one socket write in full', async () => {
+  const ctx = setupTest();
+
+  ctx.agents.holdStart('grok');
+  ctx.start(ctx.agents.bins.grok);
+
+  const message = 'x'.repeat(4 * 1024 * 1024);
+
+  const sent = await ctx.agents.sessions[0]?.report({ hookEventName: 'stop', message });
+  const line = await ctx.reporter.waitForLine();
+
+  expect(sent).toBeTrue();
+
+  expect(JSON.parse(line)).toStrictEqual({
+    atcId: 's-1',
+    agent: 'grok',
+    event: 'Stop',
+    payload: { hookEventName: 'stop', message },
+  });
+});
+
 test('it resolves a report false and sends nothing for a payload that names no event', async () => {
   const ctx = setupTest();
 
