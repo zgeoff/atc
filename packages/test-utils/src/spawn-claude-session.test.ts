@@ -1,14 +1,17 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { openDaemonClient } from '@atc/protocol/client';
+import { startTUIDaemon } from '../../app/src/test-utils/start-tui-daemon';
 import { registerTestCleanup } from './register-test-cleanup';
 import { spawnClaudeSession } from './spawn-claude-session';
 import { startTUIHarness } from './start-tui-harness';
 
-// The client booted to its home screen, and a client of the daemon it
-// started there to read the fleet through.
+// The client booted to its home screen against a daemon in the test's
+// process, and a client of that daemon to read the fleet through.
 async function setupTest() {
   const tui = startTUIHarness();
+
+  await startTUIDaemon(tui);
 
   tui.boot();
 

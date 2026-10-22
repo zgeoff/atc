@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { openDaemonClient } from '@atc/protocol/client';
 import {
@@ -10,39 +10,42 @@ import {
   startTUIHarness,
   waitFor,
 } from '@atc/test-utils';
+import { startTUIDaemon } from '../packages/app/src/test-utils/start-tui-daemon';
 
-function setupTest() {
-  return startTUIHarness();
+// The client attaches to a daemon in the test's process, so a boot loads
+// one process instead of two.
+async function setupTest() {
+  const tui = startTUIHarness();
+
+  await startTUIDaemon(tui);
+
+  return tui;
 }
 
 test('it narrows the overlay to sessions matching the slash filter', async () => {
-  const ctx = setupTest();
+  const ctx = await setupTest();
+
+  // The sessions report no prompt, so neither names itself in the status
+  // bar as the session that needs you.
+  writeFileSync(join(ctx.home, 'fake-claude-events.jsonl'), '');
 
   ctx.boot();
 
   await ctx.waitFor('atc — control tower');
 
-  await spawnClaudeSession(ctx, 'alpha');
+  const daemon = await openDaemonClient(join(ctx.home, 'atc-daemon.sock'));
 
-  ctx.reset();
-  ctx.write(KEYS.ctrlSpace);
+  registerTestCleanup(() => {
+    daemon.stop();
+  });
 
-  await ctx.waitFor('need you: alpha');
-  await ctx.waitFor('┌ sessions ');
+  await daemon.sendHello('atc/test');
 
-  // Attaching alpha stops it being the urgent session in the status bar;
-  // the attach jiggle repaints the fake.
-  ctx.reset();
-  ctx.write(KEYS.enter);
+  const send = (method: string, params?: Readonly<Record<string, unknown>>) =>
+    daemon.sendRequest(method, params);
 
-  await ctx.waitFor('FAKE_CLAUDE_UP');
-
-  ctx.reset();
-  ctx.write(KEYS.ctrlSpace);
-
-  await ctx.waitFor('┌ sessions ');
-
-  await spawnClaudeSession(ctx, 'bravo');
+  await spawnNamedSession(send, 'alpha', ctx.home);
+  await spawnNamedSession(send, 'bravo', ctx.home);
 
   ctx.reset();
   ctx.write(KEYS.ctrlSpace);
@@ -56,14 +59,19 @@ test('it narrows the overlay to sessions matching the slash filter', async () =>
   ctx.reset();
   ctx.write('brav');
 
-  await ctx.waitFor('/ brav');
-  await ctx.waitFor('bravo');
+  // A session's state change can repaint the overlay before the typed text
+  // reaches it, so only the latest frame counts.
+  await waitFor(() => {
+    const frame = ctx.read().split('┌ sessions ').at(-1);
 
-  expect(ctx.read()).not.toInclude('alpha');
+    expect(frame).toInclude('/ brav');
+    expect(frame).toInclude('bravo');
+    expect(frame).not.toInclude('alpha');
+  });
 });
 
 test('it opens the overlay with a configured leader key', async () => {
-  const ctx = setupTest();
+  const ctx = await setupTest();
 
   ctx.writeConfig({ leader: 'ctrl-]' });
   ctx.boot();
@@ -84,7 +92,7 @@ test('it opens the overlay with a configured leader key', async () => {
 });
 
 test('it pins a session from the overlay and marks its row', async () => {
-  const ctx = setupTest();
+  const ctx = await setupTest();
 
   ctx.boot();
 
@@ -102,10 +110,11 @@ test('it pins a session from the overlay and marks its row', async () => {
   ctx.write('p');
 
   await ctx.waitFor('⋆');
-}, 15_000);
+});
 
 test('it clusters overlay rows under repository headers when grouping is toggled on', async () => {
-  const ctx = setupTest();
+  const ctx = await setupTest();
+
   const otherProject = join(ctx.home, 'otherproj');
 
   mkdirSync(otherProject, { recursive: true });
@@ -124,7 +133,8 @@ test('it clusters overlay rows under repository headers when grouping is toggled
 
   ctx.write('n');
 
-  await ctx.waitFor('spawn: agent');
+  // The agent step takes keys only once it draws the selected agent's row.
+  await ctx.waitFor('\u001B[7mClaude');
 
   ctx.write(KEYS.enter);
 
@@ -161,10 +171,10 @@ test('it clusters overlay rows under repository headers when grouping is toggled
 
   await ctx.waitFor('▸');
   await ctx.waitFor('otherproj');
-}, 15_000);
+});
 
 test('it lists a sub-session indented under its parent', async () => {
-  const ctx = setupTest();
+  const ctx = await setupTest();
 
   ctx.boot();
 
@@ -198,10 +208,10 @@ test('it lists a sub-session indented under its parent', async () => {
   await ctx.waitFor('↳ worker');
 
   expect(ctx.read()).toMatch(/wrangler[\s\S]*↳ worker/u);
-}, 15_000);
+});
 
 test('it lists a detached sub-session as top-level', async () => {
-  const ctx = setupTest();
+  const ctx = await setupTest();
 
   ctx.boot();
 
@@ -243,10 +253,10 @@ test('it lists a detached sub-session as top-level', async () => {
     expect(frame).toInclude('worker');
     expect(frame).not.toInclude('↳');
   });
-}, 15_000);
+});
 
 test('it preselects the focused session when the overlay opens', async () => {
-  const ctx = setupTest();
+  const ctx = await setupTest();
 
   ctx.boot();
 
@@ -268,10 +278,10 @@ test('it preselects the focused session when the overlay opens', async () => {
   await ctx.waitFor('second');
 
   expect(ctx.read()).toInclude('\u001B[7msecond');
-}, 15_000);
+});
 
 test('it opens the key reference from the overlay and returns on esc', async () => {
-  const ctx = setupTest();
+  const ctx = await setupTest();
 
   ctx.boot();
 
