@@ -173,12 +173,15 @@ The plan for full delivery holds, with four changes that the draft and ChatGPT's
   subscription ends at its `refreshBefore`, or when the client unsubscribes.
 
 The payload carries the event name, the atc session id in `data`, and the event trail's cursor in
-`cursor`, beside the `eventId` and `timestamp` the draft requires. A lost delivery costs nothing,
-because the assistant reads the trail from its last cursor on the next wake. A repeated delivery
-repeats nothing, because the assistant drops a seen `eventId` and the cursor read returns no event
-twice. Subscribing needs the `read` grant scope. atc's tools declare no per-tool security scheme, so
-the live check shows whether ChatGPT asks for `read` from the server's metadata alone or needs a
-tool to declare it.
+`cursor`, beside the `eventId` and `timestamp` the draft requires. That cursor points past its
+event, because a trail read returns only the events after the cursor it gets, which matches the
+draft's watermark. The assistant therefore treats a delivery as a wake only: it reads the trail from
+the cursor its previous read returned, and keeps the cursor that the new read returns. A lost
+delivery costs nothing, because the next wake's read returns the missed event. A repeated delivery
+repeats nothing, because the assistant drops a seen `eventId` and its read returns no event twice.
+Subscribing needs the `read` grant scope. atc's tools declare no per-tool security scheme, so the
+live check shows whether ChatGPT asks for `read` from the server's metadata alone or needs a tool to
+declare it.
 
 ## The live check
 
@@ -205,15 +208,16 @@ build in a home of its own:
 3. In ChatGPT, add a plugin with the URL `https://<public_host>/mcp` and the client ID, sign in with
    the passkey, and grant `read`.
 4. Select **Refresh tools** on the plugin page. Expect the atc event types next to the tools.
-5. In a Work chat on the web, ask: "Watch my atc sessions, and when one needs me, tell me which one
-   and why." Expect an `events/subscribe` request in the server's log, then a `verification` POST to
+5. In a Work chat on the web, ask: "Read my atc event feed once, then watch my atc sessions, and
+   when one needs me, tell me which one and why." Expect an `atc_events_read` call, then an
+   `events/subscribe` request in the server's log, then a `verification` POST to
    `connectors.api.openai.com` that returns 2xx.
 6. Spawn a session on that build and leave it at a permission prompt. Expect a signed delivery that
    returns 2xx within seconds, then a ChatGPT message that names the session id.
-7. Ask the chat what changed since its last event. Expect an `atc_events_read` call that passes the
-   cursor from the delivery.
-8. Repeat steps 5 to 7 in a dot. A dot that wakes without the event's data still has the cursor, so
-   its read in step 7 finds the event.
+7. Ask the chat what changed since its last read. Expect an `atc_events_read` call that passes the
+   cursor from the read in step 5 and returns the permission prompt's event.
+8. Repeat steps 5 to 7 in a dot. A dot that wakes without the event's data finds the event in its
+   step 7 read, because that read starts from the cursor of its step 5 read.
 
 Keep the server log of steps 5 to 7, and ChatGPT's replies, as the evidence. Step 6 fails safe: a
 missed delivery shows as an event the chat finds only in step 7.
