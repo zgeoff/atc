@@ -1,5 +1,43 @@
 # Changelog
 
+## [7.1.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.0.0...@zgeoff/atc@7.1.0) (2026-10-22)
+
+### Features
+
+- **daemon:** keep each daemon restart in the event trail
+  ([#868](https://github.com/zgeoff/atc/issues/868))
+  ([cb24d84](https://github.com/zgeoff/atc/commit/cb24d84e4e6c0c4ea14c8564981c84e9b21cf91e))
+- **daemon:** put each daemon restart and its result on the event feed
+  ([#866](https://github.com/zgeoff/atc/issues/866))
+  ([24bae0d](https://github.com/zgeoff/atc/commit/24bae0de83f67cda56884df956e9d0ab66368574))
+- **daemon:** record the session's name and transcript path
+  ([#865](https://github.com/zgeoff/atc/issues/865))
+  ([63273ae](https://github.com/zgeoff/atc/commit/63273ae70b4f1adcde66c4fba8e71600b9e3f9c6))
+- **protocol:** return the kernel's peer session from daemon.hello
+  ([#901](https://github.com/zgeoff/atc/issues/901))
+  ([5ec9f97](https://github.com/zgeoff/atc/commit/5ec9f97909ea76452f061bd88faee3127fdf4c9d))
+
+### Bug Fixes
+
+- **auth:** restore a host bound under an older form of its grants
+  ([#862](https://github.com/zgeoff/atc/issues/862))
+  ([481e4bb](https://github.com/zgeoff/atc/commit/481e4bb041f6b977959dd17f99abe27866a7bf73))
+- **mcp:** say an uninstalled agent still spawns on a remote target
+  ([#908](https://github.com/zgeoff/atc/issues/908))
+  ([2df6016](https://github.com/zgeoff/atc/commit/2df6016250244ba9eb448d4b8e6569e4f99c6bc9))
+- **tui:** tell an outdated client to reopen, not to restart the daemon
+  ([#863](https://github.com/zgeoff/atc/issues/863))
+  ([a1e4009](https://github.com/zgeoff/atc/commit/a1e4009bcd8671aa084d882464a07a0235f57b17))
+
+### Performance Improvements
+
+- **app:** load only the code each boot path needs
+  ([#902](https://github.com/zgeoff/atc/issues/902))
+  ([f536742](https://github.com/zgeoff/atc/commit/f536742f53b9e4623552b1228e223929f7fde9f4))
+- **lifecycle:** connect to a started daemon once it signals ready
+  ([#904](https://github.com/zgeoff/atc/issues/904))
+  ([2a5b569](https://github.com/zgeoff/atc/commit/2a5b569d2724c0c028e8f3a02cd51a5b19f6dbcd))
+
 ## [7.0.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@6.0.1...@zgeoff/atc@7.0.0) (2026-10-21)
 
 ### ⚠ BREAKING CHANGES
