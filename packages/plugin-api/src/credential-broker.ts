@@ -7,22 +7,14 @@ export interface CredentialBroker {
   // The name of the host a host key runs on.
   readonly getHostName: (hostKey: string) => string;
 
-  // The provider's own words for atc's messages about the broker.
   readonly describe: {
-    // the display name a message gives the broker, as in "the <name> broker".
     readonly name: string;
-
-    // The step that gives the broker a new value for a secret, which a
-    // refusal for a secret the agent cannot sign in with ends with. Absent:
-    // the refusal ends with the neutral step alone.
     readonly renewSecret?: (secret: string, kind: BrokerSecretKind) => string;
-
-    // the step that replaces a broker older than this atc supports.
     readonly upgrade?: string;
   };
 
-  // Rejects with `too_old` when the broker is older than the oldest broker
-  // this atc supports.
+  // Rejects when the broker is older than the oldest broker this atc
+  // supports.
   readonly verifyVersion: () => Promise<void>;
 
   // The provider's own identity: its scope, the hosts it may reach, and the
