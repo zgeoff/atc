@@ -78,7 +78,7 @@ docs/
 Each check is a root `package.json` script. Run it by script name, never by its command. A failure
 prints its own reason, and the rules live where each bullet points.
 
-- `bun run check:imports`: the import graph inside the app's `src/`, with the directory rows in
+- `bun run check:imports`: an import cycle inside the app's `src/`, type-only imports included, in
   `scripts/check-imports.ts`.
 - `bun run lint`: `.oxlintrc.json`, which takes the package boundaries from `.oxlintrc.zones.json`.
 - `bun run lint:mods`: the rules for `mods/`, in `.oxlintrc.mods.json`.

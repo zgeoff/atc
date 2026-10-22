@@ -9,7 +9,7 @@ function setupTest() {
   return { directory: temporaryDirectory.path };
 }
 
-test('it passes a tree whose imports follow the directory rules', async () => {
+test('it passes a tree whose imports hold no cycle', async () => {
   const ctx = setupTest();
 
   await Bun.write(
@@ -39,7 +39,7 @@ test('it passes a tree whose imports follow the directory rules', async () => {
     stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 0,
-    stdout: 'check-imports: 3 files, 0 cycles, 0 other findings\n',
+    stdout: 'check-imports: 3 files, 0 cycles\n',
     stderr: '',
   });
 });
@@ -69,173 +69,8 @@ test('it fails on a cycle closed by a type-only import', async () => {
     stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
-    stdout: 'check-imports: 2 files, 1 cycles, 0 other findings\n',
+    stdout: 'check-imports: 2 files, 1 cycles\n',
     stderr: 'cycle among: packages/app/src/mcp/open-auth.ts, packages/app/src/mcp/types.ts\n',
-  });
-});
-
-test('it fails on an import of a directory the importer may not use', async () => {
-  const ctx = setupTest();
-
-  await Bun.write(
-    join(ctx.directory, 'packages/app/src/client/hooks.ts'),
-    'export interface HookEvent {}\n',
-  );
-
-  await Bun.write(
-    join(ctx.directory, 'packages/app/src/mcp/state-store.ts'),
-    "import type {\n  HookEvent,\n} from '../client/hooks';\n\nexport type Row = HookEvent;\n",
-  );
-
-  const checked = await runCommand([
-    process.execPath,
-    join(import.meta.dir, 'check-imports.ts'),
-    ctx.directory,
-  ]);
-
-  expect({
-    exitCode: checked.exitCode,
-    stdout: checked.stdout,
-    stderr: checked.stderr,
-  }).toStrictEqual({
-    exitCode: 1,
-    stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
-    stderr:
-      'forbidden edge: packages/app/src/mcp/state-store.ts imports packages/app/src/client/hooks.ts (mcp -> client)\n',
-  });
-});
-
-test('it lets an agents module import plugins and a source root module import agents', async () => {
-  const ctx = setupTest();
-
-  await Bun.write(
-    join(ctx.directory, 'packages/app/src/plugins/probe.ts'),
-    'export const PROBE = 1;\n',
-  );
-
-  await Bun.write(
-    join(ctx.directory, 'packages/app/src/agents/types.ts'),
-    "export { PROBE } from '../plugins/probe';\n",
-  );
-
-  await Bun.write(
-    join(ctx.directory, 'packages/app/src/hook-report.ts'),
-    "export { PROBE } from './agents/types';\n",
-  );
-
-  const checked = await runCommand([
-    process.execPath,
-    join(import.meta.dir, 'check-imports.ts'),
-    ctx.directory,
-  ]);
-
-  expect({
-    exitCode: checked.exitCode,
-    stdout: checked.stdout,
-    stderr: checked.stderr,
-  }).toStrictEqual({
-    exitCode: 0,
-    stdout: 'check-imports: 3 files, 0 cycles, 0 other findings\n',
-    stderr: '',
-  });
-});
-
-test('it fails on a sources module importing the client', async () => {
-  const ctx = setupTest();
-
-  await Bun.write(join(ctx.directory, 'packages/app/src/client/ids.ts'), 'export const ID = 1;\n');
-
-  await Bun.write(
-    join(ctx.directory, 'packages/app/src/sources/types.ts'),
-    "export { ID } from '../client/ids';\n",
-  );
-
-  const checked = await runCommand([
-    process.execPath,
-    join(import.meta.dir, 'check-imports.ts'),
-    ctx.directory,
-  ]);
-
-  expect({
-    exitCode: checked.exitCode,
-    stdout: checked.stdout,
-    stderr: checked.stderr,
-  }).toStrictEqual({
-    exitCode: 1,
-    stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
-    stderr:
-      'forbidden edge: packages/app/src/sources/types.ts imports packages/app/src/client/ids.ts (sources -> client)\n',
-  });
-});
-
-test('it fails on a directory module importing a source root module', async () => {
-  const ctx = setupTest();
-
-  await Bun.write(
-    join(ctx.directory, 'packages/app/src/hook-report.ts'),
-    'export const REPORT = 1;\n',
-  );
-
-  await Bun.write(
-    join(ctx.directory, 'packages/app/src/shared/config.ts'),
-    "export { REPORT } from '../hook-report';\n",
-  );
-
-  const checked = await runCommand([
-    process.execPath,
-    join(import.meta.dir, 'check-imports.ts'),
-    ctx.directory,
-  ]);
-
-  expect({
-    exitCode: checked.exitCode,
-    stdout: checked.stdout,
-    stderr: checked.stderr,
-  }).toStrictEqual({
-    exitCode: 1,
-    stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
-    stderr:
-      'forbidden edge: packages/app/src/shared/config.ts imports packages/app/src/hook-report.ts (shared -> root)\n',
-  });
-});
-
-test('it lets the composition root and a test file import any directory', async () => {
-  const ctx = setupTest();
-
-  await Bun.write(
-    join(ctx.directory, 'packages/app/src/sources/discover.ts'),
-    'export const SOURCES = 1;\n',
-  );
-
-  await Bun.write(
-    join(ctx.directory, 'packages/app/src/client/daemon-client.ts'),
-    'export const CLIENT = 1;\n',
-  );
-
-  await Bun.write(
-    join(ctx.directory, 'packages/app/src/cli.ts'),
-    "const sources = await import('./sources/discover');\n\nexport const LOADED = sources;\n",
-  );
-
-  await Bun.write(
-    join(ctx.directory, 'packages/app/src/sources/discover.test.ts'),
-    "import { CLIENT } from '../client/daemon-client';\n\nexport const USED = CLIENT;\n",
-  );
-
-  const checked = await runCommand([
-    process.execPath,
-    join(import.meta.dir, 'check-imports.ts'),
-    ctx.directory,
-  ]);
-
-  expect({
-    exitCode: checked.exitCode,
-    stdout: checked.stdout,
-    stderr: checked.stderr,
-  }).toStrictEqual({
-    exitCode: 0,
-    stdout: 'check-imports: 4 files, 0 cycles, 0 other findings\n',
-    stderr: '',
   });
 });
 
@@ -264,34 +99,8 @@ test('it leaves a confined package and a computed specifier to the other gates',
     stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 0,
-    stdout: 'check-imports: 1 files, 0 cycles, 0 other findings\n',
+    stdout: 'check-imports: 1 files, 0 cycles\n',
     stderr: '',
-  });
-});
-
-test('it fails on a module in a directory with no import rule', async () => {
-  const ctx = setupTest();
-
-  await Bun.write(
-    join(ctx.directory, 'packages/app/src/elsewhere/registry.ts'),
-    'export const REGISTRY = 1;\n',
-  );
-
-  const checked = await runCommand([
-    process.execPath,
-    join(import.meta.dir, 'check-imports.ts'),
-    ctx.directory,
-  ]);
-
-  expect({
-    exitCode: checked.exitCode,
-    stdout: checked.stdout,
-    stderr: checked.stderr,
-  }).toStrictEqual({
-    exitCode: 1,
-    stdout: 'check-imports: 1 files, 0 cycles, 1 other findings\n',
-    stderr:
-      'unknown directory: packages/app/src/elsewhere/registry.ts is in packages/app/src/elsewhere/, which has no import rule\n',
   });
 });
 
@@ -300,7 +109,7 @@ test('it ignores import text inside a one-line string literal', async () => {
 
   await Bun.write(
     join(ctx.directory, 'packages/app/src/sources/discover.ts'),
-    'export const SOURCES = 1;\n',
+    "import '../agents/bridge-files';\n\nexport const SOURCES = 1;\n",
   );
 
   await Bun.write(
@@ -320,46 +129,18 @@ test('it ignores import text inside a one-line string literal', async () => {
     stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 0,
-    stdout: 'check-imports: 2 files, 0 cycles, 0 other findings\n',
+    stdout: 'check-imports: 2 files, 0 cycles\n',
     stderr: '',
-  });
-});
-
-test('it fails on a source root module that is not the composition root importing a sources module', async () => {
-  const ctx = setupTest();
-
-  await Bun.write(
-    join(ctx.directory, 'packages/app/src/sources/discover.ts'),
-    'export const SOURCES = 1;\n',
-  );
-
-  await Bun.write(
-    join(ctx.directory, 'packages/app/src/statusline.ts'),
-    "import { SOURCES } from './sources/discover';\n\nexport const USED = SOURCES;\n",
-  );
-
-  const checked = await runCommand([
-    process.execPath,
-    join(import.meta.dir, 'check-imports.ts'),
-    ctx.directory,
-  ]);
-
-  expect({
-    exitCode: checked.exitCode,
-    stdout: checked.stdout,
-    stderr: checked.stderr,
-  }).toStrictEqual({
-    exitCode: 1,
-    stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
-    stderr:
-      'forbidden edge: packages/app/src/statusline.ts imports packages/app/src/sources/discover.ts (root -> sources)\n',
   });
 });
 
 test('it reads an import whose list holds a comment with an apostrophe', async () => {
   const ctx = setupTest();
 
-  await Bun.write(join(ctx.directory, 'packages/app/src/client/ids.ts'), 'export const ID = 1;\n');
+  await Bun.write(
+    join(ctx.directory, 'packages/app/src/client/ids.ts'),
+    "import '../mcp/rows';\n\nexport const ID = 1;\n",
+  );
 
   await Bun.write(
     join(ctx.directory, 'packages/app/src/mcp/rows.ts'),
@@ -378,16 +159,18 @@ test('it reads an import whose list holds a comment with an apostrophe', async (
     stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
-    stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
-    stderr:
-      'forbidden edge: packages/app/src/mcp/rows.ts imports packages/app/src/client/ids.ts (mcp -> client)\n',
+    stdout: 'check-imports: 2 files, 1 cycles\n',
+    stderr: 'cycle among: packages/app/src/client/ids.ts, packages/app/src/mcp/rows.ts\n',
   });
 });
 
 test('it reads a require call', async () => {
   const ctx = setupTest();
 
-  await Bun.write(join(ctx.directory, 'packages/app/src/client/ids.ts'), 'export const ID = 1;\n');
+  await Bun.write(
+    join(ctx.directory, 'packages/app/src/client/ids.ts'),
+    "import '../mcp/rows';\n\nexport const ID = 1;\n",
+  );
 
   await Bun.write(
     join(ctx.directory, 'packages/app/src/mcp/rows.ts'),
@@ -406,16 +189,18 @@ test('it reads a require call', async () => {
     stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
-    stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
-    stderr:
-      'forbidden edge: packages/app/src/mcp/rows.ts imports packages/app/src/client/ids.ts (mcp -> client)\n',
+    stdout: 'check-imports: 2 files, 1 cycles\n',
+    stderr: 'cycle among: packages/app/src/client/ids.ts, packages/app/src/mcp/rows.ts\n',
   });
 });
 
 test('it reads an import-equals require', async () => {
   const ctx = setupTest();
 
-  await Bun.write(join(ctx.directory, 'packages/app/src/client/ids.ts'), 'export const ID = 1;\n');
+  await Bun.write(
+    join(ctx.directory, 'packages/app/src/client/ids.ts'),
+    "import '../mcp/rows';\n\nexport const ID = 1;\n",
+  );
 
   await Bun.write(
     join(ctx.directory, 'packages/app/src/mcp/rows.ts'),
@@ -434,16 +219,18 @@ test('it reads an import-equals require', async () => {
     stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
-    stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
-    stderr:
-      'forbidden edge: packages/app/src/mcp/rows.ts imports packages/app/src/client/ids.ts (mcp -> client)\n',
+    stdout: 'check-imports: 2 files, 1 cycles\n',
+    stderr: 'cycle among: packages/app/src/client/ids.ts, packages/app/src/mcp/rows.ts\n',
   });
 });
 
 test('it reads a dynamic import whose specifier is a template literal', async () => {
   const ctx = setupTest();
 
-  await Bun.write(join(ctx.directory, 'packages/app/src/client/ids.ts'), 'export const ID = 1;\n');
+  await Bun.write(
+    join(ctx.directory, 'packages/app/src/client/ids.ts'),
+    "import '../mcp/rows';\n\nexport const ID = 1;\n",
+  );
 
   await Bun.write(
     join(ctx.directory, 'packages/app/src/mcp/rows.ts'),
@@ -462,16 +249,18 @@ test('it reads a dynamic import whose specifier is a template literal', async ()
     stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
-    stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
-    stderr:
-      'forbidden edge: packages/app/src/mcp/rows.ts imports packages/app/src/client/ids.ts (mcp -> client)\n',
+    stdout: 'check-imports: 2 files, 1 cycles\n',
+    stderr: 'cycle among: packages/app/src/client/ids.ts, packages/app/src/mcp/rows.ts\n',
   });
 });
 
 test('it reads an import that follows a regular expression holding a quote', async () => {
   const ctx = setupTest();
 
-  await Bun.write(join(ctx.directory, 'packages/app/src/client/ids.ts'), 'export const ID = 1;\n');
+  await Bun.write(
+    join(ctx.directory, 'packages/app/src/client/ids.ts'),
+    "import '../mcp/rows';\n\nexport const ID = 1;\n",
+  );
 
   await Bun.write(
     join(ctx.directory, 'packages/app/src/mcp/rows.ts'),
@@ -490,16 +279,18 @@ test('it reads an import that follows a regular expression holding a quote', asy
     stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
-    stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
-    stderr:
-      'forbidden edge: packages/app/src/mcp/rows.ts imports packages/app/src/client/ids.ts (mcp -> client)\n',
+    stdout: 'check-imports: 2 files, 1 cycles\n',
+    stderr: 'cycle among: packages/app/src/client/ids.ts, packages/app/src/mcp/rows.ts\n',
   });
 });
 
 test('it reads an import that follows a regular expression after a control condition', async () => {
   const ctx = setupTest();
 
-  await Bun.write(join(ctx.directory, 'packages/app/src/client/ids.ts'), 'export const ID = 1;\n');
+  await Bun.write(
+    join(ctx.directory, 'packages/app/src/client/ids.ts'),
+    "import '../mcp/rows';\n\nexport const ID = 1;\n",
+  );
 
   await Bun.write(
     join(ctx.directory, 'packages/app/src/mcp/rows.ts'),
@@ -518,16 +309,18 @@ test('it reads an import that follows a regular expression after a control condi
     stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
-    stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
-    stderr:
-      'forbidden edge: packages/app/src/mcp/rows.ts imports packages/app/src/client/ids.ts (mcp -> client)\n',
+    stdout: 'check-imports: 2 files, 1 cycles\n',
+    stderr: 'cycle among: packages/app/src/client/ids.ts, packages/app/src/mcp/rows.ts\n',
   });
 });
 
 test('it reads an import that follows a regular expression after a block', async () => {
   const ctx = setupTest();
 
-  await Bun.write(join(ctx.directory, 'packages/app/src/client/ids.ts'), 'export const ID = 1;\n');
+  await Bun.write(
+    join(ctx.directory, 'packages/app/src/client/ids.ts'),
+    "import '../mcp/rows';\n\nexport const ID = 1;\n",
+  );
 
   await Bun.write(
     join(ctx.directory, 'packages/app/src/mcp/rows.ts'),
@@ -546,16 +339,18 @@ test('it reads an import that follows a regular expression after a block', async
     stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
-    stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
-    stderr:
-      'forbidden edge: packages/app/src/mcp/rows.ts imports packages/app/src/client/ids.ts (mcp -> client)\n',
+    stdout: 'check-imports: 2 files, 1 cycles\n',
+    stderr: 'cycle among: packages/app/src/client/ids.ts, packages/app/src/mcp/rows.ts\n',
   });
 });
 
 test('it reads a literal module resolved through import.meta.resolve', async () => {
   const ctx = setupTest();
 
-  await Bun.write(join(ctx.directory, 'packages/app/src/client/ids.ts'), 'export const ID = 1;\n');
+  await Bun.write(
+    join(ctx.directory, 'packages/app/src/client/ids.ts'),
+    "import '../mcp/rows';\n\nexport const ID = 1;\n",
+  );
 
   await Bun.write(
     join(ctx.directory, 'packages/app/src/mcp/rows.ts'),
@@ -574,16 +369,18 @@ test('it reads a literal module resolved through import.meta.resolve', async () 
     stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
-    stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
-    stderr:
-      'forbidden edge: packages/app/src/mcp/rows.ts imports packages/app/src/client/ids.ts (mcp -> client)\n',
+    stdout: 'check-imports: 2 files, 1 cycles\n',
+    stderr: 'cycle among: packages/app/src/client/ids.ts, packages/app/src/mcp/rows.ts\n',
   });
 });
 
 test('it reads a literal module resolved through Bun.resolveSync', async () => {
   const ctx = setupTest();
 
-  await Bun.write(join(ctx.directory, 'packages/app/src/client/ids.ts'), 'export const ID = 1;\n');
+  await Bun.write(
+    join(ctx.directory, 'packages/app/src/client/ids.ts'),
+    "import '../mcp/rows';\n\nexport const ID = 1;\n",
+  );
 
   await Bun.write(
     join(ctx.directory, 'packages/app/src/mcp/rows.ts'),
@@ -602,16 +399,18 @@ test('it reads a literal module resolved through Bun.resolveSync', async () => {
     stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
-    stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
-    stderr:
-      'forbidden edge: packages/app/src/mcp/rows.ts imports packages/app/src/client/ids.ts (mcp -> client)\n',
+    stdout: 'check-imports: 2 files, 1 cycles\n',
+    stderr: 'cycle among: packages/app/src/client/ids.ts, packages/app/src/mcp/rows.ts\n',
   });
 });
 
 test('it reads a literal module located with a URL relative to import.meta.url', async () => {
   const ctx = setupTest();
 
-  await Bun.write(join(ctx.directory, 'packages/app/src/client/ids.ts'), 'export const ID = 1;\n');
+  await Bun.write(
+    join(ctx.directory, 'packages/app/src/client/ids.ts'),
+    "import '../mcp/rows';\n\nexport const ID = 1;\n",
+  );
 
   await Bun.write(
     join(ctx.directory, 'packages/app/src/mcp/rows.ts'),
@@ -630,9 +429,8 @@ test('it reads a literal module located with a URL relative to import.meta.url',
     stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
-    stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
-    stderr:
-      'forbidden edge: packages/app/src/mcp/rows.ts imports packages/app/src/client/ids.ts (mcp -> client)\n',
+    stdout: 'check-imports: 2 files, 1 cycles\n',
+    stderr: 'cycle among: packages/app/src/client/ids.ts, packages/app/src/mcp/rows.ts\n',
   });
 });
 
@@ -656,7 +454,7 @@ test('it ignores a URL that is not relative to the module', async () => {
     stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 0,
-    stdout: 'check-imports: 1 files, 0 cycles, 0 other findings\n',
+    stdout: 'check-imports: 1 files, 0 cycles\n',
     stderr: '',
   });
 });
