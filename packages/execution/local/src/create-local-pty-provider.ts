@@ -12,14 +12,7 @@ import type {
 } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import { spawn } from 'bun-pty';
-import { buildHarnessArgv } from './build-harness-argv';
 import type { SessionScopes } from './create-session-scopes';
-import { readNativeEnvKeys } from './read-native-env-keys';
-
-// The PTY library lays the map over the environment the daemon started with,
-// so the harness starts behind env, which unsets every name the map leaves out
-// and replaces itself with the harness.
-const ENV_BIN = '/usr/bin/env';
 
 // `clock` is the clock a harness's exit is waited on. `scopes` are the scopes
 // harnesses start in, or null when they start as the daemon's plain children.
@@ -64,16 +57,10 @@ export function createLocalPTYProvider(
 
       const env = buildPTYEnv(spec);
       const bin = resolveHarnessBin(spec.bin, env, spec.cwd);
-      const unset = buildUnsetNames(env, [...readNativeEnvKeys(), ...Object.keys(process.env)]);
 
-      const argv = [
-        ENV_BIN,
-        ...buildHarnessArgv({ unset, env, platform: process.platform, bin, args: spec.args }),
-      ];
-
-      const command = scopes?.buildCommand(spec.session, argv) ?? {
-        file: ENV_BIN,
-        args: argv.slice(1),
+      const command = scopes?.buildCommand(spec.session, [bin, ...spec.args]) ?? {
+        file: bin,
+        args: [...spec.args],
       };
 
       // bun-pty sets TERM from `name` over the map's TERM, so the harness keeps
@@ -197,9 +184,9 @@ function buildPTYEnv(spec: HarnessSpec): Record<string, string> {
   };
 }
 
-// The program is found on the map's PATH before the harness starts, so a
-// missing program fails the spawn as the PTY library fails it, instead of
-// starting `env` only to exit.
+// The PTY library looks a bare program up on the daemon's own PATH when the
+// map holds none, and starts a missing program only for it to exit, so the
+// program is found on the map's PATH before the harness starts.
 function resolveHarnessBin(
   bin: string,
   env: Readonly<Record<string, string>>,
@@ -212,17 +199,6 @@ function resolveHarnessBin(
   }
 
   return resolved;
-}
-
-// A name the native environment block cannot hold, such as one with `=`,
-// is left alone, since `env` refuses to unset it.
-function buildUnsetNames(
-  env: Readonly<Record<string, string>>,
-  inherited: readonly string[],
-): string[] {
-  return [...new Set(inherited)].filter(
-    (name) => name !== '' && !name.includes('=') && !Object.hasOwn(env, name),
-  );
 }
 
 function isMissingProcessError(error: unknown): boolean {
