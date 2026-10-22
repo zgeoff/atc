@@ -1,16 +1,11 @@
-import { expect, test } from 'bun:test';
+import { expect, mock, test } from 'bun:test';
 import { DaemonError } from '@atc/protocol/wire';
 import { buildStubCredentialBroker } from '../testing/build-stub-credential-broker';
 import { toSignInRefusal } from './to-sign-in-refusal';
 
 test("it ends a Codex sign-in refusal with the broker's step to renew the secret", () => {
-  const broker = {
-    ...buildStubCredentialBroker(),
-    describe: {
-      name: 'harbor',
-      renewSecret: (secret: string, kind: string) => `run harbor put ${secret} --kind ${kind}`,
-    },
-  };
+  const renewSecret = mock(() => 'run harbor put codex-chatgpt --kind oauth');
+  const broker = { ...buildStubCredentialBroker(), describe: { name: 'harbor', renewSecret } };
 
   const refusal = new DaemonError(
     'auth_signin_needed',
@@ -34,6 +29,8 @@ test("it ends a Codex sign-in refusal with the broker's step to renew the secret
       "agent 'codex' signs in through codex-chatgpt, whose sign-in in the broker is needs_login; sign Codex in again and give the broker the new refresh token for codex-chatgpt; run harbor put codex-chatgpt --kind oauth",
     data: { agent: 'codex', secret: 'codex-chatgpt', status: 'needs_login' },
   });
+
+  expect(renewSecret).toHaveBeenCalledExactlyOnceWith('codex-chatgpt', 'oauth');
 });
 
 test('it keeps the neutral sign-in refusal alone for a broker that gives no renew step', () => {
@@ -55,13 +52,8 @@ test('it keeps the neutral sign-in refusal alone for a broker that gives no rene
 });
 
 test('it keeps a sign-in refusal alone when the binding holds no secret of its name', () => {
-  const broker = {
-    ...buildStubCredentialBroker(),
-    describe: {
-      name: 'harbor',
-      renewSecret: (secret: string, kind: string) => `run harbor put ${secret} --kind ${kind}`,
-    },
-  };
+  const renewSecret = mock(() => 'run harbor put codex-chatgpt --kind oauth');
+  const broker = { ...buildStubCredentialBroker(), describe: { name: 'harbor', renewSecret } };
 
   const refusal = new DaemonError(
     'auth_signin_needed',
@@ -73,13 +65,8 @@ test('it keeps a sign-in refusal alone when the binding holds no secret of its n
 });
 
 test('it passes any other refusal through unchanged', () => {
-  const broker = {
-    ...buildStubCredentialBroker(),
-    describe: {
-      name: 'harbor',
-      renewSecret: (secret: string, kind: string) => `run harbor put ${secret} --kind ${kind}`,
-    },
-  };
+  const renewSecret = mock(() => 'run harbor put codex-chatgpt --kind oauth');
+  const broker = { ...buildStubCredentialBroker(), describe: { name: 'harbor', renewSecret } };
 
   const refusal = new DaemonError('auth_blocked', 'the runtime auth of host s-1 is failed', {
     secret: 'codex-chatgpt',
