@@ -3,6 +3,7 @@
 import { resolve } from 'node:path';
 import { parseListenAddress } from '@atc/config/host';
 import type { HostServices } from '@atc/plugin-api';
+import { PROCESS_IO } from './process-io';
 import { runATCCLI } from './run-atc-cli';
 import type { ATCCLIIO } from './run-atc-cli';
 
@@ -13,7 +14,8 @@ let pendingHostServices: Promise<HostServices> | null = null;
 
 // What each command runs in this process, loading its modules only when it
 // runs.
-const PROCESS_IO: ATCCLIIO = {
+const ATC_CLI_IO: ATCCLIIO = {
+  ...PROCESS_IO,
   runTUI: async (daemon) => {
     const lifecycle = await import('./build-lifecycle-host');
     const tui = await import('@atc/tui');
@@ -206,15 +208,6 @@ const PROCESS_IO: ATCCLIIO = {
 
     await reporters.runStatusline(agent);
   },
-  print: (line) => {
-    console.log(line);
-  },
-  printError: (line) => {
-    console.error(line);
-  },
-  exit: (code) => {
-    process.exit(code);
-  },
 };
 
 interface RestartArgs {
@@ -290,4 +283,4 @@ async function runSessionCommand(action: 'rebind' | 'adopt', id: string): Promis
   return code;
 }
 
-await runATCCLI(process.argv.slice(2), PROCESS_IO);
+await runATCCLI(process.argv.slice(2), ATC_CLI_IO);

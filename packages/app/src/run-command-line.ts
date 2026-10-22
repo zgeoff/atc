@@ -5,13 +5,10 @@ import {
   isCommandResolutionError,
 } from 'gunshi';
 import type { Command, CommandContext, SubCommandable } from 'gunshi';
+import type { ProcessIO } from './process-io';
 
 // What a command line writes to and how it ends: the console and the exit.
-export interface CommandLineIO {
-  readonly print: (line: string) => void;
-  readonly printError: (line: string) => void;
-  readonly exit: (code: number) => void;
-}
+export type CommandLineIO = Pick<ProcessIO, 'print' | 'printError' | 'exit'>;
 
 // A binary's command tree, below its entry command, and how the binary
 // presents itself in usage.

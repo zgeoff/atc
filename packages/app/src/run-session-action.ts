@@ -1,16 +1,11 @@
 import type { DaemonClient } from '@atc/protocol/client';
 import { DaemonError } from '@atc/protocol/wire';
+import { PROCESS_IO } from './process-io';
+import type { ProcessIO } from './process-io';
 
 // What `atc session` does to one session: rebind its host's runtime auth,
 // or start a terminal for it.
 type SessionAction = 'rebind' | 'adopt';
-
-// Where the command prints its result and its refusal: stdout and stderr by
-// default.
-interface SessionActionIO {
-  readonly print: (line: string) => void;
-  readonly printError: (line: string) => void;
-}
 
 // The terminal size an adopted session starts at.
 interface TerminalSize {
@@ -18,21 +13,12 @@ interface TerminalSize {
   readonly rows: number;
 }
 
-const PROCESS_IO: SessionActionIO = {
-  print: (line) => {
-    console.log(line);
-  },
-  printError: (line) => {
-    console.error(line);
-  },
-};
-
 export async function runSessionAction(
   client: Pick<DaemonClient, 'sendRequest'>,
   action: SessionAction,
   session: string,
   size: TerminalSize,
-  io: SessionActionIO = PROCESS_IO,
+  io: Pick<ProcessIO, 'print' | 'printError'> = PROCESS_IO,
 ): Promise<number> {
   try {
     if (action === 'rebind') {

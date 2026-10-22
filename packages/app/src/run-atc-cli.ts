@@ -3,8 +3,10 @@ import { define, lazy } from 'gunshi';
 import { integer } from 'gunshi/combinators';
 import pkg from '../package.json';
 import type { runClients } from './clients';
+import { createClientsCommand } from './create-clients-command';
 import { createDaemonCommand } from './create-daemon-command';
 import type { DaemonCommandIO } from './create-daemon-command';
+import { createPasskeysCommand } from './create-passkeys-command';
 import type { runPasskeys } from './passkeys';
 import { makeMissingCommandRun, runCommandLine } from './run-command-line';
 import type { CommandLineIO } from './run-command-line';
@@ -112,94 +114,16 @@ export async function runATCCLI(argv: readonly string[], io: ATCCLIIO): Promise<
     },
   );
 
-  const clients = define({
-    name: 'clients',
-    description: 'List, add, or remove the clients that may connect to atc mcp --http',
-    subCommands: {
-      list: lazy(
-        () => async () => {
-          await io.runClients({ kind: 'list' });
-        },
-        { name: 'list', description: 'List the clients', internal: true },
-      ),
-      add: lazy(
-        () => async (ctx) => {
-          await io.runClients({
-            kind: 'add',
-            name: ctx.values.name,
-            redirectURIs: ctx.values['redirect-uri'],
-          });
-        },
-        {
-          name: 'add',
-          description: 'Add a client and print its client ID',
-          args: {
-            name: { type: 'positional', description: 'The client name' },
-            'redirect-uri': {
-              type: 'string',
-              multiple: true,
-              required: true,
-              description: 'A redirect URI the client returns to; repeat for more',
-            },
-          },
-        },
-      ),
-      remove: lazy(
-        () => async (ctx) => {
-          await io.runClients({ kind: 'remove', clientID: ctx.values.id });
-        },
-        {
-          name: 'remove',
-          description: 'Remove a client and revoke every grant it holds',
-          args: { id: { type: 'positional', description: 'The client ID' } },
-        },
-      ),
-    },
-    run: async () => {
-      await io.runClients({ kind: 'list' });
-    },
+  const clients = createClientsCommand({
+    server: 'atc mcp --http',
+    args: {},
+    runClients: (action) => io.runClients(action),
   });
 
-  const passkeys = define({
-    name: 'passkeys',
-    description: 'List, enroll, or remove the passkeys the owner signs in to atc mcp --http with',
-    subCommands: {
-      list: lazy(
-        () => async () => {
-          await io.runPasskeys({ kind: 'list' });
-        },
-        { name: 'list', description: 'List the enrolled passkeys', internal: true },
-      ),
-      enroll: lazy(
-        () => async (ctx) => {
-          await io.runPasskeys({ kind: 'enroll', reset: ctx.values.reset === true });
-        },
-        {
-          name: 'enroll',
-          description:
-            'Print a one-time token that enrolls a passkey; --reset first removes every passkey',
-          args: {
-            reset: {
-              type: 'boolean',
-              description: 'Remove every passkey and browser sign-in first, after losing them',
-            },
-          },
-        },
-      ),
-      remove: lazy(
-        () => async (ctx) => {
-          await io.runPasskeys({ kind: 'remove', id: ctx.values.id });
-        },
-        {
-          name: 'remove',
-          description: 'Remove a passkey, such as a lost one',
-          args: { id: { type: 'positional', description: 'The passkey ID' } },
-        },
-      ),
-    },
-    run: async () => {
-      await io.runPasskeys({ kind: 'list' });
-    },
+  const passkeys = createPasskeysCommand({
+    server: 'atc mcp --http',
+    args: {},
+    runPasskeys: (action) => io.runPasskeys(action),
   });
 
   const session = define({
