@@ -52,6 +52,15 @@ export async function startInProcessMCP(config: InProcessMCPConfig) {
     pending.delete(message.id);
   };
 
+  // oxlint-disable-next-line unicorn/prefer-add-event-listener
+  client.onclose = () => {
+    for (const [id, waiting] of pending) {
+      waiting.reject(new Error(`the MCP server closed before it answered request ${id}`));
+    }
+
+    pending.clear();
+  };
+
   const stop = registerTestCleanup(async () => {
     await server.close();
     await caller.stop();

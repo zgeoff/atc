@@ -51,3 +51,21 @@ test('it lists the tools after the initialize', async () => {
     },
   });
 });
+
+test('it rejects a request still unanswered when the server stops', async () => {
+  const ctx = await setupTest();
+
+  const mcp = await startInProcessMCP({
+    socketPath: ctx.daemon.socketPath,
+    build: ctx.daemon.build,
+  });
+
+  const listed = mcp.sendToolCall('atc_sessions_list', {});
+
+  await mcp.stop();
+
+  expect(listed).rejects.toThrowWithMessage(
+    Error,
+    'the MCP server closed before it answered request 2',
+  );
+});
