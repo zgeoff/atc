@@ -1,8 +1,8 @@
 name: Checks
 
-# The static checks with the bridge tests, the test suite, and the isolation
-# run, shared by the PR and main workflows; each caller's own checks job gates
-# on this one.
+# The static checks with the bridge tests, and the test suite run once inside
+# a canary home, shared by the PR and main workflows; each caller's own checks
+# job gates on this one.
 on:
   workflow_call:
 
@@ -135,14 +135,11 @@ jobs:
         run:
           bun run test packages/harnesses/codex/src/app-server/start-codex-app-server-bridge.test.ts
 
-  # the suite runs in two shards, balanced by the committed per-file timings
+  # the suite runs once, inside a home of canary files, and fails when a test
+  # reads, changes, or adds to a home it does not own
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2]
+    timeout-minutes: 20
     env:
       LEFTHOOK: 0
     steps:
@@ -167,33 +164,15 @@ jobs:
       - name: Test
         env:
           TMPDIR: /dev/shm
-        run: bun run test --shard=${{ matrix.shard }}/2
+        run:
+          bun run test:isolation bun run test --reporter=junit
+          --reporter-outfile="$RUNNER_TEMP/test-times.xml"
 
-  # the suite once more inside a home of canary files, failing when a test
-  # reads, changes, or adds to a home it does not own
-  isolation:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    env:
-      LEFTHOOK: 0
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      # the per-test times of each run on main, which the weekly audit reads
+      - name: Upload test times
+        if: github.event_name == 'push' && !cancelled()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          bun-version-file: .bun-version
-
-      - name: Install
-        run: bun install --frozen-lockfile
-
-      # the embedded shell tests run shellcheck and fail without it
-      - name: Install shellcheck
-        run: command -v shellcheck || { sudo apt-get update && sudo apt-get install -y shellcheck; }
-
-      # on tmpfs for the same reason as the test job's suite
-      - name: Test Isolation
-        env:
-          TMPDIR: /dev/shm
-        run: bun run test:isolation
+          name: test-times
+          path: ${{ runner.temp }}/test-times.xml
+          if-no-files-found: error
