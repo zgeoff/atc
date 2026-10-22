@@ -1,6 +1,7 @@
 import type { Clock, SessionID } from '@atc/core';
 import { systemClock } from '@atc/core';
 import { DaemonError } from '@atc/protocol/wire';
+import type { ErrorCode } from '@atc/protocol/wire';
 import type { FleetEntry, StateStore } from '@atc/store';
 import type { SessionManager } from '../sessions/create-session-manager';
 import type { SessionRuntime } from '../sessions/create-session-runtime';
@@ -436,7 +437,7 @@ function isOnEntryTarget(session: Session, entry: FleetEntry): boolean {
 // the refusals that leave one session without a terminal: its target is misconfigured,
 // gone, changed, without a provider here, or unable to start one, its agent refuses
 // every start, or its host's runtime auth binding, broker included, refuses the launch
-const REFUSED_ADOPT_CODES: ReadonlySet<string> = new Set([
+const REFUSED_ADOPT_CODES: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
   'unsupported_operation',
   'unknown_target',
   'target_unavailable',
