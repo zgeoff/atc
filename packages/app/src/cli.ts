@@ -1,6 +1,6 @@
 // atc CLI entry: no subcommand opens the client TUI; `hook-report` and
 // `statusline` are the commands injected into wrangled sessions.
-import { basename, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { parseListenAddress } from '@atc/config/host';
 import type { HostServices } from '@atc/plugin-api';
 import { runATCCLI } from './run-atc-cli';
@@ -109,7 +109,16 @@ const PROCESS_IO: ATCCLIIO = {
       process.exit(code);
     }
   },
-  runDaemon: (listen, tokenFile) => runDaemon(listen, tokenFile),
+  runDaemon: async (listen, tokenFile) => {
+    const daemon = await import('./run-daemon');
+
+    await daemon.runDaemon({
+      listen,
+      tokenFile,
+      env: process.env,
+      loadHostServices: resolveHostServices,
+    });
+  },
   runDaemonID: async () => {
     const id = await import('@atc/lifecycle');
     const lifecycle = await import('./build-lifecycle-host');
@@ -279,181 +288,6 @@ async function runSessionCommand(action: 'rebind' | 'adopt', id: string): Promis
   booted.client.stop();
 
   return code;
-}
-
-// Runs the daemon in the foreground until SIGTERM, with a TCP listener when
-// --listen and --token-file are given.
-async function runDaemon(listenArg: string | null, tokenFile: string | null): Promise<void> {
-  if ((listenArg === null) !== (tokenFile === null)) {
-    console.error('atc daemon: --listen and --token-file go together');
-    process.exit(1);
-  }
-
-  const listen = listenArg === null ? null : parseListenAddress(listenArg);
-
-  if (listen !== null && !listen.ok) {
-    console.error(`atc daemon: ${listen.message}`);
-    process.exit(1);
-  }
-
-  const ready = await import('@atc/lifecycle');
-
-  const signalReady = ready.makeDaemonReadySignal(process.env);
-
-  const daemon = await import('@atc/daemon');
-  const config = await import('@atc/config');
-  const harnessPlugins = await import('./plugins/shipped-harness-plugins');
-  const adapterBuilder = await import('./agents/build-agent-adapters');
-  const headless = await import('@atc/harness-claude');
-  const targets = await import('@atc/daemon');
-  const providers = await import('./plugins/create-shipped-execution-provider');
-  const executionPlugins = await import('./plugins/load-execution-plugins');
-  const sourceOrder = await import('@atc/daemon');
-  const builtinSources = await import('./sources/create-builtin-sources');
-  const home = await import('@atc/config/host');
-  const sqlite = await import('@atc/store/sqlite');
-
-  // The daemon never opens the gateway's authorization database, by any
-  // route, so an open of a file with its name fails in this process.
-  sqlite.registerRefusedSQLiteName(basename(config.mcpAuthDBFile));
-
-  const hostServices = await resolveHostServices();
-
-  // Test harnesses shrink the outbound queue to force overflow
-  // deterministically; unset means the production default.
-  const queueBytes = Number(process.env['ATC_QUEUE_BYTES']);
-  const cfg = config.loadConfig(harnessPlugins.SHIPPED_HARNESS_PLUGINS);
-
-  const plugins = await executionPlugins.loadExecutionPlugins(cfg.targets);
-
-  const built = targets.buildExecutionTargets(cfg.targets, (target) =>
-    providers.createShippedExecutionProvider(
-      plugins,
-      target,
-      hostServices,
-      process.env,
-      cfg.authProfiles,
-    ),
-  );
-
-  const targetErrors = [...cfg.targetErrors, ...built.errors];
-
-  for (const error of targetErrors) {
-    const line =
-      error.scope === 'config'
-        ? `${error.path} cannot be used (${error.problem}: ${error.detail}); every spawn is refused, local ones included, until it is fixed`
-        : error.problem;
-
-    console.error(`atc daemon: config: ${line}`);
-  }
-
-  for (const problem of [
-    ...cfg.principalErrors,
-    ...cfg.workspaceErrors,
-    ...cfg.authProfileErrors,
-    ...cfg.agentErrors,
-    ...cfg.deprecations,
-  ]) {
-    console.error(`atc daemon: config: ${problem}`);
-  }
-
-  if (cfg.removedKeys.length > 0) {
-    console.error(
-      `atc daemon: config: config.json sets ${cfg.removedKeys.join(', ')}, which atc no longer reads; run 'atc config migrate' to drop it`,
-    );
-  }
-
-  const sources = sourceOrder.buildSources(
-    builtinSources.createBuiltinSources({
-      roots: cfg.dirs.roots,
-      githubOwner: cfg.workspaces.githubOwner,
-      ghBin: 'gh',
-      homeDir: home.resolveHomeDir(),
-      host: hostServices,
-    }),
-    cfg.workspaces.sources,
-  );
-
-  for (const id of sources.missing) {
-    console.error(
-      `atc daemon: config: workspaces.sources holds '${id}', which this daemon cannot offer; the picker leaves it out`,
-    );
-  }
-
-  // How long a started session may go without a tap before a message
-  // to it is refused. Tests pin it to 0 to reach the refusal at once.
-  const graceOverride = Number(process.env['ATC_TAP_GRACE_MS']);
-
-  const adapters = adapterBuilder.buildAgentAdapters(
-    cfg,
-    hostServices,
-    headless.startClaudeHeadlessRun,
-  );
-
-  // The daemon's own lines go to stderr through LogTape, and a stop or a
-  // quit stops the log before the process exits.
-  const stderrLog = await daemon.startStderrLog();
-
-  let handle: Awaited<ReturnType<typeof daemon.startDaemon>>;
-
-  try {
-    handle = await daemon.startDaemon({
-      socketPath: config.daemonSocketPath,
-      reporterSocketPath: config.socketPath,
-      eventsSocketPath: config.eventsSocketPath,
-      build: hostServices.build,
-      adapters,
-      defaultAgent: cfg.defaultAgent,
-      dbPath: config.dbFile,
-      pidPath: config.daemonPidFile,
-      hooks: cfg.hooks,
-      targets: built.targets,
-      defaultTarget: cfg.defaultTarget,
-      targetErrors,
-      principals: cfg.principals,
-      sources: sources.sources,
-      gitTransports: cfg.workspaces.gitTransports,
-      workspaceRoots: { root: cfg.workspaces.root, targetRoots: cfg.workspaces.targetRoots },
-      ...(listen === null || tokenFile === null
-        ? {}
-        : { listen: { host: listen.host, port: listen.port, tokenFile } }),
-      restoreFleetOnRestart: cfg.restoreFleetOnRestart,
-      ...(Number.isFinite(graceOverride) && graceOverride >= 0
-        ? { tapGraceMs: graceOverride }
-        : {}),
-      ...(Number.isFinite(queueBytes) && queueBytes > 0 ? { queueBytes } : {}),
-      onQuit: () => {
-        void stderrLog.stop().then(() => process.exit(0));
-      },
-    });
-  } catch (error) {
-    // A second daemon on the same state directory, or a listener whose
-    // address or token file is refused or whose bind fails, stops the start
-    // with nothing left held; any other startup failure stays a crash.
-    const code: unknown = error instanceof Error ? Reflect.get(error, 'code') : null;
-
-    if (error instanceof Error && (code === 'daemon_locked' || code === 'listen_refused')) {
-      console.error(error.message);
-      process.exit(1);
-    }
-
-    throw error;
-  }
-
-  signalReady();
-
-  process.on('SIGHUP', () => {
-    handle.refreshTokens();
-  });
-
-  process.on('SIGTERM', () => {
-    void (async () => {
-      await handle.stop();
-      await stderrLog.stop();
-
-      process.exit(0);
-    })();
-  });
 }
 
 await runATCCLI(process.argv.slice(2), PROCESS_IO);
