@@ -8,6 +8,7 @@ import { readDaemonRecord } from '@atc/lifecycle';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
 import { openDaemonClient } from '@atc/protocol/client';
 import {
+  buildStubClock,
   createMigratedStateDB,
   getString,
   registerTestCleanup,
@@ -19,15 +20,17 @@ import {
 import invariant from 'tiny-invariant';
 
 // The lock cases start their daemons in the test's process, each on sockets
-// of its own name over one state directory.
+// of its own name over one state directory, and on one stub clock.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-e2e-startup-');
   const home = temporaryDirectory.path;
   const stateDir = join(home, '.local', 'state', 'atc');
+  const clock = buildStubClock(0);
 
   return {
     home,
     stateDir,
+    clock,
     atc: resolveATCCommand(),
     buildDaemonOptions: (name: string) => ({
       socketPath: join(home, `${name}.sock`),
@@ -37,6 +40,7 @@ function setupTest() {
       build: 'atc/test',
       targets: buildStubTargets([LOCAL_TARGET], { spawned: [] }),
       log: () => {},
+      clock,
     }),
   };
 }
@@ -47,10 +51,19 @@ test('it lets exactly one of two daemons started at once serve a state directory
   mkdirSync(ctx.stateDir, { recursive: true, mode: 0o700 });
   createMigratedStateDB(join(ctx.stateDir, 'atc.db'));
 
-  const settled = await Promise.allSettled([
+  const starting = Promise.allSettled([
     startDaemon(ctx.buildDaemonOptions('first')),
     startDaemon(ctx.buildDaemonOptions('second')),
   ]);
+
+  // The daemon that lost the lock retries until its wait for the lock ends.
+  await waitFor(() => {
+    expect(ctx.clock.collectPending()).toContain(50);
+  });
+
+  ctx.clock.advance(2000);
+
+  const settled = await starting;
 
   const started = settled.flatMap((result) =>
     result.status === 'fulfilled' ? [result.value] : [],
@@ -100,6 +113,12 @@ test('it refuses a second daemon with the pid and socket of the daemon that serv
   registerTestCleanup(() => serving.stop());
 
   const refused = startDaemon(ctx.buildDaemonOptions('second'));
+
+  await waitFor(() => {
+    expect(ctx.clock.collectPending()).toContain(50);
+  });
+
+  ctx.clock.advance(2000);
 
   expect(refused).rejects.toThrowWithMessage(
     Error,

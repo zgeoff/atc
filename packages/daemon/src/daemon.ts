@@ -103,7 +103,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   const stateDir = dirname(opts.dbPath);
   const recordPath = join(stateDir, 'daemon.json');
 
-  const lock = await claimDaemonLock(join(stateDir, 'daemon.lock'), LOCK_WAIT_MS);
+  const lock = await claimDaemonLock(join(stateDir, 'daemon.lock'), LOCK_WAIT_MS, clock);
 
   if (lock === null) {
     const holder = readDaemonRecord(recordPath);
