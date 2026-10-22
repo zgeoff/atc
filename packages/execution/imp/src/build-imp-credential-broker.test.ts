@@ -40,6 +40,18 @@ test('it reads the token as an identity whose host patterns are its imp patterns
   });
 });
 
+test('it names the broker imp, with the impz step that renews a secret and the impd version to upgrade to', () => {
+  const ctx = setupTest();
+
+  expect(ctx.broker.describe.name).toBe('imp');
+
+  expect(ctx.broker.describe.renewSecret?.('codex-chatgpt', 'oauth')).toBe(
+    'run impz secret add codex-chatgpt --kind oauth ... --replace',
+  );
+
+  expect(ctx.broker.describe.upgrade).toBe('upgrade impd to 2.2.0 or later');
+});
+
 test('it reads an imp as a host with its id and name', async () => {
   const ctx = setupTest();
 
@@ -120,7 +132,7 @@ test('it rejects a grant removal impd forbids as forbidden', async () => {
   expect(ctx.broker.removeGrant('atc-s1', 'glm')).rejects.toMatchObject({ code: 'forbidden' });
 });
 
-test('it rejects the version check of an outdated impd as refused after one system info call', () => {
+test('it rejects the version check of an outdated impd as too old after one system info call', () => {
   // An impd stand-in on a real HTTP port that answers every call with
   // system info, for the real client to read.
   const impd = startStubImpdInfo();
@@ -137,7 +149,7 @@ test('it rejects the version check of an outdated impd as refused after one syst
   });
 
   expect(broker.verifyVersion()).rejects.toMatchObject({
-    code: 'refused',
+    code: 'too_old',
     brokerCode: 'IMPD_OUTDATED',
   });
 

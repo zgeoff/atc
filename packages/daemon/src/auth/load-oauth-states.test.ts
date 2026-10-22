@@ -3,7 +3,7 @@ import { buildMockAuthBinding } from '../testing/build-mock-auth-binding';
 import { buildStubCredentialBroker } from '../testing/build-stub-credential-broker';
 import { loadOAuthStates } from './load-oauth-states';
 
-test('it reads nothing from impd for a binding without an oauth secret', async () => {
+test('it reads nothing from the broker for a binding without an oauth secret', async () => {
   const broker = buildStubCredentialBroker();
 
   const states = await loadOAuthStates(
@@ -23,7 +23,7 @@ test('it reads nothing from impd for a binding without an oauth secret', async (
   expect(broker.calls).toStrictEqual([]);
 });
 
-test("it reads each bound oauth secret's sign-in state from one secret list once impd's version passes", async () => {
+test("it reads each bound oauth secret's sign-in state from one secret list once the broker's version passes", async () => {
   const broker = buildStubCredentialBroker();
 
   broker.createSecret(
@@ -62,7 +62,7 @@ test("it reads each bound oauth secret's sign-in state from one secret list once
   expect(broker.calls).toStrictEqual(['verifyVersion', 'readSecrets']);
 });
 
-test('it refuses an outdated impd as an unavailable host before it lists any secret', async () => {
+test('it refuses an outdated broker as an unavailable host before it lists any secret', async () => {
   const broker = buildStubCredentialBroker();
 
   broker.setOutdated(true);
@@ -82,7 +82,7 @@ test('it refuses an outdated impd as an unavailable host before it lists any sec
 
   expect(loaded).rejects.toMatchObject({
     code: 'host_unavailable',
-    data: { provider: 'stub-remote', problem: 'impd_outdated' },
+    data: { provider: 'stub-remote', problem: 'outdated' },
   });
 
   await loaded.catch(() => {});
@@ -90,7 +90,7 @@ test('it refuses an outdated impd as an unavailable host before it lists any sec
   expect(broker.calls).toStrictEqual(['verifyVersion']);
 });
 
-test('it refuses a bound oauth secret that impd does not hold', () => {
+test('it refuses a bound oauth secret that the broker does not hold', () => {
   const broker = buildStubCredentialBroker();
 
   const loaded = loadOAuthStates(
@@ -109,7 +109,7 @@ test('it refuses a bound oauth secret that impd does not hold', () => {
   expect(loaded).rejects.toMatchObject({ code: 'auth_secret_mismatch' });
 });
 
-test('it refuses a bound oauth secret that impd holds as another kind', () => {
+test('it refuses a bound oauth secret that the broker holds as another kind', () => {
   const broker = buildStubCredentialBroker();
 
   broker.createSecret('codex-chatgpt', 'custom', [
@@ -132,7 +132,7 @@ test('it refuses a bound oauth secret that impd holds as another kind', () => {
   expect(loaded).rejects.toMatchObject({ code: 'auth_secret_mismatch' });
 });
 
-test('it turns a call impd fails into an unavailable host', () => {
+test('it turns a call the broker fails into an unavailable host', () => {
   const broker = buildStubCredentialBroker();
 
   broker.setVersionFailures(1);

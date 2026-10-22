@@ -76,7 +76,7 @@ export interface DaemonOptions {
   readonly restoreBootTimeoutMs?: number;
 
   // The waits before each further try at a restored session whose host
-  // refused for now, such as an imp that cannot take a lease yet; the
+  // refused for now, such as a host that cannot take a lease yet; the
   // restore's own delays when unset.
   readonly restoreRetryDelaysMs?: readonly number[];
   readonly tapGraceMs?: number;

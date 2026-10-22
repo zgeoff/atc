@@ -32,7 +32,7 @@ test('it refuses an outdated broker with its version refusal before it checks th
 
   const refusal = verifyBrokerAuthority(broker, { hostNames: ['atc-s1'], secrets: ['glm'] });
 
-  expect(refusal).rejects.toMatchObject({ code: 'refused', brokerCode: 'IMPD_OUTDATED' });
+  expect(refusal).rejects.toMatchObject({ code: 'too_old', brokerCode: 'OUTDATED' });
   expect(broker.calls).toStrictEqual(['verifyVersion', 'readIdentity']);
 });
 

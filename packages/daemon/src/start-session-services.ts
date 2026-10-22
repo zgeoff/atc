@@ -140,7 +140,7 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
 
   manager.authBinder = authBinder;
 
-  // Settled in the background, since it reaches impd: each binding a
+  // Settled in the background, since it reaches each target's broker: each binding a
   // stopped daemon left mid-change stays blocked until it is settled.
   void tryReconcileAuthBindings(authBinder, store, targetsByID, manager.log);
 

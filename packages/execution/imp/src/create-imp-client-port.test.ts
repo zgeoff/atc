@@ -70,7 +70,7 @@ test('it refuses impd 2.1.0 as outdated, naming both versions', () => {
 
   expect(port.verifyVersion()).rejects.toMatchObject({
     code: 'IMPD_OUTDATED',
-    message: 'impd 2.1.0 is older than 2.2.0, the oldest impd this atc supports; upgrade impd',
+    message: 'impd 2.1.0 is older than 2.2.0, the oldest impd this atc supports',
     data: { version: '2.1.0', minimum: '2.2.0' },
   });
 });
@@ -85,7 +85,7 @@ test('it refuses an impd whose version does not parse as outdated', () => {
   expect(port.verifyVersion()).rejects.toMatchObject({
     code: 'IMPD_OUTDATED',
     message:
-      "impd reports version 'nightly', which atc cannot compare with 2.2.0, the oldest impd this atc supports; upgrade impd",
+      "impd reports version 'nightly', which atc cannot compare with 2.2.0, the oldest impd this atc supports",
     data: { version: 'nightly', minimum: '2.2.0' },
   });
 });

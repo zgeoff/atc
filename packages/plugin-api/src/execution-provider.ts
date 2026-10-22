@@ -17,7 +17,7 @@ export interface ExecutionProvider {
   // host has none. Absent on the daemon's own machine.
   readonly readGuest?: (host: string) => Promise<GuestLayout>;
 
-  // How a harness here can take its credential from impd's broker instead
+  // How a harness here can take its credential from this provider's broker instead
   // of holding it. Absent on a host with no broker, which never starts a
   // session that needs one.
   readonly brokerAuth?: CredentialBroker;

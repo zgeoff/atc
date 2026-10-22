@@ -21,8 +21,8 @@ export function buildClaudeProjectSettingsCheck(agent: string): ProjectSettingsC
 
       const message =
         setting === UNPARSEABLE
-          ? `agent '${agent}' signs in through impd's broker, but ${file} is not a JSON object, so atc cannot check it for settings that would override that sign-in`
-          : `agent '${agent}' signs in through impd's broker, but ${file} sets ${setting}, which would override or route around that sign-in`;
+          ? `agent '${agent}' signs in through the target's broker, but ${file} is not a JSON object, so atc cannot check it for settings that would override that sign-in`
+          : `agent '${agent}' signs in through the target's broker, but ${file} sets ${setting}, which would override or route around that sign-in`;
 
       return new DaemonError('auth_target_unsupported', message, {
         agent,

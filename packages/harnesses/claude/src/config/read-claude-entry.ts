@@ -72,7 +72,7 @@ export function readClaudeEntry(args: ClaudeEntryArgs): AgentEntryRead {
 const OVERRIDE_REASON = ', which would override or route around the subscription sign-in';
 
 // What a stock entry with `auth` sets that would override the subscription
-// sign-in or route the CLI around impd's broker.
+// sign-in or route the CLI around the target's broker.
 function collectSubscriptionProblems(entry: AgentEntry): string[] {
   const settingsEnv = entry.settings?.['env'];
 

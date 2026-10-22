@@ -33,6 +33,12 @@ one. Removing a grant the host no longer holds changes nothing, so a revoke that
 that finds a grant already gone, ends where one complete revoke ends. Destroying a host that is
 already gone counts as done, so a forget that finds no host drops the binding.
 
+The contract also carries the provider's own words for a refusal: the broker's display name, the
+step that gives the broker a new value for a secret, and the step that upgrades a broker older than
+atc supports. The daemon adds a step where it maps a broker's refusal or an agent's refusal of a
+sign-in, so atc's generic packages name no provider's command. A provider that gives no step leaves
+the neutral refusal as it is.
+
 ## Spawning
 
 A spawn checks everything before it writes anything, so a refused spawn leaves no binding, no imp

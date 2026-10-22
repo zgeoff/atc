@@ -95,6 +95,7 @@ export function buildStubCredentialBroker(hostPrefix = 'atc-'): StubFailingCrede
     calls,
     hostPrefix,
     getHostName,
+    describe: { name: 'stub-remote' },
     setOutdated: (next) => {
       outdated = next;
     },
@@ -135,9 +136,9 @@ export function buildStubCredentialBroker(hostPrefix = 'atc-'): StubFailingCrede
 
         if (outdated) {
           throw new CredentialBrokerError(
-            'refused',
+            'too_old',
             'the broker is older than the oldest this atc supports',
-            { provider: 'stub-remote', brokerCode: 'IMPD_OUTDATED' },
+            { provider: 'stub-remote', brokerCode: 'OUTDATED' },
           );
         }
       }),

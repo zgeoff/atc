@@ -163,11 +163,12 @@ export function buildStubBinderBroker(hostPrefix = 'atc-'): StubBinderBroker {
     return {
       hostPrefix: prefix,
       getHostName,
+      describe: { name: 'imp' },
       verifyVersion: () =>
         answerCall('verifyVersion', () => {
           if (outdated) {
             throw new CredentialBrokerError(
-              'refused',
+              'too_old',
               'the broker is older than the oldest this atc supports',
               { provider: 'imp', brokerCode: 'IMPD_OUTDATED' },
             );

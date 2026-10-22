@@ -1084,7 +1084,7 @@ test('it refuses to ready an imp on an impd older than the oldest it supports, c
   expect(provider.prepareHost({ host: 's1', daemonID: 'd1' })).rejects.toMatchObject({
     code: 'host_unavailable',
     message:
-      'imp atc-s1 cannot be used: impd 2.1.0 is older than 2.2.0, the oldest impd this atc supports; upgrade impd',
+      'imp atc-s1 cannot be used: impd 2.1.0 is older than 2.2.0, the oldest impd this atc supports; upgrade impd to 2.2.0 or later',
     data: { provider: 'imp', problem: 'impd_outdated' },
   });
 

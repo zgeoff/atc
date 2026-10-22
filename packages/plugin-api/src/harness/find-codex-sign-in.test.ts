@@ -16,7 +16,7 @@ test('it reads the ID token claims and the ChatGPT account id of a ready secret'
   });
 });
 
-test('it finds no sign-in for a secret impd does not list', () => {
+test('it finds no sign-in for a secret the broker does not list', () => {
   expect(findCodexSignIn(undefined)).toBeNull();
 });
 

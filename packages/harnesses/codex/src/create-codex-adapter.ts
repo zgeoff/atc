@@ -54,12 +54,12 @@ export interface CodexAdapter extends AgentAdapter {
   // image, and needs no atc there.
   readonly planGuestSpawn?: (opts: SpawnOptions, guest: GuestPaths) => GuestSpawnPlan | null;
 
-  // With `auth` configured, Codex signs in with the ChatGPT sign-in impd's
-  // broker holds on a target that reaches the broker, and with the sign-in
-  // of the host it runs on anywhere else.
+  // With `auth` configured, Codex signs in with the ChatGPT sign-in the
+  // target's broker holds on a target that reaches a broker, and with the
+  // sign-in of the host it runs on anywhere else.
   readonly findAuthSelection: () => AuthSelection | null;
 
-  // Seeds the config of a session that signs in through impd's broker with
+  // Seeds the config of a session that signs in through the target's broker with
   // trust for the clone; any other remote session reads the config of the
   // host's image, which atc never writes.
   readonly planGuestWorkspaceTrust: (root: string) => Readonly<Record<string, string>> | null;
@@ -80,7 +80,7 @@ const NO_DAEMON_FLAG = '--no-daemon';
 const REMOTE_FLAG = '--remote';
 
 // Where Codex sends its ChatGPT sign-in: the endpoint its model requests go
-// to, and the host impd's broker sets the access token on.
+// to, and the host the target's broker sets the access token on.
 const CHATGPT_CODEX_URL = 'https://chatgpt.com/backend-api/codex';
 const CHATGPT_HOST = 'chatgpt.com';
 
@@ -220,12 +220,12 @@ export function createCodexAdapter(
     const secret = findChatGPTSecret();
     const state = secret === null ? undefined : states[secret];
     const name = secret ?? 'the oauth secret';
-    const renew = `sign Codex in again and run impz secret add ${name} --kind oauth ... --replace with the new refresh token`;
+    const renew = `sign Codex in again and give the broker the new refresh token for ${name}`;
 
     if (state?.status !== 'ready') {
       throw new DaemonError(
         'auth_signin_needed',
-        `agent '${entry.id}' signs in through ${name}, whose sign-in in impd is ${state?.status ?? 'not listed'}; ${renew}`,
+        `agent '${entry.id}' signs in through ${name}, whose sign-in in the broker is ${state?.status ?? 'not listed'}; ${renew}`,
         { agent: entry.id, secret, status: state?.status ?? null },
       );
     }
@@ -235,7 +235,7 @@ export function createCodexAdapter(
     if (signIn === null) {
       throw new DaemonError(
         'auth_signin_needed',
-        `agent '${entry.id}' signs in through ${name}, whose ID token in impd holds no ChatGPT account id; ${renew}`,
+        `agent '${entry.id}' signs in through ${name}, whose ID token in the broker holds no ChatGPT account id; ${renew}`,
         { agent: entry.id, secret, status: state.status },
       );
     }
