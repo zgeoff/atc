@@ -11,6 +11,7 @@ import {
   waitFor,
   waitForEvent,
 } from '@atc/test-utils';
+import { z } from 'zod';
 import { startStubAgentDaemon } from '../packages/app/src/test-utils/start-stub-agent-daemon';
 
 // A daemon in the test's process whose agents are the in-process stand-ins,
@@ -420,19 +421,38 @@ test.each(['resume', 'clear', 'compact'])(
 test('it binds a gateway session through the hook command atc wrote for it', async () => {
   const ctx = await setupTest();
 
-  await ctx.daemon.client.sendRequest('session.spawn', {
+  ctx.agents.holdStart('claude');
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
     cwd: ctx.home,
     cols: 80,
     rows: 24,
     agent: 'zai',
   });
 
-  const started = await waitForEvent(ctx.daemon.events, {
-    ev: 'SessionState',
-    session: { state: 'needs_you' },
+  const id = getString(getRecord(spawned, 'session'), 'id');
+  const args = ctx.agents.sessions[0]?.harness.spec.args ?? [];
+
+  const settings: unknown = await Bun.file(args[args.indexOf('--settings') + 1] ?? '').json();
+
+  const command = z.object({ command: z.string() });
+  const matcher = z.object({ hooks: z.tuple([command]) });
+  const hooks = z.object({ hooks: z.object({ SessionStart: z.tuple([matcher]) }) }).parse(settings);
+
+  const reported = Bun.spawn(['/bin/sh', '-c', hooks.hooks.SessionStart[0].hooks[0].command], {
+    env: { ...process.env, ATC_SESSION_ID: id, ATC_SOCKET: ctx.daemon.reporterSocketPath },
+    stdin: Buffer.from(JSON.stringify({ hook_event_name: 'SessionStart', session_id: 'fake-1' })),
   });
 
-  expect(started).toMatchObject({ session: { agent: 'zai', agentSessionID: 'fake-1' } });
+  const bound = await waitForEvent(ctx.daemon.events, {
+    ev: 'SessionState',
+    session: { agentSessionID: 'fake-1' },
+  });
+
+  const exitCode = await reported.exited;
+
+  expect(exitCode).toBe(0);
+  expect(bound).toMatchObject({ session: { id, agent: 'zai' } });
 });
 
 test('it binds a session from a hook line without an agent while none of its own carried one', async () => {
