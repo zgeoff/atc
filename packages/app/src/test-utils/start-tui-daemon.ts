@@ -2,7 +2,7 @@ import { loadConfig } from '@atc/config';
 import { resolvePaths } from '@atc/config/host';
 import { buildExecutionTargets, buildSources, startDaemon } from '@atc/daemon';
 import type { DaemonHandle } from '@atc/daemon';
-import { registerTestCleanup, updateEnv } from '@atc/test-utils';
+import { registerTestCleanup, updateEnv, waitFor } from '@atc/test-utils';
 import type { TUIHarness } from '@atc/test-utils';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { createHostServices } from '../create-host-services';
@@ -13,7 +13,9 @@ import { createBuiltinSources } from '../sources/create-builtin-sources';
 // Starts in the test's process the daemon that a client booted in the
 // harness home would start, on the home's config, sockets and state, so the
 // client attaches to it instead of loading a daemon process of its own.
-export async function startTUIDaemon(tui: Pick<TUIHarness, 'env' | 'home'>): Promise<DaemonHandle> {
+export async function startTUIDaemon(
+  tui: Pick<TUIHarness, 'env' | 'home' | 'stop'>,
+): Promise<DaemonHandle> {
   // A local session takes this process's environment, and the stand-in
   // agents read their scenario files from the HOME it holds.
   for (const name of ['HOME', 'XDG_RUNTIME_DIR', 'PATH'] as const) {
@@ -59,7 +61,23 @@ export async function startTUIDaemon(tui: Pick<TUIHarness, 'env' | 'home'>): Pro
     log: () => {},
   });
 
-  registerTestCleanup(() => daemon.stop());
+  // A client that sees its daemon go starts a daemon process of its own, so
+  // the harness kills the client and the daemon waits until its connection
+  // closes before it stops.
+  registerTestCleanup(async () => {
+    await tui.stop();
+
+    await waitFor(
+      () => {
+        if (daemon.countClients() > 0) {
+          throw new Error('a client is still connected');
+        }
+      },
+      { timeoutMs: 1000 },
+    ).catch(() => {});
+
+    await daemon.stop();
+  });
 
   return daemon;
 }
