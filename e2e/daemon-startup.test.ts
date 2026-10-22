@@ -1,75 +1,133 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { existsSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { LOCAL_TARGET } from '@atc/config';
+import { startDaemon } from '@atc/daemon';
+import { buildStubTargets } from '@atc/daemon/testing';
 import { readDaemonRecord } from '@atc/lifecycle';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
-import { getString, resolveATCCommand, runATC, setupTempDir, waitFor } from '@atc/test-utils';
+import { openDaemonClient } from '@atc/protocol/client';
+import {
+  buildStubClock,
+  createMigratedStateDB,
+  getString,
+  registerTestCleanup,
+  resolveATCCommand,
+  runATC,
+  setupTempDir,
+  waitFor,
+} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 
+// The lock cases start their daemons in the test's process, each on sockets
+// of its own name over one state directory, and on one stub clock.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-e2e-startup-');
+  const home = temporaryDirectory.path;
+  const stateDir = join(home, '.local', 'state', 'atc');
+  const clock = buildStubClock(0);
 
-  return { home: temporaryDirectory.path, atc: resolveATCCommand() };
+  return {
+    home,
+    stateDir,
+    clock,
+    atc: resolveATCCommand(),
+    buildDaemonOptions: (name: string) => ({
+      socketPath: join(home, `${name}.sock`),
+      reporterSocketPath: join(home, `${name}-reporter.sock`),
+      statusPath: join(home, `${name}-status.json`),
+      dbPath: join(stateDir, 'atc.db'),
+      build: 'atc/test',
+      targets: buildStubTargets([LOCAL_TARGET], { spawned: [] }),
+      log: () => {},
+      clock,
+    }),
+  };
 }
 
 test('it lets exactly one of two daemons started at once serve a state directory', async () => {
   const ctx = setupTest();
-  const first = startDaemonProcess({ command: ctx.atc, home: ctx.home });
-  const second = startDaemonProcess({ command: ctx.atc, home: ctx.home });
-  const daemons = [first, second] as const;
 
-  const loserIndex = await Promise.race(
-    daemons.map(async (daemon, index) => {
-      await daemon.subprocess.exited;
+  mkdirSync(ctx.stateDir, { recursive: true, mode: 0o700 });
+  createMigratedStateDB(join(ctx.stateDir, 'atc.db'));
 
-      return index;
+  // Each daemon's cleanup is registered as it starts, so a failed wait below
+  // still stops it.
+  const starting = Promise.allSettled(
+    ['first', 'second'].map(async (name) => {
+      const daemon = await startDaemon(ctx.buildDaemonOptions(name));
+
+      registerTestCleanup(() => daemon.stop());
+
+      return daemon;
     }),
   );
 
-  const loser = daemons[loserIndex];
-  const winner = daemons[1 - loserIndex];
-
-  invariant(loser !== undefined && winner !== undefined, 'no daemon exited first');
-
-  // The loser can exit before the winner binds its socket, so the client
-  // waits on the daemon that still runs.
-  const client = await winner.openClient();
-
-  await client.sendHello('atc/test');
-
-  expect(loser.subprocess.exitCode).toBe(1);
-  expect(Bun.peek.status(winner.subprocess.exited)).toBe('pending');
-
-  expect(readDaemonRecord(join(first.stateDir, 'daemon.json'))).toStrictEqual({
-    pid: winner.subprocess.pid,
-    socketPath: first.socketPath,
-    reporterSocketPath: first.reporterSocketPath,
-    eventsSocketPath: join(ctx.home, 'atc-events.sock'),
-    listenPort: null,
-    protocol: 11,
+  // The daemon that lost the lock retries until its wait for the lock ends.
+  await waitFor(() => {
+    expect(ctx.clock.collectPending()).toContain(50);
   });
 
-  expect(loser.readStderr()).toStartWith(
-    `atc daemon: another daemon already serves ${first.stateDir}`,
+  ctx.clock.advance(2000);
+
+  const settled = await starting;
+
+  const started = settled.flatMap((result) =>
+    result.status === 'fulfilled' ? [result.value] : [],
   );
+
+  const refusals = settled.flatMap((result): unknown[] =>
+    result.status === 'rejected' ? [result.reason] : [],
+  );
+
+  const record = readDaemonRecord(join(ctx.stateDir, 'daemon.json'));
+
+  invariant(record !== null, 'the serving daemon wrote no record');
+
+  const client = await openDaemonClient(record.socketPath);
+
+  registerTestCleanup(() => {
+    client.stop();
+  });
+
+  expect(client.sendHello('atc/test')).resolves.toContainKey('daemonID');
+
+  expect(record.socketPath).toBeOneOf([
+    join(ctx.home, 'first.sock'),
+    join(ctx.home, 'second.sock'),
+  ]);
+
+  expect(started).toHaveLength(1);
+
+  expect(refusals).toMatchObject([
+    {
+      code: 'daemon_locked',
+      message: expect.toStartWith(`atc daemon: another daemon already serves ${ctx.stateDir}`),
+    },
+  ]);
 });
 
 test('it refuses a second daemon with the pid and socket of the daemon that serves', async () => {
   const ctx = setupTest();
-  const serving = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
-  const client = await serving.openClient();
+  mkdirSync(ctx.stateDir, { recursive: true, mode: 0o700 });
+  createMigratedStateDB(join(ctx.stateDir, 'atc.db'));
 
-  await client.sendHello('atc/test');
+  const serving = await startDaemon(ctx.buildDaemonOptions('first'));
 
-  const refused = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+  registerTestCleanup(() => serving.stop());
 
-  const code = await refused.subprocess.exited;
+  const refused = startDaemon(ctx.buildDaemonOptions('second'));
 
-  expect(code).toBe(1);
+  await waitFor(() => {
+    expect(ctx.clock.collectPending()).toContain(50);
+  });
 
-  expect(refused.readStderr()).toBe(
-    `atc daemon: another daemon already serves ${serving.stateDir} (pid ${serving.subprocess.pid}, socket ${serving.socketPath})\n`,
+  ctx.clock.advance(2000);
+
+  expect(refused).rejects.toThrowWithMessage(
+    Error,
+    `atc daemon: another daemon already serves ${ctx.stateDir} (pid ${process.pid}, socket ${join(ctx.home, 'first.sock')})`,
   );
 });
 

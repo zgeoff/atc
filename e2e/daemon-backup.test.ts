@@ -1,11 +1,8 @@
-import { expect, test } from 'bun:test';
-import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { expect, onTestFinished, test } from 'bun:test';
+import { copyFileSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { startDaemonProcess } from '@atc/lifecycle/testing';
-import type { DaemonEvent } from '@atc/protocol';
+import { openDaemonClient } from '@atc/protocol/client';
 import {
-  createStubClaude,
-  createStubComposer,
   getRecord,
   getString,
   resolveATCCommand,
@@ -13,57 +10,32 @@ import {
   setupTempDir,
   waitForEvent,
 } from '@atc/test-utils';
+import { startStubAgentDaemon } from '../packages/app/src/test-utils/start-stub-agent-daemon';
 
-function setupTest() {
-  const atc = resolveATCCommand();
+// The source and the fresh daemon run in the test's process, and only the
+// backup command runs as a process.
+async function setupTest() {
+  const source = await startStubAgentDaemon();
+  const fresh = await startStubAgentDaemon();
+
+  const cliHome = setupTempDir('atc-e2e-backup-cli-').path;
   const work = setupTempDir('atc-e2e-backup-work-').path;
 
-  const createHome = (prefix: string) => {
-    const home = setupTempDir(prefix).path;
-    const composer = createStubComposer(home);
-    const configDir = join(home, '.config', 'atc');
+  // The command finds its daemon at the socket under its runtime directory.
+  symlinkSync(source.daemon.socketPath, join(cliHome, 'atc-daemon.sock'));
 
-    mkdirSync(configDir, { recursive: true });
-
-    return {
-      home,
-      configPath: join(configDir, 'config.json'),
-      stateDir: join(home, '.local', 'state', 'atc'),
-      claude: createStubClaude(home, { atc, composer }),
-    };
-  };
-
-  return {
-    atc,
-    work,
-    source: createHome('atc-e2e-backup-source-'),
-    fresh: createHome('atc-e2e-backup-fresh-'),
-  };
+  return { atc: resolveATCCommand(), source, fresh, cliHome, work };
 }
 
 test('it backs up a running daemon to a file that a fresh daemon restores with every session row', async () => {
-  const ctx = setupTest();
+  const ctx = await setupTest();
 
-  writeFileSync(
-    ctx.source.configPath,
-    JSON.stringify({ agents: { claude: { bin: ctx.source.claude } } }),
-  );
+  const client = ctx.source.daemon.client;
+  const events = ctx.source.daemon.events;
 
-  // Each stub reports its own atc session id as its agent session, so the
+  // Each session reports its own atc session id as its agent session, so the
   // two sessions keep two fleet rows.
-  writeFileSync(join(ctx.source.home, 'fake-claude-own-id'), '');
-
-  const source = startDaemonProcess({ command: ctx.atc, home: ctx.source.home });
-
-  const client = await source.openClient();
-
-  const events: DaemonEvent[] = [];
-
-  client.onEvent = (event) => {
-    events.push(event);
-  };
-
-  const sourceHello = await client.sendHello('atc/test');
+  ctx.source.agents.useOwnID();
 
   await client.sendRequest('session.spawn', {
     cwd: ctx.work,
@@ -76,6 +48,8 @@ test('it backs up a running daemon to a file that a fresh daemon restores with e
     ev: 'SessionState',
     session: { name: 'kept running', state: 'needs_you' },
   });
+
+  ctx.source.agents.useOwnID();
 
   const killed = await client.sendRequest('session.spawn', {
     cwd: ctx.work,
@@ -98,12 +72,19 @@ test('it backs up a running daemon to a file that a fresh daemon restores with e
     session: { name: 'killed before the backup', lastMsg: 'killed' },
   });
 
+  const sourceProbe = await openDaemonClient(ctx.source.daemon.socketPath);
+
+  onTestFinished(() => {
+    sourceProbe.stop();
+  });
+
+  const sourceHello = await sourceProbe.sendHello('atc/test');
   const sourceFleet = await client.sendRequest('fleet.list');
 
   const backup = await runATC({
     command: ctx.atc,
     args: ['backup', 'atc-backup.db'],
-    home: ctx.source.home,
+    home: ctx.cliHome,
     cwd: ctx.work,
   });
 
@@ -113,22 +94,18 @@ test('it backs up a running daemon to a file that a fresh daemon restores with e
   expect(backup.exitCode).toBe(0);
   expect(backup.stdout).toMatch(/^atc backup: wrote \d+ bytes to .*\/atc-backup\.db\n$/u);
 
-  writeFileSync(
-    ctx.fresh.configPath,
-    JSON.stringify({
-      agents: { claude: { bin: ctx.fresh.claude } },
+  await ctx.fresh.daemon.stop();
 
-      // The fresh daemon restores only when the test asks it to.
-      restoreFleetOnRestart: false,
-    }),
-  );
+  copyFileSync(join(ctx.work, 'atc-backup.db'), ctx.fresh.daemon.dbPath);
 
-  mkdirSync(ctx.fresh.stateDir, { recursive: true });
-  copyFileSync(join(ctx.work, 'atc-backup.db'), join(ctx.fresh.stateDir, 'atc.db'));
+  await ctx.fresh.daemon.restart();
 
-  const fresh = startDaemonProcess({ command: ctx.atc, home: ctx.fresh.home });
+  const freshClient = await openDaemonClient(ctx.fresh.daemon.socketPath);
 
-  const freshClient = await fresh.openClient();
+  onTestFinished(() => {
+    freshClient.stop();
+  });
+
   const freshHello = await freshClient.sendHello('atc/test');
   const freshFleet = await freshClient.sendRequest('fleet.list');
   const restored = await freshClient.sendRequest('fleet.restore', { cols: 80, rows: 24 });

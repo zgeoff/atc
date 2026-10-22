@@ -1,4 +1,5 @@
 import { isRecord } from '@atc/core';
+import { buildMCPToolCalls } from './build-mcp-tool-calls';
 import { readSourceEntry } from './read-source-entry';
 import { registerTestCleanup } from './register-test-cleanup';
 
@@ -13,12 +14,6 @@ interface MCPStdioOptions {
   // A command that stands in for `atc mcp`; absent means this checkout's
   // `atc mcp`.
   readonly command?: readonly string[];
-}
-
-interface MCPToolResult {
-  readonly isError: unknown;
-  readonly text: string;
-  readonly structured: Readonly<Record<string, unknown>> | undefined;
 }
 
 export async function startMCPStdio(options: MCPStdioOptions) {
@@ -54,7 +49,7 @@ export async function startMCPStdio(options: MCPStdioOptions) {
 
   const sendRequest = (
     method: string,
-    params?: Readonly<Record<string, unknown>>,
+    params?: object,
   ): Promise<Readonly<Record<string, unknown>>> => {
     nextID += 1;
 
@@ -72,31 +67,7 @@ export async function startMCPStdio(options: MCPStdioOptions) {
     return response.promise;
   };
 
-  const sendToolCall = async (
-    name: string,
-    args: Readonly<Record<string, unknown>>,
-  ): Promise<MCPToolResult> => {
-    const response = await sendRequest('tools/call', { name, arguments: args });
-
-    return toToolResult(response);
-  };
-
-  const server = {
-    sendRequest,
-    sendToolCall,
-    async spawnSession(args: Readonly<Record<string, unknown>>): Promise<string> {
-      const spawned = await sendToolCall('atc_session_spawn', args);
-
-      const id = spawned.structured?.['id'];
-
-      if (typeof id !== 'string') {
-        throw new TypeError(`spawn returned no session id: ${spawned.text}`);
-      }
-
-      return id;
-    },
-    stop,
-  };
+  const server = { sendRequest, ...buildMCPToolCalls(sendRequest), stop };
 
   // A failed initialize stops the server here, before the start rejects.
   const initialized = await sendRequest('initialize', {
@@ -152,22 +123,4 @@ async function readResponses(
       waiting.reject(new Error(`atc mcp stopped answering before request ${id}`));
     }
   }
-}
-
-function toToolResult(response: Readonly<Record<string, unknown>>): MCPToolResult {
-  const result = response['result'];
-  const content = isRecord(result) ? result['content'] : undefined;
-  const item: unknown = Array.isArray(content) && content.length === 1 ? content[0] : undefined;
-  const structured = isRecord(result) ? result['structuredContent'] : undefined;
-
-  if (
-    !isRecord(result) ||
-    !isRecord(item) ||
-    typeof item['text'] !== 'string' ||
-    (structured !== undefined && !isRecord(structured))
-  ) {
-    throw new TypeError(`tool call returned an unexpected result: ${JSON.stringify(response)}`);
-  }
-
-  return { isError: result['isError'], text: item['text'], structured };
 }

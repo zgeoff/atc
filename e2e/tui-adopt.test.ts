@@ -13,9 +13,13 @@ test('it adopts a session with --resume and yanks its resume command', async () 
 
   await ctx.waitFor('atc — control tower');
 
+  ctx.reset();
   ctx.write('r');
 
+  // The agent step drops each key it takes while it reads the agents, and
+  // draws the selected row only once it has read them.
   await ctx.waitFor('adopt: agent');
+  await ctx.waitFor('\u001B[7mClaude');
 
   ctx.write(KEYS.enter);
 
@@ -54,9 +58,13 @@ test('it adopts grok with --no-leader and without --resume', async () => {
 
   await ctx.waitFor('atc — control tower');
 
+  ctx.reset();
   ctx.write('r');
 
+  // The agent step drops each key it takes while it reads the agents, and
+  // draws the selected row only once it has read them.
   await ctx.waitFor('adopt: agent');
+  await ctx.waitFor('\u001B[7mClaude');
 
   ctx.reset();
   ctx.write(KEYS.down);
@@ -100,9 +108,13 @@ test('it offers an adopt only the targets that run on this host', async () => {
 
   await ctx.waitFor('atc — control tower');
 
+  ctx.reset();
   ctx.write('r');
 
+  // The agent step drops each key it takes while it reads the agents, and
+  // draws the selected row only once it has read them.
   await ctx.waitFor('adopt: agent');
+  await ctx.waitFor('\u001B[7mClaude');
 
   ctx.write(KEYS.enter);
 

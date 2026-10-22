@@ -8,6 +8,7 @@ import {
   buildStubSignedOutGH,
   createGitFixture,
   createStubBin,
+  openAgentStep,
   openRepoStep,
   registerTestCleanup,
   startTUIHarness,
@@ -240,9 +241,7 @@ test('it opens github mode on a target that takes a workspace when the default c
 
   await ctx.waitFor('atc — control tower');
 
-  ctx.write('n');
-
-  await ctx.waitFor('spawn: agent');
+  await openAgentStep(ctx);
 
   ctx.write(KEYS.enter);
 
@@ -342,9 +341,7 @@ test("it builds each target's own default destination when the target changes", 
 
   await ctx.waitFor('atc — control tower');
 
-  ctx.write('n');
-
-  await ctx.waitFor('spawn: agent');
+  await openAgentStep(ctx);
 
   ctx.write(KEYS.enter);
 
@@ -430,9 +427,7 @@ test('it leaves a destination under a ~ root to a remote target and refuses a ty
 
   await ctx.waitFor('atc — control tower');
 
-  ctx.write('n');
-
-  await ctx.waitFor('spawn: agent');
+  await openAgentStep(ctx);
 
   ctx.write(KEYS.enter);
 

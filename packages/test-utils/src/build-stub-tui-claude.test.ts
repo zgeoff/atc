@@ -37,11 +37,15 @@ test('it prints its marker with its arguments', async () => {
       ATC_SESSION_ID: 's-1',
     },
     stdin: 'pipe',
+
+    // A reporter the script started outlives the script and writes Bun's
+    // cache back into the removed home, so each test kills the whole group.
+    detached: true,
     stdout: 'pipe',
   });
 
   registerTestCleanup(() => {
-    subprocess.kill();
+    process.kill(-subprocess.pid, 'SIGKILL');
   });
 
   const output = startOutputCapture(subprocess.stdout);
@@ -66,11 +70,12 @@ test('it reports SessionStart and then a permission notification through the rep
       ATC_SESSION_ID: 's-1',
     },
     stdin: 'pipe',
+    detached: true,
     stdout: 'ignore',
   });
 
   registerTestCleanup(() => {
-    subprocess.kill();
+    process.kill(-subprocess.pid, 'SIGKILL');
   });
 
   await waitFor(() => {
@@ -115,11 +120,12 @@ test('it reports the events file in place of the notification', async () => {
       ATC_SESSION_ID: 's-1',
     },
     stdin: 'pipe',
+    detached: true,
     stdout: 'ignore',
   });
 
   registerTestCleanup(() => {
-    subprocess.kill();
+    process.kill(-subprocess.pid, 'SIGKILL');
   });
 
   const second = await waitFor(() => {
@@ -146,11 +152,12 @@ test('it prints its marker again on SIGWINCH', async () => {
       ATC_SESSION_ID: 's-1',
     },
     stdin: 'pipe',
+    detached: true,
     stdout: 'pipe',
   });
 
   registerTestCleanup(() => {
-    subprocess.kill();
+    process.kill(-subprocess.pid, 'SIGKILL');
   });
 
   const output = startOutputCapture(subprocess.stdout);
@@ -177,11 +184,12 @@ test('it echoes each line it reads', async () => {
       ATC_SESSION_ID: 's-1',
     },
     stdin: 'pipe',
+    detached: true,
     stdout: 'pipe',
   });
 
   registerTestCleanup(() => {
-    subprocess.kill();
+    process.kill(-subprocess.pid, 'SIGKILL');
   });
 
   const output = startOutputCapture(subprocess.stdout);
@@ -211,11 +219,12 @@ test('it holds a resumed run until the hold file goes, printing nothing before',
       ATC_SESSION_ID: 's-1',
     },
     stdin: 'pipe',
+    detached: true,
     stdout: 'pipe',
   });
 
   registerTestCleanup(() => {
-    subprocess.kill();
+    process.kill(-subprocess.pid, 'SIGKILL');
   });
 
   const output = startOutputCapture(subprocess.stdout);
@@ -254,11 +263,12 @@ test('it reports through the CLI entry it is given, with none in the environment
       ATC_SESSION_ID: 's-given',
     },
     stdin: 'pipe',
+    detached: true,
     stdout: 'ignore',
   });
 
   registerTestCleanup(() => {
-    subprocess.kill();
+    process.kill(-subprocess.pid, 'SIGKILL');
   });
 
   await waitFor(() => {

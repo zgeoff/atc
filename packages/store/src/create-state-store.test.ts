@@ -5623,18 +5623,19 @@ test('it writes a consistent backup while another connection commits writes', as
   seed.run('CREATE TABLE probe_head (generation INTEGER NOT NULL)');
   seed.run('INSERT INTO probe_head VALUES (0)');
 
-  // About 32 MB of pages, so the copy runs long enough for the writer's
+  // About 8 MB of pages, so the copy runs long enough for the writer's
   // commits to land while it reads.
   seed.run('CREATE TABLE bulk (data BLOB NOT NULL)');
 
   seed.run(
-    'WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 4096) INSERT INTO bulk SELECT randomblob(8192) FROM n',
+    'WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 1024) INSERT INTO bulk SELECT randomblob(8192) FROM n',
   );
 
   const commitLog = join(ctx.directory, 'commits.log');
 
   // Each transaction adds 20 rows of one generation and moves the head to
-  // it, then logs the time it committed at.
+  // it, then logs its commit time. It rests after each commit: one that never
+  // paused stretched the copy from a tenth of a second to over three.
   const writer = Bun.spawn(
     [
       process.execPath,
@@ -5653,6 +5654,7 @@ test('it writes a consistent backup while another connection commits writes', as
         for (let generation = 1; ; generation++) {
           commit(generation);
           appendFileSync(process.env.PROBE_LOG, Date.now() + '\\n');
+          Bun.sleepSync(1);
         }
       `,
     ],

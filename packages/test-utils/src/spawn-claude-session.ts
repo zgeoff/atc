@@ -1,13 +1,9 @@
 import { KEYS } from './keys';
+import { openAgentStep } from './open-agent-step';
 import type { TUIHarness } from './start-tui-harness';
 
 export async function spawnClaudeSession(tui: TUIHarness, name: string): Promise<void> {
-  tui.reset();
-  tui.write('n');
-
-  // The agent step drops each key it takes while it reads the agents, and
-  // draws the selected row only once it has read them.
-  await tui.waitFor('\u001B[7mClaude');
+  await openAgentStep(tui);
 
   tui.write(KEYS.enter);
 

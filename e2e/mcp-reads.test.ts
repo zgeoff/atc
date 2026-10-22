@@ -2,16 +2,23 @@ import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isRecord } from '@atc/core';
-import { setupMCPHome } from '@atc/lifecycle/testing';
-import { startMCPStdio, waitFor } from '@atc/test-utils';
+import { startInProcessMCP } from '@atc/mcp/testing';
+import { runNote } from '@atc/reporters';
+import { updateEnv, waitFor } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
+import { startStubAgentDaemon } from '../packages/app/src/test-utils/start-stub-agent-daemon';
 
+// The MCP tools in the test's process, against a daemon in it whose Claude is
+// the in-process stand-in.
 async function setupTest() {
-  const mcpHome = setupMCPHome();
+  const stub = await startStubAgentDaemon();
 
-  const mcp = await startMCPStdio({ home: mcpHome.home });
+  const mcp = await startInProcessMCP({
+    socketPath: stub.daemon.socketPath,
+    build: stub.daemon.build,
+  });
 
-  return { home: mcpHome.home, mcp };
+  return { home: stub.home, daemon: stub.daemon, mcp };
 }
 
 test('it reads a session record through a tool call', async () => {
@@ -83,12 +90,19 @@ test('it reads fleet events through a tool call', async () => {
 
 test('it returns the whole text of a note its event previews, and the preview on request', async () => {
   const ctx = await setupTest();
+  const session = await ctx.mcp.spawnSession({ cwd: ctx.home });
 
   const whole = `${'option '.repeat(150)}end`;
 
-  writeFileSync(join(ctx.home, 'fake-claude-note'), whole);
+  // The test runs the note reporter as the agent inside the session would.
+  updateEnv('ATC_SESSION_ID', session);
+  updateEnv('ATC_SOCKET', ctx.daemon.reporterSocketPath);
 
-  await ctx.mcp.spawnSession({ cwd: ctx.home });
+  await runNote(
+    'note',
+    { message: '', messages: '', label: 'decision', turn: '' },
+    { readStdin: () => Promise.resolve(whole), print: () => {}, exit: () => {} },
+  );
 
   const full = await waitFor(async () => {
     const read = await ctx.mcp.sendToolCall('atc_events_read', {});
@@ -113,7 +127,7 @@ test('it returns the whole text of a note its event previews, and the preview on
   expect(fullNote).toStrictEqual({
     cursor: expect.toBeString(),
     at: expect.toBeNumber(),
-    session: expect.toBeString(),
+    session,
     name: expect.toBeString(),
     kind: 'note',
     label: 'decision',
@@ -125,7 +139,7 @@ test('it returns the whole text of a note its event previews, and the preview on
   expect(preview.structured?.['events']).toContainEqual({
     cursor: fullNote['cursor'],
     at: fullNote['at'],
-    session: fullNote['session'],
+    session,
     name: fullNote['name'],
     kind: 'note',
     label: 'decision',

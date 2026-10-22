@@ -1,6 +1,6 @@
 import { LOCAL_TARGET, parseConfig } from '@atc/config';
 import { buildStubTargets, createStubAgentCLIs } from '@atc/daemon/testing';
-import { buildMockHostServices, setupTempDir } from '@atc/test-utils';
+import { buildMockHostServices, resolveATCCommand, setupTempDir } from '@atc/test-utils';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { startTestDaemon } from './start-test-daemon';
@@ -11,10 +11,15 @@ interface StubAgentDaemonConfig {
   // The config's agents map, built from the stand-in executables; one
   // Claude entry when absent.
   readonly agents?: (bins: StubAgentBins) => Readonly<Record<string, unknown>>;
+
+  // How long a started session may go without a message tap before a
+  // message to it is refused; the daemon's own default when absent.
+  readonly tapGraceMs?: number;
 }
 
 // A daemon in the test's process whose agents are the in-process stand-in
-// CLIs on its local target, so no session starts a process.
+// CLIs on its local target, so no session starts a process. The hook
+// commands it writes name this checkout's atc, so a test can run one.
 export async function startStubAgentDaemon(config: StubAgentDaemonConfig = {}) {
   const temporaryDirectory = setupTempDir('atc-stub-agents-');
   const agents = createStubAgentCLIs(temporaryDirectory.path);
@@ -25,9 +30,11 @@ export async function startStubAgentDaemon(config: StubAgentDaemonConfig = {}) {
     options: () => ({
       adapters: buildAgentAdapters(
         parseConfig(SHIPPED_HARNESS_PLUGINS, { agents: entries }),
-        buildMockHostServices(),
+        buildMockHostServices({ atcArgv: resolveATCCommand() }),
       ),
       targets: buildStubTargets([LOCAL_TARGET], { spawned: [], onStart: agents.start }),
+      homeDir: temporaryDirectory.path,
+      ...(config.tapGraceMs === undefined ? {} : { tapGraceMs: config.tapGraceMs }),
     }),
   });
 

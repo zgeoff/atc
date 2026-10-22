@@ -1,4 +1,4 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { toAgentSessionID, toSessionID } from '@atc/core';
@@ -6,6 +6,7 @@ import {
   buildStubMessageBridgeHost,
   createStubAppServerCodex,
   createStubBin,
+  registerTestCleanup,
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
@@ -46,7 +47,7 @@ test('it stops the App Server and removes its socket when it stops', async () =>
     { bin, planTerminal: (remote, thread) => ({ bin, args: [remote, thread] }) },
   );
 
-  onTestFinished(() => bridge.stop());
+  registerTestCleanup(() => bridge.stop());
 
   await bridge.stop();
 
@@ -81,7 +82,7 @@ test('it starts the App Server again when it exits, and the bridge resumes its t
     },
   );
 
-  onTestFinished(() => bridge.stop());
+  registerTestCleanup(() => bridge.stop());
 
   const first = Number(readFileSync(join(ctx.directory, 'pids'), 'utf8').trim());
 
@@ -114,7 +115,7 @@ test('it starts the thread and a message sent right after the spawn on the model
     { bin, planTerminal: (remote, thread) => ({ bin, args: [remote, thread] }) },
   );
 
-  onTestFinished(() => bridge.stop());
+  registerTestCleanup(() => bridge.stop());
 
   bridge.startDelivery();
   stub.queueMessage({ id: 'm-1', from: 'planner', text: 'check the build' });
@@ -170,7 +171,7 @@ test('it ends a server an earlier daemon left running for the session before it 
   const socket = join(ctx.bridgeDir, 'codex.sock');
   const orphan = Bun.spawn([bin, 'app-server', '--listen', `unix://${socket}`]);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     orphan.kill();
   });
 
@@ -190,7 +191,7 @@ test('it ends a server an earlier daemon left running for the session before it 
     { bin, planTerminal: (remote, thread) => ({ bin, args: [remote, thread] }) },
   );
 
-  onTestFinished(() => bridge.stop());
+  registerTestCleanup(() => bridge.stop());
 
   await expect(orphan.exited).toResolve();
 });
@@ -210,7 +211,7 @@ test('it kills a server an earlier daemon left running that ignores the stop sig
 
   const orphan = Bun.spawn([stubborn, 'app-server', '--listen', `unix://${socket}`]);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     orphan.kill('SIGKILL');
   });
 
@@ -238,7 +239,7 @@ test('it kills a server an earlier daemon left running that ignores the stop sig
     },
   );
 
-  onTestFinished(() => bridge.stop());
+  registerTestCleanup(() => bridge.stop());
 
   expect(orphan.signalCode).toBe('SIGKILL');
 });
@@ -248,7 +249,7 @@ test('it leaves alone a process whose pid the system gave out again', async () =
   const bin = createStubAppServerCodex(ctx.directory);
   const other = Bun.spawn(['tail', '-f', '/dev/null']);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     other.kill();
   });
 
@@ -268,7 +269,7 @@ test('it leaves alone a process whose pid the system gave out again', async () =
     { bin, planTerminal: (remote, thread) => ({ bin, args: [remote, thread] }) },
   );
 
-  onTestFinished(() => bridge.stop());
+  registerTestCleanup(() => bridge.stop());
 
   expect(other.exitCode).toBeNull();
   expect(other.signalCode).toBeNull();
@@ -357,7 +358,7 @@ test.skipIf(codexMissing)(
       },
     );
 
-    onTestFinished(() => bridge.stop());
+    registerTestCleanup(() => bridge.stop());
 
     expect(bridge.plan.args[1]).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u,
@@ -393,7 +394,7 @@ test.skipIf(codexMissing)(
       },
     );
 
-    onTestFinished(() => first.stop());
+    registerTestCleanup(() => first.stop());
 
     const [, thread] = first.plan.args;
 
@@ -417,7 +418,7 @@ test.skipIf(codexMissing)(
       },
     );
 
-    onTestFinished(() => second.stop());
+    registerTestCleanup(() => second.stop());
 
     expect(second.plan.args[1]).toBe(thread);
   },

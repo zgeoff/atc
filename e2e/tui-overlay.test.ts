@@ -4,8 +4,10 @@ import { join } from 'node:path';
 import { openDaemonClient } from '@atc/protocol/client';
 import {
   KEYS,
+  openAgentStep,
   registerTestCleanup,
   spawnClaudeSession,
+  spawnDaemonSession,
   spawnNamedSession,
   startTUIHarness,
   waitFor,
@@ -33,19 +35,8 @@ test('it narrows the overlay to sessions matching the slash filter', async () =>
 
   await ctx.waitFor('atc — control tower');
 
-  const daemon = await openDaemonClient(join(ctx.home, 'atc-daemon.sock'));
-
-  registerTestCleanup(() => {
-    daemon.stop();
-  });
-
-  await daemon.sendHello('atc/test');
-
-  const send = (method: string, params?: Readonly<Record<string, unknown>>) =>
-    daemon.sendRequest(method, params);
-
-  await spawnNamedSession(send, 'alpha', ctx.home);
-  await spawnNamedSession(send, 'bravo', ctx.home);
+  await spawnDaemonSession(ctx, 'alpha');
+  await spawnDaemonSession(ctx, 'bravo');
 
   ctx.reset();
   ctx.write(KEYS.ctrlSpace);
@@ -82,7 +73,7 @@ test('it opens the overlay with a configured leader key', async () => {
   // session draws no status bar.
   await ctx.waitFor('▏^] ');
 
-  await spawnClaudeSession(ctx, 'leadertest');
+  await spawnDaemonSession(ctx, 'leadertest');
 
   ctx.reset();
   ctx.write(KEYS.ctrlRightBracket);
@@ -131,10 +122,7 @@ test('it clusters overlay rows under repository headers when grouping is toggled
   await ctx.waitFor('need you: first');
   await ctx.waitFor('┌ sessions ');
 
-  ctx.write('n');
-
-  // The agent step takes keys only once it draws the selected agent's row.
-  await ctx.waitFor('\u001B[7mClaude');
+  await openAgentStep(ctx);
 
   ctx.write(KEYS.enter);
 
@@ -287,7 +275,7 @@ test('it opens the key reference from the overlay and returns on esc', async () 
 
   await ctx.waitFor('atc — control tower');
 
-  await spawnClaudeSession(ctx, 'helptest');
+  await spawnDaemonSession(ctx, 'helptest');
 
   ctx.reset();
   ctx.write(KEYS.ctrlSpace);

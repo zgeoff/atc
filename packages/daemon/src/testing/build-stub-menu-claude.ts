@@ -1,3 +1,5 @@
+import { systemClock } from '@atc/core';
+import type { Clock } from '@atc/core';
 import { machineTypes } from '@zgeoff/std';
 import { createActor, enqueueActions, raise, setup } from 'xstate';
 import type { StubMemoryHarness } from './build-stub-memory-provider';
@@ -43,7 +45,8 @@ interface StubMenuClaude {
   readonly exit: () => void;
 }
 
-export function buildStubMenuClaude(): StubMenuClaude {
+// The clock times the stand-in's draws, holds and delayed answers.
+export function buildStubMenuClaude(clock: Clock = systemClock): StubMenuClaude {
   const log: Readonly<Record<string, unknown>>[] = [];
   const sessions: { harness: StubMemoryHarness; open: (menu: StubMenu) => void }[] = [];
   let loaded: StubMenuScenario | null = null;
@@ -70,7 +73,7 @@ export function buildStubMenuClaude(): StubMenuClaude {
         return;
       }
 
-      sessions.push({ harness, open: runStubMenuSession(harness, loaded, log) });
+      sessions.push({ harness, open: runStubMenuSession(harness, loaded, log, clock) });
     },
     switchMenu: () => {
       const latest = readLatest();
@@ -86,7 +89,7 @@ export function buildStubMenuClaude(): StubMenuClaude {
       // in the order they were set.
       const drawn = Promise.withResolvers<void>();
 
-      setTimeout(drawn.resolve, 0);
+      clock.schedule(drawn.resolve, 0);
 
       return drawn.promise;
     },
@@ -123,23 +126,47 @@ function runStubMenuSession(
   harness: StubMemoryHarness,
   scenario: StubMenuScenario,
   log: Readonly<Record<string, unknown>>[],
+  clock: Clock,
 ): (menu: StubMenu) => void {
   const [first] = scenario.menus;
 
-  const timers = new Set<ReturnType<typeof setTimeout>>();
+  // xstate's clock takes a timer id, and the stand-in's clock hands back a
+  // cancel.
+  const cancels = new Map<number, () => void>();
+
+  let nextTimerID = 0;
+
+  const scheduleTimer = (run: () => void, delayMs: number) => {
+    const timerID = nextTimerID++;
+
+    cancels.set(
+      timerID,
+      clock.schedule(() => {
+        cancels.delete(timerID);
+
+        run();
+      }, delayMs),
+    );
+
+    return timerID;
+  };
+
+  const actorClock = {
+    setTimeout: scheduleTimer,
+    clearTimeout: (timerID: number) => {
+      cancels.get(timerID)?.();
+      cancels.delete(timerID);
+    },
+  };
 
   // A terminal's output reaches its reader after the write that caused it,
   // never inside it.
   const emitLater = (screen: string) => {
-    const timer = setTimeout(() => {
-      timers.delete(timer);
-
+    scheduleTimer(() => {
       if (harness.readExit() === null && !harness.isDetached()) {
         harness.emitData(`\u001B[2J\u001B[H${screen}`);
       }
     }, 0);
-
-    timers.add(timer);
   };
 
   const drawView = (view: MenuView) => {
@@ -259,16 +286,16 @@ function runStubMenuSession(
     },
   });
 
-  const actor = createActor(machine);
+  const actor = createActor(machine, { clock: actorClock });
 
   harness.onExit(() => {
     actor.stop();
 
-    for (const timer of timers) {
-      clearTimeout(timer);
+    for (const cancel of cancels.values()) {
+      cancel();
     }
 
-    timers.clear();
+    cancels.clear();
   });
 
   harness.onInput((data) => {

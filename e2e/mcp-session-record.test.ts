@@ -1,14 +1,20 @@
 import { expect, test } from 'bun:test';
-import { setupMCPHome } from '@atc/lifecycle/testing';
-import { createGitFixture, startMCPStdio } from '@atc/test-utils';
+import { startInProcessMCP } from '@atc/mcp/testing';
+import { createGitFixture } from '@atc/test-utils';
+import { startStubAgentDaemon } from '../packages/app/src/test-utils/start-stub-agent-daemon';
 
+// The MCP tools in the test's process, against a daemon in it whose Claude is
+// the in-process stand-in.
 async function setupTest() {
-  const mcpHome = setupMCPHome();
-
+  const stub = await startStubAgentDaemon();
   const fixture = await createGitFixture({ prefix: 'atc-mcp-record-' });
-  const mcp = await startMCPStdio({ home: mcpHome.home });
 
-  return { home: mcpHome.home, fixture, mcp };
+  const mcp = await startInProcessMCP({
+    socketPath: stub.daemon.socketPath,
+    build: stub.daemon.build,
+  });
+
+  return { home: stub.home, daemon: stub.daemon, fixture, mcp };
 }
 
 test("it adds to a session's scope through the MCP tool from outside the session", async () => {
@@ -33,7 +39,12 @@ test("it adds to a session's scope through the MCP tool from outside the session
 test("it refuses the session's own MCP identity when it adds to its own scope", async () => {
   const ctx = await setupTest();
   const session = await ctx.mcp.spawnSession({ cwd: ctx.fixture.work, name: 'worker' });
-  const own = await startMCPStdio({ home: ctx.home, callerSessionID: session });
+
+  const own = await startInProcessMCP({
+    socketPath: ctx.daemon.socketPath,
+    build: ctx.daemon.build,
+    callerSessionID: session,
+  });
 
   const refused = await own.sendToolCall('atc_session_scope_add', {
     session,

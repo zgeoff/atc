@@ -1,19 +1,30 @@
 import { expect, test } from 'bun:test';
-import { setupMCPHome } from '@atc/lifecycle/testing';
-import { startMCPStdio } from '@atc/test-utils';
+import { startInProcessMCP } from '@atc/mcp/testing';
+import { startStubAgentDaemon } from '../packages/app/src/test-utils/start-stub-agent-daemon';
 
+// The MCP tools in the test's process, against a daemon in it whose Claude is
+// the in-process stand-in.
 async function setupTest() {
-  const mcpHome = setupMCPHome();
+  const stub = await startStubAgentDaemon();
 
-  const mcp = await startMCPStdio({ home: mcpHome.home });
+  const mcp = await startInProcessMCP({
+    socketPath: stub.daemon.socketPath,
+    build: stub.daemon.build,
+  });
 
-  return { home: mcpHome.home, mcp };
+  return { home: stub.home, daemon: stub.daemon, mcp };
 }
 
 test('it nests a spawn from inside a session under that session', async () => {
   const ctx = await setupTest();
   const wrangler = await ctx.mcp.spawnSession({ cwd: ctx.home, name: 'wrangler' });
-  const inner = await startMCPStdio({ home: ctx.home, callerSessionID: wrangler });
+
+  const inner = await startInProcessMCP({
+    socketPath: ctx.daemon.socketPath,
+    build: ctx.daemon.build,
+    callerSessionID: wrangler,
+  });
+
   const worker = await inner.sendToolCall('atc_session_spawn', { cwd: ctx.home, name: 'worker' });
 
   expect(worker.isError).toBeUndefined();
@@ -23,7 +34,12 @@ test('it nests a spawn from inside a session under that session', async () => {
 test('it spawns a top-level session from inside a session when detached is set', async () => {
   const ctx = await setupTest();
   const wrangler = await ctx.mcp.spawnSession({ cwd: ctx.home, name: 'wrangler' });
-  const inner = await startMCPStdio({ home: ctx.home, callerSessionID: wrangler });
+
+  const inner = await startInProcessMCP({
+    socketPath: ctx.daemon.socketPath,
+    build: ctx.daemon.build,
+    callerSessionID: wrangler,
+  });
 
   const solo = await inner.sendToolCall('atc_session_spawn', {
     cwd: ctx.home,
@@ -39,7 +55,13 @@ test('it spawns a top-level session from inside a session when detached is set',
 test('it leaves a detached spawn unpinned and forgettable when its caller is pinned', async () => {
   const ctx = await setupTest();
   const wrangler = await ctx.mcp.spawnSession({ cwd: ctx.home, name: 'wrangler' });
-  const inner = await startMCPStdio({ home: ctx.home, callerSessionID: wrangler });
+
+  const inner = await startInProcessMCP({
+    socketPath: ctx.daemon.socketPath,
+    build: ctx.daemon.build,
+    callerSessionID: wrangler,
+  });
+
   const solo = await inner.spawnSession({ cwd: ctx.home, name: 'solo', detached: true });
 
   await ctx.mcp.sendToolCall('atc_session_update', { session: wrangler, pinned: true });
@@ -60,7 +82,13 @@ test('it leaves a detached spawn unpinned and forgettable when its caller is pin
 test('it forgets a detached sub-session while its former parent stays pinned', async () => {
   const ctx = await setupTest();
   const wrangler = await ctx.mcp.spawnSession({ cwd: ctx.home, name: 'wrangler' });
-  const inner = await startMCPStdio({ home: ctx.home, callerSessionID: wrangler });
+
+  const inner = await startInProcessMCP({
+    socketPath: ctx.daemon.socketPath,
+    build: ctx.daemon.build,
+    callerSessionID: wrangler,
+  });
+
   const worker = await inner.spawnSession({ cwd: ctx.home, name: 'worker' });
 
   await ctx.mcp.sendToolCall('atc_session_update', { session: wrangler, pinned: true });
@@ -94,7 +122,13 @@ test('it forgets a detached sub-session while its former parent stays pinned', a
 test('it forgets its own sub-session from inside its pinned session and stays pinned', async () => {
   const ctx = await setupTest();
   const wrangler = await ctx.mcp.spawnSession({ cwd: ctx.home, name: 'wrangler' });
-  const inner = await startMCPStdio({ home: ctx.home, callerSessionID: wrangler });
+
+  const inner = await startInProcessMCP({
+    socketPath: ctx.daemon.socketPath,
+    build: ctx.daemon.build,
+    callerSessionID: wrangler,
+  });
+
   const worker = await inner.spawnSession({ cwd: ctx.home, name: 'worker' });
 
   await ctx.mcp.sendToolCall('atc_session_update', { session: wrangler, pinned: true });
@@ -112,10 +146,21 @@ test('it forgets its own sub-session from inside its pinned session and stays pi
 test('it refuses a forget from inside another session of a sub-session of a pinned session', async () => {
   const ctx = await setupTest();
   const wrangler = await ctx.mcp.spawnSession({ cwd: ctx.home, name: 'wrangler' });
-  const inner = await startMCPStdio({ home: ctx.home, callerSessionID: wrangler });
+
+  const inner = await startInProcessMCP({
+    socketPath: ctx.daemon.socketPath,
+    build: ctx.daemon.build,
+    callerSessionID: wrangler,
+  });
+
   const worker = await inner.spawnSession({ cwd: ctx.home, name: 'worker' });
   const bystander = await ctx.mcp.spawnSession({ cwd: ctx.home, name: 'bystander' });
-  const outer = await startMCPStdio({ home: ctx.home, callerSessionID: bystander });
+
+  const outer = await startInProcessMCP({
+    socketPath: ctx.daemon.socketPath,
+    build: ctx.daemon.build,
+    callerSessionID: bystander,
+  });
 
   await ctx.mcp.sendToolCall('atc_session_update', { session: wrangler, pinned: true });
 
@@ -126,7 +171,13 @@ test('it refuses a forget from inside another session of a sub-session of a pinn
 
 test('it spawns a top-level session when the caller id matches no session', async () => {
   const ctx = await setupTest();
-  const stray = await startMCPStdio({ home: ctx.home, callerSessionID: 'ghost' });
+
+  const stray = await startInProcessMCP({
+    socketPath: ctx.daemon.socketPath,
+    build: ctx.daemon.build,
+    callerSessionID: 'ghost',
+  });
+
   const spawned = await stray.sendToolCall('atc_session_spawn', { cwd: ctx.home, name: 'stray' });
 
   expect(spawned.isError).toBeUndefined();

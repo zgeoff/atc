@@ -9,6 +9,7 @@ import {
   buildStubSignedOutGH,
   createGitFixture,
   createStubBin,
+  openAgentStep,
   openRepoStep,
   registerTestCleanup,
   startGitHTTPServer,
@@ -261,9 +262,7 @@ test('it stays where the user moved when a directory listing answers late', asyn
 
   await ctx.waitFor('atc — control tower');
 
-  ctx.write('n');
-
-  await ctx.waitFor('spawn: agent');
+  await openAgentStep(ctx);
 
   ctx.write(KEYS.enter);
 
@@ -332,9 +331,7 @@ test('it keeps a probe started on a git source after a tab in that flow, spawnin
 
   await ctx.waitFor('atc — control tower');
 
-  ctx.write('n');
-
-  await ctx.waitFor('spawn: agent');
+  await openAgentStep(ctx);
 
   ctx.write(KEYS.enter);
 

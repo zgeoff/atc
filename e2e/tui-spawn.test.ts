@@ -5,6 +5,7 @@ import { openDaemonClient } from '@atc/protocol/client';
 import {
   KEYS,
   createGitFixture,
+  openAgentStep,
   registerTestCleanup,
   spawnClaudeSession,
   startTUIHarness,
@@ -100,9 +101,7 @@ test('it spawns on the target chosen in the target step, keeping the choice acro
 
   await ctx.waitFor('atc — control tower');
 
-  ctx.write('n');
-
-  await ctx.waitFor('spawn: agent');
+  await openAgentStep(ctx);
 
   ctx.write(KEYS.enter);
 
@@ -185,9 +184,7 @@ test('it keeps the target step open on a target whose provider the daemon lacks'
 
   await ctx.waitFor('atc — control tower');
 
-  ctx.write('n');
-
-  await ctx.waitFor('spawn: agent');
+  await openAgentStep(ctx);
 
   ctx.write(KEYS.enter);
 
@@ -244,9 +241,7 @@ test('it sends a dirty local directory to a target off the daemon machine as a p
 
   await ctx.waitFor('atc — control tower');
 
-  ctx.write('n');
-
-  await ctx.waitFor('spawn: agent');
+  await openAgentStep(ctx);
 
   ctx.write(KEYS.enter);
 
