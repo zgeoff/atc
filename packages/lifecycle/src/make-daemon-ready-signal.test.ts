@@ -1,7 +1,11 @@
 import { expect, test } from 'bun:test';
-import { fstatSync, openSync, readFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
+import { fstatSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/test-utils';
+import { Readable } from 'node:stream';
+import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import invariant from 'tiny-invariant';
 import { makeDaemonReadySignal } from './make-daemon-ready-signal';
 
 function setupTest() {
@@ -10,17 +14,41 @@ function setupTest() {
   return { directory: temporaryDirectory.path };
 }
 
-test('it writes one ready line to the descriptor the variable names, and closes it', () => {
+test('it writes one ready line to the pipe the variable names, and closes the pipe while the daemon runs', async () => {
   const ctx = setupTest();
-  const readyFile = join(ctx.directory, 'ready');
-  const fd = openSync(readyFile, 'w');
-  const signalReady = makeDaemonReadySignal({ ATC_DAEMON_READY_FD: String(fd) });
+  const daemonScript = join(ctx.directory, 'daemon.ts');
 
-  signalReady();
-  signalReady();
+  writeFileSync(
+    daemonScript,
+    `import { makeDaemonReadySignal } from '${join(import.meta.dir, 'make-daemon-ready-signal.ts')}';
+const signalReady = makeDaemonReadySignal(process.env);
+signalReady();
+signalReady();
+setInterval(() => {}, 1000);
+`,
+  );
 
-  expect(readFileSync(readyFile, 'utf8')).toBe('ready\n');
-  expect(() => fstatSync(fd)).toThrow();
+  const daemon = spawn(process.execPath, [daemonScript], {
+    env: { ...process.env, ATC_DAEMON_READY_FD: '3' },
+    stdio: ['ignore', 'ignore', 'ignore', 'pipe'],
+  });
+
+  registerTestCleanup(async () => {
+    const exited = once(daemon, 'exit');
+
+    daemon.kill('SIGKILL');
+
+    await exited;
+  });
+
+  const pipe = daemon.stdio.at(3);
+
+  invariant(pipe instanceof Readable);
+
+  const chunks: unknown[] = await pipe.toArray();
+
+  expect(chunks.map(String).join('')).toBe('ready\n');
+  expect(daemon.exitCode).toBeNull();
 });
 
 test('it removes the variable from the environment it is given', () => {
