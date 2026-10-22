@@ -1,13 +1,30 @@
 import { expect, test } from 'bun:test';
 import { KEYS, waitFor } from '@atc/test-utils';
+import invariant from 'tiny-invariant';
 import { buildStubMemoryProvider } from './build-stub-memory-provider';
 import { buildStubMenuClaude } from './build-stub-menu-claude';
 
 // The stand-in on a provider of its own, and a start that spawns one
-// session on it, gathering what the session draws.
+// session on it, gathering what the session draws from before the stand-in
+// runs.
 function setupTest() {
   const claude = buildStubMenuClaude();
-  const provider = buildStubMemoryProvider({ onStart: claude.start });
+
+  const outputs = new Map<unknown, { text: string }>();
+
+  const provider = buildStubMemoryProvider({
+    onStart: (harness) => {
+      const output = { text: '' };
+
+      outputs.set(harness, output);
+
+      harness.onData((data) => {
+        output.text += data;
+      });
+
+      claude.start(harness);
+    },
+  });
 
   const start = () => {
     const harness = provider.spawnHarness({
@@ -21,11 +38,9 @@ function setupTest() {
       rows: 24,
     });
 
-    const output = { text: '' };
+    const output = outputs.get(harness);
 
-    harness.onData((data) => {
-      output.text += data;
-    });
+    invariant(output !== undefined, 'the provider started no stand-in');
 
     return { harness, output };
   };
@@ -49,14 +64,19 @@ test('it draws a numbered menu with the cursor on the first option', async () =>
   });
 });
 
-test('it draws nothing inside the write that starts it', () => {
+test('it draws its menu only after the write that starts it', async () => {
   const ctx = setupTest();
 
   ctx.claude.load({ menus: [{ kind: 'plain', text: ['Pick a colour'], options: ['Amber'] }] });
 
   const menu = ctx.start();
+  const drawnInsideStart = menu.output.text;
 
-  expect(menu.output.text).toBe('');
+  await waitFor(() => {
+    expect(menu.output.text).toInclude('❯ Amber');
+  });
+
+  expect(drawnInsideStart).toBe('');
 });
 
 test('it picks the option the arrow keys move the cursor to', async () => {
