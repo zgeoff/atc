@@ -1,10 +1,13 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { buildExecutionTargets } from '@atc/daemon';
+import { IMP_PLUGIN } from '@atc/execution-imp';
+import { LOCAL_PTY_PLUGIN } from '@atc/execution-local';
 import { buildMockAuthProfile, buildMockHostServices } from '@atc/test-utils';
 import { createShippedExecutionProvider } from './create-shipped-execution-provider';
 
 test('it builds the shipped provider a target entry selects', () => {
   const built = createShippedExecutionProvider(
+    [LOCAL_PTY_PLUGIN, IMP_PLUGIN],
     {
       id: 'cloud',
       provider: 'imp',
@@ -45,6 +48,7 @@ test('it gives a target whose imp provider builds the identity its stored sessio
     ],
     (config) =>
       createShippedExecutionProvider(
+        [LOCAL_PTY_PLUGIN, IMP_PLUGIN],
         config,
         buildMockHostServices({ version: '1.0.0' }),
         { EXAMPLE_TOKEN: 'fixture-token' },
@@ -62,6 +66,7 @@ test('it gives a target whose imp provider builds the identity its stored sessio
 
 test('it builds no provider and the problem for an imp entry whose token variable is unset', () => {
   const built = createShippedExecutionProvider(
+    [LOCAL_PTY_PLUGIN, IMP_PLUGIN],
     {
       id: 'box',
       provider: 'imp',
@@ -85,6 +90,7 @@ test('it builds no provider and the problem for an imp entry whose token variabl
 
 test('it builds no provider and no problem for a kind this build ships no plugin for', () => {
   const built = createShippedExecutionProvider(
+    [LOCAL_PTY_PLUGIN, IMP_PLUGIN],
     { id: 'far', provider: 'teleport', options: {} },
     buildMockHostServices({ version: '1.0.0' }),
     {},
@@ -105,6 +111,7 @@ test('it shows an error on each imp target when a profile has a secret name impd
     ],
     (config) =>
       createShippedExecutionProvider(
+        [LOCAL_PTY_PLUGIN, IMP_PLUGIN],
         config,
         buildMockHostServices({ version: '1.0.0' }),
         {},
@@ -139,6 +146,7 @@ test('it shows no error for a profile with a secret name impd refuses when no im
     [{ id: 'local', provider: 'local-pty', options: {} }],
     (config) =>
       createShippedExecutionProvider(
+        [LOCAL_PTY_PLUGIN, IMP_PLUGIN],
         config,
         buildMockHostServices({ version: '1.0.0' }),
         {},

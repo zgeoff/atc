@@ -4,7 +4,8 @@
   "description": "The Codex CLI harness: the adapter, its hook file, guest launches, and the sign-in and trust files a brokered session starts with",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./config": "./src/config/index.ts"
   },
   "dependencies": {
     "@atc/config": "workspace:*",

@@ -3,8 +3,19 @@ import { IMP_PLUGIN } from '@atc/execution-imp';
 import { buildTargetIdentity } from '@atc/store';
 import { SHIPPED_EXECUTION_PLUGINS } from './shipped-execution-plugins';
 
-test('it ships the local PTY and imp execution plugins', () => {
-  expect(SHIPPED_EXECUTION_PLUGINS.map((plugin) => plugin.id)).toStrictEqual(['local-pty', 'imp']);
+test('it ships the local PTY and imp execution plugins, each under its own id', async () => {
+  const loaded = await Promise.all(
+    [...SHIPPED_EXECUTION_PLUGINS].map(async ([id, loadPlugin]) => {
+      const plugin = await loadPlugin();
+
+      return [id, plugin.id];
+    }),
+  );
+
+  expect(loaded).toStrictEqual([
+    ['local-pty', 'local-pty'],
+    ['imp', 'imp'],
+  ]);
 });
 
 // stored sessions hold this exact string for the config, so a change to it

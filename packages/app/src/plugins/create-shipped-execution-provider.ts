@@ -4,15 +4,16 @@ import type { AuthProfile, HostServices } from '@atc/plugin-api';
 import { TargetUnavailableError } from '@atc/plugin-api';
 import { z } from 'zod';
 import { createPluginContract } from './create-plugin-contract';
-import { SHIPPED_EXECUTION_PLUGINS } from './shipped-execution-plugins';
+import type { ExecutionPlugin } from './shipped-execution-plugins';
 
 export function createShippedExecutionProvider(
+  plugins: readonly ExecutionPlugin[],
   config: TargetConfig,
   host: HostServices,
   env: Readonly<Record<string, string | undefined>>,
   authProfiles: ReadonlyMap<string, AuthProfile>,
 ): ProviderBuild {
-  const plugin = SHIPPED_EXECUTION_PLUGINS.find((candidate) => candidate.id === config.provider);
+  const plugin = plugins.find((candidate) => candidate.id === config.provider);
 
   if (plugin === undefined) {
     return { provider: null, problem: null };
