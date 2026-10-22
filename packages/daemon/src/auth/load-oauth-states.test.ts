@@ -90,6 +90,34 @@ test('it refuses an outdated broker as an unavailable host before it lists any s
   expect(broker.calls).toStrictEqual(['verifyVersion']);
 });
 
+test("it ends an outdated broker's refusal with the broker's name and upgrade step", () => {
+  const broker = {
+    ...buildStubCredentialBroker(),
+    describe: { name: 'harbor', upgrade: 'upgrade harbord to 4.0.0 or later' },
+  };
+
+  broker.setOutdated(true);
+
+  const loaded = loadOAuthStates(
+    broker,
+    buildMockAuthBinding({
+      secrets: [
+        {
+          secret: 'codex-chatgpt',
+          kind: 'oauth',
+          rules: [{ host: 'chatgpt.com', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+    }),
+  );
+
+  expect(loaded).rejects.toMatchObject({
+    code: 'host_unavailable',
+    message:
+      'the harbor broker refused a runtime auth call: the broker is older than the oldest this atc supports; upgrade harbord to 4.0.0 or later',
+  });
+});
+
 test('it refuses a bound oauth secret that the broker does not hold', () => {
   const broker = buildStubCredentialBroker();
 
