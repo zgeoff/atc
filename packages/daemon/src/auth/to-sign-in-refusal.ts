@@ -2,8 +2,6 @@ import type { ResolvedAuthSecret } from '@atc/config';
 import type { CredentialBroker } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 
-// An agent's refusal of a secret it cannot sign in with, ended with the step
-// the broker gives to renew that secret.
 export function toSignInRefusal(
   error: unknown,
   broker: Pick<CredentialBroker, 'describe'>,
