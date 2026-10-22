@@ -1,7 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { runCommand, setupTempDir } from '@atc/test-utils';
+import { createStubBin, runCommand, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
 
@@ -173,4 +173,99 @@ test('it tests a plugin in a workspace of its manifest closure and the test help
 
   expect(keptManifest).not.toInclude('@atc/store');
   expect(keptManifest).not.toInclude('oxlint');
+}, 300_000);
+
+test('it type-checks the plugin when the node on PATH fails', async () => {
+  const ctx = setupTest();
+  const catalogSchema = z.record(z.string(), z.string());
+  const rootText = readFileSync(join(ctx.repo, 'package.json'), 'utf8');
+
+  const rootManifest = z
+    .object({ workspaces: z.object({ catalog: catalogSchema }) })
+    .parse(JSON.parse(rootText));
+
+  const catalog = rootManifest.workspaces.catalog;
+
+  await Bun.write(
+    join(ctx.directory, 'package.json'),
+    JSON.stringify({
+      name: 'root',
+      private: true,
+      workspaces: {
+        packages: ['packages/*', 'packages/*/*'],
+        catalog: {
+          typescript: catalog['typescript'],
+          '@types/bun': catalog['@types/bun'],
+          '@zgeoff/bun-test-extended': catalog['@zgeoff/bun-test-extended'],
+        },
+      },
+      devDependencies: {
+        typescript: 'catalog:',
+        '@types/bun': 'catalog:',
+        '@zgeoff/bun-test-extended': 'catalog:',
+      },
+    }),
+  );
+
+  await Bun.write(join(ctx.directory, 'bunfig.toml'), '[install]\nlinker = "isolated"\n');
+
+  await Bun.write(
+    join(ctx.directory, 'tsconfig.base.json'),
+    JSON.stringify({
+      compilerOptions: {
+        strict: true,
+        target: 'ES2024',
+        module: 'Preserve',
+        moduleResolution: 'bundler',
+        skipLibCheck: true,
+        noEmit: true,
+      },
+    }),
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'scripts/with-test-home.sh'),
+    Bun.file(join(ctx.repo, 'scripts/with-test-home.sh')),
+  );
+
+  await Bun.write(join(ctx.directory, 'mods/README.md'), '# mods\n');
+
+  await Bun.write(
+    join(ctx.directory, 'packages/test-utils/package.json'),
+    JSON.stringify({ name: '@atc/test-utils', exports: { '.': './src/index.ts' } }),
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/test-utils/src/index.ts'),
+    "export const FIXTURE = 'fixture';\n",
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/harnesses/demo/package.json'),
+    JSON.stringify({ name: '@atc/harness-demo', exports: { '.': './src/index.ts' } }),
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/harnesses/demo/src/index.ts'),
+    "export const DEMO = 'demo';\n",
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/harnesses/demo/src/index.test.ts'),
+    "import { expect, test } from 'bun:test';\nimport { DEMO } from './index';\n\ntest('it names the demo', () => {\n  expect(DEMO).toBe('demo');\n});\n",
+  );
+
+  createStubBin(
+    join(ctx.directory, 'bin'),
+    'node',
+    "#!/bin/sh\necho 'node: not usable here' >&2\nexit 1\n",
+  );
+
+  const ran = await runCommand(
+    [process.execPath, join(import.meta.dir, 'test-plugin.ts'), 'harness-demo', ctx.directory],
+    { env: { ...process.env, PATH: `${join(ctx.directory, 'bin')}:${process.env['PATH']}` } },
+  );
+
+  expect(ran.stdout).toInclude('test-plugin: harness-demo passed in a workspace without the app');
+  expect(ran.exitCode).toBe(0);
 }, 300_000);
