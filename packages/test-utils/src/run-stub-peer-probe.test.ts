@@ -31,7 +31,7 @@ test('it adds an empty scope to the session after a handshake without a session'
   expect(daemon.requests).toStrictEqual([
     {
       method: 'daemon.hello',
-      params: { client: 'atc/peer-probe', protocol: 10, auth: { scheme: 'none' } },
+      params: { client: 'atc/peer-probe', protocol: 11, auth: { scheme: 'none' } },
     },
     { method: 'session.scope.add', params: { session: 's-7', scope: {} } },
   ]);
@@ -97,6 +97,32 @@ test('it writes the sender the daemon recorded for a message it sent as a princi
   });
 });
 
+test('it writes the peer session the handshake answer holds, after a handshake without a session', async () => {
+  const ctx = setupTest();
+
+  const daemon = startStubLegacyDaemon(ctx.socketPath, {
+    replies: {
+      'daemon.hello': {
+        daemon: 'atc/legacy-build',
+        daemonID: 'd-legacy',
+        lastUsedAgent: 'claude',
+        peerSession: 's-4',
+      },
+    },
+  });
+
+  await runCommand([process.execPath, ctx.probe, 'peer-session', ctx.socketPath, '-', ctx.outPath]);
+
+  expect(JSON.parse(readFileSync(ctx.outPath, 'utf8'))).toStrictEqual({ peerSession: 's-4' });
+
+  expect(daemon.requests).toStrictEqual([
+    {
+      method: 'daemon.hello',
+      params: { client: 'atc/peer-probe', protocol: 11, auth: { scheme: 'none' } },
+    },
+  ]);
+});
+
 test('it gives the session in its handshake', async () => {
   const ctx = setupTest();
   const daemon = startStubLegacyDaemon(ctx.socketPath);
@@ -108,7 +134,7 @@ test('it gives the session in its handshake', async () => {
   expect(daemon.requests).toStrictEqual([
     {
       method: 'daemon.hello',
-      params: { client: 'atc/peer-probe', protocol: 10, auth: { scheme: 'none' }, session: 's-7' },
+      params: { client: 'atc/peer-probe', protocol: 11, auth: { scheme: 'none' }, session: 's-7' },
     },
   ]);
 });

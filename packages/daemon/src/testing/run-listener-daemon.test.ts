@@ -74,6 +74,7 @@ test('it answers a hello on the daemon socket in its test directory', async () =
     limits: { maxLine: 1_048_576, maxChunk: 65_536 },
     idempotency: { completedRetentionMs: 86_400_000 },
     lastUsedAgent: 'claude',
+    peerSession: null,
   });
 });
 

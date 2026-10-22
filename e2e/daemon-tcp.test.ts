@@ -128,5 +128,6 @@ test('it accepts a TCP handshake with a token a SIGHUP reload kept', async () =>
     limits: { maxLine: 1_048_576, maxChunk: 65_536 },
     idempotency: { completedRetentionMs: 86_400_000 },
     lastUsedAgent: 'claude',
+    peerSession: null,
   });
 });
