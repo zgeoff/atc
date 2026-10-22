@@ -3,11 +3,8 @@ import type { Args } from 'gunshi';
 import type { PasskeysAction } from './passkeys';
 
 interface PasskeysCommandSpec {
-  // What the owner signs in to, such as `atc mcp --http`.
-  readonly server: string;
-
-  // The flags every subcommand takes beside its own.
-  readonly args: Args;
+  readonly serverName: string;
+  readonly sharedArgs: Args;
   readonly runPasskeys: (
     action: PasskeysAction,
     values: Readonly<Record<string, unknown>>,
@@ -17,8 +14,8 @@ interface PasskeysCommandSpec {
 export function createPasskeysCommand(spec: PasskeysCommandSpec) {
   return define({
     name: 'passkeys',
-    description: `List, enroll, or remove the passkeys the owner signs in to ${spec.server} with`,
-    args: spec.args,
+    description: `List, enroll, or remove the passkeys the owner signs in to ${spec.serverName} with`,
+    args: spec.sharedArgs,
     subCommands: {
       list: lazy(
         () => async (ctx) => {
@@ -28,7 +25,7 @@ export function createPasskeysCommand(spec: PasskeysCommandSpec) {
           name: 'list',
           description: 'List the enrolled passkeys',
           internal: true,
-          args: spec.args,
+          args: spec.sharedArgs,
         },
       ),
       enroll: lazy(
@@ -44,7 +41,7 @@ export function createPasskeysCommand(spec: PasskeysCommandSpec) {
               type: 'boolean',
               description: 'Remove every passkey and browser sign-in first, after losing them',
             },
-            ...spec.args,
+            ...spec.sharedArgs,
           },
         },
       ),
@@ -55,7 +52,7 @@ export function createPasskeysCommand(spec: PasskeysCommandSpec) {
         {
           name: 'remove',
           description: 'Remove a passkey, such as a lost one',
-          args: { id: { type: 'positional', description: 'The passkey ID' }, ...spec.args },
+          args: { id: { type: 'positional', description: 'The passkey ID' }, ...spec.sharedArgs },
         },
       ),
     },

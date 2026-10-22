@@ -20,8 +20,6 @@ interface GatewayFlags {
   readonly stateDir: string;
 }
 
-// The environment the gateway's daemon tokens come from, beside the console,
-// the exit, and the signal listeners that stop it.
 interface GatewayIO extends Pick<ProcessIO, 'print' | 'printError' | 'exit' | 'registerSignal'> {
   readonly env: Readonly<Record<string, string | undefined>>;
 }

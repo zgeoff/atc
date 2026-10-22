@@ -29,8 +29,6 @@ interface DaemonInvocation {
   readonly loadHostServices: () => Promise<HostServices>;
 }
 
-// Runs the daemon in the foreground until SIGTERM, with a TCP listener when
-// --listen and --token-file are given.
 export async function runDaemon(invocation: DaemonInvocation): Promise<void> {
   if ((invocation.listen === null) !== (invocation.tokenFile === null)) {
     console.error('atc daemon: --listen and --token-file go together');

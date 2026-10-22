@@ -3,11 +3,8 @@ import type { Args } from 'gunshi';
 import type { ClientsAction } from './clients';
 
 interface ClientsCommandSpec {
-  // What the clients connect to, such as `atc mcp --http`.
-  readonly server: string;
-
-  // The flags every subcommand takes beside its own.
-  readonly args: Args;
+  readonly serverName: string;
+  readonly sharedArgs: Args;
   readonly runClients: (
     action: ClientsAction,
     values: Readonly<Record<string, unknown>>,
@@ -17,14 +14,14 @@ interface ClientsCommandSpec {
 export function createClientsCommand(spec: ClientsCommandSpec) {
   return define({
     name: 'clients',
-    description: `List, add, or remove the clients that may connect to ${spec.server}`,
-    args: spec.args,
+    description: `List, add, or remove the clients that may connect to ${spec.serverName}`,
+    args: spec.sharedArgs,
     subCommands: {
       list: lazy(
         () => async (ctx) => {
           await spec.runClients({ kind: 'list' }, ctx.values);
         },
-        { name: 'list', description: 'List the clients', internal: true, args: spec.args },
+        { name: 'list', description: 'List the clients', internal: true, args: spec.sharedArgs },
       ),
       add: lazy(
         () => async (ctx) => {
@@ -44,7 +41,7 @@ export function createClientsCommand(spec: ClientsCommandSpec) {
               required: true,
               description: 'A redirect URI the client returns to; repeat for more',
             },
-            ...spec.args,
+            ...spec.sharedArgs,
           },
         },
       ),
@@ -55,7 +52,7 @@ export function createClientsCommand(spec: ClientsCommandSpec) {
         {
           name: 'remove',
           description: 'Remove a client and revoke every grant it holds',
-          args: { id: { type: 'positional', description: 'The client ID' }, ...spec.args },
+          args: { id: { type: 'positional', description: 'The client ID' }, ...spec.sharedArgs },
         },
       ),
     },

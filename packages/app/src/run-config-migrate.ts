@@ -4,7 +4,6 @@ import { buildMigratedConfig } from './build-migrated-config';
 import { PROCESS_IO } from './process-io';
 import type { ProcessIO } from './process-io';
 
-// The migrated config goes to stdout as it is, with no line end added.
 interface ConfigMigrateIO extends Pick<ProcessIO, 'print' | 'printError'> {
   readonly printText: (text: string) => void;
 }

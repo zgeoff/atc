@@ -63,10 +63,10 @@ export async function runGatewayCLI(
     values: Readonly<Record<string, unknown>>,
     run: (stateDir: string) => Promise<void>,
   ): Promise<void> => {
-    const given = values['state-dir'];
+    const given: unknown = values['state-dir'];
 
     const stateDirs = Array.isArray(given)
-      ? given.filter((value) => typeof value === 'string')
+      ? given.filter((value: unknown): value is string => typeof value === 'string')
       : [];
 
     const picked = pickStateDir(stateDirs, env);
@@ -122,8 +122,8 @@ export async function runGatewayCLI(
   );
 
   const clients = createClientsCommand({
-    server: 'the gateway',
-    args: STATE_DIR_ARG,
+    serverName: 'the gateway',
+    sharedArgs: STATE_DIR_ARG,
     runClients: (action, values) =>
       withStateDir(values, (stateDir) =>
         io.runClients(action, {
@@ -134,8 +134,8 @@ export async function runGatewayCLI(
   });
 
   const passkeys = createPasskeysCommand({
-    server: 'the gateway',
-    args: STATE_DIR_ARG,
+    serverName: 'the gateway',
+    sharedArgs: STATE_DIR_ARG,
     runPasskeys: (action, values) =>
       withStateDir(values, (stateDir) =>
         io.runPasskeys(action, {

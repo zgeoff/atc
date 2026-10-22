@@ -115,14 +115,14 @@ export async function runATCCLI(argv: readonly string[], io: ATCCLIIO): Promise<
   );
 
   const clients = createClientsCommand({
-    server: 'atc mcp --http',
-    args: {},
+    serverName: 'atc mcp --http',
+    sharedArgs: {},
     runClients: (action) => io.runClients(action),
   });
 
   const passkeys = createPasskeysCommand({
-    server: 'atc mcp --http',
-    args: {},
+    serverName: 'atc mcp --http',
+    sharedArgs: {},
     runPasskeys: (action) => io.runPasskeys(action),
   });
 

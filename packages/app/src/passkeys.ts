@@ -24,8 +24,6 @@ interface PasskeysTarget {
   readonly command: string;
 }
 
-// The time enrollment tokens expire from, beside where the command's lines
-// and its exit code go.
 interface PasskeysIO extends Pick<ProcessIO, 'print' | 'printError' | 'setExitCode'> {
   readonly now: () => number;
 }
