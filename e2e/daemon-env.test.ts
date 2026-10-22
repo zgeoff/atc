@@ -34,11 +34,15 @@ function setupTest() {
 }
 
 test.each([
-  { daemonTERM: undefined, sessionTERM: 'xterm-256color' },
-  { daemonTERM: 'dumb', sessionTERM: 'xterm-256color' },
-  { daemonTERM: 'screen-256color', sessionTERM: 'screen-256color' },
+  { daemonTERM: undefined, daemonLabel: 'no TERM', sessionTERM: 'xterm-256color' },
+  { daemonTERM: 'dumb', daemonLabel: 'TERM dumb', sessionTERM: 'xterm-256color' },
+  {
+    daemonTERM: 'screen-256color',
+    daemonLabel: 'TERM screen-256color',
+    sessionTERM: 'screen-256color',
+  },
 ])(
-  'it starts a session with TERM $sessionTERM when the daemon starts with TERM $daemonTERM',
+  'it starts a session with TERM $sessionTERM when the daemon starts with $daemonLabel',
   async (row) => {
     const ctx = setupTest();
 

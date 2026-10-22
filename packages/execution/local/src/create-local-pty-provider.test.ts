@@ -118,11 +118,15 @@ test('it starts a harness with TERM xterm-256color when the daemon has no TERM',
 });
 
 test.each([
-  { daemonTERM: 'dumb', childTERM: 'xterm-256color' },
-  { daemonTERM: '', childTERM: 'xterm-256color' },
-  { daemonTERM: 'screen-256color', childTERM: 'screen-256color' },
-  { daemonTERM: 'xterm-kitty', childTERM: 'xterm-kitty' },
-])('it starts a harness with TERM $childTERM when the daemon has TERM $daemonTERM', async (row) => {
+  { daemonTERM: 'dumb', daemonLabel: 'TERM dumb', childTERM: 'xterm-256color' },
+  { daemonTERM: '', daemonLabel: 'an empty TERM', childTERM: 'xterm-256color' },
+  {
+    daemonTERM: 'screen-256color',
+    daemonLabel: 'TERM screen-256color',
+    childTERM: 'screen-256color',
+  },
+  { daemonTERM: 'xterm-kitty', daemonLabel: 'TERM xterm-kitty', childTERM: 'xterm-kitty' },
+])('it starts a harness with TERM $childTERM when the daemon has $daemonLabel', async (row) => {
   const ctx = setupTest();
 
   updateEnv('TERM', row.daemonTERM);
