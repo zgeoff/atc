@@ -439,9 +439,19 @@ test('it binds a gateway session through the hook command atc wrote for it', asy
   const matcher = z.object({ hooks: z.tuple([command]) });
   const hooks = z.object({ hooks: z.object({ SessionStart: z.tuple([matcher]) }) }).parse(settings);
 
-  const reported = Bun.spawn(['/bin/sh', '-c', hooks.hooks.SessionStart[0].hooks[0].command], {
+  // The shell execs the command, so a kill of this process reaches the
+  // reporter, which dash would otherwise run as a child.
+  const hookCommand = `exec ${hooks.hooks.SessionStart[0].hooks[0].command}`;
+
+  const reported = Bun.spawn(['/bin/sh', '-c', hookCommand], {
     env: { ...process.env, ATC_SESSION_ID: id, ATC_SOCKET: ctx.daemon.reporterSocketPath },
     stdin: Buffer.from(JSON.stringify({ hook_event_name: 'SessionStart', session_id: 'fake-1' })),
+  });
+
+  registerTestCleanup(() => {
+    reported.kill('SIGKILL');
+
+    return reported.exited;
   });
 
   const bound = await waitForEvent(ctx.daemon.events, {
