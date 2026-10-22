@@ -179,8 +179,8 @@ test('it refuses the version check as outdated once a test marks it so', () => {
   broker.setOutdated(true);
 
   expect(broker.verifyVersion()).rejects.toMatchObject({
-    code: 'refused',
-    brokerCode: 'IMPD_OUTDATED',
+    code: 'too_old',
+    brokerCode: 'OUTDATED',
   });
 });
 

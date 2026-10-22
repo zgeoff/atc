@@ -26,6 +26,7 @@ import { createImpLeases } from './create-imp-leases';
 import type { ImpHost } from './imp-host';
 import type { ImpCreateSpec, ImpPort } from './imp-port';
 import { ImpPortError } from './imp-port-error';
+import { IMPD_UPGRADE } from './impd-upgrade';
 import { NO_GZIP_CODE } from './no-gzip-code';
 import { openReporter } from './open-reporter';
 import { toHostRefusal } from './to-host-refusal';
@@ -236,7 +237,11 @@ export function createImpProvider(
 
     try {
       const layout = await timer.withStep('impd-version', async () => {
-        await port.verifyVersion();
+        await port.verifyVersion().catch((error: unknown) => {
+          throw error instanceof ImpPortError && error.code === 'IMPD_OUTDATED'
+            ? new ImpPortError(error.code, `${error.message}; ${IMPD_UPGRADE}`, error.data)
+            : error;
+        });
 
         return readLayout();
       });

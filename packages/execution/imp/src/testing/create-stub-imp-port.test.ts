@@ -1608,7 +1608,7 @@ test('it refuses the version check of the outdated version a test set', () => {
 
   expect(ctx.port.verifyVersion()).rejects.toMatchObject({
     code: 'IMPD_OUTDATED',
-    message: 'impd 2.1.0 is older than 2.2.0, the oldest impd this atc supports; upgrade impd',
+    message: 'impd 2.1.0 is older than 2.2.0, the oldest impd this atc supports',
   });
 });
 

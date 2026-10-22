@@ -55,11 +55,11 @@ test.each([['reads the project settings', READ_PROJECT_SETTINGS_SCRIPT]])(
 test('it passes an agent with no auth selection on any target', () => {
   const ctx = setupTest({
     adapters: [buildStubHarnessAdapter({ id: 'claude' })],
-    targets: [buildMockExecutionTarget({ id: 'imp', provider: buildStubMemoryProvider() })],
+    targets: [buildMockExecutionTarget({ id: 'remote', provider: buildStubMemoryProvider() })],
   });
 
   expect(() => {
-    ctx.auth.requireAgentTarget('claude', 'imp');
+    ctx.auth.requireAgentTarget('claude', 'remote');
   }).not.toThrow();
 });
 
@@ -79,11 +79,11 @@ test('it refuses an agent that starts only behind the broker on a target that re
         }),
       }),
     ],
-    targets: [buildMockExecutionTarget({ id: 'imp', provider: buildStubMemoryProvider() })],
+    targets: [buildMockExecutionTarget({ id: 'remote', provider: buildStubMemoryProvider() })],
   });
 
   expect(() => {
-    ctx.auth.requireAgentTarget('glm', 'imp');
+    ctx.auth.requireAgentTarget('glm', 'remote');
   }).toThrow(expect.objectContaining({ code: 'auth_target_unsupported' }));
 });
 
@@ -93,10 +93,10 @@ test('it resolves no harness auth for an agent with no auth selection', () => {
 
   const ctx = setupTest({
     adapters: [adapter],
-    targets: [buildMockExecutionTarget({ id: 'imp', provider })],
+    targets: [buildMockExecutionTarget({ id: 'remote', provider })],
   });
 
-  expect(ctx.auth.resolveHarnessAuth(adapter, provider, 'imp')).toBeNull();
+  expect(ctx.auth.resolveHarnessAuth(adapter, provider, 'remote')).toBeNull();
 });
 
 test('it readies a local host once and plans the agent spawn there', async () => {
@@ -141,7 +141,7 @@ test('it readies a remote host and plans the local spawn with no files when the 
 
   const ctx = setupTest({
     adapters: [adapter],
-    targets: [buildMockExecutionTarget({ id: 'imp', provider })],
+    targets: [buildMockExecutionTarget({ id: 'remote', provider })],
   });
 
   const setup = await ctx.auth.setupHarnessOnHost(
@@ -149,7 +149,7 @@ test('it readies a remote host and plans the local spawn with no files when the 
     provider,
     toSessionID('spawn-1'),
     toSessionID('host-1'),
-    'imp',
+    'remote',
     { prompt: '', resume: false },
     null,
     null,
@@ -190,10 +190,16 @@ test('it reads no project settings for an agent that plans no settings check', a
 
   const ctx = setupTest({
     adapters: [adapter],
-    targets: [buildMockExecutionTarget({ id: 'imp', provider })],
+    targets: [buildMockExecutionTarget({ id: 'remote', provider })],
   });
 
-  await ctx.auth.requireProjectSettings(adapter, provider, toSessionID('host-1'), 'imp', '/work');
+  await ctx.auth.requireProjectSettings(
+    adapter,
+    provider,
+    toSessionID('host-1'),
+    'remote',
+    '/work',
+  );
 
   expect(provider.commands).toStrictEqual([]);
 });

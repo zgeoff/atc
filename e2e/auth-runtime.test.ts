@@ -598,7 +598,7 @@ test('it refuses a spawn on an impd older than 2.2.0 after reads alone', async (
   expect(spawn).rejects.toMatchObject({
     code: 'host_unavailable',
     message:
-      'the imp credential broker refused a runtime auth call: impd 2.1.0 is older than 2.2.0, the oldest impd this atc supports; upgrade impd',
+      'the imp broker refused a runtime auth call: impd 2.1.0 is older than 2.2.0, the oldest impd this atc supports; upgrade impd to 2.2.0 or later',
     data: { provider: 'imp', problem: 'impd_outdated' },
   });
 
@@ -1157,7 +1157,7 @@ test('it restores a local session with a workspace without a terminal once its a
     ['kind', 'headless'],
     [
       'lastMsg',
-      "agent 'glm' takes its credential from impd's broker, which target 'local' does not reach",
+      "agent 'glm' takes its credential from a credential broker, which target 'local' does not reach",
     ],
     ['workspace', { repoURL: 'file:///src', sha: 'a'.repeat(40), ref: 'main', materializedAt: 1 }],
   ]);
@@ -1372,7 +1372,7 @@ test('it restores a session whose agent dropped the broker credential while its 
 
   expect(getRecord(got, 'session')).toMatchObject({
     kind: 'headless',
-    lastMsg: `agent 'glm' takes no credential from impd's broker, but its host holds a runtime auth binding; give the agent its auth block back, or forget the session. Once the auth block is back: atc session adopt ${id} (MCP: atc_session_adopt)`,
+    lastMsg: `agent 'glm' takes no credential from the target's broker, but its host holds a runtime auth binding; give the agent its auth block back, or forget the session. Once the auth block is back: atc session adopt ${id} (MCP: atc_session_adopt)`,
     restoreRefusal: 'auth_rebind_required',
   });
 });
@@ -4178,7 +4178,7 @@ test('it reports a restore refused for a dropped auth block in the restart check
       {
         name: 'gateway-docs',
         id,
-        reason: `restore refused (auth_rebind_required): agent 'glm' takes no credential from impd's broker, but its host holds a runtime auth binding; give the agent its auth block back, or forget the session. Once the auth block is back: atc session adopt ${id} (MCP: atc_session_adopt)`,
+        reason: `restore refused (auth_rebind_required): agent 'glm' takes no credential from the target's broker, but its host holds a runtime auth binding; give the agent its auth block back, or forget the session. Once the auth block is back: atc session adopt ${id} (MCP: atc_session_adopt)`,
       },
     ],
   });

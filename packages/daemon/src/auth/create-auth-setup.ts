@@ -4,6 +4,7 @@ import type {
   CredentialBroker,
   ExecutionProvider,
   GuestPaths,
+  GuestSpawnPlan,
   HarnessSpec,
   SpawnOptions,
   SpawnPlan,
@@ -27,6 +28,7 @@ import { loadOAuthStates } from './load-oauth-states';
 import { requireGuestEnv } from './require-guest-env';
 import { requireProjectSettings } from './require-project-settings';
 import { setupGuest } from './setup-guest';
+import { toSignInRefusal } from './to-sign-in-refusal';
 
 // A readied host's harness plan, and the auth attempt that provisioned the
 // host, if one did.
@@ -35,7 +37,7 @@ export interface HarnessSetup {
   readonly attemptID: string | null;
 }
 
-// How a harness takes its credential from impd's broker: the broker the
+// How a harness takes its credential from the target's broker: the broker the
 // provider reaches, and the binding the agent's selection resolves to now.
 interface HarnessAuth {
   readonly host: CredentialBroker;
@@ -123,7 +125,7 @@ export interface AuthSetup {
   ) => Promise<{ readonly plan: HarnessPlan; readonly attemptID: string | null }>;
 
   // The part of a harness spec that keeps a launch behind the broker: the
-  // requirement impd checks, and the admission each request needs from
+  // requirement the provider checks, and the admission each request needs from
   // the host's binding when it goes out.
   readonly buildBrokerSpec: (
     hostKey: SessionID,
@@ -139,7 +141,7 @@ export interface AuthSetup {
   ) => Promise<void>;
 
   // launches on the host stay blocked until a rebind; a running harness keeps running while
-  // impd fails its later requests
+  // the broker fails its later requests
   readonly revokeAuth: (id: SessionID) => Promise<boolean>;
 
   readonly updateAuth: (id: SessionID) => Promise<AuthRebound | null>;
@@ -215,7 +217,7 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
   };
 
   // A launch without runtime auth never starts on a host that holds a
-  // binding, whatever its state: the imp may hold grants atc could not
+  // binding, whatever its state: the host may hold grants atc could not
   // confirm gone, and only a rebind or a forget of the host clears it.
   const requireUnboundHost = async (agent: string, hostKey: SessionID): Promise<void> => {
     const binder = callbacks.findAuthBinder();
@@ -224,7 +226,7 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
     if (held !== null) {
       throw new DaemonError(
         'auth_rebind_required',
-        `agent '${agent}' takes no credential from impd's broker, but its host holds a runtime auth binding; give the agent its auth block back, or forget the session`,
+        `agent '${agent}' takes no credential from the target's broker, but its host holds a runtime auth binding; give the agent its auth block back, or forget the session`,
         { agent, state: held.state, problem: 'auth_dropped' },
       );
     }
@@ -393,17 +395,14 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
               ),
             };
 
-      const plan =
-        adapter.planGuestSpawn === undefined
-          ? { ...adapter.planSpawn(options), files: {} }
-          : adapter.planGuestSpawn(options, paths);
+      const plan = planHarnessOnGuest(adapter, options, paths, auth);
 
       if (plan === null) {
         throw auth === null
           ? buildGuestRefusal(provider.kind, adapter.id, target, guest.atc === null)
           : new DaemonError(
               'auth_target_unsupported',
-              `agent '${adapter.id}' plans no guest settings to take its credential from impd's broker on target '${target}'`,
+              `agent '${adapter.id}' plans no guest settings to take its credential from the ${auth.host.describe.name} broker on target '${target}'`,
               { agent: adapter.id, target, problem: 'no_guest_plan' },
             );
       }
@@ -512,7 +511,7 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
       if (auth === null) {
         throw new DaemonError(
           'unsupported_operation',
-          `agent '${session.agent}' takes no credential from impd's broker`,
+          `agent '${session.agent}' takes no credential from the target's broker`,
           { agent: session.agent, problem: 'no_auth_selection' },
         );
       }
@@ -551,7 +550,7 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
 }
 
 // The binding revision and placeholders a guest plan behind the broker
-// launches under, with the sign-in state impd lists for each oauth
+// launches under, with the sign-in state the broker lists for each oauth
 // secret the binding holds.
 async function planGuestAuth(
   auth: HarnessAuthSetup,
@@ -565,4 +564,19 @@ async function planGuestAuth(
     profileEnv: auth.binding.profileEnv,
     ...(oauth === undefined ? {} : { oauth }),
   };
+}
+
+function planHarnessOnGuest(
+  adapter: AgentAdapter,
+  options: SpawnOptions,
+  paths: GuestPaths,
+  auth: HarnessAuthSetup | null,
+): GuestSpawnPlan | null {
+  try {
+    return adapter.planGuestSpawn === undefined
+      ? { ...adapter.planSpawn(options), files: {} }
+      : adapter.planGuestSpawn(options, paths);
+  } catch (error) {
+    throw auth === null ? error : toSignInRefusal(error, auth.host, auth.binding.secrets);
+  }
 }
