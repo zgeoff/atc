@@ -45,7 +45,7 @@ function setupTest() {
     return { harness, output };
   };
 
-  return { claude, start };
+  return { claude, provider, start };
 }
 
 test('it draws a numbered menu with the cursor on the first option', async () => {
@@ -413,6 +413,7 @@ test('it exits with code 0 and draws nothing more when the test ends it', async 
   const exited = await menu.harness.waitForExit(1000);
 
   expect(exited).toBeTrue();
+  expect(ctx.provider.harnesses[0]?.readExit()).toStrictEqual({ exitCode: 0 });
   expect(menu.output.text).toBe('');
 });
 
