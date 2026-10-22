@@ -296,6 +296,10 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
     process.exit(1);
   }
 
+  const ready = await import('@atc/lifecycle');
+
+  const signalReady = ready.makeDaemonReadySignal(process.env);
+
   const daemon = await import('@atc/daemon');
   const config = await import('@atc/config');
   const harnessPlugins = await import('./plugins/shipped-harness-plugins');
@@ -435,6 +439,8 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
 
     throw error;
   }
+
+  signalReady();
 
   process.on('SIGHUP', () => {
     handle.refreshTokens();
