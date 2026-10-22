@@ -12,13 +12,20 @@ import {
   startTUIHarness,
   waitFor,
 } from '@atc/test-utils';
+import { startTUIDaemon } from '../packages/app/src/test-utils/start-tui-daemon';
 
-function setupTest() {
-  return startTUIHarness();
+// The client attaches to a daemon in the test's process, so a boot loads
+// one process instead of two.
+async function setupTest() {
+  const tui = startTUIHarness();
+
+  await startTUIDaemon(tui);
+
+  return tui;
 }
 
 test('it narrows the overlay to sessions matching the slash filter', async () => {
-  const ctx = setupTest();
+  const ctx = await setupTest();
 
   // The sessions report no prompt, so neither names itself in the status
   // bar as the session that needs you.
@@ -55,7 +62,7 @@ test('it narrows the overlay to sessions matching the slash filter', async () =>
 });
 
 test('it opens the overlay with a configured leader key', async () => {
-  const ctx = setupTest();
+  const ctx = await setupTest();
 
   ctx.writeConfig({ leader: 'ctrl-]' });
   ctx.boot();
@@ -76,7 +83,7 @@ test('it opens the overlay with a configured leader key', async () => {
 });
 
 test('it pins a session from the overlay and marks its row', async () => {
-  const ctx = setupTest();
+  const ctx = await setupTest();
 
   ctx.boot();
 
@@ -94,10 +101,11 @@ test('it pins a session from the overlay and marks its row', async () => {
   ctx.write('p');
 
   await ctx.waitFor('⋆');
-}, 15_000);
+});
 
 test('it clusters overlay rows under repository headers when grouping is toggled on', async () => {
-  const ctx = setupTest();
+  const ctx = await setupTest();
+
   const otherProject = join(ctx.home, 'otherproj');
 
   mkdirSync(otherProject, { recursive: true });
@@ -151,10 +159,10 @@ test('it clusters overlay rows under repository headers when grouping is toggled
 
   await ctx.waitFor('▸');
   await ctx.waitFor('otherproj');
-}, 15_000);
+});
 
 test('it lists a sub-session indented under its parent', async () => {
-  const ctx = setupTest();
+  const ctx = await setupTest();
 
   ctx.boot();
 
@@ -188,10 +196,10 @@ test('it lists a sub-session indented under its parent', async () => {
   await ctx.waitFor('↳ worker');
 
   expect(ctx.read()).toMatch(/wrangler[\s\S]*↳ worker/u);
-}, 15_000);
+});
 
 test('it lists a detached sub-session as top-level', async () => {
-  const ctx = setupTest();
+  const ctx = await setupTest();
 
   ctx.boot();
 
@@ -233,10 +241,10 @@ test('it lists a detached sub-session as top-level', async () => {
     expect(frame).toInclude('worker');
     expect(frame).not.toInclude('↳');
   });
-}, 15_000);
+});
 
 test('it preselects the focused session when the overlay opens', async () => {
-  const ctx = setupTest();
+  const ctx = await setupTest();
 
   ctx.boot();
 
@@ -258,10 +266,10 @@ test('it preselects the focused session when the overlay opens', async () => {
   await ctx.waitFor('second');
 
   expect(ctx.read()).toInclude('\u001B[7msecond');
-}, 15_000);
+});
 
 test('it opens the key reference from the overlay and returns on esc', async () => {
-  const ctx = setupTest();
+  const ctx = await setupTest();
 
   ctx.boot();
 
