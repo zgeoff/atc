@@ -74,6 +74,12 @@ first time it opens it, so the id stays the same across restarts, and every sess
 a locator of the daemon id and the session's target, which tells a client routing across several
 daemons where a session lives.
 
+The answer also holds the peer session: the session that the daemon found from the kernel's pid for
+the connecting process, or null when the process runs inside no session, on the TCP listener, and
+where the platform gives no pid. The daemon never fills it from the session a hello gives, so a
+client learns which session it runs in from the kernel and not from a variable that any process can
+set.
+
 A connection takes one handshake, because a second could change the principal under the connection's
 attachments. A second hello gets `unauthorized`, and the connection stays open with the identity the
 first one gave.
@@ -116,7 +122,7 @@ still waiting for a response, and decides for itself whether to resend it.
 
 ## Versions
 
-The protocol version is one integer compared for equality, and the current version is 10. The daemon
+The protocol version is one integer compared for equality, and the current version is 11. The daemon
 records it in `daemon.json` beside its socket paths, and a client sends its own in the hello. A
 daemon on another version refuses the handshake with `protocol_mismatch`, so a client and a daemon
 on different versions never talk, and the two install together. The error holds both versions and
@@ -130,9 +136,8 @@ daemon that pass the handshake therefore serve the same procedures and fields, s
 every tool and input without asking the daemon what it serves. A peer ignores a field it does not
 know, in a request or in an answer.
 
-Version 10 differs from version 9 in one answer field. An `events.read` event of the
-`daemon-restarted` kind holds the restart's whole result record in `result`
-([Events](./events.md#the-event-trail)).
+Version 11 differs from version 10 in one answer field. The `daemon.hello` answer holds the peer
+session as `peerSession` ([The handshake](#the-handshake)).
 
 ## Events
 

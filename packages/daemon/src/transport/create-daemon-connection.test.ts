@@ -142,8 +142,8 @@ test('it refuses a peer handshake that speaks another protocol and ends the conn
   expect(refused).rejects.toMatchObject({
     code: 'protocol_mismatch',
     message:
-      'atc/old speaks protocol v1, daemon atc/test speaks v10; update or reopen the client so both run the same build',
-    data: { daemonProtocol: 10 },
+      'atc/old speaks protocol v1, daemon atc/test speaks v11; update or reopen the client so both run the same build',
+    data: { daemonProtocol: 11 },
   });
 
   await refused.catch(() => {});
@@ -165,12 +165,12 @@ test('it tells a peer client on a later protocol to restart the daemon', async (
   });
 
   expect(
-    client.sendRequest('daemon.hello', { client: 'atc/new', protocol: 11 }),
+    client.sendRequest('daemon.hello', { client: 'atc/new', protocol: 12 }),
   ).rejects.toMatchObject({
     code: 'protocol_mismatch',
     message:
-      'atc/new speaks protocol v11, daemon atc/test speaks v10; restart the daemon so both run the same build',
-    data: { daemonProtocol: 10 },
+      'atc/new speaks protocol v12, daemon atc/test speaks v11; restart the daemon so both run the same build',
+    data: { daemonProtocol: 11 },
   });
 });
 
@@ -1561,4 +1561,53 @@ test('it acts as the session the kernel names for a peer handshake that gives no
   });
 
   expect(isCallerTree).toHaveBeenCalledExactlyOnceWith(toSessionID('s-6'), toSessionID('s-1'));
+});
+
+test('it answers a peer handshake with the session the kernel names as its peer session', async () => {
+  const peer = buildStubPeerSocket();
+
+  const conn = createDaemonConnection(
+    peer.socket,
+    buildStubDaemonContext(),
+    null,
+    toSessionID('s-1'),
+  );
+
+  conn.applyChunk(
+    buildPeerRequestLine('1', '/daemon/hello', { client: 'atc/test', protocol: PROTOCOL_V }),
+  );
+
+  await waitFor(() => {
+    expect(peer.collectFrames()).toHaveLength(1);
+  });
+
+  expect<unknown[]>(peer.collectFrames()).toStrictEqual([
+    expect.objectContaining({
+      id: '1',
+      body: {
+        daemon: 'atc/test',
+        daemonID: 'd-1',
+        limits: { maxLine: MAX_LINE, maxChunk: 65_536 },
+        idempotency: { completedRetentionMs: 86_400_000 },
+        lastUsedAgent: 'claude',
+        peerSession: 's-1',
+      },
+    }),
+  ]);
+});
+
+test('it answers a peer handshake that gives a session, from outside every session, with no peer session', async () => {
+  const peer = buildStubPeerSocket();
+  const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V, session: 's-9' };
+
+  conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
+
+  await waitFor(() => {
+    expect(peer.collectFrames()).toHaveLength(1);
+  });
+
+  expect<unknown[]>(peer.collectFrames()).toStrictEqual([
+    expect.objectContaining({ id: '1', body: expect.objectContaining({ peerSession: null }) }),
+  ]);
 });

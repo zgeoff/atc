@@ -246,6 +246,7 @@ export function createDaemonConnection(
     limits: { maxLine: MAX_LINE, maxChunk: MAX_CHUNK },
     idempotency: { completedRetentionMs: ctx.idempotencyRetentionMs },
     lastUsedAgent: await ctx.loadLastUsedAgent(),
+    peerSession: identity.peerSession,
   });
 
   const waitForDrain = async (): Promise<void> => {
