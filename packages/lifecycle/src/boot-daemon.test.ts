@@ -502,6 +502,18 @@ test('it rejects at the 8 s boot deadline when the daemon it starts signals read
     { clock },
   );
 
+  // Before the clock moves, only the ready line can wake the boot to try the
+  // socket again and schedule a second poll.
+  const delaysBeforeDeadline = await waitFor(() => {
+    const delays = clock.collectDelays();
+
+    if (delays.length < 2) {
+      throw new Error('the ready line has not woken the boot');
+    }
+
+    return delays;
+  });
+
   const steps: number[] = [];
 
   for (let poll = 0; poll < 80; poll++) {
@@ -524,6 +536,7 @@ test('it rejects at the 8 s boot deadline when the daemon it starts signals read
     'the atc daemon did not come up; try `atc daemon` for its output',
   );
 
+  expect(delaysBeforeDeadline).toStrictEqual([100, 100]);
   expect(steps).toStrictEqual(Array.from({ length: 80 }, () => 100));
 });
 
