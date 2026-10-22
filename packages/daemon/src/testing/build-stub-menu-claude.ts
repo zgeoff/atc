@@ -1,3 +1,5 @@
+import { machineTypes } from '@zgeoff/std';
+import { createActor, enqueueActions, raise, setup } from 'xstate';
 import type { StubMemoryHarness } from './build-stub-memory-provider';
 
 interface StubMenu {
@@ -101,6 +103,20 @@ const KEY_NAMES: Readonly<Record<string, string>> = {
   '\u001B': 'escape',
 };
 
+type StubMenuEvent =
+  | { readonly type: 'KEY'; readonly data: string }
+  | { readonly type: 'ANSWER'; readonly data: string }
+  | { readonly type: 'OPEN'; readonly menu: StubMenu };
+
+// The menu a session shows, where its cursor sits, the first option its
+// window shows, and which boxes are checked.
+interface MenuView {
+  readonly menu: StubMenu;
+  readonly cursor: number;
+  readonly top: number;
+  readonly checked: readonly boolean[];
+}
+
 // Draws the first menu and answers keys as Claude Code's dialogs do, and
 // returns how to open another menu in the session.
 function runStubMenuSession(
@@ -108,35 +124,146 @@ function runStubMenuSession(
   scenario: StubMenuScenario,
   log: Readonly<Record<string, unknown>>[],
 ): (menu: StubMenu) => void {
-  const [first, second] = scenario.menus;
-  const holdMs = scenario.holdMs ?? 0;
+  const [first] = scenario.menus;
 
   const timers = new Set<ReturnType<typeof setTimeout>>();
 
-  const state = {
-    menu: first,
-    cursor: first.cursor ?? 0,
-    top: getWindowTop(first, first.cursor ?? 0),
-    checked: [...(first.checked ?? [])],
-    open: true,
-    holdUntil: Date.now() + holdMs,
-  };
-
   // A terminal's output reaches its reader after the write that caused it,
   // never inside it.
-  const schedule = (run: () => void, delayMs: number) => {
+  const emitLater = (screen: string) => {
     const timer = setTimeout(() => {
       timers.delete(timer);
 
       if (harness.readExit() === null && !harness.isDetached()) {
-        run();
+        harness.emitData(`\u001B[2J\u001B[H${screen}`);
       }
-    }, delayMs);
+    }, 0);
 
     timers.add(timer);
   };
 
+  const drawView = (view: MenuView) => {
+    emitLater(renderMenu(view.menu, view.cursor, view.top, view.checked));
+  };
+
+  const machine = setup({
+    types: machineTypes<{ context: MenuView; events: StubMenuEvent }>(),
+    guards: {
+      isHeld: () => (scenario.holdMs ?? 0) > 0,
+      isHeldKey: (args) => args.event.type === 'KEY' && ['\r', '\u001B'].includes(args.event.data),
+      isDelayedEnter: (args) =>
+        args.event.type === 'KEY' &&
+        args.event.data === '\r' &&
+        scenario.enterDelayMs !== undefined,
+      isClosingKey: (args) =>
+        args.event.type !== 'OPEN' &&
+        planKey(args.context, args.event.data, scenario)?.outcome !== undefined,
+    },
+    delays: {
+      hold: () => scenario.holdMs ?? 0,
+      enterDelay: () => scenario.enterDelayMs ?? 0,
+    },
+    actions: {
+      drawMenu: (args) => {
+        drawView(args.context);
+      },
+      answerKey: enqueueActions((args) => {
+        if (args.event.type === 'OPEN') {
+          return;
+        }
+
+        const plan = planKey(args.context, args.event.data, scenario);
+
+        if (plan === null) {
+          return;
+        }
+
+        args.enqueue.assign(plan.view);
+
+        args.enqueue(() => {
+          log.push(...plan.logged);
+
+          if (plan.outcome === undefined) {
+            drawView(plan.view);
+          } else {
+            emitLater(`${plan.outcome}\r\n`);
+          }
+        });
+      }),
+      openMenu: enqueueActions((args) => {
+        if (args.event.type !== 'OPEN') {
+          return;
+        }
+
+        const view = buildMenuView(args.event.menu);
+
+        args.enqueue.assign(view);
+
+        args.enqueue(() => {
+          drawView(view);
+        });
+      }),
+      endHold: enqueueActions((args) => {
+        const cursor = first.cursor ?? 0;
+        const view = { ...args.context, cursor, top: getWindowTop(first, cursor) };
+
+        args.enqueue.assign(view);
+
+        args.enqueue(() => {
+          drawView(view);
+        });
+      }),
+      answerLater: raise(
+        (args) => ({
+          type: 'ANSWER' as const,
+          data: args.event.type === 'OPEN' ? '' : args.event.data,
+        }),
+        { delay: 'enterDelay' },
+      ),
+    },
+  }).createMachine({
+    id: 'stub-menu',
+    initial: 'starting',
+    context: buildMenuView(first),
+    states: {
+      starting: {
+        entry: 'drawMenu',
+        always: [{ guard: 'isHeld', target: 'held' }, { target: 'open' }],
+      },
+
+      // Enter and escape restart the hold, so neither reaches the menu.
+      held: {
+        after: { hold: { target: 'open', actions: 'endHold' } },
+        on: {
+          KEY: [{ guard: 'isHeldKey', target: 'held', reenter: true }, { actions: 'answerKey' }],
+          OPEN: { actions: 'openMenu' },
+        },
+      },
+      open: {
+        on: {
+          KEY: [
+            { guard: 'isDelayedEnter', actions: 'answerLater' },
+            { guard: 'isClosingKey', target: 'closed', actions: 'answerKey' },
+            { actions: 'answerKey' },
+          ],
+          ANSWER: [
+            { guard: 'isClosingKey', target: 'closed', actions: 'answerKey' },
+            { actions: 'answerKey' },
+          ],
+          OPEN: { actions: 'openMenu' },
+        },
+      },
+      closed: {
+        on: { OPEN: { target: 'open', actions: 'openMenu' } },
+      },
+    },
+  });
+
+  const actor = createActor(machine);
+
   harness.onExit(() => {
+    actor.stop();
+
     for (const timer of timers) {
       clearTimeout(timer);
     }
@@ -144,144 +271,16 @@ function runStubMenuSession(
     timers.clear();
   });
 
-  const draw = () => {
-    const screen = renderMenu(state.menu, state.cursor, state.top, state.checked);
-
-    schedule(() => {
-      harness.emitData(`\u001B[2J\u001B[H${screen}`);
-    }, 0);
-  };
-
-  const scheduleHoldEnd = () => {
-    if (holdMs === 0) {
-      return;
-    }
-
-    schedule(
-      () => {
-        if (Date.now() < state.holdUntil) {
-          scheduleHoldEnd();
-
-          return;
-        }
-
-        state.cursor = first.cursor ?? 0;
-        state.top = getWindowTop(first, state.cursor);
-
-        if (state.open) {
-          draw();
-        }
-      },
-      Math.max(0, state.holdUntil - Date.now()),
-    );
-  };
-
-  const openMenu = (menu: StubMenu) => {
-    state.menu = menu;
-    state.cursor = menu.cursor ?? 0;
-    state.top = getWindowTop(menu, state.cursor);
-    state.checked = [...(menu.checked ?? [])];
-    state.open = true;
-
-    draw();
-  };
-
-  const drawOutcome = (line: string, entry: Readonly<Record<string, unknown>>) => {
-    state.open = false;
-
-    log.push(entry);
-
-    schedule(() => {
-      harness.emitData(`\u001B[2J\u001B[H${line}\r\n`);
-    }, 0);
-  };
-
-  const answerKey = (data: string) => {
-    if (!state.open) {
-      return;
-    }
-
-    if (Date.now() < state.holdUntil && (data === '\r' || data === '\u001B')) {
-      state.holdUntil = Date.now() + holdMs;
-
-      return;
-    }
-
-    const items = state.menu.options.length + (state.menu.submit === undefined ? 0 : 1);
-
-    if (data === '\u001B[A' && state.menu.window !== undefined) {
-      Object.assign(state, planWindowUp(state.menu, state.cursor, state.top));
-
-      draw();
-    } else if (data === '\u001B[B' && state.menu.window !== undefined) {
-      Object.assign(state, planWindowDown(state.menu, state.cursor, state.top));
-
-      draw();
-    } else if (data === '\u001B[A') {
-      state.cursor = Math.max(0, state.cursor - 1);
-
-      draw();
-    } else if (data === '\u001B[B') {
-      state.cursor = Math.min(items - 1, state.cursor + 1);
-
-      draw();
-    } else if (data === '\u001B') {
-      drawOutcome('Dismissed', { dismissed: true });
-    } else if (
-      data === '\r' &&
-      state.menu.kind === 'boxes' &&
-      state.cursor < state.menu.options.length
-    ) {
-      const label = state.menu.options[state.cursor] ?? '';
-
-      state.checked[state.cursor] = state.checked[state.cursor] !== true;
-
-      log.push({ toggled: label, checked: state.checked[state.cursor] });
-
-      draw();
-    } else if (data === '\r' && state.menu.kind === 'boxes') {
-      const enabled = state.menu.options.filter((_, index) => state.checked[index] === true);
-
-      drawOutcome(`Enabled: ${enabled.join(', ')}`, { enabled });
-    } else if (data === '\r') {
-      const label = state.menu.options[state.cursor] ?? '';
-
-      if (scenario.pickOpensNext === true && second !== undefined && state.menu === first) {
-        log.push({ picked: label });
-
-        openMenu(second);
-      } else {
-        drawOutcome(`Picked: ${label}`, { picked: label });
-      }
-    }
-  };
-
   harness.onInput((data) => {
     log.push({ key: KEY_NAMES[data] ?? data });
-
-    // An Enter that arrives during the hold is refused at once, so the hold
-    // ending before the delay passes never lets it through.
-    if (data === '\r' && scenario.enterDelayMs !== undefined && Date.now() >= state.holdUntil) {
-      schedule(() => {
-        answerKey(data);
-      }, scenario.enterDelayMs);
-    } else {
-      answerKey(data);
-    }
+    actor.send({ type: 'KEY', data });
   });
 
-  draw();
-  scheduleHoldEnd();
+  actor.start();
 
-  return openMenu;
-}
-
-// The first option a windowed menu shows when its cursor starts on
-// `cursor`: the top of the list, or the row that puts the cursor last.
-function getWindowTop(menu: StubMenu, cursor: number): number {
-  const size = menu.window ?? menu.options.length;
-
-  return Math.max(0, Math.min(cursor, menu.options.length - 1) - size + 1);
+  return (menu) => {
+    actor.send({ type: 'OPEN', menu });
+  };
 }
 
 function renderMenu(
@@ -346,6 +345,47 @@ function renderPointer(isCursor: boolean, more: RowMarks): string {
   return more.above ? '↑ ' : '  ';
 }
 
+// What one key does to an open menu: the view after it, the log entries it
+// adds, and the line the menu ends on, if it ends.
+interface KeyPlan {
+  readonly view: MenuView;
+  readonly logged: readonly Readonly<Record<string, unknown>>[];
+  readonly outcome?: string;
+}
+
+// The plan for one key on an open menu, or null for a key the menu ignores.
+function planKey(view: MenuView, data: string, scenario: StubMenuScenario): KeyPlan | null {
+  const menu = view.menu;
+  const items = menu.options.length + (menu.submit === undefined ? 0 : 1);
+
+  if ((data === '\u001B[A' || data === '\u001B[B') && menu.window !== undefined) {
+    const moved =
+      data === '\u001B[A'
+        ? planWindowUp(menu, view.cursor, view.top)
+        : planWindowDown(menu, view.cursor, view.top);
+
+    return { view: { ...view, ...moved }, logged: [] };
+  }
+
+  if (data === '\u001B[A') {
+    return { view: { ...view, cursor: Math.max(0, view.cursor - 1) }, logged: [] };
+  }
+
+  if (data === '\u001B[B') {
+    return { view: { ...view, cursor: Math.min(items - 1, view.cursor + 1) }, logged: [] };
+  }
+
+  if (data === '\u001B') {
+    return { view, logged: [{ dismissed: true }], outcome: 'Dismissed' };
+  }
+
+  if (data !== '\r') {
+    return null;
+  }
+
+  return planEnter(view, scenario);
+}
+
 // Where a windowed menu's cursor sits, and the first option it shows.
 interface WindowState {
   readonly cursor: number;
@@ -384,4 +424,56 @@ function planWindowDown(menu: StubMenu, cursor: number, top: number): WindowStat
   }
 
   return { cursor: cursor + 1, top: cursor + 1 >= top + size ? cursor + 2 - size : top };
+}
+
+// The plan for an enter on an open menu: a box toggles, the submit row
+// enables the checked boxes, and an option is picked or opens the next menu.
+function planEnter(view: MenuView, scenario: StubMenuScenario): KeyPlan {
+  const menu = view.menu;
+  const [first, second] = scenario.menus;
+
+  if (menu.kind === 'boxes' && view.cursor < menu.options.length) {
+    const checked = view.checked.map((box, index) => (index === view.cursor ? !box : box));
+    const toggled = checked[view.cursor] === true;
+
+    return {
+      view: { ...view, checked },
+      logged: [{ toggled: menu.options[view.cursor] ?? '', checked: toggled }],
+    };
+  }
+
+  if (menu.kind === 'boxes') {
+    const enabled = menu.options.filter((_, index) => view.checked[index] === true);
+
+    return { view, logged: [{ enabled }], outcome: `Enabled: ${enabled.join(', ')}` };
+  }
+
+  const label = menu.options[view.cursor] ?? '';
+
+  if (scenario.pickOpensNext === true && second !== undefined && menu === first) {
+    return { view: buildMenuView(second), logged: [{ picked: label }] };
+  }
+
+  return { view, logged: [{ picked: label }], outcome: `Picked: ${label}` };
+}
+
+// A menu as it opens: the cursor at its start, its window around the cursor,
+// and its boxes as the menu checks them.
+function buildMenuView(menu: StubMenu): MenuView {
+  const cursor = menu.cursor ?? 0;
+
+  return {
+    menu,
+    cursor,
+    top: getWindowTop(menu, cursor),
+    checked: menu.options.map((_, index) => menu.checked?.[index] === true),
+  };
+}
+
+// The first option a windowed menu shows when its cursor starts on
+// `cursor`: the top of the list, or the row that puts the cursor last.
+function getWindowTop(menu: StubMenu, cursor: number): number {
+  const size = menu.window ?? menu.options.length;
+
+  return Math.max(0, Math.min(cursor, menu.options.length - 1) - size + 1);
 }
