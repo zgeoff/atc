@@ -347,7 +347,7 @@ export function createPublishedRecords(options: PublishedRecordsOptions): Publis
 }
 
 async function readGuestDir(subject: RecordSubject): Promise<string> {
-  const guest = await readGuestLayout(subject.provider);
+  const guest = await readGuestLayout(subject.provider, subject.host);
 
   return `${guest.directory}/records`;
 }

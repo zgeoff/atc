@@ -1106,7 +1106,7 @@ test("it lays out atc's files under the scratch folder impd declares", async () 
 
   ctx.port.scratchDir = '/var/lib/orchard-scratch';
 
-  const guest = await provider.readGuest();
+  const guest = await provider.readGuest('s1');
 
   expect(guest).toStrictEqual({
     directory: '/var/lib/orchard-scratch/atc',
@@ -1183,9 +1183,27 @@ test("it keeps the target's guest folder on an impd that declares no scratch fol
 
   ctx.port.scratchDir = null;
 
-  const guest = await provider.readGuest();
+  const guest = await provider.readGuest('s1');
 
   expect(guest).toStrictEqual({ directory: '/srv/orchard-atc', atc: null });
+});
+
+test("it refuses a guest layout read as the host's refusal on an impd that declares no scratch folder", () => {
+  const ctx = setupTest();
+  const provider = createImpProvider(ctx.port, {}, { atcBinary: null, version: '1.0.0' });
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  ctx.port.scratchDir = null;
+
+  expect(provider.readGuest('s1')).rejects.toMatchObject({
+    code: 'host_unavailable',
+    message:
+      "imp atc-s1 cannot be used: impd 2.2.0 declares no guest scratch folder; upgrade impd, or set the target's guestDir",
+    data: { provider: 'imp', problem: 'impd_outdated' },
+  });
 });
 
 test('it starts a harness with a relative working directory under the guest home, which impd would resolve from the root', async () => {

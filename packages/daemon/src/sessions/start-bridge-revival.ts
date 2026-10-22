@@ -31,7 +31,7 @@ export interface BridgeRevival {
 interface BridgeWrite {
   readonly session: Session;
   readonly provider: ExecutionProvider;
-  readonly readGuest: () => Promise<GuestLayout>;
+  readonly readGuest: (host: string) => Promise<GuestLayout>;
   readonly planFiles: (atc: string) => Record<string, string>;
 }
 
@@ -165,7 +165,7 @@ export function startBridgeRevival(deps: BridgeRevivalDeps): BridgeRevival {
   const transferBridge = async (write: BridgeWrite) => {
     const session = write.session;
 
-    const guest = await write.readGuest();
+    const guest = await write.readGuest(session.hostKey);
 
     if (guest.atc === null) {
       return;

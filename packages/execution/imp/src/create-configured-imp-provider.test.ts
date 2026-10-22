@@ -35,7 +35,7 @@ test("it builds an imp provider that takes the target's guest options", async ()
 
   invariant(built.provider !== null, 'expected an imp provider');
 
-  const guest = await built.provider.readGuest();
+  const guest = await built.provider.readGuest('s1');
 
   expect(built.problem).toBeNull();
   expect(built.provider?.kind).toBe('imp');

@@ -35,7 +35,7 @@ test('it applies the kind, remoteness, capabilities, guest, and broker the confi
     brokerAuth: broker,
   });
 
-  const guest = await provider.readGuest?.();
+  const guest = await provider.readGuest?.('s-1');
 
   expect(provider.kind).toBe('imp');
   expect(provider.remote).toBeTrue();

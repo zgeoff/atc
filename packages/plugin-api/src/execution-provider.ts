@@ -15,7 +15,7 @@ export interface ExecutionProvider {
   // Where a remote host keeps atc's files: the folder each session's own
   // files unpack under, and the atc binary inside the host, null when the
   // host has none. Absent on the daemon's own machine.
-  readonly readGuest?: () => Promise<GuestLayout>;
+  readonly readGuest?: (host: string) => Promise<GuestLayout>;
 
   // How a harness here can take its credential from impd's broker instead
   // of holding it. Absent on a host with no broker, which never starts a

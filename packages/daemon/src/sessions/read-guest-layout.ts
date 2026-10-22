@@ -3,6 +3,7 @@ import { DaemonError } from '@atc/protocol/wire';
 
 export async function readGuestLayout(
   provider: Pick<ExecutionProvider, 'kind' | 'readGuest'>,
+  host: string,
 ): Promise<GuestLayout> {
   if (provider.readGuest === undefined) {
     throw new DaemonError(
@@ -12,5 +13,5 @@ export async function readGuestLayout(
     );
   }
 
-  return await provider.readGuest();
+  return await provider.readGuest(host);
 }

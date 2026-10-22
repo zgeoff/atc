@@ -30,7 +30,7 @@ export async function applyWorkspaceTrust(
 
   const files = Object.entries(planned).map(([path, content]) => ({ path, content }));
 
-  const guest = await provider.readGuest();
+  const guest = await provider.readGuest(spawn.hostKey);
 
   const directory = `${guest.directory}/sessions/${spawn.id}`;
 

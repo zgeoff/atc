@@ -8,7 +8,7 @@ test('it reports itself as a remote imp with the imp capabilities and guest layo
   expect(provider.kind).toBe('imp');
   expect(provider.remote).toBeTrue();
 
-  const guest = await provider.readGuest?.();
+  const guest = await provider.readGuest?.('s-1');
 
   expect(guest).toStrictEqual({ directory: '/tmp/atc', atc: null });
 

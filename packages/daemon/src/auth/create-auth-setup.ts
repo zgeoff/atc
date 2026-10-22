@@ -368,7 +368,7 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
         };
       }
 
-      const guest = await readGuestLayout(provider);
+      const guest = await readGuestLayout(provider, hostKey);
 
       const directory = `${guest.directory}/sessions/${id}`;
 

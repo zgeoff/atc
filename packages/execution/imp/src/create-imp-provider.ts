@@ -34,7 +34,7 @@ import UNPACK_SCRIPT from './unpack-archive.sh' with { type: 'text' };
 export interface ImpProvider extends ExecutionProvider {
   readonly kind: 'imp';
 
-  readonly readGuest: () => Promise<GuestLayout>;
+  readonly readGuest: (hostKey: string) => Promise<GuestLayout>;
 
   // The literal start of every imp name this provider builds: the runtime
   // namespace an impd token's imp patterns are checked against.
@@ -147,7 +147,7 @@ export function createImpProvider(
 
   // Hooks always run `bin/atc`, since a session's hooks are planned before
   // its imp is readied and the readying decides what that path holds.
-  const readGuest = async (): Promise<GuestLayout> => {
+  const readLayout = async (): Promise<GuestLayout> => {
     if (guest !== null) {
       return guest;
     }
@@ -238,7 +238,7 @@ export function createImpProvider(
       const layout = await timer.withStep('impd-version', async () => {
         await port.verifyVersion();
 
-        return readGuest();
+        return readLayout();
       });
 
       const existing = await timer.withStep('inspect-imp', () => port.readImp(name));
@@ -357,7 +357,13 @@ export function createImpProvider(
 
     capabilities,
 
-    readGuest,
+    readGuest: async (hostKey) => {
+      try {
+        return await readLayout();
+      } catch (error) {
+        throw toHostRefusal(error, getImpName(hostKey));
+      }
+    },
 
     impPrefix,
 
