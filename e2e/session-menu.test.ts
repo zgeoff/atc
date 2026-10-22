@@ -1,42 +1,57 @@
 import { expect, test } from 'bun:test';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { parseConfig } from '@atc/config';
-import { buildMockHostServices, buildStubMenuClaude, getRecord, waitFor } from '@atc/test-utils';
+import { LOCAL_TARGET, parseConfig } from '@atc/config';
+import {
+  buildMockExecutionTarget,
+  buildStubMemoryProvider,
+  buildStubMenuClaude,
+} from '@atc/daemon/testing';
+import { buildTargetIdentity } from '@atc/store';
+import { buildMockHostServices, getRecord, waitFor } from '@atc/test-utils';
 import { buildAgentAdapters } from '../packages/app/src/agents/build-agent-adapters';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 async function setupTest() {
+  const claude = buildStubMenuClaude();
+
   const daemon = await startTestDaemon({
     prefix: 'atc-menu-choice-',
-    options: (paths) => {
-      const claude = buildStubMenuClaude(
-        join(paths.directory, 'menu.json'),
-        join(paths.directory, 'menu.log'),
-      );
-
+    options: () => {
+      // The provider runs no binary, but the adapters refuse an agent whose
+      // binary the host lacks, so each names one every host has.
       const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
-        agents: { claude, grok: { bin: 'bash', args: ['-c', 'sleep 30'] } },
+        agents: { claude: { bin: process.execPath }, grok: { bin: process.execPath } },
       });
 
-      // A quiet wait longer than the stand-in's hold, and short enough to keep
-      // each choice under two seconds.
+      // The stand-in draws in the daemon's own process, so no other process's
+      // scheduling stretches its output. The quiet wait outlasts the scenarios'
+      // hold and enter delay.
       const menuTiming = {
-        pollMs: 20,
-        quietMs: 1000,
-        quietCapMs: 5000,
-        moveMs: 1500,
-        settleMs: 2000,
-        stableMs: 200,
+        pollMs: 5,
+        quietMs: 250,
+        quietCapMs: 1250,
+        moveMs: 375,
+        settleMs: 500,
+        stableMs: 50,
       };
 
-      return { adapters: buildAgentAdapters(config, buildMockHostServices()), menuTiming };
+      return {
+        adapters: buildAgentAdapters(config, buildMockHostServices()),
+        targets: [
+          buildMockExecutionTarget({
+            id: LOCAL_TARGET.id,
+            kind: LOCAL_TARGET.provider,
+            identity: buildTargetIdentity(LOCAL_TARGET.provider, LOCAL_TARGET.options),
+            provider: buildStubMemoryProvider({ kind: 'local-pty', onStart: claude.start }),
+          }),
+        ],
+        menuTiming,
+      };
     },
   });
 
-  const spawnMenu = async (spec: unknown) => {
-    writeFileSync(join(daemon.directory, 'menu.json'), JSON.stringify(spec));
+  const spawnMenu = async (scenario: Parameters<typeof claude.load>[0]) => {
+    claude.load(scenario);
 
     const spawned = await daemon.client.sendRequest('session.spawn', {
       cwd: daemon.directory,
@@ -60,15 +75,7 @@ async function setupTest() {
     return { session, menu: getRecord(read, 'menu') };
   };
 
-  const readLog = (): unknown[] =>
-    existsSync(join(daemon.directory, 'menu.log'))
-      ? readFileSync(join(daemon.directory, 'menu.log'), 'utf8')
-          .split('\n')
-          .filter((line) => line !== '')
-          .map((line): unknown => JSON.parse(line))
-      : [];
-
-  return { daemon, spawnMenu, readLog };
+  return { daemon, claude, spawnMenu };
 }
 
 test('it reads the text and options of the menu a session waits on', async () => {
@@ -144,7 +151,7 @@ test('it picks the option a choice gives with its expected label', async () => {
 
   expect(chosen).toStrictEqual({ pressed: 'enter', menu: null });
 
-  expect(ctx.readLog()).toStrictEqual([
+  expect(ctx.claude.log).toStrictEqual([
     { key: 'down' },
     { key: 'down' },
     { key: 'enter' },
@@ -168,7 +175,7 @@ test('it moves the cursor up to an option above it', async () => {
     label: 'Amber',
   });
 
-  expect(ctx.readLog()).toStrictEqual([
+  expect(ctx.claude.log).toStrictEqual([
     { key: 'up' },
     { key: 'up' },
     { key: 'enter' },
@@ -227,7 +234,7 @@ test('it returns the menu as Enter leaves it when Enter lands well after the cur
         submit: 'Enable selected',
       },
     ],
-    enterDelayMs: 600,
+    enterDelayMs: 150,
   });
 
   const chosen = await ctx.daemon.client.sendRequest('session.choose', {
@@ -250,7 +257,7 @@ test('it returns the menu as Enter leaves it when Enter lands well after the cur
     },
   });
 
-  expect(ctx.readLog()).toStrictEqual([
+  expect(ctx.claude.log).toStrictEqual([
     { key: 'down' },
     { key: 'enter' },
     { toggled: 'quarry-files', checked: true },
@@ -279,7 +286,7 @@ test('it confirms the boxes ticked when a choice picks the enable item', async (
     label: 'Enable selected',
   });
 
-  expect(ctx.readLog()).toStrictEqual([
+  expect(ctx.claude.log).toStrictEqual([
     { key: 'down' },
     { key: 'down' },
     { key: 'enter' },
@@ -324,9 +331,9 @@ test('it reads every option of a list longer than the screen shows, and puts the
     { option: 9, label: 'Enable selected', checked: null, highlighted: false },
   ]);
 
-  expect(ctx.readLog()).not.toBeEmpty();
+  expect(ctx.claude.log).not.toBeEmpty();
 
-  expect(ctx.readLog()).toSatisfyAll(
+  expect(ctx.claude.log).toSatisfyAll(
     (entry: unknown) =>
       JSON.stringify(entry) === '{"key":"up"}' || JSON.stringify(entry) === '{"key":"down"}',
   );
@@ -414,12 +421,12 @@ test('it reads a long list it has read whole before without pressing a key', asy
     ],
   });
 
-  const keys = ctx.readLog().length;
+  const keys = ctx.claude.log.length;
 
   const read = await ctx.daemon.client.sendRequest('session.menu', { session: shown.session });
 
   expect(getRecord(read, 'menu')).toStrictEqual(shown.menu);
-  expect(ctx.readLog()).toHaveLength(keys);
+  expect(ctx.claude.log).toHaveLength(keys);
 });
 
 test('it picks the last option of a list longer than the screen by its number and label', async () => {
@@ -456,7 +463,7 @@ test('it picks the last option of a list longer than the screen by its number an
 
   expect(chosen).toStrictEqual({ pressed: 'enter', menu: null });
 
-  expect(ctx.readLog().slice(-2)).toStrictEqual([
+  expect(ctx.claude.log.slice(-2)).toStrictEqual([
     { key: 'enter' },
     {
       enabled: [
@@ -469,7 +476,7 @@ test('it picks the last option of a list longer than the screen by its number an
       ],
     },
   ]);
-}, 15_000);
+});
 
 test('it ticks a box below the screen and returns the whole list with its new token', async () => {
   const ctx = await setupTest();
@@ -521,7 +528,7 @@ test('it ticks a box below the screen and returns the whole list with its new to
   });
 
   expect(getRecord(chosen, 'menu')['menuToken']).not.toBe(shown.menu['menuToken']);
-}, 15_000);
+});
 
 test('it returns the whole of a long menu a choice opens, with a token the next choice takes', async () => {
   const ctx = await setupTest();
@@ -564,10 +571,10 @@ test('it returns the whole of a long menu a choice opens, with a token the next 
 
   expect(chosen).toStrictEqual({ pressed: 'enter', menu: null });
 
-  expect(ctx.readLog().at(-1)).toStrictEqual({
+  expect(ctx.claude.log.at(-1)).toStrictEqual({
     enabled: ['kettle-notes', 'orchard-search', 'quarry-files', 'lantern-docs', 'meadow-index'],
   });
-}, 15_000);
+});
 
 test('it returns the menu the screen shows, marked partial, when the read of the menu a choice opens fails after moving the cursor', async () => {
   const ctx = await setupTest();
@@ -628,7 +635,7 @@ test('it returns the menu the screen shows, marked partial, when the read of the
     '   harbor-mirror',
     ' ❯ harbor-mirror',
   ]);
-}, 15_000);
+});
 
 test('it reads afresh a long list that Enter opens with the same text and rows in view', async () => {
   const ctx = await setupTest();
@@ -666,7 +673,7 @@ test('it reads afresh a long list that Enter opens with the same text and rows i
     { option: 5, label: 'Sage', checked: null, highlighted: false },
     { option: 6, label: 'Indigo', checked: null, highlighted: false },
   ]);
-}, 15_000);
+});
 
 test('it reads afresh a long list after input from outside a menu read or choice', async () => {
   const ctx = await setupTest();
@@ -686,24 +693,15 @@ test('it reads afresh a long list after input from outside a menu read or choice
         window: 3,
       },
     ],
-    switchFile: join(ctx.daemon.directory, 'switch'),
   });
 
   await ctx.daemon.client.sendRequest('session.input', { session: shown.session, data: 'x' });
 
   await waitFor(() => {
-    expect(ctx.readLog().at(-1)).toStrictEqual({ key: 'x' });
+    expect(ctx.claude.log.at(-1)).toStrictEqual({ key: 'x' });
   });
 
-  writeFileSync(join(ctx.daemon.directory, 'switch'), '');
-
-  await waitFor(async () => {
-    const screen = await ctx.daemon.client.sendRequest('session.screen', {
-      session: shown.session,
-    });
-
-    expect(screen['text']).toInclude('↓ Plum');
-  });
+  await ctx.claude.switchMenu();
 
   const read = await ctx.daemon.client.sendRequest('session.menu', { session: shown.session });
 
@@ -715,7 +713,7 @@ test('it reads afresh a long list after input from outside a menu read or choice
     { option: 5, label: 'Sage', checked: null, highlighted: false },
     { option: 6, label: 'Indigo', checked: null, highlighted: false },
   ]);
-}, 15_000);
+});
 
 test('it reads afresh a long menu that opens again with the same text after closing', async () => {
   const ctx = await setupTest();
@@ -735,7 +733,6 @@ test('it reads afresh a long menu that opens again with the same text after clos
         window: 3,
       },
     ],
-    switchFile: join(ctx.daemon.directory, 'switch'),
   });
 
   await ctx.daemon.client.sendRequest('session.choose', {
@@ -745,7 +742,7 @@ test('it reads afresh a long menu that opens again with the same text after clos
     label: 'Amber',
   });
 
-  writeFileSync(join(ctx.daemon.directory, 'switch'), '');
+  await ctx.claude.switchMenu();
 
   await waitFor(async () => {
     const screen = await ctx.daemon.client.sendRequest('session.screen', {
@@ -765,7 +762,7 @@ test('it reads afresh a long menu that opens again with the same text after clos
     { option: 5, label: 'Sage', checked: null, highlighted: false },
     { option: 6, label: 'Indigo', checked: null, highlighted: false },
   ]);
-}, 15_000);
+});
 
 test('it refuses a label that differs from the option and sends nothing', async () => {
   const ctx = await setupTest();
@@ -782,7 +779,7 @@ test('it refuses a label that differs from the option and sends nothing', async 
   });
 
   expect(chosen).rejects.toMatchObject({ code: 'menu_label_mismatch' });
-  expect(ctx.readLog()).toStrictEqual([]);
+  expect(ctx.claude.log).toStrictEqual([]);
 });
 
 test('it refuses an option the menu does not have and sends nothing', async () => {
@@ -800,7 +797,7 @@ test('it refuses an option the menu does not have and sends nothing', async () =
   });
 
   expect(chosen).rejects.toMatchObject({ code: 'menu_label_mismatch' });
-  expect(ctx.readLog()).toStrictEqual([]);
+  expect(ctx.claude.log).toStrictEqual([]);
 });
 
 test('it refuses a choice on a menu that changed since the read and sends nothing', async () => {
@@ -811,10 +808,9 @@ test('it refuses a choice on a menu that changed since the read and sends nothin
       { kind: 'numbered', text: ['Trust this folder?'], options: ['No, exit', 'Yes'] },
       { kind: 'numbered', text: ['Allow external imports?'], options: ['No, exit', 'Yes'] },
     ],
-    switchFile: join(ctx.daemon.directory, 'switch'),
   });
 
-  writeFileSync(join(ctx.daemon.directory, 'switch'), '');
+  await ctx.claude.switchMenu();
 
   await waitFor(async () => {
     const answer = await ctx.daemon.client.sendRequest('session.menu', { session: shown.session });
@@ -830,7 +826,7 @@ test('it refuses a choice on a menu that changed since the read and sends nothin
   });
 
   expect(chosen).rejects.toMatchObject({ code: 'menu_changed' });
-  expect(ctx.readLog()).toStrictEqual([]);
+  expect(ctx.claude.log).toStrictEqual([]);
 });
 
 test('it dismisses the menu on Escape', async () => {
@@ -855,7 +851,7 @@ test('it dismisses the menu on Escape', async () => {
   });
 
   expect(chosen).toStrictEqual({ pressed: 'escape', menu: null });
-  expect(ctx.readLog()).toStrictEqual([{ key: 'escape' }, { dismissed: true }]);
+  expect(ctx.claude.log).toStrictEqual([{ key: 'escape' }, { dismissed: true }]);
 });
 
 test('it refuses Escape on a menu that changed since the read and sends nothing', async () => {
@@ -866,10 +862,9 @@ test('it refuses Escape on a menu that changed since the read and sends nothing'
       { kind: 'plain', text: ['Pick a colour'], options: ['Amber', 'Teal'] },
       { kind: 'plain', text: ['Pick a shape'], options: ['Circle', 'Square'] },
     ],
-    switchFile: join(ctx.daemon.directory, 'switch'),
   });
 
-  writeFileSync(join(ctx.daemon.directory, 'switch'), '');
+  await ctx.claude.switchMenu();
 
   await waitFor(async () => {
     const answer = await ctx.daemon.client.sendRequest('session.menu', { session: shown.session });
@@ -884,7 +879,7 @@ test('it refuses Escape on a menu that changed since the read and sends nothing'
   });
 
   expect(chosen).rejects.toMatchObject({ code: 'menu_changed' });
-  expect(ctx.readLog()).toStrictEqual([]);
+  expect(ctx.claude.log).toStrictEqual([]);
 });
 
 test('it waits out the hold of a menu that has just opened before it picks', async () => {
@@ -892,7 +887,7 @@ test('it waits out the hold of a menu that has just opened before it picks', asy
 
   const shown = await ctx.spawnMenu({
     menus: [{ kind: 'plain', text: ['Trust this folder?'], options: ['No, exit', 'Yes'] }],
-    holdMs: 600,
+    holdMs: 150,
   });
 
   const chosen = await ctx.daemon.client.sendRequest('session.choose', {
@@ -903,7 +898,7 @@ test('it waits out the hold of a menu that has just opened before it picks', asy
   });
 
   expect(chosen).toStrictEqual({ pressed: 'enter', menu: null });
-  expect(ctx.readLog()).toStrictEqual([{ key: 'down' }, { key: 'enter' }, { picked: 'Yes' }]);
+  expect(ctx.claude.log).toStrictEqual([{ key: 'down' }, { key: 'enter' }, { picked: 'Yes' }]);
 });
 
 test('it refuses a choice of the option under the cursor once the session exits during the quiet wait', async () => {
@@ -911,7 +906,6 @@ test('it refuses a choice of the option under the cursor once the session exits 
 
   const shown = await ctx.spawnMenu({
     menus: [{ kind: 'plain', text: ['Trust this folder?'], options: ['No, exit', 'Yes'] }],
-    exitFile: join(ctx.daemon.directory, 'exit'),
   });
 
   const chosen = ctx.daemon.client.sendRequest('session.choose', {
@@ -921,10 +915,14 @@ test('it refuses a choice of the option under the cursor once the session exits 
     label: 'No, exit',
   });
 
-  writeFileSync(join(ctx.daemon.directory, 'exit'), '');
+  // The daemon starts each request in the order it reads them, so the choice
+  // is in its quiet wait once a later request has its answer.
+  await ctx.daemon.client.sendRequest('session.get', { session: shown.session });
+
+  ctx.claude.exit();
 
   expect(chosen).rejects.toMatchObject({ code: 'session_dead' });
-  expect(ctx.readLog()).toStrictEqual([]);
+  expect(ctx.claude.log).toStrictEqual([]);
 });
 
 test('it refuses Escape once the session exits during the quiet wait', async () => {
@@ -932,7 +930,6 @@ test('it refuses Escape once the session exits during the quiet wait', async () 
 
   const shown = await ctx.spawnMenu({
     menus: [{ kind: 'plain', text: ['Trust this folder?'], options: ['No, exit', 'Yes'] }],
-    exitFile: join(ctx.daemon.directory, 'exit'),
   });
 
   const chosen = ctx.daemon.client.sendRequest('session.choose', {
@@ -941,10 +938,14 @@ test('it refuses Escape once the session exits during the quiet wait', async () 
     key: 'escape',
   });
 
-  writeFileSync(join(ctx.daemon.directory, 'exit'), '');
+  // The daemon starts each request in the order it reads them, so the choice
+  // is in its quiet wait once a later request has its answer.
+  await ctx.daemon.client.sendRequest('session.get', { session: shown.session });
+
+  ctx.claude.exit();
 
   expect(chosen).rejects.toMatchObject({ code: 'session_dead' });
-  expect(ctx.readLog()).toStrictEqual([]);
+  expect(ctx.claude.log).toStrictEqual([]);
 });
 
 test('it refuses a menu read for an agent whose adapter reads no menus', async () => {

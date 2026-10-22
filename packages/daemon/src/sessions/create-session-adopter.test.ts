@@ -59,6 +59,7 @@ async function setupTest(config: SetupTestConfig) {
     log: mock<() => void>(),
     now: () => 0,
     getClock: () => systemClock,
+    getReporterSocketPath: () => join(temporaryDirectory.path, 'reporter.sock'),
     findAuthBinder: () => null,
     findRecords: () => null,
   };
@@ -170,7 +171,7 @@ test('it starts a harness that resumes the agent session of a session without a 
   });
 
   expect(provider.harnesses[0]?.spec.env).toContainAllKeys(['ATC_SESSION_ID', 'ATC_SOCKET']);
-  expect(provider.harnesses[0]?.spec.env['ATC_SOCKET']).toBeString();
+  expect(provider.harnesses[0]?.spec.env['ATC_SOCKET']).toBe(join(ctx.directory, 'reporter.sock'));
   expect(provider.harnesses[0]?.spec.onRelay).toBeFunction();
   expect(adopted).toMatchObject({ kind: 'pty', state: 'running', lastMsg: 'revived' });
   expect(adopted?.pty).toBe(provider.harnesses[0]);

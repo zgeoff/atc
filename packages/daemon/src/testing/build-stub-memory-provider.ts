@@ -13,6 +13,26 @@ import type {
   HostRequest,
 } from '@atc/plugin-api';
 
+export interface StubMemoryHarness extends HarnessHandle {
+  readonly spec: HarnessSpec;
+  readonly written: string[];
+  readonly sizes: (readonly [cols: number, rows: number])[];
+
+  // The exit the harness reported, or null while it runs.
+  readonly readExit: () => HarnessExit | null;
+
+  // Whether the daemon let go of the harness without ending it.
+  readonly isDetached: () => boolean;
+  readonly emitData: (data: string) => void;
+
+  // Calls the listener with each write the daemon makes, after recording it.
+  readonly onInput: (listener: (data: string) => void) => ReturnType<HarnessHandle['onData']>;
+
+  // Ends the harness with the exit given; a harness that already ended, or
+  // that the daemon let go of, records nothing more.
+  readonly emitExit: (exit: HarnessExit) => void;
+}
+
 interface StubMemoryProviderConfig {
   // The provider kind the stand-in reports; `memory` when absent.
   readonly kind?: string;
@@ -33,6 +53,10 @@ interface StubMemoryProviderConfig {
   // aborts the spawn, and no harness is recorded.
   readonly onSpawn?: (spec: HarnessSpec) => void;
 
+  // Runs a stand-in program on each harness once the harness is recorded, such
+  // as an agent CLI that draws output and answers input.
+  readonly onStart?: (harness: StubMemoryHarness) => void;
+
   // Answers each command; absent, every command exits 0 and prints nothing.
   readonly runCommand?: (spec: CommandSpec) => Promise<CommandResult>;
 
@@ -49,23 +73,6 @@ interface StubMemoryProviderConfig {
   // The clock behind each harness's wait for its exit; the wall clock when
   // absent.
   readonly clock?: Clock;
-}
-
-interface StubMemoryHarness extends HarnessHandle {
-  readonly spec: HarnessSpec;
-  readonly written: string[];
-  readonly sizes: (readonly [cols: number, rows: number])[];
-
-  // The exit the harness reported, or null while it runs.
-  readonly readExit: () => HarnessExit | null;
-
-  // Whether the daemon let go of the harness without ending it.
-  readonly isDetached: () => boolean;
-  readonly emitData: (data: string) => void;
-
-  // Ends the harness with the exit given; a harness that already ended, or
-  // that the daemon let go of, records nothing more.
-  readonly emitExit: (exit: HarnessExit) => void;
 }
 
 export interface StubMemoryProvider extends ExecutionProvider {
@@ -138,6 +145,7 @@ export function buildStubMemoryProvider(config: StubMemoryProviderConfig = {}): 
       const harness = buildStubMemoryHarness(spec, config.clock ?? systemClock);
 
       harnesses.push(harness);
+      config.onStart?.(harness);
 
       return harness;
     },
@@ -172,6 +180,7 @@ export function buildStubMemoryProvider(config: StubMemoryProviderConfig = {}): 
 function buildStubMemoryHarness(spec: HarnessSpec, clock: Clock): StubMemoryHarness {
   const dataListeners = new Set<(data: string) => void>();
   const exitListeners = new Set<(exit: HarnessExit) => void>();
+  const inputListeners = new Set<(data: string) => void>();
   const exitWaiters = new Set<(exited: boolean) => void>();
 
   const written: string[] = [];
@@ -240,8 +249,21 @@ function buildStubMemoryHarness(spec: HarnessSpec, clock: Clock): StubMemoryHarn
         },
       };
     },
+    onInput: (listener) => {
+      inputListeners.add(listener);
+
+      return {
+        dispose: () => {
+          inputListeners.delete(listener);
+        },
+      };
+    },
     write: (data) => {
       written.push(data);
+
+      for (const listener of inputListeners) {
+        listener(data);
+      }
     },
     resize: (cols, rows) => {
       sizes.push([cols, rows]);
@@ -273,6 +295,7 @@ function buildStubMemoryHarness(spec: HarnessSpec, clock: Clock): StubMemoryHarn
 
       dataListeners.clear();
       exitListeners.clear();
+      inputListeners.clear();
 
       emitWaitOutcome(false);
     },

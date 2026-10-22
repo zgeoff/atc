@@ -57,13 +57,13 @@
           ],
 
           // sessions, the fake impd's guests and the TUI harness's client run
-          // in real PTYs, and the stub composer's and stub menu's raw-mode
-          // reads need a real terminal
+          // in real PTYs, and the stub composer's raw-mode reads need a real
+          // terminal
           "pty-files": [
             "packages/execution/local/src/create-local-pty-provider.ts",
             "packages/execution/imp/src/testing/{answer-stub-session,stub-imp,try-kill}.ts",
             "packages/test-utils/src/start-tui-harness.ts",
-            "packages/test-utils/src/{create-stub-composer,run-stub-menu-claude}.test.ts"
+            "packages/test-utils/src/create-stub-composer.test.ts"
           ],
           // the real port calls impd through the client, and the contract
           // types the impd stand-in is checked against come from its declarations

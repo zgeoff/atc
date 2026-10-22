@@ -16,6 +16,9 @@ interface StubTargetsConfig {
 
   // Host operations of their own for the targets they name.
   readonly hosts?: Readonly<Record<string, HostOverride>>;
+
+  // Runs a stand-in program on each harness a local-pty target starts.
+  readonly onStart?: NonNullable<Parameters<typeof buildStubMemoryProvider>[0]>['onStart'];
 }
 
 export function buildStubTargets(
@@ -37,6 +40,7 @@ export function buildStubTargets(
             onSpawn: () => {
               config.spawned.push(target.id);
             },
+            ...(config.onStart === undefined ? {} : { onStart: config.onStart }),
             ...hosts[target.id],
           })
         : null,

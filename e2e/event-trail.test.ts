@@ -1,51 +1,18 @@
 import { expect, test } from 'bun:test';
-import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { appendFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { startDaemonProcess } from '@atc/lifecycle/testing';
-import {
-  createStubClaude,
-  createStubComposer,
-  getRecord,
-  getRecords,
-  getString,
-  resolveATCCommand,
-  setupTempDir,
-  waitFor,
-} from '@atc/test-utils';
+import { getRecord, getRecords, getString, waitFor } from '@atc/test-utils';
+import { startStubAgentDaemon } from '../packages/app/src/test-utils/start-stub-agent-daemon';
 
+// A daemon in the test's process whose Claude is the in-process stand-in.
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-e2e-events-');
-  const atc = resolveATCCommand();
-  const configDir = join(temporaryDirectory.path, '.config', 'atc');
-
-  mkdirSync(configDir, { recursive: true });
-
-  return {
-    home: temporaryDirectory.path,
-    atc,
-    configPath: join(configDir, 'config.json'),
-    claude: createStubClaude(temporaryDirectory.path, {
-      atc,
-      composer: createStubComposer(temporaryDirectory.path),
-    }),
-  };
+  return startStubAgentDaemon();
 }
 
 test('it reads hook events from the start through events.read', async () => {
-  const ctx = setupTest();
+  const ctx = await setupTest();
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: { claude: { bin: ctx.claude } },
-    }),
-  );
-
-  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
-
-  const client = await daemon.openClient();
-
-  await client.sendHello('atc/test');
+  const client = ctx.daemon.client;
 
   const ok = await client.sendRequest('session.spawn', {
     cwd: ctx.home,
@@ -89,20 +56,10 @@ test('it reads hook events from the start through events.read', async () => {
 });
 
 test('it reads nothing past the cursor of the last event through events.read', async () => {
-  const ctx = setupTest();
+  const ctx = await setupTest();
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: { claude: { bin: ctx.claude } },
-    }),
-  );
+  const client = ctx.daemon.client;
 
-  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
-
-  const client = await daemon.openClient();
-
-  await client.sendHello('atc/test');
   await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
   const first = await waitFor(async () => {
@@ -121,20 +78,9 @@ test('it reads nothing past the cursor of the last event through events.read', a
 });
 
 test('it reads the oldest retained event first through events.read from the start', async () => {
-  const ctx = setupTest();
+  const ctx = await setupTest();
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: { claude: { bin: ctx.claude } },
-    }),
-  );
-
-  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
-
-  const client = await daemon.openClient();
-
-  await client.sendHello('atc/test');
+  const client = ctx.daemon.client;
 
   const ok = await client.sendRequest('session.spawn', {
     cwd: ctx.home,
@@ -170,20 +116,9 @@ test('it reads the oldest retained event first through events.read from the star
 });
 
 test('it continues a read from the start from the cursor it returned', async () => {
-  const ctx = setupTest();
+  const ctx = await setupTest();
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: { claude: { bin: ctx.claude } },
-    }),
-  );
-
-  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
-
-  const client = await daemon.openClient();
-
-  await client.sendHello('atc/test');
+  const client = ctx.daemon.client;
 
   const ok = await client.sendRequest('session.spawn', {
     cwd: ctx.home,
@@ -220,20 +155,9 @@ test('it continues a read from the start from the cursor it returned', async () 
 });
 
 test('it holds events.read open until the next event arrives', async () => {
-  const ctx = setupTest();
+  const ctx = await setupTest();
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: { claude: { bin: ctx.claude } },
-    }),
-  );
-
-  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
-
-  const client = await daemon.openClient();
-
-  await client.sendHello('atc/test');
+  const client = ctx.daemon.client;
 
   const first = await client.sendRequest('events.read', {});
 
@@ -259,20 +183,9 @@ test('it holds events.read open until the next event arrives', async () => {
 });
 
 test("it reads the first page of a claude session's transcript through session.read", async () => {
-  const ctx = setupTest();
+  const ctx = await setupTest();
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: { claude: { bin: ctx.claude } },
-    }),
-  );
-
-  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
-
-  const client = await daemon.openClient();
-
-  await client.sendHello('atc/test');
+  const client = ctx.daemon.client;
 
   writeFileSync(
     join(ctx.home, 'fake-transcript.jsonl'),
@@ -345,20 +258,9 @@ test("it reads the first page of a claude session's transcript through session.r
 });
 
 test("it reads the rest of a claude session's transcript from a page cursor", async () => {
-  const ctx = setupTest();
+  const ctx = await setupTest();
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: { claude: { bin: ctx.claude } },
-    }),
-  );
-
-  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
-
-  const client = await daemon.openClient();
-
-  await client.sendHello('atc/test');
+  const client = ctx.daemon.client;
 
   writeFileSync(
     join(ctx.home, 'fake-transcript.jsonl'),
@@ -424,20 +326,9 @@ test("it reads the rest of a claude session's transcript from a page cursor", as
 });
 
 test("it reads a line appended to a claude session's transcript from the last cursor", async () => {
-  const ctx = setupTest();
+  const ctx = await setupTest();
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: { claude: { bin: ctx.claude } },
-    }),
-  );
-
-  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
-
-  const client = await daemon.openClient();
-
-  await client.sendHello('atc/test');
+  const client = ctx.daemon.client;
 
   writeFileSync(
     join(ctx.home, 'fake-transcript.jsonl'),

@@ -1,5 +1,5 @@
 import type { TargetConfigError } from '@atc/config';
-import { statusFile } from '@atc/config';
+import { socketPath, statusFile } from '@atc/config';
 import type { AgentID, AgentSessionID, Clock, SessionID } from '@atc/core';
 import { systemClock, truncateDetail, truncateToBytes } from '@atc/core';
 import type {
@@ -98,6 +98,10 @@ export interface SessionManager {
 
   // The clock a session's creation and last attach are stamped with.
   clock: Clock;
+
+  // The socket each session's hooks report to, which the daemon's hook
+  // server listens on.
+  reporterSocketPath: string;
 
   // Binds the runtime auth of each host whose agent takes its credential
   // from impd's broker; with none, every such start is refused.
@@ -247,6 +251,7 @@ export function createSessionManager(
   let log: (line: string) => void = writeStderrLine;
   let now: () => number = readPerformanceNow;
   let clock: Clock = systemClock;
+  let reporterSocketPath = socketPath;
   let authBinder: RuntimeAuthBinder | null = null;
   let records: PublishedRecords | null = null;
   const onOutput = events.onOutput ?? (() => {});
@@ -274,6 +279,7 @@ export function createSessionManager(
     },
     now: () => now(),
     getClock: () => clock,
+    getReporterSocketPath: () => reporterSocketPath,
     findAuthBinder: () => authBinder,
     findRecords: () => records,
   };
@@ -364,6 +370,14 @@ export function createSessionManager(
 
     set clock(next: Clock) {
       clock = next;
+    },
+
+    get reporterSocketPath() {
+      return reporterSocketPath;
+    },
+
+    set reporterSocketPath(next: string) {
+      reporterSocketPath = next;
     },
 
     get authBinder() {

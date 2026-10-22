@@ -2,20 +2,18 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
-import type { DaemonEvent } from '@atc/protocol';
 import {
   createStubClaude,
-  createStubCodex,
   createStubComposer,
-  createStubGrok,
   getRecord,
   getString,
   resolveATCCommand,
   setupTempDir,
   waitFor,
-  waitForEvent,
 } from '@atc/test-utils';
 
+// The atc-bridge mod folder is written by the daemon command from the build
+// it runs as, so these cases start the real command.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-e2e-agents-');
   const atc = resolveATCCommand();
@@ -29,302 +27,13 @@ function setupTest() {
     atc,
     configPath: join(configDir, 'config.json'),
     claude: createStubClaude(temporaryDirectory.path, { atc, composer }),
-    grok: createStubGrok(temporaryDirectory.path, { atc, composer }),
-    codex: createStubCodex(temporaryDirectory.path, { atc, composer }),
   };
 }
-
-test('it spawns a grok session and captures a grok descriptor from SessionStart', async () => {
-  const ctx = setupTest();
-
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: ctx.claude },
-        grok: { bin: ctx.grok },
-        codex: { bin: ctx.codex },
-
-        // The gateway runs the stub Claude against an address nothing serves.
-        zai: { kind: 'claude', bin: ctx.claude, baseURL: 'http://127.0.0.1:9' },
-      },
-    }),
-  );
-
-  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
-
-  const client = await daemon.openClient();
-
-  const events: DaemonEvent[] = [];
-
-  client.onEvent = (event) => {
-    events.push(event);
-  };
-
-  await client.sendHello('atc/test');
-
-  const ok = await client.sendRequest('session.spawn', {
-    cwd: ctx.home,
-    agent: 'grok',
-    cols: 80,
-    rows: 24,
-  });
-
-  await waitForEvent(events, { ev: 'SessionState', session: { state: 'needs_you' } });
-
-  const listed = await client.sendRequest('session.list');
-
-  expect(ok).toMatchObject({ session: { agent: 'grok', alive: true } });
-
-  expect(listed).toMatchObject({
-    sessions: [
-      { state: 'needs_you', agentSessionID: 'fake-grok-1', agent: 'grok', lastMsg: 'allow edit?' },
-    ],
-  });
-});
-
-test('it yanks a bare grok command for a grok session before its SessionStart', async () => {
-  const ctx = setupTest();
-
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: ctx.claude },
-        grok: { bin: ctx.grok },
-        codex: { bin: ctx.codex },
-
-        // The gateway runs the stub Claude against an address nothing serves.
-        zai: { kind: 'claude', bin: ctx.claude, baseURL: 'http://127.0.0.1:9' },
-      },
-    }),
-  );
-
-  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
-
-  const client = await daemon.openClient();
-
-  await client.sendHello('atc/test');
-
-  writeFileSync(join(ctx.home, 'fake-grok-hold-start'), '');
-
-  const ok = await client.sendRequest('session.spawn', {
-    cwd: ctx.home,
-    agent: 'grok',
-    cols: 80,
-    rows: 24,
-  });
-
-  const id = getString(getRecord(ok, 'session'), 'id');
-
-  const answer = await client.sendRequest('session.resumeCommand', { session: id });
-
-  expect(answer).toStrictEqual({ command: `cd '${ctx.home}' && grok` });
-});
-
-test('it yanks grok --resume for a grok session once its id is captured', async () => {
-  const ctx = setupTest();
-
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: ctx.claude },
-        grok: { bin: ctx.grok },
-        codex: { bin: ctx.codex },
-
-        // The gateway runs the stub Claude against an address nothing serves.
-        zai: { kind: 'claude', bin: ctx.claude, baseURL: 'http://127.0.0.1:9' },
-      },
-    }),
-  );
-
-  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
-
-  const client = await daemon.openClient();
-
-  const events: DaemonEvent[] = [];
-
-  client.onEvent = (event) => {
-    events.push(event);
-  };
-
-  await client.sendHello('atc/test');
-
-  const ok = await client.sendRequest('session.spawn', {
-    cwd: ctx.home,
-    agent: 'grok',
-    cols: 80,
-    rows: 24,
-  });
-
-  const id = getString(getRecord(ok, 'session'), 'id');
-
-  await waitForEvent(events, {
-    ev: 'SessionState',
-    session: { agentSessionID: 'fake-grok-1' },
-  });
-
-  const answer = await client.sendRequest('session.resumeCommand', { session: id });
-
-  expect(answer).toStrictEqual({
-    command: `cd '${ctx.home}' && grok --resume fake-grok-1`,
-  });
-});
-
-test('it spawns a codex session and captures its descriptor from SessionStart', async () => {
-  const ctx = setupTest();
-
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: ctx.claude },
-        grok: { bin: ctx.grok },
-        codex: { bin: ctx.codex },
-
-        // The gateway runs the stub Claude against an address nothing serves.
-        zai: { kind: 'claude', bin: ctx.claude, baseURL: 'http://127.0.0.1:9' },
-      },
-    }),
-  );
-
-  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
-
-  const client = await daemon.openClient();
-
-  const events: DaemonEvent[] = [];
-
-  client.onEvent = (event) => {
-    events.push(event);
-  };
-
-  await client.sendHello('atc/test');
-
-  const ok = await client.sendRequest('session.spawn', {
-    cwd: ctx.home,
-    agent: 'codex',
-    cols: 80,
-    rows: 24,
-  });
-
-  await waitForEvent(events, { ev: 'SessionState', session: { state: 'done' } });
-
-  const listed = await client.sendRequest('session.list');
-
-  expect(ok).toMatchObject({ session: { agent: 'codex', alive: true } });
-
-  expect(listed).toMatchObject({
-    sessions: [{ state: 'done', agentSessionID: 'fake-codex-1', agent: 'codex' }],
-  });
-});
-
-test('it builds a codex resume command once the codex id is captured', async () => {
-  const ctx = setupTest();
-
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: ctx.claude },
-        grok: { bin: ctx.grok },
-        codex: { bin: ctx.codex },
-
-        // The gateway runs the stub Claude against an address nothing serves.
-        zai: { kind: 'claude', bin: ctx.claude, baseURL: 'http://127.0.0.1:9' },
-      },
-    }),
-  );
-
-  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
-
-  const client = await daemon.openClient();
-
-  const events: DaemonEvent[] = [];
-
-  client.onEvent = (event) => {
-    events.push(event);
-  };
-
-  await client.sendHello('atc/test');
-
-  const ok = await client.sendRequest('session.spawn', {
-    cwd: ctx.home,
-    agent: 'codex',
-    cols: 80,
-    rows: 24,
-  });
-
-  const id = getString(getRecord(ok, 'session'), 'id');
-
-  await waitForEvent(events, {
-    ev: 'SessionState',
-    session: { agentSessionID: 'fake-codex-1' },
-  });
-
-  const answer = await client.sendRequest('session.resumeCommand', { session: id });
-
-  expect(answer).toStrictEqual({
-    command: `cd '${ctx.home}' && codex resume fake-codex-1`,
-  });
-});
-
-test.each([['grok'], ['codex']])(
-  'it answers session.read on a %s session with unsupported',
-  async (agent) => {
-    const ctx = setupTest();
-
-    writeFileSync(
-      ctx.configPath,
-      JSON.stringify({
-        agents: {
-          claude: { bin: ctx.claude },
-          grok: { bin: ctx.grok },
-          codex: { bin: ctx.codex },
-
-          // The gateway runs the stub Claude against an address nothing serves.
-          zai: { kind: 'claude', bin: ctx.claude, baseURL: 'http://127.0.0.1:9' },
-        },
-      }),
-    );
-
-    const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
-
-    const client = await daemon.openClient();
-
-    await client.sendHello('atc/test');
-
-    const ok = await client.sendRequest('session.spawn', {
-      cwd: ctx.home,
-      agent,
-      cols: 80,
-      rows: 24,
-    });
-
-    const id = getString(getRecord(ok, 'session'), 'id');
-
-    expect(client.sendRequest('session.read', { session: id })).rejects.toMatchObject({
-      code: 'unsupported',
-    });
-  },
-);
 
 test('it starts a Claude session with the atc-bridge mod folder', async () => {
   const ctx = setupTest();
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: ctx.claude },
-        grok: { bin: ctx.grok },
-        codex: { bin: ctx.codex },
-
-        // The gateway runs the stub Claude against an address nothing serves.
-        zai: { kind: 'claude', bin: ctx.claude, baseURL: 'http://127.0.0.1:9' },
-      },
-    }),
-  );
+  writeFileSync(ctx.configPath, JSON.stringify({ agents: { claude: { bin: ctx.claude } } }));
 
   const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
@@ -363,10 +72,6 @@ test('it starts a gateway session with the atc-bridge mod folder', async () => {
     ctx.configPath,
     JSON.stringify({
       agents: {
-        claude: { bin: ctx.claude },
-        grok: { bin: ctx.grok },
-        codex: { bin: ctx.codex },
-
         // The gateway runs the stub Claude against an address nothing serves.
         zai: { kind: 'claude', bin: ctx.claude, baseURL: 'http://127.0.0.1:9' },
       },
@@ -397,58 +102,4 @@ test('it starts a gateway session with the atc-bridge mod folder', async () => {
   });
 
   expect(screen['text']).toInclude(`--plugin-dir ${join(daemon.stateDir, 'atc-bridge')}`);
-});
-
-test("it runs and stores a resume request's own model and effort", async () => {
-  const ctx = setupTest();
-
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({
-      agents: {
-        claude: { bin: ctx.claude },
-        grok: { bin: ctx.grok },
-        codex: { bin: ctx.codex },
-
-        // The gateway runs the stub Claude against an address nothing serves.
-        zai: { kind: 'claude', bin: ctx.claude, baseURL: 'http://127.0.0.1:9' },
-      },
-    }),
-  );
-
-  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
-
-  const client = await daemon.openClient();
-
-  await client.sendHello('atc/test');
-
-  const ok = await client.sendRequest('session.spawn', {
-    cwd: ctx.home,
-    resume: 'fake-1',
-    model: 'haiku',
-    effort: 'medium',
-    cols: 400,
-    rows: 24,
-  });
-
-  const id = getString(getRecord(ok, 'session'), 'id');
-
-  const screen = await waitFor(async () => {
-    const read = await client.sendRequest('session.screen', { session: id });
-
-    expect(read['text']).toInclude('FAKE_CLAUDE_TERM:');
-
-    return read;
-  });
-
-  const fleet = await waitFor(async () => {
-    const listed = await client.sendRequest('fleet.list');
-
-    expect(listed).toMatchObject({ fleet: [{ agentSessionID: 'fake-1' }] });
-
-    return listed;
-  });
-
-  expect(screen['text']).toInclude('args: --model haiku --effort medium --add-dir ');
-  expect(fleet).toMatchObject({ fleet: [{ model: 'haiku', effort: 'medium' }] });
 });
