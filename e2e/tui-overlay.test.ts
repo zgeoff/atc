@@ -132,7 +132,8 @@ test('it clusters overlay rows under repository headers when grouping is toggled
 
   ctx.write('n');
 
-  await ctx.waitFor('spawn: agent');
+  // The agent step takes keys only once it draws the selected agent's row.
+  await ctx.waitFor('\u001B[7mClaude');
 
   ctx.write(KEYS.enter);
 
