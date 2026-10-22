@@ -17,6 +17,7 @@ import type {
 import { ImpPortError } from '../imp-port-error';
 import type { ImpdBareRefusalCode, ImpdExecRefusal, ImpdOutput } from '../impd-contract';
 import { MIN_IMPD_VERSION } from '../min-impd-version';
+import { requireGuestScratchDir } from '../require-guest-scratch-dir';
 import { requireImpdVersion } from '../require-impd-version';
 import { buildNotFound } from './build-not-found';
 import { createStubImpCommands } from './create-stub-imp-commands';
@@ -39,6 +40,10 @@ interface StubImpPort extends ImpPort {
   readonly createSpecs: ImpCreateSpec[];
 
   version: string;
+
+  // The guest scratch folder impd declares; null stands for an impd from
+  // before it declared one.
+  scratchDir: string | null;
 
   // Where the port keeps each imp's read-only files, one folder per imp
   // name; null stands for an imp agent from before them.
@@ -187,6 +192,8 @@ export function createStubImpPort(
 
     version: MIN_IMPD_VERSION,
 
+    scratchDir: '/tmp',
+
     readOnlyFilesDir: null,
 
     continuity: 'offsets',
@@ -208,6 +215,21 @@ export function createStubImpPort(
       return new Promise((resolve) => {
         requireImpdVersion(info.version);
         resolve();
+      });
+    },
+
+    // The real port answers from the status report its version check read,
+    // so this records no call of its own.
+    readGuestScratchDir: () => {
+      const info: Pick<ImpdOutput<'system.info'>, 'version' | 'guest'> = {
+        version: self.version,
+        ...(self.scratchDir === null
+          ? {}
+          : { guest: { scratchDir: self.scratchDir, isClearedOnBoot: false } }),
+      };
+
+      return new Promise((resolve) => {
+        resolve(requireGuestScratchDir(info));
       });
     },
 

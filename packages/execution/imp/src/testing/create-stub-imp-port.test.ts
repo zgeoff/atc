@@ -1612,6 +1612,36 @@ test('it refuses the version check of the outdated version a test set', () => {
   });
 });
 
+test('it declares /tmp as the guest scratch folder, as impd does, until the test sets one', async () => {
+  const ctx = setupTest();
+
+  const scratchDir = await ctx.port.readGuestScratchDir();
+
+  expect(scratchDir).toBe('/tmp');
+});
+
+test('it reads the guest scratch folder a test set', async () => {
+  const ctx = setupTest();
+
+  ctx.port.scratchDir = '/var/lib/orchard-scratch';
+
+  const scratchDir = await ctx.port.readGuestScratchDir();
+
+  expect(scratchDir).toBe('/var/lib/orchard-scratch');
+});
+
+test('it refuses the guest scratch folder as outdated once the test sets none', () => {
+  const ctx = setupTest();
+
+  ctx.port.scratchDir = null;
+
+  expect(ctx.port.readGuestScratchDir()).rejects.toMatchObject({
+    code: 'IMPD_OUTDATED',
+    message:
+      "impd 2.2.0 declares no guest scratch folder; upgrade impd, or set the target's guestDir",
+  });
+});
+
 test('it answers tokens.whoami with the identity a test set', async () => {
   const ctx = setupTest();
   const set = buildMockImpIdentity({ grantable: ['glm'] });

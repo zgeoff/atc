@@ -32,7 +32,10 @@ function setupTest(config: SetupTestConfig) {
   const provider = buildStubMemoryProvider({
     kind: 'imp',
     remote: config.remote,
-    guest: { directory: '/tmp/atc', atc: '/tmp/atc/bin/atc' },
+    guest: {
+      directory: '/var/lib/orchard-scratch/atc',
+      atc: '/var/lib/orchard-scratch/atc/bin/atc',
+    },
     transferArchive: config.transferArchive ?? (() => Promise.resolve()),
   });
 
@@ -71,7 +74,7 @@ function setupTest(config: SetupTestConfig) {
   return { clock, taps, sessions, ended, notes, logs, provider, client };
 }
 
-test('it writes the bridge mod of a running remote session whose tap stays gone for 30 s', () => {
+test('it writes the bridge mod of a running remote session whose tap stays gone for 30 s', async () => {
   const ctx = setupTest({ remote: true });
   const id = toSessionID('s-bridge');
 
@@ -91,12 +94,18 @@ test('it writes the bridge mod of a running remote session whose tap stays gone 
   ctx.taps.removeSession(id);
   ctx.clock.advance(30_000);
 
-  expect(ctx.provider.transfers).toHaveLength(1);
-  expect(ctx.provider.transfers[0]?.directory).toBe('/tmp/atc/sessions/s-bridge');
+  await waitFor(() => {
+    expect(ctx.provider.transfers).toHaveLength(1);
+  });
+
+  expect(ctx.provider.transfers[0]?.directory).toBe(
+    '/var/lib/orchard-scratch/atc/sessions/s-bridge',
+  );
+
   expect(ctx.provider.transfers[0]?.host).toBe('s-bridge');
 
   expect(new TextDecoder().decode(ctx.provider.transfers[0]?.archive)).toInclude(
-    'export const ATC_CLI = ["/tmp/atc/bin/atc"];',
+    'export const ATC_CLI = ["/var/lib/orchard-scratch/atc/bin/atc"];',
   );
 });
 
@@ -189,7 +198,7 @@ test('it logs each write in the daemon log', async () => {
   });
 });
 
-test('it writes the mod once a session that slept through the wait wakes', () => {
+test('it writes the mod once a session that slept through the wait wakes', async () => {
   const ctx = setupTest({ remote: true });
   const id = toSessionID('s-bridge');
 
@@ -221,7 +230,9 @@ test('it writes the mod once a session that slept through the wait wakes', () =>
 
   ctx.clock.advance(30_000);
 
-  expect(ctx.provider.transfers).toHaveLength(1);
+  await waitFor(() => {
+    expect(ctx.provider.transfers).toHaveLength(1);
+  });
 });
 
 test('it logs a failed write, notes nothing, and writes again after a later tap loss', async () => {
@@ -258,7 +269,10 @@ test('it logs a failed write, notes nothing, and writes again after a later tap 
   ctx.taps.removeSession(id);
   ctx.clock.advance(60_000);
 
-  expect(ctx.provider.transfers).toHaveLength(2);
+  await waitFor(() => {
+    expect(ctx.provider.transfers).toHaveLength(2);
+  });
+
   expect(ctx.notes).toStrictEqual([]);
 });
 
@@ -464,7 +478,9 @@ test('it writes again after the doubled wait for a tap lost while a write was un
 
   ctx.clock.advance(60_000);
 
-  expect(ctx.provider.transfers).toHaveLength(2);
+  await waitFor(() => {
+    expect(ctx.provider.transfers).toHaveLength(2);
+  });
 });
 
 test('it makes one write per tap loss however long the tap stays gone', async () => {

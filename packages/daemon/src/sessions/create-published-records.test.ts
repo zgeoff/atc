@@ -848,6 +848,40 @@ test("it never removes another session's copy", async () => {
   expect(existsSync(other)).toBe(true);
 });
 
+test("it places a remote copy in the records folder of the host's guest folder", async () => {
+  const ctx = await setupTest();
+
+  const provider = buildStubMemoryProvider({
+    kind: 'box',
+    remote: true,
+    guest: { directory: '/var/lib/orchard-scratch/atc', atc: null },
+  });
+
+  const session = toSessionID('s-remote');
+
+  await ctx.records.createRecord(
+    {
+      session,
+      target: 'box',
+      name: 'login fix',
+      transcriptPath: null,
+      provider,
+      host: session,
+      directory: '/work/app',
+      workspace: null,
+    },
+    null,
+  );
+
+  const placed = provider.commands.find((command) => command.argv[2] === PLACE_COPY);
+
+  expect(placed?.argv.slice(3, 6)).toStrictEqual([
+    'sh',
+    '/var/lib/orchard-scratch/atc/records',
+    's-remote.json',
+  ]);
+});
+
 test('it places a remote copy through a script that passes shellcheck', async () => {
   const result = await runShellcheck(PLACE_COPY);
 

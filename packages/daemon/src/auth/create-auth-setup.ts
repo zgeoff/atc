@@ -15,6 +15,7 @@ import type { HostDirClaims } from '../sessions/create-host-dir-claims';
 import type { SessionHarnesses } from '../sessions/create-session-harnesses';
 import type { SessionRegistry } from '../sessions/create-session-registry';
 import type { SpawnRollback } from '../sessions/create-spawn-rollback';
+import { readGuestLayout } from '../sessions/read-guest-layout';
 import type { SessionCallbacks } from '../sessions/session-callbacks';
 import { buildAuthBinding } from './build-auth-binding';
 import type { AuthBinding } from './build-auth-binding';
@@ -367,7 +368,8 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
         };
       }
 
-      const guest = provider.guest ?? { directory: '/tmp/atc', atc: null };
+      const guest = await readGuestLayout(provider, hostKey);
+
       const directory = `${guest.directory}/sessions/${id}`;
 
       // A launch on a bound host verifies the binding before it plans, since

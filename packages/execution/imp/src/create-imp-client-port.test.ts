@@ -90,6 +90,66 @@ test('it refuses an impd whose version does not parse as outdated', () => {
   });
 });
 
+test('it reads the guest scratch folder impd declares', async () => {
+  const ctx = setupTest();
+
+  ctx.impd.answers.set('/rpc/system/info', {
+    status: 200,
+    json: {
+      version: '2.6.0',
+      guest: { scratchDir: '/var/lib/orchard-scratch', isClearedOnBoot: false },
+    },
+  });
+
+  const port = createImpClientPort({ url: ctx.impd.url, readToken: () => 'scratch-token' });
+
+  const scratchDir = await port.readGuestScratchDir();
+
+  expect(scratchDir).toBe('/var/lib/orchard-scratch');
+});
+
+test('it refuses the guest scratch folder of an impd that declares none as outdated', () => {
+  const ctx = setupTest();
+
+  ctx.impd.answers.set('/rpc/system/info', { status: 200, json: { version: '2.5.0' } });
+
+  const port = createImpClientPort({ url: ctx.impd.url, readToken: () => 'scratch-token' });
+
+  expect(port.readGuestScratchDir()).rejects.toMatchObject({
+    code: 'IMPD_OUTDATED',
+    message:
+      "impd 2.5.0 declares no guest scratch folder; upgrade impd, or set the target's guestDir",
+    data: { version: '2.5.0' },
+  });
+});
+
+test('it answers a version check and a scratch folder read within 30 seconds with its one call to impd', async () => {
+  const ctx = setupTest();
+  const stub = buildStubClock(1000);
+
+  ctx.impd.answers.set('/rpc/system/info', {
+    status: 200,
+    json: {
+      version: '2.6.0',
+      guest: { scratchDir: '/var/lib/orchard-scratch', isClearedOnBoot: false },
+    },
+  });
+
+  const port = createImpClientPort({
+    url: ctx.impd.url,
+    readToken: () => 'scratch-token',
+    now: stub.now,
+  });
+
+  await port.verifyVersion();
+
+  stub.advance(29_999);
+
+  await port.readGuestScratchDir();
+
+  expect(ctx.impd.calls).toStrictEqual([{ path: '/rpc/system/info', input: undefined }]);
+});
+
 test('it answers the version checks within 30 seconds of a read with its one call to impd', async () => {
   const ctx = setupTest();
   const stub = buildStubClock(1000);

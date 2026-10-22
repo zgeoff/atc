@@ -1091,6 +1091,121 @@ test('it refuses to ready an imp on an impd older than the oldest it supports, c
   expect(ctx.port.createSpecs).toStrictEqual([]);
 });
 
+test("it lays out atc's files under the scratch folder impd declares", async () => {
+  const ctx = setupTest();
+
+  const provider = createImpProvider(
+    ctx.port,
+    {},
+    { atcBinary: '/opt/atc-build/atc', version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  ctx.port.scratchDir = '/var/lib/orchard-scratch';
+
+  const guest = await provider.readGuest('s1');
+
+  expect(guest).toStrictEqual({
+    directory: '/var/lib/orchard-scratch/atc',
+    atc: '/var/lib/orchard-scratch/atc/bin/atc',
+  });
+});
+
+test("it readies atc's folder and listens for hooks under the scratch folder impd declares", async () => {
+  const ctx = setupTest();
+  const provider = createImpProvider(ctx.port, {}, { atcBinary: null, version: '1.0.0' });
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  ctx.port.scratchDir = join(ctx.directory, 'scratch');
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1' });
+
+  const harness = provider.spawnHarness({
+    session: 's1',
+    host: 's1',
+    bin: 'sleep',
+    args: ['30'],
+    cwd: ctx.directory,
+    env: {},
+    cols: 80,
+    rows: 24,
+    onRelay: () => {},
+  });
+
+  registerTestCleanup(() => {
+    harness.kill();
+  });
+
+  expect(ctx.port.calls).toIncludeAllMembers([
+    `exec.run atc-s1 sh -c ${READY_GUEST_DIR_SCRIPT} sh ${join(ctx.directory, 'scratch', 'atc')} `,
+    `reverse atc-s1 ${join(ctx.directory, 'scratch', 'atc', 'run', 's1.sock')}`,
+  ]);
+});
+
+test('it refuses to ready an imp on an impd that declares no scratch folder, creating nothing', () => {
+  const ctx = setupTest();
+  const provider = createImpProvider(ctx.port, {}, { atcBinary: null, version: '1.0.0' });
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  ctx.port.scratchDir = null;
+
+  expect(provider.prepareHost({ host: 's1', daemonID: 'd1' })).rejects.toMatchObject({
+    code: 'host_unavailable',
+    message:
+      "imp atc-s1 cannot be used: impd 2.2.0 declares no guest scratch folder; upgrade impd, or set the target's guestDir",
+    data: { provider: 'imp', problem: 'impd_outdated' },
+  });
+
+  expect(ctx.port.createSpecs).toStrictEqual([]);
+});
+
+test("it keeps the target's guest folder on an impd that declares no scratch folder", async () => {
+  const ctx = setupTest();
+
+  const provider = createImpProvider(
+    ctx.port,
+    { guestDir: '/srv/orchard-atc' },
+    { atcBinary: null, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  ctx.port.scratchDir = null;
+
+  const guest = await provider.readGuest('s1');
+
+  expect(guest).toStrictEqual({ directory: '/srv/orchard-atc', atc: null });
+});
+
+test("it refuses a guest layout read as the host's refusal on an impd that declares no scratch folder", () => {
+  const ctx = setupTest();
+  const provider = createImpProvider(ctx.port, {}, { atcBinary: null, version: '1.0.0' });
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  ctx.port.scratchDir = null;
+
+  expect(provider.readGuest('s1')).rejects.toMatchObject({
+    code: 'host_unavailable',
+    message:
+      "imp atc-s1 cannot be used: impd 2.2.0 declares no guest scratch folder; upgrade impd, or set the target's guestDir",
+    data: { provider: 'imp', problem: 'impd_outdated' },
+  });
+});
+
 test('it starts a harness with a relative working directory under the guest home, which impd would resolve from the root', async () => {
   const ctx = setupTest();
 

@@ -13,6 +13,7 @@ import type {
 import { checkSessionScope } from '../auth/check-session-scope';
 import type { CheckedScope } from '../auth/check-session-scope';
 import { mergeRecordedScope } from '../auth/merge-recorded-scope';
+import { readGuestLayout } from './read-guest-layout';
 import { readHostBranch } from './read-host-branch';
 
 interface PublishedRecordStore {
@@ -153,7 +154,7 @@ export function createPublishedRecords(options: PublishedRecordsOptions): Publis
       return;
     }
 
-    const directory = getGuestDir(subject);
+    const directory = await readGuestDir(subject);
 
     const refreshed = await subject.provider.runCommand({
       argv: ['sh', '-c', REFRESH_COPY, 'sh', directory, name, `.${name}.${randomUUID()}`, content],
@@ -209,7 +210,7 @@ export function createPublishedRecords(options: PublishedRecordsOptions): Publis
     // Elsewhere one command writes the copy beside its place and renames it
     // there. A remote host runs it as the user its provider runs commands
     // as, root on an imp, so the copy and its directory belong to that user.
-    const directory = getGuestDir(subject);
+    const directory = await readGuestDir(subject);
 
     withoutGuestCopy.delete(subject.session);
 
@@ -345,8 +346,10 @@ export function createPublishedRecords(options: PublishedRecordsOptions): Publis
   };
 }
 
-function getGuestDir(subject: RecordSubject): string {
-  return `${subject.provider.guest?.directory ?? '/tmp/atc'}/records`;
+async function readGuestDir(subject: RecordSubject): Promise<string> {
+  const guest = await readGuestLayout(subject.provider, subject.host);
+
+  return `${guest.directory}/records`;
 }
 
 async function readWorkspace(subject: RecordSubject): Promise<RecordedScope['workspace']> {
