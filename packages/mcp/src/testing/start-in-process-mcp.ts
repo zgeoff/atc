@@ -1,7 +1,12 @@
-import { isRecord } from '@atc/core';
 import { openDaemonClient } from '@atc/protocol/client';
 import { buildMCPToolCalls, registerTestCleanup } from '@atc/test-utils';
-import { InMemoryTransport } from '@modelcontextprotocol/server';
+import {
+  InMemoryTransport,
+  isJSONRPCResponse,
+  isJSONRPCResultResponse,
+  isSpecType,
+} from '@modelcontextprotocol/server';
+import type { ClientRequest, JSONRPCResponse, RequestId } from '@modelcontextprotocol/server';
 import { createMCPServer } from '../tools/create-mcp-server';
 import { createTransportCaller } from '../tools/create-transport-caller';
 
@@ -14,6 +19,12 @@ interface InProcessMCPConfig {
   // outside any session.
   readonly callerSessionID?: string;
 }
+
+// The params a client request of one method takes.
+type ClientRequestParams<Method extends ClientRequest['method']> = Extract<
+  ClientRequest,
+  { method: Method }
+>['params'];
 
 export async function startInProcessMCP(config: InProcessMCPConfig) {
   const callerSessionID = config.callerSessionID ?? null;
@@ -28,18 +39,17 @@ export async function startInProcessMCP(config: InProcessMCPConfig) {
   const server = createMCPServer({ caller, build: config.build, toolContext: { callerSessionID } });
   const [client, served] = InMemoryTransport.createLinkedPair();
 
-  const pending = new Map<number, PromiseWithResolvers<Readonly<Record<string, unknown>>>>();
+  const pending = new Map<RequestId, PromiseWithResolvers<JSONRPCResponse>>();
 
   // the SDK's transport takes its message callback as a property, with no addEventListener
   // oxlint-disable-next-line unicorn/prefer-add-event-listener
   client.onmessage = (message) => {
-    const received: unknown = message;
-    const id = isRecord(received) ? received['id'] : undefined;
-    const waiting = typeof id === 'number' ? pending.get(id) : undefined;
-
-    if (isRecord(received) && waiting !== undefined) {
-      waiting.resolve(received);
+    if (!isJSONRPCResponse(message) || message.id === undefined) {
+      return;
     }
+
+    pending.get(message.id)?.resolve(message);
+    pending.delete(message.id);
   };
 
   const stop = registerTestCleanup(async () => {
@@ -52,14 +62,14 @@ export async function startInProcessMCP(config: InProcessMCPConfig) {
 
   let nextID = 0;
 
-  const sendRequest = async (
-    method: string,
-    params?: Readonly<Record<string, unknown>>,
-  ): Promise<Readonly<Record<string, unknown>>> => {
+  const sendRequest = async <Method extends ClientRequest['method']>(
+    method: Method,
+    params?: ClientRequestParams<Method>,
+  ): Promise<JSONRPCResponse> => {
     nextID += 1;
 
     const id = nextID;
-    const response = Promise.withResolvers<Readonly<Record<string, unknown>>>();
+    const response = Promise.withResolvers<JSONRPCResponse>();
 
     pending.set(id, response);
 
@@ -74,7 +84,9 @@ export async function startInProcessMCP(config: InProcessMCPConfig) {
     clientInfo: { name: 'atc-test', version: '1.0.0' },
   });
 
-  if (!isRecord(initialized['result'])) {
+  const isInitializeResult = isSpecType.InitializeResult;
+
+  if (!isJSONRPCResultResponse(initialized) || !isInitializeResult(initialized.result)) {
     throw new Error(`the MCP server refused the initialize: ${JSON.stringify(initialized)}`);
   }
 

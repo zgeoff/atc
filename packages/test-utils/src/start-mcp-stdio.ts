@@ -49,7 +49,7 @@ export async function startMCPStdio(options: MCPStdioOptions) {
 
   const sendRequest = (
     method: string,
-    params?: Readonly<Record<string, unknown>>,
+    params?: object,
   ): Promise<Readonly<Record<string, unknown>>> => {
     nextID += 1;
 

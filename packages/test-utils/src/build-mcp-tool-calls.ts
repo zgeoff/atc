@@ -1,10 +1,15 @@
 import { parseMCPToolResult } from './parse-mcp-tool-result';
 import type { MCPToolResult } from './parse-mcp-tool-result';
 
+interface ToolsCallParams {
+  readonly name: string;
+  readonly arguments: Readonly<Record<string, unknown>>;
+}
+
 // Sends one `tools/call` request and resolves with its response.
 type SendToolsCall = (
   method: 'tools/call',
-  params: Readonly<Record<string, unknown>>,
+  params: ToolsCallParams,
 ) => Promise<Readonly<Record<string, unknown>>>;
 
 interface MCPToolCalls {
