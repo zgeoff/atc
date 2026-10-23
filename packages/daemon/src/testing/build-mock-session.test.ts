@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { toSessionID } from '@atc/core';
+import { toSessionID } from '@atcx/contract';
 import { buildMockSession } from './build-mock-session';
 
 test('it builds a default session record', () => {

@@ -1,5 +1,5 @@
-import { toAgentSessionID } from '@atc/core';
 import type { AdapterEvent } from '@atc/protocol';
+import { toAgentSessionID } from '@atcx/contract';
 
 export function buildHeartbeatEvent(sessionID: string | undefined): AdapterEvent {
   return {

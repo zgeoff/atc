@@ -2,7 +2,6 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
-import type { DaemonEvent } from '@atc/protocol';
 import {
   createStubClaude,
   createStubComposer,
@@ -15,6 +14,7 @@ import {
   waitFor,
   waitForEvent,
 } from '@atc/test-utils';
+import type { DaemonEvent } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 
 function setupTest() {

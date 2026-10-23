@@ -1,7 +1,6 @@
-import type { SessionID } from '@atc/core';
-import type { SessionDescriptor } from '@atc/protocol';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
+import type { SessionDescriptor, SessionID } from '@atcx/contract';
 import type { SessionManager } from './create-session-manager';
 import type { Session } from './session';
 import type { SessionEventKind } from './session-event-kind';

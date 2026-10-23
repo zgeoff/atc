@@ -1,11 +1,12 @@
 import { tmpdir } from 'node:os';
 import type { InvalidGitTransports } from '@atc/config';
-import { resolveHomeDir } from '@atc/config/host';
-import type { AgentID, Clock, SessionID } from '@atc/core';
+import type { AgentID, Clock } from '@atc/core';
 import { normalizePluginDir } from '@atc/plugin-api';
-import type { DaemonAnswer, SessionDescriptor, SpawnWorkspaceSource } from '@atc/protocol';
+import type { DaemonAnswer } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
 import type { StateStore } from '@atc/store';
+import type { SessionDescriptor, SessionID, SpawnWorkspaceSource } from '@atcx/contract';
+import { resolveHomeDir } from '@atcx/contract/light';
 import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import { isTreeInReach } from '../auth/is-tree-in-reach';
 import type { SpawnParams } from '../daemon-context';

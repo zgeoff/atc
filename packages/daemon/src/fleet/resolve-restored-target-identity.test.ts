@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
-import { toSessionID } from '@atc/core';
 import { buildTargetIdentity } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
+import { toSessionID } from '@atcx/contract';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubRestoreImpProvider } from '../testing/build-stub-restore-imp-provider';
 import { resolveRestoredTargetIdentity } from './resolve-restored-target-identity';

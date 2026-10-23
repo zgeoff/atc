@@ -1,7 +1,5 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
-import { toSessionID } from '@atc/core';
-import type { SessionID } from '@atc/core';
 import { DaemonError } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
 import {
@@ -11,6 +9,8 @@ import {
   registerTestCleanup,
   setupTempDir,
 } from '@atc/test-utils';
+import { toSessionID } from '@atcx/contract';
+import type { SessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';

@@ -1,8 +1,7 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { systemClock, toSessionID } from '@atc/core';
-import type { SessionID } from '@atc/core';
+import { systemClock } from '@atc/core';
 import type { CommandSpec } from '@atc/plugin-api';
 import { createStateStore } from '@atc/store';
 import {
@@ -12,6 +11,8 @@ import {
   setupTempDir,
   updateEnv,
 } from '@atc/test-utils';
+import { toSessionID } from '@atcx/contract';
+import type { SessionID } from '@atcx/contract';
 import { $ } from 'bun';
 import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';

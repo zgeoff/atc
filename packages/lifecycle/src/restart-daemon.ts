@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import { loadListenerTokens } from '@atc/config';
-import type { RestartResult } from '@atc/protocol';
 import { readStoredFleetFile } from '@atc/store';
+import type { RestartResult } from '@atcx/contract';
 import { buildRestartFailure } from './build-restart-failure';
 import { formatRestartPreflight } from './format-restart-preflight';
 import type { LifecycleHost } from './lifecycle-host';

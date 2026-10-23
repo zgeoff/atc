@@ -1,10 +1,11 @@
-import type { AgentID, AgentSessionID, SessionID } from '@atc/core';
+import type { AgentID } from '@atc/core';
 import { createStepTimer } from '@atc/core';
 import type { SpawnOverrides } from '@atc/plugin-api';
 import { EffectRemainsError } from '@atc/plugin-api';
 import type { DeclaredScope } from '@atc/protocol';
 import { buildSessionEnv } from '@atc/protocol/session';
 import { DaemonError } from '@atc/protocol/wire';
+import type { AgentSessionID, SessionID } from '@atcx/contract';
 import type { AuthSetup } from '../auth/create-auth-setup';
 import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import type { HostDirClaims } from './create-host-dir-claims';

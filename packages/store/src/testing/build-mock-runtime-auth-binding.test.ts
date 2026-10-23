@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { toSessionID } from '@atc/core';
+import { toSessionID } from '@atcx/contract';
 import { buildMockRuntimeAuthBinding } from './build-mock-runtime-auth-binding';
 
 test('it builds a default runtime auth binding', () => {

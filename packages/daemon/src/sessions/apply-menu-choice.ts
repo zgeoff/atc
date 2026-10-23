@@ -1,7 +1,7 @@
 import type { Clock } from '@atc/core';
 import type { ScreenMenu } from '@atc/plugin-api';
-import type { MenuView } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
+import type { MenuView } from '@atcx/contract';
 import { buildMenuView } from './build-menu-view';
 import { expandScreenMenu } from './expand-screen-menu';
 import { MENU_KEYS, MENU_TIMING } from './menu-terminal';

@@ -2,10 +2,8 @@ import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { toAgentSessionID, toSessionID } from '@atc/core';
 import { readDaemonRecord } from '@atc/lifecycle';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
-import type { DaemonEvent } from '@atc/protocol';
 import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
@@ -22,6 +20,8 @@ import {
   waitFor,
   waitForEvent,
 } from '@atc/test-utils';
+import { toAgentSessionID, toSessionID } from '@atcx/contract';
+import type { DaemonEvent } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 
 function setupTest() {
@@ -128,7 +128,7 @@ test('it starts a daemon on the state directory of one killed with SIGKILL', asy
     reporterSocketPath: daemon.reporterSocketPath,
     eventsSocketPath: join(ctx.home, 'atc-events.sock'),
     listenPort: null,
-    protocol: 11,
+    protocol: 12,
   });
 });
 

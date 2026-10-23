@@ -12,6 +12,7 @@
     "@atc/core": "workspace:*",
     "@atc/plugin-api": "workspace:*",
     "@atc/protocol": "workspace:*",
+    "@atcx/contract": "workspace:*",
     "ts-pattern": "catalog:",
     "zod": "catalog:"
   },

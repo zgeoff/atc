@@ -1,6 +1,6 @@
 import { DaemonError } from '@atc/protocol/wire';
-import type { ErrorCode } from '@atc/protocol/wire';
 import type { MaterializationPhase } from '@atc/store';
+import type { ErrorCode } from '@atcx/contract/light';
 
 // A refusal holds the phase it failed in; one raised without a phase, such
 // as a git whose output stays open, takes the phase it was raised in.

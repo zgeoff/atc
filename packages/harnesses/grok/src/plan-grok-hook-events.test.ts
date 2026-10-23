@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { toAgentSessionID, toSessionID } from '@atc/core';
+import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import { planGrokHookEvents } from './plan-grok-hook-events';
 
 test('it starts a session with its summary as the name source and records the start', () => {

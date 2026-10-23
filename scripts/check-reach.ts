@@ -2,6 +2,7 @@
 // start a daemon or run a session on its own machine, so nothing it imports,
 // type-only imports included, may belong to a package outside its allowance.
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { isBuiltin } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, normalize, resolve } from 'node:path';
 import { SyntaxKind } from 'typescript/unstable/ast';
@@ -35,6 +36,7 @@ async function main(): Promise<void> {
       .flatMap((file) => checkFile('bundles', file)),
     ...checkReporters(root, known, exports),
     ...checkDaemon(root, known, exports),
+    ...checkContract(root, known, exports),
   ];
 
   for (const finding of findings) {
@@ -54,6 +56,7 @@ const ENTRY = 'packages/app/src/gateway.ts';
 
 // The packages whose files the gateway may reach, any folder.
 const ALLOWED_PACKAGES: ReadonlySet<string> = new Set([
+  'contract',
   'core',
   'protocol',
   'config',
@@ -132,6 +135,7 @@ type ReporterAllowance = readonly string[] | { readonly except: readonly string[
 
 const REPORTER_FOLDERS: ReadonlyMap<string, ReporterAllowance> = new Map<string, ReporterAllowance>(
   [
+    ['contract', ['light']],
     ['core', { except: ['schema'] }],
     ['reporters', { except: [] }],
     ['protocol', ['client', 'session', 'wire']],
@@ -284,6 +288,62 @@ function checkDaemon(
   return findings;
 }
 
+// The entries of @atcx/contract, which npm installs with only the packages it
+// depends on, so nothing they reach may leave the package or import any other.
+const CONTRACT_SOURCE = 'packages/contract/src';
+
+const CONTRACT_ENTRIES: readonly string[] = [
+  `${CONTRACT_SOURCE}/index.ts`,
+  `${CONTRACT_SOURCE}/light/index.ts`,
+];
+
+const CONTRACT_PACKAGES: ReadonlySet<string> = new Set(['zod', '@orpc/contract']);
+
+// A type-only import counts too, because the published declarations keep it.
+function checkContract(
+  root: string,
+  known: ReadonlySet<string>,
+  exports: ReadonlyMap<string, string>,
+): string[] {
+  const findings = existsSync(join(root, 'packages/contract/package.json'))
+    ? CONTRACT_ENTRIES.filter((entry) => !known.has(entry)).map(
+        (entry) => `missing contract entry: ${entry} does not exist`,
+      )
+    : [];
+
+  for (const entry of CONTRACT_ENTRIES.filter((candidate) => known.has(candidate))) {
+    const reached = collectReached(
+      known,
+      exports,
+      [entry],
+      (file) => collectImports(readFileSync(join(root, file), 'utf8')).specifiers,
+    );
+
+    for (const file of [...reached.files].toSorted()) {
+      if (!file.startsWith(`${CONTRACT_SOURCE}/`)) {
+        findings.push(`unpublished module: ${entry} reaches ${file}, which npm never holds`);
+        continue;
+      }
+
+      const specifiers = collectImports(readFileSync(join(root, file), 'utf8')).specifiers;
+
+      for (const specifier of specifiers.filter((candidate) => !isContractImport(candidate))) {
+        findings.push(
+          `undeclared package: ${file} imports ${specifier}, which @atcx/contract does not depend on`,
+        );
+      }
+    }
+
+    findings.push(...reached.unresolved);
+  }
+
+  return findings;
+}
+
+function isContractImport(specifier: string): boolean {
+  return specifier.startsWith('.') || isBuiltin(specifier) || CONTRACT_PACKAGES.has(specifier);
+}
+
 // The 1-based line of the first token that names mcp-auth.db in any case,
 // which a case-insensitive filesystem opens as the same file, or undefined.
 function findAuthDBName(source: string): number | undefined {
@@ -342,7 +402,7 @@ function resolveSpecifier(
     return findModule(known, normalize(join(directory, specifier)));
   }
 
-  if (specifier.startsWith('@atc/')) {
+  if (specifier.startsWith('@atc/') || specifier.startsWith('@atcx/')) {
     const target = findExport(exports, specifier);
 
     return target !== null && known.has(target) ? target : null;

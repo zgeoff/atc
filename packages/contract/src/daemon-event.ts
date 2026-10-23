@@ -1,8 +1,8 @@
 import { z } from 'zod';
+import { MESSAGE_SENDER_SCHEMA } from './light/message-sender';
 import { MESSAGE_STATUS_SCHEMA } from './message-status';
 import { RESTART_RESULT_SCHEMA } from './restart-result';
 import { SESSION_DESCRIPTOR_SCHEMA } from './session-descriptor';
-import { MESSAGE_SENDER_SCHEMA } from './wire/message-sender';
 
 const SESSION_EVENT = z.object({ session: SESSION_DESCRIPTOR_SCHEMA });
 

@@ -1,8 +1,5 @@
 import { expect, mock, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import type { SessionID } from '@atc/core';
-import { toSessionID } from '@atc/core';
-import type { DaemonEvent } from '@atc/protocol';
 import { openDaemonClient } from '@atc/protocol/client';
 import { MAX_LINE, PROTOCOL_V } from '@atc/protocol/wire';
 import {
@@ -14,6 +11,8 @@ import {
   waitFor,
 } from '@atc/test-utils';
 import type { PeerFrame } from '@atc/test-utils';
+import type { DaemonEvent, SessionID } from '@atcx/contract';
+import { toSessionID } from '@atcx/contract';
 import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
 import type { DaemonContext } from '../daemon-context';
 import { buildStubDaemonContext } from '../testing/build-stub-daemon-context';
@@ -142,8 +141,8 @@ test('it refuses a peer handshake that speaks another protocol and ends the conn
   expect(refused).rejects.toMatchObject({
     code: 'protocol_mismatch',
     message:
-      'atc/old speaks protocol v1, daemon atc/test speaks v11; update or reopen the client so both run the same build',
-    data: { daemonProtocol: 11 },
+      'atc/old speaks protocol v1, daemon atc/test speaks v12; update or reopen the client so both run the same build',
+    data: { daemonProtocol: 12 },
   });
 
   await refused.catch(() => {});
@@ -165,12 +164,12 @@ test('it tells a peer client on a later protocol to restart the daemon', async (
   });
 
   expect(
-    client.sendRequest('daemon.hello', { client: 'atc/new', protocol: 12 }),
+    client.sendRequest('daemon.hello', { client: 'atc/new', protocol: 13 }),
   ).rejects.toMatchObject({
     code: 'protocol_mismatch',
     message:
-      'atc/new speaks protocol v12, daemon atc/test speaks v11; restart the daemon so both run the same build',
-    data: { daemonProtocol: 11 },
+      'atc/new speaks protocol v13, daemon atc/test speaks v12; restart the daemon so both run the same build',
+    data: { daemonProtocol: 12 },
   });
 });
 
@@ -1591,6 +1590,7 @@ test('it answers a peer handshake with the session the kernel names as its peer 
         idempotency: { completedRetentionMs: 86_400_000 },
         lastUsedAgent: 'claude',
         peerSession: 's-1',
+        features: ['events.read.from-start'],
       },
     }),
   ]);

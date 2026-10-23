@@ -1,7 +1,9 @@
-import { toAgentSessionID, toDaemonID, toSessionID } from '@atc/core';
 import { z } from 'zod';
 import { SESSION_LIFECYCLE_SCHEMA } from './session-lifecycle';
 import { SESSION_WORKSPACE_SCHEMA } from './session-workspace';
+import { toAgentSessionID } from './to-agent-session-id';
+import { toDaemonID } from './to-daemon-id';
+import { toSessionID } from './to-session-id';
 
 export const SESSION_DESCRIPTOR_SCHEMA = z.object({
   id: z.string().transform((id) => toSessionID(id)),

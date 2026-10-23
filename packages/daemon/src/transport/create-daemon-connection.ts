@@ -1,4 +1,3 @@
-import type { SessionID } from '@atc/core';
 import type { DaemonAnswer, MismatchRefusalData, RequestParams } from '@atc/protocol';
 import {
   DEFAULT_QUEUE_BYTES,
@@ -10,6 +9,8 @@ import {
   createOutboundQueue,
 } from '@atc/protocol/wire';
 import type { EventMsg, SocketWriter } from '@atc/protocol/wire';
+import { DAEMON_FEATURES } from '@atcx/contract';
+import type { SessionID } from '@atcx/contract';
 import type { StandardRequest, StandardResponse } from '@orpc/standard-server';
 import { ServerPeer } from '@orpc/standard-server-peer';
 import type { EncodedMessage } from '@orpc/standard-server-peer';
@@ -247,6 +248,7 @@ export function createDaemonConnection(
     idempotency: { completedRetentionMs: ctx.idempotencyRetentionMs },
     lastUsedAgent: await ctx.loadLastUsedAgent(),
     peerSession: identity.peerSession,
+    features: DAEMON_FEATURES,
   });
 
   const waitForDrain = async (): Promise<void> => {

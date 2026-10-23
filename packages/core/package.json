@@ -1,15 +1,13 @@
 {
   "name": "@atc/core",
   "private": true,
-  "description": "Pure helpers every other package shares: ids, the clock, truncation, canonical JSON and the broker vocabulary",
+  "description": "Pure helpers every other package shares: agent ids, the clock, truncation, canonical JSON and the broker vocabulary",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
     "./schema": "./src/schema/index.ts"
   },
   "dependencies": {
-    "@zgeoff/std": "catalog:",
-    "type-fest": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto';
 import type { AgentEntry, Config } from '@atc/config';
 import { parseClaudeStatusLine } from '@atc/config/claude-statusline';
 import { resolveAgentHome } from '@atc/config/host';
-import type { AgentSessionID, SessionID } from '@atc/core';
 import {
   BROKER_PLACEHOLDER,
   CLAUDE_CREDENTIAL_VARIABLES,
@@ -33,9 +32,9 @@ import {
   findFlagValue,
   probeTranscriptResumable,
 } from '@atc/plugin-api';
-import type { TranscriptRow } from '@atc/protocol';
 import type { HookEvent } from '@atc/protocol/session';
 import { DaemonError } from '@atc/protocol/wire';
+import type { AgentSessionID, SessionID, TranscriptRow } from '@atcx/contract';
 import { z } from 'zod';
 import { buildGuestBridgeFiles } from './bridge/build-guest-bridge-files';
 import { buildClaudeArgs } from './build-claude-args';

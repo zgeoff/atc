@@ -1,8 +1,6 @@
 import { Database } from 'bun:sqlite';
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
-import { toAgentSessionID, toMessageID, toSessionID } from '@atc/core';
-import type { SessionID } from '@atc/core';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
@@ -13,6 +11,8 @@ import {
   registerTestCleanup,
   setupTempDir,
 } from '@atc/test-utils';
+import { toAgentSessionID, toMessageID, toSessionID } from '@atcx/contract';
+import type { SessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import type { TapClient } from '../daemon-context';
 import { updateEndedFleetMessages } from '../fleet/update-ended-fleet-messages';

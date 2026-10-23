@@ -1,6 +1,6 @@
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
-import { resolveHomeDir } from '@atc/config/host';
+import { resolveHomeDir } from '@atcx/contract/light';
 
 // an installed or masked unit keeps ownership while it is stopped.
 export function readManagedDaemonUnit(

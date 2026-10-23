@@ -1,7 +1,5 @@
 import { expect, mock, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import type { SessionID } from '@atc/core';
-import { toAgentSessionID, toSessionID } from '@atc/core';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { buildTargetIdentity, createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
@@ -15,6 +13,8 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
+import type { SessionID } from '@atcx/contract';
+import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import { createSessionManager } from '../sessions/create-session-manager';
 import { createSessionRuntime } from '../sessions/create-session-runtime';

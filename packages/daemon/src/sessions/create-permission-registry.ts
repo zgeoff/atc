@@ -1,5 +1,6 @@
-import type { Clock, SessionID } from '@atc/core';
+import type { Clock } from '@atc/core';
 import { systemClock } from '@atc/core';
+import type { SessionID } from '@atcx/contract';
 import { LRUCache } from 'lru-cache';
 
 export interface PermissionRequest {

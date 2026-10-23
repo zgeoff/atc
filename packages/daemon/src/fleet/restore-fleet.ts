@@ -1,8 +1,9 @@
-import type { Clock, SessionID } from '@atc/core';
+import type { Clock } from '@atc/core';
 import { systemClock } from '@atc/core';
 import { DaemonError } from '@atc/protocol/wire';
-import type { ErrorCode } from '@atc/protocol/wire';
 import type { FleetEntry, StateStore } from '@atc/store';
+import type { SessionID } from '@atcx/contract';
+import type { ErrorCode } from '@atcx/contract/light';
 import type { SessionManager } from '../sessions/create-session-manager';
 import type { SessionRuntime } from '../sessions/create-session-runtime';
 import type { Session } from '../sessions/session';

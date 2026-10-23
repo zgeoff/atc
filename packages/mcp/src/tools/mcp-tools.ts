@@ -1,5 +1,5 @@
-import { REQUEST_PARAM_SCHEMAS } from '@atc/protocol';
-import { SESSION_ENV_NAMES } from '@atc/protocol/session';
+import { REQUEST_PARAM_SCHEMAS } from '@atcx/contract';
+import { SESSION_ENV_NAMES } from '@atcx/contract/light';
 import { z } from 'zod';
 import { buildSpawnDescriptions } from './build-spawn-descriptions';
 import type { GrantScope } from './grant-scope';

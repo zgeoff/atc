@@ -1,6 +1,5 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { toAgentSessionID, toSessionID } from '@atc/core';
 import { openDaemonClient } from '@atc/protocol/client';
 import { buildMockStoredRow } from '@atc/store/testing';
 import {
@@ -12,6 +11,7 @@ import {
   startStubRestoreDaemon,
   waitFor,
 } from '@atc/test-utils';
+import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import { verifyRestoredFleet } from './verify-restored-fleet';
 
 async function setupTest() {

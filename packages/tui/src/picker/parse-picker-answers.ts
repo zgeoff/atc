@@ -1,11 +1,11 @@
-import type { AgentEntry, GitProbeResult, SourceEntry, SourceInterpretation } from '@atc/protocol';
+import type { AgentEntry, GitProbeResult, SourceEntry, SourceInterpretation } from '@atcx/contract';
 import {
   AGENT_ENTRY_SCHEMA,
   GIT_PROBE_RESULT_SCHEMA,
   SOURCE_CANDIDATE_SCHEMA,
   SOURCE_ENTRY_SCHEMA,
   SOURCE_INTERPRETATION_SCHEMA,
-} from '@atc/protocol';
+} from '@atcx/contract';
 import type { ListedCandidate } from './picker-flow';
 
 export function parseCandidates(raw: unknown): ListedCandidate[] {

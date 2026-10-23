@@ -1,8 +1,8 @@
 import { createStepTimer } from '@atc/core';
-import type { SessionID } from '@atc/core';
 import type { ExecutionProvider, HarnessHandle } from '@atc/plugin-api';
 import { buildSessionEnv } from '@atc/protocol/session';
 import { DaemonError } from '@atc/protocol/wire';
+import type { SessionID } from '@atcx/contract';
 import type { AuthSetup, HarnessAuthSetup, HarnessPlan } from '../auth/create-auth-setup';
 import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import { buildRecordSubject } from './build-record-subject';

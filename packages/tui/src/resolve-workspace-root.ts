@@ -1,6 +1,6 @@
 import type { WorkspacesConfig } from '@atc/config';
-import { resolveHomeDir } from '@atc/config/host';
 import { expandHome } from '@atc/core';
+import { resolveHomeDir } from '@atcx/contract/light';
 
 type WorkspaceRoot =
   | { readonly ok: true; readonly root: string }

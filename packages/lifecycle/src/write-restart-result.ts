@@ -1,6 +1,6 @@
 import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { RestartResult } from '@atc/protocol';
+import type { RestartResult } from '@atcx/contract';
 
 export function writeRestartResult(restartsDir: string, result: RestartResult): void {
   mkdirSync(restartsDir, { recursive: true });

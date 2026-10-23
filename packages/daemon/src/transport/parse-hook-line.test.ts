@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { toSessionID } from '@atc/core';
+import { toSessionID } from '@atcx/contract';
 import { parseHookLine } from './parse-hook-line';
 
 test('it parses the agent a hook line carries', () => {

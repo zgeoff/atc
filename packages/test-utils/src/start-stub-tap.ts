@@ -1,5 +1,5 @@
-import type { DaemonEvent } from '@atc/protocol';
 import type { DaemonClient } from '@atc/protocol/client';
+import type { DaemonEvent } from '@atcx/contract';
 
 interface StubTapOptions {
   // Whether the tap also takes the answer notices of the messages the session

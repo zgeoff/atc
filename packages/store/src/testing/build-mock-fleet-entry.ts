@@ -1,5 +1,5 @@
-import { toAgentSessionID, toSessionID } from '@atc/core';
 import type { MockOverrides } from '@atc/test-utils';
+import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import { faker } from '@faker-js/faker';
 import { mergeDeep } from '@zgeoff/std';
 import type { FleetEntry } from '../fleet-entry';

@@ -1,6 +1,6 @@
 import { LOCAL_TARGET } from '@atc/config';
 import { buildWorkspaceDestination } from '@atc/core';
-import type { SourceInterpretation } from '@atc/protocol';
+import type { SourceInterpretation } from '@atcx/contract';
 import { resolveWorkspaceRoot } from '../resolve-workspace-root';
 import { canPickOnTarget } from './can-pick-on-target';
 import { parseCandidates } from './parse-picker-answers';

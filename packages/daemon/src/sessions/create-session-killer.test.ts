@@ -1,9 +1,9 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
-import { toSessionID } from '@atc/core';
-import type { SessionID } from '@atc/core';
 import { buildTargetIdentity, createStateStore } from '@atc/store';
 import { createMigratedStateDB, registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { toSessionID } from '@atcx/contract';
+import type { SessionID } from '@atcx/contract';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { createSessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';

@@ -1,6 +1,6 @@
-import type { Clock, SessionID } from '@atc/core';
-import type { RestartResult, SessionDescriptor } from '@atc/protocol';
+import type { Clock } from '@atc/core';
 import type { EventScope, StateStore } from '@atc/store';
+import type { RestartResult, SessionDescriptor, SessionID } from '@atcx/contract';
 import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import { isTreeInReach } from '../auth/is-tree-in-reach';
 import type { DaemonContext } from '../daemon-context';

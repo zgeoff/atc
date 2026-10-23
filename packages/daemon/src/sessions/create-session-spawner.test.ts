@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'bun:test';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { systemClock, toSessionID } from '@atc/core';
+import { systemClock } from '@atc/core';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { EffectRemainsError } from '@atc/plugin-api';
 import { createStateStore } from '@atc/store';
@@ -11,6 +11,7 @@ import {
   registerTestCleanup,
   setupTempDir,
 } from '@atc/test-utils';
+import { toSessionID } from '@atcx/contract';
 import { createAuthSetup } from '../auth/create-auth-setup';
 import { createRuntimeAuthBinder } from '../auth/create-runtime-auth-binder';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';

@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { toSessionID } from '@atc/core';
+import { toSessionID } from '@atcx/contract';
 import { buildStubDaemonContext } from '../testing/build-stub-daemon-context';
 import { buildScopedContext } from './build-scoped-context';
 import { buildTargetAccessFromGrants } from './build-target-access-from-grants';

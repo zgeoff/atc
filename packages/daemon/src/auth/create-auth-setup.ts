@@ -1,4 +1,4 @@
-import type { AgentID, SessionID, StepTimer } from '@atc/core';
+import type { AgentID, StepTimer } from '@atc/core';
 import type {
   AgentAdapter,
   CredentialBroker,
@@ -11,6 +11,7 @@ import type {
 } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import type { FleetStore, RuntimeAuthBinding } from '@atc/store';
+import type { SessionID } from '@atcx/contract';
 import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import type { HostDirClaims } from '../sessions/create-host-dir-claims';
 import type { SessionHarnesses } from '../sessions/create-session-harnesses';

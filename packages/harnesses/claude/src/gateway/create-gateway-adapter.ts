@@ -1,6 +1,5 @@
 import type { Config } from '@atc/config';
 import { resolveAuthProfiles } from '@atc/config';
-import type { AgentSessionID, SessionID } from '@atc/core';
 import {
   BROKER_PLACEHOLDER,
   CLAUDE_CREDENTIAL_VARIABLES,
@@ -24,9 +23,9 @@ import type {
   TerminalInputModes,
 } from '@atc/plugin-api';
 import { buildAuthRevisionFolder, findFlagValue, probeTranscriptResumable } from '@atc/plugin-api';
-import type { TranscriptRow } from '@atc/protocol';
 import type { HookEvent } from '@atc/protocol/session';
 import { DaemonError } from '@atc/protocol/wire';
+import type { AgentSessionID, SessionID, TranscriptRow } from '@atcx/contract';
 import { buildGuestBridgeFiles } from '../bridge/build-guest-bridge-files';
 import { buildClaudeArgs } from '../build-claude-args';
 import { buildClaudeHookEvent } from '../build-claude-hook-event';

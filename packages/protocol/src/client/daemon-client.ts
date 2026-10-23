@@ -1,6 +1,5 @@
+import type { DAEMON_CONTRACT, DaemonEvent } from '@atcx/contract';
 import type { ContractRouterClient } from '@orpc/contract';
-import type { DAEMON_CONTRACT } from '../daemon-contract';
-import type { DaemonEvent } from '../daemon-event';
 import type { DaemonChannel } from '../wire/daemon-channel';
 
 // The principal one call acts as, and the name that labels a message it

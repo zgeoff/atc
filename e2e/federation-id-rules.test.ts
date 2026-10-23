@@ -6,9 +6,9 @@ import { isRecord } from '@atc/core';
 import { buildPayloadHash } from '@atc/daemon';
 import { ERROR_DATA_RULES, ID_RULES, collectUnruledIDPaths } from '@atc/gateway';
 import { parseClaudeTranscriptLine } from '@atc/harness-claude';
-import { REQUEST_PARAM_SCHEMAS } from '@atc/protocol';
 import { createStateStore } from '@atc/store';
 import { buildMockAgentAdapter, getRecord, registerTestCleanup, waitFor } from '@atc/test-utils';
+import { REQUEST_PARAM_SCHEMAS } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 

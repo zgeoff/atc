@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { toMessageID } from '@atc/core';
+import { toMessageID } from '@atcx/contract';
 import { parseNote } from './parse-note';
 
 test('it parses a turn answer', () => {

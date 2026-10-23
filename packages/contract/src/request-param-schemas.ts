@@ -1,7 +1,11 @@
-import { COMMIT_ID_PATTERN, toAgentSessionID, toMessageID, toSessionID } from '@atc/core';
-import { buildOptionalBoolean, buildOptionalString } from '@atc/core/schema';
 import { z } from 'zod';
+import { buildOptionalBoolean } from './build-optional-boolean';
+import { buildOptionalString } from './build-optional-string';
+import { COMMIT_ID_PATTERN } from './commit-id-pattern';
 import { RESTART_RESULT_SCHEMA } from './restart-result';
+import { toAgentSessionID } from './to-agent-session-id';
+import { toMessageID } from './to-message-id';
+import { toSessionID } from './to-session-id';
 
 const EJECT_DEFAULT_PROMPT =
   'Continue the task autonomously. Verify your work as you go and stop when it is complete.';

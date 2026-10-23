@@ -1,5 +1,5 @@
-import type { SessionID } from '@atc/core';
 import { DaemonError } from '@atc/protocol/wire';
+import type { SessionID } from '@atcx/contract';
 
 export function buildRevocationPending(
   hostKey: SessionID,

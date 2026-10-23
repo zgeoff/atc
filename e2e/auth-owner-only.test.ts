@@ -2,8 +2,8 @@ import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
-import type { DaemonEvent } from '@atc/protocol';
 import { buildMockAgentAdapter, buildMockRestartResult, waitFor } from '@atc/test-utils';
+import type { DaemonEvent } from '@atcx/contract';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 function setupTest() {

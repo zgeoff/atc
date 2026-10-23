@@ -12,6 +12,15 @@
           "type": "json",
           "path": "packages/app/package.json",
           "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/contract/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "generic",
+          "path": "packages/contract/src/contract-version.ts"
         }
       ]
     }

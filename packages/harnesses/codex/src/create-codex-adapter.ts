@@ -1,7 +1,7 @@
 import type { AgentEntry, Config } from '@atc/config';
 import { resolveAuthProfiles } from '@atc/config';
 import { resolveAgentHome } from '@atc/config/host';
-import type { AgentID, AgentSessionID } from '@atc/core';
+import type { AgentID } from '@atc/core';
 import { toShellArg } from '@atc/core';
 import type {
   AgentAdapter,
@@ -28,6 +28,7 @@ import {
   probeTranscriptResumable,
 } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
+import type { AgentSessionID } from '@atcx/contract';
 import { startCodexAppServerBridge } from './app-server/start-codex-app-server-bridge';
 import { buildCodexGuestLaunch } from './build-codex-guest-launch';
 import { buildCodexHookFile } from './build-codex-hook-file';

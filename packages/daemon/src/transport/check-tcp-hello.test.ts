@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'bun:test';
-import { toSessionID } from '@atc/core';
 import { PROTOCOL_V } from '@atc/protocol/wire';
+import { toSessionID } from '@atcx/contract';
 import { checkTCPHello } from './check-tcp-hello';
 import type { TCPPeer } from './tcp-peer';
 

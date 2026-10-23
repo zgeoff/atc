@@ -1,4 +1,4 @@
-import type { PublishedRecord } from '@atc/protocol';
+import type { PublishedRecord } from '@atcx/contract';
 import { z } from 'zod';
 
 const NULLABLE_STRING = z.string().nullable();

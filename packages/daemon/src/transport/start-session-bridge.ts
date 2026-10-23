@@ -1,9 +1,9 @@
-import type { MessageID, SessionID } from '@atc/core';
-import { toMessageID } from '@atc/core';
 import type { HarnessRelay } from '@atc/plugin-api';
 import type { HookEvent } from '@atc/protocol/session';
 import type { EventMsg } from '@atc/protocol/wire';
 import type { MessageRecord } from '@atc/store';
+import type { MessageID, SessionID } from '@atcx/contract';
+import { toMessageID } from '@atcx/contract';
 import { z } from 'zod';
 import { isBindingCurrent } from '../auth/is-binding-current';
 import type { BridgeBinding } from '../auth/is-binding-current';

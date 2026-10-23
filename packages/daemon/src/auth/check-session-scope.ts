@@ -1,13 +1,9 @@
 import { runCommand } from '@atc/lifecycle/run-command';
 import { runGH } from '@atc/plugin-api';
 import type { ExecutionProvider } from '@atc/plugin-api';
-import type {
-  DeclaredScope,
-  RecordedBranch,
-  RecordedPullRequest,
-  RecordedWorktree,
-} from '@atc/protocol';
+import type { DeclaredScope } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
+import type { RecordedBranch, RecordedPullRequest, RecordedWorktree } from '@atcx/contract';
 import { z } from 'zod';
 import { readHostBranch } from '../sessions/read-host-branch';
 import { runHostGit } from '../workspace/run-host-git';

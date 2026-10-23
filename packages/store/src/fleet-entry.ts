@@ -1,5 +1,5 @@
-import type { AgentID, AgentSessionID, DaemonID, SessionID } from '@atc/core';
-import type { SessionWorkspace } from '@atc/protocol';
+import type { AgentID } from '@atc/core';
+import type { AgentSessionID, DaemonID, SessionID, SessionWorkspace } from '@atcx/contract';
 
 // One fleet row. The atc session id keys it and stays the same for the
 // session's whole life, across daemon restarts and fleet restores.

@@ -1,6 +1,5 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
-import { toAgentSessionID, toSessionID } from '@atc/core';
 import { buildTargetIdentity, createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
@@ -11,6 +10,7 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
+import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';

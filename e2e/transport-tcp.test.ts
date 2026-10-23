@@ -7,7 +7,6 @@ import { collectTargets } from '@atc/config';
 import { startDaemon } from '@atc/daemon';
 import { createLocalPTYProvider } from '@atc/execution-local';
 import { claimDaemonLock } from '@atc/lifecycle';
-import type { DaemonEvent } from '@atc/protocol';
 import { buildTargetIdentity } from '@atc/store';
 import {
   buildMockAgentAdapter,
@@ -19,6 +18,7 @@ import {
   tryCreateListeners,
   waitFor,
 } from '@atc/test-utils';
+import type { DaemonEvent } from '@atcx/contract';
 import { buildLocalTarget } from '../packages/app/src/test-utils/build-local-target';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 

@@ -1,4 +1,4 @@
-import type { AgentSessionID } from '@atc/core';
+import type { AgentSessionID } from '@atcx/contract';
 
 export interface AdapterEvent {
   kind: 'started' | 'needs-input' | 'turn-done' | 'prompt-submitted' | 'ended' | 'heartbeat';

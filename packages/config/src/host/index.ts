@@ -5,6 +5,4 @@ export * from './listen/is-allowed-listen-host';
 export * from './listen/parse-listen-address';
 export * from './process-paths';
 export * from './resolve-agent-home';
-export * from './resolve-home-dir';
 export * from './resolve-paths';
-export * from './resolve-state-dir';

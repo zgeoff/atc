@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'bun:test';
-import { toSessionID } from '@atc/core';
 import type { MessageBridgeHost } from '@atc/plugin-api';
+import { toSessionID } from '@atcx/contract';
 import { buildStubMessageBridges } from './build-stub-message-bridges';
 
 test('it records each start and answers with a bridge on the stub binary', async () => {

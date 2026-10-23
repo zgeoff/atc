@@ -1,6 +1,6 @@
-import type { SessionID } from '@atc/core';
-import { toSessionID } from '@atc/core';
 import { DaemonError } from '@atc/protocol/wire';
+import type { SessionID } from '@atcx/contract';
+import { toSessionID } from '@atcx/contract';
 import { pick } from '@zgeoff/std';
 import type { DaemonContext } from '../daemon-context';
 import type { KeyedRequest } from '../transport/create-idempotency-ledger';

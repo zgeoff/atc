@@ -1,7 +1,8 @@
-import type { Clock, SessionID } from '@atc/core';
+import type { Clock } from '@atc/core';
 import { buildTarArchive } from '@atc/core';
 import type { ExecutionProvider, GuestLayout } from '@atc/plugin-api';
 import type { HookEvent } from '@atc/protocol/session';
+import type { SessionID } from '@atcx/contract';
 import { createActor } from 'xstate';
 import type { Actor } from 'xstate';
 import type { TapClient } from '../daemon-context';

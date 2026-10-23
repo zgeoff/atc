@@ -1,4 +1,4 @@
-import type { AgentEntry } from '@atc/protocol';
+import type { AgentEntry } from '@atcx/contract';
 import { faker } from '@faker-js/faker';
 import { mergeDeep } from '@zgeoff/std';
 import type { MockOverrides } from './mock-overrides';

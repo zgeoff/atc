@@ -11,6 +11,7 @@
     "@atc/core": "workspace:*",
     "@atc/plugin-api": "workspace:*",
     "@atc/protocol": "workspace:*",
+    "@atcx/contract": "workspace:*",
     "@faker-js/faker": "catalog:",
     "@orpc/client": "catalog:",
     "@orpc/standard-server": "catalog:",

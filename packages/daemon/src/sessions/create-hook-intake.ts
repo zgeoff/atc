@@ -1,10 +1,11 @@
-import type { Clock, SessionID } from '@atc/core';
+import type { Clock } from '@atc/core';
 import { isRecord, truncateToBytes } from '@atc/core';
 import type { HarnessRelay } from '@atc/plugin-api';
 import type { AdapterEvent } from '@atc/protocol';
 import type { HookEvent } from '@atc/protocol/session';
 import type { EventMsg } from '@atc/protocol/wire';
 import type { StateStore } from '@atc/store';
+import type { SessionID } from '@atcx/contract';
 import type { BridgeBinding } from '../auth/is-binding-current';
 import type { TapClient } from '../daemon-context';
 import { formatLogField } from '../format-log-field';

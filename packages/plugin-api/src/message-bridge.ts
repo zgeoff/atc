@@ -1,5 +1,5 @@
-import type { SessionID } from '@atc/core';
-import type { MessageSender } from '@atc/protocol/wire';
+import type { SessionID } from '@atcx/contract';
+import type { MessageSender } from '@atcx/contract/light';
 import type { SpawnOptions, SpawnPlan } from './agent-adapter';
 
 export interface BridgedMessage {

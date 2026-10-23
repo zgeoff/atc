@@ -9,7 +9,6 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { toAgentSessionID, toMessageID, toSessionID } from '@atc/core';
 import {
   buildMockPublishedRecord,
   buildMockRestartResult,
@@ -19,6 +18,7 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
+import { toAgentSessionID, toMessageID, toSessionID } from '@atcx/contract';
 import { buildSQLiteDialect } from '@zgeoff/kysely-bun-sqlite';
 import { Kysely } from 'kysely';
 import type { CompiledQuery } from 'kysely';

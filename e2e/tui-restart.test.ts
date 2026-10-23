@@ -1,7 +1,6 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { toAgentSessionID } from '@atc/core';
 import { startDaemon } from '@atc/daemon';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
@@ -13,6 +12,7 @@ import {
   startStubLegacyDaemonProcess,
   startTUIHarness,
 } from '@atc/test-utils';
+import { toAgentSessionID } from '@atcx/contract';
 import { createHostServices } from '../packages/app/src/create-host-services';
 import { buildLocalTarget } from '../packages/app/src/test-utils/build-local-target';
 

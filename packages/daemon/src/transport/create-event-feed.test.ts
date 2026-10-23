@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'bun:test';
-import { toSessionID } from '@atc/core';
 import { PROTOCOL_V } from '@atc/protocol/wire';
+import { toSessionID } from '@atcx/contract';
 import { createEventFeed } from './create-event-feed';
 
 test('it delivers the events collected before the subscription, in order', async () => {

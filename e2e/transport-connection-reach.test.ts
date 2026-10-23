@@ -1,5 +1,4 @@
 import { expect, mock, test } from 'bun:test';
-import { toDaemonID, toMessageID, toSessionID } from '@atc/core';
 import { createDaemonConnection } from '@atc/daemon';
 import type { DaemonContext } from '@atc/daemon';
 import { buildStubDaemonContext } from '@atc/daemon/testing';
@@ -10,6 +9,7 @@ import {
   buildPeerRequestLine,
   buildStubPeerSocket,
 } from '@atc/test-utils';
+import { toDaemonID, toMessageID, toSessionID } from '@atcx/contract';
 
 test('it answers session.get whose session leaves the view during the read as for a session that does not exist', async () => {
   const entered = Promise.withResolvers<void>();

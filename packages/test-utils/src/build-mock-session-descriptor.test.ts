@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { toSessionID } from '@atc/core';
+import { toSessionID } from '@atcx/contract';
 import { buildMockSessionDescriptor } from './build-mock-session-descriptor';
 
 test('it builds a default session descriptor', () => {

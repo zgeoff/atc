@@ -1,6 +1,6 @@
 import { z } from 'zod';
+import { MESSAGE_SENDER_SCHEMA } from './light/message-sender';
 import { MESSAGE_STATUS_SCHEMA } from './message-status';
-import { MESSAGE_SENDER_SCHEMA } from './wire/message-sender';
 
 export const MESSAGE_VIEW_SCHEMA = z.object({
   message: z.string(),

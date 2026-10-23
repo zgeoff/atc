@@ -1,4 +1,4 @@
-import type { SessionID } from '@atc/core';
+import type { SessionID } from '@atcx/contract';
 
 export type MessageCaller =
   | { readonly kind: 'connector'; readonly client: string; readonly name: string }

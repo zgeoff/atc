@@ -8,12 +8,13 @@ import {
   mcpAuthDBFile,
   socketPath,
 } from '@atc/config';
-import { parseListenAddress, resolveHomeDir } from '@atc/config/host';
+import { parseListenAddress } from '@atc/config/host';
 import { buildExecutionTargets, buildSources, startDaemon, startStderrLog } from '@atc/daemon';
 import { startClaudeHeadlessRun } from '@atc/harness-claude';
 import { makeDaemonReadySignal } from '@atc/lifecycle';
 import type { HostServices } from '@atc/plugin-api';
 import { registerRefusedSQLiteName } from '@atc/store/sqlite';
+import { resolveHomeDir } from '@atcx/contract/light';
 import { buildAgentAdapters } from './agents/build-agent-adapters';
 import { formatDaemonConfigProblems } from './format-daemon-config-problems';
 import { parseDaemonOverrides } from './parse-daemon-overrides';
