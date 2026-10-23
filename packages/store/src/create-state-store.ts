@@ -350,10 +350,8 @@ export async function createStateStore(
 
         return record;
       }),
-    updateMessagesAnswered: (ids, owner, options) =>
-      messages.updateMessagesAnswered(ids, owner, options),
-    updateMessagesUnanswered: (ids, owner, options) =>
-      messages.updateMessagesUnanswered(ids, owner, options),
+    updateMessagesAnswered: messages.updateMessagesAnswered,
+    updateMessagesUnanswered: messages.updateMessagesUnanswered,
     updateDeliveredMessagesUnanswered: (owner, reason, at) =>
       messages.updateDeliveredMessagesUnanswered(owner, reason, at),
     updateUnsettledMessagesUnanswered: (owner, reason, at) =>
