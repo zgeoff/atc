@@ -180,6 +180,9 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
     updateBridgeThread: (sessionID, agentSessionID) => {
       bridges.updateThread(sessionID, agentSessionID);
     },
+    onAgentStarted: (sessionID) => {
+      revival.watchAgentStart(sessionID);
+    },
     ...(opts.onNoteIgnored === undefined ? {} : { onNoteIgnored: opts.onNoteIgnored }),
     ...(opts.onLastUsedUnchanged === undefined
       ? {}

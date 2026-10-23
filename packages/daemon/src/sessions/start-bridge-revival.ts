@@ -24,6 +24,8 @@ interface BridgeRevivalDeps {
 }
 
 export interface BridgeRevival {
+  readonly watchAgentStart: (sessionID: SessionID) => void;
+
   readonly stop: () => void;
 }
 
@@ -35,9 +37,9 @@ interface BridgeWrite {
   readonly planFiles: (atc: string) => Record<string, string>;
 }
 
-// A running remote session whose tap stays gone gets its bridge mod written
-// again, once per loss, which makes Claude Code load a mod it turned off.
-// Each session's machine holds its state, and its timers run on the clock.
+// A running remote session with no tap for a while after a tap loss or an
+// agent start gets its bridge mod written again, which makes Claude Code
+// load a mod it turned off.
 export function startBridgeRevival(deps: BridgeRevivalDeps): BridgeRevival {
   const actors = new Map<SessionID, Actor<typeof BRIDGE_REVIVAL_MACHINE>>();
 
@@ -192,7 +194,7 @@ export function startBridgeRevival(deps: BridgeRevivalDeps): BridgeRevival {
       payload: {
         kind: 'note',
         label: 'progress',
-        text: 'atc: this session lost its atc-bridge tap, so its note and answer tools may be gone. atc wrote the bridge mod again, which makes Claude Code load it once more.',
+        text: 'atc: this session has had no atc-bridge tap for a while, so its note and answer tools may be gone. atc wrote the bridge mod again, which makes Claude Code load it once more.',
       },
     });
   };
@@ -204,6 +206,12 @@ export function startBridgeRevival(deps: BridgeRevivalDeps): BridgeRevival {
   });
 
   return {
+    watchAgentStart: (sessionID) => {
+      const actor = actors.get(sessionID) ?? startSessionActor(sessionID);
+
+      actor.send({ type: 'AGENT_STARTED' });
+    },
+
     stop: () => {
       unsubscribe();
 

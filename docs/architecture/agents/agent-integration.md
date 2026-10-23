@@ -68,7 +68,9 @@ whose content changed, because any write reloads the mod in every running sessio
 gets the same mod through the Agent SDK. Outside atc, with no atc session id in its environment, the
 mod does nothing.
 
-At session start, the mod starts `atc tap` for the session and hands each message to the model
+At session start, the mod starts `atc tap` for the session. The mod starts the tap again after it
+fails or cannot start, waiting longer after each failure, and stops only when the tap exits with
+status 0, which it does once atc closes the session's inbox. The mod hands each message to the model
 inside an `<atc-message>` envelope, as a new turn when the session is idle and inside the running
 turn otherwise. The envelope holds the message id, the sender's name and the sender's kind, plus the
 session id when the sender is a session ([messages](../protocol/messages.md#who-a-message-is-from)).
@@ -97,11 +99,11 @@ validates and tests the mod against one pinned Claude Code version.
 Claude Code turns every mod off for the rest of a session when its hooks worker misses its heartbeat
 three times and no mod is to blame, as a host that stalls can make it do. The `note` and `answer`
 tools then disappear, and the mod's tap ends. A later write of the mod's files makes Claude Code
-load the mod again. So when a remote session's tap leaves and no tap takes its place for a while,
-the daemon writes that session's bridge files again and records a note in the session's events. It
-writes only while the session's agent process runs, once per tap loss, and it doubles the wait after
-each write. A loss that finds the host asleep stays pending, so the daemon writes the files once the
-host wakes.
+load the mod again. So when a remote session's tap leaves, or its agent reports a start, and no tap
+attaches for a while, the daemon writes that session's bridge files again and records a note in the
+session's events. It writes only while the session's agent process runs, once per tap loss or start,
+and it doubles the wait after each write. A loss that finds the host asleep stays pending, so the
+daemon writes the files once the host wakes.
 
 ## Grok and Codex
 

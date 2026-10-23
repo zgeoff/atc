@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir, startStubSessionBridge } from '@atc/test-utils';
+import { buildStubClock, setupTempDir, startStubSessionBridge, waitFor } from '@atc/test-utils';
 import { runBridgeTap } from './run-bridge-tap';
 
 function setupTest() {
@@ -53,6 +53,62 @@ test('it removes the outbox file of a note the bridge took', async () => {
       noteID: 'r1',
       payload: { kind: 'note', label: 'progress', text: 'hi' },
     },
+  ]);
+});
+
+test('it opens the tap again on a new connection when the bridge never answers its open', async () => {
+  const ctx = setupTest();
+
+  const bridge = startStubSessionBridge(
+    ctx.sock,
+    (request) => [{ id: request['id'], ok: true }, { ev: 'InboxClosed' }],
+    { unansweredOpens: 1 },
+  );
+
+  writeFileSync(
+    join(ctx.outbox, 'r1.json'),
+    JSON.stringify({ noteID: 'r1', payload: { kind: 'note', label: 'progress', text: 'hi' } }),
+  );
+
+  const clock = buildStubClock(0);
+  const codes: number[] = [];
+
+  const ran = runBridgeTap(
+    ctx.sock,
+    ctx.outbox,
+    {
+      writeStdout: () => Promise.resolve(),
+      printError: () => {},
+      exit: (code) => {
+        codes.push(code);
+      },
+    },
+    false,
+    clock,
+  );
+
+  await waitFor(() => {
+    expect(bridge.requests).toHaveLength(1);
+    expect(clock.collectPending()).toStrictEqual([10_000]);
+  });
+
+  clock.advance(10_000);
+
+  await waitFor(() => {
+    expect(clock.collectPending()).toStrictEqual([250]);
+  });
+
+  clock.advance(250);
+
+  await ran;
+
+  expect(codes).toStrictEqual([0]);
+  expect(existsSync(join(ctx.outbox, 'r1.json'))).toBe(false);
+
+  expect(bridge.requests.map((request) => request['op'])).toStrictEqual([
+    'tap.open',
+    'tap.open',
+    'note',
   ]);
 });
 

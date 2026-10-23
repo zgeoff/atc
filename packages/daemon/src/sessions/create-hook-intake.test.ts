@@ -102,6 +102,7 @@ async function setupTest(config: SetupTestConfig) {
   });
 
   const updateBridgeThread = mock<(sessionID: SessionID, agentSessionID: string) => void>();
+  const onAgentStarted = mock<(sessionID: SessionID) => void>();
   const onNoteIgnored = mock<(sessionID: string, kind: string) => void>();
   const onLastUsedUnchanged = mock<(sessionID: SessionID) => void>();
 
@@ -116,6 +117,7 @@ async function setupTest(config: SetupTestConfig) {
     emitEvent,
     findHookScope: () => null,
     updateBridgeThread,
+    onAgentStarted,
     onNoteIgnored,
     onLastUsedUnchanged,
   });
@@ -130,6 +132,7 @@ async function setupTest(config: SetupTestConfig) {
     emitted,
     messages,
     updateBridgeThread,
+    onAgentStarted,
     onNoteIgnored,
     onLastUsedUnchanged,
     hooks,
@@ -202,6 +205,15 @@ test('it leaves the last-used agent when no spawn waits on the start a session r
   ctx.hooks.applyHookEvent({ atcId: session.id, event: 'SessionStart', payload: {} });
 
   expect(ctx.onLastUsedUnchanged).toHaveBeenCalledExactlyOnceWith(session.id);
+});
+
+test('it reports the start of a session agent so its tap is watched for', async () => {
+  const ctx = await setupTest({ hooks: { SessionStart: [{ kind: 'started' }] } });
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  ctx.hooks.applyHookEvent({ atcId: session.id, event: 'SessionStart', payload: {} });
+
+  expect(ctx.onAgentStarted).toHaveBeenCalledExactlyOnceWith(session.id);
 });
 
 test('it moves the bridge to the conversation a session start shows', async () => {

@@ -1302,6 +1302,88 @@ test('it starts the tap in the root folder', async (engine, on) => {
   ]);
 });
 
+test('it starts the tap again a second after it exits with an error', async (engine, on) => {
+  const ctx = setupTest({ on });
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  const spawned: string[][] = [];
+
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
+
+  on('process.spawn', async function* ($, e) {
+    spawned.push([...e.argv]);
+    yield { stream: 'stderr', text: 'atc tap: the session bridge refused the tap\n' };
+
+    return { value: { code: 1, signal: null } };
+  });
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await ctx.clock.settle();
+  await ctx.clock.advance(1000);
+
+  expect(spawned).toStrictEqual([
+    ['atc', 'tap', '--session', 's-1', '--notices'],
+    ['atc', 'tap', '--session', 's-1', '--notices'],
+  ]);
+
+  expect(ctx.logs).toStrictEqual([
+    'atc-bridge: atc tap failed (exit 1: atc tap: the session bridge refused the tap); starting it again in 1000ms',
+    'atc-bridge: atc tap failed (exit 1: atc tap: the session bridge refused the tap); starting it again in 2000ms',
+  ]);
+});
+
+test('it starts the tap again after it cannot start', async (engine, on) => {
+  const ctx = setupTest({ on });
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  const spawned: string[][] = [];
+
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
+
+  // The host reports a hook that throws as skipped, so the spawn rejects with
+  // the host's own error rather than this one.
+  on('process.spawn', async function* ($, e) {
+    spawned.push([...e.argv]);
+    throw new Error("ENOENT: no such file or directory, posix_spawn '/tmp/atc/bin/atc'");
+  });
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await ctx.clock.settle();
+  await ctx.clock.advance(1000);
+
+  expect(spawned).toStrictEqual([
+    ['atc', 'tap', '--session', 's-1', '--notices'],
+    ['atc', 'tap', '--session', 's-1', '--notices'],
+  ]);
+});
+
+test('it leaves the tap stopped once it exits 0', async (engine, on) => {
+  const ctx = setupTest({ on });
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  const spawned: string[][] = [];
+
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
+
+  on('process.spawn', async function* ($, e) {
+    spawned.push([...e.argv]);
+
+    return { value: { code: 0, signal: null } };
+  });
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await ctx.clock.advance(60_000);
+
+  expect(spawned).toStrictEqual([['atc', 'tap', '--session', 's-1', '--notices']]);
+
+  expect(ctx.logs).toStrictEqual([
+    'atc-bridge: atc tap ended; this session takes no more atc messages',
+  ]);
+});
+
 test('it defaults a note without a label to progress', async (engine, on) => {
   const ctx = await startNoteSession(engine, on);
 
