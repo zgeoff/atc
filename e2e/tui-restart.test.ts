@@ -81,7 +81,7 @@ test('it restarts a daemon on another protocol after the user confirms and resto
   expect(legacy.signalCode).toBe('SIGTERM');
 });
 
-test('it stops a daemon that speaks the line protocol after the user confirms, and the managed daemon after it restores the fleet', async () => {
+test('it stops a daemon on another protocol after the user confirms, and the managed daemon after it restores the fleet', async () => {
   const ctx = setupTest();
   const stateDir = join(ctx.home, '.local', 'state', 'atc');
   const socketPath = join(ctx.home, 'atc-daemon.sock');
@@ -99,26 +99,26 @@ test('it stops a daemon that speaks the line protocol after the user confirms, a
 
   await seed.writeFleet([
     buildMockFleetEntry({
-      name: 'linefleet',
+      name: 'unitfleet',
       cwd: ctx.home,
-      agentSessionID: toAgentSessionID('fake-line-1'),
+      agentSessionID: toAgentSessionID('fake-unit-1'),
     }),
   ]);
 
   await seed.stop();
 
-  const line = await startStubLegacyDaemonProcess(socketPath, stateDir, 'line');
+  const legacy = await startStubLegacyDaemonProcess(socketPath, stateDir);
 
   ctx.boot();
 
   await ctx.waitFor('Restart it now?');
 
-  expect(ctx.read()).toInclude('the daemon speaks an older protocol');
+  expect(ctx.read()).toInclude(`daemon atc/legacy-build speaks v${PROTOCOL_V + 1}`);
 
   ctx.reset();
   ctx.write('y');
 
-  await line.exited;
+  await legacy.exited;
 
   // The unit's manager starts the new daemon once the old one stops, and
   // the new daemon restores the stored fleet.
@@ -139,9 +139,9 @@ test('it stops a daemon that speaks the line protocol after the user confirms, a
 
   ctx.write(KEYS.ctrlSpace);
 
-  await ctx.waitFor('linefleet');
+  await ctx.waitFor('unitfleet');
 
-  expect(line.signalCode).toBe('SIGTERM');
+  expect(legacy.signalCode).toBe('SIGTERM');
 });
 
 test('it stops a daemon of an older build when the user asks for the update and boots its own build', async () => {

@@ -22,7 +22,7 @@ function setupTest() {
   return { socketPath, received };
 }
 
-test('it refuses every waiting request with a protocol mismatch when the daemon answers in the line protocol', async () => {
+test('it refuses every waiting request as a closed connection when the daemon answers with a line that is no peer message', async () => {
   const ctx = setupTest();
 
   const server = Bun.listen({
@@ -32,8 +32,6 @@ test('it refuses every waiting request with a protocol mismatch when the daemon 
         socket.write(
           '{"v":4,"id":0,"err":{"code":"bad_args","msg":"malformed line: missing v"}}\n',
         );
-
-        socket.end();
       },
     },
   });
@@ -49,8 +47,8 @@ test('it refuses every waiting request with a protocol mismatch when the daemon 
   });
 
   expect(client.sendHello('atc/test')).rejects.toMatchObject({
-    code: 'protocol_mismatch',
-    message: 'the daemon speaks an older protocol; restart the daemon so both run the same build',
+    code: 'internal',
+    message: 'connection closed',
   });
 });
 

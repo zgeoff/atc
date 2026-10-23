@@ -255,14 +255,10 @@ async function readClientEvents(
   conn.socket?.end();
 }
 
-function drainPending(
-  conn: ClientConnection,
-  reason: string,
-  code: 'internal' | 'protocol_mismatch' = 'internal',
-): void {
+function drainPending(conn: ClientConnection, reason: string): void {
   sendClose(conn, reason);
   conn.events?.abort();
-  conn.peer.close({ reason: new DaemonError(code, reason) });
+  conn.peer.close({ reason: new DaemonError('internal', reason) });
 }
 
 // A closed client's machine has stopped, and takes no event.
@@ -307,34 +303,9 @@ function buildSocketHandlers(conn: ClientConnection, client: DaemonClient): Sock
   };
 }
 
-// A line from a daemon that speaks the older line protocol carries a
-// version and no message id; it refuses the client, so every request still
-// waiting rejects with the mismatch.
 function applyChunk(conn: ClientConnection, buf: Uint8Array): void {
   for (const line of conn.lines.splitChunk(buf)) {
-    if (isLineProtocolAnswer(line)) {
-      drainPending(
-        conn,
-        'the daemon speaks an older protocol; restart the daemon so both run the same build',
-        'protocol_mismatch',
-      );
-
-      conn.socket?.end();
-
-      return;
-    }
-
     conn.inbound = applyLineAfter(conn, conn.inbound, line);
-  }
-}
-
-function isLineProtocolAnswer(line: string): boolean {
-  try {
-    const parsed: unknown = JSON.parse(line);
-
-    return isRecord(parsed) && typeof parsed['v'] === 'number' && parsed['i'] === undefined;
-  } catch {
-    return false;
   }
 }
 

@@ -2,7 +2,6 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { startStubLegacyDaemon } from './start-stub-legacy-daemon';
-import { startStubLineDaemon } from './start-stub-line-daemon';
 
 function main() {
   const socketPath = process.argv.at(2);
@@ -16,16 +15,12 @@ function main() {
 
   // A client on the current protocol reads the session list and the fleet
   // as it starts, so the daemon answers both as empty.
-  if (build === 'line') {
-    startStubLineDaemon(socketPath, { owner: 'caller' });
-  } else {
-    startStubLegacyDaemon(socketPath, {
-      protocol: build === 'current' ? PROTOCOL_V : PROTOCOL_V + 1,
-      refusalHoldsProtocol: build === 'newer',
-      replies: { 'session.list': { sessions: [] }, 'fleet.list': { fleet: [] } },
-      owner: 'caller',
-    });
-  }
+  startStubLegacyDaemon(socketPath, {
+    protocol: build === 'current' ? PROTOCOL_V : PROTOCOL_V + 1,
+    refusalHoldsProtocol: build === 'newer',
+    replies: { 'session.list': { sessions: [] }, 'fleet.list': { fleet: [] } },
+    owner: 'caller',
+  });
 
   const session = Bun.spawn(['sleep', '60']);
 

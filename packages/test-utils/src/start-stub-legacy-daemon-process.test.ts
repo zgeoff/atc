@@ -59,20 +59,3 @@ test('it starts a daemon on the next protocol that puts its version in its refus
     data: { daemonProtocol: PROTOCOL_V + 1 },
   });
 });
-
-test('it starts a daemon on the line protocol when told to speak it', async () => {
-  const ctx = setupTest();
-
-  await startStubLegacyDaemonProcess(ctx.socketPath, ctx.directory, 'line');
-
-  const client = await openDaemonClient(ctx.socketPath);
-
-  registerTestCleanup(() => {
-    client.stop();
-  });
-
-  expect(client.sendHello('atc/test-build')).rejects.toMatchObject({
-    code: 'protocol_mismatch',
-    message: 'the daemon speaks an older protocol; restart the daemon so both run the same build',
-  });
-});
