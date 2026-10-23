@@ -636,6 +636,7 @@ test('it keeps a subscription that a subscribe renewed between the read that fou
 
   const receiver = buildStubWebhookReceiver();
   const subscriptions = createSubscriptionStore(ctx.db);
+  const clock = buildStubClock(Date.parse('2026-10-23T12:00:00.000Z'));
 
   const head = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
 
@@ -669,12 +670,12 @@ test('it keeps a subscription that a subscribe renewed between the read that fou
           refresh_before: '2026-10-24T12:00:00.000Z',
           created_at: '2026-10-23T12:00:00.000Z',
         },
-        ctx.clock.now(),
+        clock.now(),
       );
     }),
     caller: ctx.caller,
     send: receiver.send,
-    clock: ctx.clock,
+    clock,
     probeAccess: () => Promise.resolve(true),
     log: () => {},
   });
