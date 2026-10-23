@@ -202,10 +202,11 @@ it. A note never answers a message: the `answer` tool or the turn's final reply 
 A session on an imp has no reporter socket and no client socket, so its tap, notes, answers and
 answer notices travel over its [session bridge](../execution/imp-provider.md#the-session-bridge).
 There the tap reconnects after every dropped connection, with no end, since a sleep or a daemon
-restart drops it. Each new connection replays the messages and notices not yet acked, and the tap
-prints each one once and acks a repeat again. A note or an answer waits in an outbox file beside the
-bridge socket until the bridge takes it, and the tap sends the outbox again on every connection, so
-a note survives a dropped connection and lands once.
+restart drops it. The tap also reconnects when the bridge leaves its open unanswered, since a relay
+can take a connection and never pass its lines on. Each new connection replays the messages and
+notices not yet acked, and the tap prints each one once and acks a repeat again. A note or an answer
+waits in an outbox file beside the bridge socket until the bridge takes it, and the tap sends the
+outbox again on every connection, so a note survives a dropped connection and lands once.
 
 A local session has no outbox. Its notes and answers go to the reporter socket once, and a daemon
 that is down at that moment loses them. Its tap exits when the daemon goes away, which ends the

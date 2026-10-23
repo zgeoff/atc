@@ -1,5 +1,7 @@
 import { readFileSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { systemClock } from '@atc/core';
+import type { Clock } from '@atc/core';
 import { openBridgeSocket } from '@atc/protocol/session';
 import type { BridgeSocket } from '@atc/protocol/session';
 import { MESSAGE_SENDER_SCHEMA } from '@atc/protocol/wire';
@@ -34,6 +36,7 @@ export async function runBridgeTap(
   outbox: string,
   io: BridgeTapIO = PROCESS_IO,
   notices = false,
+  clock: Clock = systemClock,
 ): Promise<void> {
   const seen = new Set<string>();
 
@@ -42,7 +45,7 @@ export async function runBridgeTap(
   // a dropped connection, as a host's sleep or a daemon restart leaves it,
   // reconnects with no end
   for (;;) {
-    const end = await runTapConnection(socketPath, outbox, seen, io, notices);
+    const end = await runTapConnection(socketPath, outbox, seen, io, notices, clock);
 
     if (end === 'closed') {
       io.exit(0);
@@ -61,15 +64,19 @@ export async function runBridgeTap(
       wait = FIRST_RETRY_MS;
     }
 
-    await Bun.sleep(wait);
+    const slept = Promise.withResolvers<void>();
+
+    clock.schedule(slept.resolve, wait);
+
+    await slept.promise;
 
     wait = Math.min(wait * 2, LONGEST_RETRY_MS);
   }
 }
 
 // How one connection to the bridge ended: the inbox closed for good, the
-// bridge refused the tap, or the connection dropped after or before it
-// opened the tap.
+// bridge refused the tap, the connection dropped after it opened the tap, or
+// it dropped or went unanswered before then.
 type TapEnd = 'closed' | 'refused' | 'lost' | 'unreachable';
 
 const INBOX_MESSAGE_SCHEMA = z.looseObject({
@@ -96,6 +103,10 @@ const INBOX_NOTICE_SCHEMA = z.looseObject({
   reason: z.string().optional(),
 });
 
+// A relay can take the connection and never pass tap.open on, so an open with no answer by then
+// goes the way of a connection that dropped.
+const OPEN_ANSWER_TIMEOUT_MS = 10_000;
+
 async function runTapConnection(
   socketPath: string,
   outbox: string,
@@ -103,6 +114,7 @@ async function runTapConnection(
   seen: Set<string>,
   io: BridgeTapIO,
   notices: boolean,
+  clock: Clock,
 ): Promise<TapEnd> {
   const ended = Promise.withResolvers<TapEnd>();
   let opened = false;
@@ -229,7 +241,15 @@ async function runTapConnection(
 
   socket.writeLine(open);
 
+  const cancelOpenDeadline = clock.schedule(() => {
+    if (!opened) {
+      ended.resolve('unreachable');
+    }
+  }, OPEN_ANSWER_TIMEOUT_MS);
+
   const end = await ended.promise;
+
+  cancelOpenDeadline();
 
   await printing.catch(() => {});
 

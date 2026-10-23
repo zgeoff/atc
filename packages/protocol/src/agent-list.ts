@@ -15,7 +15,7 @@ export const AGENT_ENTRY_SCHEMA = z.object({
   // whether the agent's binary resolves, on PATH or at its configured path
   installed: z.boolean(),
 
-  // whether the agent takes its credential from impd's broker on a target
+  // whether the agent takes its credential from the broker of a target
   // whose entry has `brokerAuth`
   brokerAuth: z.boolean(),
 
@@ -24,7 +24,7 @@ export const AGENT_ENTRY_SCHEMA = z.object({
   brokerRequired: z.boolean(),
 
   // the targets a spawn of the agent can start on: none when its starts are
-  // all refused, only those that reach impd's broker when it starts only
+  // all refused, only those that reach a broker when it starts only
   // there, and only a remote target when its binary is missing here
   spawnTargets: z.array(z.string()).readonly(),
   capabilities: z.object({
@@ -80,7 +80,7 @@ const TARGET_ENTRY_SCHEMA = z.object({
   default: z.boolean(),
   capabilities: EXECUTION_CAPABILITIES_SCHEMA,
 
-  // whether the target's provider reaches impd's credential broker
+  // whether the target's provider reaches a credential broker
   brokerAuth: z.boolean(),
 });
 

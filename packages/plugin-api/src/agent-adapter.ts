@@ -45,7 +45,7 @@ export interface GuestPaths {
   // the folder the session's own files unpack into.
   readonly directory: string;
 
-  // given when the harness takes its credential from impd's broker.
+  // given when the harness takes its credential from the target's broker.
   readonly auth?: {
     // the revision of the host's runtime auth binding the launch runs under,
     // which keys any settings the agent writes for it.
@@ -55,7 +55,7 @@ export interface GuestPaths {
     readonly env: Readonly<Record<string, string>>;
     readonly profileEnv: Readonly<Record<string, string>>;
 
-    // the sign-in state impd lists for each secret of kind `oauth` in the
+    // the sign-in state the broker lists for each secret of kind `oauth` in the
     // binding, keyed by the secret's name.
     readonly oauth?: Readonly<Record<string, GuestOAuthState>>;
   };
@@ -65,7 +65,7 @@ export interface GuestOAuthState {
   readonly status: 'pending' | 'ready' | 'needs_login';
 
   // the payload of the last ID token, identifiers and never a credential, or
-  // null before impd has one.
+  // null before the broker has one.
   readonly idClaims: Readonly<Record<string, unknown>> | null;
 }
 
@@ -105,7 +105,7 @@ export interface ProjectSettingsCheck {
   readonly rootFiles: readonly string[];
 
   // takes the file's absolute path on the host; null when the content would
-  // not override or route around a sign-in through impd's broker.
+  // not override or route around a sign-in through the target's broker.
   readonly findRefusal: (path: string, content: string) => DaemonError | null;
 }
 
@@ -299,7 +299,7 @@ export interface AgentAdapter {
   // before the agent starts. Absent: the adapter cannot accept trust locally.
   readonly updateLocalWorkspaceTrust?: (root: string) => Promise<() => Promise<void>>;
 
-  // The credential this agent takes from impd's broker, or null when it
+  // The credential this agent takes from the target's broker, or null when it
   // takes none. Absent: it takes none.
   readonly findAuthSelection?: () => AuthSelection | null;
 
@@ -311,7 +311,7 @@ export interface AgentAdapter {
   // sign in without a person. Absent: atc runs no check.
   readonly planAuthCheck?: () => readonly string[];
 
-  // The project settings a remote launch behind impd's broker reads in
+  // The project settings a remote launch behind the target's broker reads in
   // the directory the harness starts in, before it starts. Absent: atc
   // reads none.
   readonly planProjectSettingsCheck?: () => ProjectSettingsCheck;

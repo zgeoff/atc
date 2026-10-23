@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { join } from 'node:path';
 import { createStubExecutionProvider } from '@atc/execution-local/testing';
 import { buildMockAgentAdapter, getRecord } from '@atc/test-utils';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
@@ -27,17 +28,22 @@ test('it answers the adapter command for a session on the daemon machine', async
 });
 
 test('it refuses the command for a session on another machine as unsupported', async () => {
-  const provider = createStubExecutionProvider({ kind: 'imp-like', remote: true });
-
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-resume-',
-    options: () => ({
-      adapter: buildMockAgentAdapter({
-        planResumeCommand: (cwd) => `cd '${cwd}' && claude --resume`,
-      }),
-      targets: [{ id: 'box', kind: provider.kind, options: {}, identity: 'test:box', provider }],
-      defaultTarget: 'box',
-    }),
+    options: (paths) => {
+      const provider = {
+        ...createStubExecutionProvider({ kind: 'imp-like', remote: true }),
+        readGuest: () => Promise.resolve({ directory: join(paths.directory, 'guest'), atc: null }),
+      };
+
+      return {
+        adapter: buildMockAgentAdapter({
+          planResumeCommand: (cwd) => `cd '${cwd}' && claude --resume`,
+        }),
+        targets: [{ id: 'box', kind: provider.kind, options: {}, identity: 'test:box', provider }],
+        defaultTarget: 'box',
+      };
+    },
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {

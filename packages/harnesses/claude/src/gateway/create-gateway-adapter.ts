@@ -75,7 +75,7 @@ export interface GatewayAdapter extends AgentAdapter {
   readonly planGuestWorkspaceTrust: (root: string) => Readonly<Record<string, string>> | null;
 
   // The repository's own settings files reach the CLI as well, so a launch
-  // behind impd's broker reads them first.
+  // behind the target's broker reads them first.
   readonly planProjectSettingsCheck: () => ProjectSettingsCheck;
 
   // The gateway runs the Claude CLI, whose hook lines it reads as stock
@@ -157,7 +157,7 @@ export function createGatewayAdapter(
   const buildBrokerRefusal = (reason: string): DaemonError =>
     new DaemonError(
       'auth_target_unsupported',
-      `gateway '${gateway.id}' takes its credential from impd's broker, ${reason}`,
+      `gateway '${gateway.id}' takes its credential from a credential broker, ${reason}`,
       { agent: gateway.id },
     );
 
@@ -233,7 +233,7 @@ export function createGatewayAdapter(
 
     return new DaemonError(
       'auth_target_unsupported',
-      `gateway '${gateway.id}' sets ${variable} in its settings env, which would route around impd's broker`,
+      `gateway '${gateway.id}' sets ${variable} in its settings env, which would route around the target's broker`,
       { agent: gateway.id, problem: 'guest_env_conflict', variable },
     );
   };
@@ -248,7 +248,7 @@ export function createGatewayAdapter(
 
     // A headless turn carries the same settings file the terminal spawn does,
     // so it reaches this backend rather than the default one. A gateway whose
-    // credential comes through impd's broker alone runs no headless turn.
+    // credential comes through a broker alone runs no headless turn.
     headlessRunner:
       headlessRun === null || isBrokerOnlyGateway(gateway)
         ? null
@@ -308,7 +308,7 @@ export function createGatewayAdapter(
       // started without the broker, the CLI would send whatever credential it holds to the
       // gateway's host; a gateway with a credential helper starts here under that helper
       if (isBrokerOnlyGateway(gateway)) {
-        throw buildBrokerRefusal('which only an imp target can give it');
+        throw buildBrokerRefusal('which only a target that reaches one can give it');
       }
 
       const modeArgs =
@@ -461,7 +461,7 @@ function pickModels(
   return Object.keys(models).length === 0 ? null : models;
 }
 
-// Whether a gateway takes its credential from impd's broker with no
+// Whether a gateway takes its credential from a broker with no
 // credential helper to fall back on, so it starts only behind the broker.
 function isBrokerOnlyGateway(gateway: GatewayConfig): boolean {
   return gateway.auth !== undefined && gateway.apiKeyHelper === undefined;

@@ -138,6 +138,7 @@
         "@atc/protocol": "workspace:*",
         "@impz/client": "catalog:",
         "@zgeoff/std": "catalog:",
+        "tiny-invariant": "catalog:",
         "ts-pattern": "catalog:",
         "xstate": "catalog:",
         "zod": "catalog:",
@@ -146,7 +147,6 @@
         "@atc/test-utils": "workspace:*",
         "@faker-js/faker": "catalog:",
         "bun-pty": "catalog:",
-        "tiny-invariant": "catalog:",
       },
     },
     "packages/execution/local": {
@@ -421,7 +421,7 @@
     "@better-auth/oauth-provider": "1.7.7",
     "@commitlint/cli": "21.2.3",
     "@faker-js/faker": "10.6.0",
-    "@impz/client": "2.10.3",
+    "@impz/client": "2.10.6",
     "@logtape/logtape": "2.4.1",
     "@modelcontextprotocol/sdk": "1.32.1",
     "@modelcontextprotocol/server": "2.3.0",
@@ -440,8 +440,8 @@
     "@zgeoff/bun-test-extended": "0.2.1",
     "@zgeoff/format-codemod": "0.3.1",
     "@zgeoff/kysely-bun-sqlite": "0.3.0",
-    "@zgeoff/oxlint-config": "0.6.1",
-    "@zgeoff/skill-gate": "0.2.4",
+    "@zgeoff/oxlint-config": "0.6.3",
+    "@zgeoff/skill-gate": "0.2.6",
     "@zgeoff/std": "0.3.0",
     "better-auth": "1.7.7",
     "bun-pty": "0.5.1",
@@ -636,7 +636,7 @@
 
     "@humanwhocodes/retry": ["@humanwhocodes/retry@0.4.3", "", {}, "sha512-bV0Tgo9K4hfPCek+aMAn81RppFKv2ySDQeMoSZuvTASywNTnVJCArCZE2FWqpvIatKu7VMRLWlR1EazvVhDyhQ=="],
 
-    "@impz/client": ["@impz/client@2.10.3", "", { "dependencies": { "@orpc/client": "^1.15.5", "@orpc/contract": "^1.15.5", "p-retry": "^8.0.1", "ts-pattern": "^5.9.0", "zod": "^4.6.7" }, "peerDependencies": { "@opentelemetry/api": ">=1.9.0" }, "optionalPeers": ["@opentelemetry/api"] }, "sha512-cj9WxqhMjW6ten5x7xhuWA7xe7vHD+nka+8fxuarnZsH6sxVpPAtZcfo/SmZuYA8wzmmsBNT9HbmBcVHytjxyA=="],
+    "@impz/client": ["@impz/client@2.10.6", "", { "dependencies": { "@orpc/client": "^1.15.5", "@orpc/contract": "^1.15.5", "p-retry": "^8.0.1", "ts-pattern": "^5.9.0", "zod": "^4.6.7" }, "peerDependencies": { "@opentelemetry/api": ">=1.9.0" }, "optionalPeers": ["@opentelemetry/api"] }, "sha512-FvTCA1k6wL90S8xvRjQwFcJl8pzXu3AIOKHYTO/WjRmZZEcvlLWa3iAt7nZcg7AtJ6b6EJTbLnv66Z1vbFUtyA=="],
 
     "@jest/diff-sequences": ["@jest/diff-sequences@30.5.0", "", {}, "sha512-OsqBjHXCn8cadasoAZBP6nWYvMsRhpMzGXTpxJ5aO04NlbdhIz+FVe3q49l0AwVhsz/cEmIpBes6gAFl1/dWQg=="],
 
@@ -986,9 +986,9 @@
 
     "@zgeoff/kysely-bun-sqlite": ["@zgeoff/kysely-bun-sqlite@0.3.0", "", { "peerDependencies": { "kysely": ">=0.29.5 <0.30.0" } }, "sha512-LJ8sc8xpEDa0aYBNA4raORnSit3SUXpVLK+F5qImnw4TDKBjgK2b5l3qNja99K2ITXF6Bpr6dAoMB6UDmdJ6EQ=="],
 
-    "@zgeoff/oxlint-config": ["@zgeoff/oxlint-config@0.6.1", "", { "dependencies": { "@stylistic/eslint-plugin": "5.10.0" }, "peerDependencies": { "oxlint": ">=1.78.0" } }, "sha512-MPMbLnNEFfuwJ+SGDFWI2Lp+qapss8k40vSn+yQk41SiV2SB38kLErcAPwAN/R4FQj4kp1Mp08alQ3ImCOFURw=="],
+    "@zgeoff/oxlint-config": ["@zgeoff/oxlint-config@0.6.3", "", { "dependencies": { "@stylistic/eslint-plugin": "5.10.0" }, "peerDependencies": { "oxlint": ">=1.78.0" } }, "sha512-EWPa1Sa5FsjINdolCRIXbzdlFur6wFQwSbtjm7wwl+TEyhNFFdOndzhQ/oBTCnGKOxqAXR2KnAgK224R/6JRdw=="],
 
-    "@zgeoff/skill-gate": ["@zgeoff/skill-gate@0.2.4", "", {}, "sha512-uxY6ijM+VIIf4rtdLnxWMIuA2apHPE0ttiqRrkV05VAxEHQ60Fu/vfdGMOUbQVaQ7oQt40oG3m8WfnSs3FOiew=="],
+    "@zgeoff/skill-gate": ["@zgeoff/skill-gate@0.2.6", "", {}, "sha512-9ccggI/DFRZaSO1LBM4kOB1vk1AoutU65x79tBk7j15f+bNxCNxyMG+JPIVtpVHDx7EPlJiMrCX5NuMJBG+6SQ=="],
 
     "@zgeoff/std": ["@zgeoff/std@0.3.0", "", {}, "sha512-I9LBwkMr8uuNCAQ9/tIoObp09b8ixnNDp1f85T9Mm1Ox10nWbVrbiqoWkf+hATCt4iyYxvYIVXl4eUFLwZaU/g=="],
 

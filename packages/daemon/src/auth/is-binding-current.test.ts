@@ -7,14 +7,14 @@ test('it holds a binding current while the live session matches it in every fiel
     {
       sessionID: toSessionID('s1'),
       target: 'box',
-      targetIdentity: 'imp:a',
+      targetIdentity: 'remote:a',
       hostKey: toSessionID('p1'),
       epoch: 3,
     },
     {
       id: toSessionID('s1'),
       target: 'box',
-      targetIdentity: 'imp:a',
+      targetIdentity: 'remote:a',
       hostKey: toSessionID('p1'),
       bridgeEpoch: 3,
     },
@@ -28,7 +28,7 @@ test('it holds a binding stale once its session is gone', () => {
     {
       sessionID: toSessionID('s1'),
       target: 'box',
-      targetIdentity: 'imp:a',
+      targetIdentity: 'remote:a',
       hostKey: toSessionID('p1'),
       epoch: 3,
     },
@@ -41,7 +41,7 @@ test('it holds a binding stale once its session is gone', () => {
 test.each([
   ['id', { id: toSessionID('s2') }],
   ['target', { target: 'other' }],
-  ['target identity', { targetIdentity: 'imp:b' }],
+  ['target identity', { targetIdentity: 'remote:b' }],
   ['host key', { hostKey: toSessionID('s1') }],
   ['epoch', { bridgeEpoch: 4 }],
 ])('it holds a binding stale once the live session differs in its %s', (_field, change) => {
@@ -49,14 +49,14 @@ test.each([
     {
       sessionID: toSessionID('s1'),
       target: 'box',
-      targetIdentity: 'imp:a',
+      targetIdentity: 'remote:a',
       hostKey: toSessionID('p1'),
       epoch: 3,
     },
     {
       id: toSessionID('s1'),
       target: 'box',
-      targetIdentity: 'imp:a',
+      targetIdentity: 'remote:a',
       hostKey: toSessionID('p1'),
       bridgeEpoch: 3,
       ...change,

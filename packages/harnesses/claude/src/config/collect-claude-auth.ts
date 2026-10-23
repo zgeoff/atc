@@ -196,8 +196,8 @@ const LAUNCH_VARIABLES: ReadonlySet<string> = new Set(['HOME', 'PATH', 'TMPDIR']
 const RESERVED_PREFIXES = ['ANTHROPIC_', 'CLAUDE_', 'CODEX_', 'OPENAI_', 'ATC_'];
 
 // Whether something other than the session's own tools reads the variable:
-// Claude Code, the Codex CLI, atc, the launch, or impd, which sets the proxy
-// and CA variables.
+// Claude Code, the Codex CLI, atc, the launch, or the target's broker, which
+// sets the proxy and CA variables.
 function isReservedVariable(key: string): boolean {
   const upper = key.toUpperCase();
 
@@ -259,8 +259,8 @@ function collectMCPServers(
 const MCP_SERVER_NAME = /^[\w-]{1,64}$/u;
 
 // The server an entry holds, or the first rule it breaks. The header comes
-// from the profile, so the header the session sends and the one impd swaps
-// the credential into never differ.
+// from the profile, so the header the session sends and the one the broker
+// swaps the credential into never differ.
 function parseMCPServer(
   name: string,
   entry: unknown,

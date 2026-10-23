@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { checkGatewayAuth } from './check-gateway-auth';
 
 // the credential never lives here: a helper command supplies it at run time and, with `auth`,
-// impd's broker adds it to each request, so it stays out of the file atc writes
+// the target's broker adds it to each request, so it stays out of the file atc writes
 export interface GatewayConfig {
   readonly id: AgentID;
   readonly label: string;

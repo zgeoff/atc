@@ -1,7 +1,10 @@
 import { machineTypes } from '@zgeoff/std';
 import { assign, setup } from 'xstate';
 
-type BridgeRevivalEvent = { readonly type: 'TAP_LEFT' } | { readonly type: 'WRITE_ENDED' };
+type BridgeRevivalEvent =
+  | { readonly type: 'TAP_LEFT' }
+  | { readonly type: 'AGENT_STARTED' }
+  | { readonly type: 'WRITE_ENDED' };
 
 interface BridgeRevivalContext {
   // How long the session waits without a tap before its next check.
@@ -14,9 +17,9 @@ interface BridgeRevivalContext {
 const FIRST_DELAY_MS = 30_000;
 const MAX_DELAY_MS = 30 * 60_000;
 
-// One session's tap and the check that follows each loss. The revival
-// provides the guards, which read the session, and the write, which it
-// performs; each write doubles the wait before the next check.
+// One session's tap and the check that follows each loss or agent start. The
+// revival provides the guards, which read the session, and the write, which
+// it performs; each write doubles the wait before the next check.
 export const BRIDGE_REVIVAL_MACHINE = setup({
   types: machineTypes<{ context: BridgeRevivalContext; events: BridgeRevivalEvent }>(),
   guards: {
@@ -38,7 +41,7 @@ export const BRIDGE_REVIVAL_MACHINE = setup({
   context: { delayMs: FIRST_DELAY_MS, isLostAgain: false },
   states: {
     tapped: {
-      on: { TAP_LEFT: 'waiting' },
+      on: { TAP_LEFT: 'waiting', AGENT_STARTED: 'waiting' },
     },
     waiting: {
       // a later loss starts the wait again

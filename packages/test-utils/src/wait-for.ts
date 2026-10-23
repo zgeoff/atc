@@ -3,6 +3,8 @@ interface WaitForOptions {
 
   readonly timeoutMs?: number;
 
+  readonly progress?: () => unknown;
+
   readonly now?: () => number;
 
   readonly wait?: (delayMs: number) => Promise<void>;
@@ -16,13 +18,19 @@ export async function waitFor<T>(
   const timeoutMs = options.timeoutMs ?? 5000;
   const now = options.now ?? Date.now;
   const wait = options.wait ?? Bun.sleep;
-  const deadline = now() + timeoutMs;
+  let deadline = now() + timeoutMs;
+  let lastProgress = options.progress?.();
 
   for (;;) {
     try {
       return await attempt();
     } catch (error) {
-      if (now() >= deadline) {
+      const progress = options.progress?.();
+
+      if (progress !== lastProgress) {
+        lastProgress = progress;
+        deadline = now() + timeoutMs;
+      } else if (now() >= deadline) {
         throw error;
       }
     }

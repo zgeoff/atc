@@ -1,8 +1,8 @@
 import type { CredentialBroker, GuestOAuthState } from '@atc/plugin-api';
-import { CredentialBrokerError } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import type { AuthBinding } from './build-auth-binding';
 import { collectSecretRuleMismatches } from './collect-secret-rule-mismatches';
+import { toAuthRefusal } from './to-auth-refusal';
 
 export async function loadOAuthStates(
   host: CredentialBroker,
@@ -37,14 +37,6 @@ export async function loadOAuthStates(
       ),
     );
   } catch (error) {
-    if (error instanceof CredentialBrokerError) {
-      throw new DaemonError(
-        'host_unavailable',
-        `the ${error.provider} credential broker refused a runtime auth call: ${error.message}`,
-        { provider: error.provider, problem: error.brokerCode.toLowerCase() },
-      );
-    }
-
-    throw error;
+    throw toAuthRefusal(error, host);
   }
 }

@@ -83,10 +83,14 @@ export interface StateStore {
   readonly readMessage: (id: MessageID, owner: MessageOwner) => Promise<MessageRecord | null>;
   readonly readMessageByID: (id: MessageID) => Promise<MessageRecord | null>;
   readonly readTurnSiblings: (record: MessageRecord) => Promise<TurnSibling[]>;
+
+  // Marks the message delivered and writes the trail entry built from the marked record in one
+  // transaction, so both commit or neither does. A missed mark writes nothing.
   readonly updateMessageDelivered: (
     id: MessageID,
     owner: MessageOwner,
     at: number,
+    buildEntry: (record: MessageRecord) => TrailEntry,
   ) => Promise<MessageRecord | null>;
   readonly updateMessagesAnswered: (
     ids: readonly MessageID[],
@@ -336,7 +340,16 @@ export async function createStateStore(
     readMessage: (id, owner) => messages.readMessage(id, owner),
     readMessageByID: (id) => messages.readMessageByID(id),
     readTurnSiblings: (record) => messages.readTurnSiblings(record),
-    updateMessageDelivered: (id, owner, at) => messages.updateMessageDelivered(id, owner, at),
+    updateMessageDelivered: (id, owner, at, buildEntry) =>
+      db.transaction().execute(async (transaction) => {
+        const record = await createMessageStore(transaction).updateMessageDelivered(id, owner, at);
+
+        if (record !== null) {
+          await createEventTrailStore(transaction).recordTrailEntry(buildEntry(record));
+        }
+
+        return record;
+      }),
     updateMessagesAnswered: (ids, owner, answer, at, turn = null) =>
       messages.updateMessagesAnswered(ids, owner, answer, at, turn),
     updateMessagesUnanswered: (ids, owner, reason, at, turn = null) =>

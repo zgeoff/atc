@@ -19,6 +19,7 @@ export interface ImpGuestATC {
   // or copies the provider's binary in again.
   readonly setupGuest: (
     name: string,
+    guest: GuestLayout,
     installATC: boolean,
     log: (line: string) => void,
   ) => Promise<void>;
@@ -26,7 +27,6 @@ export interface ImpGuestATC {
 
 interface ImpGuestATCOptions {
   readonly port: ImpPort;
-  readonly guest: GuestLayout;
   readonly guestATC: string | undefined;
   readonly atcBinary: string | null;
   readonly version: string;
@@ -34,7 +34,6 @@ interface ImpGuestATCOptions {
 
 export function createImpGuestATC(options: ImpGuestATCOptions): ImpGuestATC {
   const port = options.port;
-  const guest = options.guest;
   const guestATC = options.guestATC;
   const atcBinary = options.atcBinary;
   const version = options.version;
@@ -52,15 +51,15 @@ export function createImpGuestATC(options: ImpGuestATCOptions): ImpGuestATC {
   // Copies the binary to `bin/atc`, replacing a link to the image's atc.
   // The binary crosses the network to impd, so it goes over gzipped, and an
   // imp without gzip refuses the copy before it reads any input.
-  const copyATCBinary = async (name: string, binary: string): Promise<void> => {
+  const copyATCBinary = async (name: string, directory: string, binary: string): Promise<void> => {
     const unpacked = await port.runCommand(name, {
-      argv: ['sh', '-c', INSTALL_GUEST_ATC_SCRIPT, 'sh', guest.directory, String(NO_GZIP_CODE)],
+      argv: ['sh', '-c', INSTALL_GUEST_ATC_SCRIPT, 'sh', directory, String(NO_GZIP_CODE)],
       stdin: await readGuestATCArchive(binary),
     });
 
     if (unpacked.code === NO_GZIP_CODE) {
       throw new Error(
-        `imp ${name} has no gzip, which installing atc in ${guest.directory} needs; install gzip in its image`,
+        `imp ${name} has no gzip, which installing atc in ${directory} needs; install gzip in its image`,
       );
     }
 
@@ -73,10 +72,10 @@ export function createImpGuestATC(options: ImpGuestATCOptions): ImpGuestATC {
   // it; a later one links again or checks the copy.
   const setupGuestATC = async (
     name: string,
+    directory: string,
     image: string,
     log: (line: string) => void,
   ): Promise<void> => {
-    const directory = guest.directory;
     const known = imageATCVersions.has(name);
     let imageVersion = imageATCVersions.get(name) ?? null;
     let copiedVersion: string | null = null;
@@ -159,7 +158,7 @@ export function createImpGuestATC(options: ImpGuestATCOptions): ImpGuestATC {
       );
     }
 
-    await copyATCBinary(name, atcBinary);
+    await copyATCBinary(name, directory, atcBinary);
 
     imageATCVersions.set(name, imageVersion);
 
@@ -173,9 +172,9 @@ export function createImpGuestATC(options: ImpGuestATCOptions): ImpGuestATC {
       imageATCVersions.delete(name);
     },
 
-    setupGuest: async (name, installATC, log) => {
+    setupGuest: async (name, guest, installATC, log) => {
       if (installATC && guestATC !== undefined) {
-        await setupGuestATC(name, guestATC, log);
+        await setupGuestATC(name, guest.directory, guestATC, log);
 
         return;
       }
@@ -196,7 +195,7 @@ export function createImpGuestATC(options: ImpGuestATCOptions): ImpGuestATC {
         );
       }
 
-      await copyATCBinary(name, atcBinary);
+      await copyATCBinary(name, guest.directory, atcBinary);
     },
   };
 }

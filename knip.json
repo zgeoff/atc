@@ -7,9 +7,9 @@
         "e2e/**/*.test.ts",
         "scripts/**/*.test.ts",
         "scripts/create-state-template.ts",
+        "scripts/probe-pty-env.ts",
         "scripts/stage-demo-sessions.ts",
-        "scripts/run-wave-move.ts",
-        "scripts/codemods/*.ts"
+        "scripts/run-wave-move.ts"
       ],
       "project": ["e2e/**/*.ts", "scripts/**/*.ts"]
     },
@@ -31,6 +31,5 @@
       "ignoreDependencies": ["better-auth"]
     }
   },
-  "ignore": ["mods/**"],
   "ignoreDependencies": ["@stylistic/eslint-plugin", "@zgeoff/skill-gate"]
 }

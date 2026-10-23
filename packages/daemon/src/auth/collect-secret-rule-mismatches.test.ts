@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { collectSecretRuleMismatches } from './collect-secret-rule-mismatches';
 
-test('it finds no mismatch when impd holds the complete rule set in another order', () => {
+test('it finds no mismatch when the broker holds the complete rule set in another order', () => {
   const mismatches = collectSecretRuleMismatches(
     [
       {
@@ -28,7 +28,7 @@ test('it finds no mismatch when impd holds the complete rule set in another orde
   expect(mismatches).toStrictEqual([]);
 });
 
-test('it reports a secret impd does not hold as missing', () => {
+test('it reports a secret the broker does not hold as missing', () => {
   const mismatches = collectSecretRuleMismatches(
     [
       {

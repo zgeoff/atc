@@ -85,7 +85,7 @@ export async function requireProjectSettings(
 function buildUnreadableSettingsRefusal(agent: string, target: string, path: string): DaemonError {
   return new DaemonError(
     'auth_target_unsupported',
-    `agent '${agent}' signs in through impd's broker on target '${target}', but atc cannot read ${path} there as a settings file to check it for settings that would override that sign-in`,
+    `agent '${agent}' signs in through the broker of target '${target}', but atc cannot read ${path} there as a settings file to check it for settings that would override that sign-in`,
     { agent, target, problem: 'project_settings_unreadable', file: path },
   );
 }

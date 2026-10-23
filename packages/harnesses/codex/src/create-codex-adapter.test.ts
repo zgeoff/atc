@@ -268,7 +268,7 @@ test('it selects the ChatGPT endpoint and its profiles for an entry with auth, w
         header: 'authorization',
         scheme: 'bearer',
       },
-      github: { secret: 'github-imp-agents', kind: 'github' },
+      github: { secret: 'github-agents', kind: 'github' },
     },
     agents: { codex: { auth: { profiles: ['codex', 'github'] } } },
   });
@@ -308,7 +308,7 @@ test('it plans a remote spawn with auth but without the broker as a local spawn 
         header: 'authorization',
         scheme: 'bearer',
       },
-      github: { secret: 'github-imp-agents', kind: 'github' },
+      github: { secret: 'github-agents', kind: 'github' },
     },
     agents: { codex: { auth: { profiles: ['codex', 'github'] } } },
   });
@@ -336,7 +336,7 @@ test('it plans a spawn behind the broker with a Codex home of its own and hooks 
         header: 'authorization',
         scheme: 'bearer',
       },
-      github: { secret: 'github-imp-agents', kind: 'github' },
+      github: { secret: 'github-agents', kind: 'github' },
     },
     agents: { codex: { auth: { profiles: ['codex', 'github'] } } },
   });
@@ -468,7 +468,7 @@ test("it keeps its own Codex home over a profile's variables", () => {
         header: 'authorization',
         scheme: 'bearer',
       },
-      github: { secret: 'github-imp-agents', kind: 'github' },
+      github: { secret: 'github-agents', kind: 'github' },
     },
     agents: { codex: { auth: { profiles: ['codex', 'github'] } } },
   });
@@ -516,7 +516,7 @@ test("it writes the sign-in file from the oauth secret's claims and account id",
         header: 'authorization',
         scheme: 'bearer',
       },
-      github: { secret: 'github-imp-agents', kind: 'github' },
+      github: { secret: 'github-agents', kind: 'github' },
     },
     agents: { codex: { auth: { profiles: ['codex', 'github'] } } },
   });
@@ -576,7 +576,7 @@ test('it reports every hook through the atc inside the host', () => {
         header: 'authorization',
         scheme: 'bearer',
       },
-      github: { secret: 'github-imp-agents', kind: 'github' },
+      github: { secret: 'github-agents', kind: 'github' },
     },
     agents: { codex: { auth: { profiles: ['codex', 'github'] } } },
   });
@@ -653,7 +653,7 @@ test('it plans no spawn behind the broker on a host without atc', () => {
         header: 'authorization',
         scheme: 'bearer',
       },
-      github: { secret: 'github-imp-agents', kind: 'github' },
+      github: { secret: 'github-agents', kind: 'github' },
     },
     agents: { codex: { auth: { profiles: ['codex', 'github'] } } },
   });
@@ -700,7 +700,7 @@ test.each<['needs_login' | 'pending']>([['needs_login'], ['pending']])(
           header: 'authorization',
           scheme: 'bearer',
         },
-        github: { secret: 'github-imp-agents', kind: 'github' },
+        github: { secret: 'github-agents', kind: 'github' },
       },
       agents: { codex: { auth: { profiles: ['codex', 'github'] } } },
     });
@@ -736,14 +736,14 @@ test.each<['needs_login' | 'pending']>([['needs_login'], ['pending']])(
     expect(plan).toThrow(
       expect.objectContaining({
         code: 'auth_signin_needed',
-        message: `agent 'codex' signs in through codex-chatgpt, whose sign-in in impd is ${status}; sign Codex in again and run impz secret add codex-chatgpt --kind oauth ... --replace with the new refresh token`,
+        message: `agent 'codex' signs in through codex-chatgpt, whose sign-in in the broker is ${status}; sign Codex in again and give the broker the new refresh token for codex-chatgpt`,
         data: { agent: 'codex', secret: 'codex-chatgpt', status },
       }),
     );
   },
 );
 
-test('it refuses a spawn whose sign-in impd does not list', () => {
+test('it refuses a spawn whose sign-in the broker does not list', () => {
   const config = parseConfig([CODEX_PLUGIN], {
     authProfiles: {
       codex: {
@@ -753,7 +753,7 @@ test('it refuses a spawn whose sign-in impd does not list', () => {
         header: 'authorization',
         scheme: 'bearer',
       },
-      github: { secret: 'github-imp-agents', kind: 'github' },
+      github: { secret: 'github-agents', kind: 'github' },
     },
     agents: { codex: { auth: { profiles: ['codex', 'github'] } } },
   });
@@ -774,7 +774,7 @@ test('it refuses a spawn whose sign-in impd does not list', () => {
     expect.objectContaining({
       code: 'auth_signin_needed',
       message:
-        "agent 'codex' signs in through codex-chatgpt, whose sign-in in impd is not listed; sign Codex in again and run impz secret add codex-chatgpt --kind oauth ... --replace with the new refresh token",
+        "agent 'codex' signs in through codex-chatgpt, whose sign-in in the broker is not listed; sign Codex in again and give the broker the new refresh token for codex-chatgpt",
       data: { agent: 'codex', secret: 'codex-chatgpt', status: null },
     }),
   );
@@ -794,7 +794,7 @@ test.each([
         header: 'authorization',
         scheme: 'bearer',
       },
-      github: { secret: 'github-imp-agents', kind: 'github' },
+      github: { secret: 'github-agents', kind: 'github' },
     },
     agents: { codex: { auth: { profiles: ['codex', 'github'] } } },
   });
@@ -820,7 +820,7 @@ test.each([
     expect.objectContaining({
       code: 'auth_signin_needed',
       message:
-        "agent 'codex' signs in through codex-chatgpt, whose ID token in impd holds no ChatGPT account id; sign Codex in again and run impz secret add codex-chatgpt --kind oauth ... --replace with the new refresh token",
+        "agent 'codex' signs in through codex-chatgpt, whose ID token in the broker holds no ChatGPT account id; sign Codex in again and give the broker the new refresh token for codex-chatgpt",
       data: { agent: 'codex', secret: 'codex-chatgpt', status: 'ready' },
     }),
   );
@@ -836,7 +836,7 @@ test('it seeds clone trust for an entry with auth', () => {
         header: 'authorization',
         scheme: 'bearer',
       },
-      github: { secret: 'github-imp-agents', kind: 'github' },
+      github: { secret: 'github-agents', kind: 'github' },
     },
     agents: { codex: { auth: { profiles: ['codex', 'github'] } } },
   });

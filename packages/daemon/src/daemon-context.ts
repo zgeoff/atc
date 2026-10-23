@@ -213,8 +213,8 @@ export interface DaemonContext {
     source: Extract<SpawnWorkspaceSource, { kind: 'git' }>,
   ) => string;
 
-  // Throws the refusal for an agent that takes its credential from impd's
-  // broker on a target whose provider reaches no broker.
+  // Throws the refusal for an agent that takes its credential from a broker
+  // on a target whose provider reaches no broker.
   readonly requireAgentTarget: (agent: AgentID, target: string) => void;
 
   // The spawn's own plugin folders, expanded and normalized. Throws the
