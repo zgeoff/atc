@@ -13,7 +13,7 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
-tarball=$(bun "$root/scripts/pack-contract.ts" "$work")
+tarball=$(bun "$root/scripts/pack-contract.ts" --out "$work")
 packed=$(tar -xzOf "$tarball" package/package.json)
 name=$(jq -r .name <<< "$packed")
 version=$(jq -r .version <<< "$packed")

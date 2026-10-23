@@ -1,20 +1,25 @@
 // Builds @atcx/contract as npm publishes it and packs it into a folder, then
-// prints the tarball's path. Usage: bun scripts/pack-contract.ts <out-dir> [root]
+// prints the tarball's path. Usage: bun scripts/pack-contract.ts --out <dir> [root]
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { parseArgs } from 'node:util';
 import { z } from 'zod';
 import { buildPublishedManifest } from './build-published-manifest';
 import { writeContractDeclarations } from './write-contract-declarations';
 
 async function main(): Promise<void> {
-  const [outArg, rootArg] = process.argv.slice(2);
+  const args = parseArgs({
+    args: process.argv.slice(2),
+    options: { out: { type: 'string' } },
+    allowPositionals: true,
+  });
 
-  if (outArg === undefined) {
-    throw new Error('usage: bun scripts/pack-contract.ts <out-dir> [root]');
+  if (args.values.out === undefined || args.positionals.length > 1) {
+    throw new Error('usage: bun scripts/pack-contract.ts --out <dir> [root]');
   }
 
-  const out = resolve(outArg);
-  const root = resolve(rootArg ?? join(import.meta.dir, '..'));
+  const out = resolve(args.values.out);
+  const root = resolve(args.positionals[0] ?? join(import.meta.dir, '..'));
   const staged = join(out, 'package');
 
   const manifest = WORKSPACE_MANIFEST_SCHEMA.parse(
