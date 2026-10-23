@@ -24,7 +24,7 @@ async function setupTest() {
   const deliverer = {
     start: () => Promise.resolve(),
     watch: mock(),
-    retire: () => {},
+    retire: mock<(subscriptionID: string) => void>(),
     stop: () => {},
   };
 
@@ -210,6 +210,7 @@ test('it refreshes a subscription with its new secret and keeps the position its
     .execute();
 
   ctx.clock.advance(60 * 60 * 1000);
+  ctx.deliverer.retire.mockClear();
 
   const refreshed = await answerSubscribeRequest(deps, {
     name: 'session.turn_done',
@@ -236,6 +237,8 @@ test('it refreshes a subscription with its new secret and keeps the position its
   expect(stored).toStrictEqual([
     { secret: `whsec_${Buffer.alloc(32, 6).toString('base64')}`, position: 'cursor-9' },
   ]);
+
+  expect(ctx.deliverer.retire).not.toHaveBeenCalled();
 });
 
 test("it restarts a subscription past its refreshBefore from the client's cursor", async () => {
@@ -268,6 +271,7 @@ test("it restarts a subscription past its refreshBefore from the client's cursor
     .execute();
 
   ctx.clock.advance(25 * 60 * 60 * 1000);
+  ctx.deliverer.retire.mockClear();
 
   const renewed = await answerSubscribeRequest(deps, {
     name: 'session.turn_done',
@@ -282,6 +286,7 @@ test("it restarts a subscription past its refreshBefore from the client's cursor
   const stored = await ctx.db.selectFrom('atc_event_subscription').select('position').execute();
 
   expect(renewed.cursor).toBe('cursor-3');
+  expect(ctx.deliverer.retire).toHaveBeenCalledExactlyOnceWith(first.id);
   expect(stored).toStrictEqual([{ position: 'cursor-3' }]);
 });
 

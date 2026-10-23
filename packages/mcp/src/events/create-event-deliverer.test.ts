@@ -565,6 +565,7 @@ test('it retries a refused delivery after a backoff with the same webhook-id and
     caller: ctx.caller,
     send: receiver.send,
     clock: ctx.clock,
+    probeAccess: () => Promise.resolve(true),
     log: () => {},
   });
 
@@ -639,6 +640,7 @@ test('it gives up on an event after its last attempt and delivers the next one',
     caller: ctx.caller,
     send: receiver.send,
     clock: ctx.clock,
+    probeAccess: () => Promise.resolve(true),
     log,
   });
 
@@ -719,6 +721,7 @@ test('it moves past an event its endpoint refuses as too large without a retry',
     caller: ctx.caller,
     send: receiver.send,
     clock: ctx.clock,
+    probeAccess: () => Promise.resolve(true),
     log: () => {},
   });
 
@@ -774,6 +777,7 @@ test('it removes a subscription whose endpoint answers 410 and delivers nothing 
     caller: ctx.caller,
     send: receiver.send,
     clock: ctx.clock,
+    probeAccess: () => Promise.resolve(true),
     log: () => {},
   });
 
@@ -830,6 +834,7 @@ test('it delivers an event again after a restart when a stop cut its retries sho
     caller: ctx.caller,
     send: receiver.send,
     clock: ctx.clock,
+    probeAccess: () => Promise.resolve(true),
     log: () => {},
   });
 
@@ -860,6 +865,7 @@ test('it delivers an event again after a restart when a stop cut its retries sho
     caller: ctx.caller,
     send: restartedReceiver.send,
     clock: ctx.clock,
+    probeAccess: () => Promise.resolve(true),
     log: () => {},
   });
 
@@ -906,6 +912,7 @@ test('it ends a retired watcher and starts afresh on the next watch', async () =
     caller: ctx.caller,
     send: receiver.send,
     clock: ctx.clock,
+    probeAccess: () => Promise.resolve(true),
     log: () => {},
   });
 

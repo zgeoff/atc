@@ -59,12 +59,16 @@ export async function answerSubscribeRequest(
     .where('id', '=', id)
     .executeTakeFirst();
 
+  const isRefresh = existing !== undefined && Date.parse(existing.refresh_before) > now;
+
   // A row past its refreshBefore that the watcher has yet to remove is gone,
-  // so the subscribe starts afresh from the client's cursor.
-  const position =
-    existing !== undefined && Date.parse(existing.refresh_before) > now
-      ? existing.position
-      : await readStartPosition(deps, request.cursor);
+  // so the subscribe starts afresh from the client's cursor, and the old
+  // watcher, whose pending read started from the old position, ends.
+  const position = isRefresh ? existing.position : await readStartPosition(deps, request.cursor);
+
+  if (!isRefresh) {
+    deps.deliverer.retire(id);
+  }
 
   const refreshBefore = new Date(now + pickTTL(request.ttlMs)).toISOString();
 
