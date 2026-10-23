@@ -147,10 +147,10 @@ export function buildDaemonContext(deps: DaemonContextDeps): DaemonContext {
     writeStateBackup: (path) => store.writeBackup(path),
     readSessionRecord: (id, access) => reads.readSessionRecord(id, access),
     loadSessionTranscript: (id, from, limit) => reads.loadSessionTranscript(id, from, limit),
-    readEvents: (params) => trail.readEvents(params),
+    readEvents: trail.readEvents,
     readNote: (id, access) => trail.readNote(id, access),
     readAnswer: (id, access) => trail.readAnswer(id, access),
-    writeSessionMessage: (params) => messages.writeSessionMessage(params),
+    writeSessionMessage: messages.writeSessionMessage,
     attachTap: (client, sessionID, access, notices) =>
       messages.attachTap(client, sessionID, access, notices),
     detachTap: (client, sessionID) => {

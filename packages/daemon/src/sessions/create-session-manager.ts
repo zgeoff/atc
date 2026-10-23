@@ -457,7 +457,7 @@ export function createSessionManager(options: CreateSessionManagerOptions): Sess
     adoptTerminal: (id, cols, rows, canProceed = () => true) =>
       adopter.adoptTerminal(id, cols, rows, canProceed),
 
-    spawn: (spawnOptions) => spawner.spawn(spawnOptions),
+    spawn: spawner.spawn,
 
     kill: (id, stopOnly = false) => killer.kill(id, stopOnly),
 
