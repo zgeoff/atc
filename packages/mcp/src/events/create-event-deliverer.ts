@@ -3,7 +3,8 @@ import type { Clock } from '@atc/core';
 import { EVENTS_PAGE_SCHEMA } from '@atc/protocol';
 import type { Kysely } from 'kysely';
 import invariant from 'tiny-invariant';
-import type { z } from 'zod';
+import { createActor } from 'xstate';
+import type { Actor } from 'xstate';
 import type { MCPAuthSchema } from '../auth/mcp-auth-schema';
 import { normalizeClientName } from '../auth/normalize-client-name';
 import { readClientName } from '../auth/read-client-name';
@@ -11,6 +12,8 @@ import type { FleetCaller } from '../tools/types';
 import { buildWebhookRequest } from './build-webhook-request';
 import { createSubscriptionStore } from './create-subscription-store';
 import type { SubscriptionRow, SubscriptionStore } from './create-subscription-store';
+import { createSubscriptionWatcherMachine } from './create-subscription-watcher-machine';
+import type { PageDelivery, TrailPage } from './create-subscription-watcher-machine';
 import { EVENT_TYPES } from './event-types';
 import { parseWebhookSecret } from './parse-webhook-secret';
 import type { WebhookOutcome, WebhookSender } from './types';
@@ -41,138 +44,76 @@ interface DelivererContext extends EventDelivererDeps {
   readonly subscriptions: SubscriptionStore;
 }
 
-interface DelivererState {
-  stopped: boolean;
-}
-
-// How long a watcher waits after a read the daemon could not answer.
-const READ_RETRY_MS = 5000;
-
-// The authorization server rotates a refresh token by revoking it and then
-// storing its successor, in two writes, so a watcher that finds no grant with
-// read checks again after this wait before it removes the subscription.
-const ACCESS_RECHECK_MS = 5000;
-
-// How long a watcher that failed waits before it starts again, so a failure
-// that lasts, such as a position the store cannot write, posts no flood.
-const RESTART_DELAY_MS = 30_000;
-
 // Each subscription's watcher reads the trail as the subscription's client,
 // so it sees only the sessions the client's principal reaches, and it stores
 // how far it got, so a restarted server resumes where it stopped.
 export function createEventDeliverer(options: EventDelivererDeps): EventDeliverer {
   const deps: DelivererContext = { ...options, subscriptions: createSubscriptionStore(options.db) };
 
-  const watching = new Set<string>();
-  const pendingWaits = new Set<() => void>();
+  const machine = createSubscriptionWatcherMachine({
+    readSubscription: (subscriptionID) => readLiveSubscription(deps, subscriptionID),
+    probeAccess: deps.probeAccess,
+    readTrail: (row) => readTrailPage(deps, row),
+    deliverPage: (delivery) => deliverPage(deps, delivery),
+    endSubscription: async (subscriptionID) => {
+      await deps.subscriptions.end(subscriptionID);
+    },
+    log: deps.log,
+  });
 
-  const state: DelivererState = { stopped: false };
+  const watchers = new Map<string, Actor<typeof machine>>();
 
-  const wait = (delayMs: number) => {
-    const resolvers = Promise.withResolvers<void>();
+  const state = { stopped: false };
 
-    const finish = () => {
-      pendingWaits.delete(finish);
+  // xstate's clock takes a timer id, and the server's clock hands back a cancel
+  const cancels = new Map<number, () => void>();
 
-      cancel();
+  let nextTimerID = 0;
 
-      resolvers.resolve();
-    };
+  const clock = {
+    setTimeout: (fn: () => void, timeout: number) => {
+      const timerID = nextTimerID++;
 
-    const cancel = deps.clock.schedule(finish, delayMs);
+      cancels.set(
+        timerID,
+        deps.clock.schedule(() => {
+          cancels.delete(timerID);
 
-    pendingWaits.add(finish);
+          fn();
+        }, timeout),
+      );
 
-    return resolvers.promise;
-  };
-
-  const runWatcher = async (subscriptionID: string) => {
-    let isReadFailing = false;
-
-    for (;;) {
-      const row = await readLiveSubscription(deps, subscriptionID);
-
-      if (row === null || state.stopped) {
-        return;
-      }
-
-      const reads = await deps.probeAccess(row.client_id);
-
-      if (!reads) {
-        await wait(ACCESS_RECHECK_MS);
-
-        const lost = !state.stopped && !(await deps.probeAccess(row.client_id));
-
-        if (lost) {
-          await deps.subscriptions.end(subscriptionID);
-
-          return;
-        }
-
-        continue;
-      }
-
-      const read = await readTrailPage(deps, row);
-
-      if (state.stopped) {
-        return;
-      }
-
-      if (!read.ok) {
-        if (!isReadFailing) {
-          deps.log(
-            `atc events: the watcher of ${subscriptionID} cannot read the trail: ${read.reason}`,
-          );
-        }
-
-        isReadFailing = true;
-
-        await wait(READ_RETRY_MS);
-
-        continue;
-      }
-
-      if (isReadFailing) {
-        deps.log(`atc events: the watcher of ${subscriptionID} reads the trail again`);
-      }
-
-      isReadFailing = false;
-
-      await deliverPage(deps, { subscriptionID, page: read.page, state });
-    }
-  };
-
-  // A watcher's store closes with the server, so a failure after a stop is
-  // part of shutting down.
-  const runGuardedWatcher = async (subscriptionID: string) => {
-    try {
-      await runWatcher(subscriptionID);
-    } catch (error) {
-      if (!state.stopped) {
-        deps.log(`atc events: the watcher of ${subscriptionID} stopped: ${String(error)}`);
-
-        await wait(RESTART_DELAY_MS);
-      }
-    }
-
-    watching.delete(subscriptionID);
-
-    // A subscribe that stored the row again while this watcher was ending
-    // found it still registered, so its watch started nothing.
-    const renewed = state.stopped ? false : await probeStored(deps, subscriptionID);
-
-    if (renewed) {
-      watch(subscriptionID);
-    }
+      return timerID;
+    },
+    clearTimeout: (timerID: number) => {
+      cancels.get(timerID)?.();
+      cancels.delete(timerID);
+    },
   };
 
   const watch = (subscriptionID: string) => {
-    if (state.stopped || watching.has(subscriptionID)) {
+    if (state.stopped) {
       return;
     }
 
-    watching.add(subscriptionID);
-    void runGuardedWatcher(subscriptionID);
+    const running = watchers.get(subscriptionID);
+
+    if (running !== undefined) {
+      running.send({ type: 'WATCH' });
+
+      return;
+    }
+
+    const actor = createActor(machine, { clock, input: { subscriptionID } });
+
+    actor.subscribe({
+      complete: () => {
+        watchers.delete(subscriptionID);
+      },
+    });
+
+    watchers.set(subscriptionID, actor);
+    actor.start();
   };
 
   return {
@@ -187,9 +128,11 @@ export function createEventDeliverer(options: EventDelivererDeps): EventDelivere
     stop: () => {
       state.stopped = true;
 
-      for (const finish of pendingWaits) {
-        finish();
+      for (const actor of watchers.values()) {
+        actor.stop();
       }
+
+      watchers.clear();
     },
   };
 }
@@ -219,36 +162,22 @@ async function readLiveSubscription(
 const READ_WAIT_MS = 30_000;
 const READ_LIMIT = 50;
 
-type TrailPage = z.infer<typeof EVENTS_PAGE_SCHEMA>;
-
-type TrailRead =
-  | { readonly ok: true; readonly page: TrailPage }
-  | { readonly ok: false; readonly reason: string };
-
-async function readTrailPage(deps: DelivererContext, row: SubscriptionRow): Promise<TrailRead> {
+async function readTrailPage(deps: DelivererContext, row: SubscriptionRow): Promise<TrailPage> {
   const storedName = await readClientName(deps.db, row.client_id);
 
-  try {
-    const answer = await deps.caller.sendRequest(
-      'events.read',
-      { cursor: row.position, waitMs: READ_WAIT_MS, limit: READ_LIMIT },
-      { id: row.client_id, name: normalizeClientName(storedName, 'remote') },
-    );
+  const answer = await deps.caller.sendRequest(
+    'events.read',
+    { cursor: row.position, waitMs: READ_WAIT_MS, limit: READ_LIMIT },
+    { id: row.client_id, name: normalizeClientName(storedName, 'remote') },
+  );
 
-    const parsed = EVENTS_PAGE_SCHEMA.safeParse(answer);
+  const parsed = EVENTS_PAGE_SCHEMA.safeParse(answer);
 
-    return parsed.success
-      ? { ok: true, page: parsed.data }
-      : { ok: false, reason: `the daemon answered with no page: ${parsed.error.message}` };
-  } catch (error) {
-    return { ok: false, reason: String(error) };
+  if (!parsed.success) {
+    throw new Error(`the daemon answered with no page: ${parsed.error.message}`);
   }
-}
 
-interface PageDelivery {
-  readonly subscriptionID: string;
-  readonly page: TrailPage;
-  readonly state: DelivererState;
+  return parsed.data;
 }
 
 async function deliverPage(deps: DelivererContext, delivery: PageDelivery): Promise<void> {
@@ -257,7 +186,7 @@ async function deliverPage(deps: DelivererContext, delivery: PageDelivery): Prom
     // the next delivery and a removed subscription gets none.
     const row = await readLiveSubscription(deps, delivery.subscriptionID);
 
-    if (row === null || delivery.state.stopped) {
+    if (row === null || delivery.signal.aborted) {
       return;
     }
 
@@ -278,7 +207,7 @@ async function deliverPage(deps: DelivererContext, delivery: PageDelivery): Prom
     await writePosition(deps, delivery.subscriptionID, event.cursor);
   }
 
-  if (!delivery.state.stopped) {
+  if (!delivery.signal.aborted) {
     await writePosition(deps, delivery.subscriptionID, delivery.page.cursor);
   }
 }
@@ -334,15 +263,4 @@ async function writePosition(
   position: string,
 ): Promise<void> {
   await deps.subscriptions.advance(subscriptionID, position, deps.clock.now());
-}
-
-// The store closes with the server, and a watcher can end after it closed.
-async function probeStored(deps: DelivererContext, subscriptionID: string): Promise<boolean> {
-  try {
-    const stored = await deps.subscriptions.read(subscriptionID, deps.clock.now());
-
-    return stored !== null;
-  } catch {
-    return false;
-  }
 }
