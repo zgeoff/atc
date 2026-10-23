@@ -8,6 +8,6 @@ export async function tryReadGrants(
   try {
     return await host.readGrants(name);
   } catch (error) {
-    throw toAuthRefusal(error);
+    throw toAuthRefusal(error, host);
   }
 }

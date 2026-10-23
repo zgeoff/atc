@@ -1,7 +1,13 @@
 // `forbidden`: the provider's identity may not make the call; `unauthorized`:
 // the broker refused its credential; `unreachable`: the broker never answered,
 // so the call may or may not have taken effect.
-type CredentialBrokerCode = 'not_found' | 'forbidden' | 'unauthorized' | 'unreachable' | 'refused';
+type CredentialBrokerCode =
+  | 'not_found'
+  | 'forbidden'
+  | 'unauthorized'
+  | 'unreachable'
+  | 'too_old'
+  | 'refused';
 
 // The kind of the execution provider whose broker failed, the broker's own
 // code for the failure, and the data it gave.

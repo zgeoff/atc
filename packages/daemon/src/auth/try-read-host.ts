@@ -5,6 +5,6 @@ export async function tryReadHost(host: CredentialBroker, name: string) {
   try {
     return await host.readHost(name);
   } catch (error) {
-    throw toAuthRefusal(error);
+    throw toAuthRefusal(error, host);
   }
 }

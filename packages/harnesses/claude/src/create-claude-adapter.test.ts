@@ -922,7 +922,7 @@ test("it selects the entry's own placeholders beside the subscription token's", 
         scheme: 'bearer',
       },
       jev: {
-        secret: 'jev-imp-agents',
+        secret: 'jev-agents',
         host: 'api.typesafe.ai',
         header: 'authorization',
         scheme: 'bearer',
@@ -1295,7 +1295,7 @@ test('it gives a subscription guest spawn its MCP servers with the placeholder i
         scheme: 'bearer',
       },
       linear: {
-        secret: 'linear-imp-agents',
+        secret: 'linear-agents',
         host: 'mcp.linear.app',
         header: 'authorization',
         scheme: 'bearer',
@@ -1574,7 +1574,7 @@ test('it refuses a subscription guest spawn whose entry env overrides the sign-i
     expect.objectContaining({
       code: 'auth_target_unsupported',
       message:
-        "claude signs in through impd's broker on this target, but agents.claude.env sets ANTHROPIC_BASE_URL, which would override or route around that sign-in",
+        "claude signs in through this target's broker, but agents.claude.env sets ANTHROPIC_BASE_URL, which would override or route around that sign-in",
       data: { agent: 'claude', problem: 'guest_env_conflict', variable: 'ANTHROPIC_BASE_URL' },
     }),
   );
@@ -1610,7 +1610,7 @@ test('it refuses a subscription guest spawn whose entry settings env overrides t
     expect.objectContaining({
       code: 'auth_target_unsupported',
       message:
-        "claude signs in through impd's broker on this target, but agents.claude.settings.env sets HTTPS_PROXY, which would override or route around that sign-in",
+        "claude signs in through this target's broker, but agents.claude.settings.env sets HTTPS_PROXY, which would override or route around that sign-in",
       data: { agent: 'claude', problem: 'guest_env_conflict', variable: 'HTTPS_PROXY' },
     }),
   );
@@ -2163,7 +2163,7 @@ test('it plans a Codex home in the binding revision when the profiles send a rea
   });
 });
 
-test('it plans no Codex home when the ChatGPT sign-in in impd is not ready', () => {
+test('it plans no Codex home when the ChatGPT sign-in in the broker is not ready', () => {
   const ctx = setupTest();
 
   const config = parseConfig([CLAUDE_PLUGIN], {

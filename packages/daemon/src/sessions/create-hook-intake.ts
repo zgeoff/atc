@@ -55,6 +55,8 @@ interface HookIntakeDeps {
   // shows.
   readonly updateBridgeThread: (sessionID: SessionID, agentSessionID: string) => void;
 
+  readonly onAgentStarted: (sessionID: SessionID) => void;
+
   // Called when a Note line changes nothing: a note from a session the
   // fleet does not list, or an answer or unanswered report that matches no
   // unsettled message the reporting session owns.
@@ -94,6 +96,7 @@ export function createHookIntake(deps: HookIntakeDeps): HookIntake {
   const emitEvent = deps.emitEvent;
   const findHookScope = deps.findHookScope;
   const updateBridgeThread = deps.updateBridgeThread;
+  const onAgentStarted = deps.onAgentStarted;
   const onNoteIgnored = deps.onNoteIgnored;
   const onLastUsedUnchanged = deps.onLastUsedUnchanged;
 
@@ -247,6 +250,8 @@ export function createHookIntake(deps: HookIntakeDeps): HookIntake {
         }
 
         runtime?.bootWaiter?.();
+        onAgentStarted(hookEvent.atcId);
+
         const started = manager.sessions.find((session) => session.id === hookEvent.atcId);
 
         if (started !== undefined && runtime !== undefined && runtime.pendingLastUsed) {

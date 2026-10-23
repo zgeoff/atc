@@ -21,10 +21,10 @@ test('it settles the bindings with each fleet host listed and each target broker
 
   const targets = new Map([
     [
-      'imp',
+      'remote',
       buildMockExecutionTarget({
-        id: 'imp',
-        identity: 'imp:test',
+        id: 'remote',
+        identity: 'remote:test',
         provider: buildStubMemoryProvider({ brokerAuth: broker }),
       }),
     ],
@@ -47,7 +47,7 @@ test('it settles the bindings with each fleet host listed and each target broker
 
   expect(settled).toBeTrue();
   expect(listed).toStrictEqual(new Set([toSessionID('s-0'), toSessionID('s-2')]));
-  expect(findHost?.('imp')).toBe(broker);
+  expect(findHost?.('remote')).toBe(broker);
   expect(findHost?.('local')).toBeNull();
 });
 
@@ -55,7 +55,7 @@ test('it logs a settle that fails and resolves false', async () => {
   const recorder = buildStubLog();
 
   const settled = await tryReconcileAuthBindings(
-    { reconcileBindings: () => Promise.reject(new Error('impd is unreachable')) },
+    { reconcileBindings: () => Promise.reject(new Error('the broker is unreachable')) },
     { loadFleet: () => Promise.resolve([]) },
     new Map(),
     recorder.log,
@@ -64,6 +64,6 @@ test('it logs a settle that fails and resolves false', async () => {
   expect(settled).toBeFalse();
 
   expect(recorder.lines).toStrictEqual([
-    'atc could not settle runtime auth bindings (impd is unreachable)',
+    'atc could not settle runtime auth bindings (the broker is unreachable)',
   ]);
 });

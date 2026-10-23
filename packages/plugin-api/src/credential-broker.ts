@@ -7,6 +7,12 @@ export interface CredentialBroker {
   // The name of the host a host key runs on.
   readonly getHostName: (hostKey: string) => string;
 
+  readonly describe: {
+    readonly name: string;
+    readonly renewSecret?: (secret: string, kind: BrokerSecretKind) => string;
+    readonly upgrade?: string;
+  };
+
   // Rejects when the broker is older than the oldest broker this atc
   // supports.
   readonly verifyVersion: () => Promise<void>;

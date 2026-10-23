@@ -1,6 +1,6 @@
 import type { Clock, SessionID } from '@atc/core';
 import { buildTarArchive } from '@atc/core';
-import type { ExecutionProvider } from '@atc/plugin-api';
+import type { ExecutionProvider, GuestLayout } from '@atc/plugin-api';
 import type { HookEvent } from '@atc/protocol/session';
 import { createActor } from 'xstate';
 import type { Actor } from 'xstate';
@@ -24,6 +24,8 @@ interface BridgeRevivalDeps {
 }
 
 export interface BridgeRevival {
+  readonly watchAgentStart: (sessionID: SessionID) => void;
+
   readonly stop: () => void;
 }
 
@@ -31,13 +33,13 @@ export interface BridgeRevival {
 interface BridgeWrite {
   readonly session: Session;
   readonly provider: ExecutionProvider;
-  readonly files: readonly { readonly path: string; readonly content: string }[];
-  readonly directory: string;
+  readonly readGuest: (host: string) => Promise<GuestLayout>;
+  readonly planFiles: (atc: string) => Record<string, string>;
 }
 
-// A running remote session whose tap stays gone gets its bridge mod written
-// again, once per loss, which makes Claude Code load a mod it turned off.
-// Each session's machine holds its state, and its timers run on the clock.
+// A running remote session with no tap for a while after a tap loss or an
+// agent start gets its bridge mod written again, which makes Claude Code
+// load a mod it turned off.
 export function startBridgeRevival(deps: BridgeRevivalDeps): BridgeRevival {
   const actors = new Map<SessionID, Actor<typeof BRIDGE_REVIVAL_MACHINE>>();
 
@@ -119,23 +121,22 @@ export function startBridgeRevival(deps: BridgeRevivalDeps): BridgeRevival {
 
     const adapter = deps.manager.findAdapter(session.agent);
     const provider = findTransferProvider(session);
-    const guest = provider?.guest;
 
     if (
       adapter?.planGuestBridgeFiles === undefined ||
       provider === null ||
       !provider.remote ||
-      guest === undefined ||
-      guest.atc === null
+      provider.readGuest === undefined
     ) {
       return null;
     }
 
-    const files = Object.entries(adapter.planGuestBridgeFiles(guest.atc)).map(
-      ([path, content]) => ({ path, content }),
-    );
-
-    return { session, provider, files, directory: `${guest.directory}/sessions/${session.id}` };
+    return {
+      session,
+      provider,
+      readGuest: provider.readGuest,
+      planFiles: adapter.planGuestBridgeFiles,
+    };
   };
 
   // A target that refuses transfers, or that left the config, takes no write.
@@ -166,9 +167,20 @@ export function startBridgeRevival(deps: BridgeRevivalDeps): BridgeRevival {
   const transferBridge = async (write: BridgeWrite) => {
     const session = write.session;
 
+    const guest = await write.readGuest(session.hostKey);
+
+    if (guest.atc === null) {
+      return;
+    }
+
+    const files = Object.entries(write.planFiles(guest.atc)).map(([path, content]) => ({
+      path,
+      content,
+    }));
+
     await write.provider.transferArchive(
-      buildTarArchive(write.files),
-      write.directory,
+      buildTarArchive(files),
+      `${guest.directory}/sessions/${session.id}`,
       session.hostKey,
     );
 
@@ -182,7 +194,7 @@ export function startBridgeRevival(deps: BridgeRevivalDeps): BridgeRevival {
       payload: {
         kind: 'note',
         label: 'progress',
-        text: 'atc: this session lost its atc-bridge tap, so its note and answer tools may be gone. atc wrote the bridge mod again, which makes Claude Code load it once more.',
+        text: 'atc: this session has had no atc-bridge tap for a while, so its note and answer tools may be gone. atc wrote the bridge mod again, which makes Claude Code load it once more.',
       },
     });
   };
@@ -194,6 +206,12 @@ export function startBridgeRevival(deps: BridgeRevivalDeps): BridgeRevival {
   });
 
   return {
+    watchAgentStart: (sessionID) => {
+      const actor = actors.get(sessionID) ?? startSessionActor(sessionID);
+
+      actor.send({ type: 'AGENT_STARTED' });
+    },
+
     stop: () => {
       unsubscribe();
 

@@ -90,13 +90,13 @@ export interface ClaudeAdapter extends AgentAdapter {
   readonly planGuestSpawn: (opts: SpawnOptions, guest: GuestPaths) => GuestSpawnPlan | null;
   readonly planGuestBridgeFiles: (atc: string) => Readonly<Record<string, string>>;
 
-  // Seeds the config folder of a session that signs in through impd's
+  // Seeds the config folder of a session that signs in through the target's
   // broker with trust for the clone; any other remote session reads the
   // config of the host's image, which atc never writes.
   readonly planGuestWorkspaceTrust: (root: string) => Readonly<Record<string, string>> | null;
 
   // The repository's own settings files outrank what the session's user
-  // settings hold, so a launch behind impd's broker reads them first.
+  // settings hold, so a launch behind the target's broker reads them first.
   readonly planProjectSettingsCheck: () => ProjectSettingsCheck;
 
   // A session on the daemon's machine reads the user's own Claude config,
@@ -148,7 +148,7 @@ export function createClaudeAdapter(
   const buildModeArgs = (opts: SpawnOptions): string[] =>
     opts.resume === false ? [] : buildRestoreModeArgs(entry.args, entry.settings);
 
-  // a variable overrides the subscription sign-in or routes the CLI around impd's broker
+  // a variable overrides the subscription sign-in or routes the CLI around the target's broker
   const findCredentialOverride = (): DaemonError | null => {
     const settingsEnv = entry.settings?.['env'];
 
@@ -164,7 +164,7 @@ export function createClaudeAdapter(
       if (variable !== undefined) {
         return new DaemonError(
           'auth_target_unsupported',
-          `claude signs in through impd's broker on this target, but agents.${entry.id}.${source === 'args in --settings' ? 'args set' : `${source} sets`} ${variable}${source === 'args in --settings' ? ' in --settings' : ''}, which would override or route around that sign-in`,
+          `claude signs in through this target's broker, but agents.${entry.id}.${source === 'args in --settings' ? 'args set' : `${source} sets`} ${variable}${source === 'args in --settings' ? ' in --settings' : ''}, which would override or route around that sign-in`,
           { agent: entry.id, problem: 'guest_env_conflict', variable },
         );
       }

@@ -140,7 +140,7 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
 
   manager.authBinder = authBinder;
 
-  // Settled in the background, since it reaches impd: each binding a
+  // Settled in the background, since it reaches each target's broker: each binding a
   // stopped daemon left mid-change stays blocked until it is settled.
   void tryReconcileAuthBindings(authBinder, store, targetsByID, manager.log);
 
@@ -179,6 +179,9 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
     findHookScope,
     updateBridgeThread: (sessionID, agentSessionID) => {
       bridges.updateThread(sessionID, agentSessionID);
+    },
+    onAgentStarted: (sessionID) => {
+      revival.watchAgentStart(sessionID);
     },
     ...(opts.onNoteIgnored === undefined ? {} : { onNoteIgnored: opts.onNoteIgnored }),
     ...(opts.onLastUsedUnchanged === undefined

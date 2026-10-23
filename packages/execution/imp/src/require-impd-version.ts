@@ -9,7 +9,7 @@ export function requireImpdVersion(version: string): void {
   } catch {
     throw new ImpPortError(
       'IMPD_OUTDATED',
-      `impd reports version '${version}', which atc cannot compare with ${MIN_IMPD_VERSION}, the oldest impd this atc supports; upgrade impd`,
+      `impd reports version '${version}', which atc cannot compare with ${MIN_IMPD_VERSION}, the oldest impd this atc supports`,
       { version, minimum: MIN_IMPD_VERSION },
     );
   }
@@ -17,7 +17,7 @@ export function requireImpdVersion(version: string): void {
   if (order < 0) {
     throw new ImpPortError(
       'IMPD_OUTDATED',
-      `impd ${version} is older than ${MIN_IMPD_VERSION}, the oldest impd this atc supports; upgrade impd`,
+      `impd ${version} is older than ${MIN_IMPD_VERSION}, the oldest impd this atc supports`,
       { version, minimum: MIN_IMPD_VERSION },
     );
   }

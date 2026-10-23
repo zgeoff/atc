@@ -7,10 +7,12 @@ import type {
   ExecutionCapabilities,
   ExecutionProvider,
   GuestLayout,
+  HarnessSpec,
   HostRequest,
 } from '@atc/plugin-api';
 import { EffectRemainsError, isHostNameAllowed } from '@atc/plugin-api';
 import { buildSessionEnv } from '@atc/protocol/session';
+import invariant from 'tiny-invariant';
 import { buildBusyRefusal } from './build-busy-refusal';
 import { buildGuestEnv } from './build-guest-env';
 import { buildHomeRelativeCommand } from './build-home-relative-command';
@@ -24,6 +26,7 @@ import { createImpLeases } from './create-imp-leases';
 import type { ImpHost } from './imp-host';
 import type { ImpCreateSpec, ImpPort } from './imp-port';
 import { ImpPortError } from './imp-port-error';
+import { IMPD_UPGRADE } from './impd-upgrade';
 import { NO_GZIP_CODE } from './no-gzip-code';
 import { openReporter } from './open-reporter';
 import { toHostRefusal } from './to-host-refusal';
@@ -32,7 +35,7 @@ import UNPACK_SCRIPT from './unpack-archive.sh' with { type: 'text' };
 export interface ImpProvider extends ExecutionProvider {
   readonly kind: 'imp';
 
-  readonly guest: GuestLayout;
+  readonly readGuest: (hostKey: string) => Promise<GuestLayout>;
 
   // The literal start of every imp name this provider builds: the runtime
   // namespace an impd token's imp patterns are checked against.
@@ -86,9 +89,9 @@ interface ImpProviderOptions {
   readonly version: string;
 }
 
-// The folder inside an imp that atc's files go under when the target sets
-// none.
-const GUEST_DIR = '/tmp/atc';
+// The folder, inside the scratch folder impd declares, that atc's files go
+// under when the target sets none.
+const GUEST_FOLDER = 'atc';
 
 // The start of every imp name when the target sets no prefix.
 const IMP_PREFIX = 'atc-';
@@ -137,18 +140,28 @@ export function createImpProvider(
   const leaseSeconds = options.leaseSeconds ?? LEASE_SECONDS;
   const reconnectDelaysMs = options.reconnectDelaysMs ?? RECONNECT_DELAYS_MS;
   const atcBinary = options.atcBinary === undefined ? findOwnLinuxBinary() : options.atcBinary;
-  const directory = target.guestDir ?? GUEST_DIR;
+  const hasGuestATC = target.guestATC !== undefined || atcBinary !== null;
+
+  // impd's scratch folder changes only with impd's own config, so the first
+  // read holds for the provider's life.
+  let guest: GuestLayout | null = null;
 
   // Hooks always run `bin/atc`, since a session's hooks are planned before
   // its imp is readied and the readying decides what that path holds.
-  const guest: GuestLayout = {
-    directory,
-    atc: target.guestATC === undefined && atcBinary === null ? null : `${directory}/bin/atc`,
+  const readLayout = async (): Promise<GuestLayout> => {
+    if (guest !== null) {
+      return guest;
+    }
+
+    const directory = target.guestDir ?? `${await port.readGuestScratchDir()}/${GUEST_FOLDER}`;
+
+    guest = { directory, atc: hasGuestATC ? `${directory}/bin/atc` : null };
+
+    return guest;
   };
 
   const guestATC = createImpGuestATC({
     port,
-    guest,
     guestATC: target.guestATC,
     atcBinary,
     version: options.version,
@@ -223,7 +236,15 @@ export function createImpProvider(
     const timer = request.timer ?? createStepTimer();
 
     try {
-      await timer.withStep('impd-version', () => port.verifyVersion());
+      const layout = await timer.withStep('impd-version', async () => {
+        await port.verifyVersion().catch((error: unknown) => {
+          throw error instanceof ImpPortError && error.code === 'IMPD_OUTDATED'
+            ? new ImpPortError(error.code, `${error.message}; ${IMPD_UPGRADE}`, error.data)
+            : error;
+        });
+
+        return readLayout();
+      });
 
       const existing = await timer.withStep('inspect-imp', () => port.readImp(name));
 
@@ -240,7 +261,7 @@ export function createImpProvider(
       leased = !holdsLease;
 
       await timer.withStep('guest-atc', () =>
-        guestATC.setupGuest(name, request.installATC === true, request.log ?? (() => {})),
+        guestATC.setupGuest(name, layout, request.installATC === true, request.log ?? (() => {})),
       );
     } catch (error) {
       const undone = await tryUndoPrepare(name, label, created, leased);
@@ -311,6 +332,14 @@ export function createImpProvider(
     guestATC.removeImageVersion(name);
   };
 
+  // A harness starts only on a host a readying readied, and each readying
+  // reads the layout first.
+  const openHostReporter = (host: ImpHost, spec: HarnessSpec) => {
+    invariant(guest !== null, 'the imp provider opens a reporter only after a readying');
+
+    return openReporter({ port, guestDir: guest.directory, reconnectDelaysMs }, host, spec);
+  };
+
   const brokerAuth = buildImpCredentialBroker(port, {
     impPrefix,
     getImpName: (hostKey) => getImpName(hostKey),
@@ -333,7 +362,13 @@ export function createImpProvider(
 
     capabilities,
 
-    guest,
+    readGuest: async (hostKey) => {
+      try {
+        return await readLayout();
+      } catch (error) {
+        throw toHostRefusal(error, getImpName(hostKey));
+      }
+    },
 
     impPrefix,
 
@@ -387,19 +422,7 @@ export function createImpProvider(
 
       host.harnesses += 1;
 
-      const reporter =
-        spec.onRelay === undefined
-          ? null
-          : openReporter(
-              {
-                port,
-                guestDir: guest.directory,
-                reconnectDelaysMs,
-              },
-              host,
-              spec,
-            );
-
+      const reporter = spec.onRelay === undefined ? null : openHostReporter(host, spec);
       const command = buildHomeRelativeCommand([spec.bin, ...spec.args], spec.cwd);
 
       return createImpHarness(
