@@ -115,13 +115,13 @@ test('it starts a subscription without a cursor past every event a gateway holds
   const caller = buildStubFleetCaller({
     answer: (request) =>
       ({
-        none: { events: [{ cursor: 'cursor-a' }], cursor: 'cursor-partial', more: true },
-        'cursor-partial': {
+        null: { events: [{ cursor: 'cursor-a' }], cursor: 'cursor-partial', more: true },
+        '"cursor-partial"': {
           events: [{ cursor: 'cursor-b' }],
           cursor: 'cursor-past-all',
           more: false,
         },
-      })[String(request.params?.['cursor'] ?? 'none')] ?? {},
+      })[JSON.stringify(request.params?.['cursor'] ?? null)] ?? {},
   });
 
   const result = await answerSubscribeRequest(
