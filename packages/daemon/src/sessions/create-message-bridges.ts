@@ -20,14 +20,11 @@ import type { MessageBridgeLaunch } from './session-callbacks';
 
 interface MessageBridgesDeps {
   readonly manager: Pick<SessionManager, 'sessions' | 'log'>;
-  readonly store: Pick<
-    StateStore,
-    'updateMessageDelivered' | 'updateNoticeDelivered' | 'readUnsettledMessages'
-  >;
+  readonly store: Pick<StateStore, 'updateNoticeDelivered' | 'readUnsettledMessages'>;
   readonly clock: Clock;
   readonly messages: Pick<
     MessageService,
-    'attachTap' | 'recordMessageStatus' | 'recordNoticeStatus' | 'drainSessionInbox'
+    'attachTap' | 'markMessageDelivered' | 'recordNoticeStatus' | 'drainSessionInbox'
   >;
   readonly taps: Pick<TapRegistry<TapClient>, 'detachAll'>;
 
@@ -102,11 +99,7 @@ export function createMessageBridges(deps: MessageBridgesDeps): MessageBridges {
           return;
         }
 
-        const delivered = await store.updateMessageDelivered(toMessageID(id), owner, clock.now());
-
-        if (delivered !== null) {
-          await messages.recordMessageStatus(sessionID, delivered);
-        }
+        await messages.markMessageDelivered(sessionID, toMessageID(id), owner);
 
         void messages.drainSessionInbox(sessionID);
       },
