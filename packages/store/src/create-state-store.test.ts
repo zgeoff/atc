@@ -532,6 +532,9 @@ test('it carries spawn directories from before their target was recorded over as
 
   const older = new Database(dbPath);
 
+  // A synced commit per migration step takes up to 2 s for the ladder.
+  older.run('PRAGMA synchronous = OFF');
+
   registerTestCleanup(() => {
     older.close();
   });
@@ -714,6 +717,9 @@ test('it adds parent to a fleet row that predates it', async () => {
 
   const older = new Database(dbPath);
 
+  // A synced commit per migration step takes up to 2 s for the ladder.
+  older.run('PRAGMA synchronous = OFF');
+
   registerTestCleanup(() => {
     older.close();
   });
@@ -801,6 +807,9 @@ test('it renames the id column and defaults agent for a store written before bot
 
   const older = new Database(dbPath);
 
+  // A synced commit per migration step takes up to 2 s for the ladder.
+  older.run('PRAGMA synchronous = OFF');
+
   registerTestCleanup(() => {
     older.close();
   });
@@ -840,6 +849,9 @@ test('it adds pinned to a fleet row that predates it', async () => {
 
   const older = new Database(dbPath);
 
+  // A synced commit per migration step takes up to 2 s for the ladder.
+  older.run('PRAGMA synchronous = OFF');
+
   registerTestCleanup(() => {
     older.close();
   });
@@ -878,6 +890,9 @@ test('it adds the last-attached time to a fleet row that predates it', async () 
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
+
+  // A synced commit per migration step takes up to 2 s for the ladder.
+  older.run('PRAGMA synchronous = OFF');
 
   registerTestCleanup(() => {
     older.close();
@@ -922,6 +937,9 @@ test('it adds agent to a fleet row that predates it', async () => {
 
   const older = new Database(dbPath);
 
+  // A synced commit per migration step takes up to 2 s for the ladder.
+  older.run('PRAGMA synchronous = OFF');
+
   registerTestCleanup(() => {
     older.close();
   });
@@ -965,6 +983,9 @@ test('it adds exited to a fleet row that predates it', async () => {
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
+
+  // A synced commit per migration step takes up to 2 s for the ladder.
+  older.run('PRAGMA synchronous = OFF');
 
   registerTestCleanup(() => {
     older.close();
@@ -1072,6 +1093,9 @@ test('it adds the restart results table and leaves every row of an older databas
 
   const older = new Database(dbPath);
 
+  // A synced commit per migration step takes up to 2 s for the ladder.
+  older.run('PRAGMA synchronous = OFF');
+
   registerTestCleanup(() => {
     older.close();
   });
@@ -1135,6 +1159,9 @@ test('it drops the resume column from a database that stopped at the step that a
 
   const older = new Database(dbPath);
 
+  // A synced commit per migration step takes up to 2 s for the ladder.
+  older.run('PRAGMA synchronous = OFF');
+
   registerTestCleanup(() => {
     older.close();
   });
@@ -1178,6 +1205,9 @@ test('it records the resume column drop and keeps the fleet when a crash left th
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
+
+  // A synced commit per migration step takes up to 2 s for the ladder.
+  older.run('PRAGMA synchronous = OFF');
 
   registerTestCleanup(() => {
     older.close();
@@ -1224,6 +1254,9 @@ test('it reads a runtime auth binding bound before the host column rename as the
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
+
+  // A synced commit per migration step takes up to 2 s for the ladder.
+  older.run('PRAGMA synchronous = OFF');
 
   registerTestCleanup(() => {
     older.close();
@@ -1272,6 +1305,9 @@ test('it finishes the host column rename and keeps the binding when a crash left
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
+
+  // A synced commit per migration step takes up to 2 s for the ladder.
+  older.run('PRAGMA synchronous = OFF');
 
   registerTestCleanup(() => {
     older.close();
@@ -1322,6 +1358,9 @@ test('it renames the workspace directory column and keeps the workspace of a dat
 
   const older = new Database(dbPath);
 
+  // A synced commit per migration step takes up to 2 s for the ladder.
+  older.run('PRAGMA synchronous = OFF');
+
   registerTestCleanup(() => {
     older.close();
   });
@@ -1367,6 +1406,9 @@ test('it keeps the workspace when a crash left the directory column renamed but 
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
+
+  // A synced commit per migration step takes up to 2 s for the ladder.
+  older.run('PRAGMA synchronous = OFF');
 
   registerTestCleanup(() => {
     older.close();
@@ -1430,6 +1472,9 @@ test('it keeps the fleet of a migrated database across a reopen', async () => {
 
   const older = new Database(dbPath);
 
+  // A synced commit per migration step takes up to 2 s for the ladder.
+  older.run('PRAGMA synchronous = OFF');
+
   registerTestCleanup(() => {
     older.close();
   });
@@ -1479,6 +1524,9 @@ test('it ends a fresh database at the same fleet schema as a fully migrated old 
   const oldPath = join(temporaryDirectory.path, 'old.db');
 
   const old = new Database(oldPath);
+
+  // A synced commit per migration step takes up to 2 s for the ladder.
+  old.run('PRAGMA synchronous = OFF');
 
   registerTestCleanup(() => {
     old.close();
@@ -3780,6 +3828,9 @@ test('it rebuilds a fleet at the model-and-effort shape keyed by a minted sessio
 
   const older = new Database(dbPath);
 
+  // A synced commit per migration step takes up to 2 s for the ladder.
+  older.run('PRAGMA synchronous = OFF');
+
   registerTestCleanup(() => {
     older.close();
   });
@@ -3925,6 +3976,9 @@ test('it records this daemon as the owner of every fleet row it migrates', async
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
+
+  // A synced commit per migration step takes up to 2 s for the ladder.
+  older.run('PRAGMA synchronous = OFF');
 
   registerTestCleanup(() => {
     older.close();
