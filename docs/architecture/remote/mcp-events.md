@@ -90,10 +90,10 @@ restarted server resumes from the first event it had not reached.
 
 For each event of its type, the watcher posts one signed JSON body: the event id, the type, the time
 the event happened, the session id in `data`, and the cursor past the event. The headers follow the
-Standard Webhooks profile the draft defines: a `webhook-id` that every attempt at one event keeps,
-the signing time, an HMAC-SHA256 signature over the id, the time and the exact body bytes, and the
-subscription id. The event id derives from the event's place in the trail, so the same event
-delivered twice carries the same id.
+Standard Webhooks profile the draft defines: a `webhook-id`, the signing time, an HMAC-SHA256
+signature over the id, the time and the exact body bytes, and the subscription id. The event id
+derives from the event's place in the trail, and the `webhook-id` from the subscription and that
+place, so a retry, or a delivery again after a restart, carries the same ids.
 
 The server posts only to a callback whose host resolves to public addresses, and connects to the
 address it checked, with the URL's host name for TLS, so a DNS answer that changes between the check

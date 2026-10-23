@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import type { Clock } from '@atc/core';
 import type { Kysely } from 'kysely';
 import invariant from 'tiny-invariant';
@@ -296,8 +296,9 @@ async function deliverEvent(
   delivery: PageDelivery,
   event: z.infer<typeof TRAIL_EVENT_SCHEMA>,
 ): Promise<boolean> {
-  const webhookID = `msg_${randomBytes(16).toString('base64url')}`;
   const digest = createHash('sha256').update(event.cursor).digest('hex');
+  const delivered = createHash('sha256').update(`${delivery.subscriptionID}.${event.cursor}`);
+  const webhookID = `msg_${delivered.digest('hex').slice(0, 32)}`;
 
   for (let attempt = 1; ; attempt += 1) {
     // The row is read again before each attempt, so a refresh's new secret
@@ -308,7 +309,7 @@ async function deliverEvent(
       return true;
     }
 
-    const reads = delivery.state.stopped ? false : await deps.probeAccess(row.client_id);
+    const reads = await probeAccessOrRecheck(deps, delivery, row.client_id);
 
     if (!reads) {
       return false;
@@ -348,6 +349,32 @@ async function deliverEvent(
 
     await delivery.wait(step.delayMs);
   }
+}
+
+// A retry that meets the gap of a token rotation waits it out in place, so it
+// keeps its attempt count.
+async function probeAccessOrRecheck(
+  deps: EventDelivererDeps,
+  delivery: PageDelivery,
+  clientID: string,
+): Promise<boolean> {
+  if (delivery.state.stopped) {
+    return false;
+  }
+
+  const reads = await deps.probeAccess(clientID);
+
+  if (reads) {
+    return true;
+  }
+
+  await delivery.wait(ACCESS_RECHECK_MS);
+
+  if (delivery.state.stopped) {
+    return false;
+  }
+
+  return deps.probeAccess(clientID);
 }
 
 interface SignedRequestParts {

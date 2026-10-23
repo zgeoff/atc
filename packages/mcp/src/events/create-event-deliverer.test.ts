@@ -950,6 +950,7 @@ test('it delivers an event again after a restart when a stop cut its retries sho
   invariant(cut && redelivered, 'an endpoint received no delivery');
 
   expect(redelivered.body).toBe(cut.body);
+  expect(redelivered.headers['webhook-id']).toBe(cut.headers['webhook-id']);
 });
 
 test('it stops retrying an event once its client loses read, and rechecks access before it removes anything', async () => {
@@ -1016,6 +1017,81 @@ test('it stops retrying an event once its client loses read, and rechecks access
 
   expect(receiver.received).toHaveLength(1);
   expect(stored).toStrictEqual([{ position: getString(head, 'cursor') }]);
+});
+
+test('it keeps a retry and its webhook-id across the gap of a token rotation', async () => {
+  const ctx = await setupTest();
+
+  const receiver = buildStubWebhookReceiver({ answers: [{ status: 503 }] });
+  const access = { granted: true };
+
+  const head = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
+
+  await ctx.db
+    .insertInto('atc_event_subscription')
+    .values({
+      id: 'sub_0123456789abcdef0123456789abcdef',
+      client_id: 'client-one',
+      url: 'https://hooks.example.com/hook',
+      name: 'session.turn_done',
+      arguments: '{}',
+      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+      position: getString(head, 'cursor'),
+      refresh_before: '2026-10-24T12:00:00.000Z',
+      created_at: '2026-10-23T12:00:00.000Z',
+    })
+    .execute();
+
+  const deliverer = createEventDeliverer({
+    db: ctx.db,
+    caller: ctx.caller,
+    send: receiver.send,
+    clock: ctx.clock,
+    probeAccess: () => Promise.resolve(access.granted),
+    log: () => {},
+  });
+
+  registerTestCleanup(deliverer.stop);
+
+  await deliverer.start();
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.directory,
+    cols: 80,
+    rows: 24,
+  });
+
+  await ctx.daemon.sendHookLines({
+    atcId: getString(getRecord(spawned, 'session'), 'id'),
+    event: 'Stop',
+    payload: {},
+  });
+
+  await waitFor(() => {
+    expect(ctx.clock.collectPending()).toStrictEqual([30_000]);
+  });
+
+  access.granted = false;
+
+  ctx.clock.advance(30_000);
+
+  await waitFor(() => {
+    expect(ctx.clock.collectPending()).toStrictEqual([5000]);
+  });
+
+  access.granted = true;
+
+  ctx.clock.advance(5000);
+
+  await waitFor(() => {
+    expect(receiver.received).toHaveLength(2);
+  });
+
+  const [first, retry] = receiver.received;
+
+  invariant(first && retry, 'the endpoint received fewer than two attempts');
+
+  expect(retry.headers['webhook-id']).toBe(first.headers['webhook-id']);
 });
 
 test('it ends a retired watcher and starts afresh on the next watch', async () => {
