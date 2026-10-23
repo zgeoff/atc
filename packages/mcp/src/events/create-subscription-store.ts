@@ -155,6 +155,7 @@ const SUBSCRIPTION_MOVES = {
   advance: { from: ['live'], to: 'live' },
   expire: { from: ['expired'], to: 'removed' },
   end: { from: ['live', 'expired'], to: 'removed' },
+  endForClient: { from: ['live', 'expired'], to: 'removed' },
   drop: { from: ['live', 'expired'], to: 'removed' },
 } as const satisfies Record<string, SubscriptionMove>;
 
@@ -164,7 +165,7 @@ type SubscriptionMoveName = keyof typeof SUBSCRIPTION_MOVES;
 // starts from live rows only, or from expired rows only, holds the write to
 // rows on that side of the present. A move from both states needs no bound.
 function getStateBound(
-  move: Exclude<SubscriptionMoveName, 'end' | 'drop'>,
+  move: Exclude<SubscriptionMoveName, 'end' | 'endForClient' | 'drop'>,
   now: number,
 ): StateBound {
   const from: readonly string[] = SUBSCRIPTION_MOVES[move].from;
