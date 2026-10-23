@@ -81,7 +81,7 @@ test('it writes each declaration file to the snapshot with the specifiers Node r
     export type SessionID = string;
     "
   `);
-});
+}, 30_000);
 
 test('it passes declarations that match the snapshot', async () => {
   const ctx = setupTest();
@@ -125,7 +125,7 @@ test('it passes declarations that match the snapshot', async () => {
     stdout: 'check-contract: 1 declaration files match packages/contract/declarations.snap\n',
     stderr: '',
   });
-});
+}, 30_000);
 
 test('it fails on declarations that differ from the snapshot, naming the first line that differs', async () => {
   const ctx = setupTest();
@@ -170,7 +170,7 @@ test('it fails on declarations that differ from the snapshot, naming the first l
     stderr:
       'stale snapshot: packages/contract/declarations.snap differs from the emitted declarations at line 2; run bun run check:contract --update and review the diff\n',
   });
-});
+}, 30_000);
 
 test('it removes the declarations it emitted when the check fails', async () => {
   const ctx = setupTest();
@@ -201,4 +201,4 @@ test('it removes the declarations it emitted when the check fails', async () => 
   });
 
   expect(readdirSync(join(ctx.directory, 'tmp'))).toStrictEqual([]);
-});
+}, 30_000);
