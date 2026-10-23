@@ -8,13 +8,14 @@ import type { MCPAuthSchema } from '../auth/mcp-auth-schema';
 export async function probeReadAccess(
   db: Kysely<MCPAuthSchema>,
   clientID: string,
+  now: number,
 ): Promise<boolean> {
   const grants = await db
     .selectFrom('oauthRefreshToken')
     .select('scopes')
     .where('clientId', '=', clientID)
     .where('revoked', 'is', null)
-    .where('expiresAt', '>', new Date().toISOString())
+    .where('expiresAt', '>', new Date(now).toISOString())
     .execute();
 
   return grants.some((grant) => (parseJSONStrings(grant.scopes) ?? []).includes('read'));

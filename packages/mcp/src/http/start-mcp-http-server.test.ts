@@ -976,7 +976,7 @@ test('it refuses an access token once its grant is revoked', async () => {
 
   invariant(before.status === 200, 'the token did not work before the revoke');
 
-  await revokeGrant(ctx.store.db, grant.grantID);
+  await revokeGrant(ctx.store.db, grant.grantID, Date.now());
 
   const after = await fetch(`${ctx.url}/mcp`, {
     method: 'POST',
@@ -1035,7 +1035,7 @@ test('it refuses to refresh a token once its grant is revoked', async () => {
 
   invariant(before.status === 200, 'the token did not work before the revoke');
 
-  await revokeGrant(ctx.store.db, grant.grantID);
+  await revokeGrant(ctx.store.db, grant.grantID, Date.now());
 
   const refreshed = await fetch(`${ctx.url}/oauth2/token`, {
     method: 'POST',
@@ -1080,7 +1080,7 @@ test('it shows the consent page again to a client whose grant was revoked', asyn
 
   invariant(grant !== undefined, 'the exchange left no grant');
 
-  await revokeGrant(ctx.store.db, grant.grantID);
+  await revokeGrant(ctx.store.db, grant.grantID, Date.now());
 
   const authorize = new URL(`${ctx.url}/oauth2/authorize`);
 
@@ -3993,7 +3993,7 @@ test('it refuses the refresh token of a grant revoked before a restart', async (
 
   invariant(grant !== undefined, 'the exchange left no grant');
 
-  await revokeGrant(ctx.store.db, grant.grantID);
+  await revokeGrant(ctx.store.db, grant.grantID, Date.now());
 
   await ctx.restartServer();
 

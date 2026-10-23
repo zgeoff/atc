@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { EventMethodDeps } from './answer-subscribe-request';
 import { buildSubscriptionID } from './build-subscription-id';
+import { createSubscriptionStore } from './create-subscription-store';
 
 // ChatGPT names the subscription by the key it subscribed with, not by its id.
 export const UNSUBSCRIBE_PARAMS = z.looseObject({
@@ -26,11 +27,7 @@ export async function answerUnsubscribeRequest(
     arguments: '{}',
   });
 
-  await deps.db
-    .deleteFrom('atc_event_subscription')
-    .where('id', '=', id)
-    .where('client_id', '=', deps.clientID)
-    .execute();
+  await createSubscriptionStore(deps.db).end(id);
 
   deps.deliverer.retire(id);
 

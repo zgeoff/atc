@@ -14,6 +14,7 @@ import { openMCPAuth } from '../auth/open-mcp-auth';
 import type { HTTPServerContext, Requester, VerifiedAccess } from '../auth/types';
 import { createEventDeliverer } from '../events/create-event-deliverer';
 import { createWebhookSender } from '../events/create-webhook-sender';
+import { isPublicAddress } from '../events/is-public-address';
 import { probeReadAccess } from '../events/probe-read-access';
 import { registerEventMethods } from '../events/register-event-methods';
 import type { WebhookSender } from '../events/types';
@@ -209,14 +210,20 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
     throw error;
   }
 
-  const sendWebhook = options.sendWebhook ?? createWebhookSender({ resolveHost: resolveAddresses });
+  const sendWebhook =
+    options.sendWebhook ??
+    createWebhookSender({
+      resolveHost: resolveAddresses,
+      isAllowedAddress: isPublicAddress,
+      transport: (target, init) => fetch(target, init),
+    });
 
   const deliverer = createEventDeliverer({
     db: store.db,
     caller: options.caller,
     send: sendWebhook,
     clock,
-    probeAccess: (clientID) => probeReadAccess(store.db, clientID),
+    probeAccess: (clientID) => probeReadAccess(store.db, clientID, clock.now()),
     log: options.printRequest,
   });
 

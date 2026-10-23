@@ -13,10 +13,12 @@ import {
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { openMCPAuth } from '../auth/open-mcp-auth';
+import { buildStubFleetCaller } from '../testing/build-stub-fleet-caller';
 import { buildStubWebhookReceiver } from '../testing/build-stub-webhook-receiver';
 import { openTestAuthDatabase } from '../testing/open-test-auth-database';
 import { createTransportCaller } from '../tools/create-transport-caller';
 import { createEventDeliverer } from './create-event-deliverer';
+import type { WebhookSender } from './types';
 
 // A daemon whose every hook line becomes a finished turn, a caller that
 // reaches it, and the authorization database the subscriptions live in.
@@ -504,6 +506,74 @@ test('it keeps a subscription whose client holds read again on the recheck, as a
   await waitFor(() => {
     expect(receiver.received).toHaveLength(1);
   });
+});
+
+test('it delivers nothing and keeps its position when the client loses read during a read of the trail', async () => {
+  const ctx = await setupTest();
+
+  const receiver = buildStubWebhookReceiver();
+  const access = { granted: true };
+
+  const probeAccess = mock<(clientID: string) => Promise<boolean>>(() =>
+    Promise.resolve(access.granted),
+  );
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.directory,
+    cols: 80,
+    rows: 24,
+  });
+
+  const head = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
+
+  await ctx.db
+    .insertInto('atc_event_subscription')
+    .values({
+      id: 'sub_0123456789abcdef0123456789abcdef',
+      client_id: 'client-one',
+      url: 'https://hooks.example.com/hook',
+      name: 'session.turn_done',
+      arguments: '{}',
+      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+      position: getString(head, 'cursor'),
+      refresh_before: '2026-10-24T12:00:00.000Z',
+      created_at: '2026-10-23T12:00:00.000Z',
+    })
+    .execute();
+
+  const deliverer = createEventDeliverer({
+    db: ctx.db,
+    caller: ctx.caller,
+    send: receiver.send,
+    clock: ctx.clock,
+    probeAccess,
+    log: () => {},
+  });
+
+  registerTestCleanup(deliverer.stop);
+
+  await deliverer.start();
+
+  await waitFor(() => {
+    expect(probeAccess).toHaveBeenCalledOnce();
+  });
+
+  access.granted = false;
+
+  await ctx.daemon.sendHookLines({
+    atcId: getString(getRecord(spawned, 'session'), 'id'),
+    event: 'Stop',
+    payload: {},
+  });
+
+  await waitFor(() => {
+    expect(ctx.clock.collectPending()).toStrictEqual([5000]);
+  });
+
+  const stored = await ctx.db.selectFrom('atc_event_subscription').select('position').execute();
+
+  expect(receiver.received).toBeEmpty();
+  expect(stored).toStrictEqual([{ position: getString(head, 'cursor') }]);
 });
 
 test('it removes a subscription past its refreshBefore and delivers nothing to it', async () => {
@@ -1241,4 +1311,141 @@ test('it ends a retired watcher and starts afresh on the next watch', async () =
   });
 
   expect(pendingAfterRetire).toStrictEqual([]);
+});
+
+test('it logs the first failed read of the trail with its cause, and the read that recovers', async () => {
+  const ctx = await setupTest();
+
+  const daemon = { state: 'down' };
+  const log = mock<(line: string) => void>();
+
+  const caller = buildStubFleetCaller({
+    answer: (request) =>
+      new Map<string, () => Promise<Readonly<Record<string, unknown>>>>([
+        ['down:cursor-one', () => Promise.reject(new Error('connect ENOENT /run/atc/atc.sock'))],
+        ['up:cursor-one', () => Promise.resolve({ events: [], cursor: 'cursor-two', more: false })],
+      ]).get(`${daemon.state}:${String(request.params?.['cursor'])}`)?.() ??
+      Promise.withResolvers<Readonly<Record<string, unknown>>>().promise,
+  });
+
+  await ctx.db
+    .insertInto('atc_event_subscription')
+    .values({
+      id: 'sub_0123456789abcdef0123456789abcdef',
+      client_id: 'client-one',
+      url: 'https://hooks.example.com/hook',
+      name: 'session.turn_done',
+      arguments: '{}',
+      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+      position: 'cursor-one',
+      refresh_before: '2026-10-24T12:00:00.000Z',
+      created_at: '2026-10-23T12:00:00.000Z',
+    })
+    .execute();
+
+  const deliverer = createEventDeliverer({
+    db: ctx.db,
+    caller,
+    send: buildStubWebhookReceiver().send,
+    clock: ctx.clock,
+    probeAccess: () => Promise.resolve(true),
+    log,
+  });
+
+  registerTestCleanup(deliverer.stop);
+
+  await deliverer.start();
+
+  await waitFor(() => {
+    expect(ctx.clock.collectPending()).toStrictEqual([5000]);
+  });
+
+  ctx.clock.advance(5000);
+
+  await waitFor(() => {
+    expect(caller.requests).toHaveLength(2);
+    expect(ctx.clock.collectPending()).toStrictEqual([5000]);
+  });
+
+  daemon.state = 'up';
+
+  ctx.clock.advance(5000);
+
+  await waitFor(() => {
+    expect(caller.requests).toHaveLength(4);
+  });
+
+  expect(log.mock.calls).toStrictEqual([
+    [
+      'atc events: the watcher of sub_0123456789abcdef0123456789abcdef cannot read the trail: Error: connect ENOENT /run/atc/atc.sock',
+    ],
+    ['atc events: the watcher of sub_0123456789abcdef0123456789abcdef reads the trail again'],
+  ]);
+});
+
+test('it waits before it starts a failed watcher again', async () => {
+  const ctx = await setupTest();
+
+  const send = mock<WebhookSender>(() => Promise.reject(new Error('the store is read-only')));
+  const log = mock<(line: string) => void>();
+
+  const head = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
+
+  await ctx.db
+    .insertInto('atc_event_subscription')
+    .values({
+      id: 'sub_0123456789abcdef0123456789abcdef',
+      client_id: 'client-one',
+      url: 'https://hooks.example.com/hook',
+      name: 'session.turn_done',
+      arguments: '{}',
+      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+      position: getString(head, 'cursor'),
+      refresh_before: '2026-10-24T12:00:00.000Z',
+      created_at: '2026-10-23T12:00:00.000Z',
+    })
+    .execute();
+
+  const deliverer = createEventDeliverer({
+    db: ctx.db,
+    caller: ctx.caller,
+    send,
+    clock: ctx.clock,
+    probeAccess: () => Promise.resolve(true),
+    log,
+  });
+
+  registerTestCleanup(deliverer.stop);
+
+  await deliverer.start();
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.directory,
+    cols: 80,
+    rows: 24,
+  });
+
+  await ctx.daemon.sendHookLines({
+    atcId: getString(getRecord(spawned, 'session'), 'id'),
+    event: 'Stop',
+    payload: {},
+  });
+
+  await waitFor(() => {
+    expect(ctx.clock.collectPending()).toStrictEqual([30_000]);
+  });
+
+  const sentBeforeRestart = send.mock.calls.length;
+
+  ctx.clock.advance(30_000);
+
+  await waitFor(() => {
+    expect(send).toHaveBeenCalledTimes(2);
+  });
+
+  expect(sentBeforeRestart).toBe(1);
+
+  expect(log).toHaveBeenCalledWith(
+    'atc events: the watcher of sub_0123456789abcdef0123456789abcdef stopped: Error: the store is read-only',
+  );
 });

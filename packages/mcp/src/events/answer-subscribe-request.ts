@@ -1,12 +1,14 @@
 import type { Clock } from '@atc/core';
+import { EVENTS_PAGE_SCHEMA } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
 import { ProtocolError } from '@modelcontextprotocol/server';
 import type { Kysely } from 'kysely';
-import { z } from 'zod';
+import type { z } from 'zod';
 import type { MCPAuthSchema } from '../auth/mcp-auth-schema';
 import type { FleetCaller } from '../tools/types';
 import { buildSubscriptionID } from './build-subscription-id';
 import type { EventDeliverer } from './create-event-deliverer';
+import { createSubscriptionStore } from './create-subscription-store';
 import { EVENT_ERROR_CODES } from './event-error-codes';
 import { parseSubscribeRequest } from './parse-subscribe-request';
 import type { SUBSCRIBE_PARAMS, SubscribeRequest } from './parse-subscribe-request';
@@ -53,28 +55,35 @@ export async function answerSubscribeRequest(
 
   await requireVerifiedCallback(deps, request, id);
 
-  const existing = await deps.db
-    .selectFrom('atc_event_subscription')
-    .select(['position', 'refresh_before'])
-    .where('id', '=', id)
-    .executeTakeFirst();
+  const store = createSubscriptionStore(deps.db);
 
-  const isRefresh = existing !== undefined && Date.parse(existing.refresh_before) > now;
-
-  // A row past its refreshBefore that the watcher has yet to remove is gone,
-  // so the subscribe starts afresh from the client's cursor, and the old
-  // watcher, whose pending read started from the old position, ends.
-  const position = isRefresh ? existing.position : await readStartPosition(deps, request.cursor);
-
-  if (!isRefresh) {
-    deps.deliverer.retire(id);
-  }
+  const existing = await store.read(id, now);
 
   const refreshBefore = new Date(now + pickTTL(request.ttlMs)).toISOString();
 
-  await deps.db
-    .insertInto('atc_event_subscription')
-    .values({
+  if (existing?.state === 'live') {
+    const refreshed = await store.refresh(
+      id,
+      { secret: request.secret, refresh_before: refreshBefore },
+      now,
+    );
+
+    if (refreshed) {
+      deps.deliverer.watch(id);
+
+      return { id, refreshBefore, cursor: existing.row.position, truncated: false };
+    }
+  }
+
+  // A subscription past its refreshBefore that the watcher has yet to remove
+  // is gone, so the subscribe starts afresh from the client's cursor, and the
+  // old watcher, whose pending read started from the old position, ends.
+  const position = await readStartPosition(deps, request.cursor);
+
+  deps.deliverer.retire(id);
+
+  const started = await store.start(
+    {
       id,
       client_id: deps.clientID,
       url: request.url,
@@ -84,13 +93,15 @@ export async function answerSubscribeRequest(
       position,
       refresh_before: refreshBefore,
       created_at: new Date(now).toISOString(),
-    })
-    .onConflict((conflict) =>
-      conflict
-        .column('id')
-        .doUpdateSet({ secret: request.secret, position, refresh_before: refreshBefore }),
-    )
-    .execute();
+    },
+    now,
+  );
+
+  // A subscribe of the same key that started the subscription meanwhile made
+  // it live, so this one refreshes it instead.
+  if (!started) {
+    return answerSubscribeRequest(deps, params);
+  }
 
   deps.deliverer.watch(id);
 
@@ -145,6 +156,26 @@ async function requireVerifiedCallback(
     .execute();
 }
 
+const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
+const MAX_TTL_MS = 7 * DEFAULT_TTL_MS;
+
+// The shortest lifetime granted, so a client cannot make atc refresh it in a loop.
+const MIN_TTL_MS = 60 * 1000;
+
+// A request for no expiry gets the longest lifetime instead, so a client that
+// stops refreshing loses its subscription in the end.
+function pickTTL(ttlMs: number | null | undefined): number {
+  if (ttlMs === undefined) {
+    return DEFAULT_TTL_MS;
+  }
+
+  if (ttlMs === null) {
+    return MAX_TTL_MS;
+  }
+
+  return Math.min(Math.max(ttlMs, MIN_TTL_MS), MAX_TTL_MS);
+}
+
 // A client's cursor starts delivery after the event it points past, so the
 // events it missed while it held no subscription arrive. No cursor starts
 // after the newest event.
@@ -166,7 +197,7 @@ async function readStartPosition(deps: EventMethodDeps, cursor: string | null): 
   return cursor;
 }
 
-const HEAD_PAGE_SCHEMA = z.object({ cursor: z.string(), more: z.boolean().optional() });
+const HEAD_PAGE_SCHEMA = EVENTS_PAGE_SCHEMA.pick({ cursor: true, more: true });
 
 // The largest page a read returns.
 const HEAD_READ_LIMIT = 200;
@@ -179,7 +210,7 @@ async function readHeadPosition(deps: EventMethodDeps): Promise<string> {
 
   let page = HEAD_PAGE_SCHEMA.parse(first);
 
-  while (page.more === true) {
+  while (page.more) {
     const next = await deps.caller.sendRequest('events.read', {
       cursor: page.cursor,
       limit: HEAD_READ_LIMIT,
@@ -189,24 +220,4 @@ async function readHeadPosition(deps: EventMethodDeps): Promise<string> {
   }
 
   return page.cursor;
-}
-
-const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
-const MAX_TTL_MS = 7 * DEFAULT_TTL_MS;
-
-// The shortest lifetime granted, so a client cannot make atc refresh it in a loop.
-const MIN_TTL_MS = 60 * 1000;
-
-// A request for no expiry gets the longest lifetime instead, so a client that
-// stops refreshing loses its subscription in the end.
-function pickTTL(ttlMs: number | null | undefined): number {
-  if (ttlMs === undefined) {
-    return DEFAULT_TTL_MS;
-  }
-
-  if (ttlMs === null) {
-    return MAX_TTL_MS;
-  }
-
-  return Math.min(Math.max(ttlMs, MIN_TTL_MS), MAX_TTL_MS);
 }

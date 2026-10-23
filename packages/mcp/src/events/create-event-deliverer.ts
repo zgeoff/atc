@@ -1,13 +1,19 @@
 import { createHash } from 'node:crypto';
 import type { Clock } from '@atc/core';
+import { EVENTS_PAGE_SCHEMA } from '@atc/protocol';
 import type { Kysely } from 'kysely';
 import invariant from 'tiny-invariant';
-import { z } from 'zod';
+import { createActor } from 'xstate';
+import type { Actor } from 'xstate';
 import type { MCPAuthSchema } from '../auth/mcp-auth-schema';
 import { normalizeClientName } from '../auth/normalize-client-name';
 import { readClientName } from '../auth/read-client-name';
 import type { FleetCaller } from '../tools/types';
 import { buildWebhookRequest } from './build-webhook-request';
+import { createSubscriptionStore } from './create-subscription-store';
+import type { SubscriptionRow, SubscriptionStore } from './create-subscription-store';
+import { createSubscriptionWatcherMachine } from './create-subscription-watcher-machine';
+import type { PageDelivery, TrailPage } from './create-subscription-watcher-machine';
 import { EVENT_TYPES } from './event-types';
 import { parseWebhookSecret } from './parse-webhook-secret';
 import { pickDeliveryStep } from './pick-delivery-step';
@@ -39,235 +45,157 @@ export interface EventDeliverer {
   readonly stop: () => void;
 }
 
-interface WatcherState {
-  stopped: boolean;
-  readonly waits: Set<() => void>;
+interface DelivererContext extends EventDelivererDeps {
+  readonly subscriptions: SubscriptionStore;
 }
-
-// How long a watcher waits after a read the daemon could not answer.
-const READ_RETRY_MS = 5000;
-
-// The authorization server rotates a refresh token by revoking it and then
-// storing its successor, in two writes, so a watcher that finds no grant with
-// read checks again after this wait before it removes the subscription.
-const ACCESS_RECHECK_MS = 5000;
 
 // Each subscription's watcher reads the trail as the subscription's client,
 // so it sees only the sessions the client's principal reaches, and it stores
 // how far it got, so a restarted server resumes where it stopped.
-export function createEventDeliverer(deps: EventDelivererDeps): EventDeliverer {
-  const watchers = new Map<string, WatcherState>();
+export function createEventDeliverer(options: EventDelivererDeps): EventDeliverer {
+  const deps: DelivererContext = { ...options, subscriptions: createSubscriptionStore(options.db) };
 
-  const deliverer = { stopped: false };
+  const machine = createSubscriptionWatcherMachine({
+    readSubscription: (subscriptionID) => readLiveSubscription(deps, subscriptionID),
+    probeAccess: deps.probeAccess,
+    readTrail: (row) => readTrailPage(deps, row),
+    deliverPage: (delivery) => deliverPage(deps, delivery),
+    endSubscription: async (subscriptionID) => {
+      await deps.subscriptions.end(subscriptionID);
+    },
+    log: deps.log,
+  });
 
-  const makeWait = (state: WatcherState) => (delayMs: number) => {
-    const resolvers = Promise.withResolvers<void>();
+  const watchers = new Map<string, Actor<typeof machine>>();
 
-    const finish = () => {
-      state.waits.delete(finish);
+  const state = { stopped: false };
 
-      cancel();
+  // xstate's clock takes a timer id, and the server's clock hands back a cancel
+  const cancels = new Map<number, () => void>();
 
-      resolvers.resolve();
-    };
+  let nextTimerID = 0;
 
-    const cancel = deps.clock.schedule(finish, delayMs);
+  const clock = {
+    setTimeout: (fn: () => void, timeout: number) => {
+      const timerID = nextTimerID++;
 
-    state.waits.add(finish);
+      cancels.set(
+        timerID,
+        deps.clock.schedule(() => {
+          cancels.delete(timerID);
 
-    return resolvers.promise;
-  };
+          fn();
+        }, timeout),
+      );
 
-  const runWatcher = async (subscriptionID: string, state: WatcherState) => {
-    const wait = makeWait(state);
-
-    for (;;) {
-      const row = await readLiveSubscription(deps, subscriptionID);
-
-      if (row === null || state.stopped) {
-        return;
-      }
-
-      const reads = await deps.probeAccess(row.client_id);
-
-      if (!reads) {
-        await wait(ACCESS_RECHECK_MS);
-
-        const lost = !state.stopped && !(await deps.probeAccess(row.client_id));
-
-        if (lost) {
-          await deps.db
-            .deleteFrom('atc_event_subscription')
-            .where('id', '=', subscriptionID)
-            .execute();
-
-          return;
-        }
-
-        continue;
-      }
-
-      const page = await tryReadPage(deps, row);
-
-      if (state.stopped) {
-        return;
-      }
-
-      await (page === null
-        ? wait(READ_RETRY_MS)
-        : deliverPage(deps, { subscriptionID, page, state, wait }));
-    }
-  };
-
-  // A watcher's store closes with the server, so a failure after a stop is
-  // part of shutting down.
-  const runGuardedWatcher = async (subscriptionID: string, state: WatcherState) => {
-    try {
-      await runWatcher(subscriptionID, state);
-    } catch (error) {
-      if (!state.stopped) {
-        deps.log(`atc events: the watcher of ${subscriptionID} stopped: ${String(error)}`);
-      }
-    }
-
-    if (watchers.get(subscriptionID) !== state) {
-      return;
-    }
-
-    watchers.delete(subscriptionID);
-
-    // A subscribe that stored the row again while this watcher was ending
-    // found it still registered, so its watch started nothing.
-    const renewed = state.stopped ? undefined : await tryReadRowID(deps, subscriptionID);
-
-    if (renewed !== undefined) {
-      watch(subscriptionID);
-    }
+      return timerID;
+    },
+    clearTimeout: (timerID: number) => {
+      cancels.get(timerID)?.();
+      cancels.delete(timerID);
+    },
   };
 
   const watch = (subscriptionID: string) => {
-    if (deliverer.stopped || watchers.has(subscriptionID)) {
+    if (state.stopped) {
       return;
     }
 
-    const state: WatcherState = { stopped: false, waits: new Set() };
+    const running = watchers.get(subscriptionID);
 
-    watchers.set(subscriptionID, state);
-    void runGuardedWatcher(subscriptionID, state);
-  };
+    if (running !== undefined) {
+      running.send({ type: 'WATCH' });
 
-  const retire = (subscriptionID: string) => {
-    const state = watchers.get(subscriptionID);
-
-    watchers.delete(subscriptionID);
-
-    if (state !== undefined) {
-      stopWatcher(state);
+      return;
     }
+
+    const actor = createActor(machine, { clock, input: { subscriptionID } });
+
+    actor.subscribe({
+      complete: () => {
+        if (watchers.get(subscriptionID) === actor) {
+          watchers.delete(subscriptionID);
+        }
+      },
+    });
+
+    watchers.set(subscriptionID, actor);
+    actor.start();
   };
 
   return {
     start: async () => {
-      const rows = await deps.db.selectFrom('atc_event_subscription').select('id').execute();
+      const subscriptionIDs = await deps.subscriptions.readIDs();
 
-      for (const row of rows) {
-        watch(row.id);
+      for (const subscriptionID of subscriptionIDs) {
+        watch(subscriptionID);
       }
     },
     watch,
-    retire,
+    retire: (subscriptionID) => {
+      watchers.get(subscriptionID)?.stop();
+      watchers.delete(subscriptionID);
+    },
     stop: () => {
-      deliverer.stopped = true;
+      state.stopped = true;
 
-      for (const state of watchers.values()) {
-        stopWatcher(state);
+      for (const actor of watchers.values()) {
+        actor.stop();
       }
+
+      watchers.clear();
     },
   };
 }
 
-type SubscriptionRow = MCPAuthSchema['atc_event_subscription'];
-
 // A subscription past its refreshBefore is gone, as the extension says, so the
 // watcher removes its row and ends.
 async function readLiveSubscription(
-  deps: EventDelivererDeps,
+  deps: DelivererContext,
   subscriptionID: string,
 ): Promise<SubscriptionRow | null> {
-  const row = await deps.db
-    .selectFrom('atc_event_subscription')
-    .selectAll()
-    .where('id', '=', subscriptionID)
-    .executeTakeFirst();
+  const now = deps.clock.now();
 
-  if (row === undefined) {
-    return null;
+  const stored = await deps.subscriptions.read(subscriptionID, now);
+
+  if (stored === null || stored.state === 'live') {
+    return stored?.row ?? null;
   }
 
-  if (Date.parse(row.refresh_before) > deps.clock.now()) {
-    return row;
-  }
+  // A refresh that lands between the read and the removal renews the row,
+  // and the removal then leaves it, so the watcher reads the renewed row.
+  const removed = await deps.subscriptions.expire(subscriptionID, stored.row.refresh_before, now);
 
-  // A refresh that lands between the read and the delete renews the row, and
-  // the delete then leaves it, so the watcher reads the renewed row.
-  const removed = await deps.db
-    .deleteFrom('atc_event_subscription')
-    .where('id', '=', subscriptionID)
-    .where('refresh_before', '=', row.refresh_before)
-    .executeTakeFirst();
-
-  return removed.numDeletedRows > 0n ? null : readLiveSubscription(deps, subscriptionID);
+  return removed ? null : readLiveSubscription(deps, subscriptionID);
 }
 
 // How long a read of the trail waits for an event, the most the daemon allows.
 const READ_WAIT_MS = 30_000;
 const READ_LIMIT = 50;
 
-// The part of an events.read answer a watcher reads.
-const TRAIL_EVENT_SCHEMA = z.object({
-  cursor: z.string(),
-  at: z.number(),
-  session: z.string(),
-  kind: z.string(),
-});
-
-const PAGE_SCHEMA = z.object({ events: z.array(TRAIL_EVENT_SCHEMA), cursor: z.string() });
-
-type TrailPage = z.infer<typeof PAGE_SCHEMA>;
-
-async function tryReadPage(
-  deps: EventDelivererDeps,
-  row: SubscriptionRow,
-): Promise<TrailPage | null> {
+async function readTrailPage(deps: DelivererContext, row: SubscriptionRow): Promise<TrailPage> {
   const storedName = await readClientName(deps.db, row.client_id);
 
-  try {
-    const answer = await deps.caller.sendRequest(
-      'events.read',
-      { cursor: row.position, waitMs: READ_WAIT_MS, limit: READ_LIMIT },
-      { id: row.client_id, name: normalizeClientName(storedName, 'remote') },
-    );
+  const answer = await deps.caller.sendRequest(
+    'events.read',
+    { cursor: row.position, waitMs: READ_WAIT_MS, limit: READ_LIMIT },
+    { id: row.client_id, name: normalizeClientName(storedName, 'remote') },
+  );
 
-    const parsed = PAGE_SCHEMA.safeParse(answer);
+  const parsed = EVENTS_PAGE_SCHEMA.safeParse(answer);
 
-    return parsed.success ? parsed.data : null;
-  } catch {
-    return null;
+  if (!parsed.success) {
+    throw new Error(`the daemon answered with no page: ${parsed.error.message}`);
   }
+
+  return parsed.data;
 }
 
-interface PageDelivery {
-  readonly subscriptionID: string;
-  readonly page: TrailPage;
-  readonly state: WatcherState;
-  readonly wait: (delayMs: number) => Promise<void>;
-}
-
-async function deliverPage(deps: EventDelivererDeps, delivery: PageDelivery): Promise<void> {
+async function deliverPage(deps: DelivererContext, delivery: PageDelivery): Promise<void> {
   for (const event of delivery.page.events) {
     const row = await readLiveSubscription(deps, delivery.subscriptionID);
 
-    if (row === null || delivery.state.stopped) {
+    if (row === null || delivery.signal.aborted) {
       return;
     }
 
@@ -277,24 +205,29 @@ async function deliverPage(deps: EventDelivererDeps, delivery: PageDelivery): Pr
     // A delivery that a stop or a lost grant cut short leaves the position
     // before the event, so a restarted server or the watcher's next turn
     // decides it again.
-    if (!settled || delivery.state.stopped) {
+    if (!settled || delivery.signal.aborted) {
       return;
     }
 
     await writePosition(deps, delivery.subscriptionID, event.cursor);
   }
 
-  if (!delivery.state.stopped) {
+  if (!delivery.signal.aborted) {
     await writePosition(deps, delivery.subscriptionID, delivery.page.cursor);
   }
 }
 
+// The authorization server rotates a refresh token by revoking it and then
+// storing its successor, in two writes, so a retry that finds no grant with
+// read checks again after this wait before it gives the event up.
+const ACCESS_RECHECK_MS = 5000;
+
 // Every attempt at one event keeps its webhook-id, so a subscriber that got an
 // attempt whose answer was lost drops the retry as a duplicate.
 async function deliverEvent(
-  deps: EventDelivererDeps,
+  deps: DelivererContext,
   delivery: PageDelivery,
-  event: z.infer<typeof TRAIL_EVENT_SCHEMA>,
+  event: TrailPage['events'][number],
 ): Promise<boolean> {
   const digest = createHash('sha256').update(event.cursor).digest('hex');
   const delivered = createHash('sha256').update(`${delivery.subscriptionID}.${event.cursor}`);
@@ -311,18 +244,18 @@ async function deliverEvent(
       return true;
     }
 
-    const reads = delivery.state.stopped ? false : await deps.probeAccess(row.client_id);
+    const reads = delivery.signal.aborted ? false : await deps.probeAccess(row.client_id);
 
     // A retry that meets the gap of a token rotation waits it out once in
     // place, so it keeps its attempt count and reads the row again after.
-    if (!reads && (rechecking || delivery.state.stopped)) {
+    if (!reads && (rechecking || delivery.signal.aborted)) {
       return false;
     }
 
     rechecking = !reads;
 
     if (rechecking) {
-      await delivery.wait(ACCESS_RECHECK_MS);
+      await waitOnClock(deps.clock, ACCESS_RECHECK_MS, delivery.signal);
 
       continue;
     }
@@ -359,10 +292,28 @@ async function deliverEvent(
       return true;
     }
 
-    await delivery.wait(step.delayMs);
+    await waitOnClock(deps.clock, step.delayMs, delivery.signal);
 
     attempt += 1;
   }
+}
+
+// Ends early once the signal aborts, so a stopped watcher waits on nothing.
+function waitOnClock(clock: Clock, delayMs: number, signal: AbortSignal): Promise<void> {
+  const resolvers = Promise.withResolvers<void>();
+
+  const finish = () => {
+    cancel();
+
+    signal.removeEventListener('abort', finish);
+    resolvers.resolve();
+  };
+
+  const cancel = clock.schedule(finish, delayMs);
+
+  signal.addEventListener('abort', finish, { once: true });
+
+  return resolvers.promise;
 }
 
 interface SignedRequestParts {
@@ -371,7 +322,7 @@ interface SignedRequestParts {
   readonly body: string;
 }
 
-function buildSignedRequest(deps: EventDelivererDeps, parts: SignedRequestParts): WebhookRequest {
+function buildSignedRequest(deps: DelivererContext, parts: SignedRequestParts): WebhookRequest {
   const secret = parseWebhookSecret(parts.row.secret);
 
   invariant(secret, 'a stored subscription holds a secret its subscribe refused');
@@ -392,50 +343,16 @@ function formatOutcome(outcome: WebhookOutcome): string {
 
 // A 410 ends the subscription, as the extension says. A subscribe that
 // renewed the row after this attempt left it, and keeps it.
-async function removeSubscription(deps: EventDelivererDeps, row: SubscriptionRow): Promise<void> {
-  await deps.db
-    .deleteFrom('atc_event_subscription')
-    .where('id', '=', row.id)
-    .where('refresh_before', '=', row.refresh_before)
-    .execute();
+async function removeSubscription(deps: DelivererContext, row: SubscriptionRow): Promise<void> {
+  await deps.subscriptions.drop(row.id, row.refresh_before);
 
   deps.log(`atc events: removed ${row.id}, whose endpoint answered HTTP 410`);
 }
 
 async function writePosition(
-  deps: EventDelivererDeps,
+  deps: DelivererContext,
   subscriptionID: string,
   position: string,
 ): Promise<void> {
-  await deps.db
-    .updateTable('atc_event_subscription')
-    .set({ position })
-    .where('id', '=', subscriptionID)
-    .execute();
-}
-
-// The store closes with the server, and a watcher can end after it closed.
-async function tryReadRowID(
-  deps: EventDelivererDeps,
-  subscriptionID: string,
-): Promise<string | undefined> {
-  try {
-    const row = await deps.db
-      .selectFrom('atc_event_subscription')
-      .select('id')
-      .where('id', '=', subscriptionID)
-      .executeTakeFirst();
-
-    return row?.id;
-  } catch {
-    return undefined;
-  }
-}
-
-function stopWatcher(state: WatcherState): void {
-  state.stopped = true;
-
-  for (const finish of state.waits) {
-    finish();
-  }
+  await deps.subscriptions.advance(subscriptionID, position, deps.clock.now());
 }

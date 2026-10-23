@@ -88,7 +88,40 @@ test('it finds read access for a client with a live grant that holds read', asyn
     }),
   });
 
-  expect(probeReadAccess(ctx.store.db, created.clientID)).resolves.toBeTrue();
+  expect(probeReadAccess(ctx.store.db, created.clientID, Date.now())).resolves.toBeTrue();
+});
+
+test('it finds no read access at a time past the grant expiry', async () => {
+  const ctx = await setupTest();
+
+  const created = await ctx.store.auth.api.createFixedClient({
+    body: {
+      name: 'ChatGPT',
+      redirectURIs: ['https://chatgpt.com/connector_platform_oauth_redirect'],
+    },
+  });
+
+  const authorized = await runMCPAuthorization(ctx, {
+    clientID: created.clientID,
+    redirectURI: 'https://chatgpt.com/connector_platform_oauth_redirect',
+    scope: 'read',
+    ticked: ['read'],
+  });
+
+  await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authorized.code,
+      redirect_uri: 'https://chatgpt.com/connector_platform_oauth_redirect',
+      client_id: created.clientID,
+      code_verifier: authorized.verifier,
+    }),
+  });
+
+  const tenYearsOn = Date.now() + 10 * 365 * 24 * 60 * 60 * 1000;
+
+  expect(probeReadAccess(ctx.store.db, created.clientID, tenYearsOn)).resolves.toBeFalse();
 });
 
 test('it finds no read access once the client revokes its refresh token itself', async () => {
@@ -130,7 +163,7 @@ test('it finds no read access once the client revokes its refresh token itself',
     }),
   });
 
-  expect(probeReadAccess(ctx.store.db, created.clientID)).resolves.toBeFalse();
+  expect(probeReadAccess(ctx.store.db, created.clientID, Date.now())).resolves.toBeFalse();
 });
 
 test('it finds no read access for a client whose grant holds only another scope', async () => {
@@ -161,5 +194,5 @@ test('it finds no read access for a client whose grant holds only another scope'
     }),
   });
 
-  expect(probeReadAccess(ctx.store.db, created.clientID)).resolves.toBeFalse();
+  expect(probeReadAccess(ctx.store.db, created.clientID, Date.now())).resolves.toBeFalse();
 });
