@@ -2346,7 +2346,9 @@ test('it writes the delivered mark and its trail entry together', async () => {
 
   const db = new Database(ctx.dbPath, { readonly: true });
 
-  onTestFinished(() => db.close());
+  onTestFinished(() => {
+    db.close();
+  });
 
   const message = db.query('SELECT status FROM messages WHERE id = ?').get(record.id);
   const events = db.query('SELECT kind FROM events WHERE message = ?').all(record.id);
@@ -2379,7 +2381,9 @@ test('it leaves the message undelivered when its trail entry fails to write', as
 
   const db = new Database(ctx.dbPath, { readonly: true });
 
-  onTestFinished(() => db.close());
+  onTestFinished(() => {
+    db.close();
+  });
 
   const message = db.query('SELECT status, delivered_at FROM messages WHERE id = ?').get(record.id);
   const events = db.query('SELECT kind FROM events WHERE message = ?').all(record.id);
@@ -2415,7 +2419,9 @@ test('it writes no trail entry for a mark on a message that is already delivered
 
   const db = new Database(ctx.dbPath, { readonly: true });
 
-  onTestFinished(() => db.close());
+  onTestFinished(() => {
+    db.close();
+  });
 
   const events = db.query('SELECT kind FROM events WHERE message = ?').all(record.id);
 
@@ -2441,7 +2447,9 @@ test('it writes no trail entry for a mark on a message another session owns', as
 
   const db = new Database(ctx.dbPath, { readonly: true });
 
-  onTestFinished(() => db.close());
+  onTestFinished(() => {
+    db.close();
+  });
 
   const events = db.query('SELECT kind FROM events WHERE message = ?').all(record.id);
 
