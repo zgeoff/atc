@@ -87,7 +87,7 @@ test('it posts a signed delivery of a matching event with its session and the cu
     log: () => {},
   });
 
-  registerTestCleanup(() => deliverer.stop());
+  registerTestCleanup(deliverer.stop);
 
   await deliverer.start();
 
@@ -162,7 +162,7 @@ test('it delivers a cursor from which a read of the trail returns only later eve
     log: () => {},
   });
 
-  registerTestCleanup(() => deliverer.stop());
+  registerTestCleanup(deliverer.stop);
 
   await deliverer.start();
 
@@ -224,7 +224,7 @@ test('it delivers nothing for an event of another type and moves its position pa
     log: () => {},
   });
 
-  registerTestCleanup(() => deliverer.stop());
+  registerTestCleanup(deliverer.stop);
 
   await deliverer.start();
 
@@ -300,7 +300,7 @@ test('it resumes from the stored position, so an event that came while no server
     log: () => {},
   });
 
-  registerTestCleanup(() => deliverer.stop());
+  registerTestCleanup(deliverer.stop);
 
   await deliverer.start();
 
@@ -361,7 +361,7 @@ test("it delivers nothing from a session outside the client's reach", async () =
     log: () => {},
   });
 
-  registerTestCleanup(() => deliverer.stop());
+  registerTestCleanup(deliverer.stop);
 
   await deliverer.start();
 
@@ -418,7 +418,7 @@ test('it removes a subscription past its refreshBefore and delivers nothing to i
     log: () => {},
   });
 
-  registerTestCleanup(() => deliverer.stop());
+  registerTestCleanup(deliverer.stop);
 
   await deliverer.start();
 
@@ -435,7 +435,7 @@ test('it logs a delivery the endpoint refused', async () => {
   const ctx = await setupTest();
 
   const receiver = buildStubWebhookReceiver({ answers: [{ status: 500 }] });
-  const log = mock();
+  const log = mock<(line: string) => void>();
 
   const head = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
 
@@ -462,7 +462,7 @@ test('it logs a delivery the endpoint refused', async () => {
     log,
   });
 
-  registerTestCleanup(() => deliverer.stop());
+  registerTestCleanup(deliverer.stop);
 
   await deliverer.start();
 

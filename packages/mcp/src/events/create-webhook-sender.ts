@@ -65,7 +65,7 @@ async function readBodyStart(response: Response): Promise<string> {
   while (size < BODY_LIMIT) {
     const read = await reader.read();
 
-    if (read.done) {
+    if (read.done || !(read.value instanceof Uint8Array)) {
       break;
     }
 
