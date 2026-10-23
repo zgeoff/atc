@@ -12,6 +12,7 @@ import {
   waitFor,
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
+import { z } from 'zod';
 import { openMCPAuth } from '../auth/open-mcp-auth';
 import { buildStubFleetCaller } from '../testing/build-stub-fleet-caller';
 import { buildStubRacingSubscriptionStore } from '../testing/build-stub-racing-subscription-store';
@@ -762,6 +763,100 @@ test('it logs a delivery the endpoint refused', async () => {
       'atc events: delivery of session.turn_done to sub_0123456789abcdef0123456789abcdef failed: HTTP 500',
     );
   });
+});
+
+test('it gives an event a gateway replays under a new merged cursor the ids it had, from its origin', async () => {
+  const ctx = await setupTest();
+
+  const receiver = buildStubWebhookReceiver();
+
+  const caller = buildStubFleetCaller({
+    answer: (request) =>
+      new Map<string, () => Promise<Readonly<Record<string, unknown>>>>([
+        [
+          'cursor-one',
+          () =>
+            Promise.resolve({
+              events: [
+                {
+                  cursor: 'gateway-cursor-a',
+                  at: 1,
+                  session: 'cloud.0f6c2a8e.s1',
+                  name: null,
+                  kind: 'turn-done',
+                  detail: null,
+                  origin: { daemon: 'cloud', incarnation: '0f6c2a8e', cursor: 'daemon-cursor-7' },
+                },
+                {
+                  cursor: 'gateway-cursor-b',
+                  at: 1,
+                  session: 'cloud.0f6c2a8e.s1',
+                  name: null,
+                  kind: 'turn-done',
+                  detail: null,
+                  origin: { daemon: 'cloud', incarnation: '0f6c2a8e', cursor: 'daemon-cursor-7' },
+                },
+                {
+                  cursor: 'gateway-cursor-c',
+                  at: 2,
+                  session: 'cloud.0f6c2a8e.s1',
+                  name: null,
+                  kind: 'turn-done',
+                  detail: null,
+                  origin: { daemon: 'cloud', incarnation: '0f6c2a8e', cursor: 'daemon-cursor-8' },
+                },
+              ],
+              cursor: 'cursor-two',
+              more: false,
+            }),
+        ],
+      ]).get(String(request.params?.['cursor']))?.() ??
+      Promise.withResolvers<Readonly<Record<string, unknown>>>().promise,
+  });
+
+  await ctx.db
+    .insertInto('atc_event_subscription')
+    .values({
+      id: 'sub_0123456789abcdef0123456789abcdef',
+      client_id: 'client-one',
+      url: 'https://hooks.example.com/hook',
+      name: 'session.turn_done',
+      arguments: '{}',
+      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+      position: 'cursor-one',
+      refresh_before: '2026-10-24T12:00:00.000Z',
+      created_at: '2026-10-23T12:00:00.000Z',
+    })
+    .execute();
+
+  const deliverer = createEventDeliverer({
+    db: ctx.db,
+    subscriptions: createSubscriptionStore(ctx.db),
+    caller,
+    send: receiver.send,
+    clock: ctx.clock,
+    probeAccess: () => Promise.resolve(true),
+    log: () => {},
+  });
+
+  registerTestCleanup(deliverer.stop);
+
+  await deliverer.start();
+
+  await waitFor(() => {
+    expect(receiver.received).toHaveLength(3);
+  });
+
+  const eventIDs = receiver.received.map(
+    (delivery) => z.object({ eventId: z.string() }).parse(JSON.parse(delivery.body)).eventId,
+  );
+
+  const webhookIDs = receiver.received.map((delivery) => delivery.headers['webhook-id']);
+
+  expect(eventIDs[1]).toBe(eventIDs[0]);
+  expect(eventIDs[2]).not.toBe(eventIDs[0]);
+  expect(webhookIDs[1]).toBe(webhookIDs[0]);
+  expect(webhookIDs[2]).not.toBe(webhookIDs[0]);
 });
 
 test('it retries a refused delivery after a backoff with the same webhook-id and a fresh signature', async () => {
