@@ -633,7 +633,7 @@ test('it gives up on an event after its last attempt and delivers the next one',
     expect(receiver.received).toHaveLength(5);
   });
 
-  const bodies = receiver.received.map((request) => getString(JSON.parse(request.body), 'eventId'));
+  const bodies = receiver.received.map((request) => request.body);
 
   expect(new Set(bodies.slice(0, 4)).size).toBe(1);
   expect(bodies[4]).not.toBe(bodies[0]);
@@ -688,7 +688,7 @@ test('it moves past an event its endpoint refuses as too large without a retry',
     expect(receiver.received).toHaveLength(2);
   });
 
-  const bodies = receiver.received.map((request) => getString(JSON.parse(request.body), 'eventId'));
+  const bodies = receiver.received.map((request) => request.body);
 
   expect(bodies[1]).not.toBe(bodies[0]);
   expect(ctx.clock.collectPending()).toStrictEqual([]);

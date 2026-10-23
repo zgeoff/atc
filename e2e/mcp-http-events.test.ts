@@ -24,6 +24,7 @@ import {
   waitFor,
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
+import { z } from 'zod';
 import { openMCPAuthDatabase } from '../packages/app/src/open-mcp-auth-database';
 
 // The subscriber's endpoint is the receiver each test passes, because a test
@@ -153,7 +154,7 @@ test('it lets a subscriber that lost a notification find its event by reading th
     {
       session: sessionID,
       kind: 'turn-done',
-      cursor: getString(JSON.parse(lastDelivery.body), 'cursor'),
+      cursor: z.object({ cursor: z.string() }).parse(JSON.parse(lastDelivery.body)).cursor,
     },
   ]);
 
@@ -205,7 +206,7 @@ test('it repeats a notification whose answer was lost with its eventId, after wh
   invariant(first && repeat, 'the endpoint received fewer than two deliveries');
 
   // The subscriber acted on the first copy and saved the cursor it carried.
-  const savedCursor = getString(JSON.parse(first.body), 'cursor');
+  const savedCursor = z.object({ cursor: z.string() }).parse(JSON.parse(first.body)).cursor;
 
   const read = await sendModernMCPRequest(server.url, server.token, 'tools/call', {
     name: 'atc_events_read',
@@ -214,10 +215,7 @@ test('it repeats a notification whose answer was lost with its eventId, after wh
 
   const structured = getRecord(getRecord(read.body, 'result'), 'structuredContent');
 
-  expect(getString(JSON.parse(repeat.body), 'eventId')).toBe(
-    getString(JSON.parse(first.body), 'eventId'),
-  );
-
+  expect(repeat.body).toBe(first.body);
   expect(repeat.headers['webhook-id']).toBe(first.headers['webhook-id']);
   expect(getRecords(structured, 'events')).not.toPartiallyContain({ kind: 'turn-done' });
 });
