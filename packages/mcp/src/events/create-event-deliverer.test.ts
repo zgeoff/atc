@@ -13,6 +13,7 @@ import {
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { openMCPAuth } from '../auth/open-mcp-auth';
+import { buildStubFleetCaller } from '../testing/build-stub-fleet-caller';
 import { buildStubWebhookReceiver } from '../testing/build-stub-webhook-receiver';
 import { openTestAuthDatabase } from '../testing/open-test-auth-database';
 import { createTransportCaller } from '../tools/create-transport-caller';
@@ -604,6 +605,76 @@ test('it logs a delivery the endpoint refused', async () => {
       'atc events: delivery of session.turn_done to sub_0123456789abcdef0123456789abcdef failed: HTTP 500',
     );
   });
+});
+
+test('it logs the first failed read of the trail with its cause, and the read that recovers', async () => {
+  const ctx = await setupTest();
+
+  const daemon = { state: 'down' };
+  const log = mock<(line: string) => void>();
+
+  const caller = buildStubFleetCaller({
+    answer: (request) =>
+      new Map<string, () => Promise<Readonly<Record<string, unknown>>>>([
+        ['down:cursor-one', () => Promise.reject(new Error('connect ENOENT /run/atc/atc.sock'))],
+        ['up:cursor-one', () => Promise.resolve({ events: [], cursor: 'cursor-two', more: false })],
+      ]).get(`${daemon.state}:${String(request.params?.['cursor'])}`)?.() ??
+      Promise.withResolvers<Readonly<Record<string, unknown>>>().promise,
+  });
+
+  await ctx.db
+    .insertInto('atc_event_subscription')
+    .values({
+      id: 'sub_0123456789abcdef0123456789abcdef',
+      client_id: 'client-one',
+      url: 'https://hooks.example.com/hook',
+      name: 'session.turn_done',
+      arguments: '{}',
+      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+      position: 'cursor-one',
+      refresh_before: '2026-10-24T12:00:00.000Z',
+      created_at: '2026-10-23T12:00:00.000Z',
+    })
+    .execute();
+
+  const deliverer = createEventDeliverer({
+    db: ctx.db,
+    caller,
+    send: buildStubWebhookReceiver().send,
+    clock: ctx.clock,
+    probeAccess: () => Promise.resolve(true),
+    log,
+  });
+
+  registerTestCleanup(deliverer.stop);
+
+  await deliverer.start();
+
+  await waitFor(() => {
+    expect(ctx.clock.collectPending()).toStrictEqual([5000]);
+  });
+
+  ctx.clock.advance(5000);
+
+  await waitFor(() => {
+    expect(caller.requests).toHaveLength(2);
+    expect(ctx.clock.collectPending()).toStrictEqual([5000]);
+  });
+
+  daemon.state = 'up';
+
+  ctx.clock.advance(5000);
+
+  await waitFor(() => {
+    expect(caller.requests).toHaveLength(4);
+  });
+
+  expect(log.mock.calls).toStrictEqual([
+    [
+      'atc events: the watcher of sub_0123456789abcdef0123456789abcdef cannot read the trail: Error: connect ENOENT /run/atc/atc.sock',
+    ],
+    ['atc events: the watcher of sub_0123456789abcdef0123456789abcdef reads the trail again'],
+  ]);
 });
 
 test('it waits before it starts a failed watcher again', async () => {

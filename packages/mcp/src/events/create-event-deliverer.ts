@@ -87,6 +87,8 @@ export function createEventDeliverer(options: EventDelivererDeps): EventDelivere
   };
 
   const runWatcher = async (subscriptionID: string) => {
+    let isReadFailing = false;
+
     for (;;) {
       const row = await readLiveSubscription(deps, subscriptionID);
 
@@ -110,15 +112,33 @@ export function createEventDeliverer(options: EventDelivererDeps): EventDelivere
         continue;
       }
 
-      const page = await tryReadPage(deps, row);
+      const read = await readTrailPage(deps, row);
 
       if (state.stopped) {
         return;
       }
 
-      await (page === null
-        ? wait(READ_RETRY_MS)
-        : deliverPage(deps, { subscriptionID, page, state }));
+      if (!read.ok) {
+        if (!isReadFailing) {
+          deps.log(
+            `atc events: the watcher of ${subscriptionID} cannot read the trail: ${read.reason}`,
+          );
+        }
+
+        isReadFailing = true;
+
+        await wait(READ_RETRY_MS);
+
+        continue;
+      }
+
+      if (isReadFailing) {
+        deps.log(`atc events: the watcher of ${subscriptionID} reads the trail again`);
+      }
+
+      isReadFailing = false;
+
+      await deliverPage(deps, { subscriptionID, page: read.page, state });
     }
   };
 
@@ -201,10 +221,11 @@ const READ_LIMIT = 50;
 
 type TrailPage = z.infer<typeof EVENTS_PAGE_SCHEMA>;
 
-async function tryReadPage(
-  deps: DelivererContext,
-  row: SubscriptionRow,
-): Promise<TrailPage | null> {
+type TrailRead =
+  | { readonly ok: true; readonly page: TrailPage }
+  | { readonly ok: false; readonly reason: string };
+
+async function readTrailPage(deps: DelivererContext, row: SubscriptionRow): Promise<TrailRead> {
   const storedName = await readClientName(deps.db, row.client_id);
 
   try {
@@ -216,9 +237,11 @@ async function tryReadPage(
 
     const parsed = EVENTS_PAGE_SCHEMA.safeParse(answer);
 
-    return parsed.success ? parsed.data : null;
-  } catch {
-    return null;
+    return parsed.success
+      ? { ok: true, page: parsed.data }
+      : { ok: false, reason: `the daemon answered with no page: ${parsed.error.message}` };
+  } catch (error) {
+    return { ok: false, reason: String(error) };
   }
 }
 
