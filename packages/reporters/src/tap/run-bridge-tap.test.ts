@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir, startStubSessionBridge } from '@atc/test-utils';
+import { buildStubClock, setupTempDir, startStubSessionBridge, waitFor } from '@atc/test-utils';
 import { runBridgeTap } from './run-bridge-tap';
 
 function setupTest() {
@@ -70,9 +70,10 @@ test('it opens the tap again on a new connection when the bridge never answers i
     JSON.stringify({ noteID: 'r1', payload: { kind: 'note', label: 'progress', text: 'hi' } }),
   );
 
+  const clock = buildStubClock(0);
   const codes: number[] = [];
 
-  await runBridgeTap(
+  const ran = runBridgeTap(
     ctx.sock,
     ctx.outbox,
     {
@@ -83,8 +84,23 @@ test('it opens the tap again on a new connection when the bridge never answers i
       },
     },
     false,
-    50,
+    clock,
   );
+
+  await waitFor(() => {
+    expect(bridge.requests).toHaveLength(1);
+    expect(clock.collectPending()).toStrictEqual([10_000]);
+  });
+
+  clock.advance(10_000);
+
+  await waitFor(() => {
+    expect(clock.collectPending()).toStrictEqual([250]);
+  });
+
+  clock.advance(250);
+
+  await ran;
 
   expect(codes).toStrictEqual([0]);
   expect(existsSync(join(ctx.outbox, 'r1.json'))).toBe(false);
