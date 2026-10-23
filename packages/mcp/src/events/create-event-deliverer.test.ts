@@ -17,6 +17,7 @@ import { buildStubWebhookReceiver } from '../testing/build-stub-webhook-receiver
 import { openTestAuthDatabase } from '../testing/open-test-auth-database';
 import { createTransportCaller } from '../tools/create-transport-caller';
 import { createEventDeliverer } from './create-event-deliverer';
+import type { WebhookSender } from './types';
 
 // A daemon whose every hook line becomes a finished turn, a caller that
 // reaches it, and the authorization database the subscriptions live in.
@@ -603,4 +604,71 @@ test('it logs a delivery the endpoint refused', async () => {
       'atc events: delivery of session.turn_done to sub_0123456789abcdef0123456789abcdef failed: HTTP 500',
     );
   });
+});
+
+test('it waits before it starts a failed watcher again', async () => {
+  const ctx = await setupTest();
+
+  const send = mock<WebhookSender>(() => Promise.reject(new Error('the store is read-only')));
+  const log = mock<(line: string) => void>();
+
+  const head = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
+
+  await ctx.db
+    .insertInto('atc_event_subscription')
+    .values({
+      id: 'sub_0123456789abcdef0123456789abcdef',
+      client_id: 'client-one',
+      url: 'https://hooks.example.com/hook',
+      name: 'session.turn_done',
+      arguments: '{}',
+      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+      position: getString(head, 'cursor'),
+      refresh_before: '2026-10-24T12:00:00.000Z',
+      created_at: '2026-10-23T12:00:00.000Z',
+    })
+    .execute();
+
+  const deliverer = createEventDeliverer({
+    db: ctx.db,
+    caller: ctx.caller,
+    send,
+    clock: ctx.clock,
+    probeAccess: () => Promise.resolve(true),
+    log,
+  });
+
+  registerTestCleanup(deliverer.stop);
+
+  await deliverer.start();
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.directory,
+    cols: 80,
+    rows: 24,
+  });
+
+  await ctx.daemon.sendHookLines({
+    atcId: getString(getRecord(spawned, 'session'), 'id'),
+    event: 'Stop',
+    payload: {},
+  });
+
+  await waitFor(() => {
+    expect(ctx.clock.collectPending()).toStrictEqual([30_000]);
+  });
+
+  const sentBeforeRestart = send.mock.calls.length;
+
+  ctx.clock.advance(30_000);
+
+  await waitFor(() => {
+    expect(send).toHaveBeenCalledTimes(2);
+  });
+
+  expect(sentBeforeRestart).toBe(1);
+
+  expect(log).toHaveBeenCalledWith(
+    'atc events: the watcher of sub_0123456789abcdef0123456789abcdef stopped: Error: the store is read-only',
+  );
 });

@@ -53,6 +53,10 @@ const READ_RETRY_MS = 5000;
 // read checks again after this wait before it removes the subscription.
 const ACCESS_RECHECK_MS = 5000;
 
+// How long a watcher that failed waits before it starts again, so a failure
+// that lasts, such as a position the store cannot write, posts no flood.
+const RESTART_DELAY_MS = 30_000;
+
 // Each subscription's watcher reads the trail as the subscription's client,
 // so it sees only the sessions the client's principal reaches, and it stores
 // how far it got, so a restarted server resumes where it stopped.
@@ -126,6 +130,8 @@ export function createEventDeliverer(options: EventDelivererDeps): EventDelivere
     } catch (error) {
       if (!state.stopped) {
         deps.log(`atc events: the watcher of ${subscriptionID} stopped: ${String(error)}`);
+
+        await wait(RESTART_DELAY_MS);
       }
     }
 
