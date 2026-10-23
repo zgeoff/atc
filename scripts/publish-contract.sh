@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Packs @atcx/contract at the version its manifest holds and publishes it to npm with provenance:
 #   publish-contract.sh [--dry-run]
-# npm publishes it, because bun publish has no trusted publishing. A version npm holds already is
-# skipped, so a re-run of the release job passes. --dry-run checks that Node imports the installed
+# npm publishes it, because bun publish has no trusted publishing. --dry-run checks that Node imports the installed
 # tarball and that TypeScript's nodenext resolution reads its declarations, then runs npm's publish
 # as a dry run.
 set -euo pipefail
@@ -66,8 +65,4 @@ EOF
   exit 0
 fi
 
-if [[ $(npm view "$name@$version" version 2> /dev/null) == "$version" ]]; then
-  echo "$name@$version is on npm already"
-  exit 0
-fi
-npm publish "$tarball" --access public --provenance
+bash "$root/scripts/publish-tarball.sh" "$tarball"
