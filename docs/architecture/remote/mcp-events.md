@@ -51,7 +51,9 @@ The client, the callback URL, the event type and its arguments make the subscrip
 server derives the subscription id from the key. A second subscribe with the same key is a refresh:
 it replaces the secret and grants a new lifetime, and delivery carries on from where it got to,
 whatever cursor the refresh sends. The id grants nothing, so the server logs it and puts it in a
-header on every delivery.
+header on every delivery. On `events/unsubscribe` with the same key, the server ends the
+subscription the key derives and returns the same empty result whether a subscription existed or
+not, so a client can repeat it.
 
 Before the server stores a subscription, it posts a signed verification envelope with a one-time
 challenge to the callback URL, and stores the subscription only if the endpoint echoes the challenge
@@ -83,15 +85,22 @@ restarted server resumes from the first event it had not reached.
 
 For each event of its type, the watcher posts one signed JSON body: the event id, the type, the time
 the event happened, the session id in `data`, and the cursor past the event. The headers follow the
-Standard Webhooks profile the draft defines: a `webhook-id` unique to the message, the signing time,
-an HMAC-SHA256 signature over the id, the time and the exact body bytes, and the subscription id.
-The event id derives from the event's place in the trail, so the same event delivered twice carries
-the same id.
+Standard Webhooks profile the draft defines: a `webhook-id` that every attempt at one event keeps,
+the signing time, an HMAC-SHA256 signature over the id, the time and the exact body bytes, and the
+subscription id. The event id derives from the event's place in the trail, so the same event
+delivered twice carries the same id.
 
 The server posts only to a callback whose host resolves to public addresses, and connects to the
 address it checked, with the URL's host name for TLS, so a DNS answer that changes between the check
-and the connection cannot point a delivery at a private network. It follows no redirect. A delivery
-the endpoint refuses or does not answer is logged, and the watcher moves on to the next event.
+and the connection cannot point a delivery at a private network. It follows no redirect.
+
+The watcher retries a delivery that the endpoint refuses or does not answer, after a wait that grows
+with each attempt, within the attempt count and the time the draft sets. Each retry reads the
+subscription again and signs the same body afresh, with the subscription's current secret. Two
+answers are final, as the draft makes them: a 410 Gone ends the subscription, and a 413 moves the
+watcher on to the next event without a retry. When the last attempt fails, the watcher logs it and
+moves on, and the subscriber finds the event on its next read of the trail. The watcher delivers one
+event at a time, so a retry holds back the events after it.
 
 ## What a subscriber does
 
