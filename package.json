@@ -23,7 +23,7 @@
       "@better-auth/oauth-provider": "1.7.7",
       "@commitlint/cli": "21.2.3",
       "@faker-js/faker": "10.6.0",
-      "@impz/client": "2.10.5",
+      "@impz/client": "2.10.6",
       "@logtape/logtape": "2.4.1",
       "@modelcontextprotocol/sdk": "1.32.1",
       "@modelcontextprotocol/server": "2.3.0",
