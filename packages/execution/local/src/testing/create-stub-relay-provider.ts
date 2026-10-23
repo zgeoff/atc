@@ -1,5 +1,6 @@
 import { join } from 'node:path';
-import type { ExecutionProvider, HarnessRelay } from '@atc/plugin-api';
+import type { ExecutionProvider, HarnessRelay, HarnessSpec } from '@atc/plugin-api';
+import { buildSessionEnv } from '@atc/protocol/session';
 import { createLineDecoder } from '@atc/protocol/wire';
 import type { LineDecoder } from '@atc/protocol/wire';
 import type { Socket, UnixSocketListener } from 'bun';
@@ -7,19 +8,18 @@ import { createStubExecutionProvider } from './create-stub-execution-provider';
 
 interface StubRelayProviderConfig {
   readonly directory: string;
-  readonly droppedConnections?: number;
+  readonly droppedTapOpens?: number;
 }
 
 interface StubRelayProvider extends ExecutionProvider {
   readonly buildGuestSocketPath: (session: string) => string;
-  readonly countConnections: () => number;
-
+  readonly countDroppedTapOpens: () => number;
   readonly stop: () => void;
 }
 
 interface GuestConnection {
-  relay: HarnessRelay | null;
   readonly decoder: LineDecoder;
+  phase: 'first-line' | 'relayed' | 'dropped';
   unsent: Uint8Array;
   readonly lineListeners: ((line: string) => void)[];
   readonly endListeners: (() => void)[];
@@ -32,8 +32,8 @@ export function createStubRelayProvider(config: StubRelayProviderConfig): StubRe
 
   const encoder = new TextEncoder();
 
-  let dropsLeft = config.droppedConnections ?? 0;
-  let connections = 0;
+  let dropsLeft = config.droppedTapOpens ?? 0;
+  let dropped = 0;
   const buildGuestSocketPath = (session: string) => join(config.directory, `${session}.sock`);
 
   const buildRelay = (
@@ -66,72 +66,87 @@ export function createStubRelayProvider(config: StubRelayProviderConfig): StubRe
     },
   });
 
+  // A host's relay can take a tap's connection and never pass it on, so the
+  // stand-in drops a connection only on a first line that opens a tap.
+  const startGuestListener = (spec: HarnessSpec, onRelay: (relay: HarnessRelay) => void) =>
+    Bun.listen<GuestConnection>({
+      unix: buildGuestSocketPath(spec.session),
+      socket: {
+        open(socket) {
+          socket.data = {
+            decoder: createLineDecoder(),
+            phase: 'first-line',
+            unsent: new Uint8Array(0),
+            lineListeners: [],
+            endListeners: [],
+            closeListeners: [],
+          };
+        },
+        data(socket, chunk) {
+          const connection = socket.data;
+
+          for (const line of connection.decoder.splitChunk(chunk)) {
+            if (connection.phase === 'first-line') {
+              if (dropsLeft > 0 && line.includes('"op":"tap.open"')) {
+                dropsLeft -= 1;
+                dropped += 1;
+                connection.phase = 'dropped';
+              } else {
+                connection.phase = 'relayed';
+
+                onRelay(buildRelay(socket, connection));
+              }
+            }
+
+            if (connection.phase === 'relayed') {
+              for (const listener of connection.lineListeners) {
+                listener(line);
+              }
+            }
+          }
+        },
+        drain(socket) {
+          socket.data.unsent = socket.data.unsent.subarray(socket.write(socket.data.unsent));
+        },
+        end(socket) {
+          for (const listener of socket.data.endListeners) {
+            listener();
+          }
+        },
+        close(socket) {
+          for (const listener of socket.data.closeListeners) {
+            listener();
+          }
+        },
+        error() {},
+      },
+    });
+
   return {
     ...provider,
     spawnHarness: (spec) => {
       const onRelay = spec.onRelay;
 
-      if (onRelay !== undefined) {
-        listeners.push(
-          Bun.listen<GuestConnection>({
-            unix: buildGuestSocketPath(spec.session),
-            socket: {
-              open(socket) {
-                connections += 1;
-
-                socket.data = {
-                  relay: null,
-                  decoder: createLineDecoder(),
-                  unsent: new Uint8Array(0),
-                  lineListeners: [],
-                  endListeners: [],
-                  closeListeners: [],
-                };
-
-                if (dropsLeft > 0) {
-                  dropsLeft -= 1;
-
-                  return;
-                }
-
-                socket.data.relay = buildRelay(socket, socket.data);
-
-                onRelay(socket.data.relay);
-              },
-              data(socket, chunk) {
-                if (socket.data.relay === null) {
-                  return;
-                }
-
-                for (const line of socket.data.decoder.splitChunk(chunk)) {
-                  for (const listener of socket.data.lineListeners) {
-                    listener(line);
-                  }
-                }
-              },
-              drain(socket) {
-                socket.data.unsent = socket.data.unsent.subarray(socket.write(socket.data.unsent));
-              },
-              end(socket) {
-                for (const listener of socket.data.endListeners) {
-                  listener();
-                }
-              },
-              close(socket) {
-                for (const listener of socket.data.closeListeners) {
-                  listener();
-                }
-              },
-              error() {},
-            },
-          }),
-        );
+      if (onRelay === undefined) {
+        return provider.spawnHarness(spec);
       }
 
-      return provider.spawnHarness(spec);
+      listeners.push(startGuestListener(spec, onRelay));
+
+      return provider.spawnHarness({
+        ...spec,
+        env: {
+          ...spec.env,
+          ...buildSessionEnv({
+            socket: buildGuestSocketPath(spec.session),
+            bridge: true,
+            outbox: join(config.directory, `${spec.session}.outbox`),
+          }),
+        },
+      });
     },
     buildGuestSocketPath,
-    countConnections: () => connections,
+    countDroppedTapOpens: () => dropped,
     stop: () => {
       for (const listener of listeners) {
         listener.stop(true);

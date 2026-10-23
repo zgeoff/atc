@@ -1,4 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { join } from 'node:path';
 import type { HarnessRelay } from '@atc/plugin-api';
 import { openBridgeSocket } from '@atc/protocol/session';
 import { setupTempDir, waitFor } from '@atc/test-utils';
@@ -63,9 +64,9 @@ test('it relays a guest line to the harness and writes the answer back', async (
   expect(relays).toHaveLength(1);
 });
 
-test('it takes the first connections it drops without passing them to the harness', async () => {
+test('it drops only the first connections that open a tap', async () => {
   const ctx = setupTest();
-  const provider = createStubRelayProvider({ directory: ctx.directory, droppedConnections: 1 });
+  const provider = createStubRelayProvider({ directory: ctx.directory, droppedTapOpens: 1 });
 
   onTestFinished(() => {
     provider.stop();
@@ -95,6 +96,14 @@ test('it takes the first connections it drops without passing them to the harnes
 
   const path = provider.buildGuestSocketPath('s-relay');
 
+  const hook = await openBridgeSocket(path, () => {});
+
+  onTestFinished(() => {
+    hook.end();
+  });
+
+  hook.writeLine({ atcId: 's-relay', event: 'SessionStart' });
+
   const dropped = await openBridgeSocket(path, () => {});
 
   onTestFinished(() => {
@@ -102,6 +111,10 @@ test('it takes the first connections it drops without passing them to the harnes
   });
 
   dropped.writeLine({ op: 'tap.open', id: 'first' });
+
+  await waitFor(() => {
+    expect(provider.countDroppedTapOpens()).toBe(1);
+  });
 
   const relayed = await openBridgeSocket(path, () => {});
 
@@ -112,8 +125,48 @@ test('it takes the first connections it drops without passing them to the harnes
   relayed.writeLine({ op: 'tap.open', id: 'second' });
 
   await waitFor(() => {
-    expect(lines).toStrictEqual(['{"op":"tap.open","id":"second"}']);
+    expect(lines).toStrictEqual([
+      '{"atcId":"s-relay","event":"SessionStart"}',
+      '{"op":"tap.open","id":"second"}',
+    ]);
+  });
+});
+
+test('it points the harness at its guest socket as a bridge session', async () => {
+  const ctx = setupTest();
+  const provider = createStubRelayProvider({ directory: ctx.directory });
+
+  onTestFinished(() => {
+    provider.stop();
   });
 
-  expect(provider.countConnections()).toBe(2);
+  let output = '';
+
+  const pty = provider.spawnHarness({
+    session: 's-relay',
+    host: 's-relay',
+    bin: 'sh',
+    args: ['-c', 'printf "%s|%s|%s" "$ATC_BRIDGE" "$ATC_SOCKET" "$ATC_OUTBOX"; sleep 30'],
+    cwd: ctx.directory,
+    env: {},
+    cols: 200,
+    rows: 24,
+    onRelay: () => {},
+  });
+
+  onTestFinished(() => {
+    pty.kill();
+  });
+
+  pty.onData((data) => {
+    output += data;
+  });
+
+  await waitFor(() => {
+    expect(output).toInclude('.outbox');
+  });
+
+  expect(output).toBe(
+    `1|${join(ctx.directory, 's-relay.sock')}|${join(ctx.directory, 's-relay.outbox')}`,
+  );
 });
