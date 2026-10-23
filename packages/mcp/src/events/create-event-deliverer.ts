@@ -16,6 +16,7 @@ import { createSubscriptionWatcherMachine } from './create-subscription-watcher-
 import type { PageDelivery, TrailPage } from './create-subscription-watcher-machine';
 import { EVENT_TYPES } from './event-types';
 import { parseWebhookSecret } from './parse-webhook-secret';
+import { pickAccessStep } from './pick-access-step';
 import { pickDeliveryStep } from './pick-delivery-step';
 import type { WebhookOutcome, WebhookRequest, WebhookSender } from './types';
 
@@ -231,32 +232,30 @@ async function deliverEvent(
   const delivered = createHash('sha256').update(`${delivery.subscriptionID}.${event.cursor}`);
   const webhookID = `msg_${delivered.digest('hex').slice(0, 32)}`;
   let attempt = 1;
-  let rechecking = false;
+  let isRechecking = false;
 
   for (;;) {
     // The row is read again before each attempt, so a refresh's new secret
     // signs it and a removed subscription gets none.
     const row = await readLiveSubscription(deps, delivery.subscriptionID);
 
-    if (row === null) {
-      return true;
+    const isStopped = delivery.signal.aborted;
+    const reads = row === null || isStopped ? false : await deps.probeAccess(row.client_id);
+    const access = pickAccessStep({ isGone: row === null, reads, isStopped, isRechecking });
+
+    if (access.kind === 'settle' || access.kind === 'cut') {
+      return access.kind === 'settle';
     }
 
-    const reads = delivery.signal.aborted ? false : await deps.probeAccess(row.client_id);
+    isRechecking = access.kind === 'recheck';
 
-    // A retry that meets the gap of a token rotation waits it out once in
-    // place, so it keeps its attempt count and reads the row again after.
-    if (!reads && (rechecking || delivery.signal.aborted)) {
-      return false;
-    }
-
-    rechecking = !reads;
-
-    if (rechecking) {
+    if (access.kind === 'recheck') {
       await waitOnClock(deps.clock, ACCESS_RECHECK_MS, delivery.signal);
 
       continue;
     }
+
+    invariant(row, 'a delivery picked a send for a subscription that is gone');
 
     // The event's cursor points past the event, so a subscriber that reads the
     // trail from it starts after this event.
@@ -278,21 +277,22 @@ async function deliverEvent(
 
     deps.log(`atc events: delivery of ${row.name} to ${row.id} failed: ${formatOutcome(outcome)}`);
 
+    if (step.kind === 'retry') {
+      await waitOnClock(deps.clock, step.delayMs, delivery.signal);
+
+      attempt += 1;
+      continue;
+    }
+
     if (step.kind === 'drop') {
       await removeSubscription(deps, row);
 
       return true;
     }
 
-    if (step.kind === 'abandon') {
-      deps.log(`atc events: gave up on delivering ${row.name} to ${row.id}`);
+    deps.log(`atc events: gave up on delivering ${row.name} to ${row.id}`);
 
-      return true;
-    }
-
-    await waitOnClock(deps.clock, step.delayMs, delivery.signal);
-
-    attempt += 1;
+    return true;
   }
 }
 
