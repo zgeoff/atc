@@ -145,17 +145,20 @@ function buildDaemonClient(conn: ClientConnection): DaemonClient {
     // a client inside an atc session gives that session, so the daemon
     // never takes a change to the session's own record from it
     sendHello: (build, options = {}) =>
-      sendClientRequest(conn, client, 'daemon.hello', {
-        client: build,
-        auth:
-          options.token === undefined
-            ? { scheme: 'none' }
-            : { scheme: 'bearer', token: options.token },
-        ...(options.session === undefined ? {} : { session: options.session }),
-        ...(options.principal === undefined ? {} : { principal: options.principal }),
+      sendClientRequest(conn, client, {
+        method: 'daemon.hello',
+        params: {
+          client: build,
+          auth:
+            options.token === undefined
+              ? { scheme: 'none' }
+              : { scheme: 'bearer', token: options.token },
+          ...(options.session === undefined ? {} : { session: options.session }),
+          ...(options.principal === undefined ? {} : { principal: options.principal }),
+        },
       }),
     sendRequest: (method, params, as, asName) =>
-      sendClientRequest(conn, client, method, params, as, asName),
+      sendClientRequest(conn, client, { method, params, as, asName }),
     stop: () => {
       conn.socket?.end();
       drainPending(conn, 'client closed');
@@ -171,21 +174,31 @@ function isClientClosed(conn: ClientConnection): boolean {
   return conn.actor.getSnapshot().matches('closed');
 }
 
+interface SendClientRequestOptions {
+  readonly method: string;
+  readonly params?: Readonly<Record<string, unknown>> | undefined;
+  readonly as?: string | undefined;
+  readonly asName?: string | undefined;
+}
+
 // A request with a principal acts as that principal and carries its name.
 // A handshake gives this client's protocol version unless its params give
 // one, and the connection's events start once it passes.
 async function sendClientRequest(
   conn: ClientConnection,
   client: DaemonClient,
-  method: string,
-  requestParams?: Readonly<Record<string, unknown>>,
-  as?: string,
-  asName?: string,
+  request: SendClientRequestOptions,
 ): Promise<Readonly<Record<string, unknown>>> {
+  const method = request.method;
   const hello = method === 'daemon.hello';
-  const principal = as ?? client.principal;
-  const context = { as: principal, asName: principal === undefined ? undefined : asName };
-  const params = hello ? { protocol: PROTOCOL_V, ...requestParams } : (requestParams ?? {});
+  const principal = request.as ?? client.principal;
+
+  const context = {
+    as: principal,
+    asName: principal === undefined ? undefined : request.asName,
+  };
+
+  const params = hello ? { protocol: PROTOCOL_V, ...request.params } : (request.params ?? {});
 
   const answer: unknown = await conn.link.call(method.split('.'), params, { context });
 

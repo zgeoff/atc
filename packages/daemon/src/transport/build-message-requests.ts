@@ -84,14 +84,14 @@ export function buildMessageRequests(deps: RequestDeps): MessageRequests {
       // A send that needs no answer leaves no session to notify.
       const noticeSession = data.notice === false ? null : identity.callerSession;
 
-      const result = await ctx.writeSessionMessage(
+      const result = await ctx.writeSessionMessage({
         sessionID,
-        findMessageCaller(as, localName),
-        data.text,
+        caller: findMessageCaller(as, localName),
+        text: data.text,
         keyed,
-        null,
-        noticeSession,
-      );
+        access: null,
+        senderSession: noticeSession,
+      });
 
       if (result === 'missing' || !ctx.isSessionVisible(sessionID)) {
         throw new DaemonError('no_such_session', `no session '${sessionID}'`);

@@ -22,6 +22,22 @@ interface SpawnRollbackDeps {
   readonly callbacks: Pick<SessionCallbacks, 'log' | 'findAuthBinder'>;
 }
 
+interface ShouldTakeHostOptions {
+  readonly provider: ExecutionProvider;
+  readonly id: SessionID;
+  readonly hostKey: SessionID;
+  readonly target: string;
+  readonly attemptID: string | null;
+}
+
+interface RemoveSpawnWorkspaceOptions {
+  readonly provider: ExecutionProvider;
+  readonly id: SessionID;
+  readonly hostKey: SessionID;
+  readonly target: string;
+  readonly root: string;
+}
+
 export interface SpawnRollback {
   // How long a failed spawn's rollback waits for the killed process to
   // exit, in milliseconds, once after its kill and once more after a forced
@@ -47,13 +63,7 @@ export interface SpawnRollback {
   // spawn's own failure is the one it reports.
   readonly removeLocalTrust: (remove: (() => Promise<void>) | null, id: SessionID) => Promise<void>;
 
-  readonly shouldTakeHost: (
-    provider: ExecutionProvider,
-    id: SessionID,
-    hostKey: SessionID,
-    target: string,
-    attemptID: string | null,
-  ) => boolean;
+  readonly shouldTakeHost: (options: ShouldTakeHostOptions) => boolean;
 
   // Whether a failed spawn's host is destroyed, with the workspace on it: a
   // host of the spawn's own that its provider can destroy, while no other
@@ -65,13 +75,7 @@ export interface SpawnRollback {
     target: string,
   ) => boolean;
 
-  readonly removeSpawnWorkspace: (
-    provider: ExecutionProvider,
-    id: SessionID,
-    hostKey: SessionID,
-    target: string,
-    root: string,
-  ) => Promise<void>;
+  readonly removeSpawnWorkspace: (options: RemoveSpawnWorkspaceOptions) => Promise<void>;
 
   readonly removeListedSpawn: (id: SessionID, root: string | null) => Promise<void>;
   readonly killHarness: (id: SessionID, pty: HarnessHandle) => Promise<boolean>;
@@ -103,18 +107,18 @@ export function createSpawnRollback(deps: SpawnRollbackDeps): SpawnRollback {
     return hostKey === id && provider.capabilities.destroy && !isHostInUse;
   };
 
-  const removeWorkspaceDir = async (
-    provider: ExecutionProvider,
-    id: SessionID,
-    hostKey: SessionID,
-    target: string,
-    root: string,
-  ): Promise<void> => {
+  const removeWorkspaceDir = async (options: RemoveSpawnWorkspaceOptions): Promise<void> => {
     let removed = false;
     let failure: { readonly cause: unknown; readonly message: string } | null = null;
 
     try {
-      removed = await claims.removeClaimedDir(provider, id, hostKey, target, root);
+      removed = await claims.removeClaimedDir({
+        provider: options.provider,
+        id: options.id,
+        hostKey: options.hostKey,
+        target: options.target,
+        directory: options.root,
+      });
     } catch (error) {
       failure = { cause: error, message: error instanceof Error ? error.message : String(error) };
     }
@@ -128,15 +132,18 @@ export function createSpawnRollback(deps: SpawnRollbackDeps): SpawnRollback {
         ? "another session's directory lies inside it, or it no longer resolves to itself"
         : `removing it failed: ${failure.message}`;
 
-    const options = failure === null ? undefined : { cause: failure.cause };
+    const errorOptions = failure === null ? undefined : { cause: failure.cause };
 
     // the directory stays reserved, so no other workspace lands in or
     // around it
     callbacks.log(
-      `atc: left ${root} on target '${target}' after the spawn of session ${id} failed to start, since ${reason}; remove it by hand`,
+      `atc: left ${options.root} on target '${options.target}' after the spawn of session ${options.id} failed to start, since ${reason}; remove it by hand`,
     );
 
-    throw new Error(`the workspace ${root} on target '${target}' could not be removed`, options);
+    throw new Error(
+      `the workspace ${options.root} on target '${options.target}' could not be removed`,
+      errorOptions,
+    );
   };
 
   // Takes back what a spawn attempt bound when the spawn fails before its
@@ -236,21 +243,22 @@ export function createSpawnRollback(deps: SpawnRollbackDeps): SpawnRollback {
       }
     },
 
-    shouldTakeHost: (provider, id, hostKey, target, attemptID) =>
-      attemptID !== null || shouldDestroyHost(provider, id, hostKey, target),
+    shouldTakeHost: (options) =>
+      options.attemptID !== null ||
+      shouldDestroyHost(options.provider, options.id, options.hostKey, options.target),
 
     shouldDestroyHost,
 
-    removeSpawnWorkspace: async (provider, id, hostKey, target, root) => {
+    removeSpawnWorkspace: async (options) => {
       try {
-        await removeWorkspaceDir(provider, id, hostKey, target, root);
+        await removeWorkspaceDir(options);
       } finally {
         if (
-          hostKey !== id &&
-          provider.capabilities.suspend &&
-          harnesses.isHostIdle(hostKey, target)
+          options.hostKey !== options.id &&
+          options.provider.capabilities.suspend &&
+          harnesses.isHostIdle(options.hostKey, options.target)
         ) {
-          await harnesses.trySuspendIdleHost(provider, hostKey, target);
+          await harnesses.trySuspendIdleHost(options.provider, options.hostKey, options.target);
         }
       }
     },

@@ -49,27 +49,26 @@ async function setupTest(config: SetupTestConfig) {
 
   const adapter = buildStubHarnessAdapter({ hooks: config.hooks, takesMessages: true });
 
-  const manager = createSessionManager(
-    null,
+  const manager = createSessionManager({
+    fallback: null,
     store,
-    join(temporaryDirectory.path, 'status.json'),
-    [adapter],
-    [
+    statusPath: join(temporaryDirectory.path, 'status.json'),
+    adapters: [adapter],
+    targets: [
       buildMockExecutionTarget({
         id: 'local',
         identity: 'local-pty:test',
         provider: buildStubMemoryProvider({ kind: 'local-pty' }),
       }),
     ],
-    [],
-    {
+    events: {
       onEvent: (kind, session) => {
         if (kind === 'added') {
           runtimes.set(session.id, createSessionRuntime());
         }
       },
     },
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -141,7 +140,14 @@ async function setupTest(config: SetupTestConfig) {
 
 test('it records a hook line in the trail under the event its adapter planned', async () => {
   const ctx = await setupTest({ hooks: { Stop: [{ kind: 'turn-done' }] } });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   ctx.hooks.applyHookEvent({ atcId: session.id, event: 'Stop', payload: {} });
 
@@ -154,7 +160,14 @@ test('it records a hook line in the trail under the event its adapter planned', 
 
 test('it passes back the harness state the same session last returned', async () => {
   const ctx = await setupTest({ hooks: {} });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   ctx.hooks.applyHookEvent({ atcId: session.id, event: 'PreToolUse', payload: {} });
   ctx.hooks.applyHookEvent({ atcId: session.id, event: 'PreToolUse', payload: {} });
@@ -164,7 +177,14 @@ test('it passes back the harness state the same session last returned', async ()
 
 test('it drops a hook line from a harness nested inside the session', async () => {
   const ctx = await setupTest({ hooks: {} });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   ctx.hooks.applyHookEvent({
     atcId: session.id,
@@ -181,7 +201,14 @@ test('it drops a hook line from a harness nested inside the session', async () =
 
 test('it writes the last-used agent when a spawned session reports its start', async () => {
   const ctx = await setupTest({ hooks: { SessionStart: [{ kind: 'started' }] } });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   const runtime = ctx.runtimes.get(session.id);
 
@@ -200,7 +227,14 @@ test('it writes the last-used agent when a spawned session reports its start', a
 
 test('it leaves the last-used agent when no spawn waits on the start a session reports', async () => {
   const ctx = await setupTest({ hooks: { SessionStart: [{ kind: 'started' }] } });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   ctx.hooks.applyHookEvent({ atcId: session.id, event: 'SessionStart', payload: {} });
 
@@ -209,7 +243,14 @@ test('it leaves the last-used agent when no spawn waits on the start a session r
 
 test('it reports the start of a session agent so its tap is watched for', async () => {
   const ctx = await setupTest({ hooks: { SessionStart: [{ kind: 'started' }] } });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   ctx.hooks.applyHookEvent({ atcId: session.id, event: 'SessionStart', payload: {} });
 
@@ -221,7 +262,13 @@ test('it moves the bridge to the conversation a session start shows', async () =
     hooks: { SessionStart: [{ kind: 'started', agentSessionID: toAgentSessionID('a-2') }] },
   });
 
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   ctx.hooks.applyHookEvent({ atcId: session.id, event: 'SessionStart', payload: {} });
 
@@ -230,7 +277,14 @@ test('it moves the bridge to the conversation a session start shows', async () =
 
 test('it records a note from a listed session and broadcasts it', async () => {
   const ctx = await setupTest({ hooks: {} });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   await ctx.hooks.applyNote({
     atcId: session.id,
@@ -258,7 +312,14 @@ test('it ignores a note from a session the fleet does not list', async () => {
 
 test('it answers the messages a turn answer names', async () => {
   const ctx = await setupTest({ hooks: {} });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   await ctx.store.writeMessage(
     buildMockMessageRecord({ id: toMessageID('m-1'), atcID: session.id, status: 'delivered' }),
@@ -277,7 +338,14 @@ test('it answers the messages a turn answer names', async () => {
 
 test('it ignores a turn answer that names no message the session holds', async () => {
   const ctx = await setupTest({ hooks: {} });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   await ctx.hooks.applyNote({
     atcId: session.id,
@@ -290,7 +358,14 @@ test('it ignores a turn answer that names no message the session holds', async (
 
 test('it records a headless turn in the trail under a synthetic event', async () => {
   const ctx = await setupTest({ hooks: {} });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   ctx.hooks.recordHeadlessTurnEvent(session.id, { kind: 'turn-done' });
 

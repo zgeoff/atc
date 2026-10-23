@@ -66,25 +66,33 @@ export async function setupSpawn(
     hostSetup ??= steps.run(
       'host',
       async () => {
-        const setup = await deps.auth.setupHarnessOnHost(
+        const setup = await deps.auth.setupHarnessOnHost({
           adapter,
           provider,
           id,
           hostKey,
           target,
-          { prompt: spawn.prompt, resume: spawn.resume, ...spawn.overrides },
-          authSetup,
-          startDir,
-          hostKey === id,
+          spawnOptions: { prompt: spawn.prompt, resume: spawn.resume, ...spawn.overrides },
+          auth: authSetup,
+          cwd: startDir,
+          isNewHost: hostKey === id,
           timer,
-        );
+        });
 
         attemptID = setup.attemptID;
 
         return setup;
       },
       async (setup) => {
-        if (deps.rollback.shouldTakeHost(provider, id, hostKey, target, setup.attemptID)) {
+        if (
+          deps.rollback.shouldTakeHost({
+            provider,
+            id,
+            hostKey,
+            target,
+            attemptID: setup.attemptID,
+          })
+        ) {
           await deps.rollback.destroyFailedSpawnHost(provider, id, hostKey, setup.attemptID);
         }
       },
@@ -127,7 +135,7 @@ export async function setupSpawn(
   if (root !== null && auth !== null) {
     await steps.run('project-settings', () =>
       timer.withStep('project-settings', () =>
-        deps.auth.requireProjectSettings(adapter, provider, hostKey, target, root),
+        deps.auth.requireProjectSettings({ adapter, provider, hostKey, target, cwd: root }),
       ),
     );
   }

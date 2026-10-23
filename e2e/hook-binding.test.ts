@@ -278,10 +278,13 @@ test('it keeps a nested codex harness from rebinding or answering for the claude
   await waitForEvent(ctx.daemon.events, { ev: 'SessionState', session: { state: 'needs_you' } });
 
   // The test runs the session's message tap, as the agent's `atc tap` would.
-  void runTap(id, ctx.daemon.build, ctx.daemon.socketPath, {
-    writeStdout: () => Promise.resolve(),
-    printError: () => {},
-    exit: () => {},
+  void runTap(id, ctx.daemon.build, {
+    socketPath: ctx.daemon.socketPath,
+    io: {
+      writeStdout: () => Promise.resolve(),
+      printError: () => {},
+      exit: () => {},
+    },
   });
 
   const sent = await ctx.daemon.client.sendRequest('session.message', {

@@ -1,6 +1,6 @@
 import type { TargetConfigError } from '@atc/config';
 import { socketPath, statusFile } from '@atc/config';
-import type { AgentID, AgentSessionID, Clock, SessionID } from '@atc/core';
+import type { AgentID, Clock, SessionID } from '@atc/core';
 import { systemClock, truncateDetail, truncateToBytes } from '@atc/core';
 import type {
   AgentAdapter,
@@ -8,7 +8,6 @@ import type {
   ExecutionProvider,
   HarnessRelay,
   HookPlan,
-  SpawnOverrides,
   SpawnPlan,
 } from '@atc/plugin-api';
 import type {
@@ -37,15 +36,14 @@ import { createSessionKiller } from './create-session-killer';
 import { createSessionRegistry } from './create-session-registry';
 import type { SessionRegistry, TargetBinding } from './create-session-registry';
 import { createSessionSpawner } from './create-session-spawner';
+import type { SpawnSessionOptions } from './create-session-spawner';
 import { createSpawnRollback } from './create-spawn-rollback';
-import { mintSessionID } from './mint-session-id';
 import { planResumeCommand } from './plan-resume-command';
 import type { ResumeCommand } from './plan-resume-command';
 import type { Session } from './session';
 import type { MessageBridgeLaunch, SessionCallbacks } from './session-callbacks';
 import type { SessionChanges } from './session-changes';
 import type { SessionEventKind } from './session-event-kind';
-import type { SpawnMaterializer } from './spawn-materializer';
 import { updateSession } from './update-session';
 import { updateSessionScope } from './update-session-scope';
 
@@ -159,25 +157,7 @@ export interface SessionManager {
     canProceed?: () => boolean,
   ) => Promise<Session | null>;
 
-  readonly spawn: (
-    cwd: string,
-    name: string,
-    prompt: string,
-    cols: number,
-    rows: number,
-    resume?: boolean | AgentSessionID,
-    namedBy?: 'user' | 'auto',
-    agent?: AgentID,
-    parent?: SessionID | null,
-    overrides?: SpawnOverrides,
-    id?: SessionID,
-    target?: string,
-    materialize?: SpawnMaterializer | null,
-    requireInReach?: () => void,
-    autoDir?: boolean,
-    scope?: DeclaredScope | null,
-    answer?: ((session: Session) => void) | null,
-  ) => Promise<Session>;
+  readonly spawn: (options: SpawnSessionOptions) => Promise<Session>;
 
   readonly kill: (
     id: SessionID,
@@ -237,17 +217,20 @@ export interface SessionManager {
   readonly [Symbol.dispose]: () => void;
 }
 
+interface CreateSessionManagerOptions {
+  readonly fallback?: AgentAdapter | null | undefined;
+  readonly store: FleetStore;
+  readonly statusPath?: string | undefined;
+  readonly adapters?: readonly AgentAdapter[] | undefined;
+  readonly targets?: readonly ExecutionTarget[] | undefined;
+  readonly targetErrors?: readonly TargetConfigError[] | undefined;
+  readonly events?: SessionManagerEvents | undefined;
+}
+
 // events are taken at build time, so no session event arrives before its
 // handler exists
-export function createSessionManager(
-  fallback: AgentAdapter | null | undefined,
-  store: FleetStore,
-  statusPath: string | undefined = statusFile,
-  adapters: readonly AgentAdapter[] = [],
-  targets: readonly ExecutionTarget[] = [],
-  targetErrors: readonly TargetConfigError[] = [],
-  events: SessionManagerEvents = {},
-): SessionManager {
+export function createSessionManager(options: CreateSessionManagerOptions): SessionManager {
+  const events = options.events ?? {};
   let log: (line: string) => void = writeStderrLine;
   let now: () => number = readPerformanceNow;
   let clock: Clock = systemClock;
@@ -285,17 +268,17 @@ export function createSessionManager(
   };
 
   const registry = createSessionRegistry({
-    fallback,
-    adapters,
-    targets,
-    targetErrors,
+    fallback: options.fallback,
+    adapters: options.adapters ?? [],
+    targets: options.targets ?? [],
+    targetErrors: options.targetErrors ?? [],
     callbacks,
   });
 
   const fleet = createSessionFleetWriter({
     registry,
-    store,
-    statusPath: statusPath ?? statusFile,
+    store: options.store,
+    statusPath: options.statusPath ?? statusFile,
     callbacks,
   });
 
@@ -313,7 +296,7 @@ export function createSessionManager(
     claims,
     harnesses,
     rollback,
-    store,
+    store: options.store,
     callbacks,
   });
 
@@ -474,44 +457,7 @@ export function createSessionManager(
     adoptTerminal: (id, cols, rows, canProceed = () => true) =>
       adopter.adoptTerminal(id, cols, rows, canProceed),
 
-    spawn: (
-      cwd,
-      name,
-      prompt,
-      cols,
-      rows,
-      resume = false,
-      namedBy = 'auto',
-      agent = 'claude',
-      parent = null,
-      overrides = {},
-      id = mintSessionID(),
-      target = 'local',
-      materialize = null,
-      requireInReach = () => {},
-      autoDir = false,
-      scope = null,
-      answer = null,
-    ) =>
-      spawner.spawn(
-        cwd,
-        name,
-        prompt,
-        cols,
-        rows,
-        resume,
-        namedBy,
-        agent,
-        parent,
-        overrides,
-        id,
-        target,
-        materialize,
-        requireInReach,
-        autoDir,
-        scope,
-        answer,
-      ),
+    spawn: (spawnOptions) => spawner.spawn(spawnOptions),
 
     kill: (id, stopOnly = false) => killer.kill(id, stopOnly),
 
@@ -601,7 +547,7 @@ export function createSessionManager(
       return registry.sessions.find((session) => session.id === registry.focusedId) ?? null;
     },
 
-    collectDescriptors: () => collectSessionDescriptors(registry, store),
+    collectDescriptors: () => collectSessionDescriptors(registry, options.store),
 
     applyHook: (hookEvent, previous) => hooks.applyHook(hookEvent, previous),
 

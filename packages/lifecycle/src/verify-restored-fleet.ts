@@ -13,19 +13,25 @@ interface FleetVerdict {
 
 const UNSIZED_READ_MS = 30_000;
 
+interface VerifyRestoredFleetOptions {
+  readonly timeoutSeconds: number | null;
+  readonly snapshot: readonly StoredRow[] | null;
+  readonly clock: Clock;
+  readonly restoreBootTimeoutMs: number;
+}
+
 export async function verifyRestoredFleet(
   client: Pick<DaemonClient, 'sendRequest'>,
-  timeoutSeconds: number | null,
-  snapshot: readonly StoredRow[] | null,
-  clock: Clock,
-  restoreBootTimeoutMs: number,
+  options: VerifyRestoredFleetOptions,
 ): Promise<FleetVerdict> {
+  const clock = options.clock;
+  const timeoutSeconds = options.timeoutSeconds;
   const startedAt = clock.now();
 
   // Without a snapshot the rows come from the new daemon, and its count is
   // not known until they are read, so that read gets the fixed allowance.
   const read =
-    snapshot === null
+    options.snapshot === null
       ? await sendBounded(
           () => readStoredRows(client),
           startedAt + (timeoutSeconds === null ? UNSIZED_READ_MS : timeoutSeconds * 1000),
@@ -33,24 +39,22 @@ export async function verifyRestoredFleet(
         )
       : null;
 
-  const stored = snapshot ?? read ?? [];
-  const deadline = startedAt + pickDeadlineMs(stored, timeoutSeconds, restoreBootTimeoutMs);
+  const stored = options.snapshot ?? read ?? [];
+  const deadline = startedAt + pickDeadlineMs(stored, timeoutSeconds, options.restoreBootTimeoutMs);
 
   const restored = await tryRestore(client, deadline, clock);
   const agents = await tryReadAgentIDs(client, deadline, clock);
 
-  let found = await sendBounded(
-    () => readFailedRows(client, stored, restored, agents),
-    deadline,
-    clock,
-  );
+  const outcome = { stored, restored, agents };
+
+  let found = await sendBounded(() => readFailedRows(client, outcome), deadline, clock);
 
   while (found.pending && clock.now() < deadline) {
     await new Promise<void>((resolve) => {
       clock.schedule(resolve, Math.min(250, deadline - clock.now()));
     });
 
-    const polled = await tryCollectFailedRows(client, stored, restored, agents, deadline, clock);
+    const polled = await tryCollectFailedRows(client, outcome, deadline, clock);
 
     if (polled === null) {
       break;
@@ -149,11 +153,15 @@ interface FailedRows {
   readonly pending: boolean;
 }
 
+interface RestoreOutcome {
+  readonly stored: readonly StoredRow[];
+  readonly restored: boolean;
+  readonly agents: ReadonlySet<string> | null;
+}
+
 async function readFailedRows(
   client: Pick<DaemonClient, 'sendRequest'>,
-  stored: readonly StoredRow[],
-  restored: boolean,
-  agents: ReadonlySet<string> | null,
+  outcome: RestoreOutcome,
 ): Promise<FailedRows> {
   const listed = await client.sendRequest('session.list');
 
@@ -164,7 +172,7 @@ async function readFailedRows(
   const failed: RestartFailedRow[] = [];
   let pending = false;
 
-  for (const row of stored) {
+  for (const row of outcome.stored) {
     const session = byID.get(row.id);
 
     if (session === undefined) {
@@ -172,7 +180,7 @@ async function readFailedRows(
 
       // A finished restore lists every row it registers, so a row still
       // missing never appears; after a failed restore it may yet.
-      pending ||= !restored;
+      pending ||= !outcome.restored;
     } else if (
       !row.exited &&
       !(session['alive'] === true && session['kind'] === 'pty') &&
@@ -194,7 +202,7 @@ async function readFailedRows(
 
       // A row whose agent is gone from the config never gets a terminal,
       // while one whose agent is listed but not installed yet still may.
-      pending ||= agents === null || agents.has(String(session['agent']));
+      pending ||= outcome.agents === null || outcome.agents.has(String(session['agent']));
     }
   }
 
@@ -203,9 +211,7 @@ async function readFailedRows(
 
 async function tryCollectFailedRows(
   client: Pick<DaemonClient, 'sendRequest'>,
-  stored: readonly StoredRow[],
-  restored: boolean,
-  agents: ReadonlySet<string> | null,
+  outcome: RestoreOutcome,
   deadline: number,
   clock: Clock,
 ): Promise<FailedRows | null> {
@@ -221,7 +227,7 @@ async function tryCollectFailedRows(
   });
 
   try {
-    return await Promise.race([readFailedRows(client, stored, restored, agents), expired]);
+    return await Promise.race([readFailedRows(client, outcome), expired]);
   } finally {
     stopTimer?.();
   }

@@ -41,14 +41,13 @@ async function setupTest(config: SetupTestConfig) {
 
   const provider = buildStubMemoryProvider({ kind: 'local-pty' });
 
-  const manager = createSessionManager(
-    null,
+  const manager = createSessionManager({
+    fallback: null,
     store,
-    join(temporaryDirectory.path, 'status.json'),
-    [...config.adapters],
-    [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
-    [],
-    {
+    statusPath: join(temporaryDirectory.path, 'status.json'),
+    adapters: [...config.adapters],
+    targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
+    events: {
       onEvent: (kind, session) => {
         if (kind === 'added') {
           runtimes.set(session.id, createSessionRuntime());
@@ -66,7 +65,7 @@ async function setupTest(config: SetupTestConfig) {
         detection.scheduleDetect(session.id);
       },
     },
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -97,7 +96,13 @@ test('it moves a session waiting at a prompt to needs_you once its output goes q
     ],
   });
 
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   const [harness] = ctx.provider.harnesses;
 
@@ -123,7 +128,13 @@ test('it moves a session back to running once its screen shows work', async () =
     ],
   });
 
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   ctx.manager.updateAttention(session.id, 'needs_you', 'Allow the edit?');
 
@@ -149,7 +160,7 @@ test('it restarts the wait on each output', async () => {
     ],
   });
 
-  await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+  await ctx.manager.spawn({ cwd: ctx.directory, name: 'worker', prompt: '', cols: 80, rows: 24 });
 
   const [harness] = ctx.provider.harnesses;
 
@@ -165,7 +176,14 @@ test('it restarts the wait on each output', async () => {
 
 test('it skips the screen of a session whose agents have no screen detector', async () => {
   const ctx = await setupTest({ adapters: [buildStubHarnessAdapter()] });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   const [harness] = ctx.provider.harnesses;
 
@@ -188,7 +206,13 @@ test('it skips the screen of a session whose agent has no screen detector while 
     ],
   });
 
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   const [harness] = ctx.provider.harnesses;
 

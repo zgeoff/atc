@@ -48,20 +48,27 @@ const PROCESS_IO: TapIO = {
   },
 };
 
+interface RunTapOptions {
+  readonly socketPath?: string;
+  readonly io?: TapIO;
+  readonly notices?: boolean;
+}
+
 // `build` is the build the tap's handshake names.
 export async function runTap(
   session: string,
   build: string,
-  socketPath: string = daemonSocketPath,
-  io: TapIO = PROCESS_IO,
-  notices = false,
+  options: RunTapOptions = {},
 ): Promise<void> {
+  const socketPath = options.socketPath ?? daemonSocketPath;
+  const io = options.io ?? PROCESS_IO;
+  const notices = options.notices ?? false;
   const inherited = readSessionEnv(process.env);
 
   // Inside a remote host the daemon's own socket is out of reach, and the
   // session bridge serves the tap instead.
   if (inherited.bridge === true && inherited.socket !== undefined) {
-    await runBridgeTap(inherited.socket, inherited.outbox ?? '', io, notices);
+    await runBridgeTap(inherited.socket, inherited.outbox ?? '', { io, notices });
 
     return;
   }
@@ -129,7 +136,14 @@ export async function runTap(
 
     written = (async () => {
       await previous;
-      await ackInboxMessage(client, session, message.message, renderMessageLine(message), io);
+
+      await ackInboxMessage({
+        client,
+        session,
+        message: message.message,
+        line: renderMessageLine(message),
+        io,
+      });
     })();
   };
 
@@ -187,25 +201,30 @@ function formatError(error: unknown): string {
   return error instanceof DaemonError ? `${error.code}: ${error.message}` : String(error);
 }
 
-async function ackInboxMessage(
-  client: RequestSender,
-  session: string,
-  message: string,
-  line: string,
-  io: TapIO,
-): Promise<void> {
+interface AckInboxMessageOptions {
+  readonly client: RequestSender;
+  readonly session: string;
+  readonly message: string;
+  readonly line: string;
+  readonly io: TapIO;
+}
+
+async function ackInboxMessage(options: AckInboxMessageOptions): Promise<void> {
   try {
-    await io.writeStdout(line);
+    await options.io.writeStdout(options.line);
   } catch {
-    io.exit(1);
+    options.io.exit(1);
 
     return;
   }
 
   try {
     // acks only once the line is written
-    await client.sendRequest('message.ack', { session, message });
+    await options.client.sendRequest('message.ack', {
+      session: options.session,
+      message: options.message,
+    });
   } catch (error) {
-    io.printError(`atc tap: ${formatError(error)}`);
+    options.io.printError(`atc tap: ${formatError(error)}`);
   }
 }

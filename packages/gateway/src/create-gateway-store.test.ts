@@ -167,7 +167,7 @@ test('#removeExpiredBindings keeps a completed binding until twice the daemon re
     0,
   );
 
-  ctx.store.updateOutcome('c1', 'session.spawn', 'k', 'completed', 100);
+  ctx.store.updateOutcome('c1', 'session.spawn', 'k', { outcome: 'completed', now: 100 });
 
   expect(ctx.store.removeExpiredBindings(2100)).toBe(0);
 });
@@ -185,7 +185,7 @@ test('#removeExpiredBindings removes a completed binding once twice the daemon r
     0,
   );
 
-  ctx.store.updateOutcome('c1', 'session.spawn', 'k', 'completed', 100);
+  ctx.store.updateOutcome('c1', 'session.spawn', 'k', { outcome: 'completed', now: 100 });
 
   const removed = ctx.store.removeExpiredBindings(2101);
 
@@ -208,7 +208,7 @@ test.each([['pending'], ['uncertain']] as const)(
       0,
     );
 
-    ctx.store.updateOutcome('c1', 'session.spawn', 'k', outcome, 0);
+    ctx.store.updateOutcome('c1', 'session.spawn', 'k', { outcome, now: 0 });
 
     expect(ctx.store.removeExpiredBindings(Number.MAX_SAFE_INTEGER)).toBe(0);
   },
@@ -227,7 +227,7 @@ test('#removeExpiredBindings keeps a completed binding to a daemon that announce
     0,
   );
 
-  ctx.store.updateOutcome('c1', 'session.spawn', 'k', 'completed', 0);
+  ctx.store.updateOutcome('c1', 'session.spawn', 'k', { outcome: 'completed', now: 0 });
 
   expect(ctx.store.removeExpiredBindings(Number.MAX_SAFE_INTEGER)).toBe(0);
 });
@@ -340,10 +340,14 @@ test('#updateOutcome keeps a completed outcome when a later request under the ke
   const claim = buildMockKeyBindingClaim({ principal: 'c1', operation: 'session.spawn', key: 'k' });
 
   ctx.store.claimBinding(claim, 10);
-  ctx.store.updateOutcome('c1', 'session.spawn', 'k', 'completed', 20);
+  ctx.store.updateOutcome('c1', 'session.spawn', 'k', { outcome: 'completed', now: 20 });
 
   // The key's request completed before a later request under it goes unanswered.
-  ctx.store.updateOutcome('c1', 'session.spawn', 'k', 'uncertain', 30, 'effect');
+  ctx.store.updateOutcome('c1', 'session.spawn', 'k', {
+    outcome: 'uncertain',
+    now: 30,
+    effectRef: 'effect',
+  });
 
   expect(ctx.store.findBinding('c1', 'session.spawn', 'k')).toStrictEqual({
     ...claim,

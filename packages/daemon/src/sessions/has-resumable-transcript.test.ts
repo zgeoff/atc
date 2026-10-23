@@ -35,12 +35,12 @@ async function setupTest(config: SetupTestConfig) {
 
   registerTestCleanup(() => store.stop());
 
-  const manager = createSessionManager(
-    null,
+  const manager = createSessionManager({
+    fallback: null,
     store,
-    join(temporaryDirectory.path, 'status.json'),
-    [config.adapter],
-    [
+    statusPath: join(temporaryDirectory.path, 'status.json'),
+    adapters: [config.adapter],
+    targets: [
       buildMockExecutionTarget({
         id: 'local',
         identity: 'local-pty:test',
@@ -51,9 +51,7 @@ async function setupTest(config: SetupTestConfig) {
         }),
       }),
     ],
-    [],
-    {},
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -74,7 +72,13 @@ test('it asks the agent whether it can resume the conversation of a local sessio
     remote: false,
   });
 
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   session.agentSessionID = toAgentSessionID('a-1');
 
@@ -87,7 +91,13 @@ test('it finds a local session resumable only when its agent says so', async () 
     remote: false,
   });
 
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   session.agentSessionID = toAgentSessionID('a-1');
 
@@ -100,7 +110,13 @@ test('it finds a remote session resumable once it holds an agent session id', as
     remote: true,
   });
 
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   session.agentSessionID = toAgentSessionID('a-1');
 
@@ -109,7 +125,14 @@ test('it finds a remote session resumable once it holds an agent session id', as
 
 test('it finds a remote session without an agent session id not resumable', async () => {
   const ctx = await setupTest({ adapter: buildStubHarnessAdapter(), remote: true });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   expect(hasResumableTranscript(ctx.manager, session.id)).toBeFalse();
 });

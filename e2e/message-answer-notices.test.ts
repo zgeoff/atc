@@ -281,8 +281,7 @@ test('it hands one answer notice after a restart when the daemon stopped right a
   await store.updateMessagesAnswered(
     [toMessageID(String(sent['message']))],
     { atcID: toSessionID(ctx.recipient) },
-    'the release is tagged',
-    Date.now(),
+    { answer: 'the release is tagged', at: Date.now() },
   );
 
   await ctx.daemon.restart();
@@ -346,8 +345,7 @@ test('it hands no second answer notice when the answer is reported again after a
   await store.updateMessagesAnswered(
     [toMessageID(String(sent['message']))],
     { atcID: toSessionID(ctx.recipient) },
-    'the version is bumped',
-    Date.now(),
+    { answer: 'the version is bumped', at: Date.now() },
   );
 
   await ctx.daemon.restart();

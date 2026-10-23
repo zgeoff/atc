@@ -106,13 +106,13 @@ export function buildReadRequests(): ReadRequests {
         afterID = 0;
       }
 
-      const page = await ctx.readEvents(
+      const page = await ctx.readEvents({
         afterID,
-        data.limit,
-        data.waitMs,
-        data.session ?? null,
-        null,
-      );
+        limit: data.limit,
+        waitMs: data.waitMs,
+        sessionID: data.session ?? null,
+        access: null,
+      });
 
       // An event of a session that left the view while the read waited is
       // left out, as the read leaves out every event out of reach.

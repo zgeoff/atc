@@ -4078,13 +4078,12 @@ test('it lists a restore refused for a changed auth selection with the rebind hi
 
   await daemon.restart();
 
-  const verdict = await verifyRestoredFleet(
-    daemon.client,
-    60,
-    [{ id, name: 'cloud-review', exited: false }],
-    systemClock,
-    15_000,
-  );
+  const verdict = await verifyRestoredFleet(daemon.client, {
+    timeoutSeconds: 60,
+    snapshot: [{ id, name: 'cloud-review', exited: false }],
+    clock: systemClock,
+    restoreBootTimeoutMs: 15_000,
+  });
 
   const got = await daemon.client.sendRequest('session.get', { session: id });
 
@@ -4164,13 +4163,12 @@ test('it reports a restore refused for a dropped auth block in the restart check
 
   await daemon.restart();
 
-  const verdict = await verifyRestoredFleet(
-    daemon.client,
-    60,
-    [{ id, name: 'gateway-docs', exited: false }],
-    systemClock,
-    15_000,
-  );
+  const verdict = await verifyRestoredFleet(daemon.client, {
+    timeoutSeconds: 60,
+    snapshot: [{ id, name: 'gateway-docs', exited: false }],
+    clock: systemClock,
+    restoreBootTimeoutMs: 15_000,
+  });
 
   expect(verdict).toStrictEqual({
     total: 1,

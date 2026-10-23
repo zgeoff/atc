@@ -6,14 +6,18 @@ import { z } from 'zod';
 import { createPluginContract } from './create-plugin-contract';
 import type { ExecutionPlugin } from './shipped-execution-plugins';
 
+interface CreateShippedExecutionProviderOptions {
+  readonly plugins: readonly ExecutionPlugin[];
+  readonly config: TargetConfig;
+  readonly host: HostServices;
+  readonly env: Readonly<Record<string, string | undefined>>;
+  readonly authProfiles: ReadonlyMap<string, AuthProfile>;
+}
+
 export function createShippedExecutionProvider(
-  plugins: readonly ExecutionPlugin[],
-  config: TargetConfig,
-  host: HostServices,
-  env: Readonly<Record<string, string | undefined>>,
-  authProfiles: ReadonlyMap<string, AuthProfile>,
+  options: CreateShippedExecutionProviderOptions,
 ): ProviderBuild {
-  const plugin = plugins.find((candidate) => candidate.id === config.provider);
+  const plugin = options.plugins.find((candidate) => candidate.id === options.config.provider);
 
   if (plugin === undefined) {
     return { provider: null, problem: null };
@@ -22,10 +26,10 @@ export function createShippedExecutionProvider(
   try {
     const provider = createPluginContract({
       plugin,
-      raw: { id: config.id, options: config.options, env },
-      entryID: config.id,
-      host,
-      context: { authProfiles },
+      raw: { id: options.config.id, options: options.config.options, env: options.env },
+      entryID: options.config.id,
+      host: options.host,
+      context: { authProfiles: options.authProfiles },
     });
 
     return { provider, problem: null, identityRule: plugin.identity };

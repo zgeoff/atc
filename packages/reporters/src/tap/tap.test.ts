@@ -54,14 +54,17 @@ test('it writes each pending message as an NDJSON line and acks it', async () =>
 
   const printed: string[] = [];
 
-  const tapped = runTap(id, 'atc/test-build', ctx.socketPath, {
-    writeStdout: (text) => {
-      printed.push(text);
+  const tapped = runTap(id, 'atc/test-build', {
+    socketPath: ctx.socketPath,
+    io: {
+      writeStdout: (text) => {
+        printed.push(text);
 
-      return Promise.resolve();
+        return Promise.resolve();
+      },
+      printError: () => {},
+      exit: () => {},
     },
-    printError: () => {},
-    exit: () => {},
   });
 
   onTestFinished(() => tapped);
@@ -97,10 +100,13 @@ test('it sends the build it is given as the client of its handshake', async () =
   const sock = join(temporaryDirectory.path, 'atc-daemon.sock');
   const listener = startStubRecordingListener(sock);
 
-  const tapped = runTap('s1', 'atc/tap-probe-build', sock, {
-    writeStdout: () => Promise.resolve(),
-    printError: () => {},
-    exit: () => {},
+  const tapped = runTap('s1', 'atc/tap-probe-build', {
+    socketPath: sock,
+    io: {
+      writeStdout: () => Promise.resolve(),
+      printError: () => {},
+      exit: () => {},
+    },
   });
 
   onTestFinished(() => tapped);
@@ -126,11 +132,9 @@ test('it exits 1 with a hint when no daemon listens', async () => {
   const errors: string[] = [];
   const codes: number[] = [];
 
-  await runTap(
-    's1',
-    'atc/test-build',
-    join(temporaryDirectory.path, 'no-daemon', 'atc-daemon.sock'),
-    {
+  await runTap('s1', 'atc/test-build', {
+    socketPath: join(temporaryDirectory.path, 'no-daemon', 'atc-daemon.sock'),
+    io: {
       writeStdout: () => Promise.resolve(),
       printError: (line) => {
         errors.push(line);
@@ -139,7 +143,7 @@ test('it exits 1 with a hint when no daemon listens', async () => {
         codes.push(code);
       },
     },
-  );
+  });
 
   expect({ codes, errors }).toStrictEqual({
     codes: [1],
@@ -155,13 +159,16 @@ test('it exits 1 with the refusal when the session cannot be tapped', async () =
   const errors: string[] = [];
   const codes: number[] = [];
 
-  await runTap('nope', 'atc/test-build', ctx.socketPath, {
-    writeStdout: () => Promise.resolve(),
-    printError: (line) => {
-      errors.push(line);
-    },
-    exit: (code) => {
-      codes.push(code);
+  await runTap('nope', 'atc/test-build', {
+    socketPath: ctx.socketPath,
+    io: {
+      writeStdout: () => Promise.resolve(),
+      printError: (line) => {
+        errors.push(line);
+      },
+      exit: (code) => {
+        codes.push(code);
+      },
     },
   });
 
@@ -182,11 +189,14 @@ test('it exits 0 once the daemon closes the connection', async () => {
 
   const codes: number[] = [];
 
-  const tapped = runTap(id, 'atc/test-build', ctx.socketPath, {
-    writeStdout: () => Promise.resolve(),
-    printError: () => {},
-    exit: (code) => {
-      codes.push(code);
+  const tapped = runTap(id, 'atc/test-build', {
+    socketPath: ctx.socketPath,
+    io: {
+      writeStdout: () => Promise.resolve(),
+      printError: () => {},
+      exit: (code) => {
+        codes.push(code);
+      },
     },
   });
 
@@ -218,11 +228,14 @@ test('it exits 0 when another tap replaces it', async () => {
 
   const codes: number[] = [];
 
-  const tapped = runTap(id, 'atc/test-build', ctx.socketPath, {
-    writeStdout: () => Promise.resolve(),
-    printError: () => {},
-    exit: (code) => {
-      codes.push(code);
+  const tapped = runTap(id, 'atc/test-build', {
+    socketPath: ctx.socketPath,
+    io: {
+      writeStdout: () => Promise.resolve(),
+      printError: () => {},
+      exit: (code) => {
+        codes.push(code);
+      },
     },
   });
 
@@ -268,11 +281,14 @@ test('it taps through the session bridge inside a remote host', async () => {
 
   const codes: number[] = [];
 
-  await runTap('s1', 'atc/test-build', join(temporaryDirectory.path, 'atc-daemon.sock'), {
-    writeStdout: () => Promise.resolve(),
-    printError: () => {},
-    exit: (code) => {
-      codes.push(code);
+  await runTap('s1', 'atc/test-build', {
+    socketPath: join(temporaryDirectory.path, 'atc-daemon.sock'),
+    io: {
+      writeStdout: () => Promise.resolve(),
+      printError: () => {},
+      exit: (code) => {
+        codes.push(code);
+      },
     },
   });
 

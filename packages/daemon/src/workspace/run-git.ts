@@ -111,14 +111,14 @@ export async function runGit(
 
   const stopped = Promise.withResolvers<void>();
 
-  const closed = waitForOutputClose(
-    subprocess.pid,
-    subprocess.exited,
+  const closed = waitForOutputClose({
+    pid: subprocess.pid,
+    exited: subprocess.exited,
     output,
-    findSubcommand(args) ?? 'command',
-    options.openOutputWatch ?? DEFAULT_OPEN_OUTPUT_WATCH,
-    stopped.promise,
-  );
+    subcommand: findSubcommand(args) ?? 'command',
+    watch: options.openOutputWatch ?? DEFAULT_OPEN_OUTPUT_WATCH,
+    stopped: stopped.promise,
+  });
 
   const finished = (async () => {
     const [[stdout, stderr], exitCode] = await Promise.all([output, subprocess.exited, closed]);
@@ -179,17 +179,23 @@ function readHostEnv(): Record<string, string | undefined> {
 
 const OPEN_OUTPUT_BOUND_MS = 30_000;
 
+interface WaitForOutputCloseOptions {
+  readonly pid: number;
+  readonly exited: Readonly<Promise<number>>;
+  readonly output: Readonly<Promise<unknown>>;
+  readonly subcommand: string;
+  readonly watch: OpenOutputWatch;
+  readonly stopped: Readonly<Promise<void>>;
+}
+
 // the hangup of output whose writer is gone may never arrive, so past the bound the run
 // reports which git it waited on, kills git's process group, and fails
-async function waitForOutputClose(
-  pid: number,
-  exited: Readonly<Promise<number>>,
-  output: Readonly<Promise<unknown>>,
-  subcommand: string,
-  watch: OpenOutputWatch,
-  stopped: Readonly<Promise<void>>,
-): Promise<void> {
-  const exitCode = await exited;
+async function waitForOutputClose(options: WaitForOutputCloseOptions): Promise<void> {
+  const pid = options.pid;
+  const subcommand = options.subcommand;
+  const watch = options.watch;
+
+  const exitCode = await options.exited;
 
   const bound = Promise.withResolvers<never>();
 
@@ -208,7 +214,7 @@ async function waitForOutputClose(
   }, OPEN_OUTPUT_BOUND_MS);
 
   try {
-    await Promise.race([output, bound.promise, stopped]);
+    await Promise.race([options.output, bound.promise, options.stopped]);
   } finally {
     disarm();
   }

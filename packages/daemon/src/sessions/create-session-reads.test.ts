@@ -29,21 +29,19 @@ async function setupTest(config: SetupTestConfig) {
 
   registerTestCleanup(() => store.stop());
 
-  const manager = createSessionManager(
-    null,
+  const manager = createSessionManager({
+    fallback: null,
     store,
-    join(temporaryDirectory.path, 'status.json'),
-    [config.adapter],
-    [
+    statusPath: join(temporaryDirectory.path, 'status.json'),
+    adapters: [config.adapter],
+    targets: [
       buildMockExecutionTarget({
         id: 'local',
         identity: 'local-pty:test',
         provider: buildStubMemoryProvider({ kind: 'local-pty' }),
       }),
     ],
-    [],
-    {},
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -64,7 +62,14 @@ async function setupTest(config: SetupTestConfig) {
 
 test('it reads the record of a session with the time of its last trail row', async () => {
   const ctx = await setupTest({ adapter: buildStubHarnessAdapter() });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', 'tidy the docs', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: 'tidy the docs',
+    cols: 80,
+    rows: 24,
+  });
 
   await ctx.store.recordEvent(
     { atcId: session.id, event: 'Stop', payload: {} },
@@ -86,7 +91,15 @@ test('it reads the record of a session with the time of its last trail row', asy
 
 test('it reads the creation time as the last activity of a session with no trail rows', async () => {
   const ctx = await setupTest({ adapter: buildStubHarnessAdapter() });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
   const record = await ctx.reads.readSessionRecord(session.id, null);
 
   expect(record).toMatchObject({ lastActivityAt: session.createdAt });
@@ -94,7 +107,14 @@ test('it reads the creation time as the last activity of a session with no trail
 
 test('it reads the message a session waits on as pending', async () => {
   const ctx = await setupTest({ adapter: buildStubHarnessAdapter() });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   ctx.manager.updateAttention(session.id, 'needs_you', 'Allow the edit?');
 
@@ -105,7 +125,14 @@ test('it reads the message a session waits on as pending', async () => {
 
 test('it counts the trail rows of the agent session the session resumed', async () => {
   const ctx = await setupTest({ adapter: buildStubHarnessAdapter() });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   session.agentSessionID = toAgentSessionID('a-1');
 
@@ -122,7 +149,14 @@ test('it counts the trail rows of the agent session the session resumed', async 
 
 test('it counts only the own trail rows of the session under an access', async () => {
   const ctx = await setupTest({ adapter: buildStubHarnessAdapter() });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   session.agentSessionID = toAgentSessionID('a-1');
 
@@ -156,7 +190,13 @@ test('it pages the transcript of a session through its agent', async () => {
     },
   });
 
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   const path = join(ctx.directory, 'transcript.jsonl');
 
@@ -186,7 +226,14 @@ test('it reads an empty page for a session with no transcript yet', async () => 
     },
   });
 
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
   const read = await ctx.reads.loadSessionTranscript(session.id, null, 10);
 
   expect(read).toStrictEqual({ path: '', page: { rows: [], offset: 0, more: false } });
@@ -194,7 +241,15 @@ test('it reads an empty page for a session with no transcript yet', async () => 
 
 test('it refuses a transcript read for an agent that parses none', async () => {
   const ctx = await setupTest({ adapter: buildStubHarnessAdapter() });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
   const read = await ctx.reads.loadSessionTranscript(session.id, null, 10);
 
   expect(read).toBe('unsupported');

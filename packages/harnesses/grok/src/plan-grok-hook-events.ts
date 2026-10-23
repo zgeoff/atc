@@ -66,7 +66,7 @@ export function planGrokHookEvents(
   const state = GROK_HOOK_STATE_SCHEMA.safeParse(previous).data;
   const hook = findGrokHook(hookEvent.event);
   const subagent = payload.subagentType !== undefined && payload.subagentType !== '';
-  const event = buildGrokEvent(hook, payload, state, home, subagent);
+  const event = buildGrokEvent({ hook, payload, state, home, subagent });
 
   if (hook === 'SessionEnd' && !subagent) {
     return { events: [event] };
@@ -92,42 +92,50 @@ function findGrokHook(event: string): GrokHook | null {
   return GROK_HOOKS.find((hook) => hook === name) ?? null;
 }
 
-function buildGrokEvent(
-  hook: GrokHook | null,
-  payload: GrokHookPayload,
-  state: GrokHookState | undefined,
-  home: string,
-  subagent: boolean,
-): AdapterEvent {
-  const base = buildHeartbeatEvent(payload.sessionId);
+interface BuildGrokEventOptions {
+  readonly hook: GrokHook | null;
+  readonly payload: GrokHookPayload;
+  readonly state: GrokHookState | undefined;
+  readonly home: string;
+  readonly subagent: boolean;
+}
+
+function buildGrokEvent(options: BuildGrokEventOptions): AdapterEvent {
+  const base = buildHeartbeatEvent(options.payload.sessionId);
 
   const named: AdapterEvent = {
     ...base,
-    ...(payload.sessionId === undefined || payload.cwd === undefined
+    ...(options.payload.sessionId === undefined || options.payload.cwd === undefined
       ? {}
-      : { nameSource: buildGrokNameSource(home, payload.sessionId, payload.cwd) }),
+      : {
+          nameSource: buildGrokNameSource(
+            options.home,
+            options.payload.sessionId,
+            options.payload.cwd,
+          ),
+        }),
   };
 
-  if (hook === null || subagent) {
+  if (options.hook === null || options.subagent) {
     return base;
   }
 
   const stale =
-    payload.promptId !== undefined &&
-    state?.latestPromptID !== undefined &&
-    payload.promptId !== state.latestPromptID;
+    options.payload.promptId !== undefined &&
+    options.state?.latestPromptID !== undefined &&
+    options.payload.promptId !== options.state.latestPromptID;
 
-  return match(hook)
+  return match(options.hook)
     .with('SessionStart', (): AdapterEvent => ({ ...named, kind: 'started' }))
-    .with('UserPromptSubmit', () => buildPromptSubmittedEvent(named, payload.prompt))
-    .with('Notification', () => buildNotificationEvent(base, named, payload, state))
+    .with('UserPromptSubmit', () => buildPromptSubmittedEvent(named, options.payload.prompt))
+    .with('Notification', () => buildNotificationEvent(base, named, options.payload, options.state))
     .with('Stop', () =>
-      payload.reason !== 'end_turn' || stale
+      options.payload.reason !== 'end_turn' || stale
         ? base
-        : buildTurnDoneEvent(named, payload.lastAssistantMessage),
+        : buildTurnDoneEvent(named, options.payload.lastAssistantMessage),
     )
     .with('StopFailure', 'StopCancelled', () =>
-      stale ? base : buildTurnDoneEvent(named, payload.lastAssistantMessage),
+      stale ? base : buildTurnDoneEvent(named, options.payload.lastAssistantMessage),
     )
     .with('SessionEnd', (): AdapterEvent => ({ ...base, kind: 'ended' }))
     .exhaustive();

@@ -6,21 +6,25 @@ import { renderEnrollPage } from './render-enroll-page';
 import type { HTTPServerContext, Requester } from './types';
 import { verifyPasskeyRegistration } from './verify-passkey-registration';
 
+interface EnrollRequest {
+  readonly method: 'GET' | 'POST';
+  readonly url: URL;
+  readonly body: string;
+  readonly requester: Requester;
+}
+
 export async function answerEnrollRequest(
   ctx: HTTPServerContext,
-  method: 'GET' | 'POST',
-  url: URL,
-  body: string,
-  requester: Requester,
+  request: EnrollRequest,
 ): Promise<Response> {
-  if (method === 'GET') {
+  if (request.method === 'GET') {
     return buildPageResponse(200, { page: renderEnrollPage({ ceremony: null, error: null }) });
   }
 
-  const form = new URLSearchParams(body);
+  const form = new URLSearchParams(request.body);
 
   const token = (form.get('token') ?? '').trim();
-  const context = { path: url.pathname, requester };
+  const context = { path: request.url.pathname, requester: request.requester };
 
   const tokenHash =
     token === '' ? null : await readEnrollmentToken(ctx.store.db, token, ctx.clock.now());
@@ -43,7 +47,7 @@ export async function answerEnrollRequest(
   }
 
   if (!form.has('credential')) {
-    return answerCeremony(ctx, 200, token, tokenHash, null);
+    return answerCeremony(ctx, { status: 200, token, tokenHash, error: null });
   }
 
   const taken = ctx.enrollments.claimChallenge(tokenHash);
@@ -72,7 +76,7 @@ export async function answerEnrollRequest(
       ? 'The enrollment took too long. Try again.'
       : 'atc could not enroll that passkey. Try again.';
 
-    return answerCeremony(ctx, 400, token, tokenHash, error);
+    return answerCeremony(ctx, { status: 400, token, tokenHash, error });
   }
 
   let created: boolean;
@@ -94,13 +98,12 @@ export async function answerEnrollRequest(
       ...context,
     });
 
-    return answerCeremony(
-      ctx,
-      400,
+    return answerCeremony(ctx, {
+      status: 400,
       token,
       tokenHash,
-      'That passkey is already enrolled. Use another device, or sign in with it.',
-    );
+      error: 'That passkey is already enrolled. Use another device, or sign in with it.',
+    });
   }
 
   if (!created) {
@@ -134,17 +137,21 @@ const PROMPT_TIMEOUT_MS = 120_000;
 // an authenticator files each one under the one atc account.
 const OWNER_HANDLE = Buffer.from('atc-owner').toString('base64url');
 
+interface AnswerCeremonyParams {
+  readonly status: number;
+  readonly token: string;
+  readonly tokenHash: string;
+  readonly error: string | null;
+}
+
 async function answerCeremony(
   ctx: HTTPServerContext,
-  status: number,
-  token: string,
-  tokenHash: string,
-  error: string | null,
+  params: AnswerCeremonyParams,
 ): Promise<Response> {
   const enrolled = await ctx.store.db.selectFrom('atc_passkey').select('id').execute();
 
   const options = {
-    challenge: ctx.enrollments.mintChallenge(tokenHash),
+    challenge: ctx.enrollments.mintChallenge(params.tokenHash),
     rp: { id: new URL(ctx.origin).hostname, name: 'atc' },
     user: { id: OWNER_HANDLE, name: 'owner', displayName: 'atc owner' },
     pubKeyCredParams: [
@@ -165,8 +172,8 @@ async function answerCeremony(
   };
 
   return buildPageResponse(
-    status,
-    { page: renderEnrollPage({ ceremony: { token, options }, error }) },
+    params.status,
+    { page: renderEnrollPage({ ceremony: { token: params.token, options }, error: params.error }) },
     [],
     [PASSKEY_SCRIPT.policySource],
   );

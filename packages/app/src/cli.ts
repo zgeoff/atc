@@ -196,7 +196,7 @@ const ATC_CLI_IO: ATCCLIIO = {
     const tap = await import('@atc/reporters/tap');
     const hostServices = await resolveHostServices();
 
-    await tap.runTap(session, hostServices.build, undefined, undefined, notices);
+    await tap.runTap(session, hostServices.build, { notices });
   },
   runNote: async (kind, options) => {
     const reporters = await import('@atc/reporters');
@@ -273,9 +273,10 @@ async function runSessionCommand(action: 'rebind' | 'adopt', id: string): Promis
     lifecycle.buildLifecycleHost(process.env, hostServices),
   );
 
-  const code = await sessionAction.runSessionAction(booted.client, action, id, {
-    cols: process.stdout.columns ?? 100,
-    rows: process.stdout.rows ?? 30,
+  const code = await sessionAction.runSessionAction(booted.client, {
+    action,
+    session: id,
+    size: { cols: process.stdout.columns ?? 100, rows: process.stdout.rows ?? 30 },
   });
 
   booted.client.stop();

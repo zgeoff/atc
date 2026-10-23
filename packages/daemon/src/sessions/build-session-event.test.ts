@@ -14,12 +14,12 @@ async function setupTest() {
 
   registerTestCleanup(() => store.stop());
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter(),
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
     store,
-    join(temporaryDirectory.path, 'status.json'),
-    [],
-  );
+    statusPath: join(temporaryDirectory.path, 'status.json'),
+    adapters: [],
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();

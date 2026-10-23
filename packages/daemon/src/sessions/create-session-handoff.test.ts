@@ -45,21 +45,20 @@ async function setupTest(config: SetupTestConfig) {
 
   const provider = buildStubMemoryProvider({ kind: 'local-pty' });
 
-  const manager = createSessionManager(
-    null,
+  const manager = createSessionManager({
+    fallback: null,
     store,
-    join(temporaryDirectory.path, 'status.json'),
-    [config.adapter],
-    [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
-    [],
-    {
+    statusPath: join(temporaryDirectory.path, 'status.json'),
+    adapters: [config.adapter],
+    targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
+    events: {
       onEvent: (kind, session) => {
         if (kind === 'added') {
           runtimes.set(session.id, createSessionRuntime());
         }
       },
     },
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -94,7 +93,13 @@ test('it ends the terminal of an ejected session and starts its turn once the ej
     adapter: { ...buildStubHarnessAdapter(), headlessRunner: mock<HeadlessRunner>() },
   });
 
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   session.agentSessionID = toAgentSessionID('a-1');
 
@@ -112,7 +117,14 @@ test('it ends the terminal of an ejected session and starts its turn once the ej
 
 test('it refuses to eject a session whose agent runs no headless turns', async () => {
   const ctx = await setupTest({ adapter: buildStubHarnessAdapter() });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   session.agentSessionID = toAgentSessionID('a-1');
 
@@ -128,7 +140,13 @@ test('it refuses to eject a session whose conversation its agent cannot resume',
     },
   });
 
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   const ejected = ctx.handoff.yankSession(session.id, 'finish the review');
 
@@ -144,7 +162,14 @@ test('it refuses to eject a session the manager does not hold', async () => {
 
 test('it starts a terminal that resumes an ended session and sizes it for its clients', async () => {
   const ctx = await setupTest({ adapter: buildStubHarnessAdapter() });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   session.agentSessionID = toAgentSessionID('a-1');
 
@@ -167,7 +192,14 @@ test('it starts a terminal that resumes an ended session and sizes it for its cl
 
 test('it stops the headless run of a session it adopts', async () => {
   const ctx = await setupTest({ adapter: buildStubHarnessAdapter() });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   session.agentSessionID = toAgentSessionID('a-1');
 
@@ -188,7 +220,14 @@ test('it stops the headless run of a session it adopts', async () => {
 
 test('it refuses to adopt a session outside the access', async () => {
   const ctx = await setupTest({ adapter: buildStubHarnessAdapter() });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   session.agentSessionID = toAgentSessionID('a-1');
 
@@ -207,7 +246,14 @@ test('it refuses to adopt a session whose conversation its agent cannot resume',
     adapter: { ...buildStubHarnessAdapter(), canResume: () => false },
   });
 
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
   const adopted = await ctx.handoff.adoptSession(session.id, 100, 30, null);
 
   expect(adopted).toBe('no_transcript');

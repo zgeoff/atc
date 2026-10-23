@@ -84,29 +84,31 @@ interface SessionSpawnerDeps {
   readonly runSteps?: SpawnStepRunner;
 }
 
+export interface SpawnSessionOptions {
+  readonly cwd: string;
+  readonly name: string;
+  readonly prompt: string;
+  readonly cols: number;
+  readonly rows: number;
+  readonly resume?: boolean | AgentSessionID | undefined;
+  readonly namedBy?: 'user' | 'auto' | undefined;
+  readonly agent?: AgentID | undefined;
+  readonly parent?: SessionID | null | undefined;
+  readonly overrides?: SpawnOverrides | undefined;
+  readonly id?: SessionID | undefined;
+  readonly target?: string | undefined;
+  readonly materialize?: SpawnMaterializer | null | undefined;
+  readonly requireInReach?: (() => void) | undefined;
+  readonly autoDir?: boolean | undefined;
+  readonly scope?: DeclaredScope | null | undefined;
+  readonly answer?: ((session: Session) => void) | null | undefined;
+}
+
 export interface SessionSpawner {
   // resume: true opens the agent's session picker, an id resumes that session;
   // the session keeps overrides for every revive; a materialize failure takes
   // back the host the spawn readied, unless it is a parent's
-  readonly spawn: (
-    cwd: string,
-    name: string,
-    prompt: string,
-    cols: number,
-    rows: number,
-    resume?: boolean | AgentSessionID,
-    namedBy?: 'user' | 'auto',
-    agent?: AgentID,
-    parent?: SessionID | null,
-    overrides?: SpawnOverrides,
-    id?: SessionID,
-    target?: string,
-    materialize?: SpawnMaterializer | null,
-    requireInReach?: () => void,
-    autoDir?: boolean,
-    scope?: DeclaredScope | null,
-    answer?: ((session: Session) => void) | null,
-  ) => Promise<Session>;
+  readonly spawn: (options: SpawnSessionOptions) => Promise<Session>;
 }
 
 export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
@@ -362,25 +364,13 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
   };
 
   return {
-    spawn: async (
-      cwd,
-      name,
-      prompt,
-      cols,
-      rows,
-      resume = false,
-      namedBy = 'auto',
-      agent = 'claude',
-      parent = null,
-      overrides = {},
-      id = mintSessionID(),
-      target = 'local',
-      materialize = null,
-      requireInReach = () => {},
-      autoDir = false,
-      scope = null,
-      answer = null,
-    ) => {
+    spawn: async (options) => {
+      const agent = options.agent ?? 'claude';
+      const parent = options.parent ?? null;
+      const overrides = options.overrides ?? {};
+      const id = options.id ?? mintSessionID();
+      const target = options.target ?? 'local';
+      const materialize = options.materialize ?? null;
       const adapter = registry.findAdapter(agent);
 
       if (adapter === null) {
@@ -443,23 +433,23 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
             id,
             hostKey,
             target,
-            cwd,
-            name,
-            prompt,
-            cols,
-            rows,
-            resume,
-            namedBy,
+            cwd: options.cwd,
+            name: options.name,
+            prompt: options.prompt,
+            cols: options.cols,
+            rows: options.rows,
+            resume: options.resume ?? false,
+            namedBy: options.namedBy ?? 'auto',
             agent,
             parent,
             overrides,
             materialize,
-            requireInReach,
-            autoDir,
-            scope,
+            requireInReach: options.requireInReach ?? (() => {}),
+            autoDir: options.autoDir ?? false,
+            scope: options.scope ?? null,
             trustClonedWorkspace,
             timer,
-            answer,
+            answer: options.answer ?? null,
           }),
         );
       } finally {

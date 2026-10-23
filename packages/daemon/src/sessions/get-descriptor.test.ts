@@ -21,21 +21,19 @@ async function setupTest() {
 
   registerTestCleanup(() => store.stop());
 
-  const manager = createSessionManager(
-    null,
+  const manager = createSessionManager({
+    fallback: null,
     store,
-    join(temporaryDirectory.path, 'status.json'),
-    [buildStubHarnessAdapter()],
-    [
+    statusPath: join(temporaryDirectory.path, 'status.json'),
+    adapters: [buildStubHarnessAdapter()],
+    targets: [
       buildMockExecutionTarget({
         id: 'local',
         identity: 'local-pty:test',
         provider: buildStubMemoryProvider({ kind: 'local-pty' }),
       }),
     ],
-    [],
-    {},
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -46,7 +44,14 @@ async function setupTest() {
 
 test('it gets the descriptor of a session the manager holds', async () => {
   const ctx = await setupTest();
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   expect(getDescriptor(ctx.manager, session.id)).toMatchObject({ id: session.id, name: 'worker' });
 });

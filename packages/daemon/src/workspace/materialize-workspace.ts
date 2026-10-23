@@ -83,7 +83,7 @@ export async function materializeWorkspace(
     const staging = await mkdtemp(join(deps.stagingRoot, 'atc-workspace-'));
 
     try {
-      const ready = await runMaterialization(request, deps, staging, updateProgress, secret);
+      const ready = await runMaterialization(request, deps, { staging, updateProgress, secret });
 
       return { ...ready, withheldEnv };
     } finally {
@@ -151,13 +151,20 @@ function buildWithheldEnv(source: SpawnWorkspaceSource): string[] {
     : [...ASKPASS_ENV];
 }
 
+interface RunMaterializationOptions {
+  readonly staging: string;
+  readonly updateProgress: ProgressTracker;
+  readonly secret: string | null;
+}
+
 async function runMaterialization(
   request: MaterializeRequest,
   deps: MaterializeDeps,
-  staging: string,
-  updateProgress: ProgressTracker,
-  secret: string | null,
+  options: RunMaterializationOptions,
 ): Promise<Omit<ReadyWorkspace, 'withheldEnv'>> {
+  const staging = options.staging;
+  const updateProgress = options.updateProgress;
+  const secret = options.secret;
   const transports = requireGitTransports(deps.gitTransports, { phase: 'resolving' });
   const timer = deps.timer ?? createStepTimer();
 
@@ -172,22 +179,21 @@ async function runMaterialization(
 
   const landing = await claimLanding(request, deps, updateProgress, timer);
 
-  await recordPhase(request, deps, updateProgress, 'cloning', {
+  await recordPhase(request, deps, updateProgress, {
+    phase: 'cloning',
     repoURL,
     ref,
     ...(request.autoDir === true ? { directory: landing.directory } : {}),
   });
 
-  const cloned = await createCheckout(
-    request,
-    deps,
+  const cloned = await createCheckout(request, deps, {
     updateProgress,
     pinned,
     landing,
     staging,
     transports,
     timer,
-  );
+  });
 
   if (deps.gitIdentity !== undefined && deps.gitIdentity !== null) {
     const identity = deps.gitIdentity;
@@ -195,13 +201,13 @@ async function runMaterialization(
     await timer.withStep('identity', () => writeGitIdentity(deps, landing, identity));
   }
 
-  await recordPhase(request, deps, updateProgress, 'verifying', { sha: cloned.sha });
+  await recordPhase(request, deps, updateProgress, { phase: 'verifying', sha: cloned.sha });
 
   await timer.withStep('verify', () => verifyTargetHead(request, deps, landing, cloned.sha));
 
   const materializedAt = (deps.clock ?? systemClock).now();
 
-  await recordPhase(request, deps, updateProgress, 'ready', { materializedAt });
+  await recordPhase(request, deps, updateProgress, { phase: 'ready', materializedAt });
 
   return {
     kind: 'ready',

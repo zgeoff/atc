@@ -196,13 +196,13 @@ export function createClaudeAdapter(
 
     // when the profiles send a ChatGPT sign-in too, the Codex CLI the session runs as a tool signs
     // in through the broker, with every variable that would sign it in another way unset
-    const codexHome = planCodexHome(
+    const codexHome = planCodexHome({
       authProfiles,
-      entry.auth?.profiles ?? [],
-      directory,
+      selected: entry.auth?.profiles ?? [],
+      guestDir: directory,
       revisionFolder,
-      auth.oauth ?? {},
-    );
+      states: auth.oauth ?? {},
+    });
 
     // the configured arguments drop their permission mode, so the mode the session's own user
     // settings set applies
@@ -218,9 +218,11 @@ export function createClaudeAdapter(
           pluginDirs: [],
         }),
       ],
-      [...OUTRANKING_VARIABLES],
-      bundleKey,
-      codexHome.unsetEnv,
+      {
+        refusedEnv: [...OUTRANKING_VARIABLES],
+        bundleKey,
+        unsetEnv: codexHome.unsetEnv,
+      },
     );
 
     const bundle: Record<string, GuestFile> = {
