@@ -299,8 +299,10 @@ async function deliverEvent(
   const digest = createHash('sha256').update(event.cursor).digest('hex');
   const delivered = createHash('sha256').update(`${delivery.subscriptionID}.${event.cursor}`);
   const webhookID = `msg_${delivered.digest('hex').slice(0, 32)}`;
+  let attempt = 1;
+  let rechecking = false;
 
-  for (let attempt = 1; ; attempt += 1) {
+  for (;;) {
     // The row is read again before each attempt, so a refresh's new secret
     // signs it and a removed subscription gets none.
     const row = await readLiveSubscription(deps, delivery.subscriptionID);
@@ -309,10 +311,20 @@ async function deliverEvent(
       return true;
     }
 
-    const reads = await probeAccessOrRecheck(deps, delivery, row.client_id);
+    const reads = delivery.state.stopped ? false : await deps.probeAccess(row.client_id);
 
-    if (!reads) {
+    // A retry that meets the gap of a token rotation waits it out once in
+    // place, so it keeps its attempt count and reads the row again after.
+    if (!reads && (rechecking || delivery.state.stopped)) {
       return false;
+    }
+
+    rechecking = !reads;
+
+    if (rechecking) {
+      await delivery.wait(ACCESS_RECHECK_MS);
+
+      continue;
     }
 
     // The event's cursor points past the event, so a subscriber that reads the
@@ -348,33 +360,9 @@ async function deliverEvent(
     }
 
     await delivery.wait(step.delayMs);
+
+    attempt += 1;
   }
-}
-
-// A retry that meets the gap of a token rotation waits it out in place, so it
-// keeps its attempt count.
-async function probeAccessOrRecheck(
-  deps: EventDelivererDeps,
-  delivery: PageDelivery,
-  clientID: string,
-): Promise<boolean> {
-  if (delivery.state.stopped) {
-    return false;
-  }
-
-  const reads = await deps.probeAccess(clientID);
-
-  if (reads) {
-    return true;
-  }
-
-  await delivery.wait(ACCESS_RECHECK_MS);
-
-  if (delivery.state.stopped) {
-    return false;
-  }
-
-  return deps.probeAccess(clientID);
 }
 
 interface SignedRequestParts {

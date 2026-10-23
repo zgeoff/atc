@@ -1094,6 +1094,91 @@ test('it keeps a retry and its webhook-id across the gap of a token rotation', a
   expect(retry.headers['webhook-id']).toBe(first.headers['webhook-id']);
 });
 
+test('it signs a retry after a token rotation gap with the secret a refresh stored during the wait', async () => {
+  const ctx = await setupTest();
+
+  const receiver = buildStubWebhookReceiver({ answers: [{ status: 503 }] });
+  const access = { granted: true };
+  const refreshedSecret = Buffer.alloc(32, 9);
+
+  const head = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
+
+  await ctx.db
+    .insertInto('atc_event_subscription')
+    .values({
+      id: 'sub_0123456789abcdef0123456789abcdef',
+      client_id: 'client-one',
+      url: 'https://hooks.example.com/hook',
+      name: 'session.turn_done',
+      arguments: '{}',
+      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+      position: getString(head, 'cursor'),
+      refresh_before: '2026-10-24T12:00:00.000Z',
+      created_at: '2026-10-23T12:00:00.000Z',
+    })
+    .execute();
+
+  const deliverer = createEventDeliverer({
+    db: ctx.db,
+    caller: ctx.caller,
+    send: receiver.send,
+    clock: ctx.clock,
+    probeAccess: () => Promise.resolve(access.granted),
+    log: () => {},
+  });
+
+  registerTestCleanup(deliverer.stop);
+
+  await deliverer.start();
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.directory,
+    cols: 80,
+    rows: 24,
+  });
+
+  await ctx.daemon.sendHookLines({
+    atcId: getString(getRecord(spawned, 'session'), 'id'),
+    event: 'Stop',
+    payload: {},
+  });
+
+  await waitFor(() => {
+    expect(ctx.clock.collectPending()).toStrictEqual([30_000]);
+  });
+
+  access.granted = false;
+
+  ctx.clock.advance(30_000);
+
+  await waitFor(() => {
+    expect(ctx.clock.collectPending()).toStrictEqual([5000]);
+  });
+
+  await ctx.db
+    .updateTable('atc_event_subscription')
+    .set({ secret: `whsec_${refreshedSecret.toString('base64')}` })
+    .execute();
+
+  access.granted = true;
+
+  ctx.clock.advance(5000);
+
+  await waitFor(() => {
+    expect(receiver.received).toHaveLength(2);
+  });
+
+  const [, retry] = receiver.received;
+
+  invariant(retry, 'the endpoint received no retry');
+
+  const signature = createHmac('sha256', refreshedSecret)
+    .update(`${retry.headers['webhook-id']}.${retry.headers['webhook-timestamp']}.${retry.body}`)
+    .digest('base64');
+
+  expect(retry.headers['webhook-signature']).toBe(`v1,${signature}`);
+});
+
 test('it ends a retired watcher and starts afresh on the next watch', async () => {
   const ctx = await setupTest();
 
