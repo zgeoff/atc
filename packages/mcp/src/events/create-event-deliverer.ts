@@ -1,8 +1,9 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { Clock } from '@atc/core';
+import { EVENTS_PAGE_SCHEMA } from '@atc/protocol';
 import type { Kysely } from 'kysely';
 import invariant from 'tiny-invariant';
-import { z } from 'zod';
+import type { z } from 'zod';
 import type { MCPAuthSchema } from '../auth/mcp-auth-schema';
 import { normalizeClientName } from '../auth/normalize-client-name';
 import { readClientName } from '../auth/read-client-name';
@@ -199,17 +200,7 @@ async function readLiveSubscription(
 const READ_WAIT_MS = 30_000;
 const READ_LIMIT = 50;
 
-// The part of an events.read answer a watcher reads.
-const TRAIL_EVENT_SCHEMA = z.object({
-  cursor: z.string(),
-  at: z.number(),
-  session: z.string(),
-  kind: z.string(),
-});
-
-const PAGE_SCHEMA = z.object({ events: z.array(TRAIL_EVENT_SCHEMA), cursor: z.string() });
-
-type TrailPage = z.infer<typeof PAGE_SCHEMA>;
+type TrailPage = z.infer<typeof EVENTS_PAGE_SCHEMA>;
 
 async function tryReadPage(
   deps: EventDelivererDeps,
@@ -224,7 +215,7 @@ async function tryReadPage(
       { id: row.client_id, name: normalizeClientName(storedName, 'remote') },
     );
 
-    const parsed = PAGE_SCHEMA.safeParse(answer);
+    const parsed = EVENTS_PAGE_SCHEMA.safeParse(answer);
 
     return parsed.success ? parsed.data : null;
   } catch {
@@ -273,7 +264,7 @@ async function deliverPage(deps: EventDelivererDeps, delivery: PageDelivery): Pr
 async function deliverEvent(
   deps: EventDelivererDeps,
   row: SubscriptionRow,
-  event: z.infer<typeof TRAIL_EVENT_SCHEMA>,
+  event: TrailPage['events'][number],
 ): Promise<void> {
   const secret = parseWebhookSecret(row.secret);
 

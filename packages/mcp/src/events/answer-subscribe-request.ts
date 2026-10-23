@@ -1,8 +1,9 @@
 import type { Clock } from '@atc/core';
+import { EVENTS_PAGE_SCHEMA } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
 import { ProtocolError } from '@modelcontextprotocol/server';
 import type { Kysely } from 'kysely';
-import { z } from 'zod';
+import type { z } from 'zod';
 import type { MCPAuthSchema } from '../auth/mcp-auth-schema';
 import type { FleetCaller } from '../tools/types';
 import { buildSubscriptionID } from './build-subscription-id';
@@ -162,7 +163,7 @@ async function readStartPosition(deps: EventMethodDeps, cursor: string | null): 
   return cursor;
 }
 
-const HEAD_PAGE_SCHEMA = z.object({ cursor: z.string(), more: z.boolean().optional() });
+const HEAD_PAGE_SCHEMA = EVENTS_PAGE_SCHEMA.pick({ cursor: true, more: true });
 
 // The largest page a read returns.
 const HEAD_READ_LIMIT = 200;
@@ -175,7 +176,7 @@ async function readHeadPosition(deps: EventMethodDeps): Promise<string> {
 
   let page = HEAD_PAGE_SCHEMA.parse(first);
 
-  while (page.more === true) {
+  while (page.more) {
     const next = await deps.caller.sendRequest('events.read', {
       cursor: page.cursor,
       limit: HEAD_READ_LIMIT,
