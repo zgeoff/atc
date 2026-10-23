@@ -142,6 +142,7 @@ const SUBSCRIPTION_MOVES = {
   advance: { from: ['live'], to: 'live' },
   expire: { from: ['expired'], to: 'removed' },
   end: { from: ['live', 'expired'], to: 'removed' },
+  endForClient: { from: ['live', 'expired'], to: 'removed' },
 } as const satisfies Record<string, SubscriptionMove>;
 
 type SubscriptionMoveName = keyof typeof SUBSCRIPTION_MOVES;
@@ -149,7 +150,10 @@ type SubscriptionMoveName = keyof typeof SUBSCRIPTION_MOVES;
 // A row's refreshBefore against the present tells its state, so a move that
 // starts from live rows only, or from expired rows only, holds the write to
 // rows on that side of the present. A move from both states needs no bound.
-function getStateBound(move: Exclude<SubscriptionMoveName, 'end'>, now: number): StateBound {
+function getStateBound(
+  move: Exclude<SubscriptionMoveName, 'end' | 'endForClient'>,
+  now: number,
+): StateBound {
   const from: readonly string[] = SUBSCRIPTION_MOVES[move].from;
 
   const at = new Date(now).toISOString();

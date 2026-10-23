@@ -1,4 +1,5 @@
 import type { Kysely } from 'kysely';
+import { createSubscriptionStore } from '../events/create-subscription-store';
 import type { MCPAuthSchema } from './mcp-auth-schema';
 
 export function removeClient(db: Kysely<MCPAuthSchema>, clientID: string): Promise<boolean> {
@@ -20,7 +21,9 @@ export function removeClient(db: Kysely<MCPAuthSchema>, clientID: string): Promi
     await trx.deleteFrom('oauthAccessToken').where('clientId', '=', clientID).execute();
     await trx.deleteFrom('oauthRefreshToken').where('clientId', '=', clientID).execute();
     await trx.deleteFrom('oauthConsent').where('clientId', '=', clientID).execute();
-    await trx.deleteFrom('atc_event_subscription').where('client_id', '=', clientID).execute();
+
+    await createSubscriptionStore(trx).endForClient(clientID);
+
     await trx.deleteFrom('atc_event_callback').where('client_id', '=', clientID).execute();
 
     const removed = await trx
