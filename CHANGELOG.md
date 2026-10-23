@@ -1,5 +1,25 @@
 # Changelog
 
+## [7.2.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.1.0...@zgeoff/atc@7.2.0) (2026-10-23)
+
+### Features
+
+- **auth:** neutral broker wording with the provider's own hints
+  ([#918](https://github.com/zgeoff/atc/issues/918))
+  ([1343a92](https://github.com/zgeoff/atc/commit/1343a92fa195240f90f79ea5d8c9ece8a39ead90))
+
+### Bug Fixes
+
+- **bridge:** keep starting a session's message tap until one attaches
+  ([#927](https://github.com/zgeoff/atc/issues/927))
+  ([7e9acfa](https://github.com/zgeoff/atc/commit/7e9acfae8cf0c99e583ac64caf0b62f8e9f16672))
+- **imp:** place atc's guest folder in the scratch folder impd declares
+  ([#916](https://github.com/zgeoff/atc/issues/916))
+  ([2a580c5](https://github.com/zgeoff/atc/commit/2a580c5f5b9ce0850c633451e80c160e324406af))
+- **store:** commit each delivered mark with its trail entry
+  ([#924](https://github.com/zgeoff/atc/issues/924))
+  ([af76e27](https://github.com/zgeoff/atc/commit/af76e2758d43a5cc0a4b4ef6041288bf2fe6a084))
+
 ## [7.1.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.0.0...@zgeoff/atc@7.1.0) (2026-10-22)
 
 ### Features
