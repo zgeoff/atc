@@ -185,8 +185,8 @@ function buildPTYEnv(spec: HarnessSpec): Record<string, string> {
 }
 
 // The PTY library looks a bare program up on the daemon's own PATH when the
-// map holds none, and starts a missing program only for it to exit, so the
-// program is found on the map's PATH before the harness starts.
+// map holds none, so the program is found on the map's PATH alone before the
+// harness starts.
 function resolveHarnessBin(
   bin: string,
   env: Readonly<Record<string, string>>,
