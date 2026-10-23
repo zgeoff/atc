@@ -216,7 +216,7 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
     caller: options.caller,
     send: sendWebhook,
     clock,
-    probeAccess: (clientID) => probeReadAccess(store.db, clientID),
+    probeAccess: (clientID) => probeReadAccess(store.db, clientID, clock.now()),
     log: options.printRequest,
   });
 

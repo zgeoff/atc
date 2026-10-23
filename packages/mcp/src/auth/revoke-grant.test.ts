@@ -92,7 +92,7 @@ test("it forgets the consent its client held along with the grant's tokens", asy
 
   invariant(grant !== undefined, 'the exchange left no grant');
 
-  const revoked = await revokeGrant(ctx.store.db, grant.grantID);
+  const revoked = await revokeGrant(ctx.store.db, grant.grantID, Date.now());
   const consents = await ctx.store.db.selectFrom('oauthConsent').select('id').execute();
   const grants = await readGrantViews(ctx.store.db);
 
@@ -147,7 +147,7 @@ test("it ends the client's event subscriptions along with its last read grant", 
 
   invariant(grant !== undefined, 'the exchange left no grant');
 
-  await revokeGrant(ctx.store.db, grant.grantID);
+  await revokeGrant(ctx.store.db, grant.grantID, Date.now());
 
   const subscriptions = await ctx.store.db
     .selectFrom('atc_event_subscription')
@@ -221,7 +221,7 @@ test("it keeps the client's event subscriptions while another read grant lives",
 
   invariant(grant !== undefined, 'the exchanges left no grant');
 
-  await revokeGrant(ctx.store.db, grant.grantID);
+  await revokeGrant(ctx.store.db, grant.grantID, Date.now());
 
   const subscriptions = await ctx.store.db
     .selectFrom('atc_event_subscription')
@@ -233,7 +233,7 @@ test("it keeps the client's event subscriptions while another read grant lives",
 
 test('it reports an unknown grant id as not revoked', async () => {
   const ctx = await setupTest();
-  const revoked = await revokeGrant(ctx.store.db, 'unknown-grant');
+  const revoked = await revokeGrant(ctx.store.db, 'unknown-grant', Date.now());
 
   expect(revoked).toBeFalse();
 });
@@ -278,7 +278,7 @@ test("it never removes another grant's tokens or another client's consent", asyn
 
   invariant(revokedGrant !== undefined && keptGrant !== undefined, 'the exchanges left no grants');
 
-  await revokeGrant(ctx.store.db, revokedGrant.grantID);
+  await revokeGrant(ctx.store.db, revokedGrant.grantID, Date.now());
 
   const accessTokens = await ctx.store.db
     .selectFrom('oauthAccessToken')

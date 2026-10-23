@@ -7,8 +7,9 @@ import { probeReadAccess } from './probe-read-access';
 export async function removeUnauthorizedSubscriptions(
   db: Kysely<MCPAuthSchema>,
   clientID: string,
+  now: number,
 ): Promise<void> {
-  const reads = await probeReadAccess(db, clientID);
+  const reads = await probeReadAccess(db, clientID, now);
 
   if (reads) {
     return;
