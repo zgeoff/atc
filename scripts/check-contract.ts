@@ -39,7 +39,10 @@ async function main(): Promise<void> {
         `stale snapshot: ${SNAPSHOT} differs from the emitted declarations at line ${line}; run bun run check:contract --update and review the diff`,
       );
 
-      process.exit(1);
+      // process.exit would skip the finally that removes the declarations
+      process.exitCode = 1;
+
+      return;
     }
 
     console.log(`check-contract: ${files.length} declaration files match ${SNAPSHOT}`);

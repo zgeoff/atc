@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { symlinkSync } from 'node:fs';
+import { mkdirSync, readdirSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { runCommand, setupTempDir } from '@atc/test-utils';
 
@@ -170,4 +170,35 @@ test('it fails on declarations that differ from the snapshot, naming the first l
     stderr:
       'stale snapshot: packages/contract/declarations.snap differs from the emitted declarations at line 2; run bun run check:contract --update and review the diff\n',
   });
+});
+
+test('it removes the declarations it emitted when the check fails', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.directory, 'packages/contract/tsconfig.build.json'),
+    JSON.stringify({
+      compilerOptions: {
+        declaration: true,
+        emitDeclarationOnly: true,
+        module: 'preserve',
+        rootDir: 'src',
+        types: [],
+      },
+      include: ['src/**/*.ts'],
+    }),
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/contract/src/index.ts'),
+    'export type SessionID = number;\n',
+  );
+
+  mkdirSync(join(ctx.directory, 'tmp'));
+
+  await runCommand([process.execPath, join(import.meta.dir, 'check-contract.ts'), ctx.directory], {
+    env: { ...process.env, TMPDIR: join(ctx.directory, 'tmp') },
+  });
+
+  expect(readdirSync(join(ctx.directory, 'tmp'))).toStrictEqual([]);
 });
