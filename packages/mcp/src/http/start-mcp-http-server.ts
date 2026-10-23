@@ -13,6 +13,7 @@ import type { MCPAuthDatabase } from '../auth/mcp-auth-database';
 import { openMCPAuth } from '../auth/open-mcp-auth';
 import type { HTTPServerContext, Requester, VerifiedAccess } from '../auth/types';
 import { createEventDeliverer } from '../events/create-event-deliverer';
+import { createSubscriptionStore } from '../events/create-subscription-store';
 import { createWebhookSender } from '../events/create-webhook-sender';
 import { isPublicAddress } from '../events/is-public-address';
 import { probeReadAccess } from '../events/probe-read-access';
@@ -220,6 +221,7 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
 
   const deliverer = createEventDeliverer({
     db: store.db,
+    subscriptions: createSubscriptionStore(store.db),
     caller: options.caller,
     send: sendWebhook,
     clock,

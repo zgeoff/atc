@@ -14,10 +14,12 @@ import {
 import invariant from 'tiny-invariant';
 import { openMCPAuth } from '../auth/open-mcp-auth';
 import { buildStubFleetCaller } from '../testing/build-stub-fleet-caller';
+import { buildStubRacingSubscriptionStore } from '../testing/build-stub-racing-subscription-store';
 import { buildStubWebhookReceiver } from '../testing/build-stub-webhook-receiver';
 import { openTestAuthDatabase } from '../testing/open-test-auth-database';
 import { createTransportCaller } from '../tools/create-transport-caller';
 import { createEventDeliverer } from './create-event-deliverer';
+import { createSubscriptionStore } from './create-subscription-store';
 import type { WebhookSender } from './types';
 
 // A daemon whose every hook line becomes a finished turn, a caller that
@@ -83,6 +85,7 @@ test('it posts a signed delivery of a matching event with its session and the cu
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
+    subscriptions: createSubscriptionStore(ctx.db),
     caller: ctx.caller,
     send: receiver.send,
     clock: ctx.clock,
@@ -159,6 +162,7 @@ test('it delivers a cursor from which a read of the trail returns only later eve
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
+    subscriptions: createSubscriptionStore(ctx.db),
     caller: ctx.caller,
     send: receiver.send,
     clock: ctx.clock,
@@ -222,6 +226,7 @@ test('it delivers nothing for an event of another type and moves its position pa
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
+    subscriptions: createSubscriptionStore(ctx.db),
     caller: ctx.caller,
     send: receiver.send,
     clock: ctx.clock,
@@ -299,6 +304,7 @@ test('it resumes from the stored position, so an event that came while no server
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
+    subscriptions: createSubscriptionStore(ctx.db),
     caller: ctx.caller,
     send: receiver.send,
     clock: ctx.clock,
@@ -361,6 +367,7 @@ test("it delivers nothing from a session outside the client's reach", async () =
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
+    subscriptions: createSubscriptionStore(ctx.db),
     caller: ctx.caller,
     send: receiver.send,
     clock: ctx.clock,
@@ -420,6 +427,7 @@ test('it removes a subscription whose client no longer holds read and delivers n
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
+    subscriptions: createSubscriptionStore(ctx.db),
     caller: ctx.caller,
     send: receiver.send,
     clock: ctx.clock,
@@ -472,6 +480,7 @@ test('it keeps a subscription whose client holds read again on the recheck, as a
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
+    subscriptions: createSubscriptionStore(ctx.db),
     caller: ctx.caller,
     send: receiver.send,
     clock: ctx.clock,
@@ -543,6 +552,7 @@ test('it delivers nothing and keeps its position when the client loses read duri
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
+    subscriptions: createSubscriptionStore(ctx.db),
     caller: ctx.caller,
     send: receiver.send,
     clock: ctx.clock,
@@ -600,6 +610,7 @@ test('it removes a subscription past its refreshBefore and delivers nothing to i
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
+    subscriptions: createSubscriptionStore(ctx.db),
     caller: ctx.caller,
     send: receiver.send,
     clock: ctx.clock,
@@ -618,6 +629,82 @@ test('it removes a subscription past its refreshBefore and delivers nothing to i
   });
 
   expect(receiver.received).toBeEmpty();
+});
+
+test('it keeps a subscription that a subscribe renewed between the read that found it expired and its removal', async () => {
+  const ctx = await setupTest();
+
+  const receiver = buildStubWebhookReceiver();
+  const subscriptions = createSubscriptionStore(ctx.db);
+
+  const head = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
+
+  await ctx.db
+    .insertInto('atc_event_subscription')
+    .values({
+      id: 'sub_0123456789abcdef0123456789abcdef',
+      client_id: 'client-one',
+      url: 'https://hooks.example.com/hook',
+      name: 'session.turn_done',
+      arguments: '{}',
+      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+      position: getString(head, 'cursor'),
+      refresh_before: '2026-10-23T11:59:59.000Z',
+      created_at: '2026-10-22T12:00:00.000Z',
+    })
+    .execute();
+
+  const deliverer = createEventDeliverer({
+    db: ctx.db,
+    subscriptions: buildStubRacingSubscriptionStore(subscriptions, async () => {
+      await subscriptions.start(
+        {
+          id: 'sub_0123456789abcdef0123456789abcdef',
+          client_id: 'client-one',
+          url: 'https://hooks.example.com/hook',
+          name: 'session.turn_done',
+          arguments: '{}',
+          secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+          position: getString(head, 'cursor'),
+          refresh_before: '2026-10-24T12:00:00.000Z',
+          created_at: '2026-10-23T12:00:00.000Z',
+        },
+        ctx.clock.now(),
+      );
+    }),
+    caller: ctx.caller,
+    send: receiver.send,
+    clock: ctx.clock,
+    probeAccess: () => Promise.resolve(true),
+    log: () => {},
+  });
+
+  registerTestCleanup(deliverer.stop);
+
+  await deliverer.start();
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.directory,
+    cols: 80,
+    rows: 24,
+  });
+
+  await ctx.daemon.sendHookLines({
+    atcId: getString(getRecord(spawned, 'session'), 'id'),
+    event: 'Stop',
+    payload: {},
+  });
+
+  await waitFor(() => {
+    expect(receiver.received).toHaveLength(1);
+  });
+
+  const stored = await ctx.db
+    .selectFrom('atc_event_subscription')
+    .select('refresh_before')
+    .execute();
+
+  expect(stored).toStrictEqual([{ refresh_before: '2026-10-24T12:00:00.000Z' }]);
 });
 
 test('it logs a delivery the endpoint refused', async () => {
@@ -645,6 +732,7 @@ test('it logs a delivery the endpoint refused', async () => {
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
+    subscriptions: createSubscriptionStore(ctx.db),
     caller: ctx.caller,
     send: receiver.send,
     clock: ctx.clock,
@@ -699,6 +787,7 @@ test('it retries a refused delivery after a backoff with the same webhook-id and
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
+    subscriptions: createSubscriptionStore(ctx.db),
     caller: ctx.caller,
     send: receiver.send,
     clock: ctx.clock,
@@ -774,6 +863,7 @@ test('it gives up on an event after its last attempt and delivers the next one',
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
+    subscriptions: createSubscriptionStore(ctx.db),
     caller: ctx.caller,
     send: receiver.send,
     clock: ctx.clock,
@@ -855,6 +945,7 @@ test('it moves past an event its endpoint refuses as too large without a retry',
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
+    subscriptions: createSubscriptionStore(ctx.db),
     caller: ctx.caller,
     send: receiver.send,
     clock: ctx.clock,
@@ -911,6 +1002,7 @@ test('it removes a subscription whose endpoint answers 410 and delivers nothing 
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
+    subscriptions: createSubscriptionStore(ctx.db),
     caller: ctx.caller,
     send: receiver.send,
     clock: ctx.clock,
@@ -968,6 +1060,7 @@ test('it delivers an event again after a restart when a stop cut its retries sho
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
+    subscriptions: createSubscriptionStore(ctx.db),
     caller: ctx.caller,
     send: receiver.send,
     clock: ctx.clock,
@@ -999,6 +1092,7 @@ test('it delivers an event again after a restart when a stop cut its retries sho
 
   const restarted = createEventDeliverer({
     db: ctx.db,
+    subscriptions: createSubscriptionStore(ctx.db),
     caller: ctx.caller,
     send: restartedReceiver.send,
     clock: ctx.clock,
@@ -1048,6 +1142,7 @@ test('it stops retrying an event once its client loses read, and rechecks access
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
+    subscriptions: createSubscriptionStore(ctx.db),
     caller: ctx.caller,
     send: receiver.send,
     clock: ctx.clock,
@@ -1114,6 +1209,7 @@ test('it keeps a retry and its webhook-id across the gap of a token rotation', a
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
+    subscriptions: createSubscriptionStore(ctx.db),
     caller: ctx.caller,
     send: receiver.send,
     clock: ctx.clock,
@@ -1190,6 +1286,7 @@ test('it signs a retry after a token rotation gap with the secret a refresh stor
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
+    subscriptions: createSubscriptionStore(ctx.db),
     caller: ctx.caller,
     send: receiver.send,
     clock: ctx.clock,
@@ -1273,6 +1370,7 @@ test('it ends a retired watcher and starts afresh on the next watch', async () =
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
+    subscriptions: createSubscriptionStore(ctx.db),
     caller: ctx.caller,
     send: receiver.send,
     clock: ctx.clock,
@@ -1345,6 +1443,7 @@ test('it logs the first failed read of the trail with its cause, and the read th
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
+    subscriptions: createSubscriptionStore(ctx.db),
     caller,
     send: buildStubWebhookReceiver().send,
     clock: ctx.clock,
@@ -1408,6 +1507,7 @@ test('it waits before it starts a failed watcher again', async () => {
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
+    subscriptions: createSubscriptionStore(ctx.db),
     caller: ctx.caller,
     send,
     clock: ctx.clock,

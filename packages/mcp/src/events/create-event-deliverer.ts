@@ -10,7 +10,6 @@ import { normalizeClientName } from '../auth/normalize-client-name';
 import { readClientName } from '../auth/read-client-name';
 import type { FleetCaller } from '../tools/types';
 import { buildWebhookRequest } from './build-webhook-request';
-import { createSubscriptionStore } from './create-subscription-store';
 import type { SubscriptionRow, SubscriptionStore } from './create-subscription-store';
 import { createSubscriptionWatcherMachine } from './create-subscription-watcher-machine';
 import type { PageDelivery, TrailPage } from './create-subscription-watcher-machine';
@@ -22,6 +21,7 @@ import type { WebhookOutcome, WebhookRequest, WebhookSender } from './types';
 
 interface EventDelivererDeps {
   readonly db: Kysely<MCPAuthSchema>;
+  readonly subscriptions: SubscriptionStore;
   readonly caller: FleetCaller;
   readonly send: WebhookSender;
   readonly clock: Clock;
@@ -46,16 +46,10 @@ export interface EventDeliverer {
   readonly stop: () => void;
 }
 
-interface DelivererContext extends EventDelivererDeps {
-  readonly subscriptions: SubscriptionStore;
-}
-
 // Each subscription's watcher reads the trail as the subscription's client,
 // so it sees only the sessions the client's principal reaches, and it stores
 // how far it got, so a restarted server resumes where it stopped.
-export function createEventDeliverer(options: EventDelivererDeps): EventDeliverer {
-  const deps: DelivererContext = { ...options, subscriptions: createSubscriptionStore(options.db) };
-
+export function createEventDeliverer(deps: EventDelivererDeps): EventDeliverer {
   const machine = createSubscriptionWatcherMachine({
     readSubscription: (subscriptionID) => readLiveSubscription(deps, subscriptionID),
     probeAccess: deps.probeAccess,
@@ -152,7 +146,7 @@ export function createEventDeliverer(options: EventDelivererDeps): EventDelivere
 // A subscription past its refreshBefore is gone, as the extension says, so the
 // watcher removes its row and ends.
 async function readLiveSubscription(
-  deps: DelivererContext,
+  deps: EventDelivererDeps,
   subscriptionID: string,
 ): Promise<SubscriptionRow | null> {
   const now = deps.clock.now();
@@ -174,7 +168,7 @@ async function readLiveSubscription(
 const READ_WAIT_MS = 30_000;
 const READ_LIMIT = 50;
 
-async function readTrailPage(deps: DelivererContext, row: SubscriptionRow): Promise<TrailPage> {
+async function readTrailPage(deps: EventDelivererDeps, row: SubscriptionRow): Promise<TrailPage> {
   const storedName = await readClientName(deps.db, row.client_id);
 
   const answer = await deps.caller.sendRequest(
@@ -192,7 +186,7 @@ async function readTrailPage(deps: DelivererContext, row: SubscriptionRow): Prom
   return parsed.data;
 }
 
-async function deliverPage(deps: DelivererContext, delivery: PageDelivery): Promise<void> {
+async function deliverPage(deps: EventDelivererDeps, delivery: PageDelivery): Promise<void> {
   for (const event of delivery.page.events) {
     const row = await readLiveSubscription(deps, delivery.subscriptionID);
 
@@ -224,7 +218,7 @@ async function deliverPage(deps: DelivererContext, delivery: PageDelivery): Prom
 const ACCESS_RECHECK_MS = 5000;
 
 async function deliverEvent(
-  deps: DelivererContext,
+  deps: EventDelivererDeps,
   delivery: PageDelivery,
   event: TrailPage['events'][number],
 ): Promise<boolean> {
@@ -320,7 +314,7 @@ interface SignedRequestParts {
   readonly body: string;
 }
 
-function buildSignedRequest(deps: DelivererContext, parts: SignedRequestParts): WebhookRequest {
+function buildSignedRequest(deps: EventDelivererDeps, parts: SignedRequestParts): WebhookRequest {
   const secret = parseWebhookSecret(parts.row.secret);
 
   invariant(secret, 'a stored subscription holds a secret its subscribe refused');
@@ -341,14 +335,14 @@ function formatOutcome(outcome: WebhookOutcome): string {
 
 // A 410 ends the subscription, as the extension says. A subscribe that
 // renewed the row after this attempt left it, and keeps it.
-async function removeSubscription(deps: DelivererContext, row: SubscriptionRow): Promise<void> {
+async function removeSubscription(deps: EventDelivererDeps, row: SubscriptionRow): Promise<void> {
   await deps.subscriptions.drop(row.id, row.refresh_before);
 
   deps.log(`atc events: removed ${row.id}, whose endpoint answered HTTP 410`);
 }
 
 async function writePosition(
-  deps: DelivererContext,
+  deps: EventDelivererDeps,
   subscriptionID: string,
   position: string,
 ): Promise<void> {
