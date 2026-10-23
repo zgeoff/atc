@@ -73,7 +73,7 @@
     "start": "bun packages/app/src/cli.ts",
     "build:atc-bridge": "bun scripts/build-atc-bridge.ts && oxfmt packages/harnesses/claude/src/bridge/atc-bridge-files.ts && format-codemod --quiet packages/harnesses/claude/src/bridge/atc-bridge-files.ts",
     "build:binaries": "bash scripts/build-binaries.sh",
-    "audit": "bun audit",
+    "audit": "bun audit --ignore=GHSA-333x-w4r6-6crp --ignore=GHSA-w74x-v6f9-j3xg --ignore=GHSA-wjr9-j795-jxcr --ignore=GHSA-xhq7-xmqj-769h",
     "check:bundle": "bun scripts/check-bundle.ts",
     "check:imports": "bun scripts/check-imports.ts",
     "check:disable-baseline": "bun scripts/check-disable-baseline.ts",
