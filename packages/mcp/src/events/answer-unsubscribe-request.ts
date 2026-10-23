@@ -10,8 +10,6 @@ export const UNSUBSCRIBE_PARAMS = z.looseObject({
   delivery: z.looseObject({ mode: z.string(), url: z.string() }),
 });
 
-// Subscribe stores only subscriptions without arguments, so a key with
-// arguments ends none.
 export async function answerUnsubscribeRequest(
   deps: Pick<EventMethodDeps, 'db' | 'clientID' | 'deliverer'>,
   params: z.infer<typeof UNSUBSCRIBE_PARAMS>,
