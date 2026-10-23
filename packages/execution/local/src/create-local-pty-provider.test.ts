@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { systemClock } from '@atc/core';
 import {
@@ -473,7 +473,13 @@ test('it runs a command in a directory and returns its exit code and output', as
     cwd: ctx.directory,
   });
 
-  expect(result).toStrictEqual({ exitCode: 3, stdout: `${ctx.directory}\n`, stderr: 'oops\n' });
+  // macOS keeps the temporary folder behind a symlink, and `pwd` prints the
+  // folder's real path.
+  expect(result).toStrictEqual({
+    exitCode: 3,
+    stdout: `${realpathSync(ctx.directory)}\n`,
+    stderr: 'oops\n',
+  });
 });
 
 test('it refuses to start a harness that requires a credential broker, which it has none of', () => {
