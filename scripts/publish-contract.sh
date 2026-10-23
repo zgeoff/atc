@@ -6,7 +6,25 @@
 # as a dry run.
 set -euo pipefail
 
-mode=${1:-}
+usage='usage: publish-contract.sh [--dry-run]'
+if ! args=$(getopt --name publish-contract.sh --options '' --longoptions dry-run -- "$@"); then
+  echo "$usage" >&2
+  exit 2
+fi
+eval set -- "$args"
+dry_run=false
+while [[ $1 != -- ]]; do
+  case $1 in
+    --dry-run) dry_run=true ;;
+  esac
+  shift
+done
+shift
+if (($# > 0)); then
+  echo "$usage" >&2
+  exit 2
+fi
+
 root=$(cd "$(dirname "$0")/.." && pwd)
 
 work=$(mktemp -d)
@@ -27,7 +45,7 @@ if tar -tzf "$tarball" | grep -E '\.ts$' | grep -vE '\.d\.ts$'; then
   exit 1
 fi
 
-if [[ $mode == --dry-run ]]; then
+if [[ $dry_run == true ]]; then
   consumer="$work/consumer"
   mkdir "$consumer"
   echo '{ "type": "module" }' > "$consumer/package.json"
