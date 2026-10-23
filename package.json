@@ -1,6 +1,6 @@
 {
   "name": "@zgeoff/atc",
-  "version": "7.1.0",
+  "version": "7.2.0",
   "private": true,
   "description": "Terminal control tower for coding-agent sessions",
   "homepage": "https://github.com/zgeoff/atc#readme",
@@ -23,7 +23,7 @@
       "@better-auth/oauth-provider": "1.7.7",
       "@commitlint/cli": "21.2.3",
       "@faker-js/faker": "10.6.0",
-      "@impz/client": "2.10.6",
+      "@impz/client": "3.0.1",
       "@logtape/logtape": "2.4.1",
       "@modelcontextprotocol/sdk": "1.32.1",
       "@modelcontextprotocol/server": "2.3.0",

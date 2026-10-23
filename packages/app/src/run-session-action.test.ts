@@ -93,7 +93,12 @@ test('it prints the new revision, the adopt command and the sessions pending a r
 
   const io = { print: mock(), printError: mock() };
 
-  const code = await runSessionAction(daemon.client, 'rebind', id, { cols: 80, rows: 24 }, io);
+  const code = await runSessionAction(daemon.client, {
+    action: 'rebind',
+    session: id,
+    size: { cols: 80, rows: 24 },
+    io,
+  });
 
   expect(code).toBe(0);
 
@@ -172,7 +177,13 @@ test('it starts the terminal of a session whose host is rebound', async () => {
 
   const io = { print: mock(), printError: mock() };
 
-  const code = await runSessionAction(daemon.client, 'adopt', id, { cols: 80, rows: 24 }, io);
+  const code = await runSessionAction(daemon.client, {
+    action: 'adopt',
+    session: id,
+    size: { cols: 80, rows: 24 },
+    io,
+  });
+
   const got = await daemon.client.sendRequest('session.get', { session: id });
 
   expect(code).toBe(0);
@@ -244,7 +255,12 @@ test('it prints the refusal with its code and exits 1 when the host still needs 
 
   const io = { print: mock(), printError: mock() };
 
-  const code = await runSessionAction(daemon.client, 'adopt', id, { cols: 80, rows: 24 }, io);
+  const code = await runSessionAction(daemon.client, {
+    action: 'adopt',
+    session: id,
+    size: { cols: 80, rows: 24 },
+    io,
+  });
 
   expect(code).toBe(1);
 

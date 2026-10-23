@@ -3,21 +3,23 @@ import type { TrailEntry } from '@atc/store';
 import type { AgentSessionID, SessionID } from '@atcx/contract';
 import type { SentNote } from './parse-note';
 
-export function buildNoteTrailEntry(
-  sessionID: SessionID,
-  agentSessionID: AgentSessionID | undefined,
-  note: Readonly<SentNote>,
-  sentAt: number,
-  noteID?: string,
-): TrailEntry {
+interface BuildNoteTrailEntryOptions {
+  readonly sessionID: SessionID;
+  readonly agentSessionID: AgentSessionID | undefined;
+  readonly note: Readonly<SentNote>;
+  readonly sentAt: number;
+  readonly noteID?: string | undefined;
+}
+
+export function buildNoteTrailEntry(options: BuildNoteTrailEntryOptions): TrailEntry {
   return {
-    at: sentAt,
-    atcID: sessionID,
-    agentSessionID: agentSessionID ?? null,
+    at: options.sentAt,
+    atcID: options.sessionID,
+    agentSessionID: options.agentSessionID ?? null,
     kind: 'note',
-    label: note.label,
-    detail: truncateDetail(note.text),
-    text: note.text,
-    ...(noteID === undefined ? {} : { noteID }),
+    label: options.note.label,
+    detail: truncateDetail(options.note.text),
+    text: options.note.text,
+    ...(options.noteID === undefined ? {} : { noteID: options.noteID }),
   };
 }

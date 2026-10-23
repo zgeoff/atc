@@ -177,6 +177,6 @@ test('#session.message keys a send by its payload alone, leaving out the sender 
     { context },
   );
 
-  expect(written.mock.calls[0]?.[3]).toMatchObject({ key: 'k-7' });
-  expect(written.mock.calls[0]?.[3]).toStrictEqual(written.mock.calls[1]?.[3]);
+  expect(written.mock.calls[0]?.[0].keyed).toMatchObject({ key: 'k-7' });
+  expect(written.mock.calls[0]?.[0].keyed).toStrictEqual(written.mock.calls[1]?.[0].keyed);
 });

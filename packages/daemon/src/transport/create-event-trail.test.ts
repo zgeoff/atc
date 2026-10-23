@@ -32,19 +32,19 @@ async function setupTest() {
 
   registerTestCleanup(() => store.stop());
 
-  const manager = createSessionManager(
-    null,
+  const manager = createSessionManager({
+    fallback: null,
     store,
-    join(temporaryDirectory.path, 'status.json'),
-    [buildStubHarnessAdapter()],
-    [
+    statusPath: join(temporaryDirectory.path, 'status.json'),
+    adapters: [buildStubHarnessAdapter()],
+    targets: [
       buildMockExecutionTarget({
         id: 'local',
         identity: 'local-pty:test',
         provider: buildStubMemoryProvider({ kind: 'local-pty' }),
       }),
     ],
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -75,7 +75,13 @@ test('it reads the latest events under the session that recorded them', async ()
     1000,
   );
 
-  const page = await ctx.trail.readEvents(null, 10, 0, null, null);
+  const page = await ctx.trail.readEvents({
+    afterID: null,
+    limit: 10,
+    waitMs: 0,
+    sessionID: null,
+    access: null,
+  });
 
   expect(page).toStrictEqual({
     events: [expect.objectContaining({ session: 's-1', name: 'builder', at: 1000 })],
@@ -104,7 +110,13 @@ test('it reads the events after a cursor and tells whether more follow', async (
     3000,
   );
 
-  const page = await ctx.trail.readEvents(0, 2, 0, null, null);
+  const page = await ctx.trail.readEvents({
+    afterID: 0,
+    limit: 2,
+    waitMs: 0,
+    sessionID: null,
+    access: null,
+  });
 
   expect(page.events.map((event) => event.at)).toStrictEqual([1000, 2000]);
   expect(page.more).toBeTrue();
@@ -113,7 +125,13 @@ test('it reads the events after a cursor and tells whether more follow', async (
 test('it holds a read until the trail grows', async () => {
   const ctx = await setupTest();
 
-  const read = ctx.trail.readEvents(0, 10, 60_000, null, null);
+  const read = ctx.trail.readEvents({
+    afterID: 0,
+    limit: 10,
+    waitMs: 60_000,
+    sessionID: null,
+    access: null,
+  });
 
   await ctx.store.recordEvent(
     { atcId: toSessionID('s-1'), event: 'Stop', payload: {} },
@@ -131,7 +149,13 @@ test('it holds a read until the trail grows', async () => {
 test('it answers an empty page once the wait runs out', async () => {
   const ctx = await setupTest();
 
-  const read = ctx.trail.readEvents(0, 10, 5000, null, null);
+  const read = ctx.trail.readEvents({
+    afterID: 0,
+    limit: 10,
+    waitMs: 5000,
+    sessionID: null,
+    access: null,
+  });
 
   ctx.clock.advance(5000);
 
@@ -157,13 +181,13 @@ test('it reads none of the events of a session whose target the access may not u
     1000,
   );
 
-  const page = await ctx.trail.readEvents(
-    null,
-    10,
-    0,
-    null,
-    buildTargetAccessFromGrants([{ target: 'local', targetIdentity: 'local-pty:other' }]),
-  );
+  const page = await ctx.trail.readEvents({
+    afterID: null,
+    limit: 10,
+    waitMs: 0,
+    sessionID: null,
+    access: buildTargetAccessFromGrants([{ target: 'local', targetIdentity: 'local-pty:other' }]),
+  });
 
   expect(page.events).toBeEmpty();
 });
@@ -172,7 +196,14 @@ test('it wakes a held read with a restart it records, whole result included', as
   const ctx = await setupTest();
 
   const result = buildMockRestartResult({ restored: 2, total: 2 });
-  const read = ctx.trail.readEvents(0, 10, 60_000, null, null);
+
+  const read = ctx.trail.readEvents({
+    afterID: 0,
+    limit: 10,
+    waitMs: 60_000,
+    sessionID: null,
+    access: null,
+  });
 
   await ctx.trail.recordRestart(result);
 
@@ -241,13 +272,13 @@ test('it reads no restart under an access that reaches every session', async () 
     2_000_000,
   );
 
-  const page = await ctx.trail.readEvents(
-    0,
-    10,
-    0,
-    null,
-    buildTargetAccessFromGrants([{ target: 'local', targetIdentity: 'local-pty:test' }]),
-  );
+  const page = await ctx.trail.readEvents({
+    afterID: 0,
+    limit: 10,
+    waitMs: 0,
+    sessionID: null,
+    access: buildTargetAccessFromGrants([{ target: 'local', targetIdentity: 'local-pty:test' }]),
+  });
 
   expect(page.events.map((event) => event.kind)).toStrictEqual(['turn-done']);
 });
@@ -256,12 +287,12 @@ test('it reads a note by its trail id with the session that sent it', async () =
   const ctx = await setupTest();
 
   await ctx.store.recordTrailEntry(
-    buildNoteTrailEntry(
-      toSessionID('s-1'),
-      undefined,
-      { kind: 'note', label: 'progress', text: 'halfway there' },
-      1000,
-    ),
+    buildNoteTrailEntry({
+      sessionID: toSessionID('s-1'),
+      agentSessionID: undefined,
+      note: { kind: 'note', label: 'progress', text: 'halfway there' },
+      sentAt: 1000,
+    }),
   );
 
   const [row] = await ctx.store.readLatestEvents(1, null);

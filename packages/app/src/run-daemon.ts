@@ -56,13 +56,13 @@ export async function runDaemon(invocation: DaemonInvocation): Promise<void> {
   const plugins = await loadExecutionPlugins(config.targets);
 
   const built = buildExecutionTargets(config.targets, (target) =>
-    createShippedExecutionProvider(
+    createShippedExecutionProvider({
       plugins,
-      target,
-      hostServices,
-      invocation.env,
-      config.authProfiles,
-    ),
+      config: target,
+      host: hostServices,
+      env: invocation.env,
+      authProfiles: config.authProfiles,
+    }),
   );
 
   const targetErrors = [...config.targetErrors, ...built.errors];

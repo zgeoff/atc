@@ -231,16 +231,16 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
   });
 
   const startTurn = (sessionID: SessionID, prompt: string) =>
-    startHeadlessTurn(
+    startHeadlessTurn({
       manager,
       findRuntime,
       sessionID,
       prompt,
-      (turnSessionID, ev) => {
+      recordTurnEvent: (turnSessionID, ev) => {
         hooks.recordHeadlessTurnEvent(turnSessionID, ev);
       },
-      opts.reporterSocketPath,
-    );
+      reporterSocket: opts.reporterSocketPath,
+    });
 
   const input = createSessionInput({
     manager,

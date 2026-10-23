@@ -287,14 +287,14 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   // The manager takes every callback above when it is built, so no session
   // event arrives before its handler exists.
-  const manager = createSessionManager(
-    opts.adapter,
+  const manager = createSessionManager({
+    fallback: opts.adapter,
     store,
-    opts.statusPath,
-    opts.adapters ?? [],
+    statusPath: opts.statusPath,
+    adapters: opts.adapters ?? [],
     targets,
     targetErrors,
-    {
+    events: {
       onBoot,
       onOutput: (session, data) => {
         output.recordOutput(session, data);
@@ -307,7 +307,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       startMessageBridge: (launch) => bridges.startBridge(launch),
       stopMessageBridge: (sessionID) => bridges.stopBridge(sessionID),
     },
-  );
+  });
 
   manager.clock = clock;
   manager.reporterSocketPath = opts.reporterSocketPath;

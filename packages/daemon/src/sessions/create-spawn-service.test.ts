@@ -53,21 +53,20 @@ async function setupTest(config: SetupTestConfig) {
 
   const runtimes = new Map<SessionID, SessionRuntime>();
 
-  const manager = createSessionManager(
-    null,
+  const manager = createSessionManager({
+    fallback: null,
     store,
-    join(temporaryDirectory.path, 'status.json'),
-    [buildStubHarnessAdapter()],
-    config.targets,
-    [],
-    {
+    statusPath: join(temporaryDirectory.path, 'status.json'),
+    adapters: [buildStubHarnessAdapter()],
+    targets: config.targets,
+    events: {
       onEvent: (kind, session) => {
         if (kind === 'added') {
           runtimes.set(session.id, createSessionRuntime());
         }
       },
     },
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();

@@ -3,7 +3,7 @@ import type { EventScope, StateStore } from '@atc/store';
 import type { RestartResult, SessionDescriptor, SessionID } from '@atcx/contract';
 import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import { isTreeInReach } from '../auth/is-tree-in-reach';
-import type { DaemonContext } from '../daemon-context';
+import type { DaemonContext, ReadEventsParams } from '../daemon-context';
 import { buildFleetEvents } from '../fleet/build-fleet-events';
 import { buildAnswerView } from '../sessions/build-answer-view';
 import { buildNoteView } from '../sessions/build-note-view';
@@ -25,13 +25,7 @@ export interface EventTrail {
   // A wake for an event the read leaves out loops back to wait out the rest of the window.
   // The scope is built again after every await, so a session whose tree left the access
   // while the read waited matches nothing.
-  readonly readEvents: (
-    afterID: number | null,
-    limit: number,
-    waitMs: number,
-    sessionID: SessionID | null,
-    access: TargetAccess | null,
-  ) => Promise<EventsPage>;
+  readonly readEvents: (params: ReadEventsParams) => Promise<EventsPage>;
 
   // Under an access a note takes no alias, so a session in reach never
   // names a note whose own session left the access while the query
@@ -118,8 +112,12 @@ export function createEventTrail(deps: EventTrailDeps): EventTrail {
       eventSignal.emit();
     },
 
-    readEvents: async (afterID, limit, waitMs, sessionID, access) => {
-      const deadline = clock.now() + waitMs;
+    readEvents: async (params) => {
+      const afterID = params.afterID;
+      const limit = params.limit;
+      const sessionID = params.sessionID;
+      const access = params.access;
+      const deadline = clock.now() + params.waitMs;
 
       for (;;) {
         const generation = eventSignal.generation;

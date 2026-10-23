@@ -685,7 +685,12 @@ test('it spawns nothing for a binding a gateway restart left sent but unanswered
   );
 
   ctx.store.claimFirstSend('gw', 'session.spawn', 'spawn-sent', Date.now());
-  ctx.store.updateOutcome('gw', 'session.spawn', 'spawn-sent', 'uncertain', Date.now(), 's-lost');
+
+  ctx.store.updateOutcome('gw', 'session.spawn', 'spawn-sent', {
+    outcome: 'uncertain',
+    now: Date.now(),
+    effectRef: 's-lost',
+  });
 
   const retried = ctx.router.sendRequest('session.spawn', params, {
     id: 'gw',

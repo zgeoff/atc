@@ -28,19 +28,19 @@ async function setupTest() {
 
   registerTestCleanup(() => store.stop());
 
-  const manager = createSessionManager(
-    null,
+  const manager = createSessionManager({
+    fallback: null,
     store,
-    join(temporaryDirectory.path, 'status.json'),
-    [buildStubHarnessAdapter()],
-    [
+    statusPath: join(temporaryDirectory.path, 'status.json'),
+    adapters: [buildStubHarnessAdapter()],
+    targets: [
       buildMockExecutionTarget({
         id: 'local',
         identity: 'local-pty:test',
         provider: buildStubMemoryProvider({ kind: 'local-pty' }),
       }),
     ],
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();

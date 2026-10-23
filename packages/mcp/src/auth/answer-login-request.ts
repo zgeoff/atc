@@ -8,26 +8,32 @@ import type { HTTPServerContext, OwnerAuthFailure, Requester } from './types';
 import { verifyPasskeyAssertion } from './verify-passkey-assertion';
 import { verifySessionPasskey } from './verify-session-passkey';
 
+interface LoginRequest {
+  readonly method: 'GET' | 'POST';
+  readonly url: URL;
+  readonly body: string;
+  readonly requester: Requester;
+}
+
 export async function answerLoginRequest(
   ctx: HTTPServerContext,
-  method: 'GET' | 'POST',
-  url: URL,
-  body: string,
-  requester: Requester,
+  request: LoginRequest,
 ): Promise<Response> {
-  const form = new URLSearchParams(body);
+  const form = new URLSearchParams(request.body);
 
-  const oauthQuery = method === 'GET' ? url.search.slice(1) : (form.get('oauth_query') ?? '');
+  const oauthQuery =
+    request.method === 'GET' ? request.url.search.slice(1) : (form.get('oauth_query') ?? '');
+
   const approval = ctx.approvals.findPending(oauthQuery);
 
   if (approval === null) {
-    if (method === 'POST') {
+    if (request.method === 'POST') {
       ctx.security.record({
         kind: 'owner_auth',
         outcome: 'failed',
         reason: 'expired',
-        path: url.pathname,
-        requester,
+        path: request.url.pathname,
+        requester: request.requester,
       });
     }
 
@@ -44,7 +50,7 @@ export async function answerLoginRequest(
 
   const enrolled = await probePasskey(ctx);
 
-  if (method === 'GET') {
+  if (request.method === 'GET') {
     return enrolled
       ? buildSignInResponse(ctx, 200, view, null)
       : buildPageResponse(200, { page: renderLoginPage({ ...view, options: null, error: null }) });
@@ -53,8 +59,8 @@ export async function answerLoginRequest(
   // Read before the assertion is checked, since a sign-in or the last
   // failure ends the approval.
   const context = {
-    path: url.pathname,
-    requester,
+    path: request.url.pathname,
+    requester: request.requester,
     client: { id: approval.clientID, name: approval.clientName },
     correlationID: approval.correlationID,
   };

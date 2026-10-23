@@ -336,8 +336,12 @@ function answerPageRequest(ctx: HTTPServerContext, page: PageRequest): Promise<R
   const url = new URL(page.request.url);
 
   return match(page.path)
-    .with('/login', () => answerLoginRequest(ctx, method, url, page.body, page.requester))
-    .with('/enroll', () => answerEnrollRequest(ctx, method, url, page.body, page.requester))
+    .with('/login', () =>
+      answerLoginRequest(ctx, { method, url, body: page.body, requester: page.requester }),
+    )
+    .with('/enroll', () =>
+      answerEnrollRequest(ctx, { method, url, body: page.body, requester: page.requester }),
+    )
     .with('/consent', () =>
       answerConsentRequest(ctx, {
         method,

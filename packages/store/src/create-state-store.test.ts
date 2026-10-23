@@ -2256,7 +2256,11 @@ test('it lists queued and delivered messages as unsettled, oldest first', async 
     }),
   );
 
-  await ctx.store.updateMessagesAnswered([answered.id], { atcID: toSessionID('s1') }, 'ok', 2000);
+  await ctx.store.updateMessagesAnswered(
+    [answered.id],
+    { atcID: toSessionID('s1') },
+    { answer: 'ok', at: 2000 },
+  );
 
   const unsettled = await ctx.store.readUnsettledMessages({ atcID: toSessionID('s1') });
 
@@ -2498,8 +2502,7 @@ test('it moves a delivered message to answered with the final text', async () =>
   const answered = await ctx.store.updateMessagesAnswered(
     [record.id],
     { atcID: record.atcID },
-    'done',
-    3000,
+    { answer: 'done', at: 3000 },
   );
 
   expect(answered).toStrictEqual([
@@ -2523,8 +2526,7 @@ test('it answers a queued message that was never acked', async () => {
   const answered = await ctx.store.updateMessagesAnswered(
     [record.id],
     { atcID: record.atcID },
-    'done',
-    3000,
+    { answer: 'done', at: 3000 },
   );
 
   expect(answered).toStrictEqual([
@@ -2556,9 +2558,7 @@ test('it moves a delivered message to unanswered with the reason and turn', asyn
   const marked = await ctx.store.updateMessagesUnanswered(
     [record.id],
     { atcID: record.atcID },
-    'interrupted',
-    3000,
-    't1',
+    { reason: 'interrupted', at: 3000, turn: 't1' },
   );
 
   expect(marked).toStrictEqual([
@@ -2579,13 +2579,17 @@ test('it refuses a later answer for an unanswered message', async () => {
   const record = buildMockMessageRecord();
 
   await ctx.store.writeMessage(record);
-  await ctx.store.updateMessagesUnanswered([record.id], { atcID: record.atcID }, 'error', 3000);
+
+  await ctx.store.updateMessagesUnanswered(
+    [record.id],
+    { atcID: record.atcID },
+    { reason: 'error', at: 3000 },
+  );
 
   const answered = await ctx.store.updateMessagesAnswered(
     [record.id],
     { atcID: record.atcID },
-    'done',
-    4000,
+    { answer: 'done', at: 4000 },
   );
 
   expect(answered).toStrictEqual([]);
@@ -2597,8 +2601,18 @@ test('it keeps an unanswered message unanswered after a refused answer', async (
   const record = buildMockMessageRecord();
 
   await ctx.store.writeMessage(record);
-  await ctx.store.updateMessagesUnanswered([record.id], { atcID: record.atcID }, 'error', 3000);
-  await ctx.store.updateMessagesAnswered([record.id], { atcID: record.atcID }, 'done', 4000);
+
+  await ctx.store.updateMessagesUnanswered(
+    [record.id],
+    { atcID: record.atcID },
+    { reason: 'error', at: 3000 },
+  );
+
+  await ctx.store.updateMessagesAnswered(
+    [record.id],
+    { atcID: record.atcID },
+    { answer: 'done', at: 4000 },
+  );
 
   const found = await ctx.store.readMessage(record.id, { atcID: record.atcID });
 
@@ -2611,13 +2625,17 @@ test('it refuses to mark an answered message unanswered', async () => {
   const record = buildMockMessageRecord();
 
   await ctx.store.writeMessage(record);
-  await ctx.store.updateMessagesAnswered([record.id], { atcID: record.atcID }, 'done', 3000);
+
+  await ctx.store.updateMessagesAnswered(
+    [record.id],
+    { atcID: record.atcID },
+    { answer: 'done', at: 3000 },
+  );
 
   const marked = await ctx.store.updateMessagesUnanswered(
     [record.id],
     { atcID: record.atcID },
-    'interrupted',
-    4000,
+    { reason: 'interrupted', at: 4000 },
   );
 
   expect(marked).toStrictEqual([]);
@@ -2633,8 +2651,7 @@ test('it refuses to mark a message unanswered for another session', async () => 
   const marked = await ctx.store.updateMessagesUnanswered(
     [record.id],
     { atcID: toSessionID('s2') },
-    'interrupted',
-    2000,
+    { reason: 'interrupted', at: 2000 },
   );
 
   expect(marked).toStrictEqual([]);
@@ -2787,8 +2804,7 @@ test('it queues the answer notice of a message in the statement that answers it'
   const answered = await ctx.store.updateMessagesAnswered(
     [record.id],
     { atcID: record.atcID },
-    'done',
-    3000,
+    { answer: 'done', at: 3000 },
   );
 
   expect(answered).toStrictEqual([
@@ -2812,8 +2828,7 @@ test('it queues the answer notice of a message in the statement that marks it un
   const unanswered = await ctx.store.updateMessagesUnanswered(
     [record.id],
     { atcID: record.atcID },
-    'interrupted',
-    3000,
+    { reason: 'interrupted', at: 3000 },
   );
 
   expect(unanswered).toStrictEqual([
@@ -2871,8 +2886,7 @@ test('it queues no answer notice for a message without a sender session', async 
   const answered = await ctx.store.updateMessagesAnswered(
     [record.id],
     { atcID: record.atcID },
-    'done',
-    3000,
+    { answer: 'done', at: 3000 },
   );
 
   expect(answered).toStrictEqual([
@@ -2887,7 +2901,13 @@ test('it keeps the answer notice of a message answered before a store reopen', a
   const record = buildMockMessageRecord({ senderSession: sender });
 
   await ctx.store.writeMessage(record);
-  await ctx.store.updateMessagesAnswered([record.id], { atcID: record.atcID }, 'done', 3000);
+
+  await ctx.store.updateMessagesAnswered(
+    [record.id],
+    { atcID: record.atcID },
+    { answer: 'done', at: 3000 },
+  );
+
   await ctx.store.stop();
 
   const second = await createStateStore(ctx.dbPath);
@@ -2914,7 +2934,13 @@ test('it queues no second answer notice for a message answered again after a sto
   const record = buildMockMessageRecord({ senderSession: sender });
 
   await ctx.store.writeMessage(record);
-  await ctx.store.updateMessagesAnswered([record.id], { atcID: record.atcID }, 'done', 3000);
+
+  await ctx.store.updateMessagesAnswered(
+    [record.id],
+    { atcID: record.atcID },
+    { answer: 'done', at: 3000 },
+  );
+
   await ctx.store.stop();
 
   const second = await createStateStore(ctx.dbPath);
@@ -2924,8 +2950,7 @@ test('it queues no second answer notice for a message answered again after a sto
   const again = await second.updateMessagesAnswered(
     [record.id],
     { atcID: record.atcID },
-    'done again',
-    4000,
+    { answer: 'done again', at: 4000 },
   );
 
   const pending = await second.readPendingNotices(sender);
@@ -2953,12 +2978,20 @@ test('it lists the queued answer notices of a sender until its tap takes them', 
   await ctx.store.updateMessagesUnanswered(
     [second.id],
     { atcID: second.atcID },
-    'interrupted',
-    4000,
+    { reason: 'interrupted', at: 4000 },
   );
 
-  await ctx.store.updateMessagesUnanswered([first.id], { atcID: first.atcID }, 'interrupted', 5000);
-  await ctx.store.updateMessagesUnanswered([other.id], { atcID: other.atcID }, 'interrupted', 5000);
+  await ctx.store.updateMessagesUnanswered(
+    [first.id],
+    { atcID: first.atcID },
+    { reason: 'interrupted', at: 5000 },
+  );
+
+  await ctx.store.updateMessagesUnanswered(
+    [other.id],
+    { atcID: other.atcID },
+    { reason: 'interrupted', at: 5000 },
+  );
 
   const pending = await ctx.store.readPendingNotices(sender);
 
@@ -2980,7 +3013,12 @@ test('it refuses to deliver an answer notice twice or to another sender', async 
   const record = buildMockMessageRecord({ senderSession: sender });
 
   await ctx.store.writeMessage(record);
-  await ctx.store.updateMessagesAnswered([record.id], { atcID: record.atcID }, 'done', 3000);
+
+  await ctx.store.updateMessagesAnswered(
+    [record.id],
+    { atcID: record.atcID },
+    { answer: 'done', at: 3000 },
+  );
 
   const byOther = await ctx.store.updateNoticeDelivered(record.id, toSessionID('other'), 5000);
   const first = await ctx.store.updateNoticeDelivered(record.id, sender, 5000);
@@ -3013,7 +3051,12 @@ test('it keeps an answered message answered when its session ends', async () => 
   const record = buildMockMessageRecord({ atcID: toSessionID('s1') });
 
   await ctx.store.writeMessage(record);
-  await ctx.store.updateMessagesAnswered([record.id], { atcID: toSessionID('s1') }, 'done', 2000);
+
+  await ctx.store.updateMessagesAnswered(
+    [record.id],
+    { atcID: toSessionID('s1') },
+    { answer: 'done', at: 2000 },
+  );
 
   const marked = await ctx.store.updateDeliveredMessagesUnanswered(
     { atcID: toSessionID('s1') },
@@ -3088,8 +3131,7 @@ test('it refuses to answer a message owned by another session', async () => {
   const updated = await ctx.store.updateMessagesAnswered(
     [record.id],
     { atcID: toSessionID('s2') },
-    'done',
-    2000,
+    { answer: 'done', at: 2000 },
   );
 
   expect(updated).toStrictEqual([]);
@@ -3916,9 +3958,7 @@ test('it answers every message of one turn in one call and returns them oldest f
   const answered = await ctx.store.updateMessagesAnswered(
     [two.id, one.id],
     { atcID: toSessionID('s1') },
-    'both',
-    3000,
-    't-1',
+    { answer: 'both', at: 3000, turn: 't-1' },
   );
 
   expect(answered).toStrictEqual([
@@ -3939,9 +3979,7 @@ test('it lists the other messages answered in the same turn as siblings', async 
   await ctx.store.updateMessagesAnswered(
     [two.id, one.id],
     { atcID: toSessionID('s1') },
-    'both',
-    3000,
-    't-1',
+    { answer: 'both', at: 3000, turn: 't-1' },
   );
 
   const oldest = await ctx.store.readMessage(one.id, { atcID: toSessionID('s1') });
@@ -3965,9 +4003,7 @@ test('it lists no siblings for a message its turn left unanswered beside another
   await ctx.store.updateMessagesUnanswered(
     [one.id, two.id],
     { atcID: toSessionID('s1') },
-    'error',
-    3000,
-    't-1',
+    { reason: 'error', at: 3000, turn: 't-1' },
   );
 
   const unanswered = await ctx.store.readMessage(one.id, { atcID: toSessionID('s1') });
@@ -3989,9 +4025,7 @@ test('it keeps the turn of a message its turn left unanswered', async () => {
   await ctx.store.updateMessagesUnanswered(
     [one.id],
     { atcID: toSessionID('s1') },
-    'error',
-    3000,
-    't-1',
+    { reason: 'error', at: 3000, turn: 't-1' },
   );
 
   const unanswered = await ctx.store.readMessage(one.id, { atcID: toSessionID('s1') });
@@ -4011,17 +4045,13 @@ test('it leaves an unanswered message of the same turn out of the siblings of an
   await ctx.store.updateMessagesAnswered(
     [answeredOne.id],
     { atcID: toSessionID('s1') },
-    'done',
-    3000,
-    't-1',
+    { answer: 'done', at: 3000, turn: 't-1' },
   );
 
   await ctx.store.updateMessagesUnanswered(
     [unansweredOne.id],
     { atcID: toSessionID('s1') },
-    'error',
-    3000,
-    't-1',
+    { reason: 'error', at: 3000, turn: 't-1' },
   );
 
   const answered = await ctx.store.readMessage(answeredOne.id, { atcID: toSessionID('s1') });
@@ -4061,9 +4091,7 @@ test('it lists the other messages of one turn in send order when they share a se
   await ctx.store.updateMessagesAnswered(
     [first.id, second.id, third.id],
     { atcID: toSessionID('s1') },
-    'all',
-    2000,
-    't-1',
+    { answer: 'all', at: 2000, turn: 't-1' },
   );
 
   const answered = await ctx.store.readMessage(first.id, { atcID: toSessionID('s1') });
@@ -5660,6 +5688,16 @@ test('it closes its connection when disposed', async () => {
   await ctx.store[Symbol.asyncDispose]();
 
   expect(ctx.store.loadFleet()).rejects.toThrow();
+});
+
+// SQLite removes the WAL side files only when the last handle on the
+// database closes, so their absence shows the bun:sqlite handle closed.
+test('it closes the database handle when stopped', async () => {
+  const ctx = await setupTest();
+
+  await ctx.store.stop();
+
+  expect(readdirSync(ctx.directory)).toStrictEqual(['state.db']);
 });
 
 test('it stays closed when disposed after a stop', async () => {

@@ -109,18 +109,18 @@ test('it readies a local host once and plans the agent spawn there', async () =>
     targets: [buildMockExecutionTarget({ id: 'local', provider })],
   });
 
-  const setup = await ctx.auth.setupHarnessOnHost(
+  const setup = await ctx.auth.setupHarnessOnHost({
     adapter,
     provider,
-    toSessionID('spawn-1'),
-    toSessionID('host-1'),
-    'local',
-    { prompt: '', resume: false },
-    null,
-    null,
-    false,
-    createStepTimer(),
-  );
+    id: toSessionID('spawn-1'),
+    hostKey: toSessionID('host-1'),
+    target: 'local',
+    spawnOptions: { prompt: '', resume: false },
+    auth: null,
+    cwd: null,
+    isNewHost: false,
+    timer: createStepTimer(),
+  });
 
   expect(setup).toStrictEqual({
     plan: { bin: 'stub-harness', args: [], env: {}, admission: null, heldRevision: null },
@@ -145,18 +145,18 @@ test('it readies a remote host and plans the local spawn with no files when the 
     targets: [buildMockExecutionTarget({ id: 'remote', provider })],
   });
 
-  const setup = await ctx.auth.setupHarnessOnHost(
+  const setup = await ctx.auth.setupHarnessOnHost({
     adapter,
     provider,
-    toSessionID('spawn-1'),
-    toSessionID('host-1'),
-    'remote',
-    { prompt: '', resume: false },
-    null,
-    null,
-    false,
-    createStepTimer(),
-  );
+    id: toSessionID('spawn-1'),
+    hostKey: toSessionID('host-1'),
+    target: 'remote',
+    spawnOptions: { prompt: '', resume: false },
+    auth: null,
+    cwd: null,
+    isNewHost: false,
+    timer: createStepTimer(),
+  });
 
   expect(setup).toStrictEqual({
     plan: { bin: 'stub-harness', args: [], env: {}, admission: null, heldRevision: null },
@@ -194,13 +194,13 @@ test('it reads no project settings for an agent that plans no settings check', a
     targets: [buildMockExecutionTarget({ id: 'remote', provider })],
   });
 
-  await ctx.auth.requireProjectSettings(
+  await ctx.auth.requireProjectSettings({
     adapter,
     provider,
-    toSessionID('host-1'),
-    'remote',
-    '/work',
-  );
+    hostKey: toSessionID('host-1'),
+    target: 'remote',
+    cwd: '/work',
+  });
 
   expect(provider.commands).toStrictEqual([]);
 });

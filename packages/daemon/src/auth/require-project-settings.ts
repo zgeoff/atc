@@ -8,7 +8,7 @@ import { READ_PROJECT_SETTINGS_SCRIPT } from './read-project-settings-script';
 
 // The launch whose project settings a host holds: the agent and provider,
 // the host and target, and the directory the harness starts in.
-interface ProjectSettingsLaunch {
+export interface ProjectSettingsLaunch {
   readonly adapter: AgentAdapter;
   readonly provider: ExecutionProvider;
   readonly hostKey: SessionID;

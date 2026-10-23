@@ -69,7 +69,13 @@ async function setupTest(config: Readonly<{ targets?: readonly ExecutionTarget[]
     },
   ];
 
-  const manager = createSessionManager(buildMockAgentAdapter(), store, statusPath, [], targets);
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store,
+    statusPath,
+    adapters: [],
+    targets,
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -122,14 +128,14 @@ test('it lists every restored session under the session id its row holds', async
 test('it revives a listed dead session in place instead of listing its id twice', async () => {
   const ctx = await setupTest();
 
-  const session = await ctx.manager.spawn(
-    ctx.directory,
-    'worker',
-    '',
-    80,
-    24,
-    toAgentSessionID('c-1'),
-  );
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+    resume: toAgentSessionID('c-1'),
+  });
 
   await ctx.manager.writeFleet();
 
@@ -159,13 +165,13 @@ test('it keeps a sub-session under the session that resumed its parent agent ses
   const ctx = await setupTest();
 
   // the next daemon life, over the same store
-  const restarted = createSessionManager(
-    buildMockAgentAdapter(),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    ctx.targets,
-  );
+  const restarted = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: ctx.targets,
+  });
 
   registerTestCleanup(() => {
     restarted.detachAll();
@@ -191,26 +197,26 @@ test('it keeps a sub-session under the session that resumed its parent agent ses
     }),
   );
 
-  const child = await ctx.manager.spawn(
-    ctx.directory,
-    'worker',
-    '',
-    80,
-    24,
-    toAgentSessionID('c-child'),
-    'user',
-    'claude',
-    parent.id,
-  );
+  const child = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+    resume: toAgentSessionID('c-child'),
+    namedBy: 'user',
+    agent: 'claude',
+    parent: parent.id,
+  });
 
-  const resumed = await ctx.manager.spawn(
-    ctx.directory,
-    'wrangler',
-    '',
-    80,
-    24,
-    toAgentSessionID('c-parent'),
-  );
+  const resumed = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'wrangler',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+    resume: toAgentSessionID('c-parent'),
+  });
 
   await ctx.manager.writeFleet();
 
@@ -232,13 +238,13 @@ test('it keeps a sub-session under a sub-session that resumed their parent agent
   const ctx = await setupTest();
 
   // the next daemon life, over the same store
-  const restarted = createSessionManager(
-    buildMockAgentAdapter(),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    ctx.targets,
-  );
+  const restarted = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: ctx.targets,
+  });
 
   registerTestCleanup(() => {
     restarted.detachAll();
@@ -264,31 +270,31 @@ test('it keeps a sub-session under a sub-session that resumed their parent agent
     }),
   );
 
-  const child = await ctx.manager.spawn(
-    ctx.directory,
-    'worker',
-    '',
-    80,
-    24,
-    toAgentSessionID('c-child'),
-    'user',
-    'claude',
-    parent.id,
-  );
+  const child = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+    resume: toAgentSessionID('c-child'),
+    namedBy: 'user',
+    agent: 'claude',
+    parent: parent.id,
+  });
 
   // Spawned under the session whose agent session it resumes, so the
   // row it replaces is its own parent.
-  const resumed = await ctx.manager.spawn(
-    ctx.directory,
-    'wrangler',
-    '',
-    80,
-    24,
-    toAgentSessionID('c-parent'),
-    'user',
-    'claude',
-    parent.id,
-  );
+  const resumed = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'wrangler',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+    resume: toAgentSessionID('c-parent'),
+    namedBy: 'user',
+    agent: 'claude',
+    parent: parent.id,
+  });
 
   await ctx.manager.writeFleet();
 
@@ -313,13 +319,13 @@ test('it restores two crossed resumes with the earlier one top-level and the lat
   const ctx = await setupTest();
 
   // the next daemon life, over the same store
-  const restarted = createSessionManager(
-    buildMockAgentAdapter(),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    ctx.targets,
-  );
+  const restarted = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: ctx.targets,
+  });
 
   registerTestCleanup(() => {
     restarted.detachAll();
@@ -355,29 +361,29 @@ test('it restores two crossed resumes with the earlier one top-level and the lat
     }),
   );
 
-  const resumedFirst = await ctx.manager.spawn(
-    ctx.directory,
-    'r',
-    '',
-    80,
-    24,
-    toAgentSessionID('c-a'),
-    'user',
-    'claude',
-    second.id,
-  );
+  const resumedFirst = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'r',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+    resume: toAgentSessionID('c-a'),
+    namedBy: 'user',
+    agent: 'claude',
+    parent: second.id,
+  });
 
-  const resumedSecond = await ctx.manager.spawn(
-    ctx.directory,
-    's',
-    '',
-    80,
-    24,
-    toAgentSessionID('c-b'),
-    'user',
-    'claude',
-    first.id,
-  );
+  const resumedSecond = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 's',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+    resume: toAgentSessionID('c-b'),
+    namedBy: 'user',
+    agent: 'claude',
+    parent: first.id,
+  });
 
   await ctx.manager.writeFleet();
 
@@ -410,13 +416,13 @@ test('it starts no terminal on a later restore for a session an earlier restore 
 
   const headless = buildStubHeadlessRunner();
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter({ planSpawn, headlessRunner: headless.runner }),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    ctx.targets,
-  );
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter({ planSpawn, headlessRunner: headless.runner }),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: ctx.targets,
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -444,14 +450,14 @@ test('it starts no terminal on a later restore for a session an earlier restore 
 
   const runtime = createSessionRuntime();
 
-  const started = startHeadlessTurn(
+  const started = startHeadlessTurn({
     manager,
-    () => runtime,
-    toSessionID('s-headless'),
-    'keep going',
-    () => {},
-    join(ctx.directory, 'reporter.sock'),
-  );
+    findRuntime: () => runtime,
+    sessionID: toSessionID('s-headless'),
+    prompt: 'keep going',
+    recordTurnEvent: () => {},
+    reporterSocket: join(ctx.directory, 'reporter.sock'),
+  });
 
   invariant(started, 'the headless turn did not start');
 
@@ -482,18 +488,18 @@ test('it revives on a later restore a session an earlier restore left without a 
     throw new Error('the agent CLI is missing');
   });
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter({
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter({
       planSpawn,
       headlessRunner: () => {
         throw new Error('the settings file cannot be written');
       },
     }),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    ctx.targets,
-  );
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: ctx.targets,
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -522,14 +528,14 @@ test('it revives on a later restore a session an earlier restore left without a 
   const runtime = createSessionRuntime();
 
   expect(() =>
-    startHeadlessTurn(
+    startHeadlessTurn({
       manager,
-      () => runtime,
-      toSessionID('s-headless'),
-      'keep going',
-      () => {},
-      join(ctx.directory, 'reporter.sock'),
-    ),
+      findRuntime: () => runtime,
+      sessionID: toSessionID('s-headless'),
+      prompt: 'keep going',
+      recordTurnEvent: () => {},
+      reporterSocket: join(ctx.directory, 'reporter.sock'),
+    }),
   ).toThrowWithMessage(Error, 'the settings file cannot be written');
 
   const restored = await restoreFleet({
@@ -557,13 +563,13 @@ test('it starts no terminal for a queued session whose headless turn starts whil
 
   const headless = buildStubHeadlessRunner();
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter({ planSpawn, headlessRunner: headless.runner }),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    ctx.targets,
-  );
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter({ planSpawn, headlessRunner: headless.runner }),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: ctx.targets,
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -600,14 +606,16 @@ test('it starts no terminal for a queued session whose headless turn starts whil
     expect(firstRuntime.bootWaiter).not.toBeNull();
   });
 
-  const started = startHeadlessTurn(
+  const secondRuntime = createSessionRuntime();
+
+  const started = startHeadlessTurn({
     manager,
-    () => createSessionRuntime(),
-    toSessionID('s-second'),
-    'keep going',
-    () => {},
-    join(ctx.directory, 'reporter.sock'),
-  );
+    findRuntime: () => secondRuntime,
+    sessionID: toSessionID('s-second'),
+    prompt: 'keep going',
+    recordTurnEvent: () => {},
+    reporterSocket: join(ctx.directory, 'reporter.sock'),
+  });
 
   invariant(started, 'the headless turn did not start');
   firstRuntime.bootWaiter?.();
@@ -828,13 +836,15 @@ test('it restores a stored session on its own target config revision after anoth
 test('it restores the fleet with no terminal for each session whose agent is not signed in on its imp', async () => {
   const ctx = await setupTest();
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter({ planAuthCheck: () => ['false'] }),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.impProvider }],
-  );
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter({ planAuthCheck: () => ['false'] }),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: [
+      { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.impProvider },
+    ],
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -893,13 +903,15 @@ test('it logs a later session whose revive fails and leaves it without a termina
       throw new Error('no plan for s-second');
     });
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter({ planGuestSpawn }),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.impProvider }],
-  );
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter({ planGuestSpawn }),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: [
+      { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.impProvider },
+    ],
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -961,13 +973,15 @@ test('it logs a first session whose revive fails with a plain error and still re
     throw new Error('no plan for s-first');
   });
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter({ planGuestSpawn }),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.impProvider }],
-  );
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter({ planGuestSpawn }),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: [
+      { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.impProvider },
+    ],
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -1022,8 +1036,8 @@ test("it lists the plugin refusal of a session on a remote target once its agent
   const local = buildStubMemoryProvider({ kind: 'local-pty' });
   const remote = buildStubMemoryProvider({ kind: 'imp-like', remote: true });
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter({
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter({
       profile: {
         label: 'Claude',
         kind: 'claude',
@@ -1050,10 +1064,10 @@ test("it lists the plugin refusal of a session on a remote target once its agent
         pluginDirs: [ctx.directory],
       },
     }),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    [
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: [
       {
         id: 'local',
         kind: 'local-pty',
@@ -1063,7 +1077,7 @@ test("it lists the plugin refusal of a session on a remote target once its agent
       },
       { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: remote },
     ],
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -1124,8 +1138,8 @@ test("it lists the plugin refusal of a local session whose agent's configured pl
 
   const local = buildStubMemoryProvider({ kind: 'local-pty' });
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter({
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter({
       profile: {
         label: 'Claude',
         kind: 'claude',
@@ -1152,10 +1166,10 @@ test("it lists the plugin refusal of a local session whose agent's configured pl
         pluginDirs: ['/nonexistent/plugins/shared'],
       },
     }),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    [
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: [
       {
         id: 'local',
         kind: 'local-pty',
@@ -1164,7 +1178,7 @@ test("it lists the plugin refusal of a local session whose agent's configured pl
         provider: local,
       },
     ],
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -1209,13 +1223,15 @@ test("it lists the plugin refusal of a local session whose agent's configured pl
 test('it lists and logs the refusal of a session whose imp refuses it with no retry left', async () => {
   const ctx = await setupTest();
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter(),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.impProvider }],
-  );
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: [
+      { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.impProvider },
+    ],
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -1260,13 +1276,15 @@ test('it lists and logs the refusal of a session whose imp refuses it with no re
 test('it revives a session on a later try once its imp stops refusing it', async () => {
   const ctx = await setupTest();
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter(),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.impProvider }],
-  );
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: [
+      { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.impProvider },
+    ],
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -1311,13 +1329,15 @@ test('it waits for the last session a round started to boot before a retry start
   const clock = buildStubClock(Date.now());
   const runtime = createSessionRuntime();
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter(),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.impProvider }],
-  );
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: [
+      { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.impProvider },
+    ],
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -1383,13 +1403,15 @@ test('it leaves stopped a refused session a caller stops while its retry readies
 
   const clock = buildStubClock(Date.now());
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter(),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.impProvider }],
-  );
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: [
+      { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.impProvider },
+    ],
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -1444,13 +1466,15 @@ test('it leaves stopped a refused session a caller stops while its retry readies
 test('it leaves stopped a session a caller stops while a try its imp then refuses readies the imp', async () => {
   const ctx = await setupTest();
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter(),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.impProvider }],
-  );
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: [
+      { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.impProvider },
+    ],
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -1506,13 +1530,15 @@ test('it leaves stopped a session a caller stops while a try its imp then refuse
 test('it revives on a later restore a session an earlier restore left without a terminal', async () => {
   const ctx = await setupTest();
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter(),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.impProvider }],
-  );
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: [
+      { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.impProvider },
+    ],
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -1560,13 +1586,15 @@ test('it revives on a later restore a session an earlier restore left without a 
 test('it never adopts a terminal for a live headless run a later restore finds listed', async () => {
   const ctx = await setupTest();
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter(),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.impProvider }],
-  );
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: [
+      { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.impProvider },
+    ],
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -1624,12 +1652,12 @@ test('it restores and persists a live legacy cloud session after an image change
 
   const ctx = await setupTest();
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter(),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    [
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: [
       buildMockExecutionTarget({
         id: 'cloud',
         kind: 'imp',
@@ -1639,7 +1667,7 @@ test('it restores and persists a live legacy cloud session after an image change
         provider: ctx.impProvider,
       }),
     ],
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -1693,12 +1721,12 @@ test('it keeps a cloud session usable after the image changes under a versioned 
 
   const ctx = await setupTest();
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter(),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    [
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: [
       buildMockExecutionTarget({
         id: 'cloud',
         kind: 'imp',
@@ -1708,7 +1736,7 @@ test('it keeps a cloud session usable after the image changes under a versioned 
         provider: ctx.impProvider,
       }),
     ],
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -1753,12 +1781,12 @@ test('it leaves a missing legacy imp refused instead of creating a replacement',
 
   const ctx = await setupTest();
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter(),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    [
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: [
       buildMockExecutionTarget({
         id: 'cloud',
         kind: 'imp',
@@ -1768,7 +1796,7 @@ test('it leaves a missing legacy imp refused instead of creating a replacement',
         provider: ctx.impProvider,
       }),
     ],
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -1813,12 +1841,12 @@ test('it restores a listed legacy session when its imp becomes reachable on a la
 
   const ctx = await setupTest();
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter(),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    [
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: [
       buildMockExecutionTarget({
         id: 'cloud',
         kind: 'imp',
@@ -1828,7 +1856,7 @@ test('it restores a listed legacy session when its imp becomes reachable on a la
         provider: ctx.impProvider,
       }),
     ],
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -1885,12 +1913,12 @@ test('it lists the adoption refusal in place of a stale binding refusal once the
 
   const ctx = await setupTest();
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter(),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    [
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: [
       buildMockExecutionTarget({
         id: 'cloud',
         kind: 'imp',
@@ -1900,7 +1928,7 @@ test('it lists the adoption refusal in place of a stale binding refusal once the
         provider: ctx.impProvider,
       }),
     ],
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -1953,12 +1981,12 @@ test('it lists the adoption refusal in place of a stale binding refusal once the
 test('it starts no harness once the daemon stopped before the restore began', async () => {
   const ctx = await setupTest();
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter(),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    [
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: [
       {
         id: 'local',
         kind: 'local-pty',
@@ -1967,7 +1995,7 @@ test('it starts no harness once the daemon stopped before the restore began', as
         provider: ctx.held,
       },
     ],
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -2000,12 +2028,12 @@ test('it starts no harness once the daemon stopped before the restore began', as
 test('it starts no harness once the daemon stops while the first one starts', async () => {
   const ctx = await setupTest();
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter(),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    [
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: [
       {
         id: 'local',
         kind: 'local-pty',
@@ -2014,7 +2042,7 @@ test('it starts no harness once the daemon stops while the first one starts', as
         provider: ctx.held,
       },
     ],
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -2057,12 +2085,12 @@ test('it starts no harness once the daemon stops while the first one starts', as
 test('it starts no harness for a queued session once the daemon stops during its start', async () => {
   const ctx = await setupTest();
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter(),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    [
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: [
       {
         id: 'local',
         kind: 'local-pty',
@@ -2071,7 +2099,7 @@ test('it starts no harness for a queued session once the daemon stops during its
         provider: ctx.held,
       },
     ],
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();

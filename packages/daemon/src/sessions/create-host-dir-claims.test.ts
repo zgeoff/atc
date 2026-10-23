@@ -168,13 +168,13 @@ test('it keeps a claimed directory that holds the directory of another session l
     buildMockSession({ hostKey: toSessionID('host-1'), target: 'imp', cwd: '/work/a/inner' }),
   ];
 
-  const removed = await ctx.claims.removeClaimedDir(
+  const removed = await ctx.claims.removeClaimedDir({
     provider,
-    toSessionID('spawn-1'),
-    toSessionID('host-1'),
-    'imp',
-    '/work/a',
-  );
+    id: toSessionID('spawn-1'),
+    hostKey: toSessionID('host-1'),
+    target: 'imp',
+    directory: '/work/a',
+  });
 
   expect(removed).toBeFalse();
   expect(provider.commands.map((command) => command.argv[2])).toStrictEqual([RESOLVE_DIR_SCRIPT]);
@@ -193,13 +193,13 @@ test('it removes a claimed directory on the host when no other session lies insi
     buildMockSession({ hostKey: toSessionID('host-1'), target: 'imp', cwd: '/work/b' }),
   ];
 
-  const removed = await ctx.claims.removeClaimedDir(
+  const removed = await ctx.claims.removeClaimedDir({
     provider,
-    toSessionID('spawn-1'),
-    toSessionID('host-1'),
-    'imp',
-    '/work/a',
-  );
+    id: toSessionID('spawn-1'),
+    hostKey: toSessionID('host-1'),
+    target: 'imp',
+    directory: '/work/a',
+  });
 
   expect(removed).toBeTrue();
 
@@ -218,13 +218,13 @@ test('it removes a claimed directory on the host when a stale relative directory
     buildMockSession({ hostKey: toSessionID('host-1'), target: 'imp', cwd: 'old-notes' }),
   ];
 
-  const removed = await ctx.claims.removeClaimedDir(
+  const removed = await ctx.claims.removeClaimedDir({
     provider,
-    toSessionID('spawn-1'),
-    toSessionID('host-1'),
-    'imp',
-    '/home/guest/work/a',
-  );
+    id: toSessionID('spawn-1'),
+    hostKey: toSessionID('host-1'),
+    target: 'imp',
+    directory: '/home/guest/work/a',
+  });
 
   expect(removed).toBeTrue();
 
@@ -243,13 +243,13 @@ test('it keeps a claimed directory on the host when a stale relative directory r
     buildMockSession({ hostKey: toSessionID('host-1'), target: 'imp', cwd: 'work/a/inner' }),
   ];
 
-  const removed = await ctx.claims.removeClaimedDir(
+  const removed = await ctx.claims.removeClaimedDir({
     provider,
-    toSessionID('spawn-1'),
-    toSessionID('host-1'),
-    'imp',
-    '/home/guest/work/a',
-  );
+    id: toSessionID('spawn-1'),
+    hostKey: toSessionID('host-1'),
+    target: 'imp',
+    directory: '/home/guest/work/a',
+  });
 
   expect(removed).toBeFalse();
   expect(provider.commands.map((command) => command.argv[2])).not.toContain(REMOVE_DIR_SCRIPT);
@@ -279,13 +279,13 @@ test.each([
       buildMockSession({ hostKey: toSessionID('host-1'), target: 'imp', cwd }),
     ];
 
-    const removed = await ctx.claims.removeClaimedDir(
+    const removed = await ctx.claims.removeClaimedDir({
       provider,
-      toSessionID('spawn-1'),
-      toSessionID('host-1'),
-      'imp',
-      '/home/guest/work/a',
-    );
+      id: toSessionID('spawn-1'),
+      hostKey: toSessionID('host-1'),
+      target: 'imp',
+      directory: '/home/guest/work/a',
+    });
 
     expect(removed).toBeFalse();
     expect(provider.commands.map((command) => command.argv[2])).not.toContain(REMOVE_DIR_SCRIPT);
@@ -304,13 +304,13 @@ test('it keeps a claimed directory on the host when the host home cannot be reso
     buildMockSession({ hostKey: toSessionID('host-1'), target: 'imp', cwd: 'old-notes' }),
   ];
 
-  const removed = await ctx.claims.removeClaimedDir(
+  const removed = await ctx.claims.removeClaimedDir({
     provider,
-    toSessionID('spawn-1'),
-    toSessionID('host-1'),
-    'imp',
-    '/home/guest/work/a',
-  );
+    id: toSessionID('spawn-1'),
+    hostKey: toSessionID('host-1'),
+    target: 'imp',
+    directory: '/home/guest/work/a',
+  });
 
   expect(removed).toBeFalse();
   expect(provider.commands.map((command) => command.argv[2])).not.toContain(REMOVE_DIR_SCRIPT);
@@ -354,13 +354,13 @@ test('it keeps a claimed directory on the host when a stale relative directory i
     buildMockSession({ hostKey: toSessionID('host-1'), target: 'imp', cwd: 'alias' }),
   ];
 
-  const removed = await ctx.claims.removeClaimedDir(
+  const removed = await ctx.claims.removeClaimedDir({
     provider,
-    toSessionID('spawn-1'),
-    toSessionID('host-1'),
-    'imp',
-    workspace,
-  );
+    id: toSessionID('spawn-1'),
+    hostKey: toSessionID('host-1'),
+    target: 'imp',
+    directory: workspace,
+  });
 
   expect(removed).toBeFalse();
   expect(readFileSync(join(workspace, 'keep.txt'), 'utf8')).toBe('kept\n');

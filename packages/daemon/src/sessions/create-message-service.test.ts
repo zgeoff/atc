@@ -46,27 +46,26 @@ async function setupTest(config: SetupTestConfig) {
 
   const runtimes = new Map<SessionID, SessionRuntime>();
 
-  const manager = createSessionManager(
-    null,
+  const manager = createSessionManager({
+    fallback: null,
     store,
-    join(temporaryDirectory.path, 'status.json'),
-    [buildStubHarnessAdapter({ takesMessages: config.takesMessages })],
-    [
+    statusPath: join(temporaryDirectory.path, 'status.json'),
+    adapters: [buildStubHarnessAdapter({ takesMessages: config.takesMessages })],
+    targets: [
       buildMockExecutionTarget({
         id: 'local',
         identity: 'local-pty:test',
         provider: buildStubMemoryProvider({ kind: 'local-pty' }),
       }),
     ],
-    [],
-    {
+    events: {
       onEvent: (kind, session) => {
         if (kind === 'added') {
           runtimes.set(session.id, createSessionRuntime());
         }
       },
     },
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -109,16 +108,23 @@ async function setupTest(config: SetupTestConfig) {
 
 test('it queues a message to a live session that takes messages', async () => {
   const ctx = await setupTest({ takesMessages: true });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  const answer = await ctx.messages.writeSessionMessage(
-    session.id,
-    { kind: 'owner' },
-    'check the build',
-    null,
-    null,
-    null,
-  );
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const answer = await ctx.messages.writeSessionMessage({
+    sessionID: session.id,
+    caller: { kind: 'owner' },
+    text: 'check the build',
+    keyed: null,
+    access: null,
+    senderSession: null,
+  });
 
   invariant(typeof answer === 'object');
 
@@ -131,9 +137,23 @@ test('it queues a message to a live session that takes messages', async () => {
 
 test('it broadcasts the status of a message it writes', async () => {
   const ctx = await setupTest({ takesMessages: true });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  await ctx.messages.writeSessionMessage(session.id, { kind: 'owner' }, 'hello', null, null, null);
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  await ctx.messages.writeSessionMessage({
+    sessionID: session.id,
+    caller: { kind: 'owner' },
+    text: 'hello',
+    keyed: null,
+    access: null,
+    senderSession: null,
+  });
 
   expect(ctx.emitted).toPartiallyContain({ ev: 'SessionMessage', sessionID: session.id });
 });
@@ -141,37 +161,51 @@ test('it broadcasts the status of a message it writes', async () => {
 test('it refuses a message to a session the daemon does not hold as missing', async () => {
   const ctx = await setupTest({ takesMessages: true });
 
-  const answer = await ctx.messages.writeSessionMessage(
-    toSessionID('s-gone'),
-    { kind: 'owner' },
-    'hello',
-    null,
-    null,
-    null,
-  );
+  const answer = await ctx.messages.writeSessionMessage({
+    sessionID: toSessionID('s-gone'),
+    caller: { kind: 'owner' },
+    text: 'hello',
+    keyed: null,
+    access: null,
+    senderSession: null,
+  });
 
   expect(answer).toBe('missing');
 });
 
 test('it refuses a message to a session whose agent takes none as unsupported', async () => {
   const ctx = await setupTest({ takesMessages: false });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  const answer = await ctx.messages.writeSessionMessage(
-    session.id,
-    { kind: 'owner' },
-    'hello',
-    null,
-    null,
-    null,
-  );
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const answer = await ctx.messages.writeSessionMessage({
+    sessionID: session.id,
+    caller: { kind: 'owner' },
+    text: 'hello',
+    keyed: null,
+    access: null,
+    senderSession: null,
+  });
 
   expect(answer).toBe('unsupported');
 });
 
 test('it refuses a message to a started session that has gone without a tap past the grace window', async () => {
   const ctx = await setupTest({ takesMessages: true });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   const runtime = ctx.runtimes.get(session.id);
 
@@ -179,39 +213,46 @@ test('it refuses a message to a started session that has gone without a tap past
 
   runtime.startedAt = ctx.clock.now() - 15_000;
 
-  const answer = await ctx.messages.writeSessionMessage(
-    session.id,
-    { kind: 'owner' },
-    'hello',
-    null,
-    null,
-    null,
-  );
+  const answer = await ctx.messages.writeSessionMessage({
+    sessionID: session.id,
+    caller: { kind: 'owner' },
+    text: 'hello',
+    keyed: null,
+    access: null,
+    senderSession: null,
+  });
 
   expect(answer).toBe('no_tap');
 });
 
 test('it answers a retried keyed send with the first message and writes it once', async () => {
   const ctx = await setupTest({ takesMessages: true });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  const first = await ctx.messages.writeSessionMessage(
-    session.id,
-    { kind: 'owner' },
-    'hello',
-    { key: 'k-1', payloadHash: 'h-1' },
-    null,
-    null,
-  );
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
-  const second = await ctx.messages.writeSessionMessage(
-    session.id,
-    { kind: 'owner' },
-    'hello',
-    { key: 'k-1', payloadHash: 'h-1' },
-    null,
-    null,
-  );
+  const first = await ctx.messages.writeSessionMessage({
+    sessionID: session.id,
+    caller: { kind: 'owner' },
+    text: 'hello',
+    keyed: { key: 'k-1', payloadHash: 'h-1' },
+    access: null,
+    senderSession: null,
+  });
+
+  const second = await ctx.messages.writeSessionMessage({
+    sessionID: session.id,
+    caller: { kind: 'owner' },
+    text: 'hello',
+    keyed: { key: 'k-1', payloadHash: 'h-1' },
+    access: null,
+    senderSession: null,
+  });
 
   const pending = await ctx.store.readPendingMessages({ atcID: session.id });
 
@@ -221,9 +262,23 @@ test('it answers a retried keyed send with the first message and writes it once'
 
 test('it hands a queued message to the tap that attaches', async () => {
   const ctx = await setupTest({ takesMessages: true });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  await ctx.messages.writeSessionMessage(session.id, { kind: 'owner' }, 'hello', null, null, null);
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  await ctx.messages.writeSessionMessage({
+    sessionID: session.id,
+    caller: { kind: 'owner' },
+    text: 'hello',
+    keyed: null,
+    access: null,
+    senderSession: null,
+  });
 
   const tap = { sendEvent: mock<TapClient['sendEvent']>() };
 
@@ -238,7 +293,14 @@ test('it hands a queued message to the tap that attaches', async () => {
 
 test('it closes the inbox of the tap a new tap replaces', async () => {
   const ctx = await setupTest({ takesMessages: true });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   const first = { sendEvent: mock<TapClient['sendEvent']>() };
 
@@ -255,7 +317,14 @@ test('it closes the inbox of the tap a new tap replaces', async () => {
 
 test('it refuses a tap for a session whose agent takes no messages', async () => {
   const ctx = await setupTest({ takesMessages: false });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   expect(
     ctx.messages.attachTap({ sendEvent: mock<TapClient['sendEvent']>() }, session.id, null, false),
@@ -264,20 +333,27 @@ test('it refuses a tap for a session whose agent takes no messages', async () =>
 
 test('it marks a tapped message delivered when the tap acks it', async () => {
   const ctx = await setupTest({ takesMessages: true });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   const tap = { sendEvent: mock<TapClient['sendEvent']>() };
 
   ctx.messages.attachTap(tap, session.id, null, false);
 
-  const answer = await ctx.messages.writeSessionMessage(
-    session.id,
-    { kind: 'owner' },
-    'hello',
-    null,
-    null,
-    null,
-  );
+  const answer = await ctx.messages.writeSessionMessage({
+    sessionID: session.id,
+    caller: { kind: 'owner' },
+    text: 'hello',
+    keyed: null,
+    access: null,
+    senderSession: null,
+  });
 
   invariant(typeof answer === 'object');
 
@@ -288,20 +364,27 @@ test('it marks a tapped message delivered when the tap acks it', async () => {
 
 test('it rejects the ack and keeps the message queued when its trail entry fails to write', async () => {
   const ctx = await setupTest({ takesMessages: true });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   const tap = { sendEvent: mock<TapClient['sendEvent']>() };
 
   ctx.messages.attachTap(tap, session.id, null, false);
 
-  const answer = await ctx.messages.writeSessionMessage(
-    session.id,
-    { kind: 'owner' },
-    'hello',
-    null,
-    null,
-    null,
-  );
+  const answer = await ctx.messages.writeSessionMessage({
+    sessionID: session.id,
+    caller: { kind: 'owner' },
+    text: 'hello',
+    keyed: null,
+    access: null,
+    senderSession: null,
+  });
 
   invariant(typeof answer === 'object');
 
@@ -329,7 +412,14 @@ test('it rejects the ack and keeps the message queued when its trail entry fails
 
 test('it refuses an ack from a client that is not the tap of the session', async () => {
   const ctx = await setupTest({ takesMessages: true });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   ctx.messages.attachTap({ sendEvent: mock<TapClient['sendEvent']>() }, session.id, null, false);
 
@@ -345,20 +435,27 @@ test('it refuses an ack from a client that is not the tap of the session', async
 
 test('it marks each delivered message unanswered when the process of its session ends', async () => {
   const ctx = await setupTest({ takesMessages: true });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   const tap = { sendEvent: mock<TapClient['sendEvent']>() };
 
   ctx.messages.attachTap(tap, session.id, null, false);
 
-  const answer = await ctx.messages.writeSessionMessage(
-    session.id,
-    { kind: 'owner' },
-    'hello',
-    null,
-    null,
-    null,
-  );
+  const answer = await ctx.messages.writeSessionMessage({
+    sessionID: session.id,
+    caller: { kind: 'owner' },
+    text: 'hello',
+    keyed: null,
+    access: null,
+    senderSession: null,
+  });
 
   invariant(typeof answer === 'object');
 
@@ -379,16 +476,23 @@ test('it reads a message the store does not hold as none', async () => {
 
 test('it reads a message under the live session it was sent to', async () => {
   const ctx = await setupTest({ takesMessages: true });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
 
-  const answer = await ctx.messages.writeSessionMessage(
-    session.id,
-    { kind: 'owner' },
-    'hello',
-    null,
-    null,
-    null,
-  );
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const answer = await ctx.messages.writeSessionMessage({
+    sessionID: session.id,
+    caller: { kind: 'owner' },
+    text: 'hello',
+    keyed: null,
+    access: null,
+    senderSession: null,
+  });
 
   invariant(typeof answer === 'object');
 
@@ -403,21 +507,35 @@ test('it reads a message under the live session it was sent to', async () => {
 
 test('it marks a delivered message of a revivable session unanswered for its sender at boot and queues it for no tap', async () => {
   const ctx = await setupTest({ takesMessages: true });
-  const sender = await ctx.manager.spawn(ctx.directory, 'sender', '', 80, 24);
-  const recipient = await ctx.manager.spawn(ctx.directory, 'recipient', '', 80, 24);
+
+  const sender = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'sender',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const recipient = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'recipient',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   const tap = { sendEvent: mock<TapClient['sendEvent']>() };
 
   ctx.messages.attachTap(tap, recipient.id, null, false);
 
-  const answer = await ctx.messages.writeSessionMessage(
-    recipient.id,
-    { kind: 'session', session: sender.id },
-    'prune the stale branches',
-    null,
-    null,
-    sender.id,
-  );
+  const answer = await ctx.messages.writeSessionMessage({
+    sessionID: recipient.id,
+    caller: { kind: 'session', session: sender.id },
+    text: 'prune the stale branches',
+    keyed: null,
+    access: null,
+    senderSession: sender.id,
+  });
 
   invariant(typeof answer === 'object');
 

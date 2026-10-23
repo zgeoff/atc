@@ -48,14 +48,13 @@ async function setupTest(config: SetupTestConfig) {
     capabilities: { resize: config.resize },
   });
 
-  const manager = createSessionManager(
-    null,
+  const manager = createSessionManager({
+    fallback: null,
     store,
-    join(temporaryDirectory.path, 'status.json'),
-    [buildStubHarnessAdapter()],
-    [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
-    [],
-    {
+    statusPath: join(temporaryDirectory.path, 'status.json'),
+    adapters: [buildStubHarnessAdapter()],
+    targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
+    events: {
       onEvent: (kind, session) => {
         if (kind === 'added') {
           runtimes.set(session.id, createSessionRuntime());
@@ -74,7 +73,7 @@ async function setupTest(config: SetupTestConfig) {
         output.recordOutput(session, data);
       },
     },
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -107,7 +106,14 @@ async function setupTest(config: SetupTestConfig) {
 
 test('it sends the output of a session to an attached client under the next sequence', async () => {
   const ctx = await setupTest({ resize: true });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   const client = { sendOutput: mock<OutputClient['sendOutput']>() };
 
@@ -134,7 +140,14 @@ test('it sends the output of a session to an attached client under the next sequ
 
 test('it starts the wait before the screen is judged on each output', async () => {
   const ctx = await setupTest({ resize: true });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   const [harness] = ctx.provider.harnesses;
 
@@ -147,7 +160,14 @@ test('it starts the wait before the screen is judged on each output', async () =
 
 test('it replays the screen to an attaching client after a clear', async () => {
   const ctx = await setupTest({ resize: true });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   const [harness] = ctx.provider.harnesses;
 
@@ -173,7 +193,14 @@ test('it replays the screen to an attaching client after a clear', async () => {
 
 test('it announces an attach with the session it attached', async () => {
   const ctx = await setupTest({ resize: true });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   const attached = ctx.output.attachSession(
     { sendOutput: mock<OutputClient['sendOutput']>() },
@@ -199,7 +226,14 @@ test('it refuses to attach a session the manager does not hold', async () => {
 
 test('it refuses to attach a session whose terminal has ended', async () => {
   const ctx = await setupTest({ resize: true });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   const [harness] = ctx.provider.harnesses;
 
@@ -222,7 +256,14 @@ test('it refuses to attach a session whose terminal has ended', async () => {
 
 test('it sizes the terminal to the smallest size across its attached clients', async () => {
   const ctx = await setupTest({ resize: true });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   ctx.output.attachSession({ sendOutput: mock<OutputClient['sendOutput']>() }, session.id, {
     cols: 120,
@@ -248,7 +289,14 @@ test('it sizes the terminal to the smallest size across its attached clients', a
 
 test('it applies a client resize once the wait for more has passed', async () => {
   const ctx = await setupTest({ resize: true });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   const client = { sendOutput: mock<OutputClient['sendOutput']>() };
 
@@ -272,7 +320,14 @@ test('it applies a client resize once the wait for more has passed', async () =>
 
 test('it refuses a resize from a client that is not attached', async () => {
   const ctx = await setupTest({ resize: true });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   const resized = ctx.output.updateSessionDims(
     { sendOutput: mock<OutputClient['sendOutput']>() },
@@ -285,7 +340,14 @@ test('it refuses a resize from a client that is not attached', async () => {
 
 test('it keeps the terminal size on a host that cannot resize and still announces the size', async () => {
   const ctx = await setupTest({ resize: false });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   ctx.output.attachSession({ sendOutput: mock<OutputClient['sendOutput']>() }, session.id, {
     cols: 120,
@@ -302,7 +364,14 @@ test('it keeps the terminal size on a host that cannot resize and still announce
 
 test('it reads the size the terminal booted at when no client is attached', async () => {
   const ctx = await setupTest({ resize: true });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 132, 43);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 132,
+    rows: 43,
+  });
 
   expect(ctx.output.getEffectiveDims(session.id)).toStrictEqual({ cols: 132, rows: 43 });
 });
@@ -315,7 +384,14 @@ test('it reads 80 by 24 for a session with no size', async () => {
 
 test('it announces a detach and sends the client no more output', async () => {
   const ctx = await setupTest({ resize: true });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   const client = { sendOutput: mock<OutputClient['sendOutput']>() };
 
@@ -335,8 +411,22 @@ test('it announces a detach and sends the client no more output', async () => {
 
 test('it detaches a leaving client from every session it attached', async () => {
   const ctx = await setupTest({ resize: true });
-  const one = await ctx.manager.spawn(ctx.directory, 'one', '', 80, 24);
-  const two = await ctx.manager.spawn(ctx.directory, 'two', '', 80, 24);
+
+  const one = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'one',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const two = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'two',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   const client = { sendOutput: mock<OutputClient['sendOutput']>() };
 
@@ -351,7 +441,14 @@ test('it detaches a leaving client from every session it attached', async () => 
 
 test('it sends a removed session no more output to its clients', async () => {
   const ctx = await setupTest({ resize: true });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   const client = { sendOutput: mock<OutputClient['sendOutput']>() };
 

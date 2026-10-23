@@ -185,21 +185,21 @@ test('it takes the whole host of a failed spawn that provisioned an auth attempt
 
   const destroyer = buildStubMemoryProvider({ capabilities: { destroy: true } });
 
-  const withAttempt = ctx.rollback.shouldTakeHost(
-    ctx.provider,
-    toSessionID('s-own'),
-    toSessionID('s-own'),
-    'local',
-    'attempt-7',
-  );
+  const withAttempt = ctx.rollback.shouldTakeHost({
+    provider: ctx.provider,
+    id: toSessionID('s-own'),
+    hostKey: toSessionID('s-own'),
+    target: 'local',
+    attemptID: 'attempt-7',
+  });
 
-  const ownHost = ctx.rollback.shouldTakeHost(
-    destroyer,
-    toSessionID('s-own'),
-    toSessionID('s-own'),
-    'local',
-    null,
-  );
+  const ownHost = ctx.rollback.shouldTakeHost({
+    provider: destroyer,
+    id: toSessionID('s-own'),
+    hostKey: toSessionID('s-own'),
+    target: 'local',
+    attemptID: null,
+  });
 
   expect(withAttempt).toBeTrue();
   expect(ownHost).toBeTrue();
@@ -218,21 +218,21 @@ test("it keeps a parent's host, and an own host another session still uses, when
     }),
   );
 
-  const parentHost = ctx.rollback.shouldTakeHost(
-    destroyer,
-    toSessionID('s-child'),
-    toSessionID('s-parent'),
-    'local',
-    null,
-  );
+  const parentHost = ctx.rollback.shouldTakeHost({
+    provider: destroyer,
+    id: toSessionID('s-child'),
+    hostKey: toSessionID('s-parent'),
+    target: 'local',
+    attemptID: null,
+  });
 
-  const usedHost = ctx.rollback.shouldTakeHost(
-    destroyer,
-    toSessionID('s-own'),
-    toSessionID('s-own'),
-    'local',
-    null,
-  );
+  const usedHost = ctx.rollback.shouldTakeHost({
+    provider: destroyer,
+    id: toSessionID('s-own'),
+    hostKey: toSessionID('s-own'),
+    target: 'local',
+    attemptID: null,
+  });
 
   expect(parentHost).toBeFalse();
   expect(usedHost).toBeFalse();

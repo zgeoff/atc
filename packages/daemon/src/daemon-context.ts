@@ -148,6 +148,23 @@ export interface TapClient {
 
 export type KillOutcome = 'stopped' | 'unchanged' | 'removed' | 'missing';
 
+export interface ReadEventsParams {
+  readonly afterID: number | null;
+  readonly limit: number;
+  readonly waitMs: number;
+  readonly sessionID: SessionID | null;
+  readonly access: TargetAccess | null;
+}
+
+export interface WriteSessionMessageParams {
+  readonly sessionID: SessionID;
+  readonly caller: MessageCaller;
+  readonly text: string;
+  readonly keyed: KeyedRequest | null;
+  readonly access: TargetAccess | null;
+  readonly senderSession: SessionID | null;
+}
+
 export interface DaemonContext {
   readonly build: string;
   readonly daemonID: DaemonID;
@@ -369,13 +386,7 @@ export interface DaemonContext {
 
   // Reads the trail, leaving out each event of a session outside the access
   // when there is one.
-  readonly readEvents: (
-    afterID: number | null,
-    limit: number,
-    waitMs: number,
-    sessionID: SessionID | null,
-    access: TargetAccess | null,
-  ) => Promise<EventsPage>;
+  readonly readEvents: (params: ReadEventsParams) => Promise<EventsPage>;
 
   // null for a trail id that holds no note, or whose note's session is outside the
   // access; the view may name the note by another session, but who may read it is
@@ -396,12 +407,7 @@ export interface DaemonContext {
   // whose tree leaves it before the write refuses as 'missing'; the sender session takes
   // the answer notice when it takes messages and, under an access, its tree is in reach
   readonly writeSessionMessage: (
-    sessionID: SessionID,
-    caller: MessageCaller,
-    text: string,
-    keyed: KeyedRequest | null,
-    access: TargetAccess | null,
-    senderSession: SessionID | null,
+    params: WriteSessionMessageParams,
   ) => Promise<DaemonAnswer<'session.message'> | MessageRefusal>;
   readonly readMessage: (messageID: MessageID, waitMs: number) => Promise<MessageView | null>;
 

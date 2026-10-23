@@ -53,6 +53,12 @@ export interface BindingDatabase {
   readonly close: () => void;
 }
 
+export interface UpdateOutcomeOptions {
+  readonly outcome: BindingOutcome;
+  readonly now: number;
+  readonly effectRef?: string | null;
+}
+
 export interface GatewayStore {
   readonly claimBinding: (
     binding: Omit<KeyBinding, 'outcome' | 'outcomeAt' | 'sentAt' | 'effectRef'>,
@@ -69,9 +75,7 @@ export interface GatewayStore {
     principal: string,
     operation: string,
     key: string,
-    outcome: BindingOutcome,
-    now: number,
-    effectRef?: string | null,
+    update: UpdateOutcomeOptions,
   ) => void;
   readonly removeBinding: (
     principal: string,
@@ -160,7 +164,7 @@ export function createGatewayStore(db: BindingDatabase): GatewayStore {
         )
         .run({ principal, operation, key, now }).changes === 1,
 
-    updateOutcome: (principal, operation, key, outcome, now, effectRef = null) => {
+    updateOutcome: (principal, operation, key, update) => {
       // a completed outcome stays completed, and an answer without an effect id keeps the one
       // recorded earlier
       db.query(
@@ -168,7 +172,14 @@ export function createGatewayStore(db: BindingDatabase): GatewayStore {
          SET outcome = $outcome, outcome_at = $now, effect_ref = COALESCE($effectRef, effect_ref)
          WHERE principal = $principal AND operation = $operation AND key = $key
            AND (outcome != 'completed' OR $outcome = 'completed')`,
-      ).run({ principal, operation, key, outcome, now, effectRef });
+      ).run({
+        principal,
+        operation,
+        key,
+        outcome: update.outcome,
+        now: update.now,
+        effectRef: update.effectRef ?? null,
+      });
     },
 
     removeBinding: (principal, operation, key, claimID) => {

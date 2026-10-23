@@ -13,19 +13,25 @@ interface TerminalSize {
   readonly rows: number;
 }
 
+interface RunSessionActionOptions {
+  readonly action: SessionAction;
+  readonly session: string;
+  readonly size: TerminalSize;
+  readonly io?: Pick<ProcessIO, 'print' | 'printError'>;
+}
+
 export async function runSessionAction(
   client: Pick<DaemonClient, 'sendRequest'>,
-  action: SessionAction,
-  session: string,
-  size: TerminalSize,
-  io: Pick<ProcessIO, 'print' | 'printError'> = PROCESS_IO,
+  options: RunSessionActionOptions,
 ): Promise<number> {
+  const io = options.io ?? PROCESS_IO;
+
   try {
-    if (action === 'rebind') {
-      const ok = await client.sendRequest('session.auth.rebind', { session });
+    if (options.action === 'rebind') {
+      const ok = await client.sendRequest('session.auth.rebind', { session: options.session });
 
       io.print(
-        `rebound the host of session ${session} at revision ${String(ok['revision'])}; start it with: atc session adopt ${session}`,
+        `rebound the host of session ${options.session} at revision ${String(ok['revision'])}; start it with: atc session adopt ${options.session}`,
       );
 
       const pending = Array.isArray(ok['restartPending']) ? ok['restartPending'] : [];
@@ -36,9 +42,13 @@ export async function runSessionAction(
         );
       }
     } else {
-      await client.sendRequest('session.adopt', { session, cols: size.cols, rows: size.rows });
+      await client.sendRequest('session.adopt', {
+        session: options.session,
+        cols: options.size.cols,
+        rows: options.size.rows,
+      });
 
-      io.print(`started a terminal for session ${session}`);
+      io.print(`started a terminal for session ${options.session}`);
     }
 
     return 0;
@@ -46,7 +56,7 @@ export async function runSessionAction(
     const code = error instanceof DaemonError ? `${error.code}: ` : '';
 
     io.printError(
-      `atc session ${action}: ${code}${error instanceof Error ? error.message : String(error)}`,
+      `atc session ${options.action}: ${code}${error instanceof Error ? error.message : String(error)}`,
     );
 
     return 1;

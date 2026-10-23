@@ -45,21 +45,20 @@ async function setupTest(config: SetupTestConfig) {
     capabilities: { suspend: config.destroy, destroy: config.destroy },
   });
 
-  const manager = createSessionManager(
-    null,
+  const manager = createSessionManager({
+    fallback: null,
     store,
-    join(temporaryDirectory.path, 'status.json'),
-    [buildStubHarnessAdapter()],
-    [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
-    [],
-    {
+    statusPath: join(temporaryDirectory.path, 'status.json'),
+    adapters: [buildStubHarnessAdapter()],
+    targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
+    events: {
       onEvent: (kind, session) => {
         if (kind === 'added') {
           runtimes.set(session.id, createSessionRuntime());
         }
       },
     },
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -79,7 +78,14 @@ async function setupTest(config: SetupTestConfig) {
 
 test('it forgets a session at once on a target that cannot destroy its host', async () => {
   const ctx = await setupTest({ destroy: false });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   await ctx.forgetter.killSession(session.id, false);
 
@@ -96,7 +102,14 @@ test('it forgets a session at once on a target that cannot destroy its host', as
 
 test('it answers a forget on a host-destroying target with a token and destroys nothing', async () => {
   const ctx = await setupTest({ destroy: true });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   await ctx.forgetter.killSession(session.id, false);
 
@@ -114,7 +127,14 @@ test('it answers a forget on a host-destroying target with a token and destroys 
 
 test('it destroys the host and forgets the session when the forget carries its token', async () => {
   const ctx = await setupTest({ destroy: true });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   await ctx.forgetter.killSession(session.id, false);
 
@@ -140,7 +160,14 @@ test('it destroys the host and forgets the session when the forget carries its t
 
 test('it refuses a pinned session when the caller asks it to', async () => {
   const ctx = await setupTest({ destroy: false });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   session.pinned = true;
 
@@ -156,19 +183,23 @@ test('it refuses a pinned session when the caller asks it to', async () => {
 
 test('it forgets a sub-session of a pinned session when its parent asks', async () => {
   const ctx = await setupTest({ destroy: false });
-  const parent = await ctx.manager.spawn(ctx.directory, 'lead', '', 80, 24);
 
-  const child = await ctx.manager.spawn(
-    ctx.directory,
-    'helper',
-    '',
-    80,
-    24,
-    false,
-    'auto',
-    'claude',
-    parent.id,
-  );
+  const parent = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'lead',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const child = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'helper',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+    parent: parent.id,
+  });
 
   parent.pinned = true;
 
@@ -186,19 +217,23 @@ test('it forgets a sub-session of a pinned session when its parent asks', async 
 
 test('it refuses a sub-session of a pinned session that another caller asks to forget', async () => {
   const ctx = await setupTest({ destroy: false });
-  const parent = await ctx.manager.spawn(ctx.directory, 'lead', '', 80, 24);
 
-  const child = await ctx.manager.spawn(
-    ctx.directory,
-    'helper',
-    '',
-    80,
-    24,
-    false,
-    'auto',
-    'claude',
-    parent.id,
-  );
+  const parent = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'lead',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const child = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'helper',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+    parent: parent.id,
+  });
 
   parent.pinned = true;
 
@@ -214,7 +249,14 @@ test('it refuses a sub-session of a pinned session that another caller asks to f
 
 test('it refuses a live session when the caller asks it to', async () => {
   const ctx = await setupTest({ destroy: false });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   const forgotten = ctx.forgetter.forgetSession(
     session.id,
@@ -241,7 +283,15 @@ test('it answers a forget of a session the manager does not hold as missing', as
 
 test('it stops a live session that a kill asks to stop', async () => {
   const ctx = await setupTest({ destroy: false });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
   const outcome = await ctx.forgetter.killSession(session.id, true);
 
   expect(outcome).toBe('stopped');
@@ -256,7 +306,14 @@ test('it answers a kill of a session the manager does not hold as missing', asyn
 
 test('it stops the headless run of a session a kill ends', async () => {
   const ctx = await setupTest({ destroy: false });
-  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   const runtime = ctx.runtimes.get(session.id);
 

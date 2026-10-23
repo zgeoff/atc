@@ -21,47 +21,47 @@ interface Checkout {
   readonly branch: string | null;
 }
 
+interface CloneOnTargetOptions {
+  readonly pinned: PinnedSource;
+  readonly landing: Landing;
+  readonly transports: readonly string[];
+  readonly timer: StepTimer;
+}
+
+interface CreateCheckoutOptions extends CloneOnTargetOptions {
+  readonly updateProgress: ProgressTracker;
+  readonly staging: string;
+}
+
 // Clones inside the host when it can, and uploads a clone made on the
 // daemon's host otherwise.
 export async function createCheckout(
   request: MaterializeRequest,
   deps: MaterializeDeps,
-  updateProgress: ProgressTracker,
-  pinned: PinnedSource,
-  landing: Landing,
-  staging: string,
-  transports: readonly string[],
-  timer: StepTimer,
+  options: CreateCheckoutOptions,
 ): Promise<Checkout> {
-  const onTarget = await tryCreateCloneOnTarget(request, deps, pinned, landing, transports, timer);
+  const onTarget = await tryCreateCloneOnTarget(request, deps, options);
 
   if (onTarget.kind === 'cloned') {
     return onTarget.checkout;
   }
 
-  return transferCleanClone(
-    request,
-    deps,
-    updateProgress,
-    onTarget.pinned,
-    landing,
-    staging,
-    transports,
-    timer,
-  );
+  return transferCleanClone(request, deps, { ...options, pinned: onTarget.pinned });
 }
 
 async function tryCreateCloneOnTarget(
   request: MaterializeRequest,
   deps: MaterializeDeps,
-  pinned: PinnedSource,
-  landing: Landing,
-  transports: readonly string[],
-  timer: StepTimer,
+  options: CloneOnTargetOptions,
 ): Promise<
   | { readonly kind: 'cloned'; readonly checkout: Checkout }
   | { readonly kind: 'upload'; readonly pinned: PinnedSource }
 > {
+  const pinned = options.pinned;
+  const landing = options.landing;
+  const transports = options.transports;
+  const timer = options.timer;
+
   if (deps.cloneOnTarget !== true || request.source.kind !== 'git') {
     return { kind: 'upload', pinned };
   }
@@ -125,19 +125,26 @@ async function tryCreateCloneOnTarget(
 async function transferCleanClone(
   request: MaterializeRequest,
   deps: MaterializeDeps,
-  updateProgress: ProgressTracker,
-  pinned: PinnedSource,
-  landing: Landing,
-  staging: string,
-  transports: readonly string[],
-  timer: StepTimer,
+  options: CreateCheckoutOptions,
 ): Promise<Checkout> {
-  const clone = await createCleanClone(pinned, join(staging, 'clone'), transports, timer);
+  const landing = options.landing;
+  const timer = options.timer;
+
+  const clone = await createCleanClone(
+    options.pinned,
+    join(options.staging, 'clone'),
+    options.transports,
+    timer,
+  );
 
   // The archive is in memory, so the clone leaves the daemon's host before
   // the target is touched.
-  await rm(staging, { recursive: true, force: true });
-  await recordPhase(request, deps, updateProgress, 'transferring', { sha: clone.sha });
+  await rm(options.staging, { recursive: true, force: true });
+
+  await recordPhase(request, deps, options.updateProgress, {
+    phase: 'transferring',
+    sha: clone.sha,
+  });
 
   try {
     await timer.withStep('transfer', () =>

@@ -68,14 +68,14 @@ export async function createSpawnWorkspace(
 
             const landing = await timer.withStep('dir-claim', () =>
               deps.registry.hasHostLifecycle(target)
-                ? deps.claims.claimHostDir(
+                ? deps.claims.claimHostDir({
                     provider,
                     id,
                     hostKey,
                     target,
-                    candidate,
-                    spawn.autoDir && hostKey !== id,
-                  )
+                    directory: candidate,
+                    picked: spawn.autoDir && hostKey !== id,
+                  })
                 : deps.claims.resolveHostDir(provider, null, candidate),
             );
 
@@ -84,7 +84,7 @@ export async function createSpawnWorkspace(
             return { host: hostKey, directory: landing };
           },
           removeClaim: (landing) =>
-            deps.claims.removeClaimedDir(provider, id, hostKey, target, landing),
+            deps.claims.removeClaimedDir({ provider, id, hostKey, target, directory: landing }),
           timer,
         },
         spawn.execution.identity,
@@ -92,13 +92,13 @@ export async function createSpawnWorkspace(
     async (built) => {
       const root = landed;
 
-      const takesHost = deps.rollback.shouldTakeHost(
+      const takesHost = deps.rollback.shouldTakeHost({
         provider,
         id,
         hostKey,
         target,
-        state.findAttemptID(),
-      );
+        attemptID: state.findAttemptID(),
+      });
 
       // when the host's undo takes the host back, the directory goes with
       // it: a checked workspace is skipped, and a failed removal of an
@@ -109,13 +109,13 @@ export async function createSpawnWorkspace(
 
       if (takesHost) {
         await deps.rollback
-          .removeSpawnWorkspace(provider, id, hostKey, target, root)
+          .removeSpawnWorkspace({ provider, id, hostKey, target, root })
           .catch(() => {});
 
         return;
       }
 
-      await deps.rollback.removeSpawnWorkspace(provider, id, hostKey, target, root);
+      await deps.rollback.removeSpawnWorkspace({ provider, id, hostKey, target, root });
     },
   );
 

@@ -29,7 +29,13 @@ export async function readEventTexts(
     });
   }, deadlineMs);
 
-  const read = await readPageTexts(caller, page, events, endsAt, timeout.promise, clock);
+  const read = await readPageTexts(caller, {
+    page,
+    events,
+    endsAt,
+    timeout: timeout.promise,
+    clock,
+  });
 
   cancel();
 
@@ -41,22 +47,26 @@ export async function readEventTexts(
 // has room for its first.
 const TEXT_BUDGET_BYTES = 65_536;
 
+interface ReadPageTextsOptions {
+  readonly page: Readonly<Record<string, unknown>>;
+  readonly events: readonly Readonly<Record<string, unknown>>[];
+  readonly endsAt: number;
+  readonly timeout: Readonly<Promise<TextRead>>;
+  readonly clock: Clock;
+}
+
 // The page with its note and answer texts read, one at a time, until the
 // budget or the deadline at `endsAt` on `clock` stops it. A read still out
 // when `timeout` settles gives way to the timeout it settles with.
 async function readPageTexts(
   caller: FleetCaller,
-  page: Readonly<Record<string, unknown>>,
-  events: readonly Readonly<Record<string, unknown>>[],
-  endsAt: number,
-  timeout: Readonly<Promise<TextRead>>,
-  clock: Clock,
+  options: ReadPageTextsOptions,
 ): Promise<Readonly<Record<string, unknown>>> {
   const kept: Readonly<Record<string, unknown>>[] = [];
   let used = 0;
 
   // the reads run one at a time in page order, so at most one text is in flight.
-  for (const event of events) {
+  for (const event of options.events) {
     const source = pickTextSource(event['kind']);
 
     if (source === null) {
@@ -66,16 +76,16 @@ async function readPageTexts(
 
     const last = kept.at(-1);
 
-    if (last !== undefined && clock.now() >= endsAt) {
-      return { ...page, events: kept, cursor: last['cursor'], more: true };
+    if (last !== undefined && options.clock.now() >= options.endsAt) {
+      return { ...options.page, events: kept, cursor: last['cursor'], more: true };
     }
 
-    const read = await Promise.race([readEventText(caller, event, source), timeout]);
+    const read = await Promise.race([readEventText(caller, event, source), options.timeout]);
 
     const bytes = typeof read['text'] === 'string' ? Buffer.byteLength(read['text']) : 0;
 
     if (last !== undefined && used + bytes > TEXT_BUDGET_BYTES) {
-      return { ...page, events: kept, cursor: last['cursor'], more: true };
+      return { ...options.page, events: kept, cursor: last['cursor'], more: true };
     }
 
     used += bytes;
@@ -83,7 +93,7 @@ async function readPageTexts(
     kept.push({ ...event, ...read });
   }
 
-  return { ...page, events: kept };
+  return { ...options.page, events: kept };
 }
 
 // The read that holds an event's whole text and the event field that holds

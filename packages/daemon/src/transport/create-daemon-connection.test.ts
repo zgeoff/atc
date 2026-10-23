@@ -262,31 +262,46 @@ test('it delivers a peer client that acts as a principal no event of a session o
 });
 
 test.each([
-  ['the handshake', 'daemon.quit', {}, { principal: 'narrow' }, undefined],
-  ['the handshake', 'daemon.backup', { path: '/backup.db' }, { principal: 'narrow' }, undefined],
-  ['a request header', 'daemon.quit', {}, {}, 'narrow'],
-  ['a request header', 'daemon.backup', { path: '/backup.db' }, {}, 'narrow'],
-])(
-  'it refuses a principal given in %s the owner-only %s',
-  async (_label, method, params, hello, as) => {
-    const ctx = setupTest();
-
-    startConnectionListener(ctx.socketPath, buildStubDaemonContext());
-
-    const client = await openDaemonClient(ctx.socketPath);
-
-    onTestFinished(() => {
-      client.stop();
-    });
-
-    await client.sendHello('atc/test', hello);
-
-    expect(client.sendRequest(method, params, as)).rejects.toMatchObject({
-      code: 'unauthorized',
-      message: `${method} is open to the daemon's owner only`,
-    });
+  {
+    label: 'the handshake',
+    method: 'daemon.quit',
+    params: {},
+    hello: { principal: 'narrow' },
+    as: undefined,
   },
-);
+  {
+    label: 'the handshake',
+    method: 'daemon.backup',
+    params: { path: '/backup.db' },
+    hello: { principal: 'narrow' },
+    as: undefined,
+  },
+  { label: 'a request header', method: 'daemon.quit', params: {}, hello: {}, as: 'narrow' },
+  {
+    label: 'a request header',
+    method: 'daemon.backup',
+    params: { path: '/backup.db' },
+    hello: {},
+    as: 'narrow',
+  },
+])('it refuses a principal given in $label the owner-only $method', async (row) => {
+  const ctx = setupTest();
+
+  startConnectionListener(ctx.socketPath, buildStubDaemonContext());
+
+  const client = await openDaemonClient(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  await client.sendHello('atc/test', row.hello);
+
+  expect(client.sendRequest(row.method, row.params, row.as)).rejects.toMatchObject({
+    code: 'unauthorized',
+    message: `${row.method} is open to the daemon's owner only`,
+  });
+});
 
 test("it runs an owner-only procedure for the daemon's owner", async () => {
   const ctx = setupTest();
@@ -473,28 +488,28 @@ test.each([
 });
 
 test.each([
-  [
-    'no principal',
-    'session.ack',
-    { session: 's-1' },
-    undefined,
-    'a request over TCP must act as a principal with as',
-  ],
-  [
-    'a principal the config does not list',
-    'session.ack',
-    { session: 's-1' },
-    'intruder',
-    "principal 'intruder' is not listed in principals",
-  ],
-  [
-    'an owner-only procedure',
-    'daemon.quit',
-    {},
-    'ci',
-    "daemon.quit is open to the daemon's owner only",
-  ],
-])('it refuses a TCP peer request that acts as %s', async (_label, method, params, as, message) => {
+  {
+    label: 'no principal',
+    method: 'session.ack',
+    params: { session: 's-1' },
+    as: undefined,
+    message: 'a request over TCP must act as a principal with as',
+  },
+  {
+    label: 'a principal the config does not list',
+    method: 'session.ack',
+    params: { session: 's-1' },
+    as: 'intruder',
+    message: "principal 'intruder' is not listed in principals",
+  },
+  {
+    label: 'an owner-only procedure',
+    method: 'daemon.quit',
+    params: {},
+    as: 'ci',
+    message: "daemon.quit is open to the daemon's owner only",
+  },
+])('it refuses a TCP peer request that acts as $label', async (row) => {
   const ctx = setupTest();
   const listed: Readonly<Record<string, boolean>> = { ci: true };
   const tokens: Readonly<Record<string, string>> = { 'tok-good': 'fp-1' };
@@ -517,9 +532,9 @@ test.each([
 
   await client.sendHello('atc/test', { token: 'tok-good', principal: 'ci' });
 
-  expect(client.sendRequest(method, params, as)).rejects.toMatchObject({
+  expect(client.sendRequest(row.method, row.params, row.as)).rejects.toMatchObject({
     code: 'unauthorized',
-    message,
+    message: row.message,
   });
 });
 
@@ -946,42 +961,45 @@ test('it records a line over the size cap before a TCP handshake as too long', (
 });
 
 test.each([
-  [
-    'a handshake',
-    '/daemon/hello',
-    { client: 'atc/test', protocol: PROTOCOL_V },
-    { daemon: 'atc/test' },
-    false,
-  ],
-  [
-    'a request',
-    '/daemon/ping',
-    {},
-    { code: 'unauthorized', message: 'daemon.hello must be the first request' },
-    true,
-  ],
-  ['a path that names no procedure', '/daemon/ping/', {}, { code: 'unknown_method' }, true],
-])(
-  'it answers %s on a peer connection that awaits its handshake',
-  async (_label, path, body, answer, ends) => {
-    const peer = buildStubPeerSocket();
-    const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
-
-    conn.applyChunk(buildPeerRequestLine('9', path, body));
-
-    const expected: unknown = expect.objectContaining(answer);
-
-    await waitFor(() => {
-      expect<unknown[]>(peer.collectFrames()).toContainEqual(
-        expect.objectContaining({ id: '9', body: expected }),
-      );
-    });
-
-    await waitFor(() => {
-      expect(peer.hasEnded()).toBe(ends);
-    });
+  {
+    label: 'a handshake',
+    path: '/daemon/hello',
+    body: { client: 'atc/test', protocol: PROTOCOL_V },
+    answer: { daemon: 'atc/test' },
+    ends: false,
   },
-);
+  {
+    label: 'a request',
+    path: '/daemon/ping',
+    body: {},
+    answer: { code: 'unauthorized', message: 'daemon.hello must be the first request' },
+    ends: true,
+  },
+  {
+    label: 'a path that names no procedure',
+    path: '/daemon/ping/',
+    body: {},
+    answer: { code: 'unknown_method' },
+    ends: true,
+  },
+])('it answers $label on a peer connection that awaits its handshake', async (row) => {
+  const peer = buildStubPeerSocket();
+  const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
+
+  conn.applyChunk(buildPeerRequestLine('9', row.path, row.body));
+
+  const expected: unknown = expect.objectContaining(row.answer);
+
+  await waitFor(() => {
+    expect<unknown[]>(peer.collectFrames()).toContainEqual(
+      expect.objectContaining({ id: '9', body: expected }),
+    );
+  });
+
+  await waitFor(() => {
+    expect(peer.hasEnded()).toBe(row.ends);
+  });
+});
 
 test('it drops an event sent to a peer connection that awaits its handshake', async () => {
   const peer = buildStubPeerSocket();

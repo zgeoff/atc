@@ -14,9 +14,14 @@ import type { MessageID, SessionID } from '@atcx/contract';
 import { MESSAGE_ANSWER_SCHEMA, toMessageID } from '@atcx/contract';
 import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import { isTreeInReach } from '../auth/is-tree-in-reach';
-import type { DaemonContext, MessageRefusal, TapClient } from '../daemon-context';
+import type {
+  DaemonContext,
+  MessageRefusal,
+  TapClient,
+  WriteSessionMessageParams,
+} from '../daemon-context';
 import type { EventSignal } from '../transport/create-event-signal';
-import type { IdempotencyLedger, KeyedRequest } from '../transport/create-idempotency-ledger';
+import type { IdempotencyLedger } from '../transport/create-idempotency-ledger';
 import { buildMessageOwner } from './build-message-owner';
 import { buildMessageSender } from './build-message-sender';
 import { buildMessageTrailEntry } from './build-message-trail-entry';
@@ -121,12 +126,7 @@ export interface MessageService {
   // under an access, a session whose tree leaves it before the write refuses as an unknown one
   // does; a refusal in a keyed send's start throws, so the claim drops and a retry runs fresh
   readonly writeSessionMessage: (
-    sessionID: SessionID,
-    caller: MessageCaller,
-    text: string,
-    keyed: KeyedRequest | null,
-    access: TargetAccess | null,
-    callerSession: SessionID | null,
+    params: WriteSessionMessageParams,
   ) => Promise<DaemonAnswer<'session.message'> | MessageRefusal>;
 
   // every status change wakes the signal, so a wake rereads the message and returns once its
@@ -158,6 +158,15 @@ export interface MessageService {
     sessionID: SessionID,
     messageID: MessageID,
   ) => Promise<MessageRecord | 'not_tapping' | 'unknown'>;
+}
+
+interface WriteQueuedMessageOptions {
+  readonly sessionID: SessionID;
+  readonly caller: MessageCaller;
+  readonly text: string;
+  readonly id: MessageID;
+  readonly requireWriteInReach: () => void;
+  readonly senderSession: SessionID | null;
 }
 
 export function createMessageService(deps: MessageServiceDeps): MessageService {
@@ -351,15 +360,8 @@ export function createMessageService(deps: MessageServiceDeps): MessageService {
 
   // only the write itself can reject: every later step swallows its own failure, so a rejection
   // means nothing was written; the caller's check runs again once earlier writes land
-  const writeQueuedMessage = async (
-    sessionID: SessionID,
-    caller: MessageCaller,
-    text: string,
-    id: MessageID,
-    requireWriteInReach: () => void,
-    senderSession: SessionID | null,
-  ): Promise<MessageRecord> => {
-    const session = manager.sessions.find((x) => x.id === sessionID);
+  const writeQueuedMessage = async (options: WriteQueuedMessageOptions): Promise<MessageRecord> => {
+    const session = manager.sessions.find((x) => x.id === options.sessionID);
     const previousWrite = lastMessageWrite;
     const written = Promise.withResolvers<void>();
 
@@ -368,34 +370,34 @@ export function createMessageService(deps: MessageServiceDeps): MessageService {
     await previousWrite;
 
     // A session sender's name is the one it holds as its message is written.
-    const sender = buildMessageSender(caller, manager.sessions);
+    const sender = buildMessageSender(options.caller, manager.sessions);
 
     const record: MessageRecord = {
-      id,
-      atcID: sessionID,
+      id: options.id,
+      atcID: options.sessionID,
       ...(session?.agentSessionID === undefined ? {} : { agentSessionID: session.agentSessionID }),
       from: sender.name,
       sender,
-      text,
+      text: options.text,
       status: 'queued',
       sentAt: clock.now(),
-      ...(senderSession === null ? {} : { senderSession }),
+      ...(options.senderSession === null ? {} : { senderSession: options.senderSession }),
     };
 
     try {
       // The write boundary: the reach check and the start of the row write
       // run in one synchronous step, so no wait lets the session's tree
       // leave the access between the check and the write it allows.
-      requireWriteInReach();
+      options.requireWriteInReach();
 
       await store.writeMessage(record);
 
-      await recordMessageStatus(sessionID, record);
+      await recordMessageStatus(options.sessionID, record);
     } finally {
       written.resolve();
     }
 
-    await drainSessionInbox(sessionID);
+    await drainSessionInbox(options.sessionID);
 
     return record;
   };
@@ -464,31 +466,34 @@ export function createMessageService(deps: MessageServiceDeps): MessageService {
 
     updateEndedSessionMessages,
 
-    writeSessionMessage: async (sessionID, caller, text, keyed, access, callerSession) => {
+    writeSessionMessage: async (params) => {
       const requireInReach = () => {
-        if (access !== null && !isTreeInReach(manager.sessions, sessionID, access)) {
+        if (
+          params.access !== null &&
+          !isTreeInReach(manager.sessions, params.sessionID, params.access)
+        ) {
           throw new MessageRefusedError('missing');
         }
       };
 
-      const senderSession = findNoticeSender(callerSession, access);
+      const senderSession = findNoticeSender(params.senderSession, params.access);
 
       try {
-        if (keyed === null) {
-          const refusal = findMessageRefusal(sessionID);
+        if (params.keyed === null) {
+          const refusal = findMessageRefusal(params.sessionID);
 
           if (refusal !== null) {
             return refusal;
           }
 
-          const record = await writeQueuedMessage(
-            sessionID,
-            caller,
-            text,
-            mintMessageID(),
-            requireInReach,
+          const record = await writeQueuedMessage({
+            sessionID: params.sessionID,
+            caller: params.caller,
+            text: params.text,
+            id: mintMessageID(),
+            requireWriteInReach: requireInReach,
             senderSession,
-          );
+          });
 
           return { message: record.id, status: record.status };
         }
@@ -497,25 +502,25 @@ export function createMessageService(deps: MessageServiceDeps): MessageService {
 
         return await ledger.run({
           operation: 'session.message',
-          keyed,
+          keyed: params.keyed,
           effectRef,
           start: async () => {
             requireInReach();
 
-            const refusal = findMessageRefusal(sessionID);
+            const refusal = findMessageRefusal(params.sessionID);
 
             if (refusal !== null) {
               throw new MessageRefusedError(refusal);
             }
 
-            const record = await writeQueuedMessage(
-              sessionID,
-              caller,
-              text,
-              effectRef,
-              requireInReach,
+            const record = await writeQueuedMessage({
+              sessionID: params.sessionID,
+              caller: params.caller,
+              text: params.text,
+              id: effectRef,
+              requireWriteInReach: requireInReach,
               senderSession,
-            );
+            });
 
             return { message: record.id, status: record.status };
           },

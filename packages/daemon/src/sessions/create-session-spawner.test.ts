@@ -140,7 +140,13 @@ test('it lists a running session and starts its harness on the local target', as
     targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
   });
 
-  const session = await ctx.spawner.spawn(ctx.directory, 'work', '', 120, 40);
+  const session = await ctx.spawner.spawn({
+    cwd: ctx.directory,
+    name: 'work',
+    prompt: '',
+    cols: 120,
+    rows: 40,
+  });
 
   expect(ctx.registry.sessions).toMatchObject([
     { name: 'work', cwd: ctx.directory, state: 'running' },
@@ -165,7 +171,7 @@ test('it points the hooks of a session it starts at the reporter socket the daem
     targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
   });
 
-  await ctx.spawner.spawn(ctx.directory, 'work', '', 120, 40);
+  await ctx.spawner.spawn({ cwd: ctx.directory, name: 'work', prompt: '', cols: 120, rows: 40 });
 
   expect(provider.harnesses[0]?.spec.env['ATC_SOCKET']).toBe(join(ctx.directory, 'reporter.sock'));
 });
@@ -194,7 +200,7 @@ test('it boots a session before output its harness writes at once can reach it',
     ],
   });
 
-  await ctx.spawner.spawn(ctx.directory, 'work', '', 80, 24);
+  await ctx.spawner.spawn({ cwd: ctx.directory, name: 'work', prompt: '', cols: 80, rows: 24 });
 
   expect(booted).toStrictEqual([1]);
 });
@@ -211,7 +217,13 @@ test('it kills the harness and unlists the session when booting it throws', asyn
     throw new Error('the screen could not be built');
   });
 
-  const spawned = ctx.spawner.spawn(ctx.directory, 'work', '', 80, 24);
+  const spawned = ctx.spawner.spawn({
+    cwd: ctx.directory,
+    name: 'work',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   await spawned.catch(() => null);
 
@@ -235,7 +247,14 @@ test('it rejects a spawn of an agent no adapter is registered for', async () => 
     ],
   });
 
-  const spawned = ctx.spawner.spawn(ctx.directory, 'work', '', 80, 24, false, 'auto', 'zai');
+  const spawned = ctx.spawner.spawn({
+    cwd: ctx.directory,
+    name: 'work',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+    agent: 'zai',
+  });
 
   expect(spawned).rejects.toThrowWithMessage(Error, "no adapter for agent 'zai'");
   expect(ctx.registry.sessions).toStrictEqual([]);
@@ -253,20 +272,16 @@ test('it rejects a spawn that trusts a cloned workspace without a workspace sour
     ],
   });
 
-  const spawned = ctx.spawner.spawn(
-    ctx.directory,
-    'work',
-    '',
-    80,
-    24,
-    false,
-    'auto',
-    'claude',
-    null,
-    {
+  const spawned = ctx.spawner.spawn({
+    cwd: ctx.directory,
+    name: 'work',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+    overrides: {
       trustClonedWorkspace: true,
     },
-  );
+  });
 
   expect(spawned).rejects.toMatchObject({ code: 'bad_args' });
   expect(ctx.registry.sessions).toStrictEqual([]);
@@ -290,21 +305,18 @@ test('it takes clone trust for a brokered agent on a remote target that can trus
     runSteps: () => Promise.reject(new Error('the spawn steps started')),
   });
 
-  const spawned = ctx.spawner.spawn(
-    ctx.directory,
-    'clone',
-    '',
-    80,
-    24,
-    false,
-    'auto',
-    'glm',
-    null,
-    { trustClonedWorkspace: true },
-    toSessionID('s-trust'),
-    'far',
-    () => Promise.resolve(null),
-  );
+  const spawned = ctx.spawner.spawn({
+    cwd: ctx.directory,
+    name: 'clone',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+    agent: 'glm',
+    overrides: { trustClonedWorkspace: true },
+    id: toSessionID('s-trust'),
+    target: 'far',
+    materialize: () => Promise.resolve(null),
+  });
 
   expect(spawned).rejects.toThrowWithMessage(Error, 'the spawn steps started');
 });
@@ -330,21 +342,18 @@ test.each([
       runSteps: () => Promise.reject(new Error('the spawn steps started')),
     });
 
-    const spawned = ctx.spawner.spawn(
-      ctx.directory,
-      'clone',
-      '',
-      80,
-      24,
-      false,
-      'auto',
-      'glm',
-      null,
-      { trustClonedWorkspace: true },
-      toSessionID('s-trust'),
-      'far',
-      () => Promise.resolve(null),
-    );
+    const spawned = ctx.spawner.spawn({
+      cwd: ctx.directory,
+      name: 'clone',
+      prompt: '',
+      cols: 80,
+      rows: 24,
+      agent: 'glm',
+      overrides: { trustClonedWorkspace: true },
+      id: toSessionID('s-trust'),
+      target: 'far',
+      materialize: () => Promise.resolve(null),
+    });
 
     expect(spawned).rejects.toMatchObject({ code: 'unsupported' });
   },
@@ -363,7 +372,13 @@ test('it rejects a spawn whose harness its provider cannot start and lists nothi
     targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
   });
 
-  const spawned = ctx.spawner.spawn(ctx.directory, 'work', '', 80, 24);
+  const spawned = ctx.spawner.spawn({
+    cwd: ctx.directory,
+    name: 'work',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   expect(spawned).rejects.toThrowWithMessage(Error, 'harness refused');
   expect(ctx.registry.sessions).toStrictEqual([]);
@@ -381,19 +396,14 @@ test('it drops the stored record of a spawn whose record copy fails to land', as
   // record is stored.
   writeFileSync(ctx.recordsDir, 'in the way');
 
-  const spawned = ctx.spawner.spawn(
-    ctx.directory,
-    'work',
-    '',
-    80,
-    24,
-    false,
-    'auto',
-    'claude',
-    null,
-    {},
-    toSessionID('s-copy'),
-  );
+  const spawned = ctx.spawner.spawn({
+    cwd: ctx.directory,
+    name: 'work',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+    id: toSessionID('s-copy'),
+  });
 
   await spawned.catch(() => null);
 
@@ -417,9 +427,17 @@ test('it starts a spawn into the directory of an earlier spawn whose harness fai
     targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
   });
 
-  await ctx.spawner.spawn(ctx.directory, 'first', '', 80, 24).catch(() => null);
+  await ctx.spawner
+    .spawn({ cwd: ctx.directory, name: 'first', prompt: '', cols: 80, rows: 24 })
+    .catch(() => null);
 
-  const session = await ctx.spawner.spawn(ctx.directory, 'second', '', 80, 24);
+  const session = await ctx.spawner.spawn({
+    cwd: ctx.directory,
+    name: 'second',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   expect(ctx.registry.sessions).toStrictEqual([session]);
   expect(provider.harnesses).toHaveLength(1);
@@ -447,19 +465,15 @@ test('it gives a sub-session on a target without host lifecycle a host of its ow
     }),
   );
 
-  const session = await ctx.spawner.spawn(
-    ctx.directory,
-    'child',
-    '',
-    80,
-    24,
-    false,
-    'auto',
-    'claude',
-    toSessionID('s-parent'),
-    {},
-    toSessionID('s-child'),
-  );
+  const session = await ctx.spawner.spawn({
+    cwd: ctx.directory,
+    name: 'child',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+    parent: toSessionID('s-parent'),
+    id: toSessionID('s-child'),
+  });
 
   expect(session.hostKey).toBe(toSessionID('s-child'));
 });
@@ -489,56 +503,112 @@ test("it runs a sub-session on its parent's host on a target with host lifecycle
     }),
   );
 
-  const session = await ctx.spawner.spawn(
-    ctx.directory,
-    'child',
-    '',
-    80,
-    24,
-    false,
-    'auto',
-    'claude',
-    toSessionID('s-parent'),
-    {},
-    toSessionID('s-child'),
-    'imp',
-  );
+  const session = await ctx.spawner.spawn({
+    cwd: ctx.directory,
+    name: 'child',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+    parent: toSessionID('s-parent'),
+    id: toSessionID('s-child'),
+    target: 'imp',
+  });
 
   expect(session.hostKey).toBe(toSessionID('s-parent-host'));
 });
 
-// Each row: the step that fails, the undos that run in order, how many
-// times the workspace trust and the message bridge are taken back, whether
-// the clone's directory is still there, and how many harnesses started.
 test.each([
-  ['claim', [], 0, 0, true, 0],
-  ['workspace', ['claim'], 0, 0, true, 0],
-  ['host', ['claim'], 0, 0, true, 0],
-  ['trust', ['workspace', 'host', 'claim'], 0, 0, false, 0],
-  ['record', ['trust', 'workspace', 'host', 'claim'], 1, 0, false, 0],
-  ['reach', ['record', 'trust', 'workspace', 'host', 'claim'], 1, 0, false, 0],
-  ['bridge', ['record', 'trust', 'workspace', 'host', 'claim'], 1, 0, false, 0],
-  ['harness', ['bridge', 'record', 'trust', 'workspace', 'host', 'claim'], 1, 1, false, 0],
-  ['list', ['harness', 'bridge', 'record', 'trust', 'workspace', 'host', 'claim'], 1, 1, false, 1],
-  [
-    'harness-start',
-    ['harness', 'bridge', 'record', 'trust', 'workspace', 'host', 'claim'],
-    1,
-    1,
-    false,
-    1,
-  ],
-  [
-    'answer',
-    ['harness', 'bridge', 'record', 'trust', 'workspace', 'host', 'claim'],
-    1,
-    1,
-    false,
-    1,
-  ],
+  {
+    failing: 'claim',
+    undone: [],
+    trustRemovals: 0,
+    bridgeStops: 0,
+    cloneKept: true,
+    started: 0,
+  },
+  {
+    failing: 'workspace',
+    undone: ['claim'],
+    trustRemovals: 0,
+    bridgeStops: 0,
+    cloneKept: true,
+    started: 0,
+  },
+  {
+    failing: 'host',
+    undone: ['claim'],
+    trustRemovals: 0,
+    bridgeStops: 0,
+    cloneKept: true,
+    started: 0,
+  },
+  {
+    failing: 'trust',
+    undone: ['workspace', 'host', 'claim'],
+    trustRemovals: 0,
+    bridgeStops: 0,
+    cloneKept: false,
+    started: 0,
+  },
+  {
+    failing: 'record',
+    undone: ['trust', 'workspace', 'host', 'claim'],
+    trustRemovals: 1,
+    bridgeStops: 0,
+    cloneKept: false,
+    started: 0,
+  },
+  {
+    failing: 'reach',
+    undone: ['record', 'trust', 'workspace', 'host', 'claim'],
+    trustRemovals: 1,
+    bridgeStops: 0,
+    cloneKept: false,
+    started: 0,
+  },
+  {
+    failing: 'bridge',
+    undone: ['record', 'trust', 'workspace', 'host', 'claim'],
+    trustRemovals: 1,
+    bridgeStops: 0,
+    cloneKept: false,
+    started: 0,
+  },
+  {
+    failing: 'harness',
+    undone: ['bridge', 'record', 'trust', 'workspace', 'host', 'claim'],
+    trustRemovals: 1,
+    bridgeStops: 1,
+    cloneKept: false,
+    started: 0,
+  },
+  {
+    failing: 'list',
+    undone: ['harness', 'bridge', 'record', 'trust', 'workspace', 'host', 'claim'],
+    trustRemovals: 1,
+    bridgeStops: 1,
+    cloneKept: false,
+    started: 1,
+  },
+  {
+    failing: 'harness-start',
+    undone: ['harness', 'bridge', 'record', 'trust', 'workspace', 'host', 'claim'],
+    trustRemovals: 1,
+    bridgeStops: 1,
+    cloneKept: false,
+    started: 1,
+  },
+  {
+    failing: 'answer',
+    undone: ['harness', 'bridge', 'record', 'trust', 'workspace', 'host', 'claim'],
+    trustRemovals: 1,
+    bridgeStops: 1,
+    cloneKept: false,
+    started: 1,
+  },
 ] as const)(
-  'it undoes every step before a failed %s step, last step first, and leaves nothing running',
-  async (failing, undone, trustRemovals, bridgeStops, cloneKept, started) => {
+  'it undoes every step before a failed $failing step, last step first, and leaves nothing running',
+  async (scenario) => {
     // Harnesses run in memory; the workspace's directory commands run on
     // this machine, so the clone's directory resolves and is removed.
     const provider = buildStubMemoryProvider({ kind: 'local-pty', runCommand: runLocalCommand });
@@ -560,7 +630,7 @@ test.each([
         runSpawnSteps(id, (steps) =>
           body({
             run: (name, run, undo) =>
-              name === failing
+              name === scenario.failing
                 ? Promise.reject(new Error(`the ${name} step refused`))
                 : steps.run(name, run, async (result, failure) => {
                     if (undo !== undefined) {
@@ -573,7 +643,7 @@ test.each([
               steps.runNow(
                 name,
                 () => {
-                  if (name === failing) {
+                  if (name === scenario.failing) {
                     throw new Error(`the ${name} step refused`);
                   }
 
@@ -595,20 +665,16 @@ test.each([
 
     mkdirSync(join(ctx.directory, 'clone'));
 
-    const spawned = ctx.spawner.spawn(
-      join(ctx.directory, 'clone'),
-      'clone',
-      '',
-      80,
-      24,
-      false,
-      'auto',
-      'claude',
-      null,
-      { trustClonedWorkspace: true },
+    const spawned = ctx.spawner.spawn({
+      cwd: join(ctx.directory, 'clone'),
+      name: 'clone',
+      prompt: '',
+      cols: 80,
+      rows: 24,
+      overrides: { trustClonedWorkspace: true },
       id,
-      'local',
-      async (host) => {
+      target: 'local',
+      materialize: async (host) => {
         await host.readyHost(1);
 
         return {
@@ -621,25 +687,22 @@ test.each([
           withheldEnv: [],
         };
       },
-      () => {},
-      false,
-      null,
-      () => {},
-    );
+      answer: () => {},
+    });
 
     await spawned.catch(() => null);
 
     const stored = await ctx.store.loadFleet();
 
-    expect(spawned).rejects.toThrowWithMessage(Error, `the ${failing} step refused`);
-    expect(ran).toStrictEqual([...undone]);
+    expect(spawned).rejects.toThrowWithMessage(Error, `the ${scenario.failing} step refused`);
+    expect(ran).toStrictEqual([...scenario.undone]);
     expect(ctx.registry.sessions).toStrictEqual([]);
     expect(stored).toStrictEqual([]);
-    expect(provider.harnesses).toHaveLength(started);
+    expect(provider.harnesses).toHaveLength(scenario.started);
     expect(provider.harnesses.map((harness) => harness.readExit())).not.toContain(null);
-    expect(removeTrust).toHaveBeenCalledTimes(trustRemovals);
-    expect(ctx.stopMessageBridge).toHaveBeenCalledTimes(bridgeStops);
-    expect(existsSync(join(ctx.directory, 'clone'))).toBe(cloneKept);
+    expect(removeTrust).toHaveBeenCalledTimes(scenario.trustRemovals);
+    expect(ctx.stopMessageBridge).toHaveBeenCalledTimes(scenario.bridgeStops);
+    expect(existsSync(join(ctx.directory, 'clone'))).toBe(scenario.cloneKept);
     expect(ctx.claims.reservations.has(id)).toBeFalse();
     expect(ctx.rollback.rollingBack.has(id)).toBeFalse();
     expect(existsSync(join(ctx.recordsDir, 's-steps.json'))).toBeFalse();
@@ -656,27 +719,17 @@ test('it stops the unwind at an undo that fails and throws that the spawn may st
 
   ctx.stopMessageBridge.mockImplementation(() => Promise.reject(new Error('bridge wedged')));
 
-  const spawned = ctx.spawner.spawn(
-    ctx.directory,
-    'stuck',
-    '',
-    80,
-    24,
-    false,
-    'auto',
-    'claude',
-    null,
-    {},
-    toSessionID('s-stuck'),
-    'local',
-    null,
-    () => {},
-    false,
-    null,
-    () => {
+  const spawned = ctx.spawner.spawn({
+    cwd: ctx.directory,
+    name: 'stuck',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+    id: toSessionID('s-stuck'),
+    answer: () => {
       throw new Error('the answer could not be built');
     },
-  );
+  });
 
   await spawned.catch(() => null);
 

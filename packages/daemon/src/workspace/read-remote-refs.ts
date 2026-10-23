@@ -34,15 +34,21 @@ interface RemoteRefRefusal {
 // waiting on it no longer than this.
 const REMOTE_TIMEOUT_MS = 20_000;
 
+interface ReadRemoteRefsOptions {
+  readonly credential?: GitCredential | undefined;
+  readonly transports: readonly string[];
+  readonly timeoutMs?: number | undefined;
+  readonly onSpawn?: ((pid: number) => void) | undefined;
+}
+
 // authenticates exactly as a clone of the same URL does
 export async function readRemoteRefs(
   url: string,
-  credential: GitCredential | undefined,
-  transports: readonly string[],
-  timeoutMs: number = REMOTE_TIMEOUT_MS,
-  onSpawn?: (pid: number) => void,
+  options: ReadRemoteRefsOptions,
 ): Promise<RemoteRefListing | RemoteRefRefusal> {
-  const askpass = await createGitAskpass(credential);
+  const timeoutMs = options.timeoutMs ?? REMOTE_TIMEOUT_MS;
+
+  const askpass = await createGitAskpass(options.credential);
 
   if (!askpass.ok) {
     return askpass;
@@ -65,7 +71,12 @@ export async function readRemoteRefs(
         'refs/heads/*',
         'refs/tags/*',
       ],
-      { env: { ...askpass.env, ...sshEnv }, timeoutMs, transports, onSpawn },
+      {
+        env: { ...askpass.env, ...sshEnv },
+        timeoutMs,
+        transports: options.transports,
+        onSpawn: options.onSpawn,
+      },
     );
   } finally {
     await askpass[Symbol.asyncDispose]();
