@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { createStubBin, runCommand, setupTempDir } from '@atc/test-utils';
+import { buildStubNpm, createStubBin, runCommand, setupTempDir } from '@atc/test-utils';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('publish-contract-');
@@ -19,7 +19,7 @@ test.each([
   createStubBin(
     join(ctx.directory, 'bin'),
     'npm',
-    `#!/bin/sh\necho "$@" >> '${join(ctx.directory, 'npm.log')}'\n`,
+    buildStubNpm(join(ctx.directory, 'npm.log'), null),
   );
 
   const published = await runCommand(
