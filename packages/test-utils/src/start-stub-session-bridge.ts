@@ -16,8 +16,6 @@ interface StubSessionBridge {
 }
 
 interface StubSessionBridgeOptions {
-  // How many tap.open requests, the first ones, get no answer, as a relay
-  // that takes a connection and never passes its lines on leaves them.
   readonly unansweredOpens?: number;
 }
 
