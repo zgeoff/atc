@@ -24,8 +24,6 @@ interface BridgeRevivalDeps {
 }
 
 export interface BridgeRevival {
-  // A session whose agent started and attaches no tap in the wait gets its
-  // mod written as one whose tap left does.
   readonly watchAgentStart: (sessionID: SessionID) => void;
 
   readonly stop: () => void;
