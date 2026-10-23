@@ -222,8 +222,6 @@ async function deliverPage(deps: DelivererContext, delivery: PageDelivery): Prom
 // read checks again after this wait before it gives the event up.
 const ACCESS_RECHECK_MS = 5000;
 
-// Every attempt at one event keeps its webhook-id, so a subscriber that got an
-// attempt whose answer was lost drops the retry as a duplicate.
 async function deliverEvent(
   deps: DelivererContext,
   delivery: PageDelivery,
