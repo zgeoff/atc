@@ -605,89 +605,97 @@ test('it runs a harness whose program path holds an equals sign', async () => {
   });
 });
 
-test('it starts a harness in a scope of its own bound to the daemon service', async () => {
-  const ctx = setupTest();
-  const systemd = createStubSystemd(['/bin/true']);
+// systemd scopes exist only on Linux, and the daemon starts none elsewhere.
+test.skipIf(process.platform !== 'linux')(
+  'it starts a harness in a scope of its own bound to the daemon service',
+  async () => {
+    const ctx = setupTest();
+    const systemd = createStubSystemd(['/bin/true']);
 
-  const provider = createLocalPTYProvider(
-    systemClock,
-    createSessionScopes({
-      unit: 'atc-daemon.service',
-      run: '0a1b2c3d',
-      systemctl: join(systemd.binDir, 'systemctl'),
-      systemdRun: join(systemd.binDir, 'systemd-run'),
-    }),
-  );
+    const provider = createLocalPTYProvider(
+      systemClock,
+      createSessionScopes({
+        unit: 'atc-daemon.service',
+        run: '0a1b2c3d',
+        systemctl: join(systemd.binDir, 'systemctl'),
+        systemdRun: join(systemd.binDir, 'systemd-run'),
+      }),
+    );
 
-  registerTestCleanup(() => provider.dispose());
+    registerTestCleanup(() => provider.dispose());
 
-  const output: string[] = [];
+    const output: string[] = [];
 
-  const harness = provider.spawnHarness({
-    session: 's1',
-    host: 's1',
-    bin: 'bash',
-    args: ['-c', 'echo READY; sleep 30'],
-    cwd: ctx.directory,
-    env: { PATH: '/usr/bin:/bin' },
-    cols: 80,
-    rows: 24,
-  });
+    const harness = provider.spawnHarness({
+      session: 's1',
+      host: 's1',
+      bin: 'bash',
+      args: ['-c', 'echo READY; sleep 30'],
+      cwd: ctx.directory,
+      env: { PATH: '/usr/bin:/bin' },
+      cols: 80,
+      rows: 24,
+    });
 
-  registerTestCleanup(() => {
-    harness.kill();
-  });
+    registerTestCleanup(() => {
+      harness.kill();
+    });
 
-  harness.onData((data) => {
-    output.push(data);
-  });
+    harness.onData((data) => {
+      output.push(data);
+    });
 
-  await waitFor(() => {
-    expect(output.join('')).toInclude('READY');
-  });
+    await waitFor(() => {
+      expect(output.join('')).toInclude('READY');
+    });
 
-  // One call per line, so the anchored pattern matches exactly one call.
-  expect(systemd.readSystemdRunCalls().join('\n')).toMatch(
-    /^--user --scope --quiet --collect --expand-environment=no --unit=atc-daemon-session-0a1b2c3d-s1-[\da-f]{8}\.scope --description=atc session s1 --property=BindsTo=atc-daemon\.service -- \/usr\/bin\/bash -c echo READY; sleep 30$/u,
-  );
-});
+    // One call per line, so the anchored pattern matches exactly one call.
+    expect(systemd.readSystemdRunCalls().join('\n')).toMatch(
+      /^--user --scope --quiet --collect --expand-environment=no --unit=atc-daemon-session-0a1b2c3d-s1-[\da-f]{8}\.scope --description=atc session s1 --property=BindsTo=atc-daemon\.service -- \/\S*\/bash -c echo READY; sleep 30$/u,
+    );
+  },
+);
 
-test('it stops the scope of each harness it started as it is disposed', async () => {
-  const ctx = setupTest();
-  const systemd = createStubSystemd(['/bin/true']);
+// systemd scopes exist only on Linux, and the daemon starts none elsewhere.
+test.skipIf(process.platform !== 'linux')(
+  'it stops the scope of each harness it started as it is disposed',
+  async () => {
+    const ctx = setupTest();
+    const systemd = createStubSystemd(['/bin/true']);
 
-  const provider = createLocalPTYProvider(
-    systemClock,
-    createSessionScopes({
-      unit: 'atc-daemon.service',
-      run: '0a1b2c3d',
-      systemctl: join(systemd.binDir, 'systemctl'),
-      systemdRun: join(systemd.binDir, 'systemd-run'),
-    }),
-  );
+    const provider = createLocalPTYProvider(
+      systemClock,
+      createSessionScopes({
+        unit: 'atc-daemon.service',
+        run: '0a1b2c3d',
+        systemctl: join(systemd.binDir, 'systemctl'),
+        systemdRun: join(systemd.binDir, 'systemd-run'),
+      }),
+    );
 
-  const harness = provider.spawnHarness({
-    session: 's1',
-    host: 's1',
-    bin: 'sleep',
-    args: ['30'],
-    cwd: ctx.directory,
-    env: { PATH: '/usr/bin:/bin' },
-    cols: 80,
-    rows: 24,
-  });
+    const harness = provider.spawnHarness({
+      session: 's1',
+      host: 's1',
+      bin: 'sleep',
+      args: ['30'],
+      cwd: ctx.directory,
+      env: { PATH: '/usr/bin:/bin' },
+      cols: 80,
+      rows: 24,
+    });
 
-  registerTestCleanup(() => {
-    harness.kill();
-  });
+    registerTestCleanup(() => {
+      harness.kill();
+    });
 
-  await waitFor(() => {
-    expect(systemd.readSystemdRunCalls()).toHaveLength(1);
-  });
+    await waitFor(() => {
+      expect(systemd.readSystemdRunCalls()).toHaveLength(1);
+    });
 
-  const scope = systemd.readSystemdRunCalls()[0]?.match(/--unit=(?<unit>\S+)/u)?.groups?.['unit'];
+    const scope = systemd.readSystemdRunCalls()[0]?.match(/--unit=(?<unit>\S+)/u)?.groups?.['unit'];
 
-  await provider.dispose();
+    await provider.dispose();
 
-  expect(systemd.readSystemctlCalls()).toStrictEqual([`--user stop --no-block ${scope}`]);
-});
+    expect(systemd.readSystemctlCalls()).toStrictEqual([`--user stop --no-block ${scope}`]);
+  },
+);
