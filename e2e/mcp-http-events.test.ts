@@ -162,7 +162,7 @@ test('it lets a subscriber that lost a notification find its event by reading th
   ]);
 
   expect(events.filter((event) => event['kind'] === 'turn-done')).toHaveLength(2);
-}, 20_000);
+});
 
 test('it repeats a notification whose answer was lost with its eventId, after which the trail holds no new work', async () => {
   const ctx = await setupTest();
@@ -242,4 +242,4 @@ test('it repeats a notification whose answer was lost with its eventId, after wh
   expect(repeat.body).toBe(first.body);
   expect(repeat.headers['webhook-id']).toBe(first.headers['webhook-id']);
   expect(getRecords(structured, 'events')).not.toPartiallyContain({ kind: 'turn-done' });
-}, 20_000);
+});
