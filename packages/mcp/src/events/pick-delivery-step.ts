@@ -11,7 +11,6 @@ export type DeliveryStep =
 // catches up by reading the trail from its cursor.
 const RETRY_DELAYS_MS = [30_000, 120_000, 480_000];
 
-// What a delivery does after its attempt numbered `attempt`, counting from 1.
 // The extension makes 410 and 413 final: 410 ends the subscription, and 413
 // would answer the same body the same way again.
 export function pickDeliveryStep(outcome: WebhookOutcome, attempt: number): DeliveryStep {
