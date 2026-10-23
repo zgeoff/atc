@@ -84,6 +84,14 @@ export interface MessageService {
   // there.
   readonly recordMessageStatus: (sessionID: SessionID, record: MessageRecord) => Promise<void>;
 
+  // Marks the message delivered and notes it in the trail in one commit, then broadcasts it.
+  // Returns null when the mark missed. A failed write rejects.
+  readonly markMessageDelivered: (
+    sessionID: SessionID,
+    messageID: MessageID,
+    owner: MessageOwner,
+  ) => Promise<MessageRecord | null>;
+
   // Notes an answer notice change in the sender session's trail.
   readonly recordNoticeStatus: (
     record: MessageRecord,
@@ -202,6 +210,26 @@ export function createMessageService(deps: MessageServiceDeps): MessageService {
     await recordTrailEntry(buildMessageTrailEntry(sessionID, session?.agentSessionID, record));
 
     emitEvent(buildSessionMessageEvent(sessionID, record), findHookScope(sessionID));
+  };
+
+  const markMessageDelivered = async (
+    sessionID: SessionID,
+    messageID: MessageID,
+    owner: MessageOwner,
+  ): Promise<MessageRecord | null> => {
+    const session = manager.sessions.find((x) => x.id === sessionID);
+
+    const delivered = await store.updateMessageDelivered(messageID, owner, clock.now(), (record) =>
+      buildMessageTrailEntry(sessionID, session?.agentSessionID, record),
+    );
+
+    if (delivered !== null) {
+      eventSignal.emit();
+
+      emitEvent(buildSessionMessageEvent(sessionID, delivered), findHookScope(sessionID));
+    }
+
+    return delivered;
   };
 
   const recordNoticeStatus = async (
@@ -424,6 +452,8 @@ export function createMessageService(deps: MessageServiceDeps): MessageService {
 
     recordMessageStatus,
 
+    markMessageDelivered,
+
     recordNoticeStatus,
 
     recordAnswerNotice,
@@ -577,13 +607,11 @@ export function createMessageService(deps: MessageServiceDeps): MessageService {
 
       const owner = access === null ? buildMessageOwner(session) : { atcID: session.id };
 
-      const delivered = await store.updateMessageDelivered(messageID, owner, clock.now());
+      const delivered = await markMessageDelivered(sessionID, messageID, owner);
 
       void drainSessionInbox(sessionID);
 
       if (delivered !== null) {
-        await recordMessageStatus(sessionID, delivered);
-
         // a tap can outlive its process, so an ack can land after the end marked its messages; a
         // process is surely gone once its exit was seen or a local session has no terminal, while a
         // remote host that lost the connection or went to sleep may still run it

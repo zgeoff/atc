@@ -1,5 +1,5 @@
 import { Database } from 'bun:sqlite';
-import { expect, test } from 'bun:test';
+import { expect, mock, onTestFinished, test } from 'bun:test';
 import {
   mkdirSync,
   readFileSync,
@@ -2241,7 +2241,21 @@ test('it lists queued and delivered messages as unsettled, oldest first', async 
   await ctx.store.writeMessage(delivered);
   await ctx.store.writeMessage(queued);
   await ctx.store.writeMessage(answered);
-  await ctx.store.updateMessageDelivered(delivered.id, { atcID: toSessionID('s1') }, 2000);
+
+  await ctx.store.updateMessageDelivered(
+    delivered.id,
+    { atcID: toSessionID('s1') },
+    2000,
+    (marked) => ({
+      at: 2000,
+      atcID: marked.atcID,
+      agentSessionID: null,
+      kind: 'message-delivered',
+      message: marked.id,
+      detail: 'hi',
+    }),
+  );
+
   await ctx.store.updateMessagesAnswered([answered.id], { atcID: toSessionID('s1') }, 'ok', 2000);
 
   const unsettled = await ctx.store.readUnsettledMessages({ atcID: toSessionID('s1') });
@@ -2263,6 +2277,14 @@ test('it moves a queued message to delivered', async () => {
     record.id,
     { atcID: record.atcID },
     2000,
+    (marked) => ({
+      at: 2000,
+      atcID: marked.atcID,
+      agentSessionID: null,
+      kind: 'message-delivered',
+      message: marked.id,
+      detail: 'hi',
+    }),
   );
 
   expect(delivered).toStrictEqual({ ...record, status: 'delivered', deliveredAt: 2000 });
@@ -2274,11 +2296,166 @@ test('it refuses to deliver a message a second time', async () => {
   const record = buildMockMessageRecord();
 
   await ctx.store.writeMessage(record);
-  await ctx.store.updateMessageDelivered(record.id, { atcID: record.atcID }, 2000);
 
-  const second = await ctx.store.updateMessageDelivered(record.id, { atcID: record.atcID }, 3000);
+  await ctx.store.updateMessageDelivered(record.id, { atcID: record.atcID }, 2000, (marked) => ({
+    at: 2000,
+    atcID: marked.atcID,
+    agentSessionID: null,
+    kind: 'message-delivered',
+    message: marked.id,
+    detail: 'hi',
+  }));
+
+  const second = await ctx.store.updateMessageDelivered(
+    record.id,
+    { atcID: record.atcID },
+    3000,
+    (marked) => ({
+      at: 2000,
+      atcID: marked.atcID,
+      agentSessionID: null,
+      kind: 'message-delivered',
+      message: marked.id,
+      detail: 'hi',
+    }),
+  );
 
   expect(second).toBeNull();
+});
+
+test('it writes the delivered mark and its trail entry together', async () => {
+  const ctx = await setupTest();
+
+  const record = buildMockMessageRecord();
+
+  await ctx.store.writeMessage(record);
+
+  const delivered = await ctx.store.updateMessageDelivered(
+    record.id,
+    { atcID: record.atcID },
+    2000,
+    (marked) => ({
+      at: 2000,
+      atcID: marked.atcID,
+      agentSessionID: null,
+      kind: 'message-delivered',
+      message: marked.id,
+      detail: 'hi',
+    }),
+  );
+
+  const db = new Database(ctx.dbPath, { readonly: true });
+
+  onTestFinished(() => {
+    db.close();
+  });
+
+  const message = db.query('SELECT status FROM messages WHERE id = ?').get(record.id);
+  const events = db.query('SELECT kind FROM events WHERE message = ?').all(record.id);
+
+  expect(delivered).toStrictEqual({ ...record, status: 'delivered', deliveredAt: 2000 });
+  expect(message).toStrictEqual({ status: 'delivered' });
+  expect(events).toStrictEqual([{ kind: 'message-delivered' }]);
+});
+
+test('it leaves the message undelivered when its trail entry fails to write', async () => {
+  const ctx = await setupTest();
+
+  const record = buildMockMessageRecord();
+
+  await ctx.store.writeMessage(record);
+
+  const failure = await ctx.store
+    .updateMessageDelivered(record.id, { atcID: record.atcID }, 2000, (marked) => ({
+      at: Number.NaN,
+      atcID: marked.atcID,
+      agentSessionID: null,
+      kind: 'message-delivered',
+      message: marked.id,
+      detail: 'hi',
+    }))
+    .then(
+      () => null,
+      (error: unknown) => error,
+    );
+
+  const db = new Database(ctx.dbPath, { readonly: true });
+
+  onTestFinished(() => {
+    db.close();
+  });
+
+  const message = db.query('SELECT status, delivered_at FROM messages WHERE id = ?').get(record.id);
+  const events = db.query('SELECT kind FROM events WHERE message = ?').all(record.id);
+
+  expect(failure).toBeInstanceOf(RangeError);
+  expect(message).toStrictEqual({ status: 'queued', delivered_at: null });
+  expect(events).toStrictEqual([]);
+});
+
+test('it writes no trail entry for a mark on a message that is already delivered', async () => {
+  const ctx = await setupTest();
+
+  const record = buildMockMessageRecord();
+  const buildEntry = mock();
+
+  await ctx.store.writeMessage(record);
+
+  await ctx.store.updateMessageDelivered(record.id, { atcID: record.atcID }, 2000, (marked) => ({
+    at: 2000,
+    atcID: marked.atcID,
+    agentSessionID: null,
+    kind: 'message-delivered',
+    message: marked.id,
+    detail: 'hi',
+  }));
+
+  const missed = await ctx.store.updateMessageDelivered(
+    record.id,
+    { atcID: record.atcID },
+    3000,
+    buildEntry,
+  );
+
+  const db = new Database(ctx.dbPath, { readonly: true });
+
+  onTestFinished(() => {
+    db.close();
+  });
+
+  const events = db.query('SELECT kind FROM events WHERE message = ?').all(record.id);
+
+  expect(missed).toBeNull();
+  expect(buildEntry).not.toHaveBeenCalled();
+  expect(events).toHaveLength(1);
+});
+
+test('it writes no trail entry for a mark on a message another session owns', async () => {
+  const ctx = await setupTest();
+
+  const record = buildMockMessageRecord({ atcID: toSessionID('s1') });
+  const buildEntry = mock();
+
+  await ctx.store.writeMessage(record);
+
+  const missed = await ctx.store.updateMessageDelivered(
+    record.id,
+    { atcID: toSessionID('s2') },
+    2000,
+    buildEntry,
+  );
+
+  const db = new Database(ctx.dbPath, { readonly: true });
+
+  onTestFinished(() => {
+    db.close();
+  });
+
+  const events = db.query('SELECT kind FROM events WHERE message = ?').all(record.id);
+
+  expect(missed).toBeNull();
+  expect(buildEntry).not.toHaveBeenCalled();
+  expect(events).toStrictEqual([]);
 });
 
 test('it drops a delivered message from the pending list', async () => {
@@ -2287,7 +2464,15 @@ test('it drops a delivered message from the pending list', async () => {
   const record = buildMockMessageRecord();
 
   await ctx.store.writeMessage(record);
-  await ctx.store.updateMessageDelivered(record.id, { atcID: record.atcID }, 2000);
+
+  await ctx.store.updateMessageDelivered(record.id, { atcID: record.atcID }, 2000, (marked) => ({
+    at: 2000,
+    atcID: marked.atcID,
+    agentSessionID: null,
+    kind: 'message-delivered',
+    message: marked.id,
+    detail: 'hi',
+  }));
 
   const pending = await ctx.store.readPendingMessages({ atcID: record.atcID });
 
@@ -2300,7 +2485,15 @@ test('it moves a delivered message to answered with the final text', async () =>
   const record = buildMockMessageRecord();
 
   await ctx.store.writeMessage(record);
-  await ctx.store.updateMessageDelivered(record.id, { atcID: record.atcID }, 2000);
+
+  await ctx.store.updateMessageDelivered(record.id, { atcID: record.atcID }, 2000, (marked) => ({
+    at: 2000,
+    atcID: marked.atcID,
+    agentSessionID: null,
+    kind: 'message-delivered',
+    message: marked.id,
+    detail: 'hi',
+  }));
 
   const answered = await ctx.store.updateMessagesAnswered(
     [record.id],
@@ -2350,7 +2543,15 @@ test('it moves a delivered message to unanswered with the reason and turn', asyn
   const record = buildMockMessageRecord();
 
   await ctx.store.writeMessage(record);
-  await ctx.store.updateMessageDelivered(record.id, { atcID: record.atcID }, 2000);
+
+  await ctx.store.updateMessageDelivered(record.id, { atcID: record.atcID }, 2000, (marked) => ({
+    at: 2000,
+    atcID: marked.atcID,
+    agentSessionID: null,
+    kind: 'message-delivered',
+    message: marked.id,
+    detail: 'hi',
+  }));
 
   const marked = await ctx.store.updateMessagesUnanswered(
     [record.id],
@@ -2445,7 +2646,20 @@ test('it marks every delivered message of a session unanswered with the given re
   const record = buildMockMessageRecord({ atcID: toSessionID('s1') });
 
   await ctx.store.writeMessage(record);
-  await ctx.store.updateMessageDelivered(record.id, { atcID: toSessionID('s1') }, 2000);
+
+  await ctx.store.updateMessageDelivered(
+    record.id,
+    { atcID: toSessionID('s1') },
+    2000,
+    (marked) => ({
+      at: 2000,
+      atcID: marked.atcID,
+      agentSessionID: null,
+      kind: 'message-delivered',
+      message: marked.id,
+      detail: 'hi',
+    }),
+  );
 
   const marked = await ctx.store.updateDeliveredMessagesUnanswered(
     { atcID: toSessionID('s1') },
@@ -2477,7 +2691,20 @@ test('it marks every queued and delivered message of a session unanswered', asyn
 
   await ctx.store.writeMessage(queued);
   await ctx.store.writeMessage(delivered);
-  await ctx.store.updateMessageDelivered(delivered.id, { atcID: toSessionID('s1') }, 2000);
+
+  await ctx.store.updateMessageDelivered(
+    delivered.id,
+    { atcID: toSessionID('s1') },
+    2000,
+    (marked) => ({
+      at: 2000,
+      atcID: marked.atcID,
+      agentSessionID: null,
+      kind: 'message-delivered',
+      message: marked.id,
+      detail: 'hi',
+    }),
+  );
 
   const marked = await ctx.store.updateUnsettledMessagesUnanswered(
     { atcID: toSessionID('s1') },
@@ -2606,7 +2833,15 @@ test('it queues the answer notice of a delivered message in the statement that e
   const record = buildMockMessageRecord({ senderSession: toSessionID('sender') });
 
   await ctx.store.writeMessage(record);
-  await ctx.store.updateMessageDelivered(record.id, { atcID: record.atcID }, 2000);
+
+  await ctx.store.updateMessageDelivered(record.id, { atcID: record.atcID }, 2000, (marked) => ({
+    at: 2000,
+    atcID: marked.atcID,
+    agentSessionID: null,
+    kind: 'message-delivered',
+    message: marked.id,
+    detail: 'hi',
+  }));
 
   const unanswered = await ctx.store.updateDeliveredMessagesUnanswered(
     { atcID: record.atcID },
@@ -2795,7 +3030,20 @@ test('it never marks a delivered message of another session when a session ends'
   const record = buildMockMessageRecord({ atcID: toSessionID('s2') });
 
   await ctx.store.writeMessage(record);
-  await ctx.store.updateMessageDelivered(record.id, { atcID: toSessionID('s2') }, 2000);
+
+  await ctx.store.updateMessageDelivered(
+    record.id,
+    { atcID: toSessionID('s2') },
+    2000,
+    (marked) => ({
+      at: 2000,
+      atcID: marked.atcID,
+      agentSessionID: null,
+      kind: 'message-delivered',
+      message: marked.id,
+      detail: 'hi',
+    }),
+  );
 
   const marked = await ctx.store.updateDeliveredMessagesUnanswered(
     { atcID: toSessionID('s1') },
@@ -2817,6 +3065,14 @@ test('it refuses to deliver a message owned by another session', async () => {
     record.id,
     { atcID: toSessionID('s2') },
     2000,
+    (marked) => ({
+      at: 2000,
+      atcID: marked.atcID,
+      agentSessionID: null,
+      kind: 'message-delivered',
+      message: marked.id,
+      detail: 'hi',
+    }),
   );
 
   expect(updated).toBeNull();

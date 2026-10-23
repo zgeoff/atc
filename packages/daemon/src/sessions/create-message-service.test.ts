@@ -1,3 +1,4 @@
+import { Database } from 'bun:sqlite';
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { toAgentSessionID, toMessageID, toSessionID } from '@atc/core';
@@ -95,6 +96,7 @@ async function setupTest(config: SetupTestConfig) {
 
   return {
     directory: temporaryDirectory.path,
+    dbPath,
     store,
     clock,
     manager,
@@ -282,6 +284,47 @@ test('it marks a tapped message delivered when the tap acks it', async () => {
   const acked = await ctx.messages.ackMessage(tap, session.id, toMessageID(answer.message), null);
 
   expect(acked).toMatchObject({ id: answer.message, status: 'delivered' });
+});
+
+test('it rejects the ack and keeps the message queued when its trail entry fails to write', async () => {
+  const ctx = await setupTest({ takesMessages: true });
+  const session = await ctx.manager.spawn(ctx.directory, 'worker', '', 80, 24);
+
+  const tap = { sendEvent: mock<TapClient['sendEvent']>() };
+
+  ctx.messages.attachTap(tap, session.id, null, false);
+
+  const answer = await ctx.messages.writeSessionMessage(
+    session.id,
+    { kind: 'owner' },
+    'hello',
+    null,
+    null,
+    null,
+  );
+
+  invariant(typeof answer === 'object');
+
+  const db = new Database(ctx.dbPath);
+
+  registerTestCleanup(() => {
+    db.close();
+  });
+
+  db.run(
+    "CREATE TRIGGER refuse_message_trail BEFORE INSERT ON events WHEN NEW.event = 'SessionMessage' BEGIN SELECT RAISE(ABORT, 'the trail refuses the entry'); END",
+  );
+
+  const emittedBefore = ctx.emitted.length;
+
+  expect(
+    ctx.messages.ackMessage(tap, session.id, toMessageID(answer.message), null),
+  ).rejects.toThrow('the trail refuses the entry');
+
+  const stored = await ctx.store.readMessageByID(toMessageID(answer.message));
+
+  expect(stored).toMatchObject({ status: 'queued' });
+  expect(ctx.emitted).toHaveLength(emittedBefore);
 });
 
 test('it refuses an ack from a client that is not the tap of the session', async () => {
