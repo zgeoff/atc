@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { z } from 'zod';
 import { buildPublishedManifest } from './build-published-manifest';
+import { DECLARATION_TOOLS } from './declaration-tools';
 import { writeContractDeclarations } from './write-contract-declarations';
 
 async function main(): Promise<void> {
@@ -41,7 +42,7 @@ async function main(): Promise<void> {
     throw: true,
   });
 
-  await writeContractDeclarations(root, join(staged, 'dist'));
+  await writeContractDeclarations(root, join(staged, 'dist'), DECLARATION_TOOLS);
 
   writeFileSync(
     join(staged, 'package.json'),

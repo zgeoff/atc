@@ -5,6 +5,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
+import { DECLARATION_TOOLS } from './declaration-tools';
 import { writeContractDeclarations } from './write-contract-declarations';
 
 async function main(): Promise<void> {
@@ -18,7 +19,7 @@ async function main(): Promise<void> {
   const out = mkdtempSync(join(tmpdir(), 'check-contract-'));
 
   try {
-    const files = await writeContractDeclarations(root, out);
+    const files = await writeContractDeclarations(root, out, DECLARATION_TOOLS);
 
     const rendered = readSnapshot(out, files);
     const path = join(root, SNAPSHOT);

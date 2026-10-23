@@ -1,10 +1,23 @@
-import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+
+export interface DeclarationTools {
+  readonly runCompiler: (
+    command: readonly string[],
+    cwd: string,
+  ) => Promise<{ readonly exitCode: number; readonly output: string }>;
+  readonly listDeclarations: (directory: string) => readonly string[];
+  readonly readText: (path: string) => string;
+  readonly writeText: (path: string, text: string) => void;
+}
 
 const CONTRACT_DIR = 'packages/contract';
 
-export async function writeContractDeclarations(root: string, out: string): Promise<string[]> {
-  const compiler = Bun.spawn(
+export async function writeContractDeclarations(
+  root: string,
+  out: string,
+  tools: DeclarationTools,
+): Promise<string[]> {
+  const compiled = await tools.runCompiler(
     [
       join(root, 'node_modules/.bin/tsrs'),
       '-p',
@@ -12,23 +25,21 @@ export async function writeContractDeclarations(root: string, out: string): Prom
       '--outDir',
       out,
     ],
-    { cwd: root, stdout: 'pipe', stderr: 'pipe' },
+    root,
   );
 
-  if ((await compiler.exited) !== 0) {
-    const output = `${await new Response(compiler.stdout).text()}${await new Response(compiler.stderr).text()}`;
-
-    throw new Error(`tsrs could not emit the contract's declarations:\n${output}`);
+  if (compiled.exitCode !== 0) {
+    throw new Error(`tsrs could not emit the contract's declarations:\n${compiled.output}`);
   }
 
-  const files = [...new Bun.Glob('**/*.d.ts').scanSync({ cwd: out })].toSorted();
+  const files = tools.listDeclarations(out).toSorted();
 
   const emitted = new Set(files);
 
   for (const file of files) {
     const path = join(out, file);
 
-    writeFileSync(path, toNodeSpecifiers(readFileSync(path, 'utf8'), dirname(file), emitted));
+    tools.writeText(path, toNodeSpecifiers(tools.readText(path), dirname(file), emitted));
   }
 
   return files;
