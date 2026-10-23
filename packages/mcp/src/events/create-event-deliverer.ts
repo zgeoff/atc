@@ -29,11 +29,16 @@ export interface EventDeliverer {
 
   // Starts a watcher for the subscription, unless one runs for it.
   readonly watch: (subscriptionID: string) => void;
+
+  // Ends the subscription's watcher, so work it started before an
+  // unsubscribe never acts on a subscription stored again with the same id.
+  readonly retire: (subscriptionID: string) => void;
   readonly stop: () => void;
 }
 
-interface DelivererState {
+interface WatcherState {
   stopped: boolean;
+  readonly waits: Set<() => void>;
 }
 
 // How long a watcher waits after a read the daemon could not answer.
@@ -43,16 +48,15 @@ const READ_RETRY_MS = 5000;
 // so it sees only the sessions the client's principal reaches, and it stores
 // how far it got, so a restarted server resumes where it stopped.
 export function createEventDeliverer(deps: EventDelivererDeps): EventDeliverer {
-  const watching = new Set<string>();
-  const pendingWaits = new Set<() => void>();
+  const watchers = new Map<string, WatcherState>();
 
-  const state: DelivererState = { stopped: false };
+  const deliverer = { stopped: false };
 
-  const wait = (delayMs: number) => {
+  const makeWait = (state: WatcherState) => (delayMs: number) => {
     const resolvers = Promise.withResolvers<void>();
 
     const finish = () => {
-      pendingWaits.delete(finish);
+      state.waits.delete(finish);
 
       cancel();
 
@@ -61,12 +65,14 @@ export function createEventDeliverer(deps: EventDelivererDeps): EventDeliverer {
 
     const cancel = deps.clock.schedule(finish, delayMs);
 
-    pendingWaits.add(finish);
+    state.waits.add(finish);
 
     return resolvers.promise;
   };
 
-  const runWatcher = async (subscriptionID: string) => {
+  const runWatcher = async (subscriptionID: string, state: WatcherState) => {
+    const wait = makeWait(state);
+
     for (;;) {
       const row = await readLiveSubscription(deps, subscriptionID);
 
@@ -88,16 +94,20 @@ export function createEventDeliverer(deps: EventDelivererDeps): EventDeliverer {
 
   // A watcher's store closes with the server, so a failure after a stop is
   // part of shutting down.
-  const runGuardedWatcher = async (subscriptionID: string) => {
+  const runGuardedWatcher = async (subscriptionID: string, state: WatcherState) => {
     try {
-      await runWatcher(subscriptionID);
+      await runWatcher(subscriptionID, state);
     } catch (error) {
       if (!state.stopped) {
         deps.log(`atc events: the watcher of ${subscriptionID} stopped: ${String(error)}`);
       }
     }
 
-    watching.delete(subscriptionID);
+    if (watchers.get(subscriptionID) !== state) {
+      return;
+    }
+
+    watchers.delete(subscriptionID);
 
     // A subscribe that stored the row again while this watcher was ending
     // found it still registered, so its watch started nothing.
@@ -109,12 +119,24 @@ export function createEventDeliverer(deps: EventDelivererDeps): EventDeliverer {
   };
 
   const watch = (subscriptionID: string) => {
-    if (state.stopped || watching.has(subscriptionID)) {
+    if (deliverer.stopped || watchers.has(subscriptionID)) {
       return;
     }
 
-    watching.add(subscriptionID);
-    void runGuardedWatcher(subscriptionID);
+    const state: WatcherState = { stopped: false, waits: new Set() };
+
+    watchers.set(subscriptionID, state);
+    void runGuardedWatcher(subscriptionID, state);
+  };
+
+  const retire = (subscriptionID: string) => {
+    const state = watchers.get(subscriptionID);
+
+    watchers.delete(subscriptionID);
+
+    if (state !== undefined) {
+      stopWatcher(state);
+    }
   };
 
   return {
@@ -126,11 +148,12 @@ export function createEventDeliverer(deps: EventDelivererDeps): EventDeliverer {
       }
     },
     watch,
+    retire,
     stop: () => {
-      state.stopped = true;
+      deliverer.stopped = true;
 
-      for (const finish of pendingWaits) {
-        finish();
+      for (const state of watchers.values()) {
+        stopWatcher(state);
       }
     },
   };
@@ -209,7 +232,7 @@ async function tryReadPage(
 interface PageDelivery {
   readonly subscriptionID: string;
   readonly page: TrailPage;
-  readonly state: DelivererState;
+  readonly state: WatcherState;
   readonly wait: (delayMs: number) => Promise<void>;
 }
 
@@ -225,6 +248,12 @@ async function deliverPage(deps: EventDelivererDeps, delivery: PageDelivery): Pr
 
     if (type?.kind === event.kind) {
       await deliverEvent(deps, delivery, event);
+    }
+
+    // A stop that cut a delivery short leaves the position before the event,
+    // so a restarted server delivers it again.
+    if (delivery.state.stopped) {
+      return;
     }
 
     await writePosition(deps, delivery.subscriptionID, event.cursor);
@@ -354,5 +383,13 @@ async function tryReadRowID(
     return row?.id;
   } catch {
     return undefined;
+  }
+}
+
+function stopWatcher(state: WatcherState): void {
+  state.stopped = true;
+
+  for (const finish of state.waits) {
+    finish();
   }
 }

@@ -21,7 +21,12 @@ async function setupTest() {
 
   registerTestCleanup(() => store.close());
 
-  const deliverer = { start: () => Promise.resolve(), watch: mock(), stop: () => {} };
+  const deliverer = {
+    start: () => Promise.resolve(),
+    watch: mock(),
+    retire: () => {},
+    stop: () => {},
+  };
 
   return { db: store.db, clock: buildStubClock(Date.parse('2026-10-23T12:00:00.000Z')), deliverer };
 }

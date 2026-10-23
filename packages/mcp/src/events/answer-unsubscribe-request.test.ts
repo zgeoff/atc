@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { openMCPAuth } from '../auth/open-mcp-auth';
@@ -17,7 +17,14 @@ async function setupTest() {
 
   registerTestCleanup(() => store.close());
 
-  return { db: store.db };
+  const deliverer = {
+    start: () => Promise.resolve(),
+    watch: () => {},
+    retire: mock<(subscriptionID: string) => void>(),
+    stop: () => {},
+  };
+
+  return { db: store.db, deliverer };
 }
 
 test('it ends the subscription its key names and answers the same when repeated', async () => {
@@ -49,13 +56,42 @@ test('it ends the subscription its key names and answers the same when repeated'
     delivery: { mode: 'webhook', url: 'https://hooks.example.com/hook' },
   };
 
-  const first = await answerUnsubscribeRequest({ db: ctx.db, clientID: 'client-one' }, params);
-  const second = await answerUnsubscribeRequest({ db: ctx.db, clientID: 'client-one' }, params);
+  const first = await answerUnsubscribeRequest(
+    { db: ctx.db, clientID: 'client-one', deliverer: ctx.deliverer },
+    params,
+  );
+
+  const second = await answerUnsubscribeRequest(
+    { db: ctx.db, clientID: 'client-one', deliverer: ctx.deliverer },
+    params,
+  );
+
   const rows = await ctx.db.selectFrom('atc_event_subscription').select('id').execute();
 
   expect(first).toStrictEqual({});
   expect(second).toStrictEqual({});
   expect(rows).toStrictEqual([]);
+});
+
+test("it retires the subscription's watcher, so its work never reaches a later subscription with the same key", async () => {
+  const ctx = await setupTest();
+
+  await answerUnsubscribeRequest(
+    { db: ctx.db, clientID: 'client-one', deliverer: ctx.deliverer },
+    {
+      name: 'session.turn_done',
+      delivery: { mode: 'webhook', url: 'https://hooks.example.com/hook' },
+    },
+  );
+
+  expect(ctx.deliverer.retire).toHaveBeenCalledExactlyOnceWith(
+    buildSubscriptionID({
+      clientID: 'client-one',
+      url: 'https://hooks.example.com/hook',
+      name: 'session.turn_done',
+      arguments: '{}',
+    }),
+  );
 });
 
 test("it never ends another client's subscription to the same callback", async () => {
@@ -84,7 +120,7 @@ test("it never ends another client's subscription to the same callback", async (
     .execute();
 
   await answerUnsubscribeRequest(
-    { db: ctx.db, clientID: 'client-one' },
+    { db: ctx.db, clientID: 'client-one', deliverer: ctx.deliverer },
     {
       name: 'session.turn_done',
       delivery: { mode: 'webhook', url: 'https://hooks.example.com/hook' },
@@ -122,7 +158,7 @@ test('it ends no subscription for a key with arguments, which no subscription ho
     .execute();
 
   const answer = await answerUnsubscribeRequest(
-    { db: ctx.db, clientID: 'client-one' },
+    { db: ctx.db, clientID: 'client-one', deliverer: ctx.deliverer },
     {
       name: 'session.turn_done',
       arguments: { session: 'session-7' },

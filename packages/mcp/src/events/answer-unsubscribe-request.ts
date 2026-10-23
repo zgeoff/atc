@@ -9,11 +9,10 @@ export const UNSUBSCRIBE_PARAMS = z.looseObject({
   delivery: z.looseObject({ mode: z.string(), url: z.string() }),
 });
 
-// An unsubscribe ends the subscription its key derives, and answers the same
-// whether one existed or not, so a client can repeat it safely. Subscribe
-// stores only subscriptions without arguments, so a key with arguments ends none.
+// Subscribe stores only subscriptions without arguments, so a key with
+// arguments ends none.
 export async function answerUnsubscribeRequest(
-  deps: Pick<EventMethodDeps, 'db' | 'clientID'>,
+  deps: Pick<EventMethodDeps, 'db' | 'clientID' | 'deliverer'>,
   params: z.infer<typeof UNSUBSCRIBE_PARAMS>,
 ): Promise<Readonly<Record<string, never>>> {
   if (Object.keys(params.arguments ?? {}).length > 0) {
@@ -32,6 +31,8 @@ export async function answerUnsubscribeRequest(
     .where('id', '=', id)
     .where('client_id', '=', deps.clientID)
     .execute();
+
+  deps.deliverer.retire(id);
 
   return {};
 }
