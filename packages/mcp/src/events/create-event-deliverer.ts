@@ -271,23 +271,13 @@ async function deliverPage(deps: EventDelivererDeps, delivery: PageDelivery): Pr
       return;
     }
 
-    // A client that lost read gets no delivery, and the position stays before
-    // the event, so the watcher's next turn decides whether access is gone.
-    const reads = await deps.probeAccess(row.client_id);
-
-    if (!reads) {
-      return;
-    }
-
     const type = EVENT_TYPES.find((candidate) => candidate.name === row.name);
+    const settled = type?.kind === event.kind ? await deliverEvent(deps, delivery, event) : true;
 
-    if (type?.kind === event.kind) {
-      await deliverEvent(deps, delivery, event);
-    }
-
-    // A stop that cut a delivery short leaves the position before the event,
-    // so a restarted server delivers it again.
-    if (delivery.state.stopped) {
+    // A delivery that a stop or a lost grant cut short leaves the position
+    // before the event, so a restarted server or the watcher's next turn
+    // decides it again.
+    if (!settled || delivery.state.stopped) {
       return;
     }
 
@@ -305,7 +295,7 @@ async function deliverEvent(
   deps: EventDelivererDeps,
   delivery: PageDelivery,
   event: z.infer<typeof TRAIL_EVENT_SCHEMA>,
-): Promise<void> {
+): Promise<boolean> {
   const webhookID = `msg_${randomBytes(16).toString('base64url')}`;
   const digest = createHash('sha256').update(event.cursor).digest('hex');
 
@@ -314,8 +304,14 @@ async function deliverEvent(
     // signs it and a removed subscription gets none.
     const row = await readLiveSubscription(deps, delivery.subscriptionID);
 
-    if (row === null || delivery.state.stopped) {
-      return;
+    if (row === null) {
+      return true;
+    }
+
+    const reads = delivery.state.stopped ? false : await deps.probeAccess(row.client_id);
+
+    if (!reads) {
+      return false;
     }
 
     // The event's cursor points past the event, so a subscriber that reads the
@@ -333,7 +329,7 @@ async function deliverEvent(
     const step = pickDeliveryStep(outcome, attempt);
 
     if (step.kind === 'done') {
-      return;
+      return true;
     }
 
     deps.log(`atc events: delivery of ${row.name} to ${row.id} failed: ${formatOutcome(outcome)}`);
@@ -341,13 +337,13 @@ async function deliverEvent(
     if (step.kind === 'drop') {
       await removeSubscription(deps, row);
 
-      return;
+      return true;
     }
 
     if (step.kind === 'abandon') {
       deps.log(`atc events: gave up on delivering ${row.name} to ${row.id}`);
 
-      return;
+      return true;
     }
 
     await delivery.wait(step.delayMs);
