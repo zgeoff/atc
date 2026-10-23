@@ -2,11 +2,12 @@
 // start a daemon or run a session on its own machine, so nothing it imports,
 // type-only imports included, may belong to a package outside its allowance.
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import { isBuiltin } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, normalize, resolve } from 'node:path';
 import { SyntaxKind } from 'typescript/unstable/ast';
 import { z } from 'zod';
+import { checkContractReach } from './check-contract-reach';
+import type { ContractEntry } from './check-contract-reach';
 import { collectImports } from './collect-imports';
 import { collectTokens } from './collect-tokens';
 import { readSourceFiles } from './read-source-files';
@@ -36,7 +37,7 @@ async function main(): Promise<void> {
       .flatMap((file) => checkFile('bundles', file)),
     ...checkReporters(root, known, exports),
     ...checkDaemon(root, known, exports),
-    ...checkContract(root, known, exports),
+    ...checkContractReach(readContractEntries(root, known, exports)),
   ];
 
   for (const finding of findings) {
@@ -288,60 +289,36 @@ function checkDaemon(
   return findings;
 }
 
-// npm installs @atcx/contract with only the packages it depends on, so
-// nothing its entries reach may leave the package or import any other.
 const CONTRACT_NAME = '@atcx/contract';
-const CONTRACT_SOURCE = 'packages/contract/src';
 
-const CONTRACT_PACKAGES: ReadonlySet<string> = new Set(['zod', '@orpc/contract']);
-
-// A type-only import counts too, because the published declarations keep it.
-function checkContract(
+function readContractEntries(
   root: string,
   known: ReadonlySet<string>,
   exports: ReadonlyMap<string, string>,
-): string[] {
+): ContractEntry[] {
   const entries = [...exports]
     .filter(
       ([specifier]) => specifier === CONTRACT_NAME || specifier.startsWith(`${CONTRACT_NAME}/`),
     )
     .map(([, target]) => target);
 
-  const findings = entries
-    .filter((entry) => !known.has(entry))
-    .map((entry) => `missing contract entry: ${entry} does not exist`);
-
-  for (const entry of entries.filter((candidate) => known.has(candidate))) {
-    const reached = collectReached(
-      known,
-      exports,
-      [entry],
-      (file) => collectImports(readFileSync(join(root, file), 'utf8')).specifiers,
-    );
-
-    for (const file of [...reached.files].toSorted()) {
-      if (!file.startsWith(`${CONTRACT_SOURCE}/`)) {
-        findings.push(`unpublished module: ${entry} reaches ${file}, which npm never holds`);
-        continue;
-      }
-
-      const specifiers = collectImports(readFileSync(join(root, file), 'utf8')).specifiers;
-
-      for (const specifier of specifiers.filter((candidate) => !isContractImport(candidate))) {
-        findings.push(
-          `undeclared package: ${file} imports ${specifier}, which @atcx/contract does not depend on`,
-        );
-      }
+  return entries.map((entry) => {
+    if (!known.has(entry)) {
+      return { entry, exists: false, imports: new Map(), unresolved: [] };
     }
 
-    findings.push(...reached.unresolved);
-  }
+    const imports = new Map<string, readonly string[]>();
 
-  return findings;
-}
+    const reached = collectReached(known, exports, [entry], (file) => {
+      const specifiers = collectImports(readFileSync(join(root, file), 'utf8')).specifiers;
 
-function isContractImport(specifier: string): boolean {
-  return specifier.startsWith('.') || isBuiltin(specifier) || CONTRACT_PACKAGES.has(specifier);
+      imports.set(file, specifiers);
+
+      return specifiers;
+    });
+
+    return { entry, exists: true, imports, unresolved: reached.unresolved };
+  });
 }
 
 // The 1-based line of the first token that names mcp-auth.db in any case,
