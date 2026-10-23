@@ -1,7 +1,7 @@
 {
   "name": "@atc/store",
   "private": true,
-  "description": "atc's SQLite state: the Kysely driver and opener, the migration ladder, and the stores over the state database",
+  "description": "atc's SQLite state: the opener, the migration ladder, and the stores over the state database",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
