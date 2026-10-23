@@ -25,9 +25,9 @@ export interface SubscriptionStore {
   ) => Promise<boolean>;
   readonly advance: (subscriptionID: string, position: string, now: number) => Promise<boolean>;
 
-  // Removes an expired subscription unless a refresh renewed it since the
-  // caller read the expiry it passes.
-  readonly expire: (subscriptionID: string, refreshBefore: string, now: number) => Promise<boolean>;
+  // Removes the subscription only while it is still expired at `now`, so one
+  // that a subscribe renewed since the caller's read stays.
+  readonly expire: (subscriptionID: string, now: number) => Promise<boolean>;
   readonly end: (subscriptionID: string) => Promise<boolean>;
 
   // Removes a subscription unless a subscribe renewed it since the caller
@@ -97,13 +97,12 @@ export function createSubscriptionStore(db: Kysely<MCPAuthSchema>): Subscription
 
       return updated.numUpdatedRows > 0n;
     },
-    expire: async (subscriptionID, refreshBefore, now) => {
+    expire: async (subscriptionID, now) => {
       const bound = getStateBound('expire', now);
 
       const removed = await db
         .deleteFrom('atc_event_subscription')
         .where('id', '=', subscriptionID)
-        .where('refresh_before', '=', refreshBefore)
         .where('refresh_before', bound.operator, bound.at)
         .executeTakeFirst();
 

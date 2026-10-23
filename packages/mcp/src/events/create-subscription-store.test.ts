@@ -319,12 +319,7 @@ test('it removes an expired subscription', async () => {
     Date.parse('2026-10-23T12:00:00.000Z'),
   );
 
-  const removed = await ctx.store.expire(
-    'sub_one',
-    '2026-10-24T12:00:00.000Z',
-    Date.parse('2026-10-24T12:00:00.000Z'),
-  );
-
+  const removed = await ctx.store.expire('sub_one', Date.parse('2026-10-24T12:00:00.000Z'));
   const remaining = await ctx.store.readIDs();
 
   expect(removed).toBeTrue();
@@ -349,19 +344,14 @@ test('it refuses to expire a live subscription', async () => {
     Date.parse('2026-10-23T12:00:00.000Z'),
   );
 
-  const removed = await ctx.store.expire(
-    'sub_one',
-    '2026-10-24T12:00:00.000Z',
-    Date.parse('2026-10-23T13:00:00.000Z'),
-  );
-
+  const removed = await ctx.store.expire('sub_one', Date.parse('2026-10-23T13:00:00.000Z'));
   const remaining = await ctx.store.readIDs();
 
   expect(removed).toBeFalse();
   expect(remaining).toStrictEqual(['sub_one']);
 });
 
-test('it keeps a subscription that a refresh renewed after the expiry was read', async () => {
+test('it keeps a subscription that a refresh renewed past the time of its removal', async () => {
   const ctx = await setupTest();
 
   await ctx.store.start(
@@ -385,12 +375,7 @@ test('it keeps a subscription that a refresh renewed after the expiry was read',
     Date.parse('2026-10-23T13:00:00.000Z'),
   );
 
-  const removed = await ctx.store.expire(
-    'sub_one',
-    '2026-10-24T12:00:00.000Z',
-    Date.parse('2026-10-25T12:00:00.000Z'),
-  );
-
+  const removed = await ctx.store.expire('sub_one', Date.parse('2026-10-24T12:00:00.000Z'));
   const remaining = await ctx.store.readIDs();
 
   expect(removed).toBeFalse();

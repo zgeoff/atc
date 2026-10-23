@@ -159,7 +159,7 @@ async function readLiveSubscription(
 
   // A refresh that lands between the read and the removal renews the row,
   // and the removal then leaves it, so the watcher reads the renewed row.
-  const removed = await deps.subscriptions.expire(subscriptionID, stored.row.refresh_before, now);
+  const removed = await deps.subscriptions.expire(subscriptionID, now);
 
   return removed ? null : readLiveSubscription(deps, subscriptionID);
 }
