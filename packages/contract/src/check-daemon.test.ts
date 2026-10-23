@@ -44,3 +44,10 @@ test('it matches a daemon of its own version that lists every feature', () => {
     checkDaemon({ daemon: `atc/${CONTRACT_VERSION}+lq2x9a`, features: ['events.read.from-start'] }),
   ).toStrictEqual({ verdict: 'match', missing: [], added: [] });
 });
+
+test('it throws on a contract version that names no major version', () => {
+  expect(() => checkDaemon({ daemon: 'atc/7.1.0', features: [] }, 'invalid')).toThrowWithMessage(
+    Error,
+    "the contract's version invalid names no major version",
+  );
+});
