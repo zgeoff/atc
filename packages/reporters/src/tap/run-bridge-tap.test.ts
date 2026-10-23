@@ -56,6 +56,46 @@ test('it removes the outbox file of a note the bridge took', async () => {
   ]);
 });
 
+test('it opens the tap again on a new connection when the bridge never answers its open', async () => {
+  const ctx = setupTest();
+
+  const bridge = startStubSessionBridge(
+    ctx.sock,
+    (request) => [{ id: request['id'], ok: true }, { ev: 'InboxClosed' }],
+    { unansweredOpens: 1 },
+  );
+
+  writeFileSync(
+    join(ctx.outbox, 'r1.json'),
+    JSON.stringify({ noteID: 'r1', payload: { kind: 'note', label: 'progress', text: 'hi' } }),
+  );
+
+  const codes: number[] = [];
+
+  await runBridgeTap(
+    ctx.sock,
+    ctx.outbox,
+    {
+      writeStdout: () => Promise.resolve(),
+      printError: () => {},
+      exit: (code) => {
+        codes.push(code);
+      },
+    },
+    false,
+    50,
+  );
+
+  expect(codes).toStrictEqual([0]);
+  expect(existsSync(join(ctx.outbox, 'r1.json'))).toBe(false);
+
+  expect(bridge.requests.map((request) => request['op'])).toStrictEqual([
+    'tap.open',
+    'tap.open',
+    'note',
+  ]);
+});
+
 test('it removes no file for an answer to a note id it never sent', async () => {
   const ctx = setupTest();
 

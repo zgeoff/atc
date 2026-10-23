@@ -38,6 +38,41 @@ test('it answers a tap.open request with ok under its id without asking the resp
   expect(bridge.requests).toStrictEqual([{ version: 1, id: 'tap.open', op: 'tap.open' }]);
 });
 
+test('it leaves the first tap.open unanswered and answers the next when told to leave one', async () => {
+  const ctx = setupTest();
+
+  const bridge = startStubSessionBridge(ctx.path, (request) => [{ id: request['id'], ok: true }], {
+    unansweredOpens: 1,
+  });
+
+  const answers: Readonly<Record<string, unknown>>[] = [];
+
+  const socket = await openBridgeSocket(ctx.path, (line) => {
+    answers.push(line);
+  });
+
+  registerTestCleanup(() => {
+    socket.end();
+  });
+
+  socket.writeLine({ version: 1, id: 'tap.open', op: 'tap.open' });
+  socket.writeLine({ version: 1, id: 'note:r1', op: 'note' });
+  socket.writeLine({ version: 1, id: 'tap.open', op: 'tap.open' });
+
+  await waitFor(() => {
+    expect(answers).toStrictEqual([
+      { id: 'note:r1', ok: true },
+      { id: 'tap.open', ok: true },
+    ]);
+  });
+
+  expect(bridge.requests.map((request) => request['op'])).toStrictEqual([
+    'tap.open',
+    'note',
+    'tap.open',
+  ]);
+});
+
 test('it writes back every line the responder returns for a request', async () => {
   const ctx = setupTest();
 

@@ -15,9 +15,20 @@ interface StubSessionBridge {
   readonly stop: () => void;
 }
 
-export function startStubSessionBridge(path: string, respond: BridgeResponder): StubSessionBridge {
+interface StubSessionBridgeOptions {
+  // How many tap.open requests, the first ones, get no answer, as a relay
+  // that takes a connection and never passes its lines on leaves them.
+  readonly unansweredOpens?: number;
+}
+
+export function startStubSessionBridge(
+  path: string,
+  respond: BridgeResponder,
+  options: StubSessionBridgeOptions = {},
+): StubSessionBridge {
   const requests: BridgeRequest[] = [];
   let reads = 0;
+  let unansweredOpens = options.unansweredOpens ?? 0;
 
   const server = Bun.listen<{ pending: string }>({
     unix: path,
@@ -36,6 +47,11 @@ export function startStubSessionBridge(path: string, respond: BridgeResponder): 
           const request = parseRequest(line);
 
           requests.push(request);
+
+          if (request['op'] === 'tap.open' && unansweredOpens > 0) {
+            unansweredOpens -= 1;
+            continue;
+          }
 
           // The real bridge answers tap.open with ok once it attaches the tap.
           const answers =

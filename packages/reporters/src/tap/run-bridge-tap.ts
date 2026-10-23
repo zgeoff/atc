@@ -11,6 +11,10 @@ import { renderNoticeLine } from './render-notice-line';
 const FIRST_RETRY_MS = 250;
 const LONGEST_RETRY_MS = 5000;
 
+// A relay can take the connection and never pass tap.open on, so an open with no answer by then
+// goes the way of a connection that dropped.
+const OPEN_ANSWER_TIMEOUT_MS = 10_000;
+
 // Where the tap prints and how it exits: stdout, stderr, and the process by
 // default.
 interface BridgeTapIO {
@@ -34,6 +38,7 @@ export async function runBridgeTap(
   outbox: string,
   io: BridgeTapIO = PROCESS_IO,
   notices = false,
+  openAnswerTimeoutMs = OPEN_ANSWER_TIMEOUT_MS,
 ): Promise<void> {
   const seen = new Set<string>();
 
@@ -42,7 +47,7 @@ export async function runBridgeTap(
   // a dropped connection, as a host's sleep or a daemon restart leaves it,
   // reconnects with no end
   for (;;) {
-    const end = await runTapConnection(socketPath, outbox, seen, io, notices);
+    const end = await runTapConnection(socketPath, outbox, seen, io, notices, openAnswerTimeoutMs);
 
     if (end === 'closed') {
       io.exit(0);
@@ -68,8 +73,8 @@ export async function runBridgeTap(
 }
 
 // How one connection to the bridge ended: the inbox closed for good, the
-// bridge refused the tap, or the connection dropped after or before it
-// opened the tap.
+// bridge refused the tap, the connection dropped after it opened the tap, or
+// it dropped or went unanswered before then.
 type TapEnd = 'closed' | 'refused' | 'lost' | 'unreachable';
 
 const INBOX_MESSAGE_SCHEMA = z.looseObject({
@@ -103,6 +108,7 @@ async function runTapConnection(
   seen: Set<string>,
   io: BridgeTapIO,
   notices: boolean,
+  openAnswerTimeoutMs: number,
 ): Promise<TapEnd> {
   const ended = Promise.withResolvers<TapEnd>();
   let opened = false;
@@ -229,7 +235,15 @@ async function runTapConnection(
 
   socket.writeLine(open);
 
+  const openTimer = setTimeout(() => {
+    if (!opened) {
+      ended.resolve('unreachable');
+    }
+  }, openAnswerTimeoutMs);
+
   const end = await ended.promise;
+
+  clearTimeout(openTimer);
 
   await printing.catch(() => {});
 

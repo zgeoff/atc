@@ -71,7 +71,7 @@ function setupTest(config: SetupTestConfig) {
 
   const client: TapClient = { sendEvent: () => {} };
 
-  return { clock, taps, sessions, ended, notes, logs, provider, client };
+  return { clock, taps, sessions, ended, notes, logs, provider, client, revival };
 }
 
 test('it writes the bridge mod of a running remote session whose tap stays gone for 30 s', async () => {
@@ -109,6 +109,58 @@ test('it writes the bridge mod of a running remote session whose tap stays gone 
   );
 });
 
+test('it writes the bridge mod of a remote session whose tap never attaches in the 30 s after its agent starts', async () => {
+  const ctx = setupTest({ remote: true });
+  const id = toSessionID('s-bridge');
+
+  const pty = ctx.provider.spawnHarness({
+    session: id,
+    host: id,
+    bin: 'claude',
+    args: [],
+    cwd: '/work',
+    env: {},
+    cols: 80,
+    rows: 24,
+  });
+
+  ctx.sessions.push(buildMockSession({ id, pty, state: 'running' }));
+  ctx.revival.watchAgentStart(id);
+  ctx.clock.advance(30_000);
+
+  await waitFor(() => {
+    expect(ctx.provider.transfers).toHaveLength(1);
+  });
+
+  expect(ctx.provider.transfers[0]?.directory).toBe(
+    '/var/lib/orchard-scratch/atc/sessions/s-bridge',
+  );
+});
+
+test('it writes nothing when a tap attaches in the 30 s after the agent starts', () => {
+  const ctx = setupTest({ remote: true });
+  const id = toSessionID('s-bridge');
+
+  const pty = ctx.provider.spawnHarness({
+    session: id,
+    host: id,
+    bin: 'claude',
+    args: [],
+    cwd: '/work',
+    env: {},
+    cols: 80,
+    rows: 24,
+  });
+
+  ctx.sessions.push(buildMockSession({ id, pty, state: 'running' }));
+  ctx.revival.watchAgentStart(id);
+  ctx.clock.advance(10_000);
+  ctx.taps.attach(id, ctx.client);
+  ctx.clock.advance(20_000);
+
+  expect(ctx.provider.transfers).toStrictEqual([]);
+});
+
 test('it records a note in the session events when it writes the mod again', async () => {
   const ctx = setupTest({ remote: true });
   const id = toSessionID('s-bridge');
@@ -140,7 +192,7 @@ test('it records a note in the session events when it writes the mod again', asy
       payload: {
         kind: 'note',
         label: 'progress',
-        text: 'atc: this session lost its atc-bridge tap, so its note and answer tools may be gone. atc wrote the bridge mod again, which makes Claude Code load it once more.',
+        text: 'atc: this session has had no atc-bridge tap for a while, so its note and answer tools may be gone. atc wrote the bridge mod again, which makes Claude Code load it once more.',
       },
     },
   ]);
