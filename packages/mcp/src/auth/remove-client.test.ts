@@ -75,6 +75,38 @@ test('it removes a client and reports it removed', async () => {
   expect(readClientViews(ctx.store.db)).resolves.toStrictEqual([]);
 });
 
+test("it ends a removed client's event subscriptions", async () => {
+  const ctx = await setupTest();
+
+  const created = await ctx.store.auth.api.createFixedClient({
+    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+  });
+
+  await ctx.store.db
+    .insertInto('atc_event_subscription')
+    .values({
+      id: 'sub-one',
+      client_id: created.clientID,
+      url: 'https://hooks.example.com/hook',
+      name: 'session.turn_done',
+      arguments: '{}',
+      secret: `whsec_${Buffer.alloc(32, 5).toString('base64')}`,
+      position: 'cursor-1',
+      refresh_before: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      created_at: new Date().toISOString(),
+    })
+    .execute();
+
+  await removeClient(ctx.store.db, created.clientID);
+
+  const subscriptions = await ctx.store.db
+    .selectFrom('atc_event_subscription')
+    .select('id')
+    .execute();
+
+  expect(subscriptions).toStrictEqual([]);
+});
+
 test('it reports an unknown client id as not removed', async () => {
   const ctx = await setupTest();
   const removed = await removeClient(ctx.store.db, 'unknown-client');

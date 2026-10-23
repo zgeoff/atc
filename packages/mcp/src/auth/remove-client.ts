@@ -1,4 +1,5 @@
 import type { Kysely } from 'kysely';
+import { removeUnauthorizedSubscriptions } from '../events/remove-unauthorized-subscriptions';
 import type { MCPAuthSchema } from './mcp-auth-schema';
 
 export function removeClient(db: Kysely<MCPAuthSchema>, clientID: string): Promise<boolean> {
@@ -20,6 +21,8 @@ export function removeClient(db: Kysely<MCPAuthSchema>, clientID: string): Promi
     await trx.deleteFrom('oauthAccessToken').where('clientId', '=', clientID).execute();
     await trx.deleteFrom('oauthRefreshToken').where('clientId', '=', clientID).execute();
     await trx.deleteFrom('oauthConsent').where('clientId', '=', clientID).execute();
+
+    await removeUnauthorizedSubscriptions(trx, clientID);
 
     const removed = await trx
       .deleteFrom('oauthClient')

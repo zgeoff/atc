@@ -196,6 +196,53 @@ test('it refreshes a subscription with its new secret and keeps the position its
   ]);
 });
 
+test("it restarts a subscription past its refreshBefore from the client's cursor", async () => {
+  const ctx = await setupTest();
+
+  const deps = {
+    db: ctx.db,
+    caller: buildStubFleetCaller({
+      answer: () => ({ events: [], cursor: 'cursor-head', more: false }),
+    }),
+    clientID: 'client-one',
+    send: buildStubWebhookReceiver().send,
+    clock: ctx.clock,
+    deliverer: ctx.deliverer,
+  };
+
+  const first = await answerSubscribeRequest(deps, {
+    name: 'session.turn_done',
+    delivery: {
+      mode: 'webhook',
+      url: 'https://hooks.example.com/hook',
+      secret: `whsec_${Buffer.alloc(32, 5).toString('base64')}`,
+    },
+  });
+
+  await ctx.db
+    .updateTable('atc_event_subscription')
+    .set({ position: 'cursor-9' })
+    .where('id', '=', first.id)
+    .execute();
+
+  ctx.clock.advance(25 * 60 * 60 * 1000);
+
+  const renewed = await answerSubscribeRequest(deps, {
+    name: 'session.turn_done',
+    delivery: {
+      mode: 'webhook',
+      url: 'https://hooks.example.com/hook',
+      secret: `whsec_${Buffer.alloc(32, 5).toString('base64')}`,
+    },
+    cursor: 'cursor-3',
+  });
+
+  const stored = await ctx.db.selectFrom('atc_event_subscription').select('position').execute();
+
+  expect(renewed.cursor).toBe('cursor-3');
+  expect(stored).toStrictEqual([{ position: 'cursor-3' }]);
+});
+
 test("it sends one verification challenge for a client's callback URL across event types", async () => {
   const ctx = await setupTest();
 

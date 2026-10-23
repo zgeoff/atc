@@ -56,12 +56,16 @@ export async function answerSubscribeRequest(
 
   const existing = await deps.db
     .selectFrom('atc_event_subscription')
-    .select('position')
+    .select(['position', 'refresh_before'])
     .where('id', '=', id)
     .executeTakeFirst();
 
+  // A row past its refreshBefore that the watcher has yet to remove is gone,
+  // so the subscribe starts afresh from the client's cursor.
   const position =
-    existing === undefined ? await readStartPosition(deps, request.cursor) : existing.position;
+    existing !== undefined && Date.parse(existing.refresh_before) > now
+      ? existing.position
+      : await readStartPosition(deps, request.cursor);
 
   const refreshBefore = new Date(now + pickTTL(request.ttlMs)).toISOString();
 
@@ -79,7 +83,9 @@ export async function answerSubscribeRequest(
       created_at: new Date(now).toISOString(),
     })
     .onConflict((conflict) =>
-      conflict.column('id').doUpdateSet({ secret: request.secret, refresh_before: refreshBefore }),
+      conflict
+        .column('id')
+        .doUpdateSet({ secret: request.secret, position, refresh_before: refreshBefore }),
     )
     .execute();
 

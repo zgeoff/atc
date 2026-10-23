@@ -97,6 +97,14 @@ export function createEventDeliverer(deps: EventDelivererDeps): EventDeliverer {
     }
 
     watching.delete(subscriptionID);
+
+    // A subscribe that stored the row again while this watcher was ending
+    // found it still registered, so its watch started nothing.
+    const renewed = state.stopped ? undefined : await tryReadRowID(deps, subscriptionID);
+
+    if (renewed !== undefined) {
+      watch(subscriptionID);
+    }
   };
 
   const watch = (subscriptionID: string) => {
@@ -145,13 +153,19 @@ async function readLiveSubscription(
     return null;
   }
 
-  if (Date.parse(row.refresh_before) <= deps.clock.now()) {
-    await deps.db.deleteFrom('atc_event_subscription').where('id', '=', subscriptionID).execute();
-
-    return null;
+  if (Date.parse(row.refresh_before) > deps.clock.now()) {
+    return row;
   }
 
-  return row;
+  // A refresh that lands between the read and the delete renews the row, and
+  // the delete then leaves it, so the watcher reads the renewed row.
+  const removed = await deps.db
+    .deleteFrom('atc_event_subscription')
+    .where('id', '=', subscriptionID)
+    .where('refresh_before', '=', row.refresh_before)
+    .executeTakeFirst();
+
+  return removed.numDeletedRows > 0n ? null : readLiveSubscription(deps, subscriptionID);
 }
 
 // How long a read of the trail waits for an event, the most the daemon allows.
@@ -276,4 +290,22 @@ async function writePosition(
     .set({ position })
     .where('id', '=', subscriptionID)
     .execute();
+}
+
+// The store closes with the server, and a watcher can end after it closed.
+async function tryReadRowID(
+  deps: EventDelivererDeps,
+  subscriptionID: string,
+): Promise<string | undefined> {
+  try {
+    const row = await deps.db
+      .selectFrom('atc_event_subscription')
+      .select('id')
+      .where('id', '=', subscriptionID)
+      .executeTakeFirst();
+
+    return row?.id;
+  } catch {
+    return undefined;
+  }
 }
