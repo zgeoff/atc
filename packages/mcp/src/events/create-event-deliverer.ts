@@ -41,6 +41,11 @@ interface DelivererState {
 // How long a watcher waits after a read the daemon could not answer.
 const READ_RETRY_MS = 5000;
 
+// The authorization server rotates a refresh token by revoking it and then
+// storing its successor, in two writes, so a watcher that finds no grant with
+// read checks again after this wait before it removes the subscription.
+const ACCESS_RECHECK_MS = 5000;
+
 // Each subscription's watcher reads the trail as the subscription's client,
 // so it sees only the sessions the client's principal reaches, and it stores
 // how far it got, so a restarted server resumes where it stopped.
@@ -74,6 +79,25 @@ export function createEventDeliverer(deps: EventDelivererDeps): EventDeliverer {
 
       if (row === null || state.stopped) {
         return;
+      }
+
+      const reads = await deps.probeAccess(row.client_id);
+
+      if (!reads) {
+        await wait(ACCESS_RECHECK_MS);
+
+        const lost = !state.stopped && !(await deps.probeAccess(row.client_id));
+
+        if (lost) {
+          await deps.db
+            .deleteFrom('atc_event_subscription')
+            .where('id', '=', subscriptionID)
+            .execute();
+
+          return;
+        }
+
+        continue;
       }
 
       const page = await tryReadPage(deps, row);
@@ -140,9 +164,8 @@ export function createEventDeliverer(deps: EventDelivererDeps): EventDeliverer {
 
 type SubscriptionRow = MCPAuthSchema['atc_event_subscription'];
 
-// A subscription past its refreshBefore is gone, as the extension says, and so
-// is one whose client lost read through a route that left its row, such as the
-// client's own token revocation or its grant's expiry.
+// A subscription past its refreshBefore is gone, as the extension says, so the
+// watcher removes its row and ends.
 async function readLiveSubscription(
   deps: EventDelivererDeps,
   subscriptionID: string,
@@ -154,14 +177,6 @@ async function readLiveSubscription(
     .executeTakeFirst();
 
   if (row === undefined) {
-    return null;
-  }
-
-  const reads = await deps.probeAccess(row.client_id);
-
-  if (!reads) {
-    await deps.db.deleteFrom('atc_event_subscription').where('id', '=', subscriptionID).execute();
-
     return null;
   }
 
@@ -230,6 +245,14 @@ async function deliverPage(deps: EventDelivererDeps, delivery: PageDelivery): Pr
     const row = await readLiveSubscription(deps, delivery.subscriptionID);
 
     if (row === null || delivery.state.stopped) {
+      return;
+    }
+
+    // A client that lost read gets no delivery, and the position stays before
+    // the event, so the watcher's next turn decides whether access is gone.
+    const reads = await deps.probeAccess(row.client_id);
+
+    if (!reads) {
       return;
     }
 

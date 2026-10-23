@@ -73,8 +73,10 @@ A subscription ends with the client's access. When the owner revokes the client'
 that holds `read`, or removes the client, the server deletes the client's subscriptions and its
 verified callback URLs in the same transaction, so no delivery outlives the access it reports on.
 The client's own token revocation and a grant's expiry leave the rows in place, so the watcher
-checks for a live grant with `read` before each read and each delivery, and removes the subscription
-when it finds none.
+checks for a live grant with `read` before each read and each delivery. When it finds none, it
+delivers nothing, and removes the subscription only if a second check after a short wait finds none
+either, because the authorization server rotates a refresh token in two writes, and a check between
+them finds no live grant.
 
 ## Delivery
 
