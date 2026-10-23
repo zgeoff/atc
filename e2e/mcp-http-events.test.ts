@@ -71,30 +71,7 @@ async function setupTest() {
 
     registerTestCleanup(() => store.close());
 
-    const authenticator = buildStubAuthenticator();
-
-    const enrollment = await createEnrollmentToken(store.db, Date.now());
-
-    await runPasskeyEnrollment(server, enrollment.token, authenticator);
-
-    const created = await store.auth.api.createFixedClient({
-      body: {
-        name: 'ChatGPT',
-        redirectURIs: ['https://chatgpt.com/connector_platform_oauth_redirect'],
-      },
-    });
-
-    const grant = await runMCPTokenGrant(
-      { url: server.url, origin: server.origin, authenticator },
-      {
-        clientID: created.clientID,
-        redirectURI: 'https://chatgpt.com/connector_platform_oauth_redirect',
-        scope: 'read',
-        ticked: ['read'],
-      },
-    );
-
-    return { url: server.url, token: grant.accessToken };
+    return { server, store };
   };
 
   return { daemon, clock, directory: daemon.directory, startServer };
@@ -104,19 +81,45 @@ test('it lets a subscriber that lost a notification find its event by reading th
   const ctx = await setupTest();
 
   const receiver = buildStubWebhookReceiver();
+  const authenticator = buildStubAuthenticator();
 
-  const server = await ctx.startServer(receiver.send);
+  const started = await ctx.startServer(receiver.send);
+  const enrollment = await createEnrollmentToken(started.store.db, Date.now());
 
-  const subscribed = await sendModernMCPRequest(server.url, server.token, 'events/subscribe', {
-    name: 'session.turn_done',
-    arguments: {},
-    delivery: {
-      mode: 'webhook',
-      url: 'https://connectors.example.com/hooks/atc',
-      secret: `whsec_${Buffer.alloc(32, 8).toString('base64')}`,
+  await runPasskeyEnrollment(started.server, enrollment.token, authenticator);
+
+  const created = await started.store.auth.api.createFixedClient({
+    body: {
+      name: 'ChatGPT',
+      redirectURIs: ['https://chatgpt.com/connector_platform_oauth_redirect'],
     },
-    cursor: null,
   });
+
+  const grant = await runMCPTokenGrant(
+    { url: started.server.url, origin: started.server.origin, authenticator },
+    {
+      clientID: created.clientID,
+      redirectURI: 'https://chatgpt.com/connector_platform_oauth_redirect',
+      scope: 'read',
+      ticked: ['read'],
+    },
+  );
+
+  const subscribed = await sendModernMCPRequest(
+    started.server.url,
+    grant.accessToken,
+    'events/subscribe',
+    {
+      name: 'session.turn_done',
+      arguments: {},
+      delivery: {
+        mode: 'webhook',
+        url: 'https://connectors.example.com/hooks/atc',
+        secret: `whsec_${Buffer.alloc(32, 8).toString('base64')}`,
+      },
+      cursor: null,
+    },
+  );
 
   const savedCursor = getString(getRecord(subscribed.body, 'result'), 'cursor');
 
@@ -141,7 +144,7 @@ test('it lets a subscriber that lost a notification find its event by reading th
 
   invariant(lastDelivery, 'the endpoint received no second delivery');
 
-  const read = await sendModernMCPRequest(server.url, server.token, 'tools/call', {
+  const read = await sendModernMCPRequest(started.server.url, grant.accessToken, 'tools/call', {
     name: 'atc_events_read',
     arguments: { cursor: savedCursor },
   });
@@ -165,10 +168,31 @@ test('it repeats a notification whose answer was lost with its eventId, after wh
   const ctx = await setupTest();
 
   const receiver = buildStubWebhookReceiver({ answers: [{ failure: 'timeout' }] });
+  const authenticator = buildStubAuthenticator();
 
-  const server = await ctx.startServer(receiver.send);
+  const started = await ctx.startServer(receiver.send);
+  const enrollment = await createEnrollmentToken(started.store.db, Date.now());
 
-  await sendModernMCPRequest(server.url, server.token, 'events/subscribe', {
+  await runPasskeyEnrollment(started.server, enrollment.token, authenticator);
+
+  const created = await started.store.auth.api.createFixedClient({
+    body: {
+      name: 'ChatGPT',
+      redirectURIs: ['https://chatgpt.com/connector_platform_oauth_redirect'],
+    },
+  });
+
+  const grant = await runMCPTokenGrant(
+    { url: started.server.url, origin: started.server.origin, authenticator },
+    {
+      clientID: created.clientID,
+      redirectURI: 'https://chatgpt.com/connector_platform_oauth_redirect',
+      scope: 'read',
+      ticked: ['read'],
+    },
+  );
+
+  await sendModernMCPRequest(started.server.url, grant.accessToken, 'events/subscribe', {
     name: 'session.turn_done',
     arguments: {},
     delivery: {
@@ -208,7 +232,7 @@ test('it repeats a notification whose answer was lost with its eventId, after wh
   // The subscriber acted on the first copy and saved the cursor it carried.
   const savedCursor = z.object({ cursor: z.string() }).parse(JSON.parse(first.body)).cursor;
 
-  const read = await sendModernMCPRequest(server.url, server.token, 'tools/call', {
+  const read = await sendModernMCPRequest(started.server.url, grant.accessToken, 'tools/call', {
     name: 'atc_events_read',
     arguments: { cursor: savedCursor },
   });
