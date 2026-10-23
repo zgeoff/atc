@@ -6,6 +6,9 @@ import type { WebhookFailure, WebhookSender } from './types';
 interface WebhookSenderDeps {
   // Every address the host name resolves to.
   readonly resolveHost: (hostname: string) => Promise<readonly string[]>;
+
+  // Posts the pinned request.
+  readonly transport: (target: string, init: BunFetchRequestInit) => Promise<Response>;
 }
 
 const SEND_TIMEOUT_MS = 10_000;
@@ -32,7 +35,7 @@ export function createWebhookSender(deps: WebhookSenderDeps): WebhookSender {
     const pinned = buildPinnedRequest(request, address, AbortSignal.timeout(SEND_TIMEOUT_MS));
 
     try {
-      const response = await fetch(pinned.target, pinned.init);
+      const response = await deps.transport(pinned.target, pinned.init);
       const body = await readBodyStart(response);
 
       return { kind: 'answered', status: response.status, body };

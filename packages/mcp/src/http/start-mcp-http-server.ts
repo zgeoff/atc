@@ -209,7 +209,12 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
     throw error;
   }
 
-  const sendWebhook = options.sendWebhook ?? createWebhookSender({ resolveHost: resolveAddresses });
+  const sendWebhook =
+    options.sendWebhook ??
+    createWebhookSender({
+      resolveHost: resolveAddresses,
+      transport: (target, init) => fetch(target, init),
+    });
 
   const deliverer = createEventDeliverer({
     db: store.db,
