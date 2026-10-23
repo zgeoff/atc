@@ -341,11 +341,11 @@ export async function createStateStore(
     readMessageByID: (id) => messages.readMessageByID(id),
     readTurnSiblings: (record) => messages.readTurnSiblings(record),
     updateMessageDelivered: (id, owner, at, buildEntry) =>
-      db.transaction().execute(async (trx) => {
-        const record = await createMessageStore(trx).updateMessageDelivered(id, owner, at);
+      db.transaction().execute(async (transaction) => {
+        const record = await createMessageStore(transaction).updateMessageDelivered(id, owner, at);
 
         if (record !== null) {
-          await createEventTrailStore(trx).recordTrailEntry(buildEntry(record));
+          await createEventTrailStore(transaction).recordTrailEntry(buildEntry(record));
         }
 
         return record;
