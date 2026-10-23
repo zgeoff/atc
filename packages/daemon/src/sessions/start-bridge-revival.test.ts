@@ -32,7 +32,10 @@ function setupTest(config: SetupTestConfig) {
   const provider = buildStubMemoryProvider({
     kind: 'imp',
     remote: config.remote,
-    guest: { directory: '/tmp/atc', atc: '/tmp/atc/bin/atc' },
+    guest: {
+      directory: '/var/lib/orchard-scratch/atc',
+      atc: '/var/lib/orchard-scratch/atc/bin/atc',
+    },
     transferArchive: config.transferArchive ?? (() => Promise.resolve()),
   });
 
@@ -68,10 +71,10 @@ function setupTest(config: SetupTestConfig) {
 
   const client: TapClient = { sendEvent: () => {} };
 
-  return { clock, taps, sessions, ended, notes, logs, provider, client };
+  return { clock, taps, sessions, ended, notes, logs, provider, client, revival };
 }
 
-test('it writes the bridge mod of a running remote session whose tap stays gone for 30 s', () => {
+test('it writes the bridge mod of a running remote session whose tap stays gone for 30 s', async () => {
   const ctx = setupTest({ remote: true });
   const id = toSessionID('s-bridge');
 
@@ -91,13 +94,71 @@ test('it writes the bridge mod of a running remote session whose tap stays gone 
   ctx.taps.removeSession(id);
   ctx.clock.advance(30_000);
 
-  expect(ctx.provider.transfers).toHaveLength(1);
-  expect(ctx.provider.transfers[0]?.directory).toBe('/tmp/atc/sessions/s-bridge');
+  await waitFor(() => {
+    expect(ctx.provider.transfers).toHaveLength(1);
+  });
+
+  expect(ctx.provider.transfers[0]?.directory).toBe(
+    '/var/lib/orchard-scratch/atc/sessions/s-bridge',
+  );
+
   expect(ctx.provider.transfers[0]?.host).toBe('s-bridge');
 
   expect(new TextDecoder().decode(ctx.provider.transfers[0]?.archive)).toInclude(
-    'export const ATC_CLI = ["/tmp/atc/bin/atc"];',
+    'export const ATC_CLI = ["/var/lib/orchard-scratch/atc/bin/atc"];',
   );
+});
+
+test('it writes the bridge mod of a remote session whose tap never attaches in the 30 s after its agent starts', async () => {
+  const ctx = setupTest({ remote: true });
+  const id = toSessionID('s-bridge');
+
+  const pty = ctx.provider.spawnHarness({
+    session: id,
+    host: id,
+    bin: 'claude',
+    args: [],
+    cwd: '/work',
+    env: {},
+    cols: 80,
+    rows: 24,
+  });
+
+  ctx.sessions.push(buildMockSession({ id, pty, state: 'running' }));
+  ctx.revival.watchAgentStart(id);
+  ctx.clock.advance(30_000);
+
+  await waitFor(() => {
+    expect(ctx.provider.transfers).toHaveLength(1);
+  });
+
+  expect(ctx.provider.transfers[0]?.directory).toBe(
+    '/var/lib/orchard-scratch/atc/sessions/s-bridge',
+  );
+});
+
+test('it writes nothing when a tap attaches in the 30 s after the agent starts', () => {
+  const ctx = setupTest({ remote: true });
+  const id = toSessionID('s-bridge');
+
+  const pty = ctx.provider.spawnHarness({
+    session: id,
+    host: id,
+    bin: 'claude',
+    args: [],
+    cwd: '/work',
+    env: {},
+    cols: 80,
+    rows: 24,
+  });
+
+  ctx.sessions.push(buildMockSession({ id, pty, state: 'running' }));
+  ctx.revival.watchAgentStart(id);
+  ctx.clock.advance(10_000);
+  ctx.taps.attach(id, ctx.client);
+  ctx.clock.advance(20_000);
+
+  expect(ctx.provider.transfers).toStrictEqual([]);
 });
 
 test('it records a note in the session events when it writes the mod again', async () => {
@@ -131,7 +192,7 @@ test('it records a note in the session events when it writes the mod again', asy
       payload: {
         kind: 'note',
         label: 'progress',
-        text: 'atc: this session lost its atc-bridge tap, so its note and answer tools may be gone. atc wrote the bridge mod again, which makes Claude Code load it once more.',
+        text: 'atc: this session has had no atc-bridge tap for a while, so its note and answer tools may be gone. atc wrote the bridge mod again, which makes Claude Code load it once more.',
       },
     },
   ]);
@@ -189,7 +250,7 @@ test('it logs each write in the daemon log', async () => {
   });
 });
 
-test('it writes the mod once a session that slept through the wait wakes', () => {
+test('it writes the mod once a session that slept through the wait wakes', async () => {
   const ctx = setupTest({ remote: true });
   const id = toSessionID('s-bridge');
 
@@ -221,7 +282,9 @@ test('it writes the mod once a session that slept through the wait wakes', () =>
 
   ctx.clock.advance(30_000);
 
-  expect(ctx.provider.transfers).toHaveLength(1);
+  await waitFor(() => {
+    expect(ctx.provider.transfers).toHaveLength(1);
+  });
 });
 
 test('it logs a failed write, notes nothing, and writes again after a later tap loss', async () => {
@@ -258,7 +321,10 @@ test('it logs a failed write, notes nothing, and writes again after a later tap 
   ctx.taps.removeSession(id);
   ctx.clock.advance(60_000);
 
-  expect(ctx.provider.transfers).toHaveLength(2);
+  await waitFor(() => {
+    expect(ctx.provider.transfers).toHaveLength(2);
+  });
+
   expect(ctx.notes).toStrictEqual([]);
 });
 
@@ -464,7 +530,9 @@ test('it writes again after the doubled wait for a tap lost while a write was un
 
   ctx.clock.advance(60_000);
 
-  expect(ctx.provider.transfers).toHaveLength(2);
+  await waitFor(() => {
+    expect(ctx.provider.transfers).toHaveLength(2);
+  });
 });
 
 test('it makes one write per tap loss however long the tap stays gone', async () => {

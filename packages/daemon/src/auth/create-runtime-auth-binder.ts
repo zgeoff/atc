@@ -274,7 +274,7 @@ export function createRuntimeAuthBinder(
         try {
           getSettledValue(gate);
         } catch (error) {
-          throw toAuthRefusal(error);
+          throw toAuthRefusal(error, host);
         }
 
         const attemptID = randomUUID();
@@ -303,7 +303,7 @@ export function createRuntimeAuthBinder(
         } catch (error) {
           await removeAttemptLocked(ledger, host, request.hostKey, attemptID);
 
-          throw toAuthRefusal(error);
+          throw toAuthRefusal(error, host);
         }
 
         return attemptID;
@@ -368,7 +368,7 @@ export function createRuntimeAuthBinder(
         try {
           getSettledValue(gate);
         } catch (error) {
-          throw toAuthRefusal(error);
+          throw toAuthRefusal(error, host);
         }
 
         const found = getSettledValue(hostRead);

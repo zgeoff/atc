@@ -40,8 +40,10 @@ same label, since the label holds the daemon id the store keeps.
 
 ## The guest folder
 
-Each session's files live in the target's guest folder inside the imp. A Claude Code session there
-reports through an atc inside the imp, which the daemon readies before the session starts:
+Each session's files live in the target's guest folder inside the imp. The provider places that
+folder inside the scratch folder that impd declares in its system report, unless the target sets its
+own. A Claude Code session there reports through an atc inside the imp, which the daemon readies
+before the session starts:
 
 - When the target points at the image's own atc and that atc prints the daemon's version, the daemon
   links to it and uploads nothing. It runs the image's atc for its version once per binary, because

@@ -169,13 +169,21 @@ test('it ends a server an earlier daemon left running for the session before it 
   const ctx = setupTest();
   const bin = createStubAppServerCodex(ctx.directory);
   const socket = join(ctx.bridgeDir, 'codex.sock');
+
+  mkdirSync(ctx.bridgeDir, { recursive: true });
+
   const orphan = Bun.spawn([bin, 'app-server', '--listen', `unix://${socket}`]);
 
   registerTestCleanup(() => {
     orphan.kill();
   });
 
-  mkdirSync(ctx.bridgeDir, { recursive: true });
+  // Until the child execs, ps shows the test runner's command line, and the
+  // bridge leaves alone a pid that runs another command; the socket shows it ran.
+  await waitFor(() => {
+    expect(existsSync(socket)).toBe(true);
+  });
+
   writeFileSync(join(ctx.bridgeDir, 'app-server.pid'), String(orphan.pid));
 
   const bridge = await startCodexAppServerBridge(

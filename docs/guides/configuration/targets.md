@@ -94,21 +94,25 @@ An imp target needs impd 2.2.0 or later, the first release that reports every ca
 atc checks impd's version before it readies an imp, and refuses an older impd, or one whose version
 it cannot read, with `host_unavailable` and the problem `impd_outdated`. Upgrade impd to clear it.
 
+atc puts its files in an `atc` folder inside the guest scratch folder that impd declares. impd
+declares that folder from 2.6.0 on. For an older impd, set `guestDir`, or atc refuses the imp with
+the same `impd_outdated` problem.
+
 The target's options:
 
-| Key                    | Default    | What it does                                                                                          |
-| ---------------------- | ---------- | ----------------------------------------------------------------------------------------------------- |
-| `url`                  | required   | Where impd listens. Without it the target lists as unavailable.                                       |
-| `impPrefix`            | `atc-`     | The start of every imp name the target builds.                                                        |
-| `tokenEnv`             | unset      | The environment variable of the daemon that holds the impd token.                                     |
-| `tokenFile`            | unset      | The file that holds the impd token.                                                                   |
-| `image`                | impd's     | The image a new imp boots.                                                                            |
-| `memoryMib`            | impd's     | The memory a new imp gets.                                                                            |
-| `guestDir`             | `/tmp/atc` | The folder inside each imp that atc's files go under.                                                 |
-| `guestATC`             | unset      | An atc binary installed in the image, which hooks run when it prints the daemon's version.            |
-| `rebindChangedAuth`    | `false`    | Whether a revive or restore rebinds a host whose agent's auth profiles changed, instead of refusing.  |
-| `dropSysAdmin`         | `false`    | Whether each harness starts without `CAP_SYS_ADMIN`, so root in it cannot remount the session record. |
-| `trustClonedWorkspace` | `false`    | Default for clone trust; an explicit launch value takes precedence. See [clone trust](#clone-trust).  |
+| Key                    | Default  | What it does                                                                                          |
+| ---------------------- | -------- | ----------------------------------------------------------------------------------------------------- |
+| `url`                  | required | Where impd listens. Without it the target lists as unavailable.                                       |
+| `impPrefix`            | `atc-`   | The start of every imp name the target builds.                                                        |
+| `tokenEnv`             | unset    | The environment variable of the daemon that holds the impd token.                                     |
+| `tokenFile`            | unset    | The file that holds the impd token.                                                                   |
+| `image`                | impd's   | The image a new imp boots.                                                                            |
+| `memoryMib`            | impd's   | The memory a new imp gets.                                                                            |
+| `guestDir`             | impd's   | The folder inside each imp that atc's files go under.                                                 |
+| `guestATC`             | unset    | An atc binary installed in the image, which hooks run when it prints the daemon's version.            |
+| `rebindChangedAuth`    | `false`  | Whether a revive or restore rebinds a host whose agent's auth profiles changed, instead of refusing.  |
+| `dropSysAdmin`         | `false`  | Whether each harness starts without `CAP_SYS_ADMIN`, so root in it cannot remount the session record. |
+| `trustClonedWorkspace` | `false`  | Default for clone trust; an explicit launch value takes precedence. See [clone trust](#clone-trust).  |
 
 A workspace on an imp gets the daemon host's git `user.name` and `user.email` in its own
 `.git/config`, since the image holds no git identity. A host that has no value for both sets none.

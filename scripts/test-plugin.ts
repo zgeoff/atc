@@ -58,7 +58,10 @@ async function main(): Promise<void> {
 
     const steps: readonly (readonly string[])[] = [
       ['bun', 'install'],
-      ['node_modules/.bin/tsc', '-p', 'tsconfig.json', '--noEmit'],
+
+      // tsc's shebang finds `node` on PATH, which can be a version-manager shim
+      // that fails to read its own state under the test home
+      ['bun', 'node_modules/.bin/tsc', '-p', 'tsconfig.json', '--noEmit'],
       ['bash', 'scripts/with-test-home.sh', 'bun', 'test', plugin.directory],
     ];
 

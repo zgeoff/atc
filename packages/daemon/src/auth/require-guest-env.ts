@@ -21,7 +21,7 @@ export function requireGuestEnv(
   if (broker !== undefined) {
     throw new DaemonError(
       'auth_target_unsupported',
-      `agent '${agent}' plans ${broker} on target '${target}', which would route around impd's broker`,
+      `agent '${agent}' plans ${broker} on target '${target}', which would route around the target's broker`,
       { agent, target, problem: 'guest_env_conflict', variable: broker },
     );
   }

@@ -103,6 +103,7 @@ export function buildStubMemoryProvider(config: StubMemoryProviderConfig = {}): 
   const destroyed: string[] = [];
   const transfers: { archive: Uint8Array; directory: string; host?: string }[] = [];
   const commands: CommandSpec[] = [];
+  const guest = config.guest;
   let disposals = 0;
 
   return {
@@ -121,7 +122,7 @@ export function buildStubMemoryProvider(config: StubMemoryProviderConfig = {}): 
       destroy: false,
       ...config.capabilities,
     },
-    ...(config.guest === undefined ? {} : { guest: config.guest }),
+    ...(guest === undefined ? {} : { readGuest: () => Promise.resolve(guest) }),
     ...(config.brokerAuth === undefined ? {} : { brokerAuth: config.brokerAuth }),
     ...(config.cloneOnTarget === undefined ? {} : { cloneOnTarget: config.cloneOnTarget }),
     ...(config.hostGitIdentity === undefined ? {} : { hostGitIdentity: config.hostGitIdentity }),

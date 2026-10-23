@@ -3,6 +3,7 @@ import { CredentialBrokerError } from '@atc/plugin-api';
 import { match } from 'ts-pattern';
 import type { ImpPort, ImpSecret, ImpView } from './imp-port';
 import { ImpPortError } from './imp-port-error';
+import { IMPD_UPGRADE } from './impd-upgrade';
 
 interface ImpBrokerHosts {
   readonly impPrefix: string;
@@ -15,6 +16,11 @@ export function buildImpCredentialBroker(port: ImpPort, hosts: ImpBrokerHosts): 
   return {
     hostPrefix: hosts.impPrefix,
     getHostName: hosts.getImpName,
+    describe: {
+      name: 'imp',
+      renewSecret: (secret, kind) => `run impz secret add ${secret} --kind ${kind} ... --replace`,
+      upgrade: IMPD_UPGRADE,
+    },
     verifyVersion: () => withBrokerErrors(() => port.verifyVersion()),
     readIdentity: () =>
       withBrokerErrors(async () => {
@@ -75,6 +81,7 @@ function toBrokerCode(code: string): CredentialBrokerError['code'] {
     .with('FORBIDDEN', () => 'forbidden')
     .with('UNAUTHORIZED', () => 'unauthorized')
     .with('UNREACHABLE', () => 'unreachable')
+    .with('IMPD_OUTDATED', () => 'too_old')
     .otherwise(() => 'refused');
 }
 

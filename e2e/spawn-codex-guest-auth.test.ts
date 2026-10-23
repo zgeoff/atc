@@ -255,7 +255,11 @@ test.each(['pending', 'needs_login'] as const)(
 
     await Promise.allSettled([spawn]);
 
-    expect(spawn).rejects.toMatchObject({ code: 'auth_signin_needed' });
+    expect(spawn).rejects.toMatchObject({
+      code: 'auth_signin_needed',
+      message: `agent 'codex' signs in through codex-chatgpt, whose sign-in in the broker is ${status}; sign Codex in again and give the broker the new refresh token for codex-chatgpt; run impz secret add codex-chatgpt --kind oauth ... --replace`,
+    });
+
     expect(ctx.port.calls.filter((call) => call.startsWith('imps.create'))).toStrictEqual([]);
     expect(ctx.port.sessionRequests).toStrictEqual([]);
   },

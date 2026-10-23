@@ -476,7 +476,12 @@ test('it lands a git workspace under the daemon home when no root applies', asyn
 test('it clones a workspace on the daemon side for a remote target that does not clone on its host', async () => {
   const git = await createGitFixture({ prefix: 'atc-spawn-service-git-' });
 
-  const provider = buildStubLocalProvider({ kind: 'cloud', remote: true, cloneOnTarget: false });
+  const provider = buildStubLocalProvider({
+    kind: 'cloud',
+    remote: true,
+    guest: { directory: join(git.directory, 'guest'), atc: null },
+    cloneOnTarget: false,
+  });
 
   const ctx = await setupTest({
     targets: [buildMockExecutionTarget({ id: 'far', identity: 'cloud:test', provider })],
@@ -517,7 +522,12 @@ test('it clones a workspace on the daemon side for a remote target that does not
 test('it clones a workspace inside the host for a remote target that clones on its host', async () => {
   const git = await createGitFixture({ prefix: 'atc-spawn-service-git-' });
 
-  const provider = buildStubLocalProvider({ kind: 'cloud', remote: true, cloneOnTarget: true });
+  const provider = buildStubLocalProvider({
+    kind: 'cloud',
+    remote: true,
+    guest: { directory: join(git.directory, 'guest'), atc: null },
+    cloneOnTarget: true,
+  });
 
   const ctx = await setupTest({
     targets: [buildMockExecutionTarget({ id: 'far', identity: 'cloud:test', provider })],
@@ -573,6 +583,7 @@ test.each([
     const provider = buildStubLocalProvider({
       kind: 'cloud',
       remote: true,
+      guest: { directory: join(git.directory, 'guest'), atc: null },
       cloneOnTarget: false,
       ...flags,
     });

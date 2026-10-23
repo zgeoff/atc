@@ -51,7 +51,7 @@ export async function updateBindingLocked(
       );
     }
   } catch (error) {
-    throw toAuthRefusal(error);
+    throw toAuthRefusal(error, host);
   }
 
   const revision = row.revision + 1;
@@ -74,7 +74,7 @@ export async function updateBindingLocked(
 
     await ledger.store.updateAuthBinding(hostKey, { state: 'rebind_failed' }, ledger.now());
 
-    throw toAuthRefusal(error);
+    throw toAuthRefusal(error, host);
   }
 
   await ledger.store.updateAuthBinding(

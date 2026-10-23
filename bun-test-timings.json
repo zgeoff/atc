@@ -313,7 +313,6 @@
     "packages/test-utils/src/start-stub-legacy-daemon.test.ts": 46,
     "e2e/answer-turn.test.ts": 45,
     "packages/test-utils/src/send-lines-before-handshake.test.ts": 45,
-    "packages/execution/local/src/build-harness-argv.test.ts": 43,
     "scripts/check-raw-escapes.test.ts": 43,
     "packages/mcp/src/auth/load-web-authn.test.ts": 43,
     "packages/daemon/src/transport/create-handshake-throttle.test.ts": 42,

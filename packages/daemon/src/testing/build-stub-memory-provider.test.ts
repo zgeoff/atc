@@ -24,7 +24,7 @@ test('it builds a provider with the capabilities of a local pseudo-terminal by d
   });
 });
 
-test('it applies the kind, remoteness, capabilities, guest, and broker the config gives', () => {
+test('it applies the kind, remoteness, capabilities, guest, and broker the config gives', async () => {
   const broker = buildStubCredentialBroker();
 
   const provider = buildStubMemoryProvider({
@@ -35,18 +35,20 @@ test('it applies the kind, remoteness, capabilities, guest, and broker the confi
     brokerAuth: broker,
   });
 
+  const guest = await provider.readGuest?.('s-1');
+
   expect(provider.kind).toBe('imp');
   expect(provider.remote).toBeTrue();
   expect(provider.capabilities.suspend).toBeTrue();
   expect(provider.capabilities.input).toBeFalse();
-  expect(provider.guest).toStrictEqual({ directory: '/guest', atc: null });
+  expect(guest).toStrictEqual({ directory: '/guest', atc: null });
   expect(provider.brokerAuth).toBe(broker);
 });
 
 test('it holds no guest layout and no broker when the config gives none', () => {
   const provider = buildStubMemoryProvider();
 
-  expect(provider).not.toContainAnyKeys(['guest', 'brokerAuth']);
+  expect(provider).not.toContainAnyKeys(['readGuest', 'brokerAuth']);
 });
 
 test('it applies the workspace flags the config gives', () => {

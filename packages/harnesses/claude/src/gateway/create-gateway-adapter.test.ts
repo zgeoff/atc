@@ -1425,7 +1425,7 @@ test('it allows the start of a gateway with auth that sets an extra placeholder 
       authProfiles: {
         glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         jev: {
-          secret: 'jev-imp-agents',
+          secret: 'jev-agents',
           host: 'api.typesafe.ai',
           header: 'authorization',
           scheme: 'bearer',
@@ -1457,7 +1457,7 @@ test('it carries an extra placeholder variable and the gateway args into a broke
       authProfiles: {
         glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         jev: {
-          secret: 'jev-imp-agents',
+          secret: 'jev-agents',
           host: 'api.typesafe.ai',
           header: 'authorization',
           scheme: 'bearer',

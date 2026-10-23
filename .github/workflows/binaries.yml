@@ -87,6 +87,12 @@ jobs:
           "$ATC_BIN" --version
           bun run test:binary
 
+      # The checks workflow runs the provider tests on Linux alone, and these
+      # are the only macOS runners CI starts.
+      - name: Test the local PTY provider
+        if: runner.os == 'macOS'
+        run: bun run test packages/execution/local/src/create-local-pty-provider.test.ts
+
       # The gateway ships for linux-x64 alone.
       - name: Smoke test the compiled gateway
         if: matrix.target == 'linux-x64'

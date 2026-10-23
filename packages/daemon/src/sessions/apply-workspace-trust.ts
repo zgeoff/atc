@@ -24,12 +24,15 @@ export async function applyWorkspaceTrust(
 
   const planned = adapter.planGuestWorkspaceTrust?.(root);
 
-  if (planned === undefined || planned === null || provider.guest === undefined) {
+  if (planned === undefined || planned === null || provider.readGuest === undefined) {
     throw new DaemonError('unsupported', 'this adapter cannot trust a cloned workspace');
   }
 
   const files = Object.entries(planned).map(([path, content]) => ({ path, content }));
-  const directory = `${provider.guest.directory}/sessions/${spawn.id}`;
+
+  const guest = await provider.readGuest(spawn.hostKey);
+
+  const directory = `${guest.directory}/sessions/${spawn.id}`;
 
   await spawn.timer.withStep('trust-transfer', () =>
     provider.transferArchive(buildTarArchive(files), directory, spawn.hostKey),

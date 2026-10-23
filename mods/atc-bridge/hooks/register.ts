@@ -365,17 +365,57 @@ function isNoteLabel(value: string): value is (typeof NOTE_LABELS)[number] {
   return NOTE_LABELS.some((label) => label === value);
 }
 
+const FIRST_TAP_RETRY_MS = 1000;
+const LONGEST_TAP_RETRY_MS = 30_000;
+
+// atc refuses every message to a session whose tap never attached, and atc tap exits 0 only
+// once atc closed the inbox for good, so any other end starts the tap again.
 async function runTap($: EngineInterface, state: BridgeState, sessionID: string): Promise<void> {
+  let wait = FIRST_TAP_RETRY_MS;
+
+  for (;;) {
+    const failure = await runTapOnce($, state, sessionID);
+
+    if (failure === null) {
+      $.ui.log('atc-bridge: atc tap ended; this session takes no more atc messages', {
+        to: 'debug',
+      });
+
+      return;
+    }
+
+    $.ui.log(`atc-bridge: atc tap failed (${failure}); starting it again in ${wait}ms`, {
+      to: 'debug',
+    });
+
+    // An unload of the mod rejects the wait, and the next load starts its own tap.
+    try {
+      await $.clock.sleep(wait);
+    } catch {
+      return;
+    }
+
+    wait = Math.min(wait * 2, LONGEST_TAP_RETRY_MS);
+  }
+}
+
+async function runTapOnce(
+  $: EngineInterface,
+  state: BridgeState,
+  sessionID: string,
+): Promise<string | null> {
   const tap = $.process.spawn({
     argv: [...ATC_CLI, 'tap', '--session', sessionID, '--notices'],
     cwd: ATC_CWD,
   });
 
   let pending = '';
+  let stderr = '';
 
   try {
     for await (const chunk of tap) {
       if (chunk.stream !== 'stdout') {
+        stderr = `${stderr}${chunk.text}`.slice(-1000);
         continue;
       }
 
@@ -394,11 +434,18 @@ async function runTap($: EngineInterface, state: BridgeState, sessionID: string)
       }
     }
 
-    $.ui.log('atc-bridge: atc tap ended; this session takes no more atc messages', { to: 'debug' });
+    const exit = await tap.result;
+
+    if (exit.code === 0) {
+      return null;
+    }
+
+    const reason = exit.signal ?? `exit ${String(exit.code)}`;
+    const said = stderr.trim();
+
+    return said === '' ? reason : `${reason}: ${said}`;
   } catch (error) {
-    $.ui.log(`atc-bridge: atc tap failed (${String(error)}); this session takes no atc messages`, {
-      to: 'debug',
-    });
+    return String(error);
   }
 }
 
