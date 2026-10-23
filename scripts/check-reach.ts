@@ -37,7 +37,9 @@ async function main(): Promise<void> {
       .flatMap((file) => checkFile('bundles', file)),
     ...checkReporters(root, known, exports),
     ...checkDaemon(root, known, exports),
-    ...checkContractReach(readContractEntries(root, known, exports)),
+    ...checkContractReach(
+      readContractEntries(known, exports, (file) => readFileSync(join(root, file), 'utf8')),
+    ),
   ];
 
   for (const finding of findings) {
@@ -292,9 +294,9 @@ function checkDaemon(
 const CONTRACT_NAME = '@atcx/contract';
 
 function readContractEntries(
-  root: string,
   known: ReadonlySet<string>,
   exports: ReadonlyMap<string, string>,
+  readText: (file: string) => string,
 ): ContractEntry[] {
   const entries = [...exports]
     .filter(
@@ -310,7 +312,7 @@ function readContractEntries(
     const imports = new Map<string, readonly string[]>();
 
     const reached = collectReached(known, exports, [entry], (file) => {
-      const specifiers = collectImports(readFileSync(join(root, file), 'utf8')).specifiers;
+      const specifiers = collectImports(readText(file)).specifiers;
 
       imports.set(file, specifiers);
 
