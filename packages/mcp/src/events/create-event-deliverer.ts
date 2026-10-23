@@ -221,7 +221,7 @@ async function deliverEvent(
 
   invariant(secret, 'a stored subscription holds a secret its subscribe refused');
 
-  const digest = createHash('sha256').update(event.cursor).digest('hex');
+  const digest = createHash('sha256').update(formatEventSource(event)).digest('hex');
 
   // The event's cursor points past the event, so a subscriber that reads the
   // trail from it starts after this event.
@@ -247,6 +247,14 @@ async function deliverEvent(
   if (!isAcknowledged(outcome)) {
     deps.log(`atc events: delivery of ${row.name} to ${row.id} failed: ${formatOutcome(outcome)}`);
   }
+}
+
+// A gateway's merged cursor changes when another daemon's place moves, so an
+// event a gateway merged takes its identity from the daemon that wrote it.
+function formatEventSource(event: TrailPage['events'][number]): string {
+  return event.origin === undefined
+    ? event.cursor
+    : `${event.origin.daemon}.${event.origin.incarnation}.${event.origin.cursor}`;
 }
 
 function isAcknowledged(outcome: WebhookOutcome): boolean {

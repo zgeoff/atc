@@ -127,6 +127,7 @@ export function mergeEventPages(
       ...(isRecord(rewritten) ? rewritten : event),
       cursor: encodeGatewayCursor(filter, parts),
       ...handle,
+      ...buildOrigin(event, daemon),
     });
   }
 
@@ -216,4 +217,15 @@ function findTextHandle(
   }
 
   return {};
+}
+
+function buildOrigin(
+  event: Readonly<Record<string, unknown>>,
+  daemon: Pick<RegistryDaemon, 'name' | 'incarnation'>,
+): { readonly origin?: Readonly<Record<string, string>> } {
+  const raw = event['cursor'];
+
+  return typeof raw === 'string'
+    ? { origin: { daemon: daemon.name, incarnation: daemon.incarnation, cursor: raw } }
+    : {};
 }

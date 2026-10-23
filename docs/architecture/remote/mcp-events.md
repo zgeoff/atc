@@ -90,11 +90,10 @@ For each event of its type, the watcher posts one signed JSON body: the event id
 the event happened, the session id in `data`, and the cursor past the event. The headers follow the
 Standard Webhooks profile the draft defines: a `webhook-id` unique to the message, the signing time,
 an HMAC-SHA256 signature over the id, the time and the exact body bytes, and the subscription id.
-When the server reads one daemon's trail, the event id derives from the event's place in that trail,
-so the same event delivered twice carries the same id. Behind a gateway, the cursor merges every
-daemon's place, so a replay after another daemon reconnects can carry the same event with a
-different cursor and a different event id. The subscriber's own read from its cursor returns each
-event once either way.
+The event id derives from the daemon that wrote the event and the event's place in that daemon's
+trail, so the same event delivered twice carries the same id. Behind a gateway, the merged cursor
+changes when another daemon's place moves, so the server takes the event's place from the `origin`
+the gateway puts on each merged event rather than from the merged cursor.
 
 The server posts only to a callback whose host resolves to public addresses, and connects to the
 address it checked, with the URL's host name for TLS, so a DNS answer that changes between the check
