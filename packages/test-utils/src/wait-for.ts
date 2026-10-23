@@ -3,8 +3,6 @@ interface WaitForOptions {
 
   readonly timeoutMs?: number;
 
-  // Read after each failed attempt; a value unlike the last one starts the
-  // timeout again, so the wait fails only once the progress stops.
   readonly progress?: () => unknown;
 
   readonly now?: () => number;
