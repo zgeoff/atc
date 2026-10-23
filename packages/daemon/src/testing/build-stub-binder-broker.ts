@@ -7,6 +7,7 @@ import type {
   CredentialBroker,
 } from '@atc/plugin-api';
 import { CredentialBrokerError, isHostNameAllowed } from '@atc/plugin-api';
+import { match } from 'ts-pattern';
 
 // refuses grants as impd does behind the imp provider; while calls are held,
 // each is recorded as it arrives but takes effect and answers only on a release
@@ -312,21 +313,11 @@ function buildNotFound(kind: 'host' | 'secret', name: string): CredentialBrokerE
 
 // impd's code for a failure as the imp provider maps it to atc's.
 function toBrokerCode(code: string): CredentialBrokerError['code'] {
-  switch (code) {
-    case 'NOT_FOUND': {
-      return 'not_found';
-    }
-    case 'FORBIDDEN': {
-      return 'forbidden';
-    }
-    case 'UNAUTHORIZED': {
-      return 'unauthorized';
-    }
-    case 'UNREACHABLE': {
-      return 'unreachable';
-    }
-    default: {
-      return 'refused';
-    }
-  }
+  return match(code)
+    .returnType<CredentialBrokerError['code']>()
+    .with('NOT_FOUND', () => 'not_found')
+    .with('FORBIDDEN', () => 'forbidden')
+    .with('UNAUTHORIZED', () => 'unauthorized')
+    .with('UNREACHABLE', () => 'unreachable')
+    .otherwise(() => 'refused');
 }

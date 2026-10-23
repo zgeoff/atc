@@ -1,7 +1,9 @@
+import type { ErrorCode } from '@atc/protocol/wire';
+
 // The steps of the git spawn flow a refused spawn can return to.
 type RefusalStep = 'confirm' | 'destination' | 'ref' | 'source';
 
-const REFUSAL_STEPS: ReadonlyMap<string, RefusalStep> = new Map<string, RefusalStep>([
+const REFUSAL_STEPS: ReadonlyMap<ErrorCode, RefusalStep> = new Map<ErrorCode, RefusalStep>([
   ['workspace_exists', 'destination'],
   ['workspace_overlap', 'destination'],
   ['ref_not_found', 'ref'],
@@ -18,7 +20,7 @@ const REFUSAL_STEPS: ReadonlyMap<string, RefusalStep> = new Map<string, RefusalS
   ['workspace_mismatch', 'confirm'],
 ]);
 
-export function pickRefusalStep(code: string): RefusalStep | null {
+export function pickRefusalStep(code: ErrorCode): RefusalStep | null {
   // any other refusal stays on the step that sent the spawn.
   return REFUSAL_STEPS.get(code) ?? null;
 }

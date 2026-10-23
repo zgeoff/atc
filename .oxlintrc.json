@@ -46,9 +46,7 @@
     // GEO-1196 splits the 19 files over the shared 500-line limit
     "max-lines": "off",
     // GEO-1197 trims the 60 functions over the shared four-parameter limit
-    "max-params": "off",
-    // the source branches on unions with switch statements
-    "zgeoff/no-switch": "off"
+    "max-params": "off"
   },
   "overrides": [
     {

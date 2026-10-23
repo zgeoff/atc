@@ -1,5 +1,6 @@
 import type { BrokerSecret, CredentialBroker } from '@atc/plugin-api';
 import { CredentialBrokerError } from '@atc/plugin-api';
+import { match } from 'ts-pattern';
 import type { ImpPort, ImpSecret, ImpView } from './imp-port';
 import { ImpPortError } from './imp-port-error';
 import { IMPD_UPGRADE } from './impd-upgrade';
@@ -74,26 +75,14 @@ async function withBrokerErrors<T>(call: () => Promise<T>): Promise<T> {
 }
 
 function toBrokerCode(code: string): CredentialBrokerError['code'] {
-  switch (code) {
-    case 'NOT_FOUND': {
-      return 'not_found';
-    }
-    case 'FORBIDDEN': {
-      return 'forbidden';
-    }
-    case 'UNAUTHORIZED': {
-      return 'unauthorized';
-    }
-    case 'UNREACHABLE': {
-      return 'unreachable';
-    }
-    case 'IMPD_OUTDATED': {
-      return 'too_old';
-    }
-    default: {
-      return 'refused';
-    }
-  }
+  return match(code)
+    .returnType<CredentialBrokerError['code']>()
+    .with('NOT_FOUND', () => 'not_found')
+    .with('FORBIDDEN', () => 'forbidden')
+    .with('UNAUTHORIZED', () => 'unauthorized')
+    .with('UNREACHABLE', () => 'unreachable')
+    .with('IMPD_OUTDATED', () => 'too_old')
+    .otherwise(() => 'refused');
 }
 
 function toBrokerSecret(secret: ImpSecret): BrokerSecret {
