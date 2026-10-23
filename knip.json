@@ -8,8 +8,7 @@
         "scripts/**/*.test.ts",
         "scripts/create-state-template.ts",
         "scripts/probe-pty-env.ts",
-        "scripts/stage-demo-sessions.ts",
-        "scripts/run-wave-move.ts"
+        "scripts/stage-demo-sessions.ts"
       ],
       "project": ["e2e/**/*.ts", "scripts/**/*.ts"]
     },
