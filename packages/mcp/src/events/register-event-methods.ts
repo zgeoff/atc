@@ -2,6 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { answerSubscribeRequest } from './answer-subscribe-request';
 import type { EventMethodDeps } from './answer-subscribe-request';
+import { UNSUBSCRIBE_PARAMS, answerUnsubscribeRequest } from './answer-unsubscribe-request';
 import { EVENT_INPUT_SCHEMA, EVENT_PAYLOAD_SCHEMA, EVENT_TYPES } from './event-types';
 import { SUBSCRIBE_PARAMS } from './parse-subscribe-request';
 
@@ -27,5 +28,9 @@ export function registerEventMethods(server: McpServer, deps: EventMethodDeps): 
 
   server.server.setRequestHandler('events/subscribe', { params: SUBSCRIBE_PARAMS }, (params) =>
     answerSubscribeRequest(deps, params),
+  );
+
+  server.server.setRequestHandler('events/unsubscribe', { params: UNSUBSCRIBE_PARAMS }, (params) =>
+    answerUnsubscribeRequest(deps, params),
   );
 }

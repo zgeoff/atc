@@ -10,7 +10,8 @@ import type { FleetCaller } from '../tools/types';
 import { buildWebhookRequest } from './build-webhook-request';
 import { EVENT_TYPES } from './event-types';
 import { parseWebhookSecret } from './parse-webhook-secret';
-import type { WebhookOutcome, WebhookSender } from './types';
+import { pickDeliveryStep } from './pick-delivery-step';
+import type { WebhookOutcome, WebhookRequest, WebhookSender } from './types';
 
 interface EventDelivererDeps {
   readonly db: Kysely<MCPAuthSchema>;
@@ -81,7 +82,7 @@ export function createEventDeliverer(deps: EventDelivererDeps): EventDeliverer {
 
       await (page === null
         ? wait(READ_RETRY_MS)
-        : deliverPage(deps, { subscriptionID, page, state }));
+        : deliverPage(deps, { subscriptionID, page, state, wait }));
     }
   };
 
@@ -209,12 +210,11 @@ interface PageDelivery {
   readonly subscriptionID: string;
   readonly page: TrailPage;
   readonly state: DelivererState;
+  readonly wait: (delayMs: number) => Promise<void>;
 }
 
 async function deliverPage(deps: EventDelivererDeps, delivery: PageDelivery): Promise<void> {
   for (const event of delivery.page.events) {
-    // The row is read again for each event, so a refresh's new secret signs
-    // the next delivery and a removed subscription gets none.
     const row = await readLiveSubscription(deps, delivery.subscriptionID);
 
     if (row === null || delivery.state.stopped) {
@@ -224,7 +224,7 @@ async function deliverPage(deps: EventDelivererDeps, delivery: PageDelivery): Pr
     const type = EVENT_TYPES.find((candidate) => candidate.name === row.name);
 
     if (type?.kind === event.kind) {
-      await deliverEvent(deps, row, event);
+      await deliverEvent(deps, delivery, event);
     }
 
     await writePosition(deps, delivery.subscriptionID, event.cursor);
@@ -235,49 +235,96 @@ async function deliverPage(deps: EventDelivererDeps, delivery: PageDelivery): Pr
   }
 }
 
+// Every attempt at one event keeps its webhook-id, so a subscriber that got an
+// attempt whose answer was lost drops the retry as a duplicate.
 async function deliverEvent(
   deps: EventDelivererDeps,
-  row: SubscriptionRow,
+  delivery: PageDelivery,
   event: z.infer<typeof TRAIL_EVENT_SCHEMA>,
 ): Promise<void> {
-  const secret = parseWebhookSecret(row.secret);
-
-  invariant(secret, 'a stored subscription holds a secret its subscribe refused');
-
+  const webhookID = `msg_${randomBytes(16).toString('base64url')}`;
   const digest = createHash('sha256').update(event.cursor).digest('hex');
 
-  // The event's cursor points past the event, so a subscriber that reads the
-  // trail from it starts after this event.
-  const body = JSON.stringify({
-    eventId: `evt_${digest.slice(0, 32)}`,
-    name: row.name,
-    timestamp: new Date(event.at).toISOString(),
-    data: { session: event.session },
-    cursor: event.cursor,
-  });
+  for (let attempt = 1; ; attempt += 1) {
+    // The row is read again before each attempt, so a refresh's new secret
+    // signs it and a removed subscription gets none.
+    const row = await readLiveSubscription(deps, delivery.subscriptionID);
 
-  const request = buildWebhookRequest({
-    url: row.url,
-    subscriptionID: row.id,
-    webhookID: `msg_${randomBytes(16).toString('base64url')}`,
-    secrets: [secret],
-    timestamp: Math.floor(deps.clock.now() / 1000),
-    body,
-  });
+    if (row === null || delivery.state.stopped) {
+      return;
+    }
 
-  const outcome = await deps.send(request);
+    // The event's cursor points past the event, so a subscriber that reads the
+    // trail from it starts after this event.
+    const body = JSON.stringify({
+      eventId: `evt_${digest.slice(0, 32)}`,
+      name: row.name,
+      timestamp: new Date(event.at).toISOString(),
+      data: { session: event.session },
+      cursor: event.cursor,
+    });
 
-  if (!isAcknowledged(outcome)) {
+    const outcome = await deps.send(buildSignedRequest(deps, { row, webhookID, body }));
+
+    const step = pickDeliveryStep(outcome, attempt);
+
+    if (step.kind === 'done') {
+      return;
+    }
+
     deps.log(`atc events: delivery of ${row.name} to ${row.id} failed: ${formatOutcome(outcome)}`);
+
+    if (step.kind === 'drop') {
+      await removeSubscription(deps, row);
+
+      return;
+    }
+
+    if (step.kind === 'abandon') {
+      deps.log(`atc events: gave up on delivering ${row.name} to ${row.id}`);
+
+      return;
+    }
+
+    await delivery.wait(step.delayMs);
   }
 }
 
-function isAcknowledged(outcome: WebhookOutcome): boolean {
-  return outcome.kind === 'answered' && outcome.status >= 200 && outcome.status <= 299;
+interface SignedRequestParts {
+  readonly row: SubscriptionRow;
+  readonly webhookID: string;
+  readonly body: string;
+}
+
+function buildSignedRequest(deps: EventDelivererDeps, parts: SignedRequestParts): WebhookRequest {
+  const secret = parseWebhookSecret(parts.row.secret);
+
+  invariant(secret, 'a stored subscription holds a secret its subscribe refused');
+
+  return buildWebhookRequest({
+    url: parts.row.url,
+    subscriptionID: parts.row.id,
+    webhookID: parts.webhookID,
+    secrets: [secret],
+    timestamp: Math.floor(deps.clock.now() / 1000),
+    body: parts.body,
+  });
 }
 
 function formatOutcome(outcome: WebhookOutcome): string {
   return outcome.kind === 'failed' ? outcome.reason : `HTTP ${outcome.status}`;
+}
+
+// A 410 ends the subscription, as the extension says. A subscribe that
+// renewed the row after this attempt left it, and keeps it.
+async function removeSubscription(deps: EventDelivererDeps, row: SubscriptionRow): Promise<void> {
+  await deps.db
+    .deleteFrom('atc_event_subscription')
+    .where('id', '=', row.id)
+    .where('refresh_before', '=', row.refresh_before)
+    .execute();
+
+  deps.log(`atc events: removed ${row.id}, whose endpoint answered HTTP 410`);
 }
 
 async function writePosition(

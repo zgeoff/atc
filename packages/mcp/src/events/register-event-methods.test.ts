@@ -188,6 +188,57 @@ test('it subscribes a verified callback and answers with the grant', async () =>
   });
 });
 
+test('it ends a subscription on an unsubscribe with its key and answers with an empty result', async () => {
+  const ctx = await setupTest();
+
+  const created = await ctx.store.auth.api.createFixedClient({
+    body: {
+      name: 'ChatGPT',
+      redirectURIs: ['https://chatgpt.com/connector_platform_oauth_redirect'],
+    },
+  });
+
+  const grant = await runMCPTokenGrant(ctx, {
+    clientID: created.clientID,
+    redirectURI: 'https://chatgpt.com/connector_platform_oauth_redirect',
+    scope: 'read',
+    ticked: ['read'],
+  });
+
+  await sendModernMCPRequest(ctx.url, grant.accessToken, 'events/subscribe', {
+    name: 'session.needs_input',
+    arguments: {},
+    delivery: {
+      mode: 'webhook',
+      url: 'https://connectors.example.com/hooks/atc',
+      secret: `whsec_${Buffer.alloc(32, 8).toString('base64')}`,
+    },
+    cursor: null,
+  });
+
+  const answer = await sendModernMCPRequest(ctx.url, grant.accessToken, 'events/unsubscribe', {
+    name: 'session.needs_input',
+    arguments: {},
+    delivery: { mode: 'webhook', url: 'https://connectors.example.com/hooks/atc' },
+  });
+
+  const rows = await ctx.store.db.selectFrom('atc_event_subscription').select('id').execute();
+
+  expect(answer).toStrictEqual({
+    status: 200,
+    body: {
+      jsonrpc: '2.0',
+      id: 1,
+      result: {
+        resultType: 'complete',
+        _meta: { 'io.modelcontextprotocol/serverInfo': { name: 'atc', version: 'atc/test-build' } },
+      },
+    },
+  });
+
+  expect(rows).toStrictEqual([]);
+});
+
 test('it refuses a subscribe to a plain http callback with invalid params', async () => {
   const ctx = await setupTest();
 
