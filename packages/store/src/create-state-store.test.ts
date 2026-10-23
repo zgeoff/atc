@@ -5662,6 +5662,16 @@ test('it closes its connection when disposed', async () => {
   expect(ctx.store.loadFleet()).rejects.toThrow();
 });
 
+// SQLite removes the WAL side files only when the last handle on the
+// database closes, so their absence shows the bun:sqlite handle closed.
+test('it closes the database handle when stopped', async () => {
+  const ctx = await setupTest();
+
+  await ctx.store.stop();
+
+  expect(readdirSync(ctx.directory)).toStrictEqual(['state.db']);
+});
+
 test('it stays closed when disposed after a stop', async () => {
   const ctx = await setupTest();
 
