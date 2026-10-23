@@ -11,8 +11,10 @@ import {
   readJSONRecord,
   registerTestCleanup,
   runMCPAuthorization,
+  runMCPTokenGrant,
   runPasskeyEnrollment,
   runPasskeySignIn,
+  sendModernMCPRequest,
   setupTempDir,
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
@@ -598,6 +600,83 @@ test('it refuses a tool call for a scope the operator left unticked with insuffi
   expect(body).toStrictEqual({
     error: 'insufficient_scope',
     error_description: 'Insufficient scope',
+  });
+});
+
+test('it refuses an event method to a token without read with insufficient_scope for read', async () => {
+  const ctx = await setupTest();
+
+  const created = await ctx.store.auth.api.createFixedClient({
+    body: {
+      name: 'ChatGPT',
+      redirectURIs: ['https://chatgpt.com/connector_platform_oauth_redirect'],
+    },
+  });
+
+  const grant = await runMCPTokenGrant(ctx, {
+    clientID: created.clientID,
+    redirectURI: 'https://chatgpt.com/connector_platform_oauth_redirect',
+    scope: 'message',
+    ticked: ['message'],
+  });
+
+  const answer = await fetch(`${ctx.url}/mcp`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${grant.accessToken}`,
+      accept: 'application/json, text/event-stream',
+      'content-type': 'application/json',
+      'mcp-protocol-version': '2026-07-28',
+      'mcp-method': 'events/list',
+    },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'events/list',
+      params: {
+        _meta: {
+          'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+          'io.modelcontextprotocol/clientCapabilities': {},
+        },
+      },
+    }),
+  });
+
+  expect(answer.status).toBe(403);
+
+  expect(answer.headers.get('www-authenticate')).toBe(
+    `Bearer error="insufficient_scope", error_description="Insufficient scope", scope="read", resource_metadata="${ctx.origin}/.well-known/oauth-protected-resource/mcp"`,
+  );
+});
+
+test('it serves a tool call in the stateless revision with the result type it requires', async () => {
+  const ctx = await setupTest();
+
+  const created = await ctx.store.auth.api.createFixedClient({
+    body: {
+      name: 'ChatGPT',
+      redirectURIs: ['https://chatgpt.com/connector_platform_oauth_redirect'],
+    },
+  });
+
+  const grant = await runMCPTokenGrant(ctx, {
+    clientID: created.clientID,
+    redirectURI: 'https://chatgpt.com/connector_platform_oauth_redirect',
+    scope: 'read',
+    ticked: ['read'],
+  });
+
+  const answer = await sendModernMCPRequest(ctx.url, grant.accessToken, 'tools/call', {
+    name: 'atc_sessions_list',
+    arguments: {},
+  });
+
+  expect(answer.body).toMatchObject({
+    result: {
+      resultType: 'complete',
+      structuredContent: { sessions: [] },
+      _meta: { 'io.modelcontextprotocol/serverInfo': { name: 'atc', version: 'atc/test-build' } },
+    },
   });
 });
 

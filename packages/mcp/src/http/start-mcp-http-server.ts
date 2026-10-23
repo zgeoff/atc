@@ -1,6 +1,8 @@
+import { lookup } from 'node:dns/promises';
 import { isRecord, systemClock } from '@atc/core';
 import type { Clock } from '@atc/core';
 import { MAX_LINE } from '@atc/protocol/wire';
+import type { McpServer } from '@modelcontextprotocol/server';
 import type { Server } from 'bun';
 import invariant from 'tiny-invariant';
 import { APPROVAL_WINDOW_SECONDS } from '../auth/approval-window-seconds';
@@ -9,9 +11,16 @@ import { createEnrollmentState } from '../auth/create-enrollment-state';
 import { createSecurityEventLog } from '../auth/create-security-event-log';
 import type { MCPAuthDatabase } from '../auth/mcp-auth-database';
 import { openMCPAuth } from '../auth/open-mcp-auth';
-import type { HTTPServerContext, Requester } from '../auth/types';
+import type { HTTPServerContext, Requester, VerifiedAccess } from '../auth/types';
+import { createEventDeliverer } from '../events/create-event-deliverer';
+import { createWebhookSender } from '../events/create-webhook-sender';
+import { registerEventMethods } from '../events/register-event-methods';
+import type { WebhookSender } from '../events/types';
+import { buildPrincipalCaller } from '../tools/build-principal-caller';
+import { createMCPServer } from '../tools/create-mcp-server';
 import type { FleetCaller } from '../tools/types';
 import { createMCPHTTPApp } from './create-mcp-http-app';
+import { createModernMCPHandler } from './create-modern-mcp-handler';
 import { isLoopbackHost } from './is-loopback-host';
 import { normalizePublicURL } from './normalize-public-url';
 
@@ -53,6 +62,10 @@ interface MCPHTTPServerOptions {
   // The time pending approvals, their challenges, the limit on approval
   // starts, and the routes' expiries run on; the system clock when unset.
   readonly clock?: Clock;
+
+  // Posts MCP Events webhooks; a sender that reaches only public addresses
+  // over https when unset.
+  readonly sendWebhook?: WebhookSender;
 }
 
 export interface MCPHTTPServer {
@@ -195,6 +208,24 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
     throw error;
   }
 
+  const sendWebhook = options.sendWebhook ?? createWebhookSender({ resolveHost: resolveAddresses });
+
+  const deliverer = createEventDeliverer({
+    db: store.db,
+    caller: options.caller,
+    send: sendWebhook,
+    clock,
+    log: options.printRequest,
+  });
+
+  const modern = createModernMCPHandler({
+    createServer: (access) => {
+      invariant(holder.ctx, 'a modern request arrived before the server built its context');
+
+      return createPrincipalServer(holder.ctx, access);
+    },
+  });
+
   holder.ctx = {
     caller: options.caller,
     build: options.build,
@@ -205,14 +236,22 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
     enrollments: createEnrollmentState(() => clock.now()),
     security,
     clock,
+    modern,
+    deliverer,
+    sendWebhook,
   };
+
+  await deliverer.start();
 
   return {
     url: local,
     listening: formatBindURL(options.host, port),
     origin,
     stop: async () => {
+      deliverer.stop();
+
       await server.stop(true);
+      await modern.close();
       await store.close();
 
       security.drain();
@@ -277,6 +316,36 @@ async function readRPCLabel(request: Request): Promise<RPCLabel | null> {
     method: message['method'],
     tool: isRecord(params) && typeof params['name'] === 'string' ? params['name'] : null,
   };
+}
+
+async function resolveAddresses(hostname: string): Promise<readonly string[]> {
+  const found = await lookup(hostname, { all: true });
+
+  return found.map((entry) => entry.address);
+}
+
+// A server for one modern request, with the tools and the event methods the
+// request's token allows.
+function createPrincipalServer(ctx: HTTPServerContext, access: VerifiedAccess): McpServer {
+  const caller = buildPrincipalCaller(ctx.caller, { id: access.clientID, name: access.clientName });
+
+  const server = createMCPServer({
+    caller,
+    build: ctx.build,
+    toolContext: { callerSessionID: null },
+    scopes: access.scopes,
+  });
+
+  registerEventMethods(server, {
+    db: ctx.store.db,
+    caller,
+    clientID: access.clientID,
+    send: ctx.sendWebhook,
+    clock: ctx.clock,
+    deliverer: ctx.deliverer,
+  });
+
+  return server;
 }
 
 // An IPv6 address takes the brackets a URL puts around it.

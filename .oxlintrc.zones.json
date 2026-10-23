@@ -25,7 +25,7 @@
           "mcp": ["packages/mcp{,/**}"],
           "test-utils": ["packages/test-utils{,/**}"],
           "oauth-helper-tests": [
-            "packages/test-utils/src/run-{mcp-authorization,passkey-*}.test.ts"
+            "packages/test-utils/src/{run-mcp-authorization,run-mcp-token-grant,run-passkey-*,send-modern-mcp-request}.test.ts"
           ],
           "app": ["packages/app{,/**}"],
 
@@ -183,7 +183,9 @@
             "from": ["test-utils"],
             "allow": ["core", "protocol", "plugin-api", "config", "app"],
             "allowWithin": "packages/*",
-            "ignore": ["packages/test-utils/src/run-{mcp-authorization,passkey-*}.test.ts"]
+            "ignore": [
+              "packages/test-utils/src/{run-mcp-authorization,run-mcp-token-grant,run-passkey-*,send-modern-mcp-request}.test.ts"
+            ]
           },
           // the tests of the helpers that drive the OAuth flow run them against
           // the real authorization server
