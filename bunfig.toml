@@ -36,9 +36,11 @@ minimumReleaseAgeExcludes = [
 pathIgnorePatterns = ["mods/**"]
 
 # isolates every test run from the real home and runtime directories, seeds
-# faker once, then registers jest-extended matchers for `bun test`
+# faker once, loads the WebAuthn library once per process, then registers
+# jest-extended matchers for `bun test`
 preload = [
   "./packages/test-utils/src/isolate-home.ts",
   "./packages/test-utils/src/seed-faker.ts",
+  "./packages/mcp/src/testing/load-web-authn-early.ts",
   "@zgeoff/bun-test-extended",
 ]
