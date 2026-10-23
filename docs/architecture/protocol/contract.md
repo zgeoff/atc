@@ -34,9 +34,13 @@ lists the features the contract knows that the daemon lacks, and the ones the da
 contract does not know.
 
 A release that adds a capability within a major version adds a feature name, so a client finds out
-what an older daemon lacks without comparing minor versions. The protocol version in the hello does
-not serve this check, because it changes with every answer field and exists for atc's own client,
-which must run the daemon's build ([versions](./protocol.md#versions)).
+what an older daemon lacks without comparing minor versions.
+
+The check runs only after a handshake the daemon accepts. Every client sends a protocol version in
+its hello, a client outside atc included, and a daemon on another version refuses the hello with
+`protocol_mismatch` before the client sees any features ([versions](./protocol.md#versions)). A
+client outside atc therefore sends the daemon's protocol version, and the helper's check does not
+replace that match, because the protocol version changes with every answer field.
 
 ## Versions
 
