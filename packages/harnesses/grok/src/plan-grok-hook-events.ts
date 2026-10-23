@@ -1,5 +1,4 @@
 import { join } from 'node:path';
-import { buildOptionalString } from '@atc/core/schema';
 import {
   buildHeartbeatEvent,
   buildNeedsInputEvent,
@@ -9,6 +8,7 @@ import {
 import type { AdapterEvent } from '@atc/protocol';
 import type { HookEvent } from '@atc/protocol/session';
 import { normalizeHookEventName } from '@atc/protocol/session';
+import { buildOptionalString } from '@atcx/contract/schema';
 import { match } from 'ts-pattern';
 import { z } from 'zod';
 import { GROK_HOOKS } from './grok-hooks';

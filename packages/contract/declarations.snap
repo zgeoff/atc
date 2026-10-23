@@ -231,14 +231,6 @@ export declare const ANSWER_VIEW_SCHEMA: z.ZodObject<{
     complete: z.ZodBoolean;
 }, z.core.$strip>;
 
-// build-optional-boolean.d.ts
-import { z } from 'zod';
-export declare function buildOptionalBoolean(): z.ZodPreprocess<z.ZodOptional<z.ZodBoolean>, unknown>;
-
-// build-optional-string.d.ts
-import { z } from 'zod';
-export declare function buildOptionalString(): z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
-
 // check-daemon.d.ts
 import type { DaemonFeature } from './daemon-features.js';
 import type { HelloResult } from './hello-result.js';
@@ -3003,6 +2995,28 @@ export declare const RESTART_RESULT_SCHEMA: z.ZodObject<{
 export type RestartResult = Readonly<z.output<typeof RESTART_RESULT_SCHEMA>>;
 export type RestartFailedRow = Readonly<z.output<typeof RESTART_FAILED_ROW_SCHEMA>>;
 export {};
+
+// schema/build-optional-boolean.d.ts
+import { z } from 'zod';
+export declare function buildOptionalBoolean(): z.ZodPreprocess<z.ZodOptional<z.ZodBoolean>, unknown>;
+
+// schema/build-optional-non-empty-string.d.ts
+import { z } from 'zod';
+export declare function buildOptionalNonEmptyString(): z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
+
+// schema/build-optional-string-array.d.ts
+import { z } from 'zod';
+export declare function buildOptionalStringArray(): z.ZodPreprocess<z.ZodOptional<z.ZodArray<z.ZodString>>, unknown>;
+
+// schema/build-optional-string.d.ts
+import { z } from 'zod';
+export declare function buildOptionalString(): z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
+
+// schema/index.d.ts
+export * from './build-optional-boolean.js';
+export * from './build-optional-non-empty-string.js';
+export * from './build-optional-string.js';
+export * from './build-optional-string-array.js';
 
 // session-descriptor.d.ts
 import { z } from 'zod';

@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { buildOptionalBoolean } from './build-optional-boolean';
-import { buildOptionalString } from './build-optional-string';
+import { buildOptionalBoolean } from './schema/build-optional-boolean';
+import { buildOptionalString } from './schema/build-optional-string';
 
 // A user-written config.json's top-level keys. An absent or wrong-typed
 // field parses to undefined rather than failing the file, so a bad config

@@ -18,6 +18,10 @@ The package has a second, light entry that holds the session environment names, 
 error codes and the message sender's schema. A hook reporter starts once per event inside a session,
 so it imports the light entry, which skips the request contract and the schemas it builds on.
 
+A third entry holds the field builders the schemas parse with, which read a wrong-typed field as
+absent. atc's config and hook parsers take them from it too, so one parser serves every lenient
+field.
+
 npm installs only the contract's own dependencies, Zod and oRPC's contract library, beside it.
 `bun run check:reach` therefore refuses any module that either entry reaches outside the package,
 and any import of another package, type-only imports included. A committed snapshot holds the

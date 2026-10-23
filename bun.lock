@@ -103,9 +103,6 @@
     },
     "packages/core": {
       "name": "@atc/core",
-      "dependencies": {
-        "zod": "catalog:",
-      },
       "devDependencies": {
         "@atc/test-utils": "workspace:*",
       },

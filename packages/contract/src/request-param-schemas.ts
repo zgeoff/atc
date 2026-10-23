@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { buildOptionalBoolean } from './build-optional-boolean';
-import { buildOptionalString } from './build-optional-string';
 import { COMMIT_ID_PATTERN } from './commit-id-pattern';
 import { RESTART_RESULT_SCHEMA } from './restart-result';
+import { buildOptionalBoolean } from './schema/build-optional-boolean';
+import { buildOptionalString } from './schema/build-optional-string';
 import { toAgentSessionID } from './to-agent-session-id';
 import { toMessageID } from './to-message-id';
 import { toSessionID } from './to-session-id';

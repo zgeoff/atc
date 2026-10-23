@@ -288,14 +288,10 @@ function checkDaemon(
   return findings;
 }
 
-// The entries of @atcx/contract, which npm installs with only the packages it
-// depends on, so nothing they reach may leave the package or import any other.
+// npm installs @atcx/contract with only the packages it depends on, so
+// nothing its entries reach may leave the package or import any other.
+const CONTRACT_NAME = '@atcx/contract';
 const CONTRACT_SOURCE = 'packages/contract/src';
-
-const CONTRACT_ENTRIES: readonly string[] = [
-  `${CONTRACT_SOURCE}/index.ts`,
-  `${CONTRACT_SOURCE}/light/index.ts`,
-];
 
 const CONTRACT_PACKAGES: ReadonlySet<string> = new Set(['zod', '@orpc/contract']);
 
@@ -305,13 +301,17 @@ function checkContract(
   known: ReadonlySet<string>,
   exports: ReadonlyMap<string, string>,
 ): string[] {
-  const findings = existsSync(join(root, 'packages/contract/package.json'))
-    ? CONTRACT_ENTRIES.filter((entry) => !known.has(entry)).map(
-        (entry) => `missing contract entry: ${entry} does not exist`,
-      )
-    : [];
+  const entries = [...exports]
+    .filter(
+      ([specifier]) => specifier === CONTRACT_NAME || specifier.startsWith(`${CONTRACT_NAME}/`),
+    )
+    .map(([, target]) => target);
 
-  for (const entry of CONTRACT_ENTRIES.filter((candidate) => known.has(candidate))) {
+  const findings = entries
+    .filter((entry) => !known.has(entry))
+    .map((entry) => `missing contract entry: ${entry} does not exist`);
+
+  for (const entry of entries.filter((candidate) => known.has(candidate))) {
     const reached = collectReached(
       known,
       exports,

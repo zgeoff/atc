@@ -1167,7 +1167,13 @@ test('it passes a daemon module that names mcp-auth.db only in a comment', async
 test('it passes a contract that imports only its own files, zod, @orpc/contract and builtins', async () => {
   const ctx = setupTest();
 
-  await Bun.write(join(ctx.directory, 'packages/contract/package.json'), '{}');
+  await Bun.write(
+    join(ctx.directory, 'packages/contract/package.json'),
+    JSON.stringify({
+      name: '@atcx/contract',
+      exports: { '.': './src/index.ts', './light': './src/light/index.ts' },
+    }),
+  );
 
   await Bun.write(
     join(ctx.directory, 'packages/contract/src/index.ts'),
@@ -1201,7 +1207,13 @@ test('it passes a contract that imports only its own files, zod, @orpc/contract 
 test('it fails on a contract that reaches a private workspace package', async () => {
   const ctx = setupTest();
 
-  await Bun.write(join(ctx.directory, 'packages/contract/package.json'), '{}');
+  await Bun.write(
+    join(ctx.directory, 'packages/contract/package.json'),
+    JSON.stringify({
+      name: '@atcx/contract',
+      exports: { '.': './src/index.ts', './light': './src/light/index.ts' },
+    }),
+  );
 
   await Bun.write(
     join(ctx.directory, 'packages/core/package.json'),
@@ -1243,7 +1255,13 @@ test('it fails on a contract that reaches a private workspace package', async ()
 test('it fails on a contract file that imports a package the contract does not depend on', async () => {
   const ctx = setupTest();
 
-  await Bun.write(join(ctx.directory, 'packages/contract/package.json'), '{}');
+  await Bun.write(
+    join(ctx.directory, 'packages/contract/package.json'),
+    JSON.stringify({
+      name: '@atcx/contract',
+      exports: { '.': './src/index.ts', './light': './src/light/index.ts' },
+    }),
+  );
 
   await Bun.write(
     join(ctx.directory, 'packages/contract/src/index.ts'),
@@ -1283,7 +1301,14 @@ test('it fails on a contract file that imports a package the contract does not d
 test('it fails on a contract package with no light entry', async () => {
   const ctx = setupTest();
 
-  await Bun.write(join(ctx.directory, 'packages/contract/package.json'), '{}');
+  await Bun.write(
+    join(ctx.directory, 'packages/contract/package.json'),
+    JSON.stringify({
+      name: '@atcx/contract',
+      exports: { '.': './src/index.ts', './light': './src/light/index.ts' },
+    }),
+  );
+
   await Bun.write(join(ctx.directory, 'packages/contract/src/index.ts'), 'export const A = 1;\n');
   await Bun.write(join(ctx.directory, 'packages/app/src/gateway.ts'), 'console.log(1);\n');
 

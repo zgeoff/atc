@@ -1,6 +1,6 @@
 import { isRecord } from '@atc/core';
-import { buildOptionalNonEmptyString } from '@atc/core/schema';
 import { resolveHomeDir } from '@atcx/contract/light';
+import { buildOptionalNonEmptyString } from '@atcx/contract/schema';
 import { z } from 'zod';
 import { normalizeConfigDir } from './normalize-config-dir';
 
