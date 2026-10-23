@@ -9,6 +9,8 @@ import { normalizeClientName } from '../auth/normalize-client-name';
 import { readClientName } from '../auth/read-client-name';
 import type { FleetCaller } from '../tools/types';
 import { buildWebhookRequest } from './build-webhook-request';
+import { createSubscriptionStore } from './create-subscription-store';
+import type { SubscriptionRow, SubscriptionStore } from './create-subscription-store';
 import { EVENT_TYPES } from './event-types';
 import { parseWebhookSecret } from './parse-webhook-secret';
 import type { WebhookOutcome, WebhookSender } from './types';
@@ -35,6 +37,10 @@ export interface EventDeliverer {
   readonly stop: () => void;
 }
 
+interface DelivererContext extends EventDelivererDeps {
+  readonly subscriptions: SubscriptionStore;
+}
+
 interface DelivererState {
   stopped: boolean;
 }
@@ -50,7 +56,9 @@ const ACCESS_RECHECK_MS = 5000;
 // Each subscription's watcher reads the trail as the subscription's client,
 // so it sees only the sessions the client's principal reaches, and it stores
 // how far it got, so a restarted server resumes where it stopped.
-export function createEventDeliverer(deps: EventDelivererDeps): EventDeliverer {
+export function createEventDeliverer(options: EventDelivererDeps): EventDeliverer {
+  const deps: DelivererContext = { ...options, subscriptions: createSubscriptionStore(options.db) };
+
   const watching = new Set<string>();
   const pendingWaits = new Set<() => void>();
 
@@ -90,10 +98,7 @@ export function createEventDeliverer(deps: EventDelivererDeps): EventDeliverer {
         const lost = !state.stopped && !(await deps.probeAccess(row.client_id));
 
         if (lost) {
-          await deps.db
-            .deleteFrom('atc_event_subscription')
-            .where('id', '=', subscriptionID)
-            .execute();
+          await deps.subscriptions.end(subscriptionID);
 
           return;
         }
@@ -128,9 +133,9 @@ export function createEventDeliverer(deps: EventDelivererDeps): EventDeliverer {
 
     // A subscribe that stored the row again while this watcher was ending
     // found it still registered, so its watch started nothing.
-    const renewed = state.stopped ? undefined : await tryReadRowID(deps, subscriptionID);
+    const renewed = state.stopped ? false : await probeStored(deps, subscriptionID);
 
-    if (renewed !== undefined) {
+    if (renewed) {
       watch(subscriptionID);
     }
   };
@@ -146,10 +151,10 @@ export function createEventDeliverer(deps: EventDelivererDeps): EventDeliverer {
 
   return {
     start: async () => {
-      const rows = await deps.db.selectFrom('atc_event_subscription').select('id').execute();
+      const subscriptionIDs = await deps.subscriptions.readIDs();
 
-      for (const row of rows) {
-        watch(row.id);
+      for (const subscriptionID of subscriptionIDs) {
+        watch(subscriptionID);
       }
     },
     watch,
@@ -163,37 +168,25 @@ export function createEventDeliverer(deps: EventDelivererDeps): EventDeliverer {
   };
 }
 
-type SubscriptionRow = MCPAuthSchema['atc_event_subscription'];
-
 // A subscription past its refreshBefore is gone, as the extension says, so the
 // watcher removes its row and ends.
 async function readLiveSubscription(
-  deps: EventDelivererDeps,
+  deps: DelivererContext,
   subscriptionID: string,
 ): Promise<SubscriptionRow | null> {
-  const row = await deps.db
-    .selectFrom('atc_event_subscription')
-    .selectAll()
-    .where('id', '=', subscriptionID)
-    .executeTakeFirst();
+  const now = deps.clock.now();
 
-  if (row === undefined) {
-    return null;
+  const stored = await deps.subscriptions.read(subscriptionID, now);
+
+  if (stored === null || stored.state === 'live') {
+    return stored?.row ?? null;
   }
 
-  if (Date.parse(row.refresh_before) > deps.clock.now()) {
-    return row;
-  }
+  // A refresh that lands between the read and the removal renews the row,
+  // and the removal then leaves it, so the watcher reads the renewed row.
+  const removed = await deps.subscriptions.expire(subscriptionID, stored.row.refresh_before, now);
 
-  // A refresh that lands between the read and the delete renews the row, and
-  // the delete then leaves it, so the watcher reads the renewed row.
-  const removed = await deps.db
-    .deleteFrom('atc_event_subscription')
-    .where('id', '=', subscriptionID)
-    .where('refresh_before', '=', row.refresh_before)
-    .executeTakeFirst();
-
-  return removed.numDeletedRows > 0n ? null : readLiveSubscription(deps, subscriptionID);
+  return removed ? null : readLiveSubscription(deps, subscriptionID);
 }
 
 // How long a read of the trail waits for an event, the most the daemon allows.
@@ -203,7 +196,7 @@ const READ_LIMIT = 50;
 type TrailPage = z.infer<typeof EVENTS_PAGE_SCHEMA>;
 
 async function tryReadPage(
-  deps: EventDelivererDeps,
+  deps: DelivererContext,
   row: SubscriptionRow,
 ): Promise<TrailPage | null> {
   const storedName = await readClientName(deps.db, row.client_id);
@@ -229,7 +222,7 @@ interface PageDelivery {
   readonly state: DelivererState;
 }
 
-async function deliverPage(deps: EventDelivererDeps, delivery: PageDelivery): Promise<void> {
+async function deliverPage(deps: DelivererContext, delivery: PageDelivery): Promise<void> {
   for (const event of delivery.page.events) {
     // The row is read again for each event, so a refresh's new secret signs
     // the next delivery and a removed subscription gets none.
@@ -262,7 +255,7 @@ async function deliverPage(deps: EventDelivererDeps, delivery: PageDelivery): Pr
 }
 
 async function deliverEvent(
-  deps: EventDelivererDeps,
+  deps: DelivererContext,
   row: SubscriptionRow,
   event: TrailPage['events'][number],
 ): Promise<void> {
@@ -307,31 +300,20 @@ function formatOutcome(outcome: WebhookOutcome): string {
 }
 
 async function writePosition(
-  deps: EventDelivererDeps,
+  deps: DelivererContext,
   subscriptionID: string,
   position: string,
 ): Promise<void> {
-  await deps.db
-    .updateTable('atc_event_subscription')
-    .set({ position })
-    .where('id', '=', subscriptionID)
-    .execute();
+  await deps.subscriptions.advance(subscriptionID, position, deps.clock.now());
 }
 
 // The store closes with the server, and a watcher can end after it closed.
-async function tryReadRowID(
-  deps: EventDelivererDeps,
-  subscriptionID: string,
-): Promise<string | undefined> {
+async function probeStored(deps: DelivererContext, subscriptionID: string): Promise<boolean> {
   try {
-    const row = await deps.db
-      .selectFrom('atc_event_subscription')
-      .select('id')
-      .where('id', '=', subscriptionID)
-      .executeTakeFirst();
+    const stored = await deps.subscriptions.read(subscriptionID, deps.clock.now());
 
-    return row?.id;
+    return stored !== null;
   } catch {
-    return undefined;
+    return false;
   }
 }
