@@ -66,14 +66,17 @@ server's replies.
 
 A new subscription starts after the cursor the client sent, once the daemon accepts that cursor, so
 the events the client missed while it held no subscription are delivered. With no cursor, it starts
-after the newest event. The server always grants a finite lifetime, and grants its longest one to a
-client that asks for no expiry, so a client that stops refreshing loses its subscription in the end.
-A subscribe that arrives after the lifetime ran out starts a new subscription from the cursor it
-sends.
+after the newest event of every daemon the server reads through. The server always grants a finite
+lifetime, and grants its longest one to a client that asks for no expiry, so a client that stops
+refreshing loses its subscription in the end. A subscribe that arrives after the lifetime ran out
+starts a new subscription from the cursor it sends.
 
 A subscription ends with the client's access. When the owner revokes the client's last live grant
 that holds `read`, or removes the client, the server deletes the client's subscriptions and its
 verified callback URLs in the same transaction, so no delivery outlives the access it reports on.
+The client's own token revocation and a grant's expiry leave the rows in place, so the watcher
+checks for a live grant with `read` before each read and each delivery, and removes the subscription
+when it finds none.
 
 ## Delivery
 
