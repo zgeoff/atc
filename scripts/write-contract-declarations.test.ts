@@ -1,6 +1,16 @@
 import { expect, mock, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { setupTempDir } from '@atc/test-utils';
+import { DECLARATION_TOOLS } from './declaration-tools';
 import { writeContractDeclarations } from './write-contract-declarations';
 import type { DeclarationTools } from './write-contract-declarations';
+
+function setupTest() {
+  const temporaryDirectory = setupTempDir('write-contract-declarations-');
+
+  return { out: temporaryDirectory.path };
+}
 
 test('it compiles the contract with its build config into the out folder', async () => {
   const runCompiler = mock<DeclarationTools['runCompiler']>(() =>
@@ -28,29 +38,53 @@ test('it compiles the contract with its build config into the out folder', async
   ]);
 });
 
-test('it rewrites each relative import to the file Node resolves and lists the files in order', async () => {
-  const sources: ReadonlyMap<string, string> = new Map([
-    ['/out/index.d.ts', "export * from './light';\nexport * from './session-id';\n"],
-    ['/out/light/index.d.ts', "export type { SessionID } from '../session-id';\n"],
-    ['/out/session-id.d.ts', "import type { z } from 'zod';\nexport type SessionID = string;\n"],
-  ]);
+test('it lists the emitted declaration files in order', async () => {
+  const ctx = setupTest();
 
-  const writeText = mock<(path: string, text: string) => void>();
+  await Bun.write(join(ctx.out, 'session-id.d.ts'), 'export type SessionID = string;\n');
+  await Bun.write(join(ctx.out, 'light/index.d.ts'), 'export declare const SOCKET: string;\n');
+  await Bun.write(join(ctx.out, 'index.d.ts'), "export * from './light';\n");
 
-  const files = await writeContractDeclarations('/repo', '/out', {
+  const files = await writeContractDeclarations('/repo', ctx.out, {
+    ...DECLARATION_TOOLS,
     runCompiler: () => Promise.resolve({ exitCode: 0, output: '' }),
-    listDeclarations: () => ['session-id.d.ts', 'light/index.d.ts', 'index.d.ts'],
-    readText: (path) => sources.get(path) ?? '',
-    writeText,
   });
 
   expect(files).toStrictEqual(['index.d.ts', 'light/index.d.ts', 'session-id.d.ts']);
+});
 
-  expect(writeText.mock.calls).toStrictEqual([
-    ['/out/index.d.ts', "export * from './light/index.js';\nexport * from './session-id.js';\n"],
-    ['/out/light/index.d.ts', "export type { SessionID } from '../session-id.js';\n"],
-    ['/out/session-id.d.ts', "import type { z } from 'zod';\nexport type SessionID = string;\n"],
-  ]);
+test('it rewrites each relative import in the emitted files to the file Node resolves', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.out, 'index.d.ts'),
+    "export * from './light';\nexport * from './session-id';\n",
+  );
+
+  await Bun.write(
+    join(ctx.out, 'light/index.d.ts'),
+    "export type { SessionID } from '../session-id';\n",
+  );
+
+  await Bun.write(
+    join(ctx.out, 'session-id.d.ts'),
+    "import type { z } from 'zod';\nexport type SessionID = string;\n",
+  );
+
+  await writeContractDeclarations('/repo', ctx.out, {
+    ...DECLARATION_TOOLS,
+    runCompiler: () => Promise.resolve({ exitCode: 0, output: '' }),
+  });
+
+  expect({
+    index: readFileSync(join(ctx.out, 'index.d.ts'), 'utf8'),
+    light: readFileSync(join(ctx.out, 'light/index.d.ts'), 'utf8'),
+    sessionID: readFileSync(join(ctx.out, 'session-id.d.ts'), 'utf8'),
+  }).toStrictEqual({
+    index: "export * from './light/index.js';\nexport * from './session-id.js';\n",
+    light: "export type { SessionID } from '../session-id.js';\n",
+    sessionID: "import type { z } from 'zod';\nexport type SessionID = string;\n",
+  });
 });
 
 test('it throws with the compiler output when the compiler fails', () => {
