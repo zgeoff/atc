@@ -44,7 +44,10 @@
     // atc is ES modules throughout, so a module loads through an import
     "typescript/no-require-imports": "error",
     // GEO-1196 splits the 19 files over the shared 500-line limit
-    "max-lines": "off"
+    "max-lines": "off",
+    // a `<module>.host.test.ts` suite needs a real program on the host, so it
+    // tests the module beside it, as max-test-timeout's host lane already reads it
+    "zgeoff/test-beside-module": ["error", { "lanes": ["host"] }]
   },
   "overrides": [
     {

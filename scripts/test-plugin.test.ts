@@ -173,7 +173,7 @@ test('it tests a plugin in a workspace of its manifest closure and the test help
 
   expect(keptManifest).not.toInclude('@atc/store');
   expect(keptManifest).not.toInclude('oxlint');
-}, 300_000);
+});
 
 test('it type-checks the plugin when the node on PATH fails', async () => {
   const ctx = setupTest();
@@ -268,4 +268,4 @@ test('it type-checks the plugin when the node on PATH fails', async () => {
 
   expect(ran.stdout).toInclude('test-plugin: harness-demo passed in a workspace without the app');
   expect(ran.exitCode).toBe(0);
-}, 300_000);
+});
