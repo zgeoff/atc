@@ -84,6 +84,7 @@ test('it posts a signed delivery of a matching event with its session and the cu
     caller: ctx.caller,
     send: receiver.send,
     clock: ctx.clock,
+    probeAccess: () => Promise.resolve(true),
     log: () => {},
   });
 
@@ -159,6 +160,7 @@ test('it delivers a cursor from which a read of the trail returns only later eve
     caller: ctx.caller,
     send: receiver.send,
     clock: ctx.clock,
+    probeAccess: () => Promise.resolve(true),
     log: () => {},
   });
 
@@ -221,6 +223,7 @@ test('it delivers nothing for an event of another type and moves its position pa
     caller: ctx.caller,
     send: receiver.send,
     clock: ctx.clock,
+    probeAccess: () => Promise.resolve(true),
     log: () => {},
   });
 
@@ -297,6 +300,7 @@ test('it resumes from the stored position, so an event that came while no server
     caller: ctx.caller,
     send: receiver.send,
     clock: ctx.clock,
+    probeAccess: () => Promise.resolve(true),
     log: () => {},
   });
 
@@ -358,6 +362,7 @@ test("it delivers nothing from a session outside the client's reach", async () =
     caller: ctx.caller,
     send: receiver.send,
     clock: ctx.clock,
+    probeAccess: () => Promise.resolve(true),
     log: () => {},
   });
 
@@ -388,6 +393,52 @@ test("it delivers nothing from a session outside the client's reach", async () =
   ).toStrictEqual(['sub_00000000000000000000000000000002']);
 });
 
+test('it removes a subscription whose client no longer holds read and delivers nothing to it', async () => {
+  const ctx = await setupTest();
+
+  const receiver = buildStubWebhookReceiver();
+  const probeAccess = mock<(clientID: string) => Promise<boolean>>(() => Promise.resolve(false));
+
+  const head = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
+
+  await ctx.db
+    .insertInto('atc_event_subscription')
+    .values({
+      id: 'sub_0123456789abcdef0123456789abcdef',
+      client_id: 'client-one',
+      url: 'https://hooks.example.com/hook',
+      name: 'session.turn_done',
+      arguments: '{}',
+      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+      position: getString(head, 'cursor'),
+      refresh_before: '2026-10-24T12:00:00.000Z',
+      created_at: '2026-10-23T12:00:00.000Z',
+    })
+    .execute();
+
+  const deliverer = createEventDeliverer({
+    db: ctx.db,
+    caller: ctx.caller,
+    send: receiver.send,
+    clock: ctx.clock,
+    probeAccess,
+    log: () => {},
+  });
+
+  registerTestCleanup(deliverer.stop);
+
+  await deliverer.start();
+
+  await waitFor(async () => {
+    const stored = await ctx.db.selectFrom('atc_event_subscription').selectAll().execute();
+
+    expect(stored).toBeEmpty();
+  });
+
+  expect(probeAccess).toHaveBeenCalledWith('client-one');
+  expect(receiver.received).toBeEmpty();
+});
+
 test('it removes a subscription past its refreshBefore and delivers nothing to it', async () => {
   const ctx = await setupTest();
 
@@ -415,6 +466,7 @@ test('it removes a subscription past its refreshBefore and delivers nothing to i
     caller: ctx.caller,
     send: receiver.send,
     clock: ctx.clock,
+    probeAccess: () => Promise.resolve(true),
     log: () => {},
   });
 
@@ -459,6 +511,7 @@ test('it logs a delivery the endpoint refused', async () => {
     caller: ctx.caller,
     send: receiver.send,
     clock: ctx.clock,
+    probeAccess: () => Promise.resolve(true),
     log,
   });
 

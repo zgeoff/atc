@@ -104,6 +104,43 @@ test('it tells the deliverer to watch the subscription it stored', async () => {
   ]);
 });
 
+test('it starts a subscription without a cursor past every event a gateway holds back for a later page', async () => {
+  const ctx = await setupTest();
+
+  const caller = buildStubFleetCaller({
+    answer: (request) =>
+      ({
+        none: { events: [{ cursor: 'cursor-a' }], cursor: 'cursor-partial', more: true },
+        'cursor-partial': {
+          events: [{ cursor: 'cursor-b' }],
+          cursor: 'cursor-past-all',
+          more: false,
+        },
+      })[String(request.params?.['cursor'] ?? 'none')] ?? {},
+  });
+
+  const result = await answerSubscribeRequest(
+    {
+      db: ctx.db,
+      caller,
+      clientID: 'client-one',
+      send: buildStubWebhookReceiver().send,
+      clock: ctx.clock,
+      deliverer: ctx.deliverer,
+    },
+    {
+      name: 'session.turn_done',
+      delivery: {
+        mode: 'webhook',
+        url: 'https://hooks.example.com/hook',
+        secret: `whsec_${Buffer.alloc(32, 5).toString('base64')}`,
+      },
+    },
+  );
+
+  expect(result.cursor).toBe('cursor-past-all');
+});
+
 test("it starts a new subscription at the client's cursor once the daemon takes it", async () => {
   const ctx = await setupTest();
 

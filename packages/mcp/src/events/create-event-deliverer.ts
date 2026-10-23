@@ -18,6 +18,9 @@ interface EventDelivererDeps {
   readonly send: WebhookSender;
   readonly clock: Clock;
 
+  // Answers whether the client still holds a live grant with read.
+  readonly probeAccess: (clientID: string) => Promise<boolean>;
+
   // Receives one line per delivery that failed.
   readonly log: (line: string) => void;
 }
@@ -137,8 +140,9 @@ export function createEventDeliverer(deps: EventDelivererDeps): EventDeliverer {
 
 type SubscriptionRow = MCPAuthSchema['atc_event_subscription'];
 
-// A subscription past its refreshBefore is gone, as the extension says, so the
-// watcher removes its row and ends.
+// A subscription past its refreshBefore is gone, as the extension says, and so
+// is one whose client lost read through a route that left its row, such as the
+// client's own token revocation or its grant's expiry.
 async function readLiveSubscription(
   deps: EventDelivererDeps,
   subscriptionID: string,
@@ -150,6 +154,14 @@ async function readLiveSubscription(
     .executeTakeFirst();
 
   if (row === undefined) {
+    return null;
+  }
+
+  const reads = await deps.probeAccess(row.client_id);
+
+  if (!reads) {
+    await deps.db.deleteFrom('atc_event_subscription').where('id', '=', subscriptionID).execute();
+
     return null;
   }
 

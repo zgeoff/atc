@@ -2,8 +2,7 @@ import type { Clock } from '@atc/core';
 import { DaemonError } from '@atc/protocol/wire';
 import { ProtocolError } from '@modelcontextprotocol/server';
 import type { Kysely } from 'kysely';
-import invariant from 'tiny-invariant';
-import type { z } from 'zod';
+import { z } from 'zod';
 import type { MCPAuthSchema } from '../auth/mcp-auth-schema';
 import type { FleetCaller } from '../tools/types';
 import { buildSubscriptionID } from './build-subscription-id';
@@ -146,26 +145,46 @@ async function requireVerifiedCallback(
 // events it missed while it held no subscription arrive. No cursor starts
 // after the newest event.
 async function readStartPosition(deps: EventMethodDeps, cursor: string | null): Promise<string> {
-  let page: Readonly<Record<string, unknown>>;
+  if (cursor === null) {
+    return readHeadPosition(deps);
+  }
 
   try {
-    page = await deps.caller.sendRequest('events.read', {
-      ...(cursor === null ? {} : { cursor }),
-      limit: 1,
-    });
+    await deps.caller.sendRequest('events.read', { cursor, limit: 1 });
   } catch (error) {
-    if (cursor !== null && error instanceof DaemonError && error.code === 'bad_args') {
+    if (error instanceof DaemonError && error.code === 'bad_args') {
       throw new ProtocolError(EVENT_ERROR_CODES.invalidParams, 'atc does not take that cursor');
     }
 
     throw error;
   }
 
-  const start = cursor ?? page['cursor'];
+  return cursor;
+}
 
-  invariant(typeof start === 'string', 'the event trail answered without a cursor');
+const HEAD_PAGE_SCHEMA = z.object({ cursor: z.string(), more: z.boolean().optional() });
 
-  return start;
+// The largest page a read returns.
+const HEAD_READ_LIMIT = 200;
+
+// A gateway answers a read without a cursor with each daemon's newest events
+// merged into one page, and leaves the daemons whose events did not fit before
+// them, so the read goes on until no daemon holds more.
+async function readHeadPosition(deps: EventMethodDeps): Promise<string> {
+  const first = await deps.caller.sendRequest('events.read', { limit: HEAD_READ_LIMIT });
+
+  let page = HEAD_PAGE_SCHEMA.parse(first);
+
+  while (page.more === true) {
+    const next = await deps.caller.sendRequest('events.read', {
+      cursor: page.cursor,
+      limit: HEAD_READ_LIMIT,
+    });
+
+    page = HEAD_PAGE_SCHEMA.parse(next);
+  }
+
+  return page.cursor;
 }
 
 const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;

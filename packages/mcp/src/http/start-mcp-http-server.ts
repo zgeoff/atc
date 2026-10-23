@@ -14,6 +14,7 @@ import { openMCPAuth } from '../auth/open-mcp-auth';
 import type { HTTPServerContext, Requester, VerifiedAccess } from '../auth/types';
 import { createEventDeliverer } from '../events/create-event-deliverer';
 import { createWebhookSender } from '../events/create-webhook-sender';
+import { probeReadAccess } from '../events/probe-read-access';
 import { registerEventMethods } from '../events/register-event-methods';
 import type { WebhookSender } from '../events/types';
 import { buildPrincipalCaller } from '../tools/build-principal-caller';
@@ -215,6 +216,7 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
     caller: options.caller,
     send: sendWebhook,
     clock,
+    probeAccess: (clientID) => probeReadAccess(store.db, clientID),
     log: options.printRequest,
   });
 
