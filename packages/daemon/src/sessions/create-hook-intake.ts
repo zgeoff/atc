@@ -127,7 +127,14 @@ export function createHookIntake(deps: HookIntakeDeps): HookIntake {
 
       const capped = { ...note, text: truncateToBytes(note.text, ANSWER_BYTE_CAP) };
       const sentAt = clock.now();
-      const entry = buildNoteTrailEntry(sender.id, sender.agentSessionID, capped, sentAt, noteID);
+
+      const entry = buildNoteTrailEntry({
+        sessionID: sender.id,
+        agentSessionID: sender.agentSessionID,
+        note: capped,
+        sentAt,
+        noteID,
+      });
 
       const written = await messages.recordTrailEntry(entry);
 
@@ -146,20 +153,16 @@ export function createHookIntake(deps: HookIntakeDeps): HookIntake {
       // member answered already finds every sibling answered beside it.
       const settled =
         note.kind === 'unanswered'
-          ? await store.updateMessagesUnanswered(
-              note.messages,
-              owner,
-              note.reason,
-              clock.now(),
-              note.turn,
-            )
-          : await store.updateMessagesAnswered(
-              note.messages,
-              owner,
-              truncateToBytes(note.answer, ANSWER_BYTE_CAP),
-              clock.now(),
-              note.turn,
-            );
+          ? await store.updateMessagesUnanswered(note.messages, owner, {
+              reason: note.reason,
+              at: clock.now(),
+              turn: note.turn,
+            })
+          : await store.updateMessagesAnswered(note.messages, owner, {
+              answer: truncateToBytes(note.answer, ANSWER_BYTE_CAP),
+              at: clock.now(),
+              turn: note.turn,
+            });
 
       if (settled.length === 0) {
         onNoteIgnored?.(hookEvent.atcId, note.kind);

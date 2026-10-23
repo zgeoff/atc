@@ -216,23 +216,20 @@ export function buildScopedContext(
         : Promise.resolve('missing' as const),
     loadSessionTranscript: (id, from, limit) =>
       canSee(id) ? ctx.loadSessionTranscript(id, from, limit) : Promise.resolve('missing' as const),
-    readEvents: (afterID, limit, waitMs, sessionID, outer) => {
-      const merged = outer === null ? access : outer.merge(access);
+    readEvents: (params) => {
+      const merged = params.access === null ? access : params.access.merge(access);
 
-      return ctx.readEvents(afterID, limit, waitMs, sessionID, merged);
+      return ctx.readEvents({ ...params, access: merged });
     },
     readNote: (id, outer) => ctx.readNote(id, mergeAccess(outer)),
     readAnswer: (id, outer) => ctx.readAnswer(id, mergeAccess(outer)),
-    writeSessionMessage: (sessionID, caller, text, keyed, outer, senderSession) =>
-      canSee(sessionID)
-        ? ctx.writeSessionMessage(
-            sessionID,
-            caller,
-            text,
-            buildPrincipalKey(keyed),
-            mergeAccess(outer),
-            senderSession,
-          )
+    writeSessionMessage: (params) =>
+      canSee(params.sessionID)
+        ? ctx.writeSessionMessage({
+            ...params,
+            keyed: buildPrincipalKey(params.keyed),
+            access: mergeAccess(params.access),
+          })
         : Promise.resolve('missing' as const),
     readMessage: async (messageID, waitMs) => {
       // The owner is checked before any wait, so a message outside the

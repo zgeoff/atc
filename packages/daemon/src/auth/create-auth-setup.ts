@@ -27,6 +27,7 @@ import { formatAuthNotice } from './format-auth-notice';
 import { loadOAuthStates } from './load-oauth-states';
 import { requireGuestEnv } from './require-guest-env';
 import { requireProjectSettings } from './require-project-settings';
+import type { ProjectSettingsLaunch } from './require-project-settings';
 import { setupGuest } from './setup-guest';
 import { toSignInRefusal } from './to-sign-in-refusal';
 
@@ -84,6 +85,26 @@ export interface AuthRebound {
   readonly restartPending: readonly SessionID[];
 }
 
+interface SetupHarnessOnHostParams {
+  readonly adapter: AgentAdapter;
+  readonly provider: ExecutionProvider;
+  readonly id: SessionID;
+  readonly hostKey: SessionID;
+  readonly target: string;
+  readonly spawnOptions: SpawnOptions;
+  readonly auth: HarnessAuthSetup | null;
+
+  // The directory the harness starts in, whose project settings a launch
+  // behind the broker reads once the host is ready; null for a spawn
+  // whose workspace is built after this, which reads them once it is.
+  readonly cwd: string | null;
+
+  // Whether the host is a spawn's new host of its own, which a failure
+  // once it is readied destroys.
+  readonly isNewHost: boolean;
+  readonly timer: StepTimer;
+}
+
 export interface AuthSetup {
   // throws before a spawn or an adopt does any work, for an agent that needs a broker the
   // target does not reach or the daemon cannot bind
@@ -105,23 +126,7 @@ export interface AuthSetup {
   // every refusal comes before the harness starts; a failure once the host is readied takes
   // back the binding this call created, or destroys a spawn's own new host
   readonly setupHarnessOnHost: (
-    adapter: AgentAdapter,
-    provider: ExecutionProvider,
-    id: SessionID,
-    hostKey: SessionID,
-    target: string,
-    options: SpawnOptions,
-    auth: HarnessAuthSetup | null,
-
-    // The directory the harness starts in, whose project settings a launch
-    // behind the broker reads once the host is ready; null for a spawn
-    // whose workspace is built after this, which reads them once it is.
-    cwd: string | null,
-
-    // Whether the host is a spawn's new host of its own, which a failure
-    // once it is readied destroys.
-    isNewHost: boolean,
-    timer: StepTimer,
+    params: SetupHarnessOnHostParams,
   ) => Promise<{ readonly plan: HarnessPlan; readonly attemptID: string | null }>;
 
   // The part of a harness spec that keeps a launch behind the broker: the
@@ -132,13 +137,7 @@ export interface AuthSetup {
     admission: HarnessPlan['admission'],
   ) => Pick<HarnessSpec, 'requireBroker' | 'admit'>;
 
-  readonly requireProjectSettings: (
-    adapter: AgentAdapter,
-    provider: ExecutionProvider,
-    hostKey: SessionID,
-    target: string,
-    cwd: string,
-  ) => Promise<void>;
+  readonly requireProjectSettings: (launch: ProjectSettingsLaunch) => Promise<void>;
 
   // launches on the host stay blocked until a rebind; a running harness keeps running while
   // the broker fails its later requests
@@ -326,18 +325,16 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
       );
     },
 
-    setupHarnessOnHost: async (
-      adapter,
-      provider,
-      id,
-      hostKey,
-      target,
-      options,
-      auth,
-      cwd,
-      isNewHost,
-      timer,
-    ) => {
+    setupHarnessOnHost: async (params) => {
+      const adapter = params.adapter;
+      const provider = params.provider;
+      const id = params.id;
+      const hostKey = params.hostKey;
+      const target = params.target;
+      const options = params.spawnOptions;
+      const auth = params.auth;
+      const cwd = params.cwd;
+      const timer = params.timer;
       const refusal = adapter.findSpawnRefusal?.() ?? null;
 
       if (refusal !== null) {
@@ -431,11 +428,11 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
 
         if (auth !== null && cwd !== null) {
           await timer.withStep('project-settings', () =>
-            self.requireProjectSettings(adapter, provider, hostKey, target, cwd),
+            self.requireProjectSettings({ adapter, provider, hostKey, target, cwd }),
           );
         }
       } catch (error) {
-        if (attemptID !== null || isNewHost) {
+        if (attemptID !== null || params.isNewHost) {
           await rollback.destroyFailedSpawnHost(provider, id, hostKey, attemptID);
         }
 
@@ -472,8 +469,7 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
       };
     },
 
-    requireProjectSettings: (adapter, provider, hostKey, target, cwd) =>
-      requireProjectSettings(claims, { adapter, provider, hostKey, target, cwd }),
+    requireProjectSettings: (launch) => requireProjectSettings(claims, launch),
 
     revokeAuth: async (id) => {
       const session = registry.sessions.find((x) => x.id === id);

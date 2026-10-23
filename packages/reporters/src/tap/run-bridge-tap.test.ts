@@ -34,10 +34,12 @@ test('it removes the outbox file of a note the bridge took', async () => {
   const codes: number[] = [];
 
   await runBridgeTap(ctx.sock, ctx.outbox, {
-    writeStdout: () => Promise.resolve(),
-    printError: () => {},
-    exit: (code) => {
-      codes.push(code);
+    io: {
+      writeStdout: () => Promise.resolve(),
+      printError: () => {},
+      exit: (code) => {
+        codes.push(code);
+      },
     },
   });
 
@@ -73,19 +75,16 @@ test('it opens the tap again on a new connection when the bridge never answers i
   const clock = buildStubClock(0);
   const codes: number[] = [];
 
-  const ran = runBridgeTap(
-    ctx.sock,
-    ctx.outbox,
-    {
+  const ran = runBridgeTap(ctx.sock, ctx.outbox, {
+    io: {
       writeStdout: () => Promise.resolve(),
       printError: () => {},
       exit: (code) => {
         codes.push(code);
       },
     },
-    false,
     clock,
-  );
+  });
 
   await waitFor(() => {
     expect(bridge.requests).toHaveLength(1);
@@ -130,10 +129,12 @@ test('it removes no file for an answer to a note id it never sent', async () => 
   const codes: number[] = [];
 
   await runBridgeTap(ctx.sock, ctx.outbox, {
-    writeStdout: () => Promise.resolve(),
-    printError: () => {},
-    exit: (code) => {
-      codes.push(code);
+    io: {
+      writeStdout: () => Promise.resolve(),
+      printError: () => {},
+      exit: (code) => {
+        codes.push(code);
+      },
     },
   });
 
@@ -183,10 +184,8 @@ test('it prints and acks an answer notice when the tap takes notices', async () 
 
   const printed: string[] = [];
 
-  await runBridgeTap(
-    ctx.sock,
-    ctx.outbox,
-    {
+  await runBridgeTap(ctx.sock, ctx.outbox, {
+    io: {
       writeStdout: (text) => {
         printed.push(text);
 
@@ -195,8 +194,8 @@ test('it prints and acks an answer notice when the tap takes notices', async () 
       printError: () => {},
       exit: () => {},
     },
-    true,
-  );
+    notices: true,
+  });
 
   expect(printed.map((line): unknown => JSON.parse(line))).toStrictEqual([
     { kind: 'answer', id: 'm-1', from: 's2', status: 'answered', answer: 'the deploy finished' },
@@ -241,13 +240,15 @@ test('it prints no answer notice when the tap takes none', async () => {
   const printed: string[] = [];
 
   await runBridgeTap(ctx.sock, ctx.outbox, {
-    writeStdout: (text) => {
-      printed.push(text);
+    io: {
+      writeStdout: (text) => {
+        printed.push(text);
 
-      return Promise.resolve();
+        return Promise.resolve();
+      },
+      printError: () => {},
+      exit: () => {},
     },
-    printError: () => {},
-    exit: () => {},
   });
 
   expect(printed).toStrictEqual([]);
@@ -285,13 +286,15 @@ test('it prints a message with the sender the daemon gave it', async () => {
   const printed: string[] = [];
 
   await runBridgeTap(ctx.sock, ctx.outbox, {
-    writeStdout: (text) => {
-      printed.push(text);
+    io: {
+      writeStdout: (text) => {
+        printed.push(text);
 
-      return Promise.resolve();
+        return Promise.resolve();
+      },
+      printError: () => {},
+      exit: () => {},
     },
-    printError: () => {},
-    exit: () => {},
   });
 
   expect(printed.map((line): unknown => JSON.parse(line))).toStrictEqual([

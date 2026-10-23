@@ -37,7 +37,7 @@ test('it lists the branches, the peeled tags, and the default branch of an upstr
     .text()
     .then((text) => text.trim());
 
-  const listing = await readRemoteRefs(ctx.upstream, undefined, ['https', 'ssh', 'file']);
+  const listing = await readRemoteRefs(ctx.upstream, { transports: ['https', 'ssh', 'file'] });
 
   expect(listing).toStrictEqual({
     ok: true,
@@ -65,11 +65,9 @@ test('it lists an empty upstream as no refs and no default branch', async () => 
     .env(ctx.env)
     .quiet();
 
-  const listing = await readRemoteRefs(join(ctx.directory, 'empty.git'), undefined, [
-    'https',
-    'ssh',
-    'file',
-  ]);
+  const listing = await readRemoteRefs(join(ctx.directory, 'empty.git'), {
+    transports: ['https', 'ssh', 'file'],
+  });
 
   expect(listing).toStrictEqual({ ok: true, head: null, refs: [], byName: new Map() });
 });
@@ -77,11 +75,9 @@ test('it lists an empty upstream as no refs and no default branch', async () => 
 test("it refuses an upstream git cannot read with git's own message", async () => {
   const ctx = await setupTest();
 
-  const listing = await readRemoteRefs(join(ctx.directory, 'missing.git'), undefined, [
-    'https',
-    'ssh',
-    'file',
-  ]);
+  const listing = await readRemoteRefs(join(ctx.directory, 'missing.git'), {
+    transports: ['https', 'ssh', 'file'],
+  });
 
   expect(listing).toStrictEqual({
     ok: false,
@@ -93,11 +89,10 @@ test("it refuses an upstream git cannot read with git's own message", async () =
 test('it refuses an env credential whose variable is unset', async () => {
   const ctx = await setupTest();
 
-  const listing = await readRemoteRefs(
-    ctx.upstream,
-    { kind: 'env', name: 'ATC_TEST_UNSET_GIT_TOKEN' },
-    ['https', 'ssh', 'file'],
-  );
+  const listing = await readRemoteRefs(ctx.upstream, {
+    credential: { kind: 'env', name: 'ATC_TEST_UNSET_GIT_TOKEN' },
+    transports: ['https', 'ssh', 'file'],
+  });
 
   expect(listing).toStrictEqual({
     ok: false,

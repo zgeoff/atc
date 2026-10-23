@@ -67,13 +67,12 @@ export async function checkRepositoryAccess(
       return resolved;
     }
 
-    const listing = await readRemoteRefs(
-      resolved.url,
-      request.credential,
-      request.transports,
-      request.timeoutMs,
-      request.onSpawn,
-    );
+    const listing = await readRemoteRefs(resolved.url, {
+      credential: request.credential,
+      transports: request.transports,
+      timeoutMs: request.timeoutMs,
+      onSpawn: request.onSpawn,
+    });
 
     if (!listing.ok) {
       return listing;

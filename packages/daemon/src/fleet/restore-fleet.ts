@@ -79,6 +79,13 @@ type AdoptResult =
   | { readonly kind: 'adopted'; readonly session: Session | null }
   | { readonly kind: 'refused'; readonly refusal: DaemonError };
 
+interface RecordRefusalOptions {
+  readonly reason: string;
+  readonly code: string | null;
+  readonly retry: boolean;
+  readonly unchanged: boolean;
+}
+
 export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreFleetResult> {
   const manager = params.manager;
   const store = params.store;
@@ -228,25 +235,18 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
   // a session a caller stopped, revived, or forgot while the try ran keeps what the
   // caller left and gets no further try; a refusal no later try lifts lists with its
   // code, so a reader knows only an action of its own brings the session back
-  const recordRefusal = (
-    session: Session,
-    reason: string,
-    code: string | null,
-    retry: boolean,
-    unchanged: boolean,
-  ) => {
-    const listed = unchanged && session.pty === null && manager.sessions.includes(session);
-    const retried = retry && listed;
+  const recordRefusal = (session: Session, options: RecordRefusalOptions) => {
+    const listed = options.unchanged && session.pty === null && manager.sessions.includes(session);
+    const retried = options.retry && listed;
+    const suffix = retried ? '; trying again' : '';
 
-    manager.log(
-      `atc could not revive session ${session.id} (${reason})${retried ? '; trying again' : ''}`,
-    );
+    manager.log(`atc could not revive session ${session.id} (${options.reason})${suffix}`);
 
     if (listed) {
-      const finalCode = retried ? null : code;
+      const finalCode = retried ? null : options.code;
 
-      manager.updateRestoreRefusal(session, reason, finalCode);
-      refusals.set(session, reason);
+      manager.updateRestoreRefusal(session, options.reason, finalCode);
+      refusals.set(session, options.reason);
     }
 
     if (retried) {
@@ -264,31 +264,29 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     const isUnchanged = () => session.state === before.state && session.lastMsg === before.lastMsg;
 
     try {
-      adopted = await tryAdoptTerminal(
-        manager,
-        session.id,
+      adopted = await tryAdoptTerminal(manager, {
+        id: session.id,
         cols,
         rows,
-        () => !isStopped() && isEligible(session) && !hasHeadlessTurnStarted(session),
-      );
+        canProceed: () => !isStopped() && isEligible(session) && !hasHeadlessTurnStarted(session),
+      });
     } catch (error) {
       failed = true;
 
       const reason = error instanceof Error ? error.message : String(error);
 
-      recordRefusal(session, reason, null, false, isUnchanged());
+      recordRefusal(session, { reason, code: null, retry: false, unchanged: isUnchanged() });
 
       return false;
     }
 
     if (adopted.kind === 'refused') {
-      recordRefusal(
-        session,
-        formatRestoreRefusal(session.id, adopted.refusal),
-        adopted.refusal.code,
-        canRetry && RETRIED_ADOPT_CODES.has(adopted.refusal.code),
-        isUnchanged(),
-      );
+      recordRefusal(session, {
+        reason: formatRestoreRefusal(session.id, adopted.refusal),
+        code: adopted.refusal.code,
+        retry: canRetry && RETRIED_ADOPT_CODES.has(adopted.refusal.code),
+        unchanged: isUnchanged(),
+      });
 
       return false;
     }
@@ -465,15 +463,26 @@ const REFUSED_ADOPT_CODES: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
   'unsupported',
 ]);
 
+interface TryAdoptTerminalOptions {
+  readonly id: SessionID;
+  readonly cols: number;
+  readonly rows: number;
+  readonly canProceed: () => boolean;
+}
+
 async function tryAdoptTerminal(
   manager: SessionManager,
-  id: SessionID,
-  cols: number,
-  rows: number,
-  canProceed: () => boolean,
+  options: TryAdoptTerminalOptions,
 ): Promise<AdoptResult> {
   try {
-    return { kind: 'adopted', session: await manager.adoptTerminal(id, cols, rows, canProceed) };
+    const session = await manager.adoptTerminal(
+      options.id,
+      options.cols,
+      options.rows,
+      options.canProceed,
+    );
+
+    return { kind: 'adopted', session };
   } catch (error) {
     if (error instanceof DaemonError && REFUSED_ADOPT_CODES.has(error.code)) {
       return { kind: 'refused', refusal: error };

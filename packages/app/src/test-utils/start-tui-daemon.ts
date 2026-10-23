@@ -30,7 +30,13 @@ export async function startTUIDaemon(
   const plugins = await loadExecutionPlugins(config.targets);
 
   const targets = buildExecutionTargets(config.targets, (target) =>
-    createShippedExecutionProvider(plugins, target, host, tui.env, config.authProfiles),
+    createShippedExecutionProvider({
+      plugins,
+      config: target,
+      host,
+      env: tui.env,
+      authProfiles: config.authProfiles,
+    }),
   );
 
   const sources = buildSources(

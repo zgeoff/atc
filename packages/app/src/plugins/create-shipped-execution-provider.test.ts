@@ -6,17 +6,17 @@ import { buildMockAuthProfile, buildMockHostServices } from '@atc/test-utils';
 import { createShippedExecutionProvider } from './create-shipped-execution-provider';
 
 test('it builds the shipped provider a target entry selects', () => {
-  const built = createShippedExecutionProvider(
-    [LOCAL_PTY_PLUGIN, IMP_PLUGIN],
-    {
+  const built = createShippedExecutionProvider({
+    plugins: [LOCAL_PTY_PLUGIN, IMP_PLUGIN],
+    config: {
       id: 'cloud',
       provider: 'imp',
       options: { url: 'http://impd.example:7070', tokenEnv: 'FIXTURE_IMP_TOKEN' },
     },
-    buildMockHostServices({ version: '1.0.0' }),
-    { FIXTURE_IMP_TOKEN: 'fixture-token' },
-    new Map(),
-  );
+    host: buildMockHostServices({ version: '1.0.0' }),
+    env: { FIXTURE_IMP_TOKEN: 'fixture-token' },
+    authProfiles: new Map(),
+  });
 
   onTestFinished(async () => {
     await built.provider?.dispose();
@@ -47,13 +47,13 @@ test('it gives a target whose imp provider builds the identity its stored sessio
       },
     ],
     (config) =>
-      createShippedExecutionProvider(
-        [LOCAL_PTY_PLUGIN, IMP_PLUGIN],
+      createShippedExecutionProvider({
+        plugins: [LOCAL_PTY_PLUGIN, IMP_PLUGIN],
         config,
-        buildMockHostServices({ version: '1.0.0' }),
-        { EXAMPLE_TOKEN: 'fixture-token' },
-        new Map(),
-      ),
+        host: buildMockHostServices({ version: '1.0.0' }),
+        env: { EXAMPLE_TOKEN: 'fixture-token' },
+        authProfiles: new Map(),
+      }),
   );
 
   onTestFinished(async () => {
@@ -65,17 +65,17 @@ test('it gives a target whose imp provider builds the identity its stored sessio
 });
 
 test('it builds no provider and the problem for an imp entry whose token variable is unset', () => {
-  const built = createShippedExecutionProvider(
-    [LOCAL_PTY_PLUGIN, IMP_PLUGIN],
-    {
+  const built = createShippedExecutionProvider({
+    plugins: [LOCAL_PTY_PLUGIN, IMP_PLUGIN],
+    config: {
       id: 'box',
       provider: 'imp',
       options: { url: 'http://127.0.0.1:9', tokenEnv: 'ATC_TEST_IMP_TOKEN' },
     },
-    buildMockHostServices({ version: '1.0.0' }),
-    {},
-    new Map(),
-  );
+    host: buildMockHostServices({ version: '1.0.0' }),
+    env: {},
+    authProfiles: new Map(),
+  });
 
   expect(built).toStrictEqual({
     provider: null,
@@ -89,13 +89,13 @@ test('it builds no provider and the problem for an imp entry whose token variabl
 });
 
 test('it builds no provider and no problem for a kind this build ships no plugin for', () => {
-  const built = createShippedExecutionProvider(
-    [LOCAL_PTY_PLUGIN, IMP_PLUGIN],
-    { id: 'far', provider: 'teleport', options: {} },
-    buildMockHostServices({ version: '1.0.0' }),
-    {},
-    new Map(),
-  );
+  const built = createShippedExecutionProvider({
+    plugins: [LOCAL_PTY_PLUGIN, IMP_PLUGIN],
+    config: { id: 'far', provider: 'teleport', options: {} },
+    host: buildMockHostServices({ version: '1.0.0' }),
+    env: {},
+    authProfiles: new Map(),
+  });
 
   expect(built).toStrictEqual({ provider: null, problem: null });
 });
@@ -110,13 +110,13 @@ test('it shows an error on each imp target when a profile has a secret name impd
       { id: 'local', provider: 'local-pty', options: {} },
     ],
     (config) =>
-      createShippedExecutionProvider(
-        [LOCAL_PTY_PLUGIN, IMP_PLUGIN],
+      createShippedExecutionProvider({
+        plugins: [LOCAL_PTY_PLUGIN, IMP_PLUGIN],
         config,
-        buildMockHostServices({ version: '1.0.0' }),
-        {},
-        new Map([['notes', profile]]),
-      ),
+        host: buildMockHostServices({ version: '1.0.0' }),
+        env: {},
+        authProfiles: new Map([['notes', profile]]),
+      }),
   );
 
   onTestFinished(async () => {
@@ -145,13 +145,13 @@ test('it shows no error for a profile with a secret name impd refuses when no im
   const built = buildExecutionTargets(
     [{ id: 'local', provider: 'local-pty', options: {} }],
     (config) =>
-      createShippedExecutionProvider(
-        [LOCAL_PTY_PLUGIN, IMP_PLUGIN],
+      createShippedExecutionProvider({
+        plugins: [LOCAL_PTY_PLUGIN, IMP_PLUGIN],
         config,
-        buildMockHostServices({ version: '1.0.0' }),
-        {},
-        new Map([['notes', profile]]),
-      ),
+        host: buildMockHostServices({ version: '1.0.0' }),
+        env: {},
+        authProfiles: new Map([['notes', profile]]),
+      }),
   );
 
   onTestFinished(async () => {

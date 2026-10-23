@@ -29,13 +29,13 @@ async function setupTest(config: SetupTestConfig) {
 
   registerTestCleanup(() => store.stop());
 
-  const manager = createSessionManager(
-    null,
+  const manager = createSessionManager({
+    fallback: null,
     store,
-    join(temporaryDirectory.path, 'status.json'),
-    [buildStubHarnessAdapter()],
-    config.targets,
-  );
+    statusPath: join(temporaryDirectory.path, 'status.json'),
+    adapters: [buildStubHarnessAdapter()],
+    targets: config.targets,
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();

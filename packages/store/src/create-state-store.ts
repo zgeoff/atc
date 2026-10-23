@@ -11,6 +11,10 @@ import { createFleetStore } from './create-fleet-store';
 import { createIdempotencyStore } from './create-idempotency-store';
 import { createMaterializationStore } from './create-materialization-store';
 import { createMessageStore } from './create-message-store';
+import type {
+  UpdateMessagesAnsweredOptions,
+  UpdateMessagesUnansweredOptions,
+} from './create-message-store';
 import { createPublishedRecordStore } from './create-published-record-store';
 import type { FleetEntry, FleetEntryUpdate } from './fleet-entry';
 import type { EffectTarget, IdempotencyClaim, IdempotencyRecord } from './idempotency-record';
@@ -95,16 +99,12 @@ export interface StateStore {
   readonly updateMessagesAnswered: (
     ids: readonly MessageID[],
     owner: MessageOwner,
-    answer: string,
-    at: number,
-    turn?: string | null,
+    options: UpdateMessagesAnsweredOptions,
   ) => Promise<MessageRecord[]>;
   readonly updateMessagesUnanswered: (
     ids: readonly MessageID[],
     owner: MessageOwner,
-    reason: string,
-    at: number,
-    turn?: string | null,
+    options: UpdateMessagesUnansweredOptions,
   ) => Promise<MessageRecord[]>;
   readonly updateDeliveredMessagesUnanswered: (
     owner: MessageOwner,
@@ -350,10 +350,8 @@ export async function createStateStore(
 
         return record;
       }),
-    updateMessagesAnswered: (ids, owner, answer, at, turn = null) =>
-      messages.updateMessagesAnswered(ids, owner, answer, at, turn),
-    updateMessagesUnanswered: (ids, owner, reason, at, turn = null) =>
-      messages.updateMessagesUnanswered(ids, owner, reason, at, turn),
+    updateMessagesAnswered: messages.updateMessagesAnswered,
+    updateMessagesUnanswered: messages.updateMessagesUnanswered,
     updateDeliveredMessagesUnanswered: (owner, reason, at) =>
       messages.updateDeliveredMessagesUnanswered(owner, reason, at),
     updateUnsettledMessagesUnanswered: (owner, reason, at) =>

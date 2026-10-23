@@ -53,7 +53,7 @@ export async function bootRemoteDaemonClient(
 
   for (;;) {
     try {
-      return await openRemoteDaemon(daemon, build, token, clock, timeoutMs);
+      return await openRemoteDaemon(daemon, { build, token, clock, timeoutMs });
     } catch (error) {
       if (
         !(error instanceof RemoteDaemonUnreachableError) ||
@@ -86,12 +86,16 @@ type RemoteAttempt =
     }
   | { readonly ok: false; readonly error: unknown };
 
+interface OpenRemoteDaemonOptions {
+  readonly build: string;
+  readonly token: string;
+  readonly clock: Clock;
+  readonly timeoutMs: number;
+}
+
 async function openRemoteDaemon(
   daemon: RemoteDaemon,
-  build: string,
-  token: string,
-  clock: Clock,
-  timeoutMs: number,
+  options: OpenRemoteDaemonOptions,
 ): Promise<DaemonBoot> {
   // The connection, once open, so a timeout or a failed handshake closes
   // it; a property, since the attempt sets it after the race starts.
@@ -102,16 +106,16 @@ async function openRemoteDaemon(
 
   const timeout = Promise.withResolvers<never>();
 
-  const cancel = clock.schedule(() => {
+  const cancel = options.clock.schedule(() => {
     opened.expired = true;
     opened.client?.stop();
 
     timeout.reject(
       new RemoteDaemonUnreachableError(
-        formatUnreachable(daemon, `no handshake answer within ${timeoutMs / 1000}s`),
+        formatUnreachable(daemon, `no handshake answer within ${options.timeoutMs / 1000}s`),
       ),
     );
-  }, timeoutMs);
+  }, options.timeoutMs);
 
   // The attempt resolves with its failure instead of rejecting, so a failure
   // after the timeout won the race is never an unhandled rejection.
@@ -126,7 +130,10 @@ async function openRemoteDaemon(
         client.stop();
       }
 
-      const hello = await client.sendHello(build, { token, principal: daemon.principal });
+      const hello = await client.sendHello(options.build, {
+        token: options.token,
+        principal: daemon.principal,
+      });
 
       client.principal = daemon.principal;
 
@@ -153,7 +160,7 @@ async function openRemoteDaemon(
     };
   } catch (error) {
     opened.client?.stop();
-    throw toRemoteBootError(daemon, build, error);
+    throw toRemoteBootError(daemon, options.build, error);
   } finally {
     cancel();
   }

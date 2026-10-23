@@ -31,13 +31,21 @@ const PROCESS_IO: BridgeTapIO = {
   },
 };
 
+interface RunBridgeTapOptions {
+  readonly io?: BridgeTapIO;
+  readonly notices?: boolean;
+  readonly clock?: Clock;
+}
+
 export async function runBridgeTap(
   socketPath: string,
   outbox: string,
-  io: BridgeTapIO = PROCESS_IO,
-  notices = false,
-  clock: Clock = systemClock,
+  options: RunBridgeTapOptions = {},
 ): Promise<void> {
+  const io = options.io ?? PROCESS_IO;
+  const notices = options.notices ?? false;
+  const clock = options.clock ?? systemClock;
+
   const seen = new Set<string>();
 
   let wait = FIRST_RETRY_MS;
@@ -45,7 +53,7 @@ export async function runBridgeTap(
   // a dropped connection, as a host's sleep or a daemon restart leaves it,
   // reconnects with no end
   for (;;) {
-    const end = await runTapConnection(socketPath, outbox, seen, io, notices, clock);
+    const end = await runTapConnection({ socketPath, outbox, seen, io, notices, clock });
 
     if (end === 'closed') {
       io.exit(0);
@@ -107,15 +115,16 @@ const INBOX_NOTICE_SCHEMA = z.looseObject({
 // goes the way of a connection that dropped.
 const OPEN_ANSWER_TIMEOUT_MS = 10_000;
 
-async function runTapConnection(
-  socketPath: string,
-  outbox: string,
+interface RunTapConnectionOptions {
+  readonly socketPath: string;
+  readonly outbox: string;
+  readonly seen: Set<string>;
+  readonly io: BridgeTapIO;
+  readonly notices: boolean;
+  readonly clock: Clock;
+}
 
-  seen: Set<string>,
-  io: BridgeTapIO,
-  notices: boolean,
-  clock: Clock,
-): Promise<TapEnd> {
+async function runTapConnection(options: RunTapConnectionOptions): Promise<TapEnd> {
   const ended = Promise.withResolvers<TapEnd>();
   let opened = false;
   let printing: Promise<void> = Promise.resolve();
@@ -133,16 +142,16 @@ async function runTapConnection(
     printing = (async () => {
       await previous;
 
-      if (!seen.has(key)) {
+      if (!options.seen.has(key)) {
         try {
-          await io.writeStdout(printed);
+          await options.io.writeStdout(printed);
         } catch {
-          io.exit(1);
+          options.io.exit(1);
 
           return;
         }
 
-        updateSeenIDs(seen, key);
+        updateSeenIDs(options.seen, key);
       }
 
       socket.writeLine(ack);
@@ -164,7 +173,7 @@ async function runTapConnection(
       }
 
       opened = true;
-      sent = sendOutboxNotes(socket, outbox);
+      sent = sendOutboxNotes(socket, options.outbox);
 
       return;
     }
@@ -193,7 +202,7 @@ async function runTapConnection(
     const notice = INBOX_NOTICE_SCHEMA.safeParse(line);
 
     if (notice.success) {
-      if (notices) {
+      if (options.notices) {
         schedulePrint(`notice:${notice.data.message}`, renderNoticeLine(notice.data), {
           version: 1,
           id: `notice-ack:${notice.data.message}`,
@@ -222,7 +231,7 @@ async function runTapConnection(
   };
 
   try {
-    socket = await openBridgeSocket(socketPath, onLine);
+    socket = await openBridgeSocket(options.socketPath, onLine);
   } catch {
     return 'unreachable';
   }
@@ -235,13 +244,13 @@ async function runTapConnection(
     ended.resolve(end);
   })();
 
-  const open = notices
+  const open = options.notices
     ? { version: 1, id: 'tap.open', op: 'tap.open', notices: true }
     : { version: 1, id: 'tap.open', op: 'tap.open' };
 
   socket.writeLine(open);
 
-  const cancelOpenDeadline = clock.schedule(() => {
+  const cancelOpenDeadline = options.clock.schedule(() => {
     if (!opened) {
       ended.resolve('unreachable');
     }

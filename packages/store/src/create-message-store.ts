@@ -9,6 +9,18 @@ import type { MessageOwner } from './message-owner';
 import type { MessageRecord, TurnSibling } from './message-record';
 import type { StateStoreSchema } from './sqlite/state-store-schema';
 
+export interface UpdateMessagesAnsweredOptions {
+  readonly answer: string;
+  readonly at: number;
+  readonly turn?: string | null;
+}
+
+export interface UpdateMessagesUnansweredOptions {
+  readonly reason: string;
+  readonly at: number;
+  readonly turn?: string | null;
+}
+
 // The messages sent to sessions, their settling, and the answer notices
 // queued for the sessions that sent them.
 export interface MessageStore {
@@ -37,9 +49,7 @@ export interface MessageStore {
   readonly updateMessagesAnswered: (
     ids: readonly MessageID[],
     owner: MessageOwner,
-    answer: string,
-    at: number,
-    turn: string | null,
+    options: UpdateMessagesAnsweredOptions,
   ) => Promise<MessageRecord[]>;
 
   // One statement, so a reader sees all of one turn's messages settled or
@@ -48,9 +58,7 @@ export interface MessageStore {
   readonly updateMessagesUnanswered: (
     ids: readonly MessageID[],
     owner: MessageOwner,
-    reason: string,
-    at: number,
-    turn: string | null,
+    options: UpdateMessagesUnansweredOptions,
   ) => Promise<MessageRecord[]>;
 
   // For a session whose process ended, so no turn is left to settle its
@@ -205,7 +213,7 @@ export function createMessageStore(db: Kysely<StateStoreSchema>): MessageStore {
       return row === undefined ? null : toMessageRecord(row);
     },
 
-    updateMessagesAnswered: async (ids, owner, answer, at, turn) => {
+    updateMessagesAnswered: async (ids, owner, options) => {
       if (ids.length === 0) {
         return [];
       }
@@ -214,10 +222,10 @@ export function createMessageStore(db: Kysely<StateStoreSchema>): MessageStore {
         .updateTable('messages')
         .set((eb) => ({
           status: 'answered',
-          answered_at: at,
-          answer,
-          turn_id: turn,
-          notice_queued_at: buildNoticeQueuedAt(eb, at),
+          answered_at: options.at,
+          answer: options.answer,
+          turn_id: options.turn ?? null,
+          notice_queued_at: buildNoticeQueuedAt(eb, options.at),
         }))
         .where('id', 'in', ids)
         .where('status', 'in', getMessageSources('answered'))
@@ -230,7 +238,7 @@ export function createMessageStore(db: Kysely<StateStoreSchema>): MessageStore {
         .toSorted((left, right) => left.sentAt - right.sentAt);
     },
 
-    updateMessagesUnanswered: async (ids, owner, reason, at, turn) => {
+    updateMessagesUnanswered: async (ids, owner, options) => {
       if (ids.length === 0) {
         return [];
       }
@@ -239,10 +247,10 @@ export function createMessageStore(db: Kysely<StateStoreSchema>): MessageStore {
         .updateTable('messages')
         .set((eb) => ({
           status: 'unanswered',
-          unanswered_at: at,
-          unanswered_reason: reason,
-          turn_id: turn,
-          notice_queued_at: buildNoticeQueuedAt(eb, at),
+          unanswered_at: options.at,
+          unanswered_reason: options.reason,
+          turn_id: options.turn ?? null,
+          notice_queued_at: buildNoticeQueuedAt(eb, options.at),
         }))
         .where('id', 'in', ids)
         .where('status', 'in', getMessageSources('unanswered'))

@@ -46,7 +46,7 @@ export function resolveAuthProfiles(
   let reached: ReadonlyMap<string, AuthProfile> = new Map();
 
   for (const name of selected) {
-    const next = collectReached(profiles, name, null, [], reached);
+    const next = collectReached(profiles, { name, from: null, path: [], reached });
 
     if (isAuthProfileProblem(next)) {
       return { problem: next };
@@ -122,16 +122,23 @@ export function resolveAuthProfiles(
   };
 }
 
+interface CollectReachedOptions {
+  readonly name: string;
+  readonly from: string | null;
+  readonly path: readonly string[];
+  readonly reached: ReadonlyMap<string, AuthProfile>;
+}
+
 // depth-first: a profile is added once its dependencies are done, and one
 // already reached is not walked again; `path` holds the names on the way
 // here, so a name already on it closes a cycle.
 function collectReached(
   profiles: ReadonlyMap<string, AuthProfile>,
-  name: string,
-  from: string | null,
-  path: readonly string[],
-  reached: ReadonlyMap<string, AuthProfile>,
+  options: CollectReachedOptions,
 ): ReadonlyMap<string, AuthProfile> | AuthProfileProblem {
+  const name = options.name;
+  const path = options.path;
+
   if (path.includes(name)) {
     return {
       code: 'auth_dependency_cycle',
@@ -139,8 +146,8 @@ function collectReached(
     };
   }
 
-  if (reached.has(name)) {
-    return reached;
+  if (options.reached.has(name)) {
+    return options.reached;
   }
 
   const profile = profiles.get(name);
@@ -149,16 +156,21 @@ function collectReached(
     return {
       code: 'auth_profile_unknown',
       message:
-        from === null
+        options.from === null
           ? `profile ${name} is selected, but authProfiles has no usable profile by that name`
-          : `profile ${from} depends on ${name}, but authProfiles has no usable profile by that name`,
+          : `profile ${options.from} depends on ${name}, but authProfiles has no usable profile by that name`,
     };
   }
 
-  let next = reached;
+  let next = options.reached;
 
   for (const dependency of profile.dependencies) {
-    const after = collectReached(profiles, dependency, name, [...path, name], next);
+    const after = collectReached(profiles, {
+      name: dependency,
+      from: name,
+      path: [...path, name],
+      reached: next,
+    });
 
     if (isAuthProfileProblem(after)) {
       return after;

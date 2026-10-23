@@ -14,8 +14,8 @@ function setupTest() {
 
 test("it replaces the config folder's bundle with the one each launch stages", async () => {
   const ctx = setupTest();
-  const first = buildClaudeGuestLaunch(ctx.directory, ['true'], [], 'k1');
-  const second = buildClaudeGuestLaunch(ctx.directory, ['true'], [], 'k2');
+  const first = buildClaudeGuestLaunch(ctx.directory, ['true'], { bundleKey: 'k1' });
+  const second = buildClaudeGuestLaunch(ctx.directory, ['true'], { bundleKey: 'k2' });
   const config = join(ctx.directory, 'claude-config');
   const staged = join(ctx.directory, 'claude-config-bundle');
 
@@ -50,7 +50,7 @@ test("it replaces the config folder's bundle with the one each launch stages", a
 
 test("it replaces the config folder's credentials file with the staged one and its mode", async () => {
   const ctx = setupTest();
-  const launch = buildClaudeGuestLaunch(ctx.directory, ['true'], [], 'k1');
+  const launch = buildClaudeGuestLaunch(ctx.directory, ['true'], { bundleKey: 'k1' });
   const config = join(ctx.directory, 'claude-config');
   const staged = join(ctx.directory, 'claude-config-bundle', 'k1');
 
@@ -69,7 +69,7 @@ test("it replaces the config folder's credentials file with the staged one and i
 
 test('it never copies a bundle an earlier launch staged and left behind', async () => {
   const ctx = setupTest();
-  const launch = buildClaudeGuestLaunch(ctx.directory, ['true'], [], 'current');
+  const launch = buildClaudeGuestLaunch(ctx.directory, ['true'], { bundleKey: 'current' });
   const config = join(ctx.directory, 'claude-config');
   const staged = join(ctx.directory, 'claude-config-bundle');
 
@@ -198,9 +198,7 @@ test('it runs the CLI without the variables it unsets', async () => {
       'for name in CODEX_API_KEY OPENAI_API_KEY KEPT; do printenv "$name" || echo unset; done > "$0"',
       out,
     ],
-    [],
-    'none',
-    ['CODEX_API_KEY', 'OPENAI_API_KEY'],
+    { unsetEnv: ['CODEX_API_KEY', 'OPENAI_API_KEY'] },
   );
 
   writeFileSync(join(ctx.directory, 'claude-config-seed.json'), '{}');
@@ -302,13 +300,11 @@ test("it adds the outside-read offer's seen mark to an empty config an earlier r
 });
 
 test('it builds a launch script that passes shellcheck', async () => {
-  const launch = buildClaudeGuestLaunch(
-    '/home/u/.atc/guest',
-    ['claude', '--resume'],
-    ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN'],
-    'k1',
-    ['CODEX_API_KEY', 'OPENAI_API_KEY'],
-  );
+  const launch = buildClaudeGuestLaunch('/home/u/.atc/guest', ['claude', '--resume'], {
+    refusedEnv: ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN'],
+    bundleKey: 'k1',
+    unsetEnv: ['CODEX_API_KEY', 'OPENAI_API_KEY'],
+  });
 
   const [flag, script] = launch.args;
 

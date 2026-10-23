@@ -33,6 +33,18 @@ export const RESOLVE_UNLINKED_DIR_SCRIPT = `p=$1; while [ ! -d "$p" ]; do [ ! -L
 export const REMOVE_DIR_SCRIPT =
   'cd -P -- "$1" || exit 3; [ "$(pwd -P; printf x)" = "$2" ] || exit 4; find . -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + || exit 5; cd / && rmdir -- "$1"';
 
+interface RemoveClaimedDirOptions {
+  readonly provider: ExecutionProvider;
+  readonly id: SessionID;
+  readonly hostKey: SessionID;
+  readonly target: string;
+  readonly directory: string;
+}
+
+interface ClaimHostDirOptions extends RemoveClaimedDirOptions {
+  readonly picked?: boolean;
+}
+
 interface HostDirClaimsDeps {
   readonly registry: Pick<SessionRegistry, 'sessions' | 'hasHostLifecycle'>;
 }
@@ -68,25 +80,12 @@ export interface HostDirClaims {
 
   // every later step creates, fills, and removes the physical path this resolves to, never the
   // requested one
-  readonly claimHostDir: (
-    provider: ExecutionProvider,
-    id: SessionID,
-    hostKey: SessionID,
-    target: string,
-    directory: string,
-    picked?: boolean,
-  ) => Promise<string>;
+  readonly claimHostDir: (options: ClaimHostDirOptions) => Promise<string>;
 
   // removes nothing while the directory, as resolved in the turn after the last wait, holds a
   // listed session's or another claim's directory, or no longer resolves to itself; it then
   // stays for an operator to remove
-  readonly removeClaimedDir: (
-    provider: ExecutionProvider,
-    id: SessionID,
-    hostKey: SessionID,
-    target: string,
-    directory: string,
-  ) => Promise<boolean>;
+  readonly removeClaimedDir: (options: RemoveClaimedDirOptions) => Promise<boolean>;
 
   // a relative directory resolves as a harness started in it sees it, since the provider starts
   // both from the home of the user they run as; a stricter script must print the same form
@@ -100,6 +99,15 @@ export interface HostDirClaims {
   // The home directory of the user commands run as on a host, with every
   // symlink in it resolved.
   readonly resolveHostHome: (provider: ExecutionProvider, hostKey: SessionID) => Promise<string>;
+}
+
+interface RequireSeparateWorkspaceOptions {
+  readonly id: SessionID;
+  readonly hostKey: SessionID;
+  readonly target: string;
+  readonly directory: string;
+  readonly forms: readonly string[];
+  readonly listed: readonly (readonly [SessionID, string])[];
 }
 
 export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
@@ -177,23 +185,19 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
     return dirs;
   };
 
-  const requireSeparateWorkspace = (
-    id: SessionID,
-    hostKey: SessionID,
-    target: string,
-    directory: string,
-    forms: readonly string[],
-    listed: readonly (readonly [SessionID, string])[],
-  ): void => {
-    const other = collectOtherWorkspaceDirs(id, hostKey, target, listed).find(([, path]) =>
-      forms.some((form) => isPathOverlapping(form, path)),
-    );
+  const requireSeparateWorkspace = (options: RequireSeparateWorkspaceOptions): void => {
+    const other = collectOtherWorkspaceDirs(
+      options.id,
+      options.hostKey,
+      options.target,
+      options.listed,
+    ).find(([, path]) => options.forms.some((form) => isPathOverlapping(form, path)));
 
     if (other !== undefined) {
       throw new DaemonError(
         'workspace_overlap',
-        `${directory} overlaps ${other[1]}, the directory of session ${other[0]} on the same host; a workspace there lands beside it`,
-        { phase: 'resolving', directory, session: other[0] },
+        `${options.directory} overlaps ${other[1]}, the directory of session ${other[0]} on the same host; a workspace there lands beside it`,
+        { phase: 'resolving', directory: options.directory, session: other[0] },
       );
     }
   };
@@ -288,35 +292,35 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
       : resolved.flatMap((resolution) => resolution ?? []);
   };
 
-  const claimHostDir = async (
-    provider: ExecutionProvider,
-    id: SessionID,
-    hostKey: SessionID,
-    target: string,
-    directory: string,
-    picked = false,
-  ): Promise<string> => {
-    const before = collectHostSessionIDs(hostKey, target);
+  const claimHostDir = async (options: ClaimHostDirOptions): Promise<string> => {
+    const before = collectHostSessionIDs(options.hostKey, options.target);
 
-    const physical = await resolveHostDir(provider, hostKey, directory);
-    const listed = await resolveListedDirs(provider, hostKey, target);
+    const physical = await resolveHostDir(options.provider, options.hostKey, options.directory);
+    const listed = await resolveListedDirs(options.provider, options.hostKey, options.target);
 
     // the claim is checked in the turn after the last wait, against the sessions listed then
-    if (collectHostSessionIDs(hostKey, target) !== before) {
-      return claimHostDir(provider, id, hostKey, target, directory, picked);
+    if (collectHostSessionIDs(options.hostKey, options.target) !== before) {
+      return claimHostDir(options);
     }
 
-    const reservation = reservations.get(id);
+    const reservation = reservations.get(options.id);
 
     // a picked directory is reserved only here, once checked, so two spawns that picked the same
     // one never refuse each other before either holds it
-    if (reservation !== undefined || picked) {
-      requireSeparateWorkspace(id, hostKey, target, directory, [directory, physical], listed.dirs);
+    if (reservation !== undefined || options.picked === true) {
+      requireSeparateWorkspace({
+        id: options.id,
+        hostKey: options.hostKey,
+        target: options.target,
+        directory: options.directory,
+        forms: [options.directory, physical],
+        listed: listed.dirs,
+      });
 
-      reservations.set(id, {
-        hostKey,
-        target,
-        directory,
+      reservations.set(options.id, {
+        hostKey: options.hostKey,
+        target: options.target,
+        directory: options.directory,
         resolved: physical,
         kind: 'workspace',
       });
@@ -325,34 +329,30 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
     return physical;
   };
 
-  const removeClaimedDir = async (
-    provider: ExecutionProvider,
-    id: SessionID,
-    hostKey: SessionID,
-    target: string,
-    directory: string,
-  ): Promise<boolean> => {
+  const removeClaimedDir = async (options: RemoveClaimedDirOptions): Promise<boolean> => {
     // targets without hosts run on the daemon's machine, so the directory stays while a session on
     // any of them, or a plain spawn starting there, runs inside; while the removal runs, a plain
     // spawn there inside or around the directory is refused
-    if (!registry.hasHostLifecycle(target)) {
-      const others = collectMachineDirs(id);
+    if (!registry.hasHostLifecycle(options.target)) {
+      const others = collectMachineDirs(options.id);
 
       const resolved = await Promise.all(
-        others.map(([, cwd]) => resolveHostDir(provider, null, cwd).catch(() => null)),
+        others.map(([, cwd]) => resolveHostDir(options.provider, null, cwd).catch(() => null)),
       );
 
       const seen = new Set(others.map(([other]) => other));
 
-      if (collectMachineDirs(id).some(([other]) => !seen.has(other))) {
-        return removeClaimedDir(provider, id, hostKey, target, directory);
+      if (collectMachineDirs(options.id).some(([other]) => !seen.has(other))) {
+        return removeClaimedDir(options);
       }
 
       const holds = others.some(([, cwd], index) => {
         const physical = resolved[index] ?? null;
 
         return (
-          physical === null || isPathWithin(cwd, directory) || isPathWithin(physical, directory)
+          physical === null ||
+          isPathWithin(cwd, options.directory) ||
+          isPathWithin(physical, options.directory)
         );
       });
 
@@ -360,13 +360,13 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
         return false;
       }
 
-      const removal = { id, directory };
+      const removal = { id: options.id, directory: options.directory };
 
       machineRemovals.push(removal);
 
       try {
-        const removed = await provider.runCommand({
-          argv: ['sh', '-c', REMOVE_DIR_SCRIPT, 'sh', directory, `${directory}\nx`],
+        const removed = await options.provider.runCommand({
+          argv: ['sh', '-c', REMOVE_DIR_SCRIPT, 'sh', options.directory, `${options.directory}\nx`],
           cwd: '/',
         });
 
@@ -376,13 +376,13 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
       }
     }
 
-    const before = collectHostSessionIDs(hostKey, target);
+    const before = collectHostSessionIDs(options.hostKey, options.target);
 
-    const listed = await resolveListedDirs(provider, hostKey, target);
-    const fromHome = await resolveFromHome(provider, hostKey, listed.unresolved);
+    const listed = await resolveListedDirs(options.provider, options.hostKey, options.target);
+    const fromHome = await resolveFromHome(options.provider, options.hostKey, listed.unresolved);
 
-    if (collectHostSessionIDs(hostKey, target) !== before) {
-      return removeClaimedDir(provider, id, hostKey, target, directory);
+    if (collectHostSessionIDs(options.hostKey, options.target) !== before) {
+      return removeClaimedDir(options);
     }
 
     // A directory the host could not resolve, even from its home, may lie
@@ -391,24 +391,24 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
       return false;
     }
 
-    const holds = collectOtherWorkspaceDirs(id, hostKey, target, [
+    const holds = collectOtherWorkspaceDirs(options.id, options.hostKey, options.target, [
       ...listed.dirs,
       ...fromHome,
-    ]).some(([, other]) => isPathWithin(other, directory));
+    ]).some(([, other]) => isPathWithin(other, options.directory));
 
     if (holds) {
       return false;
     }
 
-    const slot = buildHostSlot(hostKey, target);
+    const slot = buildHostSlot(options.hostKey, options.target);
 
     removals.set(slot, (removals.get(slot) ?? 0) + 1);
 
     try {
-      const removed = await provider.runCommand({
-        argv: ['sh', '-c', REMOVE_DIR_SCRIPT, 'sh', directory, `${directory}\nx`],
+      const removed = await options.provider.runCommand({
+        argv: ['sh', '-c', REMOVE_DIR_SCRIPT, 'sh', options.directory, `${options.directory}\nx`],
         cwd: '/',
-        host: hostKey,
+        host: options.hostKey,
       });
 
       return removed.exitCode === 0;
@@ -440,7 +440,7 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
         )
         .map((session) => [session.id, session.cwd] as const);
 
-      requireSeparateWorkspace(id, hostKey, target, directory, [directory], listed);
+      requireSeparateWorkspace({ id, hostKey, target, directory, forms: [directory], listed });
 
       reservations.set(id, { hostKey, target, directory, resolved: null, kind: 'workspace' });
     },

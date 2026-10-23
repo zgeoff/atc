@@ -24,56 +24,56 @@ test('it starts awaiting the handshake', () => {
 });
 
 test.each([
-  ['awaiting', [], 'HELLO', 'checking', 0, 0],
-  ['awaiting', [], 'ACCEPT', 'awaiting', 0, 0],
-  ['awaiting', [], 'REFUSE', 'refusing', 0, 0],
-  ['awaiting', [], 'DRAINED', 'awaiting', 0, 0],
-  ['awaiting', [], 'END', 'closing', 1, 0],
-  ['awaiting', [], 'CLOSE', 'closed', 1, 1],
-  ['checking', ['HELLO'], 'HELLO', 'checking', 0, 0],
-  ['checking', ['HELLO'], 'ACCEPT', 'open', 0, 0],
-  ['checking', ['HELLO'], 'REFUSE', 'refusing', 0, 0],
-  ['checking', ['HELLO'], 'DRAINED', 'checking', 0, 0],
-  ['checking', ['HELLO'], 'END', 'closing', 1, 0],
-  ['checking', ['HELLO'], 'CLOSE', 'closed', 1, 1],
-  ['open', ['HELLO', 'ACCEPT'], 'HELLO', 'open', 0, 0],
-  ['open', ['HELLO', 'ACCEPT'], 'ACCEPT', 'open', 0, 0],
-  ['open', ['HELLO', 'ACCEPT'], 'REFUSE', 'open', 0, 0],
-  ['open', ['HELLO', 'ACCEPT'], 'DRAINED', 'open', 0, 0],
-  ['open', ['HELLO', 'ACCEPT'], 'END', 'closing', 1, 0],
-  ['open', ['HELLO', 'ACCEPT'], 'CLOSE', 'closed', 1, 1],
-  ['refusing', ['REFUSE'], 'HELLO', 'refusing', 0, 0],
-  ['refusing', ['REFUSE'], 'ACCEPT', 'refusing', 0, 0],
-  ['refusing', ['REFUSE'], 'REFUSE', 'refusing', 0, 0],
-  ['refusing', ['REFUSE'], 'DRAINED', 'closing', 1, 0],
-  ['refusing', ['REFUSE'], 'END', 'closing', 1, 0],
-  ['refusing', ['REFUSE'], 'CLOSE', 'closed', 1, 1],
-  ['closing', ['END'], 'HELLO', 'closing', 1, 0],
-  ['closing', ['END'], 'ACCEPT', 'closing', 1, 0],
-  ['closing', ['END'], 'REFUSE', 'closing', 1, 0],
-  ['closing', ['END'], 'DRAINED', 'closing', 1, 0],
-  ['closing', ['END'], 'END', 'closing', 1, 0],
-  ['closing', ['END'], 'CLOSE', 'closed', 2, 1],
-  ['closed', ['CLOSE'], 'HELLO', 'closed', 1, 1],
-  ['closed', ['CLOSE'], 'ACCEPT', 'closed', 1, 1],
-  ['closed', ['CLOSE'], 'REFUSE', 'closed', 1, 1],
-  ['closed', ['CLOSE'], 'DRAINED', 'closed', 1, 1],
-  ['closed', ['CLOSE'], 'END', 'closed', 1, 1],
-  ['closed', ['CLOSE'], 'CLOSE', 'closed', 1, 1],
+  { from: 'awaiting', before: [], event: 'HELLO', to: 'checking', ends: 0, releases: 0 },
+  { from: 'awaiting', before: [], event: 'ACCEPT', to: 'awaiting', ends: 0, releases: 0 },
+  { from: 'awaiting', before: [], event: 'REFUSE', to: 'refusing', ends: 0, releases: 0 },
+  { from: 'awaiting', before: [], event: 'DRAINED', to: 'awaiting', ends: 0, releases: 0 },
+  { from: 'awaiting', before: [], event: 'END', to: 'closing', ends: 1, releases: 0 },
+  { from: 'awaiting', before: [], event: 'CLOSE', to: 'closed', ends: 1, releases: 1 },
+  { from: 'checking', before: ['HELLO'], event: 'HELLO', to: 'checking', ends: 0, releases: 0 },
+  { from: 'checking', before: ['HELLO'], event: 'ACCEPT', to: 'open', ends: 0, releases: 0 },
+  { from: 'checking', before: ['HELLO'], event: 'REFUSE', to: 'refusing', ends: 0, releases: 0 },
+  { from: 'checking', before: ['HELLO'], event: 'DRAINED', to: 'checking', ends: 0, releases: 0 },
+  { from: 'checking', before: ['HELLO'], event: 'END', to: 'closing', ends: 1, releases: 0 },
+  { from: 'checking', before: ['HELLO'], event: 'CLOSE', to: 'closed', ends: 1, releases: 1 },
+  { from: 'open', before: ['HELLO', 'ACCEPT'], event: 'HELLO', to: 'open', ends: 0, releases: 0 },
+  { from: 'open', before: ['HELLO', 'ACCEPT'], event: 'ACCEPT', to: 'open', ends: 0, releases: 0 },
+  { from: 'open', before: ['HELLO', 'ACCEPT'], event: 'REFUSE', to: 'open', ends: 0, releases: 0 },
+  { from: 'open', before: ['HELLO', 'ACCEPT'], event: 'DRAINED', to: 'open', ends: 0, releases: 0 },
+  { from: 'open', before: ['HELLO', 'ACCEPT'], event: 'END', to: 'closing', ends: 1, releases: 0 },
+  { from: 'open', before: ['HELLO', 'ACCEPT'], event: 'CLOSE', to: 'closed', ends: 1, releases: 1 },
+  { from: 'refusing', before: ['REFUSE'], event: 'HELLO', to: 'refusing', ends: 0, releases: 0 },
+  { from: 'refusing', before: ['REFUSE'], event: 'ACCEPT', to: 'refusing', ends: 0, releases: 0 },
+  { from: 'refusing', before: ['REFUSE'], event: 'REFUSE', to: 'refusing', ends: 0, releases: 0 },
+  { from: 'refusing', before: ['REFUSE'], event: 'DRAINED', to: 'closing', ends: 1, releases: 0 },
+  { from: 'refusing', before: ['REFUSE'], event: 'END', to: 'closing', ends: 1, releases: 0 },
+  { from: 'refusing', before: ['REFUSE'], event: 'CLOSE', to: 'closed', ends: 1, releases: 1 },
+  { from: 'closing', before: ['END'], event: 'HELLO', to: 'closing', ends: 1, releases: 0 },
+  { from: 'closing', before: ['END'], event: 'ACCEPT', to: 'closing', ends: 1, releases: 0 },
+  { from: 'closing', before: ['END'], event: 'REFUSE', to: 'closing', ends: 1, releases: 0 },
+  { from: 'closing', before: ['END'], event: 'DRAINED', to: 'closing', ends: 1, releases: 0 },
+  { from: 'closing', before: ['END'], event: 'END', to: 'closing', ends: 1, releases: 0 },
+  { from: 'closing', before: ['END'], event: 'CLOSE', to: 'closed', ends: 2, releases: 1 },
+  { from: 'closed', before: ['CLOSE'], event: 'HELLO', to: 'closed', ends: 1, releases: 1 },
+  { from: 'closed', before: ['CLOSE'], event: 'ACCEPT', to: 'closed', ends: 1, releases: 1 },
+  { from: 'closed', before: ['CLOSE'], event: 'REFUSE', to: 'closed', ends: 1, releases: 1 },
+  { from: 'closed', before: ['CLOSE'], event: 'DRAINED', to: 'closed', ends: 1, releases: 1 },
+  { from: 'closed', before: ['CLOSE'], event: 'END', to: 'closed', ends: 1, releases: 1 },
+  { from: 'closed', before: ['CLOSE'], event: 'CLOSE', to: 'closed', ends: 1, releases: 1 },
 ] as const)(
-  'it moves a %s connection, reached through %p, on %s to %s, having ended its socket %d times and released it %d times',
-  (_from, before, event, expected, ends, releases) => {
+  'it moves a $from connection, reached through $before, on $event to $to, having ended its socket $ends times and released it $releases times',
+  (row) => {
     const ctx = setupTest();
 
-    for (const type of before) {
+    for (const type of row.before) {
       ctx.actor.send({ type });
     }
 
-    ctx.actor.send({ type: event });
+    ctx.actor.send({ type: row.event });
 
-    expect(ctx.actor.getSnapshot().value).toBe(expected);
-    expect(ctx.endSocket).toHaveBeenCalledTimes(ends);
-    expect(ctx.releaseConnection).toHaveBeenCalledTimes(releases);
+    expect(ctx.actor.getSnapshot().value).toBe(row.to);
+    expect(ctx.endSocket).toHaveBeenCalledTimes(row.ends);
+    expect(ctx.releaseConnection).toHaveBeenCalledTimes(row.releases);
   },
 );
 

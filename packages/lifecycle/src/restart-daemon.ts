@@ -124,13 +124,12 @@ export async function restartDaemon(
   try {
     console.log(`daemon pid ${replacement.pid} is up (${replacement.build}); restoring the fleet`);
 
-    const verdict = await verifyRestoredFleet(
-      replacement.client,
-      options.timeoutSeconds,
+    const verdict = await verifyRestoredFleet(replacement.client, {
+      timeoutSeconds: options.timeoutSeconds,
       snapshot,
-      host.clock,
-      host.restoreBootTimeoutMs,
-    );
+      clock: host.clock,
+      restoreBootTimeoutMs: host.restoreBootTimeoutMs,
+    });
 
     return {
       runID: options.runID,

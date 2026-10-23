@@ -389,7 +389,7 @@ export function createGatewayAdapter(
             pluginDirs: [],
           }),
         ],
-        refusedEnv,
+        { refusedEnv },
       );
 
       return {

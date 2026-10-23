@@ -48,21 +48,26 @@ const SEED_CONFIG_SCRIPT = [
   'exec "$@"',
 ].join(' && ');
 
+export interface BuildClaudeGuestLaunchOptions {
+  readonly refusedEnv?: readonly string[];
+  readonly bundleKey?: string;
+  readonly unsetEnv?: readonly string[];
+}
+
 // the shell seeds the config only when it holds no `.claude.json`, so a resumed session keeps
 // the state the CLI wrote, a folder trust a person accepted included
 export function buildClaudeGuestLaunch(
   guestDir: string,
   argv: readonly string[],
-  refusedEnv: readonly string[] = [],
-  bundleKey = 'none',
-  unsetEnv: readonly string[] = [],
+  options: BuildClaudeGuestLaunchOptions = {},
 ): SpawnPlan & {
   readonly env: { readonly CLAUDE_CONFIG_DIR: string; readonly TMPDIR: string };
 } {
   const configDir = `${guestDir}/${CLAUDE_CONFIG_FOLDER}`;
   const scratch = `${guestDir}/${SESSION_SCRATCH_FOLDER}`;
-  const guards = refusedEnv.map((name) => buildEnvGuard(name)).join('');
-  const unsets = buildUnsetStep(unsetEnv);
+  const guards = (options.refusedEnv ?? []).map((name) => buildEnvGuard(name)).join('');
+  const unsets = buildUnsetStep(options.unsetEnv ?? []);
+  const bundleKey = options.bundleKey ?? 'none';
 
   return {
     bin: 'sh',

@@ -49,16 +49,15 @@ test('it reports the last answered list when the deadline overtakes a later list
     },
   );
 
-  const verdict = verifyRestoredFleet(
-    ctx.client,
-    1,
-    [
+  const verdict = verifyRestoredFleet(ctx.client, {
+    timeoutSeconds: 1,
+    snapshot: [
       buildMockStoredRow({ id: 's-good', name: 'good' }),
       buildMockStoredRow({ id: 's-booting', name: 'booting' }),
     ],
     clock,
-    15_000,
-  );
+    restoreBootTimeoutMs: 15_000,
+  });
 
   // The first list answers with a row still without a terminal, so the
   // check waits a poll interval before it lists again.
@@ -118,16 +117,15 @@ test('it fails a row at once when its agent is not in the config', async () => {
     },
   );
 
-  const outcome = await verifyRestoredFleet(
-    ctx.client,
-    60,
-    [
+  const outcome = await verifyRestoredFleet(ctx.client, {
+    timeoutSeconds: 60,
+    snapshot: [
       buildMockStoredRow({ id: 's-good', name: 'good' }),
       buildMockStoredRow({ id: 's-dropped', name: 'dropped' }),
     ],
     clock,
-    15_000,
-  );
+    restoreBootTimeoutMs: 15_000,
+  });
 
   expect(outcome).toStrictEqual({
     total: 2,
@@ -174,7 +172,12 @@ test('it fails a stored row that only a session with another id shares an agent 
     },
   );
 
-  const outcome = await verifyRestoredFleet(ctx.client, 60, null, clock, 15_000);
+  const outcome = await verifyRestoredFleet(ctx.client, {
+    timeoutSeconds: 60,
+    snapshot: null,
+    clock,
+    restoreBootTimeoutMs: 15_000,
+  });
 
   expect(outcome).toStrictEqual({
     total: 1,
@@ -205,16 +208,15 @@ test('it fails a row at once with its refusal when its restore was refused for g
     },
   );
 
-  const outcome = await verifyRestoredFleet(
-    ctx.client,
-    60,
-    [
+  const outcome = await verifyRestoredFleet(ctx.client, {
+    timeoutSeconds: 60,
+    snapshot: [
       buildMockStoredRow({ id: 's-good', name: 'good' }),
       buildMockStoredRow({ id: 's-refused', name: 'refused' }),
     ],
     clock,
-    15_000,
-  );
+    restoreBootTimeoutMs: 15_000,
+  });
 
   expect(outcome).toStrictEqual({
     total: 2,
@@ -257,13 +259,12 @@ test('it keeps waiting on a row whose agent is in the config but not installed y
     },
   );
 
-  const verdict = verifyRestoredFleet(
-    ctx.client,
-    60,
-    [buildMockStoredRow({ id: 's-installing', name: 'installing' })],
+  const verdict = verifyRestoredFleet(ctx.client, {
+    timeoutSeconds: 60,
+    snapshot: [buildMockStoredRow({ id: 's-installing', name: 'installing' })],
     clock,
-    15_000,
-  );
+    restoreBootTimeoutMs: 15_000,
+  });
 
   await waitFor(() => {
     expect(clock.collectPending()).toStrictEqual([250]);
@@ -307,13 +308,12 @@ test('it keeps waiting on every row when the daemon refuses the agent list', asy
     ],
   });
 
-  const verdict = verifyRestoredFleet(
-    ctx.client,
-    1,
-    [buildMockStoredRow({ id: 's-dropped', name: 'dropped' })],
+  const verdict = verifyRestoredFleet(ctx.client, {
+    timeoutSeconds: 1,
+    snapshot: [buildMockStoredRow({ id: 's-dropped', name: 'dropped' })],
     clock,
-    15_000,
-  );
+    restoreBootTimeoutMs: 15_000,
+  });
 
   await waitFor(() => {
     expect(clock.collectPending()).toStrictEqual([250]);
@@ -362,13 +362,12 @@ test('it keeps waiting on every row when the agent list answer holds no agents',
     },
   );
 
-  const verdict = verifyRestoredFleet(
-    ctx.client,
-    60,
-    [buildMockStoredRow({ id: 's-booting', name: 'booting' })],
+  const verdict = verifyRestoredFleet(ctx.client, {
+    timeoutSeconds: 60,
+    snapshot: [buildMockStoredRow({ id: 's-booting', name: 'booting' })],
     clock,
-    15_000,
-  );
+    restoreBootTimeoutMs: 15_000,
+  });
 
   await waitFor(() => {
     expect(clock.collectPending()).toStrictEqual([250]);
@@ -392,13 +391,12 @@ test('it lists the rows within the deadline when the agent list gets no answer',
 
   const clock = buildStubClock(0);
 
-  const verdict = verifyRestoredFleet(
-    ctx.client,
-    60,
-    [buildMockStoredRow({ id: 's-good', name: 'good' })],
+  const verdict = verifyRestoredFleet(ctx.client, {
+    timeoutSeconds: 60,
+    snapshot: [buildMockStoredRow({ id: 's-good', name: 'good' })],
     clock,
-    15_000,
-  );
+    restoreBootTimeoutMs: 15_000,
+  });
 
   // Nothing is queued, so the daemon withholds the agent list, which only
   // its own time limit ends.
@@ -427,13 +425,12 @@ test('it rejects when the first list gets no answer before the deadline', async 
     agents: [buildMockListedAgent({ id: 'claude' })],
   });
 
-  const verdict = verifyRestoredFleet(
-    ctx.client,
-    1,
-    [buildMockStoredRow({ id: 's-good', name: 'good' })],
+  const verdict = verifyRestoredFleet(ctx.client, {
+    timeoutSeconds: 1,
+    snapshot: [buildMockStoredRow({ id: 's-good', name: 'good' })],
     clock,
-    15_000,
-  );
+    restoreBootTimeoutMs: 15_000,
+  });
 
   await waitFor(() => {
     expect(ctx.daemon.methods).toStrictEqual(['fleet.restore', 'agents.list', 'session.list']);

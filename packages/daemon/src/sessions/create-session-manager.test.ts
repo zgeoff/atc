@@ -44,12 +44,12 @@ async function setupTest() {
 test('it pins a sub-session on its own and leaves its parent unpinned', async () => {
   const ctx = await setupTest();
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter(),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    [
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: [
       buildMockExecutionTarget({
         id: 'local',
         kind: 'local-pty',
@@ -57,7 +57,7 @@ test('it pins a sub-session on its own and leaves its parent unpinned', async ()
         provider: ctx.local,
       }),
     ],
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -96,12 +96,12 @@ test('it pins a sub-session on its own and leaves its parent unpinned', async ()
 test("it refuses to pin a sub-session that runs in its parent's host and leaves it unpinned", async () => {
   const ctx = await setupTest();
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter(),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    [
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: [
       buildMockExecutionTarget({
         id: 'local',
         kind: 'local-pty',
@@ -109,7 +109,7 @@ test("it refuses to pin a sub-session that runs in its parent's host and leaves 
         provider: ctx.local,
       }),
     ],
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -148,12 +148,12 @@ test("it refuses to pin a sub-session that runs in its parent's host and leaves 
 test('it detaches a sub-session and leaves its former parent pinned', async () => {
   const ctx = await setupTest();
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter(),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    [
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: [
       buildMockExecutionTarget({
         id: 'local',
         kind: 'local-pty',
@@ -161,7 +161,7 @@ test('it detaches a sub-session and leaves its former parent pinned', async () =
         provider: ctx.local,
       }),
     ],
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -202,12 +202,12 @@ test('it detaches a sub-session and leaves its former parent pinned', async () =
 test("it refuses to detach a sub-session that runs in its parent's host and leaves it under the parent", async () => {
   const ctx = await setupTest();
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter(),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    [
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: [
       buildMockExecutionTarget({
         id: 'local',
         kind: 'local-pty',
@@ -215,7 +215,7 @@ test("it refuses to detach a sub-session that runs in its parent's host and leav
         provider: ctx.local,
       }),
     ],
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -255,12 +255,12 @@ test("it refuses to detach a sub-session that runs in its parent's host and leav
 test('it pins a sub-session in the update that detaches it', async () => {
   const ctx = await setupTest();
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter(),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    [
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: [
       buildMockExecutionTarget({
         id: 'local',
         kind: 'local-pty',
@@ -268,7 +268,7 @@ test('it pins a sub-session in the update that detaches it', async () => {
         provider: ctx.local,
       }),
     ],
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -306,12 +306,12 @@ test('it pins a sub-session in the update that detaches it', async () => {
 test('it persists a detached sub-session as top-level', async () => {
   const ctx = await setupTest();
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter(),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    [
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: [
       buildMockExecutionTarget({
         id: 'local',
         kind: 'local-pty',
@@ -319,7 +319,7 @@ test('it persists a detached sub-session as top-level', async () => {
         provider: ctx.local,
       }),
     ],
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -381,12 +381,12 @@ test('it persists a detached sub-session as top-level', async () => {
 test('it pins a parent that has a sub-session', async () => {
   const ctx = await setupTest();
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter(),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    [
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: [
       buildMockExecutionTarget({
         id: 'local',
         kind: 'local-pty',
@@ -394,7 +394,7 @@ test('it pins a parent that has a sub-session', async () => {
         provider: ctx.local,
       }),
     ],
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -429,16 +429,16 @@ test('it pins a parent that has a sub-session', async () => {
 test("it keeps a finished turn's last message as the session result", async () => {
   const ctx = await setupTest();
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter(),
-    ctx.store,
-    ctx.statusPath,
-    [
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [
       buildMockAgentAdapter({
         planHookEvents: () => ({ events: [{ kind: 'turn-done', result: 'all green' }] }),
       }),
     ],
-    [
+    targets: [
       buildMockExecutionTarget({
         id: 'local',
         kind: 'local-pty',
@@ -446,7 +446,7 @@ test("it keeps a finished turn's last message as the session result", async () =
         provider: ctx.local,
       }),
     ],
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -454,14 +454,14 @@ test("it keeps a finished turn's last message as the session result", async () =
 
   manager.log = ctx.log;
 
-  const session = await manager.spawn(
-    ctx.directory,
-    'worker',
-    'go',
-    80,
-    24,
-    toAgentSessionID('c-1'),
-  );
+  const session = await manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: 'go',
+    cols: 80,
+    rows: 24,
+    resume: toAgentSessionID('c-1'),
+  });
 
   manager.applyHook({ atcId: session.id, event: 'Stop', payload: {} });
 
@@ -488,17 +488,17 @@ test("it keeps a finished turn's last message as the session result", async () =
 test('it keeps a name the agent set and reports the rename it skipped', async () => {
   const ctx = await setupTest();
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter(),
-    ctx.store,
-    ctx.statusPath,
-    [
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [
       buildMockAgentAdapter({
         planHookEvents: () => ({ events: [{ kind: 'started', nameSource: '/t/c-1.jsonl' }] }),
         loadName: () => Promise.resolve({ name: 'claude-named', namedBy: 'agent' }),
       }),
     ],
-    [
+    targets: [
       buildMockExecutionTarget({
         id: 'local',
         kind: 'local-pty',
@@ -506,7 +506,7 @@ test('it keeps a name the agent set and reports the rename it skipped', async ()
         provider: ctx.local,
       }),
     ],
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -514,14 +514,14 @@ test('it keeps a name the agent set and reports the rename it skipped', async ()
 
   manager.log = ctx.log;
 
-  const session = await manager.spawn(
-    ctx.directory,
-    'worker',
-    'go',
-    80,
-    24,
-    toAgentSessionID('c-1'),
-  );
+  const session = await manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: 'go',
+    cols: 80,
+    rows: 24,
+    resume: toAgentSessionID('c-1'),
+  });
 
   manager.applyHook({ atcId: session.id, event: 'SessionStart', payload: {} });
 
@@ -539,16 +539,16 @@ test('it keeps a name the agent set and reports the rename it skipped', async ()
 test('it truncates a stored result past 16 KiB', async () => {
   const ctx = await setupTest();
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter(),
-    ctx.store,
-    ctx.statusPath,
-    [
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [
       buildMockAgentAdapter({
         planHookEvents: () => ({ events: [{ kind: 'turn-done', result: 'x'.repeat(20_000) }] }),
       }),
     ],
-    [
+    targets: [
       buildMockExecutionTarget({
         id: 'local',
         kind: 'local-pty',
@@ -556,7 +556,7 @@ test('it truncates a stored result past 16 KiB', async () => {
         provider: ctx.local,
       }),
     ],
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -564,14 +564,14 @@ test('it truncates a stored result past 16 KiB', async () => {
 
   manager.log = ctx.log;
 
-  const session = await manager.spawn(
-    ctx.directory,
-    'worker',
-    'go',
-    80,
-    24,
-    toAgentSessionID('c-1'),
-  );
+  const session = await manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: 'go',
+    cols: 80,
+    rows: 24,
+    resume: toAgentSessionID('c-1'),
+  });
 
   manager.applyHook({ atcId: session.id, event: 'Stop', payload: {} });
 
@@ -585,11 +585,11 @@ test('it truncates a stored result past 16 KiB', async () => {
 test('it persists the transcript path its hooks report', async () => {
   const ctx = await setupTest();
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter(),
-    ctx.store,
-    ctx.statusPath,
-    [
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [
       buildMockAgentAdapter({
         planHookEvents: () => ({
           events: [
@@ -602,7 +602,7 @@ test('it persists the transcript path its hooks report', async () => {
         }),
       }),
     ],
-    [
+    targets: [
       buildMockExecutionTarget({
         id: 'local',
         kind: 'local-pty',
@@ -610,7 +610,7 @@ test('it persists the transcript path its hooks report', async () => {
         provider: ctx.local,
       }),
     ],
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -618,7 +618,13 @@ test('it persists the transcript path its hooks report', async () => {
 
   manager.log = ctx.log;
 
-  const session = await manager.spawn(ctx.directory, 'worker', '', 80, 24);
+  const session = await manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
 
   manager.applyHook({ atcId: session.id, event: 'SessionStart', payload: {} });
 
@@ -644,16 +650,16 @@ test('it persists the transcript path its hooks report', async () => {
 test('it keeps a crashed sibling restorable as live when another session finishes a turn', async () => {
   const ctx = await setupTest();
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter(),
-    ctx.store,
-    ctx.statusPath,
-    [
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [
       buildMockAgentAdapter({
         planHookEvents: () => ({ events: [{ kind: 'turn-done', result: 'all green' }] }),
       }),
     ],
-    [
+    targets: [
       buildMockExecutionTarget({
         id: 'local',
         kind: 'local-pty',
@@ -661,7 +667,7 @@ test('it keeps a crashed sibling restorable as live when another session finishe
         provider: ctx.local,
       }),
     ],
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -669,23 +675,23 @@ test('it keeps a crashed sibling restorable as live when another session finishe
 
   manager.log = ctx.log;
 
-  const finisher = await manager.spawn(
-    ctx.directory,
-    'finisher',
-    'go',
-    80,
-    24,
-    toAgentSessionID('c-1'),
-  );
+  const finisher = await manager.spawn({
+    cwd: ctx.directory,
+    name: 'finisher',
+    prompt: 'go',
+    cols: 80,
+    rows: 24,
+    resume: toAgentSessionID('c-1'),
+  });
 
-  const crasher = await manager.spawn(
-    ctx.directory,
-    'crasher',
-    'go',
-    80,
-    24,
-    toAgentSessionID('c-2'),
-  );
+  const crasher = await manager.spawn({
+    cwd: ctx.directory,
+    name: 'crasher',
+    prompt: 'go',
+    cols: 80,
+    rows: 24,
+    resume: toAgentSessionID('c-2'),
+  });
 
   await manager.writeFleet();
 
@@ -735,12 +741,12 @@ test('it keeps a crashed sibling restorable as live when another session finishe
 test('it lets go of each harness when disposed', async () => {
   const ctx = await setupTest();
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter(),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    [
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: [
       buildMockExecutionTarget({
         id: 'local',
         kind: 'local-pty',
@@ -748,7 +754,7 @@ test('it lets go of each harness when disposed', async () => {
         provider: ctx.local,
       }),
     ],
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -756,8 +762,8 @@ test('it lets go of each harness when disposed', async () => {
 
   manager.log = ctx.log;
 
-  await manager.spawn(ctx.directory, 'worker', '', 80, 24);
-  await manager.spawn(ctx.directory, 'helper', '', 80, 24);
+  await manager.spawn({ cwd: ctx.directory, name: 'worker', prompt: '', cols: 80, rows: 24 });
+  await manager.spawn({ cwd: ctx.directory, name: 'helper', prompt: '', cols: 80, rows: 24 });
 
   manager[Symbol.dispose]();
 
@@ -767,12 +773,12 @@ test('it lets go of each harness when disposed', async () => {
 test('it allows a second disposal', async () => {
   const ctx = await setupTest();
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter(),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    [
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: [
       buildMockExecutionTarget({
         id: 'local',
         kind: 'local-pty',
@@ -780,7 +786,7 @@ test('it allows a second disposal', async () => {
         provider: ctx.local,
       }),
     ],
-  );
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
@@ -788,7 +794,7 @@ test('it allows a second disposal', async () => {
 
   manager.log = ctx.log;
 
-  await manager.spawn(ctx.directory, 'worker', '', 80, 24);
+  await manager.spawn({ cwd: ctx.directory, name: 'worker', prompt: '', cols: 80, rows: 24 });
 
   manager[Symbol.dispose]();
 
@@ -802,12 +808,12 @@ test('it gives the boot handler it was built with the first spawn on the harness
 
   const onBoot = mock<(session: Session, cols: number, rows: number) => void>();
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter(),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    [
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: [
       buildMockExecutionTarget({
         id: 'local',
         kind: 'local-pty',
@@ -815,15 +821,21 @@ test('it gives the boot handler it was built with the first spawn on the harness
         provider: ctx.local,
       }),
     ],
-    [],
-    { onBoot },
-  );
+    targetErrors: [],
+    events: { onBoot },
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();
   });
 
-  const session = await manager.spawn(ctx.directory, 'lighthouse', '', 100, 30);
+  const session = await manager.spawn({
+    cwd: ctx.directory,
+    name: 'lighthouse',
+    prompt: '',
+    cols: 100,
+    rows: 30,
+  });
 
   expect(onBoot).toHaveBeenCalledExactlyOnceWith(session, 100, 30);
 });
@@ -833,12 +845,12 @@ test('it gives the event handler it was built with a session restored at daemon 
 
   const onEvent = mock<(kind: SessionEventKind, session: Session) => void>();
 
-  const manager = createSessionManager(
-    buildMockAgentAdapter(),
-    ctx.store,
-    ctx.statusPath,
-    [],
-    [
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: [
       buildMockExecutionTarget({
         id: 'local',
         kind: 'local-pty',
@@ -846,9 +858,9 @@ test('it gives the event handler it was built with a session restored at daemon 
         provider: ctx.local,
       }),
     ],
-    [],
-    { onEvent },
-  );
+    targetErrors: [],
+    events: { onEvent },
+  });
 
   registerTestCleanup(() => {
     manager.detachAll();

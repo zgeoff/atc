@@ -96,6 +96,14 @@ export interface SpawnService {
   ) => string[];
 }
 
+interface MaterializeSpawnWorkspaceOptions {
+  readonly params: SpawnParams;
+  readonly id: SessionID;
+  readonly source: SpawnWorkspaceSource;
+  readonly host: SpawnHostAccess;
+  readonly targetIdentity: string;
+}
+
 export function createSpawnService(deps: SpawnServiceDeps): SpawnService {
   const manager = deps.manager;
   const store = deps.store;
@@ -111,24 +119,18 @@ export function createSpawnService(deps: SpawnServiceDeps): SpawnService {
   // Materializes a spawn's workspace on the host its spawn readies once the
   // source resolves, under the target identity the spawn bound, and every
   // provider call passes the execution gate against that binding.
-  const materializeSpawnWorkspace = async (
-    params: SpawnParams,
-    id: SessionID,
-    source: SpawnWorkspaceSource,
-    host: SpawnHostAccess,
-    targetIdentity: string,
-  ) => {
-    const binding = { target: params.target, targetIdentity };
+  const materializeSpawnWorkspace = async (options: MaterializeSpawnWorkspaceOptions) => {
+    const binding = { target: options.params.target, targetIdentity: options.targetIdentity };
     const bound = manager.requireExecution(binding, 'run');
 
     return materializeWorkspace(
       {
-        sessionID: id,
-        target: params.target,
-        directory: params.cwd,
-        source,
+        sessionID: options.id,
+        target: options.params.target,
+        directory: options.params.cwd,
+        source: options.source,
         inPlace: bound.provider.kind === 'local-pty',
-        autoDir: params.autoDir,
+        autoDir: options.params.autoDir,
       },
       {
         requireProvider: (capability) => manager.requireExecution(binding, capability).provider,
@@ -136,10 +138,10 @@ export function createSpawnService(deps: SpawnServiceDeps): SpawnService {
         log: (line) => {
           manager.log(line);
         },
-        readyHost: host.readyHost,
-        removeClaim: host.removeClaim,
+        readyHost: options.host.readyHost,
+        removeClaim: options.host.removeClaim,
         stagingRoot: tmpdir(),
-        timer: host.timer,
+        timer: options.host.timer,
         gitTransports,
         clock,
 
@@ -171,24 +173,24 @@ export function createSpawnService(deps: SpawnServiceDeps): SpawnService {
   ): Promise<SessionDescriptor> => {
     const answered: { descriptor: SessionDescriptor | null } = { descriptor: null };
 
-    await manager.spawn(
-      params.cwd,
-      params.name,
-      params.prompt,
-      params.cols,
-      params.rows,
-      params.resume,
-      params.namedBy,
-      params.agent,
-      params.parent,
-      params.overrides,
+    await manager.spawn({
+      cwd: params.cwd,
+      name: params.name,
+      prompt: params.prompt,
+      cols: params.cols,
+      rows: params.rows,
+      resume: params.resume,
+      namedBy: params.namedBy,
+      agent: params.agent,
+      parent: params.parent,
+      overrides: params.overrides,
       id,
-      params.target,
+      target: params.target,
       materialize,
       requireInReach,
-      params.autoDir,
-      params.scope,
-      (session) => {
+      autoDir: params.autoDir,
+      scope: params.scope,
+      answer: (session) => {
         const runtime = findRuntime(session.id);
 
         if (runtime !== undefined) {
@@ -203,7 +205,7 @@ export function createSpawnService(deps: SpawnServiceDeps): SpawnService {
 
         answered.descriptor = getDescriptor(session.id);
       },
-    );
+    });
 
     if (answered.descriptor === null) {
       throw new Error(`the spawn of session ${id} returned without its answer`);
@@ -227,13 +229,13 @@ export function createSpawnService(deps: SpawnServiceDeps): SpawnService {
       source === null
         ? null
         : async (host, targetIdentity) => {
-            const prepared = await materializeSpawnWorkspace(
+            const prepared = await materializeSpawnWorkspace({
               params,
               id,
               source,
               host,
               targetIdentity,
-            );
+            });
 
             if (prepared.kind !== 'ready') {
               return null;

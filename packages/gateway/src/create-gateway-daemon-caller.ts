@@ -33,6 +33,12 @@ interface OpenConnection {
 // A connection as a request reads it, which never replaces its callback.
 type SendingConnection = Readonly<{ channel: Readonly<GatewayChannel>; hello: DaemonHello }>;
 
+interface GatewayRequest {
+  readonly method: string;
+  readonly params: Readonly<Record<string, unknown>>;
+  readonly as: Principal | undefined;
+}
+
 const CONNECT_TIMEOUT_MS = 10_000;
 const RESPONSE_TIMEOUT_MS = 30_000;
 
@@ -169,9 +175,7 @@ export function createGatewayDaemonCaller(opts: GatewayDaemonCallerOptions): Gat
 
   const trySend = async (
     connection: SendingConnection,
-    method: string,
-    requestParams: Readonly<Record<string, unknown>>,
-    as: Principal | undefined,
+    request: GatewayRequest,
     prepareParams: ParamsPreparer,
   ): Promise<
     | { readonly kind: 'answered'; readonly ok: Readonly<Record<string, unknown>> }
@@ -181,7 +185,7 @@ export function createGatewayDaemonCaller(opts: GatewayDaemonCallerOptions): Gat
     // connection's handshake, so whatever it decides still holds when the
     // request leaves.
     const channel = connection.channel;
-    const sent = prepareParams(requestParams);
+    const sent = prepareParams(request.params);
     const timeout = Promise.withResolvers<'timeout'>();
 
     // A request that waits for a change on the daemon, such as a long poll,
@@ -201,7 +205,7 @@ export function createGatewayDaemonCaller(opts: GatewayDaemonCallerOptions): Gat
       try {
         return {
           kind: 'ok' as const,
-          ok: await channel.sendRequest(method, sent, as?.id, as?.name),
+          ok: await channel.sendRequest(request.method, sent, request.as?.id, request.as?.name),
         };
       } catch (error) {
         return { kind: 'error' as const, error };
@@ -230,7 +234,7 @@ export function createGatewayDaemonCaller(opts: GatewayDaemonCallerOptions): Gat
 
     // a replay-only request gets this for a key the daemon never held or has dropped
     if (raced.error instanceof DaemonError && raced.error.code === 'idempotency_key_unknown') {
-      throw buildOutcomeUnknown(method);
+      throw buildOutcomeUnknown(request.method);
     }
 
     throw raced.error;
@@ -239,9 +243,10 @@ export function createGatewayDaemonCaller(opts: GatewayDaemonCallerOptions): Gat
   return {
     sendRequest: async (method, givenParams, as, prepareParams = (params) => params) => {
       const requestParams = givenParams ?? {};
+      const request = { method, params: requestParams, as };
 
       const opened = await transport.waitForConnection();
-      const first = await trySend(opened, method, requestParams, as, prepareParams);
+      const first = await trySend(opened, request, prepareParams);
 
       if (first.kind === 'answered') {
         return first.ok;
@@ -267,7 +272,7 @@ export function createGatewayDaemonCaller(opts: GatewayDaemonCallerOptions): Gat
 
       // a keyed retry only ever replays, so a daemon whose first send never arrived, or that
       // has dropped the key since, runs nothing a second time
-      const second = await trySend(fresh, method, requestParams, as, (params) =>
+      const second = await trySend(fresh, request, (params) =>
         keyed ? { ...prepareParams(params), replayOnly: true } : prepareParams(params),
       );
 

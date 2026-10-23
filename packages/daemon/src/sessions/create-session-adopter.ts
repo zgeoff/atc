@@ -335,24 +335,24 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
     // back before the harness starts.
     try {
       const setup = await harnesses.withHostReadying(session.hostKey, async () => {
-        const planned = await auth.setupHarnessOnHost(
+        const planned = await auth.setupHarnessOnHost({
           adapter,
           provider,
-          session.id,
-          session.hostKey,
-          session.target,
-          {
+          id: session.id,
+          hostKey: session.hostKey,
+          target: session.target,
+          spawnOptions: {
             prompt: '',
             resume,
             ...(session.model === undefined ? {} : { model: session.model }),
             ...(session.effort === undefined ? {} : { effort: session.effort }),
             ...(session.pluginDirs === undefined ? {} : { pluginDirs: session.pluginDirs }),
           },
-          authSetup,
-          session.cwd,
-          false,
+          auth: authSetup,
+          cwd: session.cwd,
+          isNewHost: false,
           timer,
-        );
+        });
 
         const records = callbacks.findRecords();
 

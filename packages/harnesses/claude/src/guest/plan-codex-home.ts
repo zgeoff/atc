@@ -14,23 +14,25 @@ const CODEX_HOME_FOLDER = 'codex-home';
 // Variables Codex takes a credential from ahead of its sign-in file.
 const CREDENTIAL_VARIABLES = ['OPENAI_API_KEY', 'CODEX_API_KEY', 'CODEX_ACCESS_TOKEN'];
 
+interface PlanCodexHomeOptions {
+  readonly authProfiles: Config['authProfiles'];
+  readonly selected: readonly string[];
+  readonly guestDir: string;
+  readonly revisionFolder: string;
+  readonly states: Readonly<Record<string, GuestOAuthState>>;
+}
+
 // the home replaces the image's own Codex home, its settings included; without a ready
 // chatgpt.com sign-in Codex keeps the image's sign-in
-export function planCodexHome(
-  authProfiles: Config['authProfiles'],
-  selected: readonly string[],
-  guestDir: string,
-  revisionFolder: string,
-  states: Readonly<Record<string, GuestOAuthState>>,
-): CodexHomePlan {
-  const secret = findChatGPTSecret(authProfiles, selected);
-  const signIn = secret === null ? null : findCodexSignIn(states[secret]);
+export function planCodexHome(options: PlanCodexHomeOptions): CodexHomePlan {
+  const secret = findChatGPTSecret(options.authProfiles, options.selected);
+  const signIn = secret === null ? null : findCodexSignIn(options.states[secret]);
 
   if (signIn === null) {
     return { files: {}, env: {}, unsetEnv: [] };
   }
 
-  const home = `${revisionFolder}/${CODEX_HOME_FOLDER}`;
+  const home = `${options.revisionFolder}/${CODEX_HOME_FOLDER}`;
 
   return {
     files: {
@@ -40,7 +42,7 @@ export function planCodexHome(
       },
       [`${home}/config.toml`]: buildCodexConfig(),
     },
-    env: { CODEX_HOME: `${guestDir}/${home}` },
+    env: { CODEX_HOME: `${options.guestDir}/${home}` },
     unsetEnv: CREDENTIAL_VARIABLES,
   };
 }

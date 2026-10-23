@@ -142,7 +142,10 @@ function recordOutcome(
 ): RoutedOutcome {
   return match(outcome)
     .with({ kind: 'answered' }, (answered) => {
-      deps.store.updateOutcome(call.principal.id, call.method, key, 'completed', deps.clock.now());
+      deps.store.updateOutcome(call.principal.id, call.method, key, {
+        outcome: 'completed',
+        now: deps.clock.now(),
+      });
 
       return answered;
     })
@@ -151,14 +154,11 @@ function recordOutcome(
       const rawRef = refused.error.data?.['effectRef'];
       const effectRef = typeof rawRef === 'string' ? rawRef : null;
 
-      deps.store.updateOutcome(
-        call.principal.id,
-        call.method,
-        key,
-        recorded,
-        deps.clock.now(),
+      deps.store.updateOutcome(call.principal.id, call.method, key, {
+        outcome: recorded,
+        now: deps.clock.now(),
         effectRef,
-      );
+      });
 
       const held = deps.store.findBinding(call.principal.id, call.method, key);
 
