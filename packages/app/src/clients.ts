@@ -8,8 +8,10 @@ import {
   removeClient,
 } from '@atc/mcp';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
+import { PROCESS_IO } from './process-io';
+import type { ProcessIO } from './process-io';
 
-type ClientsAction =
+export type ClientsAction =
   | { readonly kind: 'list' }
   | { readonly kind: 'add'; readonly name: string; readonly redirectURIs: readonly string[] }
   | { readonly kind: 'remove'; readonly clientID: string };
@@ -21,34 +23,10 @@ interface ClientsTarget {
   readonly command: string;
 }
 
-// Where the command's lines and its exit code go, and how it exits: the
-// console and the process by default.
-interface ClientsIO {
-  readonly print: (line: string) => void;
-  readonly printError: (line: string) => void;
-  readonly setExitCode: (code: number) => void;
-  readonly exit: (code: number) => void;
-}
-
-const PROCESS_IO: ClientsIO = {
-  print: (line) => {
-    console.log(line);
-  },
-  printError: (line) => {
-    console.error(line);
-  },
-  setExitCode: (code) => {
-    process.exitCode = code;
-  },
-  exit: (code) => {
-    process.exit(code);
-  },
-};
-
 export async function runClients(
   action: ClientsAction,
   target: ClientsTarget,
-  io: ClientsIO = PROCESS_IO,
+  io: Pick<ProcessIO, 'print' | 'printError' | 'setExitCode' | 'exit'> = PROCESS_IO,
 ): Promise<void> {
   if (action.kind === 'add') {
     const refused = action.redirectURIs.find((uri) => !isAllowedRedirectURI(uri));

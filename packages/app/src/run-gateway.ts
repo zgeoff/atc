@@ -6,6 +6,8 @@ import type { MCPHTTPServer } from '@atc/mcp';
 import { openDaemonClient } from '@atc/protocol/client';
 import { openSQLite } from '@atc/store/sqlite';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
+import { PROCESS_IO } from './process-io';
+import type { ProcessIO } from './process-io';
 
 interface GatewayFlags {
   readonly host: string;
@@ -18,39 +20,16 @@ interface GatewayFlags {
   readonly stateDir: string;
 }
 
-// What the gateway reaches outside itself, the process's own by default:
-// the environment its daemon tokens come from, the console, the exit, and
-// the signal listeners that stop it.
-interface GatewayIO {
+interface GatewayIO extends Pick<ProcessIO, 'print' | 'printError' | 'exit' | 'registerSignal'> {
   readonly env: Readonly<Record<string, string | undefined>>;
-  readonly print: (line: string) => void;
-  readonly printError: (line: string) => void;
-  readonly exit: (code: number) => void;
-  readonly registerSignal: (signal: 'SIGINT' | 'SIGTERM', listener: () => Promise<void>) => void;
 }
 
-const PROCESS_IO: GatewayIO = {
-  env: process.env,
-  print: (line) => {
-    console.log(line);
-  },
-  printError: (line) => {
-    console.error(line);
-  },
-  exit: (code) => {
-    process.exit(code);
-  },
-  registerSignal: (signal, listener) => {
-    process.on(signal, () => {
-      void listener();
-    });
-  },
-};
+const GATEWAY_IO: GatewayIO = { ...PROCESS_IO, env: process.env };
 
 export async function runGateway(
   build: string,
   flags: GatewayFlags,
-  io: GatewayIO = PROCESS_IO,
+  io: GatewayIO = GATEWAY_IO,
 ): Promise<void> {
   const loaded = loadGatewayRegistry(flags.registryPath, io.env);
 

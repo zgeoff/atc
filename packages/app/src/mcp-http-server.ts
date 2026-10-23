@@ -12,6 +12,8 @@ import {
 } from '@atc/mcp';
 import type { DaemonBoot, DaemonBootOptions, DaemonPaths } from '@atc/protocol';
 import { openDaemonClient } from '@atc/protocol/client';
+import { PROCESS_IO } from './process-io';
+import type { ProcessIO } from './process-io';
 
 interface MCPHTTPFlags {
   readonly host: string | null;
@@ -20,37 +22,23 @@ interface MCPHTTPFlags {
   readonly waitForDaemon: boolean;
 }
 
-interface MCPHTTPServerIO {
+interface MCPHTTPServerIO extends Pick<
+  ProcessIO,
+  'print' | 'printError' | 'exit' | 'registerSignal'
+> {
   readonly loadConfig: () => MCPHTTPConfig;
   readonly dbPath: string;
 
   // null for the process's own daemon files, the only ones at which it starts
   // a daemon
   readonly daemonPaths: DaemonPaths | null;
-  readonly print: (line: string) => void;
-  readonly printError: (line: string) => void;
-  readonly exit: (code: number) => void;
-  readonly registerSignal: (signal: 'SIGINT' | 'SIGTERM', listener: () => Promise<void>) => void;
 }
 
-const PROCESS_IO: MCPHTTPServerIO = {
+const MCP_HTTP_SERVER_IO: MCPHTTPServerIO = {
+  ...PROCESS_IO,
   loadConfig: loadMCPHTTPConfig,
   dbPath: mcpAuthDBFile,
   daemonPaths: null,
-  print: (line) => {
-    console.log(line);
-  },
-  printError: (line) => {
-    console.error(line);
-  },
-  exit: (code) => {
-    process.exit(code);
-  },
-  registerSignal: (signal, listener) => {
-    process.on(signal, () => {
-      void listener();
-    });
-  },
 };
 
 // What the entry wires in: the daemon boot and the opener of the
@@ -68,7 +56,7 @@ export async function runMCPHTTPServer(
   build: string,
   flags: MCPHTTPFlags,
   host: MCPHTTPServerHost,
-  io: MCPHTTPServerIO = PROCESS_IO,
+  io: MCPHTTPServerIO = MCP_HTTP_SERVER_IO,
 ): Promise<void> {
   const config = io.loadConfig();
 

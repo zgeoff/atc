@@ -73,6 +73,9 @@ const GATEWAY_APP_MODULES: readonly string[] = [
   'open-mcp-auth-database.ts',
   'clients.ts',
   'passkeys.ts',
+  'create-clients-command.ts',
+  'create-passkeys-command.ts',
+  'process-io.ts',
 ];
 
 function checkFile(verb: string, file: string): string[] {

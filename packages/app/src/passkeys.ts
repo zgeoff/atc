@@ -9,8 +9,10 @@ import {
   resetPasskeys,
 } from '@atc/mcp';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
+import { PROCESS_IO } from './process-io';
+import type { ProcessIO } from './process-io';
 
-type PasskeysAction =
+export type PasskeysAction =
   | { readonly kind: 'list' }
   | { readonly kind: 'enroll'; readonly reset: boolean }
   | { readonly kind: 'remove'; readonly id: string };
@@ -22,32 +24,16 @@ interface PasskeysTarget {
   readonly command: string;
 }
 
-// Where the command's lines and its exit code go, and the time tokens
-// expire from: the console, the process, and the system clock by default.
-interface PasskeysIO {
-  readonly print: (line: string) => void;
-  readonly printError: (line: string) => void;
-  readonly setExitCode: (code: number) => void;
+interface PasskeysIO extends Pick<ProcessIO, 'print' | 'printError' | 'setExitCode'> {
   readonly now: () => number;
 }
 
-const PROCESS_IO: PasskeysIO = {
-  print: (line) => {
-    console.log(line);
-  },
-  printError: (line) => {
-    console.error(line);
-  },
-  setExitCode: (code) => {
-    process.exitCode = code;
-  },
-  now: () => systemClock.now(),
-};
+const PASSKEYS_IO: PasskeysIO = { ...PROCESS_IO, now: () => systemClock.now() };
 
 export async function runPasskeys(
   action: PasskeysAction,
   target: PasskeysTarget,
-  io: PasskeysIO = PROCESS_IO,
+  io: PasskeysIO = PASSKEYS_IO,
 ): Promise<void> {
   mkdirSync(dirname(target.dbPath), { recursive: true });
 

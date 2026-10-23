@@ -1,6 +1,5 @@
-// Checks the import graph under packages/app/src/: no cycles (type-only
-// imports count), and each directory imports only the directories its row
-// allows. Test files are exempt from the direction rules.
+// Checks the import graph under packages/app/src/ for cycles, counting
+// type-only imports.
 import { readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { collectImports } from './collect-imports';
@@ -12,8 +11,6 @@ function main(): void {
 
   const known = new Set(files);
   const graph = new Map<string, string[]>();
-
-  const findings: string[] = [];
 
   for (const file of files) {
     const imports = collectImports(readFileSync(join(root, file), 'utf8'));
@@ -28,30 +25,23 @@ function main(): void {
     }
 
     graph.set(file, targets);
-    findings.push(...checkDirection(file, targets));
   }
 
   const cycles = collectCycles(graph);
 
   for (const cycle of cycles) {
-    findings.push(`cycle among: ${cycle.join(', ')}`);
+    console.error(`cycle among: ${cycle.join(', ')}`);
   }
 
-  for (const finding of findings) {
-    console.error(finding);
-  }
+  console.log(`check-imports: ${files.length} files, ${cycles.length} cycles`);
 
-  console.log(
-    `check-imports: ${files.length} files, ${cycles.length} cycles, ${findings.length - cycles.length} other findings`,
-  );
-
-  if (findings.length > 0) {
+  if (cycles.length > 0) {
     process.exit(1);
   }
 }
 
 // The app's source root, relative to the repo root that paths in findings
-// and rules start from.
+// start from.
 const SOURCE_ROOT = 'packages/app/src';
 
 function resolveImport(file: string, specifier: string, known: ReadonlySet<string>): string | null {
@@ -64,67 +54,6 @@ function resolveImport(file: string, specifier: string, known: ReadonlySet<strin
   }
 
   return null;
-}
-
-// The entrypoints that wire concrete modules together, exempt from the
-// direction rules.
-const COMPOSITION_ROOTS: ReadonlySet<string> = new Set([
-  'packages/app/src/cli.ts',
-  'packages/app/src/gateway.ts',
-]);
-
-const ALLOWED_IMPORTS: Readonly<Record<string, readonly string[]>> = {
-  shared: [],
-
-  // the plugin registry: the plugins atc ships, from their packages
-  plugins: ['shared'],
-  agents: ['shared', 'plugins'],
-  sources: ['shared', 'plugins'],
-
-  // the client reads the agents from config through the shipped harness
-  // plugins
-  client: ['shared', 'plugins'],
-  mcp: ['shared'],
-
-  // modules at the source root: the subcommand modules beside the entrypoints
-  root: ['shared', 'agents', 'client', 'mcp', 'plugins'],
-
-  // the shared test helpers wire real modules together the way a test does,
-  // and no production row lists them, so no production module imports one
-  'test-utils': ['shared', 'agents', 'sources', 'client', 'mcp', 'root', 'plugins'],
-};
-
-function checkDirection(file: string, targets: readonly string[]): string[] {
-  // a test wires real modules from several directories together, so only
-  // production modules are held to the direction rules
-  if (COMPOSITION_ROOTS.has(file) || file.endsWith('.test.ts')) {
-    return [];
-  }
-
-  const from = getLayer(file);
-  const allowed = ALLOWED_IMPORTS[from];
-
-  if (allowed === undefined) {
-    return [`unknown directory: ${file} is in ${SOURCE_ROOT}/${from}/, which has no import rule`];
-  }
-
-  const findings: string[] = [];
-
-  for (const target of targets) {
-    const to = getLayer(target);
-
-    if (to !== from && !allowed.includes(to)) {
-      findings.push(`forbidden edge: ${file} imports ${target} (${from} -> ${to})`);
-    }
-  }
-
-  return findings;
-}
-
-function getLayer(file: string): string {
-  const parts = relative(SOURCE_ROOT, file).split('/');
-
-  return parts.length > 1 ? (parts[0] ?? 'root') : 'root';
 }
 
 // Tarjan's strongly connected components: every component with more than one

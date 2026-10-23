@@ -3,31 +3,13 @@ import { dirname } from 'node:path';
 import { mcpAuthDBFile } from '@atc/config';
 import { openMCPAuth, readGrantViews, revokeGrant } from '@atc/mcp';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
-
-// Where the command's lines and its exit code go: the console and the
-// process by default.
-interface GrantsIO {
-  readonly print: (line: string) => void;
-  readonly printError: (line: string) => void;
-  readonly setExitCode: (code: number) => void;
-}
-
-const PROCESS_IO: GrantsIO = {
-  print: (line) => {
-    console.log(line);
-  },
-  printError: (line) => {
-    console.error(line);
-  },
-  setExitCode: (code) => {
-    process.exitCode = code;
-  },
-};
+import { PROCESS_IO } from './process-io';
+import type { ProcessIO } from './process-io';
 
 export async function runGrants(
   revoke: string | null,
   dbPath: string = mcpAuthDBFile,
-  io: GrantsIO = PROCESS_IO,
+  io: Pick<ProcessIO, 'print' | 'printError' | 'setExitCode'> = PROCESS_IO,
 ): Promise<void> {
   mkdirSync(dirname(dbPath), { recursive: true });
 

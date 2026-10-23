@@ -1,31 +1,24 @@
 import { copyFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { systemClock } from '@atc/core';
 import { buildMigratedConfig } from './build-migrated-config';
+import { PROCESS_IO } from './process-io';
+import type { ProcessIO } from './process-io';
 
-// Where the command's output goes, the console by default: text printed as
-// it is, and lines printed to stdout or stderr.
-interface ConfigMigrateIO {
+interface ConfigMigrateIO extends Pick<ProcessIO, 'print' | 'printError'> {
   readonly printText: (text: string) => void;
-  readonly print: (line: string) => void;
-  readonly printError: (line: string) => void;
 }
 
-const CONSOLE_IO: ConfigMigrateIO = {
+const CONFIG_MIGRATE_IO: ConfigMigrateIO = {
+  ...PROCESS_IO,
   printText: (text) => {
     process.stdout.write(text);
-  },
-  print: (line) => {
-    console.log(line);
-  },
-  printError: (line) => {
-    console.error(line);
   },
 };
 
 export function runConfigMigrate(
   file: string,
   write: boolean,
-  io: ConfigMigrateIO = CONSOLE_IO,
+  io: ConfigMigrateIO = CONFIG_MIGRATE_IO,
 ): number {
   let text: string;
 
