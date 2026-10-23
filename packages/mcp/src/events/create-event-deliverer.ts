@@ -228,8 +228,9 @@ async function deliverEvent(
   delivery: PageDelivery,
   event: TrailPage['events'][number],
 ): Promise<boolean> {
-  const digest = createHash('sha256').update(event.cursor).digest('hex');
-  const delivered = createHash('sha256').update(`${delivery.subscriptionID}.${event.cursor}`);
+  const source = formatEventSource(event);
+  const digest = createHash('sha256').update(source).digest('hex');
+  const delivered = createHash('sha256').update(`${delivery.subscriptionID}.${source}`);
   const webhookID = `msg_${delivered.digest('hex').slice(0, 32)}`;
   let attempt = 1;
   let isRechecking = false;
@@ -294,6 +295,14 @@ async function deliverEvent(
 
     return true;
   }
+}
+
+// A gateway's merged cursor changes when another daemon's place moves, so an
+// event a gateway merged takes its identity from the daemon that wrote it.
+function formatEventSource(event: TrailPage['events'][number]): string {
+  return event.origin === undefined
+    ? event.cursor
+    : `${event.origin.daemon}.${event.origin.incarnation}.${event.origin.cursor}`;
 }
 
 // Ends early once the signal aborts, so a stopped watcher waits on nothing.

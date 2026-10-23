@@ -46,12 +46,16 @@ A call goes to the daemon its ids name, then to the daemon its params name, then
 daemon. A call whose ids and params name two different daemons is refused with `bad_args`. A call
 never fails over to another daemon. Listings of sessions and agents fan out to every daemon and
 report each daemon's state beside the merged answer: up, down, unauthorized, refused, or changed
-when its identity no longer matches the registry. An event read merges every daemon's trail under
-one gateway cursor that keeps each daemon's place, so a daemon that did not answer resumes from
-where it stopped on the next call. The page lists a daemon that did not answer under `unavailable`,
-one the read started at its newest or latest events under `started`, and one whose older events went
-unread under `truncated`. A read that waits first reads every daemon without waiting, and only when
-none has an event does each wait, returning as soon as one has.
+when its identity no longer matches the registry.
+
+An event read merges every daemon's trail under one gateway cursor that keeps each daemon's place,
+so a daemon that did not answer resumes from where it stopped on the next call. Each merged event
+holds an `origin`: its daemon's name and incarnation and the daemon's own cursor of the event, which
+stays the same when another daemon's place changes the merged cursor. The page lists a daemon that
+did not answer under `unavailable`, one the read started at its newest or latest events under
+`started`, and one whose older events went unread under `truncated`. A read that waits first reads
+every daemon without waiting, and only when none has an event does each wait, returning as soon as
+one has.
 
 Every other call passes through the gateway's routing steps in a fixed order. The id rules rewrite
 its ids, the daemon pick chooses its daemon, the key binding binds its idempotency key, and the
