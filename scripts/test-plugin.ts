@@ -54,7 +54,7 @@ async function main(): Promise<void> {
   const directory = mkdtempSync(join(tmpdir(), `atc-test-plugin-${plugin.name}-`));
 
   try {
-    createPluginWorkspace(repo, directory, plugin, packages);
+    createPluginWorkspace(repo, directory, plugin, packages, workspace);
 
     const steps: readonly (readonly string[])[] = [
       ['bun', 'install'],
@@ -110,6 +110,7 @@ function createPluginWorkspace(
   directory: string,
   plugin: WorkspacePackage,
   packages: readonly WorkspacePackage[],
+  workspace: readonly WorkspacePackage[],
 ): void {
   for (const rule of packages) {
     cpSync(join(repo, rule.directory), join(directory, rule.directory), {
@@ -122,7 +123,7 @@ function createPluginWorkspace(
     cpSync(join(repo, path), join(directory, path), { recursive: true });
   }
 
-  writeWorkspaceManifest(repo, directory, packages);
+  writeWorkspaceManifest(repo, directory, packages, workspace);
 
   writeFileSync(
     join(directory, 'tsconfig.json'),
@@ -148,18 +149,20 @@ function writeWorkspaceManifest(
   repo: string,
   directory: string,
   packages: readonly WorkspacePackage[],
+  workspace: readonly WorkspacePackage[],
 ): void {
   const text = readFileSync(join(repo, 'package.json'), 'utf8');
   const manifest = z.record(z.string(), z.unknown()).parse(JSON.parse(text));
 
-  const copied = new Set(packages.map((rule) => `@atc/${rule.name}`));
+  const copied = new Set(packages.map((rule) => rule.packageName));
+  const internal = new Set(workspace.map((rule) => rule.packageName));
 
   const declared = manifest['devDependencies'];
   const devDependencies = isStringRecord(declared) ? declared : {};
 
   const kept = Object.fromEntries(
     Object.entries(devDependencies).filter(
-      ([name]) => !TOOLING.has(name) && (!name.startsWith('@atc/') || copied.has(name)),
+      ([name]) => !TOOLING.has(name) && (!internal.has(name) || copied.has(name)),
     ),
   );
 
