@@ -16,6 +16,7 @@ import {
   runPasskeySignIn,
   sendModernMCPRequest,
   setupTempDir,
+  waitFor,
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { createEnrollmentToken } from '../auth/create-enrollment-token';
@@ -24,6 +25,7 @@ import { readGrantViews } from '../auth/read-grant-views';
 import { removeClient } from '../auth/remove-client';
 import { resetPasskeys } from '../auth/reset-passkeys';
 import { revokeGrant } from '../auth/revoke-grant';
+import { buildStubWebhookReceiver } from '../testing/build-stub-webhook-receiver';
 import { openTestAuthDatabase } from '../testing/open-test-auth-database';
 import { createTransportCaller } from '../tools/create-transport-caller';
 import { startMCPHTTPServer } from './start-mcp-http-server';
@@ -49,6 +51,7 @@ async function setupTest() {
   // The approval clock stands still, so every approval a test starts falls
   // inside one minute however long the test runs.
   const clock = buildStubClock(Date.now());
+  const receiver = buildStubWebhookReceiver();
 
   const startServer = (port: number, trustForwardedFrom: readonly string[] = []) =>
     startMCPHTTPServer({
@@ -68,6 +71,7 @@ async function setupTest() {
         security.push(line);
       },
       clock,
+      sendWebhook: receiver.send,
     });
 
   let server = await startServer(0);
@@ -89,6 +93,8 @@ async function setupTest() {
   security.length = 0;
 
   return {
+    daemon,
+    receiver,
     directory: daemon.directory,
     socketPath: daemon.socketPath,
     dbPath,
@@ -989,6 +995,95 @@ test('it refuses an access token once its grant is revoked', async () => {
   });
 
   expect(after.status).toBe(401);
+});
+
+test('it removes the subscription of a client that revoked its refresh token, and delivers it no later event', async () => {
+  const ctx = await setupTest();
+
+  const created = await ctx.store.auth.api.createFixedClient({
+    body: {
+      name: 'ChatGPT',
+      redirectURIs: ['https://chatgpt.com/connector_platform_oauth_redirect'],
+    },
+  });
+
+  const authorized = await runMCPAuthorization(ctx, {
+    clientID: created.clientID,
+    redirectURI: 'https://chatgpt.com/connector_platform_oauth_redirect',
+    scope: 'read',
+    ticked: ['read'],
+  });
+
+  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authorized.code,
+      redirect_uri: 'https://chatgpt.com/connector_platform_oauth_redirect',
+      client_id: created.clientID,
+      code_verifier: authorized.verifier,
+    }),
+  });
+
+  const tokens = await readJSONRecord(exchanged);
+  const head = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
+
+  await ctx.store.db
+    .insertInto('atc_event_subscription')
+    .values({
+      id: 'sub_0123456789abcdef0123456789abcdef',
+      client_id: created.clientID,
+      url: 'https://hooks.example.com/hook',
+      name: 'session.turn_done',
+      arguments: '{}',
+      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+      position: String(head['cursor']),
+      refresh_before: new Date(ctx.clock.now() + 60 * 60 * 1000).toISOString(),
+      created_at: new Date(ctx.clock.now()).toISOString(),
+    })
+    .execute();
+
+  await fetch(`${ctx.url}/oauth2/revoke`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      token: String(tokens['refresh_token']),
+      token_type_hint: 'refresh_token',
+      client_id: created.clientID,
+    }),
+  });
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.directory,
+    cols: 80,
+    rows: 24,
+  });
+
+  const session = spawned['session'];
+
+  invariant(
+    typeof session === 'object' && session !== null && 'id' in session,
+    'the spawn returned no session',
+  );
+
+  await ctx.daemon.sendHookLines({ atcId: String(session.id), event: 'Stop', payload: {} });
+  await ctx.restartServer();
+
+  await waitFor(() => {
+    expect(ctx.clock.collectPending()).toContain(5000);
+  });
+
+  ctx.clock.advance(5000);
+
+  await waitFor(async () => {
+    const subscriptions = await ctx.store.db
+      .selectFrom('atc_event_subscription')
+      .select('id')
+      .execute();
+
+    expect(subscriptions).toStrictEqual([]);
+  });
+
+  expect(ctx.receiver.received).toStrictEqual([]);
 });
 
 test('it refuses to refresh a token once its grant is revoked', async () => {
