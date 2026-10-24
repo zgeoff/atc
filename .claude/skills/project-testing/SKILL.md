@@ -54,6 +54,10 @@ so a lane suite never skips itself when the system is missing: it fails.
 | -------- | --------------------------------------------------------------- | ------------ | ------------------------- |
 | `.codex` | the Codex CLI's App Server, at the version `CODEX_VERSION` pins | `test:codex` | 5 s default (0.3 s on CI) |
 
+The `e2e` lane runs the `e2e/daemon-*` suites against the compiled binary through `test:e2e`, and
+the `e2e/gateway-*` suites against the compiled gateway through `test:e2e-gateway`. Both take the 15
+s e2e ceiling, because the first case of a suite on the macOS Intel runner has taken 7.4 s.
+
 ## The PTY harness
 
 [`startTUIHarness`](../../../packages/test-utils/src/start-tui-harness.ts) runs the real `atc`

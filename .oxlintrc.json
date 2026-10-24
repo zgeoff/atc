@@ -47,7 +47,10 @@
     "max-lines": "off",
     // a `<module>.codex.test.ts` suite runs the installed Codex CLI in the
     // test:codex lane, and tests the module beside it
-    "zgeoff/test-beside-module": ["error", { "lanes": ["codex"] }]
+    "zgeoff/test-beside-module": ["error", { "lanes": ["codex"] }],
+    // test:e2e-gateway runs the e2e gateway suites against the compiled gateway,
+    // and the shared timeout check lets a lane named here raise the timeout
+    "zgeoff/max-test-timeout": ["error", { "lanes": ["e2e-gateway"] }]
   },
   "overrides": [
     {
