@@ -94,7 +94,7 @@ jobs:
           echo "PROBE tmp $tmp"; ls -la "$tmp" | grep -iE 'pty|dylib|\.so' | sed 's/^/PROBE before /' || true
           one; one
           ls -la "$tmp" | grep -iE 'pty|dylib|\.so' | sed 's/^/PROBE after /' || true
-          find "$tmp" -maxdepth 1 -iname '*pty*' -print -delete | sed 's/^/PROBE deleted /' || true
+          find "$tmp" -maxdepth 1 -name '.bun-*.dylib' -print -delete | sed 's/^/PROBE deleted /' || true
           one; one
           bun run test:e2e e2e/daemon-*.test.ts
 
