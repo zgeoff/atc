@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
+import { toTimerClock } from '@atc/core';
 import type { Clock } from '@atc/core';
 import { EVENTS_PAGE_SCHEMA } from '@atc/protocol';
 import type { Kysely } from 'kysely';
@@ -64,32 +65,7 @@ export function createEventDeliverer(options: EventDelivererDeps): EventDelivere
   const watchers = new Map<string, Actor<typeof machine>>();
 
   const state = { stopped: false };
-
-  // xstate's clock takes a timer id, and the server's clock hands back a cancel
-  const cancels = new Map<number, () => void>();
-
-  let nextTimerID = 0;
-
-  const clock = {
-    setTimeout: (fn: () => void, timeout: number) => {
-      const timerID = nextTimerID++;
-
-      cancels.set(
-        timerID,
-        deps.clock.schedule(() => {
-          cancels.delete(timerID);
-
-          fn();
-        }, timeout),
-      );
-
-      return timerID;
-    },
-    clearTimeout: (timerID: number) => {
-      cancels.get(timerID)?.();
-      cancels.delete(timerID);
-    },
-  };
+  const clock = toTimerClock(deps.clock);
 
   const watch = (subscriptionID: string) => {
     if (state.stopped) {

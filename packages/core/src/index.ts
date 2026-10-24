@@ -34,6 +34,7 @@ export * from './to-daemon-id';
 export * from './to-message-id';
 export * from './to-session-id';
 export * from './to-shell-arg';
+export * from './to-timer-clock';
 export * from './truncate';
 export * from './truncate-detail';
 export * from './truncate-summary';
